@@ -1,5 +1,5 @@
 //
-//  Copyright (c) 2021 Open Whisper Systems. All rights reserved.
+//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
 //
 
 #import "OWSQuotedReplyModel.h"
@@ -28,11 +28,12 @@ NS_ASSUME_NONNULL_BEGIN
                           bodyRanges:(nullable MessageBodyRanges *)bodyRanges
                           bodySource:(TSQuotedMessageContentSource)bodySource
                       thumbnailImage:(nullable UIImage *)thumbnailImage
+                thumbnailViewFactory:(nullable UIView * (^)(void))thumbnailViewFactory
                          contentType:(nullable NSString *)contentType
                       sourceFilename:(nullable NSString *)sourceFilename
                     attachmentStream:(nullable TSAttachmentStream *)attachmentStream
     failedThumbnailAttachmentPointer:(nullable TSAttachmentPointer *)failedThumbnailAttachmentPointer
-    NS_DESIGNATED_INITIALIZER;
+                       reactionEmoji:(nullable NSString *)reactionEmoji NS_DESIGNATED_INITIALIZER;
 
 @end
 
@@ -47,10 +48,12 @@ NS_ASSUME_NONNULL_BEGIN
                           bodyRanges:(nullable MessageBodyRanges *)bodyRanges
                           bodySource:(TSQuotedMessageContentSource)bodySource
                       thumbnailImage:(nullable UIImage *)thumbnailImage
+                thumbnailViewFactory:(nullable UIView * (^)(void))thumbnailViewFactory
                          contentType:(nullable NSString *)contentType
                       sourceFilename:(nullable NSString *)sourceFilename
                     attachmentStream:(nullable TSAttachmentStream *)attachmentStream
     failedThumbnailAttachmentPointer:(nullable TSAttachmentPointer *)failedThumbnailAttachmentPointer
+                       reactionEmoji:(nullable NSString *)reactionEmoji
 {
     self = [super init];
     if (!self) {
@@ -63,10 +66,12 @@ NS_ASSUME_NONNULL_BEGIN
     _bodyRanges = bodyRanges;
     _bodySource = bodySource;
     _thumbnailImage = thumbnailImage;
+    _thumbnailViewFactory = thumbnailViewFactory;
     _contentType = contentType;
     _sourceFilename = sourceFilename;
     _attachmentStream = attachmentStream;
     _failedThumbnailAttachmentPointer = failedThumbnailAttachmentPointer;
+    _reactionEmoji = reactionEmoji;
 
     return self;
 }
@@ -75,6 +80,10 @@ NS_ASSUME_NONNULL_BEGIN
 
 + (nullable instancetype)quotedReplyFromMessage:(TSMessage *)message transaction:(SDSAnyReadTransaction *)transaction
 {
+    if (message.isStoryReply) {
+        return [self quotedStoryReplyFromMessage:message transaction:transaction];
+    }
+
     TSQuotedMessage *quotedMessage = message.quotedMessage;
     if (!quotedMessage) {
         return nil;
@@ -104,10 +113,79 @@ NS_ASSUME_NONNULL_BEGIN
                                 bodyRanges:quotedMessage.bodyRanges
                                 bodySource:quotedMessage.bodySource
                             thumbnailImage:thumbnailImage
+                      thumbnailViewFactory:nil
                                contentType:quotedMessage.contentType
                             sourceFilename:quotedMessage.sourceFilename
                           attachmentStream:nil
-          failedThumbnailAttachmentPointer:failedAttachmentPointer];
+          failedThumbnailAttachmentPointer:failedAttachmentPointer
+                             reactionEmoji:nil];
+}
+
++ (nullable instancetype)quotedStoryReplyFromMessage:(TSMessage *)message
+                                         transaction:(SDSAnyReadTransaction *)transaction
+{
+    if (!message.isStoryReply) {
+        return nil;
+    }
+
+    StoryMessage *_Nullable storyMessage = [StoryFinder storyWithTimestamp:message.storyTimestamp.unsignedLongLongValue
+                                                                    author:message.storyAuthorAddress
+                                                               transaction:transaction];
+    if (!storyMessage) {
+        // Story message does not exist, return generic reply.
+        return [[self alloc]
+                           initWithTimestamp:message.storyTimestamp.unsignedLongLongValue
+                               authorAddress:message.storyAuthorAddress
+                                        body:OWSLocalizedString(@"STORY_NO_LONGER_AVAILABLE",
+                                                 @"Text indicating a story that was replied to is no longer available.")
+                                  bodyRanges:MessageBodyRanges.empty
+                                  bodySource:TSQuotedMessageContentSourceStory
+                              thumbnailImage:nil
+                        thumbnailViewFactory:nil
+                                 contentType:nil
+                              sourceFilename:nil
+                            attachmentStream:nil
+            failedThumbnailAttachmentPointer:nil
+                               reactionEmoji:message.storyReactionEmoji];
+    }
+
+    return [self quotedReplyFromStoryMessage:storyMessage
+                               reactionEmoji:message.storyReactionEmoji
+                                 transaction:transaction];
+}
+
++ (nullable instancetype)quotedReplyFromStoryMessage:(StoryMessage *)storyMessage
+                                         transaction:(SDSAnyReadTransaction *)transaction
+{
+    return [self quotedReplyFromStoryMessage:storyMessage reactionEmoji:nil transaction:transaction];
+}
+
++ (nullable instancetype)quotedReplyFromStoryMessage:(StoryMessage *)storyMessage
+                                       reactionEmoji:(nullable NSString *)reactionEmoji
+                                         transaction:(SDSAnyReadTransaction *)transaction
+{
+    UIImage *_Nullable thumbnailImage = [storyMessage thumbnailImageWithTransaction:transaction];
+    TSAttachmentStream *_Nullable attachmentStream;
+    TSAttachmentPointer *_Nullable failedAttachmentPointer;
+    TSAttachment *_Nullable quotedAttachment = [storyMessage quotedAttachmentWithTransaction:transaction];
+    if ([quotedAttachment isKindOfClass:[TSAttachmentStream class]]) {
+        attachmentStream = (TSAttachmentStream *)quotedAttachment;
+    } else if ([quotedAttachment isKindOfClass:[TSAttachmentPointer class]]) {
+        failedAttachmentPointer = (TSAttachmentPointer *)quotedAttachment;
+    }
+
+    return [[self alloc] initWithTimestamp:storyMessage.timestamp
+                             authorAddress:storyMessage.authorAddress
+                                      body:[storyMessage quotedBodyWithTransaction:transaction]
+                                bodyRanges:MessageBodyRanges.empty
+                                bodySource:TSQuotedMessageContentSourceStory
+                            thumbnailImage:thumbnailImage
+                      thumbnailViewFactory:thumbnailImage == nil ? ^{ return [storyMessage thumbnailView]; } : nil
+                               contentType:attachmentStream.contentType
+                            sourceFilename:nil
+                          attachmentStream:attachmentStream
+          failedThumbnailAttachmentPointer:failedAttachmentPointer
+                             reactionEmoji:reactionEmoji];
 }
 
 + (nullable instancetype)quotedReplyForSendingWithItem:(id<CVItemViewModel>)item
@@ -150,10 +228,12 @@ NS_ASSUME_NONNULL_BEGIN
                                     bodyRanges:nil
                                     bodySource:TSQuotedMessageContentSourceLocal
                                 thumbnailImage:nil
+                          thumbnailViewFactory:nil
                                    contentType:nil
                                 sourceFilename:nil
                               attachmentStream:nil
-              failedThumbnailAttachmentPointer:nil];
+              failedThumbnailAttachmentPointer:nil
+                                 reactionEmoji:nil];
     }
 
     if (item.contactShare) {
@@ -169,10 +249,12 @@ NS_ASSUME_NONNULL_BEGIN
                                     bodyRanges:nil
                                     bodySource:TSQuotedMessageContentSourceLocal
                                 thumbnailImage:nil
+                          thumbnailViewFactory:nil
                                    contentType:nil
                                 sourceFilename:nil
                               attachmentStream:nil
-              failedThumbnailAttachmentPointer:nil];
+              failedThumbnailAttachmentPointer:nil
+                                 reactionEmoji:nil];
     }
 
     if (item.stickerInfo || item.stickerAttachment || item.stickerMetadata) {
@@ -257,13 +339,22 @@ NS_ASSUME_NONNULL_BEGIN
                                     bodyRanges:nil
                                     bodySource:TSQuotedMessageContentSourceLocal
                                 thumbnailImage:thumbnailImage
+                          thumbnailViewFactory:nil
                                    contentType:contentType
                                 sourceFilename:quotedAttachment.sourceFilename
                               attachmentStream:quotedAttachment
-              failedThumbnailAttachmentPointer:nil];
+              failedThumbnailAttachmentPointer:nil
+                                 reactionEmoji:nil];
     }
 
-    NSString *_Nullable quotedText = message.body;
+    NSString *_Nullable quotedText;
+
+    if (message.body.length > 0) {
+        quotedText = message.body;
+    } else if (message.storyReactionEmoji.length > 0) {
+        quotedText = message.storyReactionEmoji;
+    }
+
     BOOL hasText = quotedText.length > 0;
 
     TSAttachment *_Nullable attachment =
@@ -339,10 +430,12 @@ NS_ASSUME_NONNULL_BEGIN
                                 bodyRanges:message.bodyRanges
                                 bodySource:TSQuotedMessageContentSourceLocal
                             thumbnailImage:thumbnailImage
+                      thumbnailViewFactory:nil
                                contentType:quotedAttachment.contentType
                             sourceFilename:quotedAttachment.sourceFilename
                           attachmentStream:quotedAttachment
-          failedThumbnailAttachmentPointer:nil];
+          failedThumbnailAttachmentPointer:nil
+                             reactionEmoji:nil];
 }
 
 #pragma mark - Instance Methods
@@ -360,6 +453,11 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)isRemotelySourced
 {
     return self.bodySource == TSQuotedMessageContentSourceRemote;
+}
+
+- (BOOL)isStory
+{
+    return self.bodySource == TSQuotedMessageContentSourceStory;
 }
 
 @end

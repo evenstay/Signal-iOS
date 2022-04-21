@@ -416,14 +416,45 @@ static void uncaughtExceptionHandler(NSException *exception)
 
     ActionSheetController *actionSheet = [[ActionSheetController alloc] initWithTitle:alertTitle message:alertMessage];
 
+    if (SSKDebugFlags.internalSettings) {
+        [actionSheet addAction:[[ActionSheetAction alloc]
+                                   initWithTitle:@"Export Database (internal)"
+                                           style:ActionSheetActionStyleDefault
+                                         handler:^(ActionSheetAction *_Nonnull action) {
+                                             [SignalApp
+                                                 showExportDatabaseUIFromViewController:viewController
+                                                                             completion:^{
+                                                                                 [viewController
+                                                                                     presentActionSheet:actionSheet];
+                                                                             }];
+                                         }]];
+    }
+
+    // Note: It's sometimes useful for us to enable this for certain external users.
+    // In that case, we can make a PR that changes this to `if (true)` and do a build from that.
+    if (SSKDebugFlags.databaseIntegrityCheck) {
+        [actionSheet
+            addAction:[[ActionSheetAction alloc]
+                          initWithTitle:NSLocalizedString(@"APP_LAUNCH_FAILURE_CHECK_DATABASE", nil)
+                                  style:ActionSheetActionStyleDefault
+                                handler:^(ActionSheetAction *_Nonnull action) {
+                                    [SignalApp
+                                        showDatabaseIntegrityCheckUIFromViewController:viewController
+                                                                            completion:^{
+                                                                                [viewController
+                                                                                    presentActionSheet:actionSheet];
+                                                                            }];
+                                }]];
+    }
+
     [actionSheet
-        addAction:[[ActionSheetAction alloc] initWithTitle:NSLocalizedString(@"SETTINGS_ADVANCED_SUBMIT_DEBUGLOG", nil)
-                                                     style:ActionSheetActionStyleDefault
-                                                   handler:^(ActionSheetAction *_Nonnull action) {
-                                                       [Pastelog submitLogsWithCompletion:^{
-                                                           OWSFail(@"exiting after sharing debug logs.");
-                                                       }];
-                                                   }]];
+        addAction:[[ActionSheetAction alloc]
+                      initWithTitle:NSLocalizedString(@"SETTINGS_ADVANCED_SUBMIT_DEBUGLOG", nil)
+                              style:ActionSheetActionStyleDefault
+                            handler:^(ActionSheetAction *_Nonnull action) {
+                                [Pastelog submitLogsWithSupportTag:NSStringForLaunchFailure(launchFailure)
+                                                        completion:^{ OWSFail(@"exiting after sharing debug logs."); }];
+                            }]];
     [viewController presentActionSheet:actionSheet];
 }
 
@@ -780,7 +811,7 @@ static void uncaughtExceptionHandler(NSException *exception)
 
     AppReadinessRunNowOrWhenAppDidBecomeReadySync(^{
         [AppEnvironment.shared.notificationPresenter clearAllNotifications];
-        [OWSMessageUtils updateApplicationBadgeCount];
+        [self.messageManager updateApplicationBadgeCount];
     });
 }
 

@@ -203,11 +203,6 @@ public class RemoteConfig: BaseFlags {
     }
 
     @objc
-    public static var donorBadgeAcquisition: Bool {
-        DebugFlags.forceDonorBadgeAcquisition || !isEnabled(.donorBadgeAcquisitionKillSwitch)
-    }
-
-    @objc
     public static var changePhoneNumberUI: Bool {
         if DebugFlags.forceChangePhoneNumberUI.get() {
             return true
@@ -360,16 +355,10 @@ public class RemoteConfig: BaseFlags {
             logFlag("Config.StickyValues", flag.rawFlag, value)
         }
 
-        let flagMap = buildFlagMap()
+        let flagMap = allFlags()
         for key in Array(flagMap.keys).sorted() {
             let value = flagMap[key]
             logFlag("Flag", key, value)
-        }
-    }
-
-    public static func buildFlagMap() -> [String: Any] {
-        BaseFlags.buildFlagMap(for: RemoteConfig.self) { (key: String) -> Any? in
-            RemoteConfig.value(forKey: key)
         }
     }
 }
@@ -389,7 +378,8 @@ private struct Flags {
     // as soon as we fetch an update to the remote config. They will not
     // wait for an app restart.
     enum HotSwappableIsEnabledFlags: String, FlagType {
-        case donorBadgeAcquisitionKillSwitch
+        // This can't be empty, so we define a bogus case. Remove this if you add a flag here.
+        case __noHotSwappableIsEnabledFlags
     }
 
     // We filter the received config down to just the supported flags.
@@ -406,7 +396,6 @@ private struct Flags {
         case senderKeyKillSwitch
         case messageResendKillSwitch
         case donorBadgeDisplayKillSwitch
-        case donorBadgeAcquisitionKillSwitch
         case changePhoneNumberUI
     }
 

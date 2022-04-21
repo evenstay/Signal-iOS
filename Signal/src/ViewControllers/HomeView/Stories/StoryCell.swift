@@ -5,6 +5,7 @@
 import Foundation
 import UIKit
 import SignalMessaging
+import SignalUI
 
 class StoryCell: UITableViewCell {
     static let reuseIdentifier = "StoryCell"
@@ -101,21 +102,9 @@ class StoryCell: UITableViewCell {
                 owsFailDebug("Unexpected attachment type \(type(of: attachment))")
             }
         case .text(let attachment):
-            let textView = TextAttachmentView(attachment: attachment)
-            // We render the textView at a large 3:2 size (matching the aspect of
-            // the thumbnail container), so the fonts and gradients all render properly
-            // for the preview. We then scale it down to render a "thumbnail" view.
-            let textViewRenderSize = CGSize(width: 375, height: 563)
-            textView.frame = CGRect(origin: .zero, size: textViewRenderSize)
-
-            let layerView = OWSLayerView(frame: .zero) { view in
-                textView.transform = .scale(view.width / textViewRenderSize.width)
-                textView.center = view.center
-            }
-            layerView.addSubview(textView)
-
-            attachmentThumbnail.addSubview(layerView)
-            layerView.autoPinEdgesToSuperviewEdges()
+            let textThumbnailView = TextAttachmentView(attachment: attachment).asThumbnailView()
+            attachmentThumbnail.addSubview(textThumbnailView)
+            textThumbnailView.autoPinEdgesToSuperviewEdges()
         case .missing:
             // TODO: error state
             break
@@ -126,11 +115,7 @@ class StoryCell: UITableViewCell {
         let imageView = UIImageView()
         imageView.contentMode = .scaleAspectFill
 
-        stream.thumbnailImageSmall {
-            imageView.image = $0
-        } failure: {
-            owsFailDebug("Failed to generate thumbnail")
-        }
+        applyThumbnailImage(to: imageView, for: stream)
 
         let blurView = UIVisualEffectView(effect: UIBlurEffect(style: .regular))
         imageView.addSubview(blurView)
@@ -146,13 +131,23 @@ class StoryCell: UITableViewCell {
         imageView.layer.magnificationFilter = .trilinear
         imageView.layer.allowsEdgeAntialiasing = true
 
-        stream.thumbnailImageSmall {
-            imageView.image = $0
-        } failure: {
-            owsFailDebug("Failed to generate thumbnail")
-        }
+        applyThumbnailImage(to: imageView, for: stream)
 
         return imageView
+    }
+
+    private static let thumbnailCache = LRUCache<String, UIImage>(maxSize: 64, shouldEvacuateInBackground: true)
+    private func applyThumbnailImage(to imageView: UIImageView, for stream: TSAttachmentStream) {
+        if let thumbnailImage = Self.thumbnailCache[stream.uniqueId] {
+            imageView.image = thumbnailImage
+        } else {
+            stream.thumbnailImageSmall { thumbnailImage in
+                imageView.image = thumbnailImage
+                Self.thumbnailCache.setObject(thumbnailImage, forKey: stream.uniqueId)
+            } failure: {
+                owsFailDebug("Failed to generate thumbnail")
+            }
+        }
     }
 
     private func buildBlurHashImageViewIfAvailable(pointer: TSAttachmentPointer) -> UIView? {

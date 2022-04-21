@@ -15,7 +15,6 @@
 #import <SignalMessaging/OWSContactsManager.h>
 #import <SignalMessaging/SignalMessaging-Swift.h>
 #import <SignalServiceKit/MessageSender.h>
-#import <SignalServiceKit/OWSMessageUtils.h>
 #import <SignalServiceKit/SignalServiceKit-Swift.h>
 #import <SignalServiceKit/TSAccountManager.h>
 #import <SignalServiceKit/TSGroupThread.h>
@@ -519,7 +518,7 @@ NSString *const kArchiveButtonPseudoGroup = @"kArchiveButtonPseudoGroup";
     // Settings button.
     UIButton *avatarButton = [UIButton buttonWithType:UIButtonTypeCustom];
     avatarButton.accessibilityLabel = CommonStrings.openSettingsButton;
-    [avatarButton addTarget:self action:@selector(showOrHideMenu:) forControlEvents:UIControlEventTouchDown];
+    [avatarButton addTarget:self action:@selector(showOrHideMenu:) forControlEvents:UIControlEventTouchUpInside];
 
     UIView *avatarImageView = [self createAvatarBarButtonViewWithSneakyTransaction];
     [avatarButton addSubview:avatarImageView];

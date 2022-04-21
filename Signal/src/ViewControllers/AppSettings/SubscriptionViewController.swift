@@ -128,6 +128,10 @@ class SubscriptionViewController: OWSTableViewController2 {
         return failureReason
     }
 
+    private var hasAnyDonationReceipts: Bool {
+        self.databaseStorage.read { DonationReceiptFinder.hasAny(transaction: $0) }
+    }
+
     private let bottomFooterStackView = UIStackView()
 
     open override var bottomFooter: UIView? {
@@ -137,7 +141,6 @@ class SubscriptionViewController: OWSTableViewController2 {
 
     private lazy var dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
-        formatter.locale = .current
         formatter.dateStyle = .medium
         return formatter
     }()
@@ -418,7 +421,7 @@ class SubscriptionViewController: OWSTableViewController2 {
                 section.add(.init(
                     customCellBlock: { [weak self] in
                         guard let self = self else { return UITableViewCell() }
-                        let cell = self.newCell()
+                        let cell = AppSettingsViewsUtil.newCell(cellOuterInsets: self.cellOuterInsets)
 
                         let stackView = UIStackView()
                         stackView.axis = .horizontal
@@ -508,7 +511,7 @@ class SubscriptionViewController: OWSTableViewController2 {
         section.add(.init(
             customCellBlock: { [weak self] in
                 guard let self = self else { return UITableViewCell() }
-                let cell = self.newCell()
+                let cell = AppSettingsViewsUtil.newCell(cellOuterInsets: self.cellOuterInsets)
 
                 let titleLabel = UILabel()
                 titleLabel.text = NSLocalizedString("SUSTAINER_VIEW_MY_SUPPORT", comment: "Existing subscriber support header")
@@ -527,7 +530,7 @@ class SubscriptionViewController: OWSTableViewController2 {
             section.add(.init(
                 customCellBlock: { [weak self] in
                     guard let self = self else { return UITableViewCell() }
-                    let cell = self.newCell()
+                    let cell = AppSettingsViewsUtil.newCell(cellOuterInsets: self.cellOuterInsets)
 
                     let containerStackView = UIStackView()
                     containerStackView.axis = .vertical
@@ -717,36 +720,21 @@ class SubscriptionViewController: OWSTableViewController2 {
             }
         ))
 
+        if hasAnyDonationReceipts {
+            managementSection.add(.disclosureItem(
+                icon: .settingsReceipts,
+                name: NSLocalizedString("DONATION_RECEIPTS", comment: "Title of view where you can see all of your donation receipts, or button to take you there"),
+                accessibilityIdentifier: UIView.accessibilityIdentifier(in: self, name: "subscriptionReceipts"),
+                actionBlock: { [weak self] in
+                    let vc = DonationReceiptsViewController()
+                    self?.navigationController?.pushViewController(vc, animated: true)
+                }
+            ))
+        }
     }
 
     private func buildTableForPendingState(contents: OWSTableContents, section: OWSTableSection) {
-        section.add(.init(
-            customCellBlock: { [weak self] in
-                guard let self = self else { return UITableViewCell() }
-                let cell = self.newCell()
-                let stackView = UIStackView()
-                stackView.axis = .vertical
-                stackView.alignment = .center
-                stackView.layoutMargins = UIEdgeInsets(top: 16, leading: 0, bottom: 16, trailing: 0)
-                stackView.isLayoutMarginsRelativeArrangement = true
-                cell.contentView.addSubview(stackView)
-                stackView.autoPinEdgesToSuperviewEdges()
-
-                let activitySpinner: UIActivityIndicatorView
-                if #available(iOS 13, *) {
-                    activitySpinner = UIActivityIndicatorView(style: .medium)
-                } else {
-                    activitySpinner = UIActivityIndicatorView(style: .gray)
-                }
-
-                activitySpinner.startAnimating()
-
-                stackView.addArrangedSubview(activitySpinner)
-
-                return cell
-            },
-            actionBlock: {}
-        ))
+        section.add(AppSettingsViewsUtil.loadingTableItem(cellOuterInsets: cellOuterInsets))
     }
 
     private func buildTableForUpdatingSubscriptionState(contents: OWSTableContents, section: OWSTableSection) {
@@ -980,14 +968,6 @@ class SubscriptionViewController: OWSTableViewController2 {
             }
         }
 
-    }
-
-    private func newCell() -> UITableViewCell {
-        let cell = OWSTableItem.newCell()
-        cell.selectionStyle = .none
-        cell.layoutMargins = cellOuterInsets
-        cell.contentView.layoutMargins = .zero
-        return cell
     }
 
     private func newSubscriptionCell() -> SubscriptionLevelCell {
@@ -1463,7 +1443,8 @@ private class SubscriptionReadMoreSheet: InteractiveSheetViewController {
         stackView.isLayoutMarginsRelativeArrangement = true
         contentScrollView.addSubview(stackView)
         stackView.autoPinHeightToSuperview()
-        stackView.autoPinWidth(toWidthOf: view)
+        // Pin to the scroll view's viewport, not to its scrollable area
+        stackView.autoPinWidth(toWidthOf: contentScrollView)
 
         contentScrollView.autoPinWidthToSuperview()
         contentScrollView.autoPinEdge(toSuperviewEdge: .bottom)

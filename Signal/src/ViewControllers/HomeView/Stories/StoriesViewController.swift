@@ -9,9 +9,31 @@ import SignalUI
 
 class StoriesViewController: OWSViewController {
     let tableView = UITableView()
+    private var presentedContextOrder: [StoryContext]?
     private var models = [IncomingStoryViewModel]()
 
+    private lazy var emptyStateLabel: UILabel = {
+        let label = UILabel()
+        label.textColor = Theme.secondaryTextAndIconColor
+        label.font = .ows_dynamicTypeBody
+        label.numberOfLines = 0
+        label.textAlignment = .center
+        label.text = NSLocalizedString("STORIES_NO_RECENT_MESSAGES", comment: "Indicates that there are no recent stories to render")
+        label.isHidden = true
+        label.isUserInteractionEnabled = false
+        tableView.backgroundView = label
+        return label
+    }()
+
     private lazy var contextMenu = ContextMenuInteraction(delegate: self)
+
+    override init() {
+        super.init()
+        reloadStories()
+        databaseStorage.appendDatabaseChangeDelegate(self)
+
+        NotificationCenter.default.addObserver(self, selector: #selector(profileDidChange), name: .localProfileDidChange, object: nil)
+    }
 
     override func loadView() {
         view = tableView
@@ -24,14 +46,11 @@ class StoriesViewController: OWSViewController {
 
         title = NSLocalizedString("STORIES_TITLE", comment: "Title for the stories view.")
 
-        databaseStorage.appendDatabaseChangeDelegate(self)
-
         tableView.register(StoryCell.self, forCellReuseIdentifier: StoryCell.reuseIdentifier)
         tableView.separatorStyle = .none
         tableView.rowHeight = UITableView.automaticDimension
         tableView.estimatedRowHeight = 116
 
-        reloadStories()
         updateNavigationBar()
 
         tableView.addInteraction(contextMenu)
@@ -85,6 +104,8 @@ class StoriesViewController: OWSViewController {
     override func applyTheme() {
         super.applyTheme()
 
+        emptyStateLabel.textColor = Theme.secondaryTextAndIconColor
+
         contextMenu.dismissMenu(animated: true) {}
 
         for indexPath in self.tableView.indexPathsForVisibleRows ?? [] {
@@ -104,7 +125,29 @@ class StoriesViewController: OWSViewController {
         updateNavigationBar()
     }
 
+    @objc
+    func profileDidChange() { updateNavigationBar() }
+
     private func updateNavigationBar() {
+        let avatarButton = UIButton(type: .custom)
+        avatarButton.accessibilityLabel = CommonStrings.openSettingsButton
+        avatarButton.addTarget(self, action: #selector(showAppSettings), for: .touchUpInside)
+
+        let avatarView = ConversationAvatarView(sizeClass: .twentyEight, localUserDisplayMode: .asUser)
+        databaseStorage.read { transaction in
+            avatarView.update(transaction) { config in
+                if let address = tsAccountManager.localAddress(with: transaction) {
+                    config.dataSource = .address(address)
+                    config.applyConfigurationSynchronously()
+                }
+            }
+        }
+
+        avatarButton.addSubview(avatarView)
+        avatarView.autoPinEdgesToSuperviewEdges()
+
+        navigationItem.leftBarButtonItem = UIBarButtonItem(customView: avatarButton)
+
         let cameraButton = UIBarButtonItem(image: Theme.iconImage(.cameraButton), style: .plain, target: self, action: #selector(showCameraView))
         cameraButton.accessibilityLabel = NSLocalizedString("CAMERA_BUTTON_LABEL", comment: "Accessibility label for camera button.")
         cameraButton.accessibilityHint = NSLocalizedString("CAMERA_BUTTON_HINT", comment: "Accessibility hint describing what you can do with the camera button")
@@ -114,6 +157,8 @@ class StoriesViewController: OWSViewController {
 
     @objc
     func showCameraView() {
+        AssertIsOnMainThread()
+
         // Dismiss any message actions if they're presented
         conversationSplitViewController?.selectedConversationViewController?.dismissMessageContextMenu(animated: true)
 
@@ -133,6 +178,14 @@ class StoriesViewController: OWSViewController {
                 self.presentFullScreen(modal, animated: true)
             }
         }
+    }
+
+    @objc
+    func showAppSettings() {
+        AssertIsOnMainThread()
+
+        conversationSplitViewController?.selectedConversationViewController?.dismissMessageContextMenu(animated: true)
+        presentFormSheet(AppSettingsViewController.inModalNavigationController(), animated: true)
     }
 
     private static let loadingQueue = DispatchQueue(label: "StoriesViewController.loadingQueue", qos: .userInitiated)
@@ -206,6 +259,7 @@ class StoriesViewController: OWSViewController {
 
             DispatchQueue.main.async {
                 self.models = newModels
+                guard self.isViewLoaded else { return }
                 self.tableView.beginUpdates()
                 for update in batchUpdateItems {
                     switch update.updateType {
@@ -294,6 +348,17 @@ extension StoriesViewController: UITableViewDataSource {
         models[safe: indexPath.row]
     }
 
+    func model(for context: StoryContext) -> IncomingStoryViewModel? {
+        models.first { $0.context == context }
+    }
+
+    func cell(for context: StoryContext) -> StoryCell? {
+        guard let row = models.firstIndex(where: { $0.context == context }) else { return nil }
+        let indexPath = IndexPath(row: row, section: 0)
+        guard tableView.indexPathsForVisibleRows?.contains(indexPath) == true else { return nil }
+        return tableView.cellForRow(at: indexPath) as? StoryCell
+    }
+
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: StoryCell.reuseIdentifier) as! StoryCell
         guard let model = model(for: indexPath) else {
@@ -309,25 +374,15 @@ extension StoriesViewController: UITableViewDataSource {
     }
 
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return models.count
+        let numberOfRows = models.count
+        emptyStateLabel.isHidden = numberOfRows > 0
+        return numberOfRows
     }
 }
 
 extension StoriesViewController: StoryPageViewControllerDataSource {
-    func storyPageViewController(_ storyPageViewController: StoryPageViewController, storyContextBefore storyContext: StoryContext) -> StoryContext? {
-        guard let contextIndex = models.firstIndex(where: { $0.context == storyContext }),
-              let contextBefore = models[safe: contextIndex.advanced(by: -1)]?.context else {
-                  return nil
-              }
-        return contextBefore
-    }
-
-    func storyPageViewController(_ storyPageViewController: StoryPageViewController, storyContextAfter storyContext: StoryContext) -> StoryContext? {
-        guard let contextIndex = models.firstIndex(where: { $0.context == storyContext }),
-              let contextAfter = models[safe: contextIndex.advanced(by: 1)]?.context else {
-                  return nil
-              }
-        return contextAfter
+    func storyPageViewControllerAvailableContexts(_ storyPageViewController: StoryPageViewController) -> [StoryContext] {
+        models.map { $0.context }
     }
 }
 

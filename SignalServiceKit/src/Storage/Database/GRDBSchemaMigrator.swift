@@ -49,7 +49,8 @@ public class GRDBSchemaMigrator: NSObject {
             try! self.fixit_setupMigrations(transaction.database)
         }
 
-        return try! incrementalMigrator.appliedMigrations(in: grdbStorageAdapter.pool)
+        let migrations = try! grdbStorageAdapter.pool.read(incrementalMigrator.appliedMigrations)
+        return Set(migrations)
     }
 
     private func fixit_setupMigrations(_ db: Database) throws {
@@ -130,6 +131,8 @@ public class GRDBSchemaMigrator: NSObject {
         case updateConversationLoadInteractionCountIndex
         case updateConversationLoadInteractionDistanceIndex
         case updateConversationUnreadCountIndex
+        case createDonationReceiptTable
+        case addBoostAmountToSubscriptionDurableJob
 
         // NOTE: Every time we add a migration id, consider
         // incrementing grdbSchemaVersionLatest.
@@ -172,7 +175,7 @@ public class GRDBSchemaMigrator: NSObject {
     }
 
     public static let grdbSchemaVersionDefault: UInt = 0
-    public static let grdbSchemaVersionLatest: UInt = 35
+    public static let grdbSchemaVersionLatest: UInt = 36
 
     // An optimization for new users, we have the first migration import the latest schema
     // and mark any other migrations as "already run".
@@ -1604,6 +1607,38 @@ public class GRDBSchemaMigrator: NSObject {
             }
         }
 
+        migrator.registerMigration(MigrationId.createDonationReceiptTable.rawValue) { db in
+            do {
+                try db.create(table: "model_DonationReceipt") { table in
+                    table.autoIncrementedPrimaryKey("id")
+                        .notNull()
+                    table.column("uniqueId", .text)
+                        .notNull()
+                        .unique(onConflict: .fail)
+                    table.column("timestamp", .integer)
+                        .notNull()
+                    table.column("subscriptionLevel", .integer)
+                    table.column("amount", .numeric)
+                        .notNull()
+                    table.column("currencyCode", .text)
+                        .notNull()
+                }
+            } catch {
+                owsFail("Error: \(error)")
+            }
+        }
+
+        migrator.registerMigration(MigrationId.addBoostAmountToSubscriptionDurableJob.rawValue) { db in
+            do {
+                try db.alter(table: "model_SSKJobRecord") { (table: TableAlteration) -> Void in
+                    table.add(column: "amount", .numeric)
+                    table.add(column: "currencyCode", .text)
+                }
+            } catch {
+                owsFail("Error: \(error)")
+            }
+        }
+
         // These index migrations are *expensive* for users with large interaction tables. For external
         // users who don't yet have access to stories and don't have need for the indices, we will perform
         // one migration per release to keep the blocking time low (ideally one 5-7s migration per release).
@@ -1621,22 +1656,18 @@ public class GRDBSchemaMigrator: NSObject {
             """)
         }
 
-        if FeatureFlags.storiesMigration2 {
+        migrator.registerMigration(MigrationId.updateConversationLoadInteractionDistanceIndex.rawValue) { db in
+            let transaction = GRDBWriteTransaction(database: db)
+            defer { transaction.finalizeTransaction() }
+            guard !hasRunMigration("addColumnsForStoryContext", transaction: transaction) else { return }
 
-            migrator.registerMigration(MigrationId.updateConversationLoadInteractionDistanceIndex.rawValue) { db in
-                let transaction = GRDBWriteTransaction(database: db)
-                defer { transaction.finalizeTransaction() }
-                guard !hasRunMigration("addColumnsForStoryContext", transaction: transaction) else { return }
+            try db.execute(sql: """
+                DROP INDEX index_model_TSInteraction_ConversationLoadInteractionDistance;
 
-                try db.execute(sql: """
-                    DROP INDEX index_model_TSInteraction_ConversationLoadInteractionDistance;
-
-                    CREATE INDEX index_model_TSInteraction_ConversationLoadInteractionDistance
-                    ON model_TSInteraction(uniqueThreadId, id, isGroupStoryReply, recordType, uniqueId)
-                    WHERE recordType IS NOT \(SDSRecordType.recoverableDecryptionPlaceholder.rawValue);
-                """)
-            }
-
+                CREATE INDEX index_model_TSInteraction_ConversationLoadInteractionDistance
+                ON model_TSInteraction(uniqueThreadId, id, isGroupStoryReply, recordType, uniqueId)
+                WHERE recordType IS NOT \(SDSRecordType.recoverableDecryptionPlaceholder.rawValue);
+            """)
         }
 
         if FeatureFlags.storiesMigration3 {

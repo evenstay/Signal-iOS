@@ -71,11 +71,29 @@ extension OWSMessageManager {
     }
 
     @objc
-    func isValidEnvelope(_ envelope: SSKProtoEnvelope?) -> Bool {
-        guard let envelope = envelope else {
-            owsFailDebug("Missing envelope")
-            return false
+    public func updateApplicationBadgeCount() {
+        let readUnreadCount: (SDSAnyReadTransaction) -> UInt = { transaction in
+            InteractionFinder.unreadCountInAllThreads(transaction: transaction.unwrapGrdbRead)
         }
+
+        let fetchBadgeCount = { () -> Promise<UInt> in
+            // The main app gets to perform this synchronously
+            if CurrentAppContext().isMainApp {
+                return .value(self.databaseStorage.read(block: readUnreadCount))
+            } else {
+                return self.databaseStorage.read(.promise, readUnreadCount)
+            }
+        }
+
+        fetchBadgeCount().done {
+            CurrentAppContext().setMainAppBadgeNumber(Int($0))
+        }.catch { error in
+            owsFailDebug("Failed to update badge number: \(error)")
+        }
+    }
+
+    @objc
+    func isValidEnvelope(_ envelope: SSKProtoEnvelope) -> Bool {
         guard envelope.timestamp >= 1 else {
             owsFailDebug("Invalid timestamp")
             return false

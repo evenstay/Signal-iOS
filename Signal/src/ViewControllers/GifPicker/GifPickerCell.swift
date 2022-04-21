@@ -1,5 +1,5 @@
 //
-//  Copyright (c) 2021 Open Whisper Systems. All rights reserved.
+//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
 //
 
 import Foundation
@@ -197,6 +197,8 @@ class GifPickerCell: UICollectionViewCell {
         }
         if isSelected {
             activityIndicator.startAnimating()
+        } else {
+            activityIndicator.stopAnimating()
         }
 
         if asset.assetDescription.fileExtension == "mp4",

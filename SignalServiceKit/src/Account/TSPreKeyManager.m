@@ -15,9 +15,6 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// Time before rotation of signed prekeys (measured in seconds)
-#define kSignedPreKeyRotationTime (2 * kDayInterval)
-
 // How often we check prekey state on app activation.
 #define kPreKeyCheckFrequencySeconds (12 * kHourInterval)
 
@@ -128,7 +125,6 @@ static BOOL needsSignedPreKeyRotation(OWSIdentity identity, SDSAnyReadTransactio
 
 + (void)checkPreKeysWithShouldThrottle:(BOOL)shouldThrottle
 {
-    // PNI TODO: handle PNI pre-keys too.
     if (!CurrentAppContext().isMainAppAndActive) {
         return;
     }
@@ -136,8 +132,6 @@ static BOOL needsSignedPreKeyRotation(OWSIdentity identity, SDSAnyReadTransactio
         return;
     }
 
-    // Order matters here - if we rotated *before* refreshing, we'd risk uploading
-    // two SPK's in a row since RefreshPreKeysOperation can also upload a new SPK.
     NSMutableArray<NSOperation *> *operations = [NSMutableArray new];
 
     // Don't rotate or clean up prekeys until all incoming messages
@@ -145,50 +139,32 @@ static BOOL needsSignedPreKeyRotation(OWSIdentity identity, SDSAnyReadTransactio
     MessageProcessingOperation *messageProcessingOperation = [MessageProcessingOperation new];
     [operations addObject:messageProcessingOperation];
 
-    SSKRefreshPreKeysOperation *refreshOperation = [SSKRefreshPreKeysOperation new];
+    NSDate *_Nullable lastPreKeyCheckTimestamp = TSPreKeyManager.shared.lastPreKeyCheckTimestamp;
+    BOOL shouldRefreshOneTimePreKeys = !shouldThrottle || lastPreKeyCheckTimestamp == nil
+        || fabs([lastPreKeyCheckTimestamp timeIntervalSinceNow]) >= kPreKeyCheckFrequencySeconds;
 
-    if (shouldThrottle) {
-        __weak SSKRefreshPreKeysOperation *weakRefreshOperation = refreshOperation;
-        NSBlockOperation *checkIfRefreshNecessaryOperation = [NSBlockOperation blockOperationWithBlock:^{
-            NSDate *_Nullable lastPreKeyCheckTimestamp = TSPreKeyManager.shared.lastPreKeyCheckTimestamp;
-            BOOL shouldCheck = (lastPreKeyCheckTimestamp == nil
-                || fabs([lastPreKeyCheckTimestamp timeIntervalSinceNow]) >= kPreKeyCheckFrequencySeconds);
-            if (!shouldCheck) {
-                [weakRefreshOperation cancel];
-            }
-        }];
-        [operations addObject:checkIfRefreshNecessaryOperation];
-    }
-    [operations addObject:refreshOperation];
-
-    SSKRotateSignedPreKeyOperation *rotationOperation =
-        [[SSKRotateSignedPreKeyOperation alloc] initForIdentity:OWSIdentityACI];
-
-    if (shouldThrottle) {
-        __weak SSKRotateSignedPreKeyOperation *weakRotationOperation = rotationOperation;
-        NSBlockOperation *checkIfRotationNecessaryOperation = [NSBlockOperation blockOperationWithBlock:^{
-            SSKSignedPreKeyStore *signedPreKeyStore =
-                [self signalProtocolStoreForIdentity:OWSIdentityACI].signedPreKeyStore;
-            SignedPreKeyRecord *_Nullable signedPreKey = [signedPreKeyStore currentSignedPreKey];
-
-            BOOL shouldCheck
-                = !signedPreKey || fabs(signedPreKey.generatedAt.timeIntervalSinceNow) >= kSignedPreKeyRotationTime;
-            if (!shouldCheck) {
-                [weakRotationOperation cancel];
-            }
-        }];
-        [operations addObject:checkIfRotationNecessaryOperation];
-    }
-    [operations addObject:rotationOperation];
-
-    // Set up dependencies; we want to perform these operations serially.
-    NSOperation *_Nullable lastOperation;
-    for (NSOperation *operation in operations) {
-        if (lastOperation != nil) {
-            [operation addDependency:lastOperation];
+    void (^addOperationsForIdentity)(OWSIdentity) = ^(OWSIdentity identity) {
+        NSOperation *refreshOperation = nil;
+        if (shouldRefreshOneTimePreKeys) {
+            refreshOperation = [[SSKRefreshPreKeysOperation alloc] initForIdentity:identity];
+            [refreshOperation addDependency:messageProcessingOperation];
+            [operations addObject:refreshOperation];
         }
-        lastOperation = operation;
-    }
+
+        // Order matters here - if we rotated *before* refreshing, we'd risk uploading
+        // two SPK's in a row since RefreshPreKeysOperation can also upload a new SPK.
+        NSOperation *rotationOperation = [[SSKRotateSignedPreKeyOperation alloc] initForIdentity:identity
+                                                                              shouldSkipIfRecent:shouldThrottle];
+        [rotationOperation addDependency:messageProcessingOperation];
+        if (shouldRefreshOneTimePreKeys) {
+            OWSAssertDebug(refreshOperation);
+            [rotationOperation addDependency:refreshOperation];
+        }
+        [operations addObject:rotationOperation];
+    };
+
+    addOperationsForIdentity(OWSIdentityACI);
+    addOperationsForIdentity(OWSIdentityPNI);
 
     [self.operationQueue addOperations:operations waitUntilFinished:NO];
 }
@@ -239,8 +215,10 @@ static BOOL needsSignedPreKeyRotation(OWSIdentity identity, SDSAnyReadTransactio
     OWSAssertDebug(self.tsAccountManager.isRegisteredAndReady);
 
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-        SSKRotateSignedPreKeyOperation *aciOp = [[SSKRotateSignedPreKeyOperation alloc] initForIdentity:OWSIdentityACI];
-        SSKRotateSignedPreKeyOperation *pniOp = [[SSKRotateSignedPreKeyOperation alloc] initForIdentity:OWSIdentityPNI];
+        SSKRotateSignedPreKeyOperation *aciOp = [[SSKRotateSignedPreKeyOperation alloc] initForIdentity:OWSIdentityACI
+                                                                                     shouldSkipIfRecent:NO];
+        SSKRotateSignedPreKeyOperation *pniOp = [[SSKRotateSignedPreKeyOperation alloc] initForIdentity:OWSIdentityPNI
+                                                                                     shouldSkipIfRecent:NO];
         [self.operationQueue addOperations:@[ aciOp, pniOp ] waitUntilFinished:YES];
 
         NSError *_Nullable error = aciOp.failingError ?: pniOp.failingError;

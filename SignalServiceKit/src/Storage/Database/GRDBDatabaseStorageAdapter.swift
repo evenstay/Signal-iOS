@@ -4,6 +4,7 @@
 
 import Foundation
 import GRDB
+import UIKit
 
 @objc
 public class GRDBDatabaseStorageAdapter: NSObject {
@@ -132,10 +133,6 @@ public class GRDBDatabaseStorageAdapter: NSObject {
         unregisterKVO?()
     }
 
-    public func add(function: DatabaseFunction) {
-        pool.add(function: function)
-    }
-
     static var tables: [SDSTableMetadata] {
         [
             // Models
@@ -158,8 +155,6 @@ public class GRDBDatabaseStorageAdapter: NSObject {
             IncomingGroupsV2MessageJob.table,
             TSPaymentModel.table,
             TSPaymentRequestModel.table
-            // NOTE: We don't include OWSMessageDecryptJob,
-            // since we should never use it with GRDB.
         ]
     }
 
@@ -174,6 +169,7 @@ public class GRDBDatabaseStorageAdapter: NSObject {
             MessageSendLog.Message.self,
             ProfileBadge.self,
             StoryMessage.self,
+            DonationReceipt.self,
             OWSReaction.self,
             TSGroupMember.self,
             TSMention.self
@@ -255,7 +251,6 @@ public class GRDBDatabaseStorageAdapter: NSObject {
     }
 
     func setup() throws {
-        MediaGalleryManager.setup(storage: self)
         try setupDatabaseChangeObserver()
     }
 
@@ -282,7 +277,7 @@ public class GRDBDatabaseStorageAdapter: NSObject {
     /// - Returns: The key data, if available.
     @objc
     public static var debugOnly_keyData: Data? {
-        owsAssert(OWSIsTestableBuild())
+        owsAssert(OWSIsTestableBuild() || DebugFlags.internalSettings)
         return try? keyspec.fetchData()
     }
 
@@ -901,9 +896,18 @@ private struct GRDBStorage {
         var configuration = Configuration()
         configuration.readonly = false
         configuration.foreignKeysEnabled = true // Default is already true
-        configuration.trace = { logString in
-            dbQueryLog(logString)
-        }
+
+        #if DEBUG
+        configuration.publicStatementArguments = true
+        #endif
+
+        // TODO: We should set this to `false` (or simply remove this line, as `false` is the default).
+        // Historically, we took advantage of SQLite's old permissive behavior, but the SQLite
+        // developers [regret this][0] and may change it in the future.
+        //
+        // [0]: https://sqlite.org/quirks.html#dblquote
+        configuration.acceptsDoubleQuotedStringLiterals = true
+
         // Useful when your app opens multiple databases
         configuration.label = "GRDB Storage"
         let isMainApp = CurrentAppContext().isMainApp
@@ -929,8 +933,12 @@ private struct GRDBStorage {
                 return true
             }
         })
-        configuration.prepareDatabase = { db in
+        configuration.prepareDatabase { db in
             try GRDBDatabaseStorageAdapter.prepareDatabase(db: db, keyspec: keyspec)
+
+            db.trace { dbQueryLog("\($0)") }
+
+            MediaGalleryManager.setup(database: db)
         }
         configuration.defaultTransactionKind = .immediate
         configuration.allowsUnsafeTransactions = true
@@ -1043,6 +1051,29 @@ extension GRDBDatabaseStorageAdapter {
         return containerPathItems
             .filter { $0.hasPrefix(DirectoryMode.commonGRDBPrefix) }
             .map { containerDirectory.appendingPathComponent($0) }
+    }
+
+    public static func runIntegrityCheck() -> Promise<String> {
+        return firstly(on: .global(qos: .userInitiated)) {
+            let storageCoordinator: StorageCoordinator
+            if SSKEnvironment.hasShared() {
+                storageCoordinator = SSKEnvironment.shared.storageCoordinator
+            } else {
+                storageCoordinator = StorageCoordinator()
+            }
+            // Workaround to disambiguate between NSObject.databaseStorage and StorageCoordinator.databaseStorage.
+            let databaseStorage = storageCoordinator.value(forKey: "databaseStorage") as! SDSDatabaseStorage
+            // Use quick_check (O(N)) instead of integrity_check (O(NlogN)).
+            let sql = "PRAGMA quick_check"
+            let results: String = databaseStorage.read { transaction in
+                do {
+                    return try String.fetchAll(transaction.unwrapGrdbRead.database, sql: sql).joined(separator: "\n")
+                } catch {
+                    return "error"
+                }
+            }
+            return "\(sql)\n\(results)"
+        }
     }
 }
 
