@@ -1,5 +1,5 @@
 //
-//  Copyright (c) 2021 Open Whisper Systems. All rights reserved.
+//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
 //
 
 import Foundation
@@ -165,13 +165,12 @@ public class CVComponentBodyMedia: CVComponentBase, CVComponent {
 
                 let downloadLabel = CVLabel()
                 let downloadFormat = (areAllItemsImages
-                                        ? NSLocalizedString("MEDIA_GALLERY_ITEM_IMAGE_COUNT_FORMAT",
+                                        ? NSLocalizedString("MEDIA_GALLERY_ITEM_IMAGE_COUNT_%d", tableName: "PluralAware",
                                         comment: "Format for an indicator of the number of image items in a media gallery. Embeds {{ the number of items in the media gallery }}.")
-                                        : NSLocalizedString("MEDIA_GALLERY_ITEM_MIXED_COUNT_FORMAT",
+                                        : NSLocalizedString("MEDIA_GALLERY_ITEM_MIXED_COUNT_%d", tableName: "PluralAware",
                                         comment: "Format for an indicator of the number of image or video items in a media gallery. Embeds {{ the number of items in the media gallery }}."))
                 downloadStack.addArrangedSubview(downloadLabel)
-                let downloadLabelConfig = CVLabelConfig(text: String(format: downloadFormat,
-                                                                     OWSFormat.formatInt(albumView.itemViews.count)),
+                let downloadLabelConfig = CVLabelConfig(text: String.localizedStringWithFormat(downloadFormat, items.count),
                                                         font: .ows_dynamicTypeSubheadline,
                                                         textColor: UIColor.ows_white)
                 downloadLabelConfig.applyForRendering(label: downloadLabel)
@@ -198,7 +197,7 @@ public class CVComponentBodyMedia: CVComponentBase, CVComponent {
                 let totalSize = pendingManualDownloadAttachments.map { $0.byteCount}.reduce(0, +)
 
                 if totalSize > 0 {
-                    var downloadSizeText = [OWSFormat.formatFileSize(UInt(totalSize))]
+                    var downloadSizeText = [OWSFormat.localizedFileSizeString(from: Int64(totalSize))]
                     if pendingManualDownloadAttachments.count == 1,
                        let firstAttachmentPointer = pendingManualDownloadAttachments.first {
                         if firstAttachmentPointer.isAnimated || firstAttachmentPointer.isLoopingVideo {

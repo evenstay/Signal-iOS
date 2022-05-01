@@ -46,7 +46,7 @@ class GroupCallErrorView: UIView {
         return label
     }()
 
-    private let button: UIButton = {
+    private lazy var button: UIButton = {
         let buttonLabel = NSLocalizedString(
             "GROUP_CALL_ERROR_DETAILS",
             comment: "A button to receive more info about not seeing a participant in group call grid")
@@ -66,7 +66,7 @@ class GroupCallErrorView: UIView {
         return button
     }()
 
-    private let miniButton: UIButton = {
+    private lazy var miniButton: UIButton = {
         let button = UIButton()
         button.contentVerticalAlignment = .fill
         button.contentHorizontalAlignment = .fill

@@ -71,7 +71,7 @@ public class RegistrationPhoneNumberViewController: OnboardingBaseViewController
         return imageView
     }()
 
-    private let callingCodeLabel: UILabel = {
+    private lazy var callingCodeLabel: UILabel = {
         let label = UILabel()
         label.textColor = Theme.primaryTextColor
         label.font = UIFont.ows_dynamicTypeBodyClamped

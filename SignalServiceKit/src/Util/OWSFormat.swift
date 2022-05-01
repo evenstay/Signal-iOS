@@ -130,10 +130,21 @@ public extension OWSFormat {
         return formatter
     }()
 
+    private static let byteCountFormatter: ByteCountFormatter = {
+        let formatter = ByteCountFormatter()
+        formatter.formattingContext = .standalone
+        formatter.countStyle = .file
+        return formatter
+    }()
+
     static func localizedDecimalString(from number: Int) -> String {
         let result = decimalNumberFormatter.string(for: number)
         owsAssertDebug(result != nil, "Formatted string is nil. number=[\(number)]")
         return result ?? ""
+    }
+
+    static func localizedFileSizeString(from fileSize: Int64) -> String {
+        return byteCountFormatter.string(fromByteCount: fileSize)
     }
 }
 
@@ -163,9 +174,28 @@ public extension OWSFormat {
         return formatter
     }()
 
+    /**
+     * There's no DateComponentsFormatter configuration that produces "0:00".
+     * As a workaround, we make the full "00:00" string and take last N characters from it,
+     * where N is the length of "0:01".
+     */
+    private static var zeroDurationString: String? = {
+        let formatter = DateComponentsFormatter()
+        formatter.formattingContext = .standalone
+        formatter.zeroFormattingBehavior = .pad
+        formatter.allowedUnits = [ .minute, .second ]
+        guard let longString = formatter.string(from: 0) else {
+            return nil
+        }
+        let resultStringLength = localizedDurationString(from: 1).count
+        return String(longString.suffix(resultStringLength))
+    }()
+
     static func localizedDurationString(from timeInterval: TimeInterval) -> String {
         var result: String?
         switch timeInterval {
+        case 0:
+            result = zeroDurationString
         case 0..<60:
             result = durationFormatterS.string(from: timeInterval)
         case 3600...:

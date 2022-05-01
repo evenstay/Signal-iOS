@@ -100,7 +100,7 @@ public class PinSetupViewController: OWSViewController {
         return pinTypeToggle
     }()
 
-    private let nextButton: OWSFlatButton = {
+    private lazy var nextButton: OWSFlatButton = {
         let nextButton = OWSFlatButton()
         nextButton.setTitle(
             title: CommonStrings.nextButton,
@@ -137,7 +137,7 @@ public class PinSetupViewController: OWSViewController {
         return recommendationLabel
     }()
 
-    private let backButton: UIButton = {
+    private lazy var backButton: UIButton = {
         let topButtonImage = CurrentAppContext().isRTL ? #imageLiteral(resourceName: "NavBarBackRTL") : #imageLiteral(resourceName: "NavBarBack")
         let backButton = UIButton.withTemplateImage(topButtonImage, tintColor: Theme.secondaryTextAndIconColor)
 
@@ -146,7 +146,7 @@ public class PinSetupViewController: OWSViewController {
         return backButton
     }()
 
-    private let moreButton: UIButton = {
+    private lazy var moreButton: UIButton = {
         let moreButton = UIButton.withTemplateImageName("more-horiz-24", tintColor: Theme.primaryIconColor)
         moreButton.autoSetDimensions(to: CGSize(square: 40))
         moreButton.addTarget(self, action: #selector(didTapMoreButton), for: .touchUpInside)

@@ -11,6 +11,8 @@ public class GRDBSchemaMigrator: NSObject {
     private static let _areMigrationsComplete = AtomicBool(false)
     @objc
     public static var areMigrationsComplete: Bool { _areMigrationsComplete.get() }
+    public static let migrationSideEffectsCollectionName = "MigrationSideEffects"
+    public static let avatarRepairAttemptCount = "Avatar Repair Attempt Count"
 
     // Returns true IFF incremental migrations were performed.
     @objc
@@ -133,6 +135,7 @@ public class GRDBSchemaMigrator: NSObject {
         case updateConversationUnreadCountIndex
         case createDonationReceiptTable
         case addBoostAmountToSubscriptionDurableJob
+        case improvedDisappearingMessageIndices
 
         // NOTE: Every time we add a migration id, consider
         // incrementing grdbSchemaVersionLatest.
@@ -172,6 +175,7 @@ public class GRDBSchemaMigrator: NSObject {
         case dataMigration_moveToThreadAssociatedData
         case dataMigration_senderKeyStoreKeyIdMigration
         case dataMigration_reindexGroupMembershipAndMigrateLegacyAvatarDataFixed
+        case dataMigration_repairAvatar
     }
 
     public static let grdbSchemaVersionDefault: UInt = 0
@@ -1701,7 +1705,30 @@ public class GRDBSchemaMigrator: NSObject {
                     owsFail("Error: \(error)")
                 }
             }
+        }
 
+        // This will be a big perf win, but since we only allow one migration per release it'll wait until
+        // the rest of the stories changes make it in.
+        if FeatureFlags.storiesMigration5 {
+            migrator.registerMigration(MigrationId.improvedDisappearingMessageIndices.rawValue) { db in
+                do {
+                    // The old index was created in an order that made it practically useless for the query
+                    // we needed it for. This rebuilds it as a partial index.
+                    try db.execute(sql: """
+                        DROP INDEX index_interactions_on_threadUniqueId_storedShouldStartExpireTimer_and_expiresAt;
+
+                        CREATE INDEX index_interactions_on_threadUniqueId_storedShouldStartExpireTimer_and_expiresAt
+                        ON model_TSInteraction(uniqueThreadId, uniqueId)
+                        WHERE
+                            storedShouldStartExpireTimer IS TRUE
+                        AND
+                            (expiresAt IS 0 OR expireStartedAt IS 0)
+                        ;
+                    """)
+                } catch {
+                    owsFail("Error: \(error)")
+                }
+            }
         }
 
         // MARK: - Schema Migration Insertion Point
@@ -1982,6 +2009,17 @@ public class GRDBSchemaMigrator: NSObject {
                     GRDBFullTextSearchFinder.modelWasInserted(model: member, transaction: transaction)
                 }
             }
+        }
+
+        migrator.registerMigration(MigrationId.dataMigration_repairAvatar.rawValue) { db in
+            let transaction = GRDBWriteTransaction(database: db)
+            defer { transaction.finalizeTransaction() }
+
+            // Declare the key value store here, since it's normally only
+            // available in SignalMessaging (OWSPreferences).
+            let preferencesKeyValueStore = SDSKeyValueStore(collection: Self.migrationSideEffectsCollectionName)
+            let key = Self.avatarRepairAttemptCount
+            preferencesKeyValueStore.setInt(0, key: key, transaction: transaction.asAnyWrite)
         }
     }
 }
