@@ -26,7 +26,7 @@ jobs:
         with:
         #Git upstream repo
          upstream_repo: https://github.com/signalapp/Signal-iOS.git
-         upstream_branch: master
+         upstream_branch: main
          local_branch: main
          github_token: ${{ secrets.PERSONAL_TOKEN }}
 
