@@ -168,7 +168,7 @@ class BlockingManagerStateTests: SSKBaseTestSwift {
                 case (false, let changedObject as TSGroupModel):
                     return dut.removeBlockedGroup(changedObject.groupId) != nil
                 default:
-                    XCTFail()
+                    XCTFail("This case should be impossible")
                     return false
                 }
             }()
@@ -340,10 +340,9 @@ class BlockingManagerStateTests: SSKBaseTestSwift {
 
     func generateAddresses(count: UInt) -> Set<SignalServiceAddress> {
         Set((0..<count).map { _ in
-            let random = arc4random()
-            let addPhoneNumber = random.isMultiple(of: 3)
-            let addUuid = random.isMultiple(of: 2) || !addPhoneNumber
-            return CommonGenerator.address(hasUUID: addUuid, hasPhoneNumber: addPhoneNumber)
+            let hasPhoneNumber = Int.random(in: 0...2) == 0
+            let hasUUID = !hasPhoneNumber || Bool.random()
+            return CommonGenerator.address(hasUUID: hasUUID, hasPhoneNumber: hasPhoneNumber)
         })
     }
 

@@ -13,6 +13,7 @@
 		1466AB282817F7E7003B3D9F /* PluralAware.stringsdict in Resources */ = {isa = PBXBuildFile; fileRef = 1466AB262817F7E7003B3D9F /* PluralAware.stringsdict */; };
 		1477630B275E20D700D1067E /* ThreadSwipeHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1477630A275E20D700D1067E /* ThreadSwipeHandler.swift */; };
 		1489ED0227A3D70200C7043A /* ArchivedConversationsCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1489ED0127A3D70200C7043A /* ArchivedConversationsCell.swift */; };
+		14DB56A62829310B00E01AC9 /* DonationMegaphone.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14DB56A52829310B00E01AC9 /* DonationMegaphone.swift */; };
 		14E4A340278EE999008408FD /* BlurredToolbarContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14E4A33F278EE999008408FD /* BlurredToolbarContainer.swift */; };
 		1704690A25D4C326000793D8 /* SignalAttachmentTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1704690925D4C2E6000793D8 /* SignalAttachmentTest.swift */; };
 		1704690C25D4C92B000793D8 /* test-jpg-rotated.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 1704690B25D4C92B000793D8 /* test-jpg-rotated.jpg */; };
@@ -578,8 +579,6 @@
 		34D2CCDA2062E7D000CB1A14 /* OWSScreenLockUI.m in Sources */ = {isa = PBXBuildFile; fileRef = 34D2CCD92062E7D000CB1A14 /* OWSScreenLockUI.m */; };
 		34D2CCDF206939B400CB1A14 /* DebugUIMessagesAction.m in Sources */ = {isa = PBXBuildFile; fileRef = 34D2CCDB206939B100CB1A14 /* DebugUIMessagesAction.m */; };
 		34D2CCE0206939B400CB1A14 /* DebugUIMessagesAssetLoader.m in Sources */ = {isa = PBXBuildFile; fileRef = 34D2CCDC206939B200CB1A14 /* DebugUIMessagesAssetLoader.m */; };
-		34D3E57B245A189D00F5E4A1 /* DebugUIScreenshots.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34D3E579245A189D00F5E4A1 /* DebugUIScreenshots.swift */; };
-		34D3E57C245A189D00F5E4A1 /* DebugUIScreenshots.m in Sources */ = {isa = PBXBuildFile; fileRef = 34D3E57A245A189D00F5E4A1 /* DebugUIScreenshots.m */; };
 		34D8C0271ED3673300188D7C /* DebugUIMessages.m in Sources */ = {isa = PBXBuildFile; fileRef = 34D8C0241ED3673300188D7C /* DebugUIMessages.m */; };
 		34D8C0281ED3673300188D7C /* DebugUITableViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 34D8C0261ED3673300188D7C /* DebugUITableViewController.m */; };
 		34D8C02B1ED3685800188D7C /* DebugUIContacts.m in Sources */ = {isa = PBXBuildFile; fileRef = 34D8C02A1ED3685800188D7C /* DebugUIContacts.m */; };
@@ -718,8 +717,6 @@
 		4C10B1AB23176D250099396B /* CoreGraphics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D221A091169C9E5E00537ABF /* CoreGraphics.framework */; };
 		4C10B1AC23176D250099396B /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A11CD70C17FA230600A2D1B1 /* QuartzCore.framework */; };
 		4C10B1AD23176D250099396B /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A163E8AA16F3F6A90094D68B /* Security.framework */; };
-		4C10B1AE23176D250099396B /* AddressBookUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A1C32D4F17A06537000A904E /* AddressBookUI.framework */; };
-		4C10B1AF23176D250099396B /* AddressBook.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A1C32D4D17A0652C000A904E /* AddressBook.framework */; };
 		4C10B1B023176D250099396B /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A1FDCBEE16DAA6C300868894 /* AVFoundation.framework */; };
 		4C10B1B123176D250099396B /* CoreTelephony.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D2179CFB16BB0B3A0006F3AB /* CoreTelephony.framework */; };
 		4C10B1B223176D250099396B /* SystemConfiguration.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D2179CFD16BB0B480006F3AB /* SystemConfiguration.framework */; };
@@ -992,8 +989,6 @@
 		A11CD70D17FA230600A2D1B1 /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A11CD70C17FA230600A2D1B1 /* QuartzCore.framework */; };
 		A123C14916F902EE000AE905 /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A163E8AA16F3F6A90094D68B /* Security.framework */; };
 		A163E8AB16F3F6AA0094D68B /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A163E8AA16F3F6A90094D68B /* Security.framework */; };
-		A194D3B917A08CD1004BD3A9 /* AddressBook.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A1C32D4D17A0652C000A904E /* AddressBook.framework */; };
-		A194D3BA17A08CD5004BD3A9 /* AddressBookUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A1C32D4F17A06537000A904E /* AddressBookUI.framework */; };
 		A1A018521805C5E800A052A6 /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A11CD70C17FA230600A2D1B1 /* QuartzCore.framework */; };
 		A1A018531805C60D00A052A6 /* CoreGraphics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D221A091169C9E5E00537ABF /* CoreGraphics.framework */; };
 		A5E7C675248C5443007C949A /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = A5E7C673248C5442007C949A /* InfoPlist.strings */; };
@@ -1204,6 +1199,7 @@
 		146FFAA027A7FE87004A2A64 /* Signalyzer.instrdst */ = {isa = PBXFileReference; explicitFileType = com.apple.instruments.instrdst; includeInIndex = 0; path = Signalyzer.instrdst; sourceTree = BUILT_PRODUCTS_DIR; };
 		1477630A275E20D700D1067E /* ThreadSwipeHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThreadSwipeHandler.swift; sourceTree = "<group>"; };
 		1489ED0127A3D70200C7043A /* ArchivedConversationsCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchivedConversationsCell.swift; sourceTree = "<group>"; };
+		14DB56A52829310B00E01AC9 /* DonationMegaphone.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DonationMegaphone.swift; sourceTree = "<group>"; };
 		14E4A33F278EE999008408FD /* BlurredToolbarContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlurredToolbarContainer.swift; sourceTree = "<group>"; };
 		14FD26DD3B40616C54CDBF1A /* Pods-SignalShareExtension.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-SignalShareExtension.debug.xcconfig"; path = "Pods/Target Support Files/Pods-SignalShareExtension/Pods-SignalShareExtension.debug.xcconfig"; sourceTree = "<group>"; };
 		1704690925D4C2E6000793D8 /* SignalAttachmentTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignalAttachmentTest.swift; sourceTree = "<group>"; };
@@ -1806,9 +1802,6 @@
 		34D2CCDD206939B200CB1A14 /* DebugUIMessagesAction.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = DebugUIMessagesAction.h; sourceTree = "<group>"; };
 		34D2CCDE206939B400CB1A14 /* DebugUIMessagesAssetLoader.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = DebugUIMessagesAssetLoader.h; sourceTree = "<group>"; };
 		34D2CCE220693A1700CB1A14 /* DebugUIMessagesUtils.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = DebugUIMessagesUtils.h; sourceTree = "<group>"; };
-		34D3E578245A189D00F5E4A1 /* DebugUIScreenshots.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = DebugUIScreenshots.h; sourceTree = "<group>"; };
-		34D3E579245A189D00F5E4A1 /* DebugUIScreenshots.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DebugUIScreenshots.swift; sourceTree = "<group>"; };
-		34D3E57A245A189D00F5E4A1 /* DebugUIScreenshots.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = DebugUIScreenshots.m; sourceTree = "<group>"; };
 		34D8C0231ED3673300188D7C /* DebugUIMessages.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = DebugUIMessages.h; sourceTree = "<group>"; };
 		34D8C0241ED3673300188D7C /* DebugUIMessages.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = DebugUIMessages.m; sourceTree = "<group>"; };
 		34D8C0251ED3673300188D7C /* DebugUITableViewController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = DebugUITableViewController.h; sourceTree = "<group>"; };
@@ -2030,6 +2023,13 @@
 		4CFB4E9B220BC56D00ECB4DE /* nb */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = nb; path = translations/nb.lproj/Localizable.strings; sourceTree = "<group>"; };
 		4CFF115223A9C2130007F9D7 /* UnreadIndicatorInteraction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnreadIndicatorInteraction.swift; sourceTree = "<group>"; };
 		4CFF4C0920F55BBA005DA313 /* MessageActionsToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageActionsToolbar.swift; sourceTree = "<group>"; };
+		503614D0282C5703008128B4 /* ro */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = ro; path = translations/ro.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
+		503614D1282C5728008128B4 /* fi */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = fi; path = translations/fi.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
+		503614D2282C572F008128B4 /* id */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = id; path = translations/id.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
+		503614D3282C574F008128B4 /* is */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = is; path = translations/is.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
+		503614D4282C5765008128B4 /* lt */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = lt; path = translations/lt.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
+		503614D5282C578C008128B4 /* sq */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = sq; path = translations/sq.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
+		503614D6282C7B76008128B4 /* zh_CN */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = zh_CN; path = translations/zh_CN.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
 		55D83291ED67EE1A7FC96E60 /* Pods-SignalNSE.testable release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-SignalNSE.testable release.xcconfig"; path = "Pods/Target Support Files/Pods-SignalNSE/Pods-SignalNSE.testable release.xcconfig"; sourceTree = "<group>"; };
 		63BAA38DC365EE44110A6BD1 /* Pods-SignalTests.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-SignalTests.debug.xcconfig"; path = "Pods/Target Support Files/Pods-SignalTests/Pods-SignalTests.debug.xcconfig"; sourceTree = "<group>"; };
 		6657FDE7B91C2845BB3BEAB5 /* Pods_SignalShareExtension.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_SignalShareExtension.framework; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -2485,8 +2485,6 @@
 				4C10B1AB23176D250099396B /* CoreGraphics.framework in Frameworks */,
 				4C10B1AC23176D250099396B /* QuartzCore.framework in Frameworks */,
 				4C10B1AD23176D250099396B /* Security.framework in Frameworks */,
-				4C10B1AE23176D250099396B /* AddressBookUI.framework in Frameworks */,
-				4C10B1AF23176D250099396B /* AddressBook.framework in Frameworks */,
 				4C10B1B023176D250099396B /* AVFoundation.framework in Frameworks */,
 				4C10B1B123176D250099396B /* CoreTelephony.framework in Frameworks */,
 				4C10B1B223176D250099396B /* SystemConfiguration.framework in Frameworks */,
@@ -2541,8 +2539,6 @@
 				A1A018531805C60D00A052A6 /* CoreGraphics.framework in Frameworks */,
 				A1A018521805C5E800A052A6 /* QuartzCore.framework in Frameworks */,
 				A123C14916F902EE000AE905 /* Security.framework in Frameworks */,
-				A194D3BA17A08CD5004BD3A9 /* AddressBookUI.framework in Frameworks */,
-				A194D3B917A08CD1004BD3A9 /* AddressBook.framework in Frameworks */,
 				D202868416DBE108009068E9 /* AVFoundation.framework in Frameworks */,
 				D202868316DBE0FC009068E9 /* CoreTelephony.framework in Frameworks */,
 				D202868216DBE0F4009068E9 /* SystemConfiguration.framework in Frameworks */,
@@ -3728,9 +3724,6 @@
 				34E3EF0F1EFC2684007F6822 /* DebugUIPage.m */,
 				3498AC972518E98A00B1F315 /* DebugUIPayments.swift */,
 				4556FA671F54AA9500AF40DD /* DebugUIProfile.swift */,
-				34D3E578245A189D00F5E4A1 /* DebugUIScreenshots.h */,
-				34D3E57A245A189D00F5E4A1 /* DebugUIScreenshots.m */,
-				34D3E579245A189D00F5E4A1 /* DebugUIScreenshots.swift */,
 				452037CF1EE84975004E4CDF /* DebugUISessionState.h */,
 				452037D01EE84975004E4CDF /* DebugUISessionState.m */,
 				34BECE291F74C12700D7438D /* DebugUIStress.h */,
@@ -4360,6 +4353,7 @@
 		88A505FE23DBAE640005C012 /* Upgrade Views */ = {
 			isa = PBXGroup;
 			children = (
+				14DB56A52829310B00E01AC9 /* DonationMegaphone.swift */,
 				8806EF1A248DBFC100E764C7 /* ContactPermissionReminderMegaphone.swift */,
 				88FBE953264B6848005F6C80 /* SubscriptionMegaphone.swift */,
 				88A505F923DBA1360005C012 /* IntroducingPINs.swift */,
@@ -6185,7 +6179,6 @@
 				F9BC0A2527FB8E730085B23D /* AppSettingsViewsUtil.swift in Sources */,
 				34E3EF0D1EFC235B007F6822 /* DebugUIDiskUsage.m in Sources */,
 				887EEC1F23F0B20600F8C26D /* PinReminderMegaphone.swift in Sources */,
-				34D3E57B245A189D00F5E4A1 /* DebugUIScreenshots.swift in Sources */,
 				3495FF0B25F9276E00959D6E /* PaymentsRestoreWalletWordViewController.swift in Sources */,
 				454A84042059C787008B8C75 /* MediaTileViewController.swift in Sources */,
 				4CD675C722E7D393008010D2 /* MediaPresentationContext.swift in Sources */,
@@ -6224,9 +6217,9 @@
 				3405C06E25435048008B24EF /* ConversationViewController+Banners.swift in Sources */,
 				881D85B822D92C2B00E118DF /* OWSPinSetupViewController.swift in Sources */,
 				340FC8BA204DAC8D007AEB0F /* FingerprintViewScanController.m in Sources */,
+				14DB56A62829310B00E01AC9 /* DonationMegaphone.swift in Sources */,
 				17ACF11E267D71E0009BE867 /* OWSAudioSession+WebRTC.swift in Sources */,
 				34ACA7E92733159600E47AD4 /* ChangePhoneNumberSplashViewController.swift in Sources */,
-				34D3E57C245A189D00F5E4A1 /* DebugUIScreenshots.m in Sources */,
 				34ACA7E22733159600E47AD4 /* OnboardingPhoneNumberViewController.swift in Sources */,
 				8835DDF9230CEDC300DC6B66 /* RecipientPickerViewController.m in Sources */,
 				886BB3D425BA0CA900079781 /* ColorAndWallpaperSettingsViewController.swift in Sources */,
@@ -6781,6 +6774,13 @@
 				1466AB382817F87D003B3D9F /* uk */,
 				1466AB392817F88A003B3D9F /* zh_TW */,
 				1466AB3B2817F89D003B3D9F /* zh_HK */,
+				503614D0282C5703008128B4 /* ro */,
+				503614D1282C5728008128B4 /* fi */,
+				503614D2282C572F008128B4 /* id */,
+				503614D3282C574F008128B4 /* is */,
+				503614D4282C5765008128B4 /* lt */,
+				503614D5282C578C008128B4 /* sq */,
+				503614D6282C7B76008128B4 /* zh_CN */,
 			);
 			name = PluralAware.stringsdict;
 			sourceTree = "<group>";

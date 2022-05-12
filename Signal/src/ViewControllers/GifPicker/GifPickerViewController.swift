@@ -471,7 +471,8 @@ class GifPickerViewController: OWSViewController, UISearchBarDelegate, UICollect
         firstly {
             cell.requestRenditionForSending()
         }.map(on: .global()) { [weak self] (asset: ProxiedContentAsset) -> SignalAttachment in
-            guard let _ = self else { throw GetFileError.noLongerRelevant }
+            // This check is just an optimization. The important check is below.
+            guard self != nil else { throw GetFileError.noLongerRelevant }
 
             guard let giphyAsset = asset.assetDescription as? GiphyAsset else {
                 throw OWSAssertionError("Invalid asset description.")
