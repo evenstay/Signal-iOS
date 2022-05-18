@@ -92,13 +92,16 @@ public class FeatureFlags: BaseFlags {
     public static let stories = build.includes(.qa)
 
     @objc
-    public static let storiesMigration5 = build.includes(.qa)
-
-    @objc
     public static let canUseNativeWebsocket = true
 
     @objc
     public static let groupAbuse = build.includes(.beta)
+
+    @objc
+    public static let giftBadgeReceiving = false
+
+    @objc
+    public static let giftBadgeSending = false
 
     @objc
     public static var notificationServiceExtension: Bool {

@@ -1,5 +1,5 @@
 //
-//  Copyright (c) 2021 Open Whisper Systems. All rights reserved.
+//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
 //
 
 import Foundation
@@ -19,10 +19,7 @@ class AppUpdateNag: NSObject {
     @objc
     public func showAppUpgradeNagIfNecessary() {
 
-        guard let currentVersion = self.currentVersion else {
-            owsFailDebug("currentVersion was unexpectedly nil")
-            return
-        }
+        let currentVersion = self.currentVersion
 
         guard let bundleIdentifier = self.bundleIdentifier else {
             owsFailDebug("bundleIdentifier was unexpectedly nil")
@@ -36,14 +33,16 @@ class AppUpdateNag: NSObject {
 
         firstly {
             self.versionService.fetchLatestVersion(lookupURL: lookupURL)
-        }.done { appStoreRecord in
+        }.then(on: .global()) { (appStoreRecord) -> Promise<Void> in
             guard appStoreRecord.version.compare(currentVersion, options: .numeric) == ComparisonResult.orderedDescending else {
                 Logger.debug("remote version: \(appStoreRecord) is not newer than currentVersion: \(currentVersion)")
-                return
+                self.clearFirstHeardOfNewVersionDate()
+                return Promise.value(())
             }
-
-            Logger.info("new version available: \(appStoreRecord)")
-            self.showUpdateNagIfEnoughTimeHasPassed(appStoreRecord: appStoreRecord)
+            return firstly(on: .main) {
+                Logger.info("new version available: \(appStoreRecord)")
+                self.showUpdateNagIfEnoughTimeHasPassed(appStoreRecord: appStoreRecord)
+            }
         }.catch { error in
             Logger.warn("failed with error: \(error)")
         }
@@ -65,7 +64,7 @@ class AppUpdateNag: NSObject {
         return Bundle.main
     }
 
-    var currentVersion: String? {
+    var currentVersion: String {
         appVersion.currentAppReleaseVersion
     }
 

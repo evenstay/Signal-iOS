@@ -1463,7 +1463,7 @@ public class GRDBSchemaMigrator: NSObject {
                 // placing quotes around the column name in the WHERE clause will trick the SQLite query planner
                 // into thinking these indices can't be applied to the queries we're optimizing for.
                 try db.execute(sql: """
-                    DROP INDEX index_model_TSInteraction_on_nonPlaceholders_uniqueThreadId_id;
+                    DROP INDEX IF EXISTS index_model_TSInteraction_on_nonPlaceholders_uniqueThreadId_id;
 
                     CREATE INDEX index_model_TSInteraction_ConversationLoadInteractionCount
                     ON model_TSInteraction(uniqueThreadId, recordType)
@@ -1716,27 +1716,23 @@ public class GRDBSchemaMigrator: NSObject {
             }
         }
 
-        // This will be a big perf win, but since we only allow one migration per release it'll wait until
-        // the rest of the stories changes make it in.
-        if FeatureFlags.storiesMigration5 {
-            migrator.registerMigration(.improvedDisappearingMessageIndices) { db in
-                do {
-                    // The old index was created in an order that made it practically useless for the query
-                    // we needed it for. This rebuilds it as a partial index.
-                    try db.execute(sql: """
-                        DROP INDEX index_interactions_on_threadUniqueId_storedShouldStartExpireTimer_and_expiresAt;
+        migrator.registerMigration(.improvedDisappearingMessageIndices) { db in
+            do {
+                // The old index was created in an order that made it practically useless for the query
+                // we needed it for. This rebuilds it as a partial index.
+                try db.execute(sql: """
+                    DROP INDEX index_interactions_on_threadUniqueId_storedShouldStartExpireTimer_and_expiresAt;
 
-                        CREATE INDEX index_interactions_on_threadUniqueId_storedShouldStartExpireTimer_and_expiresAt
-                        ON model_TSInteraction(uniqueThreadId, uniqueId)
-                        WHERE
-                            storedShouldStartExpireTimer IS TRUE
-                        AND
-                            (expiresAt IS 0 OR expireStartedAt IS 0)
-                        ;
-                    """)
-                } catch {
-                    owsFail("Error: \(error)")
-                }
+                    CREATE INDEX index_interactions_on_threadUniqueId_storedShouldStartExpireTimer_and_expiresAt
+                    ON model_TSInteraction(uniqueThreadId, uniqueId)
+                    WHERE
+                        storedShouldStartExpireTimer IS TRUE
+                    AND
+                        (expiresAt IS 0 OR expireStartedAt IS 0)
+                    ;
+                """)
+            } catch {
+                owsFail("Error: \(error)")
             }
         }
 
@@ -2024,7 +2020,7 @@ public class GRDBSchemaMigrator: NSObject {
 
                 while let member = try memberCursor.next() {
                     autoreleasepool {
-                        GRDBFullTextSearchFinder.modelWasInserted(model: member, transaction: transaction)
+                        GRDBFullTextSearchFinder.modelWasInsertedOrUpdated(model: member, transaction: transaction)
                     }
                 }
             } catch {

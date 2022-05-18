@@ -44,6 +44,17 @@ class DonationViewController: OWSTableViewController2 {
         loadAndUpdateState()
     }
 
+    @objc
+    private func didLongPressAvatar(sender: UIGestureRecognizer) {
+        let subscriberID = databaseStorage.read { SubscriptionManager.getSubscriberID(transaction: $0) }
+        guard let subscriberID = subscriberID else { return }
+
+        UIPasteboard.general.string = subscriberID.asBase64Url
+
+        presentToast(text: NSLocalizedString("SUBSCRIPTION_SUBSCRIBER_ID_COPIED_TO_CLIPBOARD",
+                                             comment: "Toast indicating that the user has copied their subscriber ID."))
+    }
+
     // MARK: - Data loading
 
     private func loadAndUpdateState() {
@@ -122,6 +133,9 @@ class DonationViewController: OWSTableViewController2 {
                 }
             }
         }
+
+        avatarView.isUserInteractionEnabled = true
+        avatarView.addGestureRecognizer(UILongPressGestureRecognizer(target: self, action: #selector(didLongPressAvatar)))
     }
 
     // MARK: - Table contents
@@ -397,6 +411,30 @@ class DonationViewController: OWSTableViewController2 {
                 }
             }
         ))
+
+        if DonationUtilities.canSendGiftBadges {
+            section.add(.disclosureItem(
+                icon: .settingsGift,
+                name: NSLocalizedString("DONATION_VIEW_GIFT", comment: "Title for the 'Gift a Badge' link in the donation view"),
+                accessibilityIdentifier: UIView.accessibilityIdentifier(in: self, name: "giftBadge"),
+                actionBlock: { [weak self] in
+                    guard let self = self else { return }
+
+                    // It's possible (but unlikely) to lose the ability to send gifts while this button is
+                    // visible. For example, Apple Pay could be disabled in parental controls after this
+                    // screen is opened.
+                    guard DonationUtilities.canSendGiftBadges else {
+                        // We might want to show a better UI here, but making the button a no-op is
+                        // preferable to launching the view controller.
+                        return
+                    }
+
+                    let vc = BadgeGiftingChooseBadgeViewController()
+                    self.navigationController?.pushViewController(vc, animated: true)
+                }
+            ))
+        }
+
         return section
     }
 

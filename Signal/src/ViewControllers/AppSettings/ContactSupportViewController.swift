@@ -6,11 +6,13 @@ import Foundation
 import SafariServices
 
 @objc(OWSSupportConstants)
-@objcMembers class SupportConstants: NSObject {
+@objcMembers
+class SupportConstants: NSObject {
     static let supportURL = URL(string: "https://support.signal.org/")!
     static let debugLogsInfoURL = URL(string: "https://support.signal.org/hc/articles/360007318591")!
     static let supportEmail = "support@signal.org"
     static let subscriptionFAQURL = URL(string: "https://support.signal.org/hc/articles/4408365318426")!
+    static let badgeExpirationLearnMoreURL = URL(string: "https://support.signal.org/hc/articles/360031949872#fix")!
 }
 
 enum ContactSupportFilter: String, CaseIterable {
@@ -179,7 +181,8 @@ final class ContactSupportViewController: OWSTableViewController2 {
 
     // MARK: - View transitions
 
-    @objc func keyboardFrameChange(_ notification: NSNotification) {
+    @objc
+    func keyboardFrameChange(_ notification: NSNotification) {
         guard let keyboardEndFrame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else {
             owsFailDebug("Missing keyboard frame info")
             return
@@ -229,13 +232,16 @@ final class ContactSupportViewController: OWSTableViewController2 {
 
     // MARK: - Actions
 
-    @objc func didTapCancel() {
+    @objc
+    func didTapCancel() {
         currentEmailComposeOperation?.cancel()
         navigationController?.presentingViewController?.dismiss(animated: true, completion: nil)
     }
 
     var currentEmailComposeOperation: ComposeSupportEmailOperation?
-    @objc func didTapNext() {
+
+    @objc
+    func didTapNext() {
         var emailRequest = SupportEmailModel()
         emailRequest.userDescription = descriptionField.text
         emailRequest.emojiMood = emojiPicker.selectedMood

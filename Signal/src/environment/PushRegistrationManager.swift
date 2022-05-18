@@ -1,5 +1,5 @@
 //
-//  Copyright (c) 2021 Open Whisper Systems. All rights reserved.
+//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
 //
 
 import Foundation
@@ -16,7 +16,8 @@ public enum PushRegistrationError: Error {
 /**
  * Singleton used to integrate with push notification services - registration and routing received remote notifications.
  */
-@objc public class PushRegistrationManager: NSObject, PKPushRegistryDelegate {
+@objc
+public class PushRegistrationManager: NSObject, PKPushRegistryDelegate {
 
     override init() {
         super.init()
@@ -171,7 +172,7 @@ public enum PushRegistrationError: Error {
         }
 
         if isUnexpectedPush.get() {
-            Self.handleUnexpectedVoidPush()
+            Self.handleUnexpectedVoipPush()
         }
 
         if let callRelayPayload = callRelayPayload {
@@ -229,7 +230,7 @@ public enum PushRegistrationError: Error {
         }
     }
 
-    private static func handleUnexpectedVoidPush() {
+    private static func handleUnexpectedVoipPush() {
         assertOnQueue(calloutQueue)
 
         Logger.info("")

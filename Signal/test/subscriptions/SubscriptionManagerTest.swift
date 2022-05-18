@@ -21,24 +21,34 @@ class SubscriptionTest: XCTestCase {
     }()
 
     func testJsonInit() throws {
-        let subscription = try Subscription(jsonDictionary: subscriptionJsonDictionary)
+        let subscription = try Subscription(jsonDictionary: subscriptionJsonDictionary,
+                                            hasChargeFailure: false)
 
         XCTAssertEqual(subscription.level, 123)
         XCTAssertEqual(subscription.currency, "USD")
         XCTAssertEqual(subscription.amount, 500)
         XCTAssertEqual(subscription.endOfCurrentPeriod, 1618881836)
         XCTAssertEqual(subscription.billingCycleAnchor, 1587345836)
-        XCTAssert(subscription.active)
-        XCTAssert(!subscription.cancelAtEndOfPeriod)
+        XCTAssertTrue(subscription.active)
+        XCTAssertFalse(subscription.cancelAtEndOfPeriod)
         XCTAssertEqual(subscription.status, .active)
+        XCTAssertFalse(subscription.hasChargeFailure)
     }
 
     func testJsonInitWithUnexpectedStatus() throws {
         var jsonDictionaryWithUnexpectedStatus = subscriptionJsonDictionary
         jsonDictionaryWithUnexpectedStatus["status"] = "unexpected!!"
 
-        let subscription = try Subscription(jsonDictionary: jsonDictionaryWithUnexpectedStatus)
+        let subscription = try Subscription(jsonDictionary: jsonDictionaryWithUnexpectedStatus,
+                                            hasChargeFailure: false)
 
         XCTAssertEqual(subscription.status, .unknown)
+        XCTAssertFalse(subscription.hasChargeFailure)
+    }
+
+    func testChargeFailure() throws {
+        let subscription = try Subscription(jsonDictionary: subscriptionJsonDictionary,
+                                            hasChargeFailure: true)
+        XCTAssertTrue(subscription.hasChargeFailure)
     }
 }

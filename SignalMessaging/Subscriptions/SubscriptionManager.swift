@@ -88,8 +88,9 @@ public struct Subscription {
     public let active: Bool
     public let cancelAtEndOfPeriod: Bool
     public let status: StripeSubscriptionStatus
+    public let hasChargeFailure: Bool
 
-    public init(jsonDictionary: [String: Any]) throws {
+    public init(jsonDictionary: [String: Any], hasChargeFailure: Bool) throws {
         let params = ParamParser(dictionary: jsonDictionary)
         level = try params.required(key: "level")
         currency = try params.required(key: "currency")
@@ -100,6 +101,7 @@ public struct Subscription {
         active = try params.required(key: "active")
         cancelAtEndOfPeriod = try params.required(key: "cancelAtPeriodEnd")
         status = StripeSubscriptionStatus(rawValue: try params.required(key: "status")) ?? .unknown
+        self.hasChargeFailure = hasChargeFailure
     }
 }
 
@@ -167,6 +169,7 @@ public class SubscriptionManager: NSObject {
     fileprivate static let knownUserBoostBadgeIDsKey = "knownUserBoostBadgeIDsKey"
     fileprivate static let mostRecentlyExpiredBadgeIDKey = "mostRecentlyExpiredBadgeIDKey"
     fileprivate static let showExpirySheetOnHomeScreenKey = "showExpirySheetOnHomeScreenKey"
+    fileprivate static let doesMostRecentSubscriptionBadgeHaveChargeFailureKey = "doesMostRecentSubscriptionBadgeHaveChargeFailure"
     fileprivate static let hasMigratedToStorageServiceKey = "hasMigratedToStorageServiceKey"
 
     public static var terminateTransactionIfPossible = false
@@ -247,8 +250,10 @@ public class SubscriptionManager: NSObject {
                 guard let subscriptionDict: [String: Any] = try parser.optional(key: "subscription") else {
                     return nil
                 }
+                let hasChargeFailure: Bool = (try? parser.optional(key: "chargeFailure")) ?? false
 
-                return try Subscription(jsonDictionary: subscriptionDict)
+                return try Subscription(jsonDictionary: subscriptionDict,
+                                        hasChargeFailure: hasChargeFailure)
             } else {
                 return nil
             }
@@ -343,6 +348,10 @@ public class SubscriptionManager: NSObject {
         }.then(on: .sharedUserInitiated) { _ -> Promise<Void> in
             guard !self.terminateTransactionIfPossible else {
                 throw OWSGenericError("Transaction chain cancelled")
+            }
+
+            databaseStorage.write {
+                Self.setMostRecentSubscriptionBadgeHasChargeFailure(hasChargeFailure: false, transaction: $0)
             }
 
             return setSubscription(for: generatedSubscriberID, subscription: subscription, currency: currencyCode)
@@ -726,6 +735,16 @@ public class SubscriptionManager: NSObject {
                 return
             }
 
+            if subscription.hasChargeFailure {
+                Logger.info("[Subscriptions] There was a charge failure. Setting status to failed")
+            } else {
+                Logger.info("[Subscriptions] There no charge failure. Clearing failed status, if it existed")
+            }
+            databaseStorage.write {
+                self.setMostRecentSubscriptionBadgeHasChargeFailure(hasChargeFailure: subscription.hasChargeFailure,
+                                                                    transaction: $0)
+            }
+
             if let lastSubscriptionExpiration = lastSubscriptionExpiration, lastSubscriptionExpiration.timeIntervalSince1970 < subscription.endOfCurrentPeriod {
                 // Re-kick
                 let newDate = Date(timeIntervalSince1970: subscription.endOfCurrentPeriod)
@@ -736,7 +755,6 @@ public class SubscriptionManager: NSObject {
                 databaseStorage.write { transaction in
                     self.setLastSubscriptionExpirationDate(Date(timeIntervalSince1970: subscription.endOfCurrentPeriod), transaction: transaction)
                 }
-
             } else {
                 Logger.info("[Subscriptions] Not triggering receipt redemption, expiration date is the same")
             }
@@ -941,6 +959,13 @@ extension SubscriptionManager {
         return subscriptionKVS.getBool(showExpirySheetOnHomeScreenKey, transaction: transaction) ?? false
     }
 
+    public static func doesMostRecentSubscriptionBadgeHaveChargeFailure(transaction: SDSAnyReadTransaction) -> Bool {
+        subscriptionKVS.getBool(doesMostRecentSubscriptionBadgeHaveChargeFailureKey, transaction: transaction) ?? false
+    }
+
+    public static func setMostRecentSubscriptionBadgeHasChargeFailure(hasChargeFailure: Bool, transaction: SDSAnyWriteTransaction) {
+        subscriptionKVS.setBool(hasChargeFailure, key: doesMostRecentSubscriptionBadgeHaveChargeFailureKey, transaction: transaction)
+    }
 }
 
 @objc

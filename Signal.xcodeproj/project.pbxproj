@@ -1036,8 +1036,10 @@
 		F900F2DD27F25AB400431E09 /* DonationReceiptViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F900F2DC27F25AB300431E09 /* DonationReceiptViewController.swift */; };
 		F9066F0727ECE41B008C9530 /* DonationReceiptsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9066F0627ECE41B008C9530 /* DonationReceiptsViewController.swift */; };
 		F973DFBA0991C967C4934B08 /* Pods_SignalUITests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BD0D81F9D93CB5BADE6B9709 /* Pods_SignalUITests.framework */; };
+		F97A2EEA282578C000610669 /* BadgeExpirationSheetStateTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = F97A2EE828247C1300610669 /* BadgeExpirationSheetStateTest.swift */; };
 		F9A8ACC7280A175E00AFC6A7 /* DonationViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9A8ACC6280A175E00AFC6A7 /* DonationViewController.swift */; };
 		F9BC0A2527FB8E730085B23D /* AppSettingsViewsUtil.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9BC0A2427FB8E730085B23D /* AppSettingsViewsUtil.swift */; };
+		F9D83012282DBB1500399363 /* BadgeGiftingChooseBadgeViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9D83011282DBB1500399363 /* BadgeGiftingChooseBadgeViewController.swift */; };
 		F9DD70B92811AF82000C5960 /* DonationViewsUtil.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9DD70B82811AF82000C5960 /* DonationViewsUtil.swift */; };
 		FCB11D8C1A129A76002F93FB /* CoreMedia.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FCB11D8B1A129A76002F93FB /* CoreMedia.framework */; };
 /* End PBXBuildFile section */
@@ -2023,6 +2025,56 @@
 		4CFB4E9B220BC56D00ECB4DE /* nb */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = nb; path = translations/nb.lproj/Localizable.strings; sourceTree = "<group>"; };
 		4CFF115223A9C2130007F9D7 /* UnreadIndicatorInteraction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnreadIndicatorInteraction.swift; sourceTree = "<group>"; };
 		4CFF4C0920F55BBA005DA313 /* MessageActionsToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageActionsToolbar.swift; sourceTree = "<group>"; };
+		5000499E28330102006A7466 /* sr */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = sr; path = translations/sr.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
+		5000499F28330106006A7466 /* sn */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = sn; path = translations/sn.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
+		500049A02833010A006A7466 /* sl */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = sl; path = translations/sl.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
+		500049A12833010D006A7466 /* es_MX */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = es_MX; path = translations/es_MX.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
+		500049A228330110006A7466 /* sw */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = sw; path = translations/sw.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
+		500049A328330114006A7466 /* sv */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = sv; path = translations/sv.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
+		500049A428330116006A7466 /* ta */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = ta; path = translations/ta.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
+		500049A528330118006A7466 /* te */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = te; path = translations/te.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
+		500049A62833011A006A7466 /* th */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = th; path = translations/th.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
+		500049A72833011C006A7466 /* tr */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = tr; path = translations/tr.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
+		500049A82833011E006A7466 /* ur */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = ur; path = translations/ur.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
+		500049A928330120006A7466 /* ug */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = ug; path = translations/ug.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
+		500049AA28330122006A7466 /* vi */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = vi; path = translations/vi.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
+		500049AB28330124006A7466 /* cy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = cy; path = translations/cy.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
+		500049AC28330139006A7466 /* af */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = af; path = translations/af.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
+		500049AD2833013D006A7466 /* ar */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = ar; path = translations/ar.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
+		500049AE28330143006A7466 /* bn */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = bn; path = translations/bn.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
+		500049AF28330144006A7466 /* eu */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = eu; path = translations/eu.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
+		500049B028330147006A7466 /* bs */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = bs; path = translations/bs.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
+		500049B128330148006A7466 /* bg */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = bg; path = translations/bg.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
+		500049B22833014B006A7466 /* my */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = my; path = translations/my.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
+		500049B32833014D006A7466 /* yue */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = yue; path = translations/yue.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
+		500049B428330150006A7466 /* hr */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = hr; path = translations/hr.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
+		500049B528330152006A7466 /* cs */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = cs; path = translations/cs.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
+		500049B628330154006A7466 /* et */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = et; path = translations/et.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
+		500049B728330158006A7466 /* fil */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = fil; path = translations/fil.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
+		500049B82833015B006A7466 /* fr */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = fr; path = translations/fr.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
+		500049B92833015D006A7466 /* gl */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = gl; path = translations/gl.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
+		500049BA28330160006A7466 /* el */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = el; path = translations/el.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
+		500049BB28330162006A7466 /* gu */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = gu; path = translations/gu.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
+		500049BC28330164006A7466 /* ha */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = ha; path = translations/ha.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
+		500049BD28330166006A7466 /* hi */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = hi; path = translations/hi.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
+		500049BE2833016A006A7466 /* ga */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = ga; path = translations/ga.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
+		500049BF2833016E006A7466 /* ja */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = ja; path = translations/ja.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
+		500049C02833016F006A7466 /* jv */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = jv; path = translations/jv.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
+		500049C128330172006A7466 /* kab */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = kab; path = translations/kab.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
+		500049C228330173006A7466 /* kn */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = kn; path = translations/kn.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
+		500049C328330175006A7466 /* kk */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = kk; path = translations/kk.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
+		500049C428330177006A7466 /* km */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = km; path = translations/km.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
+		500049C528330179006A7466 /* ko */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = ko; path = translations/ko.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
+		500049C62833017C006A7466 /* lv */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = lv; path = translations/lv.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
+		500049C72833017E006A7466 /* mk */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = mk; path = translations/mk.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
+		500049C828330180006A7466 /* ms */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = ms; path = translations/ms.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
+		500049C928330181006A7466 /* ml */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = ml; path = translations/ml.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
+		500049CA28330184006A7466 /* mr */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = mr; path = translations/mr.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
+		500049CB28330185006A7466 /* nb */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = nb; path = translations/nb.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
+		500049CC28330187006A7466 /* ps */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = ps; path = translations/ps.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
+		500049CD28330189006A7466 /* fa */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = fa; path = translations/fa.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
+		500049CE28330191006A7466 /* pa */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = pa; path = translations/pa.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
+		500049CF28330195006A7466 /* pa_PK */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = pa_PK; path = translations/pa_PK.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
 		503614D0282C5703008128B4 /* ro */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = ro; path = translations/ro.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
 		503614D1282C5728008128B4 /* fi */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = fi; path = translations/fi.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
 		503614D2282C572F008128B4 /* id */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = id; path = translations/id.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
@@ -2421,8 +2473,10 @@
 		F900F2DC27F25AB300431E09 /* DonationReceiptViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DonationReceiptViewController.swift; sourceTree = "<group>"; };
 		F9066F0627ECE41B008C9530 /* DonationReceiptsViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DonationReceiptsViewController.swift; sourceTree = "<group>"; };
 		F965C5B87BFDF8F86556C04C /* Pods-SignalNSE.profiling.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-SignalNSE.profiling.xcconfig"; path = "Pods/Target Support Files/Pods-SignalNSE/Pods-SignalNSE.profiling.xcconfig"; sourceTree = "<group>"; };
+		F97A2EE828247C1300610669 /* BadgeExpirationSheetStateTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BadgeExpirationSheetStateTest.swift; sourceTree = "<group>"; };
 		F9A8ACC6280A175E00AFC6A7 /* DonationViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DonationViewController.swift; sourceTree = "<group>"; };
 		F9BC0A2427FB8E730085B23D /* AppSettingsViewsUtil.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettingsViewsUtil.swift; sourceTree = "<group>"; };
+		F9D83011282DBB1500399363 /* BadgeGiftingChooseBadgeViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BadgeGiftingChooseBadgeViewController.swift; sourceTree = "<group>"; };
 		F9DD70B82811AF82000C5960 /* DonationViewsUtil.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DonationViewsUtil.swift; sourceTree = "<group>"; };
 		FC3BD9871A30A790005B96BB /* Social.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Social.framework; path = System/Library/Frameworks/Social.framework; sourceTree = SDKROOT; };
 		FCB11D8B1A129A76002F93FB /* CoreMedia.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreMedia.framework; path = System/Library/Frameworks/CoreMedia.framework; sourceTree = SDKROOT; };
@@ -2676,22 +2730,14 @@
 		340FC87A204DAC8C007AEB0F /* AppSettings */ = {
 			isa = PBXGroup;
 			children = (
+				F9C5BC5F282E98D4001EB3BF /* Donations */,
 				F9BC0A2427FB8E730085B23D /* AppSettingsViewsUtil.swift */,
-				F900F2DC27F25AB300431E09 /* DonationReceiptViewController.swift */,
-				F9066F0627ECE41B008C9530 /* DonationReceiptsViewController.swift */,
 				88F58A1625EEE5B9008CDA24 /* AppSettingsViewController.swift */,
 				887B6DCA25F6C3F500E677D4 /* Account */,
 				887B6DCB25F6C40500E677D4 /* Appearance */,
-				888017912741F33B00346E9A /* BoostViewController.swift */,
-				8880179327430DDB00346E9A /* BadgeThanksSheet.swift */,
-				881BB2892743531D00B609B8 /* BadgeDetailsSheet.swift */,
-				F02564D7274EDF4600D7B48A /* BadgeExpirationSheet.swift */,
 				887B380725F0355700685845 /* ChatsSettingsViewController.swift */,
 				3414896825C9B6490098E3ED /* CurrencyPickerViewController.swift */,
 				887B6DCC25F6C41500E677D4 /* Data Usage */,
-				F0CA67F92728A89A002B9DFE /* SubscriptionViewController.swift */,
-				F9A8ACC6280A175E00AFC6A7 /* DonationViewController.swift */,
-				F9DD70B82811AF82000C5960 /* DonationViewsUtil.swift */,
 				32ECD08624BFBF5C00EDDED0 /* Help */,
 				887B6DCE25F6C45B00E677D4 /* Internal */,
 				887B6DCD25F6C44800E677D4 /* Linked Devices */,
@@ -3587,6 +3633,7 @@
 		34B3F8951E8DF1B90035BE1A /* ViewControllers */ = {
 			isa = PBXGroup;
 			children = (
+				F97A2EE828247C1300610669 /* BadgeExpirationSheetStateTest.swift */,
 				3463532E256EA525003C5428 /* ConversationViewTest.swift */,
 				4C2A538B23C5462300D28CD8 /* CVMessageMappingTest.swift */,
 				4C6E6C6824241C00009DE948 /* ConversationViewControllerTest.swift */,
@@ -4770,6 +4817,23 @@
 				F0FB6B1F269E625A00AC2A41 /* ContextMenuController.swift */,
 			);
 			path = "Context Menus";
+			sourceTree = "<group>";
+		};
+		F9C5BC5F282E98D4001EB3BF /* Donations */ = {
+			isa = PBXGroup;
+			children = (
+				F900F2DC27F25AB300431E09 /* DonationReceiptViewController.swift */,
+				F9066F0627ECE41B008C9530 /* DonationReceiptsViewController.swift */,
+				888017912741F33B00346E9A /* BoostViewController.swift */,
+				8880179327430DDB00346E9A /* BadgeThanksSheet.swift */,
+				881BB2892743531D00B609B8 /* BadgeDetailsSheet.swift */,
+				F02564D7274EDF4600D7B48A /* BadgeExpirationSheet.swift */,
+				F0CA67F92728A89A002B9DFE /* SubscriptionViewController.swift */,
+				F9A8ACC6280A175E00AFC6A7 /* DonationViewController.swift */,
+				F9DD70B82811AF82000C5960 /* DonationViewsUtil.swift */,
+				F9D83011282DBB1500399363 /* BadgeGiftingChooseBadgeViewController.swift */,
+			);
+			path = Donations;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -6409,6 +6473,7 @@
 				34B3F8801E8DF1700035BE1A /* InviteFlow.swift in Sources */,
 				88535064240829950011D318 /* DateHeaderInteraction.swift in Sources */,
 				88588D26252E59CE00405414 /* CallService.swift in Sources */,
+				F9D83012282DBB1500399363 /* BadgeGiftingChooseBadgeViewController.swift in Sources */,
 				8822558D26B9D1D7001A33C4 /* SignalMe.swift in Sources */,
 				457C87B82032645C008D52D6 /* DebugUINotifications.swift in Sources */,
 				34848D6325D44EBD00E5034B /* PaymentsTransferInViewController.swift in Sources */,
@@ -6637,6 +6702,7 @@
 				3485434526BC598800FB9C38 /* EmojiTests.swift in Sources */,
 				458E383A1D6699FA0094BD24 /* OWSDeviceProvisioningURLParserTest.m in Sources */,
 				1704690A25D4C326000793D8 /* SignalAttachmentTest.swift in Sources */,
+				F97A2EEA282578C000610669 /* BadgeExpirationSheetStateTest.swift in Sources */,
 				88D6E94325535D49003142D9 /* CVTextTest.swift in Sources */,
 				3499998222EF1E2100654932 /* GRDBFullTextSearcherTest.swift in Sources */,
 				3471211025ED5F910037CD1F /* PaymentsReconciliationTest.swift in Sources */,
@@ -6781,6 +6847,56 @@
 				503614D4282C5765008128B4 /* lt */,
 				503614D5282C578C008128B4 /* sq */,
 				503614D6282C7B76008128B4 /* zh_CN */,
+				5000499E28330102006A7466 /* sr */,
+				5000499F28330106006A7466 /* sn */,
+				500049A02833010A006A7466 /* sl */,
+				500049A12833010D006A7466 /* es_MX */,
+				500049A228330110006A7466 /* sw */,
+				500049A328330114006A7466 /* sv */,
+				500049A428330116006A7466 /* ta */,
+				500049A528330118006A7466 /* te */,
+				500049A62833011A006A7466 /* th */,
+				500049A72833011C006A7466 /* tr */,
+				500049A82833011E006A7466 /* ur */,
+				500049A928330120006A7466 /* ug */,
+				500049AA28330122006A7466 /* vi */,
+				500049AB28330124006A7466 /* cy */,
+				500049AC28330139006A7466 /* af */,
+				500049AD2833013D006A7466 /* ar */,
+				500049AE28330143006A7466 /* bn */,
+				500049AF28330144006A7466 /* eu */,
+				500049B028330147006A7466 /* bs */,
+				500049B128330148006A7466 /* bg */,
+				500049B22833014B006A7466 /* my */,
+				500049B32833014D006A7466 /* yue */,
+				500049B428330150006A7466 /* hr */,
+				500049B528330152006A7466 /* cs */,
+				500049B628330154006A7466 /* et */,
+				500049B728330158006A7466 /* fil */,
+				500049B82833015B006A7466 /* fr */,
+				500049B92833015D006A7466 /* gl */,
+				500049BA28330160006A7466 /* el */,
+				500049BB28330162006A7466 /* gu */,
+				500049BC28330164006A7466 /* ha */,
+				500049BD28330166006A7466 /* hi */,
+				500049BE2833016A006A7466 /* ga */,
+				500049BF2833016E006A7466 /* ja */,
+				500049C02833016F006A7466 /* jv */,
+				500049C128330172006A7466 /* kab */,
+				500049C228330173006A7466 /* kn */,
+				500049C328330175006A7466 /* kk */,
+				500049C428330177006A7466 /* km */,
+				500049C528330179006A7466 /* ko */,
+				500049C62833017C006A7466 /* lv */,
+				500049C72833017E006A7466 /* mk */,
+				500049C828330180006A7466 /* ms */,
+				500049C928330181006A7466 /* ml */,
+				500049CA28330184006A7466 /* mr */,
+				500049CB28330185006A7466 /* nb */,
+				500049CC28330187006A7466 /* ps */,
+				500049CD28330189006A7466 /* fa */,
+				500049CE28330191006A7466 /* pa */,
+				500049CF28330195006A7466 /* pa_PK */,
 			);
 			name = PluralAware.stringsdict;
 			sourceTree = "<group>";

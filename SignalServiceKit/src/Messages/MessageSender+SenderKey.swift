@@ -182,7 +182,8 @@ extension MessageSender {
         }
     }
 
-    @objc @available(swift, obsoleted: 1.0)
+    @objc
+    @available(swift, obsoleted: 1.0)
     func senderKeyMessageSendPromise(
         message: TSOutgoingMessage,
         plaintextContent: Data?,
@@ -602,8 +603,7 @@ extension MessageSender {
                     throw SenderKeyError.deviceUpdate
 
                 case 410:
-                    // Server reports stale devices. We should reset our session and
-                    // forget that we resent a senderKey.
+                    // Server reports stale devices. We should reset our session and try again.
                     let responseBody = try Self.decode410Response(data: responseData)
 
                     for account in responseBody {
@@ -611,10 +611,6 @@ extension MessageSender {
                         self.handleStaleDevices(
                             staleDevices: account.devices.staleDevices.map { Int($0) },
                             address: address)
-
-                        self.databaseStorage.write { writeTx in
-                            self.senderKeyStore.resetSenderKeyDeliveryRecord(for: thread, address: address, writeTx: writeTx)
-                        }
                     }
                     throw SenderKeyError.staleDevices
                 case 428:

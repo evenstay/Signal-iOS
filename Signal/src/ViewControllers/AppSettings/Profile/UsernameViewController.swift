@@ -1,5 +1,5 @@
 //
-//  Copyright (c) 2021 Open Whisper Systems. All rights reserved.
+//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
 //
 
 import Foundation
@@ -258,7 +258,7 @@ class UsernameViewController: OWSTableViewController2 {
 
                 modalView.dismiss {
                     OWSActionSheets.showErrorAlert(message: NSLocalizedString("USERNAME_VIEW_ERROR_UPDATE_FAILED",
-                                                                        comment: "Error moessage shown when a username update fails."))
+                                                                        comment: "Error message shown when a username update fails."))
                 }
             }
         }
@@ -317,7 +317,8 @@ extension UsernameViewController: UITextFieldDelegate {
         )
     }
 
-    @objc func textFieldDidChange() {
+    @objc
+    func textFieldDidChange() {
         validationState = .valid
         updateNavigation()
     }

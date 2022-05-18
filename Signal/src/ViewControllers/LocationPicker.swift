@@ -20,7 +20,8 @@ public protocol LocationPickerDelegate {
 
 @objc
 public class LocationPicker: UIViewController {
-    @objc public weak var delegate: LocationPickerDelegate?
+    @objc
+    public weak var delegate: LocationPickerDelegate?
     public var location: Location? { didSet { updateAnnotation() } }
 
     private let locationManager = CLLocationManager()
@@ -141,7 +142,8 @@ public class LocationPicker: UIViewController {
         navigationController?.navigationBar.isTranslucent = true
     }
 
-    @objc func cancelButtonPressed(_ sender: UIButton) {
+    @objc
+    func cancelButtonPressed(_ sender: UIButton) {
         if let navigation = navigationController, navigation.viewControllers.count > 1 {
             navigation.popViewController(animated: true)
         } else {
@@ -149,7 +151,8 @@ public class LocationPicker: UIViewController {
         }
     }
 
-    @objc func didPressCurrentLocation() {
+    @objc
+    func didPressCurrentLocation() {
         showCurrentLocation()
     }
 
@@ -169,9 +172,9 @@ public class LocationPicker: UIViewController {
             // The user previous explicitly denied access. Point them to settings to re-enable.
             let alert = ActionSheetController(
                 title: NSLocalizedString("MISSING_LOCATION_PERMISSION_TITLE",
-                                         comment: "Alert title indicating the user has denied location permissios"),
+                                         comment: "Alert title indicating the user has denied location permissions"),
                 message: NSLocalizedString("MISSING_LOCATION_PERMISSION_MESSAGE",
-                                           comment: "Alert body indicating the user has denied location permissios")
+                                           comment: "Alert body indicating the user has denied location permissions")
             )
             let openSettingsAction = ActionSheetAction(
                 title: CommonStrings.openSettingsButton,
@@ -275,7 +278,8 @@ extension LocationPicker: UISearchResultsUpdating {
         }
     }
 
-    @objc func searchFromTimer(_ timer: Timer) {
+    @objc
+    func searchFromTimer(_ timer: Timer) {
         guard let userInfo = timer.userInfo as? [String: AnyObject],
             let term = userInfo[LocationPicker.SearchTermKey] as? String else {
                 return owsFailDebug("Unexpectedly attempted to search with no term")
@@ -321,7 +325,8 @@ extension LocationPicker: UISearchResultsUpdating {
 // MARK: Selecting location with gesture
 
 extension LocationPicker {
-    @objc func addLocation(_ gestureRecognizer: UIGestureRecognizer) {
+    @objc
+    func addLocation(_ gestureRecognizer: UIGestureRecognizer) {
         if gestureRecognizer.state == .began {
             let point = gestureRecognizer.location(in: mapView)
             let coordinates = mapView.convert(point, toCoordinateFrom: mapView)
@@ -539,7 +544,8 @@ public class Location: NSObject {
 }
 
 extension Location: MKAnnotation {
-    @objc public var coordinate: CLLocationCoordinate2D {
+    @objc
+    public var coordinate: CLLocationCoordinate2D {
         return location.coordinate
     }
 
