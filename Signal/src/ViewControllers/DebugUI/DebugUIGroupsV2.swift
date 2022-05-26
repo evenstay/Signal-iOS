@@ -1,5 +1,5 @@
 //
-//  Copyright (c) 2021 Open Whisper Systems. All rights reserved.
+//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
 //
 
 import Foundation
@@ -62,14 +62,6 @@ class DebugUIGroupsV2: DebugUIPage {
                 Self.migrate(groupThread: groupThread,
                              migrationMode: .isAlreadyMigratedOnService)
             })
-            sectionItems.append(OWSTableItem(title: "Try to migrate group (only if already migrated on service).") {
-                Self.migrate(groupThread: groupThread,
-                             migrationMode: .possiblyAlreadyMigratedOnService)
-            })
-            sectionItems.append(OWSTableItem(title: "Try to migrate group (polite manual migration).") {
-                Self.migrate(groupThread: groupThread,
-                             migrationMode: .manualMigrationPolite)
-            })
             sectionItems.append(OWSTableItem(title: "Try to migrate group (aggressive manual migration).") {
                 Self.migrate(groupThread: groupThread,
                              migrationMode: .manualMigrationAggressive)
@@ -77,10 +69,6 @@ class DebugUIGroupsV2: DebugUIPage {
             sectionItems.append(OWSTableItem(title: "Try to migrate group (polite auto migration).") {
                 Self.migrate(groupThread: groupThread,
                              migrationMode: .autoMigrationPolite)
-            })
-            sectionItems.append(OWSTableItem(title: "Try to migrate group (aggressive auto migration).") {
-                Self.migrate(groupThread: groupThread,
-                             migrationMode: .autoMigrationAggressive)
             })
         }
 
@@ -912,7 +900,7 @@ class DebugUIGroupsV2: DebugUIPage {
         }
     }
 
-    class func contentProtoData(forDataBuilder dataBuilder: SSKProtoDataMessage.SSKProtoDataMessageBuilder) -> Data {
+    class func contentProtoData(forDataBuilder dataBuilder: SSKProtoDataMessageBuilder) -> Data {
         let dataProto = try! dataBuilder.build()
         let contentBuilder = SSKProtoContent.builder()
         contentBuilder.setDataMessage(dataProto)

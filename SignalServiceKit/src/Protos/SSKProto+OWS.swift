@@ -17,5 +17,3 @@ public extension SSKProtoGroupContext {
         return membersE164.map { SignalServiceAddress(phoneNumber: $0) }
     }
 }
-
-extension SSKProtoSyncMessage.SSKProtoSyncMessageBuilder: SSKProtoSyncMessageBuilderProtocol {}

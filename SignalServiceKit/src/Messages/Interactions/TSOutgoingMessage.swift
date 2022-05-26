@@ -155,6 +155,92 @@ public extension TSOutgoingMessage {
             .compactMap { $0.value.errorCode?.intValue }
             .allSatisfy { $0 != SenderKeyUnavailableError.errorCode }
     }
+
+    @objc(buildPniSignatureMessageIfNeededWithTransaction:)
+    func buildPniSignatureMessageIfNeeded(transaction: SDSAnyReadTransaction) -> SSKProtoPniSignatureMessage? {
+        guard recipientAddressStates?.count == 1 else {
+            // This is probably a group message, nothing to be alarmed about.
+            return nil
+        }
+        guard identityManager.shouldSharePhoneNumber(with: recipientAddressStates!.keys.first!,
+                                                     transaction: transaction) else {
+            // No PNI signature needed.
+            return nil
+        }
+        guard let pni = tsAccountManager.localPni else {
+            owsFailDebug("missing PNI")
+            return nil
+        }
+        guard let pniIdentityKeyPair = identityManager.identityKeyPair(for: .pni, transaction: transaction) else {
+            owsFailDebug("missing PNI identity key")
+            return nil
+        }
+        guard let aciIdentityKeyPair = identityManager.identityKeyPair(for: .aci, transaction: transaction) else {
+            owsFailDebug("missing ACI identity key")
+            return nil
+        }
+
+        let signature = pniIdentityKeyPair.identityKeyPair.signAlternateIdentity(
+            aciIdentityKeyPair.identityKeyPair.identityKey)
+
+        let builder = SSKProtoPniSignatureMessage.builder()
+        builder.setPni(pni.data)
+        builder.setSignature(Data(signature))
+
+        do {
+            return try builder.build()
+        } catch {
+            owsFailDebug("failed to build protobuf: \(error)")
+            return nil
+        }
+    }
+
+    @objc(maybeClearShouldSharePhoneNumberForRecipient:recipientDeviceId:transaction:)
+    func maybeClearShouldSharePhoneNumber(for recipientAddress: SignalServiceAddress,
+                                          recipientDeviceId deviceId: UInt32,
+                                          transaction: SDSAnyWriteTransaction) {
+        guard recipientAddressStates?[recipientAddress]?.wasSentByUD == true else {
+            // Can't be sure the message was actually decrypted by the recipient,
+            // because the server sends delivery receipts for non-sealed-sender messages.
+            return
+        }
+        guard identityManager.shouldSharePhoneNumber(with: recipientAddress, transaction: transaction) else {
+            // Not currently sharing anyway!
+            return
+        }
+
+        guard let messagePayload = MessageSendLog.fetchPayload(address: recipientAddress,
+                                                               deviceId: Int64(deviceId),
+                                                               timestamp: timestamp,
+                                                               transaction: transaction),
+              let payloadId = messagePayload.payloadId else {
+            // Can't check whether this message included a PNI signature.
+            return
+        }
+
+        guard let devicesPendingDelivery = MessageSendLog.devicesPendingDelivery(forPayloadId: payloadId,
+                                                                                 address: recipientAddress,
+                                                                                 transaction: transaction),
+              devicesPendingDelivery == [Int64(deviceId)] else {
+            // Other devices still need the PniSignature.
+            return
+        }
+
+        guard let content = try? SSKProtoContent(serializedData: messagePayload.plaintextContent),
+              let messagePniData = content.pniSignatureMessage?.pni else {
+            // No PNI signature in the message.
+            return
+        }
+
+        guard let currentPni = tsAccountManager.localPni else {
+            owsFailDebug("missing local PNI")
+            return
+        }
+
+        if messagePniData == currentPni.data {
+            identityManager.clearShouldSharePhoneNumber(with: recipientAddress, transaction: transaction)
+        }
+    }
 }
 
 // MARK: Sender Key + Message Send Log

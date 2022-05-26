@@ -227,8 +227,9 @@ static void uncaughtExceptionHandler(NSException *exception)
         launchFailure = LaunchFailure_UnknownDatabaseVersion;
     } else if ([SSKPreferences hasGrdbDatabaseCorruption]) {
         launchFailure = LaunchFailure_DatabaseUnrecoverablyCorrupted;
-    } else if ([[CurrentAppContext() appUserDefaults] integerForKey:kAppLaunchesAttemptedKey]
-        >= launchAttemptFailureThreshold) {
+    } else if ([AppVersion.shared.lastAppVersion isEqual:AppVersion.shared.currentAppReleaseVersion] &&
+        [[CurrentAppContext() appUserDefaults] integerForKey:kAppLaunchesAttemptedKey]
+            >= launchAttemptFailureThreshold) {
         launchFailure = LaunchFailure_LastAppLaunchCrashed;
     }
     if (launchFailure != LaunchFailure_None) {
@@ -481,11 +482,12 @@ static void uncaughtExceptionHandler(NSException *exception)
                             }]];
 
     if (launchFailure == LaunchFailure_LastAppLaunchCrashed) {
+        // Use a cancel-style button to draw attention.
         [actionSheet
             addAction:[[ActionSheetAction alloc]
                           initWithTitle:NSLocalizedString(@"APP_LAUNCH_FAILURE_CONTINUE",
                                             @"Button to try launching the app even though the last launch failed")
-                                  style:ActionSheetActionStyleDefault
+                                  style:ActionSheetActionStyleCancel
                                 handler:^(ActionSheetAction *_Nonnull action) {
                                     // Pretend we didn't fail!
                                     self.didAppLaunchFail = NO;

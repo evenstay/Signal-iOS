@@ -221,6 +221,14 @@ NS_DESIGNATED_INITIALIZER NS_SWIFT_NAME(init(grdbId:uniqueId:receivedAtTimestamp
 
 /**
  * Intermediate protobuf representation
+ * Subclasses can augment if they want to manipulate the Content message before building.
+ */
+- (nullable SSKProtoContentBuilder *)contentBuilderWithThread:(TSThread *)thread
+                                                  transaction:(SDSAnyReadTransaction *)transaction
+    NS_SWIFT_NAME(contentBuilder(thread:transaction:));
+
+/**
+ * Intermediate protobuf representation
  * Subclasses can augment if they want to manipulate the data message before building.
  */
 - (nullable SSKProtoDataMessageBuilder *)dataMessageBuilderWithThread:(TSThread *)thread

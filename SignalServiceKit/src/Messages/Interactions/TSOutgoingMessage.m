@@ -770,6 +770,11 @@ NSUInteger const TSOutgoingMessageSchemaVersion = 1;
         deliveryTimestamp = @([NSDate ows_millisecondTimeStamp]);
     }
 
+    // Note that this relies on the Message Send Log, so we have to execute it first.
+    [self maybeClearShouldSharePhoneNumberForRecipient:recipientAddress
+                                     recipientDeviceId:deviceId
+                                           transaction:transaction];
+
     [self clearMessageSendLogEntryForRecipient:recipientAddress
                                       deviceId:deviceId
                                    transaction:transaction];
@@ -1500,17 +1505,30 @@ NSUInteger const TSOutgoingMessageSchemaVersion = 1;
     return dataProto;
 }
 
-- (nullable NSData *)buildPlainTextData:(TSThread *)thread transaction:(SDSAnyWriteTransaction *)transaction
+- (nullable SSKProtoContentBuilder *)contentBuilderWithThread:(TSThread *)thread
+                                                  transaction:(SDSAnyReadTransaction *)transaction
 {
-    NSError *error;
     SSKProtoDataMessage *_Nullable dataMessage = [self buildDataMessage:thread transaction:transaction];
-    if (error || !dataMessage) {
-        OWSFailDebug(@"could not build protobuf: %@", error);
+    if (!dataMessage) {
         return nil;
     }
 
     SSKProtoContentBuilder *contentBuilder = [SSKProtoContent builder];
     [contentBuilder setDataMessage:dataMessage];
+    return contentBuilder;
+}
+
+- (nullable NSData *)buildPlainTextData:(TSThread *)thread transaction:(SDSAnyWriteTransaction *)transaction
+{
+    SSKProtoContentBuilder *_Nullable contentBuilder = [self contentBuilderWithThread:thread transaction:transaction];
+    if (!contentBuilder) {
+        OWSFailDebug(@"could not build protobuf.");
+        return nil;
+    }
+
+    [contentBuilder setPniSignatureMessage:[self buildPniSignatureMessageIfNeededWithTransaction:transaction]];
+
+    NSError *error;
     NSData *_Nullable contentData = [contentBuilder buildSerializedDataAndReturnError:&error];
     if (error || !contentData) {
         OWSFailDebug(@"could not serialize protobuf: %@", error);

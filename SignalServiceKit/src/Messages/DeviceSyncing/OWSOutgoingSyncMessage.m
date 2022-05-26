@@ -55,8 +55,7 @@ NS_ASSUME_NONNULL_BEGIN
 // This method should not be overridden, since we want to add random padding to *every* sync message
 - (nullable SSKProtoSyncMessage *)buildSyncMessageWithTransaction:(SDSAnyReadTransaction *)transaction
 {
-    SSKProtoSyncMessageBuilder *_Nullable builder
-        = (SSKProtoSyncMessageBuilder *)[self syncMessageBuilderWithTransaction:transaction];
+    SSKProtoSyncMessageBuilder *_Nullable builder = [self syncMessageBuilderWithTransaction:transaction];
     if (!builder) {
         return nil;
     }
@@ -74,15 +73,15 @@ NS_ASSUME_NONNULL_BEGIN
     return proto;
 }
 
-- (nullable id<SSKProtoSyncMessageBuilderProtocol>)syncMessageBuilderWithTransaction:
-    (SDSAnyReadTransaction *)transaction
+- (nullable SSKProtoSyncMessageBuilder *)syncMessageBuilderWithTransaction:(SDSAnyReadTransaction *)transaction
 {
     OWSAbstractMethod();
 
     return [SSKProtoSyncMessage builder];
 }
 
-- (nullable NSData *)buildPlainTextData:(TSThread *)thread transaction:(SDSAnyWriteTransaction *)transaction
+- (nullable SSKProtoContentBuilder *)contentBuilderWithThread:(TSThread *)thread
+                                                  transaction:(SDSAnyReadTransaction *)transaction
 {
     SSKProtoSyncMessage *_Nullable syncMessage = [self buildSyncMessageWithTransaction:transaction];
     if (!syncMessage) {
@@ -91,15 +90,7 @@ NS_ASSUME_NONNULL_BEGIN
 
     SSKProtoContentBuilder *contentBuilder = [SSKProtoContent builder];
     [contentBuilder setSyncMessage:syncMessage];
-
-    NSError *error;
-    NSData *_Nullable data = [contentBuilder buildSerializedDataAndReturnError:&error];
-    if (error || !data) {
-        OWSFailDebug(@"could not serialize protobuf: %@", error);
-        return nil;
-    }
-
-    return data;
+    return contentBuilder;
 }
 
 @end
