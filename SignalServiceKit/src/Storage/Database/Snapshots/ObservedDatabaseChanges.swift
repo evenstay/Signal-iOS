@@ -18,7 +18,6 @@ public protocol DatabaseChanges: AnyObject {
 
     var interactionDeletedUniqueIds: Set<UniqueId> { get }
     var storyMessageDeletedUniqueIds: Set<UniqueId> { get }
-    var attachmentDeletedUniqueIds: Set<UniqueId> { get }
 
     var tableNames: Set<String> { get }
     var collections: Set<String> { get }
@@ -303,14 +302,6 @@ class ObservedDatabaseChanges: NSObject {
         attachments.append(uniqueIds: attachmentUniqueIds)
     }
 
-    func append(attachmentDeletedUniqueIds: Set<UniqueId>) {
-        #if TESTABLE_BUILD
-        checkConcurrency()
-        #endif
-
-        attachments.append(deletedUniqueIds: attachmentDeletedUniqueIds)
-    }
-
     func append(attachmentRowId: RowId) {
         #if TESTABLE_BUILD
         checkConcurrency()
@@ -325,14 +316,6 @@ class ObservedDatabaseChanges: NSObject {
         #endif
 
         attachments.append(rowIds: attachmentRowIds)
-    }
-
-    func append(deletedAttachmentRowId: RowId) {
-        #if TESTABLE_BUILD
-        checkConcurrency()
-        #endif
-
-        attachments.append(deletedRowId: deletedAttachmentRowId)
     }
 
     func append(deletedInteractionRowId: RowId) {
@@ -355,13 +338,11 @@ class ObservedDatabaseChanges: NSObject {
 
     private var _lastError: Error?
     var lastError: Error? {
-        get {
-            #if TESTABLE_BUILD
-            checkConcurrency()
-            #endif
+        #if TESTABLE_BUILD
+        checkConcurrency()
+        #endif
 
-            return _lastError
-        }
+        return _lastError
     }
 }
 
@@ -432,29 +413,12 @@ private struct ObservedModelChanges {
     }
 
     var rowIds: Set<RowId> {
-        get {
-            assert(_rowIds.count >= _uniqueIds.count)
-            return _rowIds
-        }
+        assert(_rowIds.count >= _uniqueIds.count)
+        return _rowIds
     }
-
-    var uniqueIds: Set<UniqueId> {
-        get {
-            return _uniqueIds
-        }
-    }
-
-    var deletedUniqueIds: Set<UniqueId> {
-        get {
-            return _deletedUniqueIds
-        }
-    }
-
-    var deletedRowIds: Set<RowId> {
-        get {
-            return _deletedRowIds
-        }
-    }
+    var uniqueIds: Set<UniqueId> { _uniqueIds }
+    var deletedUniqueIds: Set<UniqueId> { _deletedUniqueIds }
+    var deletedRowIds: Set<RowId> { _deletedRowIds }
 }
 
 // MARK: - Published state
@@ -462,103 +426,75 @@ private struct ObservedModelChanges {
 extension ObservedDatabaseChanges: DatabaseChanges {
 
     var threadUniqueIds: Set<UniqueId> {
-        get {
-            #if TESTABLE_BUILD
-            checkConcurrency()
-            #endif
+        #if TESTABLE_BUILD
+        checkConcurrency()
+        #endif
 
-            return threads.uniqueIds
-        }
+        return threads.uniqueIds
     }
 
     var interactionUniqueIds: Set<UniqueId> {
-        get {
-            #if TESTABLE_BUILD
-            checkConcurrency()
-            #endif
+        #if TESTABLE_BUILD
+        checkConcurrency()
+        #endif
 
-            return interactions.uniqueIds
-        }
+        return interactions.uniqueIds
     }
 
     var storyMessageUniqueIds: Set<UniqueId> {
-        get {
-            #if TESTABLE_BUILD
-            checkConcurrency()
-            #endif
+        #if TESTABLE_BUILD
+        checkConcurrency()
+        #endif
 
-            return storyMessages.uniqueIds
-        }
+        return storyMessages.uniqueIds
     }
 
     var storyMessageRowIds: Set<RowId> {
-        get {
-            #if TESTABLE_BUILD
-            checkConcurrency()
-            #endif
+        #if TESTABLE_BUILD
+        checkConcurrency()
+        #endif
 
-            return storyMessages.rowIds
-        }
+        return storyMessages.rowIds
     }
 
     var attachmentUniqueIds: Set<UniqueId> {
-        get {
-            #if TESTABLE_BUILD
-            checkConcurrency()
-            #endif
+        #if TESTABLE_BUILD
+        checkConcurrency()
+        #endif
 
-            return attachments.uniqueIds
-        }
+        return attachments.uniqueIds
     }
 
     var interactionDeletedUniqueIds: Set<UniqueId> {
-        get {
-            #if TESTABLE_BUILD
-            checkConcurrency()
-            #endif
+        #if TESTABLE_BUILD
+        checkConcurrency()
+        #endif
 
-            return interactions.deletedUniqueIds
-        }
+        return interactions.deletedUniqueIds
     }
 
     var storyMessageDeletedUniqueIds: Set<UniqueId> {
-        get {
-            #if TESTABLE_BUILD
-            checkConcurrency()
-            #endif
+        #if TESTABLE_BUILD
+        checkConcurrency()
+        #endif
 
-            return storyMessages.deletedUniqueIds
-        }
-    }
-
-    var attachmentDeletedUniqueIds: Set<UniqueId> {
-        get {
-            #if TESTABLE_BUILD
-            checkConcurrency()
-            #endif
-
-            return attachments.deletedUniqueIds
-        }
+        return storyMessages.deletedUniqueIds
     }
 
     var tableNames: Set<String> {
-        get {
-            #if TESTABLE_BUILD
-            checkConcurrency()
-            #endif
+        #if TESTABLE_BUILD
+        checkConcurrency()
+        #endif
 
-            return _tableNames
-        }
+        return _tableNames
     }
 
     var collections: Set<String> {
-        get {
-            #if TESTABLE_BUILD
-            checkConcurrency()
-            #endif
+        #if TESTABLE_BUILD
+        checkConcurrency()
+        #endif
 
-            return _collections
-        }
+        return _collections
     }
 
     var didUpdateInteractions: Bool {

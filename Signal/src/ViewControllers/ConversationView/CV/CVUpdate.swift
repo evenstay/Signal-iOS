@@ -1,5 +1,5 @@
 //
-//  Copyright (c) 2021 Open Whisper Systems. All rights reserved.
+//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
 //
 
 import Foundation
@@ -23,15 +23,13 @@ struct CVUpdate {
         // MARK: -
 
         public var debugName: String {
-            get {
-                switch self {
-                case .minor:
-                    return "minor"
-                case .reloadAll:
-                    return "reloadAll"
-                case .diff:
-                    return "diff"
-                }
+            switch self {
+            case .minor:
+                return "minor"
+            case .reloadAll:
+                return "reloadAll"
+            case .diff:
+                return "diff"
             }
         }
     }
@@ -182,7 +180,6 @@ extension CVUpdate {
                     if newIndex < previousItemCount - 1 {
                         shouldAnimateUpdate = false
                     }
-                    break
                 case .unreadIndicator:
                     break
                 default:

@@ -98,6 +98,7 @@ static const NSUInteger OWSMessageSchemaVersion = 4;
     _storyAuthorUuidString = messageBuilder.storyAuthorAddress.uuidString;
     _storyReactionEmoji = messageBuilder.storyReactionEmoji;
     _isGroupStoryReply = messageBuilder.isGroupStoryReply;
+    _giftBadge = messageBuilder.giftBadge;
 
 #ifdef DEBUG
     [self verifyPerConversationExpiration];
@@ -125,6 +126,7 @@ static const NSUInteger OWSMessageSchemaVersion = 4;
                  expireStartedAt:(uint64_t)expireStartedAt
                        expiresAt:(uint64_t)expiresAt
                 expiresInSeconds:(unsigned int)expiresInSeconds
+                       giftBadge:(nullable OWSGiftBadge *)giftBadge
                isGroupStoryReply:(BOOL)isGroupStoryReply
               isViewOnceComplete:(BOOL)isViewOnceComplete
                isViewOnceMessage:(BOOL)isViewOnceMessage
@@ -155,6 +157,7 @@ static const NSUInteger OWSMessageSchemaVersion = 4;
     _expireStartedAt = expireStartedAt;
     _expiresAt = expiresAt;
     _expiresInSeconds = expiresInSeconds;
+    _giftBadge = giftBadge;
     _isGroupStoryReply = isGroupStoryReply;
     _isViewOnceComplete = isViewOnceComplete;
     _isViewOnceMessage = isViewOnceMessage;
@@ -668,6 +671,10 @@ static const NSUInteger OWSMessageSchemaVersion = 4;
 {
     [super anyDidRemoveWithTransaction:transaction];
 
+    if ([self hasAttachments]) {
+        [MediaGalleryManager recordTimestampForRemovedMessage:self transaction:transaction];
+    }
+
     [self removeAllAttachmentsWithTransaction:transaction];
 
     [self removeAllReactionsWithTransaction:transaction];
@@ -827,7 +834,8 @@ static const NSUInteger OWSMessageSchemaVersion = 4;
 
     // We DO NOT consider a message with just a linkPreview
     // or quotedMessage to be renderable.
-    return (self.body.length > 0 || self.attachmentIds.count > 0 || self.contactShare != nil || self.messageSticker);
+    return (self.body.length > 0 || self.attachmentIds.count > 0 || self.contactShare != nil
+        || self.messageSticker != nil || self.giftBadge != nil);
 }
 
 - (BOOL)hasRenderableStoryReplyContent

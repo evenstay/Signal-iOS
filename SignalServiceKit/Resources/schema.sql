@@ -119,6 +119,7 @@ CREATE
             ,"storyTimestamp" INTEGER
             ,"isGroupStoryReply" BOOLEAN DEFAULT 0
             ,"storyReactionEmoji" TEXT
+            ,"giftBadge" BLOB
         )
 ;
 
@@ -1219,6 +1220,7 @@ CREATE
             ,"resourcePath" TEXT NOT NULL
             ,"badgeVariant" TEXT NOT NULL
             ,"localization" TEXT NOT NULL
+            ,"duration" NUMERIC
         )
 ;
 

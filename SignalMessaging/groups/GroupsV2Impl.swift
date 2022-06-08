@@ -677,8 +677,7 @@ public class GroupsV2Impl: NSObject, GroupsV2Swift, GroupsV2 {
                 earlyEnd = nil
             }
             return (try GroupsProtoGroupChanges(serializedData: groupChangesProtoData), earlyEnd)
-        }.then(on: .global()) { (groupChangesProto: GroupsProtoGroupChanges,
-                                 earlyEnd: UInt32?) -> Promise<GroupChangePage> in
+        }.then(on: .global()) { (groupChangesProto: GroupsProtoGroupChanges, earlyEnd: UInt32?) -> Promise<GroupChangePage> in
             return firstly {
                 // We can ignoreSignature; these protos came from the service.
                 self.fetchAllAvatarData(groupChangesProto: groupChangesProto,
@@ -926,14 +925,12 @@ public class GroupsV2Impl: NSObject, GroupsV2Swift, GroupsV2 {
                     case .fail:
                         // We should never receive 403 when creating groups.
                         owsFailDebug("Unexpected 403.")
-                        break
                     case .ignore:
                         // We can't remove the local user from the group on 403
                         // when fetching change actions.
                         // For example, user might just be joining the group
                         // using an invite OR have just been re-added after leaving.
                         owsAssertDebug(groupId != nil, "Expecting a groupId for this path")
-                        break
                     case .removeFromGroup:
                         guard let groupId = groupId else {
                             owsFailDebug("GroupId must be set to remove from group")

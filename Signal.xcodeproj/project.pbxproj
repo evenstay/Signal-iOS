@@ -783,6 +783,8 @@
 		4CD675C522E7CF22008010D2 /* ConversationViewController+OWS.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CD675C422E7CF22008010D2 /* ConversationViewController+OWS.swift */; };
 		4CD675C722E7D393008010D2 /* MediaPresentationContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CD675C622E7D393008010D2 /* MediaPresentationContext.swift */; };
 		4CFF115323A9C2130007F9D7 /* UnreadIndicatorInteraction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CFF115223A9C2130007F9D7 /* UnreadIndicatorInteraction.swift */; };
+		503614CF282AF657008128B4 /* GiftBadgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 503614CE282AF657008128B4 /* GiftBadgeView.swift */; };
+		50CF28F02829C94800752AB3 /* CVComponentGiftBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50CF28EF2829C94800752AB3 /* CVComponentGiftBadge.swift */; };
 		641CECC436F5F3EE2AC07EE9 /* Pods_SignalShareExtension.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6657FDE7B91C2845BB3BEAB5 /* Pods_SignalShareExtension.framework */; };
 		760D93AB27A0E28600F351AC /* CoreServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 760D93AA27A0E28600F351AC /* CoreServices.framework */; };
 		768A1A2B17FC9CD300E00ED8 /* libz.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 768A1A2A17FC9CD300E00ED8 /* libz.dylib */; };
@@ -1020,6 +1022,7 @@
 		D221A0E8169DFFC500537ABF /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D221A0E7169DFFC500537ABF /* AVFoundation.framework */; };
 		D24B5BD5169F568C00681372 /* AudioToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D24B5BD4169F568C00681372 /* AudioToolbox.framework */; };
 		D2AEACDC16C426DA00C364C0 /* CFNetwork.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D2AEACDB16C426DA00C364C0 /* CFNetwork.framework */; };
+		D9AB38D0283C38B10003C038 /* InteractionFinderPerformanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9AB38CE283C38640003C038 /* InteractionFinderPerformanceTests.swift */; };
 		E1368CBE18A1C36B00109378 /* MessageUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B9EB5ABC1884C002007CBB57 /* MessageUI.framework */; };
 		E44AD4E624E98F440035D7B8 /* PhotoCaptureDismiss.swift in Sources */ = {isa = PBXBuildFile; fileRef = E44AD4E524E98F430035D7B8 /* PhotoCaptureDismiss.swift */; };
 		E75DD3E02810CDBD00E32C36 /* SubscriptionManagerTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = E75DD3DF2810CDBD00E32C36 /* SubscriptionManagerTest.swift */; };
@@ -1035,14 +1038,17 @@
 		F0FB6B20269E625A00AC2A41 /* ContextMenuController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0FB6B1F269E625A00AC2A41 /* ContextMenuController.swift */; };
 		F900F2DD27F25AB400431E09 /* DonationReceiptViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F900F2DC27F25AB300431E09 /* DonationReceiptViewController.swift */; };
 		F9066F0727ECE41B008C9530 /* DonationReceiptsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9066F0627ECE41B008C9530 /* DonationReceiptsViewController.swift */; };
+		F941B17028412D5F00498CCD /* ApplePayButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = F941B16F28412D5F00498CCD /* ApplePayButton.swift */; };
 		F973DFBA0991C967C4934B08 /* Pods_SignalUITests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BD0D81F9D93CB5BADE6B9709 /* Pods_SignalUITests.framework */; };
 		F97A2EEA282578C000610669 /* BadgeExpirationSheetStateTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = F97A2EE828247C1300610669 /* BadgeExpirationSheetStateTest.swift */; };
 		F9A335CA282F0BF700B5F5FA /* BadgeGiftingChooseBadgeViewControllerStateTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9A335C9282F0BF700B5F5FA /* BadgeGiftingChooseBadgeViewControllerStateTest.swift */; };
 		F9A335CC282F0DEC00B5F5FA /* BadgeGiftingChooseRecipientViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9A335CB282F0DEC00B5F5FA /* BadgeGiftingChooseRecipientViewController.swift */; };
 		F9A8ACC7280A175E00AFC6A7 /* DonationViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9A8ACC6280A175E00AFC6A7 /* DonationViewController.swift */; };
 		F9BC0A2527FB8E730085B23D /* AppSettingsViewsUtil.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9BC0A2427FB8E730085B23D /* AppSettingsViewsUtil.swift */; };
+		F9C612B4284E466B00B2199A /* CGPointExtensionsTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9C612B3284E466B00B2199A /* CGPointExtensionsTest.swift */; };
 		F9D83012282DBB1500399363 /* BadgeGiftingChooseBadgeViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9D83011282DBB1500399363 /* BadgeGiftingChooseBadgeViewController.swift */; };
 		F9DD70B92811AF82000C5960 /* DonationViewsUtil.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9DD70B82811AF82000C5960 /* DonationViewsUtil.swift */; };
+		F9F4DE2A283FDFDA001909ED /* BadgeGiftingConfirmationViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9F4DE29283FDFDA001909ED /* BadgeGiftingConfirmationViewController.swift */; };
 		FCB11D8C1A129A76002F93FB /* CoreMedia.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FCB11D8B1A129A76002F93FB /* CoreMedia.framework */; };
 /* End PBXBuildFile section */
 
@@ -2077,6 +2083,7 @@
 		500049CD28330189006A7466 /* fa */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = fa; path = translations/fa.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
 		500049CE28330191006A7466 /* pa */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = pa; path = translations/pa.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
 		500049CF28330195006A7466 /* pa_PK */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = pa_PK; path = translations/pa_PK.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
+		503614CE282AF657008128B4 /* GiftBadgeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GiftBadgeView.swift; sourceTree = "<group>"; };
 		503614D0282C5703008128B4 /* ro */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = ro; path = translations/ro.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
 		503614D1282C5728008128B4 /* fi */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = fi; path = translations/fi.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
 		503614D2282C572F008128B4 /* id */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = id; path = translations/id.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
@@ -2084,6 +2091,7 @@
 		503614D4282C5765008128B4 /* lt */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = lt; path = translations/lt.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
 		503614D5282C578C008128B4 /* sq */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = sq; path = translations/sq.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
 		503614D6282C7B76008128B4 /* zh_CN */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = zh_CN; path = translations/zh_CN.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
+		50CF28EF2829C94800752AB3 /* CVComponentGiftBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CVComponentGiftBadge.swift; sourceTree = "<group>"; };
 		55D83291ED67EE1A7FC96E60 /* Pods-SignalNSE.testable release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-SignalNSE.testable release.xcconfig"; path = "Pods/Target Support Files/Pods-SignalNSE/Pods-SignalNSE.testable release.xcconfig"; sourceTree = "<group>"; };
 		63BAA38DC365EE44110A6BD1 /* Pods-SignalTests.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-SignalTests.debug.xcconfig"; path = "Pods/Target Support Files/Pods-SignalTests/Pods-SignalTests.debug.xcconfig"; sourceTree = "<group>"; };
 		6657FDE7B91C2845BB3BEAB5 /* Pods_SignalShareExtension.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_SignalShareExtension.framework; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -2452,6 +2460,7 @@
 		D2AEACDB16C426DA00C364C0 /* CFNetwork.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CFNetwork.framework; path = System/Library/Frameworks/CFNetwork.framework; sourceTree = SDKROOT; };
 		D2F64CFA3B9F3C7EA87B1C37 /* Pods-SignalUI.profiling.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-SignalUI.profiling.xcconfig"; path = "Pods/Target Support Files/Pods-SignalUI/Pods-SignalUI.profiling.xcconfig"; sourceTree = "<group>"; };
 		D4164D79E1C97918C458A743 /* Pods-SignalShareExtension.testable release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-SignalShareExtension.testable release.xcconfig"; path = "Pods/Target Support Files/Pods-SignalShareExtension/Pods-SignalShareExtension.testable release.xcconfig"; sourceTree = "<group>"; };
+		D9AB38CE283C38640003C038 /* InteractionFinderPerformanceTests.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = InteractionFinderPerformanceTests.swift; sourceTree = "<group>"; };
 		DDBCB034D1DFAF85ADFD5E76 /* Pods-SignalUITests.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-SignalUITests.debug.xcconfig"; path = "Pods/Target Support Files/Pods-SignalUITests/Pods-SignalUITests.debug.xcconfig"; sourceTree = "<group>"; };
 		DE2DD605305BC6EFAD731723 /* Pods-Signal.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Signal.debug.xcconfig"; path = "Pods/Target Support Files/Pods-Signal/Pods-Signal.debug.xcconfig"; sourceTree = "<group>"; };
 		DF728B4B438716EAF95CEC18 /* Pods-Signal.app store release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Signal.app store release.xcconfig"; path = "Pods/Target Support Files/Pods-Signal/Pods-Signal.app store release.xcconfig"; sourceTree = "<group>"; };
@@ -2474,14 +2483,17 @@
 		F1F5EEB86B2B807C24D790CC /* Pods-SignalPerformanceTests.profiling.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-SignalPerformanceTests.profiling.xcconfig"; path = "Pods/Target Support Files/Pods-SignalPerformanceTests/Pods-SignalPerformanceTests.profiling.xcconfig"; sourceTree = "<group>"; };
 		F900F2DC27F25AB300431E09 /* DonationReceiptViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DonationReceiptViewController.swift; sourceTree = "<group>"; };
 		F9066F0627ECE41B008C9530 /* DonationReceiptsViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DonationReceiptsViewController.swift; sourceTree = "<group>"; };
+		F941B16F28412D5F00498CCD /* ApplePayButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplePayButton.swift; sourceTree = "<group>"; };
 		F965C5B87BFDF8F86556C04C /* Pods-SignalNSE.profiling.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-SignalNSE.profiling.xcconfig"; path = "Pods/Target Support Files/Pods-SignalNSE/Pods-SignalNSE.profiling.xcconfig"; sourceTree = "<group>"; };
 		F97A2EE828247C1300610669 /* BadgeExpirationSheetStateTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BadgeExpirationSheetStateTest.swift; sourceTree = "<group>"; };
 		F9A335C9282F0BF700B5F5FA /* BadgeGiftingChooseBadgeViewControllerStateTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BadgeGiftingChooseBadgeViewControllerStateTest.swift; sourceTree = "<group>"; };
 		F9A335CB282F0DEC00B5F5FA /* BadgeGiftingChooseRecipientViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BadgeGiftingChooseRecipientViewController.swift; sourceTree = "<group>"; };
 		F9A8ACC6280A175E00AFC6A7 /* DonationViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DonationViewController.swift; sourceTree = "<group>"; };
 		F9BC0A2427FB8E730085B23D /* AppSettingsViewsUtil.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettingsViewsUtil.swift; sourceTree = "<group>"; };
+		F9C612B3284E466B00B2199A /* CGPointExtensionsTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CGPointExtensionsTest.swift; sourceTree = "<group>"; };
 		F9D83011282DBB1500399363 /* BadgeGiftingChooseBadgeViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BadgeGiftingChooseBadgeViewController.swift; sourceTree = "<group>"; };
 		F9DD70B82811AF82000C5960 /* DonationViewsUtil.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DonationViewsUtil.swift; sourceTree = "<group>"; };
+		F9F4DE29283FDFDA001909ED /* BadgeGiftingConfirmationViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BadgeGiftingConfirmationViewController.swift; sourceTree = "<group>"; };
 		FC3BD9871A30A790005B96BB /* Social.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Social.framework; path = System/Library/Frameworks/Social.framework; sourceTree = SDKROOT; };
 		FCB11D8B1A129A76002F93FB /* CoreMedia.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreMedia.framework; path = System/Library/Frameworks/CoreMedia.framework; sourceTree = SDKROOT; };
 		FD351756BE688D00B63E00CD /* Pods-SignalMessaging.testable release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-SignalMessaging.testable release.xcconfig"; path = "Pods/Target Support Files/Pods-SignalMessaging/Pods-SignalMessaging.testable release.xcconfig"; sourceTree = "<group>"; };
@@ -3077,6 +3089,7 @@
 				347C3848252D004C00F3D941 /* CVComponentDateHeader.swift */,
 				347C383D252CE6C900F3D941 /* CVComponentFooter.swift */,
 				348815CD25545B0F00D4F4C4 /* CVComponentGenericAttachment.swift */,
+				50CF28EF2829C94800752AB3 /* CVComponentGiftBadge.swift */,
 				3426A36F25631C220036407F /* CVComponentLinkPreview.swift */,
 				347C383B252CE6C900F3D941 /* CVComponentMessage.swift */,
 				347C383E252CE6C900F3D941 /* CVComponentQuotedReply.swift */,
@@ -3726,6 +3739,7 @@
 				348EE28C25B897BF00814FC2 /* CVMediaCache.swift */,
 				3488F9352191CC4000E524CC /* CVMediaView.swift */,
 				34635331257549F1003C5428 /* CVReactionCountsView.swift */,
+				503614CE282AF657008128B4 /* GiftBadgeView.swift */,
 				4C25768923AD510800E0398D /* LoadMoreMessagesView.swift */,
 				34EB0E712629DC2B00B62DC3 /* MessageSelectionView.swift */,
 				34EB0CEA26289D8800B62DC3 /* MessageTimerView.swift */,
@@ -3842,6 +3856,7 @@
 				88E34F2522F269B600966CC2 /* Storage Service */,
 				F00385FB273F6388000B5ABD /* Subscriptions */,
 				34480B471FD0A60200BC14EF /* utils */,
+				F9C612B5284E46A300B2199A /* test */,
 			);
 			path = SignalMessaging;
 			sourceTree = "<group>";
@@ -3910,6 +3925,7 @@
 			children = (
 				329C873326D7045F008513DC /* ConversationLoadPerformanceTest.swift */,
 				34B14D8A24F0012100CC3A9A /* GroupsPerfTest.swift */,
+				D9AB38CE283C38640003C038 /* InteractionFinderPerformanceTests.swift */,
 				4C42960D2318E5EB00D9D240 /* MessageProcessingPerformanceTest.swift */,
 				4C42960F231A1AA400D9D240 /* MessageSendingPerformanceTest.swift */,
 				4C10B1C8231778880099396B /* PerformanceBaseTest.swift */,
@@ -4827,7 +4843,9 @@
 		F9C5BC5F282E98D4001EB3BF /* Donations */ = {
 			isa = PBXGroup;
 			children = (
+				F941B16F28412D5F00498CCD /* ApplePayButton.swift */,
 				F9A335CB282F0DEC00B5F5FA /* BadgeGiftingChooseRecipientViewController.swift */,
+				F9F4DE29283FDFDA001909ED /* BadgeGiftingConfirmationViewController.swift */,
 				F900F2DC27F25AB300431E09 /* DonationReceiptViewController.swift */,
 				F9066F0627ECE41B008C9530 /* DonationReceiptsViewController.swift */,
 				888017912741F33B00346E9A /* BoostViewController.swift */,
@@ -4840,6 +4858,14 @@
 				F9D83011282DBB1500399363 /* BadgeGiftingChooseBadgeViewController.swift */,
 			);
 			path = Donations;
+			sourceTree = "<group>";
+		};
+		F9C612B5284E46A300B2199A /* test */ = {
+			isa = PBXGroup;
+			children = (
+				F9C612B3284E466B00B2199A /* CGPointExtensionsTest.swift */,
+			);
+			path = test;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -6174,6 +6200,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				4C10B19423176D250099396B /* MockEnvironment.m in Sources */,
+				D9AB38D0283C38B10003C038 /* InteractionFinderPerformanceTests.swift in Sources */,
 				4C42960E2318E5EB00D9D240 /* MessageProcessingPerformanceTest.swift in Sources */,
 				34A4D56F24E4D342002F8044 /* UnfairLockPerformanceTest.swift in Sources */,
 				173878BE256341BB00AD39C7 /* SessionMigrationPerfTest.swift in Sources */,
@@ -6216,6 +6243,7 @@
 				347C384D252D0FDC00F3D941 /* CVComponentTypingIndicator.swift in Sources */,
 				88C7597324B7EAA600DB03EA /* AdvancedPinSettingsTableViewController.swift in Sources */,
 				4C8A6DFE22E54AFA00469AE7 /* MediaInteractiveDismiss.swift in Sources */,
+				F941B17028412D5F00498CCD /* ApplePayButton.swift in Sources */,
 				452EC6DF205E9E30000E787C /* MediaGallery.swift in Sources */,
 				3406D32625DD5EAF00885B14 /* ChatListViewController.swift in Sources */,
 				34DC9BD921543E0C00FDDCEC /* DebugContactsUtils.m in Sources */,
@@ -6399,6 +6427,7 @@
 				88D23D2223CEC0C700B0E74B /* OutboundIndividualCallInitiator.swift in Sources */,
 				8852572927DD366D0032073C /* StoriesViewController.swift in Sources */,
 				346594822434D5E000E5C510 /* GroupAttributesEditorHelper.swift in Sources */,
+				50CF28F02829C94800752AB3 /* CVComponentGiftBadge.swift in Sources */,
 				34798A8725AF965300EC89B4 /* ProfileBioViewController.swift in Sources */,
 				880D902E2480A23E003D2B14 /* EmojiPickerSectionToolbar.swift in Sources */,
 				346129991FD1E4DA00532771 /* SignalApp.m in Sources */,
@@ -6427,6 +6456,7 @@
 				3420CF6D26327B1A00E7DCB0 /* CVBackgroundContainer.swift in Sources */,
 				3414896925C9B6490098E3ED /* CurrencyPickerViewController.swift in Sources */,
 				3470C87A2555DE5F00F5847C /* CVComponentContactShare.swift in Sources */,
+				F9F4DE2A283FDFDA001909ED /* BadgeGiftingConfirmationViewController.swift in Sources */,
 				886BB3D225BA0C9D00079781 /* PreviewWallpaperViewController.swift in Sources */,
 				34ACA7DA2733159600E47AD4 /* OnboardingDroppedYdbViewController.swift in Sources */,
 				88238EA424E9DDE900F28079 /* CallButton.swift in Sources */,
@@ -6665,6 +6695,7 @@
 				3497972125DAA86100E99FA4 /* SendPaymentViewController.swift in Sources */,
 				346B66311F4E29B200E5122F /* CropScaleImageViewController.swift in Sources */,
 				34ACA7E02733159600E47AD4 /* OnboardingVerificationViewController.swift in Sources */,
+				503614CF282AF657008128B4 /* GiftBadgeView.swift in Sources */,
 				45E5A6991F61E6DE001E4A8A /* MarqueeLabel.swift in Sources */,
 				3490D57D25ADDC2A00F5F96C /* GroupLinkPromotionActionSheet.swift in Sources */,
 				887CD4812473098D00FDD265 /* DeviceTransferService+State.swift in Sources */,
@@ -6725,6 +6756,7 @@
 				3499998122EF1E2100654932 /* SearcherTest.swift in Sources */,
 				345AE2B62317048300DB6225 /* GRDBFinderTest.swift in Sources */,
 				34843B2C214FE296004DED45 /* MockEnvironment.m in Sources */,
+				F9C612B4284E466B00B2199A /* CGPointExtensionsTest.swift in Sources */,
 				45360B911F952AA900FA666C /* MarqueeLabel.swift in Sources */,
 				34C1A93B2656E905004FA478 /* MiscTest.swift in Sources */,
 				454EBAB41F2BE14C00ACE0BB /* OWSAnalytics.swift in Sources */,

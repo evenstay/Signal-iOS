@@ -1310,6 +1310,15 @@ struct SignalServiceProtos_DataMessage {
   /// Clears the value of `storyContext`. Subsequent reads from it will return its default value.
   mutating func clearStoryContext() {_uniqueStorage()._storyContext = nil}
 
+  var giftBadge: SignalServiceProtos_DataMessage.GiftBadge {
+    get {return _storage._giftBadge ?? SignalServiceProtos_DataMessage.GiftBadge()}
+    set {_uniqueStorage()._giftBadge = newValue}
+  }
+  /// Returns true if `giftBadge` has been explicitly set.
+  var hasGiftBadge: Bool {return _storage._giftBadge != nil}
+  /// Clears the value of `giftBadge`. Subsequent reads from it will return its default value.
+  mutating func clearGiftBadge() {_uniqueStorage()._giftBadge = nil}
+
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
   enum Flags: SwiftProtobuf.Enum {
@@ -1466,39 +1475,7 @@ struct SignalServiceProtos_DataMessage {
       /// Clears the value of `thumbnail`. Subsequent reads from it will return its default value.
       mutating func clearThumbnail() {_uniqueStorage()._thumbnail = nil}
 
-      var flags: UInt32 {
-        get {return _storage._flags ?? 0}
-        set {_uniqueStorage()._flags = newValue}
-      }
-      /// Returns true if `flags` has been explicitly set.
-      var hasFlags: Bool {return _storage._flags != nil}
-      /// Clears the value of `flags`. Subsequent reads from it will return its default value.
-      mutating func clearFlags() {_uniqueStorage()._flags = nil}
-
       var unknownFields = SwiftProtobuf.UnknownStorage()
-
-      enum Flags: SwiftProtobuf.Enum {
-        typealias RawValue = Int
-        case voiceMessage // = 1
-
-        init() {
-          self = .voiceMessage
-        }
-
-        init?(rawValue: Int) {
-          switch rawValue {
-          case 1: self = .voiceMessage
-          default: return nil
-          }
-        }
-
-        var rawValue: Int {
-          switch self {
-          case .voiceMessage: return 1
-          }
-        }
-
-      }
 
       init() {}
 
@@ -2431,6 +2408,27 @@ struct SignalServiceProtos_DataMessage {
     fileprivate var _sentTimestamp: UInt64? = nil
   }
 
+  struct GiftBadge {
+    // SwiftProtobuf.Message conformance is added in an extension below. See the
+    // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+    // methods supported on all messages.
+
+    var receiptCredentialPresentation: Data {
+      get {return _receiptCredentialPresentation ?? Data()}
+      set {_receiptCredentialPresentation = newValue}
+    }
+    /// Returns true if `receiptCredentialPresentation` has been explicitly set.
+    var hasReceiptCredentialPresentation: Bool {return self._receiptCredentialPresentation != nil}
+    /// Clears the value of `receiptCredentialPresentation`. Subsequent reads from it will return its default value.
+    mutating func clearReceiptCredentialPresentation() {self._receiptCredentialPresentation = nil}
+
+    var unknownFields = SwiftProtobuf.UnknownStorage()
+
+    init() {}
+
+    fileprivate var _receiptCredentialPresentation: Data? = nil
+  }
+
   init() {}
 
   fileprivate var _storage = _StorageClass.defaultInstance
@@ -2443,10 +2441,6 @@ extension SignalServiceProtos_DataMessage.Flags: CaseIterable {
 }
 
 extension SignalServiceProtos_DataMessage.ProtocolVersion: CaseIterable {
-  // Support synthesized by the compiler.
-}
-
-extension SignalServiceProtos_DataMessage.Quote.QuotedAttachment.Flags: CaseIterable {
   // Support synthesized by the compiler.
 }
 
@@ -4554,7 +4548,6 @@ extension SignalServiceProtos_DataMessage.Flags: @unchecked Sendable {}
 extension SignalServiceProtos_DataMessage.ProtocolVersion: @unchecked Sendable {}
 extension SignalServiceProtos_DataMessage.Quote: @unchecked Sendable {}
 extension SignalServiceProtos_DataMessage.Quote.QuotedAttachment: @unchecked Sendable {}
-extension SignalServiceProtos_DataMessage.Quote.QuotedAttachment.Flags: @unchecked Sendable {}
 extension SignalServiceProtos_DataMessage.Contact: @unchecked Sendable {}
 extension SignalServiceProtos_DataMessage.Contact.Name: @unchecked Sendable {}
 extension SignalServiceProtos_DataMessage.Contact.Phone: @unchecked Sendable {}
@@ -4578,6 +4571,7 @@ extension SignalServiceProtos_DataMessage.Payment.Notification: @unchecked Senda
 extension SignalServiceProtos_DataMessage.Payment.Notification.MobileCoin: @unchecked Sendable {}
 extension SignalServiceProtos_DataMessage.Payment.Cancellation: @unchecked Sendable {}
 extension SignalServiceProtos_DataMessage.StoryContext: @unchecked Sendable {}
+extension SignalServiceProtos_DataMessage.GiftBadge: @unchecked Sendable {}
 extension SignalServiceProtos_NullMessage: @unchecked Sendable {}
 extension SignalServiceProtos_ReceiptMessage: @unchecked Sendable {}
 extension SignalServiceProtos_ReceiptMessage.TypeEnum: @unchecked Sendable {}
@@ -5688,6 +5682,7 @@ extension SignalServiceProtos_DataMessage: SwiftProtobuf.Message, SwiftProtobuf.
     19: .same(proto: "groupCallUpdate"),
     20: .same(proto: "payment"),
     21: .same(proto: "storyContext"),
+    22: .same(proto: "giftBadge"),
   ]
 
   fileprivate class _StorageClass {
@@ -5711,6 +5706,7 @@ extension SignalServiceProtos_DataMessage: SwiftProtobuf.Message, SwiftProtobuf.
     var _groupCallUpdate: SignalServiceProtos_DataMessage.GroupCallUpdate? = nil
     var _payment: SignalServiceProtos_DataMessage.Payment? = nil
     var _storyContext: SignalServiceProtos_DataMessage.StoryContext? = nil
+    var _giftBadge: SignalServiceProtos_DataMessage.GiftBadge? = nil
 
     static let defaultInstance = _StorageClass()
 
@@ -5737,6 +5733,7 @@ extension SignalServiceProtos_DataMessage: SwiftProtobuf.Message, SwiftProtobuf.
       _groupCallUpdate = source._groupCallUpdate
       _payment = source._payment
       _storyContext = source._storyContext
+      _giftBadge = source._giftBadge
     }
   }
 
@@ -5775,6 +5772,7 @@ extension SignalServiceProtos_DataMessage: SwiftProtobuf.Message, SwiftProtobuf.
         case 19: try { try decoder.decodeSingularMessageField(value: &_storage._groupCallUpdate) }()
         case 20: try { try decoder.decodeSingularMessageField(value: &_storage._payment) }()
         case 21: try { try decoder.decodeSingularMessageField(value: &_storage._storyContext) }()
+        case 22: try { try decoder.decodeSingularMessageField(value: &_storage._giftBadge) }()
         default: break
         }
       }
@@ -5847,6 +5845,9 @@ extension SignalServiceProtos_DataMessage: SwiftProtobuf.Message, SwiftProtobuf.
       try { if let v = _storage._storyContext {
         try visitor.visitSingularMessageField(value: v, fieldNumber: 21)
       } }()
+      try { if let v = _storage._giftBadge {
+        try visitor.visitSingularMessageField(value: v, fieldNumber: 22)
+      } }()
     }
     try unknownFields.traverse(visitor: &visitor)
   }
@@ -5876,6 +5877,7 @@ extension SignalServiceProtos_DataMessage: SwiftProtobuf.Message, SwiftProtobuf.
         if _storage._groupCallUpdate != rhs_storage._groupCallUpdate {return false}
         if _storage._payment != rhs_storage._payment {return false}
         if _storage._storyContext != rhs_storage._storyContext {return false}
+        if _storage._giftBadge != rhs_storage._giftBadge {return false}
         return true
       }
       if !storagesAreEqual {return false}
@@ -5978,14 +5980,12 @@ extension SignalServiceProtos_DataMessage.Quote.QuotedAttachment: SwiftProtobuf.
     1: .same(proto: "contentType"),
     2: .same(proto: "fileName"),
     3: .same(proto: "thumbnail"),
-    4: .same(proto: "flags"),
   ]
 
   fileprivate class _StorageClass {
     var _contentType: String? = nil
     var _fileName: String? = nil
     var _thumbnail: SignalServiceProtos_AttachmentPointer? = nil
-    var _flags: UInt32? = nil
 
     static let defaultInstance = _StorageClass()
 
@@ -5995,7 +5995,6 @@ extension SignalServiceProtos_DataMessage.Quote.QuotedAttachment: SwiftProtobuf.
       _contentType = source._contentType
       _fileName = source._fileName
       _thumbnail = source._thumbnail
-      _flags = source._flags
     }
   }
 
@@ -6017,7 +6016,6 @@ extension SignalServiceProtos_DataMessage.Quote.QuotedAttachment: SwiftProtobuf.
         case 1: try { try decoder.decodeSingularStringField(value: &_storage._contentType) }()
         case 2: try { try decoder.decodeSingularStringField(value: &_storage._fileName) }()
         case 3: try { try decoder.decodeSingularMessageField(value: &_storage._thumbnail) }()
-        case 4: try { try decoder.decodeSingularUInt32Field(value: &_storage._flags) }()
         default: break
         }
       }
@@ -6039,9 +6037,6 @@ extension SignalServiceProtos_DataMessage.Quote.QuotedAttachment: SwiftProtobuf.
       try { if let v = _storage._thumbnail {
         try visitor.visitSingularMessageField(value: v, fieldNumber: 3)
       } }()
-      try { if let v = _storage._flags {
-        try visitor.visitSingularUInt32Field(value: v, fieldNumber: 4)
-      } }()
     }
     try unknownFields.traverse(visitor: &visitor)
   }
@@ -6054,7 +6049,6 @@ extension SignalServiceProtos_DataMessage.Quote.QuotedAttachment: SwiftProtobuf.
         if _storage._contentType != rhs_storage._contentType {return false}
         if _storage._fileName != rhs_storage._fileName {return false}
         if _storage._thumbnail != rhs_storage._thumbnail {return false}
-        if _storage._flags != rhs_storage._flags {return false}
         return true
       }
       if !storagesAreEqual {return false}
@@ -6062,12 +6056,6 @@ extension SignalServiceProtos_DataMessage.Quote.QuotedAttachment: SwiftProtobuf.
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
-}
-
-extension SignalServiceProtos_DataMessage.Quote.QuotedAttachment.Flags: SwiftProtobuf._ProtoNameProviding {
-  static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
-    1: .same(proto: "VOICE_MESSAGE"),
-  ]
 }
 
 extension SignalServiceProtos_DataMessage.Contact: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
@@ -7133,6 +7121,42 @@ extension SignalServiceProtos_DataMessage.StoryContext: SwiftProtobuf.Message, S
   static func ==(lhs: SignalServiceProtos_DataMessage.StoryContext, rhs: SignalServiceProtos_DataMessage.StoryContext) -> Bool {
     if lhs._authorUuid != rhs._authorUuid {return false}
     if lhs._sentTimestamp != rhs._sentTimestamp {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+extension SignalServiceProtos_DataMessage.GiftBadge: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = SignalServiceProtos_DataMessage.protoMessageName + ".GiftBadge"
+  static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
+    1: .same(proto: "receiptCredentialPresentation"),
+  ]
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularBytesField(value: &self._receiptCredentialPresentation) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    // The use of inline closures is to circumvent an issue where the compiler
+    // allocates stack space for every if/case branch local when no optimizations
+    // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+    // https://github.com/apple/swift-protobuf/issues/1182
+    try { if let v = self._receiptCredentialPresentation {
+      try visitor.visitSingularBytesField(value: v, fieldNumber: 1)
+    } }()
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: SignalServiceProtos_DataMessage.GiftBadge, rhs: SignalServiceProtos_DataMessage.GiftBadge) -> Bool {
+    if lhs._receiptCredentialPresentation != rhs._receiptCredentialPresentation {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

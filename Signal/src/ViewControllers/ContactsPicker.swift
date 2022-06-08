@@ -36,11 +36,7 @@ public class ContactsPicker: OWSViewController, UITableViewDelegate, UITableView
     private let contactCellReuseIdentifier = "contactCellReuseIdentifier"
 
     private let collation = UILocalizedIndexedCollation.current()
-    public var collationForTests: UILocalizedIndexedCollation {
-        get {
-            return collation
-        }
-    }
+    public var collationForTests: UILocalizedIndexedCollation { collation }
     private let contactStore = CNContactStore()
 
     // Data Source State
@@ -196,7 +192,6 @@ public class ContactsPicker: OWSViewController, UITableViewDelegate, UITableView
             }
         @unknown default:
             errorHandler(OWSAssertionError("Unexpected enum value"))
-            break
         }
     }
 
@@ -379,18 +374,16 @@ fileprivate extension CNContact {
      */
     @objc
     var nameForCollating: String {
-        get {
-            if self.familyName.isEmpty && self.givenName.isEmpty {
-                return self.emailAddresses.first?.value as String? ?? ""
-            }
-
-            let compositeName: String
-            if ContactSortOrder == .familyName {
-                compositeName = "\(self.familyName) \(self.givenName)"
-            } else {
-                compositeName = "\(self.givenName) \(self.familyName)"
-            }
-            return compositeName.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+        if self.familyName.isEmpty && self.givenName.isEmpty {
+            return self.emailAddresses.first?.value as String? ?? ""
         }
+
+        let compositeName: String
+        if ContactSortOrder == .familyName {
+            compositeName = "\(self.familyName) \(self.givenName)"
+        } else {
+            compositeName = "\(self.givenName) \(self.familyName)"
+        }
+        return compositeName.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
     }
 }

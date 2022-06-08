@@ -159,6 +159,8 @@ public class GRDBSchemaMigrator: NSObject {
         case createDonationReceiptTable
         case addBoostAmountToSubscriptionDurableJob
         case improvedDisappearingMessageIndices
+        case addProfileBadgeDuration
+        case addGiftBadges
 
         // NOTE: Every time we add a migration id, consider
         // incrementing grdbSchemaVersionLatest.
@@ -219,19 +221,16 @@ public class GRDBSchemaMigrator: NSObject {
             }
             let sql = try String(contentsOf: sqlFile)
             try db.execute(sql: sql)
-        }
 
-        // After importing the initial schema, we want to skip the remaining incremental migrations
-        // so we register each migration id with a no-op implementation.
-        for migrationId in (MigrationId.allCases.filter { $0 != .createInitialSchema }) {
-            migrator.registerMigration(migrationId.rawValue) { _ in
+            // After importing the initial schema, we want to skip the remaining
+            // incremental migrations, so we manually mark them as complete.
+            for migrationId in (MigrationId.allCases.filter { $0 != .createInitialSchema }) {
                 if !CurrentAppContext().isRunningTests {
                     Logger.info("skipping migration: \(migrationId) for new user.")
                 }
-                // no-op
+                insertMigration(migrationId.rawValue, db: db)
             }
         }
-
         return migrator
     }()
 
@@ -1749,6 +1748,26 @@ public class GRDBSchemaMigrator: NSObject {
             }
         }
 
+        migrator.registerMigration(.addProfileBadgeDuration) { db in
+            do {
+                try db.alter(table: "model_ProfileBadgeTable") { (table: TableAlteration) -> Void in
+                    table.add(column: "duration", .numeric)
+                }
+            } catch {
+                owsFail("Error: \(error)")
+            }
+        }
+
+        migrator.registerMigration(.addGiftBadges) { db in
+            do {
+                try db.alter(table: "model_TSInteraction") { (table: TableAlteration) -> Void in
+                    table.add(column: "giftBadge", .blob)
+                }
+            } catch {
+                owsFail("Error: \(error)")
+            }
+        }
+
         // MARK: - Schema Migration Insertion Point
     }
 
@@ -1827,8 +1846,7 @@ public class GRDBSchemaMigrator: NSObject {
             // cannot be repeated.
             guard !hasRunMigration("indexSignalRecipients", transaction: transaction) else { return }
 
-            SignalRecipient.anyEnumerate(transaction: transaction.asAnyWrite) { (signalRecipient: SignalRecipient,
-                _: UnsafeMutablePointer<ObjCBool>) in
+            SignalRecipient.anyEnumerate(transaction: transaction.asAnyWrite) { (signalRecipient: SignalRecipient, _: UnsafeMutablePointer<ObjCBool>) in
                 GRDBFullTextSearchFinder.modelWasInserted(model: signalRecipient, transaction: transaction)
             }
         }
@@ -1870,8 +1888,7 @@ public class GRDBSchemaMigrator: NSObject {
             let transaction = GRDBWriteTransaction(database: db)
             defer { transaction.finalizeTransaction() }
 
-            TSThread.anyEnumerate(transaction: transaction.asAnyWrite) { (thread: TSThread,
-                _: UnsafeMutablePointer<ObjCBool>) in
+            TSThread.anyEnumerate(transaction: transaction.asAnyWrite) { (thread: TSThread, _: UnsafeMutablePointer<ObjCBool>) in
                 guard let groupThread = thread as? TSGroupThread else {
                     return
                 }
@@ -2148,6 +2165,14 @@ public func dedupeSignalRecipients(transaction: SDSAnyWriteTransaction) throws {
 private func hasRunMigration(_ identifier: String, transaction: GRDBReadTransaction) -> Bool {
     do {
         return try String.fetchOne(transaction.database, sql: "SELECT identifier FROM grdb_migrations WHERE identifier = ?", arguments: [identifier]) != nil
+    } catch {
+        owsFail("Error: \(error)")
+    }
+}
+
+private func insertMigration(_ identifier: String, db: Database) {
+    do {
+        try db.execute(sql: "INSERT INTO grdb_migrations (identifier) VALUES (?)", arguments: [identifier])
     } catch {
         owsFail("Error: \(error)")
     }

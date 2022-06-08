@@ -2079,6 +2079,8 @@ NS_ASSUME_NONNULL_BEGIN
         OWSFailDebug(@"stickerError: %@", stickerError);
     }
 
+    OWSGiftBadge *_Nullable giftBadge = [OWSGiftBadge maybeBuildFromDataMessage:dataMessage];
+
     BOOL isViewOnceMessage = dataMessage.hasIsViewOnce && dataMessage.isViewOnce;
 
     TSPaymentModels *_Nullable paymentModels = [TSPaymentModels parsePaymentProtosInDataMessage:dataMessage
@@ -2154,7 +2156,8 @@ NS_ASSUME_NONNULL_BEGIN
                                   isViewOnceMessage:isViewOnceMessage
                                  storyAuthorAddress:storyAuthorAddress
                                      storyTimestamp:storyTimestamp
-                                 storyReactionEmoji:nil];
+                                 storyReactionEmoji:nil
+                                          giftBadge:giftBadge];
     TSIncomingMessage *message = [incomingMessageBuilder build];
     if (!message) {
         OWSFailDebug(@"Missing incomingMessage.");
