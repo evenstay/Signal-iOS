@@ -3,6 +3,7 @@
 //
 
 import Foundation
+import SignalServiceKit
 
 protocol MockConversationDelegate: AnyObject {
     var mockConversationViewWidth: CGFloat { get }
@@ -128,18 +129,16 @@ class MockConversationView: UIView {
                 chatColor: chatColor
             )
             for item in model.items {
-                func buildInteraction() -> TSInteraction {
-                    switch item {
-                    case .date:
-                        return DateHeaderInteraction(thread: self.thread,
-                                                     timestamp: NSDate.ows_millisecondTimeStamp())
-                    case .outgoing(let text):
-                        return MockOutgoingMessage(messageBody: text, thread: self.thread)
-                    case .incoming(let text):
-                        return MockIncomingMessage(messageBody: text, thread: self.thread)
-                    }
+                let interaction: TSInteraction
+                switch item {
+                case .date:
+                    interaction = DateHeaderInteraction(thread: self.thread, timestamp: NSDate.ows_millisecondTimeStamp())
+                case .outgoing(let text):
+                    interaction = MockOutgoingMessage(messageBody: text, thread: self.thread, transaction: transaction)
+                case .incoming(let text):
+                    interaction = MockIncomingMessage(messageBody: text, thread: self.thread)
                 }
-                let interaction = buildInteraction()
+
                 guard let renderItem = CVLoader.buildStandaloneRenderItem(
                     interaction: interaction,
                     thread: self.thread,
@@ -221,9 +220,9 @@ private class MockIncomingMessage: TSIncomingMessage {
 // MARK: -
 
 private class MockOutgoingMessage: TSOutgoingMessage {
-    init(messageBody: String, thread: TSThread) {
+    init(messageBody: String, thread: TSThread, transaction: SDSAnyReadTransaction) {
         let builder = TSOutgoingMessageBuilder(thread: thread, messageBody: messageBody)
-        super.init(outgoingMessageWithBuilder: builder)
+        super.init(outgoingMessageWithBuilder: builder, transaction: transaction)
     }
 
     required init?(coder: NSCoder) {

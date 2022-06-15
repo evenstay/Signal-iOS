@@ -156,6 +156,7 @@ typedef NS_ENUM(NSUInteger, UserProfileWriter) {
                   avatarUrlPath:(nullable NSString *)avatarUrlPath
           optionalAvatarFileUrl:(nullable NSURL *)optionalAvatarFileUrl
                   profileBadges:(nullable NSArray<OWSUserProfileBadgeInfo *> *)profileBadges
+           canReceiveGiftBadges:(BOOL)canReceiveGiftBadges
                   lastFetchDate:(NSDate *)lastFetchDate
               userProfileWriter:(UserProfileWriter)userProfileWriter
                     transaction:(SDSAnyWriteTransaction *)writeTx;
@@ -186,6 +187,8 @@ typedef NS_ENUM(NSUInteger, UserProfileWriter) {
 - (NSArray<id<SSKMaybeString>> *)usernamesForAddresses:(NSArray<SignalServiceAddress *> *)addresses
                                            transaction:(SDSAnyReadTransaction *)transaction;
 
+- (NSArray<SignalServiceAddress *> *)allWhitelistedRegisteredAddressesWithTransaction:
+    (SDSAnyReadTransaction *)transaction;
 
 @end
 

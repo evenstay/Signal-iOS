@@ -393,6 +393,7 @@ static NSString *const kLastGroupProfileKeyCheckTimestampKey = @"lastGroupProfil
 
     [userProfile updateWithUsername:username
                    isStoriesCapable:YES
+               canReceiveGiftBadges:SSKFeatureFlags.giftBadgeReceiving
                   userProfileWriter:userProfileWriter
                         transaction:transaction];
 }
@@ -1155,7 +1156,7 @@ static NSString *const kLastGroupProfileKeyCheckTimestampKey = @"lastGroupProfil
         [self addGroupIdToProfileWhitelist:groupId
                          userProfileWriter:UserProfileWriter_LocalUser
                                transaction:transaction];
-    } else {
+    } else if ([thread isKindOfClass:[TSContactThread class]]) {
         TSContactThread *contactThread = (TSContactThread *)thread;
         [self addUserToProfileWhitelist:contactThread.contactAddress
                       userProfileWriter:UserProfileWriter_LocalUser
@@ -1189,9 +1190,11 @@ static NSString *const kLastGroupProfileKeyCheckTimestampKey = @"lastGroupProfil
         TSGroupThread *groupThread = (TSGroupThread *)thread;
         NSData *groupId = groupThread.groupModel.groupId;
         return [self isGroupIdInProfileWhitelist:groupId transaction:transaction];
-    } else {
+    } else if ([thread isKindOfClass:[TSContactThread class]]) {
         TSContactThread *contactThread = (TSContactThread *)thread;
         return [self isUserInProfileWhitelist:contactThread.contactAddress transaction:transaction];
+    } else {
+        return NO;
     }
 }
 
@@ -1535,6 +1538,12 @@ static NSString *const kLastGroupProfileKeyCheckTimestampKey = @"lastGroupProfil
     }];
 }
 
+- (NSArray<SignalServiceAddress *> *)allWhitelistedRegisteredAddressesWithTransaction:
+    (SDSAnyReadTransaction *)transaction
+{
+    return [self objc_allWhitelistedRegisteredAddressesWithTransaction:transaction];
+}
+
 - (nullable NSString *)profileBioForDisplayForAddress:(SignalServiceAddress *)address
                                           transaction:(SDSAnyReadTransaction *)transaction
 {
@@ -1713,6 +1722,7 @@ static NSString *const kLastGroupProfileKeyCheckTimestampKey = @"lastGroupProfil
                   avatarUrlPath:(nullable NSString *)avatarUrlPath
           optionalAvatarFileUrl:(nullable NSURL *)optionalAvatarFileUrl
                   profileBadges:(nullable NSArray<OWSUserProfileBadgeInfo *> *)profileBadges
+           canReceiveGiftBadges:(BOOL)canReceiveGiftBadges
                   lastFetchDate:(NSDate *)lastFetchDate
               userProfileWriter:(UserProfileWriter)userProfileWriter
                     transaction:(SDSAnyWriteTransaction *)writeTx
@@ -1737,6 +1747,7 @@ static NSString *const kLastGroupProfileKeyCheckTimestampKey = @"lastGroupProfil
     if (!userProfile.profileKey) {
         [userProfile updateWithUsername:username
                        isStoriesCapable:isStoriesCapable
+                   canReceiveGiftBadges:canReceiveGiftBadges
                           lastFetchDate:lastFetchDate
                       userProfileWriter:userProfileWriter
                             transaction:writeTx];
@@ -1748,6 +1759,7 @@ static NSString *const kLastGroupProfileKeyCheckTimestampKey = @"lastGroupProfil
                                 username:username
                         isStoriesCapable:isStoriesCapable
                                   badges:profileBadges
+                    canReceiveGiftBadges:canReceiveGiftBadges
                            avatarUrlPath:avatarUrlPath
                           avatarFileName:optionalAvatarFileUrl.lastPathComponent
                            lastFetchDate:lastFetchDate
@@ -1762,6 +1774,7 @@ static NSString *const kLastGroupProfileKeyCheckTimestampKey = @"lastGroupProfil
                                 username:username
                         isStoriesCapable:isStoriesCapable
                                   badges:profileBadges
+                    canReceiveGiftBadges:canReceiveGiftBadges
                            avatarUrlPath:avatarUrlPath
                            lastFetchDate:lastFetchDate
                        userProfileWriter:userProfileWriter

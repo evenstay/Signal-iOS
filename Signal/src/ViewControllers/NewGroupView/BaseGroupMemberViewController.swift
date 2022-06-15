@@ -339,7 +339,7 @@ public class BaseGroupMemberViewController: OWSViewController {
 extension BaseGroupMemberViewController: RecipientPickerDelegate {
 
     func recipientPicker(_ recipientPickerViewController: RecipientPickerViewController,
-                         canSelectRecipient recipient: PickedRecipient) -> RecipientPickerRecipientState {
+                         getRecipientState recipient: PickedRecipient) -> RecipientPickerRecipientState {
         guard let groupMemberViewDelegate = groupMemberViewDelegate else {
             owsFailDebug("Missing groupMemberViewDelegate.")
             return .unknownError
@@ -358,7 +358,7 @@ extension BaseGroupMemberViewController: RecipientPickerDelegate {
                 // Re-fetch profile for this user.
                 ProfileFetcherJob.fetchProfile(address: address, ignoreThrottling: true)
 
-                return .memberHasOutdatedClient
+                return .userLacksGroupCapability
             }
             return .canBeSelected
         }

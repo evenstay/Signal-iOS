@@ -585,18 +585,19 @@ public class ProfileFetcherJob: NSObject {
 
                 self.profileManager.updateProfile(
                     for: address,
-                       givenName: givenName,
-                       familyName: familyName,
-                       bio: bio,
-                       bioEmoji: bioEmoji,
-                       username: profile.username,
+                    givenName: givenName,
+                    familyName: familyName,
+                    bio: bio,
+                    bioEmoji: bioEmoji,
+                    username: profile.username,
                     isStoriesCapable: profile.isStoriesCapable,
-                       avatarUrlPath: profile.avatarUrlPath,
-                       optionalAvatarFileUrl: avatarUrl,
-                       profileBadges: profileBadgeMetadata,
-                       lastFetch: Date(),
-                       userProfileWriter: .profileFetch,
-                       transaction: writeTx
+                    avatarUrlPath: profile.avatarUrlPath,
+                    optionalAvatarFileUrl: avatarUrl,
+                    profileBadges: profileBadgeMetadata,
+                    canReceiveGiftBadges: profile.canReceiveGiftBadges,
+                    lastFetch: Date(),
+                    userProfileWriter: .profileFetch,
+                    transaction: writeTx
                 )
             }
         }
@@ -633,18 +634,19 @@ public class ProfileFetcherJob: NSObject {
 
         self.profileManager.updateProfile(
             for: address,
-               givenName: nil,
-               familyName: nil,
-               bio: nil,
-               bioEmoji: nil,
-               username: nil,
+            givenName: nil,
+            familyName: nil,
+            bio: nil,
+            bioEmoji: nil,
+            username: nil,
             isStoriesCapable: false,
-               avatarUrlPath: nil,
-               optionalAvatarFileUrl: nil,
-               profileBadges: nil,
-               lastFetch: Date.distantPast,
-               userProfileWriter: .profileFetch,
-               transaction: transaction
+            avatarUrlPath: nil,
+            optionalAvatarFileUrl: nil,
+            profileBadges: nil,
+            canReceiveGiftBadges: false,
+            lastFetch: Date.distantPast,
+            userProfileWriter: .profileFetch,
+            transaction: transaction
         )
 
         GroupManager.setUserCapabilities(address: address,

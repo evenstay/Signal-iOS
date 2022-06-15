@@ -161,6 +161,9 @@ public class GRDBSchemaMigrator: NSObject {
         case improvedDisappearingMessageIndices
         case addProfileBadgeDuration
         case addGiftBadges
+        case addCanReceiveGiftBadgesToUserProfiles
+        case addStoryThreadColumns
+        case addUnsavedMessagesToSendToJobRecord
 
         // NOTE: Every time we add a migration id, consider
         // incrementing grdbSchemaVersionLatest.
@@ -208,7 +211,7 @@ public class GRDBSchemaMigrator: NSObject {
     }
 
     public static let grdbSchemaVersionDefault: UInt = 0
-    public static let grdbSchemaVersionLatest: UInt = 36
+    public static let grdbSchemaVersionLatest: UInt = 37
 
     // An optimization for new users, we have the first migration import the latest schema
     // and mark any other migrations as "already run".
@@ -1768,6 +1771,42 @@ public class GRDBSchemaMigrator: NSObject {
             }
         }
 
+        migrator.registerMigration(.addCanReceiveGiftBadgesToUserProfiles) { db in
+            do {
+                try db.alter(table: "model_OWSUserProfile") { (table: TableAlteration) -> Void in
+                    table.add(column: "canReceiveGiftBadges", .boolean).notNull().defaults(to: false)
+                }
+            } catch {
+                owsFail("Error: \(error)")
+            }
+        }
+
+        migrator.registerMigration(.addStoryThreadColumns) { db in
+            do {
+                try db.alter(table: "model_TSThread") { (table: TableAlteration) -> Void in
+                    table.add(column: "allowsReplies", .boolean).defaults(to: false)
+                    table.add(column: "lastSentStoryTimestamp", .integer)
+                    table.add(column: "name", .text)
+                    table.add(column: "addresses", .blob)
+                    table.add(column: "storyViewMode", .integer).defaults(to: 0)
+                }
+
+                try db.create(index: "index_model_TSThread_on_storyViewMode", on: "model_TSThread", columns: ["storyViewMode", "lastSentStoryTimestamp", "allowsReplies"])
+            } catch {
+                owsFail("Error: \(error)")
+            }
+        }
+
+        migrator.registerMigration(.addUnsavedMessagesToSendToJobRecord) { db in
+            do {
+                try db.alter(table: "model_SSKJobRecord") { (table: TableAlteration) -> Void in
+                    table.add(column: "unsavedMessagesToSend", .blob)
+                }
+            } catch {
+                owsFail("Error: \(error)")
+            }
+        }
+
         // MARK: - Schema Migration Insertion Point
     }
 
@@ -2035,7 +2074,7 @@ public class GRDBSchemaMigrator: NSObject {
 
                 while let thread = try threadCursor.next() as? TSGroupThread {
                     try autoreleasepool {
-                        try thread.groupModel.migrateLegacyAvatarDataToDisk()
+                        try thread.groupModel.attemptToMigrateLegacyAvatarDataToDisk()
                         thread.anyUpsert(transaction: transaction.asAnyWrite)
                         GRDBFullTextSearchFinder.modelWasUpdated(model: thread, transaction: transaction)
                     }

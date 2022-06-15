@@ -149,45 +149,23 @@ typedef NS_CLOSED_ENUM(NSUInteger, MessageContentType) {
 #pragma mark - Actions
 
         [OWSTableItem itemWithTitle:@"Send N text messages (1/sec.)"
-                        actionBlock:^{
-                            [DebugUIMessages sendNTextMessagesInThread:thread];
-                        }],
+                        actionBlock:^{ [DebugUIMessages sendNTextMessagesInThread:thread]; }],
         [OWSTableItem itemWithTitle:@"Receive UUID message"
-                        actionBlock:^{
-                            [DebugUIMessages receiveUUIDEnvelopeInNewThread];
-                        }],
-        [OWSTableItem itemWithTitle:@"Create UUID group"
-                        actionBlock:^{
-                            [DebugUIMessages createUUIDGroup];
-                        }],
+                        actionBlock:^{ [DebugUIMessages receiveUUIDEnvelopeInNewThread]; }],
+        [OWSTableItem itemWithTitle:@"Create UUID group" actionBlock:^{ [DebugUIMessages createUUIDGroup]; }],
         [OWSTableItem itemWithTitle:@"Send Media Gallery"
-                        actionBlock:^{
-                            [DebugUIMessages sendMediaAlbumInThread:thread];
-                        }],
+                        actionBlock:^{ [DebugUIMessages sendMediaAlbumInThread:thread]; }],
         [OWSTableItem itemWithTitle:@"Send Exemplary Media Galleries"
-                        actionBlock:^{
-                            [DebugUIMessages sendExemplaryMediaGalleriesInThread:thread];
-                        }],
-        [OWSTableItem itemWithTitle:@"Select Fake"
-                        actionBlock:^{
-                            [DebugUIMessages selectFakeAction:thread];
-                        }],
+                        actionBlock:^{ [DebugUIMessages sendExemplaryMediaGalleriesInThread:thread]; }],
+        [OWSTableItem itemWithTitle:@"Select Fake" actionBlock:^{ [DebugUIMessages selectFakeAction:thread]; }],
         [OWSTableItem itemWithTitle:@"Select Send Media"
-                        actionBlock:^{
-                            [DebugUIMessages selectSendMediaAction:thread];
-                        }],
+                        actionBlock:^{ [DebugUIMessages selectSendMediaAction:thread]; }],
         [OWSTableItem itemWithTitle:@"Send All Contact Shares"
-                        actionBlock:^{
-                            [DebugUIMessages sendAllContacts:thread];
-                        }],
+                        actionBlock:^{ [DebugUIMessages sendAllContacts:thread]; }],
         [OWSTableItem itemWithTitle:@"Select Quoted Reply"
-                        actionBlock:^{
-                            [DebugUIMessages selectQuotedReplyAction:thread];
-                        }],
+                        actionBlock:^{ [DebugUIMessages selectQuotedReplyAction:thread]; }],
         [OWSTableItem itemWithTitle:@"Select Back-Dated"
-                        actionBlock:^{
-                            [DebugUIMessages selectBackDatedAction:thread];
-                        }],
+                        actionBlock:^{ [DebugUIMessages selectBackDatedAction:thread]; }],
 
 #pragma mark - Misc.
 
@@ -214,25 +192,15 @@ typedef NS_CLOSED_ENUM(NSUInteger, MessageContentType) {
                                              }];
                         }],
         [OWSTableItem itemWithTitle:@"Send text/x-signal-plain"
-                        actionBlock:^{
-                            [DebugUIMessages sendOversizeTextMessage:thread];
-                        }],
+                        actionBlock:^{ [DebugUIMessages sendOversizeTextMessage:thread]; }],
         [OWSTableItem itemWithTitle:@"Send unknown mimetype"
-                        actionBlock:^{
-                            [DebugUIMessages sendRandomAttachment:thread uti:kUnknownTestAttachmentUTI];
-                        }],
+                        actionBlock:^{ [DebugUIMessages sendRandomAttachment:thread uti:kUnknownTestAttachmentUTI]; }],
         [OWSTableItem itemWithTitle:@"Send pdf"
-                        actionBlock:^{
-                            [DebugUIMessages sendRandomAttachment:thread uti:(NSString *)kUTTypePDF];
-                        }],
+                        actionBlock:^{ [DebugUIMessages sendRandomAttachment:thread uti:(NSString *)kUTTypePDF]; }],
         [OWSTableItem itemWithTitle:@"Create all system messages"
-                        actionBlock:^{
-                            [DebugUIMessages createSystemMessagesInThread:thread];
-                        }],
+                        actionBlock:^{ [DebugUIMessages createSystemMessagesInThread:thread]; }],
         [OWSTableItem itemWithTitle:@"Create messages with variety of timestamps"
-                        actionBlock:^{
-                            [DebugUIMessages createTimestampMessagesInThread:thread];
-                        }],
+                        actionBlock:^{ [DebugUIMessages createTimestampMessagesInThread:thread]; }],
         [OWSTableItem itemWithTitle:@"Send text and system messages"
                         actionBlock:^{
                             [DebugUIMessages askForQuantityWithTitle:@"How many messages?"
@@ -244,19 +212,21 @@ typedef NS_CLOSED_ENUM(NSUInteger, MessageContentType) {
         [OWSTableItem itemWithTitle:@"Request Bogus group info"
                         actionBlock:^{
                             OWSLogInfo(@"Requesting bogus group info for thread: %@", thread);
-                            OWSGroupInfoRequestMessage *groupInfoRequestMessage = [[OWSGroupInfoRequestMessage alloc]
-                                initWithThread:thread
-                                       groupId:[TSGroupModel generateRandomV1GroupId]];
                             DatabaseStorageWrite(
                                 SDSDatabaseStorage.shared, ^(SDSAnyWriteTransaction *_Nonnull transaction) {
+                                    OWSGroupInfoRequestMessage *groupInfoRequestMessage =
+                                        [[OWSGroupInfoRequestMessage alloc]
+                                            initWithThread:thread
+                                                   groupId:[TSGroupModel generateRandomV1GroupId]
+                                               transaction:transaction];
+
                                     [self.messageSenderJobQueue addMessage:groupInfoRequestMessage.asPreparer
                                                                transaction:transaction];
                                 });
                         }],
-        [OWSTableItem itemWithTitle:@"Message with stalled timer"
-                        actionBlock:^{
-                            [DebugUIMessages createDisappearingMessagesWhichFailedToStartInThread:thread];
-                        }],
+        [OWSTableItem
+            itemWithTitle:@"Message with stalled timer"
+              actionBlock:^{ [DebugUIMessages createDisappearingMessagesWhichFailedToStartInThread:thread]; }],
         [OWSTableItem itemWithTitle:@"Inject fake incoming messages"
                         actionBlock:^{
                             [DebugUIMessages askForQuantityWithTitle:@"How many messages?"
@@ -266,21 +236,12 @@ typedef NS_CLOSED_ENUM(NSUInteger, MessageContentType) {
                                                           }];
                         }],
         [OWSTableItem itemWithTitle:@"Test Indic Scripts"
-                        actionBlock:^{
-                            [DebugUIMessages testIndicScriptsInThread:thread];
-                        }],
-        [OWSTableItem itemWithTitle:@"Test Zalgo"
-                        actionBlock:^{
-                            [DebugUIMessages testZalgoTextInThread:thread];
-                        }],
+                        actionBlock:^{ [DebugUIMessages testIndicScriptsInThread:thread]; }],
+        [OWSTableItem itemWithTitle:@"Test Zalgo" actionBlock:^{ [DebugUIMessages testZalgoTextInThread:thread]; }],
         [OWSTableItem itemWithTitle:@"Test Directional Filenames"
-                        actionBlock:^{
-                            [DebugUIMessages testDirectionalFilenamesInThread:thread];
-                        }],
+                        actionBlock:^{ [DebugUIMessages testDirectionalFilenamesInThread:thread]; }],
         [OWSTableItem itemWithTitle:@"Test Linkification"
-                        actionBlock:^{
-                            [DebugUIMessages testLinkificationInThread:thread];
-                        }],
+                        actionBlock:^{ [DebugUIMessages testLinkificationInThread:thread]; }],
 
     ]];
 
@@ -3956,7 +3917,7 @@ typedef OWSContact * (^OWSContactBlock)(SDSAnyWriteTransaction *transaction);
 
     // Try to use an arbitrary member of the current thread that isn't
     // ourselves as the sender.
-    SignalServiceAddress *_Nullable address = [[thread recipientAddresses] firstObject];
+    SignalServiceAddress *_Nullable address = [[thread recipientAddressesWithSneakyTransaction] firstObject];
     // This might be an "empty" group with no other members.  If so, use a fake
     // sender id.
     if (!address) {
@@ -4201,7 +4162,7 @@ typedef OWSContact * (^OWSContactBlock)(SDSAnyWriteTransaction *transaction);
         TSOutgoingMessageBuilder *messageBuilder = [TSOutgoingMessageBuilder outgoingMessageBuilderWithThread:thread
                                                                                                   messageBody:text];
         [messageBuilder applyDisappearingMessagesConfiguration:configuration];
-        TSOutgoingMessage *message = [messageBuilder build];
+        TSOutgoingMessage *message = [messageBuilder buildWithTransaction:initialTransaction];
         OWSLogInfo(@"resurrectNewOutgoingMessages2 timestamp: %llu.", message.timestamp);
         [messages addObject:message];
     }
@@ -4275,13 +4236,14 @@ typedef OWSContact * (^OWSContactBlock)(SDSAnyWriteTransaction *transaction);
                 TSOutgoingMessageBuilder *messageBuilder =
                     [TSOutgoingMessageBuilder outgoingMessageBuilderWithThread:thread messageBody:randomText];
                 messageBuilder.timestamp = timestamp.unsignedLongLongValue;
-                TSOutgoingMessage *message = [messageBuilder build];
+                TSOutgoingMessage *message = [messageBuilder buildWithTransaction:transaction];
                 [message anyInsertWithTransaction:transaction];
                 [message updateWithFakeMessageState:TSOutgoingMessageStateSent transaction:transaction];
                 [message updateWithSentRecipient:address wasSentByUD:NO transaction:transaction];
                 [message updateWithDeliveredRecipient:address
                                     recipientDeviceId:0
                                     deliveryTimestamp:timestamp
+                                              context:[[PassthroughDeliveryReceiptContext alloc] init]
                                           transaction:transaction];
                 [message updateWithReadRecipient:address
                                recipientDeviceId:0
@@ -4297,7 +4259,7 @@ typedef OWSContact * (^OWSContactBlock)(SDSAnyWriteTransaction *transaction);
     uint64_t now = [NSDate ows_millisecondTimeStamp];
     NSString *messageBody = [NSString stringWithFormat:@"Should disappear 60s after %lu", (unsigned long)now];
 
-    SignalServiceAddress *address = thread.recipientAddresses.firstObject;
+    SignalServiceAddress *address = thread.recipientAddressesWithSneakyTransaction.firstObject;
     TSIncomingMessageBuilder *incomingMessageBuilder =
         [TSIncomingMessageBuilder incomingMessageBuilderWithThread:thread messageBody:messageBody];
     incomingMessageBuilder.authorAddress = address;
@@ -4568,27 +4530,24 @@ typedef OWSContact * (^OWSContactBlock)(SDSAnyWriteTransaction *transaction);
     messageBuilder.contactShare = contactShare;
     messageBuilder.linkPreview = linkPreview;
     messageBuilder.messageSticker = messageSticker;
-    TSOutgoingMessage *message = [messageBuilder build];
+    TSOutgoingMessage *message = [messageBuilder buildWithTransaction:transaction];
 
     [message anyInsertWithTransaction:transaction];
     [message updateWithFakeMessageState:messageState transaction:transaction];
-    [attachment anyUpdateWithTransaction:transaction block:^(TSAttachment *latest) {
-        // There's no public setter for albumMessageId, since it's usually set in the initializer.
-        // This isn't convenient for the DEBUG UI, so we abuse the migrateAlbumMessageId method.
-        [latest migrateAlbumMessageId:message.uniqueId];
-    }];
+    [self updateAttachment:attachment albumMessage:message transaction:transaction];
     if (isDelivered) {
-        SignalServiceAddress *_Nullable address = thread.recipientAddresses.lastObject;
+        SignalServiceAddress *_Nullable address = [thread recipientAddressesWithTransaction:transaction].lastObject;
         if (address != nil) {
             OWSAssertDebug(address.isValid);
             [message updateWithDeliveredRecipient:address
                                 recipientDeviceId:0
                                 deliveryTimestamp:@([NSDate ows_millisecondTimeStamp])
+                                          context:[[PassthroughDeliveryReceiptContext alloc] init]
                                       transaction:transaction];
         }
     }
     if (isRead) {
-        SignalServiceAddress *_Nullable address = thread.recipientAddresses.lastObject;
+        SignalServiceAddress *_Nullable address = [thread recipientAddressesWithTransaction:transaction].lastObject;
         if (address != nil) {
             OWSAssertDebug(address.isValid);
             [message updateWithReadRecipient:address
@@ -4625,7 +4584,7 @@ typedef OWSContact * (^OWSContactBlock)(SDSAnyWriteTransaction *transaction);
 
     return [self createFakeIncomingMessage:thread
                                messageBody:messageBody
-                              attachmentId:attachment.uniqueId
+                                attachment:attachment
                                   filename:fakeAssetLoader.filename
                     isAttachmentDownloaded:isAttachmentDownloaded
                              quotedMessage:quotedMessage
@@ -4634,7 +4593,7 @@ typedef OWSContact * (^OWSContactBlock)(SDSAnyWriteTransaction *transaction);
 
 + (TSIncomingMessage *)createFakeIncomingMessage:(TSThread *)thread
                                      messageBody:(nullable NSString *)messageBody
-                                    attachmentId:(nullable NSString *)attachmentId
+                                      attachment:(nullable TSAttachment *)attachment
                                         filename:(nullable NSString *)filename
                           isAttachmentDownloaded:(BOOL)isAttachmentDownloaded
                                    quotedMessage:(nullable TSQuotedMessage *)quotedMessage
@@ -4642,11 +4601,11 @@ typedef OWSContact * (^OWSContactBlock)(SDSAnyWriteTransaction *transaction);
 {
     OWSAssertDebug(thread);
     OWSAssertDebug(transaction);
-    OWSAssertDebug(messageBody.length > 0 || attachmentId.length > 0);
+    OWSAssertDebug(messageBody.length > 0 || attachment != nil);
 
     NSMutableArray<NSString *> *attachmentIds = [NSMutableArray new];
-    if (attachmentId) {
-        [attachmentIds addObject:attachmentId];
+    if (attachment != nil) {
+        [attachmentIds addObject:attachment.uniqueId];
     }
 
     SignalServiceAddress *_Nullable incomingSenderAddress = [DebugUIMessages anyIncomingSenderAddressForThread:thread];
@@ -4662,6 +4621,8 @@ typedef OWSContact * (^OWSContactBlock)(SDSAnyWriteTransaction *transaction);
     TSIncomingMessage *message = [incomingMessageBuilder build];
     [message anyInsertWithTransaction:transaction];
     [message debugonly_markAsReadNowWithTransaction:transaction];
+    [self updateAttachment:attachment albumMessage:message transaction:transaction];
+
     return message;
 }
 
@@ -4712,6 +4673,22 @@ typedef OWSContact * (^OWSContactBlock)(SDSAnyWriteTransaction *transaction);
         [attachmentPointer setAttachmentPointerStateDebug:TSAttachmentPointerStateFailed];
         [attachmentPointer anyInsertWithTransaction:transaction];
         return attachmentPointer;
+    }
+}
+
++ (void)updateAttachment:(nullable TSAttachment *)attachment
+            albumMessage:(TSMessage *)albumMessage
+             transaction:(SDSAnyWriteTransaction *)transaction
+{
+    [attachment anyUpdateWithTransaction:transaction
+                                   block:^(TSAttachment *latest) {
+                                       // There's no public setter for albumMessageId, since it's usually set in the
+                                       // initializer. This isn't convenient for the DEBUG UI, so we abuse the
+                                       // migrateAlbumMessageId method.
+                                       [latest migrateAlbumMessageId:albumMessage.uniqueId];
+                                   }];
+    if ([attachment isKindOfClass:[TSAttachmentStream class]]) {
+        [MediaGalleryManager didInsertAttachmentStream:(TSAttachmentStream *)attachment transaction:transaction];
     }
 }
 
@@ -4823,7 +4800,9 @@ typedef OWSContact * (^OWSContactBlock)(SDSAnyWriteTransaction *transaction);
             TSThread *thread = [TSContactThread getOrCreateThreadWithContactAddress:address transaction:transaction];
             OWSLogInfo(@"Requesting group info for group thread from: %@", address);
             OWSGroupInfoRequestMessage *groupInfoRequestMessage =
-                [[OWSGroupInfoRequestMessage alloc] initWithThread:thread groupId:groupThread.groupModel.groupId];
+                [[OWSGroupInfoRequestMessage alloc] initWithThread:thread
+                                                           groupId:groupThread.groupModel.groupId
+                                                       transaction:transaction];
             [self.messageSenderJobQueue addMessage:groupInfoRequestMessage.asPreparer transaction:transaction];
         }
     });

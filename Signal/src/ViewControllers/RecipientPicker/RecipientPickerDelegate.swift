@@ -1,5 +1,5 @@
 //
-//  Copyright (c) 2021 Open Whisper Systems. All rights reserved.
+//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
 //
 
 import Foundation
@@ -10,14 +10,15 @@ public enum RecipientPickerRecipientState: Int {
     case duplicateGroupMember
     case userAlreadyInBlocklist
     case conversationAlreadyInBlocklist
-    case memberHasOutdatedClient
+    case userLacksGroupCapability
+    case userLacksGiftBadgeCapability
     case unknownError
 }
 
 @objc
 protocol RecipientPickerDelegate: AnyObject {
     func recipientPicker(_ recipientPickerViewController: RecipientPickerViewController,
-                         canSelectRecipient recipient: PickedRecipient) -> RecipientPickerRecipientState
+                         getRecipientState recipient: PickedRecipient) -> RecipientPickerRecipientState
 
     func recipientPicker(_ recipientPickerViewController: RecipientPickerViewController,
                          didSelectRecipient recipient: PickedRecipient)
@@ -112,7 +113,7 @@ extension RecipientPickerViewController {
         guard showUseAsyncSelection else {
             AssertIsOnMainThread()
 
-            let recipientPickerRecipientState = delegate.recipientPicker(self, canSelectRecipient: recipient)
+            let recipientPickerRecipientState = delegate.recipientPicker(self, getRecipientState: recipient)
             guard recipientPickerRecipientState == .canBeSelected else {
                 showErrorAlert(recipientPickerRecipientState: recipientPickerRecipientState)
                 return
@@ -132,7 +133,7 @@ extension RecipientPickerViewController {
                 AssertIsOnMainThread()
                 modalActivityIndicator.dismiss {
                     AssertIsOnMainThread()
-                    let recipientPickerRecipientState = delegate.recipientPicker(self, canSelectRecipient: recipient)
+                    let recipientPickerRecipientState = delegate.recipientPicker(self, getRecipientState: recipient)
                     guard recipientPickerRecipientState == .canBeSelected else {
                         self.showErrorAlert(recipientPickerRecipientState: recipientPickerRecipientState)
                         return
@@ -165,9 +166,12 @@ extension RecipientPickerViewController {
             owsFailDebug("Unexpected value.")
             errorMessage = NSLocalizedString("RECIPIENT_PICKER_ERROR_USER_CANNOT_BE_SELECTED",
                                              comment: "Error message indicating that a user can't be selected.")
-        case .memberHasOutdatedClient:
-            errorMessage = NSLocalizedString("RECIPIENT_PICKER_ERROR_USER_HAS_OUTDATED_CLIENT",
-                                             comment: "Error message indicating that a user can't be selected until they upgrade their app.")
+        case .userLacksGroupCapability:
+            errorMessage = NSLocalizedString("RECIPIENT_PICKER_ERROR_CANNOT_ADD_TO_GROUP_BECAUSE_USER_HAS_OUTDATED_CLIENT",
+                                             comment: "Error message indicating that a user can't be added to a group until they upgrade their app.")
+        case .userLacksGiftBadgeCapability:
+            errorMessage = NSLocalizedString("RECIPIENT_PICKER_ERROR_USER_CANNOT_RECEIVE_GIFT_BADGES",
+                                             comment: "Error message indicating that a user can't receive gifts.")
         }
         OWSActionSheets.showErrorAlert(message: errorMessage)
         return
@@ -187,7 +191,7 @@ extension RecipientPickerViewController {
                     }
 
                     if let delegate = self.delegate,
-                       delegate.recipientPicker(self, canSelectRecipient: recipient) != .canBeSelected {
+                       delegate.recipientPicker(self, getRecipientState: recipient) != .canBeSelected {
                         cell.selectionStyle = .none
                     }
 
@@ -230,7 +234,7 @@ extension RecipientPickerViewController {
                     guard let self = self else { return cell }
 
                     if let delegate = self.delegate {
-                        if delegate.recipientPicker(self, canSelectRecipient: recipient) != .canBeSelected {
+                        if delegate.recipientPicker(self, getRecipientState: recipient) != .canBeSelected {
                             cell.selectionStyle = .none
                         }
 
