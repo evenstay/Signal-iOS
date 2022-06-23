@@ -81,8 +81,10 @@ public extension ThreadUtil {
                 writeTransaction.addSyncCompletion {
                     benchmarkCompletion()
                 }
-                writeTransaction.addAsyncCompletionOnMain {
-                    persistenceCompletion?()
+                if let persistenceCompletion = persistenceCompletion {
+                    writeTransaction.addAsyncCompletionOnMain {
+                        persistenceCompletion()
+                    }
                 }
             }
         }
@@ -145,14 +147,7 @@ extension OutgoingMessagePreparer {
             bodyRanges = nil
         }
 
-        let expiresInSeconds: UInt32
-        if let configuration = OWSDisappearingMessagesConfiguration.anyFetch(uniqueId: thread.uniqueId,
-                                                                             transaction: transaction),
-           configuration.isEnabled {
-            expiresInSeconds = configuration.durationSeconds
-        } else {
-            expiresInSeconds = 0
-        }
+        let expiresInSeconds = thread.disappearingMessagesDuration(with: transaction)
 
         assert(attachments.allSatisfy { !$0.hasError && !$0.mimeType.isEmpty })
 

@@ -758,7 +758,7 @@ NSUInteger const TSOutgoingMessageSchemaVersion = 1;
 
 - (void)updateWithDeliveredRecipient:(SignalServiceAddress *)recipientAddress
                    recipientDeviceId:(uint32_t)deviceId
-                   deliveryTimestamp:(NSNumber *_Nullable)deliveryTimestamp
+                   deliveryTimestamp:(uint64_t)deliveryTimestamp
                              context:(id<DeliveryReceiptContext>)context
                          transaction:(SDSAnyWriteTransaction *)transaction
 {
@@ -769,11 +769,6 @@ NSUInteger const TSOutgoingMessageSchemaVersion = 1;
     // They are no longer relevant to this message.
     if (self.wasRemotelyDeleted) {
         return;
-    }
-
-    // If delivery notification doesn't include timestamp, use "now" as an estimate.
-    if (!deliveryTimestamp) {
-        deliveryTimestamp = @([NSDate ows_millisecondTimeStamp]);
     }
 
     // Note that this relies on the Message Send Log, so we have to execute it first.
@@ -799,7 +794,7 @@ NSUInteger const TSOutgoingMessageSchemaVersion = 1;
                              OWSLogWarn(@"marking unsent message as delivered.");
                          }
                          recipientState.state = OWSOutgoingMessageRecipientStateSent;
-                         recipientState.deliveryTimestamp = deliveryTimestamp;
+                         recipientState.deliveryTimestamp = @(deliveryTimestamp);
                          recipientState.errorCode = nil;
                      }];
 }
@@ -1268,6 +1263,20 @@ NSUInteger const TSOutgoingMessageSchemaVersion = 1;
             } else {
                 [builder setSticker:stickerProto];
             }
+        }
+    }
+
+    // Gift badge
+    if (self.giftBadge) {
+        SSKProtoDataMessageGiftBadgeBuilder *giftBadgeBuilder = [SSKProtoDataMessageGiftBadge builder];
+        [giftBadgeBuilder setReceiptCredentialPresentation:self.giftBadge.redemptionCredential];
+
+        NSError *error;
+        SSKProtoDataMessageGiftBadge *_Nullable giftBadgeProto = [giftBadgeBuilder buildAndReturnError:&error];
+        if (error || !giftBadgeProto) {
+            OWSFailDebug(@"Could not build gift badge protobuf: %@.", error);
+        } else {
+            [builder setGiftBadge:giftBadgeProto];
         }
     }
 

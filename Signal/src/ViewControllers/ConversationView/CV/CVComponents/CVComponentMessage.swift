@@ -281,8 +281,8 @@ public class CVComponentMessage: CVComponentBase, CVRootComponent {
                                                       linkPreviewState: linkPreviewState)
         }
 
-        if let giftBadgeState = componentState.giftBadge {
-            self.giftBadge = CVComponentGiftBadge(itemModel: itemModel, giftBadgeState: giftBadgeState)
+        if let giftBadge = componentState.giftBadge, let timeState = itemViewState.giftBadgeState {
+            self.giftBadge = CVComponentGiftBadge(itemModel: itemModel, giftBadge: giftBadge, timeState: timeState)
         }
 
         if let reactionsState = componentState.reactions {
@@ -1827,7 +1827,22 @@ public class CVComponentMessage: CVComponentBase, CVRootComponent {
         var bottomButtonsView: CVComponentView?
 
         private var allSubcomponentViews: [CVComponentView] {
-            [senderNameView, bodyTextView, bodyMediaView, footerView, stickerView, quotedReplyView, linkPreviewView, reactionsView, viewOnceView, audioAttachmentView, genericAttachmentView, contactShareView, bottomButtonsView].compactMap { $0 }
+            [
+                senderNameView,
+                bodyTextView,
+                bodyMediaView,
+                footerView,
+                stickerView,
+                viewOnceView,
+                quotedReplyView,
+                linkPreviewView,
+                giftBadgeView,
+                reactionsView,
+                audioAttachmentView,
+                genericAttachmentView,
+                contactShareView,
+                bottomButtonsView
+            ].compactMap { $0 }
         }
 
         fileprivate func subcomponentView(key: CVComponentKey) -> CVComponentView? {

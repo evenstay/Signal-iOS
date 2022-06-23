@@ -1084,7 +1084,10 @@ extension SubscriptionManager {
         }
     }
 
-    public static func requestBoostReceiptCredentialPresentation(for intentId: String, context: ReceiptCredentialRequestContext, request: ReceiptCredentialRequest) throws -> Promise<ReceiptCredentialPresentation> {
+    public static func requestBoostReceiptCredentialPresentation(for intentId: String,
+                                                                 context: ReceiptCredentialRequestContext,
+                                                                 request: ReceiptCredentialRequest,
+                                                                 expectedBadgeLevel: OneTimeBadgeLevel) throws -> Promise<ReceiptCredentialPresentation> {
 
         let clientOperations = try clientZKReceiptOperations()
         let receiptCredentialRequest = request.serialize().asData.base64EncodedString()
@@ -1124,7 +1127,7 @@ extension SubscriptionManager {
 
                 // Validate that receipt credential level matches boost level
                 let level = try receiptCredential.getReceiptLevel()
-                guard level == 1 else {
+                guard level == expectedBadgeLevel.rawValue else {
                     throw OWSAssertionError("Unexpected receipt credential level")
                 }
 
@@ -1168,7 +1171,7 @@ extension SubscriptionManager {
         getBadge(level: .giftBadge)
     }
 
-    private class func getBadge(level: OneTimeBadgeLevel) -> Promise<ProfileBadge> {
+    public class func getBadge(level: OneTimeBadgeLevel) -> Promise<ProfileBadge> {
         let request = OWSRequestFactory.boostBadgesRequest()
 
         return firstly {

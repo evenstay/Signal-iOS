@@ -15,9 +15,12 @@ public struct Stripe: Dependencies {
         }
     }
 
-    public static func boost(amount: NSDecimalNumber, in currencyCode: Currency.Code, for payment: PKPayment) -> Promise<String> {
+    public static func boost(amount: NSDecimalNumber,
+                             in currencyCode: Currency.Code,
+                             level: OneTimeBadgeLevel,
+                             for payment: PKPayment) -> Promise<String> {
         firstly { () -> Promise<API.PaymentIntent> in
-            API.createBoostPaymentIntent(for: amount, in: currencyCode)
+            API.createBoostPaymentIntent(for: amount, in: currencyCode, level: level)
         }.then { intent in
             API.confirmPaymentIntent(for: payment, clientSecret: intent.clientSecret, paymentIntentId: intent.id).map { intent.id }
         }
@@ -155,7 +158,8 @@ fileprivate extension Stripe {
 
         static func createBoostPaymentIntent(
             for amount: NSDecimalNumber,
-            in currencyCode: Currency.Code
+            in currencyCode: Currency.Code,
+            level: OneTimeBadgeLevel
         ) -> Promise<(PaymentIntent)> {
             firstly(on: .sharedUserInitiated) { () -> Promise<HTTPResponse> in
                 guard !isAmountTooSmall(amount, in: currencyCode) else {
@@ -173,9 +177,10 @@ fileprivate extension Stripe {
                 // The description is never translated as it's populated into an
                 // english only receipt by Stripe.
                 let request = OWSRequestFactory.boostCreatePaymentIntent(
-                        withAmount: integralAmount(amount, in: currencyCode),
-                        inCurrencyCode: currencyCode
-                    )
+                    withAmount: integralAmount(amount, in: currencyCode),
+                    inCurrencyCode: currencyCode,
+                    level: level.rawValue
+                )
 
                 return networkManager.makePromise(request: request)
             }.map(on: .sharedUserInitiated) { response in

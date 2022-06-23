@@ -6,37 +6,42 @@ import Foundation
 import UIKit
 import PassKit
 import SignalUI
+import LibSignalClient
 
-// TODO (GB) This view is unfinished.
 class BadgeGiftingConfirmationViewController: OWSTableViewController2 {
     // MARK: - View state
 
     private let badge: ProfileBadge
     private let price: UInt
     private let currencyCode: Currency.Code
-    private let recipientAddress: SignalServiceAddress
-    private let recipientName: String
+    private let thread: TSContactThread
 
     public init(badge: ProfileBadge,
                 price: UInt,
                 currencyCode: Currency.Code,
-                recipientAddress: SignalServiceAddress,
-                recipientName: String) {
+                thread: TSContactThread) {
         self.badge = badge
         self.price = price
         self.currencyCode = currencyCode
-        self.recipientAddress = recipientAddress
-        self.recipientName = recipientName
+        self.thread = thread
     }
 
     // MARK: - Callbacks
 
     public override func viewDidLoad() {
+        self.shouldAvoidKeyboard = true
+
         super.viewDidLoad()
+
+        databaseStorage.appendDatabaseChangeDelegate(self)
+
         title = NSLocalizedString("BADGE_GIFTING_CONFIRMATION_TITLE",
                                   comment: "Title on the screen where you confirm sending of a gift badge, and can write a message")
+
         setUpTableContents()
         setUpBottomFooter()
+
+        tableView.keyboardDismissMode = .onDrag
     }
 
     public override func themeDidChange() {
@@ -61,7 +66,30 @@ class BadgeGiftingConfirmationViewController: OWSTableViewController2 {
 
     // MARK: - Table contents
 
-    private lazy var avatarViewDataSource: ConversationAvatarDataSource = .address(self.recipientAddress)
+    private lazy var avatarViewDataSource: ConversationAvatarDataSource = .thread(self.thread)
+
+    private lazy var contactCellView: UIStackView = {
+        let view = UIStackView()
+        view.distribution = .equalSpacing
+        return view
+    }()
+
+    private lazy var disappearingMessagesTimerLabelView: UILabel = {
+        let labelView = UILabel()
+        labelView.font = .ows_dynamicTypeBody2
+        labelView.textAlignment = .center
+        labelView.minimumScaleFactor = 0.8
+        return labelView
+    }()
+
+    private lazy var disappearingMessagesTimerView: UIView = {
+        let iconView = UIImageView(image: Theme.iconImage(.settingsTimer))
+        iconView.contentMode = .scaleAspectFit
+
+        let view = UIStackView(arrangedSubviews: [iconView, disappearingMessagesTimerLabelView])
+        view.spacing = 4
+        return view
+    }()
 
     private lazy var messageTextView: TextViewWithPlaceholder = {
         let view = TextViewWithPlaceholder()
@@ -80,7 +108,7 @@ class BadgeGiftingConfirmationViewController: OWSTableViewController2 {
         let price = price
         let currencyCode = currencyCode
         let avatarViewDataSource = avatarViewDataSource
-        let recipientName = recipientName
+        let thread = thread
         let messageTextView = messageTextView
 
         let badgeSection = OWSTableSection()
@@ -103,26 +131,32 @@ class BadgeGiftingConfirmationViewController: OWSTableViewController2 {
             let avatarView = ConversationAvatarView(sizeClass: .thirtySix,
                                                     localUserDisplayMode: .asUser,
                                                     badged: true)
-            self.databaseStorage.read { transaction in
+            let (recipientName, disappearingMessagesDuration) = self.databaseStorage.read { transaction -> (String, UInt32) in
                 avatarView.update(transaction) { config in
                     config.dataSource = avatarViewDataSource
                 }
+
+                let recipientName = self.contactsManager.displayName(for: thread, transaction: transaction)
+                let disappearingMessagesDuration = thread.disappearingMessagesDuration(with: transaction)
+
+                return (recipientName, disappearingMessagesDuration)
             }
 
             let nameLabel = UILabel()
             nameLabel.text = recipientName
             nameLabel.font = .ows_dynamicTypeBody
             nameLabel.numberOfLines = 0
+            nameLabel.minimumScaleFactor = 0.5
 
             let avatarAndNameView = UIStackView(arrangedSubviews: [avatarView, nameLabel])
             avatarAndNameView.spacing = ContactCellView.avatarTextHSpacing
 
-            let contactCellView = UIStackView(arrangedSubviews: [avatarAndNameView])
-            contactCellView.distribution = .equalSpacing
+            let contactCellView = self.contactCellView
+            contactCellView.removeAllSubviews()
+            contactCellView.addArrangedSubview(avatarAndNameView)
+            self.updateDisappearingMessagesTimerView(durationSeconds: disappearingMessagesDuration)
             cell.contentView.addSubview(contactCellView)
             contactCellView.autoPinEdgesToSuperviewMargins()
-
-            // TODO (GB) Show disappearing messages timer
 
             return cell
         }))
@@ -163,6 +197,19 @@ class BadgeGiftingConfirmationViewController: OWSTableViewController2 {
                                                messageTextSection])
     }
 
+    private func updateDisappearingMessagesTimerLabelView(durationSeconds: UInt32) {
+        disappearingMessagesTimerLabelView.text = NSString.formatDurationSeconds(durationSeconds, useShortFormat: true)
+    }
+
+    private func updateDisappearingMessagesTimerView(durationSeconds: UInt32) {
+        updateDisappearingMessagesTimerLabelView(durationSeconds: durationSeconds)
+
+        disappearingMessagesTimerView.removeFromSuperview()
+        if durationSeconds != 0 {
+            contactCellView.addArrangedSubview(disappearingMessagesTimerView)
+        }
+    }
+
     // MARK: - Footer
 
     private let bottomFooterStackView = UIStackView()
@@ -179,6 +226,7 @@ class BadgeGiftingConfirmationViewController: OWSTableViewController2 {
         bottomFooterStackView.spacing = 16
         bottomFooterStackView.isLayoutMarginsRelativeArrangement = true
         bottomFooterStackView.preservesSuperviewLayoutMargins = true
+        bottomFooterStackView.layoutMargins = UIEdgeInsets(margin: 16)
         bottomFooterStackView.removeAllSubviews()
 
         let amountView: UIStackView = {
@@ -216,6 +264,29 @@ class BadgeGiftingConfirmationViewController: OWSTableViewController2 {
     }
 }
 
+// MARK: - Database observer delegate
+
+extension BadgeGiftingConfirmationViewController: DatabaseChangeDelegate {
+    private func updateDisappearingMessagesTimerWithSneakyTransaction() {
+        let durationSeconds = databaseStorage.read { self.thread.disappearingMessagesDuration(with: $0) }
+        updateDisappearingMessagesTimerView(durationSeconds: durationSeconds)
+    }
+
+    func databaseChangesDidUpdate(databaseChanges: DatabaseChanges) {
+        if databaseChanges.didUpdate(thread: thread) {
+            updateDisappearingMessagesTimerWithSneakyTransaction()
+        }
+    }
+
+    func databaseChangesDidUpdateExternally() {
+        updateDisappearingMessagesTimerWithSneakyTransaction()
+    }
+
+    func databaseChangesDidReset() {
+        updateDisappearingMessagesTimerWithSneakyTransaction()
+    }
+}
+
 // MARK: - Text view delegate
 
 extension BadgeGiftingConfirmationViewController: TextViewWithPlaceholderDelegate {
@@ -248,52 +319,98 @@ extension BadgeGiftingConfirmationViewController: PKPaymentAuthorizationControll
         didAuthorizePayment payment: PKPayment,
         handler completion: @escaping (PKPaymentAuthorizationResult) -> Void
     ) {
-        // TODO (GB) Actually charge the card and send the badge.
-        let authResult = PKPaymentAuthorizationResult(status: .success, errors: nil)
-        completion(authResult)
+        var hasChargeCompleted = false
 
-        firstly { () -> Promise<TSContactThread> in
-            let (thread, messagePromise) = databaseStorage.write { transaction -> (TSContactThread, Promise<Void>) in
-                let thread = TSContactThread.getOrCreateThread(withContactAddress: recipientAddress,
-                                                               transaction: transaction)
+        let priceAsDecimal = NSDecimalNumber(value: price)
 
-                let messagePromise: Promise<Void>
-                if messageText.isEmpty {
-                    messagePromise = Promise.value(())
-                } else {
-                    let preparer = OutgoingMessagePreparer(
-                        messageBody: MessageBody(text: messageText, ranges: .empty),
-                        mediaAttachments: [],
-                        thread: thread,
-                        quotedReplyModel: nil,
-                        transaction: transaction
-                    )
+        firstly(on: .global()) {
+            Stripe.boost(amount: priceAsDecimal, in: self.currencyCode, level: .giftBadge, for: payment)
+        }.then { (intentId: String) -> Promise<ReceiptCredentialPresentation> in
+            hasChargeCompleted = true
+
+            // TODO (GB): Make this operation durable.
+            let (receiptCredentialRequestContext, receiptCredentialRequest) = try SubscriptionManager.generateReceiptRequest()
+            return try SubscriptionManager.requestBoostReceiptCredentialPresentation(
+                for: intentId,
+                context: receiptCredentialRequestContext,
+                request: receiptCredentialRequest,
+                expectedBadgeLevel: .giftBadge
+            )
+        }.then { (receiptCredentialPresentation: ReceiptCredentialPresentation) -> Promise<Void> in
+            self.databaseStorage.write { transaction -> Promise<Void> in
+                func send(_ preparer: OutgoingMessagePreparer) -> Promise<Void> {
                     preparer.insertMessage(linkPreviewDraft: nil, transaction: transaction)
-                    messagePromise = ThreadUtil.enqueueMessagePromise(message: preparer.unpreparedMessage,
-                                                                      transaction: transaction)
+                    return ThreadUtil.enqueueMessagePromise(message: preparer.unpreparedMessage,
+                                                            transaction: transaction)
                 }
 
-                return (thread, messagePromise)
-            }
+                let giftMessagePromise = send(OutgoingMessagePreparer(
+                    giftBadgeReceiptCredentialPresentation: receiptCredentialPresentation,
+                    thread: self.thread,
+                    transaction: transaction
+                ))
 
-            return messagePromise.map { thread }
-        }.done { (thread: TSContactThread) in
-            SignalApp.shared().presentConversation(for: thread, action: .none, animated: false)
+                let messagesPromise: Promise<Void>
+                if self.messageText.isEmpty {
+                    messagesPromise = giftMessagePromise
+                } else {
+                    let textMessagePromise = send(OutgoingMessagePreparer(
+                        messageBody: MessageBody(text: self.messageText, ranges: .empty),
+                        mediaAttachments: [],
+                        thread: self.thread,
+                        quotedReplyModel: nil,
+                        transaction: transaction
+                    ))
+                    messagesPromise = giftMessagePromise.then { textMessagePromise }
+                }
+
+                return messagesPromise.asVoid()
+            }
+        }.done(on: .main) {
+            completion(.init(status: .success, errors: nil))
+            SignalApp.shared().presentConversation(for: self.thread, action: .none, animated: false)
             self.dismiss(animated: true)
             controller.dismiss()
-        }.catch { error in
-            // TODO (GB) If the user has been charged, show a different error.
-            OWSActionSheets.showActionSheet(
-                title: NSLocalizedString("BADGE_GIFTING_PAYMENT_FAILED_TITLE",
-                                         comment: "Title for the action sheet when you try to send a gift badge but the payment failed"),
-                message: NSLocalizedString("BADGE_GIFTING_PAYMENT_FAILED_BODY",
-                                           comment: "Text in the action sheet when you try to send a gift badge but the payment failed. Tells the user that they have not been charged")
-            )
-            owsFailDebug("Failed to send gift: \(error)")
+        }.catch(on: .main) { error in
+            owsFailDebugUnlessNetworkFailure(error)
+
+            completion(.init(status: .failure, errors: [error]))
+
+            let title: String
+            let message: String
+            if hasChargeCompleted {
+                title = NSLocalizedString("BADGE_GIFTING_PAYMENT_SUCCEEDED_BUT_GIFTING_FAILED_TITLE",
+                                          comment: "Title for the action sheet when you try to send a gift badge. They were charged but the badge could not be sent. They should contact support.")
+                message = NSLocalizedString("BADGE_GIFTING_PAYMENT_SUCCEEDED_BUT_GIFTING_FAILED_BODY",
+                                            comment: "Text in the action sheet when you try to send a gift badge. They were charged but the badge could not be sent. They should contact support.")
+            } else {
+                title = NSLocalizedString("BADGE_GIFTING_PAYMENT_FAILED_TITLE",
+                                          comment: "Title for the action sheet when you try to send a gift badge but the payment failed")
+                message = NSLocalizedString("BADGE_GIFTING_PAYMENT_FAILED_BODY",
+                                            comment: "Text in the action sheet when you try to send a gift badge but the payment failed. Tells the user that they have not been charged")
+            }
+
+            OWSActionSheets.showActionSheet(title: title, message: message)
         }
     }
 
     func paymentAuthorizationControllerDidFinish(_ controller: PKPaymentAuthorizationController) {
         controller.dismiss()
+    }
+}
+
+// MARK: - Outgoing message preparer
+
+extension OutgoingMessagePreparer {
+    public convenience init(giftBadgeReceiptCredentialPresentation: ReceiptCredentialPresentation,
+                            thread: TSThread,
+                            transaction: SDSAnyReadTransaction) {
+        let message = TSOutgoingMessageBuilder(
+            thread: thread,
+            expiresInSeconds: thread.disappearingMessagesDuration(with: transaction),
+            giftBadge: OWSGiftBadge(redemptionCredential: Data(giftBadgeReceiptCredentialPresentation.serialize()))
+        ).build(transaction: transaction)
+
+        self.init(message)
     }
 }
