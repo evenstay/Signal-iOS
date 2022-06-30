@@ -79,7 +79,6 @@ class StoriesViewController: OWSViewController {
                     break
                 default:
                     owsFailDebug("Unexpected story type")
-                    break
                 }
             }
         }
@@ -137,7 +136,6 @@ class StoriesViewController: OWSViewController {
                 break
             default:
                 owsFailDebug("Unexpected story type")
-                break
             }
         }
 
@@ -288,7 +286,8 @@ class StoriesViewController: OWSViewController {
                 return
             }
 
-            let myStoryChanged = Set(myStoryModel?.messages.map { $0.uniqueId } ?? []) != Set(outgoingStories.map { $0.uniqueId })
+            let myStoryChanged = rowIds.intersection(outgoingStories.map { $0.id! }).count > 0
+                || Set(myStoryModel?.messages.map { $0.uniqueId } ?? []) != Set(outgoingStories.map { $0.uniqueId })
             let newMyStoryModel = myStoryChanged
                 ? Self.databaseStorage.read { MyStoryViewModel(messages: outgoingStories, transaction: $0) }
                 : myStoryModel
