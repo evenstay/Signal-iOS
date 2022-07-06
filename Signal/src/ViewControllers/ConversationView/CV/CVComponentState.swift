@@ -173,6 +173,7 @@ public class CVComponentState: Equatable, Dependencies {
     struct GiftBadge: Equatable {
         let loader: GiftBadgeView.BadgeLoader
         let expirationDate: Date
+        let redemptionState: OWSGiftBadgeRedemptionState
     }
     let giftBadge: GiftBadge?
 
@@ -1030,7 +1031,8 @@ fileprivate extension CVComponentState.Builder {
                 mediaAlbumItems.append(CVMediaAlbumItem(attachment: attachment,
                                                         attachmentStream: nil,
                                                         caption: caption,
-                                                        mediaSize: mediaSize))
+                                                        mediaSize: mediaSize,
+                                                        isBroken: false))
                 continue
             }
 
@@ -1039,7 +1041,8 @@ fileprivate extension CVComponentState.Builder {
                 mediaAlbumItems.append(CVMediaAlbumItem(attachment: attachment,
                                                         attachmentStream: nil,
                                                         caption: caption,
-                                                        mediaSize: .zero))
+                                                        mediaSize: .zero,
+                                                        isBroken: true))
                 continue
             }
             let mediaSize = attachmentStream.imageSizePixels
@@ -1048,14 +1051,16 @@ fileprivate extension CVComponentState.Builder {
                 mediaAlbumItems.append(CVMediaAlbumItem(attachment: attachment,
                                                         attachmentStream: nil,
                                                         caption: caption,
-                                                        mediaSize: .zero))
+                                                        mediaSize: .zero,
+                                                        isBroken: true))
                 continue
             }
 
             mediaAlbumItems.append(CVMediaAlbumItem(attachment: attachment,
                                                     attachmentStream: attachmentStream,
                                                     caption: caption,
-                                                    mediaSize: mediaSize))
+                                                    mediaSize: mediaSize,
+                                                    isBroken: false))
         }
         return mediaAlbumItems
     }
@@ -1144,7 +1149,11 @@ fileprivate extension CVComponentState.Builder {
             throw OWSAssertionError("Gift message doesn't contain a gift badge")
         }
         let badgeLoader = GiftBadgeView.BadgeLoader(level: level)
-        self.giftBadge = GiftBadge(loader: badgeLoader, expirationDate: expirationDate)
+        self.giftBadge = GiftBadge(
+            loader: badgeLoader,
+            expirationDate: expirationDate,
+            redemptionState: giftBadge.redemptionState
+        )
         return build()
     }
 }

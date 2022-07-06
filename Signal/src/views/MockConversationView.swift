@@ -317,6 +317,8 @@ extension MockConversationView: CVComponentDelegate {
 
     func cvc_didTapFailedOrPendingDownloads(_ message: TSMessage) {}
 
+    func cvc_didTapBrokenVideo() {}
+
     // MARK: - Messages
 
     func cvc_didTapBodyMedia(itemViewModel: CVItemViewModelImpl,
@@ -343,7 +345,7 @@ extension MockConversationView: CVComponentDelegate {
 
     func cvc_didTapShowMessageDetail(_ itemViewModel: CVItemViewModelImpl) {}
 
-    func cvc_didTapGiftBadge(_ itemViewModel: CVItemViewModelImpl) {}
+    func cvc_didTapGiftBadge(_ itemViewModel: CVItemViewModelImpl, profileBadge: ProfileBadge) {}
 
     func cvc_prepareMessageDetailForInteractivePresentation(_ itemViewModel: CVItemViewModelImpl) {}
 
