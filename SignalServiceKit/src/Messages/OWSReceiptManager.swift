@@ -145,62 +145,70 @@ public extension OWSReceiptManager {
         }
     }
 
-    func enqueueLinkedDeviceViewedReceipt(forMessage message: TSIncomingMessage,
-                                        transaction: SDSAnyWriteTransaction) {
-        let threadUniqueId = message.uniqueThreadId
+    func enqueueLinkedDeviceViewedReceipt(forIncomingMessage message: TSIncomingMessage,
+                                          transaction: SDSAnyWriteTransaction) {
 
-        let messageAuthorAddress = message.authorAddress
-        assert(messageAuthorAddress.isValid)
-
-        let newViewedReceipt = ReceiptForLinkedDevice(
-            senderAddress: messageAuthorAddress,
+        self.enqueueLinkedDeviceViewedReceipt(
+            messageAuthorAddress: message.authorAddress,
             messageUniqueId: message.uniqueId,
             messageIdTimestamp: message.timestamp,
-            timestamp: Date.ows_millisecondTimestamp()
+            transaction: transaction
         )
+    }
 
-        do {
-            if let oldViewedReceipt: ReceiptForLinkedDevice = try toLinkedDevicesViewedReceiptMapStore.getCodableValue(forKey: threadUniqueId, transaction: transaction),
-                oldViewedReceipt.messageIdTimestamp > newViewedReceipt.messageIdTimestamp {
-                // If there's an existing "linked device" viewed receipt for the same thread with
-                // a newer timestamp, discard this "linked device" read receipt.
-                Logger.verbose("Ignoring redundant viewed receipt for linked devices.")
-            } else {
-                Logger.verbose("Enqueuing viewed receipt for linked devices.")
-                try toLinkedDevicesViewedReceiptMapStore.setCodable(newViewedReceipt, key: threadUniqueId, transaction: transaction)
-            }
-        } catch {
-            owsFailDebug("Error: \(error).")
+    func enqueueLinkedDeviceViewedReceipt(forOutgoingMessage message: TSOutgoingMessage,
+                                          transaction: SDSAnyWriteTransaction) {
+
+        guard let localAddress = self.tsAccountManager.localAddress(with: transaction) else {
+            owsFailDebug("no local address")
+            return
         }
+
+        self.enqueueLinkedDeviceViewedReceipt(
+            messageAuthorAddress: localAddress,
+            messageUniqueId: message.uniqueId,
+            messageIdTimestamp: message.timestamp,
+            transaction: transaction
+        )
     }
 
     func enqueueLinkedDeviceViewedReceipt(forStoryMessage message: StoryMessage,
                                           transaction: SDSAnyWriteTransaction) {
-        // Unlike TSMessage, we need to send a viewed receipt for *every* StoryMessage
-        let uniqueId = "story-\(message.timestamp)"
 
-        let messageAuthorAddress = message.authorAddress
+        self.enqueueLinkedDeviceViewedReceipt(
+            messageAuthorAddress: message.authorAddress,
+            messageUniqueId: message.uniqueId,
+            messageIdTimestamp: message.timestamp,
+            transaction: transaction
+        )
+    }
+
+    private func enqueueLinkedDeviceViewedReceipt(
+        messageAuthorAddress: SignalServiceAddress,
+        messageUniqueId: String,
+        messageIdTimestamp: UInt64,
+        transaction: SDSAnyWriteTransaction
+    ) {
+
         assert(messageAuthorAddress.isValid)
 
         let newViewedReceipt = ReceiptForLinkedDevice(
             senderAddress: messageAuthorAddress,
-            messageUniqueId: uniqueId,
-            messageIdTimestamp: message.timestamp,
+            messageUniqueId: messageUniqueId,
+            messageIdTimestamp: messageIdTimestamp,
             timestamp: Date.ows_millisecondTimestamp()
         )
 
+        // Unlike read receipts, we must send *every* viewed receipt, so we use
+        // `message.uniqueId` as the key. If you read message N, we can assume that
+        // messages [0, N-1] have also been read, and this is reflected in the UI
+        // via the unread marker. However, if you view message N (whether it's view
+        // once, voice note, etc.), this has no bearing on whether or not you've
+        // viewed other messages in the chat.
         do {
-            if let oldViewedReceipt: ReceiptForLinkedDevice = try toLinkedDevicesViewedReceiptMapStore.getCodableValue(forKey: uniqueId, transaction: transaction),
-                oldViewedReceipt.messageIdTimestamp > newViewedReceipt.messageIdTimestamp {
-                // If there's an existing "linked device" viewed receipt for the same thread with
-                // a newer timestamp, discard this "linked device" read receipt.
-                Logger.verbose("Ignoring redundant viewed receipt for linked devices.")
-            } else {
-                Logger.verbose("Enqueuing viewed receipt for linked devices.")
-                try toLinkedDevicesViewedReceiptMapStore.setCodable(newViewedReceipt, key: uniqueId, transaction: transaction)
-            }
+            try toLinkedDevicesViewedReceiptMapStore.setCodable(newViewedReceipt, key: messageUniqueId, transaction: transaction)
         } catch {
-            owsFailDebug("Error: \(error).")
+            owsFailDebug("Error: \(error)")
         }
     }
 

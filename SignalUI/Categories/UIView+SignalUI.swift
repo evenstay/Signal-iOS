@@ -3,6 +3,7 @@
 //
 
 import Foundation
+import UIKit
 
 @objc
 public extension UINavigationController {
@@ -150,30 +151,6 @@ public extension UIView {
             }
         }
         #endif
-    }
-
-    func applyScaleAspectFitLayout(subview: UIView, aspectRatio: CGFloat) -> [NSLayoutConstraint] {
-        guard subviews.contains(subview) else {
-            owsFailDebug("Not a subview.")
-            return []
-        }
-
-        // This emulates the behavior of contentMode = .scaleAspectFit using
-        // iOS auto layout constraints.
-        //
-        // This allows ConversationInputToolbar to place the "cancel" button
-        // in the upper-right hand corner of the preview content.
-        var constraints = [NSLayoutConstraint]()
-        constraints.append(contentsOf: subview.autoCenterInSuperview())
-        constraints.append(subview.autoPin(toAspectRatio: aspectRatio))
-        constraints.append(subview.autoMatch(.width, to: .width, of: self, withMultiplier: 1.0, relation: .lessThanOrEqual))
-        constraints.append(subview.autoMatch(.height, to: .height, of: self, withMultiplier: 1.0, relation: .lessThanOrEqual))
-        NSLayoutConstraint.autoSetPriority(UILayoutPriority.defaultHigh) {
-            constraints.append(subview.autoMatch(.width, to: .width, of: self, withMultiplier: 1.0, relation: .equal))
-            constraints.append(subview.autoMatch(.height, to: .height, of: self, withMultiplier: 1.0, relation: .equal))
-        }
-
-        return constraints
     }
 
     func setShadow(radius: CGFloat = 2.0, opacity: Float = 0.66, offset: CGSize = .zero, color: UIColor = UIColor.black) {
@@ -399,6 +376,35 @@ public extension UIView {
         view.layoutMargins = .zero
         return view
     }
+
+    func setIsHidden(_ isHidden: Bool, animated: Bool) {
+        setIsHidden(isHidden, withAnimationDuration: animated ? 0.2 : 0)
+    }
+
+    func setIsHidden(_ isHidden: Bool, withAnimationDuration duration: TimeInterval) {
+        guard duration > 0, isHidden != self.isHidden else {
+            self.isHidden = isHidden
+            return
+        }
+
+        let initialAlpha = alpha
+        if !isHidden && initialAlpha > 0 {
+            UIView.performWithoutAnimation {
+                self.alpha = 0
+                self.isHidden = false
+            }
+        }
+
+        UIView.animate(withDuration: duration,
+                       animations: {
+            self.alpha = isHidden ? 0 : initialAlpha
+        },
+                       completion: { finished in
+            guard finished else { return }
+            self.isHidden = isHidden
+            self.alpha = initialAlpha
+        })
+    }
 }
 
 // MARK: -
@@ -558,6 +564,20 @@ public extension UIButton {
         let imageView = UIButton()
         imageView.setTemplateImageName(imageName, tintColor: tintColor)
         return imageView
+    }
+
+    func setImage(_ image: UIImage?, animated: Bool) {
+        setImage(image, withAnimationDuration: animated ? 0.2 : 0)
+    }
+
+    func setImage(_ image: UIImage?, withAnimationDuration duration: TimeInterval) {
+        guard duration > 0 else {
+            setImage(image, for: .normal)
+            return
+        }
+        UIView.transition(with: self, duration: duration, options: .transitionCrossDissolve) {
+            self.setImage(image, for: .normal)
+        }
     }
 }
 
@@ -829,14 +849,62 @@ public extension UIView {
 
 @objc
 public extension UIBezierPath {
-    static func roundedRect(_ rect: CGRect,
-                            sharpCorners: UIRectCorner,
-                            sharpCornerRadius: CGFloat,
-                            wideCornerRadius: CGFloat) -> UIBezierPath {
+    /// Create a roundedRect path with two different corner radii.
+    ///
+    /// - Parameters:
+    ///   - rect: The outer bounds of the roundedRect.
+    ///   - sharpCorners: The corners that should use `sharpCornerRadius`. The
+    ///     other corners will use `wideCornerRadius`.
+    ///   - sharpCornerRadius: The corner radius of `sharpCorners`.
+    ///   - wideCornerRadius: The corner radius of non-`sharpCorners`.
+    ///
+    static func roundedRect(
+        _ rect: CGRect,
+        sharpCorners: UIRectCorner,
+        sharpCornerRadius: CGFloat,
+        wideCornerRadius: CGFloat
+    ) -> UIBezierPath {
+
+        return roundedRect(
+            rect,
+            sharpCorners: sharpCorners,
+            sharpCornerRadius: sharpCornerRadius,
+            wideCorners: .allCorners.subtracting(sharpCorners),
+            wideCornerRadius: wideCornerRadius
+        )
+    }
+
+    /// Create a roundedRect path with two different corner radii.
+    ///
+    /// The behavior is undefined if `sharpCorners` and `wideCorners` overlap.
+    ///
+    /// - Parameters:
+    ///   - rect: The outer bounds of the roundedRect.
+    ///   - sharpCorners: The corners that should use `sharpCornerRadius`.
+    ///   - sharpCornerRadius: The corner radius of `sharpCorners`.
+    ///   - wideCorners: The corners that should use `wideCornerRadius`.
+    ///   - wideCornerRadius: The corner radius of `wideCorners`.
+    ///
+    static func roundedRect(
+        _ rect: CGRect,
+        sharpCorners: UIRectCorner,
+        sharpCornerRadius: CGFloat,
+        wideCorners: UIRectCorner,
+        wideCornerRadius: CGFloat
+    ) -> UIBezierPath {
+
+        assert(sharpCorners.isDisjoint(with: wideCorners))
+
         let bezierPath = UIBezierPath()
 
         func cornerRounding(forCorner corner: UIRectCorner) -> CGFloat {
-            sharpCorners.contains(corner) ? sharpCornerRadius : wideCornerRadius
+            if sharpCorners.contains(corner) {
+                return sharpCornerRadius
+            }
+            if wideCorners.contains(corner) {
+                return wideCornerRadius
+            }
+            return 0
         }
         let topLeftRounding = cornerRounding(forCorner: .topLeft)
         let topRightRounding = cornerRounding(forCorner: .topRight)

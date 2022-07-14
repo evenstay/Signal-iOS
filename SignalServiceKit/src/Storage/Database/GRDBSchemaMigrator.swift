@@ -165,6 +165,7 @@ public class GRDBSchemaMigrator: NSObject {
         case addStoryThreadColumns
         case addUnsavedMessagesToSendToJobRecord
         case addColumnsForSendGiftBadgeDurableJob
+        case addDonationReceiptTypeColumn
 
         // NOTE: Every time we add a migration id, consider
         // incrementing grdbSchemaVersionLatest.
@@ -213,7 +214,7 @@ public class GRDBSchemaMigrator: NSObject {
     }
 
     public static let grdbSchemaVersionDefault: UInt = 0
-    public static let grdbSchemaVersionLatest: UInt = 38
+    public static let grdbSchemaVersionLatest: UInt = 39
 
     // An optimization for new users, we have the first migration import the latest schema
     // and mark any other migrations as "already run".
@@ -1824,6 +1825,16 @@ public class GRDBSchemaMigrator: NSObject {
             }
         }
 
+        migrator.registerMigration(.addDonationReceiptTypeColumn) { db in
+            do {
+                try db.alter(table: "model_DonationReceipt") { (table: TableAlteration) -> Void in
+                    table.add(column: "receiptType", .numeric)
+                }
+            } catch {
+                owsFail("Error: \(error)")
+            }
+        }
+
         // MARK: - Schema Migration Insertion Point
     }
 
@@ -1974,7 +1985,7 @@ public class GRDBSchemaMigrator: NSObject {
                 builder.avatarUrlPath = nil
 
                 do {
-                    let newGroupModel = try builder.build(transaction: transaction.asAnyWrite)
+                    let newGroupModel = try builder.build()
                     groupThread.update(with: newGroupModel, transaction: transaction.asAnyWrite)
                 } catch {
                     owsFail("Failed to remove invalid group avatar during migration: \(error)")

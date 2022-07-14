@@ -942,6 +942,7 @@ private struct GRDBStorage {
         }
         configuration.defaultTransactionKind = .immediate
         configuration.allowsUnsafeTransactions = true
+        configuration.automaticMemoryManagement = false
         return configuration
     }
 }

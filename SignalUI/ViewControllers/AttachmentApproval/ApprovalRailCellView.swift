@@ -1,22 +1,23 @@
 //
-//  Copyright (c) 2021 Open Whisper Systems. All rights reserved.
+//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
 //
 
 import Foundation
 import UIKit
 
 protocol ApprovalRailCellViewDelegate: AnyObject {
-    func approvalRailCellView(_ approvalRailCellView: ApprovalRailCellView, didRemoveItem attachmentApprovalItem: AttachmentApprovalItem)
+    func approvalRailCellView(_ approvalRailCellView: ApprovalRailCellView,
+                              didRemoveItem attachmentApprovalItem: AttachmentApprovalItem)
     func canRemoveApprovalRailCellView(_ approvalRailCellView: ApprovalRailCellView) -> Bool
 }
 
 // MARK: -
 
-public class ApprovalRailCellView: GalleryRailCellView {
+class ApprovalRailCellView: GalleryRailCellView {
 
     weak var approvalRailCellDelegate: ApprovalRailCellViewDelegate?
 
-    lazy var deleteButton: UIButton = {
+    private lazy var deleteButton: UIButton = {
         let button = OWSButton { [weak self] in
             guard let strongSelf = self else { return }
 
@@ -28,65 +29,53 @@ public class ApprovalRailCellView: GalleryRailCellView {
             strongSelf.approvalRailCellDelegate?.approvalRailCellView(strongSelf, didRemoveItem: attachmentApprovalItem)
         }
 
-        button.setImage(UIImage(named: "x-24")?.withRenderingMode(.alwaysTemplate), for: .normal)
+        button.alpha = 0
+        button.bounds = CGRect(origin: .zero, size: CGSize(square: 24))
+        button.setImage(#imageLiteral(resourceName: "media-composer-trash"), for: .normal)
         button.tintColor = .white
-        button.layer.shadowColor = UIColor.black.cgColor
-        button.layer.shadowRadius = 2
-        button.layer.shadowOpacity = 0.66
-        button.layer.shadowOffset = .zero
-
-        let kButtonWidth: CGFloat = 24
-        button.autoSetDimensions(to: CGSize(square: kButtonWidth))
-
         return button
     }()
 
-    lazy var captionIndicator: UIView = {
-        let image = UIImage(named: "image_editor_caption")?.withRenderingMode(.alwaysTemplate)
-        let imageView = UIImageView(image: image)
-        imageView.tintColor = .white
-        imageView.layer.shadowColor = UIColor.black.cgColor
-        imageView.layer.shadowRadius = 2
-        imageView.layer.shadowOpacity = 0.66
-        imageView.layer.shadowOffset = .zero
-        return imageView
-    }()
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        addSubview(deleteButton)
+    }
+
+    required init?(coder aDecoder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        deleteButton.center = bounds.center
+    }
 
     override func setIsSelected(_ isSelected: Bool) {
         super.setIsSelected(isSelected)
 
         if isSelected {
             if let approvalRailCellDelegate = self.approvalRailCellDelegate,
-                approvalRailCellDelegate.canRemoveApprovalRailCellView(self) {
+               approvalRailCellDelegate.canRemoveApprovalRailCellView(self) {
 
-                addSubview(deleteButton)
-                deleteButton.autoPinEdge(toSuperviewEdge: .top, withInset: cellBorderWidth)
-                deleteButton.autoPinEdge(toSuperviewEdge: .trailing, withInset: cellBorderWidth + 4)
+                deleteButton.alpha = 1
+                dimmerView.backgroundColor = .ows_blackAlpha50
             }
         } else {
-            deleteButton.removeFromSuperview()
+            deleteButton.alpha = 0
+            dimmerView.backgroundColor = .clear
         }
     }
+}
 
-    override func configure(item: GalleryRailItem, delegate: GalleryRailCellViewDelegate) {
-        super.configure(item: item, delegate: delegate)
+class AddMediaRailCellView: GalleryRailCellView {
 
-        var hasCaption = false
-        if let attachmentApprovalItem = item as? AttachmentApprovalItem {
-            if let captionText = attachmentApprovalItem.captionText {
-                hasCaption = captionText.count > 0
-            }
-        } else {
-            owsFailDebug("Invalid item.")
-        }
+    override init(frame: CGRect) {
+        super.init(frame: frame)
 
-        if hasCaption {
-            addSubview(captionIndicator)
+        dimmerView.isHidden = true
+    }
 
-            captionIndicator.autoPinEdge(toSuperviewEdge: .top, withInset: cellBorderWidth)
-            captionIndicator.autoPinEdge(toSuperviewEdge: .leading, withInset: cellBorderWidth + 4)
-        } else {
-            captionIndicator.removeFromSuperview()
-        }
+    required init?(coder aDecoder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
     }
 }

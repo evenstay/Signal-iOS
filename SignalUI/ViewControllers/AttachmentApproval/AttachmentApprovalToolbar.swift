@@ -3,142 +3,208 @@
 //
 
 import Foundation
+import SignalMessaging
 import UIKit
-
-protocol AttachmentApprovalToolbarDelegate: AnyObject {
-    func attachmentApprovalToolbarUpdateMediaRail()
-    func attachmentApprovalToolbarStartEditingCaptions()
-    func attachmentApprovalToolbarStopEditingCaptions()
-}
-
-// MARK: -
 
 class AttachmentApprovalToolbar: UIView {
 
-    var options: AttachmentApprovalViewControllerOptions {
-        didSet {
-            attachmentTextToolbar.options = options
-        }
+    struct Configuration: Equatable {
+        var isAddMoreVisible = true
+        var isMediaStripVisible = false
+        var isMediaHighQualityEnabled = false
+        var isViewOnceOn = false
+        var canToggleViewOnce = true
+        var canChangeMediaQuality = true
+        var canSaveMedia = false
+        var doneButtonAssetResourceName = "send-solid-24"
     }
 
-    weak var delegate: AttachmentApprovalToolbarDelegate?
+    var configuration: Configuration
 
+    // Only visible when there's one media item and contains "Add Media" and "View Once" buttons.
+    // Displayed in place of galleryRailView.
+    private lazy var singleMediaActionButtonsContainer: UIView = {
+        let view = UIView()
+        view.preservesSuperviewLayoutMargins = true
+        view.layoutMargins.bottom = 0
+
+        view.addSubview(buttonAddMedia)
+        buttonAddMedia.autoPinHeightToSuperviewMargins()
+        buttonAddMedia.layoutMarginsGuide.leadingAnchor.constraint(equalTo: view.layoutMarginsGuide.leadingAnchor).isActive = true
+
+        view.addSubview(buttonViewOnce)
+        buttonViewOnce.autoPinHeightToSuperviewMargins()
+        buttonViewOnce.layoutMarginsGuide.trailingAnchor.constraint(equalTo: view.layoutMarginsGuide.trailingAnchor).isActive = true
+
+        return view
+    }()
+    let buttonAddMedia: UIButton = RoundMediaButton(image: #imageLiteral(resourceName: "media-editor-add-photos"), backgroundStyle: .blur)
+    let buttonViewOnce: UIButton = RoundMediaButton(image: #imageLiteral(resourceName: "media-editor-view-once"), backgroundStyle: .blur)
+    // Contains message input field and a button to finish editing.
     let attachmentTextToolbar: AttachmentTextToolbar
-    let attachmentCaptionToolbar: AttachmentCaptionToolbar
+    weak var attachmentTextToolbarDelegate: AttachmentTextToolbarDelegate?
+    // Shows previews of media object.
     let galleryRailView: GalleryRailView
-    let currentCaptionLabel = UILabel()
-    let currentCaptionWrapper = UIView()
+    // Row of buttons at the bottom of the screen.
+    private let mediaToolbar = MediaToolbar()
 
-    var isEditing: Bool {
-        return isEditingMediaMessage || attachmentCaptionToolbar.textView.isFirstResponder
-    }
+    private lazy var opaqueContentView: UIStackView = {
+        let stackView = UIStackView(arrangedSubviews: [ attachmentTextToolbar, mediaToolbar ])
+        stackView.axis = .vertical
+        stackView.preservesSuperviewLayoutMargins = true
+        return stackView
+    }()
+
+    private lazy var containerStackView: UIStackView = {
+        let stackView = UIStackView(arrangedSubviews: [ opaqueContentView ])
+        stackView.axis = .vertical
+        stackView.preservesSuperviewLayoutMargins = true
+        return stackView
+    }()
+
+    private var viewOnceTooltip: UIView?
 
     var isEditingMediaMessage: Bool {
-        return attachmentTextToolbar.textView.isFirstResponder
+        return attachmentTextToolbar.isEditingText
     }
 
-    private var isEditingCaptions: Bool = false
     private var currentAttachmentItem: AttachmentApprovalItem?
-    public var isApproved: Bool = false
 
-    let kGalleryRailViewHeight: CGFloat = 72
+    override init(frame: CGRect) {
+        configuration = Configuration()
 
-    required init(options: AttachmentApprovalViewControllerOptions, sendButtonImageName: String) {
-        self.options = options
-
-        attachmentTextToolbar = AttachmentTextToolbar(options: options, sendButtonImageName: sendButtonImageName)
-        attachmentCaptionToolbar = AttachmentCaptionToolbar()
+        attachmentTextToolbar = AttachmentTextToolbar()
+        attachmentTextToolbar.setIsViewOnce(enabled: configuration.isViewOnceOn, animated: false)
 
         galleryRailView = GalleryRailView()
+        galleryRailView.hidesAutomatically = false
         galleryRailView.scrollFocusMode = .keepWithinBounds
-        galleryRailView.autoSetDimension(.height, toSize: kGalleryRailViewHeight)
+        galleryRailView.autoSetDimension(.height, toSize: 60)
 
-        super.init(frame: .zero)
+        super.init(frame: frame)
 
         createContents()
     }
 
-    required init?(coder aDecoder: NSCoder) {
+    @available(*, unavailable, message: "Use init(frame:) instead")
+    required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
 
     private func createContents() {
-        self.backgroundColor = .clear
+        backgroundColor = .clear
+        layoutMargins.bottom = 0
+        preservesSuperviewLayoutMargins = true
+
+        attachmentTextToolbar.delegate = self
+
+        addSubview(galleryRailView)
+        galleryRailView.autoPinWidthToSuperview()
+        galleryRailView.autoPinEdge(toSuperviewEdge: .top)
+
+        addSubview(singleMediaActionButtonsContainer)
+        singleMediaActionButtonsContainer.autoPinWidthToSuperview()
+        singleMediaActionButtonsContainer.autoPinEdge(.bottom, to: .bottom, of: galleryRailView)
 
         // Use a background view that extends below the keyboard to avoid animation glitches.
-        let backgroundView = UIView()
-        backgroundView.backgroundColor = UIColor.black.withAlphaComponent(0.6)
+        let backgroundView = UIVisualEffectView(effect: UIBlurEffect(style: .dark))
         addSubview(backgroundView)
         backgroundView.autoPinWidthToSuperview()
-        backgroundView.autoPinEdge(toSuperviewEdge: .top)
+        backgroundView.autoPinEdge(.top, to: .bottom, of: galleryRailView)
         backgroundView.autoPinEdge(toSuperviewEdge: .bottom, withInset: -30)
 
-        currentCaptionLabel.textColor = UIColor(white: 1, alpha: 0.8)
-        currentCaptionLabel.font = UIFont.ows_dynamicTypeBody
-        currentCaptionLabel.numberOfLines = 5
-        currentCaptionLabel.lineBreakMode = .byWordWrapping
-
-        currentCaptionWrapper.isUserInteractionEnabled = true
-        currentCaptionWrapper.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(captionTapped)))
-        currentCaptionWrapper.addSubview(currentCaptionLabel)
-        currentCaptionLabel.autoPinEdgesToSuperviewMargins()
-
-        attachmentCaptionToolbar.attachmentCaptionToolbarDelegate = self
-
-        let stackView = UIStackView(arrangedSubviews: [currentCaptionWrapper, attachmentCaptionToolbar, galleryRailView, attachmentTextToolbar])
-        stackView.axis = .vertical
-
-        addSubview(stackView)
-        stackView.autoPinEdge(toSuperviewEdge: .top)
-        stackView.autoPinEdge(toSuperviewEdge: .leading)
-        stackView.autoPinEdge(toSuperviewEdge: .trailing)
+        addSubview(containerStackView)
+        containerStackView.autoPinEdge(.top, to: .bottom, of: galleryRailView)
+        containerStackView.autoPinWidthToSuperview()
         // We pin to the superview's _margin_.  Otherwise the notch breaks
         // the layout if you hide the keyboard in the simulator (or if the
         // user uses an external keyboard).
-        stackView.autoPinEdge(toSuperviewMargin: .bottom)
+        containerStackView.autoPinEdge(toSuperviewMargin: .bottom)
     }
 
-    // MARK: - Events
-
-    @objc
-    func captionTapped(sender: UIGestureRecognizer) {
-        guard sender.state == .recognized else {
+    private var supplementaryViewContainer: UIView?
+    func set(supplementaryView: UIView?) {
+        if let supplementaryViewContainer = supplementaryViewContainer {
+            supplementaryViewContainer.removeFromSuperview()
+            containerStackView.removeArrangedSubview(supplementaryViewContainer)
+            self.supplementaryViewContainer = nil
+        }
+        guard let supplementaryView = supplementaryView else {
             return
         }
-        delegate?.attachmentApprovalToolbarStartEditingCaptions()
+
+        let containerView = UIView()
+        containerView.preservesSuperviewLayoutMargins = true
+        containerView.addSubview(supplementaryView)
+        supplementaryView.autoPinEdgesToSuperviewMargins()
+        containerStackView.insertArrangedSubview(containerView, at: 0)
+        self.supplementaryViewContainer = containerView
     }
+
+    var opaqueAreaHeight: CGFloat { opaqueContentView.height }
 
     // MARK: 
 
-    private var shouldHideControls = false
+    private func updateContents(animated: Bool) {
+        // Show/hide Gallery Rail.
+        let isGalleryRailViewVisible = configuration.isMediaStripVisible && !isEditingMediaMessage
+        galleryRailView.setIsHidden(!isGalleryRailViewVisible, animated: animated)
 
-    private func updateContents() {
-        var hasCurrentCaption = false
-        if let currentAttachmentItem = currentAttachmentItem,
-            let captionText = currentAttachmentItem.captionText {
-            hasCurrentCaption = captionText.count > 0
+        // Show/hide [+] Add Media button and "View Once" toggle.
+        let isSingleMediaActionsVisible = !configuration.isMediaStripVisible && !isEditingMediaMessage
+        singleMediaActionButtonsContainer.setIsHidden(!isSingleMediaActionsVisible, animated: animated)
 
-            attachmentCaptionToolbar.textView.text = captionText
-            currentCaptionLabel.text = captionText
-        } else {
-            attachmentCaptionToolbar.textView.text = nil
-            currentCaptionLabel.text = nil
-        }
+        // [+] Add Media might also be hidden independently of Media Rail and View Once.
+        buttonAddMedia.setIsHidden(!configuration.isAddMoreVisible, animated: animated)
 
-        attachmentCaptionToolbar.isHidden = !isEditingCaptions
-        currentCaptionWrapper.isHidden = isEditingCaptions || !hasCurrentCaption
-        attachmentTextToolbar.isHidden = isEditingCaptions || isApproved
-        attachmentTextToolbar.isUserInteractionEnabled = !isApproved
+        // Update image and visibility of the "View Once" button.
+        let viewOnceButtonImage = UIImage(imageLiteralResourceName: configuration.isViewOnceOn ? "media-editor-view-once" : "media-editor-view-infinite")
+        buttonViewOnce.setImage(viewOnceButtonImage, animated: animated)
+        buttonViewOnce.setIsHidden(!configuration.canToggleViewOnce, animated: animated)
+
+        supplementaryViewContainer?.isHiddenInStackView = isEditingMediaMessage
+
+        attachmentTextToolbar.setIsViewOnce(enabled: configuration.isViewOnceOn, animated: animated)
+
+        // Visibility of bottom buttons only changes when user starts/finishes composing text message.
+        // In that case `updateContents(animated:)` is called from within an animation block
+        // and since `mediaToolbar` is in a stack view it is necessary to modify `isHiddenInStackView`
+        // to get a nice animation.
+        mediaToolbar.isHiddenInStackView = isEditingMediaMessage
+
+        mediaToolbar.sendButton.setImage(UIImage(named: configuration.doneButtonAssetResourceName), for: .normal)
+        mediaToolbar.setIsMediaQualityHigh(enabled: configuration.isMediaHighQualityEnabled, animated: animated)
+
+        let availableButtons: MediaToolbar.AvailableButtons = {
+            guard let currentAttachmentItem = currentAttachmentItem else {
+                return []
+            }
+            var buttons: MediaToolbar.AvailableButtons = []
+            if configuration.canSaveMedia {
+                buttons.insert(.save)
+            }
+            if configuration.canChangeMediaQuality {
+                buttons.insert(.mediaQuality)
+            }
+            switch currentAttachmentItem.type {
+            case .image:
+                buttons.insert(.pen)
+                buttons.insert(.crop)
+
+            default:
+                break
+            }
+            return buttons
+        }()
+        mediaToolbar.set(availableButtons: availableButtons, animated: animated)
 
         updateFirstResponder()
 
-        layoutSubviews()
+        showViewOnceTooltipIfNecessary()
     }
 
     override func resignFirstResponder() -> Bool {
-        if attachmentCaptionToolbar.textView.isFirstResponder {
-            return attachmentCaptionToolbar.textView.resignFirstResponder()
-        } else if attachmentTextToolbar.textView.isFirstResponder {
+        if isEditingMediaMessage {
             return attachmentTextToolbar.textView.resignFirstResponder()
         } else {
             return super.resignFirstResponder()
@@ -146,49 +212,28 @@ class AttachmentApprovalToolbar: UIView {
     }
 
     private func updateFirstResponder() {
-        if shouldHideControls {
-            if attachmentCaptionToolbar.textView.isFirstResponder {
-                attachmentCaptionToolbar.textView.resignFirstResponder()
-            } else if attachmentTextToolbar.textView.isFirstResponder {
+        if configuration.isViewOnceOn {
+            if isEditingMediaMessage {
                 attachmentTextToolbar.textView.resignFirstResponder()
-            }
-        } else if isEditingCaptions {
-            // While editing captions, the keyboard should always remain visible.
-            if !attachmentCaptionToolbar.textView.isFirstResponder {
-                attachmentCaptionToolbar.textView.becomeFirstResponder()
-            }
-        } else {
-            if attachmentCaptionToolbar.textView.isFirstResponder {
-                attachmentCaptionToolbar.textView.resignFirstResponder()
             }
         }
         // NOTE: We don't automatically make attachmentTextToolbar.textView
         // first responder;
     }
 
-    public func update(isEditingCaptions: Bool,
-                       currentAttachmentItem: AttachmentApprovalItem?,
-                       shouldHideControls: Bool,
-                       isApproved: Bool,
-                       recipientNames: [String]) {
+    func update(currentAttachmentItem: AttachmentApprovalItem,
+                configuration: Configuration,
+                animated: Bool) {
         // De-bounce
-        guard self.isEditingCaptions != isEditingCaptions ||
-            self.currentAttachmentItem != currentAttachmentItem ||
-            self.shouldHideControls != shouldHideControls ||
-            self.isApproved != isApproved else {
-
-                updateFirstResponder()
-                return
+        guard self.currentAttachmentItem != currentAttachmentItem || self.configuration != configuration else {
+            updateFirstResponder()
+            return
         }
 
-        self.isEditingCaptions = isEditingCaptions
         self.currentAttachmentItem = currentAttachmentItem
-        self.shouldHideControls = shouldHideControls
-        self.isApproved = isApproved
+        self.configuration = configuration
 
-        self.attachmentTextToolbar.recipientNames = recipientNames
-
-        updateContents()
+        updateContents(animated: animated)
     }
 
     // MARK: 
@@ -198,27 +243,187 @@ class AttachmentApprovalToolbar: UIView {
     override var intrinsicContentSize: CGSize { .zero }
 
     public var hasFirstResponder: Bool {
-        return (isFirstResponder ||
-            attachmentCaptionToolbar.textView.isFirstResponder ||
-            attachmentTextToolbar.textView.isFirstResponder)
+        return (isFirstResponder || attachmentTextToolbar.textView.isFirstResponder)
     }
 }
 
-// MARK: -
+extension AttachmentApprovalToolbar: AttachmentTextToolbarDelegate {
 
-extension AttachmentApprovalToolbar: AttachmentCaptionToolbarDelegate {
-    public func attachmentCaptionToolbarDidEdit(_ attachmentCaptionToolbar: AttachmentCaptionToolbar) {
-        guard let currentAttachmentItem = currentAttachmentItem else {
-            owsFailDebug("Missing currentAttachmentItem.")
-            return
-        }
-
-        currentAttachmentItem.attachment.captionText = attachmentCaptionToolbar.textView.text
-
-        delegate?.attachmentApprovalToolbarUpdateMediaRail()
+    func attachmentTextToolbarDidBeginEditing(_ attachmentTextToolbar: AttachmentTextToolbar) {
+        updateContents(animated: true)
+        attachmentTextToolbarDelegate?.attachmentTextToolbarDidBeginEditing(attachmentTextToolbar)
     }
 
-    public func attachmentCaptionToolbarDidComplete() {
-        delegate?.attachmentApprovalToolbarStopEditingCaptions()
+    func attachmentTextToolbarDidEndEditing(_ attachmentTextToolbar: AttachmentTextToolbar) {
+        updateContents(animated: true)
+        attachmentTextToolbarDelegate?.attachmentTextToolbarDidEndEditing(attachmentTextToolbar)
+    }
+
+    func attachmentTextToolbarDidChange(_ attachmentTextToolbar: AttachmentTextToolbar) {
+        attachmentTextToolbarDelegate?.attachmentTextToolbarDidChange(attachmentTextToolbar)
+    }
+}
+
+// MARK: - View Once Tooltip
+
+extension AttachmentApprovalToolbar {
+
+    // The tooltip lies outside this view's bounds, so we
+    // need to special-case the hit testing so that it can
+    // intercept touches within its bounds.
+    @objc
+    public override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+        if let viewOnceTooltip = self.viewOnceTooltip {
+            let tooltipFrame = convert(viewOnceTooltip.bounds, from: viewOnceTooltip)
+            if tooltipFrame.contains(point) {
+                return true
+            }
+        }
+        return super.point(inside: point, with: event)
+    }
+
+    private var shouldShowViewOnceTooltip: Bool {
+        guard !configuration.isMediaStripVisible else {
+            return false
+        }
+        guard !configuration.isViewOnceOn && configuration.canToggleViewOnce else {
+            return false
+        }
+        guard !preferences.wasViewOnceTooltipShown() else {
+            return false
+        }
+        return true
+    }
+
+    // Show the tooltip if a) it should be shown b) isn't already showing.
+    private func showViewOnceTooltipIfNecessary() {
+        guard shouldShowViewOnceTooltip else {
+            return
+        }
+        guard nil == viewOnceTooltip else {
+            // Already showing the tooltip.
+            return
+        }
+        let tooltip = ViewOnceTooltip.present(fromView: self, widthReferenceView: self, tailReferenceView: buttonViewOnce) { [weak self] in
+            self?.removeViewOnceTooltip()
+        }
+        viewOnceTooltip = tooltip
+
+        DispatchQueue.global().async {
+            self.preferences.setWasViewOnceTooltipShown()
+
+            DispatchQueue.main.asyncAfter(deadline: DispatchTime.now() + 5) { [weak self] in
+                self?.removeViewOnceTooltip()
+            }
+        }
+    }
+
+    private func removeViewOnceTooltip() {
+        viewOnceTooltip?.removeFromSuperview()
+        viewOnceTooltip = nil
+    }
+
+}
+
+// MARK: - Bottom Row Buttons
+
+extension AttachmentApprovalToolbar {
+
+    var buttonSend: UIButton {
+        mediaToolbar.sendButton
+    }
+
+    var buttonMediaQuality: UIButton {
+        mediaToolbar.mediaQualityButton
+    }
+
+    var buttonSaveMedia: UIButton {
+        mediaToolbar.saveMediaButton
+    }
+
+    var buttonPenTool: UIButton {
+        mediaToolbar.penToolButton
+    }
+
+    var buttonCropTool: UIButton {
+        mediaToolbar.cropToolButton
+    }
+}
+
+private class MediaToolbar: UIView {
+
+    struct AvailableButtons: OptionSet {
+        let rawValue: Int
+
+        static let pen  = AvailableButtons(rawValue: 1 << 0)
+        static let crop = AvailableButtons(rawValue: 1 << 1)
+        static let save = AvailableButtons(rawValue: 1 << 2)
+        static let mediaQuality = AvailableButtons(rawValue: 1 << 3)
+
+        static let all: AvailableButtons = [ .pen, .crop, .save, .mediaQuality ]
+    }
+
+    func set(availableButtons: AvailableButtons, animated: Bool) {
+        guard animated else {
+            penToolButton.isHidden = !availableButtons.contains(.pen)
+            cropToolButton.isHidden = !availableButtons.contains(.crop)
+            saveMediaButton.isHidden = !availableButtons.contains(.save)
+            mediaQualityButton.isHidden = !availableButtons.contains(.mediaQuality)
+            return
+        }
+        let updateButtonBlock: ((UIButton, Bool) -> Void) = { button, isHidden in
+            button.isHiddenInStackView = isHidden
+        }
+        UIView.animate(withDuration: 0.2) {
+            updateButtonBlock(self.penToolButton, !availableButtons.contains(.pen))
+            updateButtonBlock(self.cropToolButton, !availableButtons.contains(.crop))
+            updateButtonBlock(self.saveMediaButton, !availableButtons.contains(.save))
+            updateButtonBlock(self.mediaQualityButton, !availableButtons.contains(.mediaQuality))
+        }
+    }
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+
+        preservesSuperviewLayoutMargins = true
+
+        let stackView = UIStackView(arrangedSubviews: [ penToolButton, cropToolButton, mediaQualityButton,
+                                                        saveMediaButton, UIView.transparentSpacer(), sendButton ])
+        stackView.spacing = 4
+        addSubview(stackView)
+        stackView.autoPinLeadingToSuperviewMargin(withInset: -penToolButton.layoutMargins.leading)
+        sendButton.layoutMarginsGuide.trailingAnchor.constraint(equalTo: layoutMarginsGuide.trailingAnchor).isActive = true
+        stackView.autoPinEdge(toSuperviewEdge: .top)
+        stackView.autoPinEdge(toSuperviewEdge: .bottom, withInset: UIDevice.current.hasIPhoneXNotch ? 0 : 8)
+
+        stackView.arrangedSubviews.compactMap { $0 as? UIButton }.forEach { button in
+            button.setCompressionResistanceHigh()
+        }
+    }
+
+    @available(*, unavailable, message: "Use init(frame:) instead")
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    // MARK: - Layout
+
+    static private let buttonBackgroundColor = RoundMediaButton.defaultBackgroundColor
+    let penToolButton: UIButton = RoundMediaButton(image: #imageLiteral(resourceName: "media-editor-tool-pen"), backgroundStyle: .solid(buttonBackgroundColor))
+    let cropToolButton: UIButton = RoundMediaButton(image: #imageLiteral(resourceName: "media-editor-tool-crop"), backgroundStyle: .solid(buttonBackgroundColor))
+    let mediaQualityButton: UIButton = RoundMediaButton(image: #imageLiteral(resourceName: "media-editor-quality"), backgroundStyle: .solid(buttonBackgroundColor))
+    let saveMediaButton: UIButton = RoundMediaButton(image: #imageLiteral(resourceName: "media-editor-save"), backgroundStyle: .solid(buttonBackgroundColor))
+    let sendButton: UIButton = {
+        let button = RoundMediaButton(image: #imageLiteral(resourceName: "send-solid-24"), backgroundStyle: .solid(.ows_accentBlue))
+        button.accessibilityLabel = MessageStrings.sendButton
+        return button
+    }()
+
+    private static let imageMediaQualityHigh = #imageLiteral(resourceName: "media-editor-quality-high")
+    private static let imageMediaQualityStandard = #imageLiteral(resourceName: "media-editor-quality")
+
+    fileprivate func setIsMediaQualityHigh(enabled: Bool, animated: Bool) {
+        let image = enabled ? MediaToolbar.imageMediaQualityHigh : MediaToolbar.imageMediaQualityStandard
+        mediaQualityButton.setImage(image, animated: animated)
     }
 }

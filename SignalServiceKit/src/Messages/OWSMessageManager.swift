@@ -547,26 +547,29 @@ extension SSKProtoSyncMessage {
     }
 }
 
-extension SSKProtoCallMessageOpaque {
-    @objc
-    static func urgencyDescription(_ value: SSKProtoCallMessageOpaqueUrgency) -> String {
-        return value.contentDescription
-    }
-}
-
 @objc
 class MessageManagerRequest: NSObject {
-    @objc let envelope: SSKProtoEnvelope
-    @objc let plaintextData: Data
-    @objc let wasReceivedByUD: Bool
-    @objc let serverDeliveryTimestamp: UInt64
-    @objc let shouldDiscardVisibleMessages: Bool
+    @objc
+    let envelope: SSKProtoEnvelope
+
+    @objc
+    let plaintextData: Data
+
+    @objc
+    let wasReceivedByUD: Bool
+
+    @objc
+    let serverDeliveryTimestamp: UInt64
+
+    @objc
+    let shouldDiscardVisibleMessages: Bool
 
     enum Kind {
         case modern(SSKProtoContent)
         case unactionable
     }
     private let kind: Kind
+
     @objc
     var protoContent: SSKProtoContent? {
         switch kind {

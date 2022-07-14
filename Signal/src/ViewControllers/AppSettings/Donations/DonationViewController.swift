@@ -102,11 +102,10 @@ class DonationViewController: OWSTableViewController2 {
         let willEverShowBadges: Bool = hasAnyDonationReceipts || subscriberID != nil
         guard willEverShowBadges else { return Guarantee.value(ProfileBadgeLookup()) }
 
-        let boostBadgePromise: Guarantee<ProfileBadge?> = SubscriptionManager.getBoostBadge()
-            .map { Optional.some($0) }
-            .recover { error -> Guarantee<ProfileBadge?> in
+        let oneTimeBadgesPromise: Guarantee<[OneTimeBadgeLevel: ProfileBadge]> = SubscriptionManager.getOneTimeBadges()
+            .recover { error -> Guarantee<[OneTimeBadgeLevel: ProfileBadge]> in
                 Logger.warn("Failed to fetch boost badge \(error). Proceeding without it, as it is only cosmetic here")
-                return Guarantee.value(nil)
+                return Guarantee.value([:])
             }
 
         let subscriptionLevelsPromise: Guarantee<[SubscriptionLevel]> = SubscriptionManager.getSubscriptions()
@@ -115,9 +114,11 @@ class DonationViewController: OWSTableViewController2 {
                 return Guarantee.value([])
             }
 
-        return boostBadgePromise.then { boostBadge in
+        return oneTimeBadgesPromise.then { oneTimeBadges in
             subscriptionLevelsPromise.map { subscriptionLevels in
-                ProfileBadgeLookup(boostBadge: boostBadge, subscriptionLevels: subscriptionLevels)
+                ProfileBadgeLookup(boostBadge: oneTimeBadges[.boostBadge],
+                                   giftBadge: oneTimeBadges[.giftBadge],
+                                   subscriptionLevels: subscriptionLevels)
             }.then { profileBadgeLookup in
                 profileBadgeLookup.attemptToPopulateBadgeAssets(populateAssetsOnBadge: self.profileManager.badgeStore.populateAssetsOnBadge).map { profileBadgeLookup }
             }
@@ -315,7 +316,7 @@ class DonationViewController: OWSTableViewController2 {
 
                 let stackView = self.getHeroHeaderView()
                 cell.addSubview(stackView)
-                stackView.autoPinEdgesToSuperviewEdges(withInsets: UIEdgeInsets(hMargin: 19, vMargin: 21))
+                stackView.autoPinEdgesToSuperviewMargins(with: UIEdgeInsets(hMargin: 0, vMargin: 6))
                 stackView.spacing = 20
 
                 let descriptionTextView = self.descriptionTextView
@@ -372,8 +373,6 @@ class DonationViewController: OWSTableViewController2 {
         let stackView = UIStackView()
         stackView.axis = .vertical
         stackView.alignment = .center
-        stackView.layoutMargins = UIEdgeInsets(hMargin: 19, vMargin: 0)
-        stackView.isLayoutMarginsRelativeArrangement = true
 
         stackView.addArrangedSubview(avatarView)
         stackView.setCustomSpacing(16, after: avatarView)

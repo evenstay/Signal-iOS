@@ -315,8 +315,44 @@ extension ConversationViewController: CVComponentDelegate {
         GroupInviteLinksUI.openGroupInviteLink(url, fromViewController: self)
     }
 
+    public func cvc_willWrapGift(_ messageUniqueId: String) -> Bool {
+        // If a gift is unwrapped at roughly the same we're reloading the
+        // conversation for an unrelated reason, there's a chance we'll try to
+        // re-wrap a gift that was just unwrapped. This provides an opportunity to
+        // override that behavior.
+        return !self.viewState.unwrappedGiftMessageIds.contains(messageUniqueId)
+    }
+
+    public func cvc_willShakeGift(_ messageUniqueId: String) -> Bool {
+        let (justInserted, _) = self.viewState.shakenGiftMessageIds.insert(messageUniqueId)
+        return justInserted
+    }
+
+    public func cvc_willUnwrapGift(_ itemViewModel: CVItemViewModelImpl) {
+        self.viewState.unwrappedGiftMessageIds.insert(itemViewModel.interaction.uniqueId)
+        self.markGiftAsOpened(itemViewModel.interaction)
+    }
+
+    private func markGiftAsOpened(_ interaction: TSInteraction) {
+        guard let outgoingMessage = interaction as? TSOutgoingMessage else {
+            return
+        }
+        guard outgoingMessage.giftBadge?.redemptionState == .pending else {
+            return
+        }
+        self.databaseStorage.asyncWrite { transaction in
+            outgoingMessage.anyUpdateOutgoingMessage(transaction: transaction) {
+                $0.giftBadge?.redemptionState = .opened
+            }
+
+            self.receiptManager.outgoingGiftWasOpened(outgoingMessage, transaction: transaction)
+        }
+    }
+
     public func cvc_didTapGiftBadge(_ itemViewModel: CVItemViewModelImpl, profileBadge: ProfileBadge) {
         AssertIsOnMainThread()
+
+        let viewControllerToPresent: UIViewController
 
         switch itemViewModel.interaction {
         case let incomingMessage as TSIncomingMessage:
@@ -327,22 +363,27 @@ extension ConversationViewController: CVComponentDelegate {
                     self.contactsManager.displayName(for: authorAddress, transaction: transaction)
                 )
             }
-            let redeemSheet = BadgeThanksSheet(badge: profileBadge, type: .gift(
+            viewControllerToPresent = BadgeThanksSheet(badge: profileBadge, type: .gift(
                 shortName: shortName,
                 fullName: fullName,
                 notNowAction: { [weak self] in self?.showRedeemBadgeLaterText() },
                 incomingMessage: incomingMessage
             ))
-            self.present(redeemSheet, animated: true)
 
-        case let outgoingMessage as TSOutgoingMessage:
-            // TODO: (GB) Show the badge that you sent.
-            _ = outgoingMessage
+        case is TSOutgoingMessage:
+            guard let thread = thread as? TSContactThread else {
+                owsFailDebug("Clicked a gift badge that wasn't in a contact thread")
+                return
+            }
+
+            viewControllerToPresent = BadgeGiftThanksSheet(thread: thread, badge: profileBadge)
 
         default:
             owsFailDebug("Tapped on gift that's not a message")
             return
         }
+
+        self.present(viewControllerToPresent, animated: true)
     }
 
     private func showRedeemBadgeLaterText() {
@@ -368,7 +409,7 @@ extension ConversationViewController: CVComponentDelegate {
     public func cvc_beginCellAnimation(maximumDuration: TimeInterval) -> EndCellAnimation {
         AssertIsOnMainThread()
 
-        if maximumDuration > 0.5 {
+        if maximumDuration > 0.8 {
             owsFailDebug("Animation is too long, skipping.")
             return {}
         }

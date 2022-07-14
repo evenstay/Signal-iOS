@@ -3,6 +3,7 @@
 //
 
 import Foundation
+import SignalServiceKit
 
 protocol AddGroupMembersViewControllerDelegate: AnyObject {
     func addGroupMembersViewDidUpdate()
@@ -93,33 +94,24 @@ public class AddGroupMembersViewController: BaseGroupMemberViewController {
 
 private extension AddGroupMembersViewController {
 
-    func buildNewGroupModel() -> TSGroupModel? {
-        do {
-            return try databaseStorage.read { transaction in
-                var builder = self.oldGroupModel.asBuilder
-                let oldGroupMembership = self.oldGroupModel.groupMembership
-                var groupMembershipBuilder = oldGroupMembership.asBuilder
-                let addresses = self.newRecipientSet.orderedMembers.compactMap { $0.address }
-                guard !addresses.isEmpty else {
-                    owsFailDebug("No valid recipients.")
-                    return nil
+    func buildGroupUpdate() -> GroupManager.GroupUpdate? {
+        let newUuids = newRecipientSet.orderedMembers
+            .compactMap { recipient -> UUID? in
+                if let uuid = recipient.address?.uuid,
+                   !oldGroupModel.groupMembership.isFullMember(uuid) {
+                    return uuid
                 }
-                for address in addresses {
-                    guard !oldGroupMembership.isFullMember(address) else {
-                        owsFailDebug("Recipient is already in group.")
-                        continue
-                    }
-                    // GroupManager will separate out members as pending if necessary.
-                    groupMembershipBuilder.remove(address)
-                    groupMembershipBuilder.addFullMember(address, role: .normal)
-                }
-                builder.groupMembership = groupMembershipBuilder.build()
-                return try builder.build(transaction: transaction)
+
+                owsFailDebug("Missing UUID, or recipient is already in group!")
+                return nil
             }
-        } catch {
-            owsFailDebug("Error: \(error)")
+
+        guard !newUuids.isEmpty else {
+            owsFailDebug("No valid recipients")
             return nil
         }
+
+        return .addNormalMembers(uuids: newUuids)
     }
 
     func updateGroupThreadAndDismiss() {
@@ -137,36 +129,22 @@ private extension AddGroupMembersViewController {
             return dismissAndUpdateDelegate()
         }
 
-        guard let newGroupModel = buildNewGroupModel() else {
-                                                        let error = OWSAssertionError("Couldn't build group model.")
-                                                        GroupViewUtils.showUpdateErrorUI(error: error)
-                                                        return
-        }
-        GroupViewUtils.updateGroupWithActivityIndicator(fromViewController: self,
-                                                        updatePromiseBlock: {
-                                                            self.updateGroupThreadPromise(newGroupModel: newGroupModel)
-        },
-                                                        completion: { _ in
-                                                            dismissAndUpdateDelegate()
-        })
-    }
-
-    func updateGroupThreadPromise(newGroupModel: TSGroupModel) -> Promise<Void> {
-
-        let oldGroupModel = self.oldGroupModel
-
-        guard let localAddress = tsAccountManager.localAddress else {
-            return Promise(error: OWSAssertionError("Missing localAddress."))
+        guard let groupUpdateToPerform = buildGroupUpdate() else {
+            let error = OWSAssertionError("Couldn't build group update.")
+            GroupViewUtils.showUpdateErrorUI(error: error)
+            return
         }
 
-        return firstly { () -> Promise<Void> in
-            return GroupManager.messageProcessingPromise(for: oldGroupModel,
-                                                         description: self.logTag)
-        }.then(on: .global()) { _ in
-            GroupManager.localUpdateExistingGroup(oldGroupModel: oldGroupModel,
-                                                  newGroupModel: newGroupModel,
-                                                  groupUpdateSourceAddress: localAddress)
-        }.asVoid()
+        GroupViewUtils.updateGroupWithActivityIndicator(
+            fromViewController: self,
+            withGroupModel: self.oldGroupModel,
+            updateDescription: self.logTag,
+            updateBlock: {
+                GroupManager.updateExistingGroup(existingGroupModel: self.oldGroupModel,
+                                                 update: groupUpdateToPerform)
+            },
+            completion: { _ in dismissAndUpdateDelegate() }
+        )
     }
 }
 
@@ -204,9 +182,7 @@ extension AddGroupMembersViewController: GroupMemberViewDelegate {
             owsFailDebug("Invalid recipient.")
             return false
         }
-        return databaseStorage.read { transaction in
-            return GroupManager.doesUserSupportGroupsV2(address: address, transaction: transaction)
-        }
+        return GroupManager.doesUserSupportGroupsV2(address: address)
     }
 
     func groupMemberViewShouldShowMemberCount() -> Bool {
@@ -241,7 +217,7 @@ extension AddGroupMembersViewController: GroupMemberViewDelegate {
             // We can "add" pending or requesting members if they support gv2
             // and we know their profile key credential.
             let canAddMember: Bool = {
-                guard GroupManager.doesUserSupportGroupsV2(address: address, transaction: transaction) else {
+                guard GroupManager.doesUserSupportGroupsV2(address: address) else {
                     return false
                 }
                 return self.groupsV2.hasProfileKeyCredential(for: address, transaction: transaction)
