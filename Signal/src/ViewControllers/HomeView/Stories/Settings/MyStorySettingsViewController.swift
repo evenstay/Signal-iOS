@@ -4,6 +4,7 @@
 
 import Foundation
 import UIKit
+import SignalMessaging
 
 class MyStorySettingsViewController: OWSTableViewController2 {
     override func viewDidLoad() {
@@ -45,7 +46,12 @@ class MyStorySettingsViewController: OWSTableViewController2 {
                 showDisclosureIndicator: false
             ) { [weak self] in
                 Self.databaseStorage.write { transaction in
-                    myStoryThread.updateWithStoryViewMode(.blockList, addresses: [], transaction: transaction)
+                    myStoryThread.updateWithStoryViewMode(
+                        .blockList,
+                        addresses: [],
+                        updateStorageService: true,
+                        transaction: transaction
+                    )
                 }
                 self?.updateTableContents()
             })
@@ -110,18 +116,12 @@ class MyStorySettingsViewController: OWSTableViewController2 {
         }
 
         let repliesSection = OWSTableSection()
-        repliesSection.headerTitle = NSLocalizedString(
-            "MY_STORIES_SETTINGS_REPLIES_HEADER",
-            comment: "Header for the 'replies' section of the my stories settings")
-        repliesSection.footerTitle = NSLocalizedString(
-            "MY_STORIES_SETTINGS_REPLIES_FOOTER",
-            comment: "Footer for the 'replies' section of the my stories settings")
+        repliesSection.headerTitle = StoryStrings.repliesAndReactionsHeader
+        repliesSection.footerTitle = StoryStrings.repliesAndReactionsFooter
         contents.addSection(repliesSection)
 
         repliesSection.add(.switch(
-            withText: NSLocalizedString(
-                "MY_STORIES_SETTINGS_REPLIES_SWITCH_TITLE",
-                comment: "Title for the replies switch"),
+            withText: StoryStrings.repliesAndReactionsToggle,
             isOn: { myStoryThread.allowsReplies },
             target: self,
             selector: #selector(didToggleReplies(_:))
@@ -133,7 +133,7 @@ class MyStorySettingsViewController: OWSTableViewController2 {
         let myStoryThread: TSPrivateStoryThread! = databaseStorage.read { TSPrivateStoryThread.getMyStory(transaction: $0) }
         guard myStoryThread.allowsReplies != toggle.isOn else { return }
         databaseStorage.write { transaction in
-            myStoryThread.updateWithAllowsReplies(toggle.isOn, transaction: transaction)
+            myStoryThread.updateWithAllowsReplies(toggle.isOn, updateStorageService: true, transaction: transaction)
         }
     }
 

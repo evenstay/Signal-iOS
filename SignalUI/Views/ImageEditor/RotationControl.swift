@@ -2,10 +2,12 @@
 //  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
 //
 
+import SignalMessaging
 import UIKit
 
 class RotationControl: UIControl {
 
+    private var previousAngle: CGFloat = 0
     private var _angle: CGFloat = 0
     /**
      * Measured in degrees.
@@ -30,17 +32,36 @@ class RotationControl: UIControl {
      * Scroll view's content offset does not need to be updated if user is scrolling.
      */
     private func setAngle(_ angle: CGFloat, updateScrollViewOffset: Bool = true) {
+        previousAngle = _angle
         _angle = angle
+        canvasRotation = angle - angle.remainder(dividingBy: 90)
         updateAppearance()
         if updateScrollViewOffset {
             updateScrollViewContentOffset()
+        }
+        // Haptic feedback.
+        if isTracking {
+            let roundingRule: FloatingPointRoundingRule
+            if abs(angle) > abs(previousAngle) {
+                // Moving away from zero.
+                roundingRule = .towardZero
+            } else {
+                // Moving towards zero
+                roundingRule = .awayFromZero
+            }
+
+            let angleRounded = angle.rounded(roundingRule)
+            let previousAngleRounded = previousAngle.rounded(roundingRule)
+            if previousAngleRounded != angleRounded && angleRounded.truncatingRemainder(dividingBy: Constants.stepValue) == 0 {
+                hapticFeedbackGenerator.selectionChanged()
+            }
         }
     }
 
     /**
      * Measured in degrees.
      */
-    var canvasRotation: CGFloat = 0
+    private var canvasRotation: CGFloat = 0
 
     required init() {
         super.init(frame: .zero)
@@ -123,6 +144,8 @@ class RotationControl: UIControl {
         CGSize(width: RotationControl.preferredWidth, height: UIView.noIntrinsicMetric)
     }
 
+    private lazy var hapticFeedbackGenerator = SelectionHapticFeedback()
+
     // MARK: - Layout
 
     private let numberFormatter: NumberFormatter = {
@@ -154,7 +177,11 @@ class RotationControl: UIControl {
     }
 
     private func updateAppearance() {
-        textLabel.text = numberFormatter.string(from: NSNumber(value: normalizedAngle.rounded()))
+        var roundedAngle = normalizedAngle.rounded()
+        if roundedAngle == 0 && roundedAngle.sign == .minus {
+            roundedAngle = 0
+        }
+        textLabel.text = numberFormatter.string(for: roundedAngle)
         currentValueMark.isHidden = abs(angle) < .epsilon
     }
 

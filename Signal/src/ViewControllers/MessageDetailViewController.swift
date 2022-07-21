@@ -128,7 +128,7 @@ class MessageDetailViewController: OWSTableViewController2 {
         self.contents = contents
     }
 
-    public func buildRenderItem(interactionId: String) -> CVRenderItem? {
+    private func buildRenderItem(interactionId: String) -> CVRenderItem? {
         databaseStorage.read { transaction in
             guard let interaction = TSInteraction.anyFetch(
                 uniqueId: interactionId,
@@ -805,6 +805,10 @@ extension MessageDetailViewController: DatabaseChangeDelegate {
 // MARK: -
 
 extension MessageDetailViewController: CVComponentDelegate {
+
+    func cvc_enqueueReload() {
+        self.refreshContent()
+    }
 
     // MARK: - Body Text Items
 

@@ -531,14 +531,21 @@ class PhotoCapture: NSObject {
         if availableCameras.count == 1, let currentZoomFactor = captureDevice?.videoZoomFactor, currentZoomFactor == zoomFactor {
             zoomFactor *= 2
         }
+        updateZoomFactor(zoomFactor, animated: animated)
+    }
+
+    func changeVisibleZoomFactor(to visibleZoomFactor: CGFloat, animated: Bool) {
+        let zoomFactor = visibleZoomFactor / cameraZoomFactorMultiplier(forPosition: desiredPosition)
+        updateZoomFactor(zoomFactor, animated: animated)
+    }
+
+    private func updateZoomFactor(_ zoomFactor: CGFloat, animated: Bool) {
         sessionQueue.async { [weak self] in
             guard let self = self else { return }
             guard let captureDevice = self.captureDevice else {
                 owsFailDebug("captureDevice was unexpectedly nil")
                 return
             }
-            owsAssertDebug(position == captureDevice.position, "Attempt to select camera for incorrect position")
-
             self.update(captureDevice: captureDevice, zoomFactor: zoomFactor, animated: animated)
         }
     }
@@ -1467,40 +1474,6 @@ class PhotoCaptureOutputAdaptee: NSObject, ImageCaptureOutput {
             DispatchQueue.main.async {
                 delegate.captureOutputDidCapture(photoData: result)
             }
-        }
-    }
-}
-
-// MARK: -
-
-extension AVCaptureVideoOrientation {
-    init?(deviceOrientation: UIDeviceOrientation) {
-        switch deviceOrientation {
-        case .unknown:
-            return nil
-        case .portrait: self = .portrait
-        case .portraitUpsideDown: self = .portraitUpsideDown
-        case .landscapeLeft: self = .landscapeRight
-        case .landscapeRight: self = .landscapeLeft
-        case .faceUp:
-            return nil
-        case .faceDown:
-            return nil
-        @unknown default:
-            return nil
-        }
-    }
-
-    init?(interfaceOrientation: UIInterfaceOrientation) {
-        switch interfaceOrientation {
-        case .unknown:
-            return nil
-        case .portrait: self = .portrait
-        case .portraitUpsideDown: self = .portraitUpsideDown
-        case .landscapeLeft: self = .landscapeLeft
-        case .landscapeRight: self = .landscapeRight
-        @unknown default:
-            return nil
         }
     }
 }

@@ -59,7 +59,8 @@ public class GroupManager: NSObject {
     // Epoch 1: Group Links
     // Epoch 2: Group Description
     // Epoch 3: Announcement-Only Groups
-    public static let changeProtoEpoch: UInt32 = 3
+    // Epoch 4: Banned Members
+    public static let changeProtoEpoch: UInt32 = 4
 
     // This matches kOversizeTextMessageSizeThreshold.
     public static let maxEmbeddedChangeProtoLength: UInt = 2 * 1024
@@ -980,7 +981,14 @@ public class GroupManager: NSObject {
         updateGroupV2(groupModel: groupModel,
                       description: "Remove from group or revoke invite") { groupChangeSet in
             for uuid in uuids {
+                owsAssertDebug(!groupModel.groupMembership.isRequestingMember(uuid))
+
                 groupChangeSet.removeMember(uuid)
+
+                // Do not ban when revoking an invite
+                if !groupModel.groupMembership.isInvitedMember(uuid) {
+                    groupChangeSet.addBannedMember(uuid)
+                }
             }
         }
     }
@@ -1058,23 +1066,12 @@ public class GroupManager: NSObject {
 
     @objc
     public static func isPossibleGroupInviteLink(_ url: URL) -> Bool {
-        guard RemoteConfig.groupsV2InviteLinks else {
-            return false
-        }
-        return groupsV2Swift.isPossibleGroupInviteLink(url)
+        groupsV2Swift.isPossibleGroupInviteLink(url)
     }
 
     @objc
     public static func parseGroupInviteLink(_ url: URL) -> GroupInviteLinkInfo? {
-        guard RemoteConfig.groupsV2InviteLinks else {
-            return nil
-        }
-        return groupsV2Swift.parseGroupInviteLink(url)
-    }
-
-    @objc
-    public static func isGroupInviteLink(_ url: URL) -> Bool {
-        nil != groupsV2Swift.parseGroupInviteLink(url)
+        groupsV2Swift.parseGroupInviteLink(url)
     }
 
     public static func joinGroupViaInviteLink(groupId: Data,
@@ -1117,6 +1114,7 @@ public class GroupManager: NSObject {
                     groupChangeSet.addMember(uuid, role: .`normal`)
                 } else {
                     groupChangeSet.removeMember(uuid)
+                    groupChangeSet.addBannedMember(uuid)
                 }
             }
         }
@@ -1131,10 +1129,6 @@ public class GroupManager: NSObject {
         }.timeout(seconds: Self.groupUpdateTimeoutDuration, description: description) {
             GroupsV2Error.timeout
         }
-    }
-
-    private static func tryToUpdatePlaceholderGroupModelUsingInviteLinkPreview(groupModel: TSGroupModelV2) {
-        groupsV2Swift.tryToUpdatePlaceholderGroupModelUsingInviteLinkPreview(groupModel: groupModel)
     }
 
     @objc
@@ -1187,39 +1181,45 @@ public class GroupManager: NSObject {
             return
         }
 
-        if let groupModelV2 = groupThread.groupModel as? TSGroupModelV2,
-           groupModelV2.isPlaceholderModel {
-            Logger.warn("Ignoring 403 for placeholder group.")
-            GroupManager.tryToUpdatePlaceholderGroupModelUsingInviteLinkPreview(groupModel: groupModelV2)
-            return
+        let groupModel = groupThread.groupModel
+
+        let removeLocalUserBlock: (SDSAnyWriteTransaction) -> Void = { transaction in
+            // Remove local user from group.
+            // We do _not_ bump the revision number since this (unlike all other
+            // changes to group state) is inferred from a 403. This is fine; if
+            // we're ever re-added to the group the groups v2 machinery will
+            // recover.
+            var groupMembershipBuilder = groupModel.groupMembership.asBuilder
+            groupMembershipBuilder.remove(localAddress)
+            var groupModelBuilder = groupModel.asBuilder
+            do {
+                groupModelBuilder.groupMembership = groupMembershipBuilder.build()
+                let newGroupModel = try groupModelBuilder.build()
+
+                // groupUpdateSourceAddress is nil because we don't (and can't) know who
+                // removed us or revoked our invite.
+                //
+                // newDisappearingMessageToken is nil because we don't want to change
+                // DM state.
+                _ = try updateExistingGroupThreadInDatabaseAndCreateInfoMessage(newGroupModel: newGroupModel,
+                                                                                newDisappearingMessageToken: nil,
+                                                                                groupUpdateSourceAddress: nil,
+                                                                                infoMessagePolicy: .always,
+                                                                                transaction: transaction)
+            } catch {
+                owsFailDebug("Error: \(error)")
+            }
         }
 
-        Logger.info("")
-
-        // Remove local user from group.
-        // We do _not_ bump the revision number since this (unlike all other
-        // changes to group state) is inferred from a 403. This is fine; if
-        // we're ever re-added to the group the groups v2 machinery will
-        // recover.
-        var groupMembershipBuilder = groupThread.groupModel.groupMembership.asBuilder
-        groupMembershipBuilder.remove(localAddress)
-        var groupModelBuilder = groupThread.groupModel.asBuilder
-        do {
-            groupModelBuilder.groupMembership = groupMembershipBuilder.build()
-            let newGroupModel = try groupModelBuilder.build()
-
-            // groupUpdateSourceAddress is nil because we don't (and can't) know who
-            // removed us or revoked our invite.
-            //
-            // newDisappearingMessageToken is nil because we don't want to change
-            // DM state.
-            _ = try updateExistingGroupThreadInDatabaseAndCreateInfoMessage(newGroupModel: newGroupModel,
-                                                                            newDisappearingMessageToken: nil,
-                                                                            groupUpdateSourceAddress: nil,
-                                                                            infoMessagePolicy: .always,
-                                                                            transaction: transaction)
-        } catch {
-            owsFailDebug("Error: \(error)")
+        if let groupModelV2 = groupModel as? TSGroupModelV2,
+           groupModelV2.isPlaceholderModel {
+            Logger.warn("Ignoring 403 for placeholder group.")
+            groupsV2Swift.tryToUpdatePlaceholderGroupModelUsingInviteLinkPreview(
+                groupModel: groupModelV2,
+                removeLocalUserBlock: removeLocalUserBlock
+            )
+        } else {
+            removeLocalUserBlock(transaction)
         }
     }
 
@@ -2322,6 +2322,10 @@ extension GroupManager {
                                 groupChangeSet.addInvitedMember(uuid, role: .normal)
                             } else {
                                 groupChangeSet.addMember(uuid, role: .normal)
+                            }
+
+                            if existingGroupModel.groupMembership.isBannedMember(uuid) {
+                                groupChangeSet.removeBannedMember(uuid)
                             }
                         }
                     }

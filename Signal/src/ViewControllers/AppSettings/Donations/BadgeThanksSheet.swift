@@ -6,29 +6,111 @@ import Foundation
 import SignalServiceKit
 import SignalUI
 
-class BadgeThanksSheet: InteractiveSheetViewController {
-    override var interactiveScrollViews: [UIScrollView] { [tableViewController.tableView] }
-    override var sheetBackgroundColor: UIColor { tableViewController.tableBackgroundColor }
-    private var shouldMakeVisibleAndPrimary = false
+struct VisibleBadgeResolver {
 
-    var contentSizeHeight: CGFloat {
-        // The table view doesn't have the correct height during normal layout
-        // passes. To correct that problem, we call `layoutIfNeeded()`. However,
-        // doing this causes `tableView.adjustedContentInset.bottom` to diverge
-        // from its expected value of `view.safeAreaInsets.bottom` during
-        // interactive drag animations, which results in really odd/jumpy layout
-        // behavior. Given we always show this view attached to the bottom of the
-        // screen, use `view.safeAreaInsets.bottom` directly for now.
-        tableViewController.tableView.contentSize.height + self.view.safeAreaInsets.bottom
-    }
-    override var minimizedHeight: CGFloat {
-        return min(contentSizeHeight, maximizedHeight)
-    }
-    override var maximizedHeight: CGFloat {
-        min(contentSizeHeight, CurrentAppContext().frame.height - (view.safeAreaInsets.top + 32))
+    /// The IDs and visibility status of badges added to the account. Even
+    /// though each badge's visibility status can be independently edited, the
+    /// expected steady state is that they're all either visible or invisible.
+    /// When adding a new badge, it starts out invisible, and dismissing this
+    /// sheet will make it visible, if needed.
+    let existingBadges: [Badge]
+
+    struct Badge {
+        var id: String
+        var isVisible: Bool
     }
 
-    private let tableViewController = OWSTableViewController2()
+    enum SwitchType {
+        case displayOnProfile
+        case makeFeaturedBadge
+        case none
+    }
+
+    func switchType(for newBadgeId: String) -> SwitchType {
+        if self.isVisibleAndFeatured(badgeId: newBadgeId) {
+            return .none
+        }
+        if self.isAnyBadgeVisible() {
+            return .makeFeaturedBadge
+        }
+        return .displayOnProfile
+    }
+
+    func switchDefault(for newBadgeId: String) -> Bool {
+        // If the badge is already featured, suggest keeping it featured. In this
+        // case, no switch is presented to the user (see above), so the eventual
+        // position of the badge would be determined entirely by the following if
+        // statements, which could lead to odd behavior in some cases.
+        if self.isVisibleAndFeatured(badgeId: newBadgeId) {
+            return true
+        }
+        // If you're buying a recurring badge, suggest featuring it.
+        if SubscriptionBadgeIds.contains(newBadgeId) {
+            return true
+        }
+        // If you're buying a one-time badge (prior check didn't pass), don't
+        // suggest featuring it if you already have a recurring badge.
+        if self.hasAnySustainerBadge() {
+            return false
+        }
+        return true
+    }
+
+    func currentlyVisibleBadgeIds() -> [String] {
+        self.existingBadges.lazy.filter { $0.isVisible }.map { $0.id }
+    }
+
+    func visibleBadgeIds(adding newBadgeId: String, isVisibleAndFeatured: Bool) -> [String] {
+        lazy var currentlyVisibleBadgeIds = self.currentlyVisibleBadgeIds()
+        lazy var nonNewBadgeIds = self.existingBadges.lazy.filter { $0.id != newBadgeId }.map { $0.id }
+
+        // If the user has selected "Display on Profile" or "Make Featured Badge",
+        // we make this the first visible badge. We also make all other badges
+        // visible -- we don't currently support displaying only a subset.
+        if isVisibleAndFeatured {
+            return [newBadgeId] + nonNewBadgeIds
+        }
+
+        // For all the remaining cases, the switch was shown, and it's set to "off".
+
+        // If there aren't any badges visible, don't make this one visible.
+        if currentlyVisibleBadgeIds.isEmpty {
+            return []
+        }
+
+        // We have some visible badges, but the user doesn't want this badge to be featured.
+        if currentlyVisibleBadgeIds.first == newBadgeId {
+            return nonNewBadgeIds + [newBadgeId]
+        }
+
+        // The badge is already visible. Leave it where it is to avoid a redundant profile update.
+        if currentlyVisibleBadgeIds.contains(newBadgeId) {
+            return currentlyVisibleBadgeIds
+        }
+
+        // The badge isn't visible but should be. At it to the end of the list of badges.
+        return nonNewBadgeIds + [newBadgeId]
+    }
+
+    private func hasAnySustainerBadge() -> Bool {
+        self.existingBadges.first { SubscriptionBadgeIds.contains($0.id) } != nil
+    }
+
+    private func firstVisibleBadge() -> Badge? {
+        self.existingBadges.first { $0.isVisible }
+    }
+
+    private func isAnyBadgeVisible() -> Bool {
+        self.firstVisibleBadge() != nil
+    }
+
+    private func isVisibleAndFeatured(badgeId: String) -> Bool {
+        self.firstVisibleBadge()?.id == badgeId
+    }
+
+}
+
+class BadgeThanksSheet: OWSTableSheetViewController {
 
     enum BadgeType {
         case boost
@@ -39,11 +121,10 @@ class BadgeThanksSheet: InteractiveSheetViewController {
     private let badge: ProfileBadge
     private let badgeType: BadgeType
 
-    private lazy var profileSnapshot = profileManagerImpl.localProfileSnapshot(shouldIncludeAvatar: false)
-    private lazy var hasAnySustainerBadge = profileSnapshot.profileBadgeInfo?.first { SubscriptionBadgeIds.contains($0.badgeId) } != nil
-    private lazy var visibleBadges = profileSnapshot.profileBadgeInfo?.filter { $0.isVisible ?? false } ?? []
-    private var hasVisibleBadges: Bool { !visibleBadges.isEmpty }
-    private var isPrimaryBadge: Bool { badge.id == visibleBadges.first?.badgeId }
+    private lazy var initialVisibleBadgeResolver = self.makeVisibleBadgeResolver(
+        profileSnapshot: self.profileManagerImpl.localProfileSnapshot(shouldIncludeAvatar: false)
+    )
+    private lazy var shouldMakeVisibleAndPrimary = self.initialVisibleBadgeResolver.switchDefault(for: self.badge.id)
 
     required init(badge: ProfileBadge, type: BadgeType) {
         owsAssertDebug(badge.assets != nil)
@@ -61,12 +142,19 @@ class BadgeThanksSheet: InteractiveSheetViewController {
 
         super.init()
 
-        tableViewController.shouldDeferInitialLoad = false
         updateTableContents()
     }
 
     public required init() {
         fatalError("init() has not been implemented")
+    }
+
+    private func makeVisibleBadgeResolver(profileSnapshot: OWSProfileSnapshot) -> VisibleBadgeResolver {
+        VisibleBadgeResolver(
+            existingBadges: (profileSnapshot.profileBadgeInfo ?? []).map {
+                .init(id: $0.badgeId, isVisible: $0.isVisible ?? false)
+            }
+        )
     }
 
     override func willDismissInteractively() {
@@ -95,28 +183,12 @@ class BadgeThanksSheet: InteractiveSheetViewController {
     @discardableResult
     private func saveVisibilityChanges() -> Promise<Void> {
         let snapshot = profileManagerImpl.localProfileSnapshot(shouldIncludeAvatar: true)
-
-        let newBadgeId = self.badge.id
-        let allBadges = snapshot.profileBadgeInfo ?? []
-        let nonPrimaryBadgeIds = allBadges.filter { $0.badgeId != newBadgeId }.map { $0.badgeId }
-        let currentlyVisibleBadgeIds = allBadges.filter { $0.isVisible ?? false }.map { $0.badgeId }
-
-        let visibleBadgeIds: [String]
-        if shouldMakeVisibleAndPrimary {
-            visibleBadgeIds = [newBadgeId] + nonPrimaryBadgeIds
-        } else if !currentlyVisibleBadgeIds.isEmpty {
-            if currentlyVisibleBadgeIds.contains(newBadgeId) && currentlyVisibleBadgeIds.first != newBadgeId {
-                // We don't need to make any change, this saves us a profile update
-                visibleBadgeIds = currentlyVisibleBadgeIds
-            } else {
-                // Put the new badge at the end
-                visibleBadgeIds = nonPrimaryBadgeIds + [newBadgeId]
-            }
-        } else {
-            visibleBadgeIds = []
-        }
-
-        guard visibleBadgeIds != currentlyVisibleBadgeIds else {
+        let visibleBadgeResolver = self.makeVisibleBadgeResolver(profileSnapshot: snapshot)
+        let visibleBadgeIds = visibleBadgeResolver.visibleBadgeIds(
+            adding: self.badge.id,
+            isVisibleAndFeatured: self.shouldMakeVisibleAndPrimary
+        )
+        guard visibleBadgeIds != visibleBadgeResolver.currentlyVisibleBadgeIds() else {
             // No change, we can skip the profile update.
             return Promise.value(())
         }
@@ -204,42 +276,9 @@ class BadgeThanksSheet: InteractiveSheetViewController {
 
     // MARK: -
 
-    override public func viewDidLoad() {
-        super.viewDidLoad()
-
-        addChild(tableViewController)
-
-        contentView.addSubview(tableViewController.view)
-        tableViewController.view.autoPinEdgesToSuperviewEdges()
-
-        shouldMakeVisibleAndPrimary = self.badgeType.isRecurring || !self.hasAnySustainerBadge
-
-        updateViewState()
-    }
-
-    override func viewDidLayoutSubviews() {
-        super.viewDidLayoutSubviews()
-
-        self.tableViewController.tableView.layoutIfNeeded()
-        updateViewState()
-    }
-
-    private var previousMinimizedHeight: CGFloat?
-    private func updateViewState() {
-        if minimizedHeight != previousMinimizedHeight {
-            heightConstraint?.constant = minimizedHeight
-            previousMinimizedHeight = minimizedHeight
-        }
-    }
-
-    override func themeDidChange() {
-        super.themeDidChange()
-        updateTableContents()
-    }
-
-    private func updateTableContents() {
+    public override func updateTableContents(shouldReload: Bool = true) {
         let contents = OWSTableContents()
-        defer { tableViewController.contents = contents }
+        defer { tableViewController.setContents(contents, shouldReload: shouldReload) }
 
         let headerSection = OWSTableSection()
         headerSection.hasBackground = false
@@ -301,36 +340,46 @@ class BadgeThanksSheet: InteractiveSheetViewController {
             return cell
         }, actionBlock: nil))
 
+        if let displayBadgeSection = self.buildDisplayBadgeSection() {
+            contents.addSection(displayBadgeSection)
+        }
+
         switch self.badgeType {
         case let .gift(_, _, notNowAction: notNowAction, incomingMessage: incomingMessage):
-            // Always show this section for gifts since they have an extra redemption step.
-            contents.addSection(self.buildDisplayBadgeSection())
             contents.addSection(self.buildRedeemButtonSection(notNowAction: notNowAction, incomingMessage: incomingMessage))
         case .boost, .subscription:
-            if !isPrimaryBadge {
-                contents.addSection(self.buildDisplayBadgeSection())
-            }
             contents.addSection(self.buildDoneButtonSection())
         }
     }
 
-    private func buildDisplayBadgeSection() -> OWSTableSection {
-        let section = OWSTableSection()
-        section.add(.switch(
-            withText: hasVisibleBadges
-            ? NSLocalizedString(
+    private func buildDisplayBadgeSection() -> OWSTableSection? {
+        let switchText: String
+        let showFooter: Bool
+        switch self.initialVisibleBadgeResolver.switchType(for: self.badge.id) {
+        case .none:
+            return nil
+        case .displayOnProfile:
+            switchText = NSLocalizedString(
+                "BADGE_THANKS_DISPLAY_ON_PROFILE_LABEL",
+                comment: "Label prompting the user to display the new badge on their profile on the badge thank you sheet."
+            )
+            showFooter = false
+        case .makeFeaturedBadge:
+            switchText = NSLocalizedString(
                 "BADGE_THANKS_MAKE_FEATURED",
                 comment: "Label prompting the user to feature the new badge on their profile on the badge thank you sheet."
             )
-            : NSLocalizedString(
-                "BADGE_THANKS_DISPLAY_ON_PROFILE_LABEL",
-                comment: "Label prompting the user to display the new badge on their profile on the badge thank you sheet."
-            ),
+            showFooter = true
+        }
+
+        let section = OWSTableSection()
+        section.add(.switch(
+            withText: switchText,
             isOn: { self.shouldMakeVisibleAndPrimary },
             target: self,
             selector: #selector(didToggleDisplayOnProfile)
         ))
-        if hasVisibleBadges {
+        if showFooter {
             section.footerTitle = NSLocalizedString(
                 "BADGE_THANKS_TOGGLE_FOOTER",
                 comment: "Footer explaining that only one badge can be featured at a time on the thank you sheet."
@@ -422,16 +471,5 @@ class BadgeThanksSheet: InteractiveSheetViewController {
         }, actionBlock: nil))
 
         return section
-    }
-}
-
-private extension BadgeThanksSheet.BadgeType {
-    var isRecurring: Bool {
-        switch self {
-        case .boost, .gift:
-            return false
-        case .subscription:
-            return true
-        }
     }
 }

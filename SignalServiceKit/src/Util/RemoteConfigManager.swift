@@ -33,11 +33,6 @@ public class RemoteConfig: BaseFlags {
         return isEnabled(.kbs)
     }
 
-    @objc
-    public static var groupsV2InviteLinks: Bool {
-        true
-    }
-
     private static let forceDisableUuidSafetyNumbers = true
 
     @objc
@@ -86,6 +81,10 @@ public class RemoteConfig: BaseFlags {
             return defaultValue
         }
         return uintValue
+    }
+
+    public static var groupsV2MaxBannedMembers: UInt {
+        groupsV2MaxGroupSizeHardLimit
     }
 
     @objc
@@ -213,6 +212,19 @@ public class RemoteConfig: BaseFlags {
     @objc
     public static var keepMutedChatsArchivedOption: Bool {
         DebugFlags.internalSettings || isEnabled(.keepMutedChatsArchivedOption)
+    }
+
+    @objc
+    public static var canReceiveGiftBadges: Bool {
+        FeatureFlags.shouldUseRemoteConfigForReceivingGiftBadges && isEnabled(.canReceiveGiftBadges, defaultValue: true)
+    }
+
+    public static var canSendGiftBadges: Bool {
+        if FeatureFlags.isPrerelease {
+            return isEnabled(.canSendGiftBadgesInPrerelease, defaultValue: true)
+        } else {
+            return isEnabled(.canSendGiftBadgesInProduction, defaultValue: false)
+        }
     }
 
     // MARK: -
@@ -403,6 +415,9 @@ private struct Flags {
         case donorBadgeDisplayKillSwitch
         case changePhoneNumberUI
         case keepMutedChatsArchivedOption
+        case canReceiveGiftBadges
+        case canSendGiftBadgesInPrerelease
+        case canSendGiftBadgesInProduction
     }
 
     // Values defined in this array remain set once they are

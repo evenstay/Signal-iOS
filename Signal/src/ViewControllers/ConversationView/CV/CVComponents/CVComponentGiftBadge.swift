@@ -11,35 +11,46 @@ public class CVComponentGiftBadge: CVComponentBase, CVComponent {
 
     private let giftBadge: CVComponentState.GiftBadge
 
-    private let timeState: TimeState
+    private let viewState: ViewState
 
     // Component state objects are derived from TSInteractions, and they're
     // only updated when the underlying interaction changes. The "N days
     // remaining" label depends on the current time, so we need to use
     // CVItemViewState, which is refreshed even when the underlying interaction
     // hasn't changed. This is similar to how the time in the footer works.
-    struct TimeState: Equatable {
+    struct ViewState: Equatable {
         let timeRemainingText: String
+        let profileBadge: ProfileBadge?
     }
 
-    static func buildTimeState(_ giftBadge: CVComponentState.GiftBadge) -> TimeState {
-        return TimeState(timeRemainingText: GiftBadgeView.timeRemainingText(for: giftBadge.expirationDate))
+    static func buildViewState(_ giftBadge: CVComponentState.GiftBadge) -> ViewState {
+        ViewState(
+            timeRemainingText: GiftBadgeView.timeRemainingText(for: giftBadge.expirationDate),
+            profileBadge: giftBadge.cachedBadge.profileBadge
+        )
     }
 
-    private var viewState: GiftBadgeView.State {
-        GiftBadgeView.State(
+    private var state: GiftBadgeView.State {
+        let stateBadge: GiftBadgeView.State.Badge
+        if let profileBadge = self.viewState.profileBadge {
+            stateBadge = .loaded(profileBadge)
+        } else {
+            let cachedBadge = self.giftBadge.cachedBadge
+            stateBadge = .notLoaded({ cachedBadge.fetchIfNeeded().asVoid() })
+        }
+        return GiftBadgeView.State(
+            badge: stateBadge,
             messageUniqueId: self.giftBadge.messageUniqueId,
-            badgeLoader: self.giftBadge.loader,
-            timeRemainingText: self.timeState.timeRemainingText,
+            timeRemainingText: self.viewState.timeRemainingText,
             redemptionState: self.giftBadge.redemptionState,
             isIncoming: self.isIncoming,
             conversationStyle: self.conversationStyle
         )
     }
 
-    init(itemModel: CVItemModel, giftBadge: CVComponentState.GiftBadge, timeState: TimeState) {
+    init(itemModel: CVItemModel, giftBadge: CVComponentState.GiftBadge, viewState: ViewState) {
         self.giftBadge = giftBadge
-        self.timeState = timeState
+        self.viewState = viewState
         super.init(itemModel: itemModel)
     }
 
@@ -60,14 +71,14 @@ public class CVComponentGiftBadge: CVComponentBase, CVComponent {
 
         componentView.messageUniqueId = self.giftBadge.messageUniqueId
         componentView.giftBadgeView.configureForRendering(
-            state: self.viewState,
+            state: self.state,
             cellMeasurement: cellMeasurement,
             componentDelegate: componentDelegate
         )
     }
 
     public func measure(maxWidth: CGFloat, measurementBuilder: CVCellMeasurement.Builder) -> CGSize {
-        return GiftBadgeView.measurement(for: self.viewState, maxWidth: maxWidth, measurementBuilder: measurementBuilder)
+        return GiftBadgeView.measurement(for: self.state, maxWidth: maxWidth, measurementBuilder: measurementBuilder)
     }
 
     public func configureGiftWrapIfNeeded(componentView: CVComponentView) -> (ManualLayoutView, OWSBubbleViewPartner)? {
@@ -102,8 +113,8 @@ public class CVComponentGiftBadge: CVComponentBase, CVComponent {
         }
 
         let profileBadge: ProfileBadge
-        switch renderItem.componentState.giftBadge?.loader.profileBadge.result {
-        case .success(.some(let value)):
+        switch renderItem.componentState.giftBadge?.cachedBadge.profileBadge {
+        case .some(let value):
             profileBadge = value
         default:
             // If there's not a badge, it's still showing the loading indicator.

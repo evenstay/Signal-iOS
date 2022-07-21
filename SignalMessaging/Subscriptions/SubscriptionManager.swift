@@ -253,14 +253,8 @@ public class SubscriptionManager: NSObject {
 
     // MARK: Current subscription status
 
-    // Returns if we have a current subscription or not as calculated via our cached last subscription expiry date and subscriberID.
-    // The most accurate way to determine subscription status is via getCurrentSubscriptionStatus()
-    public class func hasCurrentSubscriptionWithSneakyTransaction() -> Bool {
-        databaseStorage.read { subscriptionManager.hasCurrentSubscription(transaction: $0) }
-    }
-
     public class func currentProfileSubscriptionBadges() -> [OWSUserProfileBadgeInfo] {
-        let snapshot = profileManagerImpl.localProfileSnapshot(shouldIncludeAvatar: true)
+        let snapshot = profileManagerImpl.localProfileSnapshot(shouldIncludeAvatar: false)
         let profileBadges = snapshot.profileBadgeInfo ?? []
         return profileBadges.compactMap { (badge: OWSUserProfileBadgeInfo) -> OWSUserProfileBadgeInfo? in
             guard SubscriptionBadgeIds.contains(badge.badgeId) else { return nil }
@@ -810,10 +804,6 @@ public class SubscriptionManager: NSObject {
         }
     }
 
-    public static func mostRecentlyExpiredBadgeIDWithSneakyTransaction() -> String? {
-        databaseStorage.read { mostRecentlyExpiredBadgeID(transaction: $0) }
-    }
-
     private static func updateSubscriptionHeartbeatDate() {
         databaseStorage.write { transaction in
             // Update keepalive
@@ -1169,6 +1159,17 @@ extension SubscriptionManager {
             }
             throw error
         }
+    }
+
+    private static var cachedBadges = [OneTimeBadgeLevel: CachedBadge]()
+
+    public class func getCachedBadge(level: OneTimeBadgeLevel) -> CachedBadge {
+        if let cachedBadge = self.cachedBadges[level] {
+            return cachedBadge
+        }
+        let cachedBadge = CachedBadge(level: level)
+        self.cachedBadges[level] = cachedBadge
+        return cachedBadge
     }
 
     public class func getBoostBadge() -> Promise<ProfileBadge> {

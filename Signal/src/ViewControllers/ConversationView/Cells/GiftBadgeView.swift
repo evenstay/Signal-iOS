@@ -3,32 +3,25 @@
 //
 
 import Foundation
+import Lottie
 import SignalUI
 import QuartzCore
 
 class GiftBadgeView: ManualStackView {
 
     struct State {
+        enum Badge {
+            // The badge isn't loaded. Calling the block will load it.
+            case notLoaded(() -> Promise<Void>)
+            // The badge is loaded. The associated value is the badge.
+            case loaded(ProfileBadge)
+        }
+        let badge: Badge
         let messageUniqueId: String
-        let badgeLoader: BadgeLoader
         let timeRemainingText: String
         let redemptionState: OWSGiftBadgeRedemptionState
         let isIncoming: Bool
         let conversationStyle: ConversationStyle
-    }
-
-    final class BadgeLoader: Dependencies, Equatable {
-        let level: OneTimeBadgeLevel
-
-        init(level: OneTimeBadgeLevel) {
-            self.level = level
-        }
-
-        static func == (lhs: BadgeLoader, rhs: BadgeLoader) -> Bool {
-            return lhs.level == rhs.level
-        }
-
-        lazy var profileBadge: Guarantee<ProfileBadge?> = self.buildProfileBadgeGuarantee()
     }
 
     // The outerStack contains the details (innerStack) & redeem button.
@@ -65,8 +58,10 @@ class GiftBadgeView: ManualStackView {
     private static func titleLabelConfig(for state: State) -> CVLabelConfig {
         let textColor = state.conversationStyle.bubbleTextColor(isIncoming: state.isIncoming)
         return CVLabelConfig(
-            // TODO: (GB) Load this from the ProfileBadge.
-            text: "Gift Badge",
+            text: NSLocalizedString(
+                "BADGE_GIFTING_CHAT_TITLE",
+                comment: "Shown on a gift badge message to indicate that the message contains a gift."
+            ),
             font: .ows_dynamicTypeBody,
             textColor: textColor,
             lineBreakMode: .byTruncatingTail
@@ -127,7 +122,7 @@ class GiftBadgeView: ManualStackView {
 
     private func redeemButtonBackgroundColor(for state: State) -> UIColor {
         if state.isIncoming {
-            return Theme.isDarkThemeEnabled ? .ows_gray60 : .ows_whiteAlpha80
+            return state.conversationStyle.isDarkThemeEnabled ? .ows_gray60 : .ows_whiteAlpha80
         } else {
             return .ows_whiteAlpha70
         }
@@ -179,9 +174,31 @@ class GiftBadgeView: ManualStackView {
     private let badgeView = CVImageView()
     private static let badgeSize: CGFloat = 64
 
-    private(set) var giftWrap: GiftWrap?
+    struct ActivityIndicator {
+        var name: String
+        var view: AnimationView
+    }
 
-    private var badgeLoadCounter = 0
+    private var _activityIndicator: ActivityIndicator?
+    private func activityIndicator(for state: State) -> AnimationView {
+        let animationName: String
+        if state.isIncoming && !state.conversationStyle.isDarkThemeEnabled {
+            animationName = "indeterminate_spinner_blue"
+        } else {
+            animationName = "indeterminate_spinner_white"
+        }
+        if let activityIndicator = self._activityIndicator, activityIndicator.name == animationName {
+            return activityIndicator.view
+        }
+        let view = AnimationView(name: animationName)
+        view.backgroundBehavior = .pauseAndRestore
+        view.loopMode = .loop
+        view.contentMode = .center
+        self._activityIndicator = ActivityIndicator(name: animationName, view: view)
+        return view
+    }
+
+    private(set) var giftWrap: GiftWrap?
 
     override func reset() {
         super.reset()
@@ -194,47 +211,32 @@ class GiftBadgeView: ManualStackView {
         self.timeRemainingLabel.text = nil
         self.redeemButtonLabel.text = nil
 
-        self.badgeLoadCounter += 1  // cancel any outstanding load request
         self.badgeView.image = nil
 
-        let allSubviews: [UIView] = [
+        self._activityIndicator?.view.stop()
+
+        let allSubviews: [UIView?] = [
             self.innerStack,
             self.labelStack,
             self.buttonStack,
             self.titleLabel,
             self.timeRemainingLabel,
             self.redeemButtonLabel,
-            self.badgeView
+            self.badgeView,
+            self._activityIndicator?.view
         ]
         for subview in allSubviews {
-            subview.removeFromSuperview()
+            subview?.removeFromSuperview()
         }
     }
 
     func configureForRendering(state: State, cellMeasurement: CVCellMeasurement, componentDelegate: CVComponentDelegate) {
-        Self.titleLabelConfig(for: state).applyForRendering(label: self.titleLabel)
-        Self.timeRemainingLabelConfig(for: state).applyForRendering(label: self.timeRemainingLabel)
         Self.redeemButtonLabelConfig(for: state).applyForRendering(label: self.redeemButtonLabel)
-
-        self.badgeLoadCounter += 1
-        let badgeLoadRequest = self.badgeLoadCounter
-
-        self.badgeView.image = nil
-        state.badgeLoader.profileBadge.done { [weak self] profileBadge in
-            guard let self = self else { return }
-            // If the `badgeLoadCounter` changes, it means the request was canceled,
-            // perhaps due to view reuse.
-            guard badgeLoadRequest == self.badgeLoadCounter else { return }
-
-            self.badgeView.image = profileBadge?.assets?.universal64
-        }
-
         self.buttonStack.backgroundColor = self.redeemButtonBackgroundColor(for: state)
         self.buttonStack.addLayoutBlock { v in
             v.layer.cornerRadius = 8
             v.layer.masksToBounds = true
         }
-
         self.buttonStack.configure(
             config: Self.buttonStackConfig,
             cellMeasurement: cellMeasurement,
@@ -242,18 +244,37 @@ class GiftBadgeView: ManualStackView {
             subviews: [self.redeemButtonLabel]
         )
 
-        self.labelStack.configure(
-            config: Self.labelStackConfig,
-            cellMeasurement: cellMeasurement,
-            measurementKey: Self.measurementKey_labelStack,
-            subviews: [self.titleLabel, self.timeRemainingLabel]
-        )
+        let innerStackSubviews: [UIView]
+        switch state.badge {
+        case .notLoaded(let loadPromise):
+            loadPromise().done { [weak componentDelegate] in
+                componentDelegate?.cvc_enqueueReload()
+            }.cauterize()
+            // TODO: (GB) If an error occurs, we'll be stuck with a spinner.
 
+            let activityIndicator = self.activityIndicator(for: state)
+            activityIndicator.play()
+            innerStackSubviews = [activityIndicator]
+            self.buttonStack.alpha = 0.5
+
+        case .loaded(let profileBadge):
+            self.badgeView.image = profileBadge.assets?.universal64
+            Self.titleLabelConfig(for: state).applyForRendering(label: self.titleLabel)
+            Self.timeRemainingLabelConfig(for: state).applyForRendering(label: self.timeRemainingLabel)
+            self.labelStack.configure(
+                config: Self.labelStackConfig,
+                cellMeasurement: cellMeasurement,
+                measurementKey: Self.measurementKey_labelStack,
+                subviews: [self.titleLabel, self.timeRemainingLabel]
+            )
+            innerStackSubviews = [self.badgeView, self.labelStack]
+            self.buttonStack.alpha = 1.0
+        }
         self.innerStack.configure(
             config: Self.innerStackConfig,
             cellMeasurement: cellMeasurement,
             measurementKey: Self.measurementKey_innerStack,
-            subviews: [self.badgeView, self.labelStack]
+            subviews: innerStackSubviews
         )
 
         self.configure(
@@ -291,6 +312,10 @@ class GiftBadgeView: ManualStackView {
 
     static func measurement(for state: State, maxWidth: CGFloat, measurementBuilder: CVCellMeasurement.Builder) -> CGSize {
         owsAssertDebug(maxWidth > 0)
+
+        // NOTE: We don't alter the measurement when showing the loading animation.
+        // This ensures that the size of the bubble doesn't shift once the badge
+        // has finished loading.
 
         let badgeViewSize = CGSize(square: self.badgeSize)
 
@@ -381,29 +406,6 @@ class GiftBadgeView: ManualStackView {
         self.giftWrap?.animateUnwrap()
         self.giftWrap = nil
     }
-}
-
-// MARK: -
-
-private extension GiftBadgeView.BadgeLoader {
-    func buildProfileBadgeGuarantee() -> Guarantee<ProfileBadge?> {
-        // TODO: (GB) Cache the payload to avoid fetching it every time it's rendered.
-        firstly {
-            SubscriptionManager.getBadge(level: self.level)
-        }.then { [weak self] profileBadge -> Promise<ProfileBadge?> in
-            guard let self = self else { return Promise.value(nil) }
-
-            return firstly {
-                self.profileManager.badgeStore.populateAssetsOnBadge(profileBadge)
-            }.map { () -> ProfileBadge? in
-                return profileBadge
-            }
-        }.recover { (error) -> Guarantee<ProfileBadge?> in
-            Logger.warn("Couldn't fetch gift badge image: \(error)")
-            return Guarantee.value(nil)
-        }
-    }
-
 }
 
 // MARK: - Wrapping View

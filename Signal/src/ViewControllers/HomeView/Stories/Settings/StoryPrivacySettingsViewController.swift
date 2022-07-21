@@ -17,6 +17,12 @@ class StoryPrivacySettingsViewController: OWSTableViewController2 {
         updateTableContents()
     }
 
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+
+        updateTableContents()
+    }
+
     @objc
     func didTapDone() {
         dismiss(animated: true)
@@ -133,10 +139,14 @@ class StoryPrivacySettingsViewController: OWSTableViewController2 {
     }
 
     func showNewPrivateStoryView() {
-
+        let vc = NewPrivateStoryRecipientsViewController { [weak self] _ in
+            self?.updateTableContents()
+        }
+        presentFormSheet(OWSNavigationController(rootViewController: vc), animated: true)
     }
 
     func showPrivateStoryView(for thread: TSPrivateStoryThread) {
-
+        let vc = PrivateStorySettingsViewController(thread: thread)
+        navigationController?.pushViewController(vc, animated: true)
     }
 }

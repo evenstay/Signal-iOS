@@ -59,8 +59,8 @@ public class SubscriptionReadMoreSheet: InteractiveSheetViewController {
     let stackView = UIStackView()
     public override var interactiveScrollViews: [UIScrollView] { [contentScrollView] }
     public override var minHeight: CGFloat { min(740, CurrentAppContext().frame.height - (view.safeAreaInsets.top + 32)) }
-    override var maximizedHeight: CGFloat { minHeight }
-    override var sheetBackgroundColor: UIColor { Theme.tableView2PresentedBackgroundColor }
+    public override var maximizedHeight: CGFloat { minHeight }
+    public override var sheetBackgroundColor: UIColor { Theme.tableView2PresentedBackgroundColor }
 
     // MARK: -
 
@@ -441,9 +441,13 @@ public final class DonationViewsUtil {
     }
 
     public static func getSubscriptionRedemptionFailureReason(subscription: Subscription?) -> SubscriptionRedemptionFailureReason {
-        if let subscription = subscription,
-           (subscription.status == .incomplete || subscription.status == .incompleteExpired) {
-            return .paymentFailed
+        if let subscription = subscription {
+            switch subscription.status {
+            case .incomplete, .incompleteExpired, .pastDue, .unpaid:
+                return .paymentFailed
+            case .active, .trialing, .canceled, .unknown:
+                break
+            }
         }
 
         return SDSDatabaseStorage.shared.read { transaction in

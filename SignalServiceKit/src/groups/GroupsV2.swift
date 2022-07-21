@@ -150,7 +150,10 @@ public protocol GroupsV2Swift: GroupsV2 {
 
     func cancelMemberRequests(groupModel: TSGroupModelV2) -> Promise<TSGroupThread>
 
-    func tryToUpdatePlaceholderGroupModelUsingInviteLinkPreview(groupModel: TSGroupModelV2)
+    func tryToUpdatePlaceholderGroupModelUsingInviteLinkPreview(
+        groupModel: TSGroupModelV2,
+        removeLocalUserBlock: @escaping (SDSAnyWriteTransaction) -> Void
+    )
 
     func fetchGroupExternalCredentials(groupModel: TSGroupModelV2) throws -> Promise<GroupsProtoGroupExternalCredential>
 
@@ -175,6 +178,10 @@ public protocol GroupsV2OutgoingChanges: AnyObject {
     func addMember(_ uuid: UUID, role: TSGroupMemberRole)
 
     func removeMember(_ uuid: UUID)
+
+    func addBannedMember(_ uuid: UUID)
+
+    func removeBannedMember(_ uuid: UUID)
 
     func revokeInvalidInvites()
 
@@ -665,7 +672,10 @@ public class MockGroupsV2: NSObject, GroupsV2Swift, GroupsV2 {
         owsFail("Not implemented.")
     }
 
-    public func tryToUpdatePlaceholderGroupModelUsingInviteLinkPreview(groupModel: TSGroupModelV2) {
+    public func tryToUpdatePlaceholderGroupModelUsingInviteLinkPreview(
+        groupModel _: TSGroupModelV2,
+        removeLocalUserBlock _: (SDSAnyWriteTransaction) -> Void
+    ) {
         owsFail("Not implemented.")
     }
 

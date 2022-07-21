@@ -57,3 +57,13 @@ public extension UUID {
         return withUnsafeBytes(of: self.uuid) { Data($0) }
     }
 }
+
+public extension UUID {
+    init?(data: Data) {
+        guard data.count >= MemoryLayout<uuid_t>.size else {
+            owsFailDebug("Invalid UUID data")
+            return nil
+        }
+        self.init(uuid: data.withUnsafeBytes { $0.load(as: uuid_t.self) })
+    }
+}
