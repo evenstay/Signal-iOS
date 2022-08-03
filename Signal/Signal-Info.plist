@@ -5,7 +5,7 @@
 	<key>BuildDetails</key>
 	<dict>
 		<key>WebRTCCommit</key>
-		<string>ee6b548f429b7213677ac64d3cbd2f58a9d80741 Production build of v2.20.12</string>
+		<string>27915468e611ba7b61031dbb7eed87382abee9c5 Production build of v2.20.13</string>
 	</dict>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
@@ -26,7 +26,7 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>5.48.0</string>
+	<string>5.49.0</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
 	<key>CFBundleURLTypes</key>
@@ -43,7 +43,7 @@
 		</dict>
 	</array>
 	<key>CFBundleVersion</key>
-	<string>5</string>
+	<string>4</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>LOGS_EMAIL</key>
@@ -139,7 +139,7 @@
 		<string>INStartCallIntent</string>
 	</array>
 	<key>OWSBundleVersion4</key>
-	<string>5.48.0.5</string>
+	<string>5.49.0.4</string>
 	<key>PHPhotoLibraryPreventAutomaticLimitedAccessAlert</key>
 	<true/>
 	<key>UIApplicationShortcutItems</key>
