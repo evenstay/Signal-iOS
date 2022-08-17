@@ -19,6 +19,10 @@ extension ConversationViewController: CVComponentDelegate {
         self.loadCoordinator.enqueueReload()
     }
 
+    public func cvc_enqueueReloadWithoutCaches() {
+        self.loadCoordinator.enqueueReloadWithoutCaches()
+    }
+
     // MARK: - Body Text Items
 
     public func cvc_didTapBodyTextItem(_ item: CVBodyTextLabel.ItemObject) {
@@ -666,6 +670,56 @@ extension ConversationViewController: CVComponentDelegate {
         AssertIsOnMainThread()
 
         showConversationSettingsAndShowMemberRequests()
+    }
+
+    public func cvc_didTapBlockRequest(
+        groupModel: TSGroupModelV2,
+        requesterName: String,
+        requesterUuid: UUID
+    ) {
+        AssertIsOnMainThread()
+
+        let actionSheet = ActionSheetController(
+            title: OWSLocalizedString(
+                "GROUPS_BLOCK_REQUEST_SHEET_TITLE",
+                comment: "Title for sheet asking if the user wants to block a request to join the group."
+            ),
+            message: String(
+                format: OWSLocalizedString(
+                    "GROUPS_BLOCK_REQUEST_SHEET_MESSAGE",
+                    comment: "Message for sheet offering to let the user block a request to join the group. Embeds {{ the requester's name }}."
+                ),
+                requesterName
+            ))
+
+        actionSheet.addAction(.init(
+            title: OWSLocalizedString(
+                "GROUPS_BLOCK_REQUEST_SHEET_BLOCK_BUTTON",
+                comment: "Label for button that will block a request to join a group."
+            ),
+            style: .default,
+            handler: { _ in
+                GroupViewUtils.updateGroupWithActivityIndicator(
+                    fromViewController: self,
+                    withGroupModel: groupModel,
+                    updateDescription: "Blocking join request",
+                    updateBlock: {
+                        // If the user in question has canceled their request,
+                        // this call will still block them.
+                        GroupManager.acceptOrDenyMemberRequestsV2(
+                            groupModel: groupModel,
+                            uuids: [requesterUuid],
+                            shouldAccept: false
+                        )
+                    },
+                    completion: nil
+                )
+            })
+        )
+
+        actionSheet.addAction(OWSActionSheets.cancelAction)
+
+        OWSActionSheets.showActionSheet(actionSheet, fromViewController: self)
     }
 
     public func cvc_didTapShowUpgradeAppUI() {

@@ -40,6 +40,7 @@ CREATE
             ,"name" TEXT
             ,"addresses" BLOB
             ,"storyViewMode" INTEGER DEFAULT 0
+            ,"lastViewedStoryTimestamp" INTEGER
         )
 ;
 
@@ -228,6 +229,7 @@ CREATE
             ,"cdnKey" TEXT NOT NULL DEFAULT ''
             ,"cdnNumber" INTEGER NOT NULL DEFAULT 0
             ,"isAnimatedCached" INTEGER
+            ,"attachmentSchemaVersion" INTEGER DEFAULT 0
         )
 ;
 
@@ -1332,7 +1334,7 @@ CREATE
             ,"subscriptionLevel" INTEGER
             ,"amount" NUMERIC NOT NULL
             ,"currencyCode" TEXT NOT NULL
-            ,"receiptType" INTEGER
+            ,"receiptType" NUMERIC
         )
 ;
 

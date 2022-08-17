@@ -111,8 +111,11 @@ public protocol GroupsV2Swift: GroupsV2 {
     func updateExistingGroupOnService(changes: GroupsV2OutgoingChanges,
                                       requiredRevision: UInt32?) -> Promise<TSGroupThread>
 
-    func updateGroupV2(groupModel: TSGroupModelV2,
-                       changesBlock: @escaping (GroupsV2OutgoingChanges) -> Void) -> Promise<TSGroupThread>
+    func updateGroupV2(
+        groupId: Data,
+        groupSecretParamsData: Data,
+        changesBlock: @escaping (GroupsV2OutgoingChanges) -> Void
+    ) -> Promise<TSGroupThread>
 
     func reuploadLocalProfilePromise() -> Promise<Void>
 
@@ -276,9 +279,6 @@ public protocol GroupV2Updates: AnyObject {
     func tryToRefreshV2GroupUpToCurrentRevisionAfterMessageProcessingWithThrottling(_ groupThread: TSGroupThread)
 
     func tryToRefreshV2GroupUpToCurrentRevisionAfterMessageProcessingWithoutThrottling(_ groupThread: TSGroupThread)
-
-    func tryToRefreshV2GroupUpToSpecificRevisionImmediately(_ groupThread: TSGroupThread,
-                                                            upToRevision: UInt32)
 }
 
 // MARK: -
@@ -569,8 +569,11 @@ public class MockGroupsV2: NSObject, GroupsV2Swift, GroupsV2 {
         owsFail("Not implemented.")
     }
 
-    public func updateGroupV2(groupModel: TSGroupModelV2,
-                              changesBlock: @escaping (GroupsV2OutgoingChanges) -> Void) -> Promise<TSGroupThread> {
+    public func updateGroupV2(
+        groupId: Data,
+        groupSecretParamsData: Data,
+        changesBlock: @escaping (GroupsV2OutgoingChanges) -> Void
+    ) -> Promise<TSGroupThread> {
         owsFail("Not implemented.")
     }
 
@@ -698,12 +701,6 @@ public class MockGroupV2Updates: NSObject, GroupV2UpdatesSwift, GroupV2Updates {
 
     @objc
     public func tryToRefreshV2GroupUpToCurrentRevisionAfterMessageProcessingWithoutThrottling(_ groupThread: TSGroupThread) {
-        owsFail("Not implemented.")
-    }
-
-    @objc
-    public func tryToRefreshV2GroupUpToSpecificRevisionImmediately(_ groupThread: TSGroupThread,
-                                                                   upToRevision: UInt32) {
         owsFail("Not implemented.")
     }
 

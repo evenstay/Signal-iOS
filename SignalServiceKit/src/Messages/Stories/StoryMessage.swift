@@ -221,6 +221,17 @@ public final class StoryMessage: NSObject, SDSCodableModel {
             }
             record.manifest = .incoming(allowsReplies: allowsReplies, viewedTimestamp: timestamp)
         }
+
+        // Record on the context when the local user last viewed the story for this context
+        if let thread = context.thread(transaction: transaction) {
+            thread.updateWithLastViewedStoryTimestamp(NSNumber(value: timestamp), transaction: transaction)
+        } else {
+            owsFailDebug("Missing thread for story context \(context)")
+        }
+
+        // If we viewed this story (perhaps from a linked device), we should always make sure it's downloaded if it's not already.
+        downloadIfNecessary(transaction: transaction)
+
         receiptManager.storyWasViewed(self, circumstance: circumstance, transaction: transaction)
     }
 
@@ -294,6 +305,16 @@ public final class StoryMessage: NSObject, SDSCodableModel {
         }
 
         return threads
+    }
+
+    public func downloadIfNecessary(transaction: SDSAnyWriteTransaction) {
+        guard
+            case .file(let attachmentId) = attachment,
+            let pointer = TSAttachment.anyFetch(uniqueId: attachmentId, transaction: transaction) as? TSAttachmentPointer,
+            ![.enqueued, .downloading].contains(pointer.state)
+        else { return }
+
+        attachmentDownloads.enqueueDownloadOfAttachmentsForNewStoryMessage(self, transaction: transaction)
     }
 
     // MARK: -

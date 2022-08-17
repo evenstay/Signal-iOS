@@ -1346,6 +1346,8 @@ class CameraTopBar: MediaTopBar {
         cameraControlsContainerView.topAnchor.constraint(equalTo: controlsLayoutGuide.topAnchor).isActive = true
         cameraControlsContainerView.bottomAnchor.constraint(equalTo: controlsLayoutGuide.bottomAnchor).isActive = true
         flashModeButton.layoutMarginsGuide.trailingAnchor.constraint(equalTo: controlsLayoutGuide.trailingAnchor).isActive = true
+
+        updateElementsVisibility(animated: false)
     }
 
     @available(*, unavailable, message: "Use init(frame:) instead")
@@ -1359,24 +1361,36 @@ class CameraTopBar: MediaTopBar {
         case cameraControls, closeButton, videoRecording
     }
 
-    var mode: Mode = .cameraControls {
-        didSet {
-            switch mode {
-            case .cameraControls:
-                closeButton.isHidden = false
-                cameraControlsContainerView.isHidden = false
-                recordingTimerView.isHidden = true
+    private var internalMode: Mode = .cameraControls
+    var mode: Mode {
+        get { internalMode }
+        set {
+            setMode(newValue, animated: false)
+        }
+    }
 
-            case .closeButton:
-                closeButton.isHidden = false
-                cameraControlsContainerView.isHidden = true
-                recordingTimerView.isHidden = true
+    func setMode(_ mode: Mode, animated: Bool) {
+        guard mode != internalMode else { return }
+        internalMode = mode
+        updateElementsVisibility(animated: animated)
+    }
 
-            case .videoRecording:
-                closeButton.isHidden = true
-                cameraControlsContainerView.isHidden = true
-                recordingTimerView.isHidden = false
-            }
+    private func updateElementsVisibility(animated: Bool) {
+        switch mode {
+        case .cameraControls:
+            closeButton.setIsHidden(false, animated: animated)
+            cameraControlsContainerView.setIsHidden(false, animated: animated)
+            recordingTimerView.setIsHidden(true, animated: animated)
+
+        case .closeButton:
+            closeButton.setIsHidden(false, animated: animated)
+            cameraControlsContainerView.setIsHidden(true, animated: animated)
+            recordingTimerView.setIsHidden(true, animated: animated)
+
+        case .videoRecording:
+            closeButton.setIsHidden(true, animated: animated)
+            cameraControlsContainerView.setIsHidden(true, animated: animated)
+            recordingTimerView.setIsHidden(false, animated: animated)
         }
     }
 }
@@ -1408,13 +1422,19 @@ class CameraBottomBar: UIView {
         captureControl.shutterButtonLayoutGuide
     }
 
-    override init(frame: CGRect) {
-        super.init(frame: frame)
+    let isContentTypeSelectionControlAvailable: Bool
+    private(set) lazy var contentTypeSelectionControl: UISegmentedControl = ContentTypeSelectionControl()
+
+    init(isContentTypeSelectionControlAvailable: Bool) {
+        self.isContentTypeSelectionControlAvailable = isContentTypeSelectionControlAvailable
+
+        super.init(frame: .zero)
 
         preservesSuperviewLayoutMargins = true
 
         addLayoutGuide(controlButtonsLayoutGuide)
         addConstraints([ controlButtonsLayoutGuide.leadingAnchor.constraint(equalTo: layoutMarginsGuide.leadingAnchor),
+                         controlButtonsLayoutGuide.topAnchor.constraint(greaterThanOrEqualTo: topAnchor),
                          controlButtonsLayoutGuide.trailingAnchor.constraint(equalTo: layoutMarginsGuide.trailingAnchor) ])
 
         captureControl.translatesAutoresizingMaskIntoConstraints = false
@@ -1435,12 +1455,23 @@ class CameraBottomBar: UIView {
                          switchCameraButton.topAnchor.constraint(greaterThanOrEqualTo: controlButtonsLayoutGuide.topAnchor),
                          switchCameraButton.centerYAnchor.constraint(equalTo: controlButtonsLayoutGuide.centerYAnchor) ])
 
+        if isContentTypeSelectionControlAvailable {
+            contentTypeSelectionControl.translatesAutoresizingMaskIntoConstraints = false
+            addSubview(contentTypeSelectionControl)
+            addConstraints([ contentTypeSelectionControl.centerXAnchor.constraint(equalTo: layoutMarginsGuide.centerXAnchor) ])
+        }
+
         // Compact Height:
         // • control buttons are vertically centered with the shutter button.
         // • shutter button control takes entire view height.
         // With this layout owner of this view should be able to just define vertical position of the bar.
-        compactHeightLayoutConstraints.append(contentsOf: [ controlButtonsLayoutGuide.centerYAnchor.constraint(equalTo: captureControl.shutterButtonLayoutGuide.centerYAnchor),
-                                                            captureControl.bottomAnchor.constraint(equalTo: bottomAnchor) ])
+        compactHeightLayoutConstraints.append(contentsOf: [ captureControl.shutterButtonLayoutGuide.centerYAnchor.constraint(equalTo: controlButtonsLayoutGuide.centerYAnchor) ])
+        if isContentTypeSelectionControlAvailable {
+            compactHeightLayoutConstraints.append(contentsOf: [ contentTypeSelectionControl.topAnchor.constraint(equalTo: captureControl.bottomAnchor, constant: 8),
+                                                                contentTypeSelectionControl.bottomAnchor.constraint(equalTo: bottomAnchor) ])
+        } else {
+            compactHeightLayoutConstraints.append(captureControl.bottomAnchor.constraint(equalTo: bottomAnchor))
+        }
 
         // Regular Height:
         // • controls are located below the shutter button.
@@ -1449,6 +1480,9 @@ class CameraBottomBar: UIView {
         // to top and bottom anchors of controlButtonsLayoutGuide thus positioning buttons properly.
         regularHeightLayoutConstraints.append(contentsOf: [ controlButtonsLayoutGuide.topAnchor.constraint(greaterThanOrEqualTo: captureControl.bottomAnchor),
                                                             controlButtonsLayoutGuide.bottomAnchor.constraint(equalTo: bottomAnchor) ])
+        if isContentTypeSelectionControlAvailable {
+            regularHeightLayoutConstraints.append(contentTypeSelectionControl.centerYAnchor.constraint(equalTo: controlButtonsLayoutGuide.centerYAnchor))
+        }
 
         updateCompactHeightLayoutConstraints()
     }
@@ -1465,6 +1499,69 @@ class CameraBottomBar: UIView {
         } else {
             removeConstraints(compactHeightLayoutConstraints)
             addConstraints(regularHeightLayoutConstraints)
+        }
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+
+        if isContentTypeSelectionControlAvailable && UIAccessibility.isVoiceOverRunning {
+            DispatchQueue.main.async {
+                self.updateContentTypePickerAccessibilityFrame()
+            }
+        }
+    }
+
+    private func updateContentTypePickerAccessibilityFrame() {
+        guard isContentTypeSelectionControlAvailable else { return }
+
+        // Make accessibility frame slightly larger so that order of things on the screen is correct.
+
+        let pickerFrame = contentTypeSelectionControl.frame
+        let dx: CGFloat = 20 // +20 pts each side
+        let dy: CGFloat
+        if isCompactHeightLayout {
+            dy = 20 // +20 pts top and bottom
+        } else {
+            dy = 0.5 * max(0, controlButtonsLayoutGuide.layoutFrame.height - pickerFrame.height)
+        }
+        contentTypeSelectionControl.accessibilityFrame = UIAccessibility.convertToScreenCoordinates(pickerFrame.insetBy(dx: -dx, dy: -dy), in: self)
+    }
+
+    fileprivate class ContentTypeSelectionControl: UISegmentedControl {
+
+        static private let titleCamera = NSLocalizedString("STORY_COMPOSER_CAMERA", value: "Camera",
+                                                           comment: "One of two possible sources when composing a new story. Displayed at the bottom in in-app camera.")
+        static private let titleText = NSLocalizedString("STORY_COMPOSER_TEXT", value: "Text",
+                                                         comment: "One of two possible sources when composing a new story. Displayed at the bottom in in-app camera.")
+
+        init() {
+            super.init(frame: .zero)
+            super.insertSegment(withTitle: ContentTypeSelectionControl.titleText.uppercased(), at: 0, animated: false)
+            super.insertSegment(withTitle: ContentTypeSelectionControl.titleCamera.uppercased(), at: 0, animated: false)
+
+            backgroundColor = .clear
+
+            // Use a clear image for the background and the dividers
+            let tintColorImage = UIImage(color: .clear, size: CGSize(width: 1, height: 32))
+            setBackgroundImage(tintColorImage, for: .normal, barMetrics: .default)
+            setDividerImage(tintColorImage, forLeftSegmentState: .normal, rightSegmentState: .normal, barMetrics: .default)
+
+            let normalFont, selectedFont: UIFont
+            if #available(iOS 13, *) {
+                normalFont = UIFont.monospacedSystemFont(ofSize: 14, weight: .semibold)
+                selectedFont = UIFont.monospacedSystemFont(ofSize: 14, weight: .bold)
+            } else {
+                normalFont = UIFont.systemFont(ofSize: 14, weight: .semibold)
+                selectedFont = UIFont.systemFont(ofSize: 14, weight: .bold)
+            }
+
+            setTitleTextAttributes([ .font: normalFont, .foregroundColor: UIColor(white: 1, alpha: 0.7) ], for: .normal)
+            setTitleTextAttributes([ .font: selectedFont, .foregroundColor: UIColor.white ], for: .selected)
+        }
+
+        required init?(coder: NSCoder) {
+            fatalError("init(coder:) has not been implemented")
         }
     }
 }
@@ -1706,7 +1803,7 @@ extension MediaPickerThumbnailButton {
     override var accessibilityLabel: String? {
         get {
             NSLocalizedString("CAMERA_VO_PHOTO_LIBRARY_BUTTON",
-                          comment: "VoiceOver label for button to choose existing photo/video in in-app camera")
+                              comment: "VoiceOver label for button to choose existing photo/video in in-app camera")
         }
         set { super.accessibilityLabel = newValue }
     }
@@ -1780,5 +1877,41 @@ extension CameraZoomSelectionControl {
         // Decrement zoom by 0.1.
         currentZoomFactor = 0.1 * round(currentZoomFactor * 10 - 1)
         delegate?.cameraZoomControl(self, didChangeZoomFactor: currentZoomFactor)
+    }
+}
+
+extension CameraBottomBar.ContentTypeSelectionControl {
+
+    override var isAccessibilityElement: Bool {
+        get { true }
+        set { super.isAccessibilityElement = newValue }
+    }
+
+    override var accessibilityTraits: UIAccessibilityTraits {
+        get { .adjustable }
+        set { super.accessibilityTraits = newValue }
+    }
+
+    override var accessibilityLabel: String? {
+        get { NSLocalizedString("CAMERA_VO_COMPOSER_MODE", value: "Composer mode",
+                                comment: "VoiceOver label for composer mode (CAMERA|TEXT) selector at the bottom of in-app camera screen.") }
+        set { super.accessibilityLabel = newValue }
+    }
+
+    override var accessibilityValue: String? {
+        get { titleForSegment(at: selectedSegmentIndex) }
+        set { super.accessibilityValue = newValue }
+    }
+
+    override func accessibilityIncrement() {
+        if selectedSegmentIndex + 1 < numberOfSegments {
+            selectedSegmentIndex += 1
+        }
+    }
+
+    override func accessibilityDecrement() {
+        if selectedSegmentIndex > 0 {
+            selectedSegmentIndex -= 1
+        }
     }
 }

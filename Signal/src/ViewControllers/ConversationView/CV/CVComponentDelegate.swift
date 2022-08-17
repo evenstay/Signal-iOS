@@ -16,6 +16,8 @@ public protocol CVComponentDelegate {
 
     func cvc_enqueueReload()
 
+    func cvc_enqueueReloadWithoutCaches()
+
     // MARK: - Body Text Items
 
     func cvc_didTapBodyTextItem(_ item: CVBodyTextLabel.ItemObject)
@@ -175,6 +177,12 @@ public protocol CVComponentDelegate {
 
     func cvc_didTapShowConversationSettingsAndShowMemberRequests()
 
+    func cvc_didTapBlockRequest(
+        groupModel: TSGroupModelV2,
+        requesterName: String,
+        requesterUuid: UUID
+    )
+
     func cvc_didTapShowUpgradeAppUI()
 
     func cvc_didTapUpdateSystemContact(_ address: SignalServiceAddress,
@@ -217,6 +225,11 @@ struct CVMessageAction: Equatable {
         case cvc_didTapViewGroupDescription(groupModel: TSGroupModel?)
         case cvc_didTapGroupInviteLinkPromotion(groupModel: TSGroupModel)
         case cvc_didTapShowConversationSettingsAndShowMemberRequests
+        case cvc_didTapBlockRequest(
+            groupModel: TSGroupModelV2,
+            requesterName: String,
+            requesterUuid: UUID
+        )
         case cvc_didTapShowUpgradeAppUI
         case cvc_didTapUpdateSystemContact(address: SignalServiceAddress,
                                            newNameComponents: PersonNameComponents)
@@ -260,6 +273,12 @@ struct CVMessageAction: Equatable {
                 delegate.cvc_didTapGroupInviteLinkPromotion(groupModel: groupModel)
             case .cvc_didTapShowConversationSettingsAndShowMemberRequests:
                 delegate.cvc_didTapShowConversationSettingsAndShowMemberRequests()
+            case .cvc_didTapBlockRequest(let groupModel, let requesterName, let requesterUuid):
+                delegate.cvc_didTapBlockRequest(
+                    groupModel: groupModel,
+                    requesterName: requesterName,
+                    requesterUuid: requesterUuid
+                )
             case .cvc_didTapShowUpgradeAppUI:
                 delegate.cvc_didTapShowUpgradeAppUI()
             case .cvc_didTapUpdateSystemContact(let address, let newNameComponents):

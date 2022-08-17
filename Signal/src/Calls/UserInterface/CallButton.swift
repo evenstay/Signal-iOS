@@ -99,17 +99,24 @@ class CallButton: UIButton {
 
         updateAppearance()
         updateSizing()
-        updateOrientation()
 
-        UIDevice.current.beginGeneratingDeviceOrientationNotifications()
-        NotificationCenter.default.addObserver(self,
-                                               selector: #selector(updateOrientation),
-                                               name: UIDevice.orientationDidChangeNotification,
-                                               object: nil)
+        // We don't support a rotating call screen on phones,
+        // but we do still want to rotate call button icons.
+        if !UIDevice.current.isIPad {
+            updateOrientationForPhone()
+
+            UIDevice.current.beginGeneratingDeviceOrientationNotifications()
+            NotificationCenter.default.addObserver(self,
+                                                   selector: #selector(updateOrientationForPhone),
+                                                   name: UIDevice.orientationDidChangeNotification,
+                                                   object: nil)
+        }
     }
 
     deinit {
-        UIDevice.current.endGeneratingDeviceOrientationNotifications()
+        if !UIDevice.current.isIPad {
+            UIDevice.current.endGeneratingDeviceOrientationNotifications()
+        }
     }
 
     private func updateAppearance() {
@@ -160,13 +167,13 @@ class CallButton: UIButton {
     }
 
     @objc
-    private func updateOrientation() {
+    private func updateOrientationForPhone() {
         let rotationAngle: CGFloat
         switch UIDevice.current.orientation {
         case .landscapeLeft:
-            rotationAngle = .pi / 2
+            rotationAngle = .halfPi
         case .landscapeRight:
-            rotationAngle = -.pi / 2
+            rotationAngle = -.halfPi
         case .portrait, .portraitUpsideDown, .faceDown, .faceUp, .unknown:
             fallthrough
         @unknown default:

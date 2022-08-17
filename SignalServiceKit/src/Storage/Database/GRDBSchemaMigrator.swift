@@ -167,6 +167,9 @@ public class GRDBSchemaMigrator: NSObject {
         case addColumnsForSendGiftBadgeDurableJob
         case addDonationReceiptTypeColumn
         case addAudioPlaybackRateColumn
+        case addSchemaVersionToAttachments
+        case makeAudioPlaybackRateColumnNonNull
+        case addLastViewedStoryTimestampToTSThread
 
         // NOTE: Every time we add a migration id, consider
         // incrementing grdbSchemaVersionLatest.
@@ -216,7 +219,7 @@ public class GRDBSchemaMigrator: NSObject {
     }
 
     public static let grdbSchemaVersionDefault: UInt = 0
-    public static let grdbSchemaVersionLatest: UInt = 39
+    public static let grdbSchemaVersionLatest: UInt = 41
 
     // An optimization for new users, we have the first migration import the latest schema
     // and mark any other migrations as "already run".
@@ -1841,6 +1844,40 @@ public class GRDBSchemaMigrator: NSObject {
             do {
                 try db.alter(table: "thread_associated_data") { table in
                     table.add(column: "audioPlaybackRate", .double)
+                }
+            } catch {
+                owsFail("Error: \(error)")
+            }
+        }
+
+        migrator.registerMigration(.addSchemaVersionToAttachments) { db in
+            do {
+                try db.alter(table: "model_TSAttachment") { table in
+                    table.add(column: "attachmentSchemaVersion", .integer).defaults(to: 0)
+                }
+            } catch {
+                owsFail("Error: \(error)")
+            }
+        }
+
+        migrator.registerMigration(.makeAudioPlaybackRateColumnNonNull) { db in
+            do {
+                // Up until when this is merged, there has been no way for users
+                // to actually set an audio playback rate, so its okay to drop the column
+                // just to reset the schema constraints to non-null.
+                try db.alter(table: "thread_associated_data") { table in
+                    table.drop(column: "audioPlaybackRate")
+                    table.add(column: "audioPlaybackRate", .double).notNull().defaults(to: 1)
+                }
+            } catch {
+                owsFail("Error: \(error)")
+            }
+        }
+
+        migrator.registerMigration(.addLastViewedStoryTimestampToTSThread) { db in
+            do {
+                try db.alter(table: "model_TSThread") { table in
+                    table.add(column: "lastViewedStoryTimestamp", .integer)
                 }
             } catch {
                 owsFail("Error: \(error)")
