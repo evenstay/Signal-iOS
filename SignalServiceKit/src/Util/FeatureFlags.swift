@@ -86,10 +86,12 @@ public class FeatureFlags: BaseFlags {
     public static let deprecateREST = false
 
     @objc
-    public static let groupRings = false
-
-    @objc
     public static let stories = build.includes(.qa)
+
+    /// iOS onboarding assets are not in s3; creating this to unblock landing code
+    /// and can remove after assets are added and flow is fully tested.
+    @objc
+    public static let systemOnboardingStory = build.includes(.dev)
 
     @objc
     public static let canUseNativeWebsocket = true
@@ -121,7 +123,7 @@ public class FeatureFlags: BaseFlags {
         }
 
         let flagMap = allFlags()
-        for key in Array(flagMap.keys).sorted() {
+        for key in flagMap.keys.sorted() {
             let value = flagMap[key]
             logFlag("FeatureFlag", key, value)
         }

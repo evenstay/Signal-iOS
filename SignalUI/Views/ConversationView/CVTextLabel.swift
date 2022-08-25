@@ -6,7 +6,7 @@ import Foundation
 import UIKit
 
 @objc
-public class CVBodyTextLabel: NSObject {
+public class CVTextLabel: NSObject {
 
     public struct DataItem: Equatable {
         public enum DataType: UInt, Equatable, CustomStringConvertible {
@@ -78,20 +78,6 @@ public class CVBodyTextLabel: NSObject {
         }
     }
 
-    // MARK: -
-
-    // TODO: This class is temporary until CVC's conformance to CVComponentDelegate
-    //       is pure Swift.
-    @objc(CVBodyTextLabelItemObject)
-    public class ItemObject: NSObject {
-        public let item: Item
-
-        public init(item: Item) {
-            self.item = item
-
-            super.init()
-        }
-    }
     // MARK: -
 
     public struct Config {
@@ -213,16 +199,10 @@ public class CVBodyTextLabel: NSObject {
         }
     }
 
-    // MARK: - Animation
-
-    public func animate(selectedItem: Item) {
-        label.animate(selectedItem: selectedItem)
-    }
-
     // MARK: - Gestures
 
-    public func itemForGesture(sender: UIGestureRecognizer) -> Item? {
-        label.itemForGesture(sender: sender)
+    public func itemForGesture(sender: UIGestureRecognizer, animated: Bool = true) -> Item? {
+        label.itemForGesture(sender: sender, animated: animated)
     }
 
     // MARK: -
@@ -398,7 +378,7 @@ public class CVBodyTextLabel: NSObject {
 
         // MARK: - Gestures
 
-        public func itemForGesture(sender: UIGestureRecognizer) -> Item? {
+        public func itemForGesture(sender: UIGestureRecognizer, animated: Bool) -> Item? {
             AssertIsOnMainThread()
 
             let location = sender.location(in: self)
@@ -406,7 +386,9 @@ public class CVBodyTextLabel: NSObject {
                 return nil
             }
 
-            animate(selectedItem: selectedItem)
+            if animated {
+                animate(selectedItem: selectedItem)
+            }
 
             return selectedItem
         }
@@ -423,7 +405,7 @@ public class CVBodyTextLabel: NSObject {
 
 // MARK: -
 
-extension CVBodyTextLabel.Label: UIDragInteractionDelegate {
+extension CVTextLabel.Label: UIDragInteractionDelegate {
     public func dragInteraction(_ interaction: UIDragInteraction,
                                 itemsForBeginning session: UIDragSession) -> [UIDragItem] {
         guard nil != self.config else {

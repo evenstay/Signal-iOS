@@ -9,8 +9,8 @@ import LibSignalClient
 @objc
 public class GroupsV2Impl: NSObject, GroupsV2Swift, GroupsV2 {
 
-    private var urlSession: OWSURLSession {
-        return OWSSignalService.shared().urlSessionForStorageService()
+    private var urlSession: OWSURLSessionProtocol {
+        return self.signalService.urlSessionForStorageService()
     }
 
     public typealias ProfileKeyCredentialMap = [UUID: ProfileKeyCredential]

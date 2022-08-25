@@ -7,6 +7,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+@class OWSOutgoingSyncMessage;
 @class SignalServiceAddress;
 
 typedef NS_ENUM(NSInteger, TSOutgoingMessageState) {
@@ -33,8 +34,9 @@ typedef NS_CLOSED_ENUM(NSInteger, OWSOutgoingMessageRecipientState) {
     OWSOutgoingMessageRecipientStateFailed = 0,
     // Message is being sent to the recipient (enqueued, uploading or sending).
     OWSOutgoingMessageRecipientStateSending,
-    // The message was not sent because the recipient is not valid.
-    // For example, this recipient may have left the group.
+    // The message was not sent because the recipient is not valid
+    // or already has received the message via another channel.
+    // For example, this recipient may have left the group
     OWSOutgoingMessageRecipientStateSkipped,
     // The message has been sent to the service.  It may also have been delivered or read.
     OWSOutgoingMessageRecipientStateSent,
@@ -206,6 +208,8 @@ NS_DESIGNATED_INITIALIZER NS_SWIFT_NAME(init(grdbId:uniqueId:receivedAtTimestamp
 
 @property (nonatomic, readonly) BOOL isOnline;
 
+@property (nonatomic, readonly) BOOL isUrgent;
+
 // NOTE: We do not persist this property; it is only used for
 //       group updates which we don't insert into the database.
 @property (nonatomic, readonly, nullable) NSData *changeActionsProtoData;
@@ -236,6 +240,10 @@ NS_DESIGNATED_INITIALIZER NS_SWIFT_NAME(init(grdbId:uniqueId:receivedAtTimestamp
  * (so we don't end up in an infinite loop).
  */
 - (BOOL)shouldSyncTranscript;
+
+- (nullable OWSOutgoingSyncMessage *)buildTranscriptSyncMessageWithLocalThread:(TSThread *)localThread
+                                                                   transaction:(SDSAnyWriteTransaction *)transaction
+    NS_SWIFT_NAME(buildTranscriptSyncMessage(localThread:transaction:));
 
 // All recipients of this message.
 - (NSArray<SignalServiceAddress *> *)recipientAddresses;

@@ -25,13 +25,13 @@ extension ConversationViewController: CVComponentDelegate {
 
     // MARK: - Body Text Items
 
-    public func cvc_didTapBodyTextItem(_ item: CVBodyTextLabel.ItemObject) {
+    public func cvc_didTapBodyTextItem(_ item: CVTextLabel.Item) {
         AssertIsOnMainThread()
 
         didTapBodyTextItem(item)
     }
 
-    public func cvc_didLongPressBodyTextItem(_ item: CVBodyTextLabel.ItemObject) {
+    public func cvc_didLongPressBodyTextItem(_ item: CVTextLabel.Item) {
         didLongPressBodyTextItem(item)
     }
 
@@ -123,11 +123,8 @@ extension ConversationViewController: CVComponentDelegate {
             owsFailDebug("not an incoming message.")
             return
         }
-        let groupViewHelper = GroupViewHelper(threadViewModel: threadViewModel)
-        groupViewHelper.delegate = self
-        let actionSheet = MemberActionSheet(address: incomingMessage.authorAddress,
-                                            groupViewHelper: groupViewHelper)
-        actionSheet.present(from: self)
+
+        showMemberActionSheet(forAddress: incomingMessage.authorAddress, withHapticFeedback: false)
     }
 
     public func cvc_shouldAllowReplyForItem(_ itemViewModel: CVItemViewModelImpl) -> Bool {

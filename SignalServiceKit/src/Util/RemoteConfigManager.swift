@@ -227,6 +227,30 @@ public class RemoteConfig: BaseFlags {
         }
     }
 
+    public static var groupRings: Bool {
+        DebugFlags.internalSettings || isEnabled(.groupRings)
+    }
+
+    public static var maxGroupCallRingSize: UInt {
+        let defaultValue: UInt = 16
+        guard AppReadiness.isAppReady else {
+            owsFailDebug("Storage is not yet ready.")
+            return defaultValue
+        }
+        guard let rawValue: AnyObject = value(.maxGroupCallRingSize) else {
+            return defaultValue
+        }
+        guard let stringValue = rawValue as? String else {
+            owsFailDebug("Unexpected value.")
+            return defaultValue
+        }
+        guard let uintValue = UInt(stringValue) else {
+            owsFailDebug("Invalid value.")
+            return defaultValue
+        }
+        return uintValue
+    }
+
     // MARK: -
 
     private static func interval(
@@ -373,7 +397,7 @@ public class RemoteConfig: BaseFlags {
         }
 
         let flagMap = allFlags()
-        for key in Array(flagMap.keys).sorted() {
+        for key in flagMap.keys.sorted() {
             let value = flagMap[key]
             logFlag("Flag", key, value)
         }
@@ -418,6 +442,7 @@ private struct Flags {
         case canReceiveGiftBadges
         case canSendGiftBadgesInPrerelease
         case canSendGiftBadgesInProduction
+        case groupRings
     }
 
     // Values defined in this array remain set once they are
@@ -438,6 +463,7 @@ private struct Flags {
         case paymentsDisabledRegions
         case donationMegaphone
         case donationMegaphoneSnoozeInterval
+        case maxGroupCallRingSize
     }
 
     // We filter the received config down to just the supported values.
@@ -457,6 +483,7 @@ private struct Flags {
         case paymentsDisabledRegions
         case donationMegaphone
         case donationMegaphoneSnoozeInterval
+        case maxGroupCallRingSize
     }
 }
 
@@ -477,6 +504,7 @@ private extension FlagType {
         case "groupsV2MaxGroupSizeHardLimit": return "global.groupsv2.groupSizeHardLimit"
         case "cdsSyncInterval": return "cds.syncInterval.seconds"
         case "paymentsDisabledRegions": return "global.payments.disabledRegions"
+        case "maxGroupCallRingSize": return "global.calling.maxGroupCallRingSize"
         default: return Flags.prefix + rawValue
         }
     }

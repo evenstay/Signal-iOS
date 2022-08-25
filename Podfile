@@ -50,7 +50,7 @@ pod 'libPhoneNumber-iOS', git: 'https://github.com/signalapp/libPhoneNumber-iOS'
 
 pod 'YYImage', git: 'https://github.com/signalapp/YYImage', :inhibit_warnings => true
 pod 'YYImage/libwebp', git: 'https://github.com/signalapp/YYImage', :inhibit_warnings => true
-pod 'libwebp', podspec: './ThirdParty/libwebp.podspec.json'
+pod 'libwebp'
 # pod 'YYImage', path: '../YYImage'
 # pod 'YYImage/libwebp', path:'../YYImage'
 
@@ -68,8 +68,8 @@ def ui_pods
   pod 'Starscream', git: 'https://github.com/signalapp/Starscream.git', branch: 'signal-release'
   # pod 'Starscream', path: '../Starscream'
 
-  pod 'LibMobileCoin/CoreHTTP', git: 'https://github.com/signalapp/libmobilecoin-ios-artifacts.git', branch: 'signal/1.2.0-pre10'
-  pod 'MobileCoin/CoreHTTP', git: 'https://github.com/mobilecoinofficial/MobileCoin-Swift.git', :tag => 'v1.2.0-pre10'
+  pod 'LibMobileCoin/CoreHTTP', git: 'https://github.com/signalapp/libmobilecoin-ios-artifacts.git', branch: 'signal/1.2.2'
+  pod 'MobileCoin/CoreHTTP', git: 'https://github.com/mobilecoinofficial/MobileCoin-Swift.git', :tag => 'v1.2.2'
 end
 
 target 'Signal' do

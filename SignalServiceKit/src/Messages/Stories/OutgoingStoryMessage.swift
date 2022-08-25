@@ -11,11 +11,20 @@ public class OutgoingStoryMessage: TSOutgoingMessage {
     public private(set) var storyAllowsReplies: NSNumber!
     @objc
     public private(set) var isPrivateStorySend: NSNumber!
+    @objc
+    public private(set) var skipSyncTranscript: NSNumber!
 
-    public init(thread: TSThread, storyMessage: StoryMessage, transaction: SDSAnyReadTransaction) {
+    @objc
+    public init(
+        thread: TSThread,
+        storyMessage: StoryMessage,
+        skipSyncTranscript: Bool = false,
+        transaction: SDSAnyReadTransaction
+    ) {
         self.storyMessageId = storyMessage.uniqueId
         self.storyAllowsReplies = NSNumber(value: (thread as? TSPrivateStoryThread)?.allowsReplies ?? true)
         self.isPrivateStorySend = NSNumber(value: thread is TSPrivateStoryThread)
+        self.skipSyncTranscript = NSNumber(value: skipSyncTranscript)
         let builder = TSOutgoingMessageBuilder(thread: thread)
         builder.timestamp = storyMessage.timestamp
         super.init(outgoingMessageWithBuilder: builder, transaction: transaction)
@@ -29,18 +38,42 @@ public class OutgoingStoryMessage: TSOutgoingMessage {
         try super.init(dictionary: dictionaryValue)
     }
 
+    @objc
+    public override var isUrgent: Bool { false }
+
+    public override func shouldSyncTranscript() -> Bool { !skipSyncTranscript.boolValue }
+
+    public override func buildTranscriptSyncMessage(
+        localThread: TSThread,
+        transaction: SDSAnyWriteTransaction
+    ) -> OWSOutgoingSyncMessage? {
+        guard let storyMessage = StoryMessage.anyFetch(uniqueId: storyMessageId, transaction: transaction) else {
+            owsFailDebug("Missing story message")
+            return nil
+        }
+
+        return OutgoingStorySentMessageTranscript(
+            localThread: localThread,
+            storyMessage: storyMessage,
+            transaction: transaction
+        )
+    }
+
     public class func createUnsentMessage(
         attachment: TSAttachmentStream,
         thread: TSThread,
         transaction: SDSAnyWriteTransaction
-    ) -> OutgoingStoryMessage {
+    ) throws -> OutgoingStoryMessage {
         let storyManifest: StoryManifest = .outgoing(
-            recipientStates: thread.recipientAddresses(with: transaction)
+            recipientStates: try thread.recipientAddresses(with: transaction)
                 .lazy
                 .compactMap { $0.uuid }
                 .dictionaryMappingToValues { _ in
                     if let privateStoryThread = thread as? TSPrivateStoryThread {
-                        return .init(allowsReplies: privateStoryThread.allowsReplies, contexts: [privateStoryThread.uniqueId])
+                        guard let threadUuid = UUID(uuidString: privateStoryThread.uniqueId) else {
+                            throw OWSAssertionError("Invalid uniqueId for thread \(privateStoryThread.uniqueId)")
+                        }
+                        return .init(allowsReplies: privateStoryThread.allowsReplies, contexts: [threadUuid])
                     } else {
                         return .init(allowsReplies: true, contexts: [])
                     }
@@ -70,6 +103,10 @@ public class OutgoingStoryMessage: TSOutgoingMessage {
             throw OWSAssertionError("Only private stories should share an existing story message context")
         }
 
+        guard let threadUuid = UUID(uuidString: privateStoryThread.uniqueId) else {
+            throw OWSAssertionError("Invalid uniqueId for thread \(privateStoryThread.uniqueId)")
+        }
+
         guard let storyMessage = StoryMessage.anyFetch(uniqueId: storyMessageId, transaction: transaction),
                 case .outgoing(var recipientStates) = storyMessage.manifest else {
             throw OWSAssertionError("Missing existing story message")
@@ -80,11 +117,11 @@ public class OutgoingStoryMessage: TSOutgoingMessage {
         for address in recipientAddresses {
             guard let uuid = address.uuid else { continue }
             if var recipient = recipientStates[uuid] {
-                recipient.contexts.append(privateStoryThread.uniqueId)
+                recipient.contexts.append(threadUuid)
                 recipient.allowsReplies = recipient.allowsReplies || privateStoryThread.allowsReplies
                 recipientStates[uuid] = recipient
             } else {
-                recipientStates[uuid] = .init(allowsReplies: privateStoryThread.allowsReplies, contexts: [privateStoryThread.uniqueId])
+                recipientStates[uuid] = .init(allowsReplies: privateStoryThread.allowsReplies, contexts: [threadUuid])
             }
         }
 
@@ -92,7 +129,15 @@ public class OutgoingStoryMessage: TSOutgoingMessage {
 
         privateStoryThread.updateWithLastSentStoryTimestamp(NSNumber(value: storyMessage.timestamp), transaction: transaction)
 
-        let outgoingMessage = OutgoingStoryMessage(thread: privateStoryThread, storyMessage: storyMessage, transaction: transaction)
+        // We skip the sync transcript for this message, since it's for
+        // an already existing StoryMessage that has been sync'd to our
+        // linked devices by another message.
+        let outgoingMessage = OutgoingStoryMessage(
+            thread: privateStoryThread,
+            storyMessage: storyMessage,
+            skipSyncTranscript: true,
+            transaction: transaction
+        )
         return outgoingMessage
     }
 

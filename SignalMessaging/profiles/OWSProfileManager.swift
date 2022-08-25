@@ -374,8 +374,8 @@ extension OWSProfileManager {
 
 extension OWSProfileManager {
 
-    private class var avatarUrlSession: OWSURLSession {
-        return OWSSignalService.shared().urlSessionForCdn(cdnNumber: 0)
+    private class var avatarUrlSession: OWSURLSessionProtocol {
+        return self.signalService.urlSessionForCdn(cdnNumber: 0)
     }
     @objc
     static let settingsStore = SDSKeyValueStore(collection: "kOWSProfileManager_SettingsStore")

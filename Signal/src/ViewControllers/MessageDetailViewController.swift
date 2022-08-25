@@ -637,7 +637,7 @@ extension MessageDetailViewController {
             "MESSAGE_DETAIL_VIEW_DID_COPY_SENT_TIMESTAMP",
             comment: "Toast indicating that the user has copied the sent timestamp."
         ))
-        toast.presentToastView(fromBottomOfView: view, inset: view.safeAreaInsets.bottom + 8)
+        toast.presentToastView(from: .bottom, of: view, inset: view.safeAreaInsets.bottom + 8)
     }
 }
 
@@ -929,9 +929,9 @@ extension MessageDetailViewController: CVComponentDelegate {
 
     // MARK: - Body Text Items
 
-    func cvc_didTapBodyTextItem(_ item: CVBodyTextLabel.ItemObject) {}
+    func cvc_didTapBodyTextItem(_ item: CVTextLabel.Item) {}
 
-    func cvc_didLongPressBodyTextItem(_ item: CVBodyTextLabel.ItemObject) {}
+    func cvc_didLongPressBodyTextItem(_ item: CVTextLabel.Item) {}
 
     // MARK: - Long Press
 
@@ -1000,9 +1000,11 @@ extension MessageDetailViewController: CVComponentDelegate {
 
     // MARK: - Messages
 
-    func cvc_didTapBodyMedia(itemViewModel: CVItemViewModelImpl,
-                         attachmentStream: TSAttachmentStream,
-                         imageView: UIView) {
+    func cvc_didTapBodyMedia(
+        itemViewModel: CVItemViewModelImpl,
+        attachmentStream: TSAttachmentStream,
+        imageView: UIView
+    ) {
         guard let thread = thread else {
             owsFailDebug("Missing thread.")
             return
