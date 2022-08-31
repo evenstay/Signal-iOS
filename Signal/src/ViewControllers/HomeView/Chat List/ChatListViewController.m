@@ -709,7 +709,7 @@ NSString *const kArchiveButtonPseudoGroup = @"kArchiveButtonPseudoGroup";
     self.isViewVisible = YES;
 
     // Ensure the tabBar is always hidden if stories is disabled or we're in the archive.
-    BOOL shouldHideTabBar = !SSKFeatureFlags.stories || self.chatListMode == ChatListModeArchive;
+    BOOL shouldHideTabBar = !RemoteConfig.stories || self.chatListMode == ChatListModeArchive;
     if (shouldHideTabBar) {
         self.tabBarController.tabBar.hidden = YES;
         self.extendedLayoutIncludesOpaqueBars = YES;
@@ -879,11 +879,6 @@ NSString *const kArchiveButtonPseudoGroup = @"kArchiveButtonPseudoGroup";
 }
 
 #pragma mark - HomeFeedTableViewCellDelegate
-
-- (BOOL)isThreadPinned:(ThreadViewModel *)threadViewModel
-{
-    return [PinnedThreadManager isThreadPinned:threadViewModel.threadRecord];
-}
 
 - (void)presentThread:(TSThread *)thread action:(ConversationViewAction)action animated:(BOOL)isAnimated
 {

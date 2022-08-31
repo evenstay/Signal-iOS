@@ -29,7 +29,7 @@ public class StoryManager: NSObject {
         transaction: SDSAnyWriteTransaction
     ) throws {
         // Drop all story messages until the feature is enabled.
-        guard FeatureFlags.stories else { return }
+        guard RemoteConfig.stories else { return }
 
         guard StoryFinder.story(
             timestamp: timestamp,
@@ -72,7 +72,7 @@ public class StoryManager: NSObject {
         transaction: SDSAnyWriteTransaction
     ) throws {
         // Drop all story messages until the feature is enabled.
-        guard FeatureFlags.stories else { return }
+        guard RemoteConfig.stories else { return }
 
         let existingStory = StoryFinder.story(
             timestamp: proto.timestamp,
@@ -111,6 +111,10 @@ public class StoryManager: NSObject {
     public class func deleteExpiredStories(transaction: SDSAnyWriteTransaction) -> UInt {
         var removedCount: UInt = 0
         StoryFinder.enumerateExpiredStories(transaction: transaction) { message, _ in
+            guard !message.authorAddress.isSystemStoryAddress else {
+                // We do not auto-expire system stories, they remain until viewed.
+                return
+            }
             Logger.info("Removing StoryMessage \(message.timestamp) which expired at: \(message.timestamp + storyLifetimeMillis)")
             message.anyRemove(transaction: transaction)
             removedCount += 1
@@ -221,7 +225,7 @@ public extension StoryContext {
             )
         case .authorUuid(let uuid):
             return TSContactThread.getWithContactAddress(
-                SignalServiceAddress(uuid: uuid),
+                uuid.asSignalServiceAddress(),
                 transaction: transaction
             )?.uniqueId
         case .privateStory(let uniqueId):

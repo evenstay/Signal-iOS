@@ -28,9 +28,12 @@ public final class StoryMessage: NSObject, SDSCodableModel {
     public let uniqueId: String
     @objc
     public let timestamp: UInt64
+
     public let authorUuid: UUID
+
     @objc
-    public var authorAddress: SignalServiceAddress { SignalServiceAddress(uuid: authorUuid) }
+    public var authorAddress: SignalServiceAddress { authorUuid.asSignalServiceAddress() }
+
     public let groupId: Data?
 
     public enum Direction: Int, Codable { case incoming = 0, outgoing = 1 }
@@ -217,6 +220,41 @@ public final class StoryMessage: NSObject, SDSCodableModel {
         return record
     }
 
+    // The "Signal account" used for e.g. the onboarding story has a fixed UUID
+    // we can use to prevent trying to actually reply, send a message, etc.
+    public static let systemStoryAuthorUUID = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
+
+    @discardableResult
+    public static func createFromSystemAuthor(
+        attachment: TSAttachment,
+        timestamp: UInt64,
+        transaction: SDSAnyWriteTransaction
+    ) throws -> StoryMessage {
+        Logger.info("Processing StoryMessage for system author")
+
+        let manifest = StoryManifest.incoming(
+            receivedState: StoryReceivedState(allowsReplies: false, viewedTimestamp: nil)
+        )
+
+        attachment.anyInsert(transaction: transaction)
+        let attachment: StoryMessageAttachment = .file(attachmentId: attachment.uniqueId)
+
+        let record = StoryMessage(
+            // NOTE: As of now these only get created for the onboarding story, and that happens
+            // when you first launch the app. That's probably okay, but if we need something more
+            // sophisticated for future stories this is where we'd change it, maybe make this
+            // a null timestamp and interpret that different when we read it back out.
+            timestamp: timestamp,
+            authorUuid: Self.systemStoryAuthorUUID,
+            groupId: nil,
+            manifest: manifest,
+            attachment: attachment
+        )
+        record.anyInsert(transaction: transaction)
+
+        return record
+    }
+
     // MARK: -
 
     @objc
@@ -228,11 +266,21 @@ public final class StoryMessage: NSObject, SDSCodableModel {
             record.manifest = .incoming(receivedState: .init(allowsReplies: receivedState.allowsReplies, viewedTimestamp: timestamp))
         }
 
-        // Record on the context when the local user last viewed the story for this context
-        if let thread = context.thread(transaction: transaction) {
-            thread.updateWithLastViewedStoryTimestamp(NSNumber(value: timestamp), transaction: transaction)
-        } else {
-            owsFailDebug("Missing thread for story context \(context)")
+        // Don't perform thread operations, make downloads, or send receipts for system stories.
+        guard !authorAddress.isSystemStoryAddress else {
+            return
+        }
+
+        switch context {
+        case .groupId, .authorUuid, .privateStory:
+            // Record on the context when the local user last viewed the story for this context
+            if let thread = context.thread(transaction: transaction) {
+                thread.updateWithLastViewedStoryTimestamp(NSNumber(value: timestamp), transaction: transaction)
+            } else {
+                owsFailDebug("Missing thread for story context \(context)")
+            }
+        case .none:
+            owsFailDebug("Viewing invalid story context")
         }
 
         // If we viewed this story (perhaps from a linked device), we should always make sure it's downloaded if it's not already.
@@ -520,6 +568,11 @@ public struct TextAttachment: Codable {
         case color(UIColor)
         case gradient(Gradient)
         public struct Gradient {
+            public init(startColor: UIColor, endColor: UIColor, angle: UInt32) {
+                self.startColor = startColor
+                self.endColor = endColor
+                self.angle = angle
+            }
             public let startColor: UIColor
             public let endColor: UIColor
             public let angle: UInt32
@@ -587,5 +640,12 @@ public struct TextAttachment: Codable {
         if let preview = proto.preview {
             self.preview = try OWSLinkPreview.buildValidatedLinkPreview(proto: preview, transaction: transaction)
         }
+    }
+}
+
+extension SignalServiceAddress {
+
+    public var isSystemStoryAddress: Bool {
+        return self.uuid == StoryMessage.systemStoryAuthorUUID
     }
 }

@@ -810,9 +810,18 @@ public class GroupManager: NSObject {
 
     // MARK: - Accept Invites
 
-    public static func localAcceptInviteToGroupV2(groupModel: TSGroupModelV2) -> Promise<TSGroupThread> {
-        return firstly { () -> Promise<Void> in
-            return self.databaseStorage.write(.promise) { transaction in
+    public static func localAcceptInviteToGroupV2(
+        groupModel: TSGroupModelV2,
+        waitForMessageProcessing: Bool = false
+    ) -> Promise<TSGroupThread> {
+        firstly { () -> Promise<Void> in
+            if waitForMessageProcessing {
+                return GroupManager.messageProcessingPromise(for: groupModel, description: "Accept invite")
+            }
+
+            return Promise.value(())
+        }.then { () -> Promise<Void> in
+            self.databaseStorage.write(.promise) { transaction in
                 self.profileManager.addGroupId(toProfileWhitelist: groupModel.groupId,
                                                userProfileWriter: .localUser,
                                                transaction: transaction)
@@ -821,6 +830,7 @@ public class GroupManager: NSObject {
             guard let localUuid = tsAccountManager.localUuid else {
                 throw OWSAssertionError("Missing localUuid.")
             }
+
             return updateGroupV2(groupModel: groupModel,
                                  description: "Accept invite") { groupChangeSet in
                 groupChangeSet.promoteInvitedMember(localUuid)
@@ -830,70 +840,86 @@ public class GroupManager: NSObject {
 
     // MARK: - Leave Group / Decline Invite
 
-    public static func localLeaveGroupOrDeclineInvite(groupThread: TSGroupThread,
-                                                      replacementAdminUuid: UUID? = nil) -> Promise<TSGroupThread> {
-        guard let groupModel = groupThread.groupModel as? TSGroupModelV2 else {
+    public static func localLeaveGroupOrDeclineInvite(
+        groupThread: TSGroupThread,
+        replacementAdminUuid: UUID? = nil,
+        waitForMessageProcessing: Bool = false,
+        transaction: SDSAnyWriteTransaction
+    ) -> Promise<TSGroupThread> {
+        guard groupThread.isGroupV2Thread else {
             assert(replacementAdminUuid == nil)
-            return localLeaveGroupV1(groupId: groupThread.groupModel.groupId)
+            do {
+                return Promise.value(try localLeaveGroupV1(
+                    groupId: groupThread.groupId,
+                    transaction: transaction
+                ))
+            } catch let error {
+                return Promise(error: error)
+            }
         }
-        return localLeaveGroupV2OrDeclineInvite(groupModel: groupModel,
-                                                replacementAdminUuid: replacementAdminUuid)
+
+        return localLeaveGroupV2OrDeclineInvite(
+            groupThreadId: groupThread.uniqueId,
+            replacementAdminUuid: replacementAdminUuid,
+            waitForMessageProcessing: waitForMessageProcessing,
+            transaction: transaction
+        )
     }
 
-    private static func localLeaveGroupV1(groupId: Data) -> Promise<TSGroupThread> {
+    private static func localLeaveGroupV1(groupId: Data, transaction: SDSAnyWriteTransaction) throws -> TSGroupThread {
         guard let localAddress = self.tsAccountManager.localAddress else {
-            return Promise(error: OWSAssertionError("Missing localAddress."))
+            throw OWSAssertionError("Missing localAddress.")
         }
-        return databaseStorage.write(.promise) { transaction in
-            guard let groupThread = TSGroupThread.fetch(groupId: groupId, transaction: transaction) else {
-                throw OWSAssertionError("Missing group.")
-            }
-            let oldGroupModel = groupThread.groupModel
-            // Note that we consult allUsers which includes pending members.
-            guard oldGroupModel.groupMembership.isMemberOfAnyKind(localAddress) else {
-                throw OWSAssertionError("Local user is not a member of the group.")
-            }
 
-            sendGroupQuitMessage(inThread: groupThread, transaction: transaction)
-
-            let hasMessages = groupThread.numberOfInteractions(transaction: transaction) > 0
-            let infoMessagePolicy: InfoMessagePolicy = hasMessages ? .always : .never
-
-            var groupMembershipBuilder = oldGroupModel.groupMembership.asBuilder
-            groupMembershipBuilder.remove(localAddress)
-            let newGroupMembership = groupMembershipBuilder.build()
-
-            var builder = oldGroupModel.asBuilder
-            builder.groupMembership = newGroupMembership
-            var newGroupModel = try builder.build()
-
-            // We're leaving, so clear out who added us. If we're re-added it may change.
-            if newGroupModel.groupsVersion == .V1 {
-                newGroupModel = Self.setAddedByAddress(groupModel: newGroupModel,
-                                                       addedByAddress: nil)
-            }
-
-            let groupUpdateSourceAddress = localAddress
-            let result = try self.updateExistingGroupThreadInDatabaseAndCreateInfoMessage(newGroupModel: newGroupModel,
-                                                                                          newDisappearingMessageToken: nil,
-                                                                                          groupUpdateSourceAddress: groupUpdateSourceAddress,
-                                                                                          infoMessagePolicy: infoMessagePolicy,
-                                                                                          transaction: transaction)
-            return result.groupThread
+        guard let groupThread = TSGroupThread.fetch(groupId: groupId, transaction: transaction) else {
+            throw OWSAssertionError("Missing group.")
         }
+        let oldGroupModel = groupThread.groupModel
+        // Note that we consult allUsers which includes pending members.
+        guard oldGroupModel.groupMembership.isMemberOfAnyKind(localAddress) else {
+            throw OWSAssertionError("Local user is not a member of the group.")
+        }
+
+        sendGroupQuitMessage(inThread: groupThread, transaction: transaction)
+
+        let hasMessages = groupThread.numberOfInteractions(transaction: transaction) > 0
+        let infoMessagePolicy: InfoMessagePolicy = hasMessages ? .always : .never
+
+        var groupMembershipBuilder = oldGroupModel.groupMembership.asBuilder
+        groupMembershipBuilder.remove(localAddress)
+        let newGroupMembership = groupMembershipBuilder.build()
+
+        var builder = oldGroupModel.asBuilder
+        builder.groupMembership = newGroupMembership
+        var newGroupModel = try builder.build()
+
+        // We're leaving, so clear out who added us. If we're re-added it may change.
+        if newGroupModel.groupsVersion == .V1 {
+            newGroupModel = Self.setAddedByAddress(groupModel: newGroupModel,
+                                                   addedByAddress: nil)
+        }
+
+        let groupUpdateSourceAddress = localAddress
+        let result = try self.updateExistingGroupThreadInDatabaseAndCreateInfoMessage(newGroupModel: newGroupModel,
+                                                                                      newDisappearingMessageToken: nil,
+                                                                                      groupUpdateSourceAddress: groupUpdateSourceAddress,
+                                                                                      infoMessagePolicy: infoMessagePolicy,
+                                                                                      transaction: transaction)
+        return result.groupThread
     }
 
-    private static func localLeaveGroupV2OrDeclineInvite(groupModel: TSGroupModelV2,
-                                                         replacementAdminUuid: UUID? = nil) -> Promise<TSGroupThread> {
-        updateGroupV2(groupModel: groupModel,
-                      description: "Leave group or decline invite") { groupChangeSet in
-            groupChangeSet.setShouldLeaveGroupDeclineInvite()
-
-            // Sometimes when we leave a group we take care to assign a new admin.
-            if let replacementAdminUuid = replacementAdminUuid {
-                groupChangeSet.changeRoleForMember(replacementAdminUuid, role: .administrator)
-            }
-        }
+    private static func localLeaveGroupV2OrDeclineInvite(
+        groupThreadId threadId: String,
+        replacementAdminUuid: UUID?,
+        waitForMessageProcessing: Bool,
+        transaction: SDSAnyWriteTransaction
+    ) -> Promise<TSGroupThread> {
+        self.localLeaveGroupJobQueue.add(
+            threadId: threadId,
+            replacementAdminUuid: replacementAdminUuid,
+            waitForMessageProcessing: waitForMessageProcessing,
+            transaction: transaction
+        )
     }
 
     @objc
@@ -908,7 +934,12 @@ public class GroupManager: NSObject {
 
         transaction.addAsyncCompletionOffMain {
             firstly {
-                self.localLeaveGroupOrDeclineInvite(groupThread: groupThread).asVoid()
+                databaseStorage.write(.promise) { transaction in
+                    self.localLeaveGroupOrDeclineInvite(
+                        groupThread: groupThread,
+                        transaction: transaction
+                    ).asVoid()
+                }
             }.done { _ in
                 success?()
             }.catch { error in
@@ -1085,11 +1116,21 @@ public class GroupManager: NSObject {
         }
     }
 
+    // MARK: - Announcements
+
     public static func setIsAnnouncementsOnly(groupModel: TSGroupModelV2,
                                               isAnnouncementsOnly: Bool) -> Promise<TSGroupThread> {
         updateGroupV2(groupModel: groupModel,
                       description: "Update isAnnouncementsOnly") { groupChangeSet in
             groupChangeSet.setIsAnnouncementsOnly(isAnnouncementsOnly)
+        }
+    }
+
+    // MARK: - Local profile key
+
+    public static func updateLocalProfileKey(groupModel: TSGroupModelV2) -> Promise<TSGroupThread> {
+        updateGroupV2(groupModel: groupModel, description: "Update local profile key") { changes in
+            changes.setShouldUpdateLocalProfileKey()
         }
     }
 
@@ -2249,7 +2290,7 @@ extension GroupManager {
         }
     }
 
-    public static func updateGroupV2(
+    static func updateGroupV2(
         groupModel: TSGroupModelV2,
         description: String,
         changesBlock: @escaping (GroupsV2OutgoingChanges) -> Void
