@@ -53,8 +53,6 @@ static NSString *const kURLHostAddStickersPrefix = @"addstickers";
 NSString *const kURLHostTransferPrefix = @"transfer";
 NSString *const kURLHostLinkDevicePrefix = @"linkdevice";
 
-static NSTimeInterval launchStartedAt;
-
 static void uncaughtExceptionHandler(NSException *exception)
 {
     if (SSKDebugFlags.internalLogging) {
@@ -90,9 +88,7 @@ static void uncaughtExceptionHandler(NSException *exception)
 
 @interface AppDelegate () <UNUserNotificationCenterDelegate>
 
-@property (nonatomic) BOOL areVersionMigrationsComplete;
-@property (nonatomic) BOOL didAppLaunchFail;
-@property (nonatomic) BOOL shouldKillAppWhenBackgrounded;
+@property (nonatomic, readwrite) NSTimeInterval launchStartedAt;
 
 @end
 
@@ -160,7 +156,7 @@ static void uncaughtExceptionHandler(NSException *exception)
     // This should be the first thing we do.
     SetCurrentAppContext([MainAppContext new]);
 
-    launchStartedAt = CACurrentMediaTime();
+    self.launchStartedAt = CACurrentMediaTime();
     [BenchManager startEventWithTitle:@"Presenting HomeView" eventId:@"AppStart" logInProduction:TRUE];
 
     BOOL isLoggingEnabled;
@@ -240,11 +236,12 @@ static void uncaughtExceptionHandler(NSException *exception)
         return YES;
     }
 
-    [self launchToHomeScreen:launchOptions instrumentsMonitorId:monitorId];
+    [self launchToHomeScreenWithLaunchOptions:launchOptions instrumentsMonitorId:monitorId];
     return YES;
 }
 
-- (BOOL)launchToHomeScreen:(NSDictionary *_Nullable)launchOptions instrumentsMonitorId:(unsigned long long)monitorId
+- (BOOL)launchToHomeScreenWithLaunchOptions:(NSDictionary *_Nullable)launchOptions
+                       instrumentsMonitorId:(unsigned long long)monitorId
 {
     [self setupNSEInteroperation];
 
@@ -301,7 +298,7 @@ static void uncaughtExceptionHandler(NSException *exception)
     NSDictionary *remoteNotification = launchOptions[UIApplicationLaunchOptionsRemoteNotificationKey];
     if (remoteNotification) {
         OWSLogInfo(@"Application was launched by tapping a push notification.");
-        [self processRemoteNotification:remoteNotification completion:nil];
+        [self processRemoteNotification:remoteNotification];
     }
 
     [OWSScreenLockUI.shared setupWithRootWindow:self.window];
@@ -375,46 +372,6 @@ static void uncaughtExceptionHandler(NSException *exception)
 
     OWSLogFlush();
     exit(0);
-}
-
-- (void)showUIForLaunchFailure:(LaunchFailure)launchFailure
-{
-    OWSLogInfo(@"launchFailure: %@", [AppDelegate stringForLaunchFailure:launchFailure]);
-
-    // Disable normal functioning of app.
-    self.didAppLaunchFail = YES;
-
-    if (launchFailure == LaunchFailureLowStorageSpaceAvailable) {
-        self.shouldKillAppWhenBackgrounded = YES;
-    }
-
-    // We perform a subset of the [application:didFinishLaunchingWithOptions:].
-    if (self.window == nil) {
-        self.window = [OWSWindow new];
-        CurrentAppContext().mainWindow = self.window;
-    }
-
-    // Show the launch screen
-    UIViewController *viewController = [[UIStoryboard storyboardWithName:@"Launch Screen"
-                                                                  bundle:nil] instantiateInitialViewController];
-    self.window.rootViewController = viewController;
-
-    [self.window makeKeyAndVisible];
-
-    ActionSheetController *actionSheet =
-        [self getActionSheetForLaunchFailure:launchFailure
-                          fromViewController:viewController
-                                  onContinue:^{
-                                      if (launchFailure == LaunchFailureLastAppLaunchCrashed) {
-                                          // Pretend we didn't fail!
-                                          self.didAppLaunchFail = NO;
-                                          [self launchToHomeScreen:nil instrumentsMonitorId:0];
-                                      } else {
-                                          OWSFail(@"exiting after sharing debug logs.");
-                                      }
-                                  }];
-
-    [viewController presentActionSheet:actionSheet];
 }
 
 - (void)application:(UIApplication *)application didRegisterForRemoteNotificationsWithDeviceToken:(NSData *)deviceToken
@@ -680,20 +637,6 @@ static void uncaughtExceptionHandler(NSException *exception)
     OWSLogInfo(@"applicationDidBecomeActive completed.");
 }
 
-- (void)enableBackgroundRefreshIfNecessary
-{
-    AppReadinessRunNowOrWhenAppDidBecomeReadySync(^{
-        if (OWS2FAManager.shared.isRegistrationLockEnabled && [self.tsAccountManager isRegisteredAndReady]) {
-            // Ping server once a day to keep-alive reglock clients.
-            const NSTimeInterval kBackgroundRefreshInterval = 24 * 60 * 60;
-            [[UIApplication sharedApplication] setMinimumBackgroundFetchInterval:kBackgroundRefreshInterval];
-        } else {
-            [[UIApplication sharedApplication]
-                setMinimumBackgroundFetchInterval:UIApplicationBackgroundFetchIntervalNever];
-        }
-    });
-}
-
 - (void)handleActivation
 {
     OWSAssertIsOnMainThread();
@@ -887,8 +830,8 @@ static void uncaughtExceptionHandler(NSException *exception)
                 return;
             }
 
-            SignalServiceAddress *_Nullable address = [self addressForIntentHandle:handle];
-            if (!address.isValid) {
+            TSThread *_Nullable thread = [self threadForIntentHandle:handle];
+            if (!thread) {
                 OWSLogWarn(@"ignoring attempt to initiate video call to unknown user.");
                 return;
             }
@@ -903,8 +846,7 @@ static void uncaughtExceptionHandler(NSException *exception)
             //   to that user - unless there already is another call in progress.
             SignalCall *_Nullable currentCall = AppEnvironment.shared.callService.currentCall;
             if (currentCall != nil) {
-                if (currentCall.isIndividualCall &&
-                    [address isEqualToAddress:currentCall.individualCall.remoteAddress]) {
+                if (currentCall.isIndividualCall && [thread.uniqueId isEqual:currentCall.thread.uniqueId]) {
                     OWSLogWarn(@"trying to upgrade ongoing call to video.");
                     [AppEnvironment.shared.callService.individualCallService handleCallKitStartVideo];
                     return;
@@ -914,7 +856,6 @@ static void uncaughtExceptionHandler(NSException *exception)
                 }
             }
 
-            TSContactThread *thread = [TSContactThread getOrCreateThreadWithContactAddress:address];
             OutboundIndividualCallInitiator *outboundIndividualCallInitiator
                 = AppEnvironment.shared.outboundIndividualCallInitiator;
             OWSAssertDebug(outboundIndividualCallInitiator);
@@ -944,8 +885,8 @@ static void uncaughtExceptionHandler(NSException *exception)
                 return;
             }
 
-            SignalServiceAddress *_Nullable address = [self addressForIntentHandle:handle];
-            if (!address.isValid) {
+            TSThread *_Nullable thread = [self threadForIntentHandle:handle];
+            if (!thread) {
                 OWSLogWarn(@"ignoring attempt to initiate audio call to unknown user.");
                 return;
             }
@@ -955,7 +896,6 @@ static void uncaughtExceptionHandler(NSException *exception)
                 return;
             }
 
-            TSContactThread *thread = [TSContactThread getOrCreateThreadWithContactAddress:address];
             OutboundIndividualCallInitiator *outboundIndividualCallInitiator
                 = AppEnvironment.shared.outboundIndividualCallInitiator;
             OWSAssertDebug(outboundIndividualCallInitiator);
@@ -991,8 +931,8 @@ static void uncaughtExceptionHandler(NSException *exception)
                     return;
                 }
 
-                SignalServiceAddress *_Nullable address = [self addressForIntentHandle:handle];
-                if (!address.isValid) {
+                TSThread *_Nullable thread = [self threadForIntentHandle:handle];
+                if (!thread) {
                     OWSLogWarn(@"ignoring attempt to initiate call to unknown user.");
                     return;
                 }
@@ -1002,7 +942,6 @@ static void uncaughtExceptionHandler(NSException *exception)
                     return;
                 }
 
-                TSContactThread *thread = [TSContactThread getOrCreateThreadWithContactAddress:address];
                 OutboundIndividualCallInitiator *outboundIndividualCallInitiator
                     = AppEnvironment.shared.outboundIndividualCallInitiator;
                 OWSAssertDebug(outboundIndividualCallInitiator);
@@ -1026,23 +965,19 @@ static void uncaughtExceptionHandler(NSException *exception)
     return NO;
 }
 
-- (nullable SignalServiceAddress *)addressForIntentHandle:(NSString *)handle
+- (nullable TSThread *)threadForIntentHandle:(NSString *)handle
 {
     OWSAssertDebug(handle.length > 0);
 
     if ([handle hasPrefix:CallKitCallManager.kAnonymousCallHandlePrefix]) {
-        SignalServiceAddress *_Nullable address = [CallKitIdStore addressForCallKitId:handle];
-        if (!address.isValid) {
-            OWSLogWarn(@"ignoring attempt to initiate audio call to unknown anonymous signal user.");
-            return nil;
-        }
-        return address;
+        return [CallKitIdStore threadForCallKitId:handle];
     }
 
     for (PhoneNumber *phoneNumber in
         [PhoneNumber tryParsePhoneNumbersFromUserSpecifiedText:handle
                                               clientPhoneNumber:[TSAccountManager localNumber]]) {
-        return [[SignalServiceAddress alloc] initWithPhoneNumber:phoneNumber.toE164];
+        SignalServiceAddress *address = [[SignalServiceAddress alloc] initWithPhoneNumber:phoneNumber.toE164];
+        return [TSContactThread getOrCreateThreadWithContactAddress:address];
     }
     return nil;
 }
@@ -1100,31 +1035,6 @@ static void uncaughtExceptionHandler(NSException *exception)
                          }];
 }
 
-- (void)processRemoteNotification:(NSDictionary *)userInfo completion:(nullable void (^)(void))completion
-{
-    OWSAssertIsOnMainThread();
-
-    if (self.didAppLaunchFail) {
-        OWSFailDebug(@"app launch failed");
-        return;
-    }
-    if (!(AppReadiness.isAppReady && [self.tsAccountManager isRegisteredAndReady])) {
-        OWSLogInfo(@"Ignoring remote notification; app not ready.");
-        return;
-    }
-
-    AppReadinessRunNowOrWhenAppDidBecomeReadySync(^{
-        // TODO: NSE Lifecycle, is this invoked when the NSE wakes the main app?
-        BOOL isSilentPush = [self handleSilentPushContent:userInfo];
-        if (!isSilentPush) {
-            [self.messageFetcherJob runObjc];
-        }
-        if (completion != nil) {
-            completion();
-        }
-    });
-}
-
 - (void)application:(UIApplication *)application
     performFetchWithCompletionHandler:(void (^)(UIBackgroundFetchResult result))completionHandler
 {
@@ -1146,111 +1056,12 @@ static void uncaughtExceptionHandler(NSException *exception)
     });
 }
 
-- (void)versionMigrationsDidComplete
-{
-    OWSAssertIsOnMainThread();
-
-    OWSLogInfo(@"versionMigrationsDidComplete");
-
-    self.areVersionMigrationsComplete = YES;
-
-    [self checkIfAppIsReady];
-}
-
 - (void)storageIsReady
 {
     OWSAssertIsOnMainThread();
     OWSLogInfo(@"storageIsReady");
 
     [self checkIfAppIsReady];
-}
-
-- (void)checkIfAppIsReady
-{
-    OWSAssertIsOnMainThread();
-
-    // If launch failed, the app will never be ready.
-    if (self.didAppLaunchFail) {
-        return;
-    }
-
-    // App isn't ready until storage is ready AND all version migrations are complete.
-    if (!self.areVersionMigrationsComplete) {
-        return;
-    }
-    if (![self.storageCoordinator isStorageReady]) {
-        return;
-    }
-    if ([AppReadiness isAppReady]) {
-        // Only mark the app as ready once.
-        return;
-    }
-    BOOL launchJobsAreComplete = [self.launchJobs ensureLaunchJobsWithCompletion:^{
-        // If launch jobs need to run, return and
-        // call checkIfAppIsReady again when they're complete.
-        [self checkIfAppIsReady];
-    }];
-    if (!launchJobsAreComplete) {
-        // Wait for launch jobs to complete.
-        return;
-    }
-
-    OWSLogInfo(@"checkIfAppIsReady");
-
-    // Note that this does much more than set a flag;
-    // it will also run all deferred blocks.
-    [AppReadiness setAppIsReadyUIStillPending];
-
-    if (CurrentAppContext().isRunningTests) {
-        OWSLogVerbose(@"Skipping post-launch logic in tests.");
-        [AppReadiness setUIIsReady];
-        return;
-    }
-
-    // If user is missing profile name, redirect to onboarding flow.
-    if (!SSKEnvironment.shared.profileManager.hasProfileName) {
-        DatabaseStorageWrite(self.databaseStorage, ^(SDSAnyWriteTransaction *transaction) {
-            [self.tsAccountManager setIsOnboarded:NO transaction:transaction];
-        });
-    }
-
-    if ([self.tsAccountManager isRegistered]) {
-        [self.databaseStorage readWithBlock:^(SDSAnyReadTransaction *transaction) {
-            NSUInteger deviceCount = [OWSDevice anyCountWithTransaction:transaction];
-            NSString *linkedDeviceMessage;
-            if (deviceCount > 1) {
-                linkedDeviceMessage = [NSString stringWithFormat:@"%lu devices including the primary", deviceCount];
-            } else {
-                linkedDeviceMessage = @"no linked devices";
-            }
-            OWSLogInfo(@"localAddress: %@, deviceId: %u (%@)",
-                [self.tsAccountManager localAddressWithTransaction:transaction],
-                [self.tsAccountManager storedDeviceIdWithTransaction:transaction],
-                linkedDeviceMessage);
-        }];
-
-        // This should happen at any launch, background or foreground.
-        [OWSSyncPushTokensJob run];
-    }
-
-    [DebugLogger.shared postLaunchLogCleanup];
-    [AppVersion.shared mainAppLaunchDidComplete];
-
-    if (!Environment.shared.preferences.hasGeneratedThumbnails) {
-        [self.databaseStorage
-            asyncReadWithBlock:^(SDSAnyReadTransaction *transaction) {
-                [TSAttachment anyEnumerateWithTransaction:transaction
-                                                  batched:YES
-                                                    block:^(TSAttachment *attachment, BOOL *stop) {
-                                                        // no-op. It's sufficient to initWithCoder: each object.
-                                                    }];
-            }
-            completion:^{
-                [Environment.shared.preferences setHasGeneratedThumbnails:YES];
-            }];
-    }
-
-    [SignalApp.shared ensureRootViewController:launchStartedAt];
 }
 
 - (void)registrationStateDidChange
@@ -1292,89 +1103,6 @@ static void uncaughtExceptionHandler(NSException *exception)
         OWSLogDebug(@"touched status bar");
         [[NSNotificationCenter defaultCenter] postNotificationName:TappedStatusBarNotification object:nil];
     }
-}
-
-#pragma mark - UNUserNotificationsDelegate
-
-- (BOOL)handleSilentPushContent:(NSDictionary *)userInfo
-{
-    NSString *_Nullable spamChallengeToken = userInfo[@"rateLimitChallenge"];
-    NSString *_Nullable preAuthChallengeToken = userInfo[@"challenge"];
-
-    if (spamChallengeToken) {
-        SpamChallengeResolver *spamResolver = self.spamChallengeResolver;
-        [spamResolver handleIncomingPushChallengeToken:spamChallengeToken];
-        return YES;
-    } else if (preAuthChallengeToken) {
-        [self.pushRegistrationManager didReceiveVanillaPreAuthChallengeToken:preAuthChallengeToken];
-        return YES;
-    }
-    return NO;
-}
-
-// The method will be called on the delegate only if the application is in the foreground. If the method is not
-// implemented or the handler is not called in a timely manner then the notification will not be presented. The
-// application can choose to have the notification presented as a sound, badge, alert and/or in the notification list.
-// This decision should be based on whether the information in the notification is otherwise visible to the user.
-- (void)userNotificationCenter:(UNUserNotificationCenter *)center
-       willPresentNotification:(UNNotification *)notification
-         withCompletionHandler:(void (^)(UNNotificationPresentationOptions options))completionHandler
-{
-    OWSLogInfo(@"");
-    // Capture just userInfo; we don't want to retain notification.
-    NSDictionary *userInfo = notification.request.content.userInfo;
-    AppReadinessRunNowOrWhenAppDidBecomeReadySync(^{
-        UNNotificationPresentationOptions options = 0;
-        BOOL isSilent = [self handleSilentPushContent:userInfo];
-
-        if (!isSilent) {
-            // We need to respect the in-app notification sound preference. This method, which is called
-            // for modern UNUserNotification users, could be a place to do that, but since we'd still
-            // need to handle this behavior for legacy UINotification users anyway, we "allow" all
-            // notification options here, and rely on the shared logic in NotificationPresenter to
-            // honor notification sound preferences for both modern and legacy users.
-            options |= UNNotificationPresentationOptionAlert;
-            options |= UNNotificationPresentationOptionBadge;
-            options |= UNNotificationPresentationOptionSound;
-        }
-        completionHandler(options);
-    });
-}
-
-// The method will be called on the delegate when the user responded to the notification by opening the application,
-// dismissing the notification or choosing a UNNotificationAction. The delegate must be set before the application
-// returns from application:didFinishLaunchingWithOptions:.
-- (void)userNotificationCenter:(UNUserNotificationCenter *)center
-    didReceiveNotificationResponse:(UNNotificationResponse *)response
-             withCompletionHandler:(void (^)(void))completionHandler
-{
-    OWSLogInfo(@"");
-    AppReadinessRunNowOrWhenAppDidBecomeReadySync(
-        ^{ [NotificationActionHandler handleNotificationResponse:response completionHandler:completionHandler]; });
-}
-
-- (void)setupNSEInteroperation
-{
-    OWSLogInfo(@"");
-    // We immediately post a notification letting the NSE know the main app has launched.
-    // If it's running it should take this as a sign to terminate so we don't unintentionally
-    // try and fetch messages from two processes at once.
-    [DarwinNotificationCenter postNotificationName:DarwinNotificationName.mainAppLaunched];
-
-    // We listen to this notification for the lifetime of the application, so we don't
-    // record the returned observer token.
-    [DarwinNotificationCenter
-        addObserverForName:DarwinNotificationName.nseDidReceiveNotification
-                     queue:dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0)
-                usingBlock:^(int token) {
-                    OWSLogDebug(@"Handling NSE received notification");
-
-                    // Immediately let the NSE know we will handle this notification so that it
-                    // does not attempt to process messages while we are active.
-                    [DarwinNotificationCenter postNotificationName:DarwinNotificationName.mainAppHandledNotification];
-
-                    AppReadinessRunNowOrWhenAppDidBecomeReadySync(^{ [self.messageFetcherJob runObjc]; });
-                }];
 }
 
 @end

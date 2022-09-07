@@ -5,6 +5,7 @@
 import Foundation
 import SignalRingRTC
 import SignalServiceKit
+import SignalMessaging
 
 // All Observer methods will be invoked from the main thread.
 public protocol CallObserver: AnyObject {
@@ -105,6 +106,9 @@ public class SignalCall: NSObject, CallManagerCallReference {
     public var connectedDate: Date? {
         didSet { AssertIsOnMainThread() }
     }
+
+    // Distinguishes between calls locally, e.g. in CallKit
+    public let localId: UUID = UUID()
 
     @objc
     public let thread: TSThread
@@ -240,10 +244,9 @@ public class SignalCall: NSObject, CallManagerCallReference {
         return call
     }
 
-    public class func outgoingIndividualCall(localId: UUID, thread: TSContactThread) -> SignalCall {
+    public class func outgoingIndividualCall(thread: TSContactThread) -> SignalCall {
         let individualCall = IndividualCall(
             direction: .outgoing,
-            localId: localId,
             state: .dialing,
             thread: thread,
             sentAtTimestamp: Date.ows_millisecondTimestamp(),
@@ -253,7 +256,6 @@ public class SignalCall: NSObject, CallManagerCallReference {
     }
 
     public class func incomingIndividualCall(
-        localId: UUID,
         thread: TSContactThread,
         sentAtTimestamp: UInt64,
         offerMediaType: TSRecentCallOfferType
@@ -273,7 +275,6 @@ public class SignalCall: NSObject, CallManagerCallReference {
 
         let individualCall = IndividualCall(
             direction: .incoming,
-            localId: localId,
             state: .answering,
             thread: thread,
             sentAtTimestamp: sentAtTimestamp,
@@ -423,6 +424,15 @@ extension SignalCall: IndividualCallDelegate {
 
     public func individualCallRemoteSharingScreenDidChange(_ call: IndividualCall, isRemoteSharingScreen: Bool) {
         observers.elements.forEach { $0.individualCallRemoteSharingScreenDidChange(self, isRemoteSharingScreen: isRemoteSharingScreen) }
+    }
+}
+
+extension SignalCall: CallNotificationInfo {
+    public var offerMediaType: TSRecentCallOfferType {
+        switch mode {
+        case .individual(let call): return call.offerMediaType
+        case .group: return .video
+        }
     }
 }
 

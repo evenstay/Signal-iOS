@@ -11,15 +11,30 @@ struct StoryViewModel: Dependencies {
     let messages: [StoryMessage]
     let hasUnviewedMessages: Bool
 
+    // NOTE: "hidden" stories are still shown,
+    // just in a separate section thats collapsed by default.
+    let isHidden: Bool
+
     let latestMessageAttachment: StoryThumbnailView.Attachment
     let hasReplies: Bool
     let latestMessageName: String
     let latestMessageTimestamp: UInt64
     let latestMessageViewedTimestamp: UInt64?
+    let latestMessageSendingState: TSOutgoingMessageState
+
+    let threadUniqueId: String?
 
     let latestMessageAvatarDataSource: ConversationAvatarDataSource
 
-    init(messages: [StoryMessage], transaction: SDSAnyReadTransaction) throws {
+    var isSystemStory: Bool {
+        return messages.first?.authorAddress.isSystemStoryAddress ?? false
+    }
+
+    init(
+        messages: [StoryMessage],
+        isHidden: Bool? = nil,
+        transaction: SDSAnyReadTransaction
+    ) throws {
         let sortedFilteredMessages = messages.lazy.sorted { $0.timestamp < $1.timestamp }
         self.messages = sortedFilteredMessages
         self.hasUnviewedMessages = sortedFilteredMessages.contains { $0.localUserViewedTimestamp == nil }
@@ -31,21 +46,35 @@ struct StoryViewModel: Dependencies {
         self.context = latestMessage.context
         self.hasReplies = InteractionFinder.hasReplies(for: sortedFilteredMessages, transaction: transaction)
 
-        latestMessageName = StoryAuthorUtil.authorDisplayName(
+        latestMessageName = StoryUtil.authorDisplayName(
             for: latestMessage,
             contactsManager: Self.contactsManager,
             transaction: transaction
         )
-        latestMessageAvatarDataSource = try StoryAuthorUtil.authorAvatarDataSource(
-            for: latestMessage,
-            transaction: transaction
-        )
+        latestMessageAvatarDataSource = try StoryUtil.contextAvatarDataSource(for: latestMessage, transaction: transaction)
         latestMessageAttachment = .from(latestMessage.attachment, transaction: transaction)
         latestMessageTimestamp = latestMessage.timestamp
         latestMessageViewedTimestamp = latestMessage.localUserViewedTimestamp
+        latestMessageSendingState = latestMessage.sendingState
+
+        let threadUniqueId = context.threadUniqueId(transaction: transaction)
+        self.threadUniqueId = threadUniqueId
+
+        if latestMessage.authorAddress.isSystemStoryAddress {
+            self.isHidden = Self.systemStoryManager.areSystemStoriesHidden(transaction: transaction)
+        } else {
+            self.isHidden = isHidden ?? context.isHidden(threadUniqueId: threadUniqueId, transaction: transaction)
+        }
     }
 
-    func copy(updatedMessages: [StoryMessage], deletedMessageRowIds: [Int64], transaction: SDSAnyReadTransaction) throws -> Self? {
+    /// Returns nil if there are no messages left after deletions are applied.
+    /// Throws if databae lookups fail.
+    func copy(
+        updatedMessages: [StoryMessage],
+        deletedMessageRowIds: [Int64],
+        isHidden: Bool,
+        transaction: SDSAnyReadTransaction
+    ) throws -> Self? {
         var newMessages = updatedMessages
         var messages: [StoryMessage] = self.messages.lazy
             .filter { oldMessage in
@@ -61,7 +90,7 @@ struct StoryViewModel: Dependencies {
             }
         messages.append(contentsOf: newMessages)
         guard !messages.isEmpty else { return nil }
-        return try .init(messages: messages, transaction: transaction)
+        return try .init(messages: messages, isHidden: isHidden, transaction: transaction)
     }
 }
 

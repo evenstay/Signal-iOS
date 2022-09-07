@@ -1,5 +1,5 @@
 //
-//  Copyright (c) 2021 Open Whisper Systems. All rights reserved.
+//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
 //
 
 import Foundation
@@ -32,20 +32,20 @@ class NonCallKitCallUIAdaptee: NSObject, CallUIAdaptee {
         self.callService.individualCallService.handleOutgoingCall(call)
     }
 
-    func reportIncomingCall(_ call: SignalCall, callerName: String, completion: @escaping (Error?) -> Void) {
+    func reportIncomingCall(_ call: SignalCall, completion: @escaping (Error?) -> Void) {
         AssertIsOnMainThread()
 
         Logger.debug("")
 
         self.showCall(call)
 
-        startNotifiyingForIncomingCall(call, callerName: callerName)
+        startNotifiyingForIncomingCall(call, caller: call.individualCall.remoteAddress)
 
         completion(nil)
     }
 
     private var incomingCallNotificationTimer: Timer?
-    private func startNotifiyingForIncomingCall(_ call: SignalCall, callerName: String) {
+    private func startNotifiyingForIncomingCall(_ call: SignalCall, caller: SignalServiceAddress) {
         incomingCallNotificationTimer?.invalidate()
         incomingCallNotificationTimer = nil
 
@@ -61,7 +61,7 @@ class NonCallKitCallUIAdaptee: NSObject, CallUIAdaptee {
             if UIApplication.shared.applicationState == .active {
                 Logger.debug("skipping notification since app is already active.")
             } else {
-                self?.notificationPresenter.presentIncomingCall(call.individualCall, callerName: callerName)
+                self?.notificationPresenter.presentIncomingCall(call, caller: caller)
             }
         }
     }
@@ -74,7 +74,7 @@ class NonCallKitCallUIAdaptee: NSObject, CallUIAdaptee {
             return
         }
 
-        guard call.individualCall.localId == localId else {
+        guard call.localId == localId else {
             owsFailDebug("localId does not match current call")
             return
         }
@@ -85,7 +85,7 @@ class NonCallKitCallUIAdaptee: NSObject, CallUIAdaptee {
     func answerCall(_ call: SignalCall) {
         AssertIsOnMainThread()
 
-        guard call.individualCall.localId == self.callService.currentCall?.individualCall.localId else {
+        guard call.localId == self.callService.currentCall?.localId else {
             owsFailDebug("localId does not match current call")
             return
         }
@@ -111,7 +111,7 @@ class NonCallKitCallUIAdaptee: NSObject, CallUIAdaptee {
             return
         }
 
-        guard call.individualCall.localId == localId else {
+        guard call.localId == localId else {
             owsFailDebug("localId does not match current call")
             return
         }
@@ -124,7 +124,7 @@ class NonCallKitCallUIAdaptee: NSObject, CallUIAdaptee {
 
         // If both parties hang up at the same moment,
         // call might already be nil.
-        guard self.callService.currentCall == nil || call.individualCall.localId == self.callService.currentCall?.individualCall.localId else {
+        guard self.callService.currentCall == nil || call.localId == self.callService.currentCall?.localId else {
             owsFailDebug("localId does not match current call")
             return
         }
@@ -171,7 +171,7 @@ class NonCallKitCallUIAdaptee: NSObject, CallUIAdaptee {
     func setIsMuted(call: SignalCall, isMuted: Bool) {
         AssertIsOnMainThread()
 
-        guard call.individualCall.localId == self.callService.currentCall?.individualCall.localId else {
+        guard call.localId == self.callService.currentCall?.localId else {
             owsFailDebug("localId does not match current call")
             return
         }
@@ -182,7 +182,7 @@ class NonCallKitCallUIAdaptee: NSObject, CallUIAdaptee {
     func setHasLocalVideo(call: SignalCall, hasLocalVideo: Bool) {
         AssertIsOnMainThread()
 
-        guard call.individualCall.localId == self.callService.currentCall?.individualCall.localId else {
+        guard call.localId == self.callService.currentCall?.localId else {
             owsFailDebug("localId does not match current call")
             return
         }

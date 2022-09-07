@@ -1,5 +1,5 @@
 //
-//  Copyright (c) 2021 Open Whisper Systems. All rights reserved.
+//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
 //
 
 import Foundation
@@ -131,15 +131,15 @@ final class CallKitCallUIAdaptee: NSObject, CallUIAdaptee, CXProviderDelegate {
         Self.providerReadyFlag.runNowOrWhenDidBecomeReadySync {
             switch error {
             case .timeout(description: _):
-                self.provider.reportCall(with: call.individualCall.localId, endedAt: Date(), reason: CXCallEndedReason.unanswered)
+                self.provider.reportCall(with: call.localId, endedAt: Date(), reason: CXCallEndedReason.unanswered)
             default:
-                self.provider.reportCall(with: call.individualCall.localId, endedAt: Date(), reason: CXCallEndedReason.failed)
+                self.provider.reportCall(with: call.localId, endedAt: Date(), reason: CXCallEndedReason.failed)
             }
             self.callManager.removeCall(call)
         }
     }
 
-    func reportIncomingCall(_ call: SignalCall, callerName: String, completion: @escaping (Error?) -> Void) {
+    func reportIncomingCall(_ call: SignalCall, completion: @escaping (Error?) -> Void) {
         AssertIsOnMainThread()
         Logger.info("")
 
@@ -152,9 +152,9 @@ final class CallKitCallUIAdaptee: NSObject, CallUIAdaptee, CXProviderDelegate {
                 update.remoteHandle = CXHandle(type: .phoneNumber, value: phoneNumber)
             }
         } else {
-            let callKitId = CallKitCallManager.kAnonymousCallHandlePrefix + call.individualCall.localId.uuidString
+            let callKitId = CallKitCallManager.kAnonymousCallHandlePrefix + call.localId.uuidString
             update.remoteHandle = CXHandle(type: .generic, value: callKitId)
-            CallKitIdStore.setAddress(call.individualCall.remoteAddress, forCallKitId: callKitId)
+            CallKitIdStore.setThread(call.thread, forCallKitId: callKitId)
             update.localizedCallerName = NSLocalizedString("CALLKIT_ANONYMOUS_CONTACT_NAME", comment: "The generic name used for calls if CallKit privacy is enabled")
         }
 
@@ -164,7 +164,7 @@ final class CallKitCallUIAdaptee: NSObject, CallUIAdaptee, CXProviderDelegate {
 
         Self.providerReadyFlag.runNowOrWhenDidBecomeReadySync {
             // Report the incoming call to the system
-            self.provider.reportNewIncomingCall(with: call.individualCall.localId, update: update) { error in
+            self.provider.reportNewIncomingCall(with: call.localId, update: update) { error in
                 /*
                  Only add incoming call to the app's list of calls if the call was allowed (i.e. there was no error)
                  since calls may be "denied" for various legitimate reasons. See CXErrorCodeIncomingCallError.
@@ -201,24 +201,24 @@ final class CallKitCallUIAdaptee: NSObject, CallUIAdaptee, CXProviderDelegate {
         }
     }
 
-    private var ignoreFirstUnuteAfterRemoteAnswer = false
+    private var ignoreFirstUnmuteAfterRemoteAnswer = false
     func recipientAcceptedCall(_ call: SignalCall) {
         AssertIsOnMainThread()
         Logger.info("")
 
         Self.providerReadyFlag.runNowOrWhenDidBecomeReadySync {
-            self.provider.reportOutgoingCall(with: call.individualCall.localId, connectedAt: nil)
+            self.provider.reportOutgoingCall(with: call.localId, connectedAt: nil)
 
             let update = CXCallUpdate()
             self.disableUnsupportedFeatures(callUpdate: update)
 
-            self.provider.reportCall(with: call.individualCall.localId, updated: update)
+            self.provider.reportCall(with: call.localId, updated: update)
 
             // When we tell CallKit about the call, it tries
             // to unmute the call. We can work around this
             // by ignoring the next "unmute" request from
             // CallKit after the call is answered.
-            self.ignoreFirstUnuteAfterRemoteAnswer = call.individualCall.isMuted
+            self.ignoreFirstUnmuteAfterRemoteAnswer = call.individualCall.isMuted
 
             // Enable audio for remotely accepted calls after the session is configured.
             self.audioSession.isRTCAudioEnabled = true
@@ -245,7 +245,7 @@ final class CallKitCallUIAdaptee: NSObject, CallUIAdaptee, CXProviderDelegate {
         Logger.info("")
 
         Self.providerReadyFlag.runNowOrWhenDidBecomeReadySync {
-            self.provider.reportCall(with: call.individualCall.localId, endedAt: nil, reason: CXCallEndedReason.remoteEnded)
+            self.provider.reportCall(with: call.localId, endedAt: nil, reason: CXCallEndedReason.remoteEnded)
             self.callManager.removeCall(call)
         }
     }
@@ -255,7 +255,7 @@ final class CallKitCallUIAdaptee: NSObject, CallUIAdaptee, CXProviderDelegate {
         Logger.info("")
 
         Self.providerReadyFlag.runNowOrWhenDidBecomeReadySync {
-            self.provider.reportCall(with: call.individualCall.localId, endedAt: nil, reason: CXCallEndedReason.unanswered)
+            self.provider.reportCall(with: call.localId, endedAt: nil, reason: CXCallEndedReason.unanswered)
             self.callManager.removeCall(call)
         }
     }
@@ -265,7 +265,7 @@ final class CallKitCallUIAdaptee: NSObject, CallUIAdaptee, CXProviderDelegate {
         Logger.info("")
 
         Self.providerReadyFlag.runNowOrWhenDidBecomeReadySync {
-            self.provider.reportCall(with: call.individualCall.localId, endedAt: nil, reason: .answeredElsewhere)
+            self.provider.reportCall(with: call.localId, endedAt: nil, reason: .answeredElsewhere)
             self.callManager.removeCall(call)
         }
     }
@@ -275,7 +275,7 @@ final class CallKitCallUIAdaptee: NSObject, CallUIAdaptee, CXProviderDelegate {
         Logger.info("")
 
         Self.providerReadyFlag.runNowOrWhenDidBecomeReadySync {
-            self.provider.reportCall(with: call.individualCall.localId, endedAt: nil, reason: .declinedElsewhere)
+            self.provider.reportCall(with: call.localId, endedAt: nil, reason: .declinedElsewhere)
             self.callManager.removeCall(call)
         }
     }
@@ -286,7 +286,7 @@ final class CallKitCallUIAdaptee: NSObject, CallUIAdaptee, CXProviderDelegate {
 
         Self.providerReadyFlag.runNowOrWhenDidBecomeReadySync {
             // Callkit doesn't have a reason for "busy elsewhere", .declinedElsewhere is close enough.
-            self.provider.reportCall(with: call.individualCall.localId, endedAt: nil, reason: .declinedElsewhere)
+            self.provider.reportCall(with: call.localId, endedAt: nil, reason: .declinedElsewhere)
             self.callManager.removeCall(call)
         }
     }
@@ -309,7 +309,7 @@ final class CallKitCallUIAdaptee: NSObject, CallUIAdaptee, CXProviderDelegate {
         Self.providerReadyFlag.runNowOrWhenDidBecomeReadySync {
             let update = CXCallUpdate()
             update.hasVideo = hasLocalVideo
-            self.provider.reportCall(with: call.individualCall.localId, updated: update)
+            self.provider.reportCall(with: call.localId, updated: update)
         }
     }
 
@@ -349,16 +349,16 @@ final class CallKitCallUIAdaptee: NSObject, CallUIAdaptee, CXProviderDelegate {
         self.callService.individualCallService.handleOutgoingCall(call)
 
         action.fulfill()
-        provider.reportOutgoingCall(with: call.individualCall.localId, startedConnectingAt: nil)
+        provider.reportOutgoingCall(with: call.localId, startedConnectingAt: nil)
 
-        // Update the name used in the CallKit UI for outgoing calls when the user prefers not to show names
-        // in their notifications
-        if !showNamesOnCallScreen {
-            let update = CXCallUpdate()
+        let update = CXCallUpdate()
+        if showNamesOnCallScreen {
+            update.localizedCallerName = contactsManager.displayNameWithSneakyTransaction(thread: call.thread)
+        } else {
             update.localizedCallerName = NSLocalizedString("CALLKIT_ANONYMOUS_CONTACT_NAME",
                                                            comment: "The generic name used for calls if CallKit privacy is enabled")
-            provider.reportCall(with: call.individualCall.localId, updated: update)
         }
+        provider.reportCall(with: call.localId, updated: update)
     }
 
     func provider(_ provider: CXProvider, perform action: CXAnswerCallAction) {
@@ -429,8 +429,8 @@ final class CallKitCallUIAdaptee: NSObject, CallUIAdaptee, CXProviderDelegate {
             return
         }
 
-        defer { ignoreFirstUnuteAfterRemoteAnswer = false }
-        guard !ignoreFirstUnuteAfterRemoteAnswer || action.isMuted else { return }
+        defer { ignoreFirstUnmuteAfterRemoteAnswer = false }
+        guard !ignoreFirstUnmuteAfterRemoteAnswer || action.isMuted else { return }
 
         self.callService.updateIsLocalAudioMuted(isLocalAudioMuted: action.isMuted)
         action.fulfill()

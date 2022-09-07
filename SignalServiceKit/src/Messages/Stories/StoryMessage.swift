@@ -42,6 +42,22 @@ public final class StoryMessage: NSObject, SDSCodableModel {
     public private(set) var manifest: StoryManifest
     public let attachment: StoryMessageAttachment
 
+    public var sendingState: TSOutgoingMessageState {
+        switch manifest {
+        case .incoming: return .sent
+        case .outgoing(let recipientStates):
+            if recipientStates.values.contains(where: { $0.sendingState == .pending }) {
+                return .pending
+            } else if recipientStates.values.contains(where: { $0.sendingState == .sending }) {
+                return .sending
+            } else if recipientStates.values.contains(where: { $0.sendingState == .failed }) {
+                return .failed
+            } else {
+                return .sent
+            }
+        }
+    }
+
     public var localUserViewedTimestamp: UInt64? {
         switch manifest {
         case .incoming(let receivedState):
@@ -345,6 +361,27 @@ public final class StoryMessage: NSObject, SDSCodableModel {
         }
     }
 
+    public func updateRecipientStatesWithOutgoingMessageStates(
+        _ outgoingMessageStates: [SignalServiceAddress: TSOutgoingMessageRecipientState]?,
+        transaction: SDSAnyWriteTransaction
+    ) {
+        guard let outgoingMessageStates = outgoingMessageStates else { return }
+        anyUpdate(transaction: transaction) { message in
+            guard case .outgoing(var recipientStates) = message.manifest else {
+                return owsFailDebug("Unexpectedly tried to update recipient states on message of wrong type.")
+            }
+
+            for (address, outgoingMessageState) in outgoingMessageStates {
+                guard let uuid = address.uuid else { continue }
+                guard var recipientState = recipientStates[uuid] else { continue }
+                recipientState.sendingState = outgoingMessageState.state
+                recipientStates[uuid] = recipientState
+            }
+
+            message.manifest = .outgoing(recipientStates: recipientStates)
+        }
+    }
+
     public func threads(transaction: SDSAnyReadTransaction) -> [TSThread] {
         var threads = [TSThread]()
 
@@ -448,6 +485,40 @@ public final class StoryMessage: NSObject, SDSCodableModel {
         }
     }
 
+    public func resendMessageToFailedRecipients(transaction: SDSAnyWriteTransaction) {
+        guard case .outgoing(let recipientStates) = manifest else {
+            return owsFailDebug("Cannot resend incoming story.")
+        }
+
+        Logger.info("Resending story message \(timestamp)")
+
+        var messages = [OutgoingStoryMessage]()
+        let threads = threads(transaction: transaction)
+        for (idx, thread) in threads.enumerated() {
+            let message = OutgoingStoryMessage(
+                thread: thread,
+                storyMessage: self,
+                // Only send one sync transcript, even if we're sending to multiple threads
+                skipSyncTranscript: idx > 0,
+                transaction: transaction
+            )
+            messages.append(message)
+        }
+
+        // Ensure we only send once per recipient
+        OutgoingStoryMessage.dedupePrivateStoryRecipients(for: messages, transaction: transaction)
+
+        // Only send to recipients in the "failed" state
+        for (uuid, state) in recipientStates {
+            guard state.sendingState != .failed else { continue }
+            messages.forEach { $0.update(withSkippedRecipient: .init(uuid: uuid), transaction: transaction) }
+        }
+
+        messages.forEach { message in
+            messageSenderJobQueue.add(message: message.asPreparer, transaction: transaction)
+        }
+    }
+
     // MARK: -
 
     public func anyDidRemove(transaction: SDSAnyWriteTransaction) {
@@ -527,8 +598,12 @@ public struct StoryReceivedState: Codable {
 public struct StoryRecipientState: Codable {
     public var allowsReplies: Bool
     public var contexts: [UUID]
+    @DecodableDefault.OutgoingMessageSending
+    public var sendingState: OWSOutgoingMessageRecipientState = .sending
     public var viewedTimestamp: UInt64?
 }
+
+extension OWSOutgoingMessageRecipientState: Codable {}
 
 public enum StoryMessageAttachment: Codable {
     case file(attachmentId: String)

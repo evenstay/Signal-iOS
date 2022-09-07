@@ -31,6 +31,8 @@ public final class CallService: LightweightCallManager {
         }
     }
 
+    public var callUIAdapter: CallUIAdapter!
+
     @objc
     public let individualCallService = IndividualCallService()
     let groupCallMessageHandler = GroupCallUpdateMessageHandler()
@@ -182,6 +184,21 @@ public final class CallService: LightweightCallManager {
                 self.callManager.setSelfUuid(localUuid)
             }
         }
+    }
+
+    /**
+     * Choose whether to use CallKit or a Notification backed interface for calling.
+     */
+    @objc
+    public func createCallUIAdapter() {
+        AssertIsOnMainThread()
+
+        if let call = callService.currentCall {
+            Logger.warn("ending current call in. Did user toggle callkit preference while in a call?")
+            callService.terminate(call: call)
+        }
+
+        self.callUIAdapter = CallUIAdapter()
     }
 
     // MARK: - Observers
@@ -422,15 +439,6 @@ public final class CallService: LightweightCallManager {
      * Clean up any existing call state and get ready to receive a new call.
      */
     func terminate(call: SignalCall) {
-        databaseStorage.read { transaction in
-            self.terminate(call: call, transaction: transaction)
-        }
-    }
-
-    /**
-     * Clean up any existing call state and get ready to receive a new call.
-     */
-    func terminate(call: SignalCall, transaction: SDSAnyReadTransaction) {
         AssertIsOnMainThread()
         Logger.info("call: \(call as Optional)")
 
@@ -570,7 +578,7 @@ public final class CallService: LightweightCallManager {
         AssertIsOnMainThread()
         guard !hasCallInProgress else { return nil }
 
-        let call = SignalCall.outgoingIndividualCall(localId: UUID(), thread: thread)
+        let call = SignalCall.outgoingIndividualCall(thread: thread)
         call.individualCall.offerMediaType = hasVideo ? .video : .audio
 
         addCall(call)
@@ -594,7 +602,6 @@ public final class CallService: LightweightCallManager {
         }
 
         let newCall = SignalCall.incomingIndividualCall(
-            localId: UUID(),
             thread: thread,
             sentAtTimestamp: sentAtTimestamp,
             offerMediaType: offerMediaType
