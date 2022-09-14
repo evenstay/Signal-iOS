@@ -28,6 +28,8 @@ class MyStoriesViewController: OWSViewController {
 
     private lazy var contextMenu = ContextMenuInteraction(delegate: self)
 
+    private lazy var contextMenuGenerator = StoryContextMenuGenerator(presentingController: self)
+
     override init() {
         super.init()
         hidesBottomBarWhenPushed = true
@@ -120,6 +122,16 @@ class MyStoriesViewController: OWSViewController {
     private func thread(for section: Int) -> TSThread? {
         items.orderedKeys[safe: section]
     }
+
+    func cell(for message: StoryMessage, and context: StoryContext) -> SentStoryCell? {
+        guard let thread = databaseStorage.read(block: { context.thread(transaction: $0) }) else { return nil }
+        guard let section = items.orderedKeys.firstIndex(of: thread) else { return nil }
+        guard let row = items[thread]?.firstIndex(where: { $0.message.uniqueId == message.uniqueId }) else { return nil }
+
+        let indexPath = IndexPath(row: row, section: section)
+        guard tableView.indexPathsForVisibleRows?.contains(indexPath) == true else { return nil }
+        return tableView.cellForRow(at: indexPath) as? SentStoryCell
+    }
 }
 
 extension MyStoriesViewController: UITableViewDelegate {
@@ -153,13 +165,13 @@ extension MyStoriesViewController: UITableViewDataSource {
     }
 
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        guard let item = item(for: indexPath), let contextMenu = contextMenu(for: indexPath) else {
+        guard let item = item(for: indexPath) else {
             owsFailDebug("Missing item for row at indexPath \(indexPath)")
             return UITableViewCell()
         }
 
         let cell = tableView.dequeueReusableCell(withIdentifier: SentStoryCell.reuseIdentifier, for: indexPath) as! SentStoryCell
-        cell.configure(with: item, contextMenu: contextMenu)
+        cell.configure(with: item, contextMenuButtonDelegate: self, indexPath: indexPath)
         return cell
     }
 
@@ -205,112 +217,35 @@ extension MyStoriesViewController: DatabaseChangeDelegate {
 }
 
 extension MyStoriesViewController: ContextMenuInteractionDelegate {
-    func contextMenu(for indexPath: IndexPath) -> ContextMenu? {
-        guard let item = item(for: indexPath) else { return nil }
-
-        var actions = [ContextMenuAction]()
-
-        actions.append(.init(
-            title: NSLocalizedString(
-                "STORIES_DELETE_STORY_ACTION",
-                comment: "Context menu action to delete the selected story"),
-            image: Theme.iconImage(.trash24),
-            attributes: .destructive,
-            handler: { [weak self] _ in
-                self?.tryToDeleteMessage(for: item)
-            }))
-
-        func appendSaveAction() {
-            actions.append(.init(
-                title: NSLocalizedString(
-                    "STORIES_SAVE_STORY_ACTION",
-                    comment: "Context menu action to save the selected story"),
-                image: Theme.iconImage(.messageActionSave),
-                handler: { _ in item.save() }))
+    fileprivate func contextMenu(
+        for cell: SentStoryCell,
+        at indexPath: IndexPath
+    ) -> ContextMenu? {
+        guard let item = item(for: indexPath) else {
+            return nil
         }
 
-        func appendForwardAction() {
-            actions.append(.init(
-                title: NSLocalizedString(
-                    "STORIES_FORWARD_STORY_ACTION",
-                    comment: "Context menu action to forward the selected story"),
-                image: Theme.iconImage(.messageActionForward),
-                handler: { [weak self] _ in
-                    guard let self = self else { return }
-                    switch item.attachment {
-                    case .file(let attachment):
-                        ForwardMessageViewController.present([attachment], from: self, delegate: self)
-                    case .text:
-                        OWSActionSheets.showActionSheet(title: LocalizationNotNeeded("Forwarding text stories is not yet implemented."))
-                    case .missing:
-                        owsFailDebug("Unexpectedly missing attachment for story.")
-                    }
-                }))
-        }
-
-        func appendShareAction() {
-            actions.append(.init(
-                title: NSLocalizedString(
-                    "STORIES_SHARE_STORY_ACTION",
-                    comment: "Context menu action to share the selected story"),
-                image: Theme.iconImage(.messageActionShare),
-                handler: { [weak self] _ in
-                    guard let self = self else { return }
-                    guard let cell = self.tableView.cellForRow(at: indexPath) else { return }
-
-                    switch item.attachment {
-                    case .file(let attachment):
-                        guard let attachment = attachment as? TSAttachmentStream else {
-                            return owsFailDebug("Unexpectedly tried to share undownloaded attachment")
-                        }
-                        AttachmentSharing.showShareUI(forAttachment: attachment, sender: cell)
-                    case .text(let attachment):
-                        if let url = attachment.preview?.urlString {
-                            AttachmentSharing.showShareUI(for: URL(string: url)!, sender: cell)
-                        } else if let text = attachment.text {
-                            AttachmentSharing.showShareUI(forText: text, sender: cell)
-                        }
-                    case .missing:
-                        owsFailDebug("Unexpectedly missing attachment for story.")
-                    }
-                }))
-        }
-
-        if item.isSaveable { appendSaveAction() }
-
-        switch item.attachment {
-        case .file(let attachment):
-            guard attachment is TSAttachmentStream else { break }
-            appendForwardAction()
-            appendShareAction()
-        case .text:
-            appendForwardAction()
-            appendShareAction()
-        case .missing:
-            owsFailDebug("Unexpectedly missing attachment for story.")
+        let actions = Self.databaseStorage.read { transaction in
+            return self.contextMenuGenerator.contextMenuActions(
+                for: item.message,
+                in: item.thread,
+                attachment: item.attachment,
+                sourceView: cell,
+                transaction: transaction
+            )
         }
 
         return .init(actions)
     }
 
-    private func tryToDeleteMessage(for item: OutgoingStoryItem) {
-        let actionSheet = ActionSheetController(
-            message: NSLocalizedString(
-                "STORIES_DELETE_STORY_ACTION_SHEET_TITLE",
-                comment: "Title asking the user if they are sure they want to delete their story"
-            )
-        )
-        actionSheet.addAction(.init(title: CommonStrings.deleteButton, style: .destructive, handler: { _ in
-            Self.databaseStorage.write { transaction in
-                item.message.remotelyDelete(for: item.thread, transaction: transaction)
-            }
-        }))
-        actionSheet.addAction(OWSActionSheets.cancelAction)
-        presentActionSheet(actionSheet, animated: true)
-    }
-
     func contextMenuInteraction(_ interaction: ContextMenuInteraction, configurationForMenuAtLocation location: CGPoint) -> ContextMenuConfiguration? {
-        guard let indexPath = tableView.indexPathForRow(at: location), let contextMenu = contextMenu(for: indexPath) else { return nil }
+        guard
+            let indexPath = tableView.indexPathForRow(at: location),
+            let cell = tableView.cellForRow(at: indexPath) as? SentStoryCell,
+            let contextMenu = contextMenu(for: cell, at: indexPath)
+        else {
+            return nil
+        }
         return .init(identifier: indexPath as NSCopying) { _ in contextMenu }
     }
 
@@ -351,6 +286,22 @@ extension MyStoriesViewController: ContextMenuInteractionDelegate {
     func contextMenuInteraction(_ interaction: ContextMenuInteraction, didEndForConfiguration configuration: ContextMenuConfiguration) {}
 }
 
+extension MyStoriesViewController: ContextMenuButtonDelegate {
+
+    func contextMenuConfiguration(for contextMenuButton: DelegatingContextMenuButton) -> ContextMenuConfiguration? {
+        guard
+            let indexPath = (contextMenuButton as? IndexPathContextMenuButton)?.indexPath,
+            let cell = tableView.dequeueReusableCell(withIdentifier: SentStoryCell.reuseIdentifier, for: indexPath) as? SentStoryCell,
+            let contextMenu = self.contextMenu(for: cell, at: indexPath)
+        else {
+            return nil
+        }
+        return .init(identifier: nil, actionProvider: { _ in
+            return contextMenu
+        })
+    }
+}
+
 extension MyStoriesViewController: ForwardMessageDelegate {
     public func forwardMessageFlowDidComplete(items: [ForwardMessageItem], recipientThreads: [TSThread]) {
         AssertIsOnMainThread()
@@ -387,67 +338,22 @@ private struct OutgoingStoryItem {
             )
         }
     }
-
-    var isSaveable: Bool {
-        guard case .file(let attachment) = attachment, attachment is TSAttachmentStream, attachment.isVisualMedia else { return false }
-        return true
-    }
-
-    func save() {
-        switch attachment {
-        case .file(let attachment):
-            guard
-                let attachment = attachment as? TSAttachmentStream,
-                attachment.isVisualMedia,
-                let mediaURL = attachment.originalMediaURL,
-                let vc = CurrentAppContext().frontmostViewController()
-            else { break }
-
-            vc.ows_askForMediaLibraryPermissions { isGranted in
-                guard isGranted else {
-                    return
-                }
-
-                PHPhotoLibrary.shared().performChanges({
-                    if attachment.isImage {
-                        PHAssetCreationRequest.creationRequestForAssetFromImage(atFileURL: mediaURL)
-                    } else if attachment.isVideo {
-                        PHAssetCreationRequest.creationRequestForAssetFromVideo(atFileURL: mediaURL)
-                    }
-                }, completionHandler: { didSucceed, error in
-                    DispatchQueue.main.async {
-                        if didSucceed {
-                            let toastController = ToastController(text: OWSLocalizedString("STORIES_DID_SAVE",
-                                                                                           comment: "toast alert shown after user taps the 'save' button"))
-                            toastController.presentToastView(from: .bottom, of: vc.view, inset: 16)
-                        } else {
-                            owsFailDebug("error: \(String(describing: error))")
-                            OWSActionSheets.showErrorAlert(message: OWSLocalizedString("STORIES_SAVE_FAILED",
-                                                                                       comment: "alert notifying that the 'save' operation failed"))
-                        }
-                    }
-                })
-            }
-        case .text:
-            owsFailDebug("Saving text stories is not supported")
-        case .missing:
-            owsFailDebug("Unexpectedly missing attachment for story.")
-        }
-    }
 }
 
-private class SentStoryCell: UITableViewCell {
+class SentStoryCell: UITableViewCell {
     static let reuseIdentifier = "SentStoryCell"
 
-    let contentHStackView = UIStackView()
-    let titleLabel = UILabel()
-    let subtitleLabel = UILabel()
-    let thumbnailContainer = UIView()
-    let saveButton = OWSButton()
-    let contextButton = ContextMenuButton()
+    let attachmentThumbnail = UIView()
 
-    let failedIconContainer = UIView()
-    let failedIconView = UIImageView()
+    fileprivate let contentHStackView = UIStackView()
+
+    private let titleLabel = UILabel()
+    private let subtitleLabel = UILabel()
+    private let saveButton = OWSButton()
+    private let contextButton = IndexPathContextMenuButton()
+
+    private let failedIconContainer = UIView()
+    private let failedIconView = UIImageView()
 
     override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
         super.init(style: style, reuseIdentifier: reuseIdentifier)
@@ -459,8 +365,8 @@ private class SentStoryCell: UITableViewCell {
         contentView.addSubview(contentHStackView)
         contentHStackView.autoPinEdgesToSuperviewMargins()
 
-        thumbnailContainer.autoSetDimensions(to: CGSize(width: 56, height: 84))
-        contentHStackView.addArrangedSubview(thumbnailContainer)
+        attachmentThumbnail.autoSetDimensions(to: CGSize(width: 56, height: 84))
+        contentHStackView.addArrangedSubview(attachmentThumbnail)
 
         contentHStackView.addArrangedSubview(.spacer(withWidth: 16))
 
@@ -510,10 +416,14 @@ private class SentStoryCell: UITableViewCell {
         fatalError("init(coder:) has not been implemented")
     }
 
-    func configure(with item: OutgoingStoryItem, contextMenu: ContextMenu) {
+    fileprivate func configure(
+        with item: OutgoingStoryItem,
+        contextMenuButtonDelegate: ContextMenuButtonDelegate,
+        indexPath: IndexPath
+    ) {
         let thumbnailView = StoryThumbnailView(attachment: item.attachment)
-        thumbnailContainer.removeAllSubviews()
-        thumbnailContainer.addSubview(thumbnailView)
+        attachmentThumbnail.removeAllSubviews()
+        attachmentThumbnail.addSubview(thumbnailView)
         thumbnailView.autoPinEdgesToSuperviewEdges()
 
         titleLabel.textColor = Theme.primaryTextColor
@@ -530,11 +440,18 @@ private class SentStoryCell: UITableViewCell {
             titleLabel.text = NSLocalizedString("STORY_SEND_FAILED", comment: "Text indicating that the story send has failed")
             subtitleLabel.text = NSLocalizedString("STORY_SEND_FAILED_RETRY", comment: "Text indicating that you can tap to retry sending")
         case .sent:
-            let format = NSLocalizedString(
-                "STORY_VIEWS_%d", tableName: "PluralAware",
-                comment: "Text explaining how many views a story has. Embeds {{ %d number of views }}"
-            )
-            titleLabel.text = String(format: format, item.message.remoteViewCount)
+            if receiptManager.areReadReceiptsEnabled() {
+                let format = NSLocalizedString(
+                    "STORY_VIEWS_%d", tableName: "PluralAware",
+                    comment: "Text explaining how many views a story has. Embeds {{ %d number of views }}"
+                )
+                titleLabel.text = String.localizedStringWithFormat(format, item.message.remoteViewCount)
+            } else {
+                titleLabel.text = NSLocalizedString(
+                    "STORY_VIEWS_OFF",
+                    comment: "Text indicating that the user has views turned off"
+                )
+            }
             subtitleLabel.text = DateUtil.formatTimestampRelatively(item.message.timestamp)
             failedIconContainer.isHiddenInStackView = true
         case .sent_OBSOLETE, .delivered_OBSOLETE:
@@ -545,9 +462,9 @@ private class SentStoryCell: UITableViewCell {
         saveButton.setImage(Theme.iconImage(.messageActionSave), for: .normal)
         saveButton.setBackgroundImage(UIImage(color: Theme.secondaryBackgroundColor), for: .normal)
 
-        if item.isSaveable {
+        if item.attachment.isSaveable {
             saveButton.isHiddenInStackView = false
-            saveButton.block = { item.save() }
+            saveButton.block = { item.attachment.save() }
         } else {
             saveButton.isHiddenInStackView = true
             saveButton.block = {}
@@ -556,6 +473,12 @@ private class SentStoryCell: UITableViewCell {
         contextButton.tintColor = Theme.primaryIconColor
         contextButton.setImage(Theme.iconImage(.more24), for: .normal)
         contextButton.setBackgroundImage(UIImage(color: Theme.secondaryBackgroundColor), for: .normal)
-        contextButton.contextMenu = contextMenu
+        contextButton.delegate = contextMenuButtonDelegate
+        contextButton.indexPath = indexPath
     }
+}
+
+private class IndexPathContextMenuButton: DelegatingContextMenuButton {
+
+    var indexPath: IndexPath?
 }

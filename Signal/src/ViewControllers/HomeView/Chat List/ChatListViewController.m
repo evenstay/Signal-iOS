@@ -98,15 +98,8 @@ NSString *const kArchiveButtonPseudoGroup = @"kArchiveButtonPseudoGroup";
 
     [super applyTheme];
 
-    if (self.splitViewController.isCollapsed) {
-        self.view.backgroundColor = Theme.backgroundColor;
-        self.tableView.backgroundColor = Theme.backgroundColor;
-        [self.searchBar switchToStyle:OWSSearchBarStyle_Default];
-    } else {
-        self.view.backgroundColor = Theme.secondaryBackgroundColor;
-        self.tableView.backgroundColor = Theme.secondaryBackgroundColor;
-        [self.searchBar switchToStyle:OWSSearchBarStyle_SecondaryBar];
-    }
+    self.view.backgroundColor = Theme.backgroundColor;
+    self.tableView.backgroundColor = Theme.backgroundColor;
 
     [self updateBarButtonItems];
 }
@@ -682,8 +675,7 @@ NSString *const kArchiveButtonPseudoGroup = @"kArchiveButtonPseudoGroup";
             }
 
             CameraFirstCaptureNavigationController *cameraModal =
-                [CameraFirstCaptureNavigationController cameraFirstModalWithStoriesOnly:NO];
-            cameraModal.cameraFirstCaptureSendFlow.delegate = self;
+                [CameraFirstCaptureNavigationController cameraFirstModalWithStoriesOnly:NO delegate:self];
             cameraModal.modalPresentationStyle = UIModalPresentationOverFullScreen;
 
             // Defer hiding status bar until modal is fully onscreen
@@ -709,7 +701,7 @@ NSString *const kArchiveButtonPseudoGroup = @"kArchiveButtonPseudoGroup";
     self.isViewVisible = YES;
 
     // Ensure the tabBar is always hidden if stories is disabled or we're in the archive.
-    BOOL shouldHideTabBar = !RemoteConfig.stories || self.chatListMode == ChatListModeArchive;
+    BOOL shouldHideTabBar = !StoryManager.areStoriesEnabled || self.chatListMode == ChatListModeArchive;
     if (shouldHideTabBar) {
         self.tabBarController.tabBar.hidden = YES;
         self.extendedLayoutIncludesOpaqueBars = YES;

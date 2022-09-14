@@ -38,6 +38,7 @@ protocol InteractionFinderAdapter {
     static func interactions(withInteractionIds interactionIds: Set<String>, transaction: ReadTransaction) -> Set<TSInteraction>
 
     static func enumerateGroupReplies(for storyMessage: StoryMessage, transaction: ReadTransaction, block: @escaping (TSMessage, UnsafeMutablePointer<ObjCBool>) -> Void)
+    static func hasLocalUserReplied(storyTimestamp: UInt64, storyAuthorUuidString: String, transaction: ReadTransaction) -> Bool
     static func countReplies(for storyMessage: StoryMessage, transaction: ReadTransaction) -> UInt
     static func hasReplies(for stories: [StoryMessage], transaction: ReadTransaction) -> Bool
     static func groupReplyUniqueIds(for storyMessage: StoryMessage, transaction: ReadTransaction) -> [String]
@@ -223,6 +224,13 @@ public class InteractionFinder: NSObject, InteractionFinderAdapter {
         switch transaction.readTransaction {
         case .grdbRead(let grdbRead):
             GRDBInteractionFinder.enumerateGroupReplies(for: storyMessage, transaction: grdbRead, block: block)
+        }
+    }
+
+    public static func hasLocalUserReplied(storyTimestamp: UInt64, storyAuthorUuidString: String, transaction: SDSAnyReadTransaction) -> Bool {
+        switch transaction.readTransaction {
+        case .grdbRead(let grdbRead):
+            return GRDBInteractionFinder.hasLocalUserReplied(storyTimestamp: storyTimestamp, storyAuthorUuidString: storyAuthorUuidString, transaction: grdbRead)
         }
     }
 
@@ -952,6 +960,36 @@ public class GRDBInteractionFinder: NSObject, InteractionFinderAdapter {
         }
     }
 
+    static func hasLocalUserReplied(
+        storyTimestamp: UInt64,
+        storyAuthorUuidString: String,
+        transaction: ReadTransaction
+    ) -> Bool {
+        let sql = """
+            SELECT EXISTS(
+                SELECT 1
+                FROM \(InteractionRecord.databaseTableName)
+                WHERE \(interactionColumn: .storyTimestamp) = ?
+                AND \(interactionColumn: .storyAuthorUuidString) = ?
+                AND \(interactionColumn: .recordType) = \(SDSRecordType.outgoingMessage.rawValue)
+                AND \(interactionColumn: .isGroupStoryReply) = 1
+                LIMIT 1
+            )
+        """
+        do {
+            return try Bool.fetchOne(
+                transaction.database,
+                sql: sql,
+                arguments: [
+                    storyTimestamp,
+                    storyAuthorUuidString
+                ]
+            ) ?? false
+        } catch {
+            owsFail("error: \(error)")
+        }
+    }
+
     static func countReplies(for storyMessage: StoryMessage, transaction: GRDBReadTransaction) -> UInt {
         guard !storyMessage.authorAddress.isSystemStoryAddress else {
             // No replies on system stories.
@@ -1255,10 +1293,10 @@ public class GRDBInteractionFinder: NSObject, InteractionFinderAdapter {
         }
 
         let distanceSQL = """
-            SELECT count(*) - 1
+            SELECT COUNT(*)
             FROM \(InteractionRecord.databaseTableName)
             WHERE \(interactionColumn: .threadUniqueId) = ?
-            AND \(interactionColumn: .id) >= ?
+            AND \(interactionColumn: .id) > ?
             \(Self.filterStoryRepliesClause(for: storyReplyQueryMode))
             \(excludePlaceholders ? filterPlaceholdersClause : "")
         """

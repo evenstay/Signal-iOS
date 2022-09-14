@@ -1900,6 +1900,13 @@ public struct StorageServiceProtoGroupV2Record: Codable, CustomDebugStringConver
         return true
     }
 
+    public var storySendEnabled: Bool {
+        return proto.storySendEnabled
+    }
+    public var hasStorySendEnabled: Bool {
+        return true
+    }
+
     public var hasUnknownFields: Bool {
         return !proto.unknownFields.data.isEmpty
     }
@@ -1975,6 +1982,9 @@ extension StorageServiceProtoGroupV2Record {
         if hasHideStory {
             builder.setHideStory(hideStory)
         }
+        if hasStorySendEnabled {
+            builder.setStorySendEnabled(storySendEnabled)
+        }
         if let _value = unknownFields {
             builder.setUnknownFields(_value)
         }
@@ -2025,6 +2035,10 @@ public struct StorageServiceProtoGroupV2RecordBuilder {
 
     public mutating func setHideStory(_ valueParam: Bool) {
         proto.hideStory = valueParam
+    }
+
+    public mutating func setStorySendEnabled(_ valueParam: Bool) {
+        proto.storySendEnabled = valueParam
     }
 
     public mutating func setUnknownFields(_ unknownFields: SwiftProtobuf.UnknownStorage) {
@@ -2737,6 +2751,20 @@ public struct StorageServiceProtoAccountRecord: Codable, CustomDebugStringConver
         return true
     }
 
+    public var viewedOnboardingStory: Bool {
+        return proto.viewedOnboardingStory
+    }
+    public var hasViewedOnboardingStory: Bool {
+        return true
+    }
+
+    public var storiesDisabled: Bool {
+        return proto.storiesDisabled
+    }
+    public var hasStoriesDisabled: Bool {
+        return true
+    }
+
     public var hasUnknownFields: Bool {
         return !proto.unknownFields.data.isEmpty
     }
@@ -2870,6 +2898,12 @@ extension StorageServiceProtoAccountRecord {
         }
         if hasKeepMutedChatsArchived {
             builder.setKeepMutedChatsArchived(keepMutedChatsArchived)
+        }
+        if hasViewedOnboardingStory {
+            builder.setViewedOnboardingStory(viewedOnboardingStory)
+        }
+        if hasStoriesDisabled {
+            builder.setStoriesDisabled(storiesDisabled)
         }
         if let _value = unknownFields {
             builder.setUnknownFields(_value)
@@ -3034,6 +3068,14 @@ public struct StorageServiceProtoAccountRecordBuilder {
 
     public mutating func setKeepMutedChatsArchived(_ valueParam: Bool) {
         proto.keepMutedChatsArchived = valueParam
+    }
+
+    public mutating func setViewedOnboardingStory(_ valueParam: Bool) {
+        proto.viewedOnboardingStory = valueParam
+    }
+
+    public mutating func setStoriesDisabled(_ valueParam: Bool) {
+        proto.storiesDisabled = valueParam
     }
 
     public mutating func setUnknownFields(_ unknownFields: SwiftProtobuf.UnknownStorage) {

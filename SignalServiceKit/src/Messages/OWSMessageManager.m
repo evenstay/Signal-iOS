@@ -1663,6 +1663,7 @@ NS_ASSUME_NONNULL_BEGIN
                                                       timestamp:syncMessage.sent.timestamp
                                                 serverTimestamp:envelope.serverTimestamp
                                                expiresInSeconds:dataMessage.expireTimer
+                                                 sentTranscript:transcript
                                                     transaction:transaction];
                 switch (result) {
                     case OWSReactionProcessingResultSuccess:
@@ -1787,7 +1788,7 @@ NS_ASSUME_NONNULL_BEGIN
         OWSLogInfo(@"Received blocked sync message.");
         [self handleSyncedBlockList:syncMessage.blocked transaction:transaction];
     } else if (syncMessage.read.count > 0) {
-        OWSLogInfo(@"Received %lu read receipt(s)", (unsigned long)syncMessage.read.count);
+        OWSLogInfo(@"Received %lu read receipt(s) in sync message", (unsigned long)syncMessage.read.count);
         NSArray<SSKProtoSyncMessageRead *> *earlyReceipts =
             [OWSReceiptManager.shared processReadReceiptsFromLinkedDevice:syncMessage.read
                                                             readTimestamp:envelope.timestamp
@@ -1799,7 +1800,7 @@ NS_ASSUME_NONNULL_BEGIN
                                                                               transaction:transaction];
         }
     } else if (syncMessage.viewed.count > 0) {
-        OWSLogInfo(@"Received %lu viewed receipt(s)", (unsigned long)syncMessage.viewed.count);
+        OWSLogInfo(@"Received %lu viewed receipt(s) in sync message", (unsigned long)syncMessage.viewed.count);
         NSArray<SSKProtoSyncMessageViewed *> *earlyReceipts =
             [OWSReceiptManager.shared processViewedReceiptsFromLinkedDevice:syncMessage.viewed
                                                             viewedTimestamp:envelope.timestamp
@@ -2011,6 +2012,7 @@ NS_ASSUME_NONNULL_BEGIN
                                                                                timestamp:timestamp
                                                                          serverTimestamp:envelope.serverTimestamp
                                                                         expiresInSeconds:dataMessage.expireTimer
+                                                                          sentTranscript:nil
                                                                              transaction:transaction];
 
         switch (result) {

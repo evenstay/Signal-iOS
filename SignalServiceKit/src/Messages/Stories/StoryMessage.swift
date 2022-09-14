@@ -126,6 +126,7 @@ public final class StoryMessage: NSObject, SDSCodableModel {
     public static func create(
         withIncomingStoryMessage storyMessage: SSKProtoStoryMessage,
         timestamp: UInt64,
+        receivedTimestamp: UInt64,
         author: SignalServiceAddress,
         transaction: SDSAnyWriteTransaction
     ) throws -> StoryMessage? {
@@ -151,7 +152,10 @@ public final class StoryMessage: NSObject, SDSCodableModel {
             return nil
         }
 
-        let manifest = StoryManifest.incoming(receivedState: .init(allowsReplies: storyMessage.allowsReplies))
+        let manifest = StoryManifest.incoming(receivedState: .init(
+            allowsReplies: storyMessage.allowsReplies,
+            receivedTimestamp: receivedTimestamp
+        ))
 
         let attachment: StoryMessageAttachment
         if let fileAttachment = storyMessage.fileAttachment {
@@ -202,11 +206,13 @@ public final class StoryMessage: NSObject, SDSCodableModel {
                   let uuid = UUID(uuidString: uuidString) else {
                 throw OWSAssertionError("Invalid UUID on story recipient \(String(describing: recipient.destinationUuid))")
             }
+
             return (
                 key: uuid,
                 value: StoryRecipientState(
                     allowsReplies: recipient.isAllowedToReply,
-                    contexts: recipient.distributionListIds.compactMap { UUID(uuidString: $0) }
+                    contexts: recipient.distributionListIds.compactMap { UUID(uuidString: $0) },
+                    sendingState: .sent // This was sent by our linked device
                 )
             )
         }))
@@ -249,7 +255,11 @@ public final class StoryMessage: NSObject, SDSCodableModel {
         Logger.info("Processing StoryMessage for system author")
 
         let manifest = StoryManifest.incoming(
-            receivedState: StoryReceivedState(allowsReplies: false, viewedTimestamp: nil)
+            receivedState: StoryReceivedState(
+                allowsReplies: false,
+                receivedTimestamp: timestamp,
+                viewedTimestamp: nil
+            )
         )
 
         attachment.anyInsert(transaction: transaction)
@@ -279,7 +289,11 @@ public final class StoryMessage: NSObject, SDSCodableModel {
             guard case .incoming(let receivedState) = record.manifest else {
                 return owsFailDebug("Unexpectedly tried to mark outgoing message as viewed with wrong method.")
             }
-            record.manifest = .incoming(receivedState: .init(allowsReplies: receivedState.allowsReplies, viewedTimestamp: timestamp))
+            record.manifest = .incoming(receivedState: .init(
+                allowsReplies: receivedState.allowsReplies,
+                receivedTimestamp: receivedState.receivedTimestamp,
+                viewedTimestamp: timestamp
+            ))
         }
 
         // Don't perform thread operations, make downloads, or send receipts for system stories.
@@ -343,7 +357,11 @@ public final class StoryMessage: NSObject, SDSCodableModel {
                     recipientState.contexts = newContexts
                     newRecipientStates[uuid] = recipientState
                 } else {
-                    newRecipientStates[uuid] = .init(allowsReplies: recipient.isAllowedToReply, contexts: newContexts)
+                    newRecipientStates[uuid] = .init(
+                        allowsReplies: recipient.isAllowedToReply,
+                        contexts: newContexts,
+                        sendingState: .sent // This was sent by our linked device
+                    )
                 }
             }
 
@@ -375,6 +393,7 @@ public final class StoryMessage: NSObject, SDSCodableModel {
                 guard let uuid = address.uuid else { continue }
                 guard var recipientState = recipientStates[uuid] else { continue }
                 recipientState.sendingState = outgoingMessageState.state
+                recipientState.sendingErrorCode = outgoingMessageState.errorCode?.intValue
                 recipientStates[uuid] = recipientState
             }
 
@@ -485,6 +504,14 @@ public final class StoryMessage: NSObject, SDSCodableModel {
         }
     }
 
+    public func failedRecipientAddresses(errorCode: Int) -> [SignalServiceAddress] {
+        guard case .outgoing(let recipientStates) = manifest else { return [] }
+
+        return recipientStates.filter { _, state in
+            return state.sendingState == .failed && errorCode == state.sendingErrorCode
+        }.map { .init(uuid: $0.key) }
+    }
+
     public func resendMessageToFailedRecipients(transaction: SDSAnyWriteTransaction) {
         guard case .outgoing(let recipientStates) = manifest else {
             return owsFailDebug("Cannot resend incoming story.")
@@ -588,9 +615,11 @@ public enum StoryManifest: Codable {
 public struct StoryReceivedState: Codable {
     public let allowsReplies: Bool
     public var viewedTimestamp: UInt64?
+    public var receivedTimestamp: UInt64?
 
-    init(allowsReplies: Bool, viewedTimestamp: UInt64? = nil) {
+    init(allowsReplies: Bool, receivedTimestamp: UInt64?, viewedTimestamp: UInt64? = nil) {
         self.allowsReplies = allowsReplies
+        self.receivedTimestamp = receivedTimestamp
         self.viewedTimestamp = viewedTimestamp
     }
 }
@@ -599,8 +628,15 @@ public struct StoryRecipientState: Codable {
     public var allowsReplies: Bool
     public var contexts: [UUID]
     @DecodableDefault.OutgoingMessageSending
-    public var sendingState: OWSOutgoingMessageRecipientState = .sending
+    public var sendingState: OWSOutgoingMessageRecipientState
+    public var sendingErrorCode: Int?
     public var viewedTimestamp: UInt64?
+
+    init(allowsReplies: Bool, contexts: [UUID], sendingState: OWSOutgoingMessageRecipientState = .sending) {
+        self.allowsReplies = allowsReplies
+        self.contexts = contexts
+        self.sendingState = sendingState
+    }
 }
 
 extension OWSOutgoingMessageRecipientState: Codable {}
@@ -632,9 +668,51 @@ public struct TextAttachment: Codable {
         case color(hex: UInt32)
         case gradient(raw: RawGradient)
         struct RawGradient: Codable {
-            let startColorHex: UInt32
-            let endColorHex: UInt32
+            let colors: [UInt32]
+            let positions: [Float]
             let angle: UInt32
+
+            init(colors: [UInt32], positions: [Float], angle: UInt32) {
+                self.colors = colors
+                self.positions = positions
+                self.angle = angle
+            }
+
+            enum CodingKeysV1: String, CodingKey {
+                case startColorHex, endColorHex, angle
+            }
+
+            init(from decoder: Decoder) throws {
+                let containerV1: KeyedDecodingContainer<CodingKeysV1> = try decoder.container(keyedBy: CodingKeysV1.self)
+                if
+                    let startColorHex = try? containerV1.decode(UInt32.self, forKey: .startColorHex),
+                    let endColorHex = try? containerV1.decode(UInt32.self, forKey: .endColorHex),
+                    let angle = try? containerV1.decode(UInt32.self, forKey: .angle)
+                {
+                    self.colors = [ startColorHex, endColorHex ]
+                    self.positions = [ 0, 1 ]
+                    self.angle = angle
+                    return
+                }
+                let containerV2: KeyedDecodingContainer<CodingKeys> = try decoder.container(keyedBy: CodingKeys.self)
+                self.colors = try containerV2.decode([UInt32].self, forKey: .colors)
+                self.positions = try containerV2.decode([Float].self, forKey: .positions)
+                self.angle = try containerV2.decode(UInt32.self, forKey: .angle)
+            }
+
+            func buildProto() throws -> SSKProtoTextAttachmentGradient {
+                let builder = SSKProtoTextAttachmentGradient.builder()
+                if let startColor = colors.first {
+                    builder.setStartColor(startColor)
+                }
+                if let endColor = colors.last {
+                    builder.setEndColor(endColor)
+                }
+                builder.setColors(colors)
+                builder.setPositions(positions)
+                builder.setAngle(angle)
+                return try builder.build()
+            }
         }
     }
     private let rawBackground: RawBackground
@@ -643,13 +721,19 @@ public struct TextAttachment: Codable {
         case color(UIColor)
         case gradient(Gradient)
         public struct Gradient {
-            public init(startColor: UIColor, endColor: UIColor, angle: UInt32) {
-                self.startColor = startColor
-                self.endColor = endColor
+            public init(colors: [UIColor], locations: [CGFloat], angle: UInt32) {
+                self.colors = colors
+                self.locations = locations
                 self.angle = angle
             }
-            public let startColor: UIColor
-            public let endColor: UIColor
+            public init(colors: [UIColor]) {
+                let locations: [CGFloat] = colors.enumerated().map { element in
+                    return CGFloat(element.offset) / CGFloat(colors.count - 1)
+                }
+                self.init(colors: colors, locations: locations, angle: 180)
+            }
+            public let colors: [UIColor]
+            public let locations: [CGFloat]
             public let angle: UInt32
         }
     }
@@ -659,8 +743,8 @@ public struct TextAttachment: Codable {
             return .color(.init(argbHex: hex))
         case .gradient(let rawGradient):
             return .gradient(.init(
-                startColor: .init(argbHex: rawGradient.startColorHex),
-                endColor: .init(argbHex: rawGradient.endColorHex),
+                colors: rawGradient.colors.map { UIColor(argbHex: $0) },
+                locations: rawGradient.positions.map { CGFloat($0) },
                 angle: rawGradient.angle
             ))
         }
@@ -701,9 +785,18 @@ public struct TextAttachment: Codable {
         }
 
         if let gradient = proto.gradient {
+            let colors: [UInt32]
+            let positions: [Float]
+            if !gradient.colors.isEmpty && !gradient.positions.isEmpty {
+                colors = gradient.colors
+                positions = gradient.positions
+            } else {
+                colors = [ gradient.startColor, gradient.endColor ]
+                positions = [ 0, 1 ]
+            }
             rawBackground = .gradient(raw: .init(
-                startColorHex: gradient.startColor,
-                endColorHex: gradient.endColor,
+                colors: colors,
+                positions: positions,
                 angle: gradient.angle
             ))
         } else if proto.hasColor {
@@ -715,6 +808,70 @@ public struct TextAttachment: Codable {
         if let preview = proto.preview {
             self.preview = try OWSLinkPreview.buildValidatedLinkPreview(proto: preview, transaction: transaction)
         }
+    }
+
+    public func buildProto(transaction: SDSAnyReadTransaction) throws -> SSKProtoTextAttachment {
+        let builder = SSKProtoTextAttachment.builder()
+
+        if let text = text {
+            builder.setText(text)
+        }
+
+        let textStyle: SSKProtoTextAttachmentStyle = {
+            switch self.textStyle {
+            case .regular: return .regular
+            case .bold: return .bold
+            case .serif: return .serif
+            case .script: return .script
+            case .condensed: return .condensed
+            }
+        }()
+        builder.setTextStyle(textStyle)
+
+        if let textForegroundColorHex = textForegroundColorHex {
+            builder.setTextForegroundColor(textForegroundColorHex)
+        }
+
+        if let textBackgroundColorHex = textBackgroundColorHex {
+            builder.setTextBackgroundColor(textBackgroundColorHex)
+        }
+
+        switch rawBackground {
+        case .color(let hex):
+            builder.setColor(hex)
+        case .gradient(let raw):
+            builder.setGradient(try raw.buildProto())
+        }
+
+        if let preview = preview {
+            builder.setPreview(try preview.buildProto(transaction: transaction))
+        }
+
+        return try builder.build()
+    }
+
+    public init(text: String,
+                textStyle: TextStyle,
+                textForegroundColor: UIColor,
+                textBackgroundColor: UIColor?,
+                background: Background,
+                linkPreview: OWSLinkPreview?) {
+        self.text = text
+        self.textStyle = textStyle
+        self.textForegroundColorHex = textForegroundColor.argbHex
+        self.textBackgroundColorHex = textBackgroundColor?.argbHex
+        self.rawBackground = {
+            switch background {
+            case .color(let color):
+                return .color(hex: color.argbHex)
+
+            case .gradient(let gradient):
+                return .gradient(raw: .init(colors: gradient.colors.map { $0.argbHex },
+                                            positions: gradient.locations.map { Float($0) },
+                                            angle: gradient.angle))
+            }
+        }()
+        self.preview = linkPreview
     }
 }
 

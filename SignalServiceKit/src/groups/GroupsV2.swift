@@ -3,17 +3,20 @@
 //
 
 import Foundation
+import LibSignalClient
 
 public enum GroupsV2Error: Error {
-    // By the time we tried to apply the change, it was irrelevant.
+    /// By the time we tried to apply the change, it was irrelevant.
     case redundantChange
+    /// The change we attempted conflicts with what is on the service.
+    case conflictingChangeOnService
     case shouldRetry
     case shouldDiscard
     case timeout
     case localUserNotInGroup
-    case conflictingChange
-    case lastAdminCantLeaveGroup
-    case tooManyMembers
+    case cannotBuildGroupChangeProto_conflictingChange
+    case cannotBuildGroupChangeProto_lastAdminCantLeaveGroup
+    case cannotBuildGroupChangeProto_tooManyMembers
     case gv2NotEnabled
     case localUserIsAlreadyRequestingMember
     case localUserIsNotARequestingMember
@@ -64,9 +67,6 @@ public protocol GroupsV2: AnyObject {
     func hasProfileKeyCredential(for address: SignalServiceAddress,
                                  transaction: SDSAnyReadTransaction) -> Bool
 
-    func tryToEnsureProfileKeyCredentialsObjc(for addresses: [SignalServiceAddress],
-                                              ignoreMissingProfiles: Bool) -> AnyPromise
-
     func masterKeyData(forGroupModel groupModel: TSGroupModelV2) throws -> Data
 
     func buildGroupContextV2Proto(groupModel: TSGroupModelV2,
@@ -83,8 +83,6 @@ public protocol GroupsV2: AnyObject {
     func isGroupKnownToStorageService(groupModel: TSGroupModelV2,
                                       transaction: SDSAnyReadTransaction) -> Bool
 
-    func restoreGroupFromStorageServiceIfNecessary(masterKeyData: Data, transaction: SDSAnyWriteTransaction)
-
     func isValidGroupV2MasterKey(_ masterKeyData: Data) -> Bool
 
     func clearTemporalCredentials(transaction: SDSAnyWriteTransaction)
@@ -93,11 +91,22 @@ public protocol GroupsV2: AnyObject {
 // MARK: -
 
 public protocol GroupsV2Swift: GroupsV2 {
+
+    typealias ProfileKeyCredentialMap = [UUID: ProfileKeyCredential]
+
     func createNewGroupOnService(groupModel: TSGroupModelV2,
                                  disappearingMessageToken: DisappearingMessageToken) -> Promise<Void>
 
-    func tryToEnsureProfileKeyCredentials(for addresses: [SignalServiceAddress],
-                                          ignoreMissingProfiles: Bool) -> Promise<Void>
+    func loadProfileKeyCredentials(
+        for uuids: [UUID],
+        forceRefresh: Bool
+    ) -> Promise<ProfileKeyCredentialMap>
+
+    func tryToFetchProfileKeyCredentials(
+        for uuids: [UUID],
+        ignoreMissingProfiles: Bool,
+        forceRefresh: Bool
+    ) -> Promise<Void>
 
     func fetchCurrentGroupV2Snapshot(groupModel: TSGroupModelV2) -> Promise<GroupV2Snapshot>
 
@@ -153,6 +162,16 @@ public protocol GroupsV2Swift: GroupsV2 {
     func fetchGroupExternalCredentials(groupModel: TSGroupModelV2) throws -> Promise<GroupsProtoGroupExternalCredential>
 
     func updateAlreadyMigratedGroupIfNecessary(v2GroupId: Data) -> Promise<Void>
+
+    func groupRecordPendingStorageServiceRestore(
+        masterKeyData: Data,
+        transaction: SDSAnyReadTransaction
+    ) -> StorageServiceProtoGroupV2Record?
+
+    func restoreGroupFromStorageServiceIfNecessary(
+        groupRecord: StorageServiceProtoGroupV2Record,
+        transaction: SDSAnyWriteTransaction
+    )
 }
 
 // MARK: -
@@ -531,13 +550,18 @@ public class MockGroupsV2: NSObject, GroupsV2Swift, GroupsV2 {
         owsFail("Not implemented.")
     }
 
-    public func tryToEnsureProfileKeyCredentialsObjc(for addresses: [SignalServiceAddress],
-                                                     ignoreMissingProfiles: Bool) -> AnyPromise {
+    public func loadProfileKeyCredentials(
+        for uuids: [UUID],
+        forceRefresh: Bool
+    ) -> Promise<ProfileKeyCredentialMap> {
         owsFail("Not implemented.")
     }
 
-    public func tryToEnsureProfileKeyCredentials(for addresses: [SignalServiceAddress],
-                                                 ignoreMissingProfiles: Bool) -> Promise<Void> {
+    public func tryToFetchProfileKeyCredentials(
+        for uuids: [UUID],
+        ignoreMissingProfiles: Bool,
+        forceRefresh: Bool
+    ) -> Promise<Void> {
         return Promise.value(())
     }
 
@@ -608,7 +632,11 @@ public class MockGroupsV2: NSObject, GroupsV2Swift, GroupsV2 {
         return true
     }
 
-    public func restoreGroupFromStorageServiceIfNecessary(masterKeyData: Data, transaction: SDSAnyWriteTransaction) {
+    public func groupRecordPendingStorageServiceRestore(masterKeyData: Data, transaction: SDSAnyReadTransaction) -> StorageServiceProtoGroupV2Record? {
+        return nil
+    }
+
+    public func restoreGroupFromStorageServiceIfNecessary(groupRecord: StorageServiceProtoGroupV2Record, transaction: SDSAnyWriteTransaction) {
         owsFail("Not implemented.")
     }
 

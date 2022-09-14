@@ -118,6 +118,14 @@ public class CommonStrings: NSObject {
     }
 
     @objc
+    static public var goToSettingsButton: String {
+        OWSLocalizedString(
+            "GO_TO_SETTINGS_BUTTON",
+            comment: "Label for the 'go to settings' button"
+        )
+    }
+
+    @objc
     static public var help: String {
         OWSLocalizedString("SETTINGS_HELP", comment: "Title for help button and help pages in app settings.")
     }
@@ -389,6 +397,12 @@ public class NotificationStrings: NSObject {
     static public var incomingGroupMessageTitleFormat: String {
         OWSLocalizedString("NEW_GROUP_MESSAGE_NOTIFICATION_TITLE",
                           comment: "notification title. Embeds {{author name}} and {{group name}}")
+    }
+
+    @objc
+    static public var incomingGroupStoryReplyTitleFormat: String {
+        OWSLocalizedString("NEW_GROUP_STORY_REPLY_NOTIFICATION_TITLE",
+                           comment: "notification title. Embeds {{ %1%@ author name, %2%@ group name}}")
     }
 
     @objc

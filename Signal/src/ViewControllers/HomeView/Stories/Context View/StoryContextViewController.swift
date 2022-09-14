@@ -49,12 +49,21 @@ class StoryContextViewController: OWSViewController {
 
     var loadMessage: StoryMessage?
 
+    enum Action {
+        case none
+        case presentReplies
+        case presentInfo
+    }
+    var action: Action = .none
+
     enum LoadPosition {
         case `default`
         case newest
         case oldest
     }
     private(set) var loadPositionIfRead: LoadPosition
+
+    private(set) lazy var contextMenuGenerator = StoryContextMenuGenerator(presentingController: self, delegate: self)
 
     required init(context: StoryContext, loadPositionIfRead: LoadPosition = .default, delegate: StoryContextViewControllerDelegate) {
         self.context = context
@@ -99,11 +108,26 @@ class StoryContextViewController: OWSViewController {
             // For subsequent loads, use the default position.
             loadPositionIfRead = .default
             loadMessage = nil
+
+            switch action {
+            case .none:
+                break
+            case .presentReplies:
+                presentRepliesAndViewsSheet()
+                action = .none
+            case .presentInfo:
+                presentInfoSheet()
+                action = .none
+            }
         }
 
         playbackProgressView.alpha = 1
         closeButton.alpha = 1
         repliesAndViewsButton.alpha = 1
+
+        if onboardingOverlay.isDisplaying {
+            pause(hideChrome: true)
+        }
     }
 
     func updateMuteState() {
@@ -135,10 +159,15 @@ class StoryContextViewController: OWSViewController {
     private lazy var leftTapGestureRecognizer = UITapGestureRecognizer(target: self, action: #selector(didTapLeft))
     private lazy var rightTapGestureRecognizer = UITapGestureRecognizer(target: self, action: #selector(didTapRight))
     private lazy var pauseGestureRecognizer = UILongPressGestureRecognizer(target: self, action: #selector(handleLongPress))
+    private lazy var zoomPinchGestureRecognizer = UIPinchGestureRecognizer(target: self, action: #selector(handlePinchZoom))
+    private lazy var zoomPanGestureRecognizer = UIPanGestureRecognizer(target: self, action: #selector(handlePinchZoom))
 
     private lazy var closeButton = OWSButton(imageName: "x-24", tintColor: .ows_white)
 
     private lazy var mediaViewContainer = UIView()
+
+    private lazy var onboardingOverlay = StoryContextOnboardingOverlayView(delegate: self)
+
     private lazy var repliesAndViewsButton = OWSButton()
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -146,16 +175,23 @@ class StoryContextViewController: OWSViewController {
         view.addGestureRecognizer(leftTapGestureRecognizer)
         view.addGestureRecognizer(rightTapGestureRecognizer)
         view.addGestureRecognizer(pauseGestureRecognizer)
+        view.addGestureRecognizer(zoomPinchGestureRecognizer)
+        view.addGestureRecognizer(zoomPanGestureRecognizer)
 
         leftTapGestureRecognizer.delegate = self
         rightTapGestureRecognizer.delegate = self
         pauseGestureRecognizer.delegate = self
+        zoomPinchGestureRecognizer.delegate = self
+        zoomPanGestureRecognizer.delegate = self
         pauseGestureRecognizer.minimumPressDuration = 0.2
 
         leftTapGestureRecognizer.require(toFail: pauseGestureRecognizer)
         rightTapGestureRecognizer.require(toFail: pauseGestureRecognizer)
 
         view.addSubview(mediaViewContainer)
+        view.addSubview(onboardingOverlay)
+
+        onboardingOverlay.autoPinEdges(toEdgesOf: mediaViewContainer)
 
         repliesAndViewsButton.block = { [weak self] in self?.presentRepliesAndViewsSheet() }
         repliesAndViewsButton.autoSetDimension(.height, toSize: 64)
@@ -174,6 +210,8 @@ class StoryContextViewController: OWSViewController {
             // iPhone with notch or iPad (views/replies rendered below media, media is in a card)
             mediaViewContainer.layer.cornerRadius = 18
             mediaViewContainer.clipsToBounds = true
+            onboardingOverlay.layer.cornerRadius = 18
+            onboardingOverlay.clipsToBounds = true
             repliesAndViewsButton.autoPinEdge(.top, to: .bottom, of: mediaViewContainer)
             playbackProgressView.autoPinEdge(.bottom, to: .top, of: repliesAndViewsButton, withOffset: -OWSTableViewController2.defaultHOuterMargin)
         } else {
@@ -217,6 +255,20 @@ class StoryContextViewController: OWSViewController {
             self?.items = storyItems
             self?.resetForPresentation()
         }
+    }
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+
+        // Precompute if it should display before we mark anything viewed.
+        onboardingOverlay.checkIfShouldDisplay()
+    }
+
+    /// This controller's view gets generated early to use for a zoom animation, which triggers
+    /// viewWill- and viewDidAppear before presentation has really finished.
+    /// The parent page controller calls this method when presentation actually finishes.
+    func pageControllerDidAppear() {
+        onboardingOverlay.showIfNeeded()
     }
 
     private static let maxItemsToRender = 100
@@ -286,11 +338,12 @@ class StoryContextViewController: OWSViewController {
                                 "STORY_REPLY_TO_GROUP_BUTTON",
                                 comment: "Button for replying to a group story with no existing replies.")
                         } else {
+                            trailingIcon = CurrentAppContext().isRTL ? #imageLiteral(resourceName: "chevron-left-20") : #imageLiteral(resourceName: "chevron-right-20")
                             let format = NSLocalizedString(
                                 "STORY_REPLIES_COUNT_%d",
                                 tableName: "PluralAware",
                                 comment: "Button for replying to a story with N existing replies.")
-                            repliesAndViewsButtonText = String(format: format, currentItem.numberOfReplies)
+                            repliesAndViewsButtonText = String.localizedStringWithFormat(format, currentItem.numberOfReplies)
                         }
                     } else {
                         leadingIcon = #imageLiteral(resourceName: "reply-outline-20")
@@ -299,19 +352,33 @@ class StoryContextViewController: OWSViewController {
                             comment: "Button for replying to a story with no existing replies.")
                     }
                 case .outgoing:
-                    trailingIcon = CurrentAppContext().isRTL ? #imageLiteral(resourceName: "chevron-left-20") : #imageLiteral(resourceName: "chevron-right-20")
-                    if case .groupId = context {
+                    if receiptManager.areReadReceiptsEnabled() {
+                        trailingIcon = CurrentAppContext().isRTL ? #imageLiteral(resourceName: "chevron-left-20") : #imageLiteral(resourceName: "chevron-right-20")
+                        if case .groupId = context {
+                            let format = NSLocalizedString(
+                                "STORY_VIEWS_AND_REPLIES_COUNT_%d_%d",
+                                tableName: "PluralAware",
+                                comment: "Button for viewing the replies and views for a story sent to a group")
+                            repliesAndViewsButtonText = String.localizedStringWithFormat(format, currentItem.message.remoteViewCount, currentItem.numberOfReplies)
+                        } else {
+                            let format = NSLocalizedString(
+                                "STORY_VIEWS_COUNT_%d",
+                                tableName: "PluralAware",
+                                comment: "Button for viewing the views for a story sent to a private list")
+                            repliesAndViewsButtonText = String.localizedStringWithFormat(format, currentItem.message.remoteViewCount)
+                        }
+                    } else if case .groupId = context, currentItem.numberOfReplies > 0 {
+                        trailingIcon = CurrentAppContext().isRTL ? #imageLiteral(resourceName: "chevron-left-20") : #imageLiteral(resourceName: "chevron-right-20")
                         let format = NSLocalizedString(
-                            "STORY_VIEWS_AND_REPLIES_COUNT_%d_%d",
+                            "STORY_REPLIES_COUNT_%d",
                             tableName: "PluralAware",
-                            comment: "Button for viewing the replies and views for a story sent to a group")
-                        repliesAndViewsButtonText = String(format: format, currentItem.message.remoteViewCount, currentItem.numberOfReplies)
+                            comment: "Button for replying to a story with N existing replies.")
+                        repliesAndViewsButtonText = String.localizedStringWithFormat(format, currentItem.numberOfReplies)
                     } else {
-                        let format = NSLocalizedString(
-                            "STORY_VIEWS_COUNT_%d",
-                            tableName: "PluralAware",
-                            comment: "Button for viewing the views for a story sent to a private list")
-                        repliesAndViewsButtonText = String(format: format, currentItem.message.remoteViewCount)
+                        repliesAndViewsButtonText = NSLocalizedString(
+                            "STORY_VIEWS_OFF",
+                            comment: "Text indicating that the user has views turned off"
+                        )
                     }
                 }
 
@@ -502,6 +569,66 @@ class StoryContextViewController: OWSViewController {
             self.applyConstraints()
         }
     }
+
+    private var isPinchZooming = false
+
+    @objc
+    private func handlePinchZoom() {
+        func beginIfNecessary(with sender: UIGestureRecognizer) {
+            guard !isPinchZooming else { return }
+            isPinchZooming = true
+            pause(hideChrome: true)
+
+            let touchPoint = sender.location(in: mediaViewContainer)
+            mediaViewContainer.setAnchorPointAndMaintainPosition(CGPoint(
+                x: touchPoint.x / mediaViewContainer.width,
+                y: touchPoint.y / mediaViewContainer.height
+            ))
+        }
+
+        func endIfNecessary() {
+            guard isPinchZooming else { return }
+
+            let endableStates: [UIGestureRecognizer.State] = [
+                .possible,
+                .ended,
+                .cancelled,
+                .failed
+            ]
+
+            guard endableStates.contains(zoomPanGestureRecognizer.state)
+                    && endableStates.contains(zoomPinchGestureRecognizer.state) else { return }
+
+            isPinchZooming = false
+
+            UIView.animate(withDuration: 0.35) {
+                self.mediaViewContainer.transform = .identity
+                self.mediaViewContainer.setAnchorPointAndMaintainPosition(CGPoint(x: 0.5, y: 0.5))
+            } completion: { _ in
+                self.play()
+            }
+        }
+
+        func update() {
+            mediaViewContainer.transform = .scale(zoomPinchGestureRecognizer.scale)
+                .translate(zoomPanGestureRecognizer.translation(in: mediaViewContainer))
+        }
+
+        for gesture in [zoomPanGestureRecognizer, zoomPinchGestureRecognizer] {
+            switch gesture.state {
+            case .possible:
+                break
+            case .began:
+                beginIfNecessary(with: gesture)
+            case .changed:
+                update()
+            case .ended, .cancelled, .failed:
+                endIfNecessary()
+            @unknown default:
+                break
+            }
+        }
+    }
 }
 
 extension StoryContextViewController: UIGestureRecognizerDelegate {
@@ -573,6 +700,8 @@ extension StoryContextViewController: UIGestureRecognizerDelegate {
                 let groupRepliesAndViewsVC = StoryGroupRepliesAndViewsSheet(storyMessage: currentItem.message)
                 groupRepliesAndViewsVC.interactiveTransitionCoordinator = interactiveTransitionCoordinator
                 groupRepliesAndViewsVC.dismissHandler = { [weak self] in self?.play() }
+                groupRepliesAndViewsVC.focusedTab = currentItem.numberOfReplies > 0 ? .replies : .views
+
                 self.pause()
                 self.present(groupRepliesAndViewsVC, animated: true)
             case .incoming:
@@ -602,7 +731,27 @@ extension StoryContextViewController: UIGestureRecognizerDelegate {
         }
     }
 
+    func presentInfoSheet() {
+        guard let currentItem = currentItem else { return }
+
+        let vc = StoryInfoSheet(storyMessage: currentItem.message)
+        vc.dismissHandler = { [weak self] in self?.play() }
+        pause()
+        present(vc, animated: true)
+    }
+
     func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        let isMultiTouchGesture = gestureRecognizer == zoomPinchGestureRecognizer || gestureRecognizer == zoomPanGestureRecognizer
+
+        if gestureRecognizer.numberOfTouches > 1 {
+            // Only allow pinch-zoom on downloaded image attachments
+            guard case .stream = currentItem?.attachment else { return false }
+
+            return isMultiTouchGesture
+        } else if isMultiTouchGesture {
+            return false
+        }
+
         let nextFrameWidth = mediaViewContainer.width * 0.8
         let previousFrameWidth = mediaViewContainer.width * 0.2
 
@@ -632,7 +781,8 @@ extension StoryContextViewController: UIGestureRecognizerDelegate {
     }
 
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
-        return true
+        [zoomPanGestureRecognizer, zoomPinchGestureRecognizer].contains(gestureRecognizer)
+            && [zoomPanGestureRecognizer, zoomPinchGestureRecognizer].contains(otherGestureRecognizer)
     }
 }
 
@@ -681,6 +831,39 @@ extension StoryContextViewController: DatabaseChangeDelegate {
 }
 
 extension StoryContextViewController: StoryItemMediaViewDelegate {
+
+    func contextMenuConfiguration(for contextMenuButton: DelegatingContextMenuButton) -> ContextMenuConfiguration? {
+        guard let item = currentItem else {
+            return nil
+        }
+        let attachment: StoryThumbnailView.Attachment
+        switch item.attachment {
+        case .pointer(let pointer):
+            attachment = .file(pointer)
+        case .stream(let stream):
+            attachment = .file(stream)
+        case .text(let textAttachment):
+            attachment = .text(textAttachment)
+        }
+        return .init(identifier: nil, actionProvider: { [weak self, weak contextMenuButton] _ in
+            guard
+                let self  = self,
+                let contextMenuButton = contextMenuButton
+            else {
+                return .init([])
+            }
+            return Self.databaseStorage.read {
+                return ContextMenu(self.contextMenuGenerator.contextMenuActions(
+                    for: item.message,
+                    in: self.context.thread(transaction: $0),
+                    attachment: attachment,
+                    sourceView: contextMenuButton,
+                    transaction: $0
+                ))
+            }
+        })
+    }
+
     func storyItemMediaViewWantsToPlay(_ storyItemMediaView: StoryItemMediaView) {
         play()
     }
@@ -691,5 +874,54 @@ extension StoryContextViewController: StoryItemMediaViewDelegate {
 
     func storyItemMediaViewShouldBeMuted(_ storyItemMediaView: StoryItemMediaView) -> Bool {
         return delegate?.storyContextViewControllerShouldBeMuted(self) ?? false
+    }
+
+    func contextMenuWillDisplay(from contextMenuButton: DelegatingContextMenuButton) {
+        pause()
+    }
+
+    func contextMenuDidDismiss(from contextMenuButton: ContextMenuButton) {
+        guard !contextMenuGenerator.isDisplayingFollowup else {
+            return
+        }
+        play()
+    }
+}
+
+extension StoryContextViewController: StoryContextMenuDelegate {
+
+    func storyContextMenuWillNavigateToConversation(_ completion: @escaping () -> Void) {
+        // Dismiss the viewer before navigating.
+        self.dismiss(animated: true, completion: completion)
+    }
+
+    func storyContextMenuWillDelete(_ completion: @escaping () -> Void) {
+        // Dismiss the viewer before deleting otherwise things get messed up.
+        self.dismiss(animated: true, completion: completion)
+    }
+
+    func storyContextMenuDidFinishDisplayingFollowups() {
+        play()
+    }
+}
+
+extension StoryContextViewController: StoryContextOnboardingOverlayViewDelegate {
+
+    func storyContextOnboardingOverlayWillDisplay(_: StoryContextOnboardingOverlayView) {
+        pause(hideChrome: true)
+    }
+
+    func storyContextOnboardingOverlayDidDismiss(_: StoryContextOnboardingOverlayView) {
+        play()
+    }
+}
+
+private extension UIView {
+    func setAnchorPointAndMaintainPosition(_ newAnchorPoint: CGPoint) {
+        layer.position = CGPoint(
+            x: layer.position.x + (newAnchorPoint.x * width) - (layer.anchorPoint.x * width),
+            y: layer.position.y + (newAnchorPoint.y * height) - (layer.anchorPoint.y * height)
+        )
+        layer.anchorPoint = newAnchorPoint
     }
 }

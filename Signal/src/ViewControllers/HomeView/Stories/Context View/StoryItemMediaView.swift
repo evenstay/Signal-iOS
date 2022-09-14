@@ -10,11 +10,14 @@ import SignalUI
 import SafariServices
 import CoreMedia
 
-protocol StoryItemMediaViewDelegate: AnyObject {
+protocol StoryItemMediaViewDelegate: ContextMenuButtonDelegate {
     func storyItemMediaViewWantsToPause(_ storyItemMediaView: StoryItemMediaView)
     func storyItemMediaViewWantsToPlay(_ storyItemMediaView: StoryItemMediaView)
 
     func storyItemMediaViewShouldBeMuted(_ storyItemMediaView: StoryItemMediaView) -> Bool
+
+    var contextMenuGenerator: StoryContextMenuGenerator { get }
+    var context: StoryContext { get }
 }
 
 class StoryItemMediaView: UIView {
@@ -112,6 +115,10 @@ class StoryItemMediaView: UIView {
                 }
             }
             return didHandle
+        }
+
+        if contextButton.bounds.contains(gesture.location(in: contextButton)) {
+            return true
         }
 
         return false
@@ -244,21 +251,72 @@ class StoryItemMediaView: UIView {
             nameTrailingSpacing = 8
         }
 
+        let metadataStackView: UIStackView
+
+        let nameHStack = UIStackView(arrangedSubviews: [
+            nameLabel,
+            nameTrailingView
+        ])
+        nameHStack.spacing = nameTrailingSpacing
+        nameHStack.axis = .horizontal
+        nameHStack.alignment = .center
+
+        if
+            case .privateStory(let uniqueId) = delegate?.context,
+            let privateStoryThread = databaseStorage.read(
+                block: { TSPrivateStoryThread.anyFetchPrivateStoryThread(uniqueId: uniqueId, transaction: $0) }
+            ),
+            !privateStoryThread.isMyStory
+        {
+            // For private stories, other than "My Story", render the name of the story
+
+            let contextIcon = UIImageView()
+            contextIcon.setTemplateImageName("lock-16", tintColor: Theme.darkThemePrimaryColor)
+            contextIcon.autoSetDimensions(to: .square(16))
+
+            let contextNameLabel = UILabel()
+            contextNameLabel.textColor = Theme.darkThemePrimaryColor
+            contextNameLabel.font = .ows_dynamicTypeFootnote
+            contextNameLabel.text = privateStoryThread.name
+
+            let contextHStack = UIStackView(arrangedSubviews: [
+                contextIcon,
+                contextNameLabel
+            ])
+            contextHStack.spacing = 4
+            contextHStack.axis = .horizontal
+            contextHStack.alignment = .center
+            contextHStack.alpha = 0.8
+
+            metadataStackView = UIStackView(arrangedSubviews: [nameHStack, contextHStack])
+            metadataStackView.axis = .vertical
+            metadataStackView.alignment = .leading
+            metadataStackView.spacing = 1
+        } else {
+            metadataStackView = nameHStack
+        }
+
         authorRow.addArrangedSubviews([
             avatarView,
             .spacer(withWidth: 12),
-            nameLabel,
-            .spacer(withWidth: nameTrailingSpacing),
-            nameTrailingView,
-            .hStretchingSpacer()
+            metadataStackView,
+            .hStretchingSpacer(),
+            .spacer(withWidth: Self.contextButtonSize)
         ])
         authorRow.axis = .horizontal
         authorRow.alignment = .center
 
+        authorRow.addSubview(contextButton)
+        contextButton.autoPinEdge(toSuperviewEdge: .trailing)
+        NSLayoutConstraint.activate([
+            contextButton.centerYAnchor.constraint(equalTo: authorRow.centerYAnchor)
+        ])
+
         timestampLabel.setCompressionResistanceHorizontalHigh()
         timestampLabel.setContentHuggingHorizontalHigh()
         timestampLabel.font = .ows_dynamicTypeFootnote
-        timestampLabel.textColor = Theme.darkThemeSecondaryTextAndIconColor
+        timestampLabel.textColor = Theme.darkThemePrimaryColor
+        timestampLabel.alpha = 0.8
         updateTimestampText()
 
         bottomContentVStack.addArrangedSubview(authorRow)
@@ -331,6 +389,20 @@ class StoryItemMediaView: UIView {
         )
         return label
     }
+
+    static let contextButtonSize: CGFloat = 42
+
+    private lazy var contextButton: DelegatingContextMenuButton = {
+        let contextButton = DelegatingContextMenuButton(delegate: delegate)
+        contextButton.showsContextMenuAsPrimaryAction = true
+        contextButton.tintColor = Theme.darkThemePrimaryColor
+        contextButton.setImage(Theme.iconImage(.more24), for: .normal)
+        contextButton.contentMode = .center
+
+        contextButton.autoSetDimensions(to: .square(Self.contextButtonSize))
+
+        return contextButton
+    }()
 
     // MARK: - Caption
 

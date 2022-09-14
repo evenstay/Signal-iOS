@@ -114,6 +114,7 @@ message GroupV2Record {
   uint64 mutedUntilTimestamp        = 6;
 //bool dontNotifyForMentionsIfMuted = 7;
   bool   hideStory                  = 8;
+  bool   storySendEnabled           = 9;
 }
 
 message AccountRecord {
@@ -165,6 +166,9 @@ message AccountRecord {
            bool                   displayBadgesOnProfile        = 23;
            bool                   subscriptionManuallyCancelled = 24;
            bool                   keepMutedChatsArchived        = 25;
+           // reserved 26
+           bool                   viewedOnboardingStory         = 27; // Removed 'has' prefix on spec definition to avoid name conflict.
+           bool                   storiesDisabled               = 28;
 }
 
 message StoryDistributionListRecord {

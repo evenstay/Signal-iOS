@@ -397,6 +397,8 @@ class UserNotificationPresenterAdaptee: NSObject, NotificationPresenterAdaptee {
             return
         }
 
+        Logger.info("Removing delivered/pending notifications with identifiers: \(identifiersToCancel)")
+
         Self.notificationCenter.removeDeliveredNotifications(withIdentifiers: identifiersToCancel)
         Self.notificationCenter.removePendingNotificationRequests(withIdentifiers: identifiersToCancel)
     }
@@ -468,6 +470,28 @@ class UserNotificationPresenterAdaptee: NSObject, NotificationPresenterAdaptee {
 
             // Show notifications for any *other* thread than the currently selected thread
             return conversationSplitVC.visibleThread?.uniqueId != notificationThreadId
+        case .incomingGroupStoryReply:
+            guard StoryManager.areStoriesEnabled else { return false }
+
+            guard CurrentAppContext().isMainAppAndActive else { return true }
+
+            guard let notificationThreadId = userInfo[AppNotificationUserInfoKey.threadId] as? String else {
+                owsFailDebug("threadId was unexpectedly nil")
+                return true
+            }
+
+            guard let notificationStoryTimestamp = userInfo[AppNotificationUserInfoKey.storyTimestamp] as? UInt64 else {
+                owsFailDebug("storyTimestamp was unexpectedly nil")
+                return true
+            }
+
+            guard let storyGroupReply = CurrentAppContext().frontmostViewController() as? StoryGroupReplier else {
+                return true
+            }
+
+            // Show notifications any time we're not currently showing the group reply sheet for that story
+            return notificationStoryTimestamp != storyGroupReply.storyMessage.timestamp
+                || notificationThreadId != storyGroupReply.threadUniqueId
         case .incomingMessageGeneric:
             owsFailDebug(".incomingMessageGeneric should never check shouldPresentNotification().")
             return true
@@ -477,6 +501,11 @@ class UserNotificationPresenterAdaptee: NSObject, NotificationPresenterAdaptee {
 
 public protocol ConversationSplit {
     var visibleThread: TSThread? { get }
+}
+
+public protocol StoryGroupReplier: UIViewController {
+    var storyMessage: StoryMessage { get }
+    var threadUniqueId: String? { get }
 }
 
 extension OWSSound {

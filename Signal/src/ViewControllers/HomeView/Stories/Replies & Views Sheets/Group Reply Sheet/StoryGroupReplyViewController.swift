@@ -14,8 +14,10 @@ class StoryGroupReplyViewController: OWSViewController, StoryReplySheet {
     weak var delegate: StoryGroupReplyDelegate?
 
     private(set) lazy var tableView = UITableView()
+
+    private let bottomBar = UIView()
     private(set) lazy var inputToolbar = StoryReplyInputToolbar()
-    private lazy var inputToolbarBottomConstraint = inputToolbar.autoPinEdge(toSuperviewEdge: .bottom)
+    private lazy var bottomBarBottomConstraint = bottomBar.autoPinEdge(toSuperviewEdge: .bottom)
     private lazy var contextMenu = ContextMenuInteraction(delegate: self)
 
     private lazy var inputAccessoryPlaceholder: InputAccessoryViewPlaceholder = {
@@ -51,6 +53,8 @@ class StoryGroupReplyViewController: OWSViewController, StoryReplySheet {
         if let thread = thread {
             bulkProfileFetch.fetchProfiles(addresses: thread.recipientAddressesWithSneakyTransaction)
         }
+
+        databaseStorage.appendDatabaseChangeDelegate(self)
     }
 
     fileprivate var replyLoader: StoryGroupReplyLoader?
@@ -69,9 +73,9 @@ class StoryGroupReplyViewController: OWSViewController, StoryReplySheet {
         tableView.autoPinEdgesToSuperviewEdges()
 
         inputToolbar.delegate = self
-        view.addSubview(inputToolbar)
-        inputToolbar.autoPinWidthToSuperview()
-        inputToolbarBottomConstraint.isActive = true
+        view.addSubview(bottomBar)
+        bottomBar.autoPinWidthToSuperview()
+        bottomBarBottomConstraint.isActive = true
 
         for type in StoryGroupReplyCell.CellType.allCases {
             tableView.register(StoryGroupReplyCell.self, forCellReuseIdentifier: type.rawValue)
@@ -82,7 +86,9 @@ class StoryGroupReplyViewController: OWSViewController, StoryReplySheet {
         view.addSubview(emptyStateView)
         emptyStateView.autoPinWidthToSuperview()
         emptyStateView.autoPinEdge(toSuperviewEdge: .top)
-        emptyStateView.autoPinEdge(.bottom, to: .top, of: inputToolbar)
+        emptyStateView.autoPinEdge(.bottom, to: .top, of: bottomBar)
+
+        updateBottomBarContents()
     }
 
     public override var inputAccessoryView: UIView? { inputAccessoryPlaceholder }
@@ -114,7 +120,92 @@ extension StoryGroupReplyViewController: UIScrollViewDelegate {
 }
 
 extension StoryGroupReplyViewController: UITableViewDelegate {
+    func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        tableView.deselectRow(at: indexPath, animated: false)
 
+        guard let item = replyLoader?.replyItem(for: indexPath) else { return }
+
+        guard case .failed = item.recipientStatus else { return }
+
+        do {
+            try askToResendMessage(for: item)
+        } catch {
+            owsFailDebug("Failed to resend story reply \(error)")
+        }
+    }
+
+    private func askToResendMessage(for item: StoryGroupReplyViewItem) throws {
+        let (failedMessage, messageToSend) = try databaseStorage.read { transaction -> (TSOutgoingMessage, TSOutgoingMessage) in
+            guard let message = TSOutgoingMessage.anyFetchOutgoingMessage(
+                uniqueId: item.interactionUniqueId,
+                transaction: transaction
+            ) else {
+                throw OWSAssertionError("Missing original message")
+            }
+
+            // If the message was remotely deleted, resend a *delete* message rather than the message itself.
+            if message.wasRemotelyDeleted {
+                guard let thread = thread else {
+                    throw OWSAssertionError("Missing thread")
+                }
+
+                return (message, TSOutgoingDeleteMessage(thread: thread, message: message, transaction: transaction))
+            } else {
+                return (message, message)
+            }
+        }
+
+        guard !askToConfirmSafetyNumberChangesIfNecessary(for: failedMessage, messageToSend: messageToSend) else { return }
+
+        let actionSheet = ActionSheetController(
+            message: failedMessage.mostRecentFailureText
+        )
+        actionSheet.addAction(OWSActionSheets.cancelAction)
+
+        actionSheet.addAction(ActionSheetAction(
+            title: CommonStrings.deleteForMeButton,
+            style: .destructive
+        ) { _ in
+            Self.databaseStorage.write { transaction in
+                failedMessage.anyRemove(transaction: transaction)
+            }
+        })
+
+        actionSheet.addAction(ActionSheetAction(
+            title: NSLocalizedString("SEND_AGAIN_BUTTON", comment: ""),
+            style: .default
+        ) { _ in
+            Self.databaseStorage.write { transaction in
+                Self.messageSenderJobQueue.add(
+                    message: messageToSend.asPreparer,
+                    transaction: transaction
+                )
+            }
+        })
+
+        self.presentActionSheet(actionSheet)
+    }
+
+    private func askToConfirmSafetyNumberChangesIfNecessary(for failedMessage: TSOutgoingMessage, messageToSend: TSOutgoingMessage) -> Bool {
+        let recipientsWithChangedSafetyNumber = failedMessage.failedRecipientAddresses(errorCode: UntrustedIdentityError.errorCode)
+        guard !recipientsWithChangedSafetyNumber.isEmpty else { return false }
+
+        let sheet = SafetyNumberConfirmationSheet(
+            addressesToConfirm: recipientsWithChangedSafetyNumber,
+            confirmationText: MessageStrings.sendButton
+        ) { confirmedSafetyNumberChange in
+            guard confirmedSafetyNumberChange else { return }
+            Self.databaseStorage.write { transaction in
+                Self.messageSenderJobQueue.add(
+                    message: messageToSend.asPreparer,
+                    transaction: transaction
+                )
+            }
+        }
+        self.present(sheet, animated: true, completion: nil)
+
+        return true
+    }
 }
 
 extension StoryGroupReplyViewController: UITableViewDataSource {
@@ -147,7 +238,7 @@ extension StoryGroupReplyViewController: InputAccessoryViewPlaceholderDelegate {
     }
 
     public func inputAccessoryPlaceholderKeyboardDidPresent() {
-        updateInputToolbarPosition()
+        updateBottomBarPosition()
         updateContentInsets(animated: false)
     }
 
@@ -156,17 +247,17 @@ extension StoryGroupReplyViewController: InputAccessoryViewPlaceholderDelegate {
     }
 
     public func inputAccessoryPlaceholderKeyboardDidDismiss() {
-        updateInputToolbarPosition()
+        updateBottomBarPosition()
         updateContentInsets(animated: false)
     }
 
     public func inputAccessoryPlaceholderKeyboardIsDismissingInteractively() {
-        updateInputToolbarPosition()
+        updateBottomBarPosition()
     }
 
     func handleKeyboardStateChange(animationDuration: TimeInterval, animationCurve: UIView.AnimationCurve) {
         guard animationDuration > 0 else {
-            updateInputToolbarPosition()
+            updateBottomBarPosition()
             updateContentInsets(animated: false)
             return
         }
@@ -175,22 +266,55 @@ extension StoryGroupReplyViewController: InputAccessoryViewPlaceholderDelegate {
         UIView.setAnimationBeginsFromCurrentState(true)
         UIView.setAnimationCurve(animationCurve)
         UIView.setAnimationDuration(animationDuration)
-        updateInputToolbarPosition()
+        updateBottomBarPosition()
         updateContentInsets(animated: true)
         UIView.commitAnimations()
     }
 
-    func updateInputToolbarPosition() {
-        inputToolbarBottomConstraint.constant = -inputAccessoryPlaceholder.keyboardOverlap
+    func updateBottomBarPosition() {
+        bottomBarBottomConstraint.constant = -inputAccessoryPlaceholder.keyboardOverlap
 
         // We always want to apply the new bottom bar position immediately,
         // as this only happens during animations (interactive or otherwise)
-        inputToolbar.superview?.layoutIfNeeded()
+        bottomBar.superview?.layoutIfNeeded()
+    }
+
+    func updateBottomBarContents() {
+        bottomBar.removeAllSubviews()
+
+        // Fetch the latest copy of the thread
+        thread = databaseStorage.read { storyMessage.context.thread(transaction: $0) }
+
+        guard let groupThread = thread as? TSGroupThread else { return }
+
+        if groupThread.isLocalUserFullMember {
+            bottomBar.addSubview(inputToolbar)
+            inputToolbar.autoPinEdgesToSuperviewEdges()
+        } else {
+            let label = UILabel()
+            label.font = .ows_dynamicTypeSubheadline
+            label.text = NSLocalizedString(
+                "STORIES_GROUP_REPLY_NOT_A_MEMBER",
+                comment: "Text indicating you can't reply to a group story because you're not a member of the group"
+            )
+            label.textColor = .ows_gray05
+            label.textAlignment = .center
+            label.numberOfLines = 0
+            label.alpha = 0.7
+            label.setContentHuggingVerticalHigh()
+
+            bottomBar.addSubview(label)
+            label.autoPinWidthToSuperview(withMargin: 37)
+            label.autoPinEdge(toSuperviewEdge: .top, withInset: 8)
+            label.autoPinEdge(toSuperviewSafeArea: .bottom, withInset: 8)
+        }
+
+        updateBottomBarPosition()
     }
 
     func updateContentInsets(animated: Bool) {
         let wasScrolledToBottom = replyLoader?.isScrolledToBottom ?? false
-        tableView.contentInset.bottom = inputAccessoryPlaceholder.keyboardOverlap + inputToolbar.height - view.safeAreaInsets.bottom
+        tableView.contentInset.bottom = inputAccessoryPlaceholder.keyboardOverlap + bottomBar.height - view.safeAreaInsets.bottom
         if wasScrolledToBottom {
             replyLoader?.scrollToBottomOfLoadWindow(animated: animated)
         }
@@ -266,4 +390,19 @@ extension StoryGroupReplyViewController: ContextMenuInteractionDelegate {
     func contextMenuInteraction(_ interaction: ContextMenuInteraction, willEndForConfiguration: ContextMenuConfiguration) {}
 
     func contextMenuInteraction(_ interaction: ContextMenuInteraction, didEndForConfiguration configuration: ContextMenuConfiguration) {}
+}
+
+extension StoryGroupReplyViewController: DatabaseChangeDelegate {
+    func databaseChangesDidUpdate(databaseChanges: DatabaseChanges) {
+        guard let thread = thread, databaseChanges.didUpdate(thread: thread) else { return }
+        updateBottomBarContents()
+    }
+
+    func databaseChangesDidUpdateExternally() {
+        updateBottomBarContents()
+    }
+
+    func databaseChangesDidReset() {
+        updateBottomBarContents()
+    }
 }
