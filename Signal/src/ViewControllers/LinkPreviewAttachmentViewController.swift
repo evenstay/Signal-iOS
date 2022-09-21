@@ -40,14 +40,14 @@ class LinkPreviewAttachmentViewController: InteractiveSheetViewController {
                                       value: "Type or paste a URL",
                                       comment: "Placeholder text for URL input field in Text Story composer UI."),
             attributes: [ .foregroundColor: UIColor.ows_gray25 ])
+        textField.setContentCompressionResistancePriority(.defaultHigh, for: .vertical)
         return textField
     }()
     private lazy var textFieldContainer: UIView = {
         let view = PillView()
         view.backgroundColor = .ows_gray80
-        view.layoutMargins = UIEdgeInsets(top: 0, left: 16, bottom: 0, right: 16)
         view.addSubview(textField)
-        textField.autoPinEdgesToSuperviewMargins()
+        textField.autoPinEdgesToSuperviewEdges(withInsets: UIEdgeInsets(hMargin: 16, vMargin: 7))
         return view
     }()
     private let doneButton: UIButton = {
@@ -55,12 +55,14 @@ class LinkPreviewAttachmentViewController: InteractiveSheetViewController {
                                       backgroundStyle: .solid(.ows_accentBlue))
         button.layoutMargins = .zero
         button.contentEdgeInsets = UIEdgeInsets(margin: 10)
+        button.layoutMargins = UIEdgeInsets(margin: 4)
         button.setContentHuggingHigh()
         return button
     }()
     private lazy var inputFieldContainer: UIView = {
         let stackView = UIStackView(arrangedSubviews: [ textFieldContainer, doneButton ])
         stackView.axis = .horizontal
+        stackView.alignment = .center
         stackView.spacing = 10
         return stackView
     }()
@@ -75,6 +77,7 @@ class LinkPreviewAttachmentViewController: InteractiveSheetViewController {
         let stackView = UIStackView(arrangedSubviews: [ linkPreviewPanel, inputFieldContainer ])
         stackView.axis = .vertical
         stackView.spacing = 24
+        stackView.alignment = .fill
         contentView.addSubview(stackView)
         stackView.autoPinEdges(toSuperviewMarginsExcludingEdge: .bottom)
 
@@ -112,18 +115,19 @@ class LinkPreviewAttachmentViewController: InteractiveSheetViewController {
 
     override var canBecomeFirstResponder: Bool { true }
 
-    override var sheetBackgroundColor: UIColor { .ows_gray95 }
+    override var sheetBackgroundColor: UIColor { Theme.darkThemeTableView2PresentedBackgroundColor }
 
     private var sheetHeight: CGFloat = 0
     private func updateSheetHeight() {
         guard let sheetView = contentView.superview else { return }
 
-        let sheetSize = sheetView.systemLayoutSizeFitting(.init(width: maxWidth, height: .greatestFiniteMagnitude),
+        let sheetSize = sheetView.systemLayoutSizeFitting(.init(width: maxWidth, height: view.height),
                                                           withHorizontalFittingPriority: .required,
                                                           verticalFittingPriority: .fittingSizeLevel)
         if sheetHeight != sheetSize.height {
             sheetHeight = sheetSize.height
             heightConstraint.constant = sheetHeight
+            maxHeightConstraint.constant = sheetHeight
         }
     }
 
@@ -219,17 +223,24 @@ class LinkPreviewAttachmentViewController: InteractiveSheetViewController {
             }.catch(on: .main) { [weak self] error in
                 guard let self = self else { return }
                 guard self.currentPreviewUrl == previewUrl else { return }
-                self.clearLinkPreview(withError: error)
+                switch error {
+                case LinkPreviewError.featureDisabled:
+                    self.displayLinkPreview(OWSLinkPreviewDraft(url: previewUrl, title: nil))
+                default:
+                    self.clearLinkPreview(withError: error)
+                }
             }
         }
     }
 
     private func updateLinkPreviewIfNecessary() {
-        guard let trimmedText = textField.text?.ows_stripped(), !trimmedText.isEmpty else {
+        guard
+            let trimmedText = textField.text?.ows_stripped(), !trimmedText.isEmpty,
+            let previewUrl = linkPreviewManager.findFirstValidUrl(in: trimmedText, bypassSettingsCheck: true) else
+        {
             clearLinkPreview()
             return
         }
-        guard let previewUrl = linkPreviewManager.findFirstValidUrl(in: trimmedText) else { return clearLinkPreview() }
         currentPreviewUrl = previewUrl
     }
 
@@ -271,14 +282,15 @@ class LinkPreviewAttachmentViewController: InteractiveSheetViewController {
 
         override init(frame: CGRect) {
             super.init(frame: frame)
+            NSLayoutConstraint.autoSetPriority(.defaultLow + 10) {
+                autoSetDimension(.height, toSize: 100)
+            }
             updateContentViewForCurrentState(animated: false)
         }
 
         required init?(coder: NSCoder) {
             fatalError("init(coder:) has not been implemented")
         }
-
-        override var intrinsicContentSize: CGSize { CGSize(width: UIView.noIntrinsicMetric, height: 100) }
 
         // MARK: - Layout
 
@@ -352,7 +364,10 @@ class LinkPreviewAttachmentViewController: InteractiveSheetViewController {
                 case .loading:
                     return loadingView
                 case .draft(let linkPreviewDraft):
-                    return TextAttachmentView.LinkPreviewView(linkPreview: LinkPreviewDraft(linkPreviewDraft: linkPreviewDraft))
+                    return TextAttachmentView.LinkPreviewView(
+                        linkPreview: LinkPreviewDraft(linkPreviewDraft: linkPreviewDraft),
+                        isDraft: true
+                    )
                 case .error:
                     return errorView
                 }

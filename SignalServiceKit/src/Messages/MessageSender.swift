@@ -778,7 +778,7 @@ public extension TSMessage {
 public extension MessageSender {
 
     private static let completionQueue: DispatchQueue = {
-        return DispatchQueue(label: "org.whispersystems.signal.messageSendCompletion",
+        return DispatchQueue(label: OWSDispatch.createLabel("messageSendCompletion"),
                              qos: .utility,
                              autoreleaseFrequency: .workItem)
     }()
@@ -1185,7 +1185,7 @@ extension MessageSender {
             throw OWSAssertionError("Missing message content")
         }
 
-        let paddedPlaintext = (plainText as NSData).paddedMessageBody()
+        let paddedPlaintext = plainText.paddedMessageBody
 
         let serializedMessage: Data
         let messageType: SSKProtoEnvelopeType

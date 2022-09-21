@@ -224,13 +224,7 @@ public class RemoteConfig: BaseFlags {
         FeatureFlags.shouldUseRemoteConfigForReceivingGiftBadges && isEnabled(.canReceiveGiftBadges, defaultValue: true)
     }
 
-    public static var canSendGiftBadges: Bool {
-        if FeatureFlags.isPrerelease {
-            return isEnabled(.canSendGiftBadgesInPrerelease, defaultValue: true)
-        } else {
-            return isEnabled(.canSendGiftBadgesInProduction, defaultValue: false)
-        }
-    }
+    public static var canSendGiftBadges: Bool { FeatureFlags.canSendGiftBadges }
 
     public static var groupRings: Bool {
         DebugFlags.internalSettings || isEnabled(.groupRings)
@@ -334,11 +328,7 @@ public class RemoteConfig: BaseFlags {
         }
 
         // uuid_bucket = UINT64_FROM_FIRST_8_BYTES_BIG_ENDIAN(SHA256(rawFlag + "." + uuidBytes)) % bucketSize
-        let uuidBucket = hash[0..<8].withUnsafeBytes {
-            UInt64(bigEndian: $0.load(as: UInt64.self)) % bucketSize
-        }
-
-        return uuidBucket
+        return UInt64(bigEndianData: hash.prefix(8))! % bucketSize
     }
 
     private static func isEnabled(_ flag: Flags.SupportedIsEnabledFlags, defaultValue: Bool = false) -> Bool {
@@ -441,8 +431,6 @@ private struct Flags {
         case changePhoneNumberUI
         case keepMutedChatsArchivedOption
         case canReceiveGiftBadges
-        case canSendGiftBadgesInPrerelease
-        case canSendGiftBadgesInProduction
         case groupRings
         case stories
     }

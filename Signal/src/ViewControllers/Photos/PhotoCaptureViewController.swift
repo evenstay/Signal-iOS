@@ -217,6 +217,8 @@ class PhotoCaptureViewController: OWSViewController {
         frontCameraZoomControl?.setIsHidden(hideZoomControl || !isFrontCamera, animated: animated)
         rearCameraZoomControl?.setIsHidden(hideZoomControl || isFrontCamera, animated: animated)
 
+        doneButton.setIsHidden(shouldHideDoneButton, animated: animated)
+
         previewView.setIsHidden(composerMode == .text, animated: animated)
         if textEditorUIInitialized {
             textViewContainerToolbar.setIsHidden(composerMode != .text, animated: animated)
@@ -254,8 +256,7 @@ class PhotoCaptureViewController: OWSViewController {
             sideBar.isRecordingVideo = isRecordingVideo
         }
 
-        let hideDoneButton = isRecordingVideo || doneButton.badgeNumber == 0
-        doneButton.setIsHidden(hideDoneButton, animated: animated)
+        doneButton.setIsHidden(shouldHideDoneButton, animated: animated)
     }
 
     enum CaptureMode {
@@ -361,16 +362,29 @@ class PhotoCaptureViewController: OWSViewController {
             textViewContentLayoutGuide.trailingAnchor.constraint(equalTo: view.layoutMarginsGuide.trailingAnchor)
         ])
 
-        // textViewWrapperView contains text view and link preview - these two are grouped together
-        // and are centered vertically in text content area.
-        textViewWrapperView.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(textViewWrapperView)
+        // This is a colored background for `inverted` text style.
+        let textViewWrapper = UIView()
+        textViewWrapper.addSubview(textViewBackgroundView)
+        textViewWrapper.addSubview(textView)
+        textViewBackgroundView.autoSetDimension(.width, toSize: 52, relation: .greaterThanOrEqual)
+        textViewBackgroundView.autoSetDimension(.height, toSize: 52, relation: .greaterThanOrEqual)
+        textViewBackgroundView.autoPinWidthToSuperview(relation: .lessThanOrEqual)
+        textViewBackgroundView.autoPinHeightToSuperview(relation: .lessThanOrEqual)
+        textViewBackgroundView.autoCenterInSuperview()
+        textView.autoPin(toEdgesOf: textViewBackgroundView, with: UIEdgeInsets(hMargin: 16, vMargin: 2))
+
+        // Text view and link preview are grouped together in a vertical stack view
+        // that is centered vertically in text content area.
+        let stackView = UIStackView(arrangedSubviews: [ textViewWrapper, linkPreviewWrapperView ])
+        stackView.axis = .vertical
+        stackView.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(stackView)
         view.addConstraints([
-            textViewWrapperView.leadingAnchor.constraint(equalTo: textViewContentLayoutGuide.leadingAnchor),
-            textViewWrapperView.topAnchor.constraint(greaterThanOrEqualTo: textViewContentLayoutGuide.topAnchor),
-            textViewWrapperView.trailingAnchor.constraint(equalTo: textViewContentLayoutGuide.trailingAnchor),
-            textViewWrapperView.bottomAnchor.constraint(lessThanOrEqualTo: textViewContentLayoutGuide.bottomAnchor),
-            textViewWrapperView.centerYAnchor.constraint(equalTo: textViewContentLayoutGuide.centerYAnchor)
+            stackView.leadingAnchor.constraint(equalTo: textViewContentLayoutGuide.leadingAnchor),
+            stackView.topAnchor.constraint(greaterThanOrEqualTo: textViewContentLayoutGuide.topAnchor),
+            stackView.trailingAnchor.constraint(equalTo: textViewContentLayoutGuide.trailingAnchor),
+            stackView.bottomAnchor.constraint(lessThanOrEqualTo: textViewContentLayoutGuide.bottomAnchor),
+            stackView.centerYAnchor.constraint(equalTo: textViewContentLayoutGuide.centerYAnchor)
         ])
 
         // Placeholder text is centered in "text content area".
@@ -401,21 +415,20 @@ class PhotoCaptureViewController: OWSViewController {
         button.layoutMargins = .zero
         return button
     }()
-    private lazy var textViewWrapperView: UIView = {
-        let wrapperView = UIStackView(arrangedSubviews: [ textView, linkPreviewWrapperView ])
-        wrapperView.axis = .vertical
-        return wrapperView
+    private lazy var textViewBackgroundView: UIView = {
+        let backgroundView = UIView()
+        backgroundView.layer.cornerRadius = 12
+        return backgroundView
     }()
     private lazy var textView: MediaTextView = {
         let textView = MediaTextView()
         textView.delegate = self
-        textView.autoSetDimension(.height, toSize: 32, relation: .greaterThanOrEqual)
         return textView
     }()
     private lazy var textViewAccessoryToolbar: TextStylingToolbar = {
         let toolbar = TextStylingToolbar(layout: .textStory)
         toolbar.preservesSuperviewLayoutMargins = true
-        toolbar.colorPickerView.delegate = self
+        toolbar.addTarget(self, action: #selector(didChangeTextColor), for: .valueChanged)
         toolbar.textStyleButton.addTarget(self, action: #selector(didTapTextStyleButton), for: .touchUpInside)
         toolbar.decorationStyleButton.addTarget(self, action: #selector(didTapDecorationStyleButton), for: .touchUpInside)
         toolbar.doneButton.addTarget(self, action: #selector(didTapTextViewDoneButton), for: .touchUpInside)
@@ -446,7 +459,8 @@ class PhotoCaptureViewController: OWSViewController {
         return view
     }()
     private lazy var deleteLinkPreviewButton: UIButton = {
-        let button = RoundMediaButton(image: UIImage(imageLiteralResourceName: "x-24"), backgroundStyle: .blur)
+        let button = RoundMediaButton(image: UIImage(imageLiteralResourceName: "x-24"), backgroundStyle: .blurLight)
+        button.tintColor = Theme.lightThemePrimaryColor
         button.contentEdgeInsets = UIEdgeInsets(margin: 8)
         button.layoutMargins = UIEdgeInsets(margin: 2)
         button.translatesAutoresizingMaskIntoConstraints = false
@@ -459,6 +473,9 @@ class PhotoCaptureViewController: OWSViewController {
         button.userInterfaceStyleOverride = .dark
         return button
     }()
+    private var shouldHideDoneButton: Bool {
+        isRecordingVideo || composerMode == .text || doneButton.badgeNumber == 0
+    }
     private lazy var doneButtonIPhoneConstraints = [ doneButton.trailingAnchor.constraint(equalTo: view.layoutMarginsGuide.trailingAnchor),
                                                      doneButton.centerYAnchor.constraint(equalTo: bottomBar.shutterButtonLayoutGuide.centerYAnchor) ]
     private var doneButtonIPadConstraints: [NSLayoutConstraint]?
@@ -692,10 +709,8 @@ class PhotoCaptureViewController: OWSViewController {
     private func updateDoneButtonAppearance() {
         if captureMode == .multi, let badgeNumber = dataSource?.numberOfMediaItems, badgeNumber > 0 {
             doneButton.badgeNumber = badgeNumber
-            doneButton.isHidden = false
-        } else {
-            doneButton.isHidden = true
         }
+        doneButton.isHidden = shouldHideDoneButton
         if bottomBar.isCompactHeightLayout {
             bottomBar.switchCameraButton.isHidden = !doneButton.isHidden
         }
@@ -765,7 +780,7 @@ extension PhotoCaptureViewController {
         bottomBar.proceedButton.addTarget(self, action: #selector(didTapTextStoryProceedButton), for: .touchUpInside)
         textBackgroundSelectionButton.addTarget(self, action: #selector(didTapTextBackgroundButton), for: .touchUpInside)
         textViewAttachLinkButton.addTarget(self, action: #selector(didTapAttachLinkPreviewButton), for: .touchUpInside)
-        textViewPlaceholderLabel.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(textViewPlaceholderTapped)))
+        textViewContainer.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(textViewPlaceholderTapped)))
 
         // Prepare text styling toolbar (only visible when editing text).
         let toolbarSize = textViewAccessoryToolbar.systemLayoutSizeFitting(CGSize(width: view.width, height: .greatestFiniteMagnitude),
@@ -867,6 +882,7 @@ extension PhotoCaptureViewController {
     private func updateTextViewAttributes(using textToolbar: TextStylingToolbar) {
         let (fontPointSize, textAlignment) = PhotoCaptureViewController.desiredAttributes(forText: strippedTextViewText)
         textView.update(using: textToolbar, fontPointSize: fontPointSize, textAlignment: textAlignment)
+        textViewBackgroundView.backgroundColor = textViewAccessoryToolbar.textBackgroundColor
     }
 
     private func adjustFontSizeIfNecessary() {
@@ -908,7 +924,6 @@ extension PhotoCaptureViewController {
     private func updateTextEditorUI(animated: Bool) {
         let isPlaceholderHidden = textView.isFirstResponder || textView.hasText || linkPreview != nil
         textViewPlaceholderLabel.setIsHidden(isPlaceholderHidden, animated: animated)
-
         bottomBar.proceedButton.isEnabled = !isTextViewContentEmpty
     }
 
@@ -1063,9 +1078,7 @@ extension PhotoCaptureViewController {
         textViewAccessoryToolbar.decorationStyle = nextDecorationStyle
 
         // Update text view.
-        if textView.isFirstResponder {
-            updateTextViewAttributes(using: textViewAccessoryToolbar)
-        }
+        updateTextViewAttributes(using: textViewAccessoryToolbar)
     }
 
     @objc
@@ -1099,16 +1112,8 @@ extension PhotoCaptureViewController {
     private func didTapTextStoryProceedButton() {
         Logger.verbose("")
 
-        let textForegroundColor: UIColor
-        let textBackgroundColor: UIColor?
-        switch textViewAccessoryToolbar.decorationStyle {
-        case .inverted:
-            textForegroundColor = .white
-            textBackgroundColor = textViewAccessoryToolbar.colorPickerView.color
-        default:
-            textForegroundColor = textViewAccessoryToolbar.colorPickerView.color
-            textBackgroundColor = nil
-        }
+        let textForegroundColor = textViewAccessoryToolbar.textForegroundColor
+        let textBackgroundColor = textViewAccessoryToolbar.textBackgroundColor
 
         let textStyle: TextAttachment.TextStyle = {
             switch textViewAccessoryToolbar.textStyle {
@@ -1124,8 +1129,19 @@ extension PhotoCaptureViewController {
         var validatedLinkPreview: OWSLinkPreview?
         if let linkPreview = linkPreview {
             self.databaseStorage.write { transaction in
-                validatedLinkPreview = try? OWSLinkPreview.buildValidatedLinkPreview(fromInfo: linkPreview, transaction: transaction)
+                do {
+                    validatedLinkPreview = try OWSLinkPreview.buildValidatedLinkPreview(fromInfo: linkPreview, transaction: transaction)
+                } catch LinkPreviewError.featureDisabled {
+                    validatedLinkPreview = OWSLinkPreview(urlString: linkPreview.urlString, title: nil, imageAttachmentId: nil)
+                } catch {
+                    Logger.error("Failed to generate link preview.")
+                }
             }
+        }
+
+        guard validatedLinkPreview != nil || !strippedTextViewText.isEmpty else {
+            owsFailDebug("Empty content")
+            return
         }
 
         let textAttachment = TextAttachment(
@@ -1137,6 +1153,11 @@ extension PhotoCaptureViewController {
             linkPreview: validatedLinkPreview)
         delegate?.photoCaptureViewController(self, didFinishWithTextAttachment: textAttachment)
     }
+
+    @objc
+    private func didChangeTextColor() {
+        updateTextViewAttributes(using: textViewAccessoryToolbar)
+    }
 }
 
 extension PhotoCaptureViewController: UITextViewDelegate {
@@ -1144,27 +1165,18 @@ extension PhotoCaptureViewController: UITextViewDelegate {
     func textViewDidBeginEditing(_ textView: UITextView) {
         updateBottomBarVisibility(animated: true)
         textViewContainerToolbar.setIsHidden(true, animated: true)
-        linkPreviewWrapperView.setIsHidden(true, animated: true)
         updateTextEditorUI(animated: true)
     }
 
     func textViewDidEndEditing(_ textView: UITextView) {
         updateBottomBarVisibility(animated: true)
         textViewContainerToolbar.setIsHidden(false, animated: true)
-        linkPreviewWrapperView.setIsHidden(false, animated: true)
         updateTextEditorUI(animated: true)
     }
 
     func textViewDidChange(_ textView: UITextView) {
         adjustFontSizeIfNecessary()
         updateTextEditorUI(animated: false)
-    }
-}
-
-extension PhotoCaptureViewController: ColorPickerBarViewDelegate {
-
-    func colorPickerBarView(_ pickerView: ColorPickerBarView, didSelectColor color: ColorPickerBarColor) {
-        updateTextViewAttributes(using: textViewAccessoryToolbar)
     }
 }
 
