@@ -225,6 +225,13 @@ public struct StoryConversationItem {
         case privateStory(_ item: PrivateStoryConversationItem)
     }
 
+    public var threadId: String {
+        switch backingItem {
+        case .groupStory(let item): return item.groupThreadId
+        case .privateStory(let item): return item.storyThreadId
+        }
+    }
+
     public let backingItem: ItemType
     var unwrapped: ConversationItem {
         switch backingItem {
@@ -233,13 +240,28 @@ public struct StoryConversationItem {
         }
     }
 
-    public static func allItems(transaction: SDSAnyReadTransaction) -> [StoryConversationItem] {
-        AnyThreadFinder().storyThreads(transaction: transaction)
+    public static func allItems(includeImplicitGroupThreads: Bool, transaction: SDSAnyReadTransaction) -> [StoryConversationItem] {
+        func sortTime(for thread: TSThread) -> UInt64 {
+            if
+                let thread = thread as? TSGroupThread,
+                thread.lastReceivedStoryTimestamp?.uint64Value ?? 0 > thread.lastSentStoryTimestamp?.uint64Value ?? 0
+            {
+                return thread.lastReceivedStoryTimestamp?.uint64Value ?? 0
+            }
+
+            return thread.lastSentStoryTimestamp?.uint64Value ?? 0
+        }
+
+        return AnyThreadFinder()
+            .storyThreads(
+                includeImplicitGroupThreads: includeImplicitGroupThreads,
+                transaction: transaction
+            )
             .lazy
             .sorted { lhs, rhs in
                 if (lhs as? TSPrivateStoryThread)?.isMyStory == true { return true }
                 if (rhs as? TSPrivateStoryThread)?.isMyStory == true { return false }
-                return (lhs.lastSentStoryTimestamp?.uint64Value ?? 0) > (rhs.lastSentStoryTimestamp?.uint64Value ?? 0)
+                return sortTime(for: lhs) > sortTime(for: rhs)
             }
             .compactMap { thread -> StoryConversationItem.ItemType? in
                 if let groupThread = thread as? TSGroupThread {
@@ -266,7 +288,7 @@ public struct StoryConversationItem {
 
 // MARK: -
 
-extension StoryConversationItem: ConversationItem {
+extension StoryConversationItem: ConversationItem, Dependencies {
     public var outgoingMessageClass: TSOutgoingMessage.Type { OutgoingStoryMessage.self }
 
     public var limitsVideoAttachmentLengthForStories: Bool { return true }
@@ -277,6 +299,15 @@ extension StoryConversationItem: ConversationItem {
 
     public var messageRecipient: MessageRecipient {
         unwrapped.messageRecipient
+    }
+
+    public var isMyStory: Bool {
+        switch backingItem {
+        case .groupStory:
+            return false
+        case .privateStory(let item):
+            return item.isMyStory
+        }
     }
 
     public func title(transaction: SDSAnyReadTransaction) -> String {
@@ -293,6 +324,11 @@ extension StoryConversationItem: ConversationItem {
         switch backingItem {
         case .privateStory(let item):
             if item.isMyStory {
+                guard StoryManager.hasSetMyStoriesPrivacy(transaction: transaction) else {
+                    return OWSLocalizedString(
+                        "MY_STORY_PICKER_UNSET_PRIVACY_SUBTITLE",
+                        comment: "Subtitle shown on my story in the conversation picker when sending a story for the first time with unset my story privacy settings.")
+                }
                 switch thread.storyViewMode {
                 case .blockList:
                     guard let thread = thread as? TSPrivateStoryThread else {
@@ -310,7 +346,7 @@ extension StoryConversationItem: ConversationItem {
                             "MY_STORY_VIEWERS_ALL_CONNECTIONS_EXCLUDING_%d",
                             tableName: "PluralAware",
                             comment: "Format string representing the excluded viewer count for 'My Story' when accessible to all signal connections. Embeds {{ number of excluded viewers }}.")
-                        return String.localizedStringWithFormat(format, recipientCount)
+                        return String.localizedStringWithFormat(format, thread.addresses.count)
                     }
                 case .explicit:
                     let format = OWSLocalizedString(
@@ -318,7 +354,7 @@ extension StoryConversationItem: ConversationItem {
                         tableName: "PluralAware",
                         comment: "Format string representing the viewer count for 'My Story' when accessible to only an explicit list of viewers. Embeds {{ number of viewers }}.")
                     return String.localizedStringWithFormat(format, recipientCount)
-                case .none:
+                case .default, .disabled:
                     owsFailDebug("Unexpected view mode for my story")
                     return ""
                 }

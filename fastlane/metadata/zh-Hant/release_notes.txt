@@ -1,3 +1,4 @@
-• 輸入訊息時，視訊通話畫面會移到鍵盤上方
-• 提升群組中繼資料準確度，以改善性能穩定度和錯誤處理效率
-
+• Better integration of your Signal contacts with the share sheet on older iOS versions, making it smoother to connect with the people you talk to most often.
+• Beautified long link previews
+• Fixed a bug where messages read on a linked device would sometimes show up as unread notifications on your lock screen.
+• Sorted out an issue with video recording using the in-app camera

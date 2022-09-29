@@ -1,3 +1,4 @@
-• 화상 통화 PIP(Picture-in-Picture)가 키보드 입력 시 키보드 위로 올라갑니다.
-• 그룹 메타데이터 업데이트 안정성과 오류 처리가 개선됩니다.
-
+• Better integration of your Signal contacts with the share sheet on older iOS versions, making it smoother to connect with the people you talk to most often.
+• Beautified long link previews
+• Fixed a bug where messages read on a linked device would sometimes show up as unread notifications on your lock screen.
+• Sorted out an issue with video recording using the in-app camera

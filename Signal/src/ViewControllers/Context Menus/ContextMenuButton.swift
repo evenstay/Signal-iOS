@@ -94,7 +94,7 @@ public class ContextMenuButton: UIButton, ContextMenuInteractionDelegate {
                 self.contextMenuInteraction(_contextMenuInteraction, didEndForConfiguration: contextMenuConfiguration)
                 self.contextMenuConfiguration = nil
             } else {
-                owsFailDebug("Dismissing context menu with no configuration present")
+                OWSLogger.info("Dismissing context menu with no configuration present")
             }
         }
 
@@ -253,6 +253,8 @@ extension ContextMenuButton: ContextMenuControllerDelegate {
     }
 
     func contextMenuControllerAccessoryFrameOffset(_ contextMenuController: ContextMenuController) -> CGPoint? {
+        guard let splitVC = signalApp.conversationSplitViewControllerForSwift, splitVC.isCollapsed else { return nil }
+
         guard let window = window else { return nil }
 
         let menuPosition = ContextMenuPosition(

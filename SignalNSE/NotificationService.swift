@@ -207,23 +207,33 @@ class NotificationService: UNNotificationServiceExtension {
             return completeSilently(logger: logger)
         }
 
+        if SignalProxy.isEnabled {
+            if !SignalProxy.isEnabledAndReady {
+                Logger.info("Waiting for signal proxy to become ready for message fetch.")
+                NotificationCenter.default.observe(once: .isSignalProxyReadyDidChange)
+                    .done { [weak self] _ in
+                        self?.fetchAndProcessMessages(logger: logger)
+                    }
+                SignalProxy.startRelayServer()
+                return
+            }
+
+            Logger.info("Using signal proxy for message fetch.")
+        }
+
         environment.processingMessageCounter.increment()
 
         logger.info("Beginning message fetch.")
 
-        let fetchPromise = messageFetcherJob.run().promise
-        fetchPromise.timeout(seconds: 20, description: "Message Fetch Timeout.") {
-            NotificationServiceError.timeout
-        }.catch(on: .global()) { _ in
-            // Do nothing, Promise.timeout() will log timeouts.
-        }
-        fetchPromise.then(on: .global()) { [weak self] () -> Promise<Void> in
+        firstly {
+            messageFetcherJob.run().promise
+        }.then(on: .global()) { [weak self] () -> Promise<Void> in
             logger.info("Waiting for processing to complete.")
             guard let self = self else { return Promise.value(()) }
 
             let runningAndCompletedPromises = AtomicArray<(String, Promise<Void>)>()
 
-            let processingCompletePromise = firstly { () -> Promise<Void> in
+            return firstly { () -> Promise<Void> in
                 let promise = self.messageProcessor.processingCompletePromise()
                 runningAndCompletedPromises.append(("MessageProcessorCompletion", promise))
                 return promise
@@ -253,25 +263,13 @@ class NotificationService: UNNotificationServiceExtension {
                 runningAndCompletedPromises.append(("Pending notification post", promise))
                 return promise
             }
-            processingCompletePromise.timeout(seconds: 20, ticksWhileSuspended: true, description: "Message Processing Timeout.") {
-                runningAndCompletedPromises.get().filter { $0.1.isSealed == false }.forEach {
-                    logger.warn("Completion promise: \($0.0) did not finish.")
-                }
-                return NotificationServiceError.timeout
-            }.catch { _ in
-                // Do nothing, Promise.timeout() will log timeouts.
-            }
-            return processingCompletePromise
         }.ensure(on: .global()) { [weak self] in
             logger.info("Message fetch completed.")
+            SignalProxy.stopRelayServer()
             environment.processingMessageCounter.decrementOrZero()
             self?.completeSilently(logger: logger)
         }.catch(on: .global()) { error in
             logger.error("Error: \(error)")
         }
-    }
-
-    private enum NotificationServiceError: Error {
-        case timeout
     }
 }

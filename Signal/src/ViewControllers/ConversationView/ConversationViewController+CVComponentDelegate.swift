@@ -282,6 +282,11 @@ extension ConversationViewController: CVComponentDelegate {
             return
         }
 
+        if SignalProxy.isValidProxyLink(url) {
+            cvc_didTapProxyLink(url: url)
+            return
+        }
+
         if SignalMe.isPossibleUrl(url) { return cvc_didTapSignalMeLink(url: url) }
 
         UIApplication.shared.open(url, options: [:], completionHandler: nil)
@@ -324,6 +329,12 @@ extension ConversationViewController: CVComponentDelegate {
         owsAssertDebug(GroupManager.isPossibleGroupInviteLink(url))
 
         GroupInviteLinksUI.openGroupInviteLink(url, fromViewController: self)
+    }
+
+    public func cvc_didTapProxyLink(url: URL) {
+        AssertIsOnMainThread()
+        guard let vc = ProxyLinkSheetViewController(url: url) else { return }
+        present(vc, animated: true)
     }
 
     public func cvc_willWrapGift(_ messageUniqueId: String) -> Bool { willWrapGift(messageUniqueId) }

@@ -340,7 +340,10 @@ open class ConversationPickerViewController: OWSTableViewController2 {
                 return lhsIndex < rhsIndex
             }.map { $0.value }
 
-            let storyItems = StoryConversationItem.allItems(transaction: transaction)
+            let storyItems = StoryConversationItem.allItems(
+                includeImplicitGroupThreads: true,
+                transaction: transaction
+            )
 
             return ConversationCollection(contactConversations: contactItems,
                                           recentConversations: pinnedItems + recentItems,
@@ -670,6 +673,22 @@ open class ConversationPickerViewController: OWSTableViewController2 {
         }
         selection.add(conversation)
         updateUIForCurrentSelection(animated: true)
+
+        if
+            let storyConversationItem = conversation as? StoryConversationItem,
+            storyConversationItem.isMyStory,
+            Self.databaseStorage.read(block: { !StoryManager.hasSetMyStoriesPrivacy(transaction: $0) }) {
+            // Show first time story privacy settings if selecting my story and settings have'nt been
+            // changed before.
+
+            // Reload the row when we show the sheet, and when it goes away, so we reflect changes.
+            let reloadRowBlock = { [weak self] in
+                self?.tableView.reloadData()
+                self?.tableView.selectRow(at: IndexPath(row: 0, section: 0), animated: false, scrollPosition: .none)
+            }
+            let sheetController = MyStorySettingsSheetViewController(willDisappear: reloadRowBlock)
+            self.present(sheetController, animated: true, completion: reloadRowBlock)
+        }
     }
 
     private func showBlockedByAnnouncementOnlyToast() {

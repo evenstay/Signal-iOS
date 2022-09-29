@@ -35,7 +35,6 @@ enum LaunchFailure: UInt, CustomStringConvertible {
 }
 
 extension AppDelegate {
-    @objc(checkSomeDiskSpaceAvailable)
     func checkSomeDiskSpaceAvailable() -> Bool {
         let tempDir = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent(UUID().uuidString)
@@ -140,6 +139,8 @@ extension AppDelegate {
         DebugLogger.shared().postLaunchLogCleanup()
         AppVersion.shared().mainAppLaunchDidComplete()
 
+        Self.updateApplicationShortcutItems(isRegisteredAndReady: tsAccountManager.isRegisteredAndReady)
+
         if !Environment.shared.preferences.hasGeneratedThumbnails() {
             databaseStorage.asyncRead(
                 block: { transaction in
@@ -173,6 +174,44 @@ extension AppDelegate {
     }
 
     // MARK: - Launch failures
+
+    @objc
+    func launchFailure(didDeviceTransferRestoreSucceed: Bool) -> LaunchFailure {
+        guard checkSomeDiskSpaceAvailable() else {
+            return .lowStorageSpaceAvailable
+        }
+
+        guard didDeviceTransferRestoreSucceed else {
+            return .couldNotRestoreTransferredData
+        }
+
+        // Prevent:
+        // * Users with an unknown GRDB schema revert to using an earlier GRDB schema.
+        guard !StorageCoordinator.hasInvalidDatabaseVersion else {
+            return .unknownDatabaseVersion
+        }
+
+        let userDefaults = CurrentAppContext().appUserDefaults()
+
+        let databaseCorruptionStatus = DatabaseCorruptionState.databaseCorruptionStatus(userDefaults: userDefaults)
+        switch databaseCorruptionStatus {
+        case .notCorrupted:
+            break
+        case .corrupted:
+            return .databaseUnrecoverablyCorrupted
+        }
+
+        let appVersion = AppVersion.shared()
+        let launchAttemptFailureThreshold = DebugFlags.betaLogging ? 2 : 3
+        if
+            appVersion.lastAppVersion == appVersion.currentAppReleaseVersion,
+            userDefaults.integer(forKey: kAppLaunchesAttemptedKey) >= launchAttemptFailureThreshold
+        {
+            return .lastAppLaunchCrashed
+        }
+
+        return .none
+    }
 
     @objc(showUIForLaunchFailure:)
     func showUI(forLaunchFailure launchFailure: LaunchFailure) {
@@ -345,6 +384,57 @@ extension AppDelegate {
         }
 
         return .notHandled
+    }
+
+    // MARK: - Events
+
+    @objc
+    func registrationStateDidChange() {
+        AssertIsOnMainThread()
+
+        Logger.info("registrationStateDidChange")
+
+        enableBackgroundRefreshIfNecessary()
+
+        let isRegisteredAndReady = tsAccountManager.isRegisteredAndReady
+        if isRegisteredAndReady {
+            AppReadiness.runNowOrWhenAppDidBecomeReadySync {
+                self.databaseStorage.write { transaction in
+                    let localAddress = self.tsAccountManager.localAddress(with: transaction)
+                    Logger.info("localAddress: \(String(describing: localAddress))")
+
+                    ExperienceUpgradeFinder.markAllCompleteForNewUser(transaction: transaction.unwrapGrdbWrite)
+                }
+
+                // Start running the disappearing messages job in case the newly registered user
+                // enables this feature
+                self.disappearingMessagesJob.startIfNecessary()
+            }
+        }
+
+        Self.updateApplicationShortcutItems(isRegisteredAndReady: isRegisteredAndReady)
+    }
+
+    // MARK: - Utilities
+
+    @objc
+    public static func updateApplicationShortcutItems(isRegisteredAndReady: Bool) {
+        guard CurrentAppContext().isMainApp else { return }
+        UIApplication.shared.shortcutItems = applicationShortcutItems(isRegisteredAndReady: isRegisteredAndReady)
+    }
+
+    static func applicationShortcutItems(isRegisteredAndReady: Bool) -> [UIApplicationShortcutItem] {
+        guard isRegisteredAndReady else { return [] }
+        return [.init(
+            type: "\(Bundle.main.bundleIdPrefix).quickCompose",
+            localizedTitle: NSLocalizedString(
+                "APPLICATION_SHORTCUT_NEW_MESSAGE",
+                value: "New Message",
+                comment: "On the iOS home screen, if you tap and hold the Signal icon, this shortcut will appear. Tapping it will let users send a new message. You may want to refer to similar behavior in other iOS apps, such as Messages, for equivalent strings."
+            ),
+            localizedSubtitle: nil,
+            icon: UIApplicationShortcutIcon(type: .compose)
+        )]
     }
 }
 

@@ -5,17 +5,19 @@
 import Foundation
 import SignalCoreKit
 
-public enum OWSWebSocketType: CaseIterable {
-    case identified
-    case unidentified
+@objc
+public enum OWSWebSocketType: Int, CaseIterable {
+    case identified = 0
+    case unidentified = 1
 }
 
 // MARK: -
 
-public enum OWSWebSocketState {
-    case closed
-    case connecting
-    case open
+@objc
+public enum OWSWebSocketState: Int {
+    case closed = 0
+    case connecting = 1
+    case open = 2
 }
 
 // MARK: -
@@ -256,6 +258,10 @@ public class OWSWebSocket: NSObject {
         NotificationCenter.default.addObserver(self,
                                                selector: #selector(isCensorshipCircumventionActiveDidChange),
                                                name: .isCensorshipCircumventionActiveDidChange,
+                                               object: nil)
+        NotificationCenter.default.addObserver(self,
+                                               selector: #selector(isSignalProxyReadyDidChange),
+                                               name: .isSignalProxyReadyDidChange,
                                                object: nil)
         NotificationCenter.default.addObserver(self,
                                                selector: #selector(deviceListUpdateModifiedDeviceList),
@@ -750,6 +756,15 @@ public class OWSWebSocket: NSObject {
             return .closed(reason: "isCensorshipCircumventionActive")
         }
 
+        if SignalProxy.isEnabled {
+            if #available(iOS 13, *) {
+                // All good, native websockets support the proxy
+            } else {
+                // Starscream doesn't support the proxy
+                return .closed(reason: "signalProxyIsEnabled")
+            }
+        }
+
         if let currentWebSocket = self.currentWebSocket,
            currentWebSocket.hasPendingRequests {
             return .open(reason: "hasPendingRequests")
@@ -1073,6 +1088,17 @@ public class OWSWebSocket: NSObject {
 
     @objc
     private func isCensorshipCircumventionActiveDidChange(_ notification: NSNotification) {
+        AssertIsOnMainThread()
+
+        if Self.verboseLogging {
+            Logger.info("\(self.logPrefix)")
+        }
+
+        applyDesiredSocketState()
+    }
+
+    @objc
+    private func isSignalProxyReadyDidChange(_ notification: NSNotification) {
         AssertIsOnMainThread()
 
         if Self.verboseLogging {

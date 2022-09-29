@@ -192,13 +192,11 @@ static void uncaughtExceptionHandler(NSException *exception)
     // This *must* happen before we try and access or verify the database, since we
     // may be in a state where the database has been partially restored from transfer
     // (e.g. the key was replaced, but the database files haven't been moved into place)
-    __block BOOL deviceTransferRestoreFailed = NO;
+    __block BOOL didDeviceTransferRestoreSucceed = YES;
     [BenchManager benchWithTitle:@"Slow device transfer service launch"
                  logIfLongerThan:0.01
                  logInProduction:YES
-                           block:^{
-                               deviceTransferRestoreFailed = ![DeviceTransferService.shared launchCleanup];
-                           }];
+                           block:^{ didDeviceTransferRestoreSucceed = [DeviceTransferService.shared launchCleanup]; }];
 
     // XXX - careful when moving this. It must happen before we load GRDB.
     [self verifyDBKeysAvailableBeforeBackgroundLaunch];
@@ -209,24 +207,8 @@ static void uncaughtExceptionHandler(NSException *exception)
 
     // We need to do this _after_ we set up logging, when the keychain is unlocked,
     // but before we access the database, files on disk, or NSUserDefaults.
-    LaunchFailure launchFailure = LaunchFailureNone;
-    NSInteger launchAttemptFailureThreshold = SSKDebugFlags.betaLogging ? 2 : 3;
-
-    if (![self checkSomeDiskSpaceAvailable]) {
-        launchFailure = LaunchFailureLowStorageSpaceAvailable;
-    } else if (deviceTransferRestoreFailed) {
-        launchFailure = LaunchFailureCouldNotRestoreTransferredData;
-    } else if (StorageCoordinator.hasInvalidDatabaseVersion) {
-        // Prevent:
-        // * Users with an unknown GRDB schema revert to using an earlier GRDB schema.
-        launchFailure = LaunchFailureUnknownDatabaseVersion;
-    } else if ([SSKPreferences hasGrdbDatabaseCorruption]) {
-        launchFailure = LaunchFailureDatabaseUnrecoverablyCorrupted;
-    } else if ([AppVersion.shared.lastAppVersion isEqual:AppVersion.shared.currentAppReleaseVersion] &&
-        [[CurrentAppContext() appUserDefaults] integerForKey:kAppLaunchesAttemptedKey]
-            >= launchAttemptFailureThreshold) {
-        launchFailure = LaunchFailureLastAppLaunchCrashed;
-    }
+    LaunchFailure launchFailure =
+        [self launchFailureWithDidDeviceTransferRestoreSucceed:didDeviceTransferRestoreSucceed];
 
     if (launchFailure != LaunchFailureNone) {
         [InstrumentsMonitor stopSpanWithCategory:@"appstart" hash:monitorId];
@@ -435,6 +417,8 @@ static void uncaughtExceptionHandler(NSException *exception)
         return [self tryToShowStickerPackView:stickerPackInfo];
     } else if ([GroupManager isPossibleGroupInviteLink:url]) {
         return [self tryToShowGroupInviteLinkUI:url];
+    } else if ([SignalProxy isValidProxyLink:url]) {
+        return [self tryToShowProxyLinkUI:url];
     } else if ([url.scheme isEqualToString:kURLSchemeSGNLKey]) {
         if ([url.host hasPrefix:kURLHostVerifyPrefix] && ![self.tsAccountManager isRegistered]) {
             if (!AppReadiness.isAppReady) {
@@ -602,6 +586,27 @@ static void uncaughtExceptionHandler(NSException *exception)
                                                    }];
         } else {
             [GroupInviteLinksUI openGroupInviteLink:url fromViewController:rootViewController];
+        }
+    });
+    return YES;
+}
+
+- (BOOL)tryToShowProxyLinkUI:(NSURL *)url
+{
+    OWSAssertDebug(!self.didAppLaunchFail);
+
+    AppReadinessRunNowOrWhenAppDidBecomeReadySync(^{
+        ProxyLinkSheetViewController *proxySheet = [[ProxyLinkSheetViewController alloc] initWithUrl:url];
+        UIViewController *rootViewController = self.window.rootViewController;
+        if (rootViewController.presentedViewController) {
+            [rootViewController dismissViewControllerAnimated:NO
+                                                   completion:^{
+                                                       [rootViewController presentViewController:proxySheet
+                                                                                        animated:YES
+                                                                                      completion:nil];
+                                                   }];
+        } else {
+            [rootViewController presentViewController:proxySheet animated:YES completion:nil];
         }
     });
     return YES;
@@ -1062,29 +1067,6 @@ static void uncaughtExceptionHandler(NSException *exception)
     OWSLogInfo(@"storageIsReady");
 
     [self checkIfAppIsReady];
-}
-
-- (void)registrationStateDidChange
-{
-    OWSAssertIsOnMainThread();
-
-    OWSLogInfo(@"registrationStateDidChange");
-
-    [self enableBackgroundRefreshIfNecessary];
-
-    if ([self.tsAccountManager isRegisteredAndReady]) {
-        AppReadinessRunNowOrWhenAppDidBecomeReadySync(^{
-            OWSLogInfo(@"localAddress: %@", [self.tsAccountManager localAddress]);
-
-            DatabaseStorageWrite(self.databaseStorage, ^(SDSAnyWriteTransaction *transaction) {
-                [ExperienceUpgradeFinder markAllCompleteForNewUserWithTransaction:transaction.unwrapGrdbWrite];
-            });
-
-            // Start running the disappearing messages job in case the newly registered user
-            // enables this feature
-            [self.disappearingMessagesJob startIfNecessary];
-        });
-    }
 }
 
 - (void)registrationLockDidChange:(NSNotification *)notification

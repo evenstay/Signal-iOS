@@ -14,22 +14,34 @@ public class GRDBSchemaMigrator: NSObject {
     public static let migrationSideEffectsCollectionName = "MigrationSideEffects"
     public static let avatarRepairAttemptCount = "Avatar Repair Attempt Count"
 
-    // Returns true IFF incremental migrations were performed.
-    @objc
-    public func runSchemaMigrations() -> Bool {
+    /// Migrate a database to the latest version.
+    ///
+    /// - Parameter databaseStorage: The database to migrate.
+    /// - Parameter isMainDatabase: A boolean indicating whether this is the main database. If so, some global state will be set.
+    /// - Returns: `true` if incremental migrations were performed, and `false` otherwise.
+    @discardableResult
+    @objc(migrateDatabase:isMainDatabase:)
+    public static func migrateDatabase(
+        databaseStorage: SDSDatabaseStorage,
+        isMainDatabase: Bool
+    ) -> Bool {
         let didPerformIncrementalMigrations: Bool
 
-        if hasCreatedInitialSchema {
+        let grdbStorageAdapter = databaseStorage.grdbStorage
+
+        if hasCreatedInitialSchema(grdbStorageAdapter: grdbStorageAdapter) {
             do {
                 Logger.info("Using incrementalMigrator.")
-                didPerformIncrementalMigrations = try runIncrementalMigrations()
+                didPerformIncrementalMigrations = try runIncrementalMigrations(
+                    databaseStorage: databaseStorage
+                )
             } catch {
                 owsFail("Incremental migrations failed: \(error.grdbErrorForLogging)")
             }
         } else {
             do {
                 Logger.info("Using newUserMigrator.")
-                try newUserMigrator.migrate(grdbStorageAdapter.pool)
+                try newUserMigrator().migrate(grdbStorageAdapter.pool)
                 didPerformIncrementalMigrations = false
             } catch {
                 owsFail("New user migrator failed: \(error.grdbErrorForLogging)")
@@ -37,14 +49,17 @@ public class GRDBSchemaMigrator: NSObject {
         }
         Logger.info("Migrations complete.")
 
-        SSKPreferences.markGRDBSchemaAsLatest()
-
-        Self._areMigrationsComplete.set(true)
+        if isMainDatabase {
+            SSKPreferences.markGRDBSchemaAsLatest()
+            Self._areMigrationsComplete.set(true)
+        }
 
         return didPerformIncrementalMigrations
     }
 
-    private func runIncrementalMigrations() throws -> Bool {
+    private static func runIncrementalMigrations(databaseStorage: SDSDatabaseStorage) throws -> Bool {
+        let grdbStorageAdapter = databaseStorage.grdbStorage
+
         let previouslyAppliedMigrations = try grdbStorageAdapter.read { transaction in
             try DatabaseMigrator().appliedIdentifiers(transaction.database)
         }
@@ -74,7 +89,7 @@ public class GRDBSchemaMigrator: NSObject {
         return allAppliedMigrations != previouslyAppliedMigrations
     }
 
-    private var hasCreatedInitialSchema: Bool {
+    private static func hasCreatedInitialSchema(grdbStorageAdapter: GRDBDatabaseStorageAdapter) -> Bool {
         let appliedMigrations = try! grdbStorageAdapter.read { transaction in
             try! DatabaseMigrator().appliedIdentifiers(transaction.database)
         }
@@ -175,6 +190,7 @@ public class GRDBSchemaMigrator: NSObject {
         case addColumnsForLocalUserLeaveGroupDurableJob
         case addStoriesHiddenStateToThreadAssociatedData
         case addUnregisteredAtTimestampToSignalRecipient
+        case addLastReceivedStoryTimestampToTSThread
 
         // NOTE: Every time we add a migration id, consider
         // incrementing grdbSchemaVersionLatest.
@@ -222,14 +238,16 @@ public class GRDBSchemaMigrator: NSObject {
         case dataMigration_dropSentStories
         case dataMigration_indexMultipleNameComponentsForReceipients
         case dataMigration_syncGroupStories
+        case dataMigration_populateLastReceivedStoryTimestamp
+        case dataMigration_deleteOldGroupCapabilities
     }
 
     public static let grdbSchemaVersionDefault: UInt = 0
-    public static let grdbSchemaVersionLatest: UInt = 44
+    public static let grdbSchemaVersionLatest: UInt = 46
 
     // An optimization for new users, we have the first migration import the latest schema
     // and mark any other migrations as "already run".
-    private lazy var newUserMigrator: DatabaseMigrator = {
+    private static func newUserMigrator() -> DatabaseMigrator {
         var migrator = DatabaseMigrator()
         migrator.registerMigration(MigrationId.createInitialSchema.rawValue) { db in
             Logger.info("importing latest schema")
@@ -249,7 +267,7 @@ public class GRDBSchemaMigrator: NSObject {
             }
         }
         return migrator
-    }()
+    }
 
     private class DatabaseMigratorWrapper {
         var migrator = DatabaseMigrator()
@@ -273,7 +291,7 @@ public class GRDBSchemaMigrator: NSObject {
         }
     }
 
-    private func registerSchemaMigrations(migrator: DatabaseMigratorWrapper) {
+    private static func registerSchemaMigrations(migrator: DatabaseMigratorWrapper) {
 
         // The migration blocks should never throw. If we introduce a crashing
         // migration, we want the crash logs reflect where it occurred.
@@ -1964,10 +1982,20 @@ public class GRDBSchemaMigrator: NSObject {
             }
         }
 
+        migrator.registerMigration(.addLastReceivedStoryTimestampToTSThread) { db in
+            do {
+                try db.alter(table: "model_TSThread") { table in
+                    table.add(column: "lastReceivedStoryTimestamp", .integer)
+                }
+            } catch {
+                owsFail("Error: \(error)")
+            }
+        }
+
         // MARK: - Schema Migration Insertion Point
     }
 
-    private func registerDataMigrations(migrator: DatabaseMigratorWrapper) {
+    private static func registerDataMigrations(migrator: DatabaseMigratorWrapper) {
 
         // The migration blocks should never throw. If we introduce a crashing
         // migration, we want the crash logs reflect where it occurred.
@@ -2308,9 +2336,34 @@ public class GRDBSchemaMigrator: NSObject {
             let transaction = GRDBWriteTransaction(database: db)
             defer { transaction.finalizeTransaction() }
 
-            for thread in AnyThreadFinder().storyThreads(transaction: transaction.asAnyRead) {
+            for thread in AnyThreadFinder().storyThreads(includeImplicitGroupThreads: false, transaction: transaction.asAnyRead) {
                 guard let thread = thread as? TSGroupThread else { continue }
                 self.storageServiceManager.recordPendingUpdates(groupModel: thread.groupModel)
+            }
+        }
+
+        migrator.registerMigration(.dataMigration_populateLastReceivedStoryTimestamp) { db in
+            let transaction = GRDBWriteTransaction(database: db)
+            defer { transaction.finalizeTransaction() }
+
+            StoryMessage.anyEnumerate(transaction: transaction.asAnyRead) { message, _ in
+                guard !message.authorAddress.isLocalAddress else { return }
+                for thread in message.threads(transaction: transaction.asAnyRead) {
+                    thread.updateWithLastReceivedStoryTimestamp(NSNumber(value: message.timestamp), transaction: transaction.asAnyWrite)
+                }
+            }
+        }
+
+        migrator.registerMigration(.dataMigration_deleteOldGroupCapabilities) { db in
+            let sql = """
+                DELETE FROM \(SDSKeyValueStore.tableName)
+                WHERE \(SDSKeyValueStore.collectionColumn.columnName)
+                IN ("GroupManager.senderKeyCapability", "GroupManager.announcementOnlyGroupsCapability", "GroupManager.groupsV2MigrationCapability")
+            """
+            do {
+                try db.execute(sql: sql)
+            } catch {
+                owsFail("Error \(error)")
             }
         }
     }

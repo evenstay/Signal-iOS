@@ -13,8 +13,6 @@ import SignalUI
 class BoostSheetView: InteractiveSheetViewController {
     let boostVC = BoostViewController()
     override var interactiveScrollViews: [UIScrollView] { [boostVC.tableView] }
-    override var minHeight: CGFloat { min(680, CurrentAppContext().frame.height - (view.safeAreaInsets.top + 32)) }
-    override var maximizedHeight: CGFloat { minHeight }
 
     // MARK: -
 
@@ -24,6 +22,8 @@ class BoostSheetView: InteractiveSheetViewController {
         contentView.addSubview(boostVC.view)
         boostVC.view.autoPinEdgesToSuperviewEdges()
         addChild(boostVC)
+
+        minimizedHeight = 680
     }
 }
 
@@ -541,7 +541,11 @@ extension BoostViewController: PKPaymentAuthorizationControllerDelegate {
             return
         }
 
-        let request = DonationUtilities.newPaymentRequest(for: donationAmount, currencyCode: currencyCode)
+        let request = DonationUtilities.newPaymentRequest(
+            for: donationAmount,
+            currencyCode: currencyCode,
+            isRecurring: false
+        )
 
         SubscriptionManager.terminateTransactionIfPossible = false
         let paymentController = PKPaymentAuthorizationController(paymentRequest: request)
