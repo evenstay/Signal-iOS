@@ -679,9 +679,8 @@ class MessageContext(BaseContext):
                     writer.add('}')
                     writer.newline()
 
-        has_address_helper = uuid_field and e164_field and not args.skip_address_helpers
         address_accessor = ''
-        if has_address_helper:
+        if uuid_field is not None:
             accessor_prefix = uuid_field.name.replace('Uuid', '')
             address_accessor = accessor_prefix + 'Address'
             address_has_accessor = 'hasValid' + accessor_prefix[0].upper() + accessor_prefix[1:]
@@ -730,23 +729,29 @@ class MessageContext(BaseContext):
         for field in explict_fields:
             writer.add('self.%s = %s' % (field.name_swift, field.name_swift))
 
-        if has_address_helper:
+        if uuid_field:
             writer.newline()
 
             if proto_syntax == 'proto3':
                 writer.add('let %s = !proto.%s.isEmpty' % (uuid_field.has_accessor_name(), uuid_field.name_swift))
-                writer.add('let %s = !proto.%s.isEmpty' % (e164_field.has_accessor_name(), e164_field.name_swift))
+                if e164_field:
+                    writer.add('let %s = !proto.%s.isEmpty' % (e164_field.has_accessor_name(), e164_field.name_swift))
             else:
                 writer.add('let %s = proto.%s && !proto.%s.isEmpty' % (uuid_field.has_accessor_name(), uuid_field.has_accessor_name(), uuid_field.name_swift))
-                writer.add('let %s = proto.%s && !proto.%s.isEmpty' % (e164_field.has_accessor_name(), e164_field.has_accessor_name(), e164_field.name_swift))
+                if e164_field:
+                    writer.add('let %s = proto.%s && !proto.%s.isEmpty' % (e164_field.has_accessor_name(), e164_field.has_accessor_name(), e164_field.name_swift))
 
             writer.add('let %s: String? = proto.%s' % (uuid_field.name_swift, uuid_field.name_swift))
-            writer.add('let %s: String? = proto.%s' % (e164_field.name_swift, e164_field.name_swift))
+            if e164_field:
+                writer.add('let %s: String? = proto.%s' % (e164_field.name_swift, e164_field.name_swift))
 
             writer.add('self.%s = {' % address_accessor)
             writer.push_indent()
 
-            writer.add('guard %s || %s else { return nil }' % (e164_field.has_accessor_name(), uuid_field.has_accessor_name()))
+            if e164_field:
+                writer.add(f"guard {uuid_field.has_accessor_name()} || {e164_field.has_accessor_name()} else {{ return nil }}")
+            else:
+                writer.add(f"guard {uuid_field.has_accessor_name()} else {{ return nil }}")
             writer.newline()
 
             writer.add('let uuidString: String? = {')
@@ -765,26 +770,39 @@ class MessageContext(BaseContext):
             writer.add('}()')
             writer.newline()
 
-            writer.add('let phoneNumber: String? = {')
-            writer.push_indent()
-            writer.add('guard %s else {' % e164_field.has_accessor_name())
-            writer.push_indent()
-            writer.add('return nil')
-            writer.pop_indent()
-            writer.add('}')
-            writer.newline()
-            writer.add('return ProtoUtils.parseProtoE164(%s, name: "%s.%s")' % (e164_field.name_swift, wrapped_swift_name, e164_field.name_swift))
-            writer.pop_indent()
-            writer.add('}()')
-            writer.newline()
+            if e164_field:
+                writer.add('let phoneNumber: String? = {')
+                writer.push_indent()
+                writer.add('guard %s else {' % e164_field.has_accessor_name())
+                writer.push_indent()
+                writer.add('return nil')
+                writer.pop_indent()
+                writer.add('}')
+                writer.newline()
+                writer.add('return ProtoUtils.parseProtoE164(%s, name: "%s.%s")' % (e164_field.name_swift, wrapped_swift_name, e164_field.name_swift))
+                writer.pop_indent()
+                writer.add('}()')
+                writer.newline()
 
-            writer.add('let address = SignalServiceAddress(uuidString: uuidString, phoneNumber: phoneNumber, trustLevel: %s)' % ('.high' if uuid_field.is_trusted_mapping else '.low'))
-            writer.add('guard address.isValid else {')
+                writer.add("let address = SignalServiceAddress(")
+                writer.push_indent()
+                writer.add("uuidString: uuidString,")
+                writer.add("phoneNumber: phoneNumber,")
+                writer.add(f"trustLevel: .{'high' if uuid_field.is_trusted_mapping else 'low'}")
+                writer.pop_indent()
+                writer.add(")")
+            else:
+                writer.add("guard let uuidString = uuidString else { return nil }")
+                writer.newline()
+
+                writer.add("let address = SignalServiceAddress(uuidString: uuidString)")
+
+            writer.add("guard address.isValid else {")
             writer.push_indent()
             writer.add('owsFailDebug("address was unexpectedly invalid")')
-            writer.add('return nil')
+            writer.add("return nil")
             writer.pop_indent()
-            writer.add('}')
+            writer.add("}")
             writer.newline()
             writer.add('return address')
             writer.pop_indent()
@@ -1249,19 +1267,6 @@ public func serializedData() throws -> Data {
         writer.pop_indent()
         writer.add('}')
         writer.newline()
-
-        # description
-        if self.args.add_description:
-            writer.add_objc()
-            writer.add('public override var description: String {')
-            writer.push_indent()
-            writer.add('var fields = [String]()')
-            for field in self.fields():
-                writer.add('fields.append("%s: \(proto.%s)")' % ( field.name_swift, field.name_swift, ) )
-            writer.add('return "[" + fields.joined(separator: ", ") + "]"')
-            writer.pop_indent()
-            writer.add('}')
-            writer.newline()
 
         writer.pop_context()
 
@@ -1919,15 +1924,11 @@ def process_proto_file(args, proto_file_path, dst_file_path):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='Protocol Buffer Swift Wrapper Generator.')
-    # parser.add_argument('--all', action='store_true', help='process all files in or below current dir')
-    # parser.add_argument('--path', help='used to specify a path to a file.')
     parser.add_argument('--proto-dir', help='dir path of the proto schema file.')
     parser.add_argument('--proto-file', help='filename of the proto schema file.')
     parser.add_argument('--wrapper-prefix', help='name prefix for generated wrappers.')
     parser.add_argument('--proto-prefix', help='name prefix for proto bufs.')
     parser.add_argument('--dst-dir', help='path to the destination directory.')
-    parser.add_argument('--add-description', action='store_true', help='add `description` properties.')
-    parser.add_argument('--skip-address-helpers', action='store_true', help='skip generating address helpers for uuid/e164 fields')
     parser.add_argument('--verbose', action='store_true', help='enables verbose logging')
     args = parser.parse_args()
 

@@ -146,7 +146,6 @@ public class GRDBDatabaseStorageAdapter: NSObject {
             SSKJobRecord.table,
             OWSMessageContentJob.table,
             OWSRecipientIdentity.table,
-            ExperienceUpgrade.table,
             OWSDisappearingMessagesConfiguration.table,
             SignalRecipient.table,
             SignalAccount.table,
@@ -170,10 +169,12 @@ public class GRDBDatabaseStorageAdapter: NSObject {
             MessageSendLog.Message.self,
             ProfileBadge.self,
             StoryMessage.self,
+            StoryContextAssociatedData.self,
             DonationReceipt.self,
             OWSReaction.self,
             TSGroupMember.self,
-            TSMention.self
+            TSMention.self,
+            ExperienceUpgrade.self
         ]
     }
 

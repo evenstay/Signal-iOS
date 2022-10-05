@@ -209,6 +209,9 @@ public extension MessageSender {
             return failure(MessageSenderNoSessionForTransientMessageError())
         }
 
+        // Don't use UD for story preKey fetches, we don't have a valid UD auth key
+        let udAccess = messageSend.message.isStorySend ? nil : messageSend.udSendingAccess?.udAccess
+
         let requestMaker = RequestMaker(label: "Prekey Fetch",
                                         requestFactoryBlock: { (udAccessKeyForRequest: SMKUDAccessKey?) -> TSRequest? in
                                             Logger.verbose("Building prekey request for recipientAddress: \(recipientAddress), deviceId: \(deviceId)")
@@ -224,7 +227,7 @@ public extension MessageSender {
                                             // to this recipient also use REST.
                                             messageSend.hasWebsocketSendFailed = true
                                         }, address: recipientAddress,
-                                        udAccess: messageSend.udSendingAccess?.udAccess,
+                                        udAccess: udAccess,
                                         canFailoverUDAuth: true)
 
         firstly(on: .global()) { () -> Promise<RequestMakerResult> in
@@ -809,28 +812,33 @@ public extension MessageSender {
             Logger.warn("Sending a message with no device messages.")
         }
 
-        let requestMaker = RequestMaker(label: "Message Send",
-                                        requestFactoryBlock: { (udAccessKey: SMKUDAccessKey?) in
-                                            OWSRequestFactory.submitMessageRequest(with: address,
-                                                                                   messages: deviceMessages,
-                                                                                   timestamp: message.timestamp,
-                                                                                   udAccessKey: udAccessKey,
-                                                                                   isOnline: message.isOnline,
-                                                                                   isUrgent: message.isUrgent)
-                                        },
-                                        udAuthFailureBlock: {
-                                            // Note the UD auth failure so subsequent retries
-                                            // to this recipient also use basic auth.
-                                            messageSend.setHasUDAuthFailed()
-                                        },
-                                        websocketFailureBlock: {
-                                            // Note the websocket failure so subsequent retries
-                                            // to this recipient also use REST.
-                                            messageSend.hasWebsocketSendFailed = true
-                                        },
-                                        address: address,
-                                        udAccess: messageSend.udSendingAccess?.udAccess,
-                                        canFailoverUDAuth: false)
+        let requestMaker = RequestMaker(
+            label: "Message Send",
+            requestFactoryBlock: { (udAccessKey: SMKUDAccessKey?) in
+                OWSRequestFactory.submitMessageRequest(
+                    with: address,
+                    messages: deviceMessages,
+                    timestamp: message.timestamp,
+                    udAccessKey: udAccessKey,
+                    isOnline: message.isOnline,
+                    isUrgent: message.isUrgent,
+                    isStory: message.isStorySend
+                )
+            },
+            udAuthFailureBlock: {
+                // Note the UD auth failure so subsequent retries
+                // to this recipient also use basic auth.
+                messageSend.setHasUDAuthFailed()
+            },
+            websocketFailureBlock: {
+                // Note the websocket failure so subsequent retries
+                // to this recipient also use REST.
+                messageSend.hasWebsocketSendFailed = true
+            },
+            address: address,
+            udAccess: messageSend.udSendingAccess?.udAccess,
+            canFailoverUDAuth: false
+        )
 
         // Client-side fanout can yield many
         firstly {

@@ -14,16 +14,6 @@ func XCTAssertMatch(expectedPattern: String, actualText: String, file: StaticStr
 class OWSLinkPreviewTest: SSKBaseTestSwift {
     let shouldRunNetworkTests = false
 
-    override func setUp() {
-        super.setUp()
-        // Put setup code here. This method is called before the invocation of each test method in the class.
-    }
-
-    override func tearDown() {
-        // Put teardown code here. This method is called after the invocation of each test method in the class.
-        super.tearDown()
-    }
-
     func testUrlSchemeValidation() {
         let testSuite: [String: String?] = [
             // Invalid: Explicit scheme is required
@@ -172,6 +162,15 @@ class OWSLinkPreviewTest: SSKBaseTestSwift {
         // If there are more than one, take the first.
         Assert(bodyText: "alice bob https://www.youtube.com/watch?v=tP-Ipsat90c jim https://www.youtube.com/watch?v=other-url carol",
                extractsLink: URL(string: "https://www.youtube.com/watch?v=tP-Ipsat90c")!)
+    }
+
+    func testFindFirstValidUrlPerformance() {
+        let bodyText = String(repeating: "https://example.com ", count: 1_000_000)
+        let expected = URL(string: "https://example.com")
+        measure {
+            let actual = linkPreviewManager.findFirstValidUrl(in: bodyText, bypassSettingsCheck: true)
+            XCTAssertEqual(actual, expected)
+        }
     }
 
     private func Assert(bodyText: String, extractsLink link: URL?, file: StaticString = #file, line: UInt = #line) {

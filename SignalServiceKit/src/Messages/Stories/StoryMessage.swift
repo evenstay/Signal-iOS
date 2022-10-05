@@ -187,9 +187,8 @@ public final class StoryMessage: NSObject, SDSCodableModel {
         )
         record.anyInsert(transaction: transaction)
 
-        for thread in record.threads(transaction: transaction) {
-            thread.updateWithLastReceivedStoryTimestamp(NSNumber(value: timestamp), transaction: transaction)
-        }
+        // Nil associated datas are for outgoing contexts, where we don't need to keep track of received timestamp.
+        record.context.associatedData(transaction: transaction)?.update(lastReceivedTimestamp: timestamp, transaction: transaction)
 
         return record
     }
@@ -325,8 +324,8 @@ public final class StoryMessage: NSObject, SDSCodableModel {
         switch context {
         case .groupId, .authorUuid, .privateStory:
             // Record on the context when the local user last viewed the story for this context
-            if let thread = context.thread(transaction: transaction) {
-                thread.updateWithLastViewedStoryTimestamp(NSNumber(value: timestamp), transaction: transaction)
+            if let associatedData = context.associatedData(transaction: transaction) {
+                associatedData.update(lastViewedTimestamp: timestamp, transaction: transaction)
             } else {
                 owsFailDebug("Missing thread for story context \(context)")
             }
@@ -438,24 +437,33 @@ public final class StoryMessage: NSObject, SDSCodableModel {
         }
     }
 
+    /// If the story is incoming, returns a single-element array with the TSContactThread for the author if the
+    /// story was sent as a private story, or the TSGroupThread if the story was sent to a group.
+    /// If the story is outgoing, returns either a single-element array with the TSGroupThread if the story was sent
+    /// to a group, or an array of TSPrivateStoryThreads for all the private threads the story was sent to.
     public func threads(transaction: SDSAnyReadTransaction) -> [TSThread] {
-        var threads = [TSThread]()
-
-        if let groupId = groupId, let groupThread = TSGroupThread.fetch(groupId: groupId, transaction: transaction) {
-            threads.append(groupThread)
-        }
-
-        if case .outgoing(let recipientStates) = manifest {
-            for context in Set(recipientStates.values.flatMap({ $0.contexts })) {
+        switch manifest {
+        case .incoming:
+            if let groupId = groupId, let groupThread = TSGroupThread.fetch(groupId: groupId, transaction: transaction) {
+                return [groupThread]
+            } else if let contactThread = TSContactThread.getWithContactAddress(.init(uuid: authorUuid), transaction: transaction) {
+                return [contactThread]
+            } else {
+                owsFailDebug("No thread found for an incoming story message")
+                return []
+            }
+        case .outgoing(let recipientStates):
+            if let groupId = groupId, let groupThread = TSGroupThread.fetch(groupId: groupId, transaction: transaction) {
+                return [groupThread]
+            }
+            return Set(recipientStates.values.flatMap({ $0.contexts })).compactMap { context in
                 guard let thread = TSPrivateStoryThread.anyFetch(uniqueId: context.uuidString, transaction: transaction) else {
                     owsFailDebug("Missing thread for story context \(context)")
-                    continue
+                    return nil
                 }
-                threads.append(thread)
+                return thread
             }
         }
-
-        return threads
     }
 
     public func downloadIfNecessary(transaction: SDSAnyWriteTransaction) {
@@ -466,6 +474,12 @@ public final class StoryMessage: NSObject, SDSCodableModel {
         else { return }
 
         attachmentDownloads.enqueueDownloadOfAttachmentsForNewStoryMessage(self, transaction: transaction)
+    }
+
+    public func remotelyDeleteForAllRecipients(transaction: SDSAnyWriteTransaction) {
+        for thread in threads(transaction: transaction) {
+            remotelyDelete(for: thread, transaction: transaction)
+        }
     }
 
     public func remotelyDelete(for thread: TSThread, transaction: SDSAnyWriteTransaction) {
@@ -599,6 +613,9 @@ public final class StoryMessage: NSObject, SDSCodableModel {
             }
             attachment.anyRemove(transaction: transaction)
         }
+
+        // Reload latest unexpired timestamp for the context.
+        self.context.associatedData(transaction: transaction)?.recomputeLatestUnexpiredTimestamp(transaction: transaction)
     }
 
     @objc
@@ -683,10 +700,10 @@ public enum StoryMessageAttachment: Codable {
     case text(attachment: TextAttachment)
 }
 
-public struct TextAttachment: Codable {
+public struct TextAttachment: Codable, Equatable {
     public let text: String?
 
-    public enum TextStyle: Int, Codable {
+    public enum TextStyle: Int, Codable, Equatable {
         case regular = 0
         case bold = 1
         case serif = 2
@@ -701,10 +718,10 @@ public struct TextAttachment: Codable {
     private let textBackgroundColorHex: UInt32?
     public var textBackgroundColor: UIColor? { textBackgroundColorHex.map { UIColor(argbHex: $0) } }
 
-    private enum RawBackground: Codable {
+    private enum RawBackground: Codable, Equatable {
         case color(hex: UInt32)
         case gradient(raw: RawGradient)
-        struct RawGradient: Codable {
+        struct RawGradient: Codable, Equatable {
             let colors: [UInt32]
             let positions: [Float]
             let angle: UInt32
@@ -887,12 +904,14 @@ public struct TextAttachment: Codable {
         return try builder.build()
     }
 
-    public init(text: String,
-                textStyle: TextStyle,
-                textForegroundColor: UIColor,
-                textBackgroundColor: UIColor?,
-                background: Background,
-                linkPreview: OWSLinkPreview?) {
+    public init(
+        text: String?,
+        textStyle: TextStyle,
+        textForegroundColor: UIColor,
+        textBackgroundColor: UIColor?,
+        background: Background,
+        linkPreview: OWSLinkPreview?
+    ) {
         self.text = text
         self.textStyle = textStyle
         self.textForegroundColorHex = textForegroundColor.argbHex
@@ -923,7 +942,10 @@ extension SignalServiceAddress {
 
 extension StoryMessage {
 
-    public static let videoAttachmentDurationLimit: TimeInterval = 30
+    // Android rounds _down_ video length for display, so 30.999 seconds
+    // is rendered as "30s". If we didn't allow that length, users might be
+    // confused as to why if all it says is "30s" and we say "up to 30s".
+    public static let videoAttachmentDurationLimit: TimeInterval = 30.999
 
     public static var videoSegmentationTooltip: String {
         return String(

@@ -259,12 +259,18 @@ class StoryPageViewController: UIPageViewController {
 
 extension StoryPageViewController: UIPageViewControllerDelegate {
     func pageViewController(_ pageViewController: UIPageViewController, willTransitionTo pendingViewControllers: [UIViewController]) {
+        willTransition(to: pendingViewControllers)
+    }
+
+    private func willTransition(to pendingViewControllers: [UIViewController]) {
         self.pendingTransitionViewControllers = pendingViewControllers
             .map { $0 as! StoryContextViewController }
         // Note: this also starts playing the next one transitioning in
         pendingTransitionViewControllers.forEach { $0.resetForPresentation() }
 
         currentContextViewController.pause()
+        isDisplayLinkPaused = true
+        self.view.isUserInteractionEnabled = false
     }
 
     func pageViewController(
@@ -276,7 +282,10 @@ extension StoryPageViewController: UIPageViewControllerDelegate {
         guard finished else {
             return
         }
+        didFinishTransitioning(completed: completed)
+    }
 
+    func didFinishTransitioning(completed: Bool) {
         if !completed {
             // The transition was stopped, reverting to the previous controller.
             // Stop the pending ones that are now cancelled.
@@ -286,6 +295,8 @@ extension StoryPageViewController: UIPageViewControllerDelegate {
             currentContextViewController.play()
         }
         pendingTransitionViewControllers = []
+        isDisplayLinkPaused = false
+        self.view.isUserInteractionEnabled = true
     }
 }
 
@@ -332,11 +343,15 @@ extension StoryPageViewController: StoryContextViewControllerDelegate {
             dismiss(animated: true)
             return
         }
+        let newControllers = [StoryContextViewController(context: nextContext, loadPositionIfRead: loadPositionIfRead, delegate: self)]
+        self.willTransition(to: newControllers)
         setViewControllers(
-            [StoryContextViewController(context: nextContext, loadPositionIfRead: loadPositionIfRead, delegate: self)],
+            newControllers,
             direction: .forward,
             animated: true
-        )
+        ) { completed in
+            self.didFinishTransitioning(completed: completed)
+        }
     }
 
     func storyContextViewControllerWantsTransitionToPreviousContext(
@@ -347,11 +362,15 @@ extension StoryPageViewController: StoryContextViewControllerDelegate {
             storyContextViewController.resetForPresentation()
             return
         }
+        let newControllers = [StoryContextViewController(context: previousContext, loadPositionIfRead: loadPositionIfRead, delegate: self)]
+        self.willTransition(to: newControllers)
         setViewControllers(
-            [StoryContextViewController(context: previousContext, loadPositionIfRead: loadPositionIfRead, delegate: self)],
+            newControllers,
             direction: .reverse,
             animated: true
-        )
+        ) { completed in
+            self.didFinishTransitioning(completed: completed)
+        }
     }
 
     func storyContextViewController(_ storyContextViewController: StoryContextViewController, contextAfter context: StoryContext) -> StoryContext? {
@@ -460,10 +479,14 @@ extension StoryPageViewController: UIViewControllerTransitioningDelegate {
             return nil
         }
 
+        guard let storyView = storyView(for: storyMessage) else {
+            return nil
+        }
+
         return .init(
             isPresenting: isPresenting,
             thumbnailView: thumbnailView,
-            storyView: try storyView(for: storyMessage),
+            storyView: storyView,
             storyThumbnailSize: try storyThumbnailSize(for: storyMessage),
             thumbnailRepresentsStoryView: thumbnailRepresentsStoryView,
             pageViewController: self,
@@ -489,12 +512,13 @@ extension StoryPageViewController: UIViewControllerTransitioningDelegate {
         }
     }
 
-    private func storyView(for presentingMessage: StoryMessage) throws -> UIView {
+    private func storyView(for presentingMessage: StoryMessage) -> UIView? {
         let storyView: UIView
         switch presentingMessage.attachment {
         case .file(let attachmentId):
             guard let attachment = databaseStorage.read(block: { TSAttachment.anyFetch(uniqueId: attachmentId, transaction: $0) }) else {
-                throw OWSAssertionError("Unexpectedly missing attachment for story message")
+                // Can happen if the story was deleted by the sender while in the viewer.
+                return nil
             }
 
             let view = UIView()

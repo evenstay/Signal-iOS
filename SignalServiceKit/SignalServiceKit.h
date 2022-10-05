@@ -45,7 +45,6 @@ FOUNDATION_EXPORT const unsigned char SignalServiceKitVersionString[];
 #import <SignalServiceKit/ContactsManagerProtocol.h>
 #import <SignalServiceKit/DarwinNotificationCenter.h>
 #import <SignalServiceKit/DataSource.h>
-#import <SignalServiceKit/ExperienceUpgrade.h>
 #import <SignalServiceKit/FunctionalUtil.h>
 #import <SignalServiceKit/HTTPUtils.h>
 #import <SignalServiceKit/IncomingGroupsV2MessageJob.h>
@@ -95,7 +94,6 @@ FOUNDATION_EXPORT const unsigned char SignalServiceKitVersionString[];
 #import <SignalServiceKit/OWSEndSessionMessage.h>
 #import <SignalServiceKit/OWSError.h>
 #import <SignalServiceKit/OWSFakeCallMessageHandler.h>
-#import <SignalServiceKit/OWSFakeMessageSender.h>
 #import <SignalServiceKit/OWSFakeProfileManager.h>
 #import <SignalServiceKit/OWSFileSystem.h>
 #import <SignalServiceKit/OWSFingerprint.h>

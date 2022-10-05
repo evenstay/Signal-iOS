@@ -55,7 +55,7 @@ class MyStoryCell: UITableViewCell {
         addStoryButton.addSubview(avatarView)
         avatarView.autoPinEdgesToSuperviewEdges()
 
-        plusIcon.image = #imageLiteral(resourceName: "plus-12").withRenderingMode(.alwaysTemplate)
+        plusIcon.image = #imageLiteral(resourceName: "plus-my-story").withRenderingMode(.alwaysTemplate)
         plusIcon.tintColor = .white
         plusIcon.contentMode = .center
         plusIcon.autoSetDimensions(to: .square(26))
@@ -105,6 +105,8 @@ class MyStoryCell: UITableViewCell {
         attachmentThumbnail.removeAllSubviews()
 
         if let latestMessageAttachment = model.latestMessageAttachment {
+            attachmentThumbnail.isHiddenInStackView = false
+
             let latestThumbnailView = StoryThumbnailView(attachment: latestMessageAttachment)
             attachmentThumbnail.addSubview(latestThumbnailView)
             latestThumbnailView.autoPinHeightToSuperview()
@@ -128,12 +130,14 @@ class MyStoryCell: UITableViewCell {
                 dividerView.autoPinEdge(toSuperviewEdge: .trailing, withInset: -2)
                 dividerView.autoPinEdge(toSuperviewEdge: .top, withInset: -2)
             }
+        } else {
+            attachmentThumbnail.isHiddenInStackView = true
         }
     }
 
     func configureSubtitle(with model: MyStoryViewModel) {
         subtitleLabel.font = .ows_dynamicTypeSubheadline
-        subtitleLabel.textColor = Theme.secondaryTextAndIconColor
+        subtitleLabel.textColor = Theme.isDarkThemeEnabled ? Theme.secondaryTextAndIconColor : .ows_gray45
         failedIconView.image = Theme.iconImage(.error16)
 
         if model.sendingCount > 0 {

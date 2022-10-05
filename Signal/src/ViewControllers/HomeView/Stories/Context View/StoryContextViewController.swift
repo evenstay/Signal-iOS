@@ -175,6 +175,8 @@ class StoryContextViewController: OWSViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
 
+        view.layer.masksToBounds = true
+
         view.addGestureRecognizer(leftTapGestureRecognizer)
         view.addGestureRecognizer(rightTapGestureRecognizer)
         view.addGestureRecognizer(pauseGestureRecognizer)
@@ -321,14 +323,14 @@ class StoryContextViewController: OWSViewController {
     }
 
     private func currentItemWasUpdated(messageDidChange: Bool) {
-        currentItemMediaView?.pause()
-        currentItemMediaView?.removeFromSuperview()
-
         if let currentItem = currentItem {
-            let itemView = StoryItemMediaView(item: currentItem, delegate: self)
-            self.currentItemMediaView = itemView
-            mediaViewContainer.addSubview(itemView)
-            itemView.autoPinEdgesToSuperviewEdges()
+            if currentItemMediaView == nil {
+                let itemView = StoryItemMediaView(item: currentItem, delegate: self)
+                self.currentItemMediaView = itemView
+                mediaViewContainer.addSubview(itemView)
+                itemView.autoPinEdgesToSuperviewEdges()
+            }
+            currentItemMediaView?.updateItem(currentItem)
 
             if currentItem.message.sendingState != .sent {
                 updateSendingIndicator(currentItem)
@@ -513,6 +515,7 @@ class StoryContextViewController: OWSViewController {
             repliesAndViewsButton.setAttributedTitle(
                 repliesAndViewsButtonText.styled(
                     with: .font(.systemFont(ofSize: 17)),
+                    .color(Theme.darkThemePrimaryColor),
                     .xmlRules([.style("bold", semiboldStyle)])),
                 for: .normal)
         } else {
@@ -796,7 +799,7 @@ extension StoryContextViewController: UIGestureRecognizerDelegate {
         delegate?.storyContextViewControllerDidResume(self)
     }
 
-    func presentRepliesAndViewsSheet(interactiveTransitionCoordinator: StoryInteractiveTransitionCoordinator? = nil) {
+    func presentRepliesAndViewsSheet() {
         guard let currentItem = currentItem, currentItem.message.localUserAllowedToReply else {
             owsFailDebug("Unexpectedly attempting to present reply sheet")
             return
@@ -807,15 +810,12 @@ extension StoryContextViewController: UIGestureRecognizerDelegate {
             switch currentItem.message.direction {
             case .outgoing:
                 let groupRepliesAndViewsVC = StoryGroupRepliesAndViewsSheet(storyMessage: currentItem.message)
-                groupRepliesAndViewsVC.interactiveTransitionCoordinator = interactiveTransitionCoordinator
                 groupRepliesAndViewsVC.dismissHandler = { [weak self] in self?.play() }
                 groupRepliesAndViewsVC.focusedTab = currentItem.numberOfReplies > 0 ? .replies : .views
-
                 self.pause()
                 self.present(groupRepliesAndViewsVC, animated: true)
             case .incoming:
                 let groupReplyVC = StoryGroupReplySheet(storyMessage: currentItem.message)
-                groupReplyVC.interactiveTransitionCoordinator = interactiveTransitionCoordinator
                 groupReplyVC.dismissHandler = { [weak self] in self?.play() }
                 self.pause()
                 self.present(groupReplyVC, animated: true)
@@ -826,7 +826,6 @@ extension StoryContextViewController: UIGestureRecognizerDelegate {
                 "Should be impossible to reply to system stories"
             )
             let directReplyVC = StoryDirectReplySheet(storyMessage: currentItem.message)
-            directReplyVC.interactiveTransitionCoordinator = interactiveTransitionCoordinator
             directReplyVC.dismissHandler = { [weak self] in self?.play() }
             self.pause()
             self.present(directReplyVC, animated: true)

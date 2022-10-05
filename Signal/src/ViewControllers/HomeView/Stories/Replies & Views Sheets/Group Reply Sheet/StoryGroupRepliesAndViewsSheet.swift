@@ -12,7 +12,6 @@ class StoryGroupRepliesAndViewsSheet: InteractiveSheetViewController, StoryGroup
 
     override var sheetBackgroundColor: UIColor { .ows_gray90 }
 
-    weak var interactiveTransitionCoordinator: StoryInteractiveTransitionCoordinator?
     private let groupReplyViewController: StoryGroupReplyViewController
     private let viewsViewController: StoryViewsViewController
     private let pagingScrollView = UIScrollView()
@@ -45,6 +44,9 @@ class StoryGroupRepliesAndViewsSheet: InteractiveSheetViewController, StoryGroup
         self.viewsViewController = StoryViewsViewController(storyMessage: storyMessage)
 
         super.init()
+
+        self.allowsExpansion = true
+        minimizedHeight = CurrentAppContext().frame.height * 0.6
     }
 
     public required init() {
@@ -53,11 +55,6 @@ class StoryGroupRepliesAndViewsSheet: InteractiveSheetViewController, StoryGroup
 
     override func viewDidLoad() {
         super.viewDidLoad()
-
-        switch focusedTab {
-        case .views: minimizedHeight = CurrentAppContext().frame.height * 0.6
-        case .replies: minimizedHeight = super.maximizedHeight
-        }
 
         let vStack = UIStackView()
         vStack.axis = .vertical
@@ -100,12 +97,14 @@ class StoryGroupRepliesAndViewsSheet: InteractiveSheetViewController, StoryGroup
         groupReplyViewController.view.autoPinEdge(toSuperviewEdge: .trailing)
     }
 
-    override func viewDidAppear(_ animated: Bool) {
-        super.viewDidAppear(animated)
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
 
         switch focusedTab {
-        case .views: break
+        case .views:
+            break
         case .replies:
+            maximizeHeight()
             groupReplyViewController.inputToolbar.becomeFirstResponder()
         }
     }
@@ -190,44 +189,5 @@ extension StoryGroupRepliesAndViewsSheet: UIScrollViewDelegate {
 extension StoryGroupRepliesAndViewsSheet: StoryGroupReplyDelegate {
     func storyGroupReplyViewControllerDidBeginEditing(_ storyGroupReplyViewController: StoryGroupReplyViewController) {
         maximizeHeight()
-    }
-}
-
-extension StoryGroupRepliesAndViewsSheet {
-    override func presentationController(
-        forPresented presented: UIViewController,
-        presenting: UIViewController?,
-        source: UIViewController
-    ) -> UIPresentationController? {
-        return nil
-    }
-
-    public func animationController(
-        forPresented presented: UIViewController,
-        presenting: UIViewController,
-        source: UIViewController
-    ) -> UIViewControllerAnimatedTransitioning? {
-        return StoryReplySheetAnimator(
-            isPresenting: true,
-            isInteractive: interactiveTransitionCoordinator != nil,
-            backdropView: backdropView
-        )
-    }
-
-    public func animationController(
-        forDismissed dismissed: UIViewController
-    ) -> UIViewControllerAnimatedTransitioning? {
-        return StoryReplySheetAnimator(
-            isPresenting: false,
-            isInteractive: false,
-            backdropView: backdropView
-        )
-    }
-
-    public func interactionControllerForPresentation(
-        using animator: UIViewControllerAnimatedTransitioning
-    ) -> UIViewControllerInteractiveTransitioning? {
-        interactiveTransitionCoordinator?.mode = .reply
-        return interactiveTransitionCoordinator
     }
 }
