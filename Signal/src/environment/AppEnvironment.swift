@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2018 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -33,9 +34,6 @@ public class AppEnvironment: NSObject {
     public var callServiceRef: CallService
 
     @objc
-    public var outboundIndividualCallInitiatorRef: OutboundIndividualCallInitiator
-
-    @objc
     public var accountManagerRef: AccountManager
 
     @objc
@@ -65,7 +63,6 @@ public class AppEnvironment: NSObject {
     private override init() {
         self.callMessageHandlerRef = WebRTCCallMessageHandler()
         self.callServiceRef = CallService()
-        self.outboundIndividualCallInitiatorRef = OutboundIndividualCallInitiator()
         self.accountManagerRef = AccountManager()
         self.notificationPresenterRef = NotificationPresenter()
         self.pushRegistrationManagerRef = PushRegistrationManager()

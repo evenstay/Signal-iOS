@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2022 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -95,31 +96,12 @@ extension ImageEditorViewController {
      * This method needs to be called when text item editing is about to begin.
      */
     private func updateTextViewAttributes(using textItem: ImageEditorTextItem) {
-        let textForegroundColor: UIColor = {
-            switch textItem.decorationStyle {
-            case .none: return textItem.color.color
-            default: return .white
-            }
-        }()
-        let textDecorationColor: UIColor? = {
-            switch textItem.decorationStyle {
-            case .none, .inverted: return nil
-            default: return textItem.color.color
-            }
-        }()
-        textView.updateWith(textForegroundColor: textForegroundColor,
+        textView.updateWith(textForegroundColor: textItem.textForegroundColor,
                             font: textItem.font,
                             textAlignment: .center,
-                            textDecorationColor: textDecorationColor,
+                            textDecorationColor: textItem.textDecorationColor,
                             decorationStyle: textItem.decorationStyle)
-
-        let textBackgroundColor: UIColor = {
-            switch textItem.decorationStyle {
-            case .inverted: return textItem.color.color
-            default: return .clear
-            }
-        }()
-        textViewBackgroundView.backgroundColor = textBackgroundColor
+        textViewBackgroundView.backgroundColor = textItem.textBackgroundColor
     }
 
     // Update UITextView to use style (font, color, decoration) as selected in provided TextToolbar.
@@ -290,19 +272,18 @@ extension ImageEditorViewController {
 
     @objc
     func didTapTextStyleButton(sender: UIButton) {
-        let currentTextStyle = textToolbar.textStyle
-        let nextTextStyle = MediaTextView.TextStyle(rawValue: currentTextStyle.rawValue + 1) ?? .regular
+        let textStyle = textToolbar.textStyle.next()
 
         // Update selected text object if any.
         if let selectedTextItemId = imageEditorView.selectedTextItemId,
            let selectedTextItem = model.item(forId: selectedTextItemId) as? ImageEditorTextItem {
-            let newTextItem = selectedTextItem.copy(textStyle: nextTextStyle, decorationStyle: textToolbar.decorationStyle)
+            let newTextItem = selectedTextItem.copy(textStyle: textStyle, decorationStyle: textToolbar.decorationStyle)
             model.replace(item: newTextItem)
         }
 
         // Update toolbar.
-        textToolbar.textStyle = nextTextStyle
-        textViewAccessoryToolbar.textStyle = nextTextStyle
+        textToolbar.textStyle = textStyle
+        textViewAccessoryToolbar.textStyle = textStyle
 
         // Update text view.
         if textView.isFirstResponder {
@@ -312,22 +293,21 @@ extension ImageEditorViewController {
 
     @objc
     func didTapDecorationStyleButton(sender: UIButton) {
-        let currentDecorationStyle = textToolbar.decorationStyle
-        var nextDecorationStyle = MediaTextView.DecorationStyle(rawValue: currentDecorationStyle.rawValue + 1) ?? .none
-        if nextDecorationStyle == .outline {
-            nextDecorationStyle = .none
+        var decorationStyle = textToolbar.decorationStyle.next()
+        if decorationStyle == .outline {
+            decorationStyle = .none
         }
 
         // Update selected text object if any.
         if let selectedTextItemId = imageEditorView.selectedTextItemId,
            let selectedTextItem = model.item(forId: selectedTextItemId) as? ImageEditorTextItem {
-            let newTextItem = selectedTextItem.copy(textStyle: textToolbar.textStyle, decorationStyle: nextDecorationStyle)
+            let newTextItem = selectedTextItem.copy(textStyle: textToolbar.textStyle, decorationStyle: decorationStyle)
             model.replace(item: newTextItem)
         }
 
         // Update toolbar.
-        textToolbar.decorationStyle = nextDecorationStyle
-        textViewAccessoryToolbar.decorationStyle = nextDecorationStyle
+        textToolbar.decorationStyle = decorationStyle
+        textViewAccessoryToolbar.decorationStyle = decorationStyle
 
         // Update text view.
         if textView.isFirstResponder {

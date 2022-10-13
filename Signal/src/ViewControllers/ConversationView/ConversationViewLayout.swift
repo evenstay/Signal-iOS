@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2020 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -887,8 +888,7 @@ public class ConversationViewLayout: UICollectionViewLayout {
         isPerformingBatchUpdates = false
         delegateScrollContinuityMode = .disabled
 
-        if #available(iOS 13, *) {
-        } else {
+        if #unavailable(iOS 13) {
             // On iOS 12, we invalidate the layout immediately after performBatchUpdates()
             // to ensure that targetContentOffset(forProposedContentOffset:) is applied in a timely way.
             invalidateLayout()

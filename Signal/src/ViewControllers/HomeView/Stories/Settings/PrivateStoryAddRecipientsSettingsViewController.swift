@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2022 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -85,8 +86,6 @@ extension PrivateStoryAddRecipientsSettingsViewController: MemberViewDelegate {
     public func memberViewWillRenderRecipient(_ recipient: PickedRecipient) {}
 
     public func memberViewPrepareToSelectRecipient(_ recipient: PickedRecipient) -> AnyPromise { AnyPromise(Promise.value(())) }
-
-    public func memberViewShowInvalidRecipientAlert(_ recipient: PickedRecipient) {}
 
     public func memberViewNoUuidSubtitleForRecipient(_ recipient: PickedRecipient) -> String? { nil }
 

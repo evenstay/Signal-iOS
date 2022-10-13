@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2017 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 #import "DebugUIStress.h"
@@ -438,10 +439,6 @@ NS_ASSUME_NONNULL_BEGIN
 
     if ([thread isKindOfClass:[TSGroupThread class]]) {
         TSGroupThread *groupThread = (TSGroupThread *)thread;
-        [items addObject:[OWSTableItem itemWithTitle:@"Clone as v1/v2 group"
-                                         actionBlock:^{
-            [DebugUIStress cloneAsV1orV2Group:groupThread];
-        }]];
         [items addObject:[OWSTableItem itemWithTitle:@"Clone as v1 group"
                                          actionBlock:^{
             [DebugUIStress cloneAsV1Group:groupThread];

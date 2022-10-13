@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2017 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -59,11 +60,11 @@ public extension UIDevice {
     }
 
     var hasDynamicIsland: Bool {
-        /// On Xcode 13.X and earlier, UIScreen.main and UIApplication.shared.statusBarHeight both
-        /// mis-report pixel heights on the iPhone 14 pro and pro max models. They are, in actuality,
-        /// slightly larger and have taller status bars than their previous gen counterparts.
-        /// Instead, grab the device identifier info to determine if the current device is one of these
-        /// two "Dynamic Island" devices.
+        // On Xcode 13.X and earlier, UIScreen.main and UIApplication.shared.statusBarHeight both
+        // mis-report pixel heights on the iPhone 14 pro and pro max models. They are, in actuality,
+        // slightly larger and have taller status bars than their previous gen counterparts.
+        // Instead, grab the device identifier info to determine if the current device is one of these
+        // two "Dynamic Island" devices.
         // TODO: remove this once we move to Xcode 14.
         return ["iPhone15,2", "iPhone15,3"].contains(String(sysctlKey: "hw.machine"))
     }
@@ -121,6 +122,10 @@ public extension UIDevice {
 
     var isIPhone5OrShorter: Bool {
         return CurrentAppContext().frame.height <= 568
+    }
+
+    var isShorterThaniPhoneX: Bool {
+        return CurrentAppContext().frame.height < 812
     }
 
     var isCompatabilityModeIPad: Bool {

@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2018 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -237,9 +238,11 @@ public extension NSMutableAttributedString {
         // Tinting of templated images doesn't work correctly at the start
         // of a string on iOS 11+12, so we need to append a character before
         // the icon. We use a thin space. Zero-width space doesn't work.
-        if #available(iOS 13, *) {
-            // Do nothing.
-        } else if image.renderingMode == .alwaysTemplate && length == 0 {
+        if
+            #unavailable(iOS 13),
+            image.renderingMode == .alwaysTemplate,
+            length == 0
+        {
             append("\u{200a}", attributes: attributes ?? [:])
         }
 

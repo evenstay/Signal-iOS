@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2022 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -80,8 +81,9 @@ class StoryCell: UITableViewCell {
         }
 
         replyImageView.isHidden = !model.hasReplies
-        replyImageView.tintColor = Theme.secondaryTextAndIconColor
+        replyImageView.tintColor = Theme.isDarkThemeEnabled ? Theme.secondaryTextAndIconColor : .ows_gray45
 
+        nameLabel.numberOfLines = 2
         nameLabel.font = .ows_dynamicTypeHeadline
         nameLabel.textColor = Theme.primaryTextColor
         nameLabel.text = model.latestMessageName

@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2022 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -201,6 +202,7 @@ class StoryContextViewController: OWSViewController {
         repliesAndViewsButton.block = { [weak self] in self?.presentRepliesAndViewsSheet() }
         repliesAndViewsButton.autoSetDimension(.height, toSize: 64)
         repliesAndViewsButton.setTitleColor(Theme.darkThemePrimaryColor, for: .normal)
+        repliesAndViewsButton.setTitleColor(Theme.darkThemePrimaryColor.withAlphaComponent(0.4), for: .highlighted)
         view.addSubview(repliesAndViewsButton)
         repliesAndViewsButton.autoPinEdge(.leading, to: .leading, of: mediaViewContainer)
         repliesAndViewsButton.autoPinEdge(.trailing, to: .trailing, of: mediaViewContainer)
@@ -275,11 +277,15 @@ class StoryContextViewController: OWSViewController {
         onboardingOverlay.checkIfShouldDisplay()
     }
 
+    /// NOTE: once this becomes true, it stays true. Becomes true once interactive presentation animations finish.
+    private var viewHasAppeared = false
+
     /// This controller's view gets generated early to use for a zoom animation, which triggers
     /// viewWill- and viewDidAppear before presentation has really finished.
     /// The parent page controller calls this method when presentation actually finishes.
     func pageControllerDidAppear() {
         onboardingOverlay.showIfNeeded()
+        viewHasAppeared = true
     }
 
     private static let maxItemsToRender = 100
@@ -518,6 +524,12 @@ class StoryContextViewController: OWSViewController {
                     .color(Theme.darkThemePrimaryColor),
                     .xmlRules([.style("bold", semiboldStyle)])),
                 for: .normal)
+            repliesAndViewsButton.setAttributedTitle(
+                repliesAndViewsButtonText.styled(
+                    with: .font(.systemFont(ofSize: 17)),
+                    .color(Theme.darkThemePrimaryColor.withAlphaComponent(0.4)),
+                    .xmlRules([.style("bold", semiboldStyle)])),
+                for: .highlighted)
         } else {
             repliesAndViewsButton.isHidden = true
         }
@@ -535,7 +547,12 @@ class StoryContextViewController: OWSViewController {
         playbackProgressView.numberOfItems = items.count
         if let currentItemView = currentItemMediaView, let idx = items.firstIndex(of: currentItemView.item) {
             // When we present a story, mark it as viewed if it's not already, as long as it's downloaded.
-            if !currentItemView.item.isPendingDownload, currentItemView.item.message.localUserViewedTimestamp == nil {
+            if
+                self.viewHasAppeared,
+                !onboardingOverlay.isDisplaying,
+                !currentItemView.item.isPendingDownload,
+                currentItemView.item.message.localUserViewedTimestamp == nil
+            {
                 databaseStorage.write { transaction in
                     currentItemView.item.message.markAsViewed(at: Date.ows_millisecondTimestamp(), circumstance: .onThisDevice, transaction: transaction)
                 }
@@ -742,18 +759,26 @@ class StoryContextViewController: OWSViewController {
 extension StoryContextViewController: UIGestureRecognizerDelegate {
     @objc
     func didTapLeft() {
-        guard currentItemMediaView?.willHandleTapGesture(leftTapGestureRecognizer) != true else { return }
-        CurrentAppContext().isRTL
-            ? transitionToNextItem(nextContextLoadPositionIfRead: .oldest)
-            : transitionToPreviousItem(previousContextLoadPositionIfRead: .newest)
+        guard currentItemMediaView?.willHandleTapGesture(leftTapGestureRecognizer) != true else {
+            return
+        }
+        if CurrentAppContext().isRTL {
+            transitionToNextItem(nextContextLoadPositionIfRead: .oldest)
+        } else {
+            transitionToPreviousItem(previousContextLoadPositionIfRead: .newest)
+        }
     }
 
     @objc
     func didTapRight() {
-        guard currentItemMediaView?.willHandleTapGesture(rightTapGestureRecognizer) != true else { return }
-        CurrentAppContext().isRTL
-            ? transitionToPreviousItem(previousContextLoadPositionIfRead: .newest)
-            : transitionToNextItem(nextContextLoadPositionIfRead: .oldest)
+        guard currentItemMediaView?.willHandleTapGesture(rightTapGestureRecognizer) != true else {
+            return
+        }
+        if CurrentAppContext().isRTL {
+            transitionToPreviousItem(previousContextLoadPositionIfRead: .newest)
+        } else {
+            transitionToNextItem(nextContextLoadPositionIfRead: .oldest)
+        }
     }
 
     func willHandleInteractivePanGesture(_ gestureRecognizer: UIPanGestureRecognizer) -> Bool {
@@ -860,6 +885,13 @@ extension StoryContextViewController: UIGestureRecognizerDelegate {
             return false
         }
 
+        if gestureRecognizer == pauseGestureRecognizer {
+            // Don't pause while long pressing the replies and views button
+            guard repliesAndViewsButton.isHidden || !repliesAndViewsButton.bounds.contains(gestureRecognizer.location(in: repliesAndViewsButton)) else {
+                return false
+            }
+        }
+
         let nextFrameWidth = mediaViewContainer.width * 0.8
         let previousFrameWidth = mediaViewContainer.width * 0.2
 
@@ -901,7 +933,7 @@ extension StoryContextViewController: DatabaseChangeDelegate {
 
         databaseStorage.asyncRead { transaction in
             var newItems = self.items
-            var shouldDismiss = false
+            var shouldGoToNextContext = false
             for (idx, item) in self.items.enumerated().reversed() {
                 guard let id = item.message.id, databaseChanges.storyMessageRowIds.contains(id) else { continue }
                 if let message = StoryMessage.anyFetch(uniqueId: item.message.uniqueId, transaction: transaction) {
@@ -918,12 +950,14 @@ extension StoryContextViewController: DatabaseChangeDelegate {
 
                 newItems.remove(at: idx)
                 if item.message.uniqueId == currentItem.message.uniqueId {
-                    shouldDismiss = true
+                    shouldGoToNextContext = true
                     break
                 }
             }
             DispatchQueue.main.async {
-                if shouldDismiss {
+                if shouldGoToNextContext, let delegate = self.delegate {
+                    delegate.storyContextViewControllerWantsTransitionToNextContext(self, loadPositionIfRead: .default)
+                } else if shouldGoToNextContext {
                     self.presentingViewController?.dismiss(animated: true)
                 } else {
                     self.items = newItems
@@ -967,7 +1001,7 @@ extension StoryContextViewController: StoryItemMediaViewDelegate {
                         for: item.message,
                         in: self.context.thread(transaction: $0),
                         attachment: attachment,
-                        sourceView: contextMenuButton,
+                        sourceView: { return contextMenuButton },
                         transaction: $0
                     ))
                 }
@@ -1007,8 +1041,17 @@ extension StoryContextViewController: StoryContextMenuDelegate {
     }
 
     func storyContextMenuWillDelete(_ completion: @escaping () -> Void) {
-        // Dismiss the viewer before deleting otherwise things get messed up.
-        self.dismiss(animated: true, completion: completion)
+        // Go to the next item after deleting.
+        self.transitionToNextItem()
+        completion()
+    }
+
+    func storyContextMenuDidUpdateHiddenState(_ message: StoryMessage, isHidden: Bool) -> Bool {
+        // Go to the next context after hiding or unhiding; the current context is no longer
+        // a part of this view session as its hide state is now opposite.
+        self.delegate?.storyContextViewControllerWantsTransitionToNextContext(self, loadPositionIfRead: .default)
+        // Return true so we show a toast confirming the hide action.
+        return true
     }
 
     func storyContextMenuDidFinishDisplayingFollowups() {
@@ -1024,6 +1067,10 @@ extension StoryContextViewController: StoryContextOnboardingOverlayViewDelegate 
 
     func storyContextOnboardingOverlayDidDismiss(_: StoryContextOnboardingOverlayView) {
         play()
+    }
+
+    func storyContextOnboardingOverlayWantsToExitStoryViewer(_: StoryContextOnboardingOverlayView) {
+        self.dismiss(animated: true)
     }
 }
 

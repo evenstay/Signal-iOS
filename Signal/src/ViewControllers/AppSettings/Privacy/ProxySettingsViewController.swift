@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2022 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -124,7 +125,7 @@ class ProxySettingsViewController: OWSTableViewController2, OWSNavigationView {
         let shareSection = OWSTableSection()
         shareSection.add(.init(
             customCellBlock: {
-                let cell = OWSTableItem.buildImageNameCell(image: Theme.iconImage(.messageActionShare), itemName: CommonStrings.shareButton)
+                let cell = OWSTableItem.buildImageNameCell(image: Theme.iconImage(.messageActionShare24), itemName: CommonStrings.shareButton)
                 cell.selectionStyle = .none
 
                 if !useProxy {

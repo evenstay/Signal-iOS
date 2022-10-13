@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2014 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 #import "AppDelegate.h"
@@ -154,7 +155,7 @@ static void uncaughtExceptionHandler(NSException *exception)
     NSSetUncaughtExceptionHandler(&uncaughtExceptionHandler);
 
     // This should be the first thing we do.
-    SetCurrentAppContext([MainAppContext new]);
+    SetCurrentAppContext([MainAppContext new], NO);
 
     self.launchStartedAt = CACurrentMediaTime();
     [BenchManager startEventWithTitle:@"Presenting HomeView" eventId:@"AppStart" logInProduction:TRUE];
@@ -218,12 +219,15 @@ static void uncaughtExceptionHandler(NSException *exception)
         return YES;
     }
 
-    [self launchToHomeScreenWithLaunchOptions:launchOptions instrumentsMonitorId:monitorId];
+    [self launchToHomeScreenWithLaunchOptions:launchOptions
+                         instrumentsMonitorId:monitorId
+                    isEnvironmentAlreadySetUp:NO];
     return YES;
 }
 
 - (BOOL)launchToHomeScreenWithLaunchOptions:(NSDictionary *_Nullable)launchOptions
                        instrumentsMonitorId:(unsigned long long)monitorId
+                  isEnvironmentAlreadySetUp:(BOOL)isEnvironmentAlreadySetUp
 {
     [self setupNSEInteroperation];
 
@@ -237,17 +241,8 @@ static void uncaughtExceptionHandler(NSException *exception)
     AppReadinessRunNowOrWhenMainAppDidBecomeReadyAsync(
         ^{ [[CurrentAppContext() appUserDefaults] removeObjectForKey:kAppLaunchesAttemptedKey]; });
 
-    [AppSetup setupEnvironmentWithPaymentsEvents:[PaymentsEventsMainApp new]
-                                mobileCoinHelper:[MobileCoinHelperSDK new]
-                                webSocketFactory:[WebSocketFactoryHybrid new]
-                       appSpecificSingletonBlock:^{
-            // Create SUIEnvironment.
-            [SUIEnvironment.shared setup];
-            // Create AppEnvironment.
-            [AppEnvironment.shared setup];
-            [SignalApp.shared setup];
-        }
-        migrationCompletion:^(NSError *_Nullable error) {
+    if (!isEnvironmentAlreadySetUp) {
+        [AppDelegate setUpMainAppEnvironmentWithCompletion:^(NSError *_Nullable error) {
             OWSAssertIsOnMainThread();
 
             if (error != nil) {
@@ -257,6 +252,7 @@ static void uncaughtExceptionHandler(NSException *exception)
                 [self versionMigrationsDidComplete];
             }
         }];
+    }
 
     [UIUtil setupSignalAppearence];
 
@@ -861,10 +857,7 @@ static void uncaughtExceptionHandler(NSException *exception)
                 }
             }
 
-            OutboundIndividualCallInitiator *outboundIndividualCallInitiator
-                = AppEnvironment.shared.outboundIndividualCallInitiator;
-            OWSAssertDebug(outboundIndividualCallInitiator);
-            [outboundIndividualCallInitiator initiateCallWithThread:thread isVideo:YES];
+            [AppEnvironment.shared.callService initiateCallWithThread:thread isVideo:YES];
         });
         return YES;
     } else if ([userActivity.activityType isEqualToString:@"INStartAudioCallIntent"]) {
@@ -901,10 +894,7 @@ static void uncaughtExceptionHandler(NSException *exception)
                 return;
             }
 
-            OutboundIndividualCallInitiator *outboundIndividualCallInitiator
-                = AppEnvironment.shared.outboundIndividualCallInitiator;
-            OWSAssertDebug(outboundIndividualCallInitiator);
-            [outboundIndividualCallInitiator initiateCallWithThread:thread isVideo:NO];
+            [AppEnvironment.shared.callService initiateCallWithThread:thread isVideo:NO];
         });
         return YES;
 
@@ -947,10 +937,7 @@ static void uncaughtExceptionHandler(NSException *exception)
                     return;
                 }
 
-                OutboundIndividualCallInitiator *outboundIndividualCallInitiator
-                    = AppEnvironment.shared.outboundIndividualCallInitiator;
-                OWSAssertDebug(outboundIndividualCallInitiator);
-                [outboundIndividualCallInitiator initiateCallWithThread:thread isVideo:isVideo];
+                [AppEnvironment.shared.callService initiateCallWithThread:thread isVideo:isVideo];
             });
             return YES;
         } else {
@@ -978,12 +965,22 @@ static void uncaughtExceptionHandler(NSException *exception)
         return [CallKitIdStore threadForCallKitId:handle];
     }
 
+    NSData *_Nullable groupId = [CallKitCallManager decodeGroupIdFromIntentHandle:handle];
+    if (groupId) {
+        __block TSGroupThread *thread = nil;
+        [self.databaseStorage readWithBlock:^(SDSAnyReadTransaction *transaction) {
+            thread = [TSGroupThread fetchWithGroupId:groupId transaction:transaction];
+        }];
+        return thread;
+    }
+
     for (PhoneNumber *phoneNumber in
         [PhoneNumber tryParsePhoneNumbersFromUserSpecifiedText:handle
                                               clientPhoneNumber:[TSAccountManager localNumber]]) {
         SignalServiceAddress *address = [[SignalServiceAddress alloc] initWithPhoneNumber:phoneNumber.toE164];
         return [TSContactThread getOrCreateThreadWithContactAddress:address];
     }
+
     return nil;
 }
 

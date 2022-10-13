@@ -1,8 +1,13 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2022 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
+
+extension NSNotification.Name {
+    public static let onboardingStoryStateDidChange = NSNotification.Name("onboardingStoryStateDidChange")
+}
 
 /// Expose to objc for dependency injection support (SSKEnvironment is objc-only) but put the
 /// actual methods on a swift protocol that inherits from this one.

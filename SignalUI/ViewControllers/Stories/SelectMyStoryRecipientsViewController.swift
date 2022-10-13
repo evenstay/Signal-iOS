@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2022 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -55,12 +56,12 @@ public class SelectMyStoryRecipientsViewController: BaseMemberViewController {
         switch mode {
         case .explicit:
             if recipientSet.isEmpty {
-                title = NSLocalizedString(
+                title = OWSLocalizedString(
                     "STORY_SELECT_ALLOWED_CONNECTIONS_VIEW_TITLE",
                     comment: "The title for the 'select connections for story' view.")
 
             } else {
-                let format = NSLocalizedString(
+                let format = OWSLocalizedString(
                     "STORY_SELECT_ALLOWED_CONNECTIONS_VIEW_TITLE_%d",
                     tableName: "PluralAware",
                     comment: "The title for the 'select connections for story' view if already some connections are selected. Embeds {{number}} of connections.")
@@ -68,12 +69,12 @@ public class SelectMyStoryRecipientsViewController: BaseMemberViewController {
             }
         case .blockList:
             if recipientSet.isEmpty {
-                title = NSLocalizedString(
+                title = OWSLocalizedString(
                     "STORY_SELECT_EXCLUDED_CONNECTIONS_VIEW_TITLE",
                     comment: "The title for the 'select excluded connections for story' view.")
 
             } else {
-                let format = NSLocalizedString(
+                let format = OWSLocalizedString(
                     "STORY_SELECT_EXCLUDED_CONNECTIONS_VIEW_TITLE_%d",
                     tableName: "PluralAware",
                     comment: "The title for the 'select excluded connections for story' view if already some connections are selected. Embeds {{number}} of excluded connections.")
@@ -127,8 +128,6 @@ extension SelectMyStoryRecipientsViewController: MemberViewDelegate {
     public func memberViewWillRenderRecipient(_ recipient: PickedRecipient) {}
 
     public func memberViewPrepareToSelectRecipient(_ recipient: PickedRecipient) -> AnyPromise { AnyPromise(Promise.value(())) }
-
-    public func memberViewShowInvalidRecipientAlert(_ recipient: PickedRecipient) {}
 
     public func memberViewNoUuidSubtitleForRecipient(_ recipient: PickedRecipient) -> String? { nil }
 

@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2020 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -166,7 +167,7 @@ extension DeviceTransferService: MCSessionDelegate {
                 self.finalizeRestorationIfNecessary()
             }.done(on: .main) {
                 // After transfer our push token has changed, update it.
-                SyncPushTokensJob.run(uploadOnlyIfStale: false)
+                SyncPushTokensJob.run(mode: .forceUpload)
                 SignalApp.shared().showConversationSplitView()
             }
 

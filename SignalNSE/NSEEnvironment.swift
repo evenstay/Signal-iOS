@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2020 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -109,7 +110,7 @@ class NSEEnvironment: Dependencies {
                 return
             }
             // This should be the first thing we do.
-            SetCurrentAppContext(NSEContext(logger: logger))
+            SetCurrentAppContext(NSEContext(logger: logger), false)
             _hasAppContext = true
         }
     }

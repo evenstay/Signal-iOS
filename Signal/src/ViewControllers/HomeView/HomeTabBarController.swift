@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2022 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -17,21 +18,25 @@ class HomeTabBarController: UITabBarController {
     lazy var chatListNavController = OWSNavigationController(rootViewController: chatListViewController)
     lazy var chatListTabBarItem = UITabBarItem(
         title: NSLocalizedString("CHAT_LIST_TITLE_INBOX", comment: "Title for the chat list's default mode."),
-        image: #imageLiteral(resourceName: "message-solid-24"),
-        selectedImage: #imageLiteral(resourceName: "message-solid-24")
+        image: UIImage(named: "chats-tab-bar"),
+        selectedImage: UIImage(named: "chats-tab-bar")
     )
 
     lazy var storiesViewController = StoriesViewController()
     lazy var storiesNavController = OWSNavigationController(rootViewController: storiesViewController)
     lazy var storiesTabBarItem = UITabBarItem(
         title: NSLocalizedString("STORIES_TITLE", comment: "Title for the stories view."),
-        image: #imageLiteral(resourceName: "stories-solid-24"),
-        selectedImage: #imageLiteral(resourceName: "stories-solid-24")
+        image: UIImage(named: "stories-tab-bar"),
+        selectedImage: UIImage(named: "stories-tab-bar")
     )
 
     var selectedTab: Tabs {
         get { Tabs(rawValue: selectedIndex) ?? .chatList }
         set { selectedIndex = newValue.rawValue }
+    }
+
+    var owsTabBar: OWSTabBar? {
+        return tabBar as? OWSTabBar
     }
 
     override func viewDidLoad() {
@@ -45,7 +50,7 @@ class HomeTabBarController: UITabBarController {
         // Don't render the tab bar at all if stories isn't enabled.
         guard RemoteConfig.stories else {
             viewControllers = [chatListNavController]
-            tabBar.isHidden = true
+            self.setTabBarHidden(true, animated: false)
             return
         }
 
@@ -54,6 +59,12 @@ class HomeTabBarController: UITabBarController {
         applyTheme()
 
         databaseStorage.appendDatabaseChangeDelegate(self)
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(onboardingStoryStateDidChange),
+            name: .onboardingStoryStateDidChange,
+            object: nil
+        )
 
         viewControllers = [chatListNavController, storiesNavController]
 
@@ -87,6 +98,11 @@ class HomeTabBarController: UITabBarController {
         }
     }
 
+    @objc
+    func onboardingStoryStateDidChange() {
+        updateStoriesBadge()
+    }
+
     func updateAllBadges() {
         updateStoriesBadge()
         updateChatListBadge()
@@ -94,10 +110,18 @@ class HomeTabBarController: UITabBarController {
 
     func updateStoriesBadge() {
         guard RemoteConfig.stories else { return }
-        let unviewedStoriesCount = databaseStorage.read { transaction in
-            StoryFinder.unviewedSenderCount(transaction: transaction)
+
+        var badgeValue: String?
+        databaseStorage.read { transaction in
+            if StoryFinder.hasFailedStories(transaction: transaction) {
+                badgeValue = "!"
+            } else {
+                let unviewedStoriesCount = StoryFinder.unviewedSenderCount(transaction: transaction)
+                badgeValue = unviewedStoriesCount > 0 ? "\(unviewedStoriesCount)" : nil
+            }
         }
-        storiesTabBarItem.badgeValue = unviewedStoriesCount > 0 ? "\(unviewedStoriesCount)" : nil
+
+        storiesTabBarItem.badgeValue = badgeValue
     }
 
     func updateChatListBadge() {
@@ -125,6 +149,7 @@ class HomeTabBarController: UITabBarController {
 
         guard isTabBarHidden != hidden else {
             tabBar.isHidden = hidden
+            owsTabBar?.applyTheme()
             completion?(true)
             return
         }
@@ -156,12 +181,14 @@ class HomeTabBarController: UITabBarController {
             }
             animator.addCompletion({
                 self.tabBar.isHidden = hidden
+                self.owsTabBar?.applyTheme()
                 completion?($0 == .end)
             })
             animator.startAnimation()
         } else {
             animations()
             self.tabBar.isHidden = hidden
+            owsTabBar?.applyTheme()
             completion?(true)
         }
     }
@@ -172,7 +199,8 @@ extension HomeTabBarController: DatabaseChangeDelegate {
         if databaseChanges.didUpdateInteractions || databaseChanges.didUpdateModel(collection: String(describing: ThreadAssociatedData.self)) {
             updateChatListBadge()
         }
-        if databaseChanges.didUpdateModel(collection: StoryContextAssociatedData.collection()) {
+        if databaseChanges.didUpdateModel(collection: StoryContextAssociatedData.collection()) ||
+            databaseChanges.didUpdateModel(collection: StoryMessage.collection()) {
             updateStoriesBadge()
         }
     }
@@ -224,8 +252,6 @@ public class OWSTabBar: UITabBar {
     override init(frame: CGRect) {
         super.init(frame: frame)
 
-        applyTheme()
-
         NotificationCenter.default.addObserver(self,
                                                selector: #selector(themeDidChange),
                                                name: .ThemeDidChange,
@@ -238,8 +264,8 @@ public class OWSTabBar: UITabBar {
         Theme.navbarBackgroundColor
     }
 
-    private func applyTheme() {
-        guard respectsTheme else {
+    fileprivate func applyTheme() {
+        guard respectsTheme, !self.isHidden else {
             return
         }
 
@@ -280,7 +306,7 @@ public class OWSTabBar: UITabBar {
                 tintingView.backgroundColor = tabBarBackgroundColor.withAlphaComponent(OWSNavigationBar.backgroundBlurMutingFactor)
                 self.backgroundImage = UIImage()
             } else {
-                if #available(iOS 16, *) { owsFailDebug("Check if this still works on new iOS version.") }
+                if #available(iOS 17, *) { owsFailDebug("Check if this still works on new iOS version.") }
 
                 owsFailDebug("Unexpectedly missing visual effect subview")
                 // If we can't find the tinting subview (e.g. a new iOS version changed the behavior)

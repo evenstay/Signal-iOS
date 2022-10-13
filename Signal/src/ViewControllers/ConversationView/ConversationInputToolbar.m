@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2017 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 #import "ConversationInputToolbar.h"
@@ -746,7 +747,7 @@ const CGFloat kMaxIPadTextViewHeight = 142;
     ];
 }
 
-- (void)updateLayoutWithSafeAreaInsets:(UIEdgeInsets)safeAreaInsets
+- (BOOL)updateLayoutWithSafeAreaInsets:(UIEdgeInsets)safeAreaInsets
 {
     BOOL didChange = !UIEdgeInsetsEqualToEdgeInsets(self.receivedSafeAreaInsets, safeAreaInsets);
     BOOL hasLayout = self.layoutContraints != nil;
@@ -755,7 +756,9 @@ const CGFloat kMaxIPadTextViewHeight = 142;
         self.receivedSafeAreaInsets = safeAreaInsets;
 
         [self updateContentLayout];
+        return YES;
     }
+    return NO;
 }
 
 - (void)handleLongPress:(UIGestureRecognizer *)sender

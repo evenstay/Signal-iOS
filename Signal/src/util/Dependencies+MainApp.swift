@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2020 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -32,14 +33,6 @@ public extension NSObject {
 
     static var notificationPresenter: NotificationPresenter {
         AppEnvironment.shared.notificationPresenterRef
-    }
-
-    final var outboundIndividualCallInitiator: OutboundIndividualCallInitiator {
-        AppEnvironment.shared.outboundIndividualCallInitiatorRef
-    }
-
-    static var outboundIndividualCallInitiator: OutboundIndividualCallInitiator {
-        AppEnvironment.shared.outboundIndividualCallInitiatorRef
     }
 
     final var pushRegistrationManager: PushRegistrationManager {
@@ -132,14 +125,6 @@ public extension Dependencies {
 
     static var notificationPresenter: NotificationPresenter {
         AppEnvironment.shared.notificationPresenterRef
-    }
-
-    var outboundIndividualCallInitiator: OutboundIndividualCallInitiator {
-        AppEnvironment.shared.outboundIndividualCallInitiatorRef
-    }
-
-    static var outboundIndividualCallInitiator: OutboundIndividualCallInitiator {
-        AppEnvironment.shared.outboundIndividualCallInitiatorRef
     }
 
     var pushRegistrationManager: PushRegistrationManager {

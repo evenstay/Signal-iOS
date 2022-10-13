@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2021 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -623,7 +624,7 @@ extension DonationViewController: BadgeConfigurationDelegate {
 extension DonationViewController: UITextViewDelegate {
     func textView(_ textView: UITextView, shouldInteractWith URL: URL, in characterRange: NSRange, interaction: UITextItemInteraction) -> Bool {
         if textView == descriptionTextView {
-            let readMoreSheet = SubscriptionReadMoreSheet()
+            let readMoreSheet = DonationReadMoreSheetViewController()
             self.present(readMoreSheet, animated: true)
         } else if textView == statusLabel {
             let currentSubscription: Subscription?

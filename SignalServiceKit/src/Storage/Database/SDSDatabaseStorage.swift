@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2019 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -100,10 +101,16 @@ public class SDSDatabaseStorage: SDSTransactable {
 
         Logger.info("")
 
-        let didPerformIncrementalMigrations = GRDBSchemaMigrator.migrateDatabase(
-            databaseStorage: self,
-            isMainDatabase: true
-        )
+        let didPerformIncrementalMigrations: Bool = {
+            do {
+                return try GRDBSchemaMigrator.migrateDatabase(
+                    databaseStorage: self,
+                    isMainDatabase: true
+                )
+            } catch {
+                owsFail("Database migration failed. Error: \(error.grdbErrorForLogging)")
+            }
+        }()
 
         Logger.info("didPerformIncrementalMigrations: \(didPerformIncrementalMigrations)")
 
@@ -151,10 +158,14 @@ public class SDSDatabaseStorage: SDSTransactable {
 
         let (promise, future) = Guarantee<Void>.pending()
         reopenGRDBStorage {
-            GRDBSchemaMigrator.migrateDatabase(
-                databaseStorage: self,
-                isMainDatabase: true
-            )
+            do {
+                try GRDBSchemaMigrator.migrateDatabase(
+                    databaseStorage: self,
+                    isMainDatabase: true
+                )
+            } catch {
+                owsFail("Database migration failed. Error: \(error.grdbErrorForLogging)")
+            }
 
             self.grdbStorage.publishUpdatesImmediately()
 
@@ -492,5 +503,9 @@ public extension SDSDatabaseStorage {
 
     var databaseSHMFileSize: UInt64 {
         grdbStorage.databaseSHMFileSize
+    }
+
+    var databaseCombinedFileSize: UInt64 {
+        databaseFileSize + databaseWALFileSize + databaseSHMFileSize
     }
 }

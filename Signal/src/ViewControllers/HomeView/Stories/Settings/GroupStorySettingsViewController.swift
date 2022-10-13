@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2022 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -165,18 +166,28 @@ class GroupStorySettingsViewController: OWSTableViewController2 {
     }
 
     private func deleteStoryWithConfirmation() {
-        OWSActionSheets.showConfirmationAlert(
+        let format = NSLocalizedString(
+            "GROUP_STORY_SETTINGS_DELETE_CONFIRMATION_FORMAT",
+            comment: "Action sheet title confirming deletion of a group story on the 'group story settings' view. Embeds {{ group name }}"
+        )
+        let actionSheet = ActionSheetController(
+            message: String.localizedStringWithFormat(format, thread.groupNameOrDefault)
+        )
+        actionSheet.addAction(OWSActionSheets.cancelAction)
+        actionSheet.addAction(.init(
             title: NSLocalizedString(
-                "GROUP_STORY_SETTINGS_DELETE_CONFIRMATION",
-                comment: "Action sheet title confirming deletion of a group story on the 'group story settings' view"
-            )
-        ) { [weak self] _ in
-            guard let self = self else { return }
-            self.databaseStorage.write { transaction in
-                self.thread.updateWithStorySendEnabled(false, transaction: transaction)
-            }
-            self.navigationController?.popViewController(animated: true)
-        }
+                "GROUP_STORY_SETTINGS_DELETE_BUTTON",
+                comment: "Button to delete the story on the 'group story settings' view"
+            ),
+            style: .destructive,
+            handler: { [weak self] _ in
+                guard let self = self else { return }
+                self.databaseStorage.write { transaction in
+                    self.thread.updateWithStorySendEnabled(false, transaction: transaction)
+                }
+                self.navigationController?.popViewController(animated: true)
+            })
+        )
     }
 
     private func showAllViewers(revealingIndices: [IndexPath]) {

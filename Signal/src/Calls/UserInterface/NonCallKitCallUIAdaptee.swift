@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2016 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -29,7 +30,21 @@ class NonCallKitCallUIAdaptee: NSObject, CallUIAdaptee {
         let success = self.audioSession.startAudioActivity(call.audioActivity)
         assert(success)
 
-        self.callService.individualCallService.handleOutgoingCall(call)
+        if call.isIndividualCall {
+            self.callService.individualCallService.handleOutgoingCall(call)
+        } else {
+            switch call.groupCallRingState {
+            case .shouldRing, .ringing:
+                // Let CallService call recipientAcceptedCall when someone joins.
+                break
+            case .ringingEnded:
+                owsFailDebug("ringing ended while we were starting the call")
+                fallthrough
+            case .doNotRing:
+                // Immediately consider ourselves connected.
+                recipientAcceptedCall(call)
+            }
+        }
     }
 
     func reportIncomingCall(_ call: SignalCall, completion: @escaping (Error?) -> Void) {
@@ -129,7 +144,7 @@ class NonCallKitCallUIAdaptee: NSObject, CallUIAdaptee {
             return
         }
 
-        self.callService.individualCallService.handleLocalHangupCall(call)
+        callService.handleLocalHangupCall(call)
     }
 
     internal func remoteDidHangupCall(_ call: SignalCall) {

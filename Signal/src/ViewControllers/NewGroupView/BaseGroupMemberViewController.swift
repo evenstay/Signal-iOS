@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2020 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -224,11 +225,6 @@ extension BaseGroupMemberViewController: MemberViewDelegate {
                 }
             }
         }
-    }
-
-    public func memberViewShowInvalidRecipientAlert(_ recipient: PickedRecipient) {
-        AssertIsOnMainThread()
-        GroupViewUtils.showInvalidGroupMemberAlert(fromViewController: self)
     }
 
     public func memberViewNoUuidSubtitleForRecipient(_ recipient: PickedRecipient) -> String? {

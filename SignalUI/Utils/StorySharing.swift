@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2022 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -26,16 +27,8 @@ public enum StorySharing: Dependencies {
             linkPreview = nil
         }
 
-        // If the only message text is the URL of the link preview, omit the message text
-        let text: String?
-        if linkPreview != nil, messageBody.text == linkPreview?.urlString {
-            text = nil
-        } else {
-            text = messageBody.text
-        }
-
         let textAttachment = TextAttachment(
-            text: text,
+            text: text(for: messageBody, with: linkPreview),
             textStyle: .regular,
             textForegroundColor: .white,
             textBackgroundColor: nil,
@@ -44,5 +37,52 @@ public enum StorySharing: Dependencies {
         )
 
         return AttachmentMultisend.sendTextAttachment(textAttachment, to: storyConversations).asVoid()
+    }
+
+    internal static func text(for messageBody: MessageBody, with linkPreview: OWSLinkPreview?) -> String? {
+        // Turn any mentions in the message body to plaintext
+        let plaintextMessageBody = databaseStorage.read { messageBody.plaintextBody(transaction: $0.unwrapGrdbRead) }
+
+        let text: String?
+        if linkPreview != nil, let linkPreviewUrlString = linkPreview?.urlString, plaintextMessageBody.contains(linkPreviewUrlString) {
+            if plaintextMessageBody == linkPreviewUrlString {
+                // If the only message text is the URL of the link preview, omit the message text
+                text = nil
+            } else if
+                plaintextMessageBody.hasPrefix(linkPreviewUrlString),
+                CharacterSet.whitespacesAndNewlines.contains(
+                    plaintextMessageBody[plaintextMessageBody.index(
+                        plaintextMessageBody.startIndex,
+                        offsetBy: linkPreviewUrlString.count
+                    )]
+                )
+            {
+                // If the URL is at the start of the message, strip it off
+                text = String(plaintextMessageBody.dropFirst(linkPreviewUrlString.count)).stripped
+            } else if
+                plaintextMessageBody.hasSuffix(linkPreviewUrlString),
+                CharacterSet.whitespacesAndNewlines.contains(
+                    plaintextMessageBody[plaintextMessageBody.index(
+                        plaintextMessageBody.endIndex,
+                        offsetBy: -(linkPreviewUrlString.count + 1)
+                    )]
+                )
+            {
+                // If the URL is at the end of the message, strip it off
+                text = String(plaintextMessageBody.dropLast(linkPreviewUrlString.count)).stripped
+            } else {
+                // If the URL is in the middle of the message, send the message as is
+                text = plaintextMessageBody
+            }
+        } else {
+            text = plaintextMessageBody
+        }
+        return text
+    }
+}
+
+private extension CharacterSet {
+    func contains(_ character: Character) -> Bool {
+        character.unicodeScalars.allSatisfy(contains(_:))
     }
 }

@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2018 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -720,12 +721,12 @@ extension MediaGallery {
                             range: Range<Int>,
                             transaction: SDSAnyReadTransaction,
                             block: (_ offset: Int, _ uniqueId: String, _ buildItem: () -> MediaGalleryItem) -> Void) {
-            mediaGallery.mediaGalleryFinder.enumerateMediaAttachments(in: interval,
-                                                                      excluding: mediaGallery.deletedAttachmentIds,
-                                                                      range: NSRange(range),
-                                                                      transaction: transaction.unwrapGrdbRead) {
-                offset, attachment in
-
+            mediaGallery.mediaGalleryFinder.enumerateMediaAttachments(
+                in: interval,
+                excluding: mediaGallery.deletedAttachmentIds,
+                range: NSRange(range),
+                transaction: transaction.unwrapGrdbRead
+            ) { offset, attachment in
                 block(offset, attachment.uniqueId) {
                     guard let item: MediaGalleryItem = mediaGallery.buildGalleryItem(attachment: attachment,
                                                                                      transaction: transaction) else {

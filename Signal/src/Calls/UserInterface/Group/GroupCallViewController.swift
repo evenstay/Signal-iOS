@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2020 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -95,8 +96,7 @@ class GroupCallViewController: UIViewController {
     }
 
     @discardableResult
-    @objc(presentLobbyForThread:)
-    class func presentLobby(thread: TSGroupThread) -> Bool {
+    class func presentLobby(thread: TSGroupThread, videoMuted: Bool = false) -> Bool {
         guard tsAccountManager.isOnboarded() else {
             Logger.warn("aborting due to user not being onboarded.")
             OWSActionSheets.showActionSheet(title: NSLocalizedString(
@@ -118,18 +118,13 @@ class GroupCallViewController: UIViewController {
                 return
             }
 
-            frontmostViewController.ows_askForCameraPermissions { granted in
-                guard granted else {
-                    Logger.warn("aborting due to missing camera permissions.")
-                    return
-                }
+            guard let groupCall = Self.callService.buildAndConnectGroupCallIfPossible(
+                thread: thread, videoMuted: videoMuted
+            ) else {
+                return owsFailDebug("Failed to build group call")
+            }
 
-                guard let groupCall = Self.callService.buildAndConnectGroupCallIfPossible(
-                        thread: thread
-                ) else {
-                    return owsFailDebug("Failed to build group call")
-                }
-
+            let completion = {
                 // Dismiss the group call tooltip
                 self.preferences.setWasGroupCallTooltipShown()
 
@@ -137,6 +132,18 @@ class GroupCallViewController: UIViewController {
                 vc.modalTransitionStyle = .crossDissolve
 
                 OWSWindowManager.shared.startCall(vc)
+            }
+
+            if videoMuted {
+                completion()
+            } else {
+                frontmostViewController.ows_askForCameraPermissions { granted in
+                    guard granted else {
+                        Logger.warn("aborting due to missing camera permissions.")
+                        return
+                    }
+                    completion()
+                }
             }
         }
 
@@ -485,7 +492,7 @@ class GroupCallViewController: UIViewController {
     }
 
     func dismissCall() {
-        callService.terminate(call: call)
+        callService.callUIAdapter.localHangupCall(call)
 
         guard let splitViewSnapshot = SignalApp.shared().snapshotSplitViewController(afterScreenUpdates: false) else {
             OWSWindowManager.shared.endCall(self)

@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2018 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -214,6 +215,14 @@ class GRDBFullTextSearchFinder: NSObject {
     static let ftsContentColumn = "ftsIndexableContent"
     static var matchTag: String { FullTextSearchFinder.matchTag }
 
+    public static let indexableModelTypes: [SDSIndexableModel.Type] = [
+        TSThread.self,
+        TSInteraction.self,
+        TSGroupMember.self,
+        SignalAccount.self,
+        SignalRecipient.self
+    ]
+
     private class func collection(forModel model: SDSIndexableModel) -> String {
         // Note that allModelsWereRemoved(collection: ) makes the same
         // assumption that the FTS collection matches the
@@ -229,7 +238,23 @@ class GRDBFullTextSearchFinder: NSObject {
         return "\(collection).\(uniqueId)"
     }
 
-    private class func shouldIndexModel(_ model: SDSIndexableModel) -> Bool {
+    #if TESTABLE_BUILD
+    private class func `is`(_ value: Any, ofType type: Any.Type) -> Bool {
+        var currentMirror: Mirror? = Mirror(reflecting: value)
+        while let mirror = currentMirror {
+            if mirror.subjectType == type { return true }
+            currentMirror = mirror.superclassMirror
+        }
+        return false
+    }
+    #endif
+
+    fileprivate class func shouldIndexModel(_ model: SDSIndexableModel) -> Bool {
+        #if TESTABLE_BUILD
+        let isIndexable = indexableModelTypes.contains { Self.is(model, ofType: $0) }
+        owsAssert(isIndexable)
+        #endif
+
         if let userProfile = model as? OWSUserProfile,
            OWSUserProfile.isLocalProfileAddress(userProfile.address) {
             // We don't need to index the user profile for the local user.
@@ -250,6 +275,9 @@ class GRDBFullTextSearchFinder: NSObject {
             // We don't need to index the contact thread for the "local invariant phone number".
             // We do want to index the contact thread for the local user; that will have a
             // different address.
+            return false
+        }
+        if let message = model as? TSMessage, message.isGroupStoryReply {
             return false
         }
         return true
@@ -637,7 +665,9 @@ class AnySearchIndexer: Dependencies {
         return ""
     }
 
-    class func indexContent(object: Any, transaction: SDSAnyReadTransaction) -> String? {
+    class func indexContent(object: SDSIndexableModel, transaction: SDSAnyReadTransaction) -> String? {
+        owsAssertDebug(GRDBFullTextSearchFinder.shouldIndexModel(object))
+
         if let groupThread = object as? TSGroupThread {
             return self.groupThreadIndexer.index(groupThread, transaction: transaction)
         } else if let groupMember = object as? TSGroupMember {
@@ -661,6 +691,7 @@ class AnySearchIndexer: Dependencies {
         } else if let signalRecipient = object as? SignalRecipient {
             return self.recipientIndexer.index(signalRecipient.address, transaction: transaction)
         } else {
+            // This should be impossible (see assertion above), but we have it here just in case.
             return nil
         }
     }
@@ -670,4 +701,9 @@ public protocol SDSIndexableModel {
     var uniqueId: String { get }
     static var ftsIndexMode: TSFTSIndexMode { get }
     static func collection() -> String
+
+    static func anyEnumerateIndexable(
+        transaction: SDSAnyReadTransaction,
+        block: @escaping (SDSIndexableModel) -> Void
+    )
 }

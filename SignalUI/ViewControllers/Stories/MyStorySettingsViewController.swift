@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2022 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -74,7 +75,7 @@ public class MyStorySettingsSheetViewController: OWSTableSheetViewController, My
     }
 }
 
-private protocol MyStorySettingsDataSourceDelegate: UIViewController {
+private protocol MyStorySettingsDataSourceDelegate: AnyObject, UIViewController {
     func reloadTableContents()
 }
 
@@ -106,7 +107,6 @@ private class MyStorySettingsDataSource: NSObject, Dependencies {
         switch style {
         case .sheet:
             visibilitySection.customHeaderView = SheetHeaderView(frame: .zero, dataSource: self)
-            break
         case .fullscreen:
             visibilitySection.headerTitle = OWSLocalizedString(
                 "STORY_SETTINGS_WHO_CAN_VIEW_THIS_HEADER",
@@ -333,13 +333,13 @@ private class MyStorySettingsDataSource: NSObject, Dependencies {
             textAlignment = .natural
             baseString = OWSLocalizedString(
                 "STORY_SETTINGS_WHO_CAN_VIEW_THIS_FOOTER",
-                comment: "Section footer for the 'viewers' section on the 'story settings' view."
+                comment: "Section footer for the 'viewers' section on the 'story settings' view"
             )
         case .sheet:
             textAlignment = .center
             baseString = OWSLocalizedString(
                 "STORY_SETTINGS_WHO_CAN_VIEW_THIS_SHEET_HEADER",
-                comment: "Header for the 'viewers' section on the 'story settings' bottom sheet."
+                comment: "Header for the 'viewers' section on the 'story settings' bottom sheet"
             )
         }
 

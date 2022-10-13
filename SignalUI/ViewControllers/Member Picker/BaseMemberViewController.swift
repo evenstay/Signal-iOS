@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2020 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -18,8 +19,6 @@ public protocol MemberViewDelegate: AnyObject {
     func memberViewWillRenderRecipient(_ recipient: PickedRecipient)
 
     func memberViewPrepareToSelectRecipient(_ recipient: PickedRecipient) -> AnyPromise
-
-    func memberViewShowInvalidRecipientAlert(_ recipient: PickedRecipient)
 
     func memberViewNoUuidSubtitleForRecipient(_ recipient: PickedRecipient) -> String?
 
@@ -92,10 +91,9 @@ open class BaseMemberViewController: OWSViewController {
         memberCountLabel.autoPinEdgesToSuperviewMargins()
         memberCountWrapper.layoutMargins = UIEdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 12)
 
-        recipientPicker.allowsSelectingUnregisteredPhoneNumbers = false
         recipientPicker.groupsToShow = .showNoGroups
         recipientPicker.allowsSelectingUnregisteredPhoneNumbers = false
-        recipientPicker.showUseAsyncSelection = true
+        recipientPicker.shouldUseAsyncSelection = true
         recipientPicker.delegate = self
         addChild(recipientPicker)
         view.addSubview(recipientPicker.view)
@@ -402,20 +400,6 @@ extension BaseMemberViewController: RecipientPickerDelegate {
         }
 
         return memberViewDelegate.memberViewPrepareToSelectRecipient(recipient)
-    }
-
-    public func recipientPicker(
-        _ recipientPickerViewController: RecipientPickerViewController,
-        showInvalidRecipientAlert recipient: PickedRecipient
-    ) {
-        AssertIsOnMainThread()
-
-        guard let memberViewDelegate = memberViewDelegate else {
-            owsFailDebug("Missing memberViewDelegate.")
-            return
-        }
-
-        memberViewDelegate.memberViewShowInvalidRecipientAlert(recipient)
     }
 
     public func recipientPicker(

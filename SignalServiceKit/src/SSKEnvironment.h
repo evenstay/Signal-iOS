@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2017 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 NS_ASSUME_NONNULL_BEGIN
@@ -133,11 +134,6 @@ typedef NS_ENUM(uint8_t, OWSIdentity);
 @property (nonatomic, readonly, class) SSKEnvironment *shared;
 
 + (void)setShared:(SSKEnvironment *)env;
-
-#ifdef TESTABLE_BUILD
-// Should only be called by tests.
-+ (void)clearSharedForTests;
-#endif
 
 + (BOOL)hasShared;
 

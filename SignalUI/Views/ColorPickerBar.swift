@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2019 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import UIKit
@@ -364,5 +365,12 @@ public class ColorPickerBarView: UIView {
         gradientLayer.startPoint = CGPoint.zero
         gradientLayer.endPoint = CGPoint(x: 1, y: 0)
         return gradientView.renderAsImage(opaque: true, scale: UIScreen.main.scale)
+    }
+}
+
+public extension UIColor {
+
+    func isCloseToColor(_ color: UIColor) -> Bool {
+        return isEqualToColor(color, tolerance: 0.1)
     }
 }

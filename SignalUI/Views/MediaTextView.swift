@@ -1,20 +1,23 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2022 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import UIKit
 
 public class MediaTextView: UITextView {
 
-    public enum DecorationStyle: Int {
-        case none = 0
-        case inverted
-        case underline
-        case outline
+    public enum DecorationStyle: String, CaseIterable {
+        case none                   // colored text, no background
+        case whiteBackground        // colored text, white background
+        case coloredBackground      // white text, colored background
+        case underline              // white text, colored underline
+        case outline                // white text, colored outline
     }
 
-    public enum TextStyle: Int {
-        case regular = 0
+    // Resource names are derived from these values. Do not change without consideration.
+    public enum TextStyle: String, CaseIterable {
+        case regular
         case bold
         case serif
         case script
@@ -168,24 +171,45 @@ public class TextStylingToolbar: UIControl {
         }
     }
 
-    public let textStyleButton = RoundMediaButton(image: #imageLiteral(resourceName: "media-editor-text-font"), backgroundStyle: .blur)
-    public var textStyle: MediaTextView.TextStyle = .regular
+    public let textStyleButton = RoundMediaButton(image: TextStylingToolbar.buttonImage(forTextStyle: .regular),
+                                                  backgroundStyle: .blur)
+    public var textStyle: MediaTextView.TextStyle = .regular {
+        didSet {
+            textStyleButton.setImage(TextStylingToolbar.buttonImage(forTextStyle: textStyle), for: .normal)
+        }
+    }
+
+    private static func buttonImage(forTextStyle textStyle: MediaTextView.TextStyle) -> UIImage? {
+        return UIImage(imageLiteralResourceName: "media-editor-font-" + textStyle.rawValue)
+    }
 
     public var textForegroundColor: UIColor {
         switch decorationStyle {
-        case .none: return colorPickerView.color
-        case .inverted, .outline, .underline: return .white
+        case .none, .whiteBackground: return colorPickerView.color
+
+        case .coloredBackground:
+            // Switch text color to black if background is almost white.
+            let backgroundColor = colorPickerView.color
+            return backgroundColor.isCloseToColor(.white) ? .black : .white
+
+        case .outline, .underline: return .white
         }
     }
     public var textBackgroundColor: UIColor? {
         switch decorationStyle {
         case .none, .underline, .outline: return nil
-        case .inverted: return colorPickerView.color
+
+        case .whiteBackground:
+            // Switch background color to black if text color is almost white.
+            let textColor = colorPickerView.color
+            return textColor.isCloseToColor(.white) ? .black : .white
+
+        case .coloredBackground: return colorPickerView.color
         }
     }
     public var textDecorationColor: UIColor? {
         switch decorationStyle {
-        case .none, .inverted: return nil
+        case .none, .whiteBackground, .coloredBackground: return nil
         case .outline, .underline: return colorPickerView.color
         }
     }
@@ -194,25 +218,21 @@ public class TextStylingToolbar: UIControl {
     public var decorationStyle: MediaTextView.DecorationStyle = .none {
         didSet {
             decorationStyleButton.isSelected = (decorationStyle != .none)
-            // Change default decoration style away from white to avoid white on white situation.
-            if decorationStyle != .none && colorPickerView.selectedValue == .white {
-                colorPickerView.selectedValue = .black
-            }
-            // Switch color picker color back to white because it now controls text color.
-            // The idea is that cycling through decoration styles should keep text white.
-            if decorationStyle == .none && colorPickerView.selectedValue == .black {
-                colorPickerView.selectedValue = .white
-            }
         }
     }
 
     public lazy var doneButton = RoundMediaButton(image: UIImage(imageLiteralResourceName: "check-24"), backgroundStyle: .blur)
+
+    public private(set) var contentWidthConstraint: NSLayoutConstraint?
+    private var stackView = UIStackView()
 
     public init(layout: Layout, currentColor: ColorPickerBarColor? = nil) {
         self.layout = layout
         colorPickerView = ColorPickerBarView(currentColor: currentColor ?? TextStylingToolbar.defaultColor(forLayout: layout))
 
         super.init(frame: .zero)
+
+        autoresizingMask = [ .flexibleHeight ]
 
         colorPickerView.delegate = self
 
@@ -222,17 +242,19 @@ public class TextStylingToolbar: UIControl {
         // A container with width capped at a predefined size,
         // centered in superview and constrained to layout margins.
         let stackViewLayoutGuide = UILayoutGuide()
+
+        let contentWidthConstraint = stackViewLayoutGuide.widthAnchor.constraint(equalToConstant: ImageEditorViewController.preferredToolbarContentWidth)
+        contentWidthConstraint.priority = .defaultHigh
+        self.contentWidthConstraint = contentWidthConstraint
+
         addLayoutGuide(stackViewLayoutGuide)
         addConstraints([
             stackViewLayoutGuide.centerXAnchor.constraint(equalTo: centerXAnchor),
             stackViewLayoutGuide.leadingAnchor.constraint(greaterThanOrEqualTo: layoutMarginsGuide.leadingAnchor),
             stackViewLayoutGuide.topAnchor.constraint(equalTo: topAnchor),
-            stackViewLayoutGuide.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -2) ])
-        addConstraint({
-            let constraint = stackViewLayoutGuide.widthAnchor.constraint(equalToConstant: ImageEditorViewController.preferredToolbarContentWidth)
-            constraint.priority = .defaultHigh
-            return constraint
-        }())
+            stackViewLayoutGuide.bottomAnchor.constraint(equalTo: safeAreaLayoutGuide.bottomAnchor, constant: -2),
+            contentWidthConstraint
+        ])
 
         // I had to use a custom layout guide because stack view isn't centered
         // but instead has slight offset towards the trailing edge.
@@ -244,7 +266,7 @@ public class TextStylingToolbar: UIControl {
                 return [ textStyleButton, decorationStyleButton, colorPickerView, doneButton ]
             }
         }()
-        let stackView = UIStackView(arrangedSubviews: stackViewSubviews)
+        stackView.addArrangedSubviews(stackViewSubviews)
         stackView.translatesAutoresizingMaskIntoConstraints = false
         stackView.alignment = .center
         stackView.spacing = 8
@@ -265,12 +287,21 @@ public class TextStylingToolbar: UIControl {
             stackView.leadingAnchor.constraint(equalTo: stackViewLayoutGuide.leadingAnchor, constant: -leadingMargin),
             stackView.trailingAnchor.constraint(equalTo: stackViewLayoutGuide.trailingAnchor, constant: trailingMargin),
             stackView.topAnchor.constraint(equalTo: stackViewLayoutGuide.topAnchor),
-            stackView.bottomAnchor.constraint(equalTo: stackViewLayoutGuide.bottomAnchor) ])
+            stackView.bottomAnchor.constraint(equalTo: stackViewLayoutGuide.bottomAnchor)
+        ])
     }
 
     @available(iOS, unavailable, message: "Use init(currentColor:)")
     required init(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+
+    public override var intrinsicContentSize: CGSize {
+        // NOTE: Update size calculation if changing margins around UIStackView in init(layout:currentColor:).
+        CGSize(
+            width: UIScreen.main.bounds.width,
+            height: stackView.frame.height + 2 + safeAreaInsets.bottom
+        )
     }
 }
 

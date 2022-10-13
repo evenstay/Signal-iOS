@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2019 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -1007,17 +1008,41 @@ public struct GRDBKeySpecSource {
 
 // MARK: -
 
+fileprivate extension URL {
+    func appendingPathString(_ string: String) -> URL? {
+        guard var components = URLComponents(url: self, resolvingAgainstBaseURL: false) else {
+            return nil
+        }
+        components.path += string
+        return components.url
+    }
+}
+
 extension GRDBDatabaseStorageAdapter {
+    public static func walFileUrl(for databaseFileUrl: URL) -> URL {
+        guard let result = databaseFileUrl.appendingPathString("-wal") else {
+            owsFail("Could not get WAL URL")
+        }
+        return result
+    }
+
+    public static func shmFileUrl(for databaseFileUrl: URL) -> URL {
+        guard let result = databaseFileUrl.appendingPathString("-shm") else {
+            owsFail("Could not get SHM URL")
+        }
+        return result
+    }
+
     public var databaseFilePath: String {
         return databaseFileUrl.path
     }
 
     public var databaseWALFilePath: String {
-        return databaseFileUrl.path + "-wal"
+        Self.walFileUrl(for: databaseFileUrl).path
     }
 
     public var databaseSHMFilePath: String {
-        return databaseFileUrl.path + "-shm"
+        Self.shmFileUrl(for: databaseFileUrl).path
     }
 
     static func removeAllFiles() {

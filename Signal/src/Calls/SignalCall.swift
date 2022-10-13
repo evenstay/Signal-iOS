@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2020 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -56,6 +57,13 @@ public class SignalCall: NSObject, CallManagerCallReference {
 
     public let audioActivity: AudioActivity
 
+    private(set) var systemState: SystemState = .notReported
+    enum SystemState {
+        case notReported
+        case reported
+        case removed
+    }
+
     @objc
     var isGroupCall: Bool {
         switch mode {
@@ -97,6 +105,13 @@ public class SignalCall: NSObject, CallManagerCallReference {
             return false
         case .individual(let call):
             return call.hasTerminated
+        }
+    }
+
+    public var isOutgoingAudioMuted: Bool {
+        switch mode {
+        case .individual(let call): return call.isMuted
+        case .group(let call): return call.isOutgoingAudioMuted
         }
     }
 
@@ -228,6 +243,10 @@ public class SignalCall: NSObject, CallManagerCallReference {
         individualCall.delegate = self
     }
 
+    deinit {
+        owsAssertDebug(systemState != .reported, "call \(localId) was reported to system but never removed")
+    }
+
     public class func groupCall(thread: TSGroupThread) -> SignalCall? {
         owsAssertDebug(thread.groupModel.groupsVersion == .V2)
 
@@ -354,6 +373,16 @@ public class SignalCall: NSObject, CallManagerCallReference {
             return 0
         }
         return -connectedDate.timeIntervalSinceNow
+    }
+
+    func markReportedToSystem() {
+        owsAssertDebug(systemState == .notReported, "call \(localId) had unexpected system state: \(systemState)")
+        systemState = .reported
+    }
+
+    func markRemovedFromSystem() {
+        owsAssertDebug(systemState == .reported, "call \(localId) had unexpected system state: \(systemState)")
+        systemState = .removed
     }
 }
 

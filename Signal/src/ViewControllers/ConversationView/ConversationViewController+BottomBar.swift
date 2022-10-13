@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2020 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -289,7 +290,13 @@ public extension ConversationViewController {
             return
         }
 
-        inputToolbar.updateLayout(withSafeAreaInsets: view.safeAreaInsets)
+        if inputToolbar.updateLayout(withSafeAreaInsets: view.safeAreaInsets) {
+            // Ensure that if the toolbar has its insets changed, we trigger a re-layout.
+            // Without this, UIKit does a bad job of picking up the final safe area for
+            // constraints on the toolbar on its own.
+            self.view.setNeedsLayout()
+            self.updateContentInsets(animated: false)
+        }
     }
 
     @objc

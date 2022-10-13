@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2022 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -8,20 +9,22 @@ import GRDB
 @objc
 public class StoryFinder: NSObject {
     public static func unviewedSenderCount(transaction: SDSAnyReadTransaction) -> Int {
+        let ownUUIDClause = tsAccountManager.localUuid.map {
+            "AND \(StoryContextAssociatedData.columnName(.contactUuid)) IS NOT '\($0)'"
+        } ?? ""
         let sql = """
             SELECT COUNT(*)
             FROM \(StoryContextAssociatedData.databaseTableName)
             WHERE
-                (
-                    \(StoryContextAssociatedData.columnName(.isHidden)) = 0
-                    OR \(StoryContextAssociatedData.columnName(.isHidden)) is NULL
-                )
+                \(StoryContextAssociatedData.columnName(.isHidden)) IS NOT 1
                 AND \(StoryContextAssociatedData.columnName(.latestUnexpiredTimestamp)) IS NOT NULL
                 AND (
                     \(StoryContextAssociatedData.columnName(.lastViewedTimestamp)) IS NULL
                     OR \(StoryContextAssociatedData.columnName(.lastViewedTimestamp))
                         < \(StoryContextAssociatedData.columnName(.latestUnexpiredTimestamp))
-                );
+                )
+                \(ownUUIDClause)
+                ;
         """
         do {
             let unviewedStoryCount = try Int.fetchOne(transaction.unwrapGrdbRead.database, sql: sql) ?? 0
@@ -305,6 +308,21 @@ public class StoryFinder: NSObject {
         } catch {
             owsFailDebug("error: \(error)")
         }
+    }
+
+    public static func hasFailedStories(transaction: SDSAnyReadTransaction) -> Bool {
+        let sql = """
+            SELECT EXISTS (
+                SELECT 1 FROM \(StoryMessage.databaseTableName)
+                WHERE \(StoryMessage.columnName(.direction)) = \(StoryMessage.Direction.outgoing.rawValue)
+                AND (
+                    SELECT 1 FROM json_tree(\(StoryMessage.columnName(.manifest)), '$.outgoing.recipientStates')
+                    WHERE json_tree.type IS 'object'
+                    AND json_extract(json_tree.value, '$.sendingState') = \(OWSOutgoingMessageRecipientState.failed.rawValue)
+                )
+            )
+        """
+        return try! Bool.fetchOne(transaction.unwrapGrdbRead.database, sql: sql) ?? false
     }
 }
 

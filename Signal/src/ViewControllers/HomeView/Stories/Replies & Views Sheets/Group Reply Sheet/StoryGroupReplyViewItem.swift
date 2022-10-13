@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2022 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -49,10 +50,10 @@ class StoryGroupReplyViewItem: Dependencies {
         self.recipientStatus = recipientStatus
 
         if let reactionEmoji = message.storyReactionEmoji {
-            self.cellType = .reaction
+            self.cellType = .init(kind: .reaction)
             self.reactionEmoji = reactionEmoji
         } else {
-            self.cellType = .standalone
+            self.cellType = .init(kind: .text)
             self.reactionEmoji = nil
         }
     }

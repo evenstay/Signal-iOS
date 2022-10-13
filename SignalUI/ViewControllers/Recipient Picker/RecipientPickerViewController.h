@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2019 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 #import <SignalUI/OWSViewController.h>
@@ -35,7 +36,7 @@ typedef NS_CLOSED_ENUM(NSUInteger, RecipientPickerViewControllerGroupsToShow) {
 /// Defaults to `NO`
 @property (nonatomic) BOOL shouldShowNewGroup;
 /// Defaults to `NO`
-@property (nonatomic) BOOL showUseAsyncSelection;
+@property (nonatomic) BOOL shouldUseAsyncSelection;
 
 @property (nonatomic, nullable) NSString *findByPhoneNumberButtonTitle;
 

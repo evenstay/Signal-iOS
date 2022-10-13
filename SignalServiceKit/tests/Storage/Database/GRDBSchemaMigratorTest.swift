@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2022 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import XCTest
@@ -12,7 +13,7 @@ class GRDBSchemaMigratorTest: XCTestCase {
             delegate: DatabaseTestHelpers.TestSDSDatabaseStorageDelegate()
         )
 
-        GRDBSchemaMigrator.migrateDatabase(
+        try GRDBSchemaMigrator.migrateDatabase(
             databaseStorage: databaseStorage,
             isMainDatabase: false
         )

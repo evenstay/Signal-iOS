@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2021 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -757,13 +758,9 @@ public class OWSWebSocket: NSObject {
             return .closed(reason: "isCensorshipCircumventionActive")
         }
 
-        if SignalProxy.isEnabled {
-            if #available(iOS 13, *) {
-                // All good, native websockets support the proxy
-            } else {
-                // Starscream doesn't support the proxy
-                return .closed(reason: "signalProxyIsEnabled")
-            }
+        // Starscream doesn't support the proxy
+        if SignalProxy.isEnabled, #unavailable(iOS 13) {
+            return .closed(reason: "signalProxyIsEnabled")
         }
 
         if let currentWebSocket = self.currentWebSocket,

@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2019 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -24,13 +25,9 @@ public protocol RecipientPickerDelegate: AnyObject {
     func recipientPicker(_ recipientPickerViewController: RecipientPickerViewController,
                          willRenderRecipient recipient: PickedRecipient)
 
-    // This delegate method is only used if showUseAsyncSelection is set.
+    // This delegate method is only used if shouldUseAsyncSelection is set.
     func recipientPicker(_ recipientPickerViewController: RecipientPickerViewController,
                          prepareToSelectRecipient recipient: PickedRecipient) -> AnyPromise
-
-    // This delegate method is only used if showUseAsyncSelection is set.
-    func recipientPicker(_ recipientPickerViewController: RecipientPickerViewController,
-                         showInvalidRecipientAlert recipient: PickedRecipient)
 
     func recipientPicker(_ recipientPickerViewController: RecipientPickerViewController,
                          accessoryMessageForRecipient recipient: PickedRecipient,
@@ -108,7 +105,7 @@ extension RecipientPickerViewController {
         }
 
         guard let delegate = delegate else { return }
-        guard showUseAsyncSelection else {
+        guard shouldUseAsyncSelection else {
             AssertIsOnMainThread()
 
             let recipientPickerRecipientState = delegate.recipientPicker(self, getRecipientState: recipient)

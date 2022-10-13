@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2019 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -103,11 +104,6 @@ extension ComposeViewController: RecipientPickerDelegate {
                          prepareToSelectRecipient recipient: PickedRecipient) -> AnyPromise {
         owsFailDebug("This method should not called.")
         return AnyPromise(Promise.value(()))
-    }
-
-    func recipientPicker(_ recipientPickerViewController: RecipientPickerViewController,
-                         showInvalidRecipientAlert recipient: PickedRecipient) {
-        owsFailDebug("Unexpected error.")
     }
 
     func recipientPicker(

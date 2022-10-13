@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2022 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -10,6 +11,8 @@ protocol StoryListDataSourceDelegate: AnyObject {
 
     // If null, will still load data but won't update the tableview.
     var tableViewIfLoaded: UITableView? { get }
+
+    func tableViewDidUpdate()
 }
 
 class StoryListDataSource: NSObject, Dependencies {
@@ -57,6 +60,14 @@ class StoryListDataSource: NSObject, Dependencies {
         return syncingModels.threadSafeStoryContexts
     }
 
+    var threadSafeVisibleStoryContexts: [StoryContext] {
+        return syncingModels.threadSafeVisibleStoryContexts
+    }
+
+    var threadSafeHiddenStoryContexts: [StoryContext] {
+        return syncingModels.threadSafeHiddenStoryContexts
+    }
+
     public var isHiddenStoriesSectionCollapsed: Bool {
         get {
             return syncingModels.exposedModel.isHiddenStoriesSectionCollapsed
@@ -99,6 +110,7 @@ class StoryListDataSource: NSObject, Dependencies {
             } sync: { _ in
                 self.tableView?.reloadData()
                 self.observeAssociatedDataChangesForAvailableModels()
+                self.delegate?.tableViewDidUpdate()
             }
         }
     }
@@ -362,8 +374,7 @@ class StoryListDataSource: NSObject, Dependencies {
             }
             // At this point all that remains is new contexts, any update ones got
             // removed when we looped over old models above.
-            let modelsFromNewContexts = try newContexts.compactMap {
-                (context: StoryContext, contextChanges: StoryContextChanges) throws -> StoryViewModel? in
+            let modelsFromNewContexts = try newContexts.compactMap { (context: StoryContext, contextChanges: StoryContextChanges) throws -> StoryViewModel? in
                 switch contextChanges {
                 case .hiddenStateChanged:
                     // At this point, all remaining contexts are new (not in old models) but we should only
@@ -415,13 +426,13 @@ class StoryListDataSource: NSObject, Dependencies {
     }
 
     // Sort story models for display.
-    // * We show system stories first, then other stories. Within each bucket:
-    //   * We show unviewed stories first, sorted by their sent timestamp, with the most recently sent at the top
-    //   * We then show viewed stories, sorted by when they were viewed, with the most recently viewed at the top
+    // * We show unviewed stories first, sorted by their sent timestamp, with the most recently sent at the top
+    //   * Any system story context with all its stories unviewed is always sorted at the top.
+    // * We then show viewed stories, sorted by when they were viewed, with the most recently viewed at the top
     private static func sortStoryModels(lhs: StoryViewModel, rhs: StoryViewModel) -> Bool {
-        if lhs.isSystemStory {
+        if lhs.isSystemStory && lhs.messages.allSatisfy(\.isViewed.negated) {
             return true
-        } else if rhs.isSystemStory {
+        } else if rhs.isSystemStory && rhs.messages.allSatisfy(\.isViewed.negated) {
             return false
         } else if
             let lhsViewedTimestamp = lhs.latestMessageViewedTimestamp,
@@ -468,6 +479,7 @@ class StoryListDataSource: NSObject, Dependencies {
         tableView.beginUpdates()
         defer {
             tableView.endUpdates()
+            self.delegate?.tableViewDidUpdate()
         }
 
         if changes.oldModel.myStory == nil, changes.newModel.myStory != nil {
@@ -492,8 +504,13 @@ class StoryListDataSource: NSObject, Dependencies {
         }
 
         switch (changes.oldModel.hiddenStories.isEmpty, changes.newModel.hiddenStories.isEmpty) {
-        case (false, false), (true, true):
-            // Just reload if we have to.
+
+        case (true, true):
+            // No need to do anything.
+            return
+
+        case (false, false):
+            // Just reload the header row if we have to.
             if changes.oldModel.isHiddenStoriesSectionCollapsed != changes.newModel.isHiddenStoriesSectionCollapsed {
                 // If the cell is visible, reconfigure it directly without reloading.
                 let path = IndexPath(row: 0, section: Section.hiddenStories.rawValue)
@@ -510,6 +527,15 @@ class StoryListDataSource: NSObject, Dependencies {
             tableView.insertRows(at: [IndexPath(row: 0, section: Section.hiddenStories.rawValue)], with: .fade)
         case (false, true):
             tableView.deleteRows(at: [IndexPath(row: 0, section: Section.hiddenStories.rawValue)], with: .fade)
+            applyTableViewBatchUpdates(
+                changes.oldModel.hiddenStories.lazy.enumerated().map {
+                    // Offset by 1 to account for the header cell.
+                    return .init(value: $1.context, updateType: .delete(oldIndex: $0 + 1))
+                },
+                toSection: .hiddenStories,
+                models: changes.oldModel.hiddenStories
+            )
+            return
         }
 
         switch (changes.oldModel.isHiddenStoriesSectionCollapsed, changes.newModel.isHiddenStoriesSectionCollapsed) {
@@ -582,9 +608,9 @@ class StoryListDataSource: NSObject, Dependencies {
             case .move(let oldIndex, let newIndex):
                 tableView.deleteRows(at: [IndexPath(row: oldIndex, section: section.rawValue)], with: .fade)
                 tableView.insertRows(at: [IndexPath(row: newIndex, section: section.rawValue)], with: .fade)
-            case .update(_, let newIndex):
+            case .update(let oldIndex, let newIndex):
                 // If the cell is visible, reconfigure it directly without reloading.
-                let path = IndexPath(row: newIndex, section: section.rawValue)
+                let path = IndexPath(row: oldIndex, section: section.rawValue)
                 if
                     (tableView.indexPathsForVisibleRows ?? []).contains(path),
                     let visibleCell = tableView.cellForRow(at: path) as? StoryCell
@@ -639,6 +665,9 @@ private class SyncingStoryListViewModel {
     // callbacks in the story viewer.
     private var _threadSafeStoryContexts = AtomicArray<StoryContext>()
 
+    private var _threadSafeVisibleStoryContexts = AtomicArray<StoryContext>()
+    private var _threadSafeHiddenStoryContexts = AtomicArray<StoryContext>()
+
     init(loadingQueue: DispatchQueue) {
         self.loadingQueue = loadingQueue
     }
@@ -665,6 +694,8 @@ private class SyncingStoryListViewModel {
         trueModel.wrappedValue = changes.newModel
         DispatchQueue.main.async {
             self._threadSafeStoryContexts.set(changes.newModel.stories.map(\.context))
+            self._threadSafeVisibleStoryContexts.set(changes.newModel.stories.lazy.filter(\.isHidden.negated).map(\.context))
+            self._threadSafeHiddenStoryContexts.set(changes.newModel.stories.lazy.filter(\.isHidden).map(\.context))
             self.exposedModel = changes.newModel
             sync(changes)
         }
@@ -673,6 +704,8 @@ private class SyncingStoryListViewModel {
     }
 
     var threadSafeStoryContexts: [StoryContext] { _threadSafeStoryContexts.get() }
+    var threadSafeVisibleStoryContexts: [StoryContext] { _threadSafeVisibleStoryContexts.get() }
+    var threadSafeHiddenStoryContexts: [StoryContext] { _threadSafeHiddenStoryContexts.get() }
 }
 
 // MARK: - StoryContexts

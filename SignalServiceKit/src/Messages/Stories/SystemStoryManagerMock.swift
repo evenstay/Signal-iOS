@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2022 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -8,7 +9,7 @@ import Foundation
 public class SystemStoryManagerMock: NSObject, SystemStoryManagerProtocol {
 
     /// In tests, set some other handler to this to return different results when the system under test calls enqueueOnboardingStoryDownload
-    public lazy var downloadOnboardingStoryHandler: () -> Promise<Void> = { [weak self] in
+    public lazy var downloadOnboardingStoryHandler: () -> Promise<Void> = {
         return .value(())
     }
 
@@ -17,7 +18,7 @@ public class SystemStoryManagerMock: NSObject, SystemStoryManagerProtocol {
     }
 
     /// In tests, set some other handler to this to return different results when the system under test calls cleanUpOnboardingStoryIfNeeded
-    public lazy var cleanUpOnboardingStoryHandler: () -> Promise<Void> = { [weak self] in
+    public lazy var cleanUpOnboardingStoryHandler: () -> Promise<Void> = {
         return .value(())
     }
 
@@ -43,8 +44,10 @@ public class SystemStoryManagerMock: NSObject, SystemStoryManagerProtocol {
         fatalError("Unimplemented for tests")
     }
 
+    public var areSystemStoriesHidden: Bool = false
+
     public func areSystemStoriesHidden(transaction: SDSAnyReadTransaction) -> Bool {
-        fatalError("Unimplemented for tests")
+        return areSystemStoriesHidden
     }
 
     public func setSystemStoriesHidden(_ hidden: Bool, transaction: SDSAnyWriteTransaction) {

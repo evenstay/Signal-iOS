@@ -1,10 +1,11 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2022 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
 
-public protocol NewStoryHeaderDelegate: OWSTableViewController2 {
+public protocol NewStoryHeaderDelegate: AnyObject, OWSTableViewController2 {
     func newStoryHeaderView(_ newStoryHeaderView: NewStoryHeaderView, didCreateNewStoryItems items: [StoryConversationItem])
 }
 

@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2017 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 #import "SSKEnvironment.h"
@@ -211,11 +212,6 @@ static SSKEnvironment *sharedSSKEnvironment;
     OWSAssertDebug(!sharedSSKEnvironment || CurrentAppContext().isRunningTests);
     
     sharedSSKEnvironment = env;
-}
-
-+ (void)clearSharedForTests
-{
-    sharedSSKEnvironment = nil;
 }
 
 + (BOOL)hasShared

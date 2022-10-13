@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2022 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -7,7 +8,10 @@ import UIKit
 import SignalUI
 
 protocol StoryPageViewControllerDataSource: AnyObject {
-    func storyPageViewControllerAvailableContexts(_ storyPageViewController: StoryPageViewController) -> [StoryContext]
+    func storyPageViewControllerAvailableContexts(
+        _ storyPageViewController: StoryPageViewController,
+        hiddenStoryFilter: Bool?
+    ) -> [StoryContext]
 }
 
 class StoryPageViewController: UIPageViewController {
@@ -28,7 +32,8 @@ class StoryPageViewController: UIPageViewController {
 
     weak var contextDataSource: StoryPageViewControllerDataSource?
     let viewableContexts: [StoryContext]
-    private var interactiveDismissCoordinator: StoryInteractiveTransitionCoordinator?
+    private let hiddenStoryFilter: Bool?
+    private lazy var interactiveDismissCoordinator = StoryInteractiveTransitionCoordinator(pageViewController: self)
 
     private let audioActivity = AudioActivity(audioDescription: "StoriesViewer", behavior: .playbackMixWithOthers)
 
@@ -45,12 +50,14 @@ class StoryPageViewController: UIPageViewController {
     required init(
         context: StoryContext,
         viewableContexts: [StoryContext]? = nil,
+        hiddenStoryFilter: Bool? = nil, /* If true only hidden stories, if false only unhidden. */
         loadMessage: StoryMessage? = nil,
         action: StoryContextViewController.Action = .none,
         onlyRenderMyStories: Bool = false
     ) {
         self.onlyRenderMyStories = onlyRenderMyStories
         self.viewableContexts = viewableContexts ?? [context]
+        self.hiddenStoryFilter = hiddenStoryFilter
         super.init(transitionStyle: .scroll, navigationOrientation: .vertical, options: nil)
         self.currentContext = context
         currentContextViewController.loadMessage = loadMessage
@@ -75,7 +82,8 @@ class StoryPageViewController: UIPageViewController {
         delegate = self
         view.backgroundColor = .black
 
-        interactiveDismissCoordinator = StoryInteractiveTransitionCoordinator(pageViewController: self)
+        // Init the lazy coordinator
+        _ = interactiveDismissCoordinator
     }
 
     private var isDisplayLinkPaused = false {
@@ -133,7 +141,8 @@ class StoryPageViewController: UIPageViewController {
         viewIsAppeared = false
     }
 
-    @objc func owsApplicationWillEnterForeground() {
+    @objc
+    func owsApplicationWillEnterForeground() {
         // reset mute state if foregrounded while this is on screen.
         self.isMuted = true
     }
@@ -297,6 +306,7 @@ extension StoryPageViewController: UIPageViewControllerDelegate {
         pendingTransitionViewControllers = []
         isDisplayLinkPaused = false
         self.view.isUserInteractionEnabled = true
+        currentContextViewController.pageControllerDidAppear()
     }
 }
 
@@ -315,21 +325,21 @@ extension StoryPageViewController: UIPageViewControllerDataSource {
 extension StoryPageViewController: StoryContextViewControllerDelegate {
     var availableContexts: [StoryContext] {
         guard let contextDataSource = contextDataSource else { return viewableContexts }
-        let availableContexts = contextDataSource.storyPageViewControllerAvailableContexts(self)
+        let availableContexts = contextDataSource.storyPageViewControllerAvailableContexts(self, hiddenStoryFilter: hiddenStoryFilter)
         return viewableContexts.filter { availableContexts.contains($0) }
     }
 
     var previousStoryContext: StoryContext? {
-        guard let contextIndex = viewableContexts.firstIndex(of: currentContext),
-              let contextBefore = viewableContexts[safe: contextIndex.advanced(by: -1)] else {
+        guard let contextIndex = availableContexts.firstIndex(of: currentContext),
+              let contextBefore = availableContexts[safe: contextIndex.advanced(by: -1)] else {
             return nil
         }
         return contextBefore
     }
 
     var nextStoryContext: StoryContext? {
-        guard let contextIndex = viewableContexts.firstIndex(of: currentContext),
-              let contextAfter = viewableContexts[safe: contextIndex.advanced(by: 1)] else {
+        guard let contextIndex = availableContexts.firstIndex(of: currentContext),
+              let contextAfter = availableContexts[safe: contextIndex.advanced(by: 1)] else {
             return nil
         }
         return contextAfter
@@ -339,6 +349,13 @@ extension StoryPageViewController: StoryContextViewControllerDelegate {
         _ storyContextViewController: StoryContextViewController,
         loadPositionIfRead: StoryContextViewController.LoadPosition
     ) {
+        guard
+            pendingTransitionViewControllers.isEmpty,
+            storyContextViewController == currentContextViewController
+        else {
+            return
+        }
+
         guard let nextContext = nextStoryContext else {
             dismiss(animated: true)
             return
@@ -374,8 +391,8 @@ extension StoryPageViewController: StoryContextViewControllerDelegate {
     }
 
     func storyContextViewController(_ storyContextViewController: StoryContextViewController, contextAfter context: StoryContext) -> StoryContext? {
-        guard let contextIndex = viewableContexts.firstIndex(of: context),
-              let contextAfter = viewableContexts[safe: contextIndex.advanced(by: 1)] else {
+        guard let contextIndex = availableContexts.firstIndex(of: context),
+              let contextAfter = availableContexts[safe: contextIndex.advanced(by: 1)] else {
             return nil
         }
         return contextAfter
@@ -426,13 +443,13 @@ extension StoryPageViewController: UIViewControllerTransitioningDelegate {
             presentingViewController: presentingViewController,
             isPresenting: false
         ) else {
-            return StorySlideAnimator(interactiveEdge: interactiveDismissCoordinator?.interactiveEdge ?? .none)
+            return StorySlideAnimator(coordinator: interactiveDismissCoordinator)
         }
         return StoryZoomAnimator(storyTransitionContext: storyTransitionContext)
     }
 
     public func interactionControllerForDismissal(using animator: UIViewControllerAnimatedTransitioning) -> UIViewControllerInteractiveTransitioning? {
-        guard let interactiveDismissCoordinator = interactiveDismissCoordinator, interactiveDismissCoordinator.interactionInProgress else { return nil }
+        guard interactiveDismissCoordinator.interactionInProgress else { return nil }
         interactiveDismissCoordinator.mode = animator is StoryZoomAnimator ? .zoom : .slide
         return interactiveDismissCoordinator
     }
@@ -490,8 +507,7 @@ extension StoryPageViewController: UIViewControllerTransitioningDelegate {
             storyThumbnailSize: try storyThumbnailSize(for: storyMessage),
             thumbnailRepresentsStoryView: thumbnailRepresentsStoryView,
             pageViewController: self,
-            interactiveGesture: interactiveDismissCoordinator?.interactionInProgress == true
-                ? interactiveDismissCoordinator?.panGestureRecognizer : nil
+            coordinator: interactiveDismissCoordinator
         )
     }
 

@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2022 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -82,7 +83,7 @@ class StoryPrivacySettingsViewController: OWSTableViewController2 {
 
         let storyItems = databaseStorage.read { transaction -> [StoryConversationItem] in
             StoryConversationItem
-                .allItems(includeImplicitGroupThreads: false, transaction: transaction)
+                .allItems(includeImplicitGroupThreads: false, excludeHiddenContexts: false, transaction: transaction)
                 .lazy
                 .map { (item: $0, title: $0.title(transaction: transaction)) }
                 .sorted { lhs, rhs in

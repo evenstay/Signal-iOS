@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2022 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -16,7 +17,27 @@ protocol StoryContextMenuDelegate: AnyObject {
     /// and call the completion block to proceed with deletion.
     func storyContextMenuWillDelete(_ completion: @escaping () -> Void)
 
+    /// Called when a story is hidden or unhidden via context action.
+    /// Returns - true if a toast should be shown, false for no toast. Defaults true.
+    func storyContextMenuDidUpdateHiddenState(_ message: StoryMessage, isHidden: Bool) -> Bool
+
     func storyContextMenuDidFinishDisplayingFollowups()
+}
+
+extension StoryContextMenuDelegate {
+    func storyContextMenuWillNavigateToConversation(_ completion: @escaping () -> Void) {
+        completion()
+    }
+
+    func storyContextMenuWillDelete(_ completion: @escaping () -> Void) {
+        completion()
+    }
+
+    func storyContextMenuDidUpdateHiddenState(_ message: StoryMessage, isHidden: Bool) -> Bool {
+        return true
+    }
+
+    func storyContextMenuDidFinishDisplayingFollowups() {}
 }
 
 class StoryContextMenuGenerator: Dependencies {
@@ -40,7 +61,7 @@ class StoryContextMenuGenerator: Dependencies {
 
     public func contextMenuActions(
         for model: StoryViewModel,
-        sourceView: UIView
+        sourceView: @escaping () -> UIView?
     ) -> [ContextMenuAction] {
         return Self.databaseStorage.read {
             let thread = model.context.thread(transaction: $0)
@@ -58,7 +79,7 @@ class StoryContextMenuGenerator: Dependencies {
         for message: StoryMessage,
         in thread: TSThread?,
         attachment: StoryThumbnailView.Attachment,
-        sourceView: UIView,
+        sourceView: @escaping () -> UIView?,
         transaction: SDSAnyReadTransaction
     ) -> [ContextMenuAction] {
         return [
@@ -75,7 +96,7 @@ class StoryContextMenuGenerator: Dependencies {
     @available(iOS 13, *)
     public func nativeContextMenuActions(
         for model: StoryViewModel,
-        sourceView: UIView
+        sourceView: @escaping () -> UIView?
     ) -> [UIAction] {
         return Self.databaseStorage.read {
             let thread = model.context.thread(transaction: $0)
@@ -94,7 +115,7 @@ class StoryContextMenuGenerator: Dependencies {
         for message: StoryMessage,
         in thread: TSThread?,
         attachment: StoryThumbnailView.Attachment,
-        sourceView: UIView,
+        sourceView: @escaping () -> UIView?,
         transaction: SDSAnyReadTransaction
     ) -> [UIAction] {
         return [
@@ -193,7 +214,7 @@ extension StoryContextMenuGenerator {
                     comment: "Context menu action to unhide the selected story"
                 )
             }
-            icon = .checkCircle24
+            icon = .checkCircle20
         } else {
             if useShortTitle {
                 title = NSLocalizedString(
@@ -206,7 +227,7 @@ extension StoryContextMenuGenerator {
                     comment: "Context menu action to hide the selected story"
                 )
             }
-            icon = .hide24
+            icon = .hide20
         }
         return .init(
             title: title,
@@ -344,7 +365,9 @@ extension StoryContextMenuGenerator {
                 comment: "Toast shown when a story is successfuly unhidden"
             )
         }
-        presentingController?.presentToast(text: toastText)
+        if delegate?.storyContextMenuDidUpdateHiddenState(message, isHidden: shouldHide) ?? true {
+            presentingController?.presentToast(text: toastText)
+        }
     }
 }
 
@@ -363,7 +386,7 @@ extension StoryContextMenuGenerator {
                 "STORIES_INFO_ACTION",
                 comment: "Context menu action to view metadata about the story"
             ),
-            icon: .contextMenuInfo,
+            icon: .contextMenuInfo20,
             handler: { [weak self] completion in
                 self?.presentInfoSheet(message, in: thread)
                 completion(true)
@@ -408,7 +431,7 @@ extension StoryContextMenuGenerator {
                 "STORIES_GO_TO_CHAT_ACTION",
                 comment: "Context menu action to open the chat associated with the selected story"
             ),
-            icon: .open24,
+            icon: .open20,
             handler: { [weak self] completion in
                 if let delegate = self?.delegate {
                     delegate.storyContextMenuWillNavigateToConversation {
@@ -447,7 +470,7 @@ extension StoryContextMenuGenerator {
                 "STORIES_DELETE_STORY_ACTION",
                 comment: "Context menu action to delete the selected story"
             ),
-            icon: .trash24,
+            icon: .trash20,
             handler: { [weak self] completion in
                 guard
                     let strongSelf = self,
@@ -532,7 +555,7 @@ extension StoryContextMenuGenerator {
                 "STORIES_SAVE_STORY_ACTION",
                 comment: "Context menu action to save the selected story"
             ),
-            icon: .messageActionSave24,
+            icon: .messageActionSave20,
             handler: { completion in
                 attachment.save()
                 completion(true)
@@ -619,7 +642,7 @@ extension StoryContextMenuGenerator: ForwardMessageDelegate {
                 "STORIES_FORWARD_STORY_ACTION",
                 comment: "Context menu action to forward the selected story"
             ),
-            icon: .messageActionForward,
+            icon: .messageActionForward20,
             handler: { [weak self] completion in
                 guard
                     let self = self,
@@ -668,7 +691,7 @@ extension StoryContextMenuGenerator {
     private func shareAction(
         message: StoryMessage,
         attachment: StoryThumbnailView.Attachment,
-        sourceView: UIView
+        sourceView: @escaping () -> UIView?
     ) -> GenericContextAction? {
         guard message.authorAddress.isLocalAddress else {
             // Can only share one's own stories.
@@ -679,9 +702,9 @@ extension StoryContextMenuGenerator {
                 "STORIES_SHARE_STORY_ACTION",
                 comment: "Context menu action to share the selected story"
             ),
-            icon: .messageActionShare,
-            handler: { [weak sourceView, weak self] completion in
-                guard let sourceView = sourceView else {
+            icon: .messageActionShare20,
+            handler: { [weak self] completion in
+                guard let sourceView = sourceView() else {
                     completion(false)
                     return
                 }
@@ -780,9 +803,14 @@ private struct GenericContextAction {
             attributes = .destructive
         }
 
+        // No matter what, UIContextMenu forces images to display at this size.
+        let forcedSize = CGSize.square(24)
+        // Add insets to retain the desired size.
+        let margin = max(0, (forcedSize.width - image.size.width) / 2)
+
         return .init(
             title: title,
-            image: image,
+            image: image.withAlignmentRectInsets(.init(margin: -margin)),
             attributes: attributes,
             handler: { _ in
                 handler({ _ in })
@@ -801,13 +829,33 @@ private struct GenericContextAction {
 
         let action = UIContextualAction(
             style: style,
-            title: title,
+            title: nil,
             handler: { _, _, completion in
                 handler(completion)
             }
         )
         action.backgroundColor = backgroundColor
-        action.image = image
+        action.image = contextualActionImage(image: image, title: title)
         return action
+    }
+
+    private func contextualActionImage(image: UIImage, title: String) -> UIImage? {
+        AssertIsOnMainThread()
+        // We need to bake the title text into the image because `UIContextualAction`
+        // doesn't let you specify a font for the title.
+        guard
+            let image = image.withTitle(
+                title,
+                font: UIFont.systemFont(ofSize: 13), // Same as conversation swipe actions view font.
+                color: .ows_white,
+                maxTitleWidth: 68,
+                minimumScaleFactor: CGFloat(8) / CGFloat(13),
+                spacing: 4
+            )
+        else {
+            owsFailDebug("Missing image.")
+            return nil
+        }
+        return image.withRenderingMode(.alwaysTemplate)
     }
 }

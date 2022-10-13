@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2021 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -24,7 +25,7 @@ class DonationMegaphone: MegaphoneView {
                 "DONATE_MEGAPHONE_CANCEL",
                 comment: "Cancel text for donate megaphone"
             )) { [weak self] in
-                self?.markAsSnoozed()
+                self?.markAsSnoozedWithSneakyTransaction()
                 self?.dismiss()
             }
         )

@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2020 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -350,11 +351,11 @@ class MegaphoneView: UIView, ExperienceUpgradeView {
         dismissButton.autoPinEdge(toSuperviewEdge: .top)
     }
 
-    func snoozeButton(fromViewController: UIViewController, snoozeTitle: String = MegaphoneStrings.remindMeLater, snoozeCopy: @escaping () -> String = { MegaphoneStrings.weWillRemindYouLater }) -> Button {
+    func snoozeButton(fromViewController: UIViewController, snoozeTitle: String = MegaphoneStrings.remindMeLater) -> Button {
         return Button(title: snoozeTitle) { [weak self] in
-            self?.markAsSnoozed()
+            self?.markAsSnoozedWithSneakyTransaction()
             self?.dismiss {
-                self?.presentToast(text: snoozeCopy(), fromViewController: fromViewController)
+                self?.presentToast(text: MegaphoneStrings.weWillRemindYouLater, fromViewController: fromViewController)
             }
         }
     }

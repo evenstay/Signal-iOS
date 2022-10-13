@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2016 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -112,6 +113,9 @@ public class CallUIAdapter: NSObject, CallServiceObserver {
     var defaultAdaptee: CallUIAdaptee { callKitAdaptee ?? nonCallKitAdaptee }
 
     func adaptee(for call: SignalCall) -> CallUIAdaptee {
+        guard call.isIndividualCall else {
+            return defaultAdaptee
+        }
         switch call.individualCall.callAdapterType {
         case .nonCallKit: return nonCallKitAdaptee
         case .default: return defaultAdaptee

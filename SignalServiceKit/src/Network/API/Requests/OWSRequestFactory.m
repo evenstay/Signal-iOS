@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2018 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 #import "OWSRequestFactory.h"
@@ -431,8 +432,10 @@ static NSString *_Nullable queryParamForIdentity(OWSIdentity identity)
     OWSAssertDebug(authKey.length > 0);
 
     __block uint32_t registrationId;
+    __block uint32_t pniRegistrationId;
     DatabaseStorageWrite(self.databaseStorage, ^(SDSAnyWriteTransaction *transaction) {
         registrationId = [self.tsAccountManager getOrGenerateRegistrationIdWithTransaction:transaction];
+        pniRegistrationId = [self.tsAccountManager getOrGeneratePniRegistrationIdWithTransaction:transaction];
     });
 
     OWSAES256Key *profileKey = [self.profileManager localProfileKey];
@@ -452,6 +455,7 @@ static NSString *_Nullable queryParamForIdentity(OWSIdentity identity)
         @"fetchesMessages" : @(isManualMessageFetchEnabled), // devices that don't support push must tell the server
                                                              // they fetch messages manually
         @"registrationId" : [NSString stringWithFormat:@"%i", registrationId],
+        @"pniRegistrationId" : [NSString stringWithFormat:@"%i", pniRegistrationId],
         @"unidentifiedAccessKey" : udAccessKey.keyData.base64EncodedString,
         @"unrestrictedUnidentifiedAccess" : @(allowUnrestrictedUD),
     } mutableCopy];
@@ -507,7 +511,7 @@ static NSString *_Nullable queryParamForIdentity(OWSIdentity identity)
     capabilities[@"gv1-migration"] = @(YES);
     capabilities[@"senderKey"] = @(YES);
 
-    if (RemoteConfig.stories) {
+    if (RemoteConfig.stories || isSecondaryDevice) {
         capabilities[@"stories"] = @(YES);
     }
 
@@ -942,23 +946,6 @@ static NSString *_Nullable queryParamForIdentity(OWSIdentity identity)
 
     NSString *path = [NSString stringWithFormat:@"/v1/messages/report/%@/%@", senderUuid.UUIDString, serverGuid];
     return [TSRequest requestWithUrl:[NSURL URLWithString:path] method:@"POST" parameters:@{}];
-}
-
-#pragma mark - Donations
-
-+ (TSRequest *)createPaymentIntentWithAmount:(NSUInteger)amount
-                              inCurrencyCode:(NSString *)currencyCode
-                             withDescription:(nullable NSString *)description
-{
-    NSMutableDictionary *parameters =
-        [@{ @"currency" : currencyCode.lowercaseString, @"amount" : @(amount) } mutableCopy];
-    if (description) {
-        parameters[@"description"] = description;
-    }
-
-    return [TSRequest requestWithUrl:[NSURL URLWithString:@"/v1/donation/authorize-apple-pay"]
-                              method:@"POST"
-                          parameters:parameters];
 }
 
 #pragma mark - Subscriptions

@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2021 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import LibSignalClient
@@ -647,12 +648,16 @@ class MessageManagerRequest: NSObject {
                     return nil
                 }
 
-                if envelope.story {
+                if envelope.story && contentProto.dataMessage?.delete == nil {
                     guard StoryManager.areStoriesEnabled(transaction: transaction) else {
                         Logger.info("Discarding story message received while stories are disabled")
                         return nil
                     }
-                    guard contentProto.storyMessage != nil || (contentProto.dataMessage?.storyContext != nil && contentProto.dataMessage?.groupV2 != nil) else {
+                    guard
+                        contentProto.senderKeyDistributionMessage != nil ||
+                        contentProto.storyMessage != nil ||
+                        (contentProto.dataMessage?.storyContext != nil && contentProto.dataMessage?.groupV2 != nil)
+                    else {
                         owsFailDebug("Discarding story message with invalid content.")
                         return nil
                     }

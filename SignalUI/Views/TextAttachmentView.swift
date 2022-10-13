@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2022 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -39,6 +40,8 @@ open class TextAttachmentView: UIView {
         self.background = background
 
         super.init(frame: .zero)
+
+        clipsToBounds = true
 
         addLayoutGuide(contentLayoutGuide)
         let constraints = [
@@ -86,7 +89,7 @@ open class TextAttachmentView: UIView {
 
     public private(set) var textContentSize: CGSize = .zero
 
-    public override func layoutSubviews() {
+    open override func layoutSubviews() {
         super.layoutSubviews()
 
         // Resize link preview view to its desired size.

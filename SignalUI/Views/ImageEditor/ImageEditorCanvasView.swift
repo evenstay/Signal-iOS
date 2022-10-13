@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2019 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import UIKit
@@ -755,29 +756,26 @@ class ImageEditorCanvasView: AttachmentPrepContentView {
         let fontSize = item.fontSize * imageFrame.size.width / item.fontReferenceImageWidth
         let font = MediaTextView.font(forTextStyle: item.textStyle, pointSize: fontSize)
 
-        let textColor: UIColor = {
-            switch item.decorationStyle {
-            case .none: return item.color.color
-            default: return UIColor.white
-            }
-        }()
-
         let text = item.text.filterForDisplay ?? ""
-        let attributedString = NSMutableAttributedString(string: text,
-                                                         attributes: [ .font: font,
-                                                                       .foregroundColor: textColor ])
-        switch item.decorationStyle {
-        case .underline:
-            attributedString.addAttributes([ .underlineStyle: NSUnderlineStyle.single.rawValue,
-                                             .underlineColor: item.color.color ],
-                                           range: attributedString.entireRange)
-        case .outline:
-            attributedString.addAttributes([ .strokeWidth: -3,
-                                             .strokeColor: item.color.color ],
-                                           range: attributedString.entireRange)
+        let attributedString = NSMutableAttributedString(
+            string: text,
+            attributes: [ .font: font, .foregroundColor: item.textForegroundColor ]
+        )
 
-        default:
-            break
+        if let textDecorationColor = item.textDecorationColor {
+            switch item.decorationStyle {
+            case .underline:
+                attributedString.addAttributes([ .underlineStyle: NSUnderlineStyle.single.rawValue,
+                                                 .underlineColor: textDecorationColor],
+                                               range: attributedString.entireRange)
+            case .outline:
+                attributedString.addAttributes([ .strokeWidth: -3,
+                                                 .strokeColor: textDecorationColor ],
+                                               range: attributedString.entireRange)
+
+            default:
+                break
+            }
         }
 
         let layer = EditorTextLayer(itemId: item.itemId)
@@ -811,9 +809,9 @@ class ImageEditorCanvasView: AttachmentPrepContentView {
         // Enlarge the layer slightly when setting the background color to add some horizontal padding around the text.
         // Unfortunately there's no easy way to add vertical padding because default CATextLayer's behavior
         // is to start drawing text from the top.
-        if item.decorationStyle == .inverted {
+        if let textBackgroundColor = item.textBackgroundColor {
             layer.frame = layer.frame.insetBy(dx: -4, dy: 0)
-            layer.backgroundColor = item.color.color.cgColor
+            layer.backgroundColor = textBackgroundColor.cgColor
             layer.cornerRadius = 8
         }
 

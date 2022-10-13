@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2020 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -423,6 +424,14 @@ public extension OWSTableItem {
     }
 }
 
+public extension OWSTableContents {
+    func addSections<T: Sequence>(_ sections: T) where T.Element == OWSTableSection {
+        for section in sections {
+            addSection(section)
+        }
+    }
+}
+
 // MARK: -
 
 public extension OWSTableItem {
@@ -493,9 +502,7 @@ public extension OWSTableContents {
         if let title = title {
             self.title = title
         }
-        sections.forEach { section in
-            self.addSection(section)
-        }
+        self.addSections(sections)
     }
 
 }

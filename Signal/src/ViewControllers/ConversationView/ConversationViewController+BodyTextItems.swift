@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2021 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -67,7 +68,6 @@ extension ConversationViewController {
             didTapOrLongPressMention(mentionItem.mention)
         case .referencedUser(let referencedUserItem):
             owsFailDebug("Should never have a referenced user item in body text, but tapped \(referencedUserItem)")
-            break
         }
     }
 
@@ -111,7 +111,6 @@ extension ConversationViewController {
             didTapOrLongPressMention(mentionItem.mention)
         case .referencedUser(let referencedUserItem):
             owsFailDebug("Should never have a referenced user item in body text, but long pressed \(referencedUserItem)")
-            break
         }
     }
 

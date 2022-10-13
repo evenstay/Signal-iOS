@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2017 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 #import "Environment.h"
@@ -40,15 +41,10 @@ static Environment *sharedEnvironment = nil;
     //
     // App extensions may be opened multiple times in the same process,
     // so statics will persist.
-    OWSAssertDebug(!sharedEnvironment || !CurrentAppContext().isMainApp);
     OWSAssertDebug(environment);
+    OWSAssertDebug(!sharedEnvironment || !CurrentAppContext().isMainApp || CurrentAppContext().isRunningTests);
 
     sharedEnvironment = environment;
-}
-
-+ (void)clearSharedForTests
-{
-    sharedEnvironment = nil;
 }
 
 - (instancetype)initWithIncomingContactSyncJobQueue:(OWSIncomingContactSyncJobQueue *)incomingContactSyncJobQueue

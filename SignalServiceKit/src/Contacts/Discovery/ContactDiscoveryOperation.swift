@@ -1,12 +1,13 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2020 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
 
 struct DiscoveredContactInfo: Hashable {
-    let e164: String?
-    let uuid: UUID?         // This should be made non-optional when we drop Legacy CDS
+    let e164: String
+    let uuid: UUID
 }
 
 /// An item that fetches contact info from the ContactDiscoveryService

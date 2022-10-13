@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2020 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -210,8 +211,7 @@ extension DeviceTransferService {
         // Check if there is enough space on disk to receive the transfer
 
         guard let freeSpaceInBytes = try? OWSFileSystem.freeSpaceInBytes(
-            forPath: DeviceTransferService.pendingTransferDirectory.path,
-            fileManager: FileManager.default
+            forPath: DeviceTransferService.pendingTransferDirectory
         ) else {
             return self.failTransfer(.assertion, "failed to calculate available disk space")
         }

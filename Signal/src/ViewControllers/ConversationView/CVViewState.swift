@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2020 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -363,7 +364,7 @@ public extension CVViewState {
     var threadUniqueId: String { threadViewModel.threadRecord.uniqueId }
 
     var isPendingMemberRequestsBannerHidden: Bool {
-        get { Self.isPendingMemberRequestsBannerHiding.isHidden(threadUniqueId) }
+        Self.isPendingMemberRequestsBannerHiding.isHidden(threadUniqueId)
     }
 
     func hidePendingMemberRequestsBanner() {
@@ -371,7 +372,7 @@ public extension CVViewState {
     }
 
     var isDroppedGroupMembersBannerHidden: Bool {
-        get { Self.isDroppedGroupMembersBannerHiding.isHidden(threadUniqueId) }
+        Self.isDroppedGroupMembersBannerHiding.isHidden(threadUniqueId)
     }
 
     func hideDroppedGroupMembersBanner() {
@@ -379,7 +380,7 @@ public extension CVViewState {
     }
 
     var isMessageRequestNameCollisionBannerHidden: Bool {
-        get { Self.isMessageRequestNameCollisionBannerHiding.isHidden(threadUniqueId) }
+        Self.isMessageRequestNameCollisionBannerHiding.isHidden(threadUniqueId)
     }
 
     func hideMessageRequestNameCollisionBanner() {

@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2022 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -24,18 +25,8 @@ class StoryItemMediaView: UIView {
     weak var delegate: StoryItemMediaViewDelegate?
     public private(set) var item: StoryItem
 
-    private lazy var gradientProtectionView: UIView = {
-        let gradientLayer = CAGradientLayer()
-        gradientLayer.colors = [
-            UIColor.black.withAlphaComponent(0).cgColor,
-            UIColor.black.withAlphaComponent(0.5).cgColor
-        ]
-        let view = OWSLayerView(frame: .zero) { view in
-            gradientLayer.frame = view.bounds
-        }
-        view.layer.addSublayer(gradientLayer)
-        return view
-    }()
+    private lazy var gradientProtectionView = GradientView(colors: [])
+    private var gradientProtectionViewHeightConstraint: NSLayoutConstraint?
 
     private let bottomContentVStack = UIStackView()
 
@@ -57,7 +48,6 @@ class StoryItemMediaView: UIView {
         addSubview(gradientProtectionView)
         gradientProtectionView.autoPinWidthToSuperview()
         gradientProtectionView.autoPinEdge(toSuperviewEdge: .bottom)
-        gradientProtectionView.autoMatch(.height, to: .height, of: self, withMultiplier: 0.4)
 
         bottomContentVStack.axis = .vertical
         bottomContentVStack.spacing = 24
@@ -109,6 +99,8 @@ class StoryItemMediaView: UIView {
             updateMediaView()
             updateCaption()
         }
+
+        updateGradientProtection()
     }
 
     func updateTimestampText() {
@@ -435,6 +427,12 @@ class StoryItemMediaView: UIView {
         label.adjustsFontSizeToFitWidth = true
         label.minimumScaleFactor = 15/17
         label.textColor = Theme.darkThemePrimaryColor
+
+        label.layer.shadowRadius = 48
+        label.layer.shadowOpacity = 0.8
+        label.layer.shadowColor = UIColor.black.cgColor
+        label.layer.shadowOffset = .zero
+
         return label
     }()
 
@@ -592,6 +590,24 @@ class StoryItemMediaView: UIView {
         }
     }
 
+    private func updateGradientProtection() {
+        gradientProtectionViewHeightConstraint?.isActive = false
+
+        if hasCaption {
+            gradientProtectionViewHeightConstraint = gradientProtectionView.autoMatch(.height, to: .height, of: self, withMultiplier: 0.4)
+            gradientProtectionView.colors = [
+                .clear,
+                .black.withAlphaComponent(0.8)
+            ]
+        } else {
+            gradientProtectionViewHeightConstraint = gradientProtectionView.autoMatch(.height, to: .height, of: self, withMultiplier: 0.2)
+            gradientProtectionView.colors = [
+                .clear,
+                .black.withAlphaComponent(0.6)
+            ]
+        }
+    }
+
     override func layoutSubviews() {
         super.layoutSubviews()
         updateCaptionTruncation()
@@ -744,6 +760,7 @@ class StoryItemMediaView: UIView {
         let imageView = UIImageView()
         imageView.contentMode = .scaleAspectFill
         imageView.image = thumbnailImage
+        imageView.clipsToBounds = true
 
         let blurView = UIVisualEffectView(effect: UIBlurEffect(style: .dark))
         imageView.addSubview(blurView)

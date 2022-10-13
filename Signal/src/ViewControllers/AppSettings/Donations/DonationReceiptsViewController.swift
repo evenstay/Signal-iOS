@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2022 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -97,8 +98,6 @@ class DonationReceiptsViewController: OWSTableViewController2 {
         )
         sections.append(footerSection)
 
-        for section in sections {
-            contents.addSection(section)
-        }
+        contents.addSections(sections)
     }
 }

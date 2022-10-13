@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2022 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -28,7 +29,7 @@ class BadgeGiftingChooseRecipientViewController: OWSViewController {
         recipientPicker.shouldHideLocalRecipient = true
         recipientPicker.allowsSelectingUnregisteredPhoneNumbers = false
         recipientPicker.groupsToShow = .showNoGroups
-        recipientPicker.showUseAsyncSelection = false
+        recipientPicker.shouldUseAsyncSelection = false
         recipientPicker.delegate = self
         addChild(recipientPicker)
         view.addSubview(recipientPicker.view)
@@ -95,9 +96,6 @@ extension BadgeGiftingChooseRecipientViewController: RecipientPickerDelegate {
                          prepareToSelectRecipient recipient: PickedRecipient) -> AnyPromise {
         return AnyPromise(Promise.value(()))
     }
-
-    func recipientPicker(_ recipientPickerViewController: RecipientPickerViewController,
-                         showInvalidRecipientAlert recipient: PickedRecipient) {}
 
     func recipientPicker(_ recipientPickerViewController: RecipientPickerViewController,
                          accessoryMessageForRecipient recipient: PickedRecipient,

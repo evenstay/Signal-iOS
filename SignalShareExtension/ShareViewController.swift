@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2017 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import UIKit
@@ -36,7 +37,7 @@ public class ShareViewController: UIViewController, ShareViewDelegate, SAEFailed
 
         // This should be the first thing we do.
         let appContext = ShareAppExtensionContext(rootViewController: self)
-        SetCurrentAppContext(appContext)
+        SetCurrentAppContext(appContext, false)
 
         DebugLogger.shared().enableTTYLogging()
         if OWSPreferences.isLoggingEnabled() || _isDebugAssertConfiguration() {

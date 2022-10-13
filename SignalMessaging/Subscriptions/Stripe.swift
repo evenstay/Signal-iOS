@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2021 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -14,14 +15,6 @@ public struct Stripe: Dependencies {
         fileprivate init(clientSecret: String) throws {
             self.id = try API.id(for: clientSecret)
             self.clientSecret = clientSecret
-        }
-    }
-
-    public static func donate(amount: NSDecimalNumber, in currencyCode: Currency.Code, for payment: PKPayment) -> Promise<Void> {
-        firstly { () -> Promise<PaymentIntent> in
-            API.createPaymentIntent(for: amount, in: currencyCode)
-        }.then { intent in
-            confirmPaymentIntent(for: payment, clientSecret: intent.clientSecret, paymentIntentId: intent.id)
         }
     }
 
@@ -180,45 +173,6 @@ fileprivate extension Stripe {
                 return components[0]
             } else {
                 throw OWSAssertionError("Invalid client secret")
-            }
-        }
-
-        static func createPaymentIntent(
-            for amount: NSDecimalNumber,
-            in currencyCode: Currency.Code
-        ) -> Promise<(PaymentIntent)> {
-            firstly(on: .sharedUserInitiated) { () -> Promise<HTTPResponse> in
-                guard !isAmountTooSmall(amount, in: currencyCode) else {
-                    throw OWSAssertionError("Amount too small")
-                }
-
-                guard !isAmountTooLarge(amount, in: currencyCode) else {
-                    throw OWSAssertionError("Amount too large")
-                }
-
-                guard supportedCurrencyCodes.contains(currencyCode.uppercased()) else {
-                    throw OWSAssertionError("Unexpected currency code")
-                }
-
-                // The description is never translated as it's populated into an
-                // english only receipt by Stripe.
-                let request = OWSRequestFactory.createPaymentIntent(
-                        withAmount: integralAmount(amount, in: currencyCode),
-                        inCurrencyCode: currencyCode,
-                        withDescription: LocalizationNotNeeded("Thank you for your donation. Your contribution helps fuel the mission of developing open source privacy technology that protects free expression and enables secure global communication for millions around the world. Signal Technology Foundation is a tax-exempt nonprofit organization in the United States under section 501c3 of the Internal Revenue Code. Our Federal Tax ID is 82-4506840. No goods or services were provided in exchange for this donation. Please retain this receipt for your tax records.")
-                    )
-
-                return networkManager.makePromise(request: request)
-            }.map(on: .sharedUserInitiated) { response in
-                guard let json = response.responseBodyJson else {
-                    throw OWSAssertionError("Missing or invalid JSON")
-                }
-                guard let parser = ParamParser(responseObject: json) else {
-                    throw OWSAssertionError("Failed to decode JSON response")
-                }
-                return try PaymentIntent(
-                    clientSecret: try parser.required(key: "client_secret")
-                )
             }
         }
 

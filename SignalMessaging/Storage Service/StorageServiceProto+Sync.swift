@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2019 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -662,7 +663,7 @@ extension StorageServiceProtoAccountRecord: Dependencies {
 
         builder.setKeepMutedChatsArchived(SSKPreferences.shouldKeepMutedChatsArchived(transaction: transaction))
 
-        builder.setStoriesDisabled(!StoryManager.areStoriesEnabled)
+        builder.setStoriesDisabled(!StoryManager.areStoriesEnabled(transaction: transaction))
 
         return try builder.build()
     }
@@ -909,7 +910,7 @@ extension StorageServiceProtoAccountRecord: Dependencies {
             mergeState = .needsUpdate
         }
 
-        let localStoriesDisabled = !StoryManager.areStoriesEnabled
+        let localStoriesDisabled = !StoryManager.areStoriesEnabled(transaction: transaction)
         if localStoriesDisabled != storiesDisabled {
             StoryManager.setAreStoriesEnabled(!storiesDisabled, shouldUpdateStorageService: false, transaction: transaction)
         }

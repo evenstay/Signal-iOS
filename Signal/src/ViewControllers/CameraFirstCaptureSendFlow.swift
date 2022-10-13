@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2019 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -25,6 +26,7 @@ class CameraFirstCaptureSendFlow: NSObject {
     private var selectedConversations: [ConversationItem] { selection.conversations }
 
     private let storiesOnly: Bool
+    private var showsStoriesInPicker = true
     init(storiesOnly: Bool, delegate: CameraFirstCaptureDelegate?) {
         self.storiesOnly = storiesOnly
         self.delegate = delegate
@@ -69,29 +71,16 @@ extension CameraFirstCaptureSendFlow: SendMediaNavDelegate {
         self.approvedAttachments = attachments
         self.approvalMessageBody = messageBody
 
-        let maxVideoAttachmentDuration: TimeInterval? = attachments
-            .lazy
-            .compactMap { attachment in
-                guard
-                    attachment.isVideo,
-                    let url = attachment.dataUrl
-                else {
-                    return nil
-                }
-                return AVURLAsset(url: url).duration.seconds
-            }
-            .max()
-
         let pickerVC = ConversationPickerViewController(
             selection: selection,
-            maxVideoAttachmentDuration: maxVideoAttachmentDuration
+            attachments: attachments
         )
         pickerVC.pickerDelegate = self
         pickerVC.shouldBatchUpdateIdentityKeys = true
         if storiesOnly {
             pickerVC.isStorySectionExpanded = true
-            pickerVC.sectionOptions = .stories
-        } else {
+            pickerVC.sectionOptions = .storiesOnly
+        } else if showsStoriesInPicker {
             pickerVC.sectionOptions.insert(.stories)
         }
         sendMediaNavigationController.pushViewController(pickerVC, animated: true)
@@ -100,15 +89,25 @@ extension CameraFirstCaptureSendFlow: SendMediaNavDelegate {
     func sendMediaNav(_ sendMediaNavigationController: SendMediaNavigationController, didFinishWithTextAttachment textAttachment: TextAttachment) {
         self.textAttachment = textAttachment
 
-        let pickerVC = ConversationPickerViewController(selection: selection)
+        let pickerVC = ConversationPickerViewController(selection: selection, textAttacment: textAttachment)
         pickerVC.pickerDelegate = self
-        pickerVC.isStorySectionExpanded = true
-        pickerVC.sectionOptions = .stories
+        if showsStoriesInPicker || storiesOnly {
+            pickerVC.isStorySectionExpanded = true
+            pickerVC.sectionOptions = .storiesOnly
+        } else {
+            owsFailDebug("Shouldn't ever have stories disabled with text attachments!")
+        }
         sendMediaNavigationController.pushViewController(pickerVC, animated: true)
     }
 
     func sendMediaNav(_ sendMediaNavigationController: SendMediaNavigationController, didChangeMessageBody newMessageBody: MessageBody?) {
         self.approvalMessageBody = newMessageBody
+    }
+
+    func sendMediaNav(_ sendMediaNavigationController: SendMediaNavigationController, didChangeViewOnceState isViewOnce: Bool) {
+        guard !self.storiesOnly else { return }
+        // Don't enable view once media to send to stories.
+        self.showsStoriesInPicker = !isViewOnce
     }
 }
 

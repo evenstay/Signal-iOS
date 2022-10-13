@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2019 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -14,17 +15,18 @@ public class GRDBSchemaMigrator: NSObject {
     public static let migrationSideEffectsCollectionName = "MigrationSideEffects"
     public static let avatarRepairAttemptCount = "Avatar Repair Attempt Count"
 
-    /// Migrate a database to the latest version.
+    /// Migrate a database to the latest version. Throws if migrations fail.
     ///
     /// - Parameter databaseStorage: The database to migrate.
     /// - Parameter isMainDatabase: A boolean indicating whether this is the main database. If so, some global state will be set.
+    /// - Parameter runDataMigrations: A boolean indicating whether to include data migrations. Typically, you want to omit this value or set it to `true`, but we want to skip them when recovering a corrupted database.
     /// - Returns: `true` if incremental migrations were performed, and `false` otherwise.
     @discardableResult
-    @objc(migrateDatabase:isMainDatabase:)
     public static func migrateDatabase(
         databaseStorage: SDSDatabaseStorage,
-        isMainDatabase: Bool
-    ) -> Bool {
+        isMainDatabase: Bool,
+        runDataMigrations: Bool = true
+    ) throws -> Bool {
         let didPerformIncrementalMigrations: Bool
 
         let grdbStorageAdapter = databaseStorage.grdbStorage
@@ -33,10 +35,12 @@ public class GRDBSchemaMigrator: NSObject {
             do {
                 Logger.info("Using incrementalMigrator.")
                 didPerformIncrementalMigrations = try runIncrementalMigrations(
-                    databaseStorage: databaseStorage
+                    databaseStorage: databaseStorage,
+                    runDataMigrations: runDataMigrations
                 )
             } catch {
-                owsFail("Incremental migrations failed: \(error.grdbErrorForLogging)")
+                owsFailDebug("Incremental migrations failed: \(error.grdbErrorForLogging)")
+                throw error
             }
         } else {
             do {
@@ -44,7 +48,8 @@ public class GRDBSchemaMigrator: NSObject {
                 try newUserMigrator().migrate(grdbStorageAdapter.pool)
                 didPerformIncrementalMigrations = false
             } catch {
-                owsFail("New user migrator failed: \(error.grdbErrorForLogging)")
+                owsFailDebug("New user migrator failed: \(error.grdbErrorForLogging)")
+                throw error
             }
         }
         Logger.info("Migrations complete.")
@@ -57,7 +62,10 @@ public class GRDBSchemaMigrator: NSObject {
         return didPerformIncrementalMigrations
     }
 
-    private static func runIncrementalMigrations(databaseStorage: SDSDatabaseStorage) throws -> Bool {
+    private static func runIncrementalMigrations(
+        databaseStorage: SDSDatabaseStorage,
+        runDataMigrations: Bool
+    ) throws -> Bool {
         let grdbStorageAdapter = databaseStorage.grdbStorage
 
         let previouslyAppliedMigrations = try grdbStorageAdapter.read { transaction in
@@ -70,17 +78,19 @@ public class GRDBSchemaMigrator: NSObject {
         registerSchemaMigrations(migrator: incrementalMigrator)
         try incrementalMigrator.migrate(grdbStorageAdapter.pool)
 
-        // Hack: Load the account state now, so it can be accessed while performing other migrations.
-        // Otherwise one of them might indirectly try to load the account state using a sneaky transaction,
-        // which won't work because migrations use a barrier block to prevent observing database state
-        // before migration.
-        try grdbStorageAdapter.read { transaction in
-            _ = self.tsAccountManager.localAddress(with: transaction.asAnyRead)
-        }
+        if runDataMigrations {
+            // Hack: Load the account state now, so it can be accessed while performing other migrations.
+            // Otherwise one of them might indirectly try to load the account state using a sneaky transaction,
+            // which won't work because migrations use a barrier block to prevent observing database state
+            // before migration.
+            try grdbStorageAdapter.read { transaction in
+                _ = self.tsAccountManager.localAddress(with: transaction.asAnyRead)
+            }
 
-        // Finally, do data migrations.
-        registerDataMigrations(migrator: incrementalMigrator)
-        try incrementalMigrator.migrate(grdbStorageAdapter.pool)
+            // Finally, do data migrations.
+            registerDataMigrations(migrator: incrementalMigrator)
+            try incrementalMigrator.migrate(grdbStorageAdapter.pool)
+        }
 
         let allAppliedMigrations = try grdbStorageAdapter.read { transaction in
             try DatabaseMigrator().appliedIdentifiers(transaction.database)
@@ -241,6 +251,8 @@ public class GRDBSchemaMigrator: NSObject {
         case dataMigration_indexMultipleNameComponentsForReceipients
         case dataMigration_syncGroupStories
         case dataMigration_deleteOldGroupCapabilities
+        case dataMigration_updateStoriesDisabledInAccountRecord
+        case dataMigration_removeGroupStoryRepliesFromSearchIndex
     }
 
     public static let grdbSchemaVersionDefault: UInt = 0
@@ -2488,6 +2500,32 @@ public class GRDBSchemaMigrator: NSObject {
             """
             do {
                 try db.execute(sql: sql)
+            } catch {
+                owsFail("Error \(error)")
+            }
+        }
+
+        migrator.registerMigration(.dataMigration_updateStoriesDisabledInAccountRecord) { db in
+            storageServiceManager.recordPendingLocalAccountUpdates()
+        }
+
+        migrator.registerMigration(.dataMigration_removeGroupStoryRepliesFromSearchIndex) { db in
+            do {
+                let uniqueIdSql = """
+                    SELECT \(interactionColumn: .uniqueId)
+                    FROM \(InteractionRecord.databaseTableName)
+                    WHERE \(interactionColumn: .isGroupStoryReply) = 1
+                """
+                let uniqueIds = try String.fetchAll(db, sql: uniqueIdSql)
+
+                guard !uniqueIds.isEmpty else { return }
+
+                let indexUpdateSql = """
+                    DELETE FROM \(GRDBFullTextSearchFinder.contentTableName)
+                    WHERE \(GRDBFullTextSearchFinder.uniqueIdColumn) IN (\(uniqueIds.map { "\"\($0)\"" }.joined(separator: ", ")))
+                    AND \(GRDBFullTextSearchFinder.collectionColumn) = "\(TSInteraction.collection())"
+                """
+                try db.execute(sql: indexUpdateSql)
             } catch {
                 owsFail("Error \(error)")
             }

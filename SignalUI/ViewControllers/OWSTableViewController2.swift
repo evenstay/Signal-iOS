@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2021 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -379,11 +380,15 @@ extension OWSTableViewController2: UITableViewDataSource, UITableViewDelegate {
             cell.backgroundView?.removeFromSuperview()
             cell.backgroundView = nil
             cell.selectedBackgroundView?.removeFromSuperview()
-            cell.selectedBackgroundView = nil
             cell.backgroundColor = .clear
             cell.contentView.backgroundColor = .clear
 
             guard section.hasBackground else {
+                let selectedBackgroundView = UIView()
+                selectedBackgroundView.backgroundColor = forceDarkMode
+                    ? Theme.darkThemeTableCell2SelectedBackgroundColor
+                    : Theme.tableCell2SelectedBackgroundColor
+                cell.selectedBackgroundView = selectedBackgroundView
                 return
             }
 

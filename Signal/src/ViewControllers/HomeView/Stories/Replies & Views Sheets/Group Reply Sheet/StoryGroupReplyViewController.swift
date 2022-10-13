@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2022 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -15,10 +16,16 @@ class StoryGroupReplyViewController: OWSViewController, StoryReplySheet {
 
     private(set) lazy var tableView = UITableView()
 
-    private let bottomBar = UIView()
+    let bottomBar = UIView()
     private(set) lazy var inputToolbar = StoryReplyInputToolbar()
     private lazy var bottomBarBottomConstraint = bottomBar.autoPinEdge(toSuperviewEdge: .bottom)
     private lazy var contextMenu = ContextMenuInteraction(delegate: self)
+
+    private enum BottomBarMode {
+        case member
+        case nonMember
+    }
+    private var bottomBarMode: BottomBarMode?
 
     private lazy var inputAccessoryPlaceholder: InputAccessoryViewPlaceholder = {
         let placeholder = InputAccessoryViewPlaceholder()
@@ -77,7 +84,7 @@ class StoryGroupReplyViewController: OWSViewController, StoryReplySheet {
         bottomBar.autoPinWidthToSuperview()
         bottomBarBottomConstraint.isActive = true
 
-        for type in StoryGroupReplyCell.CellType.allCases {
+        for type in StoryGroupReplyCell.CellType.all {
             tableView.register(StoryGroupReplyCell.self, forCellReuseIdentifier: type.rawValue)
         }
 
@@ -89,6 +96,7 @@ class StoryGroupReplyViewController: OWSViewController, StoryReplySheet {
         emptyStateView.autoPinEdge(.bottom, to: .top, of: bottomBar)
 
         updateBottomBarContents()
+        updateBottomBarPosition()
     }
 
     public override var inputAccessoryView: UIView? { inputAccessoryPlaceholder }
@@ -272,6 +280,10 @@ extension StoryGroupReplyViewController: InputAccessoryViewPlaceholderDelegate {
     }
 
     func updateBottomBarPosition() {
+        guard isViewLoaded else {
+            return
+        }
+
         bottomBarBottomConstraint.constant = -inputAccessoryPlaceholder.keyboardOverlap
 
         // We always want to apply the new bottom bar position immediately,
@@ -280,33 +292,53 @@ extension StoryGroupReplyViewController: InputAccessoryViewPlaceholderDelegate {
     }
 
     func updateBottomBarContents() {
-        bottomBar.removeAllSubviews()
-
         // Fetch the latest copy of the thread
         thread = databaseStorage.read { storyMessage.context.thread(transaction: $0) }
 
-        guard let groupThread = thread as? TSGroupThread else { return }
+        guard let groupThread = thread as? TSGroupThread else {
+            bottomBar.removeAllSubviews()
+            return owsFailDebug("Unexpectedly missing group thread")
+        }
 
         if groupThread.isLocalUserFullMember {
-            bottomBar.addSubview(inputToolbar)
-            inputToolbar.autoPinEdgesToSuperviewEdges()
-        } else {
-            let label = UILabel()
-            label.font = .ows_dynamicTypeSubheadline
-            label.text = NSLocalizedString(
-                "STORIES_GROUP_REPLY_NOT_A_MEMBER",
-                comment: "Text indicating you can't reply to a group story because you're not a member of the group"
-            )
-            label.textColor = .ows_gray05
-            label.textAlignment = .center
-            label.numberOfLines = 0
-            label.alpha = 0.7
-            label.setContentHuggingVerticalHigh()
+            switch bottomBarMode {
+            case .member:
+                // Nothing to do, we're already in the right state
+                break
+            case .nonMember, .none:
+                bottomBar.removeAllSubviews()
+                bottomBar.addSubview(inputToolbar)
+                inputToolbar.autoPinEdgesToSuperviewEdges()
+            }
 
-            bottomBar.addSubview(label)
-            label.autoPinWidthToSuperview(withMargin: 37)
-            label.autoPinEdge(toSuperviewEdge: .top, withInset: 8)
-            label.autoPinEdge(toSuperviewSafeArea: .bottom, withInset: 8)
+            bottomBarMode = .member
+        } else {
+            switch bottomBarMode {
+            case .nonMember:
+                // Nothing to do, we're already in the right state
+                break
+            case .member, .none:
+                bottomBar.removeAllSubviews()
+
+                let label = UILabel()
+                label.font = .ows_dynamicTypeSubheadline
+                label.text = NSLocalizedString(
+                    "STORIES_GROUP_REPLY_NOT_A_MEMBER",
+                    comment: "Text indicating you can't reply to a group story because you're not a member of the group"
+                )
+                label.textColor = .ows_gray05
+                label.textAlignment = .center
+                label.numberOfLines = 0
+                label.alpha = 0.7
+                label.setContentHuggingVerticalHigh()
+
+                bottomBar.addSubview(label)
+                label.autoPinWidthToSuperview(withMargin: 37)
+                label.autoPinEdge(toSuperviewEdge: .top, withInset: 8)
+                label.autoPinEdge(toSuperviewSafeArea: .bottom, withInset: 8)
+            }
+
+            bottomBarMode = .nonMember
         }
 
         updateBottomBarPosition()
@@ -340,7 +372,7 @@ extension StoryGroupReplyViewController: ContextMenuInteractionDelegate {
 
             var actions = [ContextMenuAction]()
 
-            if item.cellType != .reaction {
+            if !item.cellType.isReaction {
                 actions.append(.init(
                     title: NSLocalizedString(
                         "STORIES_COPY_REPLY_ACTION",
@@ -363,7 +395,7 @@ extension StoryGroupReplyViewController: ContextMenuInteractionDelegate {
                     guard let message = Self.databaseStorage.read(
                         block: { TSMessage.anyFetchMessage(uniqueId: item.interactionUniqueId, transaction: $0) }
                     ) else { return }
-                    message.presentDeletionActionSheet(from: self)
+                    message.presentDeletionActionSheet(from: self, forceDarkTheme: true)
                 }))
 
             return .init(actions)

@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2017 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -197,7 +198,7 @@ class MessageDetailViewController: OWSTableViewController2 {
         if isIncoming {
             contents.addSection(buildSenderSection())
         } else {
-            buildStatusSections().forEach { contents.addSection($0) }
+            contents.addSections(buildStatusSections())
         }
 
         self.contents = contents
@@ -340,7 +341,8 @@ class MessageDetailViewController: OWSTableViewController2 {
         return section
     }
 
-    @objc private func didTapCell(_ sender: UITapGestureRecognizer) {
+    @objc
+    private func didTapCell(_ sender: UITapGestureRecognizer) {
         // For now, only allow tapping on audio cells. The full gamut of cell types
         // might result in unexpected behaviors if made tappable from the detail view.
         guard renderItem?.componentState.audioAttachment != nil else {

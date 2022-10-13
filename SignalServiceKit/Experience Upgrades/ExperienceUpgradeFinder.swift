@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2017 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -175,21 +176,9 @@ public class ExperienceUpgradeFinder: NSObject {
         return allActiveExperienceUpgrades(transaction: transaction).first { !$0.isSnoozed }
     }
 
-    public class func allIncomplete(transaction: GRDBReadTransaction) -> [ExperienceUpgrade] {
-        return allActiveExperienceUpgrades(transaction: transaction).filter { !$0.isComplete }
-    }
-
-    public class func hasIncomplete(experienceUpgradeId: ExperienceUpgradeId, transaction: GRDBReadTransaction) -> Bool {
-        return allIncomplete(transaction: transaction).contains { experienceUpgradeId.rawValue == $0.uniqueId }
-    }
-
     public class func markAsViewed(experienceUpgrade: ExperienceUpgrade, transaction: GRDBWriteTransaction) {
         Logger.info("marking experience upgrade as seen \(experienceUpgrade.uniqueId)")
         experienceUpgrade.markAsViewed(transaction: transaction.asAnyWrite)
-    }
-
-    public class func hasUnsnoozed(experienceUpgradeId: ExperienceUpgradeId, transaction: GRDBReadTransaction) -> Bool {
-        return allIncomplete(transaction: transaction).first { experienceUpgradeId.rawValue == $0.uniqueId }?.isSnoozed == false
     }
 
     public class func markAsSnoozed(experienceUpgradeId: ExperienceUpgradeId, transaction: GRDBWriteTransaction) {
@@ -251,7 +240,7 @@ public class ExperienceUpgradeFinder: NSObject {
                 return
             }
 
-            if !experienceUpgrade.isComplete && !experienceUpgrade.hasCompletedVisibleDuration {
+            if !experienceUpgrade.isComplete {
                 experienceUpgrades.append(experienceUpgrade)
             }
 
@@ -291,14 +280,4 @@ public extension ExperienceUpgrade {
         let secondsSinceFirstView = -Date(timeIntervalSince1970: firstViewedTimestamp).timeIntervalSinceNow
         return Int(secondsSinceFirstView / kDayInterval)
     }
-
-    var hasCompletedVisibleDuration: Bool {
-        switch experienceId {
-        // To have a megaphone dismiss after N days, you can create a case like the following
-        // case .researchMegaphone1: return daysSinceFirstViewed >= 7
-        default: return false
-        }
-    }
-
-    var hasViewed: Bool { firstViewedTimestamp > 0 }
 }

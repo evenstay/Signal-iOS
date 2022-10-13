@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2018 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 #import "MockSSKEnvironment.h"
@@ -167,14 +168,6 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)setContactsManagerForMockEnvironment:(id<ContactsManagerProtocol>)contactsManager
 {
     [super setContactsManagerRef:contactsManager];
-}
-
-- (void)configureGrdb
-{
-    OWSAssertIsOnMainThread();
-
-    SDSDatabaseStorage *mainDatabase = self.databaseStorage;
-    [GRDBSchemaMigrator migrateDatabase:mainDatabase isMainDatabase:true];
 }
 
 @end

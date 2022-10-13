@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2022 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import UIKit
@@ -9,6 +10,7 @@ public class StoryDirectReplySheet: OWSViewController, StoryReplySheet {
 
     var dismissHandler: (() -> Void)?
 
+    var bottomBar: UIView { inputToolbar }
     lazy var inputToolbar: StoryReplyInputToolbar = {
         let quotedReplyModel = databaseStorage.read {
             OWSQuotedReplyModel.quotedReply(from: storyMessage, transaction: $0)

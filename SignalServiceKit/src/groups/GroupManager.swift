@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2019 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -209,10 +210,6 @@ public class GroupManager: NSObject {
 
         return firstly { () -> Promise<Void> in
             return self.ensureLocalProfileHasCommitmentIfNecessary()
-        }.then(on: .global()) { () -> Promise<Void> in
-            var memberSet = Set(membersParam)
-            memberSet.insert(localAddress)
-            return self.tryToEnableGroupsV2(for: Array(memberSet), isBlocking: true, ignoreErrors: true)
         }.map(on: .global()) { () throws -> GroupMembership in
             // Build member list.
             //

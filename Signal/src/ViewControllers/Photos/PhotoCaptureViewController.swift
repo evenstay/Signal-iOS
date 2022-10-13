@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2019 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import AVFoundation
@@ -599,9 +600,16 @@ class PhotoCaptureViewController: OWSViewController {
             if isIPadUIInRegularMode {
                 view.removeConstraints(textEditoriPhoneConstraints)
                 view.addConstraints(textEditoriPadConstraints)
+
+                bottomBar.constrainControlButtonsLayoutGuideHorizontallyTo(
+                    leadingAnchor: textStoryComposerView.leadingAnchor,
+                    trailingAnchor: textStoryComposerView.trailingAnchor
+                )
             } else {
                 view.removeConstraints(textEditoriPadConstraints)
                 view.addConstraints(textEditoriPhoneConstraints)
+
+                bottomBar.constrainControlButtonsLayoutGuideHorizontallyTo(leadingAnchor: nil, trailingAnchor: nil)
             }
         }
     }
@@ -697,8 +705,9 @@ extension PhotoCaptureViewController {
         // Choose Background and Attach Link buttons.
         // Toolbar is added to VC's view because it might be located outside of the textStoryComposerView.
         view.addSubview(textEditorToolbar)
-        // Align leading edge of Background button to leading edge of the Close button at the top.
-        view.addConstraint(textEditorToolbar.leadingAnchor.constraint(equalTo: topBar.controlsLayoutGuide.leadingAnchor))
+        // Align leading edge of Background button to leading edge of the content area of the `bottomBar`,
+        // which is in turn might constrained to the leading edge of text editor "card".
+        view.addConstraint(textEditorToolbar.leadingAnchor.constraint(equalTo: bottomBar.controlButtonsLayoutGuide.leadingAnchor))
         if bottomBar.isCompactHeightLayout {
             // On devices without top and bottom safe areas buttons are placed above CAMERA | TEXT controls.
             textEditoriPhoneConstraints.append(
@@ -751,6 +760,21 @@ extension PhotoCaptureViewController {
         // Background and Add Link buttons are vertically centered with CAMERA|TEXT switch and Proceed button.
         textEditoriPadConstraints.append(
             textEditorToolbar.centerYAnchor.constraint(equalTo: bottomBar.controlButtonsLayoutGuide.centerYAnchor))
+
+        // Additional constraint that will at least 20 dp between Add Link button and CAMERA|TEXT switch.
+        // This constraint will override
+        textEditoriPadConstraints.append(
+            textEditorToolbar.trailingAnchor.constraint(
+                lessThanOrEqualTo: bottomBar.contentTypeSelectionControl.leadingAnchor,
+                constant: -20
+            )
+        )
+        if isIPadUIInRegularMode {
+            bottomBar.constrainControlButtonsLayoutGuideHorizontallyTo(
+                leadingAnchor: textStoryComposerView.leadingAnchor,
+                trailingAnchor: textStoryComposerView.trailingAnchor
+            )
+        }
 
         view.addConstraints(textEditoriPadConstraints)
     }
@@ -809,7 +833,19 @@ extension PhotoCaptureViewController {
               let endFrame = userInfo[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else { return }
 
         let iPhoneInset = textEditorToolbar.convert(endFrame, from: nil).minY - textEditorToolbar.bounds.maxY
-        let iPadInset = textStoryComposerView.convert(endFrame, from: nil).minY - textStoryComposerView.bounds.maxY
+        var iPadInset: CGFloat = 0
+
+        if isIPadUIInRegularMode {
+            // Detection of the floating keyboard.
+            let keyboardFrame = textStoryComposerView.convert(endFrame, from: nil)
+            if  keyboardFrame.height > 0 &&
+                keyboardFrame.minX <= textStoryComposerView.bounds.minX &&
+                keyboardFrame.maxX >= textStoryComposerView.bounds.maxX {
+                iPadInset = keyboardFrame.minY - textStoryComposerView.bounds.maxY
+            } else {
+                iPadInset = 0
+            }
+        }
 
         let layoutUpdateBlock = {
             iPhoneConstraint.constant = min(iPhoneInset, 0) - 8
@@ -1380,6 +1416,18 @@ private class TextStoryComposerView: TextAttachmentView, UITextViewDelegate {
     private static let textViewBackgroundVMargin = LayoutConstants.textBackgroundVMargin - 8
     private static let textViewBackgroundHMargin = LayoutConstants.textBackgroundHMargin
 
+    override public func layoutSubviews() {
+        super.layoutSubviews()
+        let contentWidth = layoutMarginsGuide.layoutFrame.width
+        if
+            let contentWidthConstraint = textViewAccessoryToolbar.contentWidthConstraint,
+            contentWidthConstraint.constant != contentWidth,
+            contentWidth > 0
+        {
+            contentWidthConstraint.constant = contentWidth
+        }
+    }
+
     public override func layoutTextContentAndLinkPreview() {
         super.layoutTextContentAndLinkPreview()
 
@@ -1519,12 +1567,11 @@ private class TextStoryComposerView: TextAttachmentView, UITextViewDelegate {
     private func didTapTextStyleButton() {
         Logger.verbose("")
 
-        let currentTextStyle = textViewAccessoryToolbar.textStyle
-        let nextTextStyle = MediaTextView.TextStyle(rawValue: currentTextStyle.rawValue + 1) ?? .regular
-        textViewAccessoryToolbar.textStyle = nextTextStyle
+        let textStyle = textViewAccessoryToolbar.textStyle.next()
+        textViewAccessoryToolbar.textStyle = textStyle
 
-        textStyle = {
-            switch nextTextStyle {
+        self.textStyle = {
+            switch textStyle {
             case .regular: return .regular
             case .bold: return .bold
             case .serif: return .serif
@@ -1540,10 +1587,12 @@ private class TextStoryComposerView: TextAttachmentView, UITextViewDelegate {
     private func didTapDecorationStyleButton() {
         Logger.verbose("")
 
-        // Switch between colored text with no background and white text over colored background.
-        let currentDecorationStyle = textViewAccessoryToolbar.decorationStyle
-        let nextDecorationStyle: MediaTextView.DecorationStyle = currentDecorationStyle == .none ? .inverted : .none
-        textViewAccessoryToolbar.decorationStyle = nextDecorationStyle
+        // "Underline" and "Outline" are not available in text story composer.
+        var decorationStyle = textViewAccessoryToolbar.decorationStyle.next()
+        if decorationStyle == .outline || decorationStyle == .underline {
+            decorationStyle = .none
+        }
+        textViewAccessoryToolbar.decorationStyle = decorationStyle
 
         // `textViewAccessoryToolbar` defines both foreground and background color for text based on the decoration style.
         let textForegroundColor = textViewAccessoryToolbar.textForegroundColor

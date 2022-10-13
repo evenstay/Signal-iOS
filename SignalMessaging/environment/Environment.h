@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2014 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 #import <SignalServiceKit/SSKEnvironment.h>
@@ -55,11 +56,6 @@ NS_ASSUME_NONNULL_BEGIN
 @property (atomic, nullable) LightweightCallManager *lightweightCallManagerRef;
 
 @property (class, nonatomic) Environment *shared;
-
-#ifdef TESTABLE_BUILD
-// Should only be called by tests.
-+ (void)clearSharedForTests;
-#endif
 
 @end
 

@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2017 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 #import <SignalUI/BlockListUIUtils.h>
@@ -106,7 +107,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (void)updateFontSizes;
 
-- (void)updateLayoutWithSafeAreaInsets:(UIEdgeInsets)safeAreaInsets;
+/// Returns true if changes were applied
+- (BOOL)updateLayoutWithSafeAreaInsets:(UIEdgeInsets)safeAreaInsets;
 - (void)ensureTextViewHeight;
 
 - (void)viewDidAppear;

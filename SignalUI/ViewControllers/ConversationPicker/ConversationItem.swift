@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2019 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -22,6 +23,7 @@ public protocol ConversationItem {
 
     var image: UIImage? { get }
     var isBlocked: Bool { get }
+    var isStory: Bool { get }
     var disappearingMessagesConfig: OWSDisappearingMessagesConfiguration? { get }
 
     func getExistingThread(transaction: SDSAnyReadTransaction) -> TSThread?
@@ -94,6 +96,8 @@ extension RecentConversationItem: ConversationItem {
         return unwrapped.isBlocked
     }
 
+    var isStory: Bool { return false }
+
     var disappearingMessagesConfig: OWSDisappearingMessagesConfiguration? {
         return unwrapped.disappearingMessagesConfig
     }
@@ -129,6 +133,8 @@ extension ContactConversationItem: Comparable {
 
 extension ContactConversationItem: ConversationItem {
     var outgoingMessageClass: TSOutgoingMessage.Type { TSOutgoingMessage.self }
+
+    var isStory: Bool { return false }
 
     var limitsVideoAttachmentLengthForStories: Bool { return false }
 
@@ -186,6 +192,8 @@ public struct GroupConversationItem: Dependencies {
 extension GroupConversationItem: ConversationItem {
     public var outgoingMessageClass: TSOutgoingMessage.Type { TSOutgoingMessage.self }
 
+    public var isStory: Bool { return false }
+
     public var limitsVideoAttachmentLengthForStories: Bool { return false }
 
     public var messageRecipient: MessageRecipient {
@@ -240,7 +248,11 @@ public struct StoryConversationItem {
         }
     }
 
-    public static func allItems(includeImplicitGroupThreads: Bool, transaction: SDSAnyReadTransaction) -> [StoryConversationItem] {
+    public static func allItems(
+        includeImplicitGroupThreads: Bool,
+        excludeHiddenContexts: Bool,
+        transaction: SDSAnyReadTransaction
+    ) -> [StoryConversationItem] {
         func sortTime(
             for associatedData: StoryContextAssociatedData?,
             thread: TSThread
@@ -261,8 +273,12 @@ public struct StoryConversationItem {
                 transaction: transaction
             )
             .lazy
-            .map { (thread: TSThread) -> (TSThread, StoryContextAssociatedData?) in
-                return (thread, StoryFinder.associatedData(for: thread, transaction: transaction))
+            .compactMap { (thread: TSThread) -> (TSThread, StoryContextAssociatedData?)? in
+                let associatedData = StoryFinder.associatedData(for: thread, transaction: transaction)
+                if excludeHiddenContexts, associatedData?.isHidden ?? false {
+                    return nil
+                }
+                return (thread, associatedData)
             }
             .sorted { lhs, rhs in
                 if (lhs.0 as? TSPrivateStoryThread)?.isMyStory == true { return true }
@@ -389,6 +405,8 @@ extension StoryConversationItem: ConversationItem, Dependencies {
         unwrapped.isBlocked
     }
 
+    public var isStory: Bool { return true }
+
     public var disappearingMessagesConfig: OWSDisappearingMessagesConfiguration? {
         unwrapped.disappearingMessagesConfig
     }
@@ -427,6 +445,8 @@ extension PrivateStoryConversationItem: ConversationItem {
     }
 
     public var isBlocked: Bool { false }
+
+    public var isStory: Bool { return true }
 
     public var disappearingMessagesConfig: OWSDisappearingMessagesConfiguration? { nil }
 

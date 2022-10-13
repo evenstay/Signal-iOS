@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2022 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -55,7 +56,7 @@ class StoryInfoSheet: OWSTableSheetViewController {
 
         switch storyMessage.manifest {
         case .outgoing(let recipientStates):
-            buildStatusSections(for: recipientStates).forEach { contents.addSection($0) }
+            contents.addSections(buildStatusSections(for: recipientStates))
         case .incoming:
             contents.addSection(buildSenderSection())
         }

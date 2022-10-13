@@ -1,5 +1,6 @@
 //
-//  Copyright (c) 2022 Open Whisper Systems. All rights reserved.
+// Copyright 2022 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
 //
 
 import Foundation
@@ -10,7 +11,7 @@ import PhotosUI
 
 class MyStoriesViewController: OWSViewController {
     private let tableView = UITableView(frame: .zero, style: .grouped)
-    private var items = OrderedDictionary<TSThread, [OutgoingStoryItem]>() {
+    private var items = OrderedDictionary<String, [OutgoingStoryItem]>() {
         didSet { emptyStateLabel.isHidden = items.orderedKeys.count > 0 }
     }
     private lazy var emptyStateLabel: UILabel = {
@@ -86,9 +87,12 @@ class MyStoriesViewController: OWSViewController {
                 .flatMap { OutgoingStoryItem.build(message: $0, transaction: transaction) }
         }
 
-        let groupedStories = Dictionary(grouping: outgoingStories) { $0.thread }
+        let groupedStories = Dictionary(grouping: outgoingStories) { $0.thread.uniqueId }
 
-        items = .init(keyValueMap: groupedStories, orderedKeys: groupedStories.keys.sorted { lhs, rhs in
+        items = .init(keyValueMap: groupedStories, orderedKeys: groupedStories.keys.sorted { lhsId, rhsId in
+            guard let lhs = groupedStories[lhsId]?.first?.thread, let rhs = groupedStories[rhsId]?.first?.thread else {
+                return false
+            }
             if (lhs as? TSPrivateStoryThread)?.isMyStory == true { return true }
             if (rhs as? TSPrivateStoryThread)?.isMyStory == true { return false }
             if lhs.lastSentStoryTimestamp == rhs.lastSentStoryTimestamp {
@@ -115,13 +119,13 @@ class MyStoriesViewController: OWSViewController {
     }
 
     private func thread(for section: Int) -> TSThread? {
-        items.orderedKeys[safe: section]
+        return items.orderedValues[safe: section]?.first?.thread
     }
 
     func cell(for message: StoryMessage, and context: StoryContext) -> SentStoryCell? {
         guard let thread = databaseStorage.read(block: { context.thread(transaction: $0) }) else { return nil }
-        guard let section = items.orderedKeys.firstIndex(of: thread) else { return nil }
-        guard let row = items[thread]?.firstIndex(where: { $0.message.uniqueId == message.uniqueId }) else { return nil }
+        guard let section = items.orderedKeys.firstIndex(of: thread.uniqueId) else { return nil }
+        guard let row = items[thread.uniqueId]?.firstIndex(where: { $0.message.uniqueId == message.uniqueId }) else { return nil }
 
         let indexPath = IndexPath(row: row, section: section)
         guard tableView.indexPathsForVisibleRows?.contains(indexPath) == true else { return nil }
@@ -141,7 +145,7 @@ extension MyStoriesViewController: UITableViewDelegate {
 
         let vc = StoryPageViewController(
             context: thread.storyContext,
-            viewableContexts: items.orderedKeys.map { $0.storyContext },
+            viewableContexts: items.orderedKeys.compactMap { items[$0]?.first?.thread.storyContext },
             loadMessage: item.message,
             onlyRenderMyStories: true
         )
@@ -178,10 +182,7 @@ extension MyStoriesViewController: UITableViewDelegate {
 
     @available(iOS 13, *)
     func tableView(_ tableView: UITableView, contextMenuConfigurationForRowAt indexPath: IndexPath, point: CGPoint) -> UIContextMenuConfiguration? {
-        guard
-            let item = item(for: indexPath),
-            let cell = tableView.cellForRow(at: indexPath) as? SentStoryCell
-        else {
+        guard let item = item(for: indexPath) else {
             return nil
         }
 
@@ -190,7 +191,10 @@ extension MyStoriesViewController: UITableViewDelegate {
                 for: item.message,
                 in: item.thread,
                 attachment: item.attachment,
-                sourceView: cell,
+                sourceView: { [weak self] in
+                    // refetch the cell in case it changes out from underneath us.
+                    return self?.tableView(tableView, cellForRowAt: indexPath)
+                },
                 transaction: transaction
             )
         }
@@ -265,7 +269,6 @@ extension MyStoriesViewController: ContextMenuButtonDelegate {
     func contextMenuConfiguration(for contextMenuButton: DelegatingContextMenuButton) -> ContextMenuConfiguration? {
         guard
             let indexPath = (contextMenuButton as? IndexPathContextMenuButton)?.indexPath,
-            let cell = tableView.dequeueReusableCell(withIdentifier: SentStoryCell.reuseIdentifier, for: indexPath) as? SentStoryCell,
             let item = self.item(for: indexPath)
         else {
             return nil
@@ -275,7 +278,10 @@ extension MyStoriesViewController: ContextMenuButtonDelegate {
                 for: item.message,
                 in: item.thread,
                 attachment: item.attachment,
-                sourceView: cell,
+                sourceView: { [weak self] in
+                    // refetch the cell in case it changes out from underneath us.
+                    return self?.tableView.dequeueReusableCell(withIdentifier: SentStoryCell.reuseIdentifier, for: indexPath)
+                },
                 transaction: transaction
             )
         }
@@ -302,8 +308,11 @@ extension MyStoriesViewController: ForwardMessageDelegate {
 }
 
 extension MyStoriesViewController: StoryPageViewControllerDataSource {
-    func storyPageViewControllerAvailableContexts(_ storyPageViewController: StoryPageViewController) -> [StoryContext] {
-        items.orderedKeys.map { $0.storyContext }
+    func storyPageViewControllerAvailableContexts(
+        _ storyPageViewController: StoryPageViewController,
+        hiddenStoryFilter: Bool?
+    ) -> [StoryContext] {
+        return items.orderedValues.compactMap(\.first?.thread.storyContext)
     }
 }
 
