@@ -599,6 +599,9 @@ extension StorageServiceProtoAccountRecord: Dependencies {
         let readReceiptsEnabled = receiptManager.areReadReceiptsEnabled()
         builder.setReadReceipts(readReceiptsEnabled)
 
+        let storyViewReceiptsEnabled = StoryManager.areViewReceiptsEnabled(transaction: transaction)
+        builder.setStoryViewReceiptsEnabled(.init(storyViewReceiptsEnabled))
+
         let sealedSenderIndicatorsEnabled = preferences.shouldShowUnidentifiedDeliveryIndicators(transaction: transaction)
         builder.setSealedSenderIndicators(sealedSenderIndicatorsEnabled)
 
@@ -656,6 +659,7 @@ extension StorageServiceProtoAccountRecord: Dependencies {
 
         builder.setMyStoryPrivacyHasBeenSet(StoryManager.hasSetMyStoriesPrivacy(transaction: transaction))
 
+        builder.setReadOnboardingStory(Self.systemStoryManager.isOnboardingStoryRead(transaction: transaction))
         builder.setViewedOnboardingStory(Self.systemStoryManager.isOnboardingStoryViewed(transaction: transaction))
 
         builder.setDisplayBadgesOnProfile(subscriptionManager.displayBadgesOnProfile(transaction: transaction))
@@ -738,6 +742,15 @@ extension StorageServiceProtoAccountRecord: Dependencies {
         let localReadReceiptsEnabled = receiptManager.areReadReceiptsEnabled()
         if readReceipts != localReadReceiptsEnabled {
             receiptManager.setAreReadReceiptsEnabled(readReceipts, transaction: transaction)
+        }
+
+        let localViewReceiptsEnabled = StoryManager.areViewReceiptsEnabled(transaction: transaction)
+        if let storyViewReceiptsEnabled = storyViewReceiptsEnabled?.boolValue {
+            if storyViewReceiptsEnabled != localViewReceiptsEnabled {
+                StoryManager.setAreViewReceiptsEnabled(storyViewReceiptsEnabled, shouldUpdateStorageService: false, transaction: transaction)
+            }
+        } else {
+            mergeState = .needsUpdate
         }
 
         let sealedSenderIndicatorsEnabled = preferences.shouldShowUnidentifiedDeliveryIndicators(transaction: transaction)
@@ -868,6 +881,11 @@ extension StorageServiceProtoAccountRecord: Dependencies {
         let localHasSetMyStoriesPrivacy = StoryManager.hasSetMyStoriesPrivacy(transaction: transaction)
         if !localHasSetMyStoriesPrivacy && myStoryPrivacyHasBeenSet {
             StoryManager.setHasSetMyStoriesPrivacy(transaction: transaction, shouldUpdateStorageService: false)
+        }
+
+        let localHasReadOnboardingStory = systemStoryManager.isOnboardingStoryRead(transaction: transaction)
+        if !localHasReadOnboardingStory && readOnboardingStory {
+            systemStoryManager.setHasReadOnboardingStory(transaction: transaction, updateStorageService: false)
         }
 
         let localHasViewedOnboardingStory = systemStoryManager.isOnboardingStoryViewed(transaction: transaction)
@@ -1173,5 +1191,20 @@ extension StorageServiceProtoStoryDistributionListRecord: Dependencies {
         }
 
         return mergeState
+    }
+}
+
+extension StorageServiceProtoOptionalBool {
+    var boolValue: Bool? {
+        switch self {
+        case .unset: return nil
+        case .true: return true
+        case .false: return false
+        case .UNRECOGNIZED: return nil
+        }
+    }
+
+    init(_ boolValue: Bool) {
+        self = boolValue ? .true : .false
     }
 }

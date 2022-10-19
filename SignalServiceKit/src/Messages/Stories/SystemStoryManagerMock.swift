@@ -26,10 +26,20 @@ public class SystemStoryManagerMock: NSObject, SystemStoryManagerProtocol {
         return cleanUpOnboardingStoryHandler()
     }
 
+    public var isOnboardingStoryRead: Bool = false
+
+    public func isOnboardingStoryRead(transaction: SDSAnyReadTransaction) -> Bool {
+        return isOnboardingStoryRead
+    }
+
     public var isOnboardingStoryViewed: Bool = false
 
     public func isOnboardingStoryViewed(transaction: SDSAnyReadTransaction) -> Bool {
         return isOnboardingStoryViewed
+    }
+
+    public func setHasReadOnboardingStory(transaction: SDSAnyWriteTransaction, updateStorageService: Bool) {
+        return
     }
 
     public func setHasViewedOnboardingStoryOnAnotherDevice(transaction: SDSAnyWriteTransaction) {

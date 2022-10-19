@@ -23,6 +23,8 @@ public class AddGroupMembersViewController: BaseGroupMemberViewController {
     private var newRecipientSet = OrderedSet<PickedRecipient>()
 
     public required init(groupThread: TSGroupThread) {
+        owsAssertDebug(groupThread.isGroupV2Thread, "Can't add members to v1 threads.")
+
         self.groupThread = groupThread
         self.oldGroupModel = groupThread.groupModel
 
@@ -154,10 +156,6 @@ extension AddGroupMembersViewController: GroupMemberViewDelegate {
         !newRecipientSet.isEmpty
     }
 
-    var shouldTryToEnableGroupsV2ForMembers: Bool {
-        groupThread.isGroupV2Thread
-    }
-
     func groupMemberViewRemoveRecipient(_ recipient: PickedRecipient) {
         newRecipientSet.remove(recipient)
         updateNavbar()
@@ -169,9 +167,6 @@ extension AddGroupMembersViewController: GroupMemberViewDelegate {
     }
 
     func groupMemberViewCanAddRecipient(_ recipient: PickedRecipient) -> Bool {
-        guard groupThread.isGroupV2Thread else {
-            return true
-        }
         guard let address = recipient.address else {
             owsFailDebug("Invalid recipient.")
             return false
@@ -180,7 +175,7 @@ extension AddGroupMembersViewController: GroupMemberViewDelegate {
     }
 
     func groupMemberViewShouldShowMemberCount() -> Bool {
-        groupThread.isGroupV2Thread
+        true
     }
 
     func groupMemberViewGroupMemberCountForDisplay() -> Int {
@@ -223,7 +218,7 @@ extension AddGroupMembersViewController: GroupMemberViewDelegate {
     }
 
     func groupMemberViewIsGroupsV2Required() -> Bool {
-        groupThread.isGroupV2Thread
+        true
     }
 
     func groupMemberViewDismiss() {

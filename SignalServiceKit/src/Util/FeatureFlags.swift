@@ -89,9 +89,6 @@ public class FeatureFlags: BaseFlags {
     @objc
     public static let canUseNativeWebsocket = true
 
-    @objc
-    public static let hsmContactDiscovery = false
-
     public static let shouldUseRemoteConfigForReceivingGiftBadges = true
 
     public static let isPrerelease = build.includes(.beta)
@@ -321,9 +318,6 @@ public class DebugFlags: BaseFlags {
 
     @objc
     public static let verboseSignalRecipientLogging = build.includes(.qa)
-
-    @objc
-    public static let shouldMergeUserProfiles = build.includes(.qa)
 
     @objc
     public static let deviceTransferVerboseProgressLogging = build.includes(.qa)

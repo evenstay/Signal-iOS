@@ -81,10 +81,10 @@ public extension ChatListViewController {
     // MARK: -
 
     func showBadgeExpirationSheetIfNeeded() {
-        Logger.info("[Subscriptions] Checking whether we should show badge expiration sheet...")
+        Logger.info("[Donations] Checking whether we should show badge expiration sheet...")
 
         guard !hasShownBadgeExpiration else { // Do this once per launch
-            Logger.info("[Subscriptions] Not showing badge expiration sheet, because we've already done so")
+            Logger.info("[Donations] Not showing badge expiration sheet, because we've already done so")
             return
         }
 
@@ -101,16 +101,16 @@ public extension ChatListViewController {
         )}
 
         guard let expiredBadgeID = expiredBadgeID else {
-            Logger.info("[Subscriptions] No expired badge ID, not showing sheet")
+            Logger.info("[Donations] No expired badge ID, not showing sheet")
             return
         }
 
         guard shouldShowExpirySheet else {
-            Logger.info("[Subscriptions] Not showing badge expiration sheet because the flag is off")
+            Logger.info("[Donations] Not showing badge expiration sheet because the flag is off")
             return
         }
 
-        Logger.info("[Subscriptions] showing expiry sheet for expired badge \(expiredBadgeID)")
+        Logger.info("[Donations] showing expiry sheet for expired badge \(expiredBadgeID)")
 
         if BoostBadgeIds.contains(expiredBadgeID) {
             firstly {
@@ -496,6 +496,32 @@ public extension ChatListViewController {
         }
         navigationController.setViewControllers(viewControllers, animated: false)
         presentFormSheet(navigationController, animated: true, completion: completion)
+    }
+
+    /// Verifies that the currently selected cell matches the provided thread.
+    /// If it does or if the user's in multi-select: Do nothing.
+    /// If it doesn't: Select the first cell matching the provided thread, if one exists. Otherwise, deselect the current row.
+    @objc
+    func ensureSelectedThread(_ targetThread: TSThread, animated: Bool) {
+        // Ignore any updates if we're in multiselect mode. I don't think this can happen,
+        // but if it does let's avoid stepping over the user's manual selection.
+        let currentSelection = tableView.indexPathsForSelectedRows ?? []
+        guard viewState.multiSelectState.isActive == false, currentSelection.count < 2 else {
+            return
+        }
+
+        let currentlySelectedThread = currentSelection.first.flatMap {
+            self.tableDataSource.thread(forIndexPath: $0, expectsSuccess: false)
+        }
+
+        if currentlySelectedThread?.uniqueId != targetThread.uniqueId {
+            if let targetPath = tableDataSource.renderState.indexPath(forUniqueId: targetThread.uniqueId) {
+                tableView.selectRow(at: targetPath, animated: animated, scrollPosition: .none)
+                tableView.scrollToRow(at: targetPath, at: .none, animated: animated)
+            } else if let stalePath = currentSelection.first {
+                tableView.deselectRow(at: stalePath, animated: animated)
+            }
+        }
     }
 }
 

@@ -270,6 +270,7 @@ CREATE
             ,"paymentMethodId" TEXT
             ,"replacementAdminUuid" TEXT
             ,"waitForMessageProcessing" BOOLEAN
+            ,"isCompleteContactSync" BOOLEAN DEFAULT 0
         )
 ;
 
@@ -855,6 +856,7 @@ CREATE
             ,"firstViewedTimestamp" DOUBLE NOT NULL
             ,"lastSnoozedTimestamp" DOUBLE NOT NULL
             ,"isComplete" BOOLEAN NOT NULL
+            ,"manifest" BLOB
         )
 ;
 
@@ -1375,6 +1377,7 @@ CREATE
             ,"latestUnexpiredTimestamp" INTEGER
             ,"lastReceivedTimestamp" INTEGER
             ,"lastViewedTimestamp" INTEGER
+            ,"lastReadTimestamp" INTEGER
         )
 ;
 

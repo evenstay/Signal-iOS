@@ -24,6 +24,7 @@ class StoryGroupReplyViewController: OWSViewController, StoryReplySheet {
     private enum BottomBarMode {
         case member
         case nonMember
+        case blockedByAnnouncementOnly
     }
     private var bottomBarMode: BottomBarMode?
 
@@ -83,6 +84,10 @@ class StoryGroupReplyViewController: OWSViewController, StoryReplySheet {
         view.addSubview(bottomBar)
         bottomBar.autoPinWidthToSuperview()
         bottomBarBottomConstraint.isActive = true
+        // Its a bit silly but this is the easiest way to capture touches
+        // and not let them pass up to any parent scrollviews. pans inside the
+        // bottom bar shouldn't scroll anything.
+        bottomBar.addGestureRecognizer(UIPanGestureRecognizer())
 
         for type in StoryGroupReplyCell.CellType.all {
             tableView.register(StoryGroupReplyCell.self, forCellReuseIdentifier: type.rawValue)
@@ -90,7 +95,7 @@ class StoryGroupReplyViewController: OWSViewController, StoryReplySheet {
 
         replyLoader = StoryGroupReplyLoader(storyMessage: storyMessage, threadUniqueId: thread?.uniqueId, tableView: tableView)
 
-        view.addSubview(emptyStateView)
+        view.insertSubview(emptyStateView, belowSubview: bottomBar)
         emptyStateView.autoPinWidthToSuperview()
         emptyStateView.autoPinEdge(toSuperviewEdge: .top)
         emptyStateView.autoPinEdge(.bottom, to: .top, of: bottomBar)
@@ -300,24 +305,40 @@ extension StoryGroupReplyViewController: InputAccessoryViewPlaceholderDelegate {
             return owsFailDebug("Unexpectedly missing group thread")
         }
 
-        if groupThread.isLocalUserFullMember {
+        if groupThread.canSendChatMessagesToThread() {
             switch bottomBarMode {
             case .member:
                 // Nothing to do, we're already in the right state
                 break
-            case .nonMember, .none:
+            case .nonMember, .blockedByAnnouncementOnly, .none:
                 bottomBar.removeAllSubviews()
                 bottomBar.addSubview(inputToolbar)
                 inputToolbar.autoPinEdgesToSuperviewEdges()
             }
 
             bottomBarMode = .member
+        } else if groupThread.isBlockedByAnnouncementOnly {
+            switch bottomBarMode {
+            case .blockedByAnnouncementOnly:
+                // Nothing to do, we're already in the right state
+                break
+            case .member, .nonMember, .none:
+                bottomBar.removeAllSubviews()
+
+                let view = BlockingAnnouncementOnlyView(thread: groupThread, fromViewController: self, forceDarkMode: true)
+                bottomBar.addSubview(view)
+                view.autoPinWidthToSuperview()
+                view.autoPinEdge(toSuperviewEdge: .top, withInset: 8)
+                view.autoPinEdge(toSuperviewSafeArea: .bottom, withInset: 8)
+            }
+
+            bottomBarMode = .blockedByAnnouncementOnly
         } else {
             switch bottomBarMode {
             case .nonMember:
                 // Nothing to do, we're already in the right state
                 break
-            case .member, .none:
+            case .member, .blockedByAnnouncementOnly, .none:
                 bottomBar.removeAllSubviews()
 
                 let label = UILabel()

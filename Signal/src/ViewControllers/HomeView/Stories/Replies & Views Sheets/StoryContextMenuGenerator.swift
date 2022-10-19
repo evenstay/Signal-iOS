@@ -10,9 +10,6 @@ import SignalServiceKit
 
 protocol StoryContextMenuDelegate: AnyObject {
 
-    /// Delegates should dismiss any context and call the completion block to proceed with navigation.
-    func storyContextMenuWillNavigateToConversation(_ completion: @escaping () -> Void)
-
     /// Delegates should handle any required actions prior to deletion (such as dismissing a viewer)
     /// and call the completion block to proceed with deletion.
     func storyContextMenuWillDelete(_ completion: @escaping () -> Void)
@@ -25,9 +22,6 @@ protocol StoryContextMenuDelegate: AnyObject {
 }
 
 extension StoryContextMenuDelegate {
-    func storyContextMenuWillNavigateToConversation(_ completion: @escaping () -> Void) {
-        completion()
-    }
 
     func storyContextMenuWillDelete(_ completion: @escaping () -> Void) {
         completion()
@@ -80,13 +74,14 @@ class StoryContextMenuGenerator: Dependencies {
         in thread: TSThread?,
         attachment: StoryThumbnailView.Attachment,
         sourceView: @escaping () -> UIView?,
+        hideSaveAction: Bool = false,
         transaction: SDSAnyReadTransaction
     ) -> [ContextMenuAction] {
         return [
             deleteAction(for: message, in: thread),
             hideAction(for: message, transaction: transaction),
             infoAction(for: message, in: thread),
-            saveAction(message: message, attachment: attachment),
+            hideSaveAction ? nil : saveAction(message: message, attachment: attachment),
             forwardAction(message: message),
             shareAction(message: message, attachment: attachment, sourceView: sourceView),
             goToChatAction(thread: thread)
@@ -116,13 +111,14 @@ class StoryContextMenuGenerator: Dependencies {
         in thread: TSThread?,
         attachment: StoryThumbnailView.Attachment,
         sourceView: @escaping () -> UIView?,
+        hideSaveAction: Bool = false,
         transaction: SDSAnyReadTransaction
     ) -> [UIAction] {
         return [
             deleteAction(for: message, in: thread),
             hideAction(for: message, transaction: transaction),
             infoAction(for: message, in: thread),
-            saveAction(message: message, attachment: attachment),
+            hideSaveAction ? nil : saveAction(message: message, attachment: attachment),
             forwardAction(message: message),
             shareAction(message: message, attachment: attachment, sourceView: sourceView),
             goToChatAction(thread: thread)
@@ -432,16 +428,9 @@ extension StoryContextMenuGenerator {
                 comment: "Context menu action to open the chat associated with the selected story"
             ),
             icon: .open20,
-            handler: { [weak self] completion in
-                if let delegate = self?.delegate {
-                    delegate.storyContextMenuWillNavigateToConversation {
-                        Self.signalApp.presentConversation(for: thread, action: .compose, animated: true)
-                        completion(true)
-                    }
-                } else {
-                    Self.signalApp.presentConversation(for: thread, action: .compose, animated: true)
-                    completion(true)
-                }
+            handler: { completion in
+                Self.signalApp.presentConversation(for: thread, action: .compose, animated: true)
+                completion(true)
             }
         )
     }
@@ -568,21 +557,26 @@ extension StoryThumbnailView.Attachment {
 
     var isSaveable: Bool {
         switch self {
-        case .missing, .text:
+        case .missing:
             return false
+        case .text:
+            return true
         case .file(let attachment):
             return (attachment as? TSAttachmentStream)?.isVisualMedia ?? false
         }
     }
 
     func save() {
+        guard let vc = CurrentAppContext().frontmostViewController() else {
+            return owsFailDebug("Missing frontmost view controller")
+        }
+
         switch self {
         case .file(let attachment):
             guard
                 let attachment = attachment as? TSAttachmentStream,
                 attachment.isVisualMedia,
-                let mediaURL = attachment.originalMediaURL,
-                let vc = CurrentAppContext().frontmostViewController()
+                let mediaURL = attachment.originalMediaURL
             else { break }
 
             vc.ows_askForMediaLibraryPermissions { isGranted in
@@ -618,8 +612,41 @@ extension StoryThumbnailView.Attachment {
                     }
                 })
             }
-        case .text:
-            owsFailDebug("Saving text stories is not supported")
+        case .text(let attachment):
+            let view = TextAttachmentView(attachment: attachment)
+            view.frame.size = CGSize(width: 375, height: 666)
+            view.layoutIfNeeded()
+            let image = view.renderAsImage()
+
+            vc.ows_askForMediaLibraryPermissions { isGranted in
+                guard isGranted else {
+                    return
+                }
+
+                PHPhotoLibrary.shared().performChanges({
+                    PHAssetCreationRequest.creationRequestForAsset(from: image)
+                }, completionHandler: { didSucceed, error in
+                    DispatchQueue.main.async {
+                        if didSucceed {
+                            let toastController = ToastController(
+                                text: OWSLocalizedString(
+                                    "STORIES_DID_SAVE",
+                                    comment: "toast alert shown after user taps the 'save' button"
+                                )
+                            )
+                            toastController.presentToastView(from: .bottom, of: vc.view, inset: 16)
+                        } else {
+                            owsFailDebug("error: \(String(describing: error))")
+                            OWSActionSheets.showErrorAlert(
+                                message: OWSLocalizedString(
+                                    "STORIES_SAVE_FAILED",
+                                    comment: "alert notifying that the 'save' operation failed"
+                                )
+                            )
+                        }
+                    }
+                })
+            }
         case .missing:
             owsFailDebug("Unexpectedly missing attachment for story.")
         }

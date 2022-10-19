@@ -195,6 +195,7 @@ extension MyStoriesViewController: UITableViewDelegate {
                     // refetch the cell in case it changes out from underneath us.
                     return self?.tableView(tableView, cellForRowAt: indexPath)
                 },
+                hideSaveAction: true,
                 transaction: transaction
             )
         }
@@ -282,6 +283,7 @@ extension MyStoriesViewController: ContextMenuButtonDelegate {
                     // refetch the cell in case it changes out from underneath us.
                     return self?.tableView.dequeueReusableCell(withIdentifier: SentStoryCell.reuseIdentifier, for: indexPath)
                 },
+                hideSaveAction: true,
                 transaction: transaction
             )
         }
@@ -408,15 +410,20 @@ class SentStoryCell: UITableViewCell {
         fatalError("init(coder:) has not been implemented")
     }
 
+    private var attachment: StoryThumbnailView.Attachment?
+
     fileprivate func configure(
         with item: OutgoingStoryItem,
         contextMenuButtonDelegate: ContextMenuButtonDelegate,
         indexPath: IndexPath
     ) {
-        let thumbnailView = StoryThumbnailView(attachment: item.attachment)
-        attachmentThumbnail.removeAllSubviews()
-        attachmentThumbnail.addSubview(thumbnailView)
-        thumbnailView.autoPinEdgesToSuperviewEdges()
+        if self.attachment != item.attachment {
+            self.attachment = item.attachment
+            let thumbnailView = StoryThumbnailView(attachment: item.attachment)
+            attachmentThumbnail.removeAllSubviews()
+            attachmentThumbnail.addSubview(thumbnailView)
+            thumbnailView.autoPinEdgesToSuperviewEdges()
+        }
 
         titleLabel.textColor = Theme.primaryTextColor
         subtitleLabel.textColor = Theme.isDarkThemeEnabled ? Theme.secondaryTextAndIconColor : .ows_gray45
@@ -434,7 +441,7 @@ class SentStoryCell: UITableViewCell {
                 : NSLocalizedString("STORY_SEND_FAILED", comment: "Text indicating that the story send has failed")
             subtitleLabel.text = NSLocalizedString("STORY_SEND_FAILED_RETRY", comment: "Text indicating that you can tap to retry sending")
         case .sent:
-            if receiptManager.areReadReceiptsEnabled() {
+            if StoryManager.areViewReceiptsEnabled {
                 let format = NSLocalizedString(
                     "STORY_VIEWS_%d", tableName: "PluralAware",
                     comment: "Text explaining how many views a story has. Embeds {{ %d number of views }}"
@@ -469,6 +476,10 @@ class SentStoryCell: UITableViewCell {
         contextButton.setBackgroundImage(UIImage(color: Theme.secondaryBackgroundColor), for: .normal)
         contextButton.delegate = contextMenuButtonDelegate
         contextButton.indexPath = indexPath
+
+        let selectedBackgroundView = UIView()
+        selectedBackgroundView.backgroundColor = Theme.tableCell2SelectedBackgroundColor2
+        self.selectedBackgroundView = selectedBackgroundView
     }
 }
 

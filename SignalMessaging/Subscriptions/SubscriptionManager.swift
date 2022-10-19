@@ -63,7 +63,7 @@ public class SubscriptionLevel: Comparable {
     public let level: UInt
     public let name: String
     public let badge: ProfileBadge
-    public let currency: [String: NSDecimalNumber]
+    public let currency: [String: Decimal]
 
     public init(level: UInt, jsonDictionary: [String: Any]) throws {
         self.level = level
@@ -72,12 +72,12 @@ public class SubscriptionLevel: Comparable {
         let badgeDict: [String: Any] = try params.required(key: "badge")
         badge = try ProfileBadge(jsonDictionary: badgeDict)
         let currencyDict: [String: Any] = try params.required(key: "currencies")
-        currency = currencyDict.compactMapValues {
-            guard let int64Currency = $0 as? Int64 else {
+        currency = currencyDict.compactMapValues { value -> Decimal? in
+            guard let int64Currency = value as? Int64 else {
                 owsFailDebug("Failed to convert currency value")
                 return nil
             }
-            return NSDecimalNumber(value: int64Currency)
+            return Decimal(int64Currency)
         }
     }
 
@@ -126,7 +126,7 @@ public struct Subscription {
 
     public let level: UInt
     public let currency: String
-    public let amount: NSDecimalNumber
+    public let amount: Decimal
     public let endOfCurrentPeriod: TimeInterval
     public let billingCycleAnchor: TimeInterval
     public let active: Bool
@@ -150,7 +150,7 @@ public struct Subscription {
         level = try params.required(key: "level")
         currency = try params.required(key: "currency")
         let amountValue: Int64 = try params.required(key: "amount")
-        amount = NSDecimalNumber(value: amountValue)
+        amount = Decimal(amountValue)
         endOfCurrentPeriod = try params.required(key: "endOfCurrentPeriod")
         billingCycleAnchor = try params.required(key: "billingCycleAnchor")
         active = try params.required(key: "active")
@@ -187,7 +187,7 @@ public class SubscriptionManager: NSObject {
     }
 
     private static func warmCaches() {
-        Logger.info("[Subscriptions] Warming caches")
+        Logger.info("[Donations] Warming caches")
         let value = databaseStorage.read { displayBadgesOnProfile(transaction: $0) }
         displayBadgesOnProfileCache.set(value)
     }
@@ -199,7 +199,7 @@ public class SubscriptionManager: NSObject {
 
         guard !hasMigratedToStorageService else { return }
 
-        Logger.info("[Subscriptions] Migrating to storage service")
+        Logger.info("[Donations] Migrating to storage service")
 
         databaseStorage.write { transaction in
             subscriptionKVS.setBool(true, key: hasMigratedToStorageServiceKey, transaction: transaction)
@@ -325,7 +325,7 @@ public class SubscriptionManager: NSObject {
     // MARK: Subscription management
 
     private class func setupNewSubscriberID() throws -> Promise<Data> {
-        Logger.info("[Subscriptions] Setting up new subscriber ID")
+        Logger.info("[Donations] Setting up new subscriber ID")
         let newSubscriberID = generateSubscriberID()
         return firstly {
             try self.postSubscriberID(subscriberID: newSubscriberID)
@@ -352,7 +352,7 @@ public class SubscriptionManager: NSObject {
     }
 
     public class func setupNewSubscription(subscription: SubscriptionLevel, payment: PKPayment, currencyCode: String) throws -> Promise<Void> {
-        Logger.info("[Subscriptions] Setting up new subscription")
+        Logger.info("[Donations] Setting up new subscription")
 
         var generatedSubscriberID = Data()
         var generatedClientSecret = ""
@@ -427,14 +427,14 @@ public class SubscriptionManager: NSObject {
                                               to subscription: SubscriptionLevel,
                                               payment: PKPayment,
                                               currencyCode: String) throws -> Promise<Void> {
-        Logger.info("[Subscriptions] Updating subscription level")
+        Logger.info("[Donations] Updating subscription level")
 
         let failureReason: SubscriptionRedemptionFailureReason = databaseStorage.read { transaction in
             return self.lastReceiptRedemptionFailed(transaction: transaction)
         }
 
         if failureReason != .none {
-            Logger.info("[Subscriptions] Upgrading subscription with a prior known error state, cancelling and re-setting up")
+            Logger.info("[Donations] Upgrading subscription with a prior known error state, cancelling and re-setting up")
             return firstly {
                 self.cancelSubscription(for: subscriberID)
             }.then(on: .sharedUserInitiated) {
@@ -712,7 +712,7 @@ public class SubscriptionManager: NSObject {
             guard let result = try? receiptCredentialPresentation.getReceiptExpirationTime() else { return "UNKNOWN" }
             return String(result)
         }()
-        Logger.info("[Subscriptions] Redeeming receipt credential presentation. Expires at \(expiresAtForLogging)")
+        Logger.info("[Donations] Redeeming receipt credential presentation. Expires at \(expiresAtForLogging)")
 
         let receiptCredentialPresentationData = receiptCredentialPresentation.serialize().asData
 
@@ -725,7 +725,7 @@ public class SubscriptionManager: NSObject {
         }.map(on: .global()) { response in
             let statusCode = response.responseStatusCode
             if statusCode != 200 {
-                Logger.warn("[Subscriptions] Receipt credential presentation request failed with status code \(statusCode)")
+                Logger.warn("[Donations] Receipt credential presentation request failed with status code \(statusCode)")
                 throw OWSRetryableSubscriptionError()
             }
         }.then(on: .global()) {
@@ -754,7 +754,7 @@ public class SubscriptionManager: NSObject {
         // Kick job queue
         _ = subscriptionJobQueue.runAnyQueuedRetry()
 
-        Logger.info("[Subscriptions] Checking for subscription heartbeat")
+        Logger.info("[Donations] Checking for subscription heartbeat")
 
         // Fetch subscriberID / subscriber currencyCode
         var lastKeepAliveHeartbeat: Date?
@@ -772,7 +772,7 @@ public class SubscriptionManager: NSObject {
             guard let lastSubscriptionExpiration = lastSubscriptionExpiration else { return "nil" }
             return String(lastSubscriptionExpiration.timeIntervalSince1970)
         }()
-        Logger.info("[Subscriptions] Last subscription expiration: \(lastSubscriptionExpirationForLogging)")
+        Logger.info("[Donations] Last subscription expiration: \(lastSubscriptionExpirationForLogging)")
 
         var performHeartbeat: Bool = true
         if let lastKeepAliveHeartbeat = lastKeepAliveHeartbeat, Date().timeIntervalSince(lastKeepAliveHeartbeat) < heartbeatInterval {
@@ -780,19 +780,19 @@ public class SubscriptionManager: NSObject {
         }
 
         guard performHeartbeat else {
-            Logger.info("[Subscriptions] Not performing subscription heartbeat, last heartbeat within allowed interval")
+            Logger.info("[Donations] Not performing subscription heartbeat, last heartbeat within allowed interval")
             return
         }
 
-        Logger.info("[Subscriptions] Performing subscription heartbeat")
+        Logger.info("[Donations] Performing subscription heartbeat")
 
         guard tsAccountManager.isPrimaryDevice else {
-            Logger.info("[Subscriptions] Bailing out of remaining heartbeat tasks, this is not the primary device")
+            Logger.info("[Donations] Bailing out of remaining heartbeat tasks, this is not the primary device")
             return
         }
 
         guard let subscriberID = subscriberID, currencyCode != nil else {
-            Logger.info("[Subscriptions] No subscription + currency code found")
+            Logger.info("[Donations] No subscription + currency code found")
             self.updateSubscriptionHeartbeatDate()
             return
         }
@@ -805,22 +805,22 @@ public class SubscriptionManager: NSObject {
             self.getCurrentSubscriptionStatus(for: subscriberID)
         }.done(on: .sharedBackground) { subscription in
             guard let subscription = subscription else {
-                Logger.info("[Subscriptions] No current subscription for this subscriberID")
+                Logger.info("[Donations] No current subscription for this subscriberID")
                 self.updateSubscriptionHeartbeatDate()
                 return
             }
 
             databaseStorage.write { transaction in
                 if let chargeFailure = subscription.chargeFailure {
-                    Logger.info("[Subscriptions] There was a charge failure. Saving the error code")
+                    Logger.info("[Donations] There was a charge failure. Saving the error code")
 
                     let code: String = chargeFailure.code ?? {
-                        Logger.warn("[Subscriptions] There was a charge failure with no code. Did the server return bad data? Continuing with fallback...")
+                        Logger.warn("[Donations] There was a charge failure with no code. Did the server return bad data? Continuing with fallback...")
                         return SUBSCRIPTION_CHARGE_FAILURE_FALLBACK_CODE
                     }()
                     self.setMostRecentSubscriptionBadgeChargeFailureCode(code: code, transaction: transaction)
                 } else {
-                    Logger.info("[Subscriptions] There no charge failure. Clearing error code, if it existed")
+                    Logger.info("[Donations] There no charge failure. Clearing error code, if it existed")
                     self.clearMostRecentSubscriptionBadgeChargeFailure(transaction: transaction)
                 }
             }
@@ -828,7 +828,7 @@ public class SubscriptionManager: NSObject {
             if let lastSubscriptionExpiration = lastSubscriptionExpiration, lastSubscriptionExpiration.timeIntervalSince1970 < subscription.endOfCurrentPeriod {
                 // Re-kick
                 let newDate = Date(timeIntervalSince1970: subscription.endOfCurrentPeriod)
-                Logger.info("[Subscriptions] Triggering receipt redemption job during heartbeat, last expiration \(lastSubscriptionExpiration), new expiration \(newDate)")
+                Logger.info("[Donations] Triggering receipt redemption job during heartbeat, last expiration \(lastSubscriptionExpiration), new expiration \(newDate)")
                 try self.requestAndRedeemReceiptsIfNecessary(for: subscriberID, subscriptionLevel: subscription.level)
 
                 // Save last expiration
@@ -836,7 +836,7 @@ public class SubscriptionManager: NSObject {
                     self.setLastSubscriptionExpirationDate(Date(timeIntervalSince1970: subscription.endOfCurrentPeriod), transaction: transaction)
                 }
             } else {
-                Logger.info("[Subscriptions] Not triggering receipt redemption, expiration date is the same")
+                Logger.info("[Donations] Not triggering receipt redemption, expiration date is the same")
             }
 
             // Save heartbeat
@@ -856,7 +856,7 @@ public class SubscriptionManager: NSObject {
 
     @objc
     public class func performDeviceSubscriptionExpiryUpdate() {
-        Logger.info("[Subscriptions] doing subscription expiry update")
+        Logger.info("[Donations] doing subscription expiry update")
 
         var lastSubscriptionExpiration: Date?
         var subscriberID: Data?
@@ -875,14 +875,14 @@ public class SubscriptionManager: NSObject {
             self.getCurrentSubscriptionStatus(for: subscriberID)
         }.done(on: .sharedBackground) { subscription in
             guard let subscription = subscription else {
-                Logger.info("[Subscriptions] No current subscription for this subscriberID")
+                Logger.info("[Donations] No current subscription for this subscriberID")
                 return
             }
 
             if let lastSubscriptionExpiration = lastSubscriptionExpiration, lastSubscriptionExpiration.timeIntervalSince1970 == subscription.endOfCurrentPeriod {
-                Logger.info("[Subscriptions] Not updating last subscription expiration, expirations are the same")
+                Logger.info("[Donations] Not updating last subscription expiration, expirations are the same")
             } else {
-                Logger.info("[Subscriptions] Updating last subscription expiration")
+                Logger.info("[Donations] Updating last subscription expiration")
                 // Save last expiration
                 databaseStorage.write { transaction in
                     self.setLastSubscriptionExpirationDate(Date(timeIntervalSince1970: subscription.endOfCurrentPeriod), transaction: transaction)
@@ -1115,30 +1115,54 @@ extension SubscriptionManager {
         }
     }
 
-    public class func getSuggestedBoostAmounts() -> Promise<[Currency.Code: DonationUtilities.Presets.Preset]> {
+    public class func getSuggestedBoostAmounts() -> Promise<[Currency.Code: DonationUtilities.Preset]> {
         firstly {
             networkManager.makePromise(request: OWSRequestFactory.boostSuggestedAmountsRequest())
         }.map { response in
             guard response.responseStatusCode == 200 else {
-                throw OWSAssertionError("Got bad response code \(response.responseStatusCode).")
+                throw OWSGenericError("Got bad response code \(response.responseStatusCode).")
             }
-
-            guard let amounts = response.responseBodyJson as? [String: [UInt]] else {
-                throw OWSAssertionError("Got unexpected response JSON for boost amounts")
-            }
-
-            var presets = [Currency.Code: DonationUtilities.Presets.Preset]()
-            for (key, values) in amounts {
-                presets[key] = .init(
-                    symbol: DonationUtilities.Presets.presets[key]?.symbol ?? .currencyCode,
-                    amounts: values
-                )
-            }
-            return presets
+            return try Self.parseSuggestedBoostAmountsResponse(body: response.responseBodyJson)
         }
     }
 
-    public class func getGiftBadgePricesByCurrencyCode() -> Promise<[Currency.Code: UInt]> {
+    internal class func parseSuggestedBoostAmountsResponse(
+        body: Any?
+    ) throws -> [Currency.Code: DonationUtilities.Preset] {
+        guard let body = body as? [String: Any?] else {
+            throw OWSGenericError("Got unexpected response JSON for boost amounts")
+        }
+
+        var presets = [Currency.Code: DonationUtilities.Preset]()
+        for (rawCurrencyCode, rawAmounts) in body {
+            if rawCurrencyCode.isEmpty {
+                Logger.error("Server gave an empty currency code")
+                continue
+            }
+            let currencyCode = rawCurrencyCode.uppercased()
+
+            guard let amounts = rawAmounts as? [Double] else {
+                Logger.error("Server didn't give an array of doubles for \(currencyCode)")
+                continue
+            }
+            if amounts.isEmpty {
+                Logger.error("Server didn't give any amounts for \(currencyCode)")
+                continue
+            }
+            if amounts.contains(where: { $0 <= 0 }) {
+                Logger.error("Server gave an amount <= 0 for \(currencyCode)")
+                continue
+            }
+
+            presets[currencyCode] = .init(
+                currencyCode: currencyCode,
+                amounts: amounts.map { Decimal($0) }
+            )
+        }
+        return presets
+    }
+
+    public class func getGiftBadgePricesByCurrencyCode() -> Promise<[Currency.Code: Decimal]> {
         firstly {
             networkManager.makePromise(request: OWSRequestFactory.giftBadgePricesRequest())
         }.map { response in
@@ -1146,12 +1170,31 @@ extension SubscriptionManager {
                 throw OWSAssertionError("Got bad response code \(response.responseStatusCode).")
             }
 
-            guard let prices = response.responseBodyJson as? [String: UInt] else {
-                throw OWSAssertionError("Got unexpected response JSON for gift badge amounts")
+            return try parseGiftBadgePricesResponse(body: response.responseBodyJson)
+        }
+    }
+
+    internal class func parseGiftBadgePricesResponse(body: Any?) throws -> [Currency.Code: Decimal] {
+        guard let body = body as? [String: Any?] else {
+            throw OWSGenericError("Got unexpected response JSON for boost amounts")
+        }
+
+        var result = [Currency.Code: Decimal]()
+        for (rawCurrencyCode, rawAmount) in body {
+            if rawCurrencyCode.isEmpty {
+                Logger.error("Server gave an empty currency code")
+                continue
+            }
+            let currencyCode = rawCurrencyCode.uppercased()
+
+            guard let amount = rawAmount as? Double, amount > 0 else {
+                Logger.error("Server gave an invalid amount for \(currencyCode)")
+                continue
             }
 
-            return prices
+            result[currencyCode] = Decimal(amount)
         }
+        return result
     }
 
     public static func requestBoostReceiptCredentialPresentation(for intentId: String,

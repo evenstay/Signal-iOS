@@ -12,10 +12,14 @@ class StoryPrivacySettingsViewController: OWSTableViewController2 {
 
         NotificationCenter.default.addObserver(self, selector: #selector(storiesEnabledStateDidChange), name: .storiesEnabledStateDidChange, object: nil)
 
-        title = NSLocalizedString("STORIES_SETTINGS_TITLE", comment: "Title for the story privacy settings view")
-
         if navigationController?.viewControllers.count == 1 {
+            title = NSLocalizedString("STORY_PRIVACY_TITLE", comment: "Title for the story privacy settings view")
             navigationItem.leftBarButtonItem = .init(barButtonSystemItem: .done, target: self, action: #selector(didTapDone))
+        } else {
+            title = NSLocalizedString(
+                "STORY_SETTINGS_TITLE",
+                comment: "Label for the stories section of the settings view"
+            )
         }
 
         tableView.register(StoryThreadCell.self, forCellReuseIdentifier: StoryThreadCell.reuseIdentifier)
@@ -70,14 +74,14 @@ class StoryPrivacySettingsViewController: OWSTableViewController2 {
         let myStoriesSection = OWSTableSection()
         myStoriesSection.customHeaderView = NewStoryHeaderView(
             title: NSLocalizedString(
-                "STORIES_SETTINGS_MY_STORIES_HEADER",
-                comment: "Header for the 'My Stories' section of the stories settings"
+                "STORIES_SETTINGS_STORIES_HEADER",
+                comment: "Header for the 'Stories' section of the stories settings"
             ),
             delegate: self
         )
         myStoriesSection.footerTitle = NSLocalizedString(
-            "STORIES_SETTINGS_MY_STORIES_FOOTER",
-            comment: "Footer for the 'My Stories' section of the stories settings"
+            "STORIES_SETTINGS_STORIES_FOOTER",
+            comment: "Footer for the 'Stories' section of the stories settings"
         )
         contents.addSection(myStoriesSection)
 
@@ -108,6 +112,19 @@ class StoryPrivacySettingsViewController: OWSTableViewController2 {
                 self?.showSettings(for: item)
             })
         }
+
+        let viewReceiptsSection = OWSTableSection()
+        viewReceiptsSection.footerTitle = NSLocalizedString(
+            "STORIES_SETTINGS_VIEW_RECEIPTS_FOOTER",
+            comment: "Footer for the 'view receipts' section of the stories settings"
+        )
+        viewReceiptsSection.add(.switch(
+            withText: NSLocalizedString("STORIES_SETTINGS_VIEW_RECEIPTS", comment: "Title for the 'view receipts' setting in stories settings"),
+            isOn: { StoryManager.areViewReceiptsEnabled },
+            target: self,
+            selector: #selector(didToggleViewReceipts)
+        ))
+        contents.addSection(viewReceiptsSection)
 
         let turnOffStoriesSection = OWSTableSection()
         turnOffStoriesSection.footerTitle = NSLocalizedString(
@@ -199,6 +216,13 @@ class StoryPrivacySettingsViewController: OWSTableViewController2 {
                     modal.dismiss {}
                 }
             }
+        }
+    }
+
+    @objc
+    func didToggleViewReceipts(_ sender: UISwitch) {
+        databaseStorage.write {
+            StoryManager.setAreViewReceiptsEnabled(sender.isOn, transaction: $0)
         }
     }
 }

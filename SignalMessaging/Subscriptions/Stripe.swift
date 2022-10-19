@@ -18,10 +18,12 @@ public struct Stripe: Dependencies {
         }
     }
 
-    public static func boost(amount: NSDecimalNumber,
-                             in currencyCode: Currency.Code,
-                             level: OneTimeBadgeLevel,
-                             for payment: PKPayment) -> Promise<String> {
+    public static func boost(
+        amount: Decimal,
+        in currencyCode: Currency.Code,
+        level: OneTimeBadgeLevel,
+        for payment: PKPayment
+    ) -> Promise<String> {
         firstly { () -> Promise<PaymentIntent> in
             createBoostPaymentIntent(for: amount, in: currencyCode, level: level)
         }.then { intent in
@@ -30,7 +32,7 @@ public struct Stripe: Dependencies {
     }
 
     public static func createBoostPaymentIntent(
-        for amount: NSDecimalNumber,
+        for amount: Decimal,
         in currencyCode: Currency.Code,
         level: OneTimeBadgeLevel
     ) -> Promise<PaymentIntent> {
@@ -123,31 +125,58 @@ public struct Stripe: Dependencies {
         }
     }
 
-    public static func isAmountTooLarge(_ amount: NSDecimalNumber, in currencyCode: Currency.Code) -> Bool {
-        // Stripe supports a maximum of 8 integral digits.
-        integralAmount(amount, in: currencyCode) > 99_999_999
+    /// Is an amount of money too large?
+    ///
+    /// According to [Stripe's docs][0], amounts can be "up to twelve digits for
+    /// IDR (for example, a value of 999999999999 for a charge of
+    /// 9,999,999,999.99 IDR), and up to eight digits for all other currencies
+    /// (for example, a value of 99999999 for a charge of 999,999.99 USD).
+    ///
+    /// - Parameter amount: The amount of money.
+    /// - Parameter in: The currency code used.
+    /// - Returns: Whether the amount is too large.
+    ///
+    /// [0]: https://stripe.com/docs/currencies?presentment-currency=US#minimum-and-maximum-charge-amounts
+    public static func isAmountTooLarge(_ amount: Decimal, in currencyCode: Currency.Code) -> Bool {
+        let integerAmount = integralAmount(amount, in: currencyCode)
+        let maximum: UInt = currencyCode == "IDR" ? 999999999999 : 99999999
+        return integerAmount > maximum
     }
 
-    public static func isAmountTooSmall(_ amount: NSDecimalNumber, in currencyCode: Currency.Code) -> Bool {
-        // Stripe requires different minimums per currency, but they often depend
-        // on conversion rates which we don't have access to. It's okay to do a best
-        // effort here because stripe will reject the payment anyway, this just allows
-        // us to fail sooner / provide a nicer error to the user.
-        let minimumIntegralAmount = minimumIntegralChargePerCurrencyCode[currencyCode] ?? 50
-        return integralAmount(amount, in: currencyCode) < minimumIntegralAmount
+    /// Is an amount of money too small?
+    ///
+    /// This is a client-side validation, so if we're not sure, we should
+    /// accept the amount.
+    ///
+    /// These minimums are pulled from [Stripe's document minimums][0]. Note
+    /// that Stripe's values are for *settlement* currency (which is always USD
+    /// for Signal), but we use them as helpful minimums anyway.
+    ///
+    /// - Parameter amount: The amount of money.
+    /// - Parameter in: The currency used.
+    /// - Returns: Whether the amount is too small.
+    ///
+    /// [0]: https://stripe.com/docs/currencies?presentment-currency=US#minimum-and-maximum-charge-amounts
+    public static func isAmountTooSmall(_ amount: Decimal, in currencyCode: Currency.Code) -> Bool {
+        let integerAmount = integralAmount(amount, in: currencyCode)
+        let minimum = minimumIntegralChargePerCurrencyCode[currencyCode, default: 50]
+        return integerAmount < minimum
     }
 
-    public static func integralAmount(_ amount: NSDecimalNumber, in currencyCode: Currency.Code) -> UInt {
-        let roundedAndScaledAmount: Double
+    private static func integralAmount(_ amount: Decimal, in currencyCode: Currency.Code) -> UInt {
+        let scaled: Decimal
         if zeroDecimalCurrencyCodes.contains(currencyCode.uppercased()) {
-            roundedAndScaledAmount = amount.doubleValue.rounded(.toNearestOrEven)
+            scaled = amount
         } else {
-            roundedAndScaledAmount = (amount.doubleValue * 100).rounded(.toNearestOrEven)
+            scaled = amount * 100
         }
 
-        guard roundedAndScaledAmount <= Double(UInt.max) else { return UInt.max }
-        guard roundedAndScaledAmount >= 0 else { return 0 }
-        return UInt(roundedAndScaledAmount)
+        let rounded = scaled.rounded()
+
+        guard rounded >= 0 else { return 0 }
+        guard rounded <= Decimal(UInt.max) else { return UInt.max }
+
+        return (rounded as NSDecimalNumber).uintValue
     }
 }
 
@@ -270,8 +299,10 @@ fileprivate extension Stripe {
 // See https://stripe.com/docs/currencies
 
 public extension Stripe {
+    /// A list of supported currencies, [according to Stripe][0].
+    ///
+    /// [0]: https://stripe.com/docs/currencies?presentment-currency=US#presentment-currencies
     static let supportedCurrencyCodes: [Currency.Code] = [
-        "USD",
         "AED",
         "AFN",
         "ALL",
@@ -293,6 +324,7 @@ public extension Stripe {
         "BRL",
         "BSD",
         "BWP",
+        "BYN",
         "BZD",
         "CAD",
         "CDF",
@@ -380,6 +412,7 @@ public extension Stripe {
         "SEK",
         "SGD",
         "SHP",
+        "SLE",
         "SLL",
         "SOS",
         "SRD",
@@ -394,6 +427,7 @@ public extension Stripe {
         "TZS",
         "UAH",
         "UGX",
+        "USD",
         "UYU",
         "UZS",
         "VND",
@@ -431,7 +465,7 @@ public extension Stripe {
         Currency.infos(for: preferredCurrencyCodes, ignoreMissingNames: true, shouldSort: false)
     }()
 
-    static let zeroDecimalCurrencyCodes: [Currency.Code] = [
+    static let zeroDecimalCurrencyCodes: Set<Currency.Code> = [
         "BIF",
         "CLP",
         "DJF",

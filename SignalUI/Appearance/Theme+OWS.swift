@@ -38,6 +38,7 @@ public enum ThemeIcon: UInt {
     case settingsLinkedDevices
     case settingsAppearance
     case settingsChats
+    case settingsStories
     case settingsNotifications
     case settingsPrivacy
     case settingsDataUsage
@@ -51,7 +52,6 @@ public enum ThemeIcon: UInt {
     case settingsBoost
     case settingsReceipts
     case settingsGift
-    case settingsPrivateStory
 
     case stickerButton
     case cameraButton
@@ -80,8 +80,6 @@ public enum ThemeIcon: UInt {
     case contextMenuSelect
     case contextMenuInfo20
     case contextMenuInfo24
-
-    case privateStory40
 
     case compose24
     case composeNewGroup
@@ -270,6 +268,8 @@ public extension Theme {
             return isDarkThemeEnabled ? "appearance-solid-24" : "appearance-outline-24"
         case .settingsChats:
             return isDarkThemeEnabled ? "message-solid-24" : "message-outline-24"
+        case .settingsStories:
+            return isDarkThemeEnabled ? "stories-24-solid" : "stories-24-outline"
         case .settingsNotifications:
             return isDarkThemeEnabled ? "bell-solid-24" : "bell-outline-24"
         case .settingsPrivacy:
@@ -296,10 +296,6 @@ public extension Theme {
             return isDarkThemeEnabled ? "receipts-solid-24" : "receipts-outline-24"
         case .settingsGift:
             return isDarkThemeEnabled ? "gift-solid-24" : "gift-outline-24"
-        case .settingsPrivateStory:
-            return isDarkThemeEnabled ? "private-story-solid-24" : "private-story-outline-24"
-        case .privateStory40:
-            return isDarkThemeEnabled ? "private-story-solid-40" : "private-story-outline-40"
 
         // Input Toolbar
         case .stickerButton:

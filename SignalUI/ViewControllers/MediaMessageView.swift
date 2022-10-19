@@ -174,12 +174,10 @@ class MediaMessageView: AttachmentPrepContentView, OWSAudioPlayerDelegate {
         view.centerXAnchor.constraint(equalTo: contentLayoutGuide.centerXAnchor).isActive = true
         view.centerYAnchor.constraint(equalTo: contentLayoutGuide.centerYAnchor).isActive = true
         view.autoPin(toAspectRatio: aspectRatio)
-        if aspectRatio >= 1 {
-            // width bigger than height, pin height.
-            view.autoMatch(.height, to: .height, of: self, withMultiplier: 1.0, relation: .equal)
-        } else {
-            view.autoMatch(.width, to: .width, of: self, withMultiplier: 1.0, relation: .equal)
-        }
+        view.autoMatch(.height, to: .height, of: self, withMultiplier: 1.0, relation: .greaterThanOrEqual)
+        view.autoMatch(.width, to: .width, of: self, withMultiplier: 1.0, relation: .greaterThanOrEqual)
+        view.autoMatch(.width, to: .height, of: self, withMultiplier: aspectRatio, relation: .lessThanOrEqual)
+        view.autoMatch(.height, to: .width, of: self, withMultiplier: 1 / aspectRatio, relation: .lessThanOrEqual)
     }
 
     private func createImagePreview() {

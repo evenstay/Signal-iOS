@@ -158,8 +158,17 @@ class ConversationSplitViewController: UISplitViewController, ConversationSplit 
             return
         }
 
-        // Ensure the tab bar is on the chat list.
-        homeVC.selectedTab = .chatList
+        if homeVC.selectedTab != .chatList {
+            guard homeVC.presentedViewController == nil else {
+                homeVC.dismiss(animated: true) {
+                    self.presentThread(thread, action: action, focusMessageId: focusMessageId, animated: animated)
+                }
+                return
+            }
+
+            // Ensure the tab bar is on the chat list.
+            homeVC.selectedTab = .chatList
+        }
 
         guard selectedThread?.uniqueId != thread.uniqueId else {
             // If this thread is already selected, pop to the thread if
@@ -175,7 +184,7 @@ class ConversationSplitViewController: UISplitViewController, ConversationSplit 
 
         // Update the last viewed thread on the conversation list so it
         // can maintain its scroll position when navigating back.
-        homeVC.chatListViewController.lastViewedThread = thread
+        homeVC.chatListViewController.updateLastViewedThread(thread, animated: animated)
 
         let threadViewModel = databaseStorage.read {
             return ThreadViewModel(thread: thread,

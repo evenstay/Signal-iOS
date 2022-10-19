@@ -66,6 +66,8 @@ class StoryCell: UITableViewCell {
         fatalError("init(coder:) has not been implemented")
     }
 
+    private var attachment: StoryThumbnailView.Attachment?
+
     func configure(with model: StoryViewModel) {
         configureSubtitle(with: model)
 
@@ -99,13 +101,20 @@ class StoryCell: UITableViewCell {
         }
 
         attachmentThumbnail.backgroundColor = Theme.washColor
-        attachmentThumbnail.removeAllSubviews()
+        if self.attachment != model.latestMessageAttachment {
+            self.attachment = model.latestMessageAttachment
+            attachmentThumbnail.removeAllSubviews()
 
-        let storyThumbnailView = StoryThumbnailView(attachment: model.latestMessageAttachment)
-        attachmentThumbnail.addSubview(storyThumbnailView)
-        storyThumbnailView.autoPinEdgesToSuperviewEdges()
+            let storyThumbnailView = StoryThumbnailView(attachment: model.latestMessageAttachment)
+            attachmentThumbnail.addSubview(storyThumbnailView)
+            storyThumbnailView.autoPinEdgesToSuperviewEdges()
+        }
 
         contentView.alpha = model.isHidden ? 0.27 : 1
+
+        let selectedBackgroundView = UIView()
+        selectedBackgroundView.backgroundColor = Theme.tableCell2SelectedBackgroundColor2
+        self.selectedBackgroundView = selectedBackgroundView
     }
 
     func configureSubtitle(with model: StoryViewModel) {

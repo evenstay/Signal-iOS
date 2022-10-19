@@ -203,6 +203,9 @@ public class GRDBSchemaMigrator: NSObject {
         case addLastReceivedStoryTimestampToTSThread
         case addStoryContextAssociatedDataTable
         case populateStoryContextAssociatedDataTableAndRemoveOldColumns
+        case addColumnForExperienceUpgradeManifest
+        case addStoryContextAssociatedDataReadTimestampColumn
+        case addIsCompleteToContactSyncJob
 
         // NOTE: Every time we add a migration id, consider
         // incrementing grdbSchemaVersionLatest.
@@ -253,10 +256,12 @@ public class GRDBSchemaMigrator: NSObject {
         case dataMigration_deleteOldGroupCapabilities
         case dataMigration_updateStoriesDisabledInAccountRecord
         case dataMigration_removeGroupStoryRepliesFromSearchIndex
+        case dataMigration_populateStoryContextAssociatedDataLastReadTimestamp
+        case dataMigration_indexPrivateStoryThreadNames
     }
 
     public static let grdbSchemaVersionDefault: UInt = 0
-    public static let grdbSchemaVersionLatest: UInt = 47
+    public static let grdbSchemaVersionLatest: UInt = 51
 
     // An optimization for new users, we have the first migration import the latest schema
     // and mark any other migrations as "already run".
@@ -2143,6 +2148,36 @@ public class GRDBSchemaMigrator: NSObject {
             }
         }
 
+        migrator.registerMigration(.addColumnForExperienceUpgradeManifest) { db in
+            do {
+                try db.alter(table: "model_ExperienceUpgrade") { table in
+                    table.add(column: "manifest", .blob)
+                }
+            } catch {
+                owsFail("Error: \(error)")
+            }
+        }
+
+        migrator.registerMigration(.addStoryContextAssociatedDataReadTimestampColumn) { db in
+            do {
+                try db.alter(table: "model_StoryContextAssociatedData") { table in
+                    table.add(column: "lastReadTimestamp", .integer)
+                }
+            } catch {
+                owsFail("Error: \(error)")
+            }
+        }
+
+        migrator.registerMigration(.addIsCompleteToContactSyncJob) { db in
+            do {
+                try db.alter(table: "model_SSKJobRecord") { (table: TableAlteration) -> Void in
+                    table.add(column: "isCompleteContactSync", .boolean).defaults(to: false)
+                }
+            } catch let error {
+                owsFail("Error: \(error)")
+            }
+        } // end: .addIsCompleteToContactSyncJob
+
         // MARK: - Schema Migration Insertion Point
     }
 
@@ -2529,6 +2564,37 @@ public class GRDBSchemaMigrator: NSObject {
             } catch {
                 owsFail("Error \(error)")
             }
+        }
+
+        migrator.registerMigration(.dataMigration_populateStoryContextAssociatedDataLastReadTimestamp) { db in
+            do {
+                let sql = """
+                    UPDATE model_StoryContextAssociatedData
+                    SET lastReadTimestamp = lastViewedTimestamp
+                """
+                try db.execute(sql: sql)
+            } catch {
+                owsFail("Error: \(error)")
+            }
+        }
+
+        migrator.registerMigration(.dataMigration_indexPrivateStoryThreadNames) { db in
+            do {
+                let transaction = GRDBWriteTransaction(database: db)
+                defer { transaction.finalizeTransaction() }
+
+                let sql = "SELECT * FROM model_TSThread WHERE recordType IS \(SDSRecordType.privateStoryThread.rawValue)"
+                let cursor = TSThread.grdbFetchCursor(sql: sql, transaction: transaction)
+                while let thread = try cursor.next() {
+                    guard let storyThread = thread as? TSPrivateStoryThread else {
+                        continue
+                    }
+                    GRDBFullTextSearchFinder.modelWasInserted(model: storyThread, transaction: transaction)
+                }
+            } catch {
+                owsFail("Error: \(error)")
+            }
+
         }
 
         // MARK: - Data Migration Insertion Point

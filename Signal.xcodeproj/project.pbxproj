@@ -764,6 +764,7 @@
 		500FE5042890510800FA090C /* BadgeGiftingStrings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 500FE5032890510800FA090C /* BadgeGiftingStrings.swift */; };
 		503614CF282AF657008128B4 /* GiftBadgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 503614CE282AF657008128B4 /* GiftBadgeView.swift */; };
 		5042EAA3287F96FB00C9B19F /* VisibleBadgeResolverTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5042EAA2287F96FB00C9B19F /* VisibleBadgeResolverTest.swift */; };
+		506A92512900888900A2EFC2 /* RecipientPickerContainerViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 506A92502900888900A2EFC2 /* RecipientPickerContainerViewController.swift */; };
 		5075004628B09CE6001922C9 /* ContactDiscoveryOperationTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C4BC6C22102D697004040C9 /* ContactDiscoveryOperationTest.swift */; };
 		509BBF7A28CA556700F4D8A0 /* Data+SSKTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 509BBF7928CA556700F4D8A0 /* Data+SSKTest.swift */; };
 		50CF28F02829C94800752AB3 /* CVComponentGiftBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50CF28EF2829C94800752AB3 /* CVComponentGiftBadge.swift */; };
@@ -772,7 +773,12 @@
 		661396AD28BE74DC00E0C4DF /* ChainedPromise.swift in Sources */ = {isa = PBXBuildFile; fileRef = 661396AC28BE74DC00E0C4DF /* ChainedPromise.swift */; };
 		661396AF28BE881E00E0C4DF /* ChainedPromiseTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 661396AE28BE881E00E0C4DF /* ChainedPromiseTest.swift */; };
 		661602A428BEB94400C1932D /* StoryListDataSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 661602A328BEB94400C1932D /* StoryListDataSource.swift */; };
+		66586D3729005A1B00DDA9B9 /* story_viewer_onboarding_2.json in Resources */ = {isa = PBXBuildFile; fileRef = 66586D3429005A1B00DDA9B9 /* story_viewer_onboarding_2.json */; };
+		66586D3829005A1B00DDA9B9 /* story_viewer_onboarding_1.json in Resources */ = {isa = PBXBuildFile; fileRef = 66586D3529005A1B00DDA9B9 /* story_viewer_onboarding_1.json */; };
+		66586D3929005A1B00DDA9B9 /* story_viewer_onboarding_3.json in Resources */ = {isa = PBXBuildFile; fileRef = 66586D3629005A1B00DDA9B9 /* story_viewer_onboarding_3.json */; };
 		667E90D028E799D1005FE603 /* MyStorySettingsLearnMoreSheetViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 667E90CF28E799D1005FE603 /* MyStorySettingsLearnMoreSheetViewController.swift */; };
+		667EDE6428F8D6B7001FB487 /* YYAnimatedImage+Duration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 667EDE6328F8D6B7001FB487 /* YYAnimatedImage+Duration.swift */; };
+		667EDE6628FA0372001FB487 /* StoryBadgeCountManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 667EDE6528FA0372001FB487 /* StoryBadgeCountManager.swift */; };
 		668CAB3E289983520085A2C3 /* AudioMessagePlaybackRateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 668CAB3D289983520085A2C3 /* AudioMessagePlaybackRateView.swift */; };
 		668FE09B28B923A4008B9071 /* Bool+SSK.swift in Sources */ = {isa = PBXBuildFile; fileRef = 668FE09A28B923A4008B9071 /* Bool+SSK.swift */; };
 		668FE09F28B947ED008B9071 /* StoryContextMenuGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 668FE09E28B947ED008B9071 /* StoryContextMenuGenerator.swift */; };
@@ -943,6 +949,7 @@
 		887CD48A24735D4200FDD265 /* launchApp-iPhone.json in Resources */ = {isa = PBXBuildFile; fileRef = 887CD48824735D4200FDD265 /* launchApp-iPhone.json */; };
 		887CD48B24735D4200FDD265 /* launchApp-iPad.json in Resources */ = {isa = PBXBuildFile; fileRef = 887CD48924735D4200FDD265 /* launchApp-iPad.json */; };
 		887EEC1F23F0B20600F8C26D /* PinReminderMegaphone.swift in Sources */ = {isa = PBXBuildFile; fileRef = 887EEC1E23F0B20600F8C26D /* PinReminderMegaphone.swift */; };
+		887F898228FF32A600D3B78E /* AllSignalConnectionsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 887F898128FF32A600D3B78E /* AllSignalConnectionsViewController.swift */; };
 		888017842741E5B400346E9A /* boost_badge.json in Resources */ = {isa = PBXBuildFile; fileRef = 888017832741E5B400346E9A /* boost_badge.json */; };
 		8880178B2741E5DB00346E9A /* boost_clap.json in Resources */ = {isa = PBXBuildFile; fileRef = 888017852741E5DA00346E9A /* boost_clap.json */; };
 		8880178C2741E5DB00346E9A /* boost_shock.json in Resources */ = {isa = PBXBuildFile; fileRef = 888017862741E5DA00346E9A /* boost_shock.json */; };
@@ -1115,6 +1122,7 @@
 		D9AB38D0283C38B10003C038 /* InteractionFinderPerformanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9AB38CE283C38640003C038 /* InteractionFinderPerformanceTests.swift */; };
 		D9AD1D9528B9955C00B42E6F /* TSInfoMessage+GroupUpdateCopy+NSAttributedStringTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9AD1D9428B9955C00B42E6F /* TSInfoMessage+GroupUpdateCopy+NSAttributedStringTest.swift */; };
 		D9C7CEB428EB8495001E87B6 /* ExperienceUpgrade.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9C7CEB328EB8495001E87B6 /* ExperienceUpgrade.swift */; };
+		D9C7CECB28EBC09C001E87B6 /* ExperienceUpgradeManifest.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9C7CECA28EBC09C001E87B6 /* ExperienceUpgradeManifest.swift */; };
 		D9C7CECF28ECC043001E87B6 /* NSAttributedString+SSK.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9C7CECE28ECC043001E87B6 /* NSAttributedString+SSK.swift */; };
 		E1368CBE18A1C36B00109378 /* MessageUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B9EB5ABC1884C002007CBB57 /* MessageUI.framework */; };
 		E44AD4E624E98F440035D7B8 /* PhotoCaptureDismiss.swift in Sources */ = {isa = PBXBuildFile; fileRef = E44AD4E524E98F430035D7B8 /* PhotoCaptureDismiss.swift */; };
@@ -1230,6 +1238,9 @@
 		F94262A1289B1B5600460798 /* SignalServiceAddressTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9426239289B1B5500460798 /* SignalServiceAddressTest.swift */; };
 		F94262A2289B1B5600460798 /* SSKBaseTestSwift.swift in Sources */ = {isa = PBXBuildFile; fileRef = F942623A289B1B5500460798 /* SSKBaseTestSwift.swift */; };
 		F94BFA9528EBB0D800A5F34E /* FakeMessageSender.swift in Sources */ = {isa = PBXBuildFile; fileRef = F94BFA9428EBB0D800A5F34E /* FakeMessageSender.swift */; };
+		F94C912028FDEA2E0065DF75 /* Decimal+rounded.swift in Sources */ = {isa = PBXBuildFile; fileRef = F94C911F28FDEA2E0065DF75 /* Decimal+rounded.swift */; };
+		F94C912228FDEAF50065DF75 /* Decimal+isInteger.swift in Sources */ = {isa = PBXBuildFile; fileRef = F94C912128FDEAF50065DF75 /* Decimal+isInteger.swift */; };
+		F94C912428FDECC40065DF75 /* DecimalTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = F94C912328FDECC40065DF75 /* DecimalTest.swift */; };
 		F94D12FF28BD0DD900B2C478 /* SpeechManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F94D12FE28BD0DD900B2C478 /* SpeechManager.swift */; };
 		F94D130628C1667600B2C478 /* DatabaseRecoveryTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = F94D130528C1667600B2C478 /* DatabaseRecoveryTest.swift */; };
 		F95427E6286E042200314EDA /* BadgeGiftingThanksSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = F95427E5286E042200314EDA /* BadgeGiftingThanksSheet.swift */; };
@@ -1249,6 +1260,7 @@
 		F9844C492867936400B16DD4 /* SignalMeTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9844C482867936400B16DD4 /* SignalMeTest.swift */; };
 		F988DC13289DC8F2003B4B82 /* OWSOutgoingReactionMessageTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = F988DC12289DC8F2003B4B82 /* OWSOutgoingReactionMessageTest.swift */; };
 		F98EA265286A469100791EB4 /* SendGiftBadgeJobQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = F98EA264286A469100791EB4 /* SendGiftBadgeJobQueue.swift */; };
+		F992ACC428F8C9D900906038 /* StripeTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = F992ACC328F8C9D900906038 /* StripeTest.swift */; };
 		F9A042C6289C7468007D08B6 /* TSInfoMessage+UpdateMessages.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9A042C5289C7468007D08B6 /* TSInfoMessage+UpdateMessages.swift */; };
 		F9A042C8289C7500007D08B6 /* GroupManager+GroupUpdateInfoMessages.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9A042C7289C7500007D08B6 /* GroupManager+GroupUpdateInfoMessages.swift */; };
 		F9A335CA282F0BF700B5F5FA /* BadgeGiftingChooseBadgeViewControllerStateTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9A335C9282F0BF700B5F5FA /* BadgeGiftingChooseBadgeViewControllerStateTest.swift */; };
@@ -1519,10 +1531,8 @@
 		F9C5CC96289453B300548EEE /* SessionRecord.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9C5C9AB289453B100548EEE /* SessionRecord.pb.swift */; settings = {COMPILER_FLAGS = "-fcxx-modules"; }; };
 		F9C5CC97289453B300548EEE /* WebSocketProto.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9C5C9AC289453B100548EEE /* WebSocketProto.swift */; settings = {COMPILER_FLAGS = "-fcxx-modules"; }; };
 		F9C5CC98289453B300548EEE /* GroupsProto.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9C5C9AD289453B100548EEE /* GroupsProto.swift */; settings = {COMPILER_FLAGS = "-fcxx-modules"; }; };
-		F9C5CC99289453B300548EEE /* ContactDiscovery.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9C5C9AE289453B100548EEE /* ContactDiscovery.pb.swift */; settings = {COMPILER_FLAGS = "-fcxx-modules"; }; };
 		F9C5CC9A289453B300548EEE /* SignalService.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9C5C9AF289453B100548EEE /* SignalService.pb.swift */; settings = {COMPILER_FLAGS = "-fcxx-modules"; }; };
 		F9C5CC9B289453B300548EEE /* KeyBackupProto.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9C5C9B0289453B100548EEE /* KeyBackupProto.swift */; settings = {COMPILER_FLAGS = "-fcxx-modules"; }; };
-		F9C5CC9C289453B300548EEE /* ContactDiscoveryMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9C5C9B1289453B100548EEE /* ContactDiscoveryMessage.swift */; settings = {COMPILER_FLAGS = "-fcxx-modules"; }; };
 		F9C5CC9D289453B300548EEE /* Provisioning.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9C5C9B2289453B100548EEE /* Provisioning.pb.swift */; settings = {COMPILER_FLAGS = "-fcxx-modules"; }; };
 		F9C5CC9E289453B300548EEE /* SignalIOSProto.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9C5C9B3289453B100548EEE /* SignalIOSProto.swift */; settings = {COMPILER_FLAGS = "-fcxx-modules"; }; };
 		F9C5CC9F289453B300548EEE /* FingerprintProto.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9C5C9B4289453B100548EEE /* FingerprintProto.swift */; settings = {COMPILER_FLAGS = "-fcxx-modules"; }; };
@@ -1557,9 +1567,7 @@
 		F9C5CCBC289453B300548EEE /* PhoneNumber.m in Sources */ = {isa = PBXBuildFile; fileRef = F9C5C9D4289453B100548EEE /* PhoneNumber.m */; settings = {COMPILER_FLAGS = "-fcxx-modules"; }; };
 		F9C5CCBD289453B300548EEE /* UUIDBackfillTask.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9C5C9D6289453B100548EEE /* UUIDBackfillTask.swift */; settings = {COMPILER_FLAGS = "-fcxx-modules"; }; };
 		F9C5CCBE289453B300548EEE /* SGXContactDiscoveryOperation.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9C5C9D7289453B100548EEE /* SGXContactDiscoveryOperation.swift */; settings = {COMPILER_FLAGS = "-fcxx-modules"; }; };
-		F9C5CCBF289453B300548EEE /* HSMContactDiscoveryOperation.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9C5C9D8289453B100548EEE /* HSMContactDiscoveryOperation.swift */; settings = {COMPILER_FLAGS = "-fcxx-modules"; }; };
 		F9C5CCC0289453B300548EEE /* ContactDiscoveryTask.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9C5C9D9289453B100548EEE /* ContactDiscoveryTask.swift */; settings = {COMPILER_FLAGS = "-fcxx-modules"; }; };
-		F9C5CCC1289453B300548EEE /* CDSHWebsocket.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9C5C9DA289453B100548EEE /* CDSHWebsocket.swift */; settings = {COMPILER_FLAGS = "-fcxx-modules"; }; };
 		F9C5CCC2289453B300548EEE /* BulkUUIDLookup.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9C5C9DB289453B100548EEE /* BulkUUIDLookup.swift */; settings = {COMPILER_FLAGS = "-fcxx-modules"; }; };
 		F9C5CCC3289453B300548EEE /* ContactDiscoveryOperation.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9C5C9DC289453B100548EEE /* ContactDiscoveryOperation.swift */; settings = {COMPILER_FLAGS = "-fcxx-modules"; }; };
 		F9C5CCC4289453B300548EEE /* OWSDisappearingMessagesConfiguration+SDS.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9C5C9DD289453B100548EEE /* OWSDisappearingMessagesConfiguration+SDS.swift */; settings = {COMPILER_FLAGS = "-fcxx-modules"; }; };
@@ -1992,6 +2000,7 @@
 		F9C5CE79289453B400548EEE /* TSGroupModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9C5CBAB289453B200548EEE /* TSGroupModel.swift */; settings = {COMPILER_FLAGS = "-fcxx-modules"; }; };
 		F9C5CE7A289453B400548EEE /* NewGroupSeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9C5CBAC289453B200548EEE /* NewGroupSeed.swift */; settings = {COMPILER_FLAGS = "-fcxx-modules"; }; };
 		F9C612B4284E466B00B2199A /* CGPointExtensionsTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9C612B3284E466B00B2199A /* CGPointExtensionsTest.swift */; };
+		F9CA468828FF0CA600C074F6 /* OneTimeDonationCustomAmountTextField.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9CA468728FF0CA600C074F6 /* OneTimeDonationCustomAmountTextField.swift */; };
 		F9D83012282DBB1500399363 /* BadgeGiftingChooseBadgeViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9D83011282DBB1500399363 /* BadgeGiftingChooseBadgeViewController.swift */; };
 		F9DD70B92811AF82000C5960 /* DonationViewsUtil.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9DD70B82811AF82000C5960 /* DonationViewsUtil.swift */; };
 		F9F4DE2A283FDFDA001909ED /* BadgeGiftingConfirmationViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9F4DE29283FDFDA001909ED /* BadgeGiftingConfirmationViewController.swift */; };
@@ -3011,6 +3020,7 @@
 		503614D2282C572F008128B4 /* id */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = id; path = translations/id.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
 		503614D6282C7B76008128B4 /* zh_CN */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = zh_CN; path = translations/zh_CN.lproj/PluralAware.stringsdict; sourceTree = "<group>"; };
 		5042EAA2287F96FB00C9B19F /* VisibleBadgeResolverTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisibleBadgeResolverTest.swift; sourceTree = "<group>"; };
+		506A92502900888900A2EFC2 /* RecipientPickerContainerViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipientPickerContainerViewController.swift; sourceTree = "<group>"; };
 		509BBF7928CA556700F4D8A0 /* Data+SSKTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Data+SSKTest.swift"; sourceTree = "<group>"; };
 		50CF28EF2829C94800752AB3 /* CVComponentGiftBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CVComponentGiftBadge.swift; sourceTree = "<group>"; };
 		50F96F3A28ECBC3200541EED /* ms */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ms; path = translations/ms.lproj/InfoPlist.strings; sourceTree = "<group>"; };
@@ -3021,7 +3031,12 @@
 		661396AE28BE881E00E0C4DF /* ChainedPromiseTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChainedPromiseTest.swift; sourceTree = "<group>"; };
 		661602A328BEB94400C1932D /* StoryListDataSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoryListDataSource.swift; sourceTree = "<group>"; };
 		6657FDE7B91C2845BB3BEAB5 /* Pods_SignalShareExtension.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_SignalShareExtension.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		66586D3429005A1B00DDA9B9 /* story_viewer_onboarding_2.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = story_viewer_onboarding_2.json; sourceTree = "<group>"; };
+		66586D3529005A1B00DDA9B9 /* story_viewer_onboarding_1.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = story_viewer_onboarding_1.json; sourceTree = "<group>"; };
+		66586D3629005A1B00DDA9B9 /* story_viewer_onboarding_3.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = story_viewer_onboarding_3.json; sourceTree = "<group>"; };
 		667E90CF28E799D1005FE603 /* MyStorySettingsLearnMoreSheetViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MyStorySettingsLearnMoreSheetViewController.swift; sourceTree = "<group>"; };
+		667EDE6328F8D6B7001FB487 /* YYAnimatedImage+Duration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "YYAnimatedImage+Duration.swift"; sourceTree = "<group>"; };
+		667EDE6528FA0372001FB487 /* StoryBadgeCountManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoryBadgeCountManager.swift; sourceTree = "<group>"; };
 		668AB0CB28AD610600B31984 /* StoryUtil.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoryUtil.swift; sourceTree = "<group>"; };
 		668CAB3D289983520085A2C3 /* AudioMessagePlaybackRateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioMessagePlaybackRateView.swift; sourceTree = "<group>"; };
 		668FE09A28B923A4008B9071 /* Bool+SSK.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Bool+SSK.swift"; sourceTree = "<group>"; };
@@ -3206,6 +3221,7 @@
 		887CD48824735D4200FDD265 /* launchApp-iPhone.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = "launchApp-iPhone.json"; sourceTree = "<group>"; };
 		887CD48924735D4200FDD265 /* launchApp-iPad.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = "launchApp-iPad.json"; sourceTree = "<group>"; };
 		887EEC1E23F0B20600F8C26D /* PinReminderMegaphone.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinReminderMegaphone.swift; sourceTree = "<group>"; };
+		887F898128FF32A600D3B78E /* AllSignalConnectionsViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AllSignalConnectionsViewController.swift; sourceTree = "<group>"; };
 		888017832741E5B400346E9A /* boost_badge.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = boost_badge.json; sourceTree = "<group>"; };
 		888017852741E5DA00346E9A /* boost_clap.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = boost_clap.json; sourceTree = "<group>"; };
 		888017862741E5DA00346E9A /* boost_shock.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = boost_shock.json; sourceTree = "<group>"; };
@@ -3438,6 +3454,7 @@
 		D9AB38CE283C38640003C038 /* InteractionFinderPerformanceTests.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = InteractionFinderPerformanceTests.swift; sourceTree = "<group>"; };
 		D9AD1D9428B9955C00B42E6F /* TSInfoMessage+GroupUpdateCopy+NSAttributedStringTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TSInfoMessage+GroupUpdateCopy+NSAttributedStringTest.swift"; sourceTree = "<group>"; };
 		D9C7CEB328EB8495001E87B6 /* ExperienceUpgrade.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExperienceUpgrade.swift; sourceTree = "<group>"; };
+		D9C7CECA28EBC09C001E87B6 /* ExperienceUpgradeManifest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExperienceUpgradeManifest.swift; sourceTree = "<group>"; };
 		D9C7CECE28ECC043001E87B6 /* NSAttributedString+SSK.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NSAttributedString+SSK.swift"; sourceTree = "<group>"; };
 		DBCD4214999408EBC915EE0F /* Pods_SignalServiceKitTests.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_SignalServiceKitTests.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		DDBCB034D1DFAF85ADFD5E76 /* Pods-SignalUITests.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-SignalUITests.debug.xcconfig"; path = "Pods/Target Support Files/Pods-SignalUITests/Pods-SignalUITests.debug.xcconfig"; sourceTree = "<group>"; };
@@ -3563,6 +3580,9 @@
 		F9426239289B1B5500460798 /* SignalServiceAddressTest.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SignalServiceAddressTest.swift; sourceTree = "<group>"; };
 		F942623A289B1B5500460798 /* SSKBaseTestSwift.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = SSKBaseTestSwift.swift; path = SignalServiceKit/tests/SSKBaseTestSwift.swift; sourceTree = SOURCE_ROOT; };
 		F94BFA9428EBB0D800A5F34E /* FakeMessageSender.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FakeMessageSender.swift; sourceTree = "<group>"; };
+		F94C911F28FDEA2E0065DF75 /* Decimal+rounded.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Decimal+rounded.swift"; sourceTree = "<group>"; };
+		F94C912128FDEAF50065DF75 /* Decimal+isInteger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Decimal+isInteger.swift"; sourceTree = "<group>"; };
+		F94C912328FDECC40065DF75 /* DecimalTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DecimalTest.swift; sourceTree = "<group>"; };
 		F94D12FE28BD0DD900B2C478 /* SpeechManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SpeechManager.swift; sourceTree = "<group>"; };
 		F94D130528C1667600B2C478 /* DatabaseRecoveryTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseRecoveryTest.swift; sourceTree = "<group>"; };
 		F95427E5286E042200314EDA /* BadgeGiftingThanksSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BadgeGiftingThanksSheet.swift; sourceTree = "<group>"; };
@@ -3580,6 +3600,7 @@
 		F9844C482867936400B16DD4 /* SignalMeTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignalMeTest.swift; sourceTree = "<group>"; };
 		F988DC12289DC8F2003B4B82 /* OWSOutgoingReactionMessageTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OWSOutgoingReactionMessageTest.swift; sourceTree = "<group>"; };
 		F98EA264286A469100791EB4 /* SendGiftBadgeJobQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SendGiftBadgeJobQueue.swift; sourceTree = "<group>"; };
+		F992ACC328F8C9D900906038 /* StripeTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StripeTest.swift; sourceTree = "<group>"; };
 		F9A042C5289C7468007D08B6 /* TSInfoMessage+UpdateMessages.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "TSInfoMessage+UpdateMessages.swift"; sourceTree = "<group>"; };
 		F9A042C7289C7500007D08B6 /* GroupManager+GroupUpdateInfoMessages.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "GroupManager+GroupUpdateInfoMessages.swift"; sourceTree = "<group>"; };
 		F9A335C9282F0BF700B5F5FA /* BadgeGiftingChooseBadgeViewControllerStateTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BadgeGiftingChooseBadgeViewControllerStateTest.swift; sourceTree = "<group>"; };
@@ -3850,10 +3871,8 @@
 		F9C5C9AB289453B100548EEE /* SessionRecord.pb.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SessionRecord.pb.swift; sourceTree = "<group>"; };
 		F9C5C9AC289453B100548EEE /* WebSocketProto.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = WebSocketProto.swift; sourceTree = "<group>"; };
 		F9C5C9AD289453B100548EEE /* GroupsProto.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GroupsProto.swift; sourceTree = "<group>"; };
-		F9C5C9AE289453B100548EEE /* ContactDiscovery.pb.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ContactDiscovery.pb.swift; sourceTree = "<group>"; };
 		F9C5C9AF289453B100548EEE /* SignalService.pb.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SignalService.pb.swift; sourceTree = "<group>"; };
 		F9C5C9B0289453B100548EEE /* KeyBackupProto.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = KeyBackupProto.swift; sourceTree = "<group>"; };
-		F9C5C9B1289453B100548EEE /* ContactDiscoveryMessage.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ContactDiscoveryMessage.swift; sourceTree = "<group>"; };
 		F9C5C9B2289453B100548EEE /* Provisioning.pb.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Provisioning.pb.swift; sourceTree = "<group>"; };
 		F9C5C9B3289453B100548EEE /* SignalIOSProto.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SignalIOSProto.swift; sourceTree = "<group>"; };
 		F9C5C9B4289453B100548EEE /* FingerprintProto.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FingerprintProto.swift; sourceTree = "<group>"; };
@@ -3888,9 +3907,7 @@
 		F9C5C9D4289453B100548EEE /* PhoneNumber.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = PhoneNumber.m; sourceTree = "<group>"; };
 		F9C5C9D6289453B100548EEE /* UUIDBackfillTask.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = UUIDBackfillTask.swift; sourceTree = "<group>"; };
 		F9C5C9D7289453B100548EEE /* SGXContactDiscoveryOperation.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SGXContactDiscoveryOperation.swift; sourceTree = "<group>"; };
-		F9C5C9D8289453B100548EEE /* HSMContactDiscoveryOperation.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = HSMContactDiscoveryOperation.swift; sourceTree = "<group>"; };
 		F9C5C9D9289453B100548EEE /* ContactDiscoveryTask.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ContactDiscoveryTask.swift; sourceTree = "<group>"; };
-		F9C5C9DA289453B100548EEE /* CDSHWebsocket.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CDSHWebsocket.swift; sourceTree = "<group>"; };
 		F9C5C9DB289453B100548EEE /* BulkUUIDLookup.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BulkUUIDLookup.swift; sourceTree = "<group>"; };
 		F9C5C9DC289453B100548EEE /* ContactDiscoveryOperation.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ContactDiscoveryOperation.swift; sourceTree = "<group>"; };
 		F9C5C9DD289453B100548EEE /* OWSDisappearingMessagesConfiguration+SDS.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "OWSDisappearingMessagesConfiguration+SDS.swift"; sourceTree = "<group>"; };
@@ -4324,6 +4341,7 @@
 		F9C5CBAC289453B200548EEE /* NewGroupSeed.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NewGroupSeed.swift; sourceTree = "<group>"; };
 		F9C612B3284E466B00B2199A /* CGPointExtensionsTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CGPointExtensionsTest.swift; sourceTree = "<group>"; };
 		F9C985D2289459860029F9AD /* SignalServiceKit-Prefix.pch */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "SignalServiceKit-Prefix.pch"; sourceTree = "<group>"; };
+		F9CA468728FF0CA600C074F6 /* OneTimeDonationCustomAmountTextField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OneTimeDonationCustomAmountTextField.swift; sourceTree = "<group>"; };
 		F9D83011282DBB1500399363 /* BadgeGiftingChooseBadgeViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BadgeGiftingChooseBadgeViewController.swift; sourceTree = "<group>"; };
 		F9DD70B82811AF82000C5960 /* DonationViewsUtil.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DonationViewsUtil.swift; sourceTree = "<group>"; };
 		F9F4DE29283FDFDA001909ED /* BadgeGiftingConfirmationViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BadgeGiftingConfirmationViewController.swift; sourceTree = "<group>"; };
@@ -5948,6 +5966,7 @@
 				8822558C26B9D1D7001A33C4 /* SignalMe.swift */,
 				4521C3BF1F59F3BA00B4C582 /* TextHelper.swift */,
 				8811CF832295D8DA00FF6549 /* VolumeButtons.swift */,
+				667EDE6328F8D6B7001FB487 /* YYAnimatedImage+Duration.swift */,
 			);
 			path = util;
 			sourceTree = "<group>";
@@ -6198,6 +6217,7 @@
 		8868A087287F44F3000E74A5 /* Stories */ = {
 			isa = PBXGroup;
 			children = (
+				887F898128FF32A600D3B78E /* AllSignalConnectionsViewController.swift */,
 				667E90CF28E799D1005FE603 /* MyStorySettingsLearnMoreSheetViewController.swift */,
 				66FBC4E028DA820900BD9E8B /* MyStorySettingsViewController.swift */,
 				88B986F3287F5B6500F8C74D /* NewGroupStoryViewController.swift */,
@@ -6403,6 +6423,7 @@
 		88B986F728807D7400F8C74D /* Recipient Picker */ = {
 			isa = PBXGroup;
 			children = (
+				506A92502900888900A2EFC2 /* RecipientPickerContainerViewController.swift */,
 				8835DDFC230CEE8900DC6B66 /* RecipientPickerDelegate.swift */,
 				8835DDF7230CEDC300DC6B66 /* RecipientPickerViewController.h */,
 				8835DDF8230CEDC300DC6B66 /* RecipientPickerViewController.m */,
@@ -6454,6 +6475,9 @@
 				880C0FF6233D3F7C00386FB8 /* playPauseButton.json */,
 				346EFC3825FFDC6900F493C7 /* restore-dark.json */,
 				346EFC3725FFDC6900F493C7 /* restore.json */,
+				66586D3529005A1B00DDA9B9 /* story_viewer_onboarding_1.json */,
+				66586D3429005A1B00DDA9B9 /* story_viewer_onboarding_2.json */,
+				66586D3629005A1B00DDA9B9 /* story_viewer_onboarding_3.json */,
 				4C0CF6F92386295400C9F818 /* tap_to_focus.json */,
 				887CD4862473587300FDD265 /* transfer.json */,
 				346EFC3925FFDC6900F493C7 /* update-pin-dark.json */,
@@ -6814,6 +6838,7 @@
 			children = (
 				D9C7CEB328EB8495001E87B6 /* ExperienceUpgrade.swift */,
 				F9C5CB5B289453B200548EEE /* ExperienceUpgradeFinder.swift */,
+				D9C7CECA28EBC09C001E87B6 /* ExperienceUpgradeManifest.swift */,
 			);
 			path = "Experience Upgrades";
 			sourceTree = "<group>";
@@ -6872,6 +6897,7 @@
 				888017912741F33B00346E9A /* BoostViewController.swift */,
 				F924A68128F8706200E368C8 /* DonationReadMoreSheetViewController.swift */,
 				F9DD70B82811AF82000C5960 /* DonationViewsUtil.swift */,
+				F9CA468728FF0CA600C074F6 /* OneTimeDonationCustomAmountTextField.swift */,
 				F0CA67F92728A89A002B9DFE /* SubscriptionViewController.swift */,
 			);
 			path = Donations;
@@ -6946,6 +6972,7 @@
 				509BBF7928CA556700F4D8A0 /* Data+SSKTest.swift */,
 				F93999F528C81F2100E34899 /* DataMessagePaddingTests.swift */,
 				F94261F8289B1B5400460798 /* Date+SSKTest.swift */,
+				F94C912328FDECC40065DF75 /* DecimalTest.swift */,
 				F94261F6289B1B5400460798 /* DeviceNamesTest.swift */,
 				F94261FA289B1B5400460798 /* DispatchQueue+OWSTest.swift */,
 				F94261E7289B1B5400460798 /* FeatureFlagsTests.swift */,
@@ -7482,6 +7509,7 @@
 			children = (
 				F9C5C96C289453B100548EEE /* OutgoingStoryMessage.swift */,
 				884E4C4728AF2F2A007A338C /* OutgoingStorySentMessageTranscript.swift */,
+				667EDE6528FA0372001FB487 /* StoryBadgeCountManager.swift */,
 				66D709E828E3999400B5013A /* StoryContextAssociatedData.swift */,
 				F9C5C96B289453B100548EEE /* StoryFinder.swift */,
 				F9C5C969289453B100548EEE /* StoryManager.swift */,
@@ -7527,8 +7555,6 @@
 		F9C5C9A2289453B100548EEE /* Generated */ = {
 			isa = PBXGroup;
 			children = (
-				F9C5C9AE289453B100548EEE /* ContactDiscovery.pb.swift */,
-				F9C5C9B1289453B100548EEE /* ContactDiscoveryMessage.swift */,
 				F9C5C9A9289453B100548EEE /* DeviceTransfer.pb.swift */,
 				F9C5C9B5289453B100548EEE /* DeviceTransferProto.swift */,
 				F9C5C9A6289453B100548EEE /* Fingerprint.pb.swift */,
@@ -7629,10 +7655,8 @@
 			isa = PBXGroup;
 			children = (
 				F9C5C9DB289453B100548EEE /* BulkUUIDLookup.swift */,
-				F9C5C9DA289453B100548EEE /* CDSHWebsocket.swift */,
 				F9C5C9DC289453B100548EEE /* ContactDiscoveryOperation.swift */,
 				F9C5C9D9289453B100548EEE /* ContactDiscoveryTask.swift */,
-				F9C5C9D8289453B100548EEE /* HSMContactDiscoveryOperation.swift */,
 				F9C5C9D7289453B100548EEE /* SGXContactDiscoveryOperation.swift */,
 				F9C5C9D6289453B100548EEE /* UUIDBackfillTask.swift */,
 			);
@@ -8082,6 +8106,8 @@
 				F9C5CB07289453B200548EEE /* DataSource.m */,
 				F9C5CB7C289453B200548EEE /* Date+SSK.swift */,
 				F9C5CB06289453B200548EEE /* DebouncedEvent.swift */,
+				F94C912128FDEAF50065DF75 /* Decimal+isInteger.swift */,
+				F94C911F28FDEA2E0065DF75 /* Decimal+rounded.swift */,
 				F9C5CB79289453B200548EEE /* DecodableDefaults.swift */,
 				F9C5CB2B289453B200548EEE /* Dependencies+SSK.swift */,
 				F9C5CB3A289453B200548EEE /* DeviceNames.swift */,
@@ -8272,6 +8298,7 @@
 			isa = PBXGroup;
 			children = (
 				F9C612B3284E466B00B2199A /* CGPointExtensionsTest.swift */,
+				F992ACC328F8C9D900906038 /* StripeTest.swift */,
 			);
 			path = test;
 			sourceTree = "<group>";
@@ -9087,6 +9114,9 @@
 				34C3C78F2040A4F70000134C /* sonarping.mp3 in Resources */,
 				88928A44263A2781009C9B30 /* state-change_confirm-down.caf in Resources */,
 				88928A45263A2781009C9B30 /* state-change_confirm-up.caf in Resources */,
+				66586D3829005A1B00DDA9B9 /* story_viewer_onboarding_1.json in Resources */,
+				66586D3729005A1B00DDA9B9 /* story_viewer_onboarding_2.json in Resources */,
+				66586D3929005A1B00DDA9B9 /* story_viewer_onboarding_3.json in Resources */,
 				45B74A752044AAB600CD42F8 /* synth-quiet.aifc in Resources */,
 				45B74A8B2044AAB600CD42F8 /* synth.aifc in Resources */,
 				4C0CF6FA2386295400C9F818 /* tap_to_focus.json in Resources */,
@@ -9614,6 +9644,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				3402AA35271D9DCD0084CBAE /* ActionSheetController.swift in Sources */,
+				887F898228FF32A600D3B78E /* AllSignalConnectionsViewController.swift in Sources */,
 				342FFE62271DB2E7000AC89F /* AppContext+SignalUI.swift in Sources */,
 				3402AA4E271D9DCD0084CBAE /* ApprovalFooterView.swift in Sources */,
 				3402AA3F271D9DCD0084CBAE /* ApprovalRailCellView.swift in Sources */,
@@ -9757,6 +9788,7 @@
 				34A955BB271B55BA00B05242 /* PaymentsUI.swift in Sources */,
 				3402AA79271D9E180084CBAE /* PermissiveGestureRecognizer.swift in Sources */,
 				32FAB92A2727A57100FB76A6 /* PrimaryImageView.swift in Sources */,
+				506A92512900888900A2EFC2 /* RecipientPickerContainerViewController.swift in Sources */,
 				88B986F528807D6F00F8C74D /* RecipientPickerDelegate.swift in Sources */,
 				88B986F628807D6F00F8C74D /* RecipientPickerViewController.m in Sources */,
 				F9B652BC28D514E6006914CA /* RecipientPickerViewController.swift in Sources */,
@@ -10320,6 +10352,7 @@
 				34ACA7D72733159600E47AD4 /* OnboardingTransferProgressViewController.swift in Sources */,
 				34ACA7D62733159600E47AD4 /* OnboardingTransferQRCodeViewController.swift in Sources */,
 				34ACA7E02733159600E47AD4 /* OnboardingVerificationViewController.swift in Sources */,
+				F9CA468828FF0CA600C074F6 /* OneTimeDonationCustomAmountTextField.swift in Sources */,
 				AC12B86D0DA4943DF1DE9CE6 /* OWSAddToContactViewController.swift in Sources */,
 				34D99C931F2937CC00D284D6 /* OWSAnalytics.swift in Sources */,
 				17ACF11E267D71E0009BE867 /* OWSAudioSession+WebRTC.swift in Sources */,
@@ -10467,6 +10500,7 @@
 				4C04392A220A9EC800BAEA63 /* VoiceNoteLock.swift in Sources */,
 				8811CF842295D8DA00FF6549 /* VolumeButtons.swift in Sources */,
 				88D23D2723CEC0C700B0E74B /* WebRTCCallMessageHandler.swift in Sources */,
+				667EDE6428F8D6B7001FB487 /* YYAnimatedImage+Duration.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -10522,6 +10556,7 @@
 				4C3EF802210918740007EBF7 /* SSKProtoEnvelopeTest.swift in Sources */,
 				8803FF6628EF89B50023574A /* StorySharingTests.swift in Sources */,
 				452D1AF12081059C00A67F7F /* StringAdditionsTest.swift in Sources */,
+				F992ACC428F8C9D900906038 /* StripeTest.swift in Sources */,
 				E75DD3E02810CDBD00E32C36 /* SubscriptionManagerTest.swift in Sources */,
 				45A3579827DAAC6A0051CE8B /* UserProfileTest.swift in Sources */,
 				B660F6E01C29868000687D6E /* UtilTest.m in Sources */,
@@ -10562,7 +10597,6 @@
 				F9C5CD8D289453B300548EEE /* CaptchaChallenge.swift in Sources */,
 				76387BF028F4ED73002C7BA5 /* CaseIterable.swift in Sources */,
 				F9C5CC0C289453B300548EEE /* CDNDownloadOperation.swift in Sources */,
-				F9C5CCC1289453B300548EEE /* CDSHWebsocket.swift in Sources */,
 				661396AD28BE74DC00E0C4DF /* ChainedPromise.swift in Sources */,
 				F9C5CE0E289453B400548EEE /* ChangePhoneNumber.swift in Sources */,
 				F9C5CCF2289453B300548EEE /* ChunkedInputStream.swift in Sources */,
@@ -10570,8 +10604,6 @@
 				F9C5CCE5289453B300548EEE /* Contact+Swift.swift in Sources */,
 				F9C5CCB5289453B300548EEE /* Contact.m in Sources */,
 				F9C5CCE4289453B300548EEE /* Contact.swift in Sources */,
-				F9C5CC99289453B300548EEE /* ContactDiscovery.pb.swift in Sources */,
-				F9C5CC9C289453B300548EEE /* ContactDiscoveryMessage.swift in Sources */,
 				F9C5CCC3289453B300548EEE /* ContactDiscoveryOperation.swift in Sources */,
 				F9C5CDC1289453B400548EEE /* ContactDiscoveryService.swift in Sources */,
 				F9C5CCC0289453B300548EEE /* ContactDiscoveryTask.swift in Sources */,
@@ -10589,6 +10621,8 @@
 				F9C5CDD9289453B400548EEE /* DataSource.m in Sources */,
 				F9C5CE4D289453B400548EEE /* Date+SSK.swift in Sources */,
 				F9C5CDD8289453B400548EEE /* DebouncedEvent.swift in Sources */,
+				F94C912228FDEAF50065DF75 /* Decimal+isInteger.swift in Sources */,
+				F94C912028FDEA2E0065DF75 /* Decimal+rounded.swift in Sources */,
 				F9C5CE4A289453B400548EEE /* DecodableDefaults.swift in Sources */,
 				F9C5CD27289453B300548EEE /* DeepCopy.swift in Sources */,
 				F9C5CC11289453B300548EEE /* DefaultStickers.swift in Sources */,
@@ -10609,6 +10643,7 @@
 				F9C5CE23289453B400548EEE /* Error+SSK.swift in Sources */,
 				D9C7CEB428EB8495001E87B6 /* ExperienceUpgrade.swift in Sources */,
 				F9C5CE2D289453B400548EEE /* ExperienceUpgradeFinder.swift in Sources */,
+				D9C7CECB28EBC09C001E87B6 /* ExperienceUpgradeManifest.swift in Sources */,
 				F9C5CD79289453B300548EEE /* Explain.swift in Sources */,
 				F9C5CE57289453B400548EEE /* Factories.swift in Sources */,
 				F9C5CC86289453B300548EEE /* FailedAttachmentDownloadsJob.swift in Sources */,
@@ -10640,7 +10675,6 @@
 				F9C5CE78289453B400548EEE /* GroupsV2.swift in Sources */,
 				F9C5CDA1289453B400548EEE /* GroupsV2MessageJobFinder.swift in Sources */,
 				F9C5CDA2289453B400548EEE /* GroupsV2MessageProcessor.swift in Sources */,
-				F9C5CCBF289453B300548EEE /* HSMContactDiscoveryOperation.swift in Sources */,
 				F9C5CD94289453B300548EEE /* HTMLMetadata.swift in Sources */,
 				F9C5CDC2289453B400548EEE /* HTTPEntities.swift in Sources */,
 				F9C5CDBC289453B400548EEE /* HTTPUtils.m in Sources */,
@@ -10989,6 +11023,7 @@
 				F9C5CCA3289453B300548EEE /* StorageService.pb.swift in Sources */,
 				F9C5CDE4289453B400548EEE /* StorageService.swift in Sources */,
 				F9C5CC92289453B300548EEE /* StorageServiceProto.swift in Sources */,
+				667EDE6628FA0372001FB487 /* StoryBadgeCountManager.swift in Sources */,
 				66D709E928E3999400B5013A /* StoryContextAssociatedData.swift in Sources */,
 				F9C5CC59289453B300548EEE /* StoryFinder.swift in Sources */,
 				F9C5CC57289453B300548EEE /* StoryManager.swift in Sources */,
@@ -11115,6 +11150,7 @@
 				F94D130628C1667600B2C478 /* DatabaseRecoveryTest.swift in Sources */,
 				F972180028DCBD4700113D9F /* DatabaseTestHelpers.swift in Sources */,
 				F9426265289B1B5500460798 /* Date+SSKTest.swift in Sources */,
+				F94C912428FDECC40065DF75 /* DecimalTest.swift in Sources */,
 				F942629B289B1B5600460798 /* DeliveryReceiptContextTests.swift in Sources */,
 				F9426263289B1B5500460798 /* DeviceNamesTest.swift in Sources */,
 				F9426267289B1B5500460798 /* DispatchQueue+OWSTest.swift in Sources */,

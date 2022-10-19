@@ -109,7 +109,10 @@ class StoryGroupRepliesAndViewsSheet: InteractiveSheetViewController, StoryGroup
         case .views:
             break
         case .replies:
-            maximizeHeight()
+            maximizeHeight {
+                // Once we maximize, don't let you minimize again or things look weird.
+                self.minimizedHeight = super.maxHeight
+            }
         }
     }
 
@@ -144,7 +147,6 @@ class StoryGroupRepliesAndViewsSheet: InteractiveSheetViewController, StoryGroup
         viewsButton.isSelected = false
         view.layoutIfNeeded()
         pagingScrollView.setContentOffset(CGPoint(x: pagingScrollView.width, y: 0), animated: animated)
-        isManuallySwitchingTabs = false
     }
 
     func switchToViewsTab(animated: Bool) {
@@ -153,7 +155,6 @@ class StoryGroupRepliesAndViewsSheet: InteractiveSheetViewController, StoryGroup
         repliesButton.isSelected = false
         viewsButton.isSelected = true
         pagingScrollView.setContentOffset(.zero, animated: animated)
-        isManuallySwitchingTabs = false
     }
 
     func createToggleButton(title: String, block: @escaping () -> Void) -> UIButton {
@@ -190,10 +191,17 @@ extension StoryGroupRepliesAndViewsSheet: UIScrollViewDelegate {
             focusedTab = .replies
         }
     }
+
+    func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
+        isManuallySwitchingTabs = false
+    }
 }
 
 extension StoryGroupRepliesAndViewsSheet: StoryGroupReplyDelegate {
     func storyGroupReplyViewControllerDidBeginEditing(_ storyGroupReplyViewController: StoryGroupReplyViewController) {
-        maximizeHeight()
+        maximizeHeight {
+            // Once we maximize, don't let you minimize again or things look weird.
+            self.minimizedHeight = super.maxHeight
+        }
     }
 }

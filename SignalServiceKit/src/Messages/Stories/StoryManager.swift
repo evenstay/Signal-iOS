@@ -14,6 +14,7 @@ public class StoryManager: NSObject {
     public class func setup() {
         AppReadiness.runNowOrWhenAppDidBecomeReadyAsync {
             cacheAreStoriesEnabled()
+            cacheAreViewReceiptsEnabled()
 
             // Create My Story thread if necessary
             Self.databaseStorage.asyncWrite { transaction in
@@ -62,6 +63,15 @@ public class StoryManager: NSObject {
                 groupThread.groupMembership.isFullMember(author)
             else {
                 Logger.warn("Dropping story message with timestamp \(timestamp) from author \(author) not in group")
+                return
+            }
+
+            if
+                let groupModel = groupThread.groupModel as? TSGroupModelV2,
+                groupModel.isAnnouncementsOnly,
+                !groupModel.groupMembership.isFullMemberAndAdministrator(author)
+            {
+                Logger.warn("Dropping story message with timestamp \(timestamp) from non-admin author \(author) in announcement only group")
                 return
             }
 
@@ -312,6 +322,31 @@ extension StoryManager {
 
     public static func appendStoryHeaders(to request: inout URLRequest) {
         request.setValue(areStoriesEnabled ? "true" : "false", forHTTPHeaderField: "X-Signal-Receive-Stories")
+    }
+}
+
+// MARK: -
+
+extension StoryManager {
+    private static let areViewReceiptsEnabledKey = "areViewReceiptsEnabledKey"
+
+    public private(set) static var areViewReceiptsEnabled: Bool = false
+
+    public static func areViewReceiptsEnabled(transaction: SDSAnyReadTransaction) -> Bool {
+        keyValueStore.getBool(areViewReceiptsEnabledKey, transaction: transaction) ?? receiptManager.areReadReceiptsEnabled(transaction: transaction)
+    }
+
+    public static func setAreViewReceiptsEnabled(_ enabled: Bool, shouldUpdateStorageService: Bool = true, transaction: SDSAnyWriteTransaction) {
+        keyValueStore.setBool(enabled, key: areViewReceiptsEnabledKey, transaction: transaction)
+        areViewReceiptsEnabled = enabled
+
+        if shouldUpdateStorageService {
+            storageServiceManager.recordPendingLocalAccountUpdates()
+        }
+    }
+
+    private static func cacheAreViewReceiptsEnabled() {
+        areViewReceiptsEnabled = databaseStorage.read { areViewReceiptsEnabled(transaction: $0) }
     }
 }
 
