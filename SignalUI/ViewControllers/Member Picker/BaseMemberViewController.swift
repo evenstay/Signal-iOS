@@ -16,11 +16,7 @@ public protocol MemberViewDelegate: AnyObject {
 
     func memberViewCanAddRecipient(_ recipient: PickedRecipient) -> Bool
 
-    func memberViewWillRenderRecipient(_ recipient: PickedRecipient)
-
     func memberViewPrepareToSelectRecipient(_ recipient: PickedRecipient) -> AnyPromise
-
-    func memberViewNoUuidSubtitleForRecipient(_ recipient: PickedRecipient) -> String?
 
     func memberViewShouldShowMemberCount() -> Bool
 
@@ -102,16 +98,6 @@ open class BaseMemberViewController: RecipientPickerContainerViewController {
         autoPinView(toBottomOfViewControllerOrKeyboard: recipientPicker.view, avoidNotch: false)
 
         updateMemberCount()
-        tryToFillInMissingUuids()
-    }
-
-    private func tryToFillInMissingUuids() {
-        let addresses = contactsViewHelper.allSignalAccounts.map { $0.recipientAddress }
-        firstly {
-            GroupManager.tryToFillInMissingUuids(for: addresses, isBlocking: false)
-        }.catch { error in
-            owsFailDebug("Error: \(error)")
-        }
     }
 
     @objc
@@ -369,19 +355,6 @@ extension BaseMemberViewController: RecipientPickerDelegate {
 
     public func recipientPicker(
         _ recipientPickerViewController: RecipientPickerViewController,
-        willRenderRecipient recipient: PickedRecipient
-    ) {
-
-        guard let memberViewDelegate = memberViewDelegate else {
-            owsFailDebug("Missing delegate.")
-            return
-        }
-
-        memberViewDelegate.memberViewWillRenderRecipient(recipient)
-    }
-
-    public func recipientPicker(
-        _ recipientPickerViewController: RecipientPickerViewController,
         prepareToSelectRecipient recipient: PickedRecipient
     ) -> AnyPromise {
 
@@ -440,21 +413,10 @@ extension BaseMemberViewController: RecipientPickerDelegate {
         attributedSubtitleForRecipient recipient: PickedRecipient,
         transaction: SDSAnyReadTransaction
     ) -> NSAttributedString? {
-
         guard let address = recipient.address else {
             owsFailDebug("Recipient missing address.")
             return nil
         }
-
-        guard let memberViewDelegate = memberViewDelegate else {
-            owsFailDebug("Missing memberViewDelegate.")
-            return nil
-        }
-
-        if address.uuid == nil, let warning = memberViewDelegate.memberViewNoUuidSubtitleForRecipient(recipient) {
-            return NSAttributedString(string: warning)
-        }
-
         guard !address.isLocalAddress else {
             return nil
         }

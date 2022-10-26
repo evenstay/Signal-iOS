@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
+import SignalMessaging
 import SignalServiceKit
 
 public protocol ForwardMessageDelegate: AnyObject {
@@ -161,6 +162,7 @@ class ForwardMessageViewController: InteractiveSheetViewController {
         pickerVC.shouldShowSearchBar = false
         pickerVC.shouldHideSearchBarIfCancelled = true
         pickerVC.pickerDelegate = self
+        pickerVC.shouldBatchUpdateIdentityKeys = true
 
         forwardNavigationViewController.forwardMessageViewController = self
         forwardNavigationViewController.viewControllers = [ pickerVC ]
@@ -387,7 +389,9 @@ extension ForwardMessageViewController {
                                                          approvalMessageBody: item.messageBody,
                                                          approvedAttachments: attachments).asVoid()
         } else if let textAttachment = item.textAttachment {
-            return AttachmentMultisend.sendTextAttachment(textAttachment, to: selectedConversations).asVoid()
+            // TODO: we want to reuse the uploaded link preview image attachment instead of re-uploading
+            // if the original was sent recently (if not the image could be stale)
+            return AttachmentMultisend.sendTextAttachment(textAttachment.asUnsentAttachment(), to: selectedConversations).asVoid()
         } else if let messageBody = item.messageBody {
             let linkPreviewDraft = item.linkPreviewDraft
             let nonStorySendPromise = send(toRecipientThreads: outgoingMessageRecipientThreads) { recipientThread in

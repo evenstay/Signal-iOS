@@ -59,7 +59,9 @@ public final class StoryContextAssociatedData: NSObject, SDSCodableModel {
     /// Set for all known incoming stories, including those since expired or deleted.
     public private(set) var lastReceivedTimestamp: UInt64? {
         didSet {
-            updateLatestUnexpiredTimestampIfNeeded()
+            if let oldValue = oldValue, let newValue = lastReceivedTimestamp, newValue > oldValue {
+                updateLatestUnexpiredTimestampIfNeeded()
+            }
         }
     }
 
@@ -91,6 +93,20 @@ public final class StoryContextAssociatedData: NSObject, SDSCodableModel {
         lastReadTimestamp = newValue
     }
 
+    public var hasUnexpiredStories: Bool {
+        return latestUnexpiredTimestamp != nil
+    }
+
+    public var hasUnviewedStories: Bool {
+        guard let latestUnexpiredTimestamp = latestUnexpiredTimestamp else {
+            return false
+        }
+        guard let lastViewedTimestamp = lastViewedTimestamp else {
+            return true
+        }
+        return lastViewedTimestamp < latestUnexpiredTimestamp
+    }
+
     public init(
         sourceContext: SourceContext,
         isHidden: Bool = false,
@@ -115,7 +131,7 @@ public final class StoryContextAssociatedData: NSObject, SDSCodableModel {
         super.init()
 
         updateLatestUnexpiredTimestampIfNeeded()
-        updateLatestUnexpiredTimestampIfNeeded()
+        updateLastReadTimestampIfNeeded()
     }
 
     /**
@@ -212,6 +228,16 @@ public final class StoryContextAssociatedData: NSObject, SDSCodableModel {
                 storageServiceManager.recordPendingUpdates(updatedAddresses: [.init(uuid: contactUuid)])
             }
         }
+
+        if !self.isHidden, isHidden == true, let groupId = self.groupId {
+            // When hiding a group, disable sends for the group as well.
+            if
+                let groupThread = TSGroupThread.fetch(groupId: groupId, transaction: transaction),
+                groupThread.storyViewMode != .disabled
+            {
+                groupThread.updateWithStorySendEnabled(false, transaction: transaction, updateStorageService: updateStorageService)
+            }
+        }
     }
 
     public func recomputeLatestUnexpiredTimestamp(transaction: SDSAnyWriteTransaction) {
@@ -285,7 +311,6 @@ public final class StoryContextAssociatedData: NSObject, SDSCodableModel {
 
         super.init()
 
-        updateLatestUnexpiredTimestampIfNeeded()
         updateLastReadTimestampIfNeeded()
     }
 

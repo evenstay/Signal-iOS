@@ -5,8 +5,9 @@
 
 import Foundation
 import Photos
-import UIKit
+import SignalMessaging
 import SignalServiceKit
+import UIKit
 
 protocol StoryContextMenuDelegate: AnyObject {
 
@@ -75,12 +76,13 @@ class StoryContextMenuGenerator: Dependencies {
         attachment: StoryThumbnailView.Attachment,
         sourceView: @escaping () -> UIView?,
         hideSaveAction: Bool = false,
+        onlyRenderMyStories: Bool = false,
         transaction: SDSAnyReadTransaction
     ) -> [ContextMenuAction] {
         return [
             deleteAction(for: message, in: thread),
             hideAction(for: message, transaction: transaction),
-            infoAction(for: message, in: thread),
+            infoAction(for: message, in: thread, onlyRenderMyStories: onlyRenderMyStories),
             hideSaveAction ? nil : saveAction(message: message, attachment: attachment),
             forwardAction(message: message),
             shareAction(message: message, attachment: attachment, sourceView: sourceView),
@@ -112,12 +114,13 @@ class StoryContextMenuGenerator: Dependencies {
         attachment: StoryThumbnailView.Attachment,
         sourceView: @escaping () -> UIView?,
         hideSaveAction: Bool = false,
+        onlyRenderMyStories: Bool = false,
         transaction: SDSAnyReadTransaction
     ) -> [UIAction] {
         return [
             deleteAction(for: message, in: thread),
             hideAction(for: message, transaction: transaction),
-            infoAction(for: message, in: thread),
+            infoAction(for: message, in: thread, onlyRenderMyStories: onlyRenderMyStories),
             hideSaveAction ? nil : saveAction(message: message, attachment: attachment),
             forwardAction(message: message),
             shareAction(message: message, attachment: attachment, sourceView: sourceView),
@@ -282,7 +285,8 @@ extension StoryContextMenuGenerator {
         actionSheet.addAction(ActionSheetAction(
             title: CommonStrings.cancelButton,
             style: .cancel
-        ) { _ in
+        ) { [weak self] _ in
+            self?.isDisplayingFollowup = false
             completion(false)
         })
 
@@ -373,7 +377,8 @@ extension StoryContextMenuGenerator {
 
     private func infoAction(
         for message: StoryMessage,
-        in thread: TSThread?
+        in thread: TSThread?,
+        onlyRenderMyStories: Bool
     ) -> GenericContextAction? {
         guard let thread = thread else { return nil }
 
@@ -384,7 +389,7 @@ extension StoryContextMenuGenerator {
             ),
             icon: .contextMenuInfo20,
             handler: { [weak self] completion in
-                self?.presentInfoSheet(message, in: thread)
+                self?.presentInfoSheet(message, in: thread, onlyRenderMyStories: onlyRenderMyStories)
                 completion(true)
             }
         )
@@ -392,17 +397,18 @@ extension StoryContextMenuGenerator {
 
     private func presentInfoSheet(
         _ message: StoryMessage,
-        in thread: TSThread
+        in thread: TSThread,
+        onlyRenderMyStories: Bool
     ) {
         if presentingController is StoryContextViewController {
             isDisplayingFollowup = true
-            let vc = StoryInfoSheet(storyMessage: message)
+            let vc = StoryInfoSheet(storyMessage: message, context: thread.storyContext)
             vc.dismissHandler = { [weak self] in
                 self?.isDisplayingFollowup = false
             }
             presentingController?.present(vc, animated: true)
         } else {
-            let vc = StoryPageViewController(context: thread.storyContext, loadMessage: message, action: .presentInfo)
+            let vc = StoryPageViewController(context: thread.storyContext, loadMessage: message, action: .presentInfo, onlyRenderMyStories: onlyRenderMyStories)
             presentingController?.present(vc, animated: true)
         }
     }

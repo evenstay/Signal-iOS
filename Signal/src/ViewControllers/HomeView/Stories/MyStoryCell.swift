@@ -85,6 +85,8 @@ class MyStoryCell: UITableViewCell {
     func configure(with model: MyStoryViewModel, addStoryAction: @escaping () -> Void) {
         configureSubtitle(with: model)
 
+        self.backgroundColor = .clear
+
         titleLabel.font = .ows_dynamicTypeHeadline
         titleLabel.textColor = Theme.primaryTextColor
 
@@ -95,7 +97,8 @@ class MyStoryCell: UITableViewCell {
 
         avatarView.updateWithSneakyTransactionIfNecessary { config in
             config.dataSource = .address(Self.tsAccountManager.localAddress!)
-            config.storyState = model.messages.isEmpty ? .none : .viewed
+            // We reload the row when this state changes, so don't make the avatar auto update.
+            config.storyConfiguration = .fixed(model.messages.isEmpty ? .noStories : .viewed)
             config.usePlaceholderImages()
         }
 
@@ -126,7 +129,7 @@ class MyStoryCell: UITableViewCell {
                     secondLatestThumbnailView.autoPinEdge(toSuperviewEdge: .leading)
 
                     let dividerView = UIView()
-                    dividerView.backgroundColor = backgroundColor
+                    dividerView.backgroundColor = Theme.backgroundColor
                     dividerView.layer.cornerRadius = 12
                     attachmentThumbnail.insertSubview(dividerView, belowSubview: latestThumbnailView)
                     dividerView.autoSetDimensions(to: CGSize(width: 60, height: 88))
@@ -190,8 +193,8 @@ class MyStoryCell: UITableViewCell {
             let backgroundView = self.selectedBackgroundView
         else {
             attachmentThumbnailDividerView?.alpha = 1
-            attachmentThumbnailDividerView?.backgroundColor = backgroundColor
-            plusIcon.borderColor = backgroundColor
+            attachmentThumbnailDividerView?.backgroundColor = Theme.backgroundColor
+            plusIcon.borderColor = Theme.backgroundColor
             return
         }
         attachmentThumbnailDividerView?.alpha = backgroundView.alpha

@@ -3,9 +3,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
+import CoreServices
 import Foundation
 import Photos
-import CoreServices
+import SignalMessaging
 
 extension ConversationViewController: ConversationInputToolbarDelegate {
 
@@ -433,6 +434,8 @@ extension ConversationViewController: ConversationInputToolbarDelegate {
             return
         }
 
+        guard !OWSActionSheets.showPaymentsOutdatedClientSheetIfNeeded(title: .cantSendPayment) else { return }
+
         SendPaymentViewController.presentFromConversationView(self,
                                                               delegate: self,
                                                               recipientAddress: contactThread.contactAddress,
@@ -823,7 +826,7 @@ extension ConversationViewController: SendMediaNavDelegate {
     }
 
     func sendMediaNav(_ sendMediaNavifationController: SendMediaNavigationController,
-                      didFinishWithTextAttachment textAttachment: TextAttachment) {
+                      didFinishWithTextAttachment textAttachment: UnsentTextAttachment) {
         owsFailDebug("Can not post text stories to chat.")
     }
 

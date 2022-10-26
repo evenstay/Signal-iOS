@@ -3,8 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import ContactsUI
+import Foundation
+import SignalMessaging
 
 public extension ConversationViewController {
 
@@ -18,14 +19,6 @@ public extension ConversationViewController {
         // Try to update the v2 group to latest from the service.
         // This will help keep us in sync if we've missed any group updates, etc.
         groupV2UpdatesObjc.tryToRefreshV2GroupUpToCurrentRevisionAfterMessageProcessingWithThrottling(groupThread)
-    }
-
-    func presentAddThreadToProfileWhitelist(success: @escaping () -> Void) {
-        AssertIsOnMainThread()
-
-        profileManagerImpl.presentAddThread(toProfileWhitelist: thread,
-                                            from: self,
-                                            success: success)
     }
 
     func showUnblockConversationUI(completion: BlockActionCompletionBlock?) {

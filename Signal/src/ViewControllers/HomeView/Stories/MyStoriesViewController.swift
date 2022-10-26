@@ -4,10 +4,11 @@
 //
 
 import Foundation
-import SignalServiceKit
-import UIKit
-import SignalUI
 import PhotosUI
+import SignalMessaging
+import SignalServiceKit
+import SignalUI
+import UIKit
 
 class MyStoriesViewController: OWSViewController {
     private let tableView = UITableView(frame: .zero, style: .grouped)
@@ -196,6 +197,7 @@ extension MyStoriesViewController: UITableViewDelegate {
                     return self?.tableView(tableView, cellForRowAt: indexPath)
                 },
                 hideSaveAction: true,
+                onlyRenderMyStories: true,
                 transaction: transaction
             )
         }
@@ -284,6 +286,7 @@ extension MyStoriesViewController: ContextMenuButtonDelegate {
                     return self?.tableView.dequeueReusableCell(withIdentifier: SentStoryCell.reuseIdentifier, for: indexPath)
                 },
                 hideSaveAction: true,
+                onlyRenderMyStories: true,
                 transaction: transaction
             )
         }
@@ -446,7 +449,7 @@ class SentStoryCell: UITableViewCell {
                     "STORY_VIEWS_%d", tableName: "PluralAware",
                     comment: "Text explaining how many views a story has. Embeds {{ %d number of views }}"
                 )
-                titleLabel.text = String.localizedStringWithFormat(format, item.message.remoteViewCount)
+                titleLabel.text = String.localizedStringWithFormat(format, item.message.remoteViewCount(in: item.thread.storyContext))
             } else {
                 titleLabel.text = NSLocalizedString(
                     "STORY_VIEWS_OFF",

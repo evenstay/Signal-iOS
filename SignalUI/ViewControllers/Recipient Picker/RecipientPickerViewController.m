@@ -696,8 +696,6 @@ const NSUInteger kMinimumSearchLength = 1;
         NSSet<SignalServiceAddress *> *addressesToSkip = [self.blockingManager blockedAddressesWithTransaction:transaction];
 
         for (SignalAccount *signalAccount in filteredSignalAccounts) {
-            hasSearchResults = YES;
-
             if ([addressesToSkip containsObject:signalAccount.recipientAddress]) {
                 continue;
             }
@@ -717,7 +715,8 @@ const NSUInteger kMinimumSearchLength = 1;
             [contactsSection addItem:[self itemForRecipient:recipient]];
         }
     }];
-    if (filteredSignalAccounts.count > 0) {
+    if (contactsSection.itemCount > 0) {
+        hasSearchResults = YES;
         [sections addObject:contactsSection];
     }
 
@@ -773,8 +772,6 @@ const NSUInteger kMinimumSearchLength = 1;
                                 NSString *cellName = [NSString stringWithFormat:@"phone_number.%@", phoneNumber];
                                 cell.accessibilityIdentifier
                                     = ACCESSIBILITY_IDENTIFIER_WITH_NAME(RecipientPickerViewController, cellName);
-
-                                [strongSelf.delegate recipientPicker:strongSelf willRenderRecipient:recipient];
 
                                 return cell;
                             }

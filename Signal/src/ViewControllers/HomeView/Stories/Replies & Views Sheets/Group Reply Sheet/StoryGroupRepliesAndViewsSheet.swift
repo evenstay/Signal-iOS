@@ -4,9 +4,10 @@
 //
 
 import Foundation
-import UIKit
+import SignalMessaging
 import SignalServiceKit
 import SignalUI
+import UIKit
 
 class StoryGroupRepliesAndViewsSheet: InteractiveSheetViewController, StoryGroupReplier {
     override var interactiveScrollViews: [UIScrollView] { [groupReplyViewController.tableView, viewsViewController.tableView] }
@@ -40,9 +41,9 @@ class StoryGroupRepliesAndViewsSheet: InteractiveSheetViewController, StoryGroup
     }
     var focusedTab: Tab = .views
 
-    init(storyMessage: StoryMessage) {
+    init(storyMessage: StoryMessage, context: StoryContext) {
         self.groupReplyViewController = StoryGroupReplyViewController(storyMessage: storyMessage)
-        self.viewsViewController = StoryViewsViewController(storyMessage: storyMessage)
+        self.viewsViewController = StoryViewsViewController(storyMessage: storyMessage, context: context)
 
         super.init()
 
@@ -141,7 +142,9 @@ class StoryGroupRepliesAndViewsSheet: InteractiveSheetViewController, StoryGroup
 
     private var isManuallySwitchingTabs = false
     func switchToRepliesTab(animated: Bool) {
-        isManuallySwitchingTabs = true
+        if animated {
+            isManuallySwitchingTabs = true
+        }
         focusedTab = .replies
         repliesButton.isSelected = true
         viewsButton.isSelected = false
@@ -150,7 +153,9 @@ class StoryGroupRepliesAndViewsSheet: InteractiveSheetViewController, StoryGroup
     }
 
     func switchToViewsTab(animated: Bool) {
-        isManuallySwitchingTabs = true
+        if animated {
+            isManuallySwitchingTabs = true
+        }
         focusedTab = .views
         repliesButton.isSelected = false
         viewsButton.isSelected = true

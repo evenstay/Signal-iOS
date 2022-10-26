@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import SignalMessaging
 
 protocol GroupMemberViewDelegate: AnyObject {
     var groupMemberViewRecipientSet: OrderedSet<PickedRecipient> { get }
@@ -26,8 +27,6 @@ protocol GroupMemberViewDelegate: AnyObject {
 
     func groupMemberViewIsPreExistingMember(_ recipient: PickedRecipient,
                                             transaction: SDSAnyReadTransaction) -> Bool
-
-    func groupMemberViewIsGroupsV2Required() -> Bool
 
     func groupMemberViewDismiss()
 
@@ -151,37 +150,16 @@ extension BaseGroupMemberViewController: MemberViewDelegate {
         return true
     }
 
-    public func memberViewWillRenderRecipient(_ recipient: PickedRecipient) {
-        guard let address = recipient.address else {
-            owsFailDebug("Invalid recipient.")
-            return
-        }
-        DispatchQueue.global().async {
-            if !self.doesRecipientSupportGroupsV2(recipient) {
-                _ = self.tryToEnableGroupsV2ForAddress(address,
-                                                       isBlocking: false,
-                                                       ignoreErrors: true)
-            }
-        }
-    }
-
     public func memberViewPrepareToSelectRecipient(_ recipient: PickedRecipient) -> AnyPromise {
         guard let address = recipient.address else {
             owsFailDebug("Invalid recipient.")
-            return AnyPromise(Promise.value(()))
-        }
-        guard let groupMemberViewDelegate = groupMemberViewDelegate else {
-            owsFailDebug("Missing delegate.")
             return AnyPromise(Promise.value(()))
         }
         guard !doesRecipientSupportGroupsV2(recipient) else {
             // Recipient already supports groups v2.
             return AnyPromise(Promise.value(()))
         }
-        let ignoreErrors = !groupMemberViewDelegate.groupMemberViewIsGroupsV2Required()
-        return AnyPromise(tryToEnableGroupsV2ForAddress(address,
-                                                        isBlocking: true,
-                                                        ignoreErrors: ignoreErrors))
+        return AnyPromise(tryToEnableGroupsV2ForAddress(address))
     }
 
     private func doesRecipientSupportGroupsV2(_ recipient: PickedRecipient) -> Bool {
@@ -189,35 +167,11 @@ extension BaseGroupMemberViewController: MemberViewDelegate {
             owsFailDebug("Invalid recipient.")
             return false
         }
-        return doesRecipientSupportGroupsV2(address)
-    }
-
-    private func doesRecipientSupportGroupsV2(_ address: SignalServiceAddress) -> Bool {
         return GroupManager.doesUserSupportGroupsV2(address: address)
     }
 
-    func tryToEnableGroupsV2ForAddress(_ address: SignalServiceAddress,
-                                       isBlocking: Bool,
-                                       ignoreErrors: Bool) -> Promise<Void> {
-        return firstly { () -> Promise<Void> in
-            return GroupManager.tryToEnableGroupsV2(for: [address],
-                                                    isBlocking: isBlocking,
-                                                    ignoreErrors: ignoreErrors)
-        }.done(on: .global() ) { [weak self] _ in
-            // If we succeeded in enable groups v2 for this address,
-            // reload the recipient picker to reflect that.
-            if self?.doesRecipientSupportGroupsV2(address) ?? false {
-                DispatchQueue.main.async {
-                    // Reload view content.
-                    self?.recipientPicker.reloadContent()
-                }
-            }
-        }
-    }
-
-    public func memberViewNoUuidSubtitleForRecipient(_ recipient: PickedRecipient) -> String? {
-        return NSLocalizedString("NEW_GROUP_CREATION_MEMBER_DOES_NOT_SUPPORT_NEW_GROUPS",
-                                 comment: "Indicates that a group member does not support New Groups.")
+    func tryToEnableGroupsV2ForAddress(_ address: SignalServiceAddress) -> Promise<Void> {
+        GroupManager.tryToEnableGroupsV2(for: [address])
     }
 
     public func memberViewShouldShowMemberCount() -> Bool {

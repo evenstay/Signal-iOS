@@ -5,6 +5,7 @@
 
 import Foundation
 import SignalCoreKit
+import SignalMessaging
 
 protocol CurrencyPickerDataSource {
     var currentCurrencyCode: Currency.Code { get }
@@ -229,12 +230,6 @@ struct StripeCurrencyPickerDataSource: CurrencyPickerDataSource {
     let supportedCurrencyInfos: [Currency.Info]
 
     var updateTableContents: (() -> Void)?
-
-    init(currentCurrencyCode: Currency.Code) {
-        self.currentCurrencyCode = currentCurrencyCode
-        self.preferredCurrencyInfos = Stripe.preferredCurrencyInfos
-        self.supportedCurrencyInfos = Stripe.supportedCurrencyInfos
-    }
 
     init(currentCurrencyCode: Currency.Code, supportedCurrencyCodes: Set<Currency.Code>) {
         if supportedCurrencyCodes.contains(currentCurrencyCode) {

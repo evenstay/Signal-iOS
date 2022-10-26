@@ -4,8 +4,9 @@
 //
 
 import Foundation
-import UIKit
+import SignalMessaging
 import SignalUI
+import UIKit
 
 class PrivateStorySettingsViewController: OWSTableViewController2 {
     let thread: TSPrivateStoryThread
@@ -126,7 +127,8 @@ class PrivateStorySettingsViewController: OWSTableViewController2 {
 
         if hasMoreViewers {
             let expandedViewerIndices = (viewersToRender.count..<totalViewersCount).map {
-                IndexPath(row: $0, section: contents.sections.count - 1)
+                // offset by one to account for the "Add viewers" row.
+                IndexPath(row: $0 + 1, section: contents.sections.count - 1)
             }
 
             viewersSection.add(OWSTableItem(
@@ -256,7 +258,7 @@ class PrivateStorySettingsViewController: OWSTableViewController2 {
             tableView.beginUpdates()
 
             // Delete the "See All" row.
-            tableView.deleteRows(at: [IndexPath(row: firstIndex.row, section: firstIndex.section)], with: .top)
+            tableView.deleteRows(at: [IndexPath(row: firstIndex.row, section: firstIndex.section)], with: .bottom)
 
             // Insert the new rows.
             tableView.insertRows(at: revealingIndices, with: .top)

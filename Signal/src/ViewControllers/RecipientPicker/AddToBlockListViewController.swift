@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import SignalMessaging
 
 @objc
 protocol AddToBlockListDelegate: AnyObject {
@@ -90,11 +91,6 @@ extension AddToBlockListViewController: RecipientPickerDelegate {
         case .group(let groupThread):
             block(thread: groupThread)
         }
-    }
-
-    func recipientPicker(_ recipientPickerViewController: RecipientPickerViewController,
-                         willRenderRecipient recipient: PickedRecipient) {
-        // Do nothing.
     }
 
     func recipientPicker(_ recipientPickerViewController: RecipientPickerViewController,

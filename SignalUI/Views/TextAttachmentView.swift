@@ -9,7 +9,9 @@ import SignalServiceKit
 
 open class TextAttachmentView: UIView {
 
-    private var textAttachment: TextAttachment?
+    private var linkPreviewUrlString: String? {
+        return linkPreview?.urlString()
+    }
 
     public let contentLayoutGuide = UILayoutGuide()
 
@@ -22,7 +24,18 @@ open class TextAttachmentView: UIView {
             background: attachment.background,
             linkPreview: attachment.preview
         )
-        self.textAttachment = attachment
+    }
+
+    convenience public init(attachment: UnsentTextAttachment) {
+        self.init(
+            text: attachment.text,
+            textStyle: attachment.textStyle,
+            textForegroundColor: attachment.textForegroundColor,
+            textBackgroundColor: attachment.textBackgroundColor,
+            background: attachment.background,
+            linkPreview: nil,
+            linkPreviewDraft: attachment.linkPreviewDraft
+        )
     }
 
     public init(
@@ -31,7 +44,8 @@ open class TextAttachmentView: UIView {
         textForegroundColor: UIColor?,
         textBackgroundColor: UIColor?,
         background: TextAttachment.Background,
-        linkPreview: OWSLinkPreview?
+        linkPreview: OWSLinkPreview?,
+        linkPreviewDraft: OWSLinkPreviewDraft? = nil
     ) {
         self.text = text
         self.textStyle = textStyle
@@ -63,6 +77,8 @@ open class TextAttachmentView: UIView {
                 imageAttachment: attachment,
                 conversationStyle: nil
             )
+        } else if let linkPreviewDraft = linkPreviewDraft {
+            self.linkPreview = LinkPreviewDraft(linkPreviewDraft: linkPreviewDraft)
         }
 
         updateTextAttributes()
@@ -84,6 +100,8 @@ open class TextAttachmentView: UIView {
         public static let linkPreviewHMargin: CGFloat = 12
         public static let linkPreviewVMargin: CGFloat = 20
     }
+
+    private var expandedLinkPreviewAreaHeight: CGFloat?
 
     open var isEditing: Bool { false }
 
@@ -109,6 +127,12 @@ open class TextAttachmentView: UIView {
                 dx: LayoutConstants.linkPreviewHMargin,
                 dy: LayoutConstants.linkPreviewVMargin
             )
+
+            // Save height of link preview with "regular" layout so that we can calculate
+            // if there's enough room to go back from "compact" to "regular".
+            if linkPreviewView.layout == .regular {
+                expandedLinkPreviewAreaHeight = linkPreviewWrapperView.frame.height
+            }
         }
 
         textContentSize = calculateTextContentSize()
@@ -119,6 +143,25 @@ open class TextAttachmentView: UIView {
             let contentHeight = textContentSize.height + LayoutConstants.linkPreviewAreaTopMargin + linkPreviewWrapperView.frame.height
             if contentHeight > contentLayoutGuide.layoutFrame.height {
                 forceCompactLayoutForLinkPreview = true
+                reloadLinkPreviewAppearance()
+                return
+            }
+        }
+
+        // If link preview view has "compact" layout and there's enough vertical space for both text
+        // and link in "regular" size, we disable forcing link preview to be compact.
+        if let linkPreviewView = linkPreviewView, linkPreviewView.layout == .compact,
+           let expandedLinkPreviewAreaHeight = expandedLinkPreviewAreaHeight {
+            if forceCompactLayoutForLinkPreview {
+                var contentHeight = expandedLinkPreviewAreaHeight
+                if textContentSize.height > 0 {
+                    contentHeight += (LayoutConstants.linkPreviewAreaTopMargin + textContentSize.height)
+                }
+                if contentHeight < contentLayoutGuide.layoutFrame.height {
+                    forceCompactLayoutForLinkPreview = false
+                }
+            }
+            if !shouldUseCompactLayoutForLinkPreview() {
                 reloadLinkPreviewAppearance()
                 return
             }
@@ -255,7 +298,7 @@ open class TextAttachmentView: UIView {
         setNeedsLayout()
     }
 
-    private func transformedText(_ text: String, for textStyle: TextAttachment.TextStyle) -> String {
+    public func transformedText(_ text: String, for textStyle: TextAttachment.TextStyle) -> String {
         guard case .condensed = textStyle else { return text }
         return text.uppercased()
     }
@@ -338,7 +381,10 @@ open class TextAttachmentView: UIView {
     // MARK: - Link Preview
 
     public var linkPreview: LinkPreviewState? {
-        didSet { reloadLinkPreviewAppearance() }
+        didSet {
+            expandedLinkPreviewAreaHeight = nil
+            reloadLinkPreviewAppearance()
+        }
     }
 
     public private(set) var linkPreviewView: LinkPreviewView?
@@ -396,7 +442,7 @@ open class TextAttachmentView: UIView {
 
             return true
         } else if let linkPreviewView = linkPreviewView,
-                  let urlString = textAttachment?.preview?.urlString,
+                  let urlString = linkPreviewUrlString,
                   let container = linkPreviewView.superview,
                   linkPreviewView.frame.contains(gesture.location(in: container)) {
             let tooltipView = LinkPreviewTooltipView(

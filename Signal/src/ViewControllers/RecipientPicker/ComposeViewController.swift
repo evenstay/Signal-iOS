@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import SignalMessaging
 
 @objc
 class ComposeViewController: RecipientPickerContainerViewController {
@@ -81,11 +82,6 @@ extension ComposeViewController: RecipientPickerDelegate {
         case .group(let groupThread):
             newConversation(thread: groupThread)
         }
-    }
-
-    func recipientPicker(_ recipientPickerViewController: RecipientPickerViewController,
-                         willRenderRecipient recipient: PickedRecipient) {
-        // Do nothing.
     }
 
     func recipientPicker(_ recipientPickerViewController: RecipientPickerViewController,

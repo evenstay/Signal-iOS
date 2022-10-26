@@ -5,6 +5,7 @@
 
 import Foundation
 import MobileCoin
+import SignalMessaging
 import SignalServiceKit
 
 @objc
@@ -269,6 +270,9 @@ public class PaymentsImpl: NSObject, PaymentsSwift {
         firstly {
             self.updateCurrentPaymentBalancePromise()
         }.catch { error in
+            let paymentsError = error as? PaymentsError
+            let outdated = paymentsError == .outdatedClient || paymentsError == .attestationVerificationFailed
+            Self.paymentsHelper.setPaymentsVersionOutdated(outdated)
             owsFailDebugUnlessMCNetworkFailure(error)
         }
     }

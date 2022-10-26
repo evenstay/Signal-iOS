@@ -4,9 +4,10 @@
 //
 
 import Foundation
-import UIKit
 import PassKit
+import SignalMessaging
 import SignalServiceKit
+import UIKit
 
 class BadgeGiftingConfirmationViewController: OWSTableViewController2 {
     // MARK: - View state
@@ -79,7 +80,7 @@ class BadgeGiftingConfirmationViewController: OWSTableViewController2 {
     /// Times out after 30 seconds.
     private func canReceiveGiftBadgesViaProfileFetch() -> Promise<Bool> {
         firstly {
-            profileManager.fetchProfile(forAddressPromise: self.thread.contactAddress)
+            ProfileFetcherJob.fetchProfilePromise(address: self.thread.contactAddress, ignoreThrottling: true)
         }.timeout(seconds: 30) {
             ProfileFetchError.timeout
         }.map { [weak self] _ in
