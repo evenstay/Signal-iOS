@@ -1,5 +1,5 @@
 //
-// Copyright 2017 Signal Messenger, LLC
+// Copyright 2022 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
@@ -14,30 +14,21 @@ public class ExperienceUpgradeFinder: NSObject {
         return allKnownExperienceUpgrades(transaction: transaction.asAnyRead)
             .filter { upgrade in
                 if
+                    upgrade.manifest.shouldBeShown(transaction: transaction.asAnyRead),
                     !upgrade.isComplete,
-                    upgrade.manifest.shouldBeShown(transaction: transaction.asAnyRead)
+                    !upgrade.isSnoozed,
+                    !upgrade.hasPassedNumberOfDaysToShow
                 {
                     return true
                 }
 
                 return false
-            }
-            .first { !$0.isSnoozed }
+            }.first
     }
 
     public class func markAsViewed(experienceUpgrade: ExperienceUpgrade, transaction: GRDBWriteTransaction) {
         Logger.info("marking experience upgrade as seen \(experienceUpgrade.uniqueId)")
         experienceUpgrade.markAsViewed(transaction: transaction.asAnyWrite)
-    }
-
-    public class func markAsSnoozed(
-        experienceUpgradeManifest: ExperienceUpgradeManifest,
-        transaction: GRDBWriteTransaction
-    ) {
-        markAsSnoozed(
-            experienceUpgrade: ExperienceUpgrade.makeNew(withManifest: experienceUpgradeManifest),
-            transaction: transaction
-        )
     }
 
     public class func markAsSnoozed(experienceUpgrade: ExperienceUpgrade, transaction: GRDBWriteTransaction) {
@@ -111,11 +102,20 @@ public class ExperienceUpgradeFinder: NSObject {
 
 public extension ExperienceUpgrade {
     var isSnoozed: Bool {
-        guard lastSnoozedTimestamp > 0 else { return false }
+        guard
+            lastSnoozedTimestamp > 0,
+            snoozeCount > 0
+        else {
+            return false
+        }
 
         // Check if enough time has passed since the last snooze date.
         let timeSinceLastSnooze = -Date(timeIntervalSince1970: lastSnoozedTimestamp).timeIntervalSinceNow
-        return timeSinceLastSnooze <= manifest.snoozeDuration
+        return timeSinceLastSnooze <= manifest.snoozeDuration(forSnoozeCount: snoozeCount)
+    }
+
+    var hasPassedNumberOfDaysToShow: Bool {
+        daysSinceFirstViewed > manifest.numberOfDaysToShowFor
     }
 
     var daysSinceFirstViewed: Int {

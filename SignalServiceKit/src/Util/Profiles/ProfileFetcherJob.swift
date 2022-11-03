@@ -537,45 +537,55 @@ public class ProfileFetcherJob: NSObject {
             let profileKeyDescription = profileKey?.keyData.hexadecimalString ?? "None"
             let hasAvatar = profile.avatarUrlPath != nil
             let hasProfileNameEncrypted = profile.profileNameEncrypted != nil
-            let hasGivenName = givenName?.count ?? 0 > 0
-            let hasFamilyName = familyName?.count ?? 0 > 0
-            let hasBio = bio?.count ?? 0 > 0
-            let hasBioEmoji = bioEmoji?.count ?? 0 > 0
-            let hasUsername = username?.count ?? 0 > 0
+            let hasGivenName = givenName?.nilIfEmpty != nil
+            let hasFamilyName = familyName?.nilIfEmpty != nil
+            let hasBio = bio?.nilIfEmpty != nil
+            let hasBioEmoji = bioEmoji?.nilIfEmpty != nil
+            let hasUsername = username?.nilIfEmpty != nil
             let hasPaymentAddress = paymentAddress != nil
             let badges = fetchedProfile.profile.badges.map { "\"\($0.0.description)\"" }.joined(separator: "; ")
 
-            Logger.info("address: \(address), " +
-                        "isVersionedProfile: \(isVersionedProfile), " +
-                        "hasAvatar: \(hasAvatar), " +
-                        "hasProfileNameEncrypted: \(hasProfileNameEncrypted), " +
-                        "hasGivenName: \(hasGivenName), " +
-                        "hasFamilyName: \(hasFamilyName), " +
-                        "hasBio: \(hasBio), " +
-                        "hasBioEmoji: \(hasBioEmoji), " +
-                        "hasUsername: \(hasUsername), " +
-                        "hasPaymentAddress: \(hasPaymentAddress), " +
-                        "profileKey: \(profileKeyDescription), " +
-                        "badges: \(badges)")
+            Logger.info(
+                "address: \(address), " +
+                "isVersionedProfile: \(isVersionedProfile), " +
+                "hasAvatar: \(hasAvatar), " +
+                "hasProfileNameEncrypted: \(hasProfileNameEncrypted), " +
+                "hasGivenName: \(hasGivenName), " +
+                "hasFamilyName: \(hasFamilyName), " +
+                "hasBio: \(hasBio), " +
+                "hasBioEmoji: \(hasBioEmoji), " +
+                "hasUsername: \(hasUsername), " +
+                "hasPaymentAddress: \(hasPaymentAddress), " +
+                "profileKey: \(profileKeyDescription), " +
+                "badges: \(badges)"
+            )
         }
 
+        // This calls databaseStorage.write { }
         if let profileRequest = fetchedProfile.versionedProfileRequest {
             self.versionedProfiles.didFetchProfile(profile: profile, profileRequest: profileRequest)
         }
 
-        firstly(on: .global()) { () -> URL? in
+        // This calls databaseStorage.asyncWrite { }
+        Self.updateUnidentifiedAccess(
+            address: address,
+            verifier: profile.unidentifiedAccessVerifier,
+            hasUnrestrictedAccess: profile.hasUnrestrictedUnidentifiedAccess
+        )
+
+        return firstly(on: .global()) { () -> URL? in
             if let avatarData = optionalAvatarData, avatarData.count > 0 {
                 return self.profileManager.writeAvatarDataToFile(avatarData)
             } else {
                 return nil
             }
-        }.done(on: .global()) { (avatarUrl: URL?) in
-            self.databaseStorage.write { writeTx in
+        }.then(on: .global()) { (avatarUrl: URL?) in
+            self.databaseStorage.write(.promise) { transaction in
                 // First, we add ensure we have a copy of any new badge in our badge store
                 let badgeModels = fetchedProfile.profile.badges.map { $0.1 }
                 let persistedBadgeIds: [String] = badgeModels.compactMap {
                     do {
-                        try self.profileManager.badgeStore.createOrUpdateBadge($0, transaction: writeTx)
+                        try self.profileManager.badgeStore.createOrUpdateBadge($0, transaction: transaction)
                         return $0.id
                     } catch {
                         owsFailDebug("Failed to save badgeId: \($0.id). \(error)")
@@ -583,7 +593,8 @@ public class ProfileFetcherJob: NSObject {
                     }
                 }
 
-                // Then, we update the profile. `profileBadges` will contain the badgeId of badges in the badge store
+                // Then, we update the profile. `profileBadges` will contain the badgeId of
+                // badges in the badge store
                 let profileBadgeMetadata = fetchedProfile.profile.badges
                     .map { $0.0 }
                     .filter { persistedBadgeIds.contains($0.badgeId) }
@@ -602,27 +613,27 @@ public class ProfileFetcherJob: NSObject {
                     canReceiveGiftBadges: profile.canReceiveGiftBadges,
                     lastFetch: Date(),
                     userProfileWriter: .profileFetch,
-                    transaction: writeTx
+                    transaction: transaction
                 )
-            }
-        }
 
-        Self.updateUnidentifiedAccess(address: address,
-                                      verifier: profile.unidentifiedAccessVerifier,
-                                      hasUnrestrictedAccess: profile.hasUnrestrictedUnidentifiedAccess)
+                self.verifyIdentityUpToDate(
+                    address: address,
+                    latestIdentityKey: profile.identityKey,
+                    transaction: transaction
+                )
 
-        return databaseStorage.write(.promise) { transaction in
-            self.verifyIdentityUpToDate(address: address,
-                                        latestIdentityKey: profile.identityKey,
-                                        transaction: transaction)
+                self.paymentsHelper.setArePaymentsEnabled(
+                    for: address,
+                    hasPaymentsEnabled: paymentAddress != nil,
+                    transaction: transaction
+                )
 
-            self.paymentsHelper.setArePaymentsEnabled(for: address,
-                                                         hasPaymentsEnabled: paymentAddress != nil,
-                                                         transaction: transaction)
-
-            if address.isLocalAddress {
-                ChangePhoneNumber.setLocalUserSupportsChangePhoneNumber(profile.supportsChangeNumber,
-                                                                        transaction: transaction)
+                if address.isLocalAddress {
+                    ChangePhoneNumber.setLocalUserSupportsChangePhoneNumber(
+                        profile.supportsChangeNumber,
+                        transaction: transaction
+                    )
+                }
             }
         }
     }

@@ -63,6 +63,7 @@ static SSKEnvironment *sharedSSKEnvironment;
 @property (nonatomic) ChangePhoneNumber *changePhoneNumberRef;
 @property (nonatomic) id<SubscriptionManagerProtocol> subscriptionManagerRef;
 @property (nonatomic) id<SystemStoryManagerProtocolObjc> systemStoryManagerRef;
+@property (nonatomic) RemoteMegaphoneFetcher *remoteMegaphoneFetcherRef;
 
 @end
 
@@ -131,6 +132,8 @@ static SSKEnvironment *sharedSSKEnvironment;
                       changePhoneNumber:(ChangePhoneNumber *)changePhoneNumber
                     subscriptionManager:(id<SubscriptionManagerProtocol>)subscriptionManager
                      systemStoryManager:(id<SystemStoryManagerProtocolObjc>)systemStoryManager
+                 remoteMegaphoneFetcher:(RemoteMegaphoneFetcher *)remoteMegaphoneFetcher
+            localUserLeaveGroupJobQueue:(LocalUserLeaveGroupJobQueue *)localUserLeaveGroupJobQueue
 {
     self = [super init];
     if (!self) {
@@ -192,6 +195,8 @@ static SSKEnvironment *sharedSSKEnvironment;
     _changePhoneNumberRef = changePhoneNumber;
     _subscriptionManagerRef = subscriptionManager;
     _systemStoryManagerRef = systemStoryManager;
+    _remoteMegaphoneFetcherRef = remoteMegaphoneFetcher;
+    _localUserLeaveGroupJobQueue = localUserLeaveGroupJobQueue;
 
     return self;
 }
@@ -306,7 +311,7 @@ static SSKEnvironment *sharedSSKEnvironment;
         ^{ [StoryManager setup]; }
     ];
 
-    for (int i = 0; i < specs.count / 2; i++) {
+    for (unsigned i = 0; i < specs.count / 2; i++) {
         [InstrumentsMonitor measureWithCategory:@"appstart"
                                          parent:@"caches"
                                            name:[specs objectAtIndex:2 * i]

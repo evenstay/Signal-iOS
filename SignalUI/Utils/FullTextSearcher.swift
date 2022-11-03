@@ -587,6 +587,11 @@ public class FullTextSearcher: NSObject {
                 }
 
             case let storyThread as TSPrivateStoryThread:
+                guard storyThread.storyViewMode != .disabled else {
+                    // Don't show disabled private story threads; these are queued up
+                    // to be deleted.
+                    break
+                }
                 let sortKey = ConversationSortKey(
                     isContactThread: false,
                     creationDate: storyThread.creationDate,
@@ -971,7 +976,7 @@ public class FullTextSearcher: NSObject {
 
     @objc(filterThreads:withSearchText:transaction:)
     public func filterThreads(_ threads: [TSThread], searchText: String, transaction: SDSAnyReadTransaction) -> [TSThread] {
-        guard searchText.trimmingCharacters(in: .whitespacesAndNewlines).count > 0 else {
+        if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return threads
         }
 
@@ -990,7 +995,7 @@ public class FullTextSearcher: NSObject {
 
     @objc(filterGroupThreads:withSearchText:transaction:)
     public func filterGroupThreads(_ groupThreads: [TSGroupThread], searchText: String, transaction: SDSAnyReadTransaction) -> [TSGroupThread] {
-        guard searchText.trimmingCharacters(in: .whitespacesAndNewlines).count > 0 else {
+        if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return groupThreads
         }
 
@@ -1001,7 +1006,7 @@ public class FullTextSearcher: NSObject {
 
     @objc(filterSignalAccounts:withSearchText:transaction:)
     public func filterSignalAccounts(_ signalAccounts: [SignalAccount], searchText: String, transaction: SDSAnyReadTransaction) -> [SignalAccount] {
-        guard searchText.trimmingCharacters(in: .whitespacesAndNewlines).count > 0 else {
+        if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return signalAccounts
         }
 

@@ -17,8 +17,11 @@ public enum ExperienceUpgradeManifest: Dependencies {
     /// Prompts the user to enable notifications permissions.
     case notificationPermissionReminder
 
-    /// Prompts the user to donate :)
-    case subscriptionMegaphone
+    /// Prompts the user according to the contained ``RemoteMegaphoneModel``.
+    ///
+    /// Remote megaphones are fetched from the service, and expected to change
+    /// over time.
+    case remoteMegaphone(megaphone: RemoteMegaphoneModel)
 
     /// Prompts the user to enter their PIN, to help ensure they remember it.
     ///
@@ -43,14 +46,18 @@ extension ExperienceUpgradeManifest: Codable {
     public enum CodingKeys: String, CodingKey {
         /// Keys to the unique ID identifying a manifest.
         case uniqueId
+        /// Keys to the remote megaphone for a manifest. Only present if the
+        /// manifest represents a remote megaphone.
+        case remoteMegaphone
     }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
         let persistedUniqueId = try container.decode(String.self, forKey: .uniqueId)
+        let persistedRemoteMegaphone = try container.decodeIfPresent(RemoteMegaphoneModel.self, forKey: .remoteMegaphone)
 
-        self.init(uniqueId: persistedUniqueId)
+        self.init(uniqueId: persistedUniqueId, remoteMegaphone: persistedRemoteMegaphone)
 
         owsAssertDebug(uniqueId == persistedUniqueId, "Persisted unique ID does not match deserialized model!")
     }
@@ -59,6 +66,10 @@ extension ExperienceUpgradeManifest: Codable {
         var container = encoder.container(keyedBy: CodingKeys.self)
 
         try container.encode(uniqueId, forKey: .uniqueId)
+
+        if case .remoteMegaphone(let megaphone) = self {
+            try container.encode(megaphone, forKey: .remoteMegaphone)
+        }
     }
 }
 
@@ -71,25 +82,29 @@ extension ExperienceUpgradeManifest {
     /// This is only relevant for ``ExperienceUpgrade``s that were persisted
     /// before the ``ExperienceUpgradeManifest`` was added.
     static func makeLegacy(fromPersistedExperienceUpgradeUniqueId uniqueId: String) -> ExperienceUpgradeManifest {
-        ExperienceUpgradeManifest(uniqueId: uniqueId)
+        ExperienceUpgradeManifest(uniqueId: uniqueId, remoteMegaphone: nil)
     }
 
-    private init(uniqueId: String) {
+    private init(uniqueId: String, remoteMegaphone: RemoteMegaphoneModel?) {
         self = {
             switch uniqueId {
             case Self.introducingPins.uniqueId:
                 return .introducingPins
             case Self.notificationPermissionReminder.uniqueId:
                 return .notificationPermissionReminder
-            case Self.subscriptionMegaphone.uniqueId:
-                return .subscriptionMegaphone
             case Self.pinReminder.uniqueId:
                 return .pinReminder
             case Self.contactPermissionReminder.uniqueId:
                 return .contactPermissionReminder
             default:
-                return .unrecognized(uniqueId: uniqueId)
+                break
             }
+
+            if let megaphone = remoteMegaphone {
+                return .remoteMegaphone(megaphone: megaphone)
+            }
+
+            return .unrecognized(uniqueId: uniqueId)
         }()
     }
 }
@@ -104,7 +119,6 @@ extension ExperienceUpgradeManifest {
     static let wellKnownLocalUpgradeManifests: Set<ExperienceUpgradeManifest> = [
         .introducingPins,
         .notificationPermissionReminder,
-        .subscriptionMegaphone,
         .pinReminder,
         .contactPermissionReminder
     ]
@@ -122,8 +136,8 @@ extension ExperienceUpgradeManifest {
             return "009"
         case .notificationPermissionReminder:
             return "notificationPermissionReminder"
-        case .subscriptionMegaphone:
-            return "subscriptionMegaphone"
+        case .remoteMegaphone(let megaphone):
+            return megaphone.id
         case .pinReminder:
             return "pinReminder"
         case .contactPermissionReminder:
@@ -152,10 +166,12 @@ protocol ExperienceUpgradeSortable {
     /// The relative "importance" of this upgrade - i.e., whether this or
     /// another which of multiple upgrade should be preferred for presentation.
     ///
-    /// Lower values indicate higher importance.
+    /// Lower values indicate higher importance. When comparing, ties in the
+    /// primary index are broken by the secondary index. Equal primary and
+    /// secondary indicies indicates equal importance.
     ///
     /// These values are not expected to remain stable.
-    var importanceIndex: Int { get }
+    var importanceIndex: (primary: Int, secondary: Int) { get }
 }
 
 extension Sequence where Element: ExperienceUpgradeSortable {
@@ -164,32 +180,38 @@ extension Sequence where Element: ExperienceUpgradeSortable {
     /// its subsequent elements.
     func sortedByImportance() -> [Element] {
         sorted { lhs, rhs in
-            return lhs.importanceIndex < rhs.importanceIndex
+            if lhs.importanceIndex.primary == rhs.importanceIndex.primary {
+                return lhs.importanceIndex.secondary < rhs.importanceIndex.secondary
+            }
+
+            return lhs.importanceIndex.primary < rhs.importanceIndex.primary
         }
     }
 }
 
 extension ExperienceUpgradeManifest: ExperienceUpgradeSortable {
-    var importanceIndex: Int {
+    var importanceIndex: (primary: Int, secondary: Int) {
         switch self {
         case .introducingPins:
-            return 0
+            return (0, 0)
         case .notificationPermissionReminder:
-            return 1
-        case .subscriptionMegaphone:
-            return 2
+            return (1, 0)
+        case .remoteMegaphone(let megaphone):
+            // Remote megaphone manifests use higher numbers to indicate higher
+            // priority, so we should invert their priority here.
+            return (2, -1 * megaphone.manifest.priority)
         case .pinReminder:
-            return 3
+            return (3, 0)
         case .contactPermissionReminder:
-            return 4
+            return (4, 0)
         case .unrecognized:
-            return Int.max
+            return (Int.max, Int.max)
         }
     }
 }
 
 extension ExperienceUpgrade: ExperienceUpgradeSortable {
-    var importanceIndex: Int {
+    var importanceIndex: (primary: Int, secondary: Int) {
         manifest.importanceIndex
     }
 }
@@ -202,7 +224,7 @@ extension ExperienceUpgradeManifest {
         switch self {
         case
                 .introducingPins,
-                .subscriptionMegaphone:
+                .remoteMegaphone:
             return false
         case
                 .notificationPermissionReminder,
@@ -225,7 +247,7 @@ extension ExperienceUpgradeManifest {
             return false
         case
                 .notificationPermissionReminder,
-                .subscriptionMegaphone,
+                .remoteMegaphone,
                 .contactPermissionReminder:
             return true
         }
@@ -240,16 +262,22 @@ extension ExperienceUpgradeManifest {
         case
                 .introducingPins,
                 .notificationPermissionReminder,
-                .subscriptionMegaphone,
                 .pinReminder,
                 .contactPermissionReminder,
                 .unrecognized:
             return false
+        case .remoteMegaphone:
+            return true
         }
     }
 
     /// The interval after snoozing during which we should not show the upgrade.
-    var snoozeDuration: TimeInterval {
+    func snoozeDuration(forSnoozeCount snoozeCount: UInt) -> TimeInterval {
+        guard snoozeCount > 0 else {
+            owsFailDebug("Asking for snooze duration, but snooze count is zero!")
+            return 0
+        }
+
         switch self {
         case
                 .introducingPins,
@@ -257,12 +285,62 @@ extension ExperienceUpgradeManifest {
             return 2 * kDayInterval
         case .notificationPermissionReminder:
             return 3 * kDayInterval
-        case .subscriptionMegaphone:
-            return RemoteConfig.subscriptionMegaphoneSnoozeInterval
+        case .remoteMegaphone(let megaphone):
+            let daysToSnooze: UInt = {
+                // If we have snooze duration days as action data, get the
+                // appropriate number of days from there based on our snooze
+                // count. Otherwise, return a default value.
+
+                let snoozeDurationDays: [UInt]? = {
+                    if
+                        let primaryActionData = megaphone.manifest.primaryActionData,
+                        case .snoozeDurationDays(let days) = primaryActionData
+                    {
+                        return days
+                    } else if
+                        let secondaryActionData = megaphone.manifest.secondaryActionData,
+                        case .snoozeDurationDays(let days) = secondaryActionData
+                    {
+                        return days
+                    }
+
+                    return nil
+                }()
+
+                if
+                    let snoozeDurationDays = snoozeDurationDays,
+                    let lastDurationDays = snoozeDurationDays.last
+                {
+                    // Safe to subtract from `snoozeCount`, since we checked for 0 above.
+                    let snoozeDurationDaysIndex = snoozeCount - 1
+                    return snoozeDurationDays[safe: Int(snoozeDurationDaysIndex)] ?? lastDurationDays
+                }
+
+                return 3
+            }()
+
+            return Double(daysToSnooze) * kDayInterval
         case .contactPermissionReminder:
             return 30 * kDayInterval
         case .unrecognized:
             return Date.distantFuture.timeIntervalSince1970
+        }
+    }
+
+    /// The number of days this upgrade should be shown, starting from the
+    /// first time it is shown.
+    var numberOfDaysToShowFor: Int {
+        switch self {
+        case
+                .introducingPins,
+                .notificationPermissionReminder,
+                .pinReminder,
+                .contactPermissionReminder:
+            return Int.max
+        case .remoteMegaphone(let megaphone):
+            return megaphone.manifest.showForNumberOfDays
+        case .unrecognized:
+            return 0
         }
     }
 
@@ -276,8 +354,19 @@ extension ExperienceUpgradeManifest {
             return kDayInterval
         case .introducingPins:
             return 2 * kHourInterval
-        case .subscriptionMegaphone:
-            return 5 * kDayInterval
+        case .remoteMegaphone(let megaphone):
+            guard let conditionalCheck = megaphone.manifest.conditionalCheck else {
+                return 0
+            }
+
+            switch conditionalCheck {
+            case .standardDonate:
+                return 7 * kDayInterval
+            case .internalUser:
+                return 0
+            case .unrecognized:
+                return .infinity
+            }
         case .pinReminder:
             return 8 * kHourInterval
         case .unrecognized:
@@ -291,10 +380,11 @@ extension ExperienceUpgradeManifest {
         case
                 .introducingPins,
                 .notificationPermissionReminder,
-                .subscriptionMegaphone,
                 .pinReminder,
                 .contactPermissionReminder:
             return Date.distantFuture
+        case .remoteMegaphone(let megaphone):
+            return Date(timeIntervalSince1970: TimeInterval(megaphone.manifest.dontShowAfter))
         case .unrecognized:
             return Date.distantPast
         }
@@ -310,8 +400,11 @@ extension ExperienceUpgradeManifest {
             return false
         case
                 .notificationPermissionReminder,
-                .subscriptionMegaphone,
                 .contactPermissionReminder:
+            return true
+        case
+                .remoteMegaphone:
+            // Controlled by conditional check
             return true
         }
     }
@@ -349,8 +442,8 @@ extension ExperienceUpgradeManifest {
             return checkPreconditionsForIntroducingPins(transaction: transaction)
         case .notificationPermissionReminder:
             return checkPreconditionsForNotificationsPermissionsReminder()
-        case .subscriptionMegaphone:
-            return checkPreconditionsForSubscriptionMegaphone(transaction: transaction)
+        case .remoteMegaphone(let megaphone):
+            return checkPreconditionsForRemoteMegaphone(megaphone)
         case .pinReminder:
             return checkPreconditionsForPinReminder(transaction: transaction)
         case .contactPermissionReminder:
@@ -359,6 +452,8 @@ extension ExperienceUpgradeManifest {
             return false
         }
     }
+
+    // MARK: Local megaphone preconditions
 
     private static func checkPreconditionsForIntroducingPins(transaction: SDSAnyReadTransaction) -> Bool {
         // The PIN setup flow requires an internet connection and you to not already have a PIN
@@ -398,25 +493,122 @@ extension ExperienceUpgradeManifest {
         }
     }
 
-    private static func checkPreconditionsForSubscriptionMegaphone(transaction: SDSAnyReadTransaction) -> Bool {
-        // Show the subscription megaphone IFF:
-        // - It's remotely enabled
-        // - The user has no / an expired subscription
-        // - Their last subscription has been expired for more than 2 weeks
-
-        guard RemoteConfig.subscriptionMegaphone else {
-            return false
-        }
-
-        let timeSinceExpiration = subscriptionManager.timeSinceLastSubscriptionExpiration(transaction: transaction)
-        return timeSinceExpiration > (2 * kWeekInterval)
-    }
-
     private static func checkPreconditionsForPinReminder(transaction: SDSAnyReadTransaction) -> Bool {
         return OWS2FAManager.shared.isDueForV2Reminder(transaction: transaction)
     }
 
     private static func checkPreconditionsForContactsPermissionReminder() -> Bool {
         return CNContactStore.authorizationStatus(for: CNEntityType.contacts) != .authorized
+    }
+
+    // MARK: Remote megaphone preconditions
+
+    private static func checkPreconditionsForRemoteMegaphone(_ megaphone: RemoteMegaphoneModel) -> Bool {
+        guard
+            AppVersion.compare(
+                megaphone.manifest.minAppVersion,
+                with: appVersion.currentAppVersion4
+            ) != .orderedDescending
+        else {
+            Logger.debug("App version \(appVersion.currentAppVersion4) lower than required \(megaphone.manifest.minAppVersion)!")
+            return false
+        }
+
+        guard Date().timeIntervalSince1970 > TimeInterval(megaphone.manifest.dontShowBefore) else {
+            Logger.debug("Remote megaphone should not be shown until later!")
+            return false
+        }
+
+        guard RemoteConfig.isCountryCodeBucketEnabled(
+            csvString: megaphone.manifest.countries,
+            key: megaphone.manifest.id,
+            csvDescription: "remoteMegaphoneCountries_\(megaphone.manifest.id)"
+        ) else {
+            Logger.debug("Remote megaphone not enabled for this user, by country code!")
+            return false
+        }
+
+        guard validateRemoteMegaphone(conditionalCheck: megaphone.manifest.conditionalCheck) else {
+            return false
+        }
+
+        guard validateRemoteMegaphone(
+            action: megaphone.manifest.primaryAction,
+            withText: megaphone.translation.primaryActionText
+        ) else {
+            return false
+        }
+
+        guard validateRemoteMegaphone(
+            action: megaphone.manifest.secondaryAction,
+            withText: megaphone.translation.secondaryActionText
+        ) else {
+            return false
+        }
+
+        return true
+    }
+
+    private static func validateRemoteMegaphone(
+        conditionalCheck: RemoteMegaphoneModel.Manifest.ConditionalCheck?
+    ) -> Bool {
+        guard let conditionalCheck = conditionalCheck else {
+            // Having no conditional check is valid.
+            return true
+        }
+
+        switch conditionalCheck {
+        case .standardDonate:
+            if
+                let localProfileBadgeInfo = profileManager.localProfileBadgeInfo(),
+                !localProfileBadgeInfo.isEmpty
+            {
+                // Fail the check if we currently have a badge.
+                return false
+            }
+
+            return true
+        case .internalUser:
+            // Show this megaphone to all internal users, even if they already
+            // have a badge.
+            return DebugFlags.internalMegaphoneEligible
+        case .unrecognized(let conditionalId):
+            Logger.warn("Found unrecognized conditional check with ID \(conditionalId), bailing.")
+            return false
+        }
+    }
+
+    private static func validateRemoteMegaphone(
+        action: RemoteMegaphoneModel.Manifest.Action?,
+        withText text: String?
+    ) -> Bool {
+        guard let action = action else {
+            // Having no action is valid...
+            return true
+        }
+
+        guard action.isRecognized else {
+            // ...but we need to recognize it...
+            Logger.warn("Found unrecognized action with ID \(action.actionId), bailing.")
+            return false
+        }
+
+        guard text != nil else {
+            // ...and have text for it.
+            Logger.warn("Missing action text for action \(action.actionId)")
+            return false
+        }
+
+        return true
+    }
+}
+
+private extension RemoteMegaphoneModel.Manifest.Action {
+    var isRecognized: Bool {
+        if case .unrecognized = self {
+            return false
+        }
+
+        return true
     }
 }

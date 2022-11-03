@@ -263,9 +263,11 @@ def lint_swift_files(file_paths: set[str]) -> None:
             env=env,
             text=True,
         )
+        print(lint_output)
     except subprocess.CalledProcessError as error:
-        lint_output = error.output
-    print(lint_output)
+        print(error.output)
+        print("Please fix the above lint errors before committing your changes")
+        sys.exit(1)
 
 
 def check_diff_for_keywords():

@@ -13,8 +13,6 @@ public class RemoteConfig: BaseFlags {
     // into a getter below...
     fileprivate let isEnabledFlags: [String: Bool]
     fileprivate let valueFlags: [String: AnyObject]
-    private let subscriptionMegaphone: Bool
-    private let storiesRegional: Bool
     private let standardMediaQualityLevel: ImageQualityLevel?
     private let paymentsDisabledRegions: [String]
 
@@ -22,8 +20,6 @@ public class RemoteConfig: BaseFlags {
          valueFlags: [String: AnyObject]) {
         self.isEnabledFlags = isEnabledFlags
         self.valueFlags = valueFlags
-        self.subscriptionMegaphone = Self.isCountryCodeBucketEnabled(.donationMegaphone, valueFlags: valueFlags)
-        self.storiesRegional = Self.isCountryCodeBucketEnabled(.storiesRegional, valueFlags: valueFlags)
         self.standardMediaQualityLevel = Self.determineStandardMediaQualityLevel(valueFlags: valueFlags)
         self.paymentsDisabledRegions = Self.parsePaymentsDisabledRegions(valueFlags: valueFlags)
     }
@@ -116,17 +112,6 @@ public class RemoteConfig: BaseFlags {
     }
 
     @objc
-    public static var subscriptionMegaphone: Bool {
-        guard let remoteConfig = Self.remoteConfigManager.cachedConfig else { return false }
-        return DebugFlags.forceSubscriptionMegaphone || remoteConfig.subscriptionMegaphone
-    }
-
-    @objc
-    public static var subscriptionMegaphoneSnoozeInterval: TimeInterval {
-        interval(.donationMegaphoneSnoozeInterval, defaultInterval: kMonthInterval * 6)
-    }
-
-    @objc
     public static var paymentsResetKillSwitch: Bool {
         isEnabled(.paymentsResetKillSwitch)
     }
@@ -142,9 +127,14 @@ public class RemoteConfig: BaseFlags {
     }
 
     private static func determineStandardMediaQualityLevel(valueFlags: [String: AnyObject]) -> ImageQualityLevel? {
-        guard let stringValue = Self.countryCodeValue(.standardMediaQualityLevel, valueFlags: valueFlags),
-              let uintValue = UInt(stringValue),
-              let defaultMediaQuality = ImageQualityLevel(rawValue: uintValue) else {
+        let rawFlag: String = Flags.SupportedValuesFlags.standardMediaQualityLevel.rawFlag
+
+        guard
+            let csvString = valueFlags[rawFlag] as? String,
+            let stringValue = Self.countryCodeValue(csvString: csvString, csvDescription: rawFlag),
+            let uintValue = UInt(stringValue),
+            let defaultMediaQuality = ImageQualityLevel(rawValue: uintValue)
+        else {
             return nil
         }
         return defaultMediaQuality
@@ -214,7 +204,13 @@ public class RemoteConfig: BaseFlags {
 
     @objc
     public static var stories: Bool {
-        DebugFlags.forceStories || isEnabled(.stories) || Self.remoteConfigManager.cachedConfig?.storiesRegional == true
+        if DebugFlags.forceStories {
+            return true
+        }
+        if isEnabled(.storiesKillSwitch) {
+            return false
+        }
+        return true
     }
 
     @objc
@@ -253,34 +249,45 @@ public class RemoteConfig: BaseFlags {
         return uintValue
     }
 
-    // MARK: -
+    // MARK: - Country code buckets
 
-    private static func interval(
-        _ flag: Flags.SupportedValuesFlags,
-        defaultInterval: TimeInterval
-    ) -> TimeInterval {
-        guard let intervalString: String = value(flag),
-              let interval = TimeInterval(intervalString) else {
-            return defaultInterval
+    /// Determine if a country-code-dependent flag is enabled for the current
+    /// user, given a country-code CSV and key.
+    ///
+    /// - Parameter csvString: a CSV containing `<country-code>:<parts-per-million>` pairs
+    /// - Parameter key: a key to use as part of bucketing
+    static func isCountryCodeBucketEnabled(csvString: String, key: String, csvDescription: String) -> Bool {
+        guard
+            let countryCodeValue = countryCodeValue(csvString: csvString, csvDescription: csvDescription),
+            let countEnabled = UInt64(countryCodeValue)
+        else {
+            return false
         }
-        return interval
+
+        return isBucketEnabled(key: key, countEnabled: countEnabled, bucketSize: 1_000_000)
     }
 
-    private static func countryCodeValue(_ flag: Flags.SupportedValuesFlags, valueFlags: [String: AnyObject]) -> String? {
+    private static func isCountryCodeBucketEnabled(flag: Flags.SupportedValuesFlags, valueFlags: [String: AnyObject]) -> Bool {
         let rawFlag = flag.rawFlag
-        guard let value = valueFlags[rawFlag] as? String else { return nil }
+        guard let csvString = valueFlags[rawFlag] as? String else { return false }
 
-        guard !value.isEmpty else { return nil }
+        return isCountryCodeBucketEnabled(csvString: csvString, key: rawFlag, csvDescription: rawFlag)
+    }
+
+    /// Given a CSV of `<country-code>:<value>` pairs, extract the `<value>`
+    /// corresponding to the current user's country.
+    private static func countryCodeValue(csvString: String, csvDescription: String) -> String? {
+        guard !csvString.isEmpty else { return nil }
 
         // The value should always be a comma-separated list of country codes colon-separated
         // from a value. There all may be an optional be a wildcard "*" country code that any
         // unspecified country codes should use. If neither the local country code or the wildcard
         // is specified, we assume the value is not set.
-        let countryCodeToValueMap = value
+        let countryCodeToValueMap = csvString
             .components(separatedBy: ",")
             .reduce(into: [String: String]()) { result, value in
                 let components = value.components(separatedBy: ":")
-                guard components.count == 2 else { return owsFailDebug("Invalid \(rawFlag) value \(value)")}
+                guard components.count == 2 else { return owsFailDebug("Invalid \(csvDescription) value \(value)") }
                 let countryCode = components[0]
                 let countryValue = components[1]
                 result[countryCode] = countryValue
@@ -295,12 +302,6 @@ public class RemoteConfig: BaseFlags {
         }
 
         return countryCodeToValueMap[localCountryCode] ?? countryCodeToValueMap["*"]
-    }
-
-    private static func isCountryCodeBucketEnabled(_ flag: Flags.SupportedValuesFlags, valueFlags: [String: AnyObject]) -> Bool {
-        guard let countryCodeValue = self.countryCodeValue(flag, valueFlags: valueFlags) else { return false }
-        guard let countEnabled = UInt64(countryCodeValue) else { return false }
-        return isBucketEnabled(key: flag.rawFlag, countEnabled: countEnabled, bucketSize: 1_000_000)
     }
 
     private static func isBucketEnabled(key: String, countEnabled: UInt64, bucketSize: UInt64) -> Bool {
@@ -332,6 +333,19 @@ public class RemoteConfig: BaseFlags {
 
         // uuid_bucket = UINT64_FROM_FIRST_8_BYTES_BIG_ENDIAN(SHA256(rawFlag + "." + uuidBytes)) % bucketSize
         return UInt64(bigEndianData: hash.prefix(8))! % bucketSize
+    }
+
+    // MARK: -
+
+    private static func interval(
+        _ flag: Flags.SupportedValuesFlags,
+        defaultInterval: TimeInterval
+    ) -> TimeInterval {
+        guard let intervalString: String = value(flag),
+              let interval = TimeInterval(intervalString) else {
+            return defaultInterval
+        }
+        return interval
     }
 
     private static func isEnabled(_ flag: Flags.SupportedIsEnabledFlags, defaultValue: Bool = false) -> Bool {
@@ -435,7 +449,7 @@ private struct Flags {
         case keepMutedChatsArchivedOption
         case canReceiveGiftBadges
         case groupRings
-        case stories
+        case storiesKillSwitch
     }
 
     // Values defined in this array remain set once they are
@@ -454,10 +468,7 @@ private struct Flags {
         case automaticSessionResetAttemptInterval
         case reactiveProfileKeyAttemptInterval
         case paymentsDisabledRegions
-        case donationMegaphone
-        case donationMegaphoneSnoozeInterval
         case maxGroupCallRingSize
-        case storiesRegional
     }
 
     // We filter the received config down to just the supported values.
@@ -475,10 +486,7 @@ private struct Flags {
         case replaceableInteractionExpiration
         case messageSendLogEntryLifetime
         case paymentsDisabledRegions
-        case donationMegaphone
-        case donationMegaphoneSnoozeInterval
         case maxGroupCallRingSize
-        case storiesRegional
     }
 }
 

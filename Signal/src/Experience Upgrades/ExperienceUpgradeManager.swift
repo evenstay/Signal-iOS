@@ -93,15 +93,6 @@ class ExperienceUpgradeManager: NSObject {
         }
     }
 
-    /// Snoozes the given upgrade, and dismisses it if currently presented.
-    static func snoozeExperienceUpgrade(_ manifest: ExperienceUpgradeManifest, transaction: GRDBWriteTransaction) {
-        ExperienceUpgradeFinder.markAsSnoozed(experienceUpgradeManifest: manifest, transaction: transaction)
-
-        transaction.addAsyncCompletion(queue: .main) {
-            dismissLastPresented(ifMatching: manifest)
-        }
-    }
-
     private static func dismissLastPresented(ifMatching manifest: ExperienceUpgradeManifest? = nil) {
         guard let lastPresented = lastPresented else {
             return
@@ -142,8 +133,12 @@ class ExperienceUpgradeManager: NSObject {
                 .introducingPins,
                 .pinReminder,
                 .notificationPermissionReminder,
-                .contactPermissionReminder,
-                .subscriptionMegaphone:
+                .contactPermissionReminder:
+            return true
+        case .remoteMegaphone:
+            // Remote megaphones are always presentable. We filter out any with
+            // unpresentable fields (e.g., unrecognized actions) before we get
+            // out of the `ExperienceUpgradeFinder`.
             return true
         case .unrecognized:
             return false
@@ -160,8 +155,12 @@ class ExperienceUpgradeManager: NSObject {
             return NotificationPermissionReminderMegaphone(experienceUpgrade: experienceUpgrade, fromViewController: fromViewController)
         case .contactPermissionReminder:
             return ContactPermissionReminderMegaphone(experienceUpgrade: experienceUpgrade, fromViewController: fromViewController)
-        case .subscriptionMegaphone:
-            return DonationMegaphone(experienceUpgrade: experienceUpgrade, fromViewController: fromViewController)
+        case .remoteMegaphone(let megaphone):
+            return RemoteMegaphone(
+                experienceUpgrade: experienceUpgrade,
+                remoteMegaphoneModel: megaphone,
+                fromViewController: fromViewController
+            )
         case .unrecognized:
             return nil
         }

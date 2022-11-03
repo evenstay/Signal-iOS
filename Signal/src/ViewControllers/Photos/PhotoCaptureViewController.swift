@@ -855,19 +855,22 @@ extension PhotoCaptureViewController {
         guard let userInfo = notification.userInfo,
               let endFrame = userInfo[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else { return }
 
-        let iPhoneInset = textEditorToolbar.convert(endFrame, from: nil).minY - textEditorToolbar.bounds.maxY
-        var iPadInset: CGFloat = 0
+        // Detect floating keyboards - those should not adjust bottom inset for text input area.
+        // Note that floating keyboard could co-exist with iPhone-like layouts.
+        let keyboardFrame = textStoryComposerView.convert(endFrame, from: nil)
+        let isNonFloatingKeyboardVisible = keyboardFrame.height > 0 &&
+            keyboardFrame.minX <= textStoryComposerView.bounds.minX &&
+            keyboardFrame.maxX >= textStoryComposerView.bounds.maxX
 
-        if isIPadUIInRegularMode {
-            // Detection of the floating keyboard.
-            let keyboardFrame = textStoryComposerView.convert(endFrame, from: nil)
-            if  keyboardFrame.height > 0 &&
-                keyboardFrame.minX <= textStoryComposerView.bounds.minX &&
-                keyboardFrame.maxX >= textStoryComposerView.bounds.maxX {
-                iPadInset = keyboardFrame.minY - textStoryComposerView.bounds.maxY
-            } else {
-                iPadInset = 0
-            }
+        let iPhoneInset: CGFloat
+        let iPadInset: CGFloat
+        if isNonFloatingKeyboardVisible {
+            let convertedKeyboardFrame = textEditorToolbar.convert(keyboardFrame, from: textStoryComposerView)
+            iPhoneInset = convertedKeyboardFrame.minY - textEditorToolbar.bounds.maxY
+            iPadInset = keyboardFrame.minY - textStoryComposerView.bounds.maxY
+        } else {
+            iPhoneInset = textEditorToolbar.bounds.height
+            iPadInset = 0
         }
 
         let layoutUpdateBlock = {
@@ -1546,7 +1549,7 @@ private class TextStoryComposerView: TextAttachmentView, UITextViewDelegate {
         let (fontPointSize, textAlignment) = sizeAndAlignment(forText: text)
         textView.updateWith(
             textForegroundColor: textForegroundColor,
-            font: font(for: textStyle, withPointSize: fontPointSize),
+            font: .font(for: textStyle, withPointSize: fontPointSize),
             textAlignment: textAlignment,
             textDecorationColor: nil,
             decorationStyle: .none)
@@ -1663,7 +1666,11 @@ private class TextStoryComposerView: TextAttachmentView, UITextViewDelegate {
         delegate?.textStoryComposerDidEndEditing(self)
     }
 
+    private var updatingTextViewText = false
+
     func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText: String) -> Bool {
+
+        guard !updatingTextViewText else { return false }
 
         let originalInput = text ?? ""
         let (shouldChange, changedString) = TextHelper.shouldChangeCharactersInRange(
@@ -1686,10 +1693,17 @@ private class TextStoryComposerView: TextAttachmentView, UITextViewDelegate {
 
         text = (originalInput as NSString).replacingCharacters(in: range, with: replacementText)
 
-        let transformedReplacementText = transformedText(replacementText, for: textStyle)
-        guard transformedReplacementText == replacementText else {
-            textView.text = transformedText(text ?? "", for: textStyle)
+        let transformedText = transformedText(text ?? "", for: textStyle)
+        guard text == transformedText else {
+            // If this method is called as a result of using apple's autocomplete suggestion bar
+            // there is a bug where setting the UITextView's text will trigger another call of this delegate
+            // method. Inputting text any other way suppresses calls to this delegate method as a result
+            // of changes to the text within the method itself. To work around this apple bug, keep track of
+            // re-entrancy manually and suppress it ourselves.
+            updatingTextViewText = true
+            textView.text = transformedText
             textView.delegate?.textViewDidChange?(textView)
+            updatingTextViewText = false
             return false
         }
 

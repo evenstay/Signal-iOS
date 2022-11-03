@@ -206,6 +206,7 @@ public class GRDBSchemaMigrator: NSObject {
         case addColumnForExperienceUpgradeManifest
         case addStoryContextAssociatedDataReadTimestampColumn
         case addIsCompleteToContactSyncJob
+        case addSnoozeCountToExperienceUpgrade
 
         // NOTE: Every time we add a migration id, consider
         // incrementing grdbSchemaVersionLatest.
@@ -258,10 +259,11 @@ public class GRDBSchemaMigrator: NSObject {
         case dataMigration_removeGroupStoryRepliesFromSearchIndex
         case dataMigration_populateStoryContextAssociatedDataLastReadTimestamp
         case dataMigration_indexPrivateStoryThreadNames
+        case dataMigration_scheduleStorageServiceUpdateForSystemContacts
     }
 
     public static let grdbSchemaVersionDefault: UInt = 0
-    public static let grdbSchemaVersionLatest: UInt = 51
+    public static let grdbSchemaVersionLatest: UInt = 52
 
     // An optimization for new users, we have the first migration import the latest schema
     // and mark any other migrations as "already run".
@@ -2178,6 +2180,25 @@ public class GRDBSchemaMigrator: NSObject {
             }
         } // end: .addIsCompleteToContactSyncJob
 
+        migrator.registerMigration(.addSnoozeCountToExperienceUpgrade) { db in
+            do {
+                try db.alter(table: "model_ExperienceUpgrade") { (table: TableAlteration) in
+                    table.add(column: "snoozeCount", .integer)
+                        .notNull()
+                        .defaults(to: 0)
+                }
+
+                let populateSql = """
+                    UPDATE model_ExperienceUpgrade
+                    SET snoozeCount = 1
+                    WHERE lastSnoozedTimestamp > 0
+                """
+                try db.execute(sql: populateSql)
+            } catch let error {
+                owsFail("Error: \(error)")
+            }
+        }
+
         // MARK: - Schema Migration Insertion Point
     }
 
@@ -2594,7 +2615,39 @@ public class GRDBSchemaMigrator: NSObject {
             } catch {
                 owsFail("Error: \(error)")
             }
+        }
 
+        migrator.registerMigration(.dataMigration_scheduleStorageServiceUpdateForSystemContacts) { db in
+            let transaction = GRDBWriteTransaction(database: db)
+            defer { transaction.finalizeTransaction() }
+
+            // We've added fields on the StorageService ContactRecord proto for
+            // their "system name", or the name of their associated system
+            // contact, if present. Consequently, for all Signal contacts with
+            // a system contact, we should schedule a StorageService update.
+            //
+            // We only want to do this if we are the primary device, since only
+            // the primary device's system contacts are synced.
+
+            guard tsAccountManager.isPrimaryDevice else {
+                return
+            }
+
+            var accountsToRemove: Set<SignalAccount> = []
+
+            SignalAccount.anyEnumerate(transaction: transaction.asAnyRead) { account, _ in
+                guard
+                    let contact = account.contact,
+                    contact.isFromLocalAddressBook
+                else {
+                    // Skip any accounts that do not have a system contact
+                    return
+                }
+
+                accountsToRemove.insert(account)
+            }
+
+            storageServiceManager.recordPendingUpdates(updatedAddresses: accountsToRemove.map { $0.recipientAddress })
         }
 
         // MARK: - Data Migration Insertion Point

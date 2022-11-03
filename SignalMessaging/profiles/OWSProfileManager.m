@@ -343,6 +343,11 @@ static NSString *const kLastGroupProfileKeyCheckTimestampKey = @"lastGroupProfil
     return [self loadProfileAvatarDataWithFilename:filename];
 }
 
+- (nullable NSArray<OWSUserProfileBadgeInfo *> *)localProfileBadgeInfo
+{
+    return self.localUserProfile.profileBadgeInfo;
+}
+
 - (nullable NSString *)localUsername
 {
     return self.localUserProfile.username;
@@ -1779,28 +1784,6 @@ static NSString *const kLastGroupProfileKeyCheckTimestampKey = @"lastGroupProfil
     // downloads.
     if (userProfile.avatarUrlPath.length > 0 && userProfile.avatarFileName.length < 1) {
         [self downloadAvatarForUserProfile:userProfile];
-    }
-}
-
-- (BOOL)isNullableDataEqual:(NSData *_Nullable)left toData:(NSData *_Nullable)right
-{
-    if (left == nil && right == nil) {
-        return YES;
-    } else if (left == nil || right == nil) {
-        return YES;
-    } else {
-        return [left isEqual:right];
-    }
-}
-
-- (BOOL)isNullableStringEqual:(NSString *_Nullable)left toString:(NSString *_Nullable)right
-{
-    if (left == nil && right == nil) {
-        return YES;
-    } else if (left == nil || right == nil) {
-        return YES;
-    } else {
-        return [left isEqualToString:right];
     }
 }
 
