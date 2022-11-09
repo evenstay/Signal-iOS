@@ -220,7 +220,16 @@ class CallHeader: UIView {
         let callStatusText: String
         switch call.groupCall.localDeviceState.joinState {
         case .notJoined, .joining:
-            if let joinedMembers = call.groupCall.peekInfo?.joinedMembers, !joinedMembers.isEmpty {
+            if case .incomingRing(let caller, _) = call.groupCallRingState {
+                let callerName = databaseStorage.read { transaction in
+                    contactsManager.shortDisplayName(for: caller, transaction: transaction)
+                }
+                let formatString = NSLocalizedString(
+                    "GROUP_CALL_INCOMING_RING_FORMAT",
+                    comment: "Text explaining that someone has sent a ring to the group. Embeds {ring sender name}")
+                callStatusText = String(format: formatString, callerName)
+
+            } else if let joinedMembers = call.groupCall.peekInfo?.joinedMembers, !joinedMembers.isEmpty {
                 let memberNames: [String] = databaseStorage.read { transaction in
                     joinedMembers.prefix(2).map {
                         contactsManager.shortDisplayName(for: SignalServiceAddress(uuid: $0),
@@ -247,7 +256,7 @@ class CallHeader: UIView {
                 callStatusText = ""
             } else {
                 let (memberCount, firstTwoNames) = fetchGroupSizeAndMemberNamesWithSneakyTransaction()
-                if call.ringRestrictions.isEmpty && call.groupCallRingState == .shouldRing {
+                if call.ringRestrictions.isEmpty, case .shouldRing = call.groupCallRingState {
                     callStatusText = describeMembers(
                         count: memberCount,
                         names: firstTwoNames,
@@ -286,7 +295,7 @@ class CallHeader: UIView {
                     comment: "Text indicating that the user has lost their connection to the call and we are reconnecting.")
 
             } else if call.groupCall.remoteDeviceStates.isEmpty {
-                if call.groupCallRingState == .ringing {
+                if case .ringing = call.groupCallRingState {
                     let (memberCount, firstTwoNames) = fetchGroupSizeAndMemberNamesWithSneakyTransaction()
                     callStatusText = describeMembers(
                         count: memberCount,

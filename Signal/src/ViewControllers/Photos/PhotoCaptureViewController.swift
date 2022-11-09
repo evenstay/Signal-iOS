@@ -32,7 +32,7 @@ protocol PhotoCaptureViewControllerDataSource: AnyObject {
     func addMedia(attachment: SignalAttachment)
 }
 
-class PhotoCaptureViewController: OWSViewController {
+class PhotoCaptureViewController: OWSViewController, OWSNavigationChildController {
 
     weak var delegate: PhotoCaptureViewControllerDelegate?
     weak var dataSource: PhotoCaptureViewControllerDataSource?
@@ -140,6 +140,10 @@ class PhotoCaptureViewController: OWSViewController {
 
     override var preferredStatusBarStyle: UIStatusBarStyle {
         .lightContent
+    }
+
+    var prefersNavigationBarHidden: Bool {
+        return true
     }
 
     override var supportedInterfaceOrientations: UIInterfaceOrientationMask { .portrait }
@@ -1375,7 +1379,7 @@ private class TextStoryComposerView: TextAttachmentView, UITextViewDelegate {
         super.init(
             text: text,
             textStyle: .regular,
-            textForegroundColor: TextStylingToolbar.defaultColor(forLayout: .textStory).color,
+            textForegroundColor: .white,
             textBackgroundColor: nil,
             background: TextStoryComposerView.defaultBackground,
             linkPreview: nil
@@ -1511,7 +1515,7 @@ private class TextStoryComposerView: TextAttachmentView, UITextViewDelegate {
     private let textViewBackgroundView = UIView()
 
     private lazy var textViewAccessoryToolbar: TextStylingToolbar = {
-        let toolbar = TextStylingToolbar(layout: .textStory)
+        let toolbar = TextStylingToolbar()
         toolbar.preservesSuperviewLayoutMargins = true
         toolbar.addTarget(self, action: #selector(didChangeTextColor), for: .valueChanged)
         toolbar.textStyleButton.addTarget(self, action: #selector(didTapTextStyleButton), for: .touchUpInside)
@@ -1527,7 +1531,6 @@ private class TextStoryComposerView: TextAttachmentView, UITextViewDelegate {
         label.textColor = .ows_whiteAlpha60
         label.font = .ows_dynamicTypeLargeTitle1Clamped
         label.text = NSLocalizedString("STORY_COMPOSER_TAP_ADD_TEXT",
-                                       value: "Tap to add text",
                                        comment: "Placeholder text in text stories compose UI")
         return label
     }()

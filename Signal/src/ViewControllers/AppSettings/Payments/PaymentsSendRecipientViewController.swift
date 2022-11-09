@@ -33,7 +33,6 @@ class PaymentsSendRecipientViewController: RecipientPickerContainerViewControlle
 
         recipientPicker.allowsAddByPhoneNumber = false
         recipientPicker.shouldHideLocalRecipient = true
-        recipientPicker.allowsSelectingUnregisteredPhoneNumbers = false
         recipientPicker.groupsToShow = .showNoGroups
         recipientPicker.delegate = self
         addChild(recipientPicker)
@@ -52,17 +51,6 @@ class PaymentsSendRecipientViewController: RecipientPickerContainerViewControlle
     }
 
     private func showSendPayment(address: SignalServiceAddress) {
-        let recipientHasPaymentsEnabled = databaseStorage.read { transaction in
-            Self.paymentsHelper.arePaymentsEnabled(for: address, transaction: transaction)
-        }
-        guard recipientHasPaymentsEnabled else {
-            // TODO: Should we try to fill in this state before showing the error alert?
-            ProfileFetcherJob.fetchProfile(address: address, ignoreThrottling: true)
-
-            SendPaymentViewController.showRecipientNotEnabledAlert()
-            return
-        }
-
         guard let navigationController = self.navigationController else {
             owsFailDebug("Missing navigationController.")
             return

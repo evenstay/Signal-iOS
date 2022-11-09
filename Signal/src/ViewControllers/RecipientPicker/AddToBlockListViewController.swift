@@ -22,6 +22,8 @@ class AddToBlockListViewController: RecipientPickerContainerViewController {
         title = NSLocalizedString("SETTINGS_ADD_TO_BLOCK_LIST_TITLE",
                                   comment: "Title for the 'add to block list' view.")
 
+        recipientPicker.preferredNavigationBarStyle = OWSNavigationBarStyle.clear.rawValue
+        recipientPicker.selectionMode = .blocklist
         recipientPicker.groupsToShow = .showAllGroupsWhenSearching
         recipientPicker.findByPhoneNumberButtonTitle = NSLocalizedString(
             "BLOCK_LIST_VIEW_BLOCK_BUTTON",

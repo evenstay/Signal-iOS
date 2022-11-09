@@ -86,8 +86,6 @@ open class BaseMemberViewController: RecipientPickerContainerViewController {
         memberCountWrapper.layoutMargins = UIEdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 12)
 
         recipientPicker.groupsToShow = .showNoGroups
-        recipientPicker.allowsSelectingUnregisteredPhoneNumbers = false
-        recipientPicker.shouldUseAsyncSelection = true
         recipientPicker.delegate = self
         addChild(recipientPicker)
         view.addSubview(recipientPicker.view)
@@ -95,7 +93,7 @@ open class BaseMemberViewController: RecipientPickerContainerViewController {
         recipientPicker.view.autoPin(toTopLayoutGuideOf: self, withInset: 0)
         recipientPicker.view.autoPinEdge(toSuperviewSafeArea: .leading)
         recipientPicker.view.autoPinEdge(toSuperviewSafeArea: .trailing)
-        autoPinView(toBottomOfViewControllerOrKeyboard: recipientPicker.view, avoidNotch: false)
+        recipientPicker.view.autoPinEdge(.bottom, to: .bottom, of: keyboardLayoutGuideView)
 
         updateMemberCount()
     }
@@ -438,9 +436,9 @@ extension BaseMemberViewController: RecipientPickerDelegate {
 
 // MARK: -
 
-extension BaseMemberViewController: OWSNavigationView {
+extension BaseMemberViewController {
 
-    public func shouldCancelNavigationBack() -> Bool {
+    public var shouldCancelNavigationBack: Bool {
         let hasUnsavedChanges = self.hasUnsavedChanges
         if hasUnsavedChanges {
             backButtonPressed()

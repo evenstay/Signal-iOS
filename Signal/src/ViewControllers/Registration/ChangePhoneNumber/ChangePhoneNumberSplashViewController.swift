@@ -8,7 +8,7 @@ import SignalServiceKit
 import UIKit
 import SignalMessaging
 
-class ChangePhoneNumberSplashViewController: OWSViewController {
+class ChangePhoneNumberSplashViewController: OWSViewController, OWSNavigationChildController {
 
     private let changePhoneNumberController: ChangePhoneNumberController
 
@@ -27,6 +27,10 @@ class ChangePhoneNumberSplashViewController: OWSViewController {
                                   comment: "Title for the 'change phone number' views in settings.")
 
         createContents()
+    }
+
+    public var preferredNavigationBarStyle: OWSNavigationBarStyle {
+        return .clear
     }
 
     private func createContents() {
@@ -49,13 +53,13 @@ class ChangePhoneNumberSplashViewController: OWSViewController {
         bottomContainer.autoPinEdge(toSuperviewSafeArea: .leading)
         bottomContainer.autoPinEdge(toSuperviewSafeArea: .trailing)
         bottomContainer.autoPinEdge(.top, to: .bottom, of: scrollView)
-        autoPinView(toBottomOfViewControllerOrKeyboard: bottomContainer, avoidNotch: true)
+        bottomContainer.autoPinEdge(.bottom, to: .bottom, of: keyboardLayoutGuideViewSafeArea)
 
         updateContents()
     }
 
-    public override func applyTheme() {
-        super.applyTheme()
+    public override func themeDidChange() {
+        super.themeDidChange()
 
         updateContents()
     }

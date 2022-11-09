@@ -47,7 +47,7 @@ public extension ThreadUtil {
 
         Self.enqueueSendAsyncWrite { transaction in
             message.anyInsert(transaction: transaction)
-            self.messageSenderJobQueue.add(message: message.asPreparer, transaction: transaction)
+            self.sskJobQueues.messageSenderJobQueue.add(message: message.asPreparer, transaction: transaction)
             if message.hasRenderableContent() { thread.donateSendMessageIntent(for: message, transaction: transaction) }
         }
 
@@ -63,7 +63,7 @@ public extension ThreadUtil {
 
         let message = builder.build(transaction: transaction)
         message.anyInsert(transaction: transaction)
-        self.messageSenderJobQueue.add(message: message.asPreparer, transaction: transaction)
+        self.sskJobQueues.messageSenderJobQueue.add(message: message.asPreparer, transaction: transaction)
 
         if message.hasRenderableContent() { thread.donateSendMessageIntent(for: message, transaction: transaction) }
 
@@ -77,7 +77,7 @@ public extension ThreadUtil {
         isHighPriority: Bool = false,
         transaction: SDSAnyWriteTransaction
     ) -> Promise<Void> {
-        let promise = messageSenderJobQueue.add(
+        let promise = sskJobQueues.messageSenderJobQueue.add(
             .promise,
             message: message.asPreparer,
             limitToCurrentProcessLifetime: limitToCurrentProcessLifetime,
@@ -258,8 +258,15 @@ extension TSThread {
     }
 
     @available(iOS 13, *)
-    public func generateStartCallIntent(callerAddress: SignalServiceAddress) -> INStartCallIntent? {
+    public func generateIncomingCallIntent(callerAddress: SignalServiceAddress) -> INIntent? {
         databaseStorage.read { transaction in
+            guard !self.isGroupThread else {
+                // Fall back to a "send message" intent for group calls,
+                // because the "start call" intent makes the notification look too much like a 1:1 call.
+                return self.generateSendMessageIntent(context: .senderAddress(callerAddress),
+                                                      transaction: transaction)
+            }
+
             guard SSKPreferences.areIntentDonationsEnabled(transaction: transaction) else { return nil }
 
             let caller = inPersonForRecipient(callerAddress, transaction: transaction)
@@ -269,12 +276,6 @@ extension TSThread {
                                                     contacts: [caller],
                                                     recordTypeForRedialing: .unknown,
                                                     callCapability: .unknown)
-
-            if #available(iOS 14, *), self.isGroupThread {
-                if let image = intentThreadAvatarImage(transaction: transaction) {
-                    startCallIntent.setImage(image, forParameterNamed: \.callRecordToCallBack)
-                }
-            }
 
             return startCallIntent
         }

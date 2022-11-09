@@ -65,7 +65,7 @@ class StoriesViewController: OWSViewController, StoryListDataSourceDelegate {
 
         view.addSubview(tableView)
         tableView.autoPinEdgesToSuperviewEdges(with: .zero, excludingEdge: .bottom)
-        autoPinView(toBottomOfViewControllerOrKeyboard: tableView, avoidNotch: true)
+        tableView.autoPinEdge(.bottom, to: .bottom, of: keyboardLayoutGuideViewSafeArea)
         tableView.delegate = self
         tableView.dataSource = self
 
@@ -91,8 +91,13 @@ class StoriesViewController: OWSViewController, StoryListDataSourceDelegate {
 
         searchBarSizingView.addSubview(searchBarContainer)
         searchBarContainer.autoPinHorizontalEdges(toEdgesOf: view)
-        self.searchBarScrollingConstraint = searchBarContainer.autoPinEdge(.top, to: .top, of: searchBarSizingView)
+        self.searchBarScrollingConstraint = searchBarContainer.autoPinEdge(
+            .bottom,
+            to: .bottom,
+            of: searchBarSizingView
+        )
         self.searchBarPinnedConstraint = searchBarContainer.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor)
+        searchBarPinnedConstraint?.priority = .defaultLow
 
         view.insertSubview(searchBarBackdropView, aboveSubview: tableView)
         searchBarBackdropView.isHidden = true
@@ -195,9 +200,12 @@ class StoriesViewController: OWSViewController, StoryListDataSourceDelegate {
         }
     }
 
-    override func applyTheme() {
-        super.applyTheme()
+    override func themeDidChange() {
+        super.themeDidChange()
+        applyTheme()
+    }
 
+    private func applyTheme() {
         emptyStateLabel.textColor = Theme.secondaryTextAndIconColor
 
         for indexPath in self.tableView.indexPathsForVisibleRows ?? [] {

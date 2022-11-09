@@ -7,8 +7,8 @@ import Foundation
 import PassKit
 import SignalCoreKit
 
-public class DonationUtilities {
-    public static let sendGiftBadgeJobQueue = SendGiftBadgeJobQueue()
+public class DonationUtilities: Dependencies {
+    public static var sendGiftBadgeJobQueue: SendGiftBadgeJobQueue { smJobQueues.sendGiftBadgeJobQueue }
 
     public static var isApplePayAvailable: Bool {
         PKPaymentAuthorizationController.canMakePayments()
@@ -93,6 +93,36 @@ public class DonationUtilities {
         case .after(let symbol): return valueString + symbol
         case .currencyCode: return currencyCode + " " + valueString
         }
+    }
+
+    /// Given a list of currencies in preference order and a collection of
+    /// supported ones, pick a default currency.
+    ///
+    /// For example, we might want to use EUR with a USD fallback if EUR is
+    /// unsupported.
+    ///
+    /// ```
+    /// DonationUtilities.chooseDefaultCurrency(
+    ///     preferred: ["EUR", "USD"],
+    ///     supported: ["USD"]
+    /// )
+    /// // => "USD"
+    /// ```
+    ///
+    /// - Parameter preferred: A list of currencies in preference order.
+    ///   As a convenience, can contain `nil`, which is ignored.
+    /// - Parameter supported: A collection of supported currencies.
+    /// - Returns: The first supported currency code, or `nil` if none are found.
+    public static func chooseDefaultCurrency(
+        preferred: [Currency.Code?],
+        supported: any Collection<Currency.Code>
+    ) -> Currency.Code? {
+        for currency in preferred {
+            if let currency = currency, supported.contains(currency) {
+                return currency
+            }
+        }
+        return nil
     }
 
     private static func donationToSignal() -> String {
