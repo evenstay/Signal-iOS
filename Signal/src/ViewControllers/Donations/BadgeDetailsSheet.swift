@@ -47,6 +47,30 @@ class BadgeDetailsSheet: OWSTableSheetViewController {
 
     // MARK: -
 
+    private var remoteSupporterName: String? {
+        guard focusedBadge.category == .donor else {
+            return nil
+        }
+
+        let isGiftBadge = GiftBadgeIds.contains(focusedBadge.id)
+        guard !isGiftBadge else {
+            return nil
+        }
+
+        switch owner {
+        case .local: return nil
+        case let .remote(name): return name
+        }
+    }
+
+    private func localProfileHasBadges() -> Bool {
+        profileManager.localProfileBadgeInfo()?.isEmpty.negated ?? false
+    }
+
+    private func shouldShowDonateButton() -> Bool {
+        !owner.isLocal && !localProfileHasBadges()
+    }
+
     override public func updateTableContents(shouldReload: Bool = true) {
         let contents = OWSTableContents()
         defer { tableViewController.setContents(contents, shouldReload: shouldReload) }
@@ -78,7 +102,17 @@ class BadgeDetailsSheet: OWSTableSheetViewController {
             badgeLabel.textColor = Theme.primaryTextColor
             badgeLabel.textAlignment = .center
             badgeLabel.numberOfLines = 0
-            badgeLabel.text = self.focusedBadge.localizedName
+            badgeLabel.text = {
+                if let remoteSupporterName = self.remoteSupporterName {
+                    let format = NSLocalizedString(
+                        "BADGE_DETAILS_TITLE_FOR_SUPPORTER",
+                        comment: "When viewing someone else's donor badge, you'll see a sheet. This is the title on that sheet. Embeds {badge owner's short name}"
+                    )
+                    return String(format: format, remoteSupporterName)
+                } else {
+                    return self.focusedBadge.localizedName
+                }
+            }()
             stackView.addArrangedSubview(badgeLabel)
             stackView.setCustomSpacing(36, after: badgeLabel)
 
@@ -96,11 +130,7 @@ class BadgeDetailsSheet: OWSTableSheetViewController {
             return cell
         }, actionBlock: nil))
 
-        // Don't show actions for the local user's badges.
-        guard !owner.isLocal else { return }
-
-        switch focusedBadge.rawCategory.lowercased() {
-        case "donor":
+        if shouldShowDonateButton() {
             let buttonSection = OWSTableSection(items: [.init(customCellBlock: { [weak self] in
                 let cell = OWSTableItem.newCell()
                 cell.selectionStyle = .none
@@ -126,8 +156,6 @@ class BadgeDetailsSheet: OWSTableSheetViewController {
             })])
             buttonSection.hasBackground = false
             contents.addSection(buttonSection)
-        default:
-            break
         }
 
     }
@@ -135,7 +163,7 @@ class BadgeDetailsSheet: OWSTableSheetViewController {
     @objc
     private func didTapDonate() {
         dismiss(animated: true) {
-            if DonationUtilities.isApplePayAvailable {
+            if DonationUtilities.canDonate(localNumber: Self.tsAccountManager.localNumber) {
                 let frontVc = { CurrentAppContext().frontmostViewController() }
 
                 let donateVc = DonateViewController(startingDonationMode: .oneTime) { finishResult in
@@ -150,7 +178,8 @@ class BadgeDetailsSheet: OWSTableSheetViewController {
                         }
                     }
                 }
-                frontVc()?.present(donateVc, animated: true)
+                let navigationVc = OWSNavigationController(rootViewController: donateVc)
+                frontVc()?.present(navigationVc, animated: true)
             } else {
                 DonationViewsUtil.openDonateWebsite()
             }

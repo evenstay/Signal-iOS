@@ -23,11 +23,6 @@ extension DonateViewController {
             completion(result)
         }
 
-        enum OneTimeDonationError: Error {
-            case timeout
-            case assertion
-        }
-
         guard
             let oneTime = state.oneTime,
             let amount = oneTime.amount,
@@ -61,12 +56,12 @@ extension DonateViewController {
                         object: nil
                     )
                 ).timeout(seconds: 30) {
-                    return OneTimeDonationError.timeout
+                    return DonationJobError.timeout
                 }.done { notification in
                     modal.dismiss {}
 
                     if notification.name == SubscriptionManager.SubscriptionJobQueueDidFailJobNotification {
-                        throw OneTimeDonationError.assertion
+                        throw DonationJobError.assertion
                     }
 
                     self.onFinished(.completedDonation(
@@ -75,16 +70,16 @@ extension DonateViewController {
                     ))
                 }.catch { [weak self] error in
                     modal.dismiss {}
-                    guard let error = error as? OneTimeDonationError else {
+                    guard let error = error as? DonationJobError else {
                         return owsFailDebug("Unexpected error \(error)")
                     }
 
                     guard let self = self else { return }
                     switch error {
                     case .timeout:
-                        self.presentStillProcessingSheet()
+                        DonationViewsUtil.presentStillProcessingSheet(from: self)
                     case .assertion:
-                        self.presentBadgeCantBeAddedSheet()
+                        DonationViewsUtil.presentBadgeCantBeAddedSheet(from: self)
                     }
                 }
             }

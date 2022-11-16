@@ -127,7 +127,7 @@ public class ConversationInputToolbar: UIView, LinkPreviewViewDraftDelegate, Quo
 
             // Compensate for autolayout frame/bounds changes when animating in/out the quoted reply view.
             // This logic ensures the input toolbar stays pinned to the keyboard visually
-            if isAnimatingQuotedReply && inputTextView.isFirstResponder {
+            if isAnimatingHeightChange && inputTextView.isFirstResponder {
                 var frame = frame
                 frame.origin.y = 0
                 // In this conditional, bounds change is captured in an animation block, which we don't want here.
@@ -149,9 +149,9 @@ public class ConversationInputToolbar: UIView, LinkPreviewViewDraftDelegate, Quo
 
     private enum LayoutMetrics {
         static let minTextViewHeight: CGFloat = 36
-        static let minToolbarItemHeight: CGFloat = 44
         static let maxTextViewHeight: CGFloat = 98
         static let maxIPadTextViewHeight: CGFloat = 142
+        static let minToolbarItemHeight: CGFloat = 52
     }
 
     private lazy var inputTextView: ConversationInputTextView = {
@@ -165,25 +165,8 @@ public class ConversationInputToolbar: UIView, LinkPreviewViewDraftDelegate, Quo
         return inputTextView
     }()
 
-    private lazy var cameraButton: UIButton = {
-        let button = UIButton()
-        button.accessibilityLabel = NSLocalizedString(
-            "CAMERA_BUTTON_LABEL",
-            comment: "Accessibility label for camera button."
-        )
-        button.accessibilityHint = NSLocalizedString(
-            "CAMERA_BUTTON_HINT",
-            comment: "Accessibility hint describing what you can do with the camera button"
-        )
-        button.accessibilityIdentifier = UIView.accessibilityIdentifier(in: self, name: "cameraButton")
-        button.setTemplateImage(Theme.iconImage(.cameraButton), tintColor: Theme.primaryIconColor)
-        button.addTarget(self, action: #selector(cameraButtonPressed), for: .touchUpInside)
-        button.autoSetDimensions(to: CGSize(width: 40, height: LayoutMetrics.minToolbarItemHeight))
-        return button
-    }()
-
-    private lazy var attachmentButton: LottieToggleButton = {
-        let button = LottieToggleButton()
+    private lazy var attachmentButton: AttachmentButton = {
+        let button = AttachmentButton()
         button.accessibilityLabel = NSLocalizedString(
             "ATTACHMENT_LABEL",
             comment: "Accessibility label for attaching photos"
@@ -194,52 +177,43 @@ public class ConversationInputToolbar: UIView, LinkPreviewViewDraftDelegate, Quo
         )
         button.accessibilityIdentifier = UIView.accessibilityIdentifier(in: self, name: "attachmentButton")
         button.addTarget(self, action: #selector(attachmentButtonPressed), for: .touchUpInside)
-        button.animationName = Theme.isDarkThemeEnabled ? "attachment_dark" : "attachment_light"
-        button.animationSize = CGSize(square: 28)
-        button.autoSetDimensions(to: CGSize(width: 55, height: LayoutMetrics.minToolbarItemHeight))
-        return button
-    }()
-
-    private lazy var sendButton: UIButton = {
-        let button = UIButton()
-        button.accessibilityLabel = MessageStrings.sendButton
-        button.accessibilityIdentifier = UIView.accessibilityIdentifier(in: self, name: "sendButton")
-        button.addTarget(self, action: #selector(sendButtonPressed), for: .touchUpInside)
-        button.setTemplateImageName("send-solid-24", tintColor: .ows_accentBlue)
-        button.autoSetDimensions(to: CGSize(width: 50, height: LayoutMetrics.minToolbarItemHeight))
-        return button
-    }()
-
-    private lazy var voiceMemoButton: UIButton = {
-        let button = UIButton(type: .custom)
-        button.accessibilityLabel = NSLocalizedString(
-            "INPUT_TOOLBAR_VOICE_MEMO_BUTTON_ACCESSIBILITY_LABEL",
-            comment: "accessibility label for the button which records voice memos"
-        )
-        button.accessibilityHint = NSLocalizedString(
-            "INPUT_TOOLBAR_VOICE_MEMO_BUTTON_ACCESSIBILITY_HINT",
-            comment: "accessibility hint for the button which records voice memos"
-        )
-        button.accessibilityIdentifier = UIView.accessibilityIdentifier(in: self, name: "voiceMemoButton")
-        button.setTemplateImage(Theme.iconImage(.micButton), tintColor: Theme.primaryIconColor)
-        button.autoSetDimensions(to: CGSize(width: 40, height: LayoutMetrics.minToolbarItemHeight))
-        // We want to be permissive about the voice message gesture, so we hang
-        // the long press GR on the button's wrapper, not the button itself.
-        let longPressGestureRecognizer = UILongPressGestureRecognizer(target: self, action: #selector(handleVoiceMemoLongPress(gesture:)))
-        longPressGestureRecognizer.minimumPressDuration = 0
-        button.addGestureRecognizer(longPressGestureRecognizer)
+        button.autoSetDimensions(to: CGSize(square: LayoutMetrics.minToolbarItemHeight))
+        button.setContentHuggingHorizontalHigh()
+        button.setCompressionResistanceHorizontalHigh()
         return button
     }()
 
     private lazy var stickerButton: UIButton = {
-        let button = UIButton(type: .custom)
+        let imageResourceName = Theme.isDarkThemeEnabled ? "sticker-solid-24" : "sticker-outline-24"
+        let button = UIButton(type: .system)
+        button.tintColor = Theme.primaryIconColor
         button.accessibilityLabel = NSLocalizedString(
             "INPUT_TOOLBAR_STICKER_BUTTON_ACCESSIBILITY_LABEL",
-            comment: "accessibility label for the button which shows the sticker picker")
+            comment: "accessibility label for the button which shows the sticker picker"
+        )
         button.accessibilityIdentifier = UIView.accessibilityIdentifier(in: self, name: "stickerButton")
-        button.setTemplateImage(Theme.iconImage(.stickerButton), tintColor: Theme.primaryIconColor)
+        button.setImage(UIImage(imageLiteralResourceName: imageResourceName), for: .normal)
         button.addTarget(self, action: #selector(stickerButtonPressed), for: .touchUpInside)
-        button.autoSetDimensions(to: CGSize(width: 40, height: LayoutMetrics.minToolbarItemHeight))
+        button.autoSetDimensions(to: CGSize(width: 40, height: LayoutMetrics.minTextViewHeight))
+        button.setContentHuggingHorizontalHigh()
+        button.setCompressionResistanceHorizontalHigh()
+        return button
+    }()
+
+    private lazy var keyboardButton: UIButton = {
+        let imageResourceName = Theme.isDarkThemeEnabled ? "keyboard-solid-24" : "keyboard-outline-24"
+        let button = UIButton(type: .system)
+        button.tintColor = Theme.primaryIconColor
+        button.accessibilityLabel = NSLocalizedString(
+            "INPUT_TOOLBAR_KEYBOARD_BUTTON_ACCESSIBILITY_LABEL",
+            comment: "accessibility label for the button which shows the regular keyboard instead of sticker picker"
+        )
+        button.accessibilityIdentifier = UIView.accessibilityIdentifier(in: self, name: "keyboardButton")
+        button.setImage(UIImage(imageLiteralResourceName: imageResourceName), for: .normal)
+        button.addTarget(self, action: #selector(keyboardButtonPressed), for: .touchUpInside)
+        button.autoSetDimensions(to: CGSize(width: 40, height: LayoutMetrics.minTextViewHeight))
+        button.setContentHuggingHorizontalHigh()
+        button.setCompressionResistanceHorizontalHigh()
         return button
     }()
 
@@ -272,35 +246,16 @@ public class ConversationInputToolbar: UIView, LinkPreviewViewDraftDelegate, Quo
         return view
     }()
 
-    private lazy var voiceMemoContentViewLeftSpacer: UIView = {
-        let view = UIView.container()
-        view.isHidden = true
-        view.autoSetDimension(.height, toSize: LayoutMetrics.minToolbarItemHeight)
-        view.autoSetDimension(.width, toSize: 16)
+    private lazy var rightEdgeControlsView: RightEdgeControlsView = {
+        let view = RightEdgeControlsView()
+        view.sendButton.addTarget(self, action: #selector(sendButtonPressed), for: .touchUpInside)
+        view.cameraButton.addTarget(self, action: #selector(cameraButtonPressed), for: .touchUpInside)
+        // We want to be permissive about the voice message gesture, so we hang
+        // the long press GR on the button's wrapper, not the button itself.
+        let longPressGestureRecognizer = UILongPressGestureRecognizer(target: self, action: #selector(handleVoiceMemoLongPress(gesture:)))
+        longPressGestureRecognizer.minimumPressDuration = 0
+        view.voiceMemoButton.addGestureRecognizer(longPressGestureRecognizer)
         return view
-    }()
-
-    private lazy var voiceMemoContentViewRightSpacer: UIView = {
-        let view = UIView.container()
-        view.isHidden = true
-        view.autoSetDimension(.height, toSize: LayoutMetrics.minToolbarItemHeight)
-        view.autoSetDimension(.width, toSize: 16)
-        return view
-    }()
-
-    private lazy var mediaAndSendStack: UIView = {
-        let stackView =  UIStackView(arrangedSubviews: [
-            voiceMemoContentViewRightSpacer,
-            sendButton,
-            cameraButton,
-            voiceMemoButton
-        ])
-        stackView.axis = .horizontal
-        stackView.alignment = .center
-        stackView.semanticContentAttribute = .forceLeftToRight
-        stackView.setContentHuggingHorizontalHigh()
-        stackView.setCompressionResistanceHorizontalHigh()
-        return stackView
     }()
 
     private lazy var suggestedStickerView: StickerHorizontalListView = {
@@ -310,26 +265,48 @@ public class ConversationInputToolbar: UIView, LinkPreviewViewDraftDelegate, Quo
         let view = StickerHorizontalListView(cellSize: suggestedStickerSize, cellInset: 0, spacing: suggestedStickerSpacing)
         view.backgroundColor = Theme.conversationButtonBackgroundColor
         view.contentInset = stickerListContentInset
-        view.isHiddenInStackView = true
         view.autoSetDimension(.height, toSize: suggestedStickerSize + stickerListContentInset.bottom + stickerListContentInset.top)
         return view
     }()
 
-    private lazy var outerStack: UIStackView = {
-        let stackView = UIStackView(arrangedSubviews: [])
-        stackView.axis = .vertical
-        stackView.alignment = .fill
-        return stackView
+    private lazy var messageContentView = UIView.container()
+
+    private lazy var mainPanelView: UIView = {
+        let view = UIView()
+        view.layoutMargins = UIEdgeInsets(hMargin: OWSTableViewController2.defaultHOuterMargin - 16, vMargin: 0)
+        return view
     }()
+
+    private let mainPanelWrapperView = UIView.container()
 
     private var isConfigurationComplete = false
 
     private var textViewHeight: CGFloat = 0
     private var textViewHeightConstraint: NSLayoutConstraint?
+    class var heightChangeAnimationDuration: TimeInterval { 0.25 }
+    private(set) var isAnimatingHeightChange = false
+
+    private class func springViewPropertyAnimator(
+        duration: TimeInterval,
+        dampingFraction: CGFloat,
+        response: CGFloat
+    ) -> UIViewPropertyAnimator {
+        let stiffness = pow(2 * .pi / response, 2)
+        let damping = 4 * .pi * dampingFraction / response
+        let timingParameters = UISpringTimingParameters(
+            mass: 1,
+            stiffness: stiffness,
+            damping: damping,
+            initialVelocity: .zero
+        )
+        let animator = UIViewPropertyAnimator(duration: duration, timingParameters: timingParameters)
+        animator.isUserInteractionEnabled = false
+        return animator
+    }
 
     private var layoutConstraints: [NSLayoutConstraint]?
 
-    func createContentsWithMessageDraft(
+    private func createContentsWithMessageDraft(
         _ messageDraft: MessageBody?,
         quotedReply: OWSQuotedReplyModel?,
         inputTextViewDelegate: ConversationInputTextViewDelegate,
@@ -346,32 +323,6 @@ public class ConversationInputToolbar: UIView, LinkPreviewViewDraftDelegate, Quo
         autoresizingMask = .flexibleHeight
         isUserInteractionEnabled = true
 
-        // When presenting or dismissing the keyboard, there may be a slight
-        // gap between the keyboard and the bottom of the input bar during
-        // the animation. Extend the background below the toolbar's bounds
-        // by this much to mask that extra space.
-        let backgroundExtension: CGFloat = 500
-
-        if UIAccessibility.isReduceTransparencyEnabled {
-            backgroundColor = Theme.toolbarBackgroundColor
-
-            let extendedBackground = UIView()
-            extendedBackground.backgroundColor = Theme.toolbarBackgroundColor
-            addSubview(extendedBackground)
-            extendedBackground.autoPinWidthToSuperview()
-            extendedBackground.autoPinEdge(.top, to: .bottom, of: self)
-            extendedBackground.autoSetDimension(.height, toSize: backgroundExtension)
-        } else {
-            backgroundColor = Theme.toolbarBackgroundColor.withAlphaComponent(OWSNavigationBar.backgroundBlurMutingFactor)
-
-            let blurEffectView = UIVisualEffectView(effect: Theme.barBlurEffect)
-            blurEffectView.layer.zPosition = -1
-            addSubview(blurEffectView)
-            blurEffectView.autoPinWidthToSuperview()
-            blurEffectView.autoPinEdge(toSuperviewEdge: .top)
-            blurEffectView.autoPinEdge(toSuperviewEdge: .bottom, withInset: -backgroundExtension)
-        }
-
         // NOTE: Don't set inputTextViewDelegate until configuration is complete.
         inputTextView.mentionDelegate = mentionDelegate
         inputTextView.inputTextViewDelegate = inputTextViewDelegate
@@ -385,169 +336,241 @@ public class ConversationInputToolbar: UIView, LinkPreviewViewDraftDelegate, Quo
         quotedReplyWrapper.isHidden = quotedReply == nil
         self.quotedReply = quotedReply
 
-        // V Stack
-        let vStack = UIStackView(arrangedSubviews: [ quotedReplyWrapper, linkPreviewWrapper, inputTextView ])
-        vStack.axis = .vertical
-        vStack.alignment = .fill
-        vStack.setContentHuggingHorizontalLow()
-        vStack.setCompressionResistanceHorizontalLow()
-        vStack.addSubview(voiceMemoContentView)
+        // Vertical stack of message component views in the center: Link Preview, Reply Quote, Text Input View.
+        let messageContentVStack = UIStackView(arrangedSubviews: [ quotedReplyWrapper, linkPreviewWrapper, inputTextView ])
+        messageContentVStack.axis = .vertical
+        messageContentVStack.alignment = .fill
+        messageContentVStack.setContentHuggingHorizontalLow()
+        messageContentVStack.setCompressionResistanceHorizontalLow()
+
+        // Voice Message UI is added to the same vertical stack, but not as arranged subview.
+        // The view is constrained to text input view's edges.
+        messageContentVStack.addSubview(voiceMemoContentView)
         voiceMemoContentView.autoPinEdges(toEdgesOf: inputTextView)
 
-        for button in [ cameraButton, attachmentButton, stickerButton, voiceMemoButton, sendButton ] {
-            button.setContentHuggingHorizontalHigh()
-            button.setCompressionResistanceHorizontalHigh()
-        }
-
-        // V Stack Wrapper
+        // Wrap vertical stack into a view with rounded corners.
         let vStackRoundingView = UIView.container()
         vStackRoundingView.layer.cornerRadius = 18
         vStackRoundingView.clipsToBounds = true
-        vStackRoundingView.addSubview(vStack)
-        vStack.autoPinEdgesToSuperviewEdges()
-        vStackRoundingView.setContentHuggingHorizontalLow()
-        vStackRoundingView.setCompressionResistanceHorizontalLow()
+        vStackRoundingView.addSubview(messageContentVStack)
+        messageContentVStack.autoPinEdgesToSuperviewEdges()
+        messageContentView.addSubview(vStackRoundingView)
+        // This margin defines amount of padding above and below visible text input box.
+        let textViewVInset = 0.5 * (LayoutMetrics.minToolbarItemHeight - LayoutMetrics.minTextViewHeight)
+        vStackRoundingView.autoPinWidthToSuperview()
+        vStackRoundingView.autoPinHeightToSuperview(withMargin: textViewVInset)
 
-        let vStackRoundingOffsetView = UIView.container()
-        vStackRoundingOffsetView.addSubview(vStackRoundingView)
-        let textViewCenterInset = 0.5 * (LayoutMetrics.minToolbarItemHeight - LayoutMetrics.minTextViewHeight)
-        vStackRoundingView.autoPinEdge(toSuperviewEdge: .bottom, withInset: textViewCenterInset)
-        vStackRoundingView.autoPinEdge(toSuperviewEdge: .top)
-        vStackRoundingView.autoPinEdge(toSuperviewEdge: .left)
-        vStackRoundingView.autoPinEdge(toSuperviewEdge: .right, withInset: 8)
+        // Sticker button: looks like is a part of the text input view,
+        // but is reality it located a couple levels up in the view hierarchy.
+        vStackRoundingView.addSubview(stickerButton)
+        vStackRoundingView.addSubview(keyboardButton)
+        stickerButton.autoPinEdge(toSuperviewEdge: .trailing, withInset: 4)
+        stickerButton.autoAlignAxis(.horizontal, toSameAxisOf: inputTextView)
+        keyboardButton.autoAlignAxis(.vertical, toSameAxisOf: stickerButton)
+        keyboardButton.autoAlignAxis(.horizontal, toSameAxisOf: stickerButton)
 
-        // H Stack
-        let hStack = UIStackView(arrangedSubviews: [
-            voiceMemoContentViewLeftSpacer,
-            attachmentButton,
-            vStackRoundingOffsetView,
-            mediaAndSendStack
-        ])
-        hStack.axis = .horizontal
-        hStack.alignment = .bottom
-        hStack.isLayoutMarginsRelativeArrangement = true
-        hStack.layoutMargins = UIEdgeInsets(margin: 6)
-        hStack.semanticContentAttribute = .forceLeftToRight
+        // Horizontal Stack: Attachment button, message components, Camera|VoiceNote|Send button.
+        //
+        // + Attachment button: pinned to the bottom left corner.
+        mainPanelView.addSubview(attachmentButton)
+        attachmentButton.autoPinEdge(toSuperviewMargin: .left)
+        attachmentButton.autoPinEdge(toSuperviewEdge: .bottom)
 
-        // "Outer" Stack
-        outerStack.addArrangedSubviews([ suggestedStickerView, hStack ])
-        addSubview(outerStack)
-        outerStack.autoPinEdge(toSuperviewEdge: .top)
-        outerStack.autoPinEdge(toSuperviewSafeArea: .bottom)
+        // Camera | Voice Message | Send: pinned to the bottom right corner.
+        mainPanelView.addSubview(rightEdgeControlsView)
+        rightEdgeControlsView.autoPinEdge(toSuperviewMargin: .right)
+        rightEdgeControlsView.autoPinEdge(toSuperviewEdge: .bottom)
+
+        // Message components view: pinned to attachment button on the left, Camera button on the right,
+        // taking entire superview's height.
+        mainPanelView.addSubview(messageContentView)
+        messageContentView.autoPinHeightToSuperview()
+        messageContentView.autoPinEdge(.right, to: .left, of: rightEdgeControlsView)
+        updateMessageContentViewLeftEdgeConstraint(isViewHidden: false)
+
+        // Put main panel view into a wrapper view that would also contain background view.
+        mainPanelWrapperView.addSubview(mainPanelView)
+        mainPanelView.autoPinEdge(toSuperviewEdge: .top)
+        mainPanelView.autoPinEdge(toSuperviewEdge: .bottom)
+        // Horizontal constraints are added in `updateContentLayout`.
+
+        // "Suggested Stickers": must be placed before `mainPanelWrapperView`
+        // as it will animated from behind main chat input bar.
+        addSubview(suggestedStickerView)
+        suggestedStickerView.autoPinEdge(toSuperviewEdge: .top)
+        // Horizontal constraints are added in `updateContentLayout`.
+
+        // Wrapper for the main panel: contains background and also defines safe area insets (see updateContentLayout).
+        addSubview(mainPanelWrapperView)
+        mainPanelWrapperView.autoPinEdgesToSuperviewEdges(with: .zero, excludingEdge: .top)
+
+        // Vertical constraints for `mainPanelWrapperView` and `suggestedStickerView` are updated based
+        // on whether suggested stickers should be visible or not.
+        // If visible `suggestedStickerView` and `mainPanelWrapperView` are stacked vertically.
+        // If not visible `mainPanelWrapperView` is constrained to all edges of ConversationInputToolbar
+        // and `suggestedStickerView` is hidden beneath.
+        updateSuggestedStickersViewConstraint()
+
+        // When presenting or dismissing the keyboard, there may be a slight
+        // gap between the keyboard and the bottom of the input bar during
+        // the animation. Extend the background below the toolbar's bounds
+        // by this much to mask that extra space.
+        let backgroundExtension: CGFloat = 500
+        let extendedBackgroundView = UIView()
+        if UIAccessibility.isReduceTransparencyEnabled {
+            extendedBackgroundView.backgroundColor = Theme.toolbarBackgroundColor
+        } else {
+            extendedBackgroundView.backgroundColor = Theme.toolbarBackgroundColor.withAlphaComponent(OWSNavigationBar.backgroundBlurMutingFactor)
+
+            let blurEffectView = UIVisualEffectView(effect: Theme.barBlurEffect)
+            extendedBackgroundView.addSubview(blurEffectView)
+            blurEffectView.autoPinEdgesToSuperviewEdges()
+        }
+        mainPanelWrapperView.insertSubview(extendedBackgroundView, at: 0)
+        extendedBackgroundView.autoPinWidthToSuperview()
+        extendedBackgroundView.autoPinEdge(toSuperviewEdge: .top)
+        extendedBackgroundView.autoPinEdge(toSuperviewEdge: .bottom, withInset: -backgroundExtension)
 
         // See comments on updateContentLayout:.
         suggestedStickerView.insetsLayoutMarginsFromSafeArea = false
-        vStack.insetsLayoutMarginsFromSafeArea = false
-        vStackRoundingOffsetView.insetsLayoutMarginsFromSafeArea = false
-        hStack.insetsLayoutMarginsFromSafeArea = false
-        outerStack.insetsLayoutMarginsFromSafeArea = false
+        messageContentVStack.insetsLayoutMarginsFromSafeArea = false
+        messageContentView.insetsLayoutMarginsFromSafeArea = false
+        mainPanelWrapperView.insetsLayoutMarginsFromSafeArea = false
         insetsLayoutMarginsFromSafeArea = false
 
         suggestedStickerView.preservesSuperviewLayoutMargins = false
-        vStack.preservesSuperviewLayoutMargins = false
-        vStackRoundingOffsetView.preservesSuperviewLayoutMargins = false
-        hStack.preservesSuperviewLayoutMargins = false
-        outerStack.preservesSuperviewLayoutMargins = false
+        messageContentVStack.preservesSuperviewLayoutMargins = false
+        messageContentView.preservesSuperviewLayoutMargins = false
+        mainPanelWrapperView.preservesSuperviewLayoutMargins = false
         preservesSuperviewLayoutMargins = false
-
-        // Input buttons
-        addSubview(stickerButton)
-        stickerButton.autoAlignAxis(.horizontal, toSameAxisOf: inputTextView)
-        stickerButton.autoPinEdge(.trailing, to: .trailing, of: vStackRoundingView, withOffset: -4)
 
         setMessageBody(messageDraft, animated: false, doLayout: false)
 
         isConfigurationComplete = true
     }
 
-    private func ensureButtonVisibility(withAnimation isAnimated: Bool, doLayout: Bool) {
-        var didChangeLayout = false
-        let ensureViewHiddenState: (UIView, Bool) -> Void = { subview, isHidden in
-            if subview.isHidden != isHidden {
-                subview.isHidden = isHidden
-                didChangeLayout = true
-            }
+    @discardableResult
+    class func setView(_ view: UIView, hidden isHidden: Bool, usingAnimator animator: UIViewPropertyAnimator?) -> Bool {
+        let viewAlpha: CGFloat = isHidden ? 0 : 1
+
+        guard viewAlpha != view.alpha else { return false }
+
+        let viewUpdateBlock = {
+            view.alpha = viewAlpha
+            view.transform = isHidden ? .scale(0.1) : .identity
         }
-
-        // NOTE: We use untrimmedText, so that the sticker button disappears
-        //       even if the user just enters whitespace.
-        let hasTextInput = !inputTextView.untrimmedText.isEmpty
-        // We used trimmed text for determining all the other button visibility.
-        let hasNonWhitespaceTextInput = !inputTextView.trimmedText.isEmpty
-        let isShowingVoiceMemoUI = isShowingVoiceMemoUI
-
-        ensureViewHiddenState(attachmentButton, false)
-        if isShowingVoiceMemoUI {
-            let hideSendButton = voiceMemoRecordingState == .recordingHeld
-            ensureViewHiddenState(linkPreviewWrapper, true)
-            ensureViewHiddenState(voiceMemoContentView, false)
-            ensureViewHiddenState(voiceMemoContentViewLeftSpacer, false)
-            ensureViewHiddenState(voiceMemoContentViewRightSpacer, !hideSendButton)
-            ensureViewHiddenState(cameraButton, true)
-            ensureViewHiddenState(voiceMemoButton, true)
-            ensureViewHiddenState(sendButton, hideSendButton)
-            ensureViewHiddenState(attachmentButton, true)
-        } else if hasNonWhitespaceTextInput {
-            ensureViewHiddenState(linkPreviewWrapper, false)
-            ensureViewHiddenState(voiceMemoContentView, true)
-            ensureViewHiddenState(voiceMemoContentViewLeftSpacer, true)
-            ensureViewHiddenState(voiceMemoContentViewRightSpacer, true)
-            ensureViewHiddenState(cameraButton, true)
-            ensureViewHiddenState(voiceMemoButton, true)
-            ensureViewHiddenState(sendButton, false)
-            ensureViewHiddenState(attachmentButton, false)
+        if let animator {
+            animator.addAnimations(viewUpdateBlock)
         } else {
-            ensureViewHiddenState(linkPreviewWrapper, false)
-            ensureViewHiddenState(voiceMemoContentView, true)
-            ensureViewHiddenState(voiceMemoContentViewLeftSpacer, true)
-            ensureViewHiddenState(voiceMemoContentViewRightSpacer, true)
-            ensureViewHiddenState(cameraButton, false)
-            ensureViewHiddenState(voiceMemoButton, false)
-            ensureViewHiddenState(sendButton, true)
-            ensureViewHiddenState(attachmentButton, false)
+            viewUpdateBlock()
+        }
+        return true
+    }
+
+    private func ensureButtonVisibility(withAnimation isAnimated: Bool, doLayout: Bool) {
+
+        var hasLayoutChanged = false
+        var rightEdgeControlsState = rightEdgeControlsView.state
+
+        // Voice Memo UI.
+        if isShowingVoiceMemoUI {
+            voiceMemoContentView.setIsHidden(false, animated: isAnimated)
+
+            // Send button would be visible if there's voice recording in progress in "locked" state.
+            let hideSendButton = voiceMemoRecordingState == .recordingHeld || voiceMemoRecordingState == .idle
+            rightEdgeControlsState = hideSendButton ? .hiddenSendButton : .sendButton
+        } else {
+            voiceMemoContentView.setIsHidden(true, animated: isAnimated)
+
+            // Show Send button instead of Camera and Voice Message buttons only when text input isn't empty.
+            let hasNonWhitespaceTextInput = !inputTextView.trimmedText.isEmpty
+            rightEdgeControlsState = hasNonWhitespaceTextInput ? .sendButton : .default
         }
 
-        // If the layout has changed, update the layout
-        // of the "media and send" stack immediately,
-        // to avoid a janky animation where these buttons
-        // move around far from their final positions.
-        if doLayout && didChangeLayout {
-            mediaAndSendStack.setNeedsLayout()
-            mediaAndSendStack.layoutIfNeeded()
-        }
-
-        let updateBlock: () -> Void = {
-            let hideStickerButton = hasTextInput || isShowingVoiceMemoUI || self.quotedReply != nil
-            ensureViewHiddenState(self.stickerButton, hideStickerButton)
-            if !hideStickerButton {
-                self.stickerButton.imageView?.tintColor = self.desiredKeyboardType == .sticker ? UIColor.ows_accentBlue : Theme.primaryIconColor
-            }
-
-            self.attachmentButton.setSelected(self.desiredKeyboardType == .attachment, animated: isAnimated)
-
-            self.updateSuggestedStickers()
-        }
-
-        // we had some strange effects (invisible text areas) animating the final [self layoutIfNeeded] block
-        // this approach seems to be a valid workaround
+        let animator: UIViewPropertyAnimator?
         if isAnimated {
-            UIView.animate(
-                withDuration: 0.1,
-                animations: updateBlock,
-                completion: { _ in
-                    guard doLayout else { return }
-
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                        self.layoutIfNeeded()
-                    }
-                }
+            animator = ConversationInputToolbar.springViewPropertyAnimator(
+                duration: 0.25,
+                dampingFraction: 0.645,
+                response: 0.25
             )
         } else {
-            updateBlock()
-            if doLayout {
-                layoutIfNeeded()
+            animator = nil
+        }
+
+        // Attachment Button
+        let hideAttachmentButton = isShowingVoiceMemoUI
+        if setAttachmentButtonHidden(hideAttachmentButton, usingAnimator: animator) {
+            hasLayoutChanged = true
+        }
+
+        // Attachment button has more complex animations and cannot be grouped with the rest.
+        let attachmentButtonAppearance: AttachmentButton.Appearance = desiredKeyboardType == .attachment ? .close : .add
+        attachmentButton.setAppearance(attachmentButtonAppearance, usingAnimator: animator)
+
+        // Show / hide Sticker or Keyboard buttons inside of the text input field.
+        // Either buttons are only visible if there's no any text input, including whitespace-only.
+        let hideStickerOrKeyboardButton = !inputTextView.untrimmedText.isEmpty || isShowingVoiceMemoUI || quotedReply != nil
+        let hideStickerButton = hideStickerOrKeyboardButton || desiredKeyboardType == .sticker
+        let hideKeyboardButton = hideStickerOrKeyboardButton || !hideStickerButton
+        ConversationInputToolbar.setView(stickerButton, hidden: hideStickerButton, usingAnimator: animator)
+        ConversationInputToolbar.setView(keyboardButton, hidden: hideKeyboardButton, usingAnimator: animator)
+
+        if rightEdgeControlsView.state != rightEdgeControlsState {
+            hasLayoutChanged = true
+
+            if let animator {
+                // `state` in implicitly animatable.
+                animator.addAnimations {
+                    self.rightEdgeControlsView.state = rightEdgeControlsState
+                }
+            } else {
+                rightEdgeControlsView.state = rightEdgeControlsState
             }
         }
+
+        if let animator {
+            if doLayout && hasLayoutChanged {
+                animator.addAnimations {
+                    self.mainPanelView.setNeedsLayout()
+                    self.mainPanelView.layoutIfNeeded()
+                }
+            }
+
+            animator.startAnimation()
+        } else {
+            if doLayout && hasLayoutChanged {
+                self.mainPanelView.setNeedsLayout()
+                self.mainPanelView.layoutIfNeeded()
+            }
+        }
+
+        updateSuggestedStickers(animated: isAnimated)
+    }
+
+    private var messageContentViewLeftEdgeConstraint: NSLayoutConstraint?
+
+    private func updateMessageContentViewLeftEdgeConstraint(isViewHidden: Bool) {
+        if let messageContentViewLeftEdgeConstraint {
+            removeConstraint(messageContentViewLeftEdgeConstraint)
+        }
+        let constraint: NSLayoutConstraint
+        if isViewHidden {
+            constraint = messageContentView.leftAnchor.constraint(
+                equalTo: mainPanelView.layoutMarginsGuide.leftAnchor,
+                constant: 16
+            )
+        } else {
+            constraint = messageContentView.leftAnchor.constraint(equalTo: attachmentButton.rightAnchor)
+        }
+        addConstraint(constraint)
+        messageContentViewLeftEdgeConstraint = constraint
+    }
+
+    private func setAttachmentButtonHidden(_ isHidden: Bool, usingAnimator animator: UIViewPropertyAnimator?) -> Bool {
+        guard ConversationInputToolbar.setView(attachmentButton, hidden: isHidden, usingAnimator: animator) else { return false }
+        updateMessageContentViewLeftEdgeConstraint(isViewHidden: isHidden)
+        return true
     }
 
     private func updateContentLayout() {
@@ -562,8 +585,10 @@ public class ConversationInputToolbar: UIView, LinkPreviewViewDraftDelegate, Quo
         }
 
         layoutConstraints = [
-            outerStack.autoPinEdge(toSuperviewEdge: .left, withInset: receivedSafeAreaInsets.left),
-            outerStack.autoPinEdge(toSuperviewEdge: .right, withInset: receivedSafeAreaInsets.right)
+            mainPanelView.autoPinEdge(toSuperviewEdge: .left, withInset: receivedSafeAreaInsets.left),
+            mainPanelView.autoPinEdge(toSuperviewEdge: .right, withInset: receivedSafeAreaInsets.right),
+            suggestedStickerView.autoPinEdge(toSuperviewEdge: .left, withInset: receivedSafeAreaInsets.left),
+            suggestedStickerView.autoPinEdge(toSuperviewEdge: .right, withInset: receivedSafeAreaInsets.right)
         ]
     }
 
@@ -581,6 +606,267 @@ public class ConversationInputToolbar: UIView, LinkPreviewViewDraftDelegate, Quo
 
     func updateFontSizes() {
         inputTextView.font = .ows_dynamicTypeBody
+    }
+
+    // MARK: Right Edge Buttons
+
+    private class RightEdgeControlsView: UIView {
+
+        enum State {
+            case `default`
+            case sendButton
+            case hiddenSendButton
+        }
+        private var _state: State = .default
+        var state: State {
+            get { _state }
+            set {
+                guard _state != newValue else { return }
+                _state = newValue
+                configureViewsForState(_state)
+                invalidateIntrinsicContentSize()
+            }
+        }
+
+        static let sendButtonHMargin: CGFloat = 4
+        static let cameraButtonHMargin: CGFloat = 8
+
+        lazy var sendButton: UIButton = {
+            let visibleButtonSize: CGFloat = 32
+            let buttonImage = UIImage(imageLiteralResourceName: "send-blue-32")
+            let highlightAlpha: CGFloat = Theme.isDarkThemeEnabled ? 0.4 : 0.2
+            let highlightedButtonImage = buttonImage.withAlphaComponent(highlightAlpha)
+            let button = UIButton(type: .custom)
+            button.accessibilityLabel = MessageStrings.sendButton
+            button.accessibilityIdentifier = UIView.accessibilityIdentifier(in: self, name: "sendButton")
+            button.setImage(buttonImage, for: .normal)
+            button.setImage(highlightedButtonImage, for: .highlighted)
+            button.bounds.size = CGSize(width: 48, height: LayoutMetrics.minToolbarItemHeight)
+            return button
+        }()
+
+        lazy var cameraButton: UIButton = {
+            let button = UIButton(type: .system)
+            button.tintColor = Theme.primaryIconColor
+            button.accessibilityLabel = NSLocalizedString(
+                "CAMERA_BUTTON_LABEL",
+                comment: "Accessibility label for camera button."
+            )
+            button.accessibilityHint = NSLocalizedString(
+                "CAMERA_BUTTON_HINT",
+                comment: "Accessibility hint describing what you can do with the camera button"
+            )
+            button.accessibilityIdentifier = UIView.accessibilityIdentifier(in: self, name: "cameraButton")
+            button.setImage(Theme.iconImage(.cameraButton), for: .normal)
+            button.bounds.size = CGSize(width: 40, height: LayoutMetrics.minToolbarItemHeight)
+            return button
+        }()
+
+        lazy var voiceMemoButton: UIButton = {
+            let button = UIButton(type: .system)
+            button.tintColor = Theme.primaryIconColor
+            button.accessibilityLabel = NSLocalizedString(
+                "INPUT_TOOLBAR_VOICE_MEMO_BUTTON_ACCESSIBILITY_LABEL",
+                comment: "accessibility label for the button which records voice memos"
+            )
+            button.accessibilityHint = NSLocalizedString(
+                "INPUT_TOOLBAR_VOICE_MEMO_BUTTON_ACCESSIBILITY_HINT",
+                comment: "accessibility hint for the button which records voice memos"
+            )
+            button.accessibilityIdentifier = UIView.accessibilityIdentifier(in: self, name: "voiceMemoButton")
+            button.setImage(Theme.iconImage(.micButton), for: .normal)
+            button.bounds.size = CGSize(width: 40, height: LayoutMetrics.minToolbarItemHeight)
+            return button
+        }()
+
+        override init(frame: CGRect) {
+            super.init(frame: frame)
+
+            for button in [ cameraButton, voiceMemoButton, sendButton ] {
+                button.setContentHuggingHorizontalHigh()
+                button.setCompressionResistanceHorizontalHigh()
+                addSubview(button)
+            }
+            configureViewsForState(state)
+
+            setContentHuggingHigh()
+            setCompressionResistanceHigh()
+        }
+
+        required init?(coder: NSCoder) {
+            fatalError("init(coder:) has not been implemented")
+        }
+
+        override func layoutSubviews() {
+            super.layoutSubviews()
+
+            sendButton.center = CGPoint(
+                x: bounds.maxX - Self.sendButtonHMargin - 0.5 * sendButton.bounds.width,
+                y: bounds.midY
+            )
+
+            switch state {
+            case .default:
+                cameraButton.center = CGPoint(
+                    x: bounds.minX + Self.cameraButtonHMargin + 0.5 * cameraButton.bounds.width,
+                    y: bounds.midY
+                )
+                voiceMemoButton.center = sendButton.center
+
+            case .sendButton, .hiddenSendButton:
+                cameraButton.center = sendButton.center
+                voiceMemoButton.center = sendButton.center
+            }
+        }
+
+        private func configureViewsForState(_ state: State) {
+            switch state {
+            case .default:
+                cameraButton.transform = .identity
+                cameraButton.alpha = 1
+
+                voiceMemoButton.transform = .identity
+                voiceMemoButton.alpha = 1
+
+                sendButton.transform = .scale(0.1)
+                sendButton.alpha = 0
+
+            case .sendButton, .hiddenSendButton:
+                cameraButton.transform = .scale(0.1)
+                cameraButton.alpha = 0
+
+                voiceMemoButton.transform = .scale(0.1)
+                voiceMemoButton.alpha = 0
+
+                sendButton.transform = .identity
+                sendButton.alpha = state == .hiddenSendButton ? 0 : 1
+            }
+        }
+
+        override var intrinsicContentSize: CGSize {
+            let width: CGFloat = {
+                switch state {
+                case .default: return cameraButton.width + voiceMemoButton.width + 2 * Self.cameraButtonHMargin
+                case .sendButton, .hiddenSendButton: return sendButton.width + 2 * Self.sendButtonHMargin
+                }
+            }()
+            return CGSize(width: width, height: LayoutMetrics.minToolbarItemHeight)
+        }
+    }
+
+    // MARK: Attachment Button
+
+    private class AttachmentButton: UIButton {
+
+        private let roundedCornersBackground: UIView = {
+            let view = UIView()
+            view.backgroundColor = .init(rgbHex: 0x3B3B3B)
+            view.clipsToBounds = true
+            view.layer.cornerRadius = 8
+            view.isUserInteractionEnabled = false
+            return view
+        }()
+
+        private let iconImageView = UIImageView(image: UIImage(imageLiteralResourceName: "plus-24"))
+
+        private override init(frame: CGRect) {
+            super.init(frame: frame)
+
+            addSubview(roundedCornersBackground)
+            roundedCornersBackground.autoCenterInSuperview()
+            roundedCornersBackground.autoSetDimensions(to: CGSize(square: 28))
+            updateImageColorAndBackground()
+
+            addSubview(iconImageView)
+            iconImageView.autoCenterInSuperview()
+            updateImageTransform()
+        }
+
+        required init?(coder: NSCoder) {
+            fatalError("init(coder:) has not been implemented")
+        }
+
+        override var isHighlighted: Bool {
+            didSet {
+                // When user releases their finger appearance change animations will be fired.
+                // We don't want changes performed by this method to interfere with animations.
+                guard !isAnimatingAppearance else { return }
+
+                // Mimic behavior of a standard system button.
+                let opacity: CGFloat = isHighlighted ? (Theme.isDarkThemeEnabled ? 0.4 : 0.2) : 1
+                switch appearance {
+                case .add:
+                    iconImageView.alpha = opacity
+
+                case .close:
+                    roundedCornersBackground.alpha = opacity
+                }
+            }
+        }
+
+        enum Appearance {
+            case add
+            case close
+        }
+
+        private var _appearance: Appearance = .add
+        private var isAnimatingAppearance = false
+
+        var appearance: Appearance {
+            get { _appearance }
+            set { setAppearance(newValue, usingAnimator: nil) }
+        }
+
+        func setAppearance(_ appearance: Appearance, usingAnimator animator: UIViewPropertyAnimator?) {
+            guard appearance != _appearance else { return }
+
+            _appearance = appearance
+
+            guard let animator else {
+                updateImageColorAndBackground()
+                updateImageTransform()
+                return
+            }
+
+            isAnimatingAppearance = true
+            animator.addAnimations({
+                    self.updateImageColorAndBackground()
+                },
+                delayFactor: appearance == .add ? 0 : 0.2
+            )
+            animator.addAnimations {
+                self.updateImageTransform()
+            }
+            animator.addCompletion { _ in
+                self.isAnimatingAppearance = false
+            }
+        }
+
+        private func updateImageColorAndBackground() {
+            switch appearance {
+            case .add:
+                iconImageView.alpha = 1
+                iconImageView.tintColor = Theme.primaryIconColor
+                roundedCornersBackground.alpha = 0
+                roundedCornersBackground.transform = .scale(0.05)
+
+            case .close:
+                iconImageView.alpha = 1
+                iconImageView.tintColor = .white
+                roundedCornersBackground.alpha = 1
+                roundedCornersBackground.transform = .identity
+            }
+        }
+
+        private func updateImageTransform() {
+            switch appearance {
+            case .add:
+                iconImageView.transform = .identity
+
+            case .close:
+                iconImageView.transform = .rotate(1.5 * .halfPi)
+            }
+        }
     }
 
     // MARK: Message Body
@@ -632,62 +918,78 @@ public class ConversationInputToolbar: UIView, LinkPreviewViewDraftDelegate, Quo
 
     // MARK: Quoted Reply
 
-    class var quotedReplyAnimationDuration: TimeInterval { 0.2 }
-
-    private(set) var isAnimatingQuotedReply = false
-
     var quotedReply: OWSQuotedReplyModel? {
         didSet {
             guard oldValue != quotedReply else { return }
 
             layer.removeAllAnimations()
 
-            guard let quotedReply = quotedReply else {
-                isAnimatingQuotedReply = true
-                UIView.animate(
-                    withDuration: ConversationInputToolbar.quotedReplyAnimationDuration,
-                    animations: {
-                        self.quotedReplyWrapper.isHidden = true
-                    },
-                    completion: { _ in
-                        self.isAnimatingQuotedReply = false
-                        self.quotedReplyWrapper.removeAllSubviews()
-                        self.layoutIfNeeded()
-                    }
-                )
-                ensureButtonVisibility(withAnimation: false, doLayout: true)
-                return
+            let animateChanges = window != nil
+            if quotedReply != nil {
+                showQuotedReplyView(animated: animateChanges)
+            } else {
+                hideQuotedReplyView(animated: animateChanges)
             }
-
-            quotedReplyWrapper.removeAllSubviews()
-
-            let quotedMessagePreview = QuotedReplyPreview(quotedReply: quotedReply, conversationStyle: conversationStyle)
-            quotedMessagePreview.delegate = self
-            quotedMessagePreview.setContentHuggingHorizontalLow()
-            quotedMessagePreview.setCompressionResistanceHorizontalLow()
-            quotedMessagePreview.accessibilityIdentifier = UIView.accessibilityIdentifier(in: self, name: "quotedMessagePreview")
-
-            quotedReplyWrapper.layoutMargins = .zero
-            quotedReplyWrapper.addSubview(quotedMessagePreview)
-            quotedMessagePreview.autoPinEdgesToSuperviewMargins()
-
-            // hasAsymmetricalRounding may have changed.
-            clearLinkPreviewView()
-            updateInputLinkPreview()
-            if quotedReplyWrapper.isHidden {
-                isAnimatingQuotedReply = true
-                UIView.animate(
-                    withDuration: ConversationInputToolbar.quotedReplyAnimationDuration,
-                    animations: {
-                        self.quotedReplyWrapper.isHidden = false
-                    },
-                    completion: { _ in
-                        self.isAnimatingQuotedReply = false
-                    }
-                )
-            }
-
+            // This would show / hide Stickers|Keyboard button.
+            ensureButtonVisibility(withAnimation: true, doLayout: false)
             clearDesiredKeyboard()
+        }
+    }
+
+    private func showQuotedReplyView(animated: Bool) {
+        guard let quotedReply else {
+            owsFailDebug("quotedReply == nil")
+            return
+        }
+
+        let quotedMessagePreview = QuotedReplyPreview(quotedReply: quotedReply, conversationStyle: conversationStyle)
+        quotedMessagePreview.delegate = self
+        quotedMessagePreview.setContentHuggingHorizontalLow()
+        quotedMessagePreview.setCompressionResistanceHorizontalLow()
+        quotedMessagePreview.accessibilityIdentifier = UIView.accessibilityIdentifier(in: self, name: "quotedMessagePreview")
+        quotedReplyWrapper.addSubview(quotedMessagePreview)
+        quotedMessagePreview.autoPinEdgesToSuperviewEdges()
+
+        // hasAsymmetricalRounding may have changed.
+        clearLinkPreviewView()
+        updateInputLinkPreview()
+
+        if animated, quotedReplyWrapper.isHidden {
+            isAnimatingHeightChange = true
+
+            UIView.animate(
+                withDuration: ConversationInputToolbar.heightChangeAnimationDuration,
+                animations: {
+                    self.quotedReplyWrapper.isHidden = false
+                },
+                completion: { _ in
+                    self.isAnimatingHeightChange = false
+                }
+            )
+        } else {
+            quotedReplyWrapper.isHidden = false
+        }
+    }
+
+    private func hideQuotedReplyView(animated: Bool) {
+        owsAssertDebug(quotedReply == nil)
+
+        if animated {
+            isAnimatingHeightChange = true
+
+            UIView.animate(
+                withDuration: ConversationInputToolbar.heightChangeAnimationDuration,
+                animations: {
+                    self.quotedReplyWrapper.isHidden = true
+                },
+                completion: { _ in
+                    self.isAnimatingHeightChange = false
+                    self.quotedReplyWrapper.removeAllSubviews()
+                }
+            )
+        } else {
+            quotedReplyWrapper.isHidden = true
+            quotedReplyWrapper.removeAllSubviews()
         }
     }
 
@@ -835,25 +1137,45 @@ public class ConversationInputToolbar: UIView, LinkPreviewViewDraftDelegate, Quo
 
     private let suggestedStickerViewCache = StickerViewCache(maxSize: 12)
 
-    private var suggestedStickerInfos: [StickerInfo] = [] {
-        didSet {
-            guard suggestedStickerInfos != oldValue else { return }
-            updateSuggestedStickerView()
+    private var suggestedStickerInfos: [StickerInfo] = []
+
+    private var suggestedStickersViewConstraint: NSLayoutConstraint?
+
+    private func updateSuggestedStickersViewConstraint() {
+        if let suggestedStickersViewConstraint {
+            removeConstraint(suggestedStickersViewConstraint)
         }
+
+        let constraint: NSLayoutConstraint
+        if isSuggestedStickersViewHidden {
+            constraint = suggestedStickerView.topAnchor.constraint(equalTo: mainPanelWrapperView.topAnchor)
+        } else {
+            constraint = suggestedStickerView.bottomAnchor.constraint(equalTo: mainPanelWrapperView.topAnchor)
+        }
+        addConstraint(constraint)
+        suggestedStickersViewConstraint = constraint
     }
 
-    private func updateSuggestedStickers() {
-        suggestedStickerInfos = StickerManager.shared.suggestedStickers(forTextInput: inputTextView.trimmedText).map { $0.info }
-    }
+    private var isSuggestedStickersViewHidden = true
 
-    private func updateSuggestedStickerView() {
+    private func updateSuggestedStickers(animated: Bool) {
+        let suggestedStickerInfos = StickerManager.shared.suggestedStickers(forTextInput: inputTextView.trimmedText).map { $0.info }
+
+        guard suggestedStickerInfos != self.suggestedStickerInfos else { return }
+
+        self.suggestedStickerInfos = suggestedStickerInfos
+
         guard !suggestedStickerInfos.isEmpty else {
-            suggestedStickerView.isHiddenInStackView = true
-            layoutIfNeeded()
+            hideSuggestedStickersView(animated: animated)
             return
         }
 
-        let shouldReset = suggestedStickerView.isHidden
+        showSuggestedStickersView(animated: animated)
+    }
+
+    private func showSuggestedStickersView(animated: Bool) {
+        owsAssertDebug(!suggestedStickerInfos.isEmpty)
+
         suggestedStickerView.items = suggestedStickerInfos.map { stickerInfo in
             StickerHorizontalListViewItemSticker(
                 stickerInfo: stickerInfo,
@@ -863,15 +1185,67 @@ public class ConversationInputToolbar: UIView, LinkPreviewViewDraftDelegate, Quo
                 cache: suggestedStickerViewCache
             )
         }
-        suggestedStickerView.isHiddenInStackView = false
-        layoutIfNeeded()
 
-        if shouldReset {
-            suggestedStickerView.contentOffset = CGPoint(
-                x: -suggestedStickerView.contentInset.left,
-                y: -suggestedStickerView.contentInset.top
+        guard isSuggestedStickersViewHidden else { return }
+
+        isSuggestedStickersViewHidden = false
+
+        UIView.performWithoutAnimation {
+            self.suggestedStickerView.alpha = 1
+            self.suggestedStickerView.layoutIfNeeded()
+            self.suggestedStickerView.contentOffset = CGPoint(
+                x: -self.suggestedStickerView.contentInset.left,
+                y: -self.suggestedStickerView.contentInset.top
             )
         }
+
+        guard animated else {
+            updateSuggestedStickersViewConstraint()
+            return
+        }
+
+        isAnimatingHeightChange = true
+        let animator = ConversationInputToolbar.springViewPropertyAnimator(
+            duration: ConversationInputToolbar.heightChangeAnimationDuration,
+            dampingFraction: 0.9,
+            response: 0.3
+        )
+        animator.addAnimations {
+            self.updateSuggestedStickersViewConstraint()
+            self.layoutIfNeeded()
+        }
+        animator.addCompletion { _ in
+            self.isAnimatingHeightChange = false
+        }
+        animator.startAnimation()
+    }
+
+    private func hideSuggestedStickersView(animated: Bool) {
+        guard !isSuggestedStickersViewHidden else { return }
+
+        isSuggestedStickersViewHidden = true
+
+        guard animated else {
+            suggestedStickerView.alpha = 0
+            updateSuggestedStickersViewConstraint()
+            return
+        }
+
+        isAnimatingHeightChange = true
+        let animator = ConversationInputToolbar.springViewPropertyAnimator(
+            duration: ConversationInputToolbar.heightChangeAnimationDuration,
+            dampingFraction: 0.9,
+            response: 0.3
+        )
+        animator.addAnimations {
+            self.updateSuggestedStickersViewConstraint()
+            self.layoutIfNeeded()
+        }
+        animator.addCompletion { _ in
+            self.suggestedStickerView.alpha = 0
+            self.isAnimatingHeightChange = false
+        }
+        animator.startAnimation()
     }
 
     private func didSelectSuggestedSticker(_ stickerInfo: StickerInfo) {
@@ -1180,7 +1554,7 @@ public class ConversationInputToolbar: UIView, LinkPreviewViewDraftDelegate, Quo
         let tooltipView = VoiceMessageTooltip(
             fromView: self,
             widthReferenceView: self,
-            tailReferenceView: voiceMemoButton) { [weak self] in
+            tailReferenceView: rightEdgeControlsView.voiceMemoButton) { [weak self] in
                 self?.removeVoiceMemoTooltip()
             }
         voiceMemoTooltipView = tooltipView
@@ -1575,6 +1949,15 @@ extension ConversationInputToolbar {
         }
         toggleKeyboardType(.sticker, animated: true)
     }
+
+    @objc
+    private func keyboardButtonPressed() {
+        Logger.verbose("")
+
+        ImpactHapticFeedback.impactOccured(style: .light)
+
+        toggleKeyboardType(.system, animated: true)
+    }
 }
 
 extension ConversationInputToolbar: ConversationTextViewToolbarDelegate {
@@ -1597,10 +1980,33 @@ extension ConversationInputToolbar: ConversationTextViewToolbarDelegate {
 
         guard newHeight != textViewHeight else { return }
 
+        guard let textViewHeightConstraint else {
+            owsFailDebug("textViewHeightConstraint == nil")
+            return
+        }
+
         textViewHeight = newHeight
-        owsAssertDebug(textViewHeightConstraint != nil)
-        textViewHeightConstraint?.constant = newHeight
-        invalidateIntrinsicContentSize()
+        textViewHeightConstraint.constant = newHeight
+
+        if let superview, inputToolbarDelegate != nil {
+            isAnimatingHeightChange = true
+
+            let animator = ConversationInputToolbar.springViewPropertyAnimator(
+                duration: ConversationInputToolbar.heightChangeAnimationDuration,
+                dampingFraction: 1,
+                response: 0.25
+            )
+            animator.addAnimations {
+                self.invalidateIntrinsicContentSize()
+                superview.layoutIfNeeded()
+            }
+            animator.addCompletion { _ in
+                self.isAnimatingHeightChange = false
+            }
+            animator.startAnimation()
+        } else {
+            invalidateIntrinsicContentSize()
+        }
     }
 
     func textViewDidChange(_ textView: UITextView) {

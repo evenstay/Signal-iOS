@@ -32,9 +32,8 @@ extension DonateViewController {
            ),
            let subscriberID = monthly.subscriberID {
             firstly {
-                try SubscriptionManager.updateSubscriptionLevel(
+                SubscriptionManager.updateSubscriptionLevel(
                     for: subscriberID,
-                    from: priorSubscriptionLevel,
                     to: selectedSubscriptionLevel,
                     payment: payment,
                     currencyCode: selectedCurrencyCode
@@ -119,8 +118,6 @@ extension DonateViewController {
             backdropView.alpha = 1
         }
 
-        enum SubscriptionError: Error { case timeout, assertion }
-
         Promise.race(
             NotificationCenter.default.observe(
                 once: SubscriptionManager.SubscriptionJobQueueDidFinishJobNotification,
@@ -131,10 +128,10 @@ extension DonateViewController {
                 object: nil
             )
         ).timeout(seconds: 30) {
-            return SubscriptionError.timeout
+            return DonationJobError.timeout
         }.done { notification in
             if notification.name == SubscriptionManager.SubscriptionJobQueueDidFailJobNotification {
-                throw SubscriptionError.assertion
+                throw DonationJobError.assertion
             }
 
             progressView.stopAnimating(success: true) {
@@ -155,16 +152,17 @@ extension DonateViewController {
                 backdropView.removeFromSuperview()
                 progressView.removeFromSuperview()
 
-                guard let error = error as? SubscriptionError else {
+                guard let error = error as? DonationJobError else {
                     return owsFailDebug("Unexpected error \(error)")
                 }
 
                 guard let self = self else { return }
                 switch error {
                 case .timeout:
-                    self.presentStillProcessingSheet()
+                    DonationViewsUtil.presentStillProcessingSheet(from: self)
                 case .assertion:
-                    self.presentBadgeCantBeAddedSheet(
+                    DonationViewsUtil.presentBadgeCantBeAddedSheet(
+                        from: self,
                         currentSubscription: self.state.monthly?.currentSubscription
                     )
                 }

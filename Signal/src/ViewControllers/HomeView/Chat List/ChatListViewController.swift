@@ -485,6 +485,10 @@ public extension ChatListViewController {
             viewControllers += [ profile ]
             completion = { profile.presentAvatarSettingsView() }
         case let .donate(donationMode):
+            guard DonationUtilities.canDonate(localNumber: tsAccountManager.localNumber) else {
+                DonationViewsUtil.openDonateWebsite()
+                return
+            }
             let donate = DonateViewController(startingDonationMode: donationMode) { [weak self] finishResult in
                 switch finishResult {
                 case let .completedDonation(donateSheet, thanksSheet):
@@ -538,10 +542,8 @@ extension ChatListViewController: BadgeExpirationSheetDelegate {
         switch action {
         case .dismiss:
             break
-        case .openOneTimeDonationView:
+        case .openDonationView:
             showAppSettings(mode: .donate(donationMode: .oneTime))
-        case .openMonthlyDonationView:
-            showAppSettings(mode: .donate(donationMode: .monthly))
         }
     }
 }

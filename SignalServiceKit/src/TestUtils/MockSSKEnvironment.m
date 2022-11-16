@@ -7,7 +7,6 @@
 #import "OWS2FAManager.h"
 #import "OWSBackgroundTask.h"
 #import "OWSDisappearingMessagesJob.h"
-#import "OWSFakeCallMessageHandler.h"
 #import "OWSFakeProfileManager.h"
 #import "OWSIdentityManager.h"
 #import "OWSMessageManager.h"
@@ -98,6 +97,7 @@ NS_ASSUME_NONNULL_BEGIN
     SystemStoryManagerMock *systemStoryManager = [SystemStoryManagerMock new];
     RemoteMegaphoneFetcher *remoteMegaphoneFetcher = [RemoteMegaphoneFetcher new];
     SSKJobQueues *sskJobQueues = [SSKJobQueues new];
+    id contactDiscoveryManager = [ContactDiscoveryManagerImpl new];
 
     self = [super initWithContactsManager:contactsManager
                        linkPreviewManager:linkPreviewManager
@@ -154,7 +154,8 @@ NS_ASSUME_NONNULL_BEGIN
                       subscriptionManager:subscriptionManager
                        systemStoryManager:systemStoryManager
                    remoteMegaphoneFetcher:remoteMegaphoneFetcher
-                             sskJobQueues:sskJobQueues];
+                             sskJobQueues:sskJobQueues
+                  contactDiscoveryManager:contactDiscoveryManager];
 
     if (!self) {
         return nil;

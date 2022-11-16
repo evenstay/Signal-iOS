@@ -61,6 +61,8 @@ class GroupCallViewController: UIViewController {
     var hasUnresolvedSafetyNumberMismatch = false
     var hasDismissed = false
 
+    private var membersAtJoin: Set<SignalServiceAddress>?
+
     private static let keyValueStore = SDSKeyValueStore(collection: "GroupCallViewController")
     private static let didUserSwipeToSpeakerViewKey = "didUserSwipeToSpeakerView"
     private static let didUserSwipeToScreenShareKey = "didUserSwipeToScreenShare"
@@ -94,6 +96,11 @@ class GroupCallViewController: UIViewController {
         } completion: {
             self.updateSwipeToastView()
         }
+
+        NotificationCenter.default.addObserver(self,
+                                               selector: #selector(didBecomeActive),
+                                               name: UIApplication.didBecomeActiveNotification,
+                                               object: nil)
     }
 
     @discardableResult
@@ -176,7 +183,9 @@ class GroupCallViewController: UIViewController {
         view.addSubview(noVideoIndicatorView)
         noVideoIndicatorView.autoHCenterInSuperview()
         // Be flexible on the vertical centering on a cramped screen.
-        noVideoIndicatorView.autoVCenterInSuperview().priority = .defaultLow
+        NSLayoutConstraint.autoSetPriority(.defaultLow) {
+            noVideoIndicatorView.autoVCenterInSuperview()
+        }
         noVideoIndicatorView.autoPinEdge(.top, to: .bottom, of: callHeader, withOffset: 8, relation: .greaterThanOrEqual)
 
         view.addSubview(notificationView)
@@ -286,6 +295,14 @@ class GroupCallViewController: UIViewController {
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
 
+        if hasUnresolvedSafetyNumberMismatch && CurrentAppContext().isAppForegroundAndActive() {
+            // If we're not active yet, this will be handled by the `didBecomeActive` callback.
+            resolveSafetyNumberMismatch()
+        }
+    }
+
+    @objc
+    private func didBecomeActive() {
         if hasUnresolvedSafetyNumberMismatch {
             resolveSafetyNumberMismatch()
         }
@@ -655,39 +672,67 @@ extension GroupCallViewController: CallViewControllerWindowReference {
         }
     }
 
+    private func safetyNumberMismatchAddresses() -> [SignalServiceAddress] {
+        databaseStorage.read { transaction in
+            let addressesToCheck: [SignalServiceAddress]
+            if groupCall.localDeviceState.joinState == .notJoined {
+                // If we haven't joined the call yet, we want to alert for all members of the group
+                addressesToCheck = call.thread.recipientAddresses(with: transaction)
+            } else {
+                // If we are in the call, we only care about safety numbers for the active call participants
+                addressesToCheck = groupCall.remoteDeviceStates.map { $0.value.address }
+            }
+
+            return addressesToCheck.filter { memberAddress in
+                identityManager.untrustedIdentityForSending(to: memberAddress, transaction: transaction) != nil
+            }
+        }
+    }
+
     func resolveSafetyNumberMismatch() {
+        let resendMediaKeysAndResetMismatch = { [unowned self] in
+            self.groupCall.resendMediaKeys()
+            self.hasUnresolvedSafetyNumberMismatch = false
+        }
+
         if !isCallMinimized, CurrentAppContext().isAppForegroundAndActive() {
             presentSafetyNumberChangeSheetIfNecessary { [weak self] success in
                 guard let self = self else { return }
                 if success {
-                    self.groupCall.resendMediaKeys()
-                    self.hasUnresolvedSafetyNumberMismatch = false
+                    resendMediaKeysAndResetMismatch()
                 } else {
                     self.dismissCall()
                 }
             }
         } else {
-            Self.notificationPresenter.notifyForGroupCallSafetyNumberChange(inThread: call.thread)
+            let unresolvedAddresses = safetyNumberMismatchAddresses()
+            guard !unresolvedAddresses.isEmpty else {
+                // Spurious warning, maybe from delayed callbacks.
+                resendMediaKeysAndResetMismatch()
+                return
+            }
+
+            // If a problematic member was present at join, leaves, and then joins again,
+            // we'll still treat them as having been there "since join", but that's okay.
+            // It's not worth trying to track this more precisely.
+            let atLeastOneUnresolvedPresentAtJoin = unresolvedAddresses.contains { membersAtJoin?.contains($0) ?? false }
+            Self.notificationPresenter.notifyForGroupCallSafetyNumberChange(inThread: call.thread,
+                                                                            presentAtJoin: atLeastOneUnresolvedPresentAtJoin)
         }
     }
 
     func presentSafetyNumberChangeSheetIfNecessary(completion: @escaping (Bool) -> Void) {
         let localDeviceHasNotJoined = groupCall.localDeviceState.joinState == .notJoined
-        let currentParticipantAddresses = groupCall.remoteDeviceStates.map { $0.value.address }
-
-        // If we haven't joined the call yet, we want to alert for all members of the group
-        // If we are in the call, we only care about safety numbers for the active call participants
-        let addressesToAlert = call.thread.recipientAddressesWithSneakyTransaction.filter { memberAddress in
-            let isUntrusted = Self.identityManager.untrustedIdentityForSending(to: memberAddress) != nil
-            let isMemberInCall = currentParticipantAddresses.contains(memberAddress)
-
-            // We want to alert for safety number changes of all members if we haven't joined yet
-            // If we're already in the call, we only care about active call participants
-            return isUntrusted && (isMemberInCall || localDeviceHasNotJoined)
-        }
+        let addressesToAlert = safetyNumberMismatchAddresses()
 
         // There are no unverified addresses that we're currently concerned about. No need to show a sheet
-        guard addressesToAlert.count > 0 else { return completion(true) }
+        guard !addressesToAlert.isEmpty else { return completion(true) }
+
+        if let existingSheet = presentedViewController as? SafetyNumberConfirmationSheet {
+            // The set of untrusted addresses may have changed.
+            // It's a bit clunky, but we'll just dismiss the existing sheet before putting up a new one.
+            existingSheet.dismiss(animated: false)
+        }
 
         let startCallString = NSLocalizedString("GROUP_CALL_START_BUTTON", comment: "Button to start a group call")
         let joinCallString = NSLocalizedString("GROUP_CALL_JOIN_BUTTON", comment: "Button to join an ongoing group call")
@@ -724,6 +769,15 @@ extension GroupCallViewController: CallObserver {
         owsAssertDebug(call.isGroupCall)
 
         updateCallUI()
+
+        switch call.groupCall.localDeviceState.joinState {
+        case .joined:
+            if membersAtJoin == nil {
+                membersAtJoin = Set(call.groupCall.remoteDeviceStates.lazy.map { $0.value.address })
+            }
+        case .joining, .notJoined:
+            membersAtJoin = nil
+        }
     }
 
     func groupCallRemoteDeviceStatesChanged(_ call: SignalCall) {

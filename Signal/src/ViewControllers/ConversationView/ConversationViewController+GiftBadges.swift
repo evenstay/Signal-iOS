@@ -9,7 +9,7 @@ import SignalServiceKit
 
 extension ConversationViewController {
 
-    func willWrapGift(_ messageUniqueId: String) -> Bool {
+    public func willWrapGift(_ messageUniqueId: String) -> Bool {
         // If a gift is unwrapped at roughly the same we're reloading the
         // conversation for an unrelated reason, there's a chance we'll try to
         // re-wrap a gift that was just unwrapped. This provides an opportunity to
@@ -17,12 +17,12 @@ extension ConversationViewController {
         return !self.viewState.unwrappedGiftMessageIds.contains(messageUniqueId)
     }
 
-    func willShakeGift(_ messageUniqueId: String) -> Bool {
+    public func willShakeGift(_ messageUniqueId: String) -> Bool {
         let (justInserted, _) = self.viewState.shakenGiftMessageIds.insert(messageUniqueId)
         return justInserted
     }
 
-    func willUnwrapGift(_ itemViewModel: CVItemViewModelImpl) {
+    public func willUnwrapGift(_ itemViewModel: CVItemViewModelImpl) {
         self.viewState.unwrappedGiftMessageIds.insert(itemViewModel.interaction.uniqueId)
         self.markGiftAsOpened(itemViewModel.interaction)
     }
@@ -43,7 +43,7 @@ extension ConversationViewController {
         }
     }
 
-    func didTapGiftBadge(_ itemViewModel: CVItemViewModelImpl, profileBadge: ProfileBadge, isExpired: Bool, isRedeemed: Bool) {
+    public func didTapGiftBadge(_ itemViewModel: CVItemViewModelImpl, profileBadge: ProfileBadge, isExpired: Bool, isRedeemed: Bool) {
         AssertIsOnMainThread()
 
         let viewControllerToPresent: UIViewController
@@ -138,9 +138,9 @@ extension ConversationViewController: BadgeExpirationSheetDelegate {
         switch action {
         case .dismiss:
             break
-        case .openMonthlyDonationView:
+        case .openDonationView:
             let appSettings = AppSettingsViewController.inModalNavigationController()
-            let donateViewController = DonateViewController(startingDonationMode: .monthly) { [weak self] finishResult in
+            let donateViewController = DonateViewController(startingDonationMode: .oneTime) { [weak self] finishResult in
                 switch finishResult {
                 case let .completedDonation(donateSheet, thanksSheet):
                     donateSheet.dismiss(animated: true) { [weak self] in
@@ -158,8 +158,6 @@ extension ConversationViewController: BadgeExpirationSheetDelegate {
                 donateViewController
             ]
             self.presentFormSheet(appSettings, animated: true, completion: nil)
-        case .openOneTimeDonationView:
-            owsFailDebug("Not supported")
         }
     }
 }

@@ -466,6 +466,10 @@ public extension CGAffineTransform {
         CGAffineTransform(scaleX: scaling, y: scaling)
     }
 
+    static func rotate(_ angleRadians: CGFloat) -> CGAffineTransform {
+        CGAffineTransform(rotationAngle: angleRadians)
+    }
+
     func translate(_ point: CGPoint) -> CGAffineTransform {
         translatedBy(x: point.x, y: point.y)
     }
@@ -823,6 +827,33 @@ extension UIImage {
             return nil
         }
         return newImage
+    }
+
+    // In most cases it would be significantly better to adjust `UIImageView.alpha`.
+    // Only use this method if you have no control over opacity of UIImageView:
+    // e.g. when setting image as UIButton's image for "highlghted" state.
+    public func withAlphaComponent(_ alpha: CGFloat) -> UIImage? {
+        UIGraphicsBeginImageContextWithOptions(size, false, 0)
+        defer {
+            UIGraphicsEndImageContext()
+        }
+
+        guard let context = UIGraphicsGetCurrentContext(), let cgImage else {
+            owsFailDebug("Failed to create image context")
+            return nil
+        }
+
+        let imageRect = CGRect(origin: .zero, size: size)
+        context.concatenate(CGAffineTransform(a: 1, b: 0, c: 0, d: -1, tx: 0, ty: size.height))
+        context.setBlendMode(.multiply)
+        context.setAlpha(alpha)
+        context.draw(cgImage, in: imageRect)
+
+        guard let image = UIGraphicsGetImageFromCurrentImageContext() else {
+            owsFailDebug("Failed to create non-opaque image from context")
+            return nil
+        }
+        return image
     }
 }
 

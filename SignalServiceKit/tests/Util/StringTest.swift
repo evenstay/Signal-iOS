@@ -7,6 +7,40 @@ import XCTest
 import SignalServiceKit
 
 final class StringTest: XCTestCase {
+    func test_digitsOnly() {
+        XCTAssertEqual("".digitsOnly, "")
+        XCTAssertEqual("abc".digitsOnly, "")
+        XCTAssertEqual("123".digitsOnly, "123")
+        XCTAssertEqual("-1.23".digitsOnly, "123")
+        XCTAssertEqual("1x2 3".digitsOnly, "123")
+        XCTAssertEqual("١23".digitsOnly, "١23")
+        XCTAssertEqual("1️⃣23".digitsOnly, "123")
+    }
+
+    func test_asciiDigitsOnly() {
+        XCTAssertEqual("".asciiDigitsOnly, "")
+        XCTAssertEqual("abc".asciiDigitsOnly, "")
+        XCTAssertEqual("123".asciiDigitsOnly, "123")
+        XCTAssertEqual("-1.23".asciiDigitsOnly, "123")
+        XCTAssertEqual("1x2 3".asciiDigitsOnly, "123")
+        XCTAssertEqual("1١23".asciiDigitsOnly, "123")
+        XCTAssertEqual("19️⃣23".asciiDigitsOnly, "123")
+        XCTAssertEqual("6️⃣123".asciiDigitsOnly, "123")
+    }
+
+    func test_isAsciiDigitsOnly() throws {
+        XCTAssertTrue("".isAsciiDigitsOnly)
+        XCTAssertTrue("1".isAsciiDigitsOnly)
+        XCTAssertTrue("1234567890".isAsciiDigitsOnly)
+        XCTAssertFalse(" ".isAsciiDigitsOnly)
+        XCTAssertFalse("x".isAsciiDigitsOnly)
+        XCTAssertFalse("x1".isAsciiDigitsOnly)
+        XCTAssertFalse("1x".isAsciiDigitsOnly)
+        XCTAssertFalse("1.2".isAsciiDigitsOnly)
+        XCTAssertFalse("1️⃣".isAsciiDigitsOnly)
+        XCTAssertFalse("١٢٣".isAsciiDigitsOnly)
+    }
+
     func test_caesar() {
         XCTAssertEqual("abc", try! "abc".caesar(shift: 0))
         XCTAssertEqual("abc", try! "abc".caesar(shift: 127))

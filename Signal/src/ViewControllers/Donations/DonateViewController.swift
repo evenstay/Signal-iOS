@@ -11,6 +11,10 @@ import SignalServiceKit
 import SignalMessaging
 
 class DonateViewController: OWSViewController, OWSNavigationChildController {
+    private static var canMakeNewDonations: Bool {
+        DonationUtilities.canDonate(localNumber: tsAccountManager.localNumber)
+    }
+
     private var backgroundColor: UIColor {
         OWSTableViewController2.tableBackgroundColor(isUsingPresentedStyle: true)
     }
@@ -27,10 +31,6 @@ class DonateViewController: OWSViewController, OWSNavigationChildController {
         result.alignment = .fill
         result.spacing = 20
         return result
-    }
-
-    private var navigationBar: OWSNavigationBar? {
-        navigationController?.navigationBar as? OWSNavigationBar
     }
 
     // MARK: - Initialization
@@ -54,7 +54,11 @@ class DonateViewController: OWSViewController, OWSNavigationChildController {
         startingDonationMode: DonationMode,
         onFinished: @escaping (FinishResult) -> Void
     ) {
-        self.state = .init(donationMode: startingDonationMode)
+        if Self.canMakeNewDonations {
+            self.state = .init(donationMode: startingDonationMode)
+        } else {
+            self.state = .init(donationMode: .monthly)
+        }
         self.onFinished = onFinished
 
         super.init()
@@ -65,6 +69,15 @@ class DonateViewController: OWSViewController, OWSNavigationChildController {
     public override func viewDidLoad() {
         super.viewDidLoad()
 
+        let isPresentedStandalone = navigationController?.viewControllers.first == self
+        if isPresentedStandalone {
+            navigationItem.leftBarButtonItem = .init(
+                barButtonSystemItem: .cancel,
+                target: self,
+                action: #selector(didTapCancel)
+            )
+        }
+
         render(oldState: nil)
         loadAndUpdateState()
 
@@ -73,13 +86,7 @@ class DonateViewController: OWSViewController, OWSNavigationChildController {
         stackView.autoPinHeightToSuperview()
 
         let margin: CGFloat = 20
-        let topMargin: CGFloat = navigationBar == nil ? margin : 0
-        stackView.layoutMargins = .init(
-            top: topMargin,
-            leading: margin,
-            bottom: margin,
-            trailing: margin
-        )
+        stackView.layoutMargins = .init(top: 0, leading: margin, bottom: margin, trailing: margin)
         stackView.isLayoutMarginsRelativeArrangement = true
 
         view.addSubview(scrollView)
@@ -101,6 +108,11 @@ class DonateViewController: OWSViewController, OWSNavigationChildController {
     }
 
     // MARK: - Events
+
+    @objc
+    private func didTapCancel() {
+        dismiss(animated: true)
+    }
 
     @objc
     private func didDonationModeChange() {
@@ -150,12 +162,17 @@ class DonateViewController: OWSViewController, OWSNavigationChildController {
         guard let oneTime = state.oneTime else {
             owsFail("[Donations] Expected one-time state but it was not loaded")
         }
-        state = state.selectOneTimeAmount(.choseCustomAmount(
-            amount: FiatMoney(currencyCode: oneTime.selectedCurrencyCode, value: 0)
-        ))
+
+        switch oneTime.selectedAmount {
+        case .nothingSelected, .selectedPreset:
+            state = state.selectOneTimeAmount(.choseCustomAmount(
+                amount: FiatMoney(currencyCode: oneTime.selectedCurrencyCode, value: 0)
+            ))
+        case .choseCustomAmount:
+            break
+        }
 
         oneTimeCustomAmountTextField.becomeFirstResponder()
-
         scrollToOneTimeContinueButtonWhenKeyboardAppears = true
     }
 
@@ -252,15 +269,24 @@ class DonateViewController: OWSViewController, OWSNavigationChildController {
         }
     }
 
-    private func didTapToContinueMonthlyDonation() {
+    private func didTapToStartNewMonthlyDonation() {
         guard let monthlyPaymentRequest = state.monthly?.paymentRequest else {
-            owsFail("[Donations] Cannot make monthly donation. This should be prevented in the UI")
+            owsFail("[Donations] Cannot start monthly donation. This should be prevented in the UI")
         }
         presentChoosePaymentMethodSheet(
             amount: monthlyPaymentRequest.amount,
             badge: monthlyPaymentRequest.profileBadge,
             donationMode: .monthly
         )
+    }
+
+    private func didConfirmMonthlyDonationUpdate() {
+        guard let monthlyPaymentRequest = state.monthly?.paymentRequest else {
+            owsFail("[Donations] Cannot update monthly donation. This should be prevented in the UI")
+        }
+
+        // TODO(donations) When we add other payment methods, we don't necessarily want to start Apple Pay in this case.
+        startApplePay(with: monthlyPaymentRequest.amount, donationMode: .monthly)
     }
 
     private func didTapToUpdateMonthlyDonation() {
@@ -280,10 +306,6 @@ class DonateViewController: OWSViewController, OWSNavigationChildController {
             ),
             currencyString
         )
-        let confirm = NSLocalizedString(
-            "SUSTAINER_VIEW_UPDATE_SUBSCRIPTION_CONFIRMATION_UPDATE",
-            comment: "Update Subscription? Action sheet confirm button"
-        )
         let notNow = NSLocalizedString(
             "SUSTAINER_VIEW_SUBSCRIPTION_CONFIRMATION_NOT_NOW",
             comment: "Sustainer view Not Now Action sheet button"
@@ -291,10 +313,10 @@ class DonateViewController: OWSViewController, OWSNavigationChildController {
 
         let actionSheet = ActionSheetController(title: title, message: message)
         actionSheet.addAction(.init(
-            title: confirm,
+            title: CommonStrings.continueButton,
             style: .default,
             handler: { [weak self] _ in
-                self?.didTapToContinueMonthlyDonation()
+                self?.didConfirmMonthlyDonationUpdate()
             }
         ))
         actionSheet.addAction(.init(
@@ -487,7 +509,7 @@ class DonateViewController: OWSViewController, OWSNavigationChildController {
         let result = UIStackView()
         result.axis = .vertical
         result.alignment = .fill
-        result.spacing = 26
+        result.spacing = 24
         return result
     }()
 
@@ -602,7 +624,12 @@ class DonateViewController: OWSViewController, OWSNavigationChildController {
             }
         }()
         if !wasLoaded || oldState?.donationMode != state.donationMode {
-            var subviews: [UIView] = [currencyPickerContainerView, donationModePickerView]
+            var subviews: [UIView] = [currencyPickerContainerView]
+
+            if Self.canMakeNewDonations {
+                subviews.append(donationModePickerView)
+            }
+
             switch donationMode {
             case .oneTime:
                 subviews.append(oneTimeView)
@@ -612,6 +639,8 @@ class DonateViewController: OWSViewController, OWSNavigationChildController {
 
             bodyView.removeAllSubviews()
             bodyView.addArrangedSubviews(subviews)
+
+            bodyView.setCustomSpacing(18, after: currencyPickerContainerView)
 
             // Switching modes causes animations to lose their anchors,
             // so we remove them.
@@ -719,7 +748,7 @@ class DonateViewController: OWSViewController, OWSNavigationChildController {
         let result = UIStackView()
         result.axis = .vertical
         result.distribution = .fillEqually
-        result.spacing = 16
+        result.spacing = 20
         return result
     }()
 
@@ -824,7 +853,7 @@ class DonateViewController: OWSViewController, OWSNavigationChildController {
                     font: .ows_regularFont(withSize: UIDevice.current.isIPhone5OrShorter ? 18 : 20),
                     titleColor: Theme.primaryTextColor
                 )
-                button.autoSetDimension(.height, toSize: 48, relation: .greaterThanOrEqual)
+                button.autoSetDimension(.height, toSize: 52, relation: .greaterThanOrEqual)
                 button.enableMultilineLabel()
                 button.layer.cornerRadius = Self.cornerRadius
                 button.clipsToBounds = true
@@ -896,12 +925,14 @@ class DonateViewController: OWSViewController, OWSNavigationChildController {
 
     private var monthlySubscriptionLevelViews = [MonthlySubscriptionLevelView]()
 
-    private lazy var monthlySubscriptionLevelsView = Self.commonStack()
+    private lazy var monthlySubscriptionLevelsView: UIStackView = {
+        let result = Self.commonStack()
+        result.spacing = 10
+        return result
+    }()
 
     private lazy var monthlyButtonsView: UIStackView = {
-        let result = UIStackView()
-        result.axis = .vertical
-        result.alignment = .fill
+        let result = Self.commonStack()
         result.spacing = 10
         return result
     }()
@@ -931,11 +962,11 @@ class DonateViewController: OWSViewController, OWSNavigationChildController {
         monthlySubscriptionLevelViews = monthly.subscriptionLevels
             .enumerated()
             .map { (index, subscriptionLevel) in
-            MonthlySubscriptionLevelView(
-                subscriptionLevel: subscriptionLevel,
-                animationName: animationNames[safe: index] ?? "boost_fire"
-            )
-        }
+                MonthlySubscriptionLevelView(
+                    subscriptionLevel: subscriptionLevel,
+                    animationName: animationNames[safe: index] ?? "boost_fire"
+                )
+            }
 
         for view in monthlySubscriptionLevelViews {
             let tap = UITapGestureRecognizer(
@@ -966,27 +997,29 @@ class DonateViewController: OWSViewController, OWSNavigationChildController {
         var buttons = [OWSButton]()
 
         if let currentSubscription = monthly.currentSubscription {
-            let updateTitle = NSLocalizedString(
-                "DONATE_SCREEN_UPDATE_MONTHLY_SUBSCRIPTION_BUTTON",
-                comment: "On the donation screen, if you already have a subscription, you'll see a button to update your subscription. This is the text on that button."
-            )
-            let updateButton = OWSButton(title: updateTitle) { [weak self] in
-                self?.didTapToUpdateMonthlyDonation()
+            if Self.canMakeNewDonations {
+                let updateTitle = NSLocalizedString(
+                    "DONATE_SCREEN_UPDATE_MONTHLY_SUBSCRIPTION_BUTTON",
+                    comment: "On the donation screen, if you already have a subscription, you'll see a button to update your subscription. This is the text on that button."
+                )
+                let updateButton = OWSButton(title: updateTitle) { [weak self] in
+                    self?.didTapToUpdateMonthlyDonation()
+                }
+                updateButton.backgroundColor = .ows_accentBlue
+                updateButton.titleLabel?.font = UIFont.ows_dynamicTypeBody.ows_semibold
+                updateButton.isEnabled = {
+                    if currentSubscription.amount.currencyCode != monthly.selectedCurrencyCode {
+                        return true
+                    }
+                    if
+                        let selectedSubscriptionLevel = monthly.selectedSubscriptionLevel,
+                        currentSubscription.level != selectedSubscriptionLevel.level {
+                        return true
+                    }
+                    return false
+                }()
+                buttons.append(updateButton)
             }
-            updateButton.backgroundColor = .ows_accentBlue
-            updateButton.titleLabel?.font = UIFont.ows_dynamicTypeBody.ows_semibold
-            updateButton.isEnabled = {
-                if currentSubscription.amount.currencyCode != monthly.selectedCurrencyCode {
-                    return true
-                }
-                if
-                    let selectedSubscriptionLevel = monthly.selectedSubscriptionLevel,
-                    currentSubscription.level != selectedSubscriptionLevel.level {
-                    return true
-                }
-                return false
-            }()
-            buttons.append(updateButton)
 
             let cancelTitle = NSLocalizedString(
                 "SUSTAINER_VIEW_CANCEL_SUBSCRIPTION",
@@ -1000,7 +1033,7 @@ class DonateViewController: OWSViewController, OWSNavigationChildController {
             buttons.append(cancelButton)
         } else {
             let continueButton = OWSButton(title: CommonStrings.continueButton) { [weak self] in
-                self?.didTapToContinueMonthlyDonation()
+                self?.didTapToStartNewMonthlyDonation()
             }
             continueButton.layer.cornerRadius = 8
             continueButton.backgroundColor = .ows_accentBlue
