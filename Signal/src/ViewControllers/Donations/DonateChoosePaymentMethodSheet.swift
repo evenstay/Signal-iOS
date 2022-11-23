@@ -8,7 +8,7 @@ import SignalUI
 import SignalServiceKit
 import SignalMessaging
 
-class DonateChoosePaymentMethodSheet: InteractiveSheetViewController {
+class DonateChoosePaymentMethodSheet: OWSTableSheetViewController {
     enum DonationMode {
         case oneTime
         case monthly
@@ -18,17 +18,8 @@ class DonateChoosePaymentMethodSheet: InteractiveSheetViewController {
     private let amount: FiatMoney
     private let badge: ProfileBadge?
     private let donationMode: DonationMode
-    private let didChoosePaymentMethod: (DonateChoosePaymentMethodSheet) -> Void
+    private let didChoosePaymentMethod: (DonateChoosePaymentMethodSheet, DonationPaymentMethod) -> Void
 
-    private let scrollView = UIScrollView()
-    override var interactiveScrollViews: [UIScrollView] { [scrollView] }
-    override var sheetBackgroundColor: UIColor {
-        OWSTableViewController2.tableBackgroundColor(isUsingPresentedStyle: true)
-    }
-
-    private let minHeight: CGFloat = 478
-    private let hMargin: CGFloat = 32
-    private let vMargin: CGFloat = 32
     private let buttonHeight: CGFloat = 48
 
     private var titleText: String {
@@ -77,11 +68,17 @@ class DonateChoosePaymentMethodSheet: InteractiveSheetViewController {
         return String(format: format, badge.localizedName)
     }
 
+    private lazy var supportedPaymentMethodOptions: Set<DonationPaymentMethod> = {
+        DonationUtilities.supportedDonationPaymentMethodOptions(
+            localNumber: Self.tsAccountManager.localNumber
+        )
+    }()
+
     init(
         amount: FiatMoney,
         badge: ProfileBadge?,
         donationMode: DonationMode,
-        didChoosePaymentMethod: @escaping (DonateChoosePaymentMethodSheet) -> Void
+        didChoosePaymentMethod: @escaping (DonateChoosePaymentMethodSheet, DonationPaymentMethod) -> Void
     ) {
         self.amount = amount
         self.badge = badge
@@ -91,31 +88,18 @@ class DonateChoosePaymentMethodSheet: InteractiveSheetViewController {
         super.init()
     }
 
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
+    required init() {
+        fatalError("init() has not been implemented")
     }
 
-    // MARK: - View callbacks
+    // MARK: - Updating table contents
 
-    override public func viewDidLoad() {
-        super.viewDidLoad()
-
-        contentView.addSubview(scrollView)
-        scrollView.autoPinEdgesToSuperviewEdges()
-
-        minimizedHeight = minHeight
-
-        render()
+    public override func updateTableContents(shouldReload: Bool = true) {
+        updateTop(shouldReload: shouldReload)
+        updateBottom()
     }
 
-    override public func themeDidChange() {
-        super.themeDidChange()
-        render()
-    }
-
-    // MARK: - Rendering
-
-    private func render() {
+    private func updateTop(shouldReload: Bool) {
         let infoStackView: UIView = {
             let stackView = UIStackView()
             stackView.axis = .vertical
@@ -152,38 +136,74 @@ class DonateChoosePaymentMethodSheet: InteractiveSheetViewController {
             return stackView
         }()
 
+        let section = OWSTableSection(items: [.init(customCellBlock: {
+            let cell = OWSTableItem.newCell()
+            cell.contentView.addSubview(infoStackView)
+            infoStackView.autoPinEdgesToSuperviewMargins()
+            return cell
+        })])
+        section.hasBackground = false
+        let contents = OWSTableContents(sections: [section])
+
+        self.tableViewController.setContents(contents, shouldReload: shouldReload)
+    }
+
+    private func updateBottom() {
         let paymentButtonContainerView: UIView = {
-            // TODO(donations) When we add other payment methods, we should hide this button if Apple Pay is unavailable.
-            let applePayButton = ApplePayButton { [weak self] in
-                guard let self = self else { return }
-                self.didChoosePaymentMethod(self)
+            var paymentMethodButtons = [UIView]()
+
+            if supportedPaymentMethodOptions.contains(.applePay) {
+                paymentMethodButtons.append(ApplePayButton { [weak self] in
+                    guard let self else { return }
+                    self.didChoosePaymentMethod(self, .applePay)
+                })
             }
 
-            let stackView = UIStackView(arrangedSubviews: [applePayButton])
+            if supportedPaymentMethodOptions.contains(.creditOrDebitCard) {
+                let title = NSLocalizedString(
+                    "DONATE_CHOOSE_CREDIT_OR_DEBIT_CARD_AS_PAYMENT_METHOD",
+                    comment: "When users make donations, they can choose which payment method they want to use. This is the text on the button that lets them choose to pay with credit or debit card."
+                )
+
+                let creditOrDebitCardButton = OWSButton(title: title) { [weak self] in
+                    guard let self else { return }
+                    self.didChoosePaymentMethod(self, .creditOrDebitCard)
+                }
+                guard let image = UIImage(named: "credit-or-debit-card") else {
+                    owsFail("Card asset not found")
+                }
+                creditOrDebitCardButton.setImage(image, for: .normal)
+                creditOrDebitCardButton.setPaddingBetweenImageAndText(
+                    to: 8,
+                    isRightToLeft: CurrentAppContext().isRTL
+                )
+                creditOrDebitCardButton.layer.cornerRadius = 12
+                creditOrDebitCardButton.backgroundColor = .ows_accentBlue
+                creditOrDebitCardButton.dimsWhenHighlighted = true
+                creditOrDebitCardButton.titleLabel?.font = UIFont.ows_dynamicTypeBody.ows_semibold
+                paymentMethodButtons.append(creditOrDebitCardButton)
+            }
+
+            owsAssert(!paymentMethodButtons.isEmpty, "Expected at least one payment method")
+
+            let stackView = UIStackView(arrangedSubviews: paymentMethodButtons)
             stackView.axis = .vertical
             stackView.alignment = .fill
             stackView.spacing = 12
 
-            applePayButton.autoSetDimension(.height, toSize: buttonHeight)
+            for button in paymentMethodButtons {
+                button.autoSetDimension(.height, toSize: buttonHeight)
+            }
 
             return stackView
         }()
 
-        let outerStackView = UIStackView(arrangedSubviews: [
-            infoStackView,
-            paymentButtonContainerView
-        ])
-        outerStackView.axis = .vertical
-        outerStackView.spacing = 24
-        outerStackView.alignment = .fill
-        outerStackView.distribution = .fill
-        outerStackView.layoutMargins = .init(hMargin: hMargin, vMargin: vMargin)
-        outerStackView.isLayoutMarginsRelativeArrangement = true
+        footerStack.removeAllSubviews()
+        footerStack.addArrangedSubview(paymentButtonContainerView)
+        footerStack.alignment = .fill
+        footerStack.layoutMargins = UIEdgeInsets(top: 28, left: 40, bottom: 8, right: 40)
+        footerStack.isLayoutMarginsRelativeArrangement = true
 
-        scrollView.removeAllSubviews()
-        scrollView.addSubview(outerStackView)
-        scrollView.layoutMargins = .zero
-
-        outerStackView.autoPinWidth(toWidthOf: scrollView)
+        paymentButtonContainerView.autoPinWidthToSuperviewMargins()
     }
 }

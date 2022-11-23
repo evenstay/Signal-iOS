@@ -12,7 +12,7 @@ enum CreditAndDebitCards {
         case unionPay
         case other
 
-        fileprivate var cvvCount: Int {
+        var cvvCount: Int {
             switch self {
             case .americanExpress: return 4
             case .unionPay, .other: return 3
@@ -184,7 +184,7 @@ enum CreditAndDebitCards {
     }
 
     private static func validity(ofExpirationMonth monthString: String) -> Validity {
-        guard monthString.count <= 2, monthString.isAsciiDigitsOnly else {
+        guard monthString.count <= 2, monthString.isAsciiDigitsOnly, monthString != "00" else {
             return .invalid
         }
         if monthString.isEmpty || monthString == "0" {
