@@ -945,13 +945,6 @@ static NSString *_Nullable queryParamForIdentity(OWSIdentity identity)
 
 #pragma mark - Subscriptions
 
-+ (TSRequest *)subscriptionLevelsRequest
-{
-    return [TSRequest requestWithUrl:[NSURL URLWithString:@"/v1/subscription/levels"]
-                              method:@"GET"
-                          parameters:@{}];
-}
-
 + (TSRequest *)setSubscriptionIDRequest:(NSString *)base64SubscriberID
 {
     TSRequest *request =  [TSRequest requestWithUrl:[NSURL URLWithString:[NSString stringWithFormat:@"/v1/subscription/%@", base64SubscriberID]]
@@ -1034,31 +1027,24 @@ static NSString *_Nullable queryParamForIdentity(OWSIdentity identity)
     return request;
 }
 
-+ (TSRequest *)boostSuggestedAmountsRequest
-{
-    TSRequest *request = [TSRequest requestWithUrl:[NSURL URLWithString:@"/v1/subscription/boost/amounts"]
-                                            method:@"GET"
-                                        parameters:@{}];
-    request.shouldHaveAuthorizationHeaders = NO;
-    return request;
-}
-
 + (TSRequest *)boostReceiptCredentialsWithPaymentIntentId:(NSString *)paymentIntentId
                                                andRequest:(NSString *)base64ReceiptCredentialRequest
+                                      forPaymentProcessor:(NSString *)processor
 {
     TSRequest *request = [TSRequest requestWithUrl:[NSURL URLWithString:@"/v1/subscription/boost/receipt_credentials"]
                                             method:@"POST"
                                         parameters:@{
                                             @"paymentIntentId" : paymentIntentId,
-                                            @"receiptCredentialRequest" : base64ReceiptCredentialRequest
+                                            @"receiptCredentialRequest" : base64ReceiptCredentialRequest,
+                                            @"processor" : processor
                                         }];
     request.shouldHaveAuthorizationHeaders = NO;
     return request;
 }
 
-+ (TSRequest *)boostBadgesRequest
++ (TSRequest *)donationConfigurationRequest
 {
-    return [TSRequest requestWithUrl:[NSURL URLWithString:@"/v1/subscription/boost/badges"]
+    return [TSRequest requestWithUrl:[NSURL URLWithString:@"/v1/subscription/configuration"]
                               method:@"GET"
                           parameters:@{}];
 }

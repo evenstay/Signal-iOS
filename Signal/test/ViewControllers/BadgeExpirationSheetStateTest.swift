@@ -245,7 +245,7 @@ class BadgeExpirationSheetStateTest: XCTestCase {
                 NSLocalizedString(
                     "GIFT_NOT_REDEEMED_BODY_FORMAT",
                     comment: "Shown when trying to redeem a gift that's already expired. Embeds {{contact name}}."
-                ).replacingOccurrences(of: "%@", with: "John Doe"),
+                ).replacingOccurrences(of: "%@", with: "John Doe").replacingOccurrences(of: "%1$@", with: "John Doe"),
                 false
             )
         ]

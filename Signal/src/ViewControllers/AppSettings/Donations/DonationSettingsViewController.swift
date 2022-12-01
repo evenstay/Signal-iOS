@@ -69,11 +69,14 @@ class DonationSettingsViewController: OWSTableViewController2 {
 
     private lazy var statusLabel = LinkingTextView()
 
-    private static var canDonate: Bool {
-        DonationUtilities.canDonate(localNumber: tsAccountManager.localNumber)
+    private static var canDonateInAnyWay: Bool {
+        DonationUtilities.canDonateInAnyWay(localNumber: tsAccountManager.localNumber)
     }
 
-    private static var canSendGiftBadges: Bool { RemoteConfig.canSendGiftBadges && canDonate }
+    private static var canSendGiftBadges: Bool {
+        RemoteConfig.canSendGiftBadges &&
+        DonationUtilities.canDonate(inMode: .gift, localNumber: tsAccountManager.localNumber)
+    }
 
     public override func viewDidLoad() {
         super.viewDidLoad()
@@ -194,30 +197,25 @@ class DonationSettingsViewController: OWSTableViewController2 {
         let willEverShowBadges = hasAnyDonationReceipts
         guard willEverShowBadges else { return Guarantee.value(ProfileBadgeLookup()) }
 
-        let oneTimeBadgesPromise = firstly {
-            SubscriptionManager.getOneTimeBadges()
-        }.map {
-            // Make the result an Optional.
-            $0
-        }.recover { error -> Guarantee<SubscriptionManager.OneTimeBadgeResponse?> in
-            Logger.warn("[Donations] Failed to fetch boost badge \(error). Proceeding without it, as it is only cosmetic here")
-            return Guarantee.value(nil)
-        }
-
-        let subscriptionLevelsPromise: Guarantee<[SubscriptionLevel]> = SubscriptionManager.getSubscriptions()
-            .recover { error -> Guarantee<[SubscriptionLevel]> in
-                Logger.warn("[Donations] Failed to fetch subscription levels \(error). Proceeding without them, as they are only cosmetic here")
-                return Guarantee.value([])
-            }
-
-        return oneTimeBadgesPromise.then { oneTimeBadgeResponse in
-            subscriptionLevelsPromise.map { subscriptionLevels in
-                ProfileBadgeLookup(boostBadge: try? oneTimeBadgeResponse?.parse(level: .boostBadge),
-                                   giftBadge: try? oneTimeBadgeResponse?.parse(level: .giftBadge(.signalGift)),
-                                   subscriptionLevels: subscriptionLevels)
-            }.then { profileBadgeLookup in
-                profileBadgeLookup.attemptToPopulateBadgeAssets(populateAssetsOnBadge: self.profileManager.badgeStore.populateAssetsOnBadge).map { profileBadgeLookup }
-            }
+        return firstly { () -> Promise<SubscriptionManager.DonationConfiguration> in
+            SubscriptionManager.fetchDonationConfiguration()
+        }.map { donationConfiguration -> ProfileBadgeLookup in
+            ProfileBadgeLookup(
+                boostBadge: donationConfiguration.boost.badge,
+                giftBadge: donationConfiguration.gift.badge,
+                subscriptionLevels: donationConfiguration.subscription.levels
+            )
+        }.recover { error -> Guarantee<ProfileBadgeLookup> in
+            Logger.warn("[Donations] Failed to fetch donation configuration \(error). Proceeding without it, as it is only cosmetic here.")
+            return .value(ProfileBadgeLookup(
+                boostBadge: nil,
+                giftBadge: nil,
+                subscriptionLevels: []
+            ))
+        }.then { profileBadgeLookup in
+            profileBadgeLookup.attemptToPopulateBadgeAssets(
+                populateAssetsOnBadge: self.profileManager.badgeStore.populateAssetsOnBadge
+            ).map { profileBadgeLookup }
         }
     }
 
@@ -272,8 +270,8 @@ class DonationSettingsViewController: OWSTableViewController2 {
                 comment: "On the donation settings screen, tapping this button will take the user to a screen where they can donate."
             )
             let button = OWSButton(title: buttonTitle) { [weak self] in
-                if Self.canDonate {
-                    self?.showDonateViewController(startingDonationMode: .oneTime)
+                if Self.canDonateInAnyWay {
+                    self?.showDonateViewController(preferredDonateMode: .oneTime)
                 } else {
                     DonationViewsUtil.openDonateWebsite()
                 }
@@ -346,7 +344,7 @@ class DonationSettingsViewController: OWSTableViewController2 {
                 name: NSLocalizedString("DONATION_VIEW_MANAGE_SUBSCRIPTION", comment: "Title for the 'Manage Subscription' button on the donation screen"),
                 accessibilityIdentifier: UIView.accessibilityIdentifier(in: self, name: "manageSubscription"),
                 actionBlock: { [weak self] in
-                    self?.showDonateViewController(startingDonationMode: .monthly)
+                    self?.showDonateViewController(preferredDonateMode: .monthly)
                 }
             ))
         }
@@ -461,8 +459,8 @@ class DonationSettingsViewController: OWSTableViewController2 {
 
     // MARK: - Showing subscription view controller
 
-    private func showDonateViewController(startingDonationMode: DonateViewController.DonationMode) {
-        let donateVc = DonateViewController(startingDonationMode: startingDonationMode) { [weak self] finishResult in
+    private func showDonateViewController(preferredDonateMode: DonateViewController.DonateMode) {
+        let donateVc = DonateViewController(preferredDonateMode: preferredDonateMode) { [weak self] finishResult in
             guard let self = self else { return }
             switch finishResult {
             case let .completedDonation(_, thanksSheet):
@@ -533,7 +531,7 @@ extension DonationSettingsViewController: BadgeExpirationSheetDelegate {
         case .dismiss:
             break
         case .openDonationView:
-            self.showDonateViewController(startingDonationMode: .oneTime)
+            self.showDonateViewController(preferredDonateMode: .oneTime)
         }
     }
 }

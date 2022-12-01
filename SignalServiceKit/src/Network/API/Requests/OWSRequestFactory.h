@@ -210,7 +210,6 @@ typedef NS_ENUM(uint8_t, OWSIdentity);
 
 #pragma mark - Subscriptions
 
-+ (TSRequest *)subscriptionLevelsRequest;
 + (TSRequest *)setSubscriptionIDRequest:(NSString *)base64SubscriberID;
 + (TSRequest *)deleteSubscriptionIDRequest:(NSString *)base64SubscriberID;
 + (TSRequest *)subscriptionGetCurrentSubscriptionLevelRequest:(NSString *)base64SubscriberID;
@@ -220,10 +219,10 @@ typedef NS_ENUM(uint8_t, OWSIdentity);
 + (TSRequest *)subscriptionReceiptCredentialsRequest:(NSString *)base64SubscriberID
                                              request:(NSString *)base64ReceiptCredentialRequest;
 + (TSRequest *)subscriptionRedeemReceiptCredential:(NSString *)base64ReceiptCredentialPresentation;
-+ (TSRequest *)boostSuggestedAmountsRequest;
 + (TSRequest *)boostReceiptCredentialsWithPaymentIntentId:(NSString *)paymentIntentId
-                                               andRequest:(NSString *)base64ReceiptCredentialRequest;
-+ (TSRequest *)boostBadgesRequest;
+                                               andRequest:(NSString *)base64ReceiptCredentialRequest
+                                      forPaymentProcessor:(NSString *)processor;
++ (TSRequest *)donationConfigurationRequest;
 
 #pragma mark - Spam
 

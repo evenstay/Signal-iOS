@@ -252,7 +252,7 @@ static void uncaughtExceptionHandler(NSException *exception)
         }];
     }
 
-    [UIUtil setupSignalAppearence];
+    [UIUtil setupSignalAppearance];
 
     UIWindow *mainWindow = self.window;
     if (mainWindow == nil) {
@@ -413,6 +413,8 @@ static void uncaughtExceptionHandler(NSException *exception)
         return [self tryToShowGroupInviteLinkUI:url];
     } else if ([SignalProxy isValidProxyLink:url]) {
         return [self tryToShowProxyLinkUI:url];
+    } else if ([PaypalCallbackUrlBridge handlePossibleCallbackUrl:url]) {
+        OWSLogInfo(@"Handled PayPal callback url!");
     } else if ([url.scheme isEqualToString:kURLSchemeSGNLKey]) {
         if ([url.host hasPrefix:kURLHostVerifyPrefix] && ![self.tsAccountManager isRegistered]) {
             if (!AppReadiness.isAppReady) {
@@ -980,39 +982,6 @@ static void uncaughtExceptionHandler(NSException *exception)
     }
 
     return nil;
-}
-
-#pragma mark - Orientation
-
-- (UIInterfaceOrientationMask)application:(UIApplication *)application
-    supportedInterfaceOrientationsForWindow:(nullable UIWindow *)window
-{
-    if (CurrentAppContext().isRunningTests) {
-        return UIInterfaceOrientationMaskPortrait;
-    }
-
-    if (self.didAppLaunchFail) {
-        return UIInterfaceOrientationMaskPortrait;
-    }
-
-    if (self.hasCall) {
-        OWSLogInfo(@"has call");
-        // The call-banner window is only suitable for portrait display on iPhone
-        if (!UIDevice.currentDevice.isIPad) {
-            return UIInterfaceOrientationMaskPortrait;
-        }
-    }
-
-    UIViewController *_Nullable rootViewController = self.window.rootViewController;
-    if (!rootViewController) {
-        return UIDevice.currentDevice.defaultSupportedOrientations;
-    }
-    return rootViewController.supportedInterfaceOrientations;
-}
-
-- (BOOL)hasCall
-{
-    return CurrentAppContext().hasActiveCall;
 }
 
 #pragma mark Push Notifications Delegate Methods

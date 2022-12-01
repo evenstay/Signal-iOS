@@ -142,6 +142,43 @@ public class RemoteConfig: BaseFlags {
         return remoteConfig.creditAndDebitCardDisabledRegions
     }
 
+    public static var canDonateOneTimeWithApplePay: Bool {
+        !isEnabled(.applePayOneTimeDonationKillSwitch)
+    }
+
+    public static var canDonateGiftWithApplePay: Bool {
+        !isEnabled(.applePayGiftDonationKillSwitch)
+    }
+
+    public static var canDonateMonthlyWithApplePay: Bool {
+        !isEnabled(.applePayMonthlyDonationKillSwitch)
+    }
+
+    public static var canDonateOneTimeWithCreditOrDebitCard: Bool {
+        !isEnabled(.cardOneTimeDonationKillSwitch)
+    }
+
+    public static var canDonateGiftWithCreditOrDebitCard: Bool {
+        !isEnabled(.cardGiftDonationKillSwitch)
+    }
+
+    public static var canDonateMonthlyWithCreditOrDebitCard: Bool {
+        !isEnabled(.cardMonthlyDonationKillSwitch)
+    }
+
+    public static var canDonateOneTimeWithPaypal: Bool {
+        !isEnabled(.paypalOneTimeDonationKillSwitch)
+    }
+
+    public static var canDonateGiftWithPayPal: Bool {
+        !isEnabled(.paypalGiftDonationKillSwitch)
+    }
+
+    public static var canDonateMonthlyWithPaypal: Bool {
+        // TODO: [PayPal] Once monthly donations are supported, remove this override.
+        !isEnabled(.paypalMonthlyDonationKillSwitch) && false
+    }
+
     public static var paypalDisabledRegions: PhoneNumberRegions {
         guard let remoteConfig = Self.remoteConfigManager.cachedConfig else { return [] }
         return remoteConfig.paypalDisabledRegions
@@ -223,10 +260,17 @@ public class RemoteConfig: BaseFlags {
         FeatureFlags.shouldUseRemoteConfigForReceivingGiftBadges && isEnabled(.canReceiveGiftBadges, defaultValue: true)
     }
 
-    public static var canSendGiftBadges: Bool { FeatureFlags.canSendGiftBadges }
+    public static var canSendGiftBadges: Bool {
+        return FeatureFlags.isPrerelease && isEnabled(.canSendGiftBadgesInPrerelease, defaultValue: false)
+    }
 
-    public static var groupRings: Bool {
-        DebugFlags.internalSettings || isEnabled(.groupRings)
+    public static var inboundGroupRings: Bool {
+        DebugFlags.internalSettings || !isEnabled(.inboundGroupRingsKillSwitch)
+    }
+
+    public static var outboundGroupRings: Bool {
+        // When we're ready to enable outbound rings in production, remove the check for 'isPrerelease'.
+        DebugFlags.internalSettings || (FeatureFlags.isPrerelease && isEnabled(.groupRings2))
     }
 
     public static var maxGroupCallRingSize: UInt {
@@ -447,9 +491,20 @@ private struct Flags {
         case donorBadgeDisplayKillSwitch
         case changePhoneNumberUI
         case keepMutedChatsArchivedOption
+        case canSendGiftBadgesInPrerelease
         case canReceiveGiftBadges
-        case groupRings
+        case groupRings2
+        case inboundGroupRingsKillSwitch
         case storiesKillSwitch
+        case applePayOneTimeDonationKillSwitch
+        case applePayGiftDonationKillSwitch
+        case applePayMonthlyDonationKillSwitch
+        case cardOneTimeDonationKillSwitch
+        case cardGiftDonationKillSwitch
+        case cardMonthlyDonationKillSwitch
+        case paypalOneTimeDonationKillSwitch
+        case paypalGiftDonationKillSwitch
+        case paypalMonthlyDonationKillSwitch
     }
 
     // Values defined in this array remain set once they are

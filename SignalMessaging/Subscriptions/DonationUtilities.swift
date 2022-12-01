@@ -11,46 +11,120 @@ import SignalCoreKit
 public class DonationUtilities: Dependencies {
     public static var sendGiftBadgeJobQueue: SendGiftBadgeJobQueue { smJobQueues.sendGiftBadgeJobQueue }
 
-    public static func supportedDonationPaymentMethodOptions(
+    /// Returns a set of donation payment methods available to the local user,
+    /// for donating in a specific currency.
+    public static func supportedDonationPaymentMethods(
+        forDonationMode donationMode: DonationMode,
+        usingCurrency currencyCode: Currency.Code,
+        withConfiguration configuration: SubscriptionManager.DonationConfiguration.PaymentMethodsConfiguration,
+        localNumber: String?
+    ) -> Set<DonationPaymentMethod> {
+        let generallySupportedMethods = supportedDonationPaymentMethods(
+            forDonationMode: donationMode,
+            localNumber: localNumber
+        )
+
+        let currencySupportedMethods = configuration.supportedPaymentMethods(
+            forCurrencyCode: currencyCode
+        )
+
+        return generallySupportedMethods.intersection(currencySupportedMethods)
+    }
+
+    /// Returns a set of the donation payment methods available to the local
+    /// user for the given donation mode, without considering what currency
+    /// they will be donating in.
+    public static func supportedDonationPaymentMethods(
+        forDonationMode donationMode: DonationMode,
         localNumber: String?
     ) -> Set<DonationPaymentMethod> {
         guard let localNumber else { return [] }
 
+        let isApplePayAvailable: Bool = {
+            if
+                PKPaymentAuthorizationController.canMakePayments(),
+                !RemoteConfig.applePayDisabledRegions.contains(e164: localNumber)
+            {
+                switch donationMode {
+                case .oneTime:
+                    return RemoteConfig.canDonateOneTimeWithApplePay
+                case .gift:
+                    return RemoteConfig.canDonateGiftWithApplePay
+                case .monthly:
+                    return RemoteConfig.canDonateMonthlyWithApplePay
+                }
+            }
+
+            return false
+        }()
+
+        let isPaypalAvailable = {
+            if
+                !RemoteConfig.paypalDisabledRegions.contains(e164: localNumber)
+            {
+                switch donationMode {
+                case .oneTime:
+                    return RemoteConfig.canDonateOneTimeWithPaypal
+                case .gift:
+                    return RemoteConfig.canDonateGiftWithPayPal
+                case .monthly:
+                    return RemoteConfig.canDonateMonthlyWithPaypal
+                }
+            }
+
+            return false
+        }()
+
+        let isCardAvailable = {
+            if
+                !RemoteConfig.creditAndDebitCardDisabledRegions.contains(e164: localNumber)
+            {
+                switch donationMode {
+                case .oneTime:
+                    return RemoteConfig.canDonateOneTimeWithCreditOrDebitCard
+                case .gift:
+                    return RemoteConfig.canDonateGiftWithCreditOrDebitCard
+                case .monthly:
+                    return RemoteConfig.canDonateMonthlyWithCreditOrDebitCard
+                }
+            }
+
+            return false
+        }()
+
         var result = Set<DonationPaymentMethod>()
 
-        let isApplePayAvailable = (
-            PKPaymentAuthorizationController.canMakePayments() &&
-            !RemoteConfig.applePayDisabledRegions.contains(e164: localNumber)
-        )
         if isApplePayAvailable {
             result.insert(.applePay)
         }
 
-        let isCardAvailable = (
-            FeatureFlags.canDonateWithCard &&
-            !RemoteConfig.creditAndDebitCardDisabledRegions.contains(e164: localNumber)
-        )
+        if isPaypalAvailable {
+            result.insert(.paypal)
+        }
+
         if isCardAvailable {
             result.insert(.creditOrDebitCard)
         }
 
-        // TODO(donations) Add PayPal here, similar to the above.
-        /*
-        let isPaypalAvailable = (
-            FeatureFlags.canDonateWithPaypal &&
-            !RemoteConfig.paypalDisabledRegions.contains(e164: localNumber)
-        )
-        if isPaypalAvailable {
-            result.insert(.paypal)
-        }
-        */
-
         return result
     }
 
-    /// Can the user donate to Signal in the app?
-    public static func canDonate(localNumber: String?) -> Bool {
-        !supportedDonationPaymentMethodOptions(localNumber: localNumber).isEmpty
+    /// Can the user donate in the given donation mode?
+    public static func canDonate(
+        inMode donationMode: DonationMode,
+        localNumber: String?
+    ) -> Bool {
+        !supportedDonationPaymentMethods(
+            forDonationMode: donationMode,
+            localNumber: localNumber
+        ).isEmpty
+    }
+
+    /// Can the user donate in any donation mode?
+    public static func canDonateInAnyWay(localNumber: String?) -> Bool {
+        DonationMode.allCases.contains { mode in
+            canDonate(inMode: mode, localNumber: localNumber)
+        }
     }
 
     public static var supportedNetworks: [PKPaymentNetwork] {
@@ -92,6 +166,11 @@ public class DonationUtilities: Dependencies {
     public struct Preset: Equatable {
         public let currencyCode: Currency.Code
         public let amounts: [FiatMoney]
+
+        public init(currencyCode: Currency.Code, amounts: [FiatMoney]) {
+            self.currencyCode = currencyCode
+            self.amounts = amounts
+        }
     }
 
     private static let currencyFormatter: NumberFormatter = {
@@ -104,7 +183,7 @@ public class DonationUtilities: Dependencies {
         let value = money.value
         let currencyCode = money.currencyCode
 
-        let isZeroDecimalCurrency = Stripe.zeroDecimalCurrencyCodes.contains(currencyCode)
+        let isZeroDecimalCurrency = zeroDecimalCurrencyCodes.contains(currencyCode)
 
         let decimalPlaces: Int
         if isZeroDecimalCurrency {
@@ -206,5 +285,77 @@ public class DonationUtilities: Dependencies {
         request.currencyCode = currencyCode
         request.supportedNetworks = DonationUtilities.supportedNetworks
         return request
+    }
+}
+
+// MARK: - Money amounts
+
+/// The values in this extension are drawn largely from Stripe's documentation,
+/// which means they may not be exactly correct for PayPal transactions.
+/// However: 1) they are probably "good enough"; and 2) they should be replaced
+/// with Signal-server values fetched from a configuration endpoint like
+/// `/v1/subscription/configuration` eventually, anyway.
+public extension DonationUtilities {
+    /// A list of currencies known not to use decimal values
+    static let zeroDecimalCurrencyCodes: Set<Currency.Code> = [
+        "BIF",
+        "CLP",
+        "DJF",
+        "GNF",
+        "JPY",
+        "KMF",
+        "KRW",
+        "MGA",
+        "PYG",
+        "RWF",
+        "UGX",
+        "VND",
+        "VUV",
+        "XAF",
+        "XOF",
+        "XPF"
+    ]
+
+    /// Is an amount of money too small, given a set of minimums?
+    ///
+    /// This should be a conservative check, so if we're not sure we will
+    /// not reject the amount.
+    static func isBoostAmountTooSmall(
+        _ amount: FiatMoney,
+        givenMinimumAmounts minimumAmounts: [Currency.Code: FiatMoney]
+    ) -> Bool {
+        let integerAmount = integralAmount(for: amount)
+
+        guard integerAmount > 0 else {
+            return true
+        }
+
+        guard let minimum = minimumAmounts[amount.currencyCode] else {
+            // Since this is just a sanity check, don't prevent donation here.
+            // It is likely to fail on its own while processing the payment.
+            Logger.warn("Unexpectedly missing minimum boost amount for currency \(amount.currencyCode)!")
+            return false
+        }
+
+        return integerAmount < integralAmount(for: minimum)
+    }
+
+    /// Convert the given money amount to an integer that can be passed to
+    /// service APIs. Applies rounding and scaling as appropriate for the
+    /// currency.
+    static func integralAmount(for amount: FiatMoney) -> UInt {
+        let scaled: Decimal
+        if Self.zeroDecimalCurrencyCodes.contains(amount.currencyCode.uppercased()) {
+            scaled = amount.value
+        } else {
+            scaled = amount.value * 100
+        }
+
+        let rounded = scaled.rounded()
+
+        guard rounded >= 0 else { return 0 }
+        guard rounded <= Decimal(UInt.max) else { return UInt.max }
+
+        return (rounded as NSDecimalNumber).uintValue
     }
 }

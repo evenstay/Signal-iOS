@@ -35,7 +35,7 @@ extension DonateViewController {
         }.then(on: .sharedUserInitiated) {
             SubscriptionManager.setupNewSubscription(
                 subscription: selectedSubscriptionLevel,
-                paymentMethod: .applePay(payment: payment),
+                applePayPayment: payment,
                 currencyCode: monthly.selectedCurrencyCode
             )
         }.done(on: .main) { (subscriberID: Data) in
@@ -43,6 +43,7 @@ extension DonateViewController {
             completion(authResult)
 
             DonationViewsUtil.redeemMonthlyReceipts(
+                usingPaymentProcessor: .stripe,
                 subscriberID: subscriberID,
                 newSubscriptionLevel: selectedSubscriptionLevel,
                 priorSubscriptionLevel: monthly.currentSubscriptionLevel

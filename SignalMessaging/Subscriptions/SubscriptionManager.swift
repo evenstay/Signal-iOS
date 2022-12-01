@@ -8,11 +8,21 @@ import PassKit
 import LibSignalClient
 import SignalServiceKit
 
+public enum PaymentProcessor: String {
+    /// Represents the payment processor Stripe, which we use for Apple Pay and
+    /// credit/debit card payments.
+    case stripe = "STRIPE"
+
+    /// Represents the payment processor Braintree, which we use for PayPal
+    /// payments.
+    case braintree = "BRAINTREE"
+}
+
 public enum OneTimeBadgeLevel: Hashable {
     case boostBadge
     case giftBadge(OWSGiftBadge.Level)
 
-    var rawValue: UInt64 {
+    public var rawValue: UInt64 {
         switch self {
         case .boostBadge:
             return 1
@@ -24,7 +34,7 @@ public enum OneTimeBadgeLevel: Hashable {
 
 private let SUBSCRIPTION_CHARGE_FAILURE_FALLBACK_CODE = "__signal_charge_failure_fallback_code__"
 
-public enum SubscriptionBadgeIds: String {
+public enum SubscriptionBadgeIds: String, CaseIterable {
     case low = "R_LOW"
     case med = "R_MED"
     case high = "R_HIGH"
@@ -65,29 +75,16 @@ public class SubscriptionLevel: Comparable, Equatable {
     public let badge: ProfileBadge
     public let amounts: [Currency.Code: FiatMoney]
 
-    public init(level: UInt, jsonDictionary: [String: Any]) throws {
+    public init(
+        level: UInt,
+        name: String,
+        badge: ProfileBadge,
+        amounts: [Currency.Code: FiatMoney]
+    ) {
         self.level = level
-        let params = ParamParser(dictionary: jsonDictionary)
-        name = try params.required(key: "name")
-        let badgeDict: [String: Any] = try params.required(key: "badge")
-        badge = try ProfileBadge(jsonDictionary: badgeDict)
-        amounts = try {
-            let amountsDict: [String: Any] = try params.required(key: "currencies")
-            var amounts = [Currency.Code: FiatMoney]()
-            for (rawCurrencyCode, rawValue) in amountsDict {
-                guard
-                    !rawCurrencyCode.isEmpty,
-                    let doubleValue = rawValue as? Double
-                else {
-                    owsFailDebug("Failed to convert amount")
-                    continue
-                }
-                let currencyCode: Currency.Code = rawCurrencyCode.uppercased()
-                let value = Decimal(doubleValue)
-                amounts[currencyCode] = FiatMoney(currencyCode: currencyCode, value: value)
-            }
-            return amounts
-        }()
+        self.name = name
+        self.badge = badge
+        self.amounts = amounts
     }
 
     // MARK: Comparable
@@ -165,7 +162,7 @@ public struct Subscription: Equatable {
             value: try {
                 let integerValue: Int64 = try params.required(key: "amount")
                 let decimalValue = Decimal(integerValue)
-                if Stripe.zeroDecimalCurrencyCodes.contains(currencyCode) {
+                if DonationUtilities.zeroDecimalCurrencyCodes.contains(currencyCode) {
                     return decimalValue
                 } else {
                     return decimalValue / 100
@@ -263,45 +260,6 @@ public class SubscriptionManager: NSObject {
 
     public static var terminateTransactionIfPossible = false
 
-    // MARK: Subscription levels
-
-    public class func getSubscriptions() -> Promise<[SubscriptionLevel]> {
-        let request = OWSRequestFactory.subscriptionLevelsRequest()
-
-        return firstly {
-            networkManager.makePromise(request: request)
-        }.map(on: .global()) { response in
-
-            guard let json = response.responseBodyJson as? [String: Any] else {
-                throw OWSAssertionError("Missing or invalid JSON.")
-            }
-
-            guard let parser = ParamParser(responseObject: json) else {
-                throw OWSAssertionError("Missing or invalid response.")
-            }
-
-            do {
-                let subscriptionDicts: [String: Any] = try parser.required(key: "levels")
-                let subscriptions: [SubscriptionLevel] = try subscriptionDicts.compactMap { (subscriptionKey: String, value: Any) in
-                    guard let subscriptionDict = value as? [String: Any] else {
-                        return nil
-                    }
-
-                    guard let level = UInt(subscriptionKey) else {
-                        throw OWSAssertionError("Unable to determine subscription level")
-                    }
-
-                    return try SubscriptionLevel(level: level, jsonDictionary: subscriptionDict)
-                }
-                return subscriptions.sorted()
-            } catch {
-                owsFailDebug("Unable to parse subscription levels, \(error)")
-            }
-
-            return []
-        }
-    }
-
     // MARK: Current subscription status
 
     public class func currentProfileSubscriptionBadges() -> [OWSUserProfileBadgeInfo] {
@@ -374,8 +332,38 @@ public class SubscriptionManager: NSObject {
 
     public class func setupNewSubscription(
         subscription: SubscriptionLevel,
-        paymentMethod: Stripe.PaymentMethod,
+        applePayPayment: PKPayment,
         currencyCode: Currency.Code
+    ) -> Promise<Data> {
+        setupNewSubscription(
+            subscription: subscription,
+            paymentMethod: .applePay(payment: applePayPayment),
+            currencyCode: currencyCode,
+            show3DS: { _ in
+                owsFail("[Donations] 3D Secure should not be shown for Apple Pay")
+            }
+        )
+    }
+
+    public class func setupNewSubscription(
+        subscription: SubscriptionLevel,
+        creditOrDebitCard: Stripe.PaymentMethod.CreditOrDebitCard,
+        currencyCode: Currency.Code,
+        show3DS: @escaping (URL) -> Promise<Void>
+    ) -> Promise<Data> {
+        setupNewSubscription(
+            subscription: subscription,
+            paymentMethod: .creditOrDebitCard(creditOrDebitCard: creditOrDebitCard),
+            currencyCode: currencyCode,
+            show3DS: show3DS
+        )
+    }
+
+    private class func setupNewSubscription(
+        subscription: SubscriptionLevel,
+        paymentMethod: Stripe.PaymentMethod,
+        currencyCode: Currency.Code,
+        show3DS: @escaping (URL) -> Promise<Void>
     ) -> Promise<Data> {
         Logger.info("[Donations] Setting up new subscription")
 
@@ -415,7 +403,7 @@ public class SubscriptionManager: NSObject {
             return Stripe.createPaymentMethod(with: paymentMethod)
 
         // Bind payment method to SetupIntent, confirm SetupIntent
-        }.then(on: .sharedUserInitiated) { paymentID -> Promise<HTTPResponse> in
+        }.then(on: .sharedUserInitiated) { paymentID -> Promise<Stripe.ConfirmedIntent> in
             guard !self.terminateTransactionIfPossible else {
                 throw OWSGenericError("Transaction chain cancelled")
             }
@@ -426,8 +414,16 @@ public class SubscriptionManager: NSObject {
                 clientSecret: generatedClientSecret
             )
 
-        // Update payment on server
-        }.then(on: .sharedUserInitiated) { _ -> Promise<Void> in
+            // Show 3DS UI if necessary
+        }.then(on: .main) { confirmedIntent -> Promise<Void> in
+            if let redirectToUrl = confirmedIntent.redirectToUrl {
+                return show3DS(redirectToUrl)
+            } else {
+                return Promise.value(())
+            }
+
+            // Update payment on server
+        }.then(on: .sharedUserInitiated) { () -> Promise<Void> in
             guard !self.terminateTransactionIfPossible else {
                 throw OWSGenericError("Transaction chain cancelled")
             }
@@ -573,6 +569,7 @@ public class SubscriptionManager: NSObject {
 
     public class func requestAndRedeemReceiptsIfNecessary(
         for subscriberID: Data,
+        usingPaymentProcessor paymentProcessor: PaymentProcessor,
         subscriptionLevel: UInt,
         priorSubscriptionLevel: UInt?
     ) {
@@ -591,14 +588,16 @@ public class SubscriptionManager: NSObject {
         }
 
         databaseStorage.asyncWrite { transaction in
-
-            self.subscriptionJobQueue.addSubscriptionJob(receiptCredentialRequestContext: request.context.serialize().asData,
-                                                         receiptCredentailRequest: request.request.serialize().asData,
-                                                         subscriberID: subscriberID,
-                                                         targetSubscriptionLevel: subscriptionLevel,
-                                                         priorSubscriptionLevel: priorSubscriptionLevel,
-                                                         boostPaymentIntentID: String(),
-                                                         transaction: transaction)
+            self.subscriptionJobQueue.addSubscriptionJob(
+                paymentProcessor: paymentProcessor,
+                receiptCredentialRequestContext: request.context.serialize().asData,
+                receiptCredentailRequest: request.request.serialize().asData,
+                subscriberID: subscriberID,
+                targetSubscriptionLevel: subscriptionLevel,
+                priorSubscriptionLevel: priorSubscriptionLevel,
+                boostPaymentIntentID: String(),
+                transaction: transaction
+            )
         }
     }
 
@@ -837,6 +836,7 @@ public class SubscriptionManager: NSObject {
                 Logger.info("[Donations] Triggering receipt redemption job during heartbeat, last expiration \(lastSubscriptionExpiration), new expiration \(newDate)")
                 self.requestAndRedeemReceiptsIfNecessary(
                     for: subscriberID,
+                    usingPaymentProcessor: .stripe, // TODO: [PayPal] Implement subscriptions
                     subscriptionLevel: subscription.level,
                     priorSubscriptionLevel: nil
                 )
@@ -1108,6 +1108,7 @@ public class OWSRetryableSubscriptionError: NSObject, CustomNSError, IsRetryable
 extension SubscriptionManager {
     public class func createAndRedeemBoostReceipt(
         for intentId: String,
+        withPaymentProcessor paymentProcessor: PaymentProcessor,
         amount: FiatMoney
     ) {
         let request = generateReceiptRequest()
@@ -1120,107 +1121,34 @@ extension SubscriptionManager {
         }
 
         databaseStorage.asyncWrite { transaction in
-            self.subscriptionJobQueue.addBoostJob(amount: amount,
-                                                  receiptCredentialRequestContext: request.context.serialize().asData,
-                                                  receiptCredentailRequest: request.request.serialize().asData,
-                                                  boostPaymentIntentID: intentId,
-                                                  transaction: transaction)
-        }
-    }
-
-    public class func getSuggestedBoostAmounts() -> Promise<[Currency.Code: DonationUtilities.Preset]> {
-        firstly {
-            networkManager.makePromise(request: OWSRequestFactory.boostSuggestedAmountsRequest())
-        }.map { response in
-            guard response.responseStatusCode == 200 else {
-                throw OWSGenericError("Got bad response code \(response.responseStatusCode).")
-            }
-            return try Self.parseSuggestedBoostAmountsResponse(body: response.responseBodyJson)
-        }
-    }
-
-    internal class func parseSuggestedBoostAmountsResponse(
-        body: Any?
-    ) throws -> [Currency.Code: DonationUtilities.Preset] {
-        guard let body = body as? [String: Any?] else {
-            throw OWSGenericError("Got unexpected response JSON for boost amounts")
-        }
-
-        var presets = [Currency.Code: DonationUtilities.Preset]()
-        for (rawCurrencyCode, rawAmounts) in body {
-            if rawCurrencyCode.isEmpty {
-                Logger.error("Server gave an empty currency code")
-                continue
-            }
-            let currencyCode = rawCurrencyCode.uppercased()
-
-            guard let amounts = rawAmounts as? [Double] else {
-                Logger.error("Server didn't give an array of doubles for \(currencyCode)")
-                continue
-            }
-            if amounts.isEmpty {
-                Logger.error("Server didn't give any amounts for \(currencyCode)")
-                continue
-            }
-            if amounts.contains(where: { $0 <= 0 }) {
-                Logger.error("Server gave an amount <= 0 for \(currencyCode)")
-                continue
-            }
-
-            presets[currencyCode] = .init(
-                currencyCode: currencyCode,
-                amounts: amounts.map {
-                    FiatMoney(currencyCode: currencyCode, value: Decimal($0))
-                }
+            self.subscriptionJobQueue.addBoostJob(
+                amount: amount,
+                paymentProcessor: paymentProcessor,
+                receiptCredentialRequestContext: request.context.serialize().asData,
+                receiptCredentailRequest: request.request.serialize().asData,
+                boostPaymentIntentID: intentId,
+                transaction: transaction
             )
         }
-        return presets
     }
 
-    public class func getGiftBadgePricesByCurrencyCode() -> Promise<[Currency.Code: FiatMoney]> {
-        firstly {
-            networkManager.makePromise(request: OWSRequestFactory.giftBadgePricesRequest())
-        }.map { response in
-            guard response.responseStatusCode == 200 else {
-                throw OWSAssertionError("Got bad response code \(response.responseStatusCode).")
-            }
-
-            return try parseGiftBadgePricesResponse(body: response.responseBodyJson)
-        }
-    }
-
-    internal class func parseGiftBadgePricesResponse(body: Any?) throws -> [Currency.Code: FiatMoney] {
-        guard let body = body as? [String: Any?] else {
-            throw OWSGenericError("Got unexpected response JSON for boost amounts")
-        }
-
-        var result = [Currency.Code: FiatMoney]()
-        for (rawCurrencyCode, rawAmount) in body {
-            if rawCurrencyCode.isEmpty {
-                Logger.error("Server gave an empty currency code")
-                continue
-            }
-            let currencyCode = rawCurrencyCode.uppercased()
-
-            guard let amount = rawAmount as? Double, amount > 0 else {
-                Logger.error("Server gave an invalid amount for \(currencyCode)")
-                continue
-            }
-
-            result[currencyCode] = FiatMoney(currencyCode: currencyCode, value: Decimal(amount))
-        }
-        return result
-    }
-
-    public static func requestBoostReceiptCredentialPresentation(for intentId: String,
-                                                                 context: ReceiptCredentialRequestContext,
-                                                                 request: ReceiptCredentialRequest,
-                                                                 expectedBadgeLevel: OneTimeBadgeLevel) throws -> Promise<ReceiptCredentialPresentation> {
+    public static func requestBoostReceiptCredentialPresentation(
+        for intentId: String,
+        context: ReceiptCredentialRequestContext,
+        request: ReceiptCredentialRequest,
+        expectedBadgeLevel: OneTimeBadgeLevel,
+        paymentProcessor: PaymentProcessor
+    ) throws -> Promise<ReceiptCredentialPresentation> {
 
         let clientOperations = try clientZKReceiptOperations()
         let receiptCredentialRequest = request.serialize().asData.base64EncodedString()
 
-        let request = OWSRequestFactory.boostReceiptCredentials(withPaymentIntentId: intentId, andRequest: receiptCredentialRequest)
+        let request = OWSRequestFactory.boostReceiptCredentials(
+            withPaymentIntentId: intentId,
+            andRequest: receiptCredentialRequest,
+            forPaymentProcessor: paymentProcessor.rawValue
+        )
+
         return firstly {
             networkManager.makePromise(request: request)
         }.map(on: .global()) { response in
@@ -1313,65 +1241,21 @@ extension SubscriptionManager {
         }
     }
 
-    public class func getGiftBadge() -> Promise<ProfileBadge> {
-        firstly {
-            getBadge(level: .giftBadge(.signalGift))
-        }.map { profileBadge in
-            guard let profileBadge = profileBadge else {
-                owsFail("No badge for this level was found")
-            }
-            return profileBadge
-        }
-    }
-
     public class func getBadge(level: OneTimeBadgeLevel) -> Promise<ProfileBadge?> {
-        firstly {
-            getOneTimeBadges()
-        }.map { oneTimeBadgeResult in
-            try oneTimeBadgeResult.parse(level: level)
-        }
-    }
+        firstly { () -> Promise<DonationConfiguration> in
+            fetchDonationConfiguration()
+        }.map { donationConfiguration -> ProfileBadge? in
+            switch level {
+            case .boostBadge:
+                return donationConfiguration.boost.badge
+            case .giftBadge(let level):
+                guard donationConfiguration.gift.level == level.rawLevel else {
+                    Logger.warn("Requested gift badge with level \(level), which did not match known gift badge with level \(donationConfiguration.gift.level)")
+                    return nil
+                }
 
-    public struct OneTimeBadgeResponse {
-        fileprivate let parser: ParamParser
-
-        public func parse(level: OneTimeBadgeLevel) throws -> ProfileBadge? {
-            guard let badgeLevel: [String: Any] = try self.parser.optional(key: String(level.rawValue)) else {
-                return nil
+                return donationConfiguration.gift.badge
             }
-
-            guard let levelParser = ParamParser(responseObject: badgeLevel) else {
-                throw OWSAssertionError("Missing or invalid response.")
-            }
-
-            let badgeJson: [String: Any] = try levelParser.required(key: "badge")
-
-            return try ProfileBadge(jsonDictionary: badgeJson)
-        }
-    }
-
-    public class func getOneTimeBadges() -> Promise<OneTimeBadgeResponse> {
-        let request = OWSRequestFactory.boostBadgesRequest()
-
-        return firstly {
-            networkManager.makePromise(request: request)
-        }.map(on: .global()) { response in
-
-            guard let json = response.responseBodyJson as? [String: Any] else {
-                throw OWSAssertionError("Missing or invalid JSON.")
-            }
-
-            guard let rootParser = ParamParser(responseObject: json) else {
-                throw OWSAssertionError("Missing or invalid response.")
-            }
-
-            let levels: [String: Any] = try rootParser.required(key: "levels")
-
-            guard let levelsParser = ParamParser(responseObject: levels) else {
-                throw OWSAssertionError("Missing or invalid response.")
-            }
-
-            return OneTimeBadgeResponse(parser: levelsParser)
         }
     }
 }

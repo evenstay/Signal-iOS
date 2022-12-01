@@ -22,7 +22,7 @@ public struct Stripe: Dependencies {
         amount: FiatMoney,
         level: OneTimeBadgeLevel,
         for paymentMethod: PaymentMethod
-    ) -> Promise<String> {
+    ) -> Promise<ConfirmedIntent> {
         firstly { () -> Promise<PaymentIntent> in
             createBoostPaymentIntent(for: amount, level: level)
         }.then { intent in
@@ -30,7 +30,7 @@ public struct Stripe: Dependencies {
                 for: paymentMethod,
                 clientSecret: intent.clientSecret,
                 paymentIntentId: intent.id
-            ).map { intent.id }
+            )
         }
     }
 
@@ -39,18 +39,10 @@ public struct Stripe: Dependencies {
         level: OneTimeBadgeLevel
     ) -> Promise<PaymentIntent> {
         firstly(on: .sharedUserInitiated) { () -> Promise<HTTPResponse> in
-            guard !isAmountTooSmall(amount) else {
-                throw OWSAssertionError("Amount too small")
-            }
-
-            guard !isAmountTooLarge(amount) else {
-                throw OWSAssertionError("Amount too large")
-            }
-
             // The description is never translated as it's populated into an
             // english only receipt by Stripe.
-            let request = OWSRequestFactory.boostCreatePaymentIntent(
-                integerMoneyValue: integralAmount(amount),
+            let request = OWSRequestFactory.boostStripeCreatePaymentIntent(
+                integerMoneyValue: DonationUtilities.integralAmount(for: amount),
                 inCurrencyCode: amount.currencyCode,
                 level: level.rawValue
             )
@@ -89,14 +81,19 @@ public struct Stripe: Dependencies {
         }
     }
 
+    public struct ConfirmedIntent {
+        public let intentId: String
+        public let redirectToUrl: URL?
+    }
+
     static func confirmPaymentIntent(
         for paymentMethod: PaymentMethod,
         clientSecret: String,
         paymentIntentId: String
-    ) -> Promise<Void> {
+    ) -> Promise<ConfirmedIntent> {
         firstly(on: .sharedUserInitiated) { () -> Promise<String> in
             createPaymentMethod(with: paymentMethod)
-        }.then(on: .sharedUserInitiated) { paymentMethodId -> Promise<HTTPResponse> in
+        }.then(on: .sharedUserInitiated) { paymentMethodId -> Promise<ConfirmedIntent> in
             guard !SubscriptionManager.terminateTransactionIfPossible else {
                 throw OWSGenericError("Boost transaction chain cancelled")
             }
@@ -104,84 +101,48 @@ public struct Stripe: Dependencies {
             return try confirmPaymentIntent(paymentIntentClientSecret: clientSecret,
                                             paymentIntentId: paymentIntentId,
                                             paymentMethodId: paymentMethodId)
-        }.asVoid()
+        }
     }
 
-    public static func confirmPaymentIntent(paymentIntentClientSecret: String,
-                                            paymentIntentId: String,
-                                            paymentMethodId: String,
-                                            idempotencyKey: String? = nil) throws -> Promise<HTTPResponse> {
-        try API.postForm(endpoint: "payment_intents/\(paymentIntentId)/confirm",
-                         parameters: [
-                            "payment_method": paymentMethodId,
-                            "client_secret": paymentIntentClientSecret
-                         ],
-                         idempotencyKey: idempotencyKey)
+    public static func confirmPaymentIntent(
+        paymentIntentClientSecret: String,
+        paymentIntentId: String,
+        paymentMethodId: String,
+        idempotencyKey: String? = nil
+    ) throws -> Promise<ConfirmedIntent> {
+        firstly(on: .sharedUserInitiated) { () -> Promise<HTTPResponse> in
+            try API.postForm(endpoint: "payment_intents/\(paymentIntentId)/confirm",
+                             parameters: [
+                                "payment_method": paymentMethodId,
+                                "client_secret": paymentIntentClientSecret,
+                                "return_url": RETURN_URL_FOR_3DS
+                             ],
+                             idempotencyKey: idempotencyKey)
+        }.map(on: .sharedUserInitiated) { response -> ConfirmedIntent in
+            .init(
+                intentId: paymentIntentId,
+                redirectToUrl: parseNextActionRedirectUrl(from: response.responseBodyJson)
+            )
+        }
     }
 
     public static func confirmSetupIntent(
         for paymentIntentID: String,
         clientSecret: String
-    ) -> Promise<HTTPResponse> {
+    ) -> Promise<ConfirmedIntent> {
         firstly(on: .sharedUserInitiated) { () -> Promise<HTTPResponse> in
             let setupIntentId = try API.id(for: clientSecret)
             return try API.postForm(endpoint: "setup_intents/\(setupIntentId)/confirm", parameters: [
                 "payment_method": paymentIntentID,
-                "client_secret": clientSecret
+                "client_secret": clientSecret,
+                "return_url": RETURN_URL_FOR_3DS
             ])
+        }.map(on: .sharedUserInitiated) { response -> ConfirmedIntent in
+            .init(
+                intentId: paymentIntentID,
+                redirectToUrl: parseNextActionRedirectUrl(from: response.responseBodyJson)
+            )
         }
-    }
-
-    /// Is an amount of money too large?
-    ///
-    /// According to [Stripe's docs][0], amounts can be "up to twelve digits for
-    /// IDR (for example, a value of 999999999999 for a charge of
-    /// 9,999,999,999.99 IDR), and up to eight digits for all other currencies
-    /// (for example, a value of 99999999 for a charge of 999,999.99 USD).
-    ///
-    /// - Parameter amount: The amount of money.
-    /// - Returns: Whether the amount is too large.
-    ///
-    /// [0]: https://stripe.com/docs/currencies?presentment-currency=US#minimum-and-maximum-charge-amounts
-    public static func isAmountTooLarge(_ amount: FiatMoney) -> Bool {
-        let integerAmount = integralAmount(amount)
-        let maximum: UInt = amount.currencyCode == "IDR" ? 999999999999 : 99999999
-        return integerAmount > maximum
-    }
-
-    /// Is an amount of money too small?
-    ///
-    /// This is a client-side validation, so if we're not sure, we should
-    /// accept the amount.
-    ///
-    /// These minimums are pulled from [Stripe's document minimums][0]. Note
-    /// that Stripe's values are for *settlement* currency (which is always USD
-    /// for Signal), but we use them as helpful minimums anyway.
-    ///
-    /// - Parameter amount: The amount of money.
-    /// - Returns: Whether the amount is too small.
-    ///
-    /// [0]: https://stripe.com/docs/currencies?presentment-currency=US#minimum-and-maximum-charge-amounts
-    public static func isAmountTooSmall(_ amount: FiatMoney) -> Bool {
-        let integerAmount = integralAmount(amount)
-        let minimum = minimumIntegralChargePerCurrencyCode[amount.currencyCode, default: 50]
-        return integerAmount < minimum
-    }
-
-    private static func integralAmount(_ amount: FiatMoney) -> UInt {
-        let scaled: Decimal
-        if zeroDecimalCurrencyCodes.contains(amount.currencyCode.uppercased()) {
-            scaled = amount.value
-        } else {
-            scaled = amount.value * 100
-        }
-
-        let rounded = scaled.rounded()
-
-        guard rounded >= 0 else { return 0 }
-        guard rounded <= Decimal(UInt.max) else { return UInt.max }
-
-        return (rounded as NSDecimalNumber).uintValue
     }
 }
 
@@ -354,49 +315,4 @@ public extension Stripe {
     static let preferredCurrencyInfos: [Currency.Info] = {
         Currency.infos(for: preferredCurrencyCodes, ignoreMissingNames: true, shouldSort: false)
     }()
-
-    static let zeroDecimalCurrencyCodes: Set<Currency.Code> = [
-        "BIF",
-        "CLP",
-        "DJF",
-        "GNF",
-        "JPY",
-        "KMF",
-        "KRW",
-        "MGA",
-        "PYG",
-        "RWF",
-        "UGX",
-        "VND",
-        "VUV",
-        "XAF",
-        "XOF",
-        "XPF"
-    ]
-
-    static let minimumIntegralChargePerCurrencyCode: [Currency.Code: UInt] = [
-        "USD": 50,
-        "AED": 200,
-        "AUD": 50,
-        "BGN": 100,
-        "BRL": 50,
-        "CAD": 50,
-        "CHF": 50,
-        "CZK": 1500,
-        "DKK": 250,
-        "EUR": 50,
-        "GBP": 30,
-        "HKD": 400,
-        "HUF": 17500,
-        "INR": 50,
-        "JPY": 50,
-        "MXN": 10,
-        "MYR": 2,
-        "NOK": 300,
-        "NZD": 50,
-        "PLN": 200,
-        "RON": 200,
-        "SEK": 300,
-        "SGD": 50
-    ]
 }

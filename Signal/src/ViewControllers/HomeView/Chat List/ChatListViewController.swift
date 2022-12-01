@@ -139,8 +139,10 @@ public extension ChatListViewController {
             }
         } else if SubscriptionBadgeIds.contains(expiredBadgeID) {
             // Fetch current subscriptions, required to populate badge assets
-            firstly {
-                SubscriptionManager.getSubscriptions()
+            firstly { () -> Promise<SubscriptionManager.DonationConfiguration> in
+                SubscriptionManager.fetchDonationConfiguration()
+            }.map(on: .global()) { donationConfiguration -> [SubscriptionLevel] in
+                donationConfiguration.subscription.levels
             }.done(on: .global()) { (subscriptions: [SubscriptionLevel]) in
                 let subscriptionLevel = subscriptions.first { $0.badge.id == expiredBadgeID }
                 guard let subscriptionLevel = subscriptionLevel else {
@@ -355,7 +357,7 @@ enum ShowAppSettingsMode {
     case paymentsTransferIn
     case appearance
     case avatarBuilder
-    case donate(donationMode: DonateViewController.DonationMode)
+    case donate(donateMode: DonateViewController.DonateMode)
     case proxy
 }
 
@@ -484,12 +486,16 @@ public extension ChatListViewController {
             let profile = ProfileSettingsViewController()
             viewControllers += [ profile ]
             completion = { profile.presentAvatarSettingsView() }
-        case let .donate(donationMode):
-            guard DonationUtilities.canDonate(localNumber: tsAccountManager.localNumber) else {
+        case let .donate(donateMode):
+            guard DonationUtilities.canDonate(
+                inMode: donateMode.asDonationMode,
+                localNumber: tsAccountManager.localNumber
+            ) else {
                 DonationViewsUtil.openDonateWebsite()
                 return
             }
-            let donate = DonateViewController(startingDonationMode: donationMode) { [weak self] finishResult in
+
+            let donate = DonateViewController(preferredDonateMode: donateMode) { [weak self] finishResult in
                 switch finishResult {
                 case let .completedDonation(donateSheet, thanksSheet):
                     donateSheet.dismiss(animated: true) { [weak self] in
@@ -543,7 +549,7 @@ extension ChatListViewController: BadgeExpirationSheetDelegate {
         case .dismiss:
             break
         case .openDonationView:
-            showAppSettings(mode: .donate(donationMode: .oneTime))
+            showAppSettings(mode: .donate(donateMode: .oneTime))
         }
     }
 }
