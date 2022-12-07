@@ -6,7 +6,6 @@
 #import "AppDelegate.h"
 #import "ChatListViewController.h"
 #import "MainAppContext.h"
-#import "OWSDeviceProvisioningURLParser.h"
 #import "OWSScreenLockUI.h"
 #import "Pastelog.h"
 #import "Signal-Swift.h"
@@ -118,20 +117,30 @@ static void uncaughtExceptionHandler(NSException *exception)
 
 #pragma mark -
 
-- (void)applicationDidEnterBackground:(UIApplication *)application
-{
-    OWSLogInfo(@"applicationDidEnterBackground.");
-
-    OWSLogFlush();
-
-    if (self.shouldKillAppWhenBackgrounded) {
-        exit(0);
-    }
-}
-
 - (void)applicationWillEnterForeground:(UIApplication *)application
 {
-    OWSLogInfo(@"applicationWillEnterForeground.");
+    [self applicationWillEnterForegroundSwift:application];
+}
+
+- (void)applicationDidBecomeActive:(UIApplication *)application
+{
+    [self applicationDidBecomeActiveSwift:application];
+}
+
+- (void)applicationWillResignActive:(UIApplication *)application
+{
+    [self applicationWillResignActiveSwift:application];
+}
+
+- (void)applicationDidEnterBackground:(UIApplication *)application
+{
+    [self applicationDidEnterBackgroundSwift:application];
+}
+
+- (UIInterfaceOrientationMask)application:(UIApplication *)application
+    supportedInterfaceOrientationsForWindow:(UIWindow *)window
+{
+    return [self applicationSwift:application supportedInterfaceOrientationsFor:window];
 }
 
 - (void)applicationDidReceiveMemoryWarning:(UIApplication *)application
@@ -413,16 +422,8 @@ static void uncaughtExceptionHandler(NSException *exception)
         return [self tryToShowGroupInviteLinkUI:url];
     } else if ([SignalProxy isValidProxyLink:url]) {
         return [self tryToShowProxyLinkUI:url];
-    } else if ([PaypalCallbackUrlBridge handlePossibleCallbackUrl:url]) {
-        OWSLogInfo(@"Handled PayPal callback url!");
     } else if ([url.scheme isEqualToString:kURLSchemeSGNLKey]) {
-        if ([url.host hasPrefix:kURLHostVerifyPrefix] && ![self.tsAccountManager isRegistered]) {
-            if (!AppReadiness.isAppReady) {
-                OWSFailDebug(@"Ignoring URL; app is not ready.");
-                return NO;
-            }
-            return [SignalApp.shared receivedVerificationCode:[url.path substringFromIndex:1]];
-        } else if ([url.host hasPrefix:kURLHostAddStickersPrefix] && [self.tsAccountManager isRegistered]) {
+        if ([url.host hasPrefix:kURLHostAddStickersPrefix] && [self.tsAccountManager isRegistered]) {
             StickerPackInfo *_Nullable stickerPackInfo = [self parseAddStickersUrl:url];
             if (stickerPackInfo == nil) {
                 OWSFailDebug(@"Invalid URL: %@", url);
@@ -431,13 +432,13 @@ static void uncaughtExceptionHandler(NSException *exception)
             return [self tryToShowStickerPackView:stickerPackInfo];
         } else if ([url.host hasPrefix:kURLHostLinkDevicePrefix] && [self.tsAccountManager isRegistered]
             && self.tsAccountManager.isPrimaryDevice) {
-            OWSDeviceProvisioningURLParser *parser =
-                [[OWSDeviceProvisioningURLParser alloc] initWithProvisioningURL:url.absoluteString];
-            if (!parser.isValid) {
+            DeviceProvisioningURL *deviceProvisioningUrl =
+                [[DeviceProvisioningURL alloc] initWithUrlString:url.absoluteString];
+            if (deviceProvisioningUrl == nil) {
                 OWSFailDebug(@"Invalid URL: %@", url);
                 return NO;
             }
-            return [self tryToShowLinkDeviceViewWithParser:parser];
+            return [self tryToShowLinkDeviceViewWithUrl:deviceProvisioningUrl];
         } else {
             OWSLogVerbose(@"Invalid URL: %@", url);
             OWSFailDebug(@"Unknown URL host: %@", url.host);
@@ -515,7 +516,7 @@ static void uncaughtExceptionHandler(NSException *exception)
     return YES;
 }
 
-- (BOOL)tryToShowLinkDeviceViewWithParser:(OWSDeviceProvisioningURLParser *)parser
+- (BOOL)tryToShowLinkDeviceViewWithUrl:(DeviceProvisioningURL *)deviceProvisioningUrl
 {
     OWSAssertDebug(!self.didAppLaunchFail);
     AppReadinessRunNowOrWhenAppDidBecomeReadySync(^{
@@ -553,7 +554,7 @@ static void uncaughtExceptionHandler(NSException *exception)
             [rootViewController presentFormSheetViewController:navController animated:NO completion:^ {}];
         }
 
-        [linkDeviceVC provisionWithConfirmationWithParser:parser];
+        [linkDeviceVC confirmProvisioningWithUrl:deviceProvisioningUrl];
     });
     return YES;
 }
@@ -606,121 +607,6 @@ static void uncaughtExceptionHandler(NSException *exception)
         }
     });
     return YES;
-}
-
-- (void)applicationDidBecomeActive:(UIApplication *)application {
-    OWSAssertIsOnMainThread();
-
-    if (self.didAppLaunchFail) {
-        OWSFailDebug(@"app launch failed");
-        return;
-    }
-
-    OWSLogWarn(@"applicationDidBecomeActive.");
-    if (CurrentAppContext().isRunningTests) {
-        return;
-    }
-
-    AppReadinessRunNowOrWhenAppDidBecomeReadySync(^{ [self handleActivation]; });
-
-    // Clear all notifications whenever we become active.
-    // When opening the app from a notification,
-    // AppDelegate.didReceiveLocalNotification will always
-    // be called _before_ we become active.
-    [self clearAllNotificationsAndRestoreBadgeCount];
-
-    // On every activation, clear old temp directories.
-    ClearOldTemporaryDirectories();
-
-    // Ensure that all windows have the correct frame.
-    [self.windowManager updateWindowFrames];
-
-    OWSLogInfo(@"applicationDidBecomeActive completed.");
-}
-
-- (void)handleActivation
-{
-    OWSAssertIsOnMainThread();
-
-    OWSLogWarn(@"handleActivation.");
-
-    // Always check prekeys after app launches, and sometimes check on app activation.
-    [TSPreKeyManager checkPreKeysIfNecessary];
-
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        RTCInitializeSSL();
-
-        if ([self.tsAccountManager isRegistered]) {
-            // At this point, potentially lengthy DB locking migrations could be running.
-            // Avoid blocking app launch by putting all further possible DB access in async block
-            dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-                OWSLogInfo(@"running post launch block for registered user: %@", [self.tsAccountManager localAddress]);
-
-                // Clean up any messages that expired since last launch immediately
-                // and continue cleaning in the background.
-                [self.disappearingMessagesJob startIfNecessary];
-
-                [self enableBackgroundRefreshIfNecessary];
-
-            });
-        } else {
-            OWSLogInfo(@"running post launch block for unregistered user.");
-
-            // Unregistered user should have no unread messages. e.g. if you delete your account.
-            [AppEnvironment.shared.notificationPresenter clearAllNotifications];
-        }
-    }); // end dispatchOnce for first time we become active
-
-    // Every time we become active...
-    if ([self.tsAccountManager isRegistered]) {
-        // At this point, potentially lengthy DB locking migrations could be running.
-        // Avoid blocking app launch by putting all further possible DB access in async block
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [Environment.shared.contactsManagerImpl fetchSystemContactsOnceIfAlreadyAuthorized];
-
-            // TODO: Should we run this immediately even if we would like to process
-            // already decrypted envelopes handed to us by the NSE?
-            [self.messageFetcherJob runObjc];
-
-            if (![UIApplication sharedApplication].isRegisteredForRemoteNotifications) {
-                OWSLogInfo(@"Retrying to register for remote notifications since user hasn't registered yet.");
-                // Push tokens don't normally change while the app is launched, so checking once during launch is
-                // usually sufficient, but e.g. on iOS11, users who have disabled "Allow Notifications" and disabled
-                // "Background App Refresh" will not be able to obtain an APN token. Enabling those settings does not
-                // restart the app, so we check every activation for users who haven't yet registered.
-                [OWSSyncPushTokensJob run];
-            }
-        });
-    }
-
-    OWSLogInfo(@"handleActivation completed.");
-}
-
-- (void)applicationWillResignActive:(UIApplication *)application
-{
-    OWSAssertIsOnMainThread();
-
-    if (self.didAppLaunchFail) {
-        OWSFailDebug(@"app launch failed");
-        return;
-    }
-
-    OWSLogWarn(@"applicationWillResignActive.");
-
-    [self clearAllNotificationsAndRestoreBadgeCount];
-
-    OWSLogFlush();
-}
-
-- (void)clearAllNotificationsAndRestoreBadgeCount
-{
-    OWSAssertIsOnMainThread();
-
-    AppReadinessRunNowOrWhenAppDidBecomeReadySync(^{
-        [AppEnvironment.shared.notificationPresenter clearAllNotifications];
-        [self.messageManager updateApplicationBadgeCount];
-    });
 }
 
 - (void)application:(UIApplication *)application
@@ -1036,19 +922,6 @@ static void uncaughtExceptionHandler(NSException *exception)
 - (void)registrationLockDidChange:(NSNotification *)notification
 {
     [self enableBackgroundRefreshIfNecessary];
-}
-
-#pragma mark - status bar touches
-
-- (void)touchesBegan:(NSSet *)touches withEvent:(UIEvent *)event
-{
-    [super touchesBegan:touches withEvent:event];
-    CGPoint location = [[[event allTouches] anyObject] locationInView:[self window]];
-    CGRect statusBarFrame = [UIApplication sharedApplication].statusBarFrame;
-    if (CGRectContainsPoint(statusBarFrame, location)) {
-        OWSLogDebug(@"touched status bar");
-        [[NSNotificationCenter defaultCenter] postNotificationName:TappedStatusBarNotification object:nil];
-    }
 }
 
 @end

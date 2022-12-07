@@ -60,6 +60,7 @@ public class DonationUtilities: Dependencies {
 
         let isPaypalAvailable = {
             if
+                #available(iOS 14, *),
                 !RemoteConfig.paypalDisabledRegions.contains(e164: localNumber)
             {
                 switch donationMode {
@@ -333,7 +334,7 @@ public extension DonationUtilities {
         guard let minimum = minimumAmounts[amount.currencyCode] else {
             // Since this is just a sanity check, don't prevent donation here.
             // It is likely to fail on its own while processing the payment.
-            Logger.warn("Unexpectedly missing minimum boost amount for currency \(amount.currencyCode)!")
+            Logger.warn("[Donations] Unexpectedly missing minimum boost amount for currency \(amount.currencyCode)!")
             return false
         }
 

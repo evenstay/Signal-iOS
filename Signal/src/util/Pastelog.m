@@ -5,8 +5,6 @@
 
 #import "Pastelog.h"
 #import "Signal-Swift.h"
-#import "zlib.h"
-#import <SSZipArchive/SSZipArchive.h>
 #import <SignalCoreKit/Threading.h>
 #import <SignalMessaging/DebugLogger.h>
 #import <SignalMessaging/Environment.h>
@@ -30,40 +28,7 @@ typedef NS_ERROR_ENUM(PastelogErrorDomain, PastelogError) {
 
 #pragma mark -
 
-@interface Pastelog () <UIAlertViewDelegate>
-
-@property (nonatomic) DebugLogUploader *currentUploader;
-
-@end
-
-#pragma mark -
-
 @implementation Pastelog
-
-+ (instancetype)shared
-{
-    static Pastelog *sharedMyManager = nil;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        sharedMyManager = [[self alloc] initDefault];
-    });
-    return sharedMyManager;
-}
-
-- (instancetype)initDefault
-{
-    self = [super init];
-
-    if (!self) {
-        return self;
-    }
-
-    OWSSingletonAssert();
-
-    return self;
-}
-
-#pragma mark -
 
 + (void)submitLogs
 {
@@ -85,7 +50,7 @@ typedef NS_ERROR_ENUM(PastelogErrorDomain, PastelogError) {
         supportFilter = [supportFilter stringByAppendingFormat:@" - %@", tag];
     }
 
-    [[self shared] uploadLogsWithUIWithSuccess:^(NSURL *url) {
+    [self uploadLogsWithUIWithSuccess:^(NSURL *url) {
         ActionSheetController *alert = [[ActionSheetController alloc]
             initWithTitle:NSLocalizedString(@"DEBUG_LOG_ALERT_TITLE", @"Title of the debug log alert.")
                   message:NSLocalizedString(@"DEBUG_LOG_ALERT_MESSAGE", @"Message of the debug log alert.")];
@@ -136,7 +101,8 @@ typedef NS_ERROR_ENUM(PastelogErrorDomain, PastelogError) {
     }];
 }
 
-- (void)uploadLogsWithUIWithSuccess:(UploadDebugLogsSuccess)successParam {
++ (void)uploadLogsWithUIWithSuccess:(UploadDebugLogsSuccess)successParam
+{
     OWSAssertIsOnMainThread();
 
     [ModalActivityIndicatorViewController
@@ -175,97 +141,6 @@ typedef NS_ERROR_ENUM(PastelogErrorDomain, PastelogError) {
                               }];
                           }];
                   }];
-}
-
-+ (void)uploadLogsWithSuccess:(UploadDebugLogsSuccess)successParam failure:(UploadDebugLogsFailure)failureParam
-{
-    [[self shared] uploadLogsWithSuccess:successParam failure:failureParam];
-}
-
-+ (void)exportLogs
-{
-    [[self shared] exportLogs];
-}
-
-- (void)exportLogs
-{
-    OWSAssertIsOnMainThread();
-
-    CollectedLogsResult *collectedLogsResult = [self collectLogs];
-    if (!collectedLogsResult.succeeded) {
-        NSString *errorString = collectedLogsResult.errorString;
-        [Pastelog showFailureAlertWithMessage:errorString ?: @"(unknown error)" logArchiveOrDirectoryPath:nil];
-        return;
-    }
-    NSString *logsDirPath = collectedLogsResult.logsDirPath;
-
-    [AttachmentSharing showShareUIForURL:[NSURL fileURLWithPath:logsDirPath]
-                                  sender:nil
-                              completion:^{ (void)[OWSFileSystem deleteFile:logsDirPath]; }];
-}
-
-- (void)uploadLogsWithSuccess:(UploadDebugLogsSuccess)successParam failure:(UploadDebugLogsFailure)failureParam
-{
-    OWSAssertDebug(successParam);
-    OWSAssertDebug(failureParam);
-
-    // Ensure that we call the completions on the main thread.
-    UploadDebugLogsSuccess success = ^(NSURL *url) { DispatchMainThreadSafe(^{ successParam(url); }); };
-    UploadDebugLogsFailure failure = ^(NSString *localizedErrorMessage, NSString *_Nullable logArchiveOrDirectoryPath) {
-        DispatchMainThreadSafe(^{ failureParam(localizedErrorMessage, logArchiveOrDirectoryPath); });
-    };
-
-    // Phase 1. Make a local copy of all of the log files.
-    CollectedLogsResult *collectedLogsResult = [self collectLogs];
-    if (!collectedLogsResult.succeeded) {
-        NSString *errorString = collectedLogsResult.errorString;
-        failure(errorString, nil);
-        return;
-    }
-    NSString *zipDirPath = collectedLogsResult.logsDirPath;
-
-    // Phase 2. Zip up the log files.
-    NSString *zipFilePath = [zipDirPath stringByAppendingPathExtension:@"zip"];
-    BOOL zipSuccess = [SSZipArchive createZipFileAtPath:zipFilePath
-                                withContentsOfDirectory:zipDirPath
-                                    keepParentDirectory:YES
-                                       compressionLevel:Z_DEFAULT_COMPRESSION
-                                               password:nil
-                                                    AES:NO
-                                        progressHandler:nil];
-    if (!zipSuccess) {
-        failure(NSLocalizedString(@"DEBUG_LOG_ALERT_COULD_NOT_PACKAGE_LOGS",
-                    @"Error indicating that the debug logs could not be packaged."),
-            zipDirPath);
-        return;
-    }
-
-    [OWSFileSystem protectFileOrFolderAtPath:zipFilePath];
-    (void)[OWSFileSystem deleteFile:zipDirPath];
-
-    // Phase 3. Upload the log files.
-
-    __weak Pastelog *weakSelf = self;
-    self.currentUploader = [DebugLogUploader new];
-    [self.currentUploader uploadFileWithFileUrl:[NSURL fileURLWithPath:zipFilePath]
-        mimeType:OWSMimeTypeApplicationZip
-        success:^(DebugLogUploader *uploader, NSURL *url) {
-            if (uploader != weakSelf.currentUploader) {
-                // Ignore events from obsolete uploaders.
-                return;
-            }
-            (void)[OWSFileSystem deleteFile:zipFilePath];
-            success(url);
-        }
-        failure:^(DebugLogUploader *uploader, NSError *error) {
-            if (uploader != weakSelf.currentUploader) {
-                // Ignore events from obsolete uploaders.
-                return;
-            }
-            failure(NSLocalizedString(@"DEBUG_LOG_ALERT_ERROR_UPLOADING_LOG",
-                        @"Error indicating that a debug log could not be uploaded."),
-                zipFilePath);
-        }];
 }
 
 @end

@@ -4,41 +4,21 @@
 //
 
 import Foundation
+import SSZipArchive
+import zlib
 import SignalCoreKit
 import SignalMessaging
 
-@objc
-public class DebugLogUploader: NSObject {
-    public typealias SuccessBlock = (DebugLogUploader, URL) -> Void
-    public typealias FailureBlock = (DebugLogUploader, Error) -> Void
-
-    deinit {
-        Logger.verbose("")
-    }
-
-    @objc
-    public func uploadFile(fileUrl: URL,
-                           mimeType: String,
-                           success: @escaping SuccessBlock,
-                           failure: @escaping FailureBlock) {
+private enum DebugLogUploader {
+    static func uploadFile(fileUrl: URL, mimeType: String) -> Promise<URL> {
         firstly(on: .global()) {
-            self.getUploadParameters(fileUrl: fileUrl)
-        }.then(on: .global()) { [weak self] (uploadParameters: UploadParameters) -> Promise<URL> in
-            guard let self = self else { throw OWSGenericError("Missing self.") }
-            return self.uploadFile(fileUrl: fileUrl,
-                                   mimeType: mimeType,
-                                   uploadParameters: uploadParameters)
-        }.done(on: .global()) { [weak self] (uploadedUrl: URL) in
-            guard let self = self else { throw OWSGenericError("Missing self.") }
-            success(self, uploadedUrl)
-        }.catch(on: .global()) { [weak self] error in
-            owsFailDebugUnlessNetworkFailure(error)
-            guard let self = self else { return }
-            failure(self, error)
+            getUploadParameters(fileUrl: fileUrl)
+        }.then(on: .global()) { (uploadParameters: UploadParameters) -> Promise<URL> in
+            uploadFile(fileUrl: fileUrl, mimeType: mimeType, uploadParameters: uploadParameters)
         }
     }
 
-    private func buildOWSURLSession() -> OWSURLSessionProtocol {
+    private static func buildOWSURLSession() -> OWSURLSessionProtocol {
         let sessionConfig = URLSessionConfiguration.ephemeral
         sessionConfig.urlCache = nil
         sessionConfig.requestCachePolicy = .reloadIgnoringLocalCacheData
@@ -50,10 +30,10 @@ public class DebugLogUploader: NSObject {
         return urlSession
     }
 
-    private func getUploadParameters(fileUrl: URL) -> Promise<UploadParameters> {
+    private static func getUploadParameters(fileUrl: URL) -> Promise<UploadParameters> {
         let url = URL(string: "https://debuglogs.org/")!
         return firstly(on: .global()) { () -> Promise<(HTTPResponse)> in
-            self.buildOWSURLSession().dataTaskPromise(url.absoluteString, method: .get, ignoreAppExpiry: true)
+            buildOWSURLSession().dataTaskPromise(url.absoluteString, method: .get, ignoreAppExpiry: true)
         }.map(on: .global()) { (response: HTTPResponse) -> (UploadParameters) in
             guard let responseObject = response.responseBodyJson else {
                 throw OWSAssertionError("Invalid response.")
@@ -96,11 +76,13 @@ public class DebugLogUploader: NSObject {
         let uploadKey: String
     }
 
-    private func uploadFile(fileUrl: URL,
-                            mimeType: String,
-                            uploadParameters: UploadParameters) -> Promise<URL> {
+    private static func uploadFile(
+        fileUrl: URL,
+        mimeType: String,
+        uploadParameters: UploadParameters
+    ) -> Promise<URL> {
         firstly(on: .global()) { () -> Promise<(HTTPResponse)> in
-            let urlSession = self.buildOWSURLSession()
+            let urlSession = buildOWSURLSession()
 
             guard let url = URL(string: uploadParameters.uploadUrl) else {
                 throw OWSAssertionError("Invalid url: \(uploadParameters.uploadUrl)")
@@ -108,7 +90,6 @@ public class DebugLogUploader: NSObject {
             let request = URLRequest(url: url)
 
             var textParts = uploadParameters.fieldMap
-            let mimeType = OWSMimeTypeApplicationZip
             textParts.append(key: "Content-Type", value: mimeType)
 
             return urlSession.multiPartUploadTaskPromise(request: request,
@@ -139,34 +120,16 @@ public class DebugLogUploader: NSObject {
 }
 
 extension Pastelog {
-    /// The result of the `collectLogs` method. Here because Objective-C can't represent `Result`s.
-    /// If we migrate its callers to Swift, we should be able to remove this class.
-    @objc
-    public class CollectedLogsResult: NSObject {
-        @objc
-        public let errorString: String?
-
-        @objc
-        public let logsDirPath: String?
-
-        @objc
-        public var succeeded: Bool { errorString == nil }
-
-        init(errorString: String) {
-            self.errorString = errorString
-            self.logsDirPath = nil
-            super.init()
-        }
-
-        init(logsDirPath: String) {
-            self.errorString = nil
-            self.logsDirPath = logsDirPath
-            super.init()
+    private struct NoLogsError: Error {
+        var errorString: String {
+            NSLocalizedString(
+                "DEBUG_LOG_ALERT_NO_LOGS",
+                comment: "Error indicating that no debug logs could be found."
+            )
         }
     }
 
-    @objc
-    func collectLogs() -> CollectedLogsResult {
+    private static func collectLogs() -> Result<String, NoLogsError> {
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy.MM.dd hh.mm.ss"
         let dateString = dateFormatter.string(from: Date())
@@ -178,11 +141,7 @@ extension Pastelog {
 
         let logFilePaths = DebugLogger.shared().allLogFilePaths()
         if logFilePaths.isEmpty {
-            let errorString = NSLocalizedString(
-                "DEBUG_LOG_ALERT_NO_LOGS",
-                comment: "Error indicating that no debug logs could be found."
-            )
-            return CollectedLogsResult(errorString: errorString)
+            return .failure(NoLogsError())
         }
 
         for logFilePath in logFilePaths {
@@ -198,7 +157,82 @@ extension Pastelog {
             OWSFileSystem.protectFileOrFolder(atPath: copyFilePath)
         }
 
-        return CollectedLogsResult(logsDirPath: zipDirPath)
+        return .success(zipDirPath)
+    }
+
+    public static func exportLogs() {
+        AssertIsOnMainThread()
+        switch collectLogs() {
+        case let .success(logsDirPath):
+            AttachmentSharing.showShareUI(for: URL(fileURLWithPath: logsDirPath), sender: nil) {
+                OWSFileSystem.deleteFile(logsDirPath)
+            }
+        case let .failure(error):
+            Self.showFailureAlert(with: error.errorString, logArchiveOrDirectoryPath: nil)
+            return
+        }
+    }
+
+    @objc(uploadLogsWithSuccess:failure:)
+    static func uploadLogs(
+        success: @escaping UploadDebugLogsSuccess,
+        failure: @escaping UploadDebugLogsFailure
+    ) {
+        // Ensure that we call the completions on the main thread.
+        let wrappedSuccess: UploadDebugLogsSuccess = { url in
+            DispatchMainThreadSafe { success(url) }
+        }
+        let wrappedFailure: UploadDebugLogsFailure = { localizedErrorMessage, logArchiveOrDirectoryPath in
+            DispatchMainThreadSafe { failure(localizedErrorMessage, logArchiveOrDirectoryPath) }
+        }
+
+        // Phase 1. Make a local copy of all of the log files.
+        let zipDirPath: String
+        switch collectLogs() {
+        case let .success(logsDirPath):
+            zipDirPath = logsDirPath
+        case let .failure(error):
+            Self.showFailureAlert(with: error.errorString, logArchiveOrDirectoryPath: nil)
+            return
+        }
+
+        // Phase 2. Zip up the log files.
+        let zipFilePath = zipDirPath.appendingFileExtension("zip")
+        let zipSuccess = SSZipArchive.createZipFile(
+            atPath: zipFilePath,
+            withContentsOfDirectory: zipDirPath,
+            keepParentDirectory: true,
+            compressionLevel: Z_DEFAULT_COMPRESSION,
+            password: nil,
+            aes: false,
+            progressHandler: nil
+        )
+        guard zipSuccess else {
+            let errorMessage = NSLocalizedString(
+                "DEBUG_LOG_ALERT_COULD_NOT_PACKAGE_LOGS",
+                comment: "Error indicating that the debug logs could not be packaged."
+            )
+            wrappedFailure(errorMessage, zipDirPath)
+            return
+        }
+
+        OWSFileSystem.protectFileOrFolder(atPath: zipFilePath)
+        OWSFileSystem.deleteFile(zipDirPath)
+
+        // Phase 3. Upload the log files.
+        DebugLogUploader.uploadFile(
+            fileUrl: URL(fileURLWithPath: zipFilePath),
+            mimeType: OWSMimeTypeApplicationZip
+        ).done(on: .global()) { url in
+            OWSFileSystem.deleteFile(zipFilePath)
+            wrappedSuccess(url)
+        }.catch(on: .global()) { error in
+            let errorMessage = NSLocalizedString(
+                "DEBUG_LOG_ALERT_ERROR_UPLOADING_LOG",
+                comment: "Error indicating that a debug log could not be uploaded."
+            )
+            wrappedFailure(errorMessage, zipFilePath)
+        }
     }
 
     @objc(showFailureAlertWithMessage:logArchiveOrDirectoryPath:)
