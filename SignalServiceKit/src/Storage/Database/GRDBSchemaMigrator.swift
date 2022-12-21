@@ -31,7 +31,9 @@ public class GRDBSchemaMigrator: NSObject {
 
         let grdbStorageAdapter = databaseStorage.grdbStorage
 
-        let hasCreatedInitialSchema = try! grdbStorageAdapter.read { try Self.hasCreatedInitialSchema(transaction: $0) }
+        let hasCreatedInitialSchema = try grdbStorageAdapter.read {
+            try Self.hasCreatedInitialSchema(transaction: $0)
+        }
 
         if hasCreatedInitialSchema {
             do {
@@ -209,6 +211,7 @@ public class GRDBSchemaMigrator: NSObject {
         case addSnoozeCountToExperienceUpgrade
         case addCancelledGroupRingsTable
         case addPaymentProcessorColumnToJobRecords
+        case addCdsPreviousE164
 
         // NOTE: Every time we add a migration id, consider
         // incrementing grdbSchemaVersionLatest.
@@ -265,7 +268,7 @@ public class GRDBSchemaMigrator: NSObject {
     }
 
     public static let grdbSchemaVersionDefault: UInt = 0
-    public static let grdbSchemaVersionLatest: UInt = 52
+    public static let grdbSchemaVersionLatest: UInt = 53
 
     // An optimization for new users, we have the first migration import the latest schema
     // and mark any other migrations as "already run".
@@ -2049,6 +2052,14 @@ public class GRDBSchemaMigrator: NSObject {
 
             return .success(())
         }
+
+        migrator.registerMigration(.addCdsPreviousE164) { transaction in
+            try transaction.database.create(table: "CdsPreviousE164") { table in
+                table.column("id", .integer).notNull().primaryKey()
+                table.column("e164", .text).notNull()
+            }
+            return .success(())
+        } // end: .addCdsPreviousE164
 
         // MARK: - Schema Migration Insertion Point
     }

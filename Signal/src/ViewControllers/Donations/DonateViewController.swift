@@ -27,8 +27,8 @@ class DonateViewController: OWSViewController, OWSNavigationChildController {
     static var bubbleBackgroundColor: CGColor { DonationViewsUtil.bubbleBackgroundColor.cgColor }
     static var selectedColor: CGColor { Theme.accentBlueColor.cgColor }
 
-    public var preferredNavigationBarStyle: OWSNavigationBarStyle { .clear }
-    public var navbarBackgroundColorOverride: UIColor { backgroundColor }
+    public var preferredNavigationBarStyle: OWSNavigationBarStyle { .solid }
+    public var navbarBackgroundColorOverride: UIColor? { .clear }
 
     private static func commonStack() -> UIStackView {
         let result = UIStackView()
@@ -334,11 +334,13 @@ class DonateViewController: OWSViewController, OWSNavigationChildController {
                 "DONATE_SCREEN_ERROR_NO_AMOUNT_SELECTED",
                 comment: "If the user tries to donate to Signal but no amount is selected, this error message is shown."
             ))
-        case .amountIsTooSmall:
-            showError(NSLocalizedString(
-                "DONATE_SCREEN_ERROR_SELECT_A_LARGER_AMOUNT",
-                comment: "If the user tries to donate to Signal but they've entered an amount that's too small, this error message is shown."
-            ))
+        case let .amountIsTooSmall(minimumAmount):
+            let format = NSLocalizedString(
+                "DONATE_SCREEN_ERROR_SELECT_A_LARGER_AMOUNT_FORMAT",
+                comment: "If the user tries to donate to Signal but they've entered an amount that's too small, this error message is shown. Embeds {{currency string}}, such as \"$5\"."
+            )
+            let currencyString = DonationUtilities.format(money: minimumAmount)
+            showError(String(format: format, currencyString))
         case let .canContinue(amount, supportedPaymentMethods):
             presentChoosePaymentMethodSheet(
                 amount: amount,
@@ -397,7 +399,16 @@ class DonateViewController: OWSViewController, OWSNavigationChildController {
                     thanksSheetType: .subscription
                 )
             }.catch(on: .main) { [weak self] error in
-                self?.didFailDonation(error: error, mode: .monthly)
+                self?.didFailDonation(
+                    error: error,
+                    mode: .monthly,
+                    // TODO: [PayPal] We don't know the payment method here. Instead of figuring it
+                    // out (probably by persisting the payment method), we hard-code a payment
+                    // method. We will likely refactor this when it's time to add monthly PayPal
+                    // donations. So for now, hard-code credit/debit card errors which are more
+                    // generic.
+                    paymentMethod: .creditOrDebitCard
+                )
             }
         default:
             Logger.warn("[Donations] Updating a subscription with a prior known error state. Treating this like a new subscription")
@@ -524,10 +535,15 @@ class DonateViewController: OWSViewController, OWSNavigationChildController {
         Logger.info("User canceled donation!")
     }
 
-    internal func didFailDonation(error: Error, mode: DonateMode) {
+    internal func didFailDonation(
+        error: Error,
+        mode: DonateMode,
+        paymentMethod: DonationPaymentMethod
+    ) {
         DonationViewsUtil.presentDonationErrorSheet(
             from: self,
             error: error,
+            paymentMethod: paymentMethod,
             currentSubscription: {
                 switch mode {
                 case .oneTime: return nil

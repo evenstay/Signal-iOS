@@ -13,6 +13,9 @@ class CreditOrDebitCardDonationViewController: OWSTableViewController2 {
     let onFinished: () -> Void
     var threeDSecureAuthenticationSession: ASWebAuthenticationSession?
 
+    public override var preferredNavigationBarStyle: OWSNavigationBarStyle { .solid }
+    public override var navbarBackgroundColorOverride: UIColor? { .clear }
+
     init(
         donationAmount: FiatMoney,
         donationMode: DonationMode,
@@ -23,6 +26,8 @@ class CreditOrDebitCardDonationViewController: OWSTableViewController2 {
         self.onFinished = onFinished
 
         super.init()
+
+        self.defaultSpacingBetweenSections = 0
     }
 
     deinit {
@@ -83,6 +88,7 @@ class CreditOrDebitCardDonationViewController: OWSTableViewController2 {
         DonationViewsUtil.presentDonationErrorSheet(
             from: self,
             error: error,
+            paymentMethod: .creditOrDebitCard,
             currentSubscription: {
                 switch donationMode {
                 case .oneTime: return nil

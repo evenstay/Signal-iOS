@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
-import UIKit
+import SignalMessaging
 import SignalUI
+import UIKit
 
 // Coincides with Android's max text message length
 let kMaxMessageBodyCharacterCount = 2000
@@ -31,7 +31,7 @@ class StoryReplyInputToolbar: UIView {
         get { textView.messageBody }
         set {
             textView.messageBody = newValue
-            updateContent()
+            updateContent(animated: false)
         }
     }
 
@@ -42,13 +42,13 @@ class StoryReplyInputToolbar: UIView {
         }
     }
 
-    let minTextViewHeight: CGFloat = 36
-    var maxTextViewHeight: CGFloat {
+    private let minTextViewHeight: CGFloat = 36
+    private var maxTextViewHeight: CGFloat {
         // About ~4 lines in portrait and ~3 lines in landscape.
         // Otherwise we risk obscuring too much of the content.
         return UIDevice.current.orientation.isPortrait ? 160 : 100
     }
-    var textViewHeightConstraint: NSLayoutConstraint?
+    private var textViewHeightConstraint: NSLayoutConstraint?
 
     // MARK: - Initializers
 
@@ -63,7 +63,7 @@ class StoryReplyInputToolbar: UIView {
         let backgroundExtension: CGFloat = 500
 
         if UIAccessibility.isReduceTransparencyEnabled {
-            self.backgroundColor = .ows_black
+            backgroundColor = .ows_black
 
             let extendedBackground = UIView()
             addSubview(extendedBackground)
@@ -71,7 +71,7 @@ class StoryReplyInputToolbar: UIView {
             extendedBackground.autoPinEdge(.top, to: .bottom, of: self)
             extendedBackground.autoSetDimension(.height, toSize: backgroundExtension)
         } else {
-            self.backgroundColor = .clear
+            backgroundColor = .clear
 
             let blurEffect: UIBlurEffect
             if #available(iOS 13, *), quotedReplyModel != nil {
@@ -89,28 +89,6 @@ class StoryReplyInputToolbar: UIView {
 
         textView.mentionDelegate = self
 
-        let sendButton = OWSButton.sendButton(imageName: "arrow-up-24") { [weak self] in
-            self?.didTapSend()
-        }
-        sendButtonContainer.addSubview(sendButton)
-
-        let reactButton = OWSButton(imageName: "add-reaction-outline-24", tintColor: Theme.darkThemePrimaryColor) { [weak self] in
-            self?.didTapReact()
-        }
-        reactButton.autoSetDimensions(to: CGSize(square: 40))
-        reactButtonContainer.addSubview(reactButton)
-
-        for button in [sendButton, reactButton] {
-            button.autoPinEdgesToSuperviewEdges(with: .zero, excludingEdge: .top)
-            button.autoPinEdge(toSuperviewEdge: .top, withInset: 0, relation: .greaterThanOrEqual)
-            NSLayoutConstraint.autoSetPriority(.defaultLow) {
-                button.autoPinEdge(toSuperviewEdge: .top)
-            }
-
-            button.setContentHuggingHigh()
-            button.setCompressionResistanceHigh()
-        }
-
         // The input toolbar should *always* be laid out left-to-right, even when using
         // a right-to-left language. The convention for messaging apps is for the send
         // button to always be to the right of the input field, even in RTL layouts.
@@ -118,23 +96,26 @@ class StoryReplyInputToolbar: UIView {
         // instead of leading/trailing. You'll also want to the semanticContentAttribute
         // to ensure horizontal stack views layout left-to-right.
 
-        let hStackView = UIStackView(arrangedSubviews: [ textContainer, sendButtonContainer, reactButtonContainer ])
-        hStackView.isLayoutMarginsRelativeArrangement = true
-        hStackView.layoutMargins = UIEdgeInsets(margin: 12)
-        hStackView.axis = .horizontal
-        hStackView.alignment = .bottom
-        hStackView.spacing = 12
-        hStackView.semanticContentAttribute = .forceLeftToRight
+        let containerView = UIView.container()
+        addSubview(containerView)
+        containerView.autoPinEdgesToSuperviewEdges()
 
-        addSubview(hStackView)
-        hStackView.autoPinEdgesToSuperviewEdges()
+        containerView.addSubview(textContainer)
+        textContainer.autoPinEdge(toSuperviewMargin: .left, withInset: OWSTableViewController2.defaultHOuterMargin)
+        textContainer.autoPinHeightToSuperview(withMargin: 8)
+
+        containerView.addSubview(sendButton)
+        sendButton.autoPinEdge(toSuperviewEdge: .right, withInset: 2)
+        sendButton.autoPinEdge(toSuperviewEdge: .bottom)
+        sendButton.autoPinEdge(.left, to: .right, of: textContainer, withOffset: 2)
+
+        containerView.addSubview(reactButton)
+        reactButton.autoAlignAxis(.vertical, toSameAxisOf: sendButton)
+        reactButton.autoAlignAxis(.horizontal, toSameAxisOf: sendButton)
 
         textViewHeightConstraint = textView.autoSetDimension(.height, toSize: minTextViewHeight)
 
-        textContainer.autoPinEdge(toSuperviewMargin: .top)
-        textContainer.autoPinEdge(toSuperviewMargin: .bottom)
-
-        updateContent()
+        updateContent(animated: false)
     }
 
     required init?(coder aDecoder: NSCoder) {
@@ -149,15 +130,28 @@ class StoryReplyInputToolbar: UIView {
 
     // MARK: - Subviews
 
-    private lazy var sendButtonContainer = UIView()
-    private lazy var reactButtonContainer = UIView()
+    private lazy var sendButton: UIButton = {
+        let button = UIButton(type: .system)
+        button.accessibilityLabel = MessageStrings.sendButton
+        button.accessibilityIdentifier = UIView.accessibilityIdentifier(in: self, name: "sendButton")
+        button.setImage(UIImage(imageLiteralResourceName: "send-blue-32"), for: .normal)
+        button.addTarget(self, action: #selector(didTapSend), for: .touchUpInside)
+        button.autoSetDimensions(to: CGSize(square: 48))
+        return button
+    }()
 
-    lazy var textView: MentionTextView = {
+    private lazy var reactButton: UIButton = {
+        let button = OWSButton(imageName: "add-reaction-outline-24", tintColor: Theme.darkThemePrimaryColor) { [weak self] in
+            self?.didTapReact()
+        }
+        button.autoSetDimensions(to: CGSize(square: 48))
+        return button
+    }()
+
+    private lazy var textView: MentionTextView = {
         let textView = buildTextView()
-
         textView.scrollIndicatorInsets = UIEdgeInsets(top: 5, left: 0, bottom: 5, right: 3)
         textView.mentionDelegate = self
-
         return textView
     }()
 
@@ -171,15 +165,13 @@ class StoryReplyInputToolbar: UIView {
         textView.resignFirstResponder()
     }
 
-    private let placeholderText = OWSLocalizedString(
-        "STORY_REPLY_TEXT_FIELD_PLACEHOLDER",
-        comment: "placeholder text for replying to a story"
-    )
-
     private lazy var placeholderTextView: UITextView = {
         let placeholderTextView = buildTextView()
 
-        placeholderTextView.text = placeholderText
+        placeholderTextView.text = OWSLocalizedString(
+            "STORY_REPLY_TEXT_FIELD_PLACEHOLDER",
+            comment: "placeholder text for replying to a story"
+        )
         placeholderTextView.isEditable = false
         placeholderTextView.textContainer.maximumNumberOfLines = 1
         placeholderTextView.textContainer.lineBreakMode = .byTruncatingTail
@@ -192,22 +184,20 @@ class StoryReplyInputToolbar: UIView {
         let textContainer = UIStackView()
         textContainer.axis = .vertical
 
-        let headerLabel = buildHeaderLabel()
-        textContainer.addArrangedSubview(headerLabel)
+        if let headerLabel = buildHeaderLabel() {
+            textContainer.addArrangedSubview(headerLabel)
+        }
 
         let bubbleView = UIStackView()
         bubbleView.axis = .vertical
         bubbleView.addBackgroundView(withBackgroundColor: .ows_gray75, cornerRadius: minTextViewHeight / 2)
-
         textContainer.addArrangedSubview(bubbleView)
-        let bottomSpace = (40 - minTextViewHeight) / 2
-        textContainer.addArrangedSubview(.spacer(withHeight: bottomSpace))
 
         if let quotedReplyModel = quotedReplyModel {
             let previewView = StoryReplyPreviewView(quotedReplyModel: quotedReplyModel)
             let previewViewContainer = UIView()
             previewViewContainer.addSubview(previewView)
-            previewView.autoPinEdgesToSuperviewEdges(with: UIEdgeInsets(hMargin: 8, vMargin: 8))
+            previewView.autoPinEdgesToSuperviewEdges(with: UIEdgeInsets(top: 8, leading: 8, bottom: 2, trailing: 8))
             bubbleView.addArrangedSubview(previewViewContainer)
         }
 
@@ -215,10 +205,11 @@ class StoryReplyInputToolbar: UIView {
         bubbleView.addArrangedSubview(textAndPlaceholderContainer)
 
         textAndPlaceholderContainer.addSubview(placeholderTextView)
-        placeholderTextView.autoPinEdgesToSuperviewEdges()
-
         textAndPlaceholderContainer.addSubview(textView)
-        textView.autoPinEdgesToSuperviewEdges()
+
+        textView.autoPinWidthToSuperview()
+        textView.autoPinHeightToSuperview(withMargin: 4)
+        placeholderTextView.autoPinEdges(toEdgesOf: textView)
 
         return textContainer
     }()
@@ -233,93 +224,123 @@ class StoryReplyInputToolbar: UIView {
         let textViewFont = UIFont.ows_dynamicTypeBody
         textView.font = textViewFont
         textView.textColor = Theme.darkThemePrimaryColor
-
-        // Check the system font size and increase text inset accordingly
-        // to keep the text vertically centered
-        textView.updateVerticalInsetsForDynamicBodyType(defaultInsets: 7)
-        textView.textContainerInset.left = 7
-        textView.textContainerInset.right = 7
-
         return textView
     }
 
-    private func buildHeaderLabel() -> UIView {
-        let container = UIView()
+    private func buildHeaderLabel() -> UIView? {
+        guard let headerText: String = {
+            switch quotedReplyModel {
+            case .some(let quotedReplyModel):
+                guard !quotedReplyModel.authorAddress.isLocalAddress else {
+                    fallthrough
+                }
+                let format = OWSLocalizedString(
+                    "STORY_REPLY_TEXT_FIELD_HEADER_FORMAT",
+                    comment: "header text for replying to private story. Embeds {{author name}}"
+                )
+                let authorName = contactsManager.displayName(for: quotedReplyModel.authorAddress)
+                return String(format: format, authorName)
+            case .none:
+                return nil
+            }
+        }() else {
+            return nil
+        }
 
         let label = UILabel()
         label.textColor = Theme.darkThemeSecondaryTextAndIconColor
         label.font = .ows_dynamicTypeFootnote
+        label.text = headerText
 
-        switch quotedReplyModel {
-        case .some(let quotedReplyModel):
-            guard !quotedReplyModel.authorAddress.isLocalAddress else {
-                fallthrough
-            }
-            let format = OWSLocalizedString(
-                "STORY_REPLY_TEXT_FIELD_HEADER_FORMAT",
-                comment: "header text for replying to private story. Embeds {{author name}}"
-            )
-            let authorName = contactsManager.displayName(for: quotedReplyModel.authorAddress)
-            label.text = String(format: format, authorName)
-        case .none:
-            container.isHiddenInStackView = true
-        }
-
+        let container = UIView()
         container.addSubview(label)
-        label.autoPinEdgesToSuperviewEdges(with: .init(top: 0, leading: 4, bottom: 10, trailing: 4))
+        label.autoPinEdgesToSuperviewEdges(with: .init(top: 2, leading: 4, bottom: 10, trailing: 4))
 
         return container
     }
 
     // MARK: - Actions
 
-    func didTapSend() {
+    @objc
+    private func didTapSend() {
         textView.acceptAutocorrectSuggestion()
         delegate?.storyReplyInputToolbarDidTapSend(self)
     }
 
-    func didTapReact() {
+    private func didTapReact() {
         delegate?.storyReplyInputToolbarDidTapReact(self)
     }
 
     // MARK: - Helpers
 
-    private func updateContent() {
+    private func updateContent(animated: Bool) {
         AssertIsOnMainThread()
 
         updateHeight(textView: textView)
 
-        let isTextViewEmpty = textView.text.isEmptyOrNil
+        let hasAnyText = !textView.text.isEmptyOrNil
+        placeholderTextView.isHidden = hasAnyText
 
-        reactButtonContainer.isHidden = !isTextViewEmpty
-        sendButtonContainer.isHidden = isTextViewEmpty
-        placeholderTextView.isHidden = !isTextViewEmpty
+        let hasNonWhitespaceText = !textView.text.ows_stripped().isEmpty
+        setSendButtonHidden(!hasNonWhitespaceText, animated: animated)
+    }
+
+    private var isSendButtonHidden: Bool = false
+
+    private func setSendButtonHidden(_ isHidden: Bool, animated: Bool) {
+        guard isHidden != isSendButtonHidden else { return }
+
+        let setButtonHidden: (UIButton, Bool) -> Void = { button, isHidden in
+            button.alpha = isHidden ? 0 : 1
+            button.transform = isHidden ? .scale(0.1) : .identity
+        }
+
+        isSendButtonHidden = isHidden
+
+        guard animated else {
+            setButtonHidden(sendButton, isHidden)
+            setButtonHidden(reactButton, !isHidden)
+            return
+        }
+
+        let animator = UIViewPropertyAnimator(duration: 0.25, springDamping: 0.645, springResponse: 0.25)
+        animator.addAnimations {
+            setButtonHidden(self.sendButton, isHidden)
+            setButtonHidden(self.reactButton, !isHidden)
+        }
+        animator.startAnimation()
     }
 
     private func updateHeight(textView: UITextView) {
-        guard let textViewHeightConstraint = textViewHeightConstraint else {
+        guard let textViewHeightConstraint else {
             owsFailDebug("Missing constraint.")
             return
         }
 
-        // compute new height assuming width is unchanged
-        let currentSize = textView.frame.size
-        let textViewHeight = clampedTextViewHeight(fixedWidth: currentSize.width)
+        let contentSize = textView.sizeThatFits(CGSize(width: textView.frame.width, height: .greatestFiniteMagnitude))
+        let newHeight = CGFloatClamp(contentSize.height, minTextViewHeight, maxTextViewHeight)
+        guard textViewHeightConstraint.constant != newHeight else { return }
 
-        if textViewHeightConstraint.constant != textViewHeight {
-            Logger.debug("TextView height changed: \(textViewHeightConstraint.constant) -> \(textViewHeight)")
-            textViewHeightConstraint.constant = textViewHeight
-            invalidateIntrinsicContentSize()
+        if let superview {
+            let animator = UIViewPropertyAnimator(
+                duration: ConversationInputToolbar.heightChangeAnimationDuration,
+                springDamping: 1,
+                springResponse: 0.25
+            )
+            animator.addAnimations {
+                textViewHeightConstraint.constant = newHeight
+                superview.setNeedsLayout()
+                superview.layoutIfNeeded()
+            }
+            animator.startAnimation()
+        } else {
+            textViewHeightConstraint.constant = newHeight
         }
-    }
-
-    private func clampedTextViewHeight(fixedWidth: CGFloat) -> CGFloat {
-        let contentSize = textView.sizeThatFits(CGSize(width: fixedWidth, height: CGFloat.greatestFiniteMagnitude))
-        return CGFloatClamp(contentSize.height, minTextViewHeight, maxTextViewHeight)
     }
 }
 
 extension StoryReplyInputToolbar: MentionTextViewDelegate {
+
     func textViewDidBeginTypingMention(_ textView: MentionTextView) {}
 
     func textViewDidEndTypingMention(_ textView: MentionTextView) {}
@@ -344,15 +365,10 @@ extension StoryReplyInputToolbar: MentionTextViewDelegate {
 
     public func textViewDidChange(_ textView: UITextView) {
         updateHeight(textView: textView)
-        updateContent()
+        updateContent(animated: true)
     }
 
     public func textViewDidBeginEditing(_ textView: UITextView) {
         delegate?.storyReplyInputToolbarDidBeginEditing(self)
-        updateContent()
-    }
-
-    public func textViewDidEndEditing(_ textView: UITextView) {
-        updateContent()
     }
 }

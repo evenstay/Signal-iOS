@@ -178,6 +178,15 @@ extension AppDelegate {
             SyncPushTokensJob.run()
         }
 
+        if tsAccountManager.isRegisteredAndReady {
+            APNSRotationStore.rotateIfNeededOnAppLaunchAndReadiness(performRotation: {
+                SyncPushTokensJob.run(mode: .rotateIfEligible)
+            }).map {
+                // If the method returns a closure, run it after message processing.
+                _ = messageProcessor.fetchingAndProcessingCompletePromise().done($0)
+            }
+        }
+
         DebugLogger.shared().postLaunchLogCleanup()
         AppVersion.shared().mainAppLaunchDidComplete()
 
@@ -511,7 +520,7 @@ extension AppDelegate {
         AssertIsOnMainThread()
 
         guard !didAppLaunchFail else {
-            owsFailDebug("app launch failed")
+            Logger.error("App launch failed")
             return
         }
 
@@ -526,6 +535,10 @@ extension AppDelegate {
                 let remoteNotification = remoteNotification as? [AnyHashable: Any],
                 self.handleSilentPushContent(remoteNotification) == .notHandled {
                 self.messageFetcherJob.run()
+
+                // If the main app gets woken to process messages in the background, check
+                // for any pending NSE requests to fulfill.
+                self.syncManager.syncAllContactsIfFullSyncRequested()
             }
 
             completion()

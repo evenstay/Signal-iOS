@@ -364,7 +364,7 @@ static void uncaughtExceptionHandler(NSException *exception)
     OWSAssertIsOnMainThread();
 
     if (self.didAppLaunchFail) {
-        OWSFailDebug(@"app launch failed");
+        OWSLogError(@"App launch failed");
         return;
     }
 
@@ -377,7 +377,7 @@ static void uncaughtExceptionHandler(NSException *exception)
     OWSAssertIsOnMainThread();
 
     if (self.didAppLaunchFail) {
-        OWSFailDebug(@"app launch failed");
+        OWSLogError(@"App launch failed");
         return;
     }
 
@@ -405,7 +405,7 @@ static void uncaughtExceptionHandler(NSException *exception)
     OWSAssertDebug(!self.didAppLaunchFail);
 
     if (self.didAppLaunchFail) {
-        OWSFailDebug(@"app launch failed");
+        OWSLogError(@"App launch failed");
         return NO;
     }
 
@@ -615,7 +615,7 @@ static void uncaughtExceptionHandler(NSException *exception)
     OWSAssertIsOnMainThread();
 
     if (self.didAppLaunchFail) {
-        OWSFailDebug(@"app launch failed");
+        OWSLogError(@"App launch failed");
         completionHandler(NO);
         return;
     }
@@ -664,7 +664,7 @@ static void uncaughtExceptionHandler(NSException *exception)
     OWSAssertIsOnMainThread();
 
     if (self.didAppLaunchFail) {
-        OWSFailDebug(@"app launch failed");
+        OWSLogError(@"App launch failed");
         return NO;
     }
 
@@ -880,6 +880,13 @@ static void uncaughtExceptionHandler(NSException *exception)
     if (SSKDebugFlags.verboseNotificationLogging) {
         OWSLogInfo(@"didReceiveRemoteNotification w. completion.");
     }
+
+    // Mark down that the APNS token is working because we got a push.
+    AppReadinessRunNowOrWhenAppDidBecomeReadyAsync(^{
+        DatabaseStorageAsyncWrite(self.databaseStorage, ^(SDSAnyWriteTransaction *transaction) {
+            [APNSRotationStore didReceiveAPNSPushWithTransaction:transaction];
+        });
+    });
 
     [self processRemoteNotification:userInfo
                          completion:^{

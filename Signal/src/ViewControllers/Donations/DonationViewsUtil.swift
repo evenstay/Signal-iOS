@@ -120,10 +120,10 @@ public class DonationCurrencyPickerButton: UIStackView {
     }
 }
 
-// MARK: - Generic badge cell view
+// MARK: - Gift badge cell view
 
-public class BadgeCellView: UIStackView {
-    init(badge: ProfileBadge?, titleText: String, secondLineText: String, thirdLineText: String) {
+public class GiftBadgeCellView: UIStackView {
+    init(badge: ProfileBadge, price: FiatMoney) {
         super.init(frame: .zero)
 
         self.axis = .horizontal
@@ -131,81 +131,72 @@ public class BadgeCellView: UIStackView {
         self.alignment = .center
 
         let badgeImageView: UIView = {
-            let badgeImage = badge?.assets?.universal160
+            let badgeImage = badge.assets?.universal160
             return UIImageView(image: badgeImage)
         }()
         self.addArrangedSubview(badgeImageView)
         badgeImageView.autoSetDimensions(to: CGSize(square: 64))
 
-        let vStackView: UIView = {
-            let titleLabel = UILabel()
-            titleLabel.text = titleText
-            titleLabel.textColor = Theme.primaryTextColor
-            titleLabel.font = .ows_dynamicTypeBody.ows_semibold
-            titleLabel.numberOfLines = 0
+        let titleLabel = UILabel()
+        titleLabel.text = badge.localizedName
+        titleLabel.textColor = Theme.primaryTextColor
+        titleLabel.font = .ows_dynamicTypeBody.ows_semibold
+        titleLabel.numberOfLines = 0
 
-            let secondLineLabel = UILabel()
-            secondLineLabel.text = secondLineText
-            secondLineLabel.textColor = Theme.primaryTextColor
-            secondLineLabel.font = .ows_dynamicTypeBody2
-            secondLineLabel.numberOfLines = 0
+        let secondLineLabel = UILabel()
+        secondLineLabel.text = NSLocalizedString(
+            "BADGE_GIFTING_GIFT_ROW_SUBTITLE",
+            comment: "When gifting a badge, the subtitle 'Send a Gift Badge' under the badge title"
+        )
+        secondLineLabel.textColor = Theme.primaryTextColor
+        secondLineLabel.font = .ows_dynamicTypeBody2
+        secondLineLabel.numberOfLines = 0
 
-            let thirdLineLabel = UILabel()
-            thirdLineLabel.text = thirdLineText
-            thirdLineLabel.textColor = Theme.primaryTextColor
-            thirdLineLabel.font = .ows_dynamicTypeBody2
-            thirdLineLabel.numberOfLines = 0
+        let thirdLineLabel = UILabel()
+        thirdLineLabel.text = {
+            let formattedPrice = DonationUtilities.format(money: price)
 
-            let view = UIStackView(arrangedSubviews: [titleLabel, secondLineLabel, thirdLineLabel])
-            view.axis = .vertical
-            view.distribution = .equalCentering
-            view.spacing = 4
+            let formattedDuration: String = {
+                guard let duration = badge.duration else {
+                    owsFailDebug("Gift badge had no duration but one was expected")
+                    return ""
+                }
 
-            return view
+                let durationFormatter = DateComponentsFormatter()
+                durationFormatter.unitsStyle = .short
+                durationFormatter.allowedUnits = [.day]
+                guard let formattedDuration = durationFormatter.string(from: duration) else {
+                    owsFailDebug("Could not format gift badge duration")
+                    return ""
+                }
+
+                return formattedDuration
+            }()
+            let formattedDurationText = String(
+                format: NSLocalizedString(
+                    "BADGE_GIFTING_ROW_DURATION",
+                    comment: "When gifting a badge, shows how long the badge lasts. Embeds {formatted duration}."
+                ),
+                formattedDuration
+            )
+
+            return String(
+                format: NSLocalizedString(
+                    "JOINED_WITH_DOT",
+                    comment: "Two strings, joined by a dot. Embeds {first} and {second}, which are on opposite sides of the dot"
+                ),
+                formattedPrice, formattedDurationText
+            )
         }()
+        thirdLineLabel.textColor = Theme.primaryTextColor
+        thirdLineLabel.font = .ows_dynamicTypeBody2
+        thirdLineLabel.numberOfLines = 0
+
+        let vStackView = UIStackView(arrangedSubviews: [titleLabel, secondLineLabel, thirdLineLabel])
+        vStackView.axis = .vertical
+        vStackView.distribution = .equalCentering
+        vStackView.spacing = 4
         self.addArrangedSubview(vStackView)
-    }
-
-    required init(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-}
-
-// MARK: - Gift badge cell view
-
-public class GiftBadgeCellView: BadgeCellView {
-    init(badge: ProfileBadge, price: FiatMoney) {
-        let formattedPrice = DonationUtilities.format(money: price)
-
-        let formattedDurationText: String = {
-            guard let duration = badge.duration else {
-                owsFailDebug("Gift badge had no duration but one was expected")
-                return ""
-            }
-
-            let durationFormatter = DateComponentsFormatter()
-            durationFormatter.unitsStyle = .short
-            durationFormatter.allowedUnits = [.day]
-            guard let formattedDuration = durationFormatter.string(from: duration) else {
-                owsFailDebug("Could not format gift badge duration")
-                return ""
-            }
-
-            return String(format: NSLocalizedString("BADGE_GIFTING_ROW_DURATION",
-                                                    comment: "When gifting a badge, shows how long the badge lasts. Embeds {formatted duration}."),
-                          formattedDuration)
-        }()
-
-        let thirdLineText = String(format: NSLocalizedString("JOINED_WITH_DOT",
-                                                             comment: "Two strings, joined by a dot. Embeds {first} and {second}, which are on opposite sides of the dot"),
-                                   formattedPrice,
-                                   formattedDurationText)
-
-        super.init(badge: badge,
-                   titleText: badge.localizedName,
-                   secondLineText: NSLocalizedString("BADGE_GIFTING_GIFT_ROW_SUBTITLE",
-                                                     comment: "When gifting a badge, the subtitle 'Send a Gift Badge' under the badge title"),
-                   thirdLineText: thirdLineText)
     }
 
     required init(coder: NSCoder) {
@@ -371,8 +362,18 @@ public final class DonationViewsUtil {
     public static func presentDonationErrorSheet(
         from viewController: UIViewController,
         error rawError: Error,
+        paymentMethod: DonationPaymentMethod,
         currentSubscription: Subscription? = nil
     ) {
+        if let stripeError = rawError as? Stripe.StripeError {
+            presentStripeDonationErrorSheet(
+                for: stripeError,
+                from: viewController,
+                using: paymentMethod
+            )
+            return
+        }
+
         let error: DonationJobError
         if let jobError = rawError as? DonationJobError {
             error = jobError
@@ -390,6 +391,24 @@ public final class DonationViewsUtil {
                 currentSubscription: currentSubscription
             )
         }
+    }
+
+    private static func presentStripeDonationErrorSheet(
+        for error: Stripe.StripeError,
+        from viewController: UIViewController,
+        using paymentMethod: DonationPaymentMethod
+    ) {
+        let actionSheet = ActionSheetController(
+            title: NSLocalizedString(
+                "SUSTAINER_VIEW_ERROR_PROCESSING_PAYMENT_TITLE",
+                comment: "Action sheet title for Error Processing Payment sheet"
+            ),
+            message: localizedDonationFailure(stripeCode: error.code, paymentMethod: paymentMethod)
+        )
+
+        actionSheet.addAction(.init(title: CommonStrings.okayButton, style: .cancel, handler: nil))
+
+        viewController.navigationController?.topViewController?.presentActionSheet(actionSheet)
     }
 
     private static func presentStillProcessingSheet(from viewController: UIViewController) {
