@@ -3,14 +3,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalServiceKit
 
-@objc(OWSCustomKeyboard)
 open class CustomKeyboard: UIInputView {
-    @objc
+
     public let contentView = UIView()
 
-    @objc
     public init() {
         super.init(frame: .zero, inputViewStyle: .default)
 
@@ -37,7 +35,6 @@ open class CustomKeyboard: UIInputView {
     open func wasPresented() {}
     open func wasDismissed() {}
 
-    @objc
     public func registerWithView(_ view: UIView) {
         view.addSubview(responder)
     }
@@ -80,6 +77,9 @@ open class CustomKeyboard: UIInputView {
                 return CurrentAppContext().interfaceOrientation.isLandscape ? landscape : portrait
             }
             set {
+                // App frame height changes based on orientation (i.e. its the smaller dimension when landscape)
+                // Cap the height for custom keyboard because our layout breaks if we extend too tall.
+                let newValue = newValue.map { min($0, CurrentAppContext().frame.height * 0.75) }
                 if CurrentAppContext().interfaceOrientation.isLandscape {
                     landscape = newValue
                 } else {
@@ -90,7 +90,6 @@ open class CustomKeyboard: UIInputView {
     }
     private var cachedSystemKeyboardHeight = SystemKeyboardHeight()
 
-    @objc
     public func updateSystemKeyboardHeight(_ height: CGFloat) {
         // Only respect this height if it's reasonable, we don't want
         // to have a tiny keyboard.
@@ -99,7 +98,6 @@ open class CustomKeyboard: UIInputView {
         resizeToSystemKeyboard()
     }
 
-    @objc
     open func resizeToSystemKeyboard() {
         guard let cachedHeight = cachedSystemKeyboardHeight.current else {
             // We don't have a cached height for this orientation,
@@ -130,7 +128,7 @@ open class CustomKeyboard: UIInputView {
 }
 
 private class CustomKeyboardResponder: UITextView {
-    @objc
+
     public weak var customKeyboard: CustomKeyboard?
 
     init(customKeyboard: CustomKeyboard) {

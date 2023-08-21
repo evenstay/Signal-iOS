@@ -7,7 +7,7 @@ import UIKit
 import Contacts
 import SignalServiceKit
 
-public class ContactCell: UITableViewCell {
+public class ContactCell: UITableViewCell, ReusableTableViewCell {
     public static let reuseIdentifier = "ContactCell"
 
     public static let kSeparatorHInset: CGFloat = CGFloat(kAvatarDiameter) + 16 + 8
@@ -27,9 +27,9 @@ public class ContactCell: UITableViewCell {
         self.contactImageView = AvatarImageView()
         self.textStackView = UIStackView()
         self.titleLabel = UILabel()
-        self.titleLabel.font = UIFont.ows_dynamicTypeBody
+        self.titleLabel.font = UIFont.dynamicTypeBody
         self.subtitleLabel = UILabel()
-        self.subtitleLabel.font = UIFont.ows_dynamicTypeSubheadline
+        self.subtitleLabel.font = UIFont.dynamicTypeSubheadline
 
         super.init(style: style, reuseIdentifier: reuseIdentifier)
 
@@ -68,19 +68,19 @@ public class ContactCell: UITableViewCell {
     }
 
     @objc
-    func didChangePreferredContentSize() {
-        self.titleLabel.font = UIFont.ows_dynamicTypeBody
-        self.subtitleLabel.font = UIFont.ows_dynamicTypeSubheadline
+    private func didChangePreferredContentSize() {
+        self.titleLabel.font = UIFont.dynamicTypeBody
+        self.subtitleLabel.font = UIFont.dynamicTypeSubheadline
     }
 
-    public func configure(contact: Contact, subtitleType: SubtitleCellValue, showsWhenSelected: Bool) {
+    public func configure(contact: Contact, sortOrder: CNContactSortOrder, subtitleType: SubtitleCellValue, showsWhenSelected: Bool) {
 
         self.contact = contact
         self.showsWhenSelected = showsWhenSelected
 
         if let cnContactId = contact.cnContactId,
             let cnContact = contactsManager.cnContact(withId: cnContactId) {
-            titleLabel.attributedText = cnContact.formattedFullName(font: titleLabel.font)
+            titleLabel.attributedText = cnContact.formattedFullName(sortOrder: sortOrder, font: titleLabel.font)
         } else {
             titleLabel.text = contact.fullName
         }
@@ -113,7 +113,7 @@ public class ContactCell: UITableViewCell {
             if let firstPhoneNumber = contact.userTextPhoneNumbers.first {
                 self.subtitleLabel.text = firstPhoneNumber
             } else {
-                self.subtitleLabel.text = NSLocalizedString("CONTACT_PICKER_NO_PHONE_NUMBERS_AVAILABLE", comment: "table cell subtitle when contact card has no known phone number")
+                self.subtitleLabel.text = OWSLocalizedString("CONTACT_PICKER_NO_PHONE_NUMBERS_AVAILABLE", comment: "table cell subtitle when contact card has no known phone number")
             }
         case .email:
             self.textStackView.addArrangedSubview(self.subtitleLabel)
@@ -121,7 +121,7 @@ public class ContactCell: UITableViewCell {
             if let firstEmail = contact.emails.first {
                 self.subtitleLabel.text = firstEmail
             } else {
-                self.subtitleLabel.text = NSLocalizedString("CONTACT_PICKER_NO_EMAILS_AVAILABLE", comment: "table cell subtitle when contact card has no email")
+                self.subtitleLabel.text = OWSLocalizedString("CONTACT_PICKER_NO_EMAILS_AVAILABLE", comment: "table cell subtitle when contact card has no email")
             }
         }
     }
@@ -140,8 +140,8 @@ fileprivate extension CNContact {
     /**
      * Bold the sorting portion of the name. e.g. if we sort by family name, bold the family name.
      */
-    func formattedFullName(font: UIFont) -> NSAttributedString? {
-        let keyToHighlight = ContactSortOrder == .familyName ? CNContactFamilyNameKey : CNContactGivenNameKey
+    func formattedFullName(sortOrder: CNContactSortOrder, font: UIFont) -> NSAttributedString? {
+        let keyToHighlight = sortOrder == .familyName ? CNContactFamilyNameKey : CNContactGivenNameKey
 
         let boldDescriptor = font.fontDescriptor.withSymbolicTraits(.traitBold)
         let boldAttributes = [

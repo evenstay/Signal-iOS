@@ -5,13 +5,16 @@
 
 // MARK: -
 
+import Foundation
+import SignalCoreKit
+
 @objc
 public class TSConstants: NSObject {
 
     private enum Environment {
         case production, staging
     }
-    private static var environment: Environment {
+    private static let environment: Environment = {
         // You can set "USE_STAGING=1" in your Xcode Scheme. This allows you to
         // prepare a series of commits without accidentally committing the change
         // to the environment.
@@ -25,7 +28,7 @@ public class TSConstants: NSObject {
         // change this value. (Scheme environment variables are only set when
         // launching via Xcode, so this approach is still quite useful.)
         return .production
-    }
+    }()
 
     @objc
     public static var isUsingProductionService: Bool {
@@ -37,20 +40,15 @@ public class TSConstants: NSObject {
 
     public static let legalTermsUrl = URL(string: "https://signal.org/legal/")!
     public static let donateUrl = URL(string: "https://signal.org/donate/")!
-    public static var appStoreUpdateURL = URL(string: "https://itunes.apple.com/us/app/signal-private-messenger/id874139669?mt=8")!
+    public static let appStoreUrl = URL(string: "https://itunes.apple.com/us/app/signal-private-messenger/id874139669?mt=8")!
 
-    @objc
-    public static var mainServiceWebSocketAPI_identified: String { shared.mainServiceWebSocketAPI_identified }
-    @objc
-    public static var mainServiceWebSocketAPI_unidentified: String { shared.mainServiceWebSocketAPI_unidentified }
-    @objc
-    public static var mainServiceURL: String { shared.mainServiceURL }
+    public static var mainServiceIdentifiedURL: String { shared.mainServiceIdentifiedURL }
+    public static var mainServiceUnidentifiedURL: String { shared.mainServiceUnidentifiedURL }
+
     @objc
     public static var textSecureCDN0ServerURL: String { shared.textSecureCDN0ServerURL }
     @objc
     public static var textSecureCDN2ServerURL: String { shared.textSecureCDN2ServerURL }
-    @objc
-    public static var contactDiscoverySGXURL: String { shared.contactDiscoverySGXURL }
     @objc
     public static var contactDiscoveryV2URL: String { shared.contactDiscoveryV2URL }
     @objc
@@ -61,6 +59,7 @@ public class TSConstants: NSObject {
     public static var sfuURL: String { shared.sfuURL }
     @objc
     public static var sfuTestURL: String { shared.sfuTestURL }
+    public static var svr2URL: String { shared.svr2URL }
     @objc
     public static var registrationCaptchaURL: String { shared.registrationCaptchaURL }
     @objc
@@ -75,26 +74,21 @@ public class TSConstants: NSObject {
     @objc
     public static var censorshipReflectorHost: String { shared.censorshipReflectorHost }
 
-    @objc
     public static var serviceCensorshipPrefix: String { shared.serviceCensorshipPrefix }
-    @objc
     public static var cdn0CensorshipPrefix: String { shared.cdn0CensorshipPrefix }
-    @objc
     public static var cdn2CensorshipPrefix: String { shared.cdn2CensorshipPrefix }
-    @objc
-    public static var contactDiscoveryCensorshipPrefix: String { shared.contactDiscoveryCensorshipPrefix }
-    @objc
     public static var keyBackupCensorshipPrefix: String { shared.keyBackupCensorshipPrefix }
-    @objc
     public static var storageServiceCensorshipPrefix: String { shared.storageServiceCensorshipPrefix }
+    public static var contactDiscoveryV2CensorshipPrefix: String { shared.contactDiscoveryV2CensorshipPrefix }
+    public static var svr2CensorshipPrefix: String { shared.svr2CensorshipPrefix }
 
-    @objc
-    public static var contactDiscoveryEnclaveName: String { shared.contactDiscoveryMrEnclave.stringValue }
-    public static var contactDiscoveryMrEnclave: MrEnclave { shared.contactDiscoveryMrEnclave }
     static var contactDiscoveryV2MrEnclave: MrEnclave { shared.contactDiscoveryV2MrEnclave }
 
     static var keyBackupEnclave: KeyBackupEnclave { shared.keyBackupEnclave }
     static var keyBackupPreviousEnclaves: [KeyBackupEnclave] { shared.keyBackupPreviousEnclaves }
+
+    static var svr2Enclave: MrEnclave { shared.svr2Enclave }
+    static var svr2PreviousEnclaves: [MrEnclave] { shared.svr2PreviousEnclaves }
 
     @objc
     public static var applicationGroup: String { shared.applicationGroup }
@@ -102,30 +96,29 @@ public class TSConstants: NSObject {
     @objc
     public static var serverPublicParamsBase64: String { shared.serverPublicParamsBase64 }
 
-    private static var shared: TSConstantsProtocol {
+    public static let shared: TSConstantsProtocol = {
         switch environment {
         case .production:
             return TSConstantsProduction()
         case .staging:
             return TSConstantsStaging()
         }
-    }
+    }()
 }
 
 // MARK: -
 
-private protocol TSConstantsProtocol: AnyObject {
-    var mainServiceWebSocketAPI_identified: String { get }
-    var mainServiceWebSocketAPI_unidentified: String { get }
-    var mainServiceURL: String { get }
+public protocol TSConstantsProtocol: AnyObject {
+    var mainServiceIdentifiedURL: String { get }
+    var mainServiceUnidentifiedURL: String { get }
     var textSecureCDN0ServerURL: String { get }
     var textSecureCDN2ServerURL: String { get }
-    var contactDiscoverySGXURL: String { get }
     var contactDiscoveryV2URL: String { get }
     var keyBackupURL: String { get }
     var storageServiceURL: String { get }
     var sfuURL: String { get }
     var sfuTestURL: String { get }
+    var svr2URL: String { get }
     var registrationCaptchaURL: String { get }
     var challengeCaptchaURL: String { get }
     var kUDTrustRoot: String { get }
@@ -137,16 +130,18 @@ private protocol TSConstantsProtocol: AnyObject {
     var serviceCensorshipPrefix: String { get }
     var cdn0CensorshipPrefix: String { get }
     var cdn2CensorshipPrefix: String { get }
-    var contactDiscoveryCensorshipPrefix: String { get }
     var keyBackupCensorshipPrefix: String { get }
     var storageServiceCensorshipPrefix: String { get }
+    var contactDiscoveryV2CensorshipPrefix: String { get }
+    var svr2CensorshipPrefix: String { get }
 
-    // SGX Backed Contact Discovery
-    var contactDiscoveryMrEnclave: MrEnclave { get }
     var contactDiscoveryV2MrEnclave: MrEnclave { get }
 
     var keyBackupEnclave: KeyBackupEnclave { get }
     var keyBackupPreviousEnclaves: [KeyBackupEnclave] { get }
+
+    var svr2Enclave: MrEnclave { get }
+    var svr2PreviousEnclaves: [MrEnclave] { get }
 
     var applicationGroup: String { get }
 
@@ -180,34 +175,33 @@ public struct MrEnclave: Equatable {
 
 private class TSConstantsProduction: TSConstantsProtocol {
 
-    public let mainServiceWebSocketAPI_identified = "wss://chat.signal.org/v1/websocket/"
-    public let mainServiceWebSocketAPI_unidentified = "wss://ud-chat.signal.org/v1/websocket/"
-    public let mainServiceURL = "https://chat.signal.org/"
+    public let mainServiceIdentifiedURL = "https://chat.signal.org"
+    public let mainServiceUnidentifiedURL = "https://ud-chat.signal.org"
     public let textSecureCDN0ServerURL = "https://cdn.signal.org"
     public let textSecureCDN2ServerURL = "https://cdn2.signal.org"
-    public let contactDiscoverySGXURL = "https://api.directory.signal.org"
     public let contactDiscoveryV2URL = "wss://cdsi.signal.org"
     public let keyBackupURL = "https://api.backup.signal.org"
     public let storageServiceURL = "https://storage.signal.org"
     public let sfuURL = "https://sfu.voip.signal.org"
     public let sfuTestURL = "https://sfu.test.voip.signal.org"
+    public let svr2URL = "wss://svr2.signal.org"
     public let registrationCaptchaURL = "https://signalcaptchas.org/registration/generate.html"
     public let challengeCaptchaURL = "https://signalcaptchas.org/challenge/generate.html"
     public let kUDTrustRoot = "BXu6QIKVz5MA8gstzfOgRQGqyLqOwNKHL6INkv3IHWMF"
     public let updatesURL = "https://updates.signal.org"
     public let updates2URL = "https://updates2.signal.org"
 
-    public let censorshipReflectorHost = "europe-west1-signal-cdn-reflector.cloudfunctions.net"
+    public let censorshipReflectorHost = "reflector-nrgwuv7kwq-uc.a.run.app"
 
     public let serviceCensorshipPrefix = "service"
     public let cdn0CensorshipPrefix = "cdn"
     public let cdn2CensorshipPrefix = "cdn2"
-    public let contactDiscoveryCensorshipPrefix = "directory"
     public let keyBackupCensorshipPrefix = "backup"
     public let storageServiceCensorshipPrefix = "storage"
+    public let contactDiscoveryV2CensorshipPrefix = "cdsi"
+    public let svr2CensorshipPrefix = "svr2"
 
-    public var contactDiscoveryMrEnclave = MrEnclave("74778bb0f93ae1f78c26e67152bab0bbeb693cd56d1bb9b4e9244157acc58081")
-    public let contactDiscoveryV2MrEnclave = MrEnclave("ef4787a56a154ac6d009138cac17155acd23cfe4329281252365dd7c252e7fbf")
+    public let contactDiscoveryV2MrEnclave = MrEnclave("0f6fd79cdfdaa5b2e6337f534d3baf999318b0c462a7ac1f41297a3e4b424a57")
 
     public let keyBackupEnclave = KeyBackupEnclave(
         name: "e18376436159cda3ad7a45d9320e382e4a497f26b0dca34d8eab0bd0139483b5",
@@ -223,6 +217,16 @@ private class TSConstantsProduction: TSConstantsProtocol {
         // Add the current `keyBackupEnclave` value here when replacing it.
     ]
 
+    public let svr2Enclave = MrEnclave("6ee1042f9e20f880326686dd4ba50c25359f01e9f733eeba4382bca001d45094")
+
+    // An array of previously used enclaves that we should try and restore
+    // key material from during registration. These must be ordered from
+    // newest to oldest, so we check the latest enclaves for backups before
+    // checking earlier enclaves.
+    public let svr2PreviousEnclaves: [MrEnclave] = [
+        // Add the current `svr2Enclave` value here when replacing it.
+    ]
+
     public let applicationGroup = "group." + Bundle.main.bundleIdPrefix + ".signal.group"
 
     // We need to discard all profile key credentials if these values ever change.
@@ -234,16 +238,15 @@ private class TSConstantsProduction: TSConstantsProtocol {
 
 private class TSConstantsStaging: TSConstantsProtocol {
 
-    public let mainServiceWebSocketAPI_identified = "wss://chat.staging.signal.org/v1/websocket/"
-    public let mainServiceWebSocketAPI_unidentified = "wss://ud-chat.staging.signal.org/v1/websocket/"
-    public let mainServiceURL = "https://chat.staging.signal.org/"
+    public let mainServiceIdentifiedURL = "https://chat.staging.signal.org"
+    public let mainServiceUnidentifiedURL = "https://ud-chat.staging.signal.org"
     public let textSecureCDN0ServerURL = "https://cdn-staging.signal.org"
     public let textSecureCDN2ServerURL = "https://cdn2-staging.signal.org"
-    public let contactDiscoverySGXURL = "https://api-staging.directory.signal.org"
     public let contactDiscoveryV2URL = "wss://cdsi.staging.signal.org"
     public let keyBackupURL = "https://api-staging.backup.signal.org"
     public let storageServiceURL = "https://storage-staging.signal.org"
     public let sfuURL = "https://sfu.staging.voip.signal.org"
+    public let svr2URL = "wss://svr2.staging.signal.org"
     public let registrationCaptchaURL = "https://signalcaptchas.org/staging/registration/generate.html"
     public let challengeCaptchaURL = "https://signalcaptchas.org/staging/challenge/generate.html"
     // There's no separate test SFU for staging.
@@ -258,18 +261,18 @@ private class TSConstantsStaging: TSConstantsProtocol {
     public let serviceCensorshipPrefix = "service-staging"
     public let cdn0CensorshipPrefix = "cdn-staging"
     public let cdn2CensorshipPrefix = "cdn2-staging"
-    public let contactDiscoveryCensorshipPrefix = "directory-staging"
     public let keyBackupCensorshipPrefix = "backup-staging"
     public let storageServiceCensorshipPrefix = "storage-staging"
+    public let contactDiscoveryV2CensorshipPrefix = "cdsi-staging"
+    public let svr2CensorshipPrefix = "svr2-staging"
 
     // CDS uses the same EnclaveName and MrEnclave
-    public var contactDiscoveryMrEnclave = MrEnclave("74778bb0f93ae1f78c26e67152bab0bbeb693cd56d1bb9b4e9244157acc58081")
-    public let contactDiscoveryV2MrEnclave = MrEnclave("ef4787a56a154ac6d009138cac17155acd23cfe4329281252365dd7c252e7fbf")
+    public let contactDiscoveryV2MrEnclave = MrEnclave("0f6fd79cdfdaa5b2e6337f534d3baf999318b0c462a7ac1f41297a3e4b424a57")
 
     public let keyBackupEnclave = KeyBackupEnclave(
         name: "39963b736823d5780be96ab174869a9499d56d66497aa8f9b2244f777ebc366b",
         mrenclave: MrEnclave("45627094b2ea4a66f4cf0b182858a8dcf4b8479122c3820fe7fd0551a6d4cf5c"),
-        serviceId: "9dbc6855c198e04f21b5cc35df839fdcd51b53658454dfa3f817afefaffc95ef"
+        serviceId: "ee1d0d972b7ea903615670de43ab1b6e7a825e811c70a29bb5fe0f819e0975fa"
     )
 
     // An array of previously used enclaves that we should try and restore
@@ -280,9 +283,90 @@ private class TSConstantsStaging: TSConstantsProtocol {
         // Add the current `keyBackupEnclave` value here when replacing it.
     ]
 
+    public let svr2Enclave = MrEnclave("a8a261420a6bb9b61aa25bf8a79e8bd20d7652531feb3381cbffd446d270be95")
+
+    // An array of previously used enclaves that we should try and restore
+    // key material from during registration. These must be ordered from
+    // newest to oldest, so we check the latest enclaves for backups before
+    // checking earlier enclaves.
+    public let svr2PreviousEnclaves: [MrEnclave] = [
+        // Add the current `svr2Enclave` value here when replacing it.
+    ]
+
     public let applicationGroup = "group." + Bundle.main.bundleIdPrefix + ".signal.group.staging"
 
     // We need to discard all profile key credentials if these values ever change.
     // See: GroupsV2Impl.verifyServerPublicParams(...)
     public let serverPublicParamsBase64 = "ABSY21VckQcbSXVNCGRYJcfWHiAMZmpTtTELcDmxgdFbtp/bWsSxZdMKzfCp8rvIs8ocCU3B37fT3r4Mi5qAemeGeR2X+/YmOGR5ofui7tD5mDQfstAI9i+4WpMtIe8KC3wU5w3Inq3uNWVmoGtpKndsNfwJrCg0Hd9zmObhypUnSkfYn2ooMOOnBpfdanRtrvetZUayDMSC5iSRcXKpdlukrpzzsCIvEwjwQlJYVPOQPj4V0F4UXXBdHSLK05uoPBCQG8G9rYIGedYsClJXnbrgGYG3eMTG5hnx4X4ntARBgELuMWWUEEfSK0mjXg+/2lPmWcTZWR9nkqgQQP0tbzuiPm74H2wMO4u1Wafe+UwyIlIT9L7KLS19Aw8r4sPrXZSSsOZ6s7M1+rTJN0bI5CKY2PX29y5Ok3jSWufIKcgKOnWoP67d5b2du2ZVJjpjfibNIHbT/cegy/sBLoFwtHogVYUewANUAXIaMPyCLRArsKhfJ5wBtTminG/PAvuBdJ70Z/bXVPf8TVsR292zQ65xwvWTejROW6AZX6aqucUj"
 }
+
+#if TESTABLE_BUILD
+
+public class TSConstantsMock: TSConstantsProtocol {
+
+    public init() {}
+
+    private let defaultValues = TSConstantsProduction()
+
+    public lazy var mainServiceIdentifiedURL = defaultValues.mainServiceIdentifiedURL
+
+    public lazy var mainServiceUnidentifiedURL = defaultValues.mainServiceUnidentifiedURL
+
+    public lazy var textSecureCDN0ServerURL = defaultValues.textSecureCDN0ServerURL
+
+    public lazy var textSecureCDN2ServerURL = defaultValues.textSecureCDN2ServerURL
+
+    public lazy var contactDiscoveryV2URL = defaultValues.contactDiscoveryV2URL
+
+    public lazy var keyBackupURL = defaultValues.keyBackupURL
+
+    public lazy var storageServiceURL = defaultValues.storageServiceURL
+
+    public lazy var sfuURL = defaultValues.sfuURL
+
+    public lazy var sfuTestURL = defaultValues.sfuTestURL
+
+    public lazy var svr2URL = defaultValues.svr2URL
+
+    public lazy var registrationCaptchaURL = defaultValues.registrationCaptchaURL
+
+    public lazy var challengeCaptchaURL = defaultValues.challengeCaptchaURL
+
+    public lazy var kUDTrustRoot = defaultValues.kUDTrustRoot
+
+    public lazy var updatesURL = defaultValues.updatesURL
+
+    public lazy var updates2URL = defaultValues.updates2URL
+
+    public lazy var censorshipReflectorHost = defaultValues.censorshipReflectorHost
+
+    public lazy var serviceCensorshipPrefix = defaultValues.serviceCensorshipPrefix
+
+    public lazy var cdn0CensorshipPrefix = defaultValues.cdn0CensorshipPrefix
+
+    public lazy var cdn2CensorshipPrefix = defaultValues.cdn2CensorshipPrefix
+
+    public lazy var keyBackupCensorshipPrefix = defaultValues.keyBackupCensorshipPrefix
+
+    public lazy var storageServiceCensorshipPrefix = defaultValues.storageServiceCensorshipPrefix
+
+    public lazy var contactDiscoveryV2CensorshipPrefix = defaultValues.contactDiscoveryV2CensorshipPrefix
+
+    public lazy var svr2CensorshipPrefix = defaultValues.svr2CensorshipPrefix
+
+    public lazy var contactDiscoveryV2MrEnclave = defaultValues.contactDiscoveryV2MrEnclave
+
+    public lazy var keyBackupEnclave = defaultValues.keyBackupEnclave
+
+    public lazy var keyBackupPreviousEnclaves = defaultValues.keyBackupPreviousEnclaves
+
+    public lazy var svr2Enclave = defaultValues.svr2Enclave
+
+    public lazy var svr2PreviousEnclaves = defaultValues.svr2PreviousEnclaves
+
+    public lazy var applicationGroup = defaultValues.applicationGroup
+
+    public lazy var serverPublicParamsBase64 = defaultValues.serverPublicParamsBase64
+}
+
+#endif

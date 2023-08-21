@@ -4,78 +4,76 @@
 //
 
 import Foundation
+import SignalServiceKit
+import SignalUI
 
 // This entity performs a single load.
 public class CVLoader: NSObject {
-
-    static var verboseLogging: Bool {
-        false && DebugFlags.internalLogging
-    }
-
     private let threadUniqueId: String
     private let loadRequest: CVLoadRequest
     private let viewStateSnapshot: CVViewStateSnapshot
+    private let spoilerState: SpoilerRenderState
     private let prevRenderState: CVRenderState
-    private let messageMapping: CVMessageMapping
+    private let messageLoader: MessageLoader
 
-    private let benchSteps = BenchSteps(title: "CVLoader")
-
-    required init(threadUniqueId: String,
-                  loadRequest: CVLoadRequest,
-                  viewStateSnapshot: CVViewStateSnapshot,
-                  prevRenderState: CVRenderState,
-                  messageMapping: CVMessageMapping) {
+    required init(
+        threadUniqueId: String,
+        loadRequest: CVLoadRequest,
+        viewStateSnapshot: CVViewStateSnapshot,
+        spoilerState: SpoilerRenderState,
+        prevRenderState: CVRenderState,
+        messageLoader: MessageLoader
+    ) {
         self.threadUniqueId = threadUniqueId
         self.loadRequest = loadRequest
         self.viewStateSnapshot = viewStateSnapshot
+        self.spoilerState = spoilerState
         self.prevRenderState = prevRenderState
-        self.messageMapping = messageMapping
+        self.messageLoader = messageLoader
     }
 
     func loadPromise() -> Promise<CVUpdate> {
-
         let threadUniqueId = self.threadUniqueId
         let loadRequest = self.loadRequest
         let viewStateSnapshot = self.viewStateSnapshot
+        let spoilerState = self.spoilerState
         let prevRenderState = self.prevRenderState
-        let messageMapping = self.messageMapping
-
-        Logger.verbose("LoadType: \(loadRequest.loadType): \(loadRequest.loadStartDateFormatted)")
+        let messageLoader = self.messageLoader
 
         struct LoadState {
             let threadViewModel: ThreadViewModel
+            let conversationViewModel: ConversationViewModel
             let items: [CVRenderItem]
-            let threadInteractionCount: UInt
         }
 
         return firstly(on: CVUtils.workQueue(isInitialLoad: loadRequest.isInitialLoad)) { () -> CVUpdate in
             // To ensure coherency, the entire load should be done with a single transaction.
             let loadState: LoadState = try Self.databaseStorage.read { transaction in
-
-                self.benchSteps.step("start")
-                let loadThreadViewModel = { () -> ThreadViewModel in
-                    guard let thread = TSThread.anyFetch(uniqueId: threadUniqueId, transaction: transaction) else {
+                let thread = TSThread.anyFetch(uniqueId: threadUniqueId, transaction: transaction)
+                let threadViewModel = { () -> ThreadViewModel in
+                    guard let thread else {
                         // If thread has been deleted from the database, use last known model.
                         return prevRenderState.threadViewModel
                     }
-                    return ThreadViewModel(thread: thread,
-                                           forChatList: false,
-                                           transaction: transaction)
-                }
-                let threadViewModel = loadThreadViewModel()
+                    return ThreadViewModel(thread: thread, forChatList: false, transaction: transaction)
+                }()
+                let conversationViewModel = { () -> ConversationViewModel in
+                    guard let thread else {
+                        // If thread has been deleted from the database, use last known model.
+                        return prevRenderState.conversationViewModel
+                    }
+                    return ConversationViewModel.load(for: thread, tx: transaction)
+                }()
 
-                let loadContext = CVLoadContext(loadRequest: loadRequest,
-                                                threadViewModel: threadViewModel,
-                                                viewStateSnapshot: viewStateSnapshot,
-                                                messageMapping: messageMapping,
-                                                prevRenderState: prevRenderState,
-                                                transaction: transaction)
-
-                self.benchSteps.step("threadViewModel")
-
-                if loadRequest.shouldClearOldestUnreadInteraction {
-                    messageMapping.oldestUnreadInteraction = nil
-                }
+                let loadContext = CVLoadContext(
+                    loadRequest: loadRequest,
+                    threadViewModel: threadViewModel,
+                    viewStateSnapshot: viewStateSnapshot,
+                    spoilerState: spoilerState,
+                    messageLoader: messageLoader,
+                    prevRenderState: prevRenderState,
+                    transaction: transaction
+                )
 
                 // Don't cache in the reset() case.
                 let canReuseInteractions = loadRequest.canReuseInteractionModels && !loadRequest.didReset
@@ -118,99 +116,76 @@ public class CVLoader: NSObject {
                     }
                 }
 
-                loadRequest.logLoadEvent("Before messageMapping")
-
                 do {
                     switch loadRequest.loadType {
                     case .loadInitialMapping(let focusMessageIdOnOpen, _):
                         owsAssertDebug(reusableInteractions.isEmpty)
-                        try messageMapping.loadInitialMessagePage(focusMessageId: focusMessageIdOnOpen,
-                                                                  reusableInteractions: [:],
-                                                                  deletedInteractionIds: [],
-                                                                  transaction: transaction)
+                        try messageLoader.loadInitialMessagePage(
+                            focusMessageId: focusMessageIdOnOpen,
+                            reusableInteractions: [:],
+                            deletedInteractionIds: [],
+                            tx: transaction.asV2Read
+                        )
                     case .loadSameLocation:
-                        try messageMapping.loadSameLocation(reusableInteractions: reusableInteractions,
-                                                            deletedInteractionIds: deletedInteractionIds,
-                                                            transaction: transaction)
+                        try messageLoader.loadSameLocation(
+                            reusableInteractions: reusableInteractions,
+                            deletedInteractionIds: deletedInteractionIds,
+                            tx: transaction.asV2Read
+                        )
                     case .loadOlder:
-                        try messageMapping.loadOlderMessagePage(reusableInteractions: reusableInteractions,
-                                                                deletedInteractionIds: deletedInteractionIds,
-                                                                transaction: transaction)
+                        try messageLoader.loadOlderMessagePage(
+                            reusableInteractions: reusableInteractions,
+                            deletedInteractionIds: deletedInteractionIds,
+                            tx: transaction.asV2Read
+                        )
                     case .loadNewer:
-                        try messageMapping.loadNewerMessagePage(reusableInteractions: reusableInteractions,
-                                                                deletedInteractionIds: deletedInteractionIds,
-                                                                transaction: transaction)
+                        try messageLoader.loadNewerMessagePage(
+                            reusableInteractions: reusableInteractions,
+                            deletedInteractionIds: deletedInteractionIds,
+                            tx: transaction.asV2Read
+                        )
                     case .loadNewest:
-                        try messageMapping.loadNewestMessagePage(reusableInteractions: reusableInteractions,
-                                                                 deletedInteractionIds: deletedInteractionIds,
-                                                                 transaction: transaction)
+                        try messageLoader.loadNewestMessagePage(
+                            reusableInteractions: reusableInteractions,
+                            deletedInteractionIds: deletedInteractionIds,
+                            tx: transaction.asV2Read
+                        )
                     case .loadPageAroundInteraction(let interactionId, _):
-                        try messageMapping.loadMessagePage(aroundInteractionId: interactionId,
-                                                           reusableInteractions: reusableInteractions,
-                                                           deletedInteractionIds: deletedInteractionIds,
-                                                           transaction: transaction)
+                        try messageLoader.loadMessagePage(
+                            aroundInteractionId: interactionId,
+                            reusableInteractions: reusableInteractions,
+                            deletedInteractionIds: deletedInteractionIds,
+                            tx: transaction.asV2Read
+                        )
                     }
                 } catch {
-                    owsFailDebug("Error: \(error)")
-                    // Fail over to try to load newest.
-                    try messageMapping.loadNewestMessagePage(reusableInteractions: reusableInteractions,
-                                                             deletedInteractionIds: deletedInteractionIds,
-                                                             transaction: transaction)
+                    owsFailDebug("Couldn't load conversation view messages \(error)")
+                    throw error
                 }
 
-                loadRequest.logLoadEvent("After messageMapping")
-                self.benchSteps.step("messageMapping")
-
-                let thread = threadViewModel.threadRecord
-                let threadInteractionCount = thread.numberOfInteractions(
-                    with: messageMapping.storyReplyQueryMode,
-                    transaction: transaction)
-
-                self.benchSteps.step("threadInteractionCount")
-
-                loadRequest.logLoadEvent("Before buildRenderItems")
-
-                let items: [CVRenderItem] = self.buildRenderItems(loadContext: loadContext,
-                                                                  updatedInteractionIds: updatedInteractionIds)
-
-                loadRequest.logLoadEvent("After buildRenderItems")
-
-                self.benchSteps.step("buildRenderItems")
-
-                let loadState = LoadState(threadViewModel: threadViewModel,
-                                          items: items,
-                                          threadInteractionCount: threadInteractionCount)
-
-                loadRequest.logLoadEvent("After LoadState")
-
-                return loadState
+                return LoadState(
+                    threadViewModel: threadViewModel,
+                    conversationViewModel: conversationViewModel,
+                    items: self.buildRenderItems(loadContext: loadContext, updatedInteractionIds: updatedInteractionIds)
+                )
             }
 
-            let items = loadState.items
-            let threadViewModel = loadState.threadViewModel
-            let renderState = CVRenderState(threadViewModel: threadViewModel,
-                                            prevThreadViewModel: prevRenderState.threadViewModel,
-                                            items: items,
-                                            canLoadOlderItems: messageMapping.canLoadOlder,
-                                            canLoadNewerItems: messageMapping.canLoadNewer,
-                                            viewStateSnapshot: viewStateSnapshot,
-                                            loadType: loadRequest.loadType)
+            let renderState = CVRenderState(
+                threadViewModel: loadState.threadViewModel,
+                prevThreadViewModel: prevRenderState.threadViewModel,
+                conversationViewModel: loadState.conversationViewModel,
+                items: loadState.items,
+                canLoadOlderItems: messageLoader.canLoadOlder,
+                canLoadNewerItems: messageLoader.canLoadNewer,
+                viewStateSnapshot: viewStateSnapshot,
+                loadType: loadRequest.loadType
+            )
 
-            loadRequest.logLoadEvent("After renderState")
-
-            self.benchSteps.step("build render state")
-
-            let threadInteractionCount = loadState.threadInteractionCount
-            let update = CVUpdate.build(renderState: renderState,
-                                        prevRenderState: prevRenderState,
-                                        loadRequest: loadRequest,
-                                        threadInteractionCount: threadInteractionCount)
-
-            loadRequest.logLoadEvent("After update built")
-
-            self.benchSteps.step("build render update")
-
-            self.benchSteps.logAll()
+            let update = CVUpdate.build(
+                renderState: renderState,
+                prevRenderState: prevRenderState,
+                loadRequest: loadRequest
+            )
 
             return update
         }
@@ -259,59 +234,102 @@ public class CVLoader: NSObject {
                              itemModel: itemModel)
     }
 
-    @objc
-    public static func buildStandaloneRenderItem(interaction: TSInteraction,
-                                                 thread: TSThread,
-                                                 threadAssociatedData: ThreadAssociatedData,
-                                                 containerView: UIView,
-                                                 transaction: SDSAnyReadTransaction) -> CVRenderItem? {
-        let chatColor = ChatColors.chatColorForRendering(thread: thread, transaction: transaction)
-        let conversationStyle = ConversationStyle(type: .`default`,
-                                                  thread: thread,
-                                                  viewWidth: containerView.width,
-                                                  hasWallpaper: false,
-                                                  isWallpaperPhoto: false,
-                                                  chatColor: chatColor)
-        let coreState = CVCoreState(conversationStyle: conversationStyle,
-                                    mediaCache: CVMediaCache())
-        return CVLoader.buildStandaloneRenderItem(interaction: interaction,
-                                                  thread: thread,
-                                                  threadAssociatedData: threadAssociatedData,
-                                                  coreState: coreState,
-                                                  transaction: transaction)
+    #if USE_DEBUG_UI
+
+    public static func debugui_buildStandaloneRenderItem(
+        interaction: TSInteraction,
+        thread: TSThread,
+        threadAssociatedData: ThreadAssociatedData,
+        containerView: UIView,
+        transaction: SDSAnyReadTransaction
+    ) -> CVRenderItem? {
+        buildStandaloneRenderItem(
+            interaction: interaction,
+            thread: thread,
+            threadAssociatedData: threadAssociatedData,
+            containerView: containerView,
+            spoilerState: SpoilerRenderState(),
+            transaction: transaction
+        )
     }
 
-    @objc
-    public static func buildStandaloneRenderItem(interaction: TSInteraction,
-                                                 thread: TSThread,
-                                                 threadAssociatedData: ThreadAssociatedData,
-                                                 conversationStyle: ConversationStyle,
-                                                 transaction: SDSAnyReadTransaction) -> CVRenderItem? {
+    #endif
+
+    public static func buildStandaloneRenderItem(
+        interaction: TSInteraction,
+        thread: TSThread,
+        threadAssociatedData: ThreadAssociatedData,
+        containerView: UIView,
+        spoilerState: SpoilerRenderState,
+        transaction: SDSAnyReadTransaction
+    ) -> CVRenderItem? {
+        let chatColor = ChatColors.resolvedChatColor(for: thread, tx: transaction)
+        let conversationStyle = ConversationStyle(
+            type: .`default`,
+            thread: thread,
+            viewWidth: containerView.width,
+            hasWallpaper: false,
+            isWallpaperPhoto: false,
+            chatColor: chatColor
+        )
         let coreState = CVCoreState(conversationStyle: conversationStyle,
                                     mediaCache: CVMediaCache())
-        return CVLoader.buildStandaloneRenderItem(interaction: interaction,
-                                                  thread: thread,
-                                                  threadAssociatedData: threadAssociatedData,
-                                                  coreState: coreState,
-                                                  transaction: transaction)
+        return CVLoader.buildStandaloneRenderItem(
+            interaction: interaction,
+            thread: thread,
+            threadAssociatedData: threadAssociatedData,
+            coreState: coreState,
+            spoilerState: spoilerState,
+            transaction: transaction
+        )
     }
 
-    private static func buildStandaloneRenderItem(interaction: TSInteraction,
-                                                  thread: TSThread,
-                                                  threadAssociatedData: ThreadAssociatedData,
-                                                  coreState: CVCoreState,
-                                                  transaction: SDSAnyReadTransaction) -> CVRenderItem? {
+    public static func buildStandaloneRenderItem(
+        interaction: TSInteraction,
+        thread: TSThread,
+        threadAssociatedData: ThreadAssociatedData,
+        conversationStyle: ConversationStyle,
+        spoilerState: SpoilerRenderState,
+        transaction: SDSAnyReadTransaction
+    ) -> CVRenderItem? {
+        let coreState = CVCoreState(
+            conversationStyle: conversationStyle,
+            mediaCache: CVMediaCache()
+        )
+        return CVLoader.buildStandaloneRenderItem(
+            interaction: interaction,
+            thread: thread,
+            threadAssociatedData: threadAssociatedData,
+            coreState: coreState,
+            spoilerState: spoilerState,
+            transaction: transaction
+        )
+    }
+
+    private static func buildStandaloneRenderItem(
+        interaction: TSInteraction,
+        thread: TSThread,
+        threadAssociatedData: ThreadAssociatedData,
+        coreState: CVCoreState,
+        spoilerState: SpoilerRenderState,
+        transaction: SDSAnyReadTransaction
+    ) -> CVRenderItem? {
         AssertIsOnMainThread()
 
         let threadViewModel = ThreadViewModel(thread: thread,
                                               forChatList: false,
                                               transaction: transaction)
-        let viewStateSnapshot = CVViewStateSnapshot.mockSnapshotForStandaloneItems(coreState: coreState)
+        let viewStateSnapshot = CVViewStateSnapshot.mockSnapshotForStandaloneItems(
+            coreState: coreState,
+            spoilerReveal: spoilerState.revealState
+        )
         let avatarBuilder = CVAvatarBuilder(transaction: transaction)
-        let itemBuildingContext = CVItemBuildingContextImpl(threadViewModel: threadViewModel,
-                                                            viewStateSnapshot: viewStateSnapshot,
-                                                            transaction: transaction,
-                                                            avatarBuilder: avatarBuilder)
+        let itemBuildingContext = CVItemBuildingContextImpl(
+            threadViewModel: threadViewModel,
+            viewStateSnapshot: viewStateSnapshot,
+            transaction: transaction,
+            avatarBuilder: avatarBuilder
+        )
         guard let itemModel = CVItemModelBuilder.buildStandaloneItem(interaction: interaction,
                                                                      thread: thread,
                                                                      threadAssociatedData: threadAssociatedData,
@@ -325,30 +343,44 @@ public class CVLoader: NSObject {
                                     itemModel: itemModel)
     }
 
-    public static func buildStandaloneComponentState(interaction: TSInteraction,
-                                                     transaction: SDSAnyReadTransaction) -> CVComponentState? {
+    public static func buildStandaloneComponentState(
+        interaction: TSInteraction,
+        spoilerState: SpoilerRenderState,
+        transaction: SDSAnyReadTransaction
+    ) -> CVComponentState? {
         AssertIsOnMainThread()
 
-        let thread = interaction.thread(transaction: transaction)
-        let chatColor = ChatColors.chatColorForRendering(thread: thread, transaction: transaction)
+        guard let thread = interaction.thread(tx: transaction) else {
+            owsFailDebug("Missing thread for interaction.")
+            return nil
+        }
+
+        let chatColor = ChatColors.resolvedChatColor(for: thread, tx: transaction)
         let mockViewWidth: CGFloat = 800
-        let conversationStyle = ConversationStyle(type: .`default`,
-                                                  thread: thread,
-                                                  viewWidth: mockViewWidth,
-                                                  hasWallpaper: false,
-                                                  isWallpaperPhoto: false,
-                                                  chatColor: chatColor)
+        let conversationStyle = ConversationStyle(
+            type: .`default`,
+            thread: thread,
+            viewWidth: mockViewWidth,
+            hasWallpaper: false,
+            isWallpaperPhoto: false,
+            chatColor: chatColor
+        )
         let coreState = CVCoreState(conversationStyle: conversationStyle,
                                     mediaCache: CVMediaCache())
         let threadViewModel = ThreadViewModel(thread: thread,
                                               forChatList: false,
                                               transaction: transaction)
-        let viewStateSnapshot = CVViewStateSnapshot.mockSnapshotForStandaloneItems(coreState: coreState)
+        let viewStateSnapshot = CVViewStateSnapshot.mockSnapshotForStandaloneItems(
+            coreState: coreState,
+            spoilerReveal: spoilerState.revealState
+        )
         let avatarBuilder = CVAvatarBuilder(transaction: transaction)
-        let itemBuildingContext = CVItemBuildingContextImpl(threadViewModel: threadViewModel,
-                                                            viewStateSnapshot: viewStateSnapshot,
-                                                            transaction: transaction,
-                                                            avatarBuilder: avatarBuilder)
+        let itemBuildingContext = CVItemBuildingContextImpl(
+            threadViewModel: threadViewModel,
+            viewStateSnapshot: viewStateSnapshot,
+            transaction: transaction,
+            avatarBuilder: avatarBuilder
+        )
         do {
             return try CVComponentState.build(interaction: interaction,
                                               itemBuildingContext: itemBuildingContext)

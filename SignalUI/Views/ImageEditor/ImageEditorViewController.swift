@@ -76,7 +76,7 @@ class ImageEditorViewController: OWSViewController {
     var blurToolUIInitialized = false
     lazy var blurToolbar: UIStackView = {
         let drawAnywhereHint = UILabel()
-        drawAnywhereHint.font = .ows_dynamicTypeCaption1
+        drawAnywhereHint.font = .dynamicTypeCaption1
         drawAnywhereHint.textColor = Theme.darkThemePrimaryColor
         drawAnywhereHint.textAlignment = .center
         drawAnywhereHint.numberOfLines = 0
@@ -106,7 +106,7 @@ class ImageEditorViewController: OWSViewController {
         let autoBlurLabel = UILabel()
         autoBlurLabel.text = OWSLocalizedString("IMAGE_EDITOR_BLUR_SETTING",
                                                 comment: "The image editor setting to blur faces")
-        autoBlurLabel.font = .ows_dynamicTypeSubheadlineClamped
+        autoBlurLabel.font = .dynamicTypeSubheadlineClamped
         autoBlurLabel.textColor = Theme.darkThemePrimaryColor
 
         let stackView = UIStackView(arrangedSubviews: [ autoBlurLabel, faceBlurSwitch ])
@@ -186,6 +186,7 @@ class ImageEditorViewController: OWSViewController {
     // Text UI
     var textUIInitialized = false
     var startEditingTextOnViewAppear = false
+    var discardTextEditsOnEditingEnd = false
     var currentTextItem: (textItem: ImageEditorTextItem, isNewItem: Bool)?
     var pinchFontSizeStart: CGFloat = ImageEditorTextItem.defaultFontSize
     var textViewContainerBottomConstraint: NSLayoutConstraint? // to bottom of self.view
@@ -228,7 +229,7 @@ class ImageEditorViewController: OWSViewController {
         imageEditorView.configureSubviews()
         view.addSubview(imageEditorView)
         imageEditorView.autoPinWidthToSuperview()
-        imageEditorView.autoPinEdge(toSuperviewEdge: .top)
+        imageEditorView.autoPinEdge(toSuperviewSafeArea: .top)
 
         // Top toolbar
         updateTopBar()
@@ -278,11 +279,6 @@ class ImageEditorViewController: OWSViewController {
         }
     }
 
-    override func viewSafeAreaInsetsDidChange() {
-        super.viewSafeAreaInsetsDidChange()
-        updateContentLayoutMargins()
-    }
-
     override func keyboardFrameDidChange(_ newFrame: CGRect, animationDuration: TimeInterval, animationOptions: UIView.AnimationOptions) {
         super.keyboardFrameDidChange(newFrame, animationDuration: animationDuration, animationOptions: animationOptions)
 
@@ -299,22 +295,11 @@ class ImageEditorViewController: OWSViewController {
 
     // MARK: -
 
-    private func updateContentLayoutMargins() {
-        var contentLayoutMargins: UIEdgeInsets = .zero
-        if UIDevice.current.hasIPhoneXNotch {
-            contentLayoutMargins.top = view.safeAreaInsets.top
-        }
-
-        // Unlike code in `AttachmentApprovalViewController` bottom inset is zero
-        // because bottom of ImageEditorView is constrained to the top of toolbar.
-        imageEditorView.contentLayoutMargins = contentLayoutMargins
-    }
-
     private func updateUIForCurrentMode() {
         switch mode {
         case .draw, .blur:
             strokeWidthSliderContainer.isHidden = false
-            finishTextEditing(applyEdits: true)
+            finishTextEditing()
 
         case .text:
             strokeWidthSliderContainer.isHidden = true
@@ -421,7 +406,7 @@ class ImageEditorViewController: OWSViewController {
         Logger.verbose("")
 
         if mode == .text {
-            finishTextEditing(applyEdits: false)
+            finishTextEditing(discardEdits: true)
         }
 
         while canUndo {
@@ -436,14 +421,14 @@ extension ImageEditorViewController {
 
     private func prepareToDismiss(completion: ((Bool) -> Void)?) {
         if mode == .text {
-            finishTextEditing(applyEdits: false)
+            finishTextEditing(discardEdits: true)
         }
         transitionUI(toState: .initial, animated: true, completion: completion)
     }
 
     private func prepareToFinish(completion: ((Bool) -> Void)?) {
         if mode == .text {
-            finishTextEditing(applyEdits: true)
+            finishTextEditing()
         }
         transitionUI(toState: .initial, animated: true, completion: completion)
     }
@@ -576,17 +561,29 @@ extension ImageEditorViewController {
 extension ImageEditorViewController: ImageEditorBottomBarButtonProvider {
 
     var middleButtons: [UIButton] {
-        let penButton = RoundMediaButton(image: #imageLiteral(resourceName: "media-editor-toolbar-pen"), backgroundStyle: .solid(.clear))
+        let penButton = RoundMediaButton(
+            image: UIImage(imageLiteralResourceName: "edit-28"),
+            backgroundStyle: .solid(.clear)
+        )
         penButton.tag = Mode.draw.rawValue
         penButton.addTarget(self, action: #selector(didTapPen(sender:)), for: .touchUpInside)
 
-        let textButton = RoundMediaButton(image: #imageLiteral(resourceName: "media-editor-toolbar-text"), backgroundStyle: .solid(.clear))
+        let textButton = RoundMediaButton(
+            image: UIImage(imageLiteralResourceName: "text-28"),
+            backgroundStyle: .solid(.clear)
+        )
         textButton.addTarget(self, action: #selector(didTapAddText(sender:)), for: .touchUpInside)
 
-//        let stickerButton = RoundMediaButton(image: #imageLiteral(resourceName: "media-editor-toolbar-emoji"), backgroundStyle: .solid(.clear))
+//        let stickerButton = RoundMediaButton(
+//            image: UIImage(imageLiteralResourceName: "sticker-smiley-28"),
+//            backgroundStyle: .solid(.clear)
+//        )
 //        stickerButton.addTarget(self, action: #selector(didTapAddSticker(sender:)), for: .touchUpInside)
 
-        let blurButton = RoundMediaButton(image: #imageLiteral(resourceName: "media-editor-toolbar-blur"), backgroundStyle: .solid(.clear))
+        let blurButton = RoundMediaButton(
+            image: UIImage(imageLiteralResourceName: "blur-28"),
+            backgroundStyle: .solid(.clear)
+        )
         blurButton.tag = Mode.blur.rawValue
         blurButton.addTarget(self, action: #selector(didTapBlur(sender:)), for: .touchUpInside)
 

@@ -28,7 +28,43 @@
 /* Accessibility label for a voice memo. */
 "ACCESSIBILITY_LABEL_VOICE_MEMO" = "語音訊息";
 
-/* Label for 'audio call' button in contact view. */
+/* Users can request a report of their account data. Before they get their account export, they are warned to only share account data with trustworthy sources. This is the button on that warning, and tapping it lets users continue. */
+"ACCOUNT_DATA_REPORT_CONFIRM_EXPORT_CONFIRM_BUTTON" = "匯出報告";
+
+/* Users can request a report of their account data. Before they get their account export, they are warned to only share account data with trustworthy sources. This is the message on that warning. */
+"ACCOUNT_DATA_REPORT_CONFIRM_EXPORT_MESSAGE" = "僅與你信任的人或應用程式分享你的 Signal 帳戶資料。";
+
+/* Users can request a report of their account data. If this request fails (probably because of a network connection problem), they will see an error sheet. This is the message on that error. */
+"ACCOUNT_DATA_REPORT_ERROR_MESSAGE" = "請檢查網路連線，然後再試一次。";
+
+/* Users can request a report of their account data. If this request fails (probably because of a network connection problem), they will see an error sheet. This is the title on that error. */
+"ACCOUNT_DATA_REPORT_ERROR_TITLE" = "無法建立報告";
+
+/* Users can request a report of their account data. They can choose to export it as plain text (TXT) or as JSON. This is the subtitle on the button that switches to JSON mode. */
+"ACCOUNT_DATA_REPORT_EXPORT_AS_JSON_SUBTITLE" = "機器可讀檔案";
+
+/* Users can request a report of their account data. They can choose to export it as plain text (TXT) or as JSON. This is the title on the button that switches to JSON mode. */
+"ACCOUNT_DATA_REPORT_EXPORT_AS_JSON_TITLE" = "匯出為 JSON 格式";
+
+/* Users can request a report of their account data. They can choose to export it as plain text (TXT) or as JSON. This is the subtitle on the button that switches to plain text mode. */
+"ACCOUNT_DATA_REPORT_EXPORT_AS_TXT_SUBTITLE" = "易於閱讀的文字檔";
+
+/* Users can request a report of their account data. They can choose to export it as plain text (TXT) or as JSON. This is the title on the button that switches to plain text mode. */
+"ACCOUNT_DATA_REPORT_EXPORT_AS_TXT_TITLE" = "匯出為 TXT 格式";
+
+/* Users can request a report of their account data. Users tap this button to export their data. */
+"ACCOUNT_DATA_REPORT_EXPORT_REPORT_BUTTON" = "匯出報告";
+
+/* Users can request a report of their account data. This text appears at the bottom of this screen, offering more information. */
+"ACCOUNT_DATA_REPORT_FOOTER" = "你的報告僅在匯出時建立，並不會由 Signal 儲存在你的裝置上。";
+
+/* Users can request a report of their account data. This is the subtitle on the screen where they do this, giving them more information. */
+"ACCOUNT_DATA_REPORT_SUBTITLE" = "下載並匯出你的 Signal 帳戶資料報告。此報告不包含任何訊息或多媒體。";
+
+/* Users can request a report of their account data. This is the title on the screen where they do this. */
+"ACCOUNT_DATA_REPORT_TITLE" = "你的帳戶資料";
+
+/* Label for 'voice call' button in contact view. */
 "ACTION_AUDIO_CALL" = "Signal 語音通話";
 
 /* Label for 'invite' button in contact view. */
@@ -115,6 +151,39 @@
 /* Label for button to learn more about message requests. */
 "ALERT_UNKNOWN_THREAD_WARNING_LEARN_MORE" = "關於訊息請求";
 
+/* Audio file type in All Meda file type picker. */
+"ALL_MEDIA_FILE_TYPE_AUDIO" = "音訊";
+
+/* Media (i.e., graphical) file type in All Meda file type picker. */
+"ALL_MEDIA_FILE_TYPE_MEDIA" = "媒體";
+
+/* Menu option to limit All Media view to displaying only GIFs */
+"ALL_MEDIA_FILTER_GIFS" = "動態圖檔";
+
+/* Menu option to remove content type restriction in All Media view */
+"ALL_MEDIA_FILTER_NONE" = "所有的多媒體檔案";
+
+/* Menu option to limit All Media view to displaying only photos */
+"ALL_MEDIA_FILTER_PHOTOS" = "照片";
+
+/* Menu option to limit All Media view to displaying only videos */
+"ALL_MEDIA_FILTER_VIDEOS" = "影片";
+
+/* Menu option to show All Media items in a grid of square thumbnails */
+"ALL_MEDIA_GRID_MODE" = "網格";
+
+/* Menu option to show All Media items in a single-column list */
+"ALL_MEDIA_LIST_MODE" = "清單";
+
+/* Label shown over thumbnails of GIFs in the All Media view */
+"ALL_MEDIA_THUMBNAIL_LABEL_GIF" = "GIF";
+
+/* Label shown by thumbnails of images in the All Media view */
+"ALL_MEDIA_THUMBNAIL_LABEL_IMAGE" = "圖片";
+
+/* Label shown by thumbnails of videos in the All Media view */
+"ALL_MEDIA_THUMBNAIL_LABEL_VIDEO" = "影片";
+
 /* Title for the view of all your signal connections */
 "ALL_SIGNAL_CONNECTIONS_TITLE" = "所有聯絡人";
 
@@ -127,11 +196,14 @@
 /* Default message for the 'app launch failed' alert. */
 "APP_LAUNCH_FAILURE_ALERT_MESSAGE" = "Signal 無法啟動。請將除錯日誌傳送到 support@signal.org ，以便我們解決這個問題。";
 
-/* Title for the 'app launch failed' alert. */
-"APP_LAUNCH_FAILURE_ALERT_TITLE" = "錯誤";
-
 /* Button to try launching the app even though the last launch failed */
 "APP_LAUNCH_FAILURE_CONTINUE" = "改以Signal 開啟";
+
+/* Message for an error indicating that the app couldn't launch because some unexpected error happened with the user's registration status. */
+"APP_LAUNCH_FAILURE_CORRUPT_REGISTRATION_MESSAGE" = "請將除錯日誌傳送至 support@signal.org 協助我們解決問題。";
+
+/* Title for an error indicating that the app couldn't launch because some unexpected error happened with the user's registration status. */
+"APP_LAUNCH_FAILURE_CORRUPT_REGISTRATION_TITLE" = "無法開啟 Signal";
 
 /* Error indicating that the app could not launch because the database could not be loaded. */
 "APP_LAUNCH_FAILURE_COULD_NOT_LOAD_DATABASE" = "無法讀取資料庫";
@@ -183,6 +255,45 @@
 
 /* Name indicating that the system theme is enabled. */
 "APPEARANCE_SETTINGS_SYSTEM_THEME_NAME" = "系統";
+
+/* Apple Pay donation error for decline failures where authentication is required. */
+"APPLE_PAY_DONATION_ERROR_AUTHENTICATION_REQUIRED" = "試試換另一個付款方法，又或者聯絡您的銀行取得更多資訊。";
+
+/* Apple Pay donation error for decline failures where the user may need to contact their card or bank. */
+"APPLE_PAY_DONATION_ERROR_CALL_ISSUER" = "請到 Apple Pay 查看您的付款方法是否仍然有效。若已過期，請先更新資料，然後再試一次。若問題仍然持續，請聯絡您的銀行。";
+
+/* Apple Pay donation error for decline failures where the card is not supported. */
+"APPLE_PAY_DONATION_ERROR_CARD_NOT_SUPPORTED" = "您的信用卡不支援此類型的購買。試試換另一個付款方法，又或者聯絡您的銀行取得更多資訊。";
+
+/* Apple Pay donation error for decline failures where the card has expired. */
+"APPLE_PAY_DONATION_ERROR_EXPIRED_CARD" = "您的信用卡已過期。請到 Apple Pay 查看您的付款方法是否仍然有效。若已過期，請先更新資料，然後再試一次。";
+
+/* Apple Pay donation error for decline failures where the card number is incorrect. */
+"APPLE_PAY_DONATION_ERROR_INCORRECT_CARD_NUMBER" = "您的信用卡號碼不正確。請到 Apple Pay 查看您輸入的付款方法是否正確。若然有誤，請先更新資料，然後再試一次。";
+
+/* Apple Pay donation error for decline failures where the card verification code (often called CVV or CVC) is incorrect. */
+"APPLE_PAY_DONATION_ERROR_INCORRECT_CARD_VERIFICATION_CODE" = "你的 CVC 碼不正確。 檢查你的 CVC 碼是否在 Apple Pay 中正確輸入。 如果不是，請更新並重試。";
+
+/* Apple Pay donation error for decline failures where the card has insufficient funds. */
+"APPLE_PAY_DONATION_ERROR_INSUFFICIENT_FUNDS" = "您的信用卡資金不足以完成此次購買。請嘗試其他付款方法，或者聯絡您的銀行以了解詳情。";
+
+/* Apple Pay donation error for decline failures where the expiration month on the payment method is incorrect. */
+"APPLE_PAY_DONATION_ERROR_INVALID_EXPIRY_MONTH" = "您的付款方法所述的到期月份不正確。請到 Apple Pay 更新資料，然後再試一次。";
+
+/* Apple Pay donation error for decline failures where the expiration year on the payment method is incorrect. */
+"APPLE_PAY_DONATION_ERROR_INVALID_EXPIRY_YEAR" = "您的付款方法所述的到期年份不正確。請到 Apple Pay 更新資料，然後再試一次。";
+
+/* Apple Pay donation error for decline failures where the card number is incorrect. */
+"APPLE_PAY_DONATION_ERROR_INVALID_NUMBER" = "您的信用卡號碼不正確。請到 Apple Pay 更新此資訊，然後再試一次。";
+
+/* Apple Pay donation error for \"issuer not available\" decline failures. The user should try again or contact their card/bank. */
+"APPLE_PAY_DONATION_ERROR_ISSUER_NOT_AVAILABLE" = "再試試完成付款，又或者聯絡您的銀行取得更多資訊。";
+
+/* Apple Pay donation error for unspecified decline failures. */
+"APPLE_PAY_DONATION_ERROR_OTHER" = "試試換另一個付款方法，又或者聯絡您的銀行取得更多資訊。";
+
+/* Apple Pay donation error for decline failures where the payment cannot be authorized. */
+"APPLE_PAY_DONATION_ERROR_PAYMENT_CANNOT_BE_AUTHORIZED" = "請到 Apple Pay 查看您的付款方法是否仍然有效。若已過時，請先更新資料，然後再試一次。";
 
 /* Name of application */
 "APPLICATION_NAME" = "Signal";
@@ -274,11 +385,14 @@
 /* A button to select a GIF from the Attachment Keyboard */
 "ATTACHMENT_KEYBOARD_GIF" = "動態圖檔";
 
+/* A message on a button prompting the user to go settings to grant Signal photos access. */
+"ATTACHMENT_KEYBOARD_GIVE_PHOTOS_ACCESS" = "允許存取";
+
 /* A button to select a location from the Attachment Keyboard */
 "ATTACHMENT_KEYBOARD_LOCATION" = "位置";
 
 /* A string indicating to the user that they'll be able to send photos from this view once they enable photo access. */
-"ATTACHMENT_KEYBOARD_NO_PHOTO_ACCESS" = "授權設定中照片的存取權限，以便將其在此處傳送。";
+"ATTACHMENT_KEYBOARD_NO_PHOTO_ACCESS" = "Signal 需要權限以顯示你的照片及影片。";
 
 /* A string indicating to the user that once they take photos, they'll be able to send them from this view. */
 "ATTACHMENT_KEYBOARD_NO_PHOTOS" = "拍完照片後，你可以在這裡傳送你的最近的照片。";
@@ -379,122 +493,14 @@
 /* Button text when a badge expires, asking users to donate */
 "BADGE_EXPIRED_DONATE_BUTTON" = "贊助";
 
-/* String explaining to the user that their gift badge has expired. Shown on the badge expiration sheet. */
-"BADGE_EXPIRED_GIFT_BODY" = "你的禮物徽章已到期，不會再顯示於你的個人資料中。";
-
-/* Title for gift on the badge expiration sheet. */
-"BADGE_EXPIRED_GIFT_TITLE" = "你的禮物徽章已到期";
-
 /* Text for the 'learn more' link in the badge expiration sheet, shown when a badge expires due to a charge failure */
 "BADGE_EXPIRED_LEARN_MORE_LINK" = "學習更多。";
 
 /* Title for subscription on the badge expiration sheet. */
 "BADGE_EXPIRED_SUBSCRIPTION_TITLE" = "已取消每月捐款";
 
-/* Text in the sheet that's shown when you gift someone a badge. Embeds {recipient name}. */
-"BADGE_GIFT_THANKS_BODY" = "你已贈送一枚徽章給 %1$@。對方兌換徽章時，即可選擇是否要顯示或隱藏該枚徽章。";
-
-/* Title for the sheet that's shown when you gift someone a badge */
-"BADGE_GIFT_THANKS_TITLE" = "謝謝您的支持！";
-
-/* Text telling the user that they can add a message along with their gift badge */
-"BADGE_GIFTING_ADDITIONAL_MESSAGE" = "你的禮物將透過 1 對 1 的訊息傳送給收件人。 在下面加入自己的訊息。";
-
-/* Placeholder in the text field where you can add text for a message along with your gift */
-"BADGE_GIFTING_ADDITIONAL_MESSAGE_PLACEHOLDER" = "新增訊息";
-
-/* Error message indicating that you can't send the gift badge for some reason. */
-"BADGE_GIFTING_CANNOT_SEND_TO_RECIPIENT_GENERIC_ERROR_BODY" = "無法傳送禮物徽章。請查看連線並再試一次。";
-
-/* Title for error message dialog indicating that you can't send the gift badge for some reason. */
-"BADGE_GIFTING_CANNOT_SEND_TO_RECIPIENT_GENERIC_ERROR_TITLE" = "無法傳送禮物徽章";
-
-/* Shown on a gift badge message to indicate that it's already expired and can no longer be redeemed. */
-"BADGE_GIFTING_CHAT_EXPIRED" = "已過期";
-
-/* Shown on a gift badge message and when tapping a redeemed gift message to denote the presence of a gift badge. */
-"BADGE_GIFTING_CHAT_TITLE" = "禮品徽章";
-
-/* Short paragraph on the screen where you choose a gift badge */
-"BADGE_GIFTING_CHOOSE_BADGE_DESCRIPTION" = "捐款贊助 Signal，即可將徽章贈送給其他使用者，方便對方將該枚徽章顯示在自己的個人資料上。";
-
-/* Title on the screen where you choose a gift badge */
-"BADGE_GIFTING_CHOOSE_BADGE_TITLE" = "贈送徽章";
-
-/* Title on the screen where you choose a gift badge's recipient */
-"BADGE_GIFTING_CHOOSE_RECIPIENT_TITLE" = "選擇收件人";
-
-/* Title on the screen where you confirm sending of a gift badge, and can write a message */
-"BADGE_GIFTING_CONFIRMATION_TITLE" = "確認禮物";
-
-/* Error message indicating that a user can't receive gifts. */
-"BADGE_GIFTING_ERROR_RECIPIENT_CANNOT_RECEIVE_GIFT_BADGES_BODY" = "這位使用者必須先升級 Signal 版本才能收取禮物。";
-
-/* Title for error message dialog indicating that a user can't receive gifts. */
-"BADGE_GIFTING_ERROR_RECIPIENT_CANNOT_RECEIVE_GIFT_BADGES_TITLE" = "無法傳送禮物徽章";
-
-/* Error message indicating that the person you're trying to send has been blocked. */
-"BADGE_GIFTING_ERROR_RECIPIENT_IS_BLOCKED_BODY" = "這位使用者無法接收你的禮物，因為你已封鎖對方。";
-
-/* Title for error message dialog indicating that the person you're trying to send to has been blocked. */
-"BADGE_GIFTING_ERROR_RECIPIENT_IS_BLOCKED_TITLE" = "無法傳送禮物徽章";
-
-/* When gifting a badge, the subtitle 'Send a Gift Badge' under the badge title */
-"BADGE_GIFTING_GIFT_ROW_SUBTITLE" = "發送禮品徽章";
-
-/* Text telling the user that their gift is a one-time donation */
-"BADGE_GIFTING_PAYMENT_DESCRIPTION" = "一次性捐款";
-
-/* Text in the action sheet when you try to send a gift badge but the payment failed. Tells the user that they have not been charged */
-"BADGE_GIFTING_PAYMENT_FAILED_BODY" = "無法處理你的付款，所以也沒有向你收費。 請再試一次。";
-
-/* Title for the action sheet when you try to send a gift badge but the payment failed */
-"BADGE_GIFTING_PAYMENT_FAILED_TITLE" = "付款失敗";
-
-/* Text in the action sheet when you try to send a gift badge. They were charged but the badge could not be sent. They should contact support. */
-"BADGE_GIFTING_PAYMENT_SUCCEEDED_BUT_GIFTING_FAILED_BODY" = "系統已處理你的付款程序，但 Signal 無法傳送禮品徽章給你。請聯絡支援團隊。";
-
-/* Title for the action sheet when you try to send a gift badge. They were charged but the badge could not be sent. They should contact support. */
-"BADGE_GIFTING_PAYMENT_SUCCEEDED_BUT_GIFTING_FAILED_TITLE" = "無法送出徽章禮品";
-
-/* Shown on the list of chats when the most recent message is a gift you received from someone else. */
-"BADGE_GIFTING_PREVIEW_INCOMING" = "🎁 你收到了一份禮物";
-
-/* Shown on the list of chats when the most recent message is a gift you sent to someone else. */
-"BADGE_GIFTING_PREVIEW_OUTGOING" = "🎁 你送出了一份禮物";
-
-/* Label for a button used to redeem a gift and add the gift's badge to your profile. */
-"BADGE_GIFTING_REDEEM" = "加值";
-
-/* Shown as the body of an alert when failing to redeem a gift. */
-"BADGE_GIFTING_REDEEM_ERROR_BODY" = "無法兌換禮物。請檢查連線，並再試一次。";
-
-/* Shown as the title of an alert when failing to redeem a gift. */
-"BADGE_GIFTING_REDEEM_ERROR_TITLE" = "無法兌換禮物";
-
-/* A toast that appears at the bottom of the screen after tapping 'Not Now' when redeeming a gift. */
-"BADGE_GIFTING_REDEEM_LATER" = "你可以稍後再兌換徽章";
-
-/* Appears as the title when redeeming a gift you received. Embed {contact's short name, such as a first name}. */
-"BADGE_GIFTING_REDEEM_TITLE_FORMAT" = "%1$@ 送給你一份禮物";
-
-/* Label for a button to see details about a gift you've already redeemed. The text is shown next to a checkmark. */
-"BADGE_GIFTING_REDEEMED" = "已兌換";
-
-/* Shown when you're replying to a gift message to indicate that it contains a gift. */
-"BADGE_GIFTING_REPLY" = "禮物";
-
-/* When gifting a badge, shows how long the badge lasts. Embeds {formatted duration}. */
-"BADGE_GIFTING_ROW_DURATION" = "持續到 %1$@";
-
-/* A button shown on a gift message you send to view additional details about the badge. */
-"BADGE_GIFTING_VIEW" = "檢視";
-
-/* Shown when redeeming a gift you received to explain to the user that they've earned a badge. Embed {contact name}. */
-"BADGE_GIFTING_YOU_RECEIVED_FORMAT" = "%1$@ 送了一個禮物徽章給你。不妨將此徽章秀在你的個人資料上，藉此鼓勵大家捐款贊助 Signal。";
-
 /* String explaining to the user that their subscription badge has expired on the badge expiry sheet. Embeds {failure-specific sentence(s)}. */
-"BADGE_SUBSCRIPTION_EXPIRED_BECAUSE_OF_CHARGE_FAILURE_BODY_FORMAT" = "你的每月定期捐款己被取消。%1$@ 你的徽章不會再顯示在你的個人檔案中。\n\n要繼續支持 Signal 並重新啟動你的徽章，請更新你的付款詳情並再次捐款。";
+"BADGE_SUBSCRIPTION_EXPIRED_BECAUSE_OF_CHARGE_FAILURE_BODY_FORMAT" = "你的每月定期捐款已取消。%1$@ 捐款徽章不再在你的個人檔案中顯示。\n\n如要繼續支持 Signal 並重新啟動徽章，請更新你的付款詳情並再次捐款。";
 
 /* Body of the sheet shown when your subscription is canceled due to inactivity */
 "BADGE_SUBSCRIPTION_EXPIRED_BECAUSE_OF_INACTIVITY_BODY_FORMAT" = "由於你太長時間沒有使用，因此你的每月定期捐款已被自動取消。你的 %1$@ 徽章不會再顯示在你的個人檔案中。\n\n你可如常使用 Signal，但如果想支持應用程式並重新啟動你的徽章，請立即捐款贊助。";
@@ -656,19 +662,19 @@
 "CALL_AGAIN_BUTTON_TITLE" = "重撥電話";
 
 /* notification body */
-"CALL_AUDIO_INCOMING_NOTIFICATION_BODY" = "📞語音電話來電…";
+"CALL_AUDIO_INCOMING_NOTIFICATION_BODY" = "📞 語音來電…";
 
 /* notification body for a missed call in the last 24 hours. Embeds {{time}}, e.g. '3:30 PM'. */
-"CALL_AUDIO_MISSED_24_HOURS_NOTIFICATION_BODY_FORMAT" = "📞 已錯過 %1$@ 的語音電話";
+"CALL_AUDIO_MISSED_24_HOURS_NOTIFICATION_BODY_FORMAT" = "📞 於 %1$@ 的未接語音通話";
 
 /* notification body for a call that was just missed */
-"CALL_AUDIO_MISSED_NOTIFICATION_BODY" = "📞未接語音電話";
+"CALL_AUDIO_MISSED_NOTIFICATION_BODY" = "📞 未接語音通話";
 
 /* notification body for a missed call from more than a week ago. Embeds {{short date}}, e.g. '6/28'. */
-"CALL_AUDIO_MISSED_PAST_NOTIFICATION_BODY_FORMAT" = "📞 %1$@有未接語音電話";
+"CALL_AUDIO_MISSED_PAST_NOTIFICATION_BODY_FORMAT" = "📞 於 %1$@ 的未接語音通話";
 
 /* notification body for a missed call from the last week. Embeds {{weekday}}, e.g. 'Monday'. */
-"CALL_AUDIO_MISSED_WEEK_NOTIFICATION_BODY_FORMAT" = "📞 %1$@有未接語音電話";
+"CALL_AUDIO_MISSED_WEEK_NOTIFICATION_BODY_FORMAT" = "📞 於 %1$@ 的未接語音通話";
 
 /* Alert message when calling and permissions for microphone are missing */
 "CALL_AUDIO_PERMISSION_MESSAGE" = "你可以在iOS 設定中允許取用麥克風，以便在 Signal 中撥打電話及錄製語音訊息。";
@@ -752,7 +758,7 @@
 "CALL_VIEW_SWITCH_CAMERA_DIRECTION" = "變換相機方向";
 
 /* Accessibility label to switch to audio only */
-"CALL_VIEW_SWITCH_TO_AUDIO_LABEL" = "切換為語音通話";
+"CALL_VIEW_SWITCH_TO_AUDIO_LABEL" = "轉為語音通話";
 
 /* Accessibility label to switch to video call */
 "CALL_VIEW_SWITCH_TO_VIDEO_LABEL" = "切換至視訊通話";
@@ -841,6 +847,9 @@
 /* Title for alert explaining that a user cannot be verified. */
 "CANT_VERIFY_IDENTITY_ALERT_TITLE" = "錯誤";
 
+/* Alert shown when the user needs to exchange messages to see the safety number. */
+"CANT_VERIFY_IDENTITY_EXCHANGE_MESSAGES" = "你與此人交換訊息後，會為其建立一個安全號碼。";
+
 /* Users can donate to Signal with a credit or debit card. If their card number is invalid, this generic error message will be shown. Try to use a short string to make space in the UI. */
 "CARD_DONATION_CARD_NUMBER_GENERIC_ERROR" = "付款卡號碼無效";
 
@@ -900,9 +909,6 @@
 
 /* Error indicating that the user's old phone number is not valid. */
 "CHANGE_PHONE_NUMBER_INVALID_PHONE_NUMBER_ALERT_MESSAGE_OLD" = "舊電話號碼無效。 請輸入有效的電話號碼以變更你的號碼。";
-
-/* Title of the 'change phone number PIN' view. */
-"CHANGE_PHONE_NUMBER_PIN_EXPLANATION" = "輸入新電話號碼的 PIN碼。 這與你的見簡訊驗證碼不同。";
 
 /* The incoming bubble text when setting a chat color. */
 "CHAT_COLOR_INCOMING_MESSAGE" = "這是聊天顏色的預覽。";
@@ -1183,6 +1189,9 @@
 /* Context menu button title */
 "CONTEXT_MENU_DETAILS" = "資訊";
 
+/* Context menu edit button title */
+"CONTEXT_MENU_EDIT_MESSAGE" = "編輯";
+
 /* Context menu button title */
 "CONTEXT_MENU_FORWARD_MESSAGE" = "轉寄";
 
@@ -1459,6 +1468,36 @@
 /* No comment provided by engineer. */
 "COUNTRYCODE_SELECT_TITLE" = "選擇國碼";
 
+/* Body text for an interactive in-app prompt to set up a Signal username. */
+"CREATE_USERNAME_MEGAPHONE_BODY" = "用戶名稱讓其他人無需透過電話號碼也可以向您傳送訊息。";
+
+/* Title for a button in an interactive in-app prompt to set up a Signal username, which will start a create-username flow. */
+"CREATE_USERNAME_MEGAPHONE_SET_UP_BUTTON_TITLE" = "設定";
+
+/* Title for an interactive in-app prompt to set up a Signal username. */
+"CREATE_USERNAME_MEGAPHONE_TITLE" = "設定你的 Signal 用戶名稱";
+
+/* Credit/debit card donation error for decline failures where the card has expired. */
+"CREDIT_OR_DEBIT_CARD_DONATION_ERROR_EXPIRED_CARD" = "您的信用卡已過期。驗證您的信用卡資料是否正確，然後重試。";
+
+/* Credit/debit card donation error for decline failures where the card number is incorrect. */
+"CREDIT_OR_DEBIT_CARD_DONATION_ERROR_INCORRECT_CARD_NUMBER" = "您的信用卡號碼不正確。驗證您的信用卡資料是否正確，然後重試。";
+
+/* Credit/debit card donation error for decline failures where the card verification code (often called CVV or CVC) is incorrect. */
+"CREDIT_OR_DEBIT_CARD_DONATION_ERROR_INCORRECT_CARD_VERIFICATION_CODE" = "您的信用卡驗證碼 (CVC) 不正確。驗證您的信用卡資料是否正確，然後重試。";
+
+/* Credit/debit card donation error for decline failures where the expiration month on the payment method is incorrect. */
+"CREDIT_OR_DEBIT_CARD_DONATION_ERROR_INVALID_EXPIRY_MONTH" = "您信用卡上的有效日期不正確。驗證您的信用卡資料是否正確，然後重試。";
+
+/* Credit/debit card donation error for decline failures where the expiration year on the payment method is incorrect. */
+"CREDIT_OR_DEBIT_CARD_DONATION_ERROR_INVALID_EXPIRY_YEAR" = "您信用卡上的有效日期不正確。驗證您的信用卡資料是否正確，然後重試。";
+
+/* Credit/debit card donation error for unspecified decline failures. */
+"CREDIT_OR_DEBIT_CARD_DONATION_ERROR_OTHER" = "驗證您的信用卡資料是否正確，然後重試。如果問題仍然存在，請與您的銀行聯絡。";
+
+/* Credit/debit card donation error for decline failures where the payment cannot be authorized. */
+"CREDIT_OR_DEBIT_CARD_DONATION_ERROR_PAYMENT_CANNOT_BE_AUTHORIZED" = "驗證您的信用卡資料是否正確，然後重試。";
+
 /* Title for the 'crop/scale image' dialog. */
 "CROP_SCALE_IMAGE_VIEW_TITLE" = "移動與縮放";
 
@@ -1588,6 +1627,12 @@
 /* Accessibility label for the ? vector asset used to get info about debug logs */
 "DEBUG_LOG_INFO_BUTTON" = "有關偵錯紀錄的訊息";
 
+/* info message text in conversation view */
+"DECLINED_AUDIO_CALL" = "你拒絕了一個語音通話";
+
+/* info message text in conversation view */
+"DECLINED_VIDEO_CALL" = "你已拒絕一通視訊電話";
+
 /* Title for the action sheet 'delete' action of the 'delete account confirmation' view controller. */
 "DELETE_ACCOUNT_CONFIRMATION_ACTION_SHEEET_ACTION" = "刪除帳戶";
 
@@ -1630,11 +1675,17 @@
 /* button text */
 "DELETE_ALL_MESSAGES_IN_CONVERSATION_BUTTON" = "刪除所有訊息";
 
+/* Notification warning the user that they have been de-registered. */
+"DEREGISTRATION_NOTIFICATION" = "你已登出此裝置的 Signal 應用程式。";
+
 /* Label for button that lets users re-register using the same phone number. */
 "DEREGISTRATION_REREGISTER_WITH_SAME_PHONE_NUMBER" = "重新註冊此電話號碼";
 
 /* Label warning the user that they have been de-registered. */
-"DEREGISTRATION_WARNING" = "本裝置不再被註冊。你的電話號碼可能被註冊於不同的裝置。點取來重新註冊。";
+"DEREGISTRATION_WARNING" = "此裝置已不再註冊。通常是因為你已在另一部裝置上使用你的電話號碼註冊 Signal。";
+
+/* If the user has been deregistered, they'll see a warning. This is This is the call to action on that warning. */
+"DEREGISTRATION_WARNING_ACTION_TITLE" = "重新註冊裝置";
 
 /* {{Short Date}} when device last communicated with Signal Server. */
 "DEVICE_LAST_ACTIVE_AT_LABEL" = "最後活躍 %1$@";
@@ -1645,6 +1696,12 @@
 /* Alert title that can occur when viewing device manager. */
 "DEVICE_LIST_UPDATE_FAILED_TITLE" = "更新裝置列表失敗";
 
+/* A label for this device in the device list. */
+"DEVICE_NAME_THIS_DEVICE" = "此裝置";
+
+/* A label for an unnamed device in the device list. */
+"DEVICE_NAME_UNNAMED_DEVICE" = "未命名的裝置";
+
 /* The stop action of the dialog asking the user if they want to cancel a device transfer */
 "DEVICE_TRANSFER_CANCEL_CONFIRMATION_ACTION" = "停止轉移";
 
@@ -1653,9 +1710,6 @@
 
 /* The title of the dialog asking the user if they want to cancel a device transfer */
 "DEVICE_TRANSFER_CANCEL_CONFIRMATION_TITLE" = "要停止轉移嗎？";
-
-/* The explanation for the device transfer 'choice' view */
-"DEVICE_TRANSFER_CHOICE_EXPLANATION" = "如果你使用的是舊的iOS裝置，則可以安全地將你的帳號和訊息轉移到此裝置上。";
 
 /* The explanation for the device transfer 'choice' view when linking a device */
 "DEVICE_TRANSFER_CHOICE_LINKED_EXPLANATION" = "如果你以前在連結的iPad上使用Signal，則可以安全地將你的帳號和訊息轉移到此裝置上。";
@@ -1801,23 +1855,38 @@
 /* When users make donations, they can choose which payment method they want to use. This is the text on the button that lets them choose to pay with credit or debit card. */
 "DONATE_CHOOSE_CREDIT_OR_DEBIT_CARD_AS_PAYMENT_METHOD" = "信用卡或簽帳金融卡";
 
-/* When users make monthly donations, they see a sheet that lets them pick a payment method. It also tells them what they'll be doing when they pay: receive a badge. This is the subtitle on that sheet, as well as a similar sheet that is sometimes shown asking users to confirm their payment. Embeds {{localized badge name}}, such as \"Planet\". */
+/* When users make donations on a friend's behalf, they see a sheet that lets them pick a payment method. This is the subtitle on that sheet. Embeds {{recipient's name}}. */
+"DONATE_CHOOSE_PAYMENT_METHOD_SHEET_SUBTITLE_FOR_DONATION_ON_BEHALF_OF_A_FRIEND" = "代表 %1$@";
+
+/* When users make monthly donations, they see a sheet that lets them pick a payment method. It also tells them what they'll be doing when they pay: receive a badge. This is the subtitle on that sheet. Embeds {{localized badge name}}, such as \"Planet\". */
 "DONATE_CHOOSE_PAYMENT_METHOD_SHEET_SUBTITLE_FOR_MONTHLY_DONATION" = "獲得 %1$@ 徽章";
 
-/* When users make one-time donations, they see a sheet that lets them pick a payment method. It also tells them what they'll be doing when they pay: receive a badge for a month. This is the subtitle on that sheet, as well as a similar sheet that is sometimes shown asking users to confirm their payment. Embeds {{localized badge name}}, such as \"Boost\". */
+/* When users make one-time donations, they see a sheet that lets them pick a payment method. It also tells them what they'll be doing when they pay: receive a badge for a month. This is the subtitle on that sheet. Embeds {{localized badge name}}, such as \"Boost\". */
 "DONATE_CHOOSE_PAYMENT_METHOD_SHEET_SUBTITLE_FOR_ONE_TIME_DONATION" = "獲得為期一個月的 %1$@ 徽章";
 
-/* When users make monthly donations, they see a sheet that lets them pick a payment method. This is the title on that sheet, as well as a similar sheet that is sometimes shown asking users to confirm their payment. Embeds {{amount of money per month}}, such as \"$5/month\". */
+/* When users make donations on a friend's behalf, they see a sheet that lets them pick a payment method. This is the title on that sheet. Embeds {{amount of money}}, such as \"$5\". */
+"DONATE_CHOOSE_PAYMENT_METHOD_SHEET_TITLE_FOR_DONATION_ON_BEHALF_OF_A_FRIEND" = "%1$@ 捐款給 Signal";
+
+/* When users make monthly donations, they see a sheet that lets them pick a payment method. This is the title on that sheet. Embeds {{amount of money per month}}, such as \"$5/month\". */
 "DONATE_CHOOSE_PAYMENT_METHOD_SHEET_TITLE_FOR_MONTHLY_DONATION" = "捐款 %1$@ 給 Signal";
 
-/* When users make one-time donations, they see a sheet that lets them pick a payment method. This is the title on that sheet, as well as a similar sheet that is sometimes shown asking users to confirm their payment. Embeds {{amount of money}}, such as \"$5\". */
+/* When users make one-time donations, they see a sheet that lets them pick a payment method. This is the title on that sheet. Embeds {{amount of money}}, such as \"$5\". */
 "DONATE_CHOOSE_PAYMENT_METHOD_SHEET_TITLE_FOR_ONE_TIME_DONATION" = "捐款 %1$@ 給 Signal";
+
+/* Users can donate on a friend's behalf and can optionally add a message. This is tells users about that optional message. */
+"DONATE_ON_BEHALF_OF_A_FRIEND_ADDITIONAL_MESSAGE_INFO" = "接收者將收到有關捐款的一對一訊息通知。在下方加入你的訊息。";
+
+/* Users can donate on a friend's behalf and can optionally add a message. This is the placeholder in the text field for that additional message. */
+"DONATE_ON_BEHALF_OF_A_FRIEND_ADDITIONAL_MESSAGE_PLACEHOLDER" = "新增訊息";
+
+/* If a donation badge has been sent, indicates that it's expired and can no longer be redeemed. This is shown in the chat. */
+"DONATE_ON_BEHALF_OF_A_FRIEND_CHAT_EXPIRED" = "已過期";
 
 /* If the user tries to donate to Signal but no amount is selected, this error message is shown. */
 "DONATE_SCREEN_ERROR_NO_AMOUNT_SELECTED" = "請選擇要捐贈的金額。";
 
-/* If the user tries to donate to Signal but they've entered an amount that's too small, this error message is shown. */
-"DONATE_SCREEN_ERROR_SELECT_A_LARGER_AMOUNT" = "請選擇較大的捐贈金額。";
+/* If the user tries to donate to Signal but they've entered an amount that's too small, this error message is shown. Embeds {{currency string}}, such as \"$5\". */
+"DONATE_SCREEN_ERROR_SELECT_A_LARGER_AMOUNT_FORMAT" = "你可以捐款的最低金額為 %1$@。";
 
 /* On the donation screen, you can choose between one-time and monthly donations. This is the text on the picker for one-time donations. */
 "DONATE_SCREEN_MONTHLY_CHOICE" = "每個月";
@@ -1840,50 +1909,107 @@
 /* On the donation screen, if you already have a subscription, you'll see a button to update your subscription. This is the text on that button. */
 "DONATE_SCREEN_UPDATE_MONTHLY_SUBSCRIPTION_BUTTON" = "更新定期贊助";
 
-/* Users can donate to Signal. They may be asked to confirm their donation after entering payment information. If the user clicks this button, their payment will be confirmed. */
-"DONATION_CONFIRMATION_BUTTON_CONFIRM" = "Complete Donation";
+/* When donating on behalf of a friend, a badge will be sent. This shows how long the badge lasts. Embeds {{formatted duration}}. */
+"DONATION_FOR_A_FRIEND_ROW_DURATION" = "持續到 %1$@";
 
-/* Users can donate to Signal. They may be asked to confirm their donation after entering payment information. This text will show the payment method, such as PayPal, next to it. */
-"DONATION_CONFIRMATION_PAYMENT_METHOD" = "Payment Method";
+/* Someone donated on your behalf and you got a badge, which expired. A sheet appears to tell you about this. This is the text on that sheet. */
+"DONATION_FROM_A_FRIEND_BADGE_EXPIRED_BODY" = "你的捐款已過期，且不再在你的個人檔案中顯示。";
 
-/* Donation payment error for decline failures where authentication is required. */
-"DONATION_PAYMENT_ERROR_AUTHENTICATION_REQUIRED" = "嘗試其他付款方式或聯繫你的銀行以獲得更多訊息。";
+/* Someone donated on your behalf and you got a badge, which expired. A sheet appears to tell you about this. This is the title on that sheet. */
+"DONATION_FROM_A_FRIEND_BADGE_EXPIRED_TITLE" = "你的捐款已過期";
 
-/* Donation payment error for decline failures where the user may need to contact their card or bank. */
-"DONATION_PAYMENT_ERROR_CALL_ISSUER" = "檢查你的付款方式在 Apple Pay 中是否是最新的。 如果不是，請更新並重試。 如果你仍遇到問題，請聯絡你的銀行。";
+/* Someone donated on your behalf and you got a badge, which expired before you could redeem it. A sheet appears to tell you about this. This is the text on that sheet. Embeds {{contact name}}. */
+"DONATION_FROM_A_FRIEND_BADGE_NOT_REDEEMED_BODY_FORMAT" = "來自 %1$@ 的捐款已過期，且無法再兌換。";
 
-/* Donation payment error for decline failures where the card is not supported. */
-"DONATION_PAYMENT_ERROR_CARD_NOT_SUPPORTED" = "你的信用卡卡不支持此類購買。 嘗試其他付款方式或聯絡你的銀行以取得更多資訊。";
+/* Someone donated on your behalf and you got a badge, which expired before you could redeem it. A sheet appears to tell you about this. This is the title on that sheet. */
+"DONATION_FROM_A_FRIEND_BADGE_NOT_REDEEMED_TITLE" = "你的捐款已過期";
 
-/* Donation payment error for decline failures where the card has expired. */
-"DONATION_PAYMENT_ERROR_EXPIRED_CARD" = "你的信用卡已過期。 請檢查你的付款方式在 Apple Pay 中是否是最新的。 如果不是，請更新並重試。";
+/* Label for a button to see details about a badge you've already redeemed, received as a result of a donation from a friend. This text is shown next to a check mark. */
+"DONATION_ON_BEHALF_OF_A_FRIEND_BADGE_REDEEMED" = "已兌換";
 
-/* Donation payment error for decline failures where the card number is incorrect. */
-"DONATION_PAYMENT_ERROR_INCORRECT_CARD_NUMBER" = "你的卡號不正確。 請檢查你的付款方式是否在 Apple Pay 中正確輸入。 如果不是，請更新並重試。";
+/* Users can donate on behalf of a friend, and the friend will receive a badge. This is a short paragraph on the screen where users choose the badge their friend will receive. */
+"DONATION_ON_BEHALF_OF_A_FRIEND_CHOOSE_BADGE_DESCRIPTION" = "透過為使用 Signal 的朋友或家人捐款來支持 Signal。他們可以選擇在個人檔案上展現支持。";
 
-/* Donation payment error for decline failures where the card verification code (often called CVV or CVC) is incorrect. */
-"DONATION_PAYMENT_ERROR_INCORRECT_CARD_VERIFICATION_CODE" = "你的 CVC 碼不正確。 檢查你的 CVC 碼是否在 Apple Pay 中正確輸入。 如果不是，請更新並重試。";
+/* Users can donate on behalf of a friend, and the friend will receive a badge. This is the title on the screen where users choose the badge their friend will receive. */
+"DONATION_ON_BEHALF_OF_A_FRIEND_CHOOSE_BADGE_TITLE" = "為朋友捐款";
 
-/* Donation payment error for decline failures where the card has insufficient funds. */
-"DONATION_PAYMENT_ERROR_INSUFFICIENT_FUNDS" = "你的卡上沒有足夠的資金來完成此次購買。 嘗試其他付款方式或聯絡你的銀行以取得更多資訊。";
+/* Title on the screen where you choose who you're going to donate on behalf of. */
+"DONATION_ON_BEHALF_OF_A_FRIEND_CHOOSE_RECIPIENT_TITLE" = "選擇收件人";
 
-/* Donation payment error for decline failures where the expiration month on the payment method is incorrect. */
-"DONATION_PAYMENT_ERROR_INVALID_EXPIRY_MONTH" = "你的付款方式的到期月份不正確。 在 Apple Pay 中更新並重試。";
+/* Users can donate on a friend's behalf. This is the title on the screen where users confirm the donation, and can write a message for the friend. */
+"DONATION_ON_BEHALF_OF_A_FRIEND_CONFIRMATION_SCREEN_TITLE" = "確認捐款";
 
-/* Donation payment error for decline failures where the expiration year on the payment method is incorrect. */
-"DONATION_PAYMENT_ERROR_INVALID_EXPIRY_YEAR" = "你的付款方式的到期年份不正確。 在 Apple Pay 中更新並重試。";
+/* When users make donations on a friend's behalf, a message is sent. This text tells senders that their message will disappear, if the conversation has disappearing messages enabled. Embeds {{duration}}, such as \"1 week\". */
+"DONATION_ON_BEHALF_OF_A_FRIEND_DISAPPEARING_MESSAGES_NOTICE_FORMAT" = "此聊天已開啟「自動銷毀訊息」功能。你的捐款訊息將在 %1$@ 內消失。";
 
-/* Donation payment error for decline failures where the card number is incorrect. */
-"DONATION_PAYMENT_ERROR_INVALID_NUMBER" = "你的卡號不正確。 請在 Apple Pay 中更新並重試。";
+/* Users can donate on a friend's behalf. If something goes wrong during this donation, such as a network error, this error message is shown. */
+"DONATION_ON_BEHALF_OF_A_FRIEND_GENERIC_SEND_ERROR_BODY" = "無法捐款。請檢查你的網路連線，然後再試一次。";
 
-/* Donation payment error for \"issuer not available\" decline failures. The user should try again or contact their card/bank. */
-"DONATION_PAYMENT_ERROR_ISSUER_NOT_AVAILABLE" = "請嘗試再次付款或聯繫你的銀行以取得更多資訊。";
+/* Users can donate on a friend's behalf. If something goes wrong during this donation, such as a network error, an error dialog is shown. This is the title of that dialog. */
+"DONATION_ON_BEHALF_OF_A_FRIEND_GENERIC_SEND_ERROR_TITLE" = "無法捐款";
 
-/* Donation payment error for unspecified decline failures. */
-"DONATION_PAYMENT_ERROR_OTHER" = "嘗試其他付款方式或聯繫你的銀行以獲得更多訊息。";
+/* Users can donate on a friend's behalf. This tells users that this will be a one-time donation. */
+"DONATION_ON_BEHALF_OF_A_FRIEND_PAYMENT_DESCRIPTION" = "單次捐款";
 
-/* Donation payment error for decline failures where the payment cannot be authorized. */
-"DONATION_PAYMENT_ERROR_PAYMENT_CANNOT_BE_AUTHORIZED" = "請檢查你的付款方式在 Apple Pay 中是否是最新的。 如果不是，請更新並重試。";
+/* Users can donate on a friend's behalf. If the payment fails and the user has not been charged, this error message is shown. */
+"DONATION_ON_BEHALF_OF_A_FRIEND_PAYMENT_FAILED_ERROR_BODY" = "無法處理你的付款，所以也沒有向你收費。 請再試一次。";
+
+/* Users can donate on a friend's behalf. If the payment fails and the user has not been charged, an error dialog will be shown. This is the title of that dialog. */
+"DONATION_ON_BEHALF_OF_A_FRIEND_PAYMENT_FAILED_ERROR_TITLE" = "付款失敗";
+
+/* Users can donate on a friend's behalf. If the payment was processed but the donation failed to send, this error message will be shown. */
+"DONATION_ON_BEHALF_OF_A_FRIEND_PAYMENT_SUCCEEDED_BUT_MESSAGE_FAILED_ERROR_BODY" = "系統已經處理你的付款，但 Signal 無法傳送你的捐款訊息。請聯絡支援團隊。";
+
+/* Users can donate on a friend's behalf. If the payment was processed but the donation failed to send, an error dialog will be shown. This is the title of that dialog. */
+"DONATION_ON_BEHALF_OF_A_FRIEND_PAYMENT_SUCCEEDED_BUT_MESSAGE_FAILED_ERROR_TITLE" = "捐款失敗";
+
+/* A friend has donated on your behalf. This text is shown in the list of chats, when the most recent message is one of these donations. Embeds {friend's short display name}. */
+"DONATION_ON_BEHALF_OF_A_FRIEND_PREVIEW_INCOMING" = "✨ %1$@ 已為你捐款";
+
+/* You have a made a donation on a friend's behalf. This text is shown in the list of chats, when the most recent message is one of these donations. Embeds {friend's short display name}. */
+"DONATION_ON_BEHALF_OF_A_FRIEND_PREVIEW_OUTGOING" = "✨ 你已為 %1$@ 捐款";
+
+/* You received a donation from a friend. This is the title of that message in the chat. Embeds {{short contact name}}. */
+"DONATION_ON_BEHALF_OF_A_FRIEND_RECEIVED_TITLE_FORMAT" = "%1$@ 已代表你捐款給 Signal";
+
+/* Users can donate on a friend's behalf. If the friend cannot receive these donations, this error message will be shown. */
+"DONATION_ON_BEHALF_OF_A_FRIEND_RECIPIENT_CANNOT_RECEIVE_DONATION_ERROR_BODY" = "在此用戶升級 Signal 之前，你無法為其進行捐款。";
+
+/* Users can donate on a friend's behalf. If the friend cannot receive these donations, an error dialog will be shown. This is the title of that error dialog. */
+"DONATION_ON_BEHALF_OF_A_FRIEND_RECIPIENT_CANNOT_RECEIVE_DONATION_ERROR_TITLE" = "無法捐款";
+
+/* Users can donate on a friend's behalf. This is the error message that appears if the try to do this, but the recipient is blocked. */
+"DONATION_ON_BEHALF_OF_A_FRIEND_RECIPIENT_IS_BLOCKED_ERROR_BODY" = "由於你封鎖了此用戶，因此無法為其進行捐款。";
+
+/* Users can donate on a friend's behalf. This is the title for an error message that appears if the try to do this, but the recipient is blocked. */
+"DONATION_ON_BEHALF_OF_A_FRIEND_RECIPIENT_IS_BLOCKED_ERROR_TITLE" = "無法捐款";
+
+/* Label for a button used to redeem a badge that was received as a donation on your behalf. */
+"DONATION_ON_BEHALF_OF_A_FRIEND_REDEEM_BADGE" = "加值";
+
+/* When you receive a badge as a result of a donation from a friend, a screen is shown. This toast is shown when dismissing that screen if you do not redeem the badge. */
+"DONATION_ON_BEHALF_OF_A_FRIEND_REDEEM_BADGE_LATER" = "你可以稍後再兌換捐款";
+
+/* A friend has donated on your behalf and you received a badge. A sheet opens for you to redeem this badge. Embeds {{contact's short name, such as a first name}}. */
+"DONATION_ON_BEHALF_OF_A_FRIEND_REDEEM_BADGE_TITLE_FORMAT" = "%1$@ 已為你捐款";
+
+/* Shown when you're replying to a donation message. */
+"DONATION_ON_BEHALF_OF_A_FRIEND_REPLY" = "捐款";
+
+/* You sent a donation to a friend. This is the title of that message in the chat. Embeds {{short contact name}}. */
+"DONATION_ON_BEHALF_OF_A_FRIEND_SENT_TITLE_FORMAT" = "代表 %1$@ 捐款";
+
+/* When you donate on behalf of a friend, a thank-you sheet will appear. This is the text on that sheet. Embeds {{recipient name}}. */
+"DONATION_ON_BEHALF_OF_A_FRIEND_THANKS_BODY_FORMAT" = "你已代表 %1$@ 向 Signal 捐款。他們可以選擇在個人檔案上展現支持。";
+
+/* When you donate on behalf of a friend, a thank-you sheet will appear. This is the title on that sheet. */
+"DONATION_ON_BEHALF_OF_A_FRIEND_THANKS_TITLE" = "謝謝您的支持！";
+
+/* A button shown on a donation message you send, to view additional details about the badge that was sent. */
+"DONATION_ON_BEHALF_OF_A_FRIEND_VIEW" = "檢視";
+
+/* A friend has donated on your behalf and you received a badge. This text says that you received a badge, and from whom. Embeds {{contact's short name, such as a first name}}. */
+"DONATION_ON_BEHALF_OF_A_FRIEND_YOU_RECEIVED_A_BADGE_FORMAT" = "%1$@ 已代表你向 Signal 捐款！在你的個人檔案上展現你對 Signal 的支持。";
 
 /* There is a screen where users can read more about their donation to Signal. This is the 1st paragraph of that screen. */
 "DONATION_READ_MORE_SCREEN_PARAGRAPH_1" = "私密通訊。無廣告、無追蹤、無監控。";
@@ -1912,8 +2038,8 @@
 /* Footer text at the bottom of donation receipts */
 "DONATION_RECEIPT_FOOTER" = "感謝你對Signal的支持。你的貢獻有助於推動開發開源隱私技術的使命，保護言論自由並為全球數百萬人提供安全的全球通訊。 如果你是美國居民，請保留此收據作為你的稅務記錄。 Signal Technology Foundation 是美國國內稅收法第 501c3 條規定的免稅非營利組織。 我們的聯邦稅號是 82-4506840。";
 
-/* Title for gift donation receipts */
-"DONATION_RECEIPT_GIFT" = "禮物";
+/* Title for receipts for donations given on a friend's behalf */
+"DONATION_RECEIPT_FOR_DONATION_ON_BEHALF_OF_A_FRIEND" = "為朋友捐款";
 
 /* Title for one-time donation receipts */
 "DONATION_RECEIPT_ONE_TIME" = "一次性";
@@ -1945,11 +2071,11 @@
 /* On donation screens, a small amount of information text is shown. This is the title for that text. */
 "DONATION_SCREENS_HEADER_TITLE" = "私隱比盈利更為重要";
 
+/* Title for the \"donate for a friend\" button on the donation view. */
+"DONATION_VIEW_DONATE_ON_BEHALF_OF_A_FRIEND" = "為朋友捐款";
+
 /* Text describing to the user that they're going to pay a donation to Signal */
 "DONATION_VIEW_DONATION_TO_SIGNAL" = "捐款給Signal";
-
-/* Title for the 'Gift a Badge' link in the donation view */
-"DONATION_VIEW_GIFT" = "贈送徽章";
 
 /* Text that's shown when the donation view fails to load data, probably due to network failure */
 "DONATION_VIEW_LOAD_FAILED" = "網路錯誤。 檢查你的網路連接並重試。";
@@ -1969,8 +2095,8 @@
 /* Title for the 'my support' section in the donation view */
 "DONATION_VIEW_MY_SUPPORT_TITLE" = "我的支援";
 
-/* Title for the 'other ways to give' section on the donation view */
-"DONATION_VIEW_OTHER_WAYS_TO_GIVE_TITLE" = "其他方式捐贈";
+/* Title for the \"other ways to donate\" section on the donation view. */
+"DONATION_VIEW_OTHER_WAYS_TO_DONATE_TITLE" = "其他贊助方式";
 
 /* Title for the 'Subscription FAQ' button on the donation screen */
 "DONATION_VIEW_SUBSCRIPTION_FAQ" = "定期贊助 問與答";
@@ -2005,8 +2131,26 @@
 /* The alert title if user tries to exit update group view without saving changes. */
 "EDIT_GROUP_VIEW_UNSAVED_CHANGES_TITLE" = "未儲存的變更";
 
+/* Label for Edit History modal */
+"EDIT_HISTORY_LABEL" = "編輯歷史記錄";
+
 /* Short name for edit menu item to copy contents of media message. */
 "EDIT_ITEM_COPY_ACTION" = "複製";
+
+/* Edit Send Beta prompt body */
+"EDIT_MESSAGE_SEND_BETA_MESSAGE_BODY" = "編輯訊息僅適用於 Signal 測試版用戶。只有使用最新 Signal 測試版的用戶才能看到你的編輯訊息。";
+
+/* Label to confirm sending an edit */
+"EDIT_MESSAGE_SEND_BETA_MESSAGE_CONFIRM" = "傳送";
+
+/* Edit Send Beta prompt title */
+"EDIT_MESSAGE_SEND_BETA_MESSAGE_TITLE" = "只限 Signal 測試版";
+
+/* Error message to display to user when a messaeg is too old to edit */
+"EDIT_MESSAGE_SEND_MESSAGE_TOO_OLD_ERROR" = "編輯只能在你傳送此訊息後的 3 小時內套用。";
+
+/* Edit failed for an unexpected reason */
+"EDIT_MESSAGE_SEND_MESSAGE_UNKNOWN_ERROR" = "EDIT_MESSAGE_SEND_MESSAGE_UNKNOWN_ERROR";
 
 /* body of email sent to contacts when inviting to install Signal. Embeds {{link to install Signal}} and {{link to the Signal home page}} */
 "EMAIL_INVITE_BODY" = "嘿，\n\n最近，我一直在使用Signal將iPhone上的進行私密聊天。 我也希望你也安裝它，因此我們可以確信只有你和我才能閱讀我們的訊息或聽到我們的電話。\n\nSignal適用於iPhone和Android。 在這裡下載：%1$@\n\nSignal的工作方式類似於你現有的訊息收發應用程式。 我們可以傳送圖片和影片，撥打電話並開始群組聊天。 最棒的是，沒有人能看到其中的任何一個，甚至連製作Signal的人也看不到！\n\n你可以在這裡閱讀有關製作Signal的組織 Open Whisper Systems的更多資訊：%2$@";
@@ -2035,6 +2179,9 @@
 /* The name for the emoji category 'Objects' */
 "EMOJI_CATEGORY_OBJECTS_NAME" = "物品";
 
+/* The name for the emoji section for emojis already used on the message */
+"EMOJI_CATEGORY_ON_MESSAGE_NAME" = "這個訊息";
+
 /* The name for the emoji category 'Recents' */
 "EMOJI_CATEGORY_RECENTS_NAME" = "最近的";
 
@@ -2058,9 +2205,6 @@
 
 /* Call setup status label */
 "END_CALL_UNCATEGORIZED_FAILURE" = "撥號失敗";
-
-/* Error indicating that the phone's contacts could not be retrieved. */
-"ERROR_COULD_NOT_FETCH_CONTACTS" = "無法讀取聯絡人。";
 
 /* Error indicating that a message could not be forwarded. */
 "ERROR_COULD_NOT_FORWARD_MESSAGES_1" = "無法轉寄訊息。";
@@ -2179,17 +2323,35 @@
 /* Format string for 'unregistered user' error. Embeds {{the unregistered user's name or signal id}}. */
 "ERROR_UNREGISTERED_USER_FORMAT" = "未註冊的使用者: %1$@";
 
+/* Button to exit change number, shown in context menu. */
+"EXIT_CHANGE_NUMBER" = "離開變更號碼";
+
+/* Button to exit re-registration, shown in context menu. */
+"EXIT_REREGISTRATION" = "離開註冊";
+
 /* Label notifying the user that the app has expired. */
-"EXPIRATION_ERROR" = "你的Signal版本已過期！ 點擊以更新到最新版本。";
+"EXPIRATION_ERROR" = "此版本的 Signal 已過期。立即更新以傳送和接收訊息。";
+
+/* If the user's app is too old, they'll be shown a warning asking them to upgrade. This is the text on the warning, and tapping it will open the App Store page for Signal. */
+"EXPIRATION_WARNING_ACTION_TITLE" = "立即更新";
+
+/* Label warning the user that the app will expire soon. Embeds {{date}}. */
+"EXPIRATION_WARNING_SOON" = "此版本的 Signal 將於 %1$@ 天後過期。請更新以繼續收發訊息。";
 
 /* Label warning the user that the app will expire today. */
-"EXPIRATION_WARNING_TODAY" = "您的 Signal 版本今日到期，請更新至最新版本。";
+"EXPIRATION_WARNING_TODAY" = "此版本的 Signal 將於今天到期。請更新以繼續收發訊息。";
 
 /* action sheet header when re-sending message which failed because of too many attempts */
 "FAILED_SENDING_BECAUSE_RATE_LIMIT" = "此聯繫人失敗太多次，請稍後再試。";
 
 /* action sheet header when re-sending message which failed because of untrusted identity keys */
 "FAILED_SENDING_BECAUSE_UNTRUSTED_IDENTITY_KEY" = "你與%1$@的安全碼最近已改變。請與對方驗證後再重傳一次訊息。";
+
+/* Shown as the body of an alert when failing to redeem a badge that was received after a friend donated on your behalf. */
+"FAILED_TO_REDEEM_BADGE_RECEIVED_AFTER_DONATION_FROM_A_FRIEND_BODY" = "無法兌換你的捐款。請檢查網路連線，然後再試一次。";
+
+/* Shown as the title of an alert when failing to redeem a badge that was received after a friend donated on your behalf. */
+"FAILED_TO_REDEEM_BADGE_RECEIVED_AFTER_DONATION_FROM_A_FRIEND_TITLE" = "無法兌換捐款";
 
 /* alert title */
 "FAILED_VERIFICATION_TITLE" = "驗證安全碼失敗！";
@@ -2232,9 +2394,6 @@
 
 /* Title for the 'forward message(s)' view. */
 "FORWARD_MESSAGE_TITLE" = "轉寄給";
-
-/* Label indicating media gallery is empty */
-"GALLERY_TILES_EMPTY_GALLERY" = "你的聊天記錄中沒有任何媒體檔案。";
 
 /* Label indicating loading is in progress */
 "GALLERY_TILES_LOADING_MORE_RECENT_LABEL" = "讀取較新的媒體檔中…";
@@ -2286,12 +2445,6 @@
 
 /* Placeholder text for the search field in GIF view */
 "GIF_VIEW_SEARCH_PLACEHOLDER_TEXT" = "搜尋…";
-
-/* Shown when trying to redeem a gift that's already expired. Embeds {{contact name}}. */
-"GIFT_NOT_REDEEMED_BODY_FORMAT" = "「%1$@」送給你的禮物已到期，因此無法再兌換。";
-
-/* Title when trying to redeem a gift that's already expired. */
-"GIFT_NOT_REDEEMED_TITLE" = "你的禮物已到期";
 
 /* Label for the 'go to settings' button */
 "GO_TO_SETTINGS_BUTTON" = "移到設定";
@@ -2755,6 +2908,9 @@
 /* Message indicating that the local user was removed from the group by an unknown user. */
 "GROUP_LOCAL_USER_REMOVED_BY_UNKNOWN_USER" = "你已經被此群組移除。";
 
+/* Message indicating that the local user's request to join the group was approved. */
+"GROUP_LOCAL_USER_REQUEST_APPROVED" = "你加入群組的請求已被批准。";
+
 /* Message indicating that the local user's request to join the group was approved by another user. Embeds {{ %@ the name of the user who approved the request }}. */
 "GROUP_LOCAL_USER_REQUEST_APPROVED_BY_REMOTE_USER_FORMAT" = "%1$@批准了你加入群組的要求。";
 
@@ -2839,9 +2995,6 @@
 /* Message indicating that a remote user's invite was revoked by the local user. Embeds {{remote user name}}. */
 "GROUP_REMOTE_USER_INVITE_REVOKED_BY_LOCAL_USER_FORMAT" = "對%1$@的邀請至該群組已被撤消。";
 
-/* Message indicating that a single remote user was invited to the group. Embeds {{remote user name}}. */
-"GROUP_REMOTE_USER_INVITED_1_FORMAT" = "%1$@被邀請到此群組。";
-
 /* Message indicating that a remote user was invited to the group by the local user. Embeds {{remote user name}}. */
 "GROUP_REMOTE_USER_INVITED_BY_LOCAL_USER_FORMAT" = "你邀請了%1$@至該群組。";
 
@@ -2872,7 +3025,7 @@
 /* Message indicating that a remote user's request to join the group was rejected by the local user. Embeds {{requesting user name}}. */
 "GROUP_REMOTE_USER_REQUEST_REJECTED_BY_LOCAL_USER_FORMAT" = "你拒絕了來自%1$@的加入群組的要求。";
 
-/* Message indicating that a remote user's request to join the group was rejected by another user. Embeds {{ %1$@ requesting user name, %2$@ approving user name }}. */
+/* Message indicating that a remote user's request to join the group was rejected by another user. Embeds {{ %1$@ requesting user name, %2$@ rejecting user name }}. */
 "GROUP_REMOTE_USER_REQUEST_REJECTED_BY_REMOTE_USER_FORMAT" = "%2$@拒絕了來自%1$@加入群組的要求。";
 
 /* Message indicating that a remote user's request to join the group was rejected. Embeds {{requesting user name}}. */
@@ -2980,12 +3133,6 @@
 /* Message indicating that the group was migrated. */
 "GROUP_WAS_MIGRATED" = "該群組已升級為新版群組。";
 
-/* Message indicating that the local user was dropped while migrating the group. */
-"GROUP_WAS_MIGRATED_USERS_DROPPED_LOCAL_USER" = "你無法被新增到新群組中，並且已從該群組中刪除。";
-
-/* Message indicating that the local user was invited while migrating the group. */
-"GROUP_WAS_MIGRATED_USERS_INVITED_LOCAL_USER" = "你無法被新增到新群組中，及被邀請加入";
-
 /* Message indicating that the local user left the group. */
 "GROUP_YOU_LEFT" = "您已退出群組";
 
@@ -3031,128 +3178,8 @@
 /* Label for 'invite friends to group' button. */
 "GROUPS_INVITE_FRIENDS_BUTTON" = "邀請好友";
 
-/* Body text for the first section of the 'legacy group' alert view. */
-"GROUPS_LEGACY_GROUP_ALERT_SECTION_1_BODY" = "舊版群組是與新群組功能，例如管理員和更具描述性的群組更新，不相容的群組。";
-
-/* Title for the first section of the 'legacy group' alert view. */
-"GROUPS_LEGACY_GROUP_ALERT_SECTION_1_TITLE" = "什麼是舊版的群組?";
-
-/* Body text for the second section of the 'legacy group' alert view. */
-"GROUPS_LEGACY_GROUP_ALERT_SECTION_2_BODY" = "舊版群組尚不能升級到新群組，但是如果最新版本的Signal上有相同的成員，則可以建立一個新群組。\n\nSignal將來將提供一種升級舊版群組的方法。";
-
-/* Title for the second section of the 'legacy group' alert view. */
-"GROUPS_LEGACY_GROUP_ALERT_SECTION_2_TITLE" = "我可以升級舊版群組嗎？";
-
-/* Body text for the third section of the 'legacy group' alert view. */
-"GROUPS_LEGACY_GROUP_ALERT_SECTION_3_BODY" = "要建立新群組，所有成員都應更新到Signal的最新版本。";
-
-/* Title for the 'legacy group' alert view. */
-"GROUPS_LEGACY_GROUP_ALERT_TITLE" = "舊版 vs. 新群組";
-
-/* Format for indicator that a group cannot be used until it is migrated. Embeds {{ a \"learn more\" link. }}. */
-"GROUPS_LEGACY_GROUP_BLOCKING_MIGRATION_FORMAT" = "升級該群組以啟動新功能，例如@提及和管理員功能。 未在此群組中分享姓名或照片的成員將被邀請加入。%1$@ 。";
-
-/* Title for the 'can't upgrade legacy group' alert view. */
-"GROUPS_LEGACY_GROUP_CANT_UPGRADE_ALERT_TITLE" = "無法升級到新版群組";
-
-/* Text indicating that a legacy group can't be upgraded because it has too many members. Embeds {{ The maximum number of members allowed in a group. }}. */
-"GROUPS_LEGACY_GROUP_CANT_UPGRADE_ALERT_TOO_MANY_MEMBERS_FORMAT" = "該群組成員過多，因此無法升級為新版群組。 可以升級的最大群組大小為 %1$@。";
-
-/* Explanation of group migration for groups that can't yet be migrated in the 'legacy group' alert views. */
-"GROUPS_LEGACY_GROUP_CANT_UPGRADE_YET_1" = "目前所有群組成員都使用能夠加入新版群組的Signal版本時，該群組將被升級。";
-
-/* Explanation of group migration for groups that can't yet be migrated in the 'legacy group' alert views. */
-"GROUPS_LEGACY_GROUP_CANT_UPGRADE_YET_2" = "升級之前，所有訊息歷史記錄和媒體檔案都將保留。";
-
-/* Brief explanation of legacy groups. Embeds {{ a \"learn more\" link. }}. */
-"GROUPS_LEGACY_GROUP_DESCRIPTION_FORMAT" = "這是一個舊版群組。群組管理員之類的功能僅適用於新群組。%1$@";
-
-/* Indicates that a legacy group can't be upgraded because some members can't be migrated. Embeds {{ an \"learn more\" link. }}. */
-"GROUPS_LEGACY_GROUP_DESCRIPTION_MEMBERS_CANT_BE_MIGRATED_FORMAT" = "此舊版群組尚未準備好升級到新版群組。%1$@。";
-
-/* Indicates that a legacy group can't be upgraded because it has too many members. Embeds {{ an \"learn more\" link. }}. */
-"GROUPS_LEGACY_GROUP_DESCRIPTION_TOO_MANY_MEMBERS_FORMAT" = "這個舊版群組太大，因此無法升級為新版群組。%1$@。";
-
-/* Explanation of legacy groups. Embeds {{ an \"upgrade\" link. }}. */
-"GROUPS_LEGACY_GROUP_DESCRIPTION_WITH_UPGRADE_OFFER_FORMAT" = "這是一個舊版群組。 要連結@提及和管理員等新功能，%1$@。";
-
 /* Label indicating a legacy group. */
 "GROUPS_LEGACY_GROUP_INDICATOR" = "舊版群組";
-
-/* Indicates that the local user needs to accept an invitation to rejoin the group after a group migration. */
-"GROUPS_LEGACY_GROUP_LOCAL_USER_INVITED" = "你將需要接受邀請才能再次加入該群組，並且在你接受之前，你將不會收到群組訊息。";
-
-/* Title for the 'migrated group' alert view. */
-"GROUPS_LEGACY_GROUP_MIGRATED_GROUP_ALERT_TITLE" = "什麼是新群組？";
-
-/* Explanation of group migration for a migrated group in the 'legacy group' alert views. */
-"GROUPS_LEGACY_GROUP_MIGRATED_GROUP_DESCRIPTION" = "升級之前，所有訊息歷史記錄和媒體均已保留。";
-
-/* Explanation of new groups in the 'legacy group' alert views. */
-"GROUPS_LEGACY_GROUP_NEW_GROUP_DESCRIPTION" = "新群組具有@提及和群組管理員等功能，並且將來會支援更多功能。";
-
-/* Title for the 'new groups' alert view. */
-"GROUPS_LEGACY_GROUP_NEW_GROUPS_ALERT_TITLE" = "新版群組";
-
-/* Label for the 'add members' button in the 're-add dropped group members' alert view. */
-"GROUPS_LEGACY_GROUP_RE_ADD_DROPPED_GROUP_MEMBERS_ADD_MEMBERS_BUTTON" = "新增成員";
-
-/* Title for the 're-add dropped group members' alert view. */
-"GROUPS_LEGACY_GROUP_RE_ADD_DROPPED_GROUP_MEMBERS_ALERT_TITLE_1" = "要新增成員嗎？";
-
-/* Title for the 're-add dropped group members' alert view. */
-"GROUPS_LEGACY_GROUP_RE_ADD_DROPPED_GROUP_MEMBERS_ALERT_TITLE_N" = "要新增成員嗎？";
-
-/* Label for the 'add members' button in the 're-add dropped groups members' banner. */
-"GROUPS_LEGACY_GROUP_RE_ADD_DROPPED_GROUP_MEMBERS_BUTTON" = "新增成員";
-
-/* Explanation of 're-adding dropped group member' in the 'legacy group' alert views. */
-"GROUPS_LEGACY_GROUP_RE_ADD_DROPPED_GROUP_MEMBERS_DESCRIPTION_1" = "升級後，該成員無法自動被新增到新版群組中：";
-
-/* Explanation of 're-adding dropped group member' in the 'legacy group' alert views. */
-"GROUPS_LEGACY_GROUP_RE_ADD_DROPPED_GROUP_MEMBERS_DESCRIPTION_N" = "這些成員在升級後無法自動被新增到新版群組中：";
-
-/* Body text for the second section of the 'upgrade legacy group' alert view. */
-"GROUPS_LEGACY_GROUP_UPGRADE_ALERT_SECTION_2_BODY" = "升級之前，所有訊息歷史記錄和媒體均已保留。";
-
-/* Body text for the 'dropped member' section of the 'upgrade legacy group' alert view. */
-"GROUPS_LEGACY_GROUP_UPGRADE_ALERT_SECTION_DROPPED_MEMBERS_1" = "該成員已從群組中刪除，並且在他們升級之前將無法重新加入該群組：";
-
-/* Body text for the 'dropped members' section of the 'upgrade legacy group' alert view. */
-"GROUPS_LEGACY_GROUP_UPGRADE_ALERT_SECTION_DROPPED_MEMBERS_N" = "這些成員已從群組中刪除，並且只有在升級後才能重新加入該群組：";
-
-/* Body text for the 'invites member' section of the 'upgrade legacy group' alert view. */
-"GROUPS_LEGACY_GROUP_UPGRADE_ALERT_SECTION_INVITED_MEMBERS_1" = "該成員將須要接受邀請才能再次加入該群組，並且在他們接受以下訊息之前將不會收到群組訊息：";
-
-/* Body text for the 'invites members' section of the 'upgrade legacy group' alert view. */
-"GROUPS_LEGACY_GROUP_UPGRADE_ALERT_SECTION_INVITED_MEMBERS_N" = "這些成員將須要接受邀請才能再次加入該群組，並且在他們接受以下內容之前將不會收到群組訊息：";
-
-/* Body text for the 'possibly dropped member' section of the 'upgrade legacy group' alert view. */
-"GROUPS_LEGACY_GROUP_UPGRADE_ALERT_SECTION_POSSIBLY_DROPPED_MEMBERS_1" = "該成員無法加入新版群組，因此將從該群組中刪除：";
-
-/* Body text for the 'possibly dropped members' section of the 'upgrade legacy group' alert view. */
-"GROUPS_LEGACY_GROUP_UPGRADE_ALERT_SECTION_POSSIBLY_DROPPED_MEMBERS_N" = "這些成員無法加入新版群組，因此將從該群組中刪除：";
-
-/* Title for the 'upgrade legacy group' alert view. */
-"GROUPS_LEGACY_GROUP_UPGRADE_ALERT_TITLE" = "升級為新版群組";
-
-/* Label for the 'upgrade this group' button in the 'upgrade legacy group' alert view. */
-"GROUPS_LEGACY_GROUP_UPGRADE_ALERT_UPGRADE_BUTTON" = "升級此群組";
-
-/* Message for error alert indicating the group update failed. */
-"GROUPS_LEGACY_GROUP_UPGRADE_ALERT_UPGRADE_FAILED_ERROR_MESSAGE" = "該群組目前無法升級為新版群組。";
-
-/* Message for error alert indicating the group update failed due to network connectivity. */
-"GROUPS_LEGACY_GROUP_UPGRADE_ALERT_UPGRADE_FAILED_ERROR_MESSAGE_NETWORK" = "該群組無法升級到新版群組，因為你尚未連接到網路。請稍後再試。";
-
-/* Title for error alert indicating the group update failed. */
-"GROUPS_LEGACY_GROUP_UPGRADE_ALERT_UPGRADE_FAILED_ERROR_TITLE" = "無法完成升級";
-
-/* Message indicating the group update succeeded. */
-"GROUPS_LEGACY_GROUP_UPGRADE_ALERT_UPGRADE_SUCCEEDED" = "升級到新版群組。";
-
-/* An \"upgrade\" link for upgrading legacy groups to new groups. */
-"GROUPS_LEGACY_GROUP_UPGRADE_LINK" = "升級此群組";
 
 /* Message for the 'replace group admin' alert. */
 "GROUPS_REPLACE_ADMIN_ALERT_MESSAGE" = "在你離開之前，為此群組選擇一位新的管理員。";
@@ -3180,6 +3207,24 @@
 
 /* Help item that takes the user to the Signal support website */
 "HELP_SUPPORT_CENTER" = "支援中心";
+
+/* A format for the 'remove user' action sheet title. Embeds {{the removed user's name or phone number}}. */
+"HIDE_RECIPIENT_ACTION_SHEET_TITLE_FORMAT" = "Remove %1$@?";
+
+/* An explanation of the consequences of removing a user. */
+"HIDE_RECIPIENT_BEHAVIOR_EXPLANATION" = "You won't see this person when searching. You'll get a message request if they message you in the future.";
+
+/* Button label for the 'remove' button */
+"HIDE_RECIPIENT_BUTTON" = "Remove";
+
+/* Toast message confirming the recipient was removed. Embeds {{The name of the user who was removed.}}.. */
+"HIDE_RECIPIENT_CONFIRMATION_TOAST" = "%1$@ has been removed.";
+
+/* An explanation of why a user was not successfully removed and what to do. */
+"HIDE_RECIPIENT_ERROR_ACTION_SHEET_EXPLANATION" = "Check your connection and try again.";
+
+/* Title for an action sheet indicating that the user was not successfully removed. Embeds {{name of user we attempted to hide}}. */
+"HIDE_RECIPIENT_ERROR_ACTION_SHEET_TITLE_FORMAT" = "Unable to remove %1$@";
 
 /* Label for 'archived conversations' button. */
 "HOME_VIEW_ARCHIVED_CONVERSATIONS" = "已封存的聊天";
@@ -3266,7 +3311,7 @@
 "IN_CALL_RINGING" = "響鈴中…";
 
 /* Call setup status label */
-"IN_CALL_RINGING_AUDIO" = "語音電話…";
+"IN_CALL_RINGING_AUDIO" = "語音通話...";
 
 /* Call setup status label */
 "IN_CALL_RINGING_VIDEO" = "視訊電話…";
@@ -3286,8 +3331,14 @@
 /* Message shown in the conversation list when the inbox is empty. */
 "INBOX_VIEW_EMPTY_INBOX" = "尚未有聊天。\n透過與朋友聊天開始。";
 
-/* info message text in conversation view. {embeds callee name} */
-"INCOMING_CALL_FORMAT" = "%1$@曾撥電話給你";
+/* info message text in conversation view */
+"INCOMING_AUDIO_CALL" = "語音通話來電";
+
+/* info message text in conversation view */
+"INCOMING_VIDEO_CALL" = "視訊電話來電";
+
+/* Indicates that the recipient has been removed from the current user's contacts and that messaging them will re-add them. */
+"INFO_MESSAGE_CONTACT_REMOVED" = "你已移除此人，再次傳送訊息給他們會將對方加回你的清單。";
 
 /* Shown in inbox and conversation after syncing as a placeholder indicating why your message history is missing. */
 "INFO_MESSAGE_SYNCED_THREAD" = "You can send or receive synchronized messages from your phone or iPad.  For your security, chat history isn't transferred to new linked devices.";
@@ -3297,6 +3348,9 @@
 
 /* Shown in inbox and conversation when a user joins Signal, embeds the new user's {{contact name}} */
 "INFO_MESSAGE_USER_JOINED_SIGNAL_BODY_FORMAT" = "%1$@在 Signal 上!";
+
+/* Label at the top of the input text when editing a message */
+"INPUT_TOOLBAR_EDIT_MESSAGE_LABEL" = "編輯訊息";
 
 /* accessibility label for the button which shows the regular keyboard instead of sticker picker */
 "INPUT_TOOLBAR_KEYBOARD_BUTTON_ACCESSIBILITY_LABEL" = "鍵盤";
@@ -3397,6 +3451,21 @@
 /* Error indicating that a group could not be left. */
 "LEAVE_GROUP_FAILED" = "離開群組時發生錯誤。";
 
+/* Text in a sheet explaining details about 'Legacy Groups'. */
+"LEGACY_GROUP_UNSUPPORTED_LEARN_MORE_BODY" = "「舊版群組」是指不支援如 @提及和管理員等功能的群組。大部分的舊版群組都是自動或手動升級至「新群組」。由於長時間沒有活動，此群組無法再升級。\n\n若要繼續此聊天，你必須建立一個新群組。";
+
+/* Title for a sheet explaining details about 'Legacy Groups'. */
+"LEGACY_GROUP_UNSUPPORTED_LEARN_MORE_TITLE" = "舊版群組";
+
+/* Message explaining that this group can no longer be used because it is unsupported. Embeds a {{ learn more link }}. */
+"LEGACY_GROUP_UNSUPPORTED_MESSAGE" = "這是舊版群組，並不再受到支援。若要繼續此對話，請建立一個新群組。%1$@";
+
+/* Text in a sheet explaining details about 'New Groups'. */
+"LEGACY_GROUP_WHAT_ARE_NEW_GROUPS_BODY" = "新群組具有@提及和群組管理員等功能，並且將來會支援更多功能。\n\n升級之前，所有訊息歷史記錄和媒體均已保留。";
+
+/* Title for a sheet explaining details about 'New Groups'. */
+"LEGACY_GROUP_WHAT_ARE_NEW_GROUPS_TITLE" = "什麼是新群組？";
+
 /* report an invalid linking code */
 "LINK_DEVICE_INVALID_CODE_BODY" = "這個 QR 碼無效。請確定您正在掃描要連接的裝置上顯示的QR碼。";
 
@@ -3424,8 +3493,26 @@
 /* Label for link previews with an unknown host. */
 "LINK_PREVIEW_UNKNOWN_DOMAIN" = "連結預覽";
 
+/* Shown in an alert when trying to edit a contact. */
+"LINKED_DEVICE_CONTACTS_NOT_ALLOWED" = "無法再使用 iPad 管理系統聯絡人。如要將 Signal 聯絡人新增至系統聯絡人，請在您的手機上打開 Signal。";
+
+/* Shown in a banner when you tap the 'New Chat' icon at the top of the list of chats. */
+"LINKED_DEVICE_MANAGE_CONTACTS_BANNER" = "iPad 不再支援管理系統聯絡人。此裝置將繼續從您手機上的 Signal 同步聯絡清單的任何變更。";
+
+/* A button shown in a banner when you tap the 'New Chat' icon at the top of the list of chats. Tapping it opens a website with more details. */
+"LINKED_DEVICE_MANAGE_CONTACTS_LEARN_MORE" = "了解更多";
+
 /* Menu item and navbar title for the device manager */
 "LINKED_DEVICES_TITLE" = "已連結的裝置";
+
+/* Label for the 'give access' button in the 'onboarding permissions' view. */
+"LINKED_ONBOARDING_PERMISSIONS_ENABLE_PERMISSIONS_BUTTON" = "允許通知";
+
+/* Explanation in the 'onboarding permissions' view. */
+"LINKED_ONBOARDING_PERMISSIONS_EXPLANATION" = "允許通知可讓你在收到訊息、通話或有關新對話活動的更新時，即時收到通知。";
+
+/* Title of the 'onboarding permissions' view. */
+"LINKED_ONBOARDING_PERMISSIONS_TITLE" = "允許通知";
 
 /* Alert Title */
 "LINKING_DEVICE_FAILED_TITLE" = "裝置連結失敗";
@@ -3487,11 +3574,38 @@
 /* Shown in place of message input text in media editor when 'View Once' is on. */
 "MEDIA_EDITOR_TEXT_FIELD_VIEW_ONCE_MEDIA" = "一次性多媒體內容";
 
+/* Button to reset media filter. Displayed when filter results in no media visible. */
+"MEDIA_GALLERY_CLEAR_FILTER_BUTTON" = "清除篩選器";
+
+/* Explanatory text displayed when deleting N items in All Media screen. */
+"MEDIA_GALLERY_DELETE_MEDIA_BODY" = "這將會永久刪除已選擇的檔案。與這些項目關聯的任何訊息文字亦將會被刪除。";
+
 /* Format for the 'more items' indicator for media galleries. Embeds {{the number of additional items}}. */
 "MEDIA_GALLERY_MORE_ITEMS_FORMAT" = "+%1$@";
 
+/* Displayed in All Media (Audio) screen when there's no audio files - second line. */
+"MEDIA_GALLERY_NO_AUDIO_SUBTITLE" = "你傳送和接收的語音訊息和音訊檔案會顯示在這裡";
+
+/* Displayed in All Media (Audio) screen when there's no audio files - first line. */
+"MEDIA_GALLERY_NO_AUDIO_TITLE" = "沒有音訊";
+
+/* Displayed in All Media screen when there's no media - first line. */
+"MEDIA_GALLERY_NO_FILTER_RESULTS" = "無媒體";
+
+/* Displayed in All Media screen when there's no media - second line. */
+"MEDIA_GALLERY_NO_MEDIA_SUBTITLE" = "你傳送和接收的相片、影片和 GIF 檔會顯示在這裡";
+
+/* Displayed in All Media screen when there's no media - first line. */
+"MEDIA_GALLERY_NO_MEDIA_TITLE" = "無媒體";
+
 /* Section header in media gallery collection view */
 "MEDIA_GALLERY_THIS_MONTH_HEADER" = "本月";
+
+/* Text explaining that the user will forward all media from a message. */
+"MEDIA_PAGE_FORWARD_MEDIA_CONFIRM_MESSAGE" = "此訊息中的所有多媒體將會被轉寄。";
+
+/* Context menu item in media viewer. Refers to deleting currently displayed photo/video. */
+"MEDIA_VIEWER_DELETE_MEDIA_ACTION" = "刪除";
 
 /* button title to snooze a megaphone */
 "MEGAPHONE_REMIND_LATER" = "稍後提醒我";
@@ -3523,6 +3637,9 @@
 /* Action sheet button title */
 "MESSAGE_ACTION_DETAILS" = "更多資訊";
 
+/* Action sheet edit message accessibility label */
+"MESSAGE_ACTION_EDIT_MESSAGE" = "編輯訊息";
+
 /* Label for button to compose a new email. */
 "MESSAGE_ACTION_EMAIL_NEW_MAIL_MESSAGE" = "新電子郵件訊息";
 
@@ -3534,6 +3651,12 @@
 
 /* Action sheet button title */
 "MESSAGE_ACTION_FORWARD_SELECTED_MESSAGES" = "轉寄已選擇的訊息";
+
+/* A label for a button that will open an address in Apple Maps. \"Maps\" is a proper noun referring to the Apple Maps app, and should be translated as such. */
+"MESSAGE_ACTION_LINK_OPEN_ADDRESS_APPLE_MAPS" = "用地圖開啟";
+
+/* A label for a button that will open an address in Google Maps. \"Google Maps\" is a proper noun referring to the Google Maps app, and should be translated as such. */
+"MESSAGE_ACTION_LINK_OPEN_ADDRESS_GOOGLE_MAPS" = "在 Google 地圖中開啟";
 
 /* Label for button to open a group invite. */
 "MESSAGE_ACTION_LINK_OPEN_GROUP_INVITE" = "開啟群組邀請";
@@ -3588,6 +3711,9 @@
 
 /* Toast indicating that the user has copied the sent timestamp. */
 "MESSAGE_DETAIL_VIEW_DID_COPY_SENT_TIMESTAMP" = "傳送時間已復制";
+
+/* Title for the 'edit history' section on the 'message details' view. */
+"MESSAGE_DETAILS_EDIT_HISTORY_TITLE" = "瀏覽編輯歷史紀錄";
 
 /* Title for the 'sent from' section on the 'message details' view. */
 "MESSAGE_DETAILS_VIEW_SENT_FROM_TITLE" = "傳送自";
@@ -3745,6 +3871,9 @@
 /* A prompt asking if the user wants to accept a group invite. */
 "MESSAGE_REQUEST_VIEW_NEW_GROUP_PROMPT_V2" = "要加入這個群組？ 在你接受之前，他們不會知道你已看過他們的訊息。";
 
+/* A prompt asking if the user wants to accept a conversation invite from a person whom they previously removed. Embeds {{contact name}}. */
+"MESSAGE_REQUEST_VIEW_REMOVED_CONTACT_PROMPT_FORMAT" = "你是否允許 %1$@ 與你通訊，並分享你的名字及照片？你之前曾移除此人。";
+
 /* A button used to unlock a blocked conversation. */
 "MESSAGE_REQUEST_VIEW_UNBLOCK_BUTTON" = "解除封鎖";
 
@@ -3762,6 +3891,9 @@
 
 /* message status while message is downloading. */
 "MESSAGE_STATUS_DOWNLOADING" = "下載中…";
+
+/* status meesage for edited messages */
+"MESSAGE_STATUS_EDITED" = "已編輯";
 
 /* status message for failed messages */
 "MESSAGE_STATUS_FAILED" = "傳送失敗";
@@ -3812,13 +3944,16 @@
 "MESSAGES_VIEW_UNREAD_INDICATOR" = "新訊息";
 
 /* info message text in conversation view */
-"MISSED_CALL" = "未接來電";
+"MISSED_AUDIO_CALL" = "未接的語音通話";
 
 /* info message text in conversation view (use Apple's name for 'Do Not Disturb' on iOS 14 and older) */
 "MISSED_CALL_DO_NOT_DISTURB" = "啟用勿擾模式時錯過的來電";
 
 /* info message text in conversation view (use Apple's name for 'Focus') */
 "MISSED_CALL_FOCUS_MODE" = "啟用專注模式時錯過的來電";
+
+/* info message text in conversation view */
+"MISSED_VIDEO_CALL" = "錯過視訊電話";
 
 /* Alert body */
 "MISSING_CAMERA_PERMISSION_MESSAGE" = "你可以在 iOS 設定中允許取用相機以在 Signal 中使用影像電話。";
@@ -3838,13 +3973,10 @@
 /* Alert title when user has previously denied media library access */
 "MISSING_MEDIA_LIBRARY_PERMISSION_TITLE" = "Signal 要求取用你的照片才能使用此功能。";
 
-/* Generic indicator that no value is available for display */
-"MISSING_VALUE" = "無";
-
-/* alert title: cannot link - reached max linked devices */
+/* An error shown as the title of an alert when try to link a new device & the user is already at the limit. */
 "MULTIDEVICE_PAIRING_MAX_DESC" = "你無法連結更多的裝置。";
 
-/* alert body: cannot link - reached max linked devices */
+/* A recovery suggestion shown as the body of an alert when try to link a new device & the user is already at the limit. */
 "MULTIDEVICE_PAIRING_MAX_RECOVERY" = "你已達到目前可以與本帳戶連結的裝置最大數量。 請刪除一個裝置，然後重試。";
 
 /* Badge indicating that the user is muted. */
@@ -4000,6 +4132,9 @@
 /* Label for 1:1 conversation with yourself. */
 "NOTE_TO_SELF" = "給自己的筆記";
 
+/* Body for a notification representing a message request. */
+"NOTIFICATION_BODY_INCOMING_MESSAGE_REQUEST" = "訊息請求";
+
 /* Lock screen notification text presented after user powers on their device without unlocking. Embeds {{device model}} (either 'iPad' or 'iPhone') */
 "NOTIFICATION_BODY_PHONE_LOCKED_FORMAT" = "%1$@ 重新啟動的過程中，您可能有收到新訊息";
 
@@ -4054,9 +4189,6 @@
 /* Label for the 'ok' button. */
 "OK" = "OK";
 
-/* Label indicating that the 2fa pin is exhausted in the 'onboarding 2fa' view. */
-"ONBOARDING_2FA_ATTEMPTS_EXHAUSTED" = "PIN 碼錯誤。你嘗試次數已用盡。";
-
 /* Label for the 'create new pin' button when reglock is disabled during onboarding. */
 "ONBOARDING_2FA_CREATE_NEW_PIN" = "建立新的 PIN 碼";
 
@@ -4072,6 +4204,9 @@
 /* Label indicating that the 2fa pin is invalid in the 'onboarding 2fa' view. */
 "ONBOARDING_2FA_INVALID_PIN" = "錯誤的 PIN 碼";
 
+/* Label indicating that the 2fa pin is invalid in the 'onboarding 2fa' view, and you only have one more attempt */
+"ONBOARDING_2FA_INVALID_PIN_LAST_ATTEMPT" = "PIN 碼錯誤。剩下 1 次嘗試次數。";
+
 /* Label for the 'skip and create new pin' button when reglock is disabled during onboarding. */
 "ONBOARDING_2FA_SKIP_AND_CREATE_NEW_PIN" = "略過即建立新的 PIN 碼";
 
@@ -4080,15 +4215,6 @@
 
 /* Title for the skip pin entry action sheet during onboarding. */
 "ONBOARDING_2FA_SKIP_PIN_ENTRY_TITLE" = "略過輸入 PIN 碼嗎？";
-
-/* Title of the 'onboarding Captcha' view. */
-"ONBOARDING_CAPTCHA_TITLE" = "為你的訊息增加一點人性。";
-
-/* Explanation on the 'onboarding after dropped YDB' view. */
-"ONBOARDING_DROPPED_YDB_EXPLANATION" = "由於您長時間沒有使用 Signal，因此必須重新註冊才能使用。";
-
-/* Title of the 'onboarding after dropped YDB' view. */
-"ONBOARDING_DROPPED_YDB_TITLE" = "Signal 註冊";
 
 /* button indicating that the user will register their ipad */
 "ONBOARDING_MODE_SWITCH_BUTTON_PROVISIONING" = "註冊 iPad";
@@ -4135,12 +4261,6 @@
 /* Label indicating that registration has been ratelimited. Embeds {{remaining time string}}. */
 "ONBOARDING_PHONE_NUMBER_RATE_LIMIT_WARNING_FORMAT" = "請等待幾分鐘，然後重試。(%1$@)";
 
-/* Title of the 'onboarding phone number' view. */
-"ONBOARDING_PHONE_NUMBER_TITLE" = "輸入你的電話號碼";
-
-/* Title of the 'onboarding phone number' view when the user is re-registering. */
-"ONBOARDING_PHONE_NUMBER_TITLE_REREGISTERING" = "你的電話號碼";
-
 /* Label indicating that the phone number is invalid in the 'onboarding phone number' view. */
 "ONBOARDING_PHONE_NUMBER_VALIDATION_WARNING" = "無效的電話號碼。 請輸入有效的電話號碼進行註冊。";
 
@@ -4150,32 +4270,11 @@
 /* Label for the 'learn more' link when reglock is disabled in the 'onboarding pin attempts exhausted' view. */
 "ONBOARDING_PIN_ATTEMPTS_EXHAUSTED_LEARN_MORE" = "了解更多有關 PIN 碼";
 
-/* Explanation of the 'onboarding pin attempts exhausted' view when reglock is enabled. */
-"ONBOARDING_PIN_ATTEMPTS_EXHAUSTED_REGLOCK_EXPLANATION" = "為了保護你的隱私和帳戶的安全，我們將其鎖定了7天。\n\n閒置7天後，你無須輸入 PIN 碼即可重新註冊此電話號碼。 所有內容都將被刪除。";
-
-/* Label for the 'learn more' link when reglock is enabled in the 'onboarding pin attempts exhausted' view. */
-"ONBOARDING_PIN_ATTEMPTS_EXHAUSTED_REGLOCK_LEARN_MORE" = "了解更多有關已鎖定的帳號";
-
-/* Title of the 'onboarding pin attempts exhausted' view when reglock is enabled. */
-"ONBOARDING_PIN_ATTEMPTS_EXHAUSTED_REGLOCK_TITLE" = "帳號已被鎖定";
-
 /* Title of the 'onboarding pin attempts exhausted' view when reglock is disabled. */
 "ONBOARDING_PIN_ATTEMPTS_EXHAUSTED_TITLE" = "錯誤的 PIN 碼";
 
-/* Title of the 'onboarding PIN' view. */
-"ONBOARDING_PIN_EXPLANATION" = "輸入你為帳戶建立的 PIN 碼。 這與你的簡訊驗證碼不同。";
-
-/* Title of the 'onboarding PIN' view. */
-"ONBOARDING_PIN_TITLE" = "輸入你的 PIN 碼";
-
-/* Title label for profile creation step of onboarding */
-"ONBOARDING_PROFILE_CREATION_TITLE" = "您的個人資訊";
-
-/* Placeholder text for the family name field of the profile creation view. */
-"ONBOARDING_PROFILE_FAMILY_NAME_FIELD" = "姓氏（可選）";
-
-/* Placeholder text for the given name field of the profile creation view. */
-"ONBOARDING_PROFILE_GIVEN_NAME_FIELD" = "名（必填）";
+/* Explanation of the 'onboarding pin attempts exhausted' view when it is unknown if reglock is enabled. */
+"ONBOARDING_PIN_ATTEMPTS_EXHAUSTED_WITH_UNKNOWN_REGLOCK_EXPLANATION" = "你的 PIN 碼嘗試次數已達上限，但你仍可以透過驗證電話號碼來嘗試及使用你的 Signal 帳戶。為確保你的隱私和安全性，還原你的帳戶並不會包括任何已儲存的個人資料或設定。";
 
 /* Link to the 'terms and privacy policy' in the 'onboarding splash' view. */
 "ONBOARDING_SPLASH_TERM_AND_PRIVACY_POLICY" = "服務條款與隱私政策";
@@ -4195,8 +4294,17 @@
 /* Label for a progress spinner currently validating code */
 "ONBOARDING_VERIFICATION_CODE_VALIDATION_PROGRESS_LABEL" = "驗證碼中…";
 
-/* Label indicating that the verification code is incorrect in the 'onboarding verification' view. */
-"ONBOARDING_VERIFICATION_INVALID_CODE" = "這個驗證碼是不正確的。";
+/* First bullet point for the explainer sheet for registering via verification code. */
+"ONBOARDING_VERIFICATION_HELP_BULLET_1" = "確保你的手機具有電信訊號以接收你的SMS或電話";
+
+/* Second bullet point for the explainer sheet for registering via verification code. */
+"ONBOARDING_VERIFICATION_HELP_BULLET_2" = "確認你可以接收該號碼的來電";
+
+/* Third bullet point for the explainer sheet for registering via verification code. */
+"ONBOARDING_VERIFICATION_HELP_BULLET_3" = "檢查你輸入的電話號碼是否正確";
+
+/* Label for a button to get help entering a verification code when registering. */
+"ONBOARDING_VERIFICATION_HELP_LINK" = "註冊時遇到困難？";
 
 /* Label for button to resend SMS verification code. */
 "ONBOARDING_VERIFICATION_RESEND_CODE_BUTTON" = "重新傳送認證碼";
@@ -4213,6 +4321,21 @@
 /* Button text which opens the settings app */
 "OPEN_SETTINGS_BUTTON" = "設定";
 
+/* Signal doesn't support old versions of iOS and shows a warning if you're on unsupported version. Some users can upgrade their device to a newer version of iOS to continue using Signal. If that's the case, they'll be shown this text. */
+"OS_EXPIRED_AND_CAN_UPGRADE_OS" = "Signal 不再適用於此裝置。若要再次使用 Signal，請更新你的裝置至較新的 iOS 版本。";
+
+/* Signal doesn't support old devices. If that's the case, they'll be shown this action, and tapping it will open information about Signal's minimum supported operating systems. */
+"OS_EXPIRED_AND_DEVICE_IS_STUCK" = "Signal 不再適用於此裝置。若要再次使用 Signal，請改用較新的裝置。";
+
+/* Signal doesn't support old versions of iOS and shows a warning if you're on an old version. Some users can upgrade their device to a newer version of iOS to continue using Signal. If that's the case, they'll be shown this action, and tapping it will open device update instructions. */
+"OS_SOON_TO_EXPIRE_ACTION_TITLE" = "立即更新";
+
+/* Signal doesn't support old versions of iOS and shows a warning if you're an old version that will soon lose support. Some users can upgrade their device to a newer version of iOS to continue using Signal. If that's the case, they'll be shown this text. Embeds {{expiration date}}. */
+"OS_SOON_TO_EXPIRE_AND_CAN_UPGRADE_OS_FORMAT" = "Signal 即將停止支援你裝置使用的 iOS 版本。如要繼續使用 Signal，請在 %1$@ 之前更新你的裝置至較新的 iOS 版本。";
+
+/* Signal doesn't support old versions of iOS and shows a warning if you're on an old version that will soon lose support. This is the text on that warning when users can't upgrade iOS without getting a new device. Embeds {{expiration date}}. */
+"OS_SOON_TO_EXPIRE_AND_DEVICE_WILL_BE_STUCK_FORMAT" = "Signal 即將停止支援你裝置使用的 iOS 版本。如要繼續使用 Signal，請在 %1$@ 之前改用較新的裝置。";
+
 /* Info Message when another user disabled disappearing messages. Embeds {{name of other user}}. */
 "OTHER_DISABLED_DISAPPEARING_MESSAGES_CONFIGURATION" = "%1$@關閉了訊息銷毀功能。";
 
@@ -4228,8 +4351,17 @@
 /* Label warning the user that they should update Signal to continue using payments. */
 "OUTDATED_PAYMENT_CLIENT_REMINDER_TEXT" = "請更新 Signal 以繼續使用付款功能。你的餘額可能沒有更新。";
 
-/* info message text in conversation view. {embeds callee name} */
-"OUTGOING_CALL_FORMAT" = "你曾撥電話給%1$@";
+/* info message text in conversation view */
+"OUTGOING_AUDIO_CALL" = "撥打語音通話";
+
+/* info message text in conversation view */
+"OUTGOING_MISSED_AUDIO_CALL" = "未接的語音通話";
+
+/* info message text in conversation view */
+"OUTGOING_MISSED_VIDEO_CALL" = "未接的視訊電話";
+
+/* info message text in conversation view */
+"OUTGOING_VIDEO_CALL" = "撥出視訊電話";
 
 /* Button used to decline a payment request. */
 "PAYMENTS_ACTION_DECLINE_REQUEST" = "拒絕要求";
@@ -4276,6 +4408,60 @@
 /* Status indicator for outgoing payments which failed to verify. */
 "PAYMENTS_FAILURE_OUTGOING_VALIDATION_FAILED" = "無效";
 
+/* Indicates that an unknown error occurred while using Touch ID/Face ID/Phone Passcode. */
+"PAYMENTS_LOCK_AUTHENTICATION_ENABLE_UNKNOWN_ERROR" = "身分驗證無法被連結。";
+
+/* Indicates that Touch ID/Face ID/Phone Passcode authentication failed. */
+"PAYMENTS_LOCK_ERROR_LOCAL_AUTHENTICATION_FAILED" = "身分認證失敗。";
+
+/* Indicates that Touch ID/Face ID/Phone Passcode is 'locked out' on this device due to authentication failures. */
+"PAYMENTS_LOCK_ERROR_LOCAL_AUTHENTICATION_LOCKOUT" = "認證嘗試失敗太多次。請稍後再試。";
+
+/* Indicates that Touch ID/Face ID/Phone Passcode are not available on this device. */
+"PAYMENTS_LOCK_ERROR_LOCAL_AUTHENTICATION_NOT_AVAILABLE" = "如要使用付款鎖定，您必須在 iOS「設定」中啟用密碼功能。";
+
+/* Indicates that Touch ID/Face ID/Phone Passcode is not configured on this device. */
+"PAYMENTS_LOCK_ERROR_LOCAL_AUTHENTICATION_NOT_ENROLLED" = "如要使用付款鎖定，您必須在 iOS「設定」中啟用密碼功能。";
+
+/* Indicates that Touch ID/Face ID/Phone Passcode passcode is not set. */
+"PAYMENTS_LOCK_ERROR_LOCAL_AUTHENTICATION_PASSCODE_NOT_SET" = "如要使用付款鎖定，您必須在 iOS「設定」中啟用密碼功能。";
+
+/* First time payments suggest payments lock message */
+"PAYMENTS_LOCK_FIRST_TIME_ACTION_SHEET_MESSAGE" = "多加一重安全保障，使用密碼或 Touch ID 發送資金";
+
+/* First time payments suggest payments lock message */
+"PAYMENTS_LOCK_FIRST_TIME_ACTION_SHEET_MESSAGE_FACEID" = "多加一重安全保障，使用 Face ID 發送資金。";
+
+/* First time payments suggest payments lock message */
+"PAYMENTS_LOCK_FIRST_TIME_ACTION_SHEET_MESSAGE_PASSCODE" = "多加一重安全保障，使用密碼發送資金。";
+
+/* First time payments suggest payments lock message */
+"PAYMENTS_LOCK_FIRST_TIME_ACTION_SHEET_MESSAGE_TOUCHID" = "多加一重安全保障，使用 Touch ID 發送資金。";
+
+/* First time payments suggest payments lock title */
+"PAYMENTS_LOCK_FIRST_TIME_ACTION_SHEET_TITLE" = "要為未來的付款開啟「付款鎖定」嗎？";
+
+/* Affirmative action title to enable payments lock */
+"PAYMENTS_LOCK_FIRST_TIME_AFFIRMATIVE_ACTION" = "必須使用密碼或 Touch ID 進行發送";
+
+/* Affirmative action title to enable payments lock */
+"PAYMENTS_LOCK_FIRST_TIME_AFFIRMATIVE_ACTION_FACEID" = "必須使用 Face ID 發送";
+
+/* Affirmative action title to enable payments lock */
+"PAYMENTS_LOCK_FIRST_TIME_AFFIRMATIVE_ACTION_PASSCODE" = "必須使用手機密碼進行發送";
+
+/* Affirmative action title to enable payments lock */
+"PAYMENTS_LOCK_FIRST_TIME_AFFIRMATIVE_ACTION_TOUCHID" = "必須使用 Touch ID 進行發送";
+
+/* Message for action sheet shown when unlocking with biometrics like Face ID or TouchID fails because it is disabled at a system level. */
+"PAYMENTS_LOCK_LOCAL_BIOMETRY_AUTH_DISABLED_MESSAGE" = "驗證失敗。請確保您的裝置已啟用生物識別技術，並設定好密碼。";
+
+/* Title for action sheet shown when unlocking with biometrics like Face ID or TouchID fails because it is disabled at a system level. */
+"PAYMENTS_LOCK_LOCAL_BIOMETRY_AUTH_DISABLED_TITLE" = "生物識別驗證失敗";
+
+/* Description of how and why Signal iOS uses Touch ID/Face ID/Phone Passcode to unlock 'payments lock'. */
+"PAYMENTS_LOCK_REASON_UNLOCK_PAYMENTS_LOCK" = "驗證以確認付款。";
+
 /* Label for the 'add memo' ui in the 'send payment' UI. */
 "PAYMENTS_NEW_PAYMENT_ADD_MEMO" = "新增註記";
 
@@ -4308,6 +4494,12 @@
 
 /* Indicates that an outgoing payment could not be verified in a timely way. */
 "PAYMENTS_NEW_PAYMENT_ERROR_OUTGOING_VERIFICATION_TAKING_TOO_LONG" = "付款尚未被驗證";
+
+/* Indicates that a payment failed because the payments lock attempt was cancelled. */
+"PAYMENTS_NEW_PAYMENT_ERROR_PAYMENTS_LOCK_AUTH_CANCELLED" = "付款鎖定身分驗證已被取消。";
+
+/* Indicates that a payment failed because the payments lock failed to authenticate. */
+"PAYMENTS_NEW_PAYMENT_ERROR_PAYMENTS_LOCK_AUTH_FAILURE" = "付款鎖定身分驗證失敗。";
 
 /* Indicates that an unknown error occurred while sending a payment or payment request. */
 "PAYMENTS_NEW_PAYMENT_ERROR_UNKNOWN" = "無法完成付款。 檢查你的連線，然後重試。";
@@ -4520,22 +4712,16 @@
 "PHONE_NUMBER_DISCOVERABILITY_EVERYBODY" = "每個人";
 
 /* A user friendly description of the 'everybody' phone number discoverability mode. */
-"PHONE_NUMBER_DISCOVERABILITY_EVERYBODY_DESCRIPTION" = "任何在你的聯絡人中擁有你的電話號碼的人都會在Signal上將你視為聯絡人。 其他人將可以在搜尋中找到你。";
+"PHONE_NUMBER_DISCOVERABILITY_EVERYBODY_DESCRIPTION" = "只要對方在通訊錄內儲存了你的電話號碼，便可在 Signal 的聯絡人中看到你。其他人在開始新的聊天或群組時，則可透過你的電話號碼聯絡你。";
 
 /* A user friendly name for the 'nobody' phone number discoverability mode. */
 "PHONE_NUMBER_DISCOVERABILITY_NOBODY" = "無人";
 
 /* A user friendly description of the 'nobody' phone number discoverability mode. */
-"PHONE_NUMBER_DISCOVERABILITY_NOBODY_DESCRIPTION" = "Signal上的任何人都無法找到你的電話號碼。 在聯絡人中擁有你電話號碼的人將不會顯示為你的聯絡人，其他人將無法在搜尋中找到你的電話號碼。";
+"PHONE_NUMBER_DISCOVERABILITY_NOBODY_DESCRIPTION" = "沒有人可以在 Signal 透過你的電話號碼找到你。";
 
 /* A format for a label showing an example phone number. Embeds {{the example phone number}}. */
 "PHONE_NUMBER_EXAMPLE_FORMAT" = "範例：%1$@";
-
-/* A user friendly name for the 'contacts only' phone number sharing mode. */
-"PHONE_NUMBER_SHARING_CONTACTS_ONLY" = "我的聯絡人";
-
-/* A user friendly description of the 'contacts only' phone number sharing mode. */
-"PHONE_NUMBER_SHARING_CONTACTS_ONLY_DESCRIPTION" = "只有你的聯絡人會在Signal上看到你的電話號碼。";
 
 /* A user friendly name for the 'everybody' phone number sharing mode. */
 "PHONE_NUMBER_SHARING_EVERYBODY" = "每個人";
@@ -4633,17 +4819,17 @@
 /* Title of the 'pin disable' action sheet. */
 "PIN_CREATION_DISABLE_CONFIRMATION_TITLE" = "警告";
 
-/* Error body indicating that the attempt to create a PIN failed. */
-"PIN_CREATION_ERROR_MESSAGE" = "你的 PIN 碼尚未被儲存。稍後，我們會提示你建立PIN碼。";
-
-/* Error title indicating that the attempt to create a PIN failed. */
-"PIN_CREATION_ERROR_TITLE" = "PIN碼建立失敗";
-
 /* The explanation in the 'pin creation' view. */
 "PIN_CREATION_EXPLANATION" = "PIN 碼可以加密 Signal 伺服器上面關於您帳號的資訊，因此只有您可以存取。重新安裝時，您的個人資訊、設定和聯絡人將從 Signal 伺服器上回復。啟動 Signal 應用程式時不需要 PIN。";
 
 /* Learn more action on the pin creation view */
-"PIN_CREATION_LEARN_MORE" = "了解更多有關PIN碼";
+"PIN_CREATION_LEARN_MORE" = "更多 PIN 碼資訊";
+
+/* Users can create PINs to restore their account data later. They can learn more about this on a sheet. This is the text on that sheet. */
+"PIN_CREATION_LEARN_MORE_TEXT" = "PIN 碼讓在 Signal 中的資訊得以加密保存並僅供你存取。當你重新安裝時，你的個人資料、設定和聯絡人將會還原。";
+
+/* Users can create PINs to restore their account data later. They can learn more about this on a sheet. This is the title on that sheet. */
+"PIN_CREATION_LEARN_MORE_TITLE" = "關於 Signal PIN 碼";
 
 /* Label indicating that the attempted PIN does not match the first PIN */
 "PIN_CREATION_MISMATCH_ERROR" = "PIN 碼不符，請再試一次。";
@@ -4690,11 +4876,17 @@
 /* Label indicating that the attempted PIN is too weak */
 "PIN_CREATION_WEAK_ERROR" = "請選擇強度較強的PIN碼";
 
+/* If your attempted PIN is too weak, you'll see an error message. This is the text on the error dialog. */
+"PIN_CREATION_WEAK_ERROR_MESSAGE" = "PIN 碼讓在 Signal 中的資訊得以加密保存並僅供你存取。選擇更強的 PIN 碼以保護你的帳戶。";
+
 /* Error body indicating that the attempt to disable a PIN failed. */
 "PIN_DISABLE_ERROR_MESSAGE" = "你的PIN碼無法被停用。 我們稍後會再次提示你。";
 
 /* Error title indicating that the attempt to disable a PIN failed. */
 "PIN_DISABLE_ERROR_TITLE" = "PIN碼停用失敗";
+
+/* If the user is re-registering, they need to enter their PIN to restore all their data. In some cases, they can skip this entry and lose some data. This text is shown on a button that lets them begin to do this. */
+"PIN_ENTER_EXISTING_SKIP" = "跳過 PIN 碼";
 
 /* Error title indicating that the attempt to recreate a PIN failed. */
 "PIN_RECREATION_ERROR_TITLE" = "PIN碼建立失敗";
@@ -4759,14 +4951,8 @@
 /* Accessibility label for button to start media playback */
 "PLAY_BUTTON_ACCESSABILITY_LABEL" = "播放媒體";
 
-/* Label indicating that the user is not verified. Embeds {{the user's name or phone number}}. */
-"PRIVACY_IDENTITY_IS_NOT_VERIFIED_FORMAT" = "您尚未將 %1$@ 標記為已驗證";
-
 /* Badge indicating that the user is verified. */
 "PRIVACY_IDENTITY_IS_VERIFIED_BADGE" = "已驗證";
-
-/* Label indicating that the user is verified. Embeds {{the user's name or phone number}}. */
-"PRIVACY_IDENTITY_IS_VERIFIED_FORMAT" = "%1$@ 已驗證";
 
 /* Button that shows the 'scan with camera' view. */
 "PRIVACY_TAP_TO_SCAN" = "點擊以掃描";
@@ -4794,9 +4980,6 @@
 
 /* alert body */
 "PRIVACY_VERIFICATION_FAILURE_INVALID_QRCODE" = "你所掃描的碼似乎不是安全碼。請確認雙方都使用最新的版本。";
-
-/* Paragraph(s) shown alongside the safety number when verifying privacy with {{contact name}} */
-"PRIVACY_VERIFICATION_INSTRUCTIONS" = "如須確認你和 %1$@點對點加密的安全性，請在雙方裝置上比較上述數字。\n\n或者可以透過掃描雙方的QR code進行驗證。";
 
 /* Navbar title */
 "PRIVACY_VERIFICATION_TITLE" = "驗證安全碼";
@@ -4870,7 +5053,28 @@
 /* Placeholder when the user doesn't have a 'name' defined for profile settings screen. */
 "PROFILE_SETTINGS_NAME_PLACEHOLDER" = "名稱";
 
-/* Placeholder when the user doesn't have a 'username' defined for profile settings screen. */
+/* A message explaining that something is wrong with the username, on a sheet allowing the user to resolve the issue. */
+"PROFILE_SETTINGS_USERNAME_CORRUPTED_RESOLUTION_CONFIRMATION_ALERT_MESSAGE" = "你的用戶名稱發生問題，不再被指定到你的帳戶。";
+
+/* Title for an action sheet button allowing users to create a new username when their current one is corrupted. */
+"PROFILE_SETTINGS_USERNAME_CORRUPTED_RESOLUTION_CREATE_NEW_USERNAME_ACTION_TITLE" = "新創使用者名稱";
+
+/* Title for an action sheet button allowing users to delete their corrupted username. */
+"PROFILE_SETTINGS_USERNAME_CORRUPTED_RESOLUTION_DELETE_USERNAME_ACTION_TITLE" = "刪除使用者名稱";
+
+/* A message asking the user if they are sure they want to remove their username and explaining what will happen. Embeds {{ the user's current username }}. */
+"PROFILE_SETTINGS_USERNAME_DELETION_CONFIRMATION_ALERT_MESSAGE_FORMAT" = "這將刪除你的用戶名稱及停用你的二維碼和連結。「%1$@」將會供其他人使用。你確定嗎？";
+
+/* The title of an action sheet button that will delete a user's username. */
+"PROFILE_SETTINGS_USERNAME_DELETION_USERNAME_ACTION_TITLE" = "刪除使用者名稱";
+
+/* Title for a menu action allowing users to edit their existing username. */
+"PROFILE_SETTINGS_USERNAME_EDIT_USERNAME_ACTION" = "編輯用戶名稱";
+
+/* Title for a table cell that lets the user manage their username link and QR code. */
+"PROFILE_SETTINGS_USERNAME_LINK_CELL_TITLE" = "二維碼或連結";
+
+/* A placeholder value shown in the profile settings screen on a tappable item leading to a username selection flow, for when the user doesn't have a username. */
 "PROFILE_SETTINGS_USERNAME_PLACEHOLDER" = "使用者名稱";
 
 /* Error message shown when user tries to update profile with a family name that is too long. */
@@ -4893,9 +5097,6 @@
 
 /* Description of the user profile. */
 "PROFILE_VIEW_PROFILE_DESCRIPTION" = "您的個人資訊經過端到端加密保護，除了您的聯絡人可以看見，只有當您發起或接受新對話的時候對方才能看見。";
-
-/* Button to save the profile view in the profile view. */
-"PROFILE_VIEW_SAVE_BUTTON" = "儲存";
 
 /* Title for the profile view. */
 "PROFILE_VIEW_TITLE" = "個人資訊";
@@ -5008,6 +5209,12 @@
 /* Pressing this button marks a thread as read */
 "READ_ACTION" = "已讀";
 
+/* The title for a context menu item that blocks a recipient from your recipient picker list. */
+"RECIPIENT_CONTEXT_MENU_BLOCK_TITLE" = "封鎖";
+
+/* The title for a context menu item that removes a recipient from your recipient picker list. */
+"RECIPIENT_CONTEXT_MENU_REMOVE_TITLE" = "移除";
+
 /* Error message indicating that a user can't be selected. */
 "RECIPIENT_PICKER_ERROR_USER_CANNOT_BE_SELECTED" = "使用者無法被選擇。";
 
@@ -5026,34 +5233,28 @@
 /* Alert title. Shown after selecting a phone number that isn't a Signal user. */
 "RECIPIENT_PICKER_INVITE_TITLE" = "邀請至 Signal";
 
-/* Label for 'I forgot my PIN' link in the 2FA registration view. */
-"REGISTER_2FA_FORGOT_PIN" = "我忘了 PIN 碼。";
-
 /* Alert title explaining what happens if you forget your 'two-factor auth pin'. */
 "REGISTER_2FA_FORGOT_PIN_ALERT_TITLE" = "需要幫助嗎？";
 
 /* Alert body for a forgotten SVR (V2) PIN */
 "REGISTER_2FA_FORGOT_SVR_PIN_ALERT_MESSAGE" = "你的PIN碼是你建立的4位以上的數字代碼，可以是數字或字母。 如果你忘記了PIN碼，則必須等待7天才能重新註冊帳戶。";
 
-/* Alert body for a forgotten SVR (V2) PIN when the user doesn't have reglock */
-"REGISTER_2FA_FORGOT_SVR_PIN_WITHOUT_REGLOCK_ALERT_MESSAGE" = "PIN 碼是至少 4 位數的純數字或是英數混合，若您不記得 PIN 碼，您可以設定一組新的。您可以註冊並使用您的帳號，但將會遺失一些舊有設定，例如個人資訊設定。";
+/* Alert body for a forgotten SVR (V2) PIN when the user doesn't have reglock and they cannot necessarily create a new PIN */
+"REGISTER_2FA_FORGOT_SVR_PIN_WITHOUT_REGLOCK_ALERT_MESSAGE" = "PIN 碼是由你建立的 {0} 位數以上密碼，可以是數字或字母數字混合。如果忘記了你的 PIN 碼，你可以註冊並使用你的帳戶，但將會遺失部分已儲存的設定，例如你的個人資訊。";
 
-/* Alert body for a forgotten V1 PIN */
-"REGISTER_2FA_FORGOT_V1_PIN_ALERT_MESSAGE" = "你的PIN碼是你建立的一個4+ 位數碼。如果你不記得你的PIN碼，你必須等待7天以重新註冊你的帳號。";
+/* Alert body for a forgotten SVR (V2) PIN when the user doesn't have reglock and they can create a new PIN */
+"REGISTER_2FA_FORGOT_SVR_PIN_WITHOUT_REGLOCK_AND_CAN_CREATE_NEW_PIN_ALERT_MESSAGE" = "PIN 碼是至少 4 位數的純數字或是英數混合，若您不記得 PIN 碼，您可以設定一組新的。您可以註冊並使用您的帳號，但將會遺失一些舊有設定，例如個人資訊設定。";
 
 /* Alert title explaining what happens if you forget your 'two-factor auth pin'. */
 "REGISTER_2FA_INVALID_PIN_ALERT_TITLE" = "錯誤的 PIN 碼";
 
-/* Indicates the work we are doing while verifying the user's pin */
-"REGISTER_2FA_PIN_PROGRESS" = "驗證PIN碼…";
-
-/* Label for 'submit' button in the 2FA registration view. */
-"REGISTER_2FA_SUBMIT_BUTTON" = "確定";
-
 /* No comment provided by engineer. */
 "REGISTER_CONTACTS_WELCOME" = "歡迎！";
 
-/* action sheet body */
+/* Body of action sheet shown when rate-limited during registration. */
+"REGISTER_RATE_LIMITING_ALERT" = "嘗試次數超出上限，請等待幾分鐘，然後重試。";
+
+/* No comment provided by engineer. */
 "REGISTER_RATE_LIMITING_BODY" = "您嘗試太過頻繁，請一分鐘後再試";
 
 /* No comment provided by engineer. */
@@ -5062,8 +5263,26 @@
 /* Title of alert shown when push tokens sync job fails. */
 "REGISTRATION_BODY" = "重新註冊推播通知失敗";
 
+/* During (re)registration, users may need to update their app to continue. They'll be presented with an alert if this is the case, prompting them to update. This is the action button on that alert. */
+"REGISTRATION_CANNOT_CONTINUE_WITHOUT_UPDATING_APP_ACTION" = "更新";
+
+/* During (re)registration, users may need to update their app to continue. They'll be presented with an alert if this is the case, prompting them to update. This is the description text on that alert. */
+"REGISTRATION_CANNOT_CONTINUE_WITHOUT_UPDATING_APP_DESCRIPTION" = "如要繼續註冊，請更新至最新版本的 Signal。";
+
+/* During (re)registration, users may need to update their app to continue. They'll be presented with an alert if this is the case, prompting them to update. This is the title on that alert. */
+"REGISTRATION_CANNOT_CONTINUE_WITHOUT_UPDATING_APP_TITLE" = "必須更新";
+
+/* During registration, users may be shown a CAPTCHA to verify that they're human. This text is shown above the CAPTCHA. */
+"REGISTRATION_CAPTCHA_TITLE" = "我們必須確認你是真人";
+
 /* Label for the country code field */
 "REGISTRATION_DEFAULT_COUNTRY_NAME" = "國碼";
+
+/* If a user is installing Signal on a new phone, they may be asked whether they want to transfer their account from their old device. This is a description on the screen that asks them this question. */
+"REGISTRATION_DEVICE_TRANSFER_CHOICE_EXPLANATION" = "繼續將在當前使用相同電話號碼註冊的其他裝置上停用Signal。";
+
+/* If a user is installing Signal on a new phone, they may be asked whether they want to transfer their account from their old device. This is the title on the screen that asks them this question. */
+"REGISTRATION_DEVICE_TRANSFER_CHOICE_TITLE" = "移轉帳號 & 訊息";
 
 /* Placeholder text for the phone number textfield */
 "REGISTRATION_ENTERNUMBER_DEFAULT_TEXT" = "輸入號碼";
@@ -5071,29 +5290,101 @@
 /* No comment provided by engineer. */
 "REGISTRATION_ERROR" = "註冊錯誤";
 
-/* alert body during registration */
-"REGISTRATION_ERROR_BLANK_VERIFICATION_CODE" = "必須提供我們寄給您的驗證碼，我們才能啟用您的帳號";
+/* Registration Lock can prevent users from registering in some cases, and they'll have to wait. This is the description on that screen, explaining what's going on. Embeds {{ duration }}, such as \"7 days\". */
+"REGISTRATION_LOCK_TIMEOUT_DESCRIPTION_FORMAT" = "你的帳戶已被鎖定，以保護你的隱私和安全性。在你的帳戶閒置 %1$@ 後，你將可重新註冊此電話號碼而無須使用你的 PIN 碼，但所有內容將會被刪除。";
 
-/* Alert body for network failure during registration */
-"REGISTRATION_ERROR_NETWORK_FAILURE_ALERT_BODY" = "若要繼續，請檢查手機的行動網路連接，然後重試。";
+/* Registration Lock can prevent users from registering in some cases, and they'll have to wait. This button appears on that screen. Tapping it will tell the user more information. */
+"REGISTRATION_LOCK_TIMEOUT_LEARN_MORE_BUTTON" = "了解更多有關已鎖定的帳號";
 
-/* Alert title for network failure during registration */
-"REGISTRATION_ERROR_NETWORK_FAILURE_ALERT_TITLE" = "檢查網路連接";
+/* Registration Lock can prevent users from registering in some cases, and they'll have to wait. This button appears on that screen. Tapping it will bump the user back, earlier in registration, so they can register with a different phone number. */
+"REGISTRATION_LOCK_TIMEOUT_RESET_PHONE_NUMBER_BUTTON" = "使用不同的電話號碼";
 
-/* No comment provided by engineer. */
-"REGISTRATION_NON_VALID_NUMBER" = "不支援此格式的電話號碼，請尋求協助";
+/* Registration Lock can prevent users from registering in some cases, and they'll have to wait. This is the title of that screen. */
+"REGISTRATION_LOCK_TIMEOUT_TITLE" = "帳號已被鎖定";
+
+/* A network error occurred during registration, and an error is shown to the user. This is the body on that error sheet. */
+"REGISTRATION_NETWORK_ERROR_BODY" = "若要繼續，請檢查手機的行動網路連接，然後重試。";
+
+/* A network error occurred during registration, and an error is shown to the user. This is the title on that error sheet. */
+"REGISTRATION_NETWORK_ERROR_TITLE" = "檢查網路連接";
+
+/* During registration, users are asked to enter their phone number. This is the subtitle on that screen, which gives users some instructions. */
+"REGISTRATION_PHONE_NUMBER_SUBTITLE" = "輸入你的電話號碼以便開始使用。";
+
+/* During registration, users are asked to enter their phone number. This is the title on that screen. */
+"REGISTRATION_PHONE_NUMBER_TITLE" = "你的電話號碼";
+
+/* Message for confirmation alert when requesting a voice code during phone number registration. */
+"REGISTRATION_PHONE_NUMBER_VOICE_CODE_ALERT_MESSAGE" = "你將會收到一通來電，以驗證此電話號碼。上述電話號碼是否正確？";
 
 /* Label for the phone number textfield */
 "REGISTRATION_PHONENUMBER_BUTTON" = "電話號碼";
 
+/* During registration, users are asked to create a PIN code. They'll be taken to a screen to confirm their PIN, much like confirming a password. This is the title on the screen where this happens. */
+"REGISTRATION_PIN_CONFIRM_SUBTITLE" = "請重新輸入你剛建立的 PIN 碼。";
+
+/* During registration, users are asked to create a PIN code. They'll be taken to a screen to confirm their PIN, much like confirming a password. This is the title on the screen where this happens. */
+"REGISTRATION_PIN_CONFIRM_TITLE" = "確認你的 PIN碼";
+
+/* During registration, users are asked to create a PIN code. This is the subtitle on the screen where this happens. A \"learn more\" link will be added to the end of this string. */
+"REGISTRATION_PIN_CREATE_SUBTITLE" = "PIN 碼可協助你還原帳戶，並確保 Signal 內的資料安全加密。";
+
+/* During registration, users are asked to create a PIN code. This is the title on the screen where this happens. */
+"REGISTRATION_PIN_CREATE_TITLE" = "建立你的 PIN 碼";
+
+/* During re-registration, users may be asked to re-enter their PIN code. This is the subtitle on the screen where this happens. A \"learn more\" link will be added to the end of this string. */
+"REGISTRATION_PIN_ENTER_EXISTING_SUBTITLE" = "PIN 碼可協助你還原帳戶，並確保 Signal 內的資料安全加密。";
+
+/* During re-registration, users may be asked to re-enter their PIN code. This is the title on the screen where this happens. */
+"REGISTRATION_PIN_ENTER_EXISTING_TITLE" = "輸入你的 PIN 碼";
+
+/* During registration, users set up their profile. Users input a family name. This is the placeholder for that field. */
+"REGISTRATION_PROFILE_SETUP_FAMILY_NAME_FIELD_PLACEHOLDER" = "姓";
+
+/* During registration, users can choose who can see their phone number. */
+"REGISTRATION_PROFILE_SETUP_FIND_MY_NUMBER_TITLE" = "誰能用手機號碼找到我？";
+
+/* During registration, users set up their profile. Users input a given name. This is the placeholder for that field. */
+"REGISTRATION_PROFILE_SETUP_GIVEN_NAME_FIELD_PLACEHOLDER" = "名字";
+
+/* During registration, users set up their profile. They can learn more about the privacy of their profile by clicking a \"learn more\" button. This is the message on a sheet that appears when they do that. */
+"REGISTRATION_PROFILE_SETUP_MORE_INFO_DETAILS" = "你的聯絡人以及當你開始或接受新聊天時，對方將會看見你的姓名、相片和其變更。";
+
+/* During registration, users set up their profile. They can learn more about the privacy of their profile by clicking a \"learn more\" button. This is the title on a sheet that appears when they do that. */
+"REGISTRATION_PROFILE_SETUP_MORE_INFO_TITLE" = "關於個人資料隱私";
+
+/* During registration, users set up their profile. This is the subtitle on the screen where this is done. It tells users about the privacy of their profile. A \"learn more\" link will be added to the end of this string. */
+"REGISTRATION_PROFILE_SETUP_SUBTITLE" = "與你收發訊息的使用者、聯絡人和群組將會看到你的個人檔案。";
+
+/* During registration, users set up their profile. This is the title on the screen where this is done. */
+"REGISTRATION_PROFILE_SETUP_TITLE" = "設定你的資訊";
+
+/* Error shown if an SMS/call service provider is permanently unable to send a verification code to the provided number. */
+"REGISTRATION_PROVIDER_FAILURE_MESSAGE_PERMANENT" = "由於外部供應商問題，Signal 無法傳送 SMS 驗證碼。";
+
+/* Error shown if an SMS/call service provider is temporarily unable to send a verification code to the provided number. */
+"REGISTRATION_PROVIDER_FAILURE_MESSAGE_TRANSIENT" = "由於外部供應商問題，Signal 現無法傳送 SMS 驗證碼。請稍後再試。";
+
 /* No comment provided by engineer. */
 "REGISTRATION_RESTRICTED_MESSAGE" = "你必須先註冊才能傳送訊息。";
+
+/* Button when sending a verification code via sms failed, but resending via voice call might succeed. */
+"REGISTRATION_SMS_CODE_FAILED_TRY_VOICE_BUTTON" = "語音電話";
+
+/* Error message when sending a verification code via sms failed, but resending via voice call might succeed. */
+"REGISTRATION_SMS_CODE_FAILED_TRY_VOICE_ERROR" = "我們無法透過 SMS 短訊傳送驗證碼給你。請嘗試透過語音通話接收驗證碼。";
+
+/* Alert shown when running out of attempts at submitting a verification code. */
+"REGISTRATION_SUBMIT_CODE_ATTEMPTS_EXHAUSTED_ALERT" = "你已多次嘗試輸入驗證碼。請重新傳送驗證碼，然後再試一次。";
+
+/* Alert shown when submitting a verification code too many times. Embeds {{ duration }}, such as \"5:00\" */
+"REGISTRATION_SUBMIT_CODE_RATE_LIMIT_ALERT_FORMAT" = "你已多次嘗試輸入驗證碼，請在 %1$@ 後再試";
 
 /* Error message indicating that device transfer from another device might be possible. */
 "REGISTRATION_TRANSFER_AVAILABLE_DESCRIPTION" = "之前使用此號碼註冊的帳號可用於轉移。";
 
-/* Alert view title */
-"REGISTRATION_VERIFICATION_FAILED_TITLE" = "驗證失敗";
+/* During registration and re-registration, users may have to enter a code to verify ownership of their phone number. If they enter an invalid code, they will see this error message. */
+"REGISTRATION_VERIFICATION_ERROR_INVALID_VERIFICATION_CODE" = "你輸入的驗證碼無效。請重新傳送驗證碼，然後再試一次。";
 
 /* Error message indicating that registration failed due to a missing or incorrect verification code. */
 "REGISTRATION_VERIFICATION_FAILED_WRONG_CODE_DESCRIPTION" = "你提供的數字與我們傳送給你的並不相符。要再檢查一下嗎？";
@@ -5107,12 +5398,6 @@
 /* Title of alert indicating that users needs to enter a valid phone number to register. */
 "REGISTRATION_VIEW_INVALID_PHONE_NUMBER_ALERT_TITLE" = "無效的電話號碼";
 
-/* Message of alert indicating that users needs to enter a phone number to register. */
-"REGISTRATION_VIEW_NO_PHONE_NUMBER_ALERT_MESSAGE" = "註冊時需提供電話號碼";
-
-/* Title of alert indicating that users needs to enter a phone number to register. */
-"REGISTRATION_VIEW_NO_PHONE_NUMBER_ALERT_TITLE" = "沒有電話號碼";
-
 /* Message for confirmation alert during phone number registration. */
 "REGISTRATION_VIEW_PHONE_NUMBER_CONFIRMATION_ALERT_MESSAGE" = "驗證碼將傳送到該電話號碼。你的電話號碼正確嗎？";
 
@@ -5125,11 +5410,23 @@
 /* Label for the progress spinner shown during phone number registration. Embeds {{phone number}}. */
 "REGISTRATION_VIEW_PHONE_NUMBER_SPINNER_LABEL_FORMAT" = "驗證中 %1$@…";
 
+/* Button when sending a verification code via voice call failed, but resending via sms might succeed. */
+"REGISTRATION_VOICE_CODE_FAILED_TRY_SMS_BUTTON" = "傳送手機簡訊";
+
+/* Error message when sending a verification code via voice call failed, but resending via sms might succeed. */
+"REGISTRATION_VOICE_CODE_FAILED_TRY_SMS_ERROR" = "我們無法透過語音通話傳送驗證碼給你。請嘗試透過 SMS 短訊接收驗證碼。";
+
 /* notification action */
 "REJECT_CALL_BUTTON_TITLE" = "拒絕";
 
 /* No comment provided by engineer. */
 "RELAY_REGISTERED_ERROR_RECOVERY" = "您欲註冊的號碼已於其他伺服器先註冊了，請至該伺服器取消註冊後再重試";
+
+/* Label warning the user that something is wrong with their username. */
+"REMINDER_VIEW_USERNAME_CORRUPTED_WARNING" = "你的用戶名稱發生問題，不再被指定到你的帳戶。你可以嘗試重設或選擇一個新的。";
+
+/* Label warning the user that something is wrong with their username link. */
+"REMINDER_VIEW_USERNAME_LINK_CORRUPTED_WARNING" = "你的用戶名稱及連結發生問題，已不再有效。建立新連結以與他人分享。";
 
 /* Accessibility label for a button that removes the preview from a drafted message. */
 "REMOVE_PREVIEW" = "移除預覽";
@@ -5139,6 +5436,12 @@
 
 /* No comment provided by engineer. */
 "REREGISTER_FOR_PUSH" = "重新註冊推送通知";
+
+/* If the user is re-registering, they may need to enter their PIN to restore all their data. If they enter the incorrect PIN, they will be shown a warning. In some cases (such as for this string), the user has the option to skip PIN entry and will lose some data. Embeds {{ number of attempts }}, such as \"3 attempts\". */
+"REREGISTER_INVALID_PIN_WARNING_SKIPPABLE_FORMAT" = "你尚餘 %1$@ 次嘗試機會。如果你用光了嘗試機會，可建立一個新的 PIN 碼。你可註冊並使用你的帳戶，但你將會遺失部分已儲存的設定，如你的個人檔案資訊。";
+
+/* If the user is re-registering, they may need to enter their PIN to restore all their data. If they enter the incorrect PIN, they will be shown a warning. Embeds {{ number of attempts }}, such as \"3 attempts\". */
+"REREGISTER_INVALID_PIN_WARNING_UNSKIPPABLE_FORMAT" = "你尚餘 %1$@ 次嘗試機會。如果你用光了嘗試機會，你的帳戶會被鎖定 7 天。閒置 7 天後，你無需使用 PIN 碼便能重新註冊，但所有內容將會被刪除。";
 
 /* Configure reactions reset button text */
 "RESET" = "重設";
@@ -5167,11 +5470,29 @@
 /* Title for the 'safety number confirmation' view */
 "SAFETY_NUMBER_CONFIRMATION_TITLE" = "安全碼變更";
 
+/* Text explaining that the given contact has had their safety number verified. */
+"SAFETY_NUMBER_CONFIRMATION_VERIFIED" = "已驗證";
+
 /* View safety number action for the 'safety number confirmation' view */
 "SAFETY_NUMBER_CONFIRMATION_VIEW_ACTION" = "檢視";
 
 /* Snippet to share {{safety number}} with a friend. sent e.g. via SMS */
 "SAFETY_NUMBER_SHARE_FORMAT" = "我們的 Signal 安全碼：\n%1$@";
+
+/* Header informing the user about the transition from phone number to user identifier based. */
+"SAFETY_NUMBER_TRANSITION_HEADER_ALERT" = "安全號碼正在更新中。";
+
+/* Button text for a sheet informing the user about the transition from phone number to user identifier based. */
+"SAFETY_NUMBER_TRANSITION_SHEET_HELP_TEXT" = "需要幫助嗎？";
+
+/* Informs the user about the transition from phone number to user identifier based. */
+"SAFETY_NUMBER_TRANSITION_SHEET_PARAGRAPH_1" = "安全號碼會在過渡期間進行更新，以啟用 Signal 即將推出的隱私功能。";
+
+/* Informs the user about the transition from phone number to user identifier based. */
+"SAFETY_NUMBER_TRANSITION_SHEET_PARAGRAPH_2" = "要驗證安全號碼，請將色卡與聯絡人的裝置配對。如果這些無法匹配，請滑動並嘗試另一組安全號碼。只需要匹配一對。";
+
+/* Title for a sheet informing the user about the transition from phone number to user identifier based. */
+"SAFETY_NUMBER_TRANSITION_SHEET_TITLE" = "安全號碼變更";
 
 /* Action sheet heading */
 "SAFETY_NUMBERS_ACTIONSHEET_TITLE" = "您與 %1$@ 的安全碼已改變，可能需要重新驗證";
@@ -5353,10 +5674,13 @@
 /* Title for the 'account' link in settings. */
 "SETTINGS_ACCOUNT" = "帳號";
 
+/* Label for button in settings to get your account data report */
+"SETTINGS_ACCOUNT_DATA_REPORT_BUTTON" = "你的帳戶資料";
+
 /* Title for the 'add to block list' view. */
 "SETTINGS_ADD_TO_BLOCK_LIST_TITLE" = "封鎖";
 
-/* Label for the  'manual censorship circumvention' switch. */
+/* Label for the 'manual censorship circumvention' switch. */
 "SETTINGS_ADVANCED_CENSORSHIP_CIRCUMVENTION" = "網路審查規避";
 
 /* Label for the 'manual censorship circumvention' country. */
@@ -5437,9 +5761,6 @@
 /* Label for button in settings views to change phone number */
 "SETTINGS_CHANGE_PHONE_NUMBER_BUTTON" = "變更電話號碼";
 
-/* Message indicating that 'change phone number' was successful. Embeds: {{ the user's new phone number }} */
-"SETTINGS_CHANGE_PHONE_NUMBER_CHANGE_SUCCESSFUL_FORMAT" = "你的電話號碼已變更為 %1$@";
-
 /* Label for the 'confirm change phone number' button in the 'change phone number' views. */
 "SETTINGS_CHANGE_PHONE_NUMBER_CONFIRM_BUTTON" = "更改號碼";
 
@@ -5461,11 +5782,8 @@
 /* Title for the 'old phone number' section in the 'change phone number' settings. */
 "SETTINGS_CHANGE_PHONE_NUMBER_OLD_PHONE_NUMBER_SECTION_TITLE" = "你的舊電話號碼";
 
-/* Label for the 'country code' row in the 'change phone number' settings. */
+/* Label for the 'phone number' row in the 'change phone number' settings. */
 "SETTINGS_CHANGE_PHONE_NUMBER_PHONE_NUMBER_FIELD" = "電話號碼";
-
-/* Format for the 'change phone number' progress view. Embeds: {{ the user's new phone number }}. */
-"SETTINGS_CHANGE_PHONE_NUMBER_PROGRESS_FORMAT" = "正在驗證 %1$@";
 
 /* Description text in the 'change phone number splash' view. */
 "SETTINGS_CHANGE_PHONE_NUMBER_SPLASH_DESCRIPTION" = "使用此可以將你現有的電話號碼變更為新的電話號碼。你無法取消此變更。\n\n在繼續之前，請確定你的新電話號碼可以接收簡訊或電話。";
@@ -5713,6 +6031,9 @@
 /* Label for the 'enable payments' button in the 'payments not enabled' alert. */
 "SETTINGS_PAYMENTS_ENABLE_ACTION" = "啟用付款功能";
 
+/* Title for the 'enable payments lock' view of the payments activation flow. */
+"SETTINGS_PAYMENTS_ENABLE_PAYMENTS_LOCK_PROMPT" = "付款鎖定";
+
 /* Description for the 'About MobileCoin' help card in the payments settings. */
 "SETTINGS_PAYMENTS_HELP_CARD_ABOUT_MOBILECOIN_DESCRIPTION" = "MobileCoin是一種新的注重隱私的數位貨幣。";
 
@@ -5731,6 +6052,15 @@
 /* Title for the 'Cashing Out' help card in the payments settings. */
 "SETTINGS_PAYMENTS_HELP_CARD_CASHING_OUT_TITLE" = "兌現";
 
+/* Label for button in the 'Save Passphrase' help card in the payments settings. */
+"SETTINGS_PAYMENTS_HELP_CARD_SAVE_PASSPHRASE_BUTTON" = "儲存你的片語";
+
+/* Description for the 'Save Passphrase' help card in the payments settings. */
+"SETTINGS_PAYMENTS_HELP_CARD_SAVE_PASSPHRASE_DESCRIPTION" = "恢復片語是幫助您恢復餘額的另一途徑。";
+
+/* Title for the 'Save Passphrase' help card in the payments settings. */
+"SETTINGS_PAYMENTS_HELP_CARD_SAVE_PASSPHRASE_TITLE" = "儲存你的片語";
+
 /* Label for button in the 'Update PIN' help card in the payments settings. */
 "SETTINGS_PAYMENTS_HELP_CARD_UPDATE_PIN_BUTTON" = "更新 PIN 碼";
 
@@ -5740,17 +6070,11 @@
 /* Title for the 'Update PIN' help card in the payments settings. */
 "SETTINGS_PAYMENTS_HELP_CARD_UPDATE_PIN_TITLE" = "更新你的PIN碼";
 
-/* Label for button in the 'View Passphrase' help card in the payments settings. */
-"SETTINGS_PAYMENTS_HELP_CARD_VIEW_PASSPHRASE_BUTTON" = "記錄回復用短語";
-
-/* Description for the 'View Passphrase' help card in the payments settings. */
-"SETTINGS_PAYMENTS_HELP_CARD_VIEW_PASSPHRASE_DESCRIPTION" = "你的回復用短語為你提供了另一種回復付款帳戶的方式。";
-
-/* Title for the 'View Passphrase' help card in the payments settings. */
-"SETTINGS_PAYMENTS_HELP_CARD_VIEW_PASSPHRASE_TITLE" = "記錄回復用短語";
-
 /* Indicator that the payments wallet address is invalid. */
 "SETTINGS_PAYMENTS_INVALID_WALLET_ADDRESS" = "無效的電子錢包位址";
+
+/* Label for UISwitch based payments-lock setting that when enabled requires biometric-authentication (or passcode) to transfer funds or view the recovery phrase. */
+"SETTINGS_PAYMENTS_LOCK_SWITCH_LABEL" = "付款鎖定";
 
 /* Message indicating that there is no payment activity to display in the payment settings. */
 "SETTINGS_PAYMENTS_NO_ACTIVITY_INDICATOR" = "最近沒有活動。";
@@ -5782,8 +6106,23 @@
 /* Title for the 'payments opt-in' view in the app settings. */
 "SETTINGS_PAYMENTS_OPT_IN_TITLE" = "介紹付款方式（測試版）";
 
+/* Button when discarding recovery phrase. */
+"SETTINGS_PAYMENTS_PASSPHRASE_DISCARD_CONFIRMATION_BUTTON" = "略過恢復片語";
+
+/* Message of confirmation alert when discarding recovery phrase. */
+"SETTINGS_PAYMENTS_PASSPHRASE_DISCARD_CONFIRMATION_MESSAGE" = "恢復片語能讓您在最壞情況下恢復您的餘額。我們強烈建議您儲存恢復片語。";
+
+/* Title of confirmation alert when discarding recovery phrase. */
+"SETTINGS_PAYMENTS_PASSPHRASE_DISCARD_CONFIRMATION_TITLE" = "要略過儲存並繼續操作嗎？";
+
 /* Explanation of the 'payments passphrase' in the 'view payments passphrase' settings. */
 "SETTINGS_PAYMENTS_PASSPHRASE_EXPLANATION" = "如果你確認Signal PIN碼，重新安裝Signal時，餘額將自動回復。 你還可以使用回復短語來回復餘額，回復短語是你獨有的24字詞。 寫下並保存在安全的地方。";
+
+/* Explanation of the 'payments passphrase' when there is a balance. */
+"SETTINGS_PAYMENTS_PASSPHRASE_EXPLANATION_FROM_BALANCE" = "你尚有餘額！是時候儲存你的恢復片語了—你可使用一組 24 個字的密鑰，以恢復你的餘額。";
+
+/* Explanation of the 'payments passphrase' when from the help card. */
+"SETTINGS_PAYMENTS_PASSPHRASE_EXPLANATION_FROM_HELP_CARD" = "是時候儲存你的恢復片語了—你可使用一組 24 個字的密鑰，以恢復你的餘額。";
 
 /* Label for the 'add money' button in the 'send payment' UI. */
 "SETTINGS_PAYMENTS_PAYMENT_ADD_MONEY" = "加值資金";
@@ -5835,6 +6174,36 @@
 
 /* Message indicating that payments have been disabled in the app settings. */
 "SETTINGS_PAYMENTS_PAYMENTS_DISABLED_TOAST" = "付款功能已停用。";
+
+/* Description for the 'double reminder' action sheet in the 'payments lock prompt' view in the payment settings. */
+"SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_DOUBLE_REMINDER_MESSAGE" = "跳過此步驟會讓實際使用你手機的任何人轉移資金或查看你的恢復片語。";
+
+/* Double reminder action sheet title in Payments Lock Prompt view for Face ID. */
+"SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_DOUBLE_REMINDER_TITLE_FACEID" = "要跳過啟用 Face ID 嗎？";
+
+/* Double reminder action sheet title in Payments Lock Prompt view for Passcode. */
+"SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_DOUBLE_REMINDER_TITLE_PASSCODE" = "要跳過啟用密碼功能嗎？";
+
+/* Double reminder action sheet title in Payments Lock Prompt view for Touch ID. */
+"SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_DOUBLE_REMINDER_TITLE_TOUCHID" = "要跳過啟用 Touch ID 嗎？";
+
+/* Enable Button title in Payments Lock Prompt view for Face ID. */
+"SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_ENABLE_BUTTON_FACEID" = "使用 Face ID";
+
+/* Enable Button title in Payments Lock Prompt view for Passcode. */
+"SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_ENABLE_BUTTON_PASSCODE" = "使用密碼";
+
+/* Enable Button title in Payments Lock Prompt view for Touch ID. */
+"SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_ENABLE_BUTTON_TOUCHID" = "使用 Touch ID";
+
+/* Explanation of 'payments lock' with Face ID in the 'payments lock prompt' view shown after payments activation. */
+"SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_EXPLANATION_FACEID" = "啟用 Face ID 以防止有人利用您的手機存取您的資金。您可以在「設定」中停用此選項。";
+
+/* Explanation of 'payments lock' with passcode in the 'payments lock prompt' view shown after payments activation. */
+"SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_EXPLANATION_PASSCODE" = "使用密碼功能以防止有人利用您的手機存取您的資金。您可以在「設定」中停用此選項。";
+
+/* Explanation of 'payments lock' with Touch ID in the 'payments lock prompt' view shown after payments activation. */
+"SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_EXPLANATION_TOUCHID" = "啟用 Touch ID 以防止有人利用您的手機存取您的資金。您可以在「設定」中停用此選項。";
 
 /* Button for payments outdated sheet. */
 "SETTINGS_PAYMENTS_PAYMENTS_OUTDATED_BUTTON" = "更新 Signal";
@@ -5929,6 +6298,9 @@
 /* Title for the 'enter word' step of the 'restore payments wallet' views. */
 "SETTINGS_PAYMENTS_RESTORE_WALLET_WORD_TITLE" = "輸入回復短語";
 
+/* Title for the first step of the 'save payments passphrase' views. */
+"SETTINGS_PAYMENTS_SAVE_PASSPHRASE_START_TITLE" = "儲存恢復片語";
+
 /* Instructions in the 'scan payment address QR code' view in the payment settings. */
 "SETTINGS_PAYMENTS_SCAN_QR_INSTRUCTIONS" = "掃描QR碼以查找轉帳收件人。";
 
@@ -5937,6 +6309,21 @@
 
 /* Label for 'scan payment address QR code' view in the payment settings. */
 "SETTINGS_PAYMENTS_SCAN_QR_TITLE" = "掃描 QR code";
+
+/* Caption for footer label beneath the payments lock privacy toggle for a biometry type that is unknown. */
+"SETTINGS_PAYMENTS_SECURITY_DETAIL" = "必須使用密碼或 Touch ID 以轉移資金。";
+
+/* Caption for footer label beneath the payments lock privacy toggle for faceid biometry. */
+"SETTINGS_PAYMENTS_SECURITY_DETAIL_FACEID" = "必須使用 Face ID 以轉移資金。";
+
+/* Caption for footer label beneath the payments lock privacy toggle for a biometry type that is a passcode. */
+"SETTINGS_PAYMENTS_SECURITY_DETAIL_PASSCODE" = "必須使用手機密碼以轉移資金。";
+
+/* Caption for footer label beneath the payments lock privacy toggle for touchid biometry */
+"SETTINGS_PAYMENTS_SECURITY_DETAIL_TOUCHID" = "必須使用 Touch ID 以轉移資金。";
+
+/* Title for the payments section in the app’s privacy settings tableview */
+"SETTINGS_PAYMENTS_SECURITY_TITLE" = "付款";
 
 /* Label for 'send payment' button in the payment settings. */
 "SETTINGS_PAYMENTS_SEND_PAYMENT" = "傳送付款";
@@ -6017,7 +6404,10 @@
 "SETTINGS_PAYMENTS_VIEW_PASSPHRASE_WORDS_EXPLANATION" = "依次寫下以下24個單字。 將你的清單儲存在安全的地方。";
 
 /* Footer text for the 'review payments passphrase words' step in the 'view payments passphrase' settings. */
-"SETTINGS_PAYMENTS_VIEW_PASSPHRASE_WORDS_FOOTER" = "不要截圖或透過電子郵件傳送。";
+"SETTINGS_PAYMENTS_VIEW_PASSPHRASE_WORDS_FOOTER_2" = "請勿分享此清單";
+
+/* Title for the content section of the  'payments lock prompt' view shown after payemts activation. */
+"SETTINGS_PAYMENTS_VIEW_PAYMENTS_LOCK_PROMPT_TITLE" = "另一重保護";
 
 /* Label for 'view payments recovery passphrase' button in the app settings. */
 "SETTINGS_PAYMENTS_VIEW_RECOVERY_PASSPHRASE" = "回復短語";
@@ -6028,17 +6418,17 @@
 /* Label for the payments wallet address. */
 "SETTINGS_PAYMENTS_WALLET_ADDRESS_LABEL" = "你的錢包位址";
 
-/* Label for the 'phone number discoverability' setting. */
-"SETTINGS_PHONE_NUMBER_DISCOVERABILITY" = "通過電話號碼找到我";
+/* The title for the phone number discoverability setting section. */
+"SETTINGS_PHONE_NUMBER_DISCOVERABILITY_TITLE" = "誰可以透過電話號碼找到我";
 
-/* The title for the phone number discoverability settings. */
-"SETTINGS_PHONE_NUMBER_DISCOVERABILITY_TITLE" = "通過電話號碼找到我";
+/* Description label for Phone Number Privacy */
+"SETTINGS_PHONE_NUMBER_PRIVACY_DESCRIPTION_LABEL" = "選擇誰可以看到你的電話號碼，以及誰可以透過它在 Signal 上與你聯絡。";
 
-/* Label for the 'phone number sharing' setting. */
-"SETTINGS_PHONE_NUMBER_SHARING" = "查看我的電話號碼";
+/* The title for phone number privacy settings. */
+"SETTINGS_PHONE_NUMBER_PRIVACY_TITLE" = "電話號碼";
 
-/* The title for the phone number sharing settings. */
-"SETTINGS_PHONE_NUMBER_SHARING_TITLE" = "查看我的電話號碼";
+/* The title for the phone number sharing setting section. */
+"SETTINGS_PHONE_NUMBER_SHARING_TITLE" = "誰可以看到我的號碼";
 
 /* The button text for the dialog asking user to confirm their PIN to disable reminders */
 "SETTINGS_PIN_REMINDER_DISABLE_CONFIRMATION_ACTION" = "關閉提醒";
@@ -6223,6 +6613,12 @@
 /* body sent to contacts when inviting to Install Signal */
 "SMS_INVITE_BODY" = "邀請您安裝 Signal！這裡是連結：";
 
+/* An error message generically indicating that something went wrong. */
+"SOMETHING_WENT_WRONG_ERROR" = "發生一些錯誤。";
+
+/* An error message generically indicating that something went wrong, and that the user should try again later. */
+"SOMETHING_WENT_WRONG_TRY_AGAIN_LATER_ERROR" = "發生一些錯誤。請稍後再試。";
+
 /* table cell label in conversation settings */
 "SOUND_AND_NOTIFICATION_SETTINGS" = "聲音和通知";
 
@@ -6342,6 +6738,9 @@
 
 /* Indicates that there are no recent stories to render */
 "STORIES_NO_RECENT_MESSAGES" = "目前沒有要顯示的更新。";
+
+/* The subtitle when this story has no replies */
+"STORIES_NO_REPLIES_SUBTITLE" = "此群組的所有成員都可以檢視回覆";
 
 /* Indicates that this story has no replies yet */
 "STORIES_NO_REPLIES_YET" = "未有回覆";
@@ -6478,14 +6877,17 @@
 /* Text indicating a story has been reacted to */
 "STORY_REPLY_REACTION" = "以對此限時動態做出回應";
 
-/* header text for replying to private story. Embeds {{author name}} */
-"STORY_REPLY_TEXT_FIELD_HEADER_FORMAT" = "私下回覆 %1$@";
-
 /* placeholder text for replying to a story */
 "STORY_REPLY_TEXT_FIELD_PLACEHOLDER" = "回覆";
 
 /* Button for replying to a group story with no existing replies. */
 "STORY_REPLY_TO_GROUP_BUTTON" = "回覆給群組";
+
+/* placeholder text for replying to a group story */
+"STORY_REPLY_TO_GROUP_TEXT_FIELD_PLACEHOLDER" = "回覆給群組";
+
+/* placeholder text for replying to a private story. Embeds {{author name}} */
+"STORY_REPLY_TO_PRIVATE_TEXT_FIELD_PLACEHOLDER" = "回覆 %1$@";
 
 /* Title for the dialog asking user if they wish to resend a failed story message. */
 "STORY_RESEND_FAILED_MESSAGE_ACTION_SHEET" = "無法傳送限時動態。請檢查你的網絡連線，然後再試一次。";
@@ -6706,6 +7108,36 @@
 /* Tap to Replace Emoji string for reaction configuration */
 "TAP_REPLACE_EMOJI" = "點擊即可替換表情符號";
 
+/* Option in selected text edit menu to make text bold */
+"TEXT_MENU_BOLD" = "粗體";
+
+/* Option in selected text edit menu to clear all text formatting in the selected text range */
+"TEXT_MENU_CLEAR_FORMATTING" = "清除格式";
+
+/* Option in selected text edit menu to view text formatting options */
+"TEXT_MENU_FORMAT" = "格式化";
+
+/* Option in selected text edit menu to make text italic */
+"TEXT_MENU_ITALIC" = "斜體";
+
+/* Option in selected text edit menu to look up word definitions */
+"TEXT_MENU_LOOK_UP" = "查詢";
+
+/* Option in selected text edit menu to make text monospace */
+"TEXT_MENU_MONOSPACE" = "等寬";
+
+/* Option in selected text edit menu to replace text with suggestions */
+"TEXT_MENU_REPLACE" = "取代";
+
+/* Option in selected text edit menu to share selected text */
+"TEXT_MENU_SHARE" = "分享";
+
+/* Option in selected text edit menu to make text spoiler */
+"TEXT_MENU_SPOILER" = "劇透";
+
+/* Option in selected text edit menu to make text strikethrough */
+"TEXT_MENU_STRIKETHROUGH" = "刪除線";
+
 /* text indicating the message was remotely deleted */
 "THIS_MESSAGE_WAS_DELETED" = "這個訊息已經被刪除。";
 
@@ -6827,13 +7259,13 @@
 "UNLINK_CONFIRMATION_ALERT_TITLE" = "解除和「%1$@」的連結？";
 
 /* Label warning the user that they have been unlinked from their primary device. */
-"UNLINKED_WARNING" = "本裝置的 Signal 連結失效，請重新與您的手機連結";
+"UNLINKED_WARNING" = "此裝置已解除連結。請將 Signal 與你的電話重新連結，以便繼續收發訊息。";
+
+/* If this device has become unlinked from their primary device, they'll see a warning. This is the call to action on that warning. */
+"UNLINKED_WARNING_ACTION_TITLE" = "重新連結裝置";
 
 /* Alert title when unlinking device fails */
 "UNLINKING_FAILED_ALERT_TITLE" = "Signal 無法解除裝置連結";
-
-/* Label text in device manager for a device with no name */
-"UNNAMED_DEVICE" = "未命名的裝置";
 
 /* Pressing this button un-pins a thread */
 "UNPIN_ACTION" = "取消釘選";
@@ -6871,41 +7303,113 @@
 /* Explanation of when you should use a signal proxy */
 "USE_PROXY_EXPLANATION" = "僅在無法透過行動數據或 Wi-Fi 連接 Signal 時才使用代理伺服器。";
 
-/* An explanation of how usernames work on the username view. */
-"USERNAME_DESCRIPTION" = "Signal上的使用者名稱是選則性的。 如果你選擇創建使用者名稱，其他Signal 使用者將能透過使用者名稱找到你，並在不知道你的電話號碼的情況下與你聯繫。";
+/* Description of how to update discovery */
+"USERNAME_DISCOVERY_DESCRIPTION" = "要關閉電話號碼搜索功能，請前往「設定」>「隱私」>「電話號碼」>「誰可以找到我的電話號碼」，以使用你的用戶名稱作為其他人聯絡你的主要方式。";
 
-/* An error indicating that the supplied username contains disallowed characters. */
-"USERNAME_INVALID_CHARACTERS_ERROR" = "使用者名稱只能包涵a-z、0-9、及_";
+/* Description of username discriminator digits */
+"USERNAME_DISCRIMINATOR_DESCRIPTION" = "用戶名稱與一組數字配對，並且不會在你的個人檔案上公開";
+
+/* Title to set up signal username */
+"USERNAME_EDUCATION_TITLE" = "設定你的 Signal 用戶名稱";
+
+/* Description of username link */
+"USERNAME_LINK_DESCRIPTION" = "每個用戶名稱都擁有獨一無二的連結，你可以與好友分享該連結以開始聊天";
+
+/* A title for a view that allows you to pick a color for a QR code for your username link. */
+"USERNAME_LINK_QR_CODE_COLOR_PICKER_VIEW_TITLE_COLOR" = "顏色";
+
+/* Title for a button to pick the color of your username link QR code. Lowercase styling is intentional. */
+"USERNAME_LINK_QR_CODE_VIEW_COLOR_BUTTON" = "顏色";
+
+/* Text for a label explaining what the username link and QR code give others access to. */
+"USERNAME_LINK_QR_CODE_VIEW_DISCLAIMER_LABEL" = "僅與你信任的人分享你的二維碼。當分享時其他人將能夠看到你的用戶名稱並與你開始聊天。";
+
+/* Title for a button that allows users to reset their username link and QR code. */
+"USERNAME_LINK_QR_CODE_VIEW_RESET_BUTTON_TITLE" = "重設";
+
+/* A message explaining what will happen if the user resets their QR code. */
+"USERNAME_LINK_QR_CODE_VIEW_RESET_SHEET_MESSAGE" = "如果你重設二維碼，你現有的二維碼和連結將會無效。";
+
+/* A label indicating that the username link is being reset. */
+"USERNAME_LINK_QR_CODE_VIEW_RESETTING_LINK_LABEL" = "正在重設連結...";
+
+/* Title for a button to share your username link QR code. Lowercase styling is intentional. */
+"USERNAME_LINK_QR_CODE_VIEW_SHARE_BUTTON" = "共享";
+
+/* A title for a view that allows you to view and interact with a QR code for your username link. */
+"USERNAME_LINK_QR_CODE_VIEW_TITLE_CODE" = "二維碼";
+
+/* A title for a view that allows you to scan a username link QR code using the camera. */
+"USERNAME_LINK_QR_CODE_VIEW_TITLE_SCAN" = "掃描";
+
+/* Text presented in a toast notifying the user that their username was copied to the system clipboard. */
+"USERNAME_LINK_QR_CODE_VIEW_USERNAME_COPIED" = "已複製使用者名稱";
+
+/* Text providing instructions on how to use the username link QR code scanning. */
+"USERNAME_LINK_SCAN_QR_CODE_INSTRUCTIONS_LABEL" = "請掃描你聯絡人裝置上的二維碼。";
+
+/* Text for a tappable cell that copies the user's username link when selected. */
+"USERNAME_LINK_SHARE_SHEET_COPY_LINK_ACTION" = "複製連結";
+
+/* Text describing what you can do with a username link, on a sheet for sharing it. */
+"USERNAME_LINK_SHARE_SHEET_HEADER" = "任何人憑此連結將可檢視你的用戶名稱，並開始與你聊天。請只與你信任的人分享此連結。";
+
+/* Subtitle for a tooltip describing ways to share your username. */
+"USERNAME_LINK_TOOLTIP_SUBTITLE" = "分享你專屬的二維碼或連結，讓其他人能開始與你聊天。";
+
+/* Title for a tooltip describing ways to share your username. */
+"USERNAME_LINK_TOOLTIP_TITLE" = "分享你的用戶名稱";
 
 /* A message indicating that username lookup failed. */
-"USERNAME_LOOKUP_ERROR" = "搜尋使用者名稱時發生錯誤。 請稍後再試。";
+"USERNAME_LOOKUP_ERROR_MESSAGE" = "搜尋使用者名稱時發生錯誤。請稍後再試。";
 
-/* A message indicating that the given username is not a registered signal account. Embeds {{username}} */
-"USERNAME_NOT_FOUND_FORMAT" = "%1$@不是 Signal 使用者。請確認你輸入完整的使用者名稱。";
+/* A message indicating that a user-entered username value is not a valid username. Embeds {{ a username }}. */
+"USERNAME_LOOKUP_INVALID_USERNAME_MESSAGE_FORMAT" = "%1$@ 不是有效的用戶名稱。請確保你已輸入完整的用戶名稱，以及隨後的一組數字。";
 
-/* A message indicating that the given username was not registered with signal. */
-"USERNAME_NOT_FOUND_TITLE" = "找不到使用者";
+/* Title for an action sheet indicating that a user-entered username value is not a valid username. */
+"USERNAME_LOOKUP_INVALID_USERNAME_TITLE" = "用戶名稱無效";
 
-/* The placeholder for the username text entry in the username view. */
-"USERNAME_PLACEHOLDER" = "輸入使用者名稱";
+/* A message indicating that a username link the user attempted to query is no longer valid. */
+"USERNAME_LOOKUP_LINK_NO_LONGER_VALID_MESSAGE" = "此用戶名稱連結不再有效。";
 
-/* A prefix appended to all usernames when displayed */
-"USERNAME_PREFIX" = "@";
+/* A message indicating that the given username is not associated with a registered Signal account. Embeds {{ a username }}. */
+"USERNAME_LOOKUP_NOT_FOUND_MESSAGE_FORMAT" = "%1$@不是 Signal 使用者。請確認你輸入完整的使用者名稱。";
 
-/* An error indicating that the supplied username cannot start with a number. */
-"USERNAME_STARTS_WITH_NUMBER_ERROR" = "使用者名稱不能以數字開頭。";
+/* Title for an action sheet indicating that the given username is not associated with a registered Signal account. */
+"USERNAME_LOOKUP_NOT_FOUND_TITLE" = "找不到使用者";
 
-/* The title for the username view. */
-"USERNAME_TITLE" = "使用者名稱";
+/* An error message shown when the user has typed a username that starts with a digit, which is invalid. */
+"USERNAME_SELECTION_CANNOT_START_WITH_DIGIT_ERROR_MESSAGE" = "用戶名稱不得以數字開頭。";
 
-/* An error indicating that the supplied username is too short. */
-"USERNAME_TOO_SHORT_ERROR" = "使用者名稱必須至少有4個字母。";
+/* A message explaining the side effects of changing your username. */
+"USERNAME_SELECTION_CHANGE_USERNAME_CONFIRMATION_MESSAGE" = "更改用戶名稱將重設你現有的二維碼和連結。你確定嗎？";
 
-/* An error indicating that the supplied username is in use by another user. Embeds {{requested username}}. */
-"USERNAME_UNAVAIALBE_ERROR_FORMAT" = "%1$@已經被使用。";
+/* Footer text below a text field in which users type their desired username, which explains how usernames work. Embeds a {{ \"learn more\" link. }}. */
+"USERNAME_SELECTION_EXPLANATION_FOOTER_FORMAT" = "用戶名稱讓其他人無需透過電話號碼也可以向您傳送訊息。系統會將用戶名稱與一組數字配對，為您的地址保密。%1$@";
 
-/* Error message shown when a username update fails. */
-"USERNAME_VIEW_ERROR_UPDATE_FAILED" = "使用者名稱更新失敗。";
+/* When the user has entered text into a text field for setting their username, a header displays the username text. This string is shown in the header when the text field is empty. */
+"USERNAME_SELECTION_HEADER_TEXT_FOR_PLACEHOLDER" = "選擇你的使用者名稱";
+
+/* An error message shown when the user has typed a username that has invalid characters. The character ranges \"a-z\", \"0-9\", \"_\" should not be translated, as they are literal. */
+"USERNAME_SELECTION_INVALID_CHARACTERS_ERROR_MESSAGE" = "用戶名稱僅可包括英文字母 (a-z)、數字 (0-9) 及底線 (_)。";
+
+/* The message of a sheet that pops up when the user taps \"Learn More\" in text that explains how usernames work. This message help explain that the automatically-generated numeric suffix of their username helps keep their username private, to avoid them being contacted by people by whom they don't want to be contacted. */
+"USERNAME_SELECTION_LEARN_MORE_ACTION_SHEET_MESSAGE" = "這組數字有助將你的用戶名稱保密，以免你受到不必要的訊息騷擾。請僅向你願意與其通訊的聯絡人和群組分享你的用戶名稱。如要更改用戶名稱，你將會收到一組新的數字。";
+
+/* The title of a sheet that pops up when the user taps \"Learn More\" in text that explains how usernames work. The sheet will present a more detailed explanation of the username's numeric suffix. */
+"USERNAME_SELECTION_LEARN_MORE_ACTION_SHEET_TITLE" = "這組號碼是什麼？";
+
+/* An error message shown when the user wants to set their username to an unavailable value. */
+"USERNAME_SELECTION_NOT_AVAILABLE_ERROR_MESSAGE" = "此用戶名稱無法使用。";
+
+/* The placeholder for a text field into which users can type their desired username. */
+"USERNAME_SELECTION_TEXT_FIELD_PLACEHOLDER" = "使用者名稱";
+
+/* The title for the username selection view. */
+"USERNAME_SELECTION_TITLE" = "使用者名稱";
+
+/* An error message shown when the user has typed a username that is below the minimum character limit. Embeds {{ %1$@ the minimum character count }}. */
+"USERNAME_SELECTION_TOO_SHORT_ERROR_MESSAGE" = "用戶名稱必須至少以 %1$@ 個字元開始。";
 
 /* error label near a field */
 "VALIDATION_ERROR_CANNOT_BE_BLANK" = "裝置名稱無法設為空白";
@@ -6933,6 +7437,9 @@
 
 /* Label for button or row which allows users to verify the safety numbers of multiple users. */
 "VERIFY_PRIVACY_MULTIPLE" = "檢查安全碼";
+
+/* Instructions for verifying your safety number. Embeds {{contact's name}} */
+"VERIFY_SAFETY_NUMBER_INSTRUCTIONS" = "若要驗證你與 %1$@ 之間的端對端加密，請比對上方色卡與對方裝置上的色卡是否匹配，以及比較數字。如果這些無法匹配，請滑動並嘗試另一組安全號碼。只需要匹配一對。";
 
 /* Toast alert text shown when tapping on a video that cannot be played. */
 "VIDEO_BROKEN" = "無法播放此影片";

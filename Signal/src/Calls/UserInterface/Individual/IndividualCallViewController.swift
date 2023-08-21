@@ -3,11 +3,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
-import WebRTC
-import SignalServiceKit
 import SignalMessaging
 import SignalRingRTC
+import SignalServiceKit
+import SignalUI
+import WebRTC
 
 // TODO: Add category so that button handlers can be defined where button is created.
 // TODO: Ensure buttons enabled & disabled as necessary.
@@ -89,10 +89,10 @@ class IndividualCallViewController: OWSViewController, CallObserver, CallAudioSe
         ]
     )
 
-    private lazy var audioModeHangUpButton = createButton(iconName: "phone-down-solid-28", action: #selector(didPressHangup))
-    private lazy var audioModeSourceButton = createButton(iconName: "speaker-solid-28", action: #selector(didPressAudioSource))
-    private lazy var audioModeMuteButton = createButton(iconName: "mic-off-solid-28", action: #selector(didPressMute))
-    private lazy var audioModeVideoButton = createButton(iconName: "video-solid-28", action: #selector(didPressVideo))
+    private lazy var audioModeHangUpButton = createButton(iconName: "phone-down-fill-28", action: #selector(didPressHangup))
+    private lazy var audioModeSourceButton = createButton(iconName: "speaker-fill-28", action: #selector(didPressAudioSource))
+    private lazy var audioModeMuteButton = createButton(iconName: "mic-slash-fill-28", action: #selector(didPressMute))
+    private lazy var audioModeVideoButton = createButton(iconName: "video-fill-28", action: #selector(didPressVideo))
 
     // MARK: - Ongoing Video Call Controls
 
@@ -108,10 +108,10 @@ class IndividualCallViewController: OWSViewController, CallObserver, CallAudioSe
         ]
     )
 
-    private lazy var videoModeHangUpButton = createButton(iconName: "phone-down-solid-28", action: #selector(didPressHangup))
-    private lazy var videoModeAudioSourceButton = createButton(iconName: "speaker-solid-28", action: #selector(didPressAudioSource))
-    private lazy var videoModeMuteButton = createButton(iconName: "mic-off-solid-28", action: #selector(didPressMute))
-    private lazy var videoModeVideoButton = createButton(iconName: "video-solid-28", action: #selector(didPressVideo))
+    private lazy var videoModeHangUpButton = createButton(iconName: "phone-down-fill-28", action: #selector(didPressHangup))
+    private lazy var videoModeAudioSourceButton = createButton(iconName: "speaker-fill-28", action: #selector(didPressAudioSource))
+    private lazy var videoModeMuteButton = createButton(iconName: "mic-slash-fill-28", action: #selector(didPressMute))
+    private lazy var videoModeVideoButton = createButton(iconName: "video-fill-28", action: #selector(didPressVideo))
     private lazy var videoModeFlipCameraButton = createButton(iconName: "switch-camera-28", action: #selector(didPressFlipCamera))
 
     // MARK: - Incoming Audio Call Controls
@@ -126,8 +126,8 @@ class IndividualCallViewController: OWSViewController, CallObserver, CallAudioSe
         ]
     )
 
-    private lazy var audioAnswerIncomingButton = createButton(iconName: "phone-solid-28", action: #selector(didPressAnswerCall))
-    private lazy var audioDeclineIncomingButton = createButton(iconName: "phone-down-solid-28", action: #selector(didPressDeclineCall))
+    private lazy var audioAnswerIncomingButton = createButton(iconName: "phone-fill-28", action: #selector(didPressAnswerCall))
+    private lazy var audioDeclineIncomingButton = createButton(iconName: "phone-down-fill-28", action: #selector(didPressDeclineCall))
 
     // MARK: - Incoming Video Call Controls
 
@@ -148,9 +148,9 @@ class IndividualCallViewController: OWSViewController, CallObserver, CallAudioSe
         ]
     )
 
-    private lazy var videoAnswerIncomingButton = createButton(iconName: "video-solid-28", action: #selector(didPressAnswerCall))
-    private lazy var videoAnswerIncomingAudioOnlyButton = createButton(iconName: "video-off-solid-28", action: #selector(didPressAnswerCall))
-    private lazy var videoDeclineIncomingButton = createButton(iconName: "phone-down-solid-28", action: #selector(didPressDeclineCall))
+    private lazy var videoAnswerIncomingButton = createButton(iconName: "video-fill-28", action: #selector(didPressAnswerCall))
+    private lazy var videoAnswerIncomingAudioOnlyButton = createButton(iconName: "video-slash-fill-28", action: #selector(didPressAnswerCall))
+    private lazy var videoDeclineIncomingButton = createButton(iconName: "phone-down-fill-28", action: #selector(didPressDeclineCall))
 
     // MARK: - Video Views
 
@@ -234,7 +234,7 @@ class IndividualCallViewController: OWSViewController, CallObserver, CallAudioSe
     // MARK: - View Lifecycle
 
     @objc
-    func didBecomeActive() {
+    private func didBecomeActive() {
         if self.isViewLoaded {
             shouldRemoteVideoControlsBeHidden = false
         }
@@ -348,7 +348,7 @@ class IndividualCallViewController: OWSViewController, CallObserver, CallAudioSe
     }
 
     @objc
-    func didTouchRootView(sender: UIGestureRecognizer) {
+    private func didTouchRootView(sender: UIGestureRecognizer) {
         if !remoteVideoView.isHidden {
             shouldRemoteVideoControlsBeHidden = !shouldRemoteVideoControlsBeHidden
         }
@@ -370,9 +370,8 @@ class IndividualCallViewController: OWSViewController, CallObserver, CallAudioSe
     }
 
     func createContactViews() {
-
-        let backButtonImage = CurrentAppContext().isRTL ? #imageLiteral(resourceName: "NavBarBackRTL") : #imageLiteral(resourceName: "NavBarBack")
-        backButton.setImage(backButtonImage, for: .normal)
+        backButton.setImage(UIImage(imageLiteralResourceName: "NavBarBack"), for: .normal)
+        backButton.tintColor = Theme.darkThemeNavbarIconColor
         backButton.autoSetDimensions(to: CGSize(square: 40))
         backButton.addTarget(self, action: #selector(didTapLeaveCall(sender:)), for: .touchUpInside)
         topGradientView.addSubview(backButton)
@@ -385,10 +384,10 @@ class IndividualCallViewController: OWSViewController, CallObserver, CallAudioSe
         contactNameLabel.fadeLength = 10.0
         contactNameLabel.animationDelay = 5
         // Add trailing space after the name scrolls before it wraps around and scrolls back in.
-        contactNameLabel.trailingBuffer = ScaleFromIPhone5(80.0)
+        contactNameLabel.trailingBuffer = .scaleFromIPhone5(80)
 
         // label config
-        contactNameLabel.font = UIFont.ows_dynamicTypeTitle1
+        contactNameLabel.font = UIFont.dynamicTypeTitle1
         contactNameLabel.textAlignment = .center
         contactNameLabel.textColor = UIColor.white
         contactNameLabel.layer.shadowOffset = .zero
@@ -397,7 +396,7 @@ class IndividualCallViewController: OWSViewController, CallObserver, CallAudioSe
 
         topGradientView.addSubview(contactNameLabel)
 
-        callStatusLabel.font = UIFont.ows_dynamicTypeBody
+        callStatusLabel.font = UIFont.dynamicTypeBody
         callStatusLabel.textAlignment = .center
         callStatusLabel.textColor = UIColor.white
         callStatusLabel.layer.shadowOffset = .zero
@@ -416,34 +415,34 @@ class IndividualCallViewController: OWSViewController, CallObserver, CallAudioSe
     }
 
     func createOngoingCallControls() {
-        audioModeSourceButton.accessibilityLabel = NSLocalizedString("CALL_VIEW_AUDIO_SOURCE_LABEL",
+        audioModeSourceButton.accessibilityLabel = OWSLocalizedString("CALL_VIEW_AUDIO_SOURCE_LABEL",
                                                                  comment: "Accessibility label for selection the audio source")
 
         audioModeHangUpButton.unselectedBackgroundColor = .ows_accentRed
-        audioModeHangUpButton.accessibilityLabel = NSLocalizedString("CALL_VIEW_HANGUP_LABEL",
+        audioModeHangUpButton.accessibilityLabel = OWSLocalizedString("CALL_VIEW_HANGUP_LABEL",
                                                                  comment: "Accessibility label for hang up call")
 
-        audioModeMuteButton.accessibilityLabel = NSLocalizedString("CALL_VIEW_MUTE_LABEL",
+        audioModeMuteButton.accessibilityLabel = OWSLocalizedString("CALL_VIEW_MUTE_LABEL",
                                                                    comment: "Accessibility label for muting the microphone")
 
-        audioModeVideoButton.accessibilityLabel = NSLocalizedString("CALL_VIEW_SWITCH_TO_VIDEO_LABEL", comment: "Accessibility label to switch to video call")
+        audioModeVideoButton.accessibilityLabel = OWSLocalizedString("CALL_VIEW_SWITCH_TO_VIDEO_LABEL", comment: "Accessibility label to switch to video call")
 
-        videoModeAudioSourceButton.accessibilityLabel = NSLocalizedString("CALL_VIEW_AUDIO_SOURCE_LABEL",
+        videoModeAudioSourceButton.accessibilityLabel = OWSLocalizedString("CALL_VIEW_AUDIO_SOURCE_LABEL",
                                                                       comment: "Accessibility label for selection the audio source")
 
         videoModeHangUpButton.unselectedBackgroundColor = .ows_accentRed
-        videoModeHangUpButton.accessibilityLabel = NSLocalizedString("CALL_VIEW_HANGUP_LABEL",
+        videoModeHangUpButton.accessibilityLabel = OWSLocalizedString("CALL_VIEW_HANGUP_LABEL",
                                                                  comment: "Accessibility label for hang up call")
 
-        videoModeMuteButton.accessibilityLabel = NSLocalizedString("CALL_VIEW_MUTE_LABEL", comment: "Accessibility label for muting the microphone")
+        videoModeMuteButton.accessibilityLabel = OWSLocalizedString("CALL_VIEW_MUTE_LABEL", comment: "Accessibility label for muting the microphone")
         videoModeMuteButton.alpha = 0.9
 
         videoModeFlipCameraButton.selectedIconColor = videoModeFlipCameraButton.iconColor
         videoModeFlipCameraButton.selectedBackgroundColor = videoModeFlipCameraButton.unselectedBackgroundColor
-        videoModeFlipCameraButton.accessibilityLabel = NSLocalizedString("CALL_VIEW_SWITCH_CAMERA_DIRECTION", comment: "Accessibility label to toggle front- vs. rear-facing camera")
+        videoModeFlipCameraButton.accessibilityLabel = OWSLocalizedString("CALL_VIEW_SWITCH_CAMERA_DIRECTION", comment: "Accessibility label to toggle front- vs. rear-facing camera")
         videoModeFlipCameraButton.alpha = 0.9
 
-        videoModeVideoButton.accessibilityLabel = NSLocalizedString("CALL_VIEW_SWITCH_TO_AUDIO_LABEL", comment: "Accessibility label to switch to audio only")
+        videoModeVideoButton.accessibilityLabel = OWSLocalizedString("CALL_VIEW_SWITCH_TO_AUDIO_LABEL", comment: "Accessibility label to switch to audio only")
         videoModeVideoButton.alpha = 0.9
 
         ongoingAudioCallControls.spacing = 16
@@ -495,7 +494,7 @@ class IndividualCallViewController: OWSViewController, CallObserver, CallAudioSe
 
             // create checkmark for active audio source.
             if currentAudioSource == audioSource {
-                routeAudioAction.trailingIcon = .checkCircle24
+                routeAudioAction.trailingIcon = .checkCircle
             }
 
             actionSheetController.addAction(routeAudioAction)
@@ -508,7 +507,7 @@ class IndividualCallViewController: OWSViewController, CallObserver, CallAudioSe
     }
 
     @objc
-    func updateAvatarImage() {
+    private func updateAvatarImage() {
         databaseStorage.read { transaction in
             contactAvatarView.update(transaction) { config in
                 config.dataSource = .thread(thread)
@@ -520,16 +519,16 @@ class IndividualCallViewController: OWSViewController, CallObserver, CallAudioSe
     }
 
     func createIncomingCallControls() {
-        audioAnswerIncomingButton.text = NSLocalizedString("CALL_VIEW_ACCEPT_INCOMING_CALL_LABEL",
+        audioAnswerIncomingButton.text = OWSLocalizedString("CALL_VIEW_ACCEPT_INCOMING_CALL_LABEL",
                                                            comment: "label for accepting incoming calls")
         audioAnswerIncomingButton.unselectedBackgroundColor = .ows_accentGreen
-        audioAnswerIncomingButton.accessibilityLabel = NSLocalizedString("CALL_VIEW_ACCEPT_INCOMING_CALL_LABEL",
+        audioAnswerIncomingButton.accessibilityLabel = OWSLocalizedString("CALL_VIEW_ACCEPT_INCOMING_CALL_LABEL",
                                                                     comment: "label for accepting incoming calls")
 
-        audioDeclineIncomingButton.text = NSLocalizedString("CALL_VIEW_DECLINE_INCOMING_CALL_LABEL",
+        audioDeclineIncomingButton.text = OWSLocalizedString("CALL_VIEW_DECLINE_INCOMING_CALL_LABEL",
                                                             comment: "label for declining incoming calls")
         audioDeclineIncomingButton.unselectedBackgroundColor = .ows_accentRed
-        audioDeclineIncomingButton.accessibilityLabel = NSLocalizedString("CALL_VIEW_DECLINE_INCOMING_CALL_LABEL",
+        audioDeclineIncomingButton.accessibilityLabel = OWSLocalizedString("CALL_VIEW_DECLINE_INCOMING_CALL_LABEL",
                                                                      comment: "label for declining incoming calls")
 
         incomingAudioCallControls.axis = .horizontal
@@ -539,21 +538,21 @@ class IndividualCallViewController: OWSViewController, CallObserver, CallAudioSe
         audioAnswerIncomingButton.accessibilityIdentifier = UIView.accessibilityIdentifier(in: self, name: "audioAnswerIncomingButton")
         audioDeclineIncomingButton.accessibilityIdentifier = UIView.accessibilityIdentifier(in: self, name: "audioDeclineIncomingButton")
 
-        videoAnswerIncomingButton.text = NSLocalizedString("CALL_VIEW_ACCEPT_INCOMING_CALL_LABEL",
+        videoAnswerIncomingButton.text = OWSLocalizedString("CALL_VIEW_ACCEPT_INCOMING_CALL_LABEL",
                                                            comment: "label for accepting incoming calls")
         videoAnswerIncomingButton.unselectedBackgroundColor = .ows_accentGreen
-        videoAnswerIncomingButton.accessibilityLabel = NSLocalizedString("CALL_VIEW_ACCEPT_INCOMING_CALL_LABEL",
+        videoAnswerIncomingButton.accessibilityLabel = OWSLocalizedString("CALL_VIEW_ACCEPT_INCOMING_CALL_LABEL",
                                                                          comment: "label for accepting incoming calls")
 
-        videoAnswerIncomingAudioOnlyButton.text = NSLocalizedString("CALL_VIEW_ACCEPT_INCOMING_CALL_AUDIO_ONLY_LABEL",
+        videoAnswerIncomingAudioOnlyButton.text = OWSLocalizedString("CALL_VIEW_ACCEPT_INCOMING_CALL_AUDIO_ONLY_LABEL",
                                                                     comment: "label for accepting incoming video calls as audio  only")
-        videoAnswerIncomingAudioOnlyButton.accessibilityLabel = NSLocalizedString("CALL_VIEW_ACCEPT_INCOMING_CALL_AUDIO_ONLY_LABEL",
+        videoAnswerIncomingAudioOnlyButton.accessibilityLabel = OWSLocalizedString("CALL_VIEW_ACCEPT_INCOMING_CALL_AUDIO_ONLY_LABEL",
                                                                                 comment: "label for accepting incoming video calls as audio  only")
 
-        videoDeclineIncomingButton.text = NSLocalizedString("CALL_VIEW_DECLINE_INCOMING_CALL_LABEL",
+        videoDeclineIncomingButton.text = OWSLocalizedString("CALL_VIEW_DECLINE_INCOMING_CALL_LABEL",
                                                             comment: "label for declining incoming calls")
         videoDeclineIncomingButton.unselectedBackgroundColor = .ows_accentRed
-        videoDeclineIncomingButton.accessibilityLabel = NSLocalizedString("CALL_VIEW_DECLINE_INCOMING_CALL_LABEL",
+        videoDeclineIncomingButton.accessibilityLabel = OWSLocalizedString("CALL_VIEW_DECLINE_INCOMING_CALL_LABEL",
                                                                           comment: "label for declining incoming calls")
 
         incomingVideoCallBottomControls.axis = .horizontal
@@ -589,8 +588,8 @@ class IndividualCallViewController: OWSViewController, CallObserver, CallAudioSe
     func createViewConstraints() {
 
         let contactVSpacing: CGFloat = 3
-        let bottomMargin = ScaleFromIPhone5To7Plus(23, 41)
-        let avatarMargin = ScaleFromIPhone5To7Plus(25, 50)
+        let bottomMargin = CGFloat.scaleFromIPhone5To7Plus(23, 41)
+        let avatarMargin = CGFloat.scaleFromIPhone5To7Plus(25, 50)
 
         backButton.autoPinEdge(toSuperviewEdge: .leading)
 
@@ -702,7 +701,7 @@ class IndividualCallViewController: OWSViewController, CallObserver, CallAudioSe
 
     private var startingTranslation: CGPoint?
     @objc
-    func handleLocalVideoPan(sender: UIPanGestureRecognizer) {
+    private func handleLocalVideoPan(sender: UIPanGestureRecognizer) {
         switch sender.state {
         case .began, .changed:
             let translation = sender.translation(in: localVideoView)
@@ -735,20 +734,20 @@ class IndividualCallViewController: OWSViewController, CallObserver, CallAudioSe
 
         switch call.individualCall.state {
         case .idle, .remoteHangup, .remoteHangupNeedPermission, .localHangup:
-            return NSLocalizedString("IN_CALL_TERMINATED", comment: "Call setup status label")
+            return OWSLocalizedString("IN_CALL_TERMINATED", comment: "Call setup status label")
         case .dialing:
-            return NSLocalizedString("IN_CALL_CONNECTING", comment: "Call setup status label")
+            return OWSLocalizedString("IN_CALL_CONNECTING", comment: "Call setup status label")
         case .remoteRinging:
-            return NSLocalizedString("IN_CALL_RINGING", comment: "Call setup status label")
+            return OWSLocalizedString("IN_CALL_RINGING", comment: "Call setup status label")
         case .localRinging_Anticipatory, .localRinging_ReadyToAnswer:
             switch call.individualCall.offerMediaType {
             case .audio:
-                return NSLocalizedString("IN_CALL_RINGING_AUDIO", comment: "Call setup status label")
+                return OWSLocalizedString("IN_CALL_RINGING_AUDIO", comment: "Call setup status label")
             case .video:
-                return NSLocalizedString("IN_CALL_RINGING_VIDEO", comment: "Call setup status label")
+                return OWSLocalizedString("IN_CALL_RINGING_VIDEO", comment: "Call setup status label")
             }
         case .answering, .accepting:
-            return NSLocalizedString("IN_CALL_SECURING", comment: "Call setup status label")
+            return OWSLocalizedString("IN_CALL_SECURING", comment: "Call setup status label")
         case .connected:
             let callDuration = call.connectionDuration()
             let callDurationDate = Date(timeIntervalSinceReferenceDate: callDuration)
@@ -766,28 +765,28 @@ class IndividualCallViewController: OWSViewController, CallObserver, CallAudioSe
             }
             return formattedDate
         case .reconnecting:
-            return NSLocalizedString("IN_CALL_RECONNECTING", comment: "Call setup status label")
+            return OWSLocalizedString("IN_CALL_RECONNECTING", comment: "Call setup status label")
         case .remoteBusy:
-            return NSLocalizedString("END_CALL_RESPONDER_IS_BUSY", comment: "Call setup status label")
+            return OWSLocalizedString("END_CALL_RESPONDER_IS_BUSY", comment: "Call setup status label")
         case .localFailure:
             if let error = call.error {
                 switch error {
                 case .timeout:
                     if self.call.individualCall.direction == .outgoing {
-                        return NSLocalizedString("CALL_SCREEN_STATUS_NO_ANSWER", comment: "Call setup status label after outgoing call times out")
+                        return OWSLocalizedString("CALL_SCREEN_STATUS_NO_ANSWER", comment: "Call setup status label after outgoing call times out")
                     }
                 default:
                     break
                 }
             }
 
-            return NSLocalizedString("END_CALL_UNCATEGORIZED_FAILURE", comment: "Call setup status label")
+            return OWSLocalizedString("END_CALL_UNCATEGORIZED_FAILURE", comment: "Call setup status label")
         case .answeredElsewhere:
-            return NSLocalizedString("IN_CALL_ENDED_BECAUSE_ANSWERED_ELSEWHERE", comment: "Call screen label when call was canceled on this device because the call recipient answered on another device.")
+            return OWSLocalizedString("IN_CALL_ENDED_BECAUSE_ANSWERED_ELSEWHERE", comment: "Call screen label when call was canceled on this device because the call recipient answered on another device.")
         case .declinedElsewhere:
-            return NSLocalizedString("IN_CALL_ENDED_BECAUSE_DECLINED_ELSEWHERE", comment: "Call screen label when call was canceled on this device because the call recipient declined on another device.")
+            return OWSLocalizedString("IN_CALL_ENDED_BECAUSE_DECLINED_ELSEWHERE", comment: "Call screen label when call was canceled on this device because the call recipient declined on another device.")
         case .busyElsewhere:
-            return NSLocalizedString("IN_CALL_ENDED_BECAUSE_BUSY_ELSEWHERE", comment: "Call screen label when call was canceled on this device because the call recipient has a call in progress on another device.")
+            return OWSLocalizedString("IN_CALL_ENDED_BECAUSE_BUSY_ELSEWHERE", comment: "Call screen label when call was canceled on this device because the call recipient has a call in progress on another device.")
         }
     }
 
@@ -896,14 +895,14 @@ class IndividualCallViewController: OWSViewController, CallObserver, CallAudioSe
             videoControls.forEach { $0.isSmall = true }
 
             if audioSource.isBuiltInEarPiece {
-                audioModeSourceButton.iconName = "phone-solid-28"
-                videoModeAudioSourceButton.iconName = "phone-solid-28"
+                audioModeSourceButton.iconName = "phone-fill-28"
+                videoModeAudioSourceButton.iconName = "phone-fill-28"
             } else if audioSource.isBuiltInSpeaker {
-                audioModeSourceButton.iconName = "speaker-solid-28"
-                videoModeAudioSourceButton.iconName = "speaker-solid-28"
+                audioModeSourceButton.iconName = "speaker-fill-28"
+                videoModeAudioSourceButton.iconName = "speaker-fill-28"
             } else {
-                audioModeSourceButton.iconName = "speaker-bt-solid-28"
-                videoModeAudioSourceButton.iconName = "speaker-bt-solid-28"
+                audioModeSourceButton.iconName = "speaker-bt-fill-28"
+                videoModeAudioSourceButton.iconName = "speaker-bt-fill-28"
             }
         } else if UIDevice.current.isIPad {
             // iPad *only* supports speaker mode, if there are no external
@@ -916,10 +915,10 @@ class IndividualCallViewController: OWSViewController, CallObserver, CallAudioSe
             videoModeAudioSourceButton.isHidden = false
 
             // No bluetooth audio detected
-            audioModeSourceButton.iconName = "speaker-solid-28"
+            audioModeSourceButton.iconName = "speaker-fill-28"
             audioModeSourceButton.showDropdownArrow = false
 
-            videoModeAudioSourceButton.iconName = "speaker-solid-28"
+            videoModeAudioSourceButton.iconName = "speaker-fill-28"
             videoModeAudioSourceButton.showDropdownArrow = false
 
             videoControls.forEach { $0.isSmall = false }
@@ -996,7 +995,7 @@ class IndividualCallViewController: OWSViewController, CallObserver, CallAudioSe
 
         let needPermissionLabel = UILabel()
         needPermissionLabel.text = String(
-            format: NSLocalizedString("CALL_VIEW_NEED_PERMISSION_ERROR_FORMAT",
+            format: OWSLocalizedString("CALL_VIEW_NEED_PERMISSION_ERROR_FORMAT",
                                       comment: "Error displayed on the 'call' view when the callee needs to grant permission before we can call them. Embeds {callee short name}."),
             shortName
         )
@@ -1004,12 +1003,12 @@ class IndividualCallViewController: OWSViewController, CallObserver, CallAudioSe
         needPermissionLabel.lineBreakMode = .byWordWrapping
         needPermissionLabel.textAlignment = .center
         needPermissionLabel.textColor = Theme.darkThemePrimaryColor
-        needPermissionLabel.font = .ows_dynamicTypeBody
+        needPermissionLabel.font = .dynamicTypeBody
         needPermissionStack.addArrangedSubview(needPermissionLabel)
 
         let okayButton = OWSFlatButton()
         okayButton.useDefaultCornerRadius()
-        okayButton.setTitle(title: CommonStrings.okayButton, font: UIFont.ows_dynamicTypeBody.ows_semibold, titleColor: Theme.accentBlueColor)
+        okayButton.setTitle(title: CommonStrings.okayButton, font: UIFont.dynamicTypeBody.semibold(), titleColor: Theme.accentBlueColor)
         okayButton.setBackgroundColors(upColor: .ows_gray05)
         okayButton.contentEdgeInsets = UIEdgeInsets(top: 13, left: 34, bottom: 13, right: 34)
 
@@ -1080,7 +1079,7 @@ class IndividualCallViewController: OWSViewController, CallObserver, CallAudioSe
      * Ends a connected call. Do not confuse with `didPressDeclineCall`.
      */
     @objc
-    func didPressHangup(sender: UIButton) {
+    private func didPressHangup(sender: UIButton) {
         Logger.info("")
 
         callService.callUIAdapter.localHangupCall(call)
@@ -1089,7 +1088,7 @@ class IndividualCallViewController: OWSViewController, CallObserver, CallAudioSe
     }
 
     @objc
-    func didPressMute(sender: UIButton) {
+    private func didPressMute(sender: UIButton) {
         Logger.info("")
         let isMuted = !sender.isSelected
 
@@ -1097,7 +1096,7 @@ class IndividualCallViewController: OWSViewController, CallObserver, CallAudioSe
     }
 
     @objc
-    func didPressAudioSource(sender button: UIButton) {
+    private func didPressAudioSource(sender button: UIButton) {
         Logger.info("")
 
         if self.hasAlternateAudioSources {
@@ -1107,21 +1106,21 @@ class IndividualCallViewController: OWSViewController, CallObserver, CallAudioSe
         }
     }
 
-    func didPressSpeakerphone(sender button: UIButton) {
+    private func didPressSpeakerphone(sender button: UIButton) {
         Logger.info("")
 
         button.isSelected = !button.isSelected
         callService.audioService.requestSpeakerphone(call: call.individualCall, isEnabled: button.isSelected)
     }
 
-    func didPressTextMessage(sender button: UIButton) {
+    private func didPressTextMessage(sender button: UIButton) {
         Logger.info("")
 
         dismissIfPossible(shouldDelay: false)
     }
 
     @objc
-    func didPressAnswerCall(sender: UIButton) {
+    private func didPressAnswerCall(sender: UIButton) {
         Logger.info("")
 
         if sender == videoAnswerIncomingAudioOnlyButton {
@@ -1138,7 +1137,7 @@ class IndividualCallViewController: OWSViewController, CallObserver, CallAudioSe
     }
 
     @objc
-    func didPressVideo(sender: UIButton) {
+    private func didPressVideo(sender: UIButton) {
         Logger.info("")
         let hasLocalVideo = !sender.isSelected
 
@@ -1154,12 +1153,12 @@ class IndividualCallViewController: OWSViewController, CallObserver, CallAudioSe
     }
 
     @objc
-    func didPressRing(sender: UIButton) {
+    private func didPressRing(sender: UIButton) {
         owsFailDebug("1:1 calls always ring")
     }
 
     @objc
-    func didPressFlipCamera(sender: UIButton) {
+    private func didPressFlipCamera(sender: UIButton) {
         sender.isSelected = !sender.isSelected
 
         let isUsingFrontCamera = !sender.isSelected
@@ -1172,7 +1171,7 @@ class IndividualCallViewController: OWSViewController, CallObserver, CallAudioSe
      * Denies an incoming not-yet-connected call, Do not confuse with `didPressHangup`.
      */
     @objc
-    func didPressDeclineCall(sender: UIButton) {
+    private func didPressDeclineCall(sender: UIButton) {
         Logger.info("")
 
         callService.callUIAdapter.localHangupCall(call)
@@ -1181,8 +1180,8 @@ class IndividualCallViewController: OWSViewController, CallObserver, CallAudioSe
     }
 
     @objc
-    func didTapLeaveCall(sender: UIButton) {
-        OWSWindowManager.shared.leaveCallView()
+    private func didTapLeaveCall(sender: UIButton) {
+        WindowManager.shared.leaveCallView()
     }
 
     // MARK: - CallObserver
@@ -1323,7 +1322,7 @@ class IndividualCallViewController: OWSViewController, CallObserver, CallAudioSe
     }
 
     internal func dismissImmediately(completion: (() -> Void)?) {
-        OWSWindowManager.shared.endCall(self)
+        WindowManager.shared.endCall(viewController: self)
         completion?()
     }
 }
@@ -1339,7 +1338,6 @@ extension IndividualCallViewController: CallViewControllerWindowReference {
     var localVideoViewReference: UIView { localVideoView }
     var remoteVideoAddress: SignalServiceAddress { thread.contactAddress }
 
-    @objc
     public func returnFromPip(pipWindow: UIWindow) {
         // The call "pip" uses our remote and local video views since only
         // one `AVCaptureVideoPreviewLayer` per capture session is supported.
@@ -1348,7 +1346,7 @@ extension IndividualCallViewController: CallViewControllerWindowReference {
             return owsFailDebug("unexpectedly returned to call while we own the video views")
         }
 
-        guard let splitViewSnapshot = SignalApp.shared().snapshotSplitViewController(afterScreenUpdates: false) else {
+        guard let splitViewSnapshot = SignalApp.shared.snapshotSplitViewController(afterScreenUpdates: false) else {
             return owsFailDebug("failed to snapshot rootViewController")
         }
 

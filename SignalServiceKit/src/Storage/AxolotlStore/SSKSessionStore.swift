@@ -89,11 +89,12 @@ public class SSKSessionStore: NSObject {
         keyValueStore.setObject(dictionary, key: accountId, transaction: transaction)
     }
 
-    @objc(containsActiveSessionForAddress:deviceId:transaction:)
-    public func containsActiveSession(for address: SignalServiceAddress,
-                                      deviceId: Int32,
-                                      transaction: SDSAnyReadTransaction) -> Bool {
-        owsAssertDebug(address.isValid)
+    public func containsActiveSession(
+        for serviceId: UntypedServiceId,
+        deviceId: Int32,
+        transaction: SDSAnyReadTransaction
+    ) -> Bool {
+        let address = SignalServiceAddress(serviceId)
         guard let accountId = OWSAccountIdFinder.accountId(forAddress: address, transaction: transaction) else {
             Logger.info("No accountId for: \(address). There must not be a stored session.")
             return false
@@ -118,24 +119,6 @@ public class SSKSessionStore: NSObject {
             owsFailDebug("serialized session data was not valid: \(error)")
             return false
         }
-    }
-
-    private func deleteSession(forAccountId accountId: String,
-                               deviceId: Int32,
-                               transaction: SDSAnyWriteTransaction) {
-        owsAssertDebug(!accountId.isEmpty)
-        owsAssertDebug(deviceId > 0)
-
-        Logger.info("deleting session for accountId: \(accountId) device: \(deviceId)")
-
-        guard var dictionary = keyValueStore.getObject(forKey: accountId,
-                                                       transaction: transaction) as! SessionsByDeviceDictionary? else {
-            // We never had a session for this account in the first place.
-            return
-        }
-
-        dictionary.removeValue(forKey: deviceId)
-        keyValueStore.setObject(dictionary, key: accountId, transaction: transaction)
     }
 
     @objc(deleteAllSessionsForAddress:transaction:)
@@ -258,7 +241,7 @@ extension SSKSessionStore {
     }
 }
 
-extension SSKSessionStore: SessionStore {
+extension SSKSessionStore: LibSignalClient.SessionStore {
     public func loadSession(for address: ProtocolAddress, context: StoreContext) throws -> SessionRecord? {
         return try loadSession(for: SignalServiceAddress(from: address),
                                deviceId: Int32(bitPattern: address.deviceId),
@@ -282,3 +265,13 @@ extension SSKSessionStore: SessionStore {
                          transaction: context.asTransaction)
     }
 }
+
+#if TESTABLE_BUILD
+
+extension SSKSessionStore {
+    public func removeAll(transaction: SDSAnyWriteTransaction) {
+        keyValueStore.removeAll(transaction: transaction)
+    }
+}
+
+#endif

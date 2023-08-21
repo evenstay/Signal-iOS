@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalServiceKit
+import SignalUI
 
-@objc
 class PaymentsSendRecipientViewController: RecipientPickerContainerViewController {
 
     private let isOutgoingTransfer: Bool
@@ -14,7 +14,6 @@ class PaymentsSendRecipientViewController: RecipientPickerContainerViewControlle
         self.isOutgoingTransfer = isOutgoingTransfer
     }
 
-    @objc
     public static func presentAsFormSheet(fromViewController: UIViewController,
                                           isOutgoingTransfer: Bool,
                                           paymentRequestModel: TSPaymentRequestModel?) {
@@ -26,14 +25,14 @@ class PaymentsSendRecipientViewController: RecipientPickerContainerViewControlle
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        title = NSLocalizedString("SETTINGS_PAYMENTS_SEND_TO_RECIPIENT_TITLE",
+        title = OWSLocalizedString("SETTINGS_PAYMENTS_SEND_TO_RECIPIENT_TITLE",
                                   comment: "Label for the 'send payment to recipient' view in the payment settings.")
 
         view.backgroundColor = OWSTableViewController2.tableBackgroundColor(isUsingPresentedStyle: true)
 
         recipientPicker.allowsAddByPhoneNumber = false
         recipientPicker.shouldHideLocalRecipient = true
-        recipientPicker.groupsToShow = .showNoGroups
+        recipientPicker.groupsToShow = .noGroups
         recipientPicker.delegate = self
         addChild(recipientPicker)
         view.addSubview(recipientPicker.view)
@@ -46,7 +45,7 @@ class PaymentsSendRecipientViewController: RecipientPickerContainerViewControlle
     }
 
     @objc
-    func didTapDismiss() {
+    private func didTapDismiss() {
         dismiss(animated: true)
     }
 
@@ -106,6 +105,12 @@ extension PaymentsSendRecipientViewController: RecipientPickerDelegate {
         transaction: SDSAnyReadTransaction
     ) -> String? { nil }
 
+    func recipientPicker(
+        _ recipientPickerViewController: RecipientPickerViewController,
+        accessoryViewForRecipient recipient: PickedRecipient,
+        transaction: SDSAnyReadTransaction
+    ) -> ContactCellAccessoryView? { nil }
+
     func recipientPicker(_ recipientPickerViewController: RecipientPickerViewController,
                          attributedSubtitleForRecipient recipient: PickedRecipient,
                          transaction: SDSAnyReadTransaction) -> NSAttributedString? {
@@ -136,7 +141,15 @@ extension PaymentsSendRecipientViewController: RecipientPickerDelegate {
 
 extension PaymentsSendRecipientViewController: SendPaymentViewDelegate {
 
-    func didSendPayment() {
-        dismiss(animated: true, completion: nil)
+    func didSendPayment(success: Bool) {
+        dismiss(animated: true) {
+            guard success else {
+                // only prompt users to enable payments lock when successful.
+                return
+            }
+            PaymentOnboarding.presentBiometricLockPromptIfNeeded {
+                Logger.debug("Payments Lock Request Complete")
+            }
+        }
     }
 }

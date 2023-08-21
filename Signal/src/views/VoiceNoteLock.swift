@@ -48,7 +48,7 @@ class VoiceMemoLockView: UIView {
     // MARK: - Subviews
 
     private lazy var lockIconView: UIImageView = {
-        let imageView = UIImageView(image: UIImage(imageLiteralResourceName: "lock-solid-24"))
+        let imageView = UIImageView(image: UIImage(imageLiteralResourceName: "lock-fill"))
         imageView.tintColor = Theme.isDarkThemeEnabled ? .ows_gray15 : .ows_gray75
         imageView.autoSetDimensions(to: CGSize(square: 24))
         return imageView
@@ -70,7 +70,7 @@ class VoiceMemoLockView: UIView {
         view.backgroundColor = Theme.isDarkThemeEnabled ? .ows_gray65 : .ows_gray02
         view.layer.cornerRadius = width / 2
         view.layer.borderColor = Theme.washColor.cgColor
-        view.layer.borderWidth = CGHairlineWidth()
+        view.layer.borderWidth = .hairlineWidth
 
         view.layer.shadowOffset = CGSize(width: 0, height: 4)
         view.layer.shadowRadius = 12

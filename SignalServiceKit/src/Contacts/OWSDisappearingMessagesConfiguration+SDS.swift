@@ -84,7 +84,6 @@ public extension String.StringInterpolation {
 
 // MARK: - Deserialization
 
-// TODO: Rework metadata to not include, for example, columns, column indices.
 extension OWSDisappearingMessagesConfiguration {
     // This method defines how to deserialize a model, given a
     // database row.  The recordType column is used to determine
@@ -141,7 +140,7 @@ extension OWSDisappearingMessagesConfiguration: SDSModel {
 
     public class func anyEnumerateIndexable(
         transaction: SDSAnyReadTransaction,
-        block: @escaping (SDSIndexableModel) -> Void
+        block: (SDSIndexableModel) -> Void
     ) {
         anyEnumerate(transaction: transaction, batched: false) { model, _ in
             block(model)
@@ -190,8 +189,6 @@ extension OWSDisappearingMessagesConfigurationSerializer {
     static var durationSecondsColumn: SDSColumnMetadata { SDSColumnMetadata(columnName: "durationSeconds", columnType: .int64) }
     static var enabledColumn: SDSColumnMetadata { SDSColumnMetadata(columnName: "enabled", columnType: .int) }
 
-    // TODO: We should decide on a naming convention for
-    //       tables that store models.
     public static var table: SDSTableMetadata {
         SDSTableMetadata(collection: OWSDisappearingMessagesConfiguration.collection(),
                          tableName: "model_OWSDisappearingMessagesConfiguration",
@@ -343,14 +340,6 @@ public class OWSDisappearingMessagesConfigurationCursor: NSObject, SDSCursor {
 
 // MARK: - Obj-C Fetch
 
-// TODO: We may eventually want to define some combination of:
-//
-// * fetchCursor, fetchOne, fetchAll, etc. (ala GRDB)
-// * Optional "where clause" parameters for filtering.
-// * Async flavors with completions.
-//
-// TODO: I've defined flavors that take a read transaction.
-//       Or we might take a "connection" if we end up having that class.
 @objc
 public extension OWSDisappearingMessagesConfiguration {
     class func grdbFetchCursor(transaction: GRDBReadTransaction) -> OWSDisappearingMessagesConfigurationCursor {
@@ -359,6 +348,10 @@ public extension OWSDisappearingMessagesConfiguration {
             let cursor = try DisappearingMessagesConfigurationRecord.fetchCursor(database)
             return OWSDisappearingMessagesConfigurationCursor(transaction: transaction, cursor: cursor)
         } catch {
+            DatabaseCorruptionState.flagDatabaseReadCorruptionIfNecessary(
+                userDefaults: CurrentAppContext().appUserDefaults(),
+                error: error
+            )
             owsFailDebug("Read failed: \(error)")
             return OWSDisappearingMessagesConfigurationCursor(transaction: transaction, cursor: nil)
         }
@@ -378,16 +371,20 @@ public extension OWSDisappearingMessagesConfiguration {
 
     // Traverses all records.
     // Records are not visited in any particular order.
-    class func anyEnumerate(transaction: SDSAnyReadTransaction,
-                            block: @escaping (OWSDisappearingMessagesConfiguration, UnsafeMutablePointer<ObjCBool>) -> Void) {
+    class func anyEnumerate(
+        transaction: SDSAnyReadTransaction,
+        block: (OWSDisappearingMessagesConfiguration, UnsafeMutablePointer<ObjCBool>) -> Void
+    ) {
         anyEnumerate(transaction: transaction, batched: false, block: block)
     }
 
     // Traverses all records.
     // Records are not visited in any particular order.
-    class func anyEnumerate(transaction: SDSAnyReadTransaction,
-                            batched: Bool = false,
-                            block: @escaping (OWSDisappearingMessagesConfiguration, UnsafeMutablePointer<ObjCBool>) -> Void) {
+    class func anyEnumerate(
+        transaction: SDSAnyReadTransaction,
+        batched: Bool = false,
+        block: (OWSDisappearingMessagesConfiguration, UnsafeMutablePointer<ObjCBool>) -> Void
+    ) {
         let batchSize = batched ? Batching.kDefaultBatchSize : 0
         anyEnumerate(transaction: transaction, batchSize: batchSize, block: block)
     }
@@ -396,9 +393,11 @@ public extension OWSDisappearingMessagesConfiguration {
     // Records are not visited in any particular order.
     //
     // If batchSize > 0, the enumeration is performed in autoreleased batches.
-    class func anyEnumerate(transaction: SDSAnyReadTransaction,
-                            batchSize: UInt,
-                            block: @escaping (OWSDisappearingMessagesConfiguration, UnsafeMutablePointer<ObjCBool>) -> Void) {
+    class func anyEnumerate(
+        transaction: SDSAnyReadTransaction,
+        batchSize: UInt,
+        block: (OWSDisappearingMessagesConfiguration, UnsafeMutablePointer<ObjCBool>) -> Void
+    ) {
         switch transaction.readTransaction {
         case .grdbRead(let grdbTransaction):
             let cursor = OWSDisappearingMessagesConfiguration.grdbFetchCursor(transaction: grdbTransaction)
@@ -419,16 +418,20 @@ public extension OWSDisappearingMessagesConfiguration {
 
     // Traverses all records' unique ids.
     // Records are not visited in any particular order.
-    class func anyEnumerateUniqueIds(transaction: SDSAnyReadTransaction,
-                                     block: @escaping (String, UnsafeMutablePointer<ObjCBool>) -> Void) {
+    class func anyEnumerateUniqueIds(
+        transaction: SDSAnyReadTransaction,
+        block: (String, UnsafeMutablePointer<ObjCBool>) -> Void
+    ) {
         anyEnumerateUniqueIds(transaction: transaction, batched: false, block: block)
     }
 
     // Traverses all records' unique ids.
     // Records are not visited in any particular order.
-    class func anyEnumerateUniqueIds(transaction: SDSAnyReadTransaction,
-                                     batched: Bool = false,
-                                     block: @escaping (String, UnsafeMutablePointer<ObjCBool>) -> Void) {
+    class func anyEnumerateUniqueIds(
+        transaction: SDSAnyReadTransaction,
+        batched: Bool = false,
+        block: (String, UnsafeMutablePointer<ObjCBool>) -> Void
+    ) {
         let batchSize = batched ? Batching.kDefaultBatchSize : 0
         anyEnumerateUniqueIds(transaction: transaction, batchSize: batchSize, block: block)
     }
@@ -437,9 +440,11 @@ public extension OWSDisappearingMessagesConfiguration {
     // Records are not visited in any particular order.
     //
     // If batchSize > 0, the enumeration is performed in autoreleased batches.
-    class func anyEnumerateUniqueIds(transaction: SDSAnyReadTransaction,
-                                     batchSize: UInt,
-                                     block: @escaping (String, UnsafeMutablePointer<ObjCBool>) -> Void) {
+    class func anyEnumerateUniqueIds(
+        transaction: SDSAnyReadTransaction,
+        batchSize: UInt,
+        block: (String, UnsafeMutablePointer<ObjCBool>) -> Void
+    ) {
         switch transaction.readTransaction {
         case .grdbRead(let grdbTransaction):
             grdbEnumerateUniqueIds(transaction: grdbTransaction,
@@ -477,43 +482,20 @@ public extension OWSDisappearingMessagesConfiguration {
         }
     }
 
-    // WARNING: Do not use this method for any models which do cleanup
-    //          in their anyWillRemove(), anyDidRemove() methods.
-    class func anyRemoveAllWithoutInstantation(transaction: SDSAnyWriteTransaction) {
-        switch transaction.writeTransaction {
-        case .grdbWrite(let grdbTransaction):
-            do {
-                try DisappearingMessagesConfigurationRecord.deleteAll(grdbTransaction.database)
-            } catch {
-                owsFailDebug("deleteAll() failed: \(error)")
-            }
-        }
-
-        if ftsIndexMode != .never {
-            FullTextSearchFinder.allModelsWereRemoved(collection: collection(), transaction: transaction)
-        }
-    }
-
     class func anyRemoveAllWithInstantation(transaction: SDSAnyWriteTransaction) {
-        // To avoid mutationDuringEnumerationException, we need
-        // to remove the instances outside the enumeration.
+        // To avoid mutationDuringEnumerationException, we need to remove the
+        // instances outside the enumeration.
         let uniqueIds = anyAllUniqueIds(transaction: transaction)
 
-        var index: Int = 0
-        Batching.loop(batchSize: Batching.kDefaultBatchSize,
-                      loopBlock: { stop in
-            guard index < uniqueIds.count else {
-                stop.pointee = true
-                return
+        for uniqueId in uniqueIds {
+            autoreleasepool {
+                guard let instance = anyFetch(uniqueId: uniqueId, transaction: transaction) else {
+                    owsFailDebug("Missing instance.")
+                    return
+                }
+                instance.anyRemove(transaction: transaction)
             }
-            let uniqueId = uniqueIds[index]
-            index += 1
-            guard let instance = anyFetch(uniqueId: uniqueId, transaction: transaction) else {
-                owsFailDebug("Missing instance.")
-                return
-            }
-            instance.anyRemove(transaction: transaction)
-        })
+        }
 
         if ftsIndexMode != .never {
             FullTextSearchFinder.allModelsWereRemoved(collection: collection(), transaction: transaction)
@@ -530,7 +512,15 @@ public extension OWSDisappearingMessagesConfiguration {
         case .grdbRead(let grdbTransaction):
             let sql = "SELECT EXISTS ( SELECT 1 FROM \(DisappearingMessagesConfigurationRecord.databaseTableName) WHERE \(disappearingMessagesConfigurationColumn: .uniqueId) = ? )"
             let arguments: StatementArguments = [uniqueId]
-            return try! Bool.fetchOne(grdbTransaction.database, sql: sql, arguments: arguments) ?? false
+            do {
+                return try Bool.fetchOne(grdbTransaction.database, sql: sql, arguments: arguments) ?? false
+            } catch {
+                DatabaseCorruptionState.flagDatabaseReadCorruptionIfNecessary(
+                    userDefaults: CurrentAppContext().appUserDefaults(),
+                    error: error
+                )
+                owsFail("Missing instance.")
+            }
         }
     }
 }
@@ -546,6 +536,10 @@ public extension OWSDisappearingMessagesConfiguration {
             let cursor = try DisappearingMessagesConfigurationRecord.fetchCursor(transaction.database, sqlRequest)
             return OWSDisappearingMessagesConfigurationCursor(transaction: transaction, cursor: cursor)
         } catch {
+            DatabaseCorruptionState.flagDatabaseReadCorruptionIfNecessary(
+                userDefaults: CurrentAppContext().appUserDefaults(),
+                error: error
+            )
             Logger.verbose("sql: \(sql)")
             owsFailDebug("Read failed: \(error)")
             return OWSDisappearingMessagesConfigurationCursor(transaction: transaction, cursor: nil)

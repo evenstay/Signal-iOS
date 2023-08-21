@@ -3,21 +3,17 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalServiceKit
 import SignalMessaging
+import SignalUI
 
-#if DEBUG
+#if USE_DEBUG_UI
 
-class DebugUIPayments: DebugUIPage {
+class DebugUIPayments: DebugUIPage, Dependencies {
 
-    // MARK: Overrides 
+    let name = "Payments"
 
-    override func name() -> String {
-        return "Payments"
-    }
-
-    override func section(thread: TSThread?) -> OWSTableSection? {
+    func section(thread: TSThread?) -> OWSTableSection? {
         var sectionItems = [OWSTableItem]()
 
         if let contactThread = thread as? TSContactThread {
@@ -67,6 +63,8 @@ class DebugUIPayments: DebugUIPage {
 
         return OWSTableSection(title: "Payments", items: sectionItems)
     }
+
+    // MARK: -
 
     private func sendPaymentRequestMessage(contactThread: TSContactThread) {
         let address = contactThread.contactAddress
@@ -282,24 +280,24 @@ class DebugUIPayments: DebugUIPage {
         let picoMob = PaymentsConstants.picoMobPerMob + UInt64.random(in: 0..<1000)
         let paymentAmount = TSPaymentAmount(currency: .mobileCoin, picoMob: picoMob)
         let recipient = SendPaymentRecipientImpl.address(address: contactThread .contactAddress)
-        firstly(on: .global()) { () -> Promise<PreparedPayment> in
+        firstly(on: DispatchQueue.global()) { () -> Promise<PreparedPayment> in
             Self.paymentsImpl.prepareOutgoingPayment(recipient: recipient,
                                                      paymentAmount: paymentAmount,
                                                      memoMessage: "Tiny: \(count)",
                                                      paymentRequestModel: nil,
                                                      isOutgoingTransfer: false,
                                                      canDefragment: false)
-        }.then(on: .global()) { (preparedPayment: PreparedPayment) in
+        }.then(on: DispatchQueue.global()) { (preparedPayment: PreparedPayment) in
             Self.paymentsImpl.initiateOutgoingPayment(preparedPayment: preparedPayment)
-        }.then(on: .global()) { (paymentModel: TSPaymentModel) in
+        }.then(on: DispatchQueue.global()) { (paymentModel: TSPaymentModel) in
             Self.paymentsImpl.blockOnOutgoingVerification(paymentModel: paymentModel)
-        }.done(on: .global()) { _ in
+        }.done(on: DispatchQueue.global()) { _ in
             if count > 1 {
                 Self.sendTinyPayments(contactThread: contactThread, count: count - 1)
             } else {
                 Logger.info("Complete.")
             }
-        }.catch(on: .global()) { error in
+        }.catch(on: DispatchQueue.global()) { error in
             owsFailDebug("Error: \(error)")
         }
     }

@@ -6,7 +6,6 @@
 #import "TSErrorMessage.h"
 #import "ContactsManagerProtocol.h"
 #import "OWSMessageManager.h"
-#import "SSKEnvironment.h"
 #import "TSContactThread.h"
 #import <SignalCoreKit/NSDate+OWS.h>
 #import <SignalServiceKit/SignalServiceKit-Swift.h>
@@ -134,6 +133,7 @@ NSUInteger TSErrorMessageSchemaVersion = 2;
                             body:(nullable NSString *)body
                       bodyRanges:(nullable MessageBodyRanges *)bodyRanges
                     contactShare:(nullable OWSContact *)contactShare
+                       editState:(TSEditState)editState
                  expireStartedAt:(uint64_t)expireStartedAt
                        expiresAt:(uint64_t)expiresAt
                 expiresInSeconds:(unsigned int)expiresInSeconds
@@ -165,6 +165,7 @@ NSUInteger TSErrorMessageSchemaVersion = 2;
                               body:body
                         bodyRanges:bodyRanges
                       contactShare:contactShare
+                         editState:editState
                    expireStartedAt:expireStartedAt
                          expiresAt:expiresAt
                   expiresInSeconds:expiresInSeconds
@@ -293,12 +294,11 @@ NSUInteger TSErrorMessageSchemaVersion = 2;
                                                         transaction:transaction] build];
 }
 
-+ (instancetype)sessionRefreshWithEnvelope:(SSKProtoEnvelope *)envelope
-                           withTransaction:(SDSAnyWriteTransaction *)transaction
++ (instancetype)sessionRefreshWithSourceAci:(AciObjC *)sourceAci withTransaction:(SDSAnyWriteTransaction *)transaction
 {
     return [[TSErrorMessageBuilder errorMessageBuilderWithErrorType:TSErrorMessageSessionRefresh
-                                                           envelope:envelope
-                                                        transaction:transaction] build];
+                                                          sourceAci:sourceAci
+                                                                 tx:transaction] build];
 }
 
 + (instancetype)nonblockingIdentityChangeInThread:(TSThread *)thread
@@ -324,16 +324,11 @@ NSUInteger TSErrorMessageSchemaVersion = 2;
     return [builder build];
 }
 
-+ (instancetype)failedDecryptionForEnvelope:(SSKProtoEnvelope *)envelope
-                           untrustedGroupId:(nullable NSData *)untrustedGroupId
-                            withTransaction:(SDSAnyWriteTransaction *)transaction
++ (instancetype)failedDecryptionForSender:(SignalServiceAddress *)sender
+                         untrustedGroupId:(nullable NSData *)untrustedGroupId
+                                timestamp:(uint64_t)timestamp
+                              transaction:(SDSAnyWriteTransaction *)transaction
 {
-    SignalServiceAddress *sender = [[SignalServiceAddress alloc] initWithUuidString:envelope.sourceUuid];
-    if (!sender) {
-        OWSFailDebug(@"Invalid UUID");
-        return nil;
-    }
-
     TSThread *_Nullable thread = nil;
     if (untrustedGroupId.length > 0) {
         [TSGroupThread ensureGroupIdMappingForGroupId:untrustedGroupId transaction:transaction];
@@ -353,7 +348,7 @@ NSUInteger TSErrorMessageSchemaVersion = 2;
     if (!thread) {
         return nil;
     }
-    return [self failedDecryptionForSender:sender thread:thread timestamp:envelope.timestamp transaction:transaction];
+    return [self failedDecryptionForSender:sender thread:thread timestamp:timestamp transaction:transaction];
 }
 
 #pragma mark - OWSReadTracking

@@ -3,11 +3,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalCoreKit
+import SignalUI
 
-@objc
 public class MessageAction: NSObject {
-    @objc
+
     let block: (_ sender: Any?) -> Void
     let accessibilityIdentifier: String
     let contextMenuTitle: String
@@ -23,6 +23,7 @@ public class MessageAction: NSObject {
         case select
         case speak
         case stopSpeaking
+        case edit
     }
 
     let actionType: MessageActionType
@@ -42,27 +43,46 @@ public class MessageAction: NSObject {
         self.accessibilityLabel = accessibilityLabel
     }
 
-    var image: UIImage {
-        switch actionType {
-        case .reply:
-            return Theme.iconImage(.messageActionReply)
-        case .copy:
-            return Theme.iconImage(.messageActionCopy)
-        case .info:
-            return Theme.iconImage(.contextMenuInfo24)
-        case .delete:
-            return Theme.iconImage(.messageActionDelete)
-        case .share:
-            return Theme.iconImage(.messageActionShare24)
-        case .forward:
-            return Theme.iconImage(.messageActionForward24)
-        case .select:
-            return Theme.iconImage(.contextMenuSelect)
-        case .speak:
-            return Theme.iconImage(.messageActionSpeak)
-        case .stopSpeaking:
-            return Theme.iconImage(.messageActionStopSpeaking)
-        }
+    var contextMenuIcon: UIImage {
+        let icon: ThemeIcon = {
+            switch actionType {
+            case .reply:
+                return .contextMenuReply
+            case .copy:
+                return .contextMenuCopy
+            case .info:
+                return .contextMenuInfo
+            case .delete:
+                return .contextMenuDelete
+            case .share:
+                return .contextMenuShare
+            case .forward:
+                return .contextMenuForward
+            case .select:
+                return .contextMenuSelect
+            case .speak:
+                return .contextMenuSpeak
+            case .stopSpeaking:
+                return .contextMenuStopSpeaking
+            case .edit:
+                return .contextMenuEdit
+            }
+        }()
+        return Theme.iconImage(icon)
+    }
+
+    var barButtonImage: UIImage {
+        let icon: ThemeIcon = {
+            switch actionType {
+            case .delete:
+                return .buttonDelete
+            case .forward:
+                return .buttonForward
+            default:
+                owsFail("Invalid icon")
+            }
+        }()
+        return Theme.iconImage(icon)
     }
 }
 
@@ -100,7 +120,7 @@ public class MessageActionsToolbar: UIToolbar {
 
         buildItems()
 
-        NotificationCenter.default.addObserver(self, selector: #selector(applyTheme), name: .ThemeDidChange, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(applyTheme), name: .themeDidChange, object: nil)
         applyTheme()
     }
 
@@ -168,12 +188,12 @@ public class MessageActionsToolbar: UIToolbar {
         let forwardItem = MessageActionsToolbarButton(actionsToolbar: self, messageAction: forwardMessagesAction)
 
         let selectedCount: Int = actionDelegate?.messageActionsToolbarSelectedInteractionCount ?? 0
-        let labelFormat = NSLocalizedString("MESSAGE_ACTIONS_TOOLBAR_CAPTION_%d", tableName: "PluralAware",
+        let labelFormat = OWSLocalizedString("MESSAGE_ACTIONS_TOOLBAR_CAPTION_%d", tableName: "PluralAware",
                                             comment: "Label for the toolbar used in the multi-select mode. The number of selected items (1 or more) is passed.")
         let labelTitle = String.localizedStringWithFormat(labelFormat, selectedCount)
         let label = UILabel()
         label.text = labelTitle
-        label.font = UIFont.ows_dynamicTypeBodyClamped
+        label.font = UIFont.dynamicTypeBodyClamped
         label.textColor = Theme.primaryTextColor
         label.sizeToFit()
         let labelItem = UIBarButtonItem(customView: label)
@@ -217,7 +237,7 @@ class MessageActionsToolbarButton: UIBarButtonItem {
 
         super.init()
 
-        self.image = messageAction.image.withRenderingMode(.alwaysTemplate)
+        self.image = messageAction.barButtonImage
         self.style = .plain
         self.target = self
         self.action = #selector(didTapItem(_:))

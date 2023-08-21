@@ -21,10 +21,6 @@ extension ConversationViewController: ConversationInputToolbarDelegate {
     public func sendButtonPressed() {
         AssertIsOnMainThread()
 
-        if CVLoader.verboseLogging {
-            Logger.info("")
-        }
-
         guard hasViewWillAppearEverBegun else {
             owsFailDebug("InputToolbar not yet ready.")
             return
@@ -36,7 +32,7 @@ extension ConversationViewController: ConversationInputToolbarDelegate {
 
         inputToolbar.acceptAutocorrectSuggestion()
 
-        guard let messageBody = inputToolbar.messageBody else {
+        guard let messageBody = inputToolbar.messageBodyForSending else {
             return
         }
 
@@ -58,8 +54,8 @@ extension ConversationViewController: ConversationInputToolbarDelegate {
         loadCoordinator.clearUnreadMessagesIndicator()
         inputToolbar?.quotedReply = nil
 
-        if self.preferences.soundInForeground() {
-            let soundId = OWSSounds.systemSoundID(forSound: OWSStandardSound.messageSent.rawValue, quiet: true)
+        if self.preferences.soundInForeground,
+           let soundId = Sounds.systemSoundIDForSound(.standard(.messageSent), quiet: true) {
             AudioServicesPlaySystemSound(soundId)
         }
         Self.typingIndicatorsImpl.didSendOutgoingMessage(inThread: thread)
@@ -102,21 +98,68 @@ extension ConversationViewController: ConversationInputToolbarDelegate {
             return
         }
 
-        let didAddToProfileWhitelist = ThreadUtil.addThreadToProfileWhitelistIfEmptyOrPendingRequestAndSetDefaultTimerWithSneakyTransaction(thread: thread)
+        let didAddToProfileWhitelist = ThreadUtil.addThreadToProfileWhitelistIfEmptyOrPendingRequestAndSetDefaultTimerWithSneakyTransaction(thread)
 
-        let message = Self.databaseStorage.read { transaction in
-            ThreadUtil.enqueueMessage(body: messageBody,
-                                      thread: self.thread,
-                                      quotedReplyModel: inputToolbar.quotedReply,
-                                      linkPreviewDraft: inputToolbar.linkPreviewDraft,
-                                      persistenceCompletionHandler: {
-                                            AssertIsOnMainThread()
-                                            self.loadCoordinator.enqueueReload()
-                                      },
-                                      transaction: transaction)
+        if inputToolbar.editTarget != nil {
+            let shouldShowBetaAlert = Self.databaseStorage.read { transaction in
+                context.editManager.shouldShowEditSendBetaConfirmation(tx: transaction.asV2Read)
+            }
+
+            if shouldShowBetaAlert {
+                OWSActionSheets.showConfirmationAlert(
+                    title: OWSLocalizedString(
+                        "EDIT_MESSAGE_SEND_BETA_MESSAGE_TITLE",
+                        comment: "Edit Send Beta prompt title"
+                    ),
+                    message: OWSLocalizedString(
+                        "EDIT_MESSAGE_SEND_BETA_MESSAGE_BODY",
+                        comment: "Edit Send Beta prompt body"
+                    ),
+                    proceedTitle: OWSLocalizedString(
+                        "EDIT_MESSAGE_SEND_BETA_MESSAGE_CONFIRM",
+                        comment: "Label to confirm sending an edit"
+                    )
+                ) { _ in
+                    Self.databaseStorage.write { transaction in
+                        self.context.editManager.setShouldShowEditSendBetaConfirmation(false, tx: transaction.asV2Write)
+                    }
+                    self.tryToSendTextMessage(messageBody, updateKeyboardState: false)
+                }
+                return
+            }
         }
 
-        loadCoordinator.clearUnreadMessagesIndicator()
+        let editValidationError: EditSendValidationError? = Self.databaseStorage.read { transaction in
+            if let editTarget = inputToolbar.editTarget {
+                return context.editManager.validateCanSendEdit(
+                    targetMessageTimestamp: editTarget.timestamp,
+                    thread: self.thread,
+                    tx: transaction.asV2Read
+                )
+            }
+            return nil
+        }
+
+        if let error = editValidationError {
+            OWSActionSheets.showActionSheet(message: error.localizedDescription)
+            return
+        }
+
+        let message = Self.databaseStorage.read { transaction in
+            ThreadUtil.enqueueMessage(
+                body: messageBody,
+                thread: self.thread,
+                quotedReplyModel: inputToolbar.quotedReply,
+                linkPreviewDraft: inputToolbar.linkPreviewDraft,
+                editTarget: inputToolbar.editTarget,
+                persistenceCompletionHandler: {
+                    AssertIsOnMainThread()
+                    self.loadCoordinator.enqueueReload()
+                },
+                transaction: transaction
+            )
+        }
+
         // TODO: Audit optimistic insertion.
         loadCoordinator.appendUnsavedOutgoingTextMessage(message)
         messageWasSent(message)
@@ -140,6 +183,7 @@ extension ConversationViewController: ConversationInputToolbarDelegate {
             }
             thread.update(withDraft: nil,
                           replyInfo: nil,
+                          editTargetTimestamp: nil,
                           transaction: transaction)
         }
 
@@ -155,7 +199,7 @@ extension ConversationViewController: ConversationInputToolbarDelegate {
 
         Logger.verbose("Sending sticker.")
 
-        ImpactHapticFeedback.impactOccured(style: .light)
+        ImpactHapticFeedback.impactOccurred(style: .light)
 
         let message = ThreadUtil.enqueueMessage(withInstalledSticker: stickerInfo, thread: thread)
         messageWasSent(message)
@@ -228,10 +272,10 @@ extension ConversationViewController: ConversationInputToolbarDelegate {
         finishRecordingVoiceMessage(sendImmediately: false)
     }
 
-    public func sendVoiceMemoDraft(_ voiceMemoDraft: VoiceMessageModel) {
+    func sendVoiceMemoDraft(_ voiceMemoDraft: VoiceMessageInterruptedDraft) {
         AssertIsOnMainThread()
 
-        sendVoiceMessageModel(voiceMemoDraft)
+        sendVoiceMessageDraft(voiceMemoDraft)
     }
 
     public func saveDraft() {
@@ -248,8 +292,9 @@ extension ConversationViewController: ConversationInputToolbarDelegate {
 
         if !inputToolbar.isHidden {
             let thread = self.thread
-            let currentDraft = inputToolbar.messageBody
+            let currentDraft = inputToolbar.messageBodyForSending
             let quotedReply = inputToolbar.quotedReply
+            let editTarget = inputToolbar.editTarget
             Self.databaseStorage.asyncWrite { transaction in
                 // Reload a fresh instance of the thread model; our models are not
                 // thread-safe, so it wouldn't be safe to update the model in an
@@ -259,30 +304,46 @@ extension ConversationViewController: ConversationInputToolbarDelegate {
                     return
                 }
 
+                let didChange = Self.draftHasChanged(
+                    currentDraft: currentDraft,
+                    quotedReply: quotedReply,
+                    editTarget: editTarget,
+                    thread: thread,
+                    transaction: transaction
+                )
+
                 // Persist the draft only if its changed. This avoids unnecessary model changes.
-                if Self.draftHasChanged(currentDraft: currentDraft,
-                                        quotedReply: quotedReply,
-                                        thread: thread,
-                                        transaction: transaction) {
-                    let replyInfo: ThreadReplyInfo?
-                    if let quotedReply = quotedReply {
-                        replyInfo = ThreadReplyInfo(timestamp: quotedReply.timestamp,
-                                                    authorAddress: quotedReply.authorAddress)
-                    } else {
-                        replyInfo = nil
-                    }
-                    thread.update(withDraft: currentDraft,
-                                  replyInfo: replyInfo,
-                                  transaction: transaction)
+                guard didChange else {
+                    return
                 }
+
+                let replyInfo: ThreadReplyInfoObjC?
+                if let quotedReply, let serviceId = quotedReply.authorAddress.untypedServiceId {
+                    replyInfo = ThreadReplyInfoObjC(ThreadReplyInfo(timestamp: quotedReply.timestamp, author: serviceId))
+                } else {
+                    replyInfo = nil
+                }
+                var editTargetTimestamp: NSNumber?
+                if let timestamp = inputToolbar.editTarget?.timestamp {
+                    editTargetTimestamp = NSNumber(value: timestamp)
+                }
+                thread.update(
+                    withDraft: currentDraft,
+                    replyInfo: replyInfo,
+                    editTargetTimestamp: editTargetTimestamp,
+                    transaction: transaction
+                )
             }
         }
     }
 
-    private static func draftHasChanged(currentDraft: MessageBody?,
-                                        quotedReply: OWSQuotedReplyModel?,
-                                        thread: TSThread,
-                                        transaction: SDSAnyReadTransaction) -> Bool {
+    private static func draftHasChanged(
+        currentDraft: MessageBody?,
+        quotedReply: QuotedReplyModel?,
+        editTarget: TSOutgoingMessage?,
+        thread: TSThread,
+        transaction: SDSAnyReadTransaction
+    ) -> Bool {
         let currentText = currentDraft?.text ?? ""
         let persistedText = thread.messageDraft ?? ""
         if currentText != persistedText {
@@ -295,11 +356,19 @@ extension ConversationViewController: ConversationInputToolbarDelegate {
             return true
         }
 
-        let persistedQuotedReply = ThreadReplyInfo(threadUniqueID: thread.uniqueId, transaction: transaction)
+        if
+            let threadTimestamp = thread.editTargetTimestamp,
+            threadTimestamp.uint64Value != editTarget?.timestamp ?? 0
+        {
+            return true
+        }
+
+        let threadReplyInfoStore = DependenciesBridge.shared.threadReplyInfoStore
+        let persistedQuotedReply = threadReplyInfoStore.fetch(for: thread.uniqueId, tx: transaction.asV2Read)
         if quotedReply?.timestamp != persistedQuotedReply?.timestamp {
             return true
         }
-        if quotedReply?.authorAddress != persistedQuotedReply?.author {
+        if quotedReply?.authorAddress.untypedServiceId != persistedQuotedReply?.author {
             return true
         }
         return false
@@ -346,18 +415,21 @@ extension ConversationViewController: ConversationInputToolbarDelegate {
                 }
             }
 
-            let didAddToProfileWhitelist = ThreadUtil.addThreadToProfileWhitelistIfEmptyOrPendingRequestAndSetDefaultTimerWithSneakyTransaction(thread: self.thread)
+            let didAddToProfileWhitelist = ThreadUtil.addThreadToProfileWhitelistIfEmptyOrPendingRequestAndSetDefaultTimerWithSneakyTransaction(self.thread)
 
             let message = Self.databaseStorage.read { transaction in
-                ThreadUtil.enqueueMessage(body: messageBody,
-                                          mediaAttachments: attachments,
-                                          thread: self.thread,
-                                          quotedReplyModel: inputToolbar.quotedReply,
-                                          persistenceCompletionHandler: {
-                                                AssertIsOnMainThread()
-                                                self.loadCoordinator.enqueueReload()
-                                            },
-                                          transaction: transaction)
+                ThreadUtil.enqueueMessage(
+                    body: messageBody,
+                    mediaAttachments: attachments,
+                    thread: self.thread,
+                    quotedReplyModel: inputToolbar.quotedReply,
+                    editTarget: inputToolbar.editTarget,
+                    persistenceCompletionHandler: {
+                        AssertIsOnMainThread()
+                        self.loadCoordinator.enqueueReload()
+                    },
+                    transaction: transaction
+                )
             }
 
             self.messageWasSent(message)
@@ -429,12 +501,15 @@ extension ConversationViewController: ConversationInputToolbarDelegate {
         dismissKeyBoard()
 
         if payments.isKillSwitchActive {
-            OWSActionSheets.showErrorAlert(message: NSLocalizedString("SETTINGS_PAYMENTS_CANNOT_SEND_PAYMENTS_KILL_SWITCH",
+            OWSActionSheets.showErrorAlert(message: OWSLocalizedString("SETTINGS_PAYMENTS_CANNOT_SEND_PAYMENTS_KILL_SWITCH",
                                                                       comment: "Error message indicating that payments cannot be sent because the feature is not currently available."))
             return
         }
 
-        guard !OWSActionSheets.showPaymentsOutdatedClientSheetIfNeeded(title: .cantSendPayment) else { return }
+        if paymentsHelper.isPaymentsVersionOutdated {
+            OWSActionSheets.showPaymentsOutdatedClientSheet(title: .cantSendPayment)
+            return
+        }
 
         SendPaymentViewController.presentFromConversationView(self,
                                                               delegate: self,
@@ -470,7 +545,7 @@ public extension ConversationViewController {
 
         Logger.error("\(errorMessage)")
 
-        OWSActionSheets.showActionSheet(title: NSLocalizedString("ATTACHMENT_ERROR_ALERT_TITLE",
+        OWSActionSheets.showActionSheet(title: OWSLocalizedString("ATTACHMENT_ERROR_ALERT_TITLE",
                                                                  comment: "The title of the 'attachment error' alert."),
                                         message: errorMessage)
     }
@@ -499,7 +574,7 @@ public extension ConversationViewController {
         }
 
         let modal = AttachmentApprovalViewController.wrappedInNavController(attachments: attachments,
-                                                                            initialMessageBody: inputToolbar.messageBody,
+                                                                            initialMessageBody: inputToolbar.messageBodyForSending,
                                                                             approvalDelegate: self,
                                                                             approvalDataSource: self)
         presentFullScreen(modal, animated: true)
@@ -515,15 +590,20 @@ fileprivate extension ConversationViewController {
     func chooseContactForSending() {
         AssertIsOnMainThread()
 
-        let contactsPicker = ContactsPicker(allowsMultipleSelection: false,
-                                            subtitleCellType: .none)
-        contactsPicker.contactsPickerDelegate = self
-        contactsPicker.title = NSLocalizedString("CONTACT_PICKER_TITLE",
-                                                 comment: "navbar title for contact picker when sharing a contact")
-
-        let navigationController = OWSNavigationController(rootViewController: contactsPicker)
         dismissKeyBoard()
-        presentFormSheet(navigationController, animated: true)
+        contactsViewHelper.checkSharingAuthorization(
+            purpose: .share,
+            authorizedBehavior: .runAction({
+                let contactsPicker = ContactsPicker(allowsMultipleSelection: false, subtitleCellType: .none)
+                contactsPicker.contactsPickerDelegate = self
+                contactsPicker.title = OWSLocalizedString(
+                    "CONTACT_PICKER_TITLE",
+                    comment: "navbar title for contact picker when sharing a contact"
+                )
+                self.presentFormSheet(OWSNavigationController(rootViewController: contactsPicker), animated: true)
+            }),
+            unauthorizedBehavior: .presentError(from: self)
+        )
     }
 
     // MARK: - Attachment Picking: Documents
@@ -612,7 +692,7 @@ fileprivate extension ConversationViewController {
 
 public extension ConversationViewController {
     func showGifPicker() {
-        let gifModal = GifPickerNavigationViewController(initialMessageBody: inputToolbar?.messageBody)
+        let gifModal = GifPickerNavigationViewController(initialMessageBody: inputToolbar?.messageBodyForSending)
         gifModal.approvalDelegate = self
         gifModal.approvalDataSource = self
         dismissKeyBoard()
@@ -629,15 +709,15 @@ extension ConversationViewController: LocationPickerDelegate {
 
         Logger.verbose("Sending location share.")
 
-        firstly(on: .global()) { () -> Promise<SignalAttachment> in
+        firstly(on: DispatchQueue.global()) { () -> Promise<SignalAttachment> in
             location.prepareAttachment()
-        }.done(on: .main) { [weak self] attachment in
+        }.done(on: DispatchQueue.main) { [weak self] attachment in
             // TODO: Can we move this off the main thread?
             AssertIsOnMainThread()
 
             guard let self = self else { return }
 
-            let didAddToProfileWhitelist = ThreadUtil.addThreadToProfileWhitelistIfEmptyOrPendingRequestAndSetDefaultTimerWithSneakyTransaction(thread: self.thread)
+            let didAddToProfileWhitelist = ThreadUtil.addThreadToProfileWhitelistIfEmptyOrPendingRequestAndSetDefaultTimerWithSneakyTransaction(self.thread)
 
             let message = Self.databaseStorage.read { transaction in
                 ThreadUtil.enqueueMessage(body: MessageBody(text: location.messageText,
@@ -658,7 +738,7 @@ extension ConversationViewController: LocationPickerDelegate {
             }
 
             NotificationCenter.default.post(name: ChatListViewController.clearSearch, object: nil)
-        }.catch(on: .global()) { error in
+        }.catch(on: DispatchQueue.global()) { error in
             owsFailDebug("Error: \(error).")
         }
     }
@@ -706,9 +786,9 @@ extension ConversationViewController: UIDocumentPickerDelegate {
             Logger.info("User picked directory.")
 
             DispatchQueue.main.async {
-                OWSActionSheets.showActionSheet(title: NSLocalizedString("ATTACHMENT_PICKER_DOCUMENTS_PICKED_DIRECTORY_FAILED_ALERT_TITLE",
+                OWSActionSheets.showActionSheet(title: OWSLocalizedString("ATTACHMENT_PICKER_DOCUMENTS_PICKED_DIRECTORY_FAILED_ALERT_TITLE",
                                                                          comment: "Alert title when picking a document fails because user picked a directory/bundle"),
-                                                message: NSLocalizedString("ATTACHMENT_PICKER_DOCUMENTS_PICKED_DIRECTORY_FAILED_ALERT_BODY",
+                                                message: OWSLocalizedString("ATTACHMENT_PICKER_DOCUMENTS_PICKED_DIRECTORY_FAILED_ALERT_BODY",
                                                                            comment: "Alert body when picking a document fails because user picked a directory/bundle"))
             }
             return
@@ -719,7 +799,7 @@ extension ConversationViewController: UIDocumentPickerDelegate {
                 return filename
             }
             owsFailDebug("Unable to determine filename")
-            return NSLocalizedString("ATTACHMENT_DEFAULT_FILENAME",
+            return OWSLocalizedString("ATTACHMENT_DEFAULT_FILENAME",
                                      comment: "Generic filename for an attachment with no known name")
         }()
 
@@ -734,7 +814,7 @@ extension ConversationViewController: UIDocumentPickerDelegate {
         }
         guard let dataSource = buildDataSource() else {
             DispatchQueue.main.async {
-                OWSActionSheets.showActionSheet(title: NSLocalizedString("ATTACHMENT_PICKER_DOCUMENTS_FAILED_ALERT_TITLE",
+                OWSActionSheets.showActionSheet(title: OWSLocalizedString("ATTACHMENT_PICKER_DOCUMENTS_FAILED_ALERT_TITLE",
                                                                          comment: "Alert title when picking a document fails for an unknown reason"))
             }
             return
@@ -775,7 +855,7 @@ extension ConversationViewController: UIDocumentPickerDelegate {
                                                                          dataUTI: kUTTypeMPEG4 as String)
             firstly { () -> Promise<SignalAttachment> in
                 promise
-            }.done(on: .main) { (attachment: SignalAttachment) in
+            }.done(on: DispatchQueue.main) { (attachment: SignalAttachment) in
                 if modalActivityIndicator.wasCancelled {
                     session?.cancelExport()
                     return
@@ -788,7 +868,7 @@ extension ConversationViewController: UIDocumentPickerDelegate {
                         self.showApprovalDialog(forAttachment: attachment)
                     }
                 }
-            }.catch(on: .main) { error in
+            }.catch(on: DispatchQueue.main) { error in
                 owsFailDebug("Error: \(error).")
 
                 modalActivityIndicator.dismiss {
@@ -854,7 +934,7 @@ extension ConversationViewController: SendMediaNavDelegate {
 extension ConversationViewController: SendMediaNavDataSource {
 
     func sendMediaNavInitialMessageBody(_ sendMediaNavigationController: SendMediaNavigationController) -> MessageBody? {
-        inputToolbar?.messageBody
+        inputToolbar?.messageBodyForSending
     }
 
     var sendMediaNavTextInputContextIdentifier: String? { textInputContextIdentifier }
@@ -863,7 +943,11 @@ extension ConversationViewController: SendMediaNavDataSource {
         [ Self.contactsManager.displayNameWithSneakyTransaction(thread: thread) ]
     }
 
-    var sendMediaNavMentionableAddresses: [SignalServiceAddress] {
-        supportsMentions ? thread.recipientAddressesWithSneakyTransaction : []
+    func sendMediaNavMentionableAddresses(tx: DBReadTransaction) -> [SignalServiceAddress] {
+        supportsMentions ? thread.recipientAddresses(with: SDSDB.shimOnlyBridge(tx)) : []
+    }
+
+    func sendMediaNavMentionCacheInvalidationKey() -> String {
+        return thread.uniqueId
     }
 }

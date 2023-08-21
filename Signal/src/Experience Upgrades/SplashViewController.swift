@@ -3,10 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalMessaging
+import SignalUI
 
-@objc
 public class SplashViewController: OWSViewController, ExperienceUpgradeView {
 
     // MARK: -
@@ -27,27 +26,15 @@ public class SplashViewController: OWSViewController, ExperienceUpgradeView {
         return Theme.isDarkThemeEnabled ? .lightContent : .default
     }
 
-    @objc
     public override func viewDidLoad() {
         super.viewDidLoad()
 
         // Don't allow interactive dismissal.
-        if #available(iOS 13, *) {
-            presentationController?.delegate = self
-            isModalInPresentation = !canDismissWithGesture
-        } else {
-            addDismissGesture()
-        }
+        presentationController?.delegate = self
+        isModalInPresentation = !canDismissWithGesture
     }
 
     // MARK: -
-
-    private func addDismissGesture() {
-        let swipeGesture = UISwipeGestureRecognizer(target: self, action: #selector(handleDismissGesture))
-        swipeGesture.direction = .down
-        view.addGestureRecognizer(swipeGesture)
-        view.isUserInteractionEnabled = true
-    }
 
     var isDismissWithoutCompleting = false
     public func dismissWithoutCompleting(animated flag: Bool, completion: (() -> Void)? = nil) {
@@ -55,7 +42,6 @@ public class SplashViewController: OWSViewController, ExperienceUpgradeView {
         dismiss(animated: flag, completion: completion)
     }
 
-    @objc
     public override func dismiss(animated flag: Bool, completion: (() -> Void)? = nil) {
         super.dismiss(animated: flag) {
             self.didDismiss()
@@ -63,8 +49,7 @@ public class SplashViewController: OWSViewController, ExperienceUpgradeView {
         }
     }
 
-    @objc
-    func didDismiss() {
+    private func didDismiss() {
         Logger.debug("")
 
         // Only complete on dismissal if we're ready to do so. This is by
@@ -75,12 +60,12 @@ public class SplashViewController: OWSViewController, ExperienceUpgradeView {
     }
 
     @objc
-    func didTapDismissButton(sender: UIButton) {
+    private func didTapDismissButton(sender: UIButton) {
         self.dismiss(animated: true)
     }
 
     @objc
-    func handleDismissGesture(sender: AnyObject) {
+    private func handleDismissGesture(sender: AnyObject) {
         guard canDismissWithGesture else { return }
 
         Logger.debug("")

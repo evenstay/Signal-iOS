@@ -17,10 +17,11 @@ public enum PushRegistrationError: Error {
 /**
  * Singleton used to integrate with push notification services - registration and routing received remote notifications.
  */
-@objc
 public class PushRegistrationManager: NSObject, PKPushRegistryDelegate {
 
     override init() {
+        (preauthChallengeGuarantee, preauthChallengeFuture) = Guarantee<String>.pending()
+
         super.init()
 
         SwiftSingletons.register(self)
@@ -33,7 +34,7 @@ public class PushRegistrationManager: NSObject, PKPushRegistryDelegate {
     // Private callout queue that we can use to synchronously wait for our call to start
     // TODO: Rewrite call message routing to be able to synchronously report calls
     private static let calloutQueue = DispatchQueue(
-        label: OWSDispatch.createLabel("PKPushRegistry"),
+        label: "org.signal.push-registration",
         autoreleaseFrequency: .workItem
     )
     private var calloutQueue: DispatchQueue { Self.calloutQueue }
@@ -45,25 +46,45 @@ public class PushRegistrationManager: NSObject, PKPushRegistryDelegate {
     private var voipTokenPromise: Promise<Data?>?
     private var voipTokenFuture: Future<Data?>?
 
-    public var preauthChallengeFuture: Future<String>?
+    private var preauthChallengeGuarantee: Guarantee<String>
+    private var preauthChallengeFuture: GuaranteeFuture<String>
 
     // MARK: Public interface
 
-    public func requestPushTokens(forceRotation: Bool) -> Promise<(pushToken: String, voipToken: String?)> {
+    public func needsNotificationAuthorization() -> Guarantee<Bool> {
+        return Guarantee<Bool> { resolve in
+            UNUserNotificationCenter.current().getNotificationSettings { settings in
+                resolve(settings.authorizationStatus == .notDetermined)
+            }
+        }
+    }
+
+    public typealias ApnRegistrationId = RegistrationRequestFactory.ApnRegistrationId
+
+    /// - parameter timeOutEventually: If the OS fails to get back to us with the apns token after
+    /// we have requested it and significant time has passed, do we time out or keep waiting? Default to keep waiting.
+    public func requestPushTokens(
+        forceRotation: Bool,
+        timeOutEventually: Bool = false
+    ) -> Promise<ApnRegistrationId> {
         Logger.info("")
 
-        return firstly { () -> Promise<Void> in
+        return firstly {
             return self.registerUserNotificationSettings()
-        }.then { (_) -> Promise<(pushToken: String, voipToken: String?)> in
+        }.then { (_) -> Promise<ApnRegistrationId> in
             guard !Platform.isSimulator else {
                 throw PushRegistrationError.pushNotSupported(description: "Push not supported on simulators")
             }
 
-            return self.registerForVanillaPushToken(forceRotation: forceRotation).then { vanillaPushToken -> Promise<(pushToken: String, voipToken: String?)> in
-                self.registerForVoipPushToken().map { voipPushToken in
-                    (pushToken: vanillaPushToken, voipToken: voipPushToken)
+            return self
+                .registerForVanillaPushToken(
+                    forceRotation: forceRotation,
+                    timeOutEventually: timeOutEventually
+                ).then { vanillaPushToken -> Promise<ApnRegistrationId> in
+                    self.registerForVoipPushToken().map { voipPushToken in
+                        return ApnRegistrationId(apnsToken: vanillaPushToken, voipToken: voipPushToken)
+                    }
                 }
-            }
         }
     }
 
@@ -82,15 +103,25 @@ public class PushRegistrationManager: NSObject, PKPushRegistryDelegate {
 
     // MARK: Vanilla push token
 
+    /// Receives a pre-auth challenge token.
+    ///
+    /// Notably, this method is not responsible for requesting these tokens—that must be
+    /// managed elsewhere. Before you request one, you should call this method.
+    public func receivePreAuthChallengeToken() -> Guarantee<String> { preauthChallengeGuarantee }
+
+    /// Clears any existing pre-auth challenge token. If none exists, this method does nothing.
+    public func clearPreAuthChallengeToken() {
+        if preauthChallengeGuarantee.isSealed {
+            (preauthChallengeGuarantee, preauthChallengeFuture) = Guarantee<String>.pending()
+        }
+    }
+
     @objc
     public func didReceiveVanillaPreAuthChallengeToken(_ challenge: String) {
         AppReadiness.runNowOrWhenAppDidBecomeReadySync {
             AssertIsOnMainThread()
-            if let preauthChallengeFuture = self.preauthChallengeFuture {
-                Logger.info("received vanilla preauth challenge")
-                preauthChallengeFuture.resolve(challenge)
-                self.preauthChallengeFuture = nil
-            }
+            Logger.info("received vanilla preauth challenge")
+            self.preauthChallengeFuture.resolve(challenge)
         }
     }
 
@@ -98,7 +129,15 @@ public class PushRegistrationManager: NSObject, PKPushRegistryDelegate {
     @objc
     public func didReceiveVanillaPushToken(_ tokenData: Data) {
         guard let vanillaTokenFuture = self.vanillaTokenFuture else {
-            owsFailDebug("promise completion in \(#function) unexpectedly nil")
+            Logger.warn("System volunteered a push token even though we didn't request one. Syncing.")
+            SyncPushTokensJob(mode: .normal)
+                .run()
+                .done {
+                    Logger.info("Done syncing push tokens after system volunteered one.")
+                }
+                .catch { _ in
+                    Logger.error("Failed to sync push tokens after system volunteered one.")
+                }
             return
         }
 
@@ -147,18 +186,16 @@ public class PushRegistrationManager: NSObject, PKPushRegistryDelegate {
                 AssertIsOnMainThread()
                 if let callRelayPayload = callRelayPayload {
                     CallMessageRelay.handleVoipPayload(callRelayPayload)
-                } else if let preauthChallengeFuture = self.preauthChallengeFuture,
-                    let challenge = payload.dictionaryPayload["challenge"] as? String {
+                } else if let challenge = payload.dictionaryPayload["challenge"] as? String {
                     Logger.info("received preauth challenge")
-                    preauthChallengeFuture.resolve(challenge)
-                    self.preauthChallengeFuture = nil
+                    self.preauthChallengeFuture.resolve(challenge)
                 } else {
                     owsAssertDebug(!FeatureFlags.notificationServiceExtension)
                     Logger.info("Fetching messages.")
                     var backgroundTask: OWSBackgroundTask? = OWSBackgroundTask(label: "Push fetch.")
                     firstly { () -> Promise<Void> in
                         self.messageFetcherJob.run().promise
-                    }.done(on: .main) {
+                    }.done(on: DispatchQueue.main) {
                         owsAssertDebug(backgroundTask != nil)
                         backgroundTask = nil
                     }.catch { error in
@@ -253,9 +290,9 @@ public class PushRegistrationManager: NSObject, PKPushRegistryDelegate {
             let notificationPromise = notificationPresenter.postGenericIncomingMessageNotification()
             let pushTokensPromise = SyncPushTokensJob(mode: .forceUpload).run()
             return Promise.when(resolved: [ notificationPromise, pushTokensPromise ]).asVoid()
-        }.ensure(on: .global()) {
+        }.ensure(on: DispatchQueue.global()) {
             completionSignal.signal()
-        }.catch(on: .global()) { error in
+        }.catch(on: DispatchQueue.global()) { error in
             owsFailDebugUnlessNetworkFailure(error)
         }
         let waitInterval = DispatchTimeInterval.seconds(20)
@@ -289,7 +326,7 @@ public class PushRegistrationManager: NSObject, PKPushRegistryDelegate {
 
     // User notification settings must be registered *before* AppDelegate will
     // return any requested push tokens.
-    public func registerUserNotificationSettings() -> Promise<Void> {
+    public func registerUserNotificationSettings() -> Guarantee<Void> {
         Logger.info("registering user notification settings")
 
         return notificationPresenter.registerNotificationSettings()
@@ -324,7 +361,10 @@ public class PushRegistrationManager: NSObject, PKPushRegistryDelegate {
         return true
     }
 
-    private func registerForVanillaPushToken(forceRotation: Bool) -> Promise<String> {
+    private func registerForVanillaPushToken(
+        forceRotation: Bool,
+        timeOutEventually: Bool
+    ) -> Promise<String> {
         AssertIsOnMainThread()
         Logger.info("")
 
@@ -345,7 +385,7 @@ public class PushRegistrationManager: NSObject, PKPushRegistryDelegate {
         }
         UIApplication.shared.registerForRemoteNotifications()
 
-        return firstly {
+        let returnedPromise = firstly {
             promise.timeout(seconds: 10, description: "Register for vanilla push token") {
                 PushRegistrationError.timeout
             }
@@ -377,6 +417,10 @@ public class PushRegistrationManager: NSObject, PKPushRegistryDelegate {
         }.ensure {
             self.vanillaTokenPromise = nil
         }
+        guard timeOutEventually else {
+            return returnedPromise
+        }
+        return returnedPromise.timeout(seconds: 20, timeoutErrorBlock: { return PushRegistrationError.timeout })
     }
 
     private func createVoipRegistryIfNecessary() {

@@ -3,10 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalMessaging
 import SignalUI
-import UIKit
 
 class GroupStorySettingsViewController: OWSTableViewController2 {
     let thread: TSGroupThread
@@ -17,7 +15,6 @@ class GroupStorySettingsViewController: OWSTableViewController2 {
         super.init()
     }
 
-    @objc
     public override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         updateBarButtons()
@@ -33,19 +30,19 @@ class GroupStorySettingsViewController: OWSTableViewController2 {
     private func updateBarButtons() {
         title = thread.groupNameOrDefault
 
-        contextButton.setImage(Theme.iconImage(.more24).withRenderingMode(.alwaysTemplate), for: .normal)
+        contextButton.setImage(Theme.iconImage(.buttonMore), for: .normal)
         contextButton.showsContextMenuAsPrimaryAction = true
         contextButton.contextMenu = .init([
             .init(
-                title: NSLocalizedString(
+                title: OWSLocalizedString(
                     "STORIES_GO_TO_CHAT_ACTION",
                     comment: "Context menu action to open the chat associated with the selected story"
                 ),
-                image: Theme.iconImage(.open24),
+                image: Theme.iconImage(.contextMenuOpenInChat),
                 handler: { [weak self] _ in
                     guard let self = self else { return }
                     self.dismiss(animated: true) {
-                        Self.signalApp.presentConversation(for: self.thread, action: .compose, animated: true)
+                        SignalApp.shared.presentConversationForThread(self.thread, action: .compose, animated: true)
                     }
                 }
             )
@@ -68,17 +65,17 @@ class GroupStorySettingsViewController: OWSTableViewController2 {
         defer { self.setContents(contents, shouldReload: shouldReload) }
 
         let viewersSection = OWSTableSection()
-        viewersSection.headerTitle = NSLocalizedString(
+        viewersSection.headerTitle = OWSLocalizedString(
             "GROUP_STORY_SETTINGS_WHO_CAN_VIEW_THIS_HEADER",
             comment: "Section header for the 'viewers' section on the 'group story settings' view"
         )
-        let format = NSLocalizedString(
+        let format = OWSLocalizedString(
             "GROUP_STORY_SETTINGS_WHO_CAN_VIEW_THIS_FOOTER_FORMAT",
             comment: "Section footer for the 'viewers' section on the 'group story settings' view. Embeds {{ group name }}"
         )
         viewersSection.footerTitle = String.localizedStringWithFormat(format, thread.groupNameOrDefault)
-        viewersSection.separatorInsetLeading = NSNumber(value: Float(Self.cellHInnerMargin + CGFloat(AvatarBuilder.smallAvatarSizePoints) + ContactCellView.avatarTextHSpacing))
-        contents.addSection(viewersSection)
+        viewersSection.separatorInsetLeading = Self.cellHInnerMargin + CGFloat(AvatarBuilder.smallAvatarSizePoints) + ContactCellView.avatarTextHSpacing
+        contents.add(viewersSection)
 
         let fullMembers = thread.groupMembership.fullMembers.filter { !$0.isLocalAddress }
         let totalViewersCount = fullMembers.count
@@ -125,9 +122,9 @@ class GroupStorySettingsViewController: OWSTableViewController2 {
                     cell.contentView.preservesSuperviewLayoutMargins = true
 
                     let iconView = OWSTableItem.buildIconInCircleView(
-                        icon: .settingsShowAllMembers,
+                        icon: .groupInfoShowAllMembers,
                         iconSize: AvatarBuilder.smallAvatarSizePoints,
-                        innerIconSize: 24,
+                        innerIconSize: 20,
                         iconTintColor: Theme.primaryTextColor
                     )
 
@@ -153,9 +150,9 @@ class GroupStorySettingsViewController: OWSTableViewController2 {
         }
 
         let deleteSection = OWSTableSection()
-        contents.addSection(deleteSection)
+        contents.add(deleteSection)
         deleteSection.add(.actionItem(
-            withText: NSLocalizedString(
+            withText: OWSLocalizedString(
                 "GROUP_STORY_SETTINGS_DELETE_BUTTON",
                 comment: "Button to delete the story on the 'group story settings' view"
             ),
@@ -167,7 +164,7 @@ class GroupStorySettingsViewController: OWSTableViewController2 {
     }
 
     private func deleteStoryWithConfirmation() {
-        let format = NSLocalizedString(
+        let format = OWSLocalizedString(
             "GROUP_STORY_SETTINGS_DELETE_CONFIRMATION_FORMAT",
             comment: "Action sheet title confirming deletion of a group story on the 'group story settings' view. Embeds {{ group name }}"
         )
@@ -176,7 +173,7 @@ class GroupStorySettingsViewController: OWSTableViewController2 {
         )
         actionSheet.addAction(OWSActionSheets.cancelAction)
         actionSheet.addAction(.init(
-            title: NSLocalizedString(
+            title: OWSLocalizedString(
                 "GROUP_STORY_SETTINGS_DELETE_BUTTON",
                 comment: "Button to delete the story on the 'group story settings' view"
             ),
@@ -212,7 +209,8 @@ class GroupStorySettingsViewController: OWSTableViewController2 {
     }
 
     private func didSelectViewer(_ address: SignalServiceAddress) {
-        let sheet = MemberActionSheet(address: address, groupViewHelper: nil)
+        // No need to share spoiler state; just start fresh.
+        let sheet = MemberActionSheet(address: address, groupViewHelper: nil, spoilerState: SpoilerRenderState())
         present(sheet, animated: true)
     }
 }

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import UIKit
+import SignalCoreKit
 
 class ImageAttachmentPrepViewController: AttachmentPrepViewController {
 
@@ -22,7 +22,7 @@ class ImageAttachmentPrepViewController: AttachmentPrepViewController {
         super.init(attachmentApprovalItem: attachmentApprovalItem)
     }
 
-    override var contentView: AttachmentPrepContentView {
+    override var contentView: UIView {
         editorView
     }
 

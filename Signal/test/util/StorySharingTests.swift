@@ -4,6 +4,8 @@
 //
 
 import XCTest
+
+@testable import SignalServiceKit
 @testable import SignalUI
 
 class StorySharingTests: SignalBaseTest {
@@ -30,7 +32,7 @@ class StorySharingTests: SignalBaseTest {
                     url: URL(string: "https://signal.org")!,
                     title: nil
                 )
-            )
+            )?.text
             XCTAssertEqual(output, expectedOutput)
         }
     }
@@ -41,10 +43,10 @@ class StorySharingTests: SignalBaseTest {
         let output = StorySharing.text(
             for: .init(
                 text: "\(MessageBody.mentionPlaceholder) Some text",
-                ranges: .init(mentions: [range: mentionUuid])
+                ranges: .init(mentions: [range: mentionUuid], styles: [])
             ),
             with: nil
-        )
+        )?.text
 
         XCTAssertEqual(output, "@Fake name Some text")
     }

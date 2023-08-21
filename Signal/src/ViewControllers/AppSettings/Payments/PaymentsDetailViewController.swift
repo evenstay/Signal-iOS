@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalMessaging
+import SignalUI
 
 class PaymentsDetailViewController: OWSTableViewController2 {
 
@@ -19,14 +19,14 @@ class PaymentsDetailViewController: OWSTableViewController2 {
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        title = NSLocalizedString("SETTINGS_PAYMENTS_DETAIL_VIEW_TITLE",
+        title = OWSLocalizedString("SETTINGS_PAYMENTS_DETAIL_VIEW_TITLE",
                                   comment: "Label for the 'payments details' view of the app settings.")
 
         if !paymentItem.isUnidentified,
            FeatureFlags.paymentsScrubDetails {
-            let removeButton = OWSFlatButton.button(title: NSLocalizedString("SETTINGS_PAYMENTS_REMOVE_BUTTON",
+            let removeButton = OWSFlatButton.button(title: OWSLocalizedString("SETTINGS_PAYMENTS_REMOVE_BUTTON",
                                                                              comment: "Label for the 'remove payments details' button in the app settings."),
-                                                    font: UIFont.ows_dynamicTypeBody.ows_semibold,
+                                                    font: UIFont.dynamicTypeBody.semibold(),
                                                     titleColor: Theme.secondaryTextAndIconColor,
                                                     backgroundColor: Theme.washColor,
                                                     target: self,
@@ -78,12 +78,12 @@ class PaymentsDetailViewController: OWSTableViewController2 {
             return cell
         },
         actionBlock: nil))
-        contents.addSection(headerSection)
+        contents.add(headerSection)
 
-        contents.addSection(buildStatusSection())
+        contents.add(buildStatusSection())
 
         if DebugFlags.internalSettings {
-            contents.addSection(buildInternalSection())
+            contents.add(buildInternalSection())
         }
 
         self.contents = contents
@@ -95,34 +95,34 @@ class PaymentsDetailViewController: OWSTableViewController2 {
 
         let paymentModel = paymentItem.paymentModel
 
-        section.add(OWSTableItem.actionItem(name: "paymentType",
-                                            accessoryText: paymentModel.paymentType.formatted,
-                                            accessibilityIdentifier: "paymentType",
-                                            actionBlock: nil))
-        section.add(OWSTableItem.actionItem(name: "paymentState",
-                                            accessoryText: paymentModel.paymentState.formatted,
-                                            accessibilityIdentifier: "paymentState",
-                                            actionBlock: nil))
-        section.add(OWSTableItem.actionItem(name: "paymentFailure",
-                                            accessoryText: paymentModel.paymentFailure.formatted,
-                                            accessibilityIdentifier: "paymentFailure",
-                                            actionBlock: nil))
+        section.add(OWSTableItem.item(name: "paymentType",
+                                      accessoryText: paymentModel.paymentType.formatted,
+                                      accessibilityIdentifier: "paymentType",
+                                      actionBlock: nil))
+        section.add(OWSTableItem.item(name: "paymentState",
+                                      accessoryText: paymentModel.paymentState.formatted,
+                                      accessibilityIdentifier: "paymentState",
+                                      actionBlock: nil))
+        section.add(OWSTableItem.item(name: "paymentFailure",
+                                      accessoryText: paymentModel.paymentFailure.formatted,
+                                      accessibilityIdentifier: "paymentFailure",
+                                      actionBlock: nil))
 
         if let paymentAmount = paymentModel.paymentAmount {
-            section.add(OWSTableItem.actionItem(name: "paymentAmount",
-                                                accessoryText: paymentAmount.formatted,
-                                                accessibilityIdentifier: "paymentAmount",
-                                                actionBlock: nil))
+            section.add(OWSTableItem.item(name: "paymentAmount",
+                                          accessoryText: paymentAmount.formatted,
+                                          accessibilityIdentifier: "paymentAmount",
+                                          actionBlock: nil))
         }
 
         let dateFormatter = DateFormatter()
         dateFormatter.dateStyle = .medium
         dateFormatter.timeStyle = .medium
 
-        section.add(OWSTableItem.actionItem(name: "createdDate",
-                                            accessoryText: dateFormatter.string(from: paymentModel.createdDate),
-                                            accessibilityIdentifier: "createdDate",
-                                            actionBlock: nil))
+        section.add(OWSTableItem.item(name: "createdDate",
+                                      accessoryText: dateFormatter.string(from: paymentModel.createdDate),
+                                      accessibilityIdentifier: "createdDate",
+                                      actionBlock: nil))
 
         guard let mobileCoin = paymentModel.mobileCoin else {
             return section
@@ -169,24 +169,24 @@ class PaymentsDetailViewController: OWSTableViewController2 {
         }
 
         if let ledgerBlockDate = mobileCoin.ledgerBlockDate {
-            section.add(OWSTableItem.actionItem(name: "ledgerBlockDate",
-                                                accessoryText: dateFormatter.string(from: ledgerBlockDate),
-                                                accessibilityIdentifier: "ledgerBlockDate",
-                                                actionBlock: nil))
+            section.add(OWSTableItem.item(name: "ledgerBlockDate",
+                                          accessoryText: dateFormatter.string(from: ledgerBlockDate),
+                                          accessibilityIdentifier: "ledgerBlockDate",
+                                          actionBlock: nil))
         }
 
         if mobileCoin.ledgerBlockIndex > 0 {
-            section.add(OWSTableItem.actionItem(name: "ledgerBlockIndex",
-                                                accessoryText: "\(mobileCoin.ledgerBlockIndex)",
-                                                accessibilityIdentifier: "ledgerBlockIndex",
-                                                actionBlock: nil))
+            section.add(OWSTableItem.item(name: "ledgerBlockIndex",
+                                          accessoryText: "\(mobileCoin.ledgerBlockIndex)",
+                                          accessibilityIdentifier: "ledgerBlockIndex",
+                                          actionBlock: nil))
         }
 
         if let feeAmount = mobileCoin.feeAmount {
-            section.add(OWSTableItem.actionItem(name: "feeAmount",
-                                                accessoryText: feeAmount.formatted,
-                                                accessibilityIdentifier: "feeAmount",
-                                                actionBlock: nil))
+            section.add(OWSTableItem.item(name: "feeAmount",
+                                          accessoryText: feeAmount.formatted,
+                                          accessibilityIdentifier: "feeAmount",
+                                          actionBlock: nil))
         }
 
         return section
@@ -202,7 +202,7 @@ class PaymentsDetailViewController: OWSTableViewController2 {
         // Block
         if paymentModel.isUnidentified,
            paymentModel.mcLedgerBlockIndex > 0 {
-            section.add(buildStatusItem(topText: NSLocalizedString("SETTINGS_PAYMENTS_PAYMENT_DETAILS_BLOCK_INDEX",
+            section.add(buildStatusItem(topText: OWSLocalizedString("SETTINGS_PAYMENTS_PAYMENT_DETAILS_BLOCK_INDEX",
                                                                    comment: "Label for the 'MobileCoin block index' in the payment details view in the app settings."),
                                         bottomText: OWSFormat.formatUInt64(paymentModel.mcLedgerBlockIndex)))
         }
@@ -215,19 +215,19 @@ class PaymentsDetailViewController: OWSTableViewController2 {
                 let username = Self.contactsManager.displayName(for: address)
                 let titleFormat: String
                 if paymentItem.isIncoming {
-                    titleFormat = NSLocalizedString("SETTINGS_PAYMENTS_PAYMENT_DETAILS_RECEIVED_FORMAT",
+                    titleFormat = OWSLocalizedString("SETTINGS_PAYMENTS_PAYMENT_DETAILS_RECEIVED_FORMAT",
                                                     comment: "Format for indicator that you received a payment in the payment details view in the app settings. Embeds: {{ the user who sent you the payment }}.")
                 } else {
-                    titleFormat = NSLocalizedString("SETTINGS_PAYMENTS_PAYMENT_DETAILS_SENT_FORMAT",
+                    titleFormat = OWSLocalizedString("SETTINGS_PAYMENTS_PAYMENT_DETAILS_SENT_FORMAT",
                                                     comment: "Format for indicator that you sent a payment in the payment details view in the app settings. Embeds: {{ the user who you sent the payment to }}.")
                 }
                 title = String(format: titleFormat, username)
             } else {
                 if paymentItem.isIncoming {
-                    title = NSLocalizedString("SETTINGS_PAYMENTS_PAYMENT_DETAILS_RECEIVED",
+                    title = OWSLocalizedString("SETTINGS_PAYMENTS_PAYMENT_DETAILS_RECEIVED",
                                               comment: "Indicates that you received a payment in the payment details view in the app settings.")
                 } else {
-                    title = NSLocalizedString("SETTINGS_PAYMENTS_PAYMENT_DETAILS_SENT",
+                    title = OWSLocalizedString("SETTINGS_PAYMENTS_PAYMENT_DETAILS_SENT",
                                               comment: "Indicates that you sent a payment in the payment details view in the app settings.")
                 }
             }
@@ -248,7 +248,7 @@ class PaymentsDetailViewController: OWSTableViewController2 {
                                                    isShortForm: false,
                                                    withCurrencyCode: true,
                                                    withSpace: true)
-            section.add(buildStatusItem(topText: NSLocalizedString("SETTINGS_PAYMENTS_PAYMENT_DETAILS_FEE",
+            section.add(buildStatusItem(topText: OWSLocalizedString("SETTINGS_PAYMENTS_PAYMENT_DETAILS_FEE",
                                                                    comment: "Label for the 'MobileCoin network fee' in the payment details view in the app settings."),
                                         bottomText: value))
         }
@@ -256,7 +256,7 @@ class PaymentsDetailViewController: OWSTableViewController2 {
         // TODO: We might not want to include dates if an incoming
         //       transaction has not yet been verified.
 
-        section.add(buildStatusItem(topText: NSLocalizedString("SETTINGS_PAYMENTS_PAYMENT_DETAILS_STATUS",
+        section.add(buildStatusItem(topText: OWSLocalizedString("SETTINGS_PAYMENTS_PAYMENT_DETAILS_STATUS",
                                                                comment: "Label for the transaction status in the payment details view in the app settings."),
                                     bottomText: paymentModel.statusDescription(isLongForm: true)))
 
@@ -273,7 +273,7 @@ class PaymentsDetailViewController: OWSTableViewController2 {
             }()
             let value: String
             if let mcLedgerBlockDate = paymentItem.paymentModel.mcLedgerBlockDate {
-                let senderFormat = NSLocalizedString("SETTINGS_PAYMENTS_PAYMENT_DETAILS_SENDER_FORMAT",
+                let senderFormat = OWSLocalizedString("SETTINGS_PAYMENTS_PAYMENT_DETAILS_SENDER_FORMAT",
                                                      comment: "Format for the sender info in the payment details view in the app settings. Embeds {{ %1$@ the name of the sender of the payment, %2$@ the date the transaction was sent }}.")
                 value = String(format: senderFormat,
                                sender,
@@ -281,19 +281,19 @@ class PaymentsDetailViewController: OWSTableViewController2 {
             } else {
                 value = sender
             }
-            section.add(buildStatusItem(topText: NSLocalizedString("SETTINGS_PAYMENTS_PAYMENT_DETAILS_SENDER",
+            section.add(buildStatusItem(topText: OWSLocalizedString("SETTINGS_PAYMENTS_PAYMENT_DETAILS_SENDER",
                                                                    comment: "Label for the sender in the payment details view in the app settings."),
                                         bottomText: value))
         }
 
         let footerText = (paymentModel.isDefragmentation
-                            ? NSLocalizedString("SETTINGS_PAYMENTS_PAYMENT_DETAILS_STATUS_FOOTER_DEFRAGMENTATION",
+                            ? OWSLocalizedString("SETTINGS_PAYMENTS_PAYMENT_DETAILS_STATUS_FOOTER_DEFRAGMENTATION",
                                                 comment: "Footer string for the status section of the payment details view in the app settings for defragmentation transactions.")
-                            : NSLocalizedString("SETTINGS_PAYMENTS_PAYMENT_DETAILS_STATUS_FOOTER",
+                            : OWSLocalizedString("SETTINGS_PAYMENTS_PAYMENT_DETAILS_STATUS_FOOTER",
                                                 comment: "Footer string for the status section of the payment details view in the app settings."))
         let footerLabel = PaymentsViewUtils.buildTextWithLearnMoreLinkTextView(
             text: footerText,
-            font: .ows_dynamicTypeCaption1Clamped,
+            font: .dynamicTypeCaption1Clamped,
             learnMoreUrl: "https://support.signal.org/hc/en-us/articles/360057625692#payments_details")
         let footerStack = UIStackView(arrangedSubviews: [footerLabel])
         footerStack.axis = .vertical
@@ -312,12 +312,12 @@ class PaymentsDetailViewController: OWSTableViewController2 {
             let topLabel = UILabel()
             topLabel.text = topText
             topLabel.textColor = Theme.primaryTextColor
-            topLabel.font = UIFont.ows_dynamicTypeBodyClamped
+            topLabel.font = UIFont.dynamicTypeBodyClamped
 
             let bottomLabel = UILabel()
             bottomLabel.text = bottomText
             bottomLabel.textColor = Theme.secondaryTextAndIconColor
-            bottomLabel.font = UIFont.ows_dynamicTypeFootnoteClamped
+            bottomLabel.font = UIFont.dynamicTypeFootnoteClamped
             bottomLabel.numberOfLines = 0
             bottomLabel.lineBreakMode = .byWordWrapping
 
@@ -352,7 +352,7 @@ class PaymentsDetailViewController: OWSTableViewController2 {
 
         let usernameLabel = UILabel()
         usernameLabel.textColor = Theme.primaryTextColor
-        usernameLabel.font = UIFont.ows_dynamicTypeSubheadlineClamped
+        usernameLabel.font = UIFont.dynamicTypeSubheadlineClamped
         usernameLabel.textAlignment = .center
         usernameLabel.numberOfLines = 0
         usernameLabel.lineBreakMode = .byWordWrapping
@@ -373,9 +373,9 @@ class PaymentsDetailViewController: OWSTableViewController2 {
 
             let username = Self.contactsManager.displayName(for: address, transaction: transaction)
             let usernameFormat = (self.paymentItem.isIncoming
-                                    ? NSLocalizedString("SETTINGS_PAYMENTS_PAYMENT_USER_INCOMING_FORMAT",
+                                    ? OWSLocalizedString("SETTINGS_PAYMENTS_PAYMENT_USER_INCOMING_FORMAT",
                                                         comment: "Format string for the sender of an incoming payment. Embeds: {{ the name of the sender of the payment}}.")
-                                    : NSLocalizedString("SETTINGS_PAYMENTS_PAYMENT_USER_OUTGOING_FORMAT",
+                                    : OWSLocalizedString("SETTINGS_PAYMENTS_PAYMENT_USER_OUTGOING_FORMAT",
                                                         comment: "Format string for the recipient of an outgoing payment. Embeds: {{ the name of the recipient of the payment}}."))
             usernameLabel.text = String(format: usernameFormat, username)
         }
@@ -402,7 +402,7 @@ class PaymentsDetailViewController: OWSTableViewController2 {
         let usernameLabel = UILabel()
         usernameLabel.text = paymentItem.displayName
         usernameLabel.textColor = Theme.primaryTextColor
-        usernameLabel.font = UIFont.ows_dynamicTypeBodyClamped
+        usernameLabel.font = UIFont.dynamicTypeBodyClamped
         usernameLabel.textAlignment = .center
         usernameLabel.numberOfLines = 0
         usernameLabel.lineBreakMode = .byWordWrapping
@@ -411,7 +411,7 @@ class PaymentsDetailViewController: OWSTableViewController2 {
 
         let amountLabel = UILabel()
         amountLabel.textColor = Theme.primaryTextColor
-        amountLabel.font = UIFont.ows_dynamicTypeLargeTitle1Clamped.withSize(54)
+        amountLabel.font = UIFont.regularFont(ofSize: 54)
         amountLabel.textAlignment = .center
         amountLabel.adjustsFontSizeToFitWidth = true
 
@@ -430,7 +430,7 @@ class PaymentsDetailViewController: OWSTableViewController2 {
 
         let amountLabel = UILabel()
         amountLabel.textColor = Theme.primaryTextColor
-        amountLabel.font = UIFont.ows_dynamicTypeLargeTitle1Clamped.withSize(54)
+        amountLabel.font = UIFont.regularFont(ofSize: 54)
         amountLabel.textAlignment = .center
         amountLabel.adjustsFontSizeToFitWidth = true
 
@@ -447,9 +447,7 @@ class PaymentsDetailViewController: OWSTableViewController2 {
         } else {
             amountLabel.text = " "
 
-            let activityIndicator = UIActivityIndicatorView(style: Theme.isDarkThemeEnabled
-                                                                ? .white
-                                                                : .gray)
+            let activityIndicator = UIActivityIndicatorView(style: .medium)
             amountWrapper.addSubview(activityIndicator)
             activityIndicator.autoCenterInSuperview()
             activityIndicator.startAnimating()

@@ -10,12 +10,13 @@ import UIKit
 // Coincides with Android's max text message length
 let kMaxMessageBodyCharacterCount = 2000
 
-protocol StoryReplyInputToolbarDelegate: AnyObject {
+protocol StoryReplyInputToolbarDelegate: MessageReactionPickerDelegate {
     func storyReplyInputToolbarDidTapSend(_ storyReplyInputToolbar: StoryReplyInputToolbar)
     func storyReplyInputToolbarDidTapReact(_ storyReplyInputToolbar: StoryReplyInputToolbar)
     func storyReplyInputToolbarDidBeginEditing(_ storyReplyInputToolbar: StoryReplyInputToolbar)
     func storyReplyInputToolbarHeightDidChange(_ storyReplyInputToolbar: StoryReplyInputToolbar)
-    func storyReplyInputToolbarMentionPickerPossibleAddresses(_ storyReplyInputToolbar: StoryReplyInputToolbar) -> [SignalServiceAddress]
+    func storyReplyInputToolbarMentionPickerPossibleAddresses(_ storyReplyInputToolbar: StoryReplyInputToolbar, tx: DBReadTransaction) -> [SignalServiceAddress]
+    func storyReplyInputToolbarMentionCacheInvalidationKey() -> String
     func storyReplyInputToolbarMentionPickerReferenceView(_ storyReplyInputToolbar: StoryReplyInputToolbar) -> UIView?
     func storyReplyInputToolbarMentionPickerParentView(_ storyReplyInputToolbar: StoryReplyInputToolbar) -> UIView?
 }
@@ -24,15 +25,23 @@ protocol StoryReplyInputToolbarDelegate: AnyObject {
 
 class StoryReplyInputToolbar: UIView {
 
-    weak var delegate: StoryReplyInputToolbarDelegate?
-    let quotedReplyModel: OWSQuotedReplyModel?
-
-    var messageBody: MessageBody? {
-        get { textView.messageBody }
-        set {
-            textView.messageBody = newValue
-            updateContent(animated: false)
+    weak var delegate: StoryReplyInputToolbarDelegate? {
+        didSet {
+            reactionPicker.delegate = delegate
         }
+    }
+    let isGroupStory: Bool
+    let quotedReplyModel: QuotedReplyModel?
+
+    let spoilerState: SpoilerRenderState
+
+    var messageBodyForSending: MessageBody? {
+        textView.messageBodyForSending
+    }
+
+    func setMessageBody(_ messageBody: MessageBody?, txProvider: EditableMessageBodyTextStorage.ReadTxProvider) {
+        textView.setMessageBody(messageBody, txProvider: txProvider)
+        updateContent(animated: true)
     }
 
     override var bounds: CGRect {
@@ -52,8 +61,14 @@ class StoryReplyInputToolbar: UIView {
 
     // MARK: - Initializers
 
-    init(quotedReplyModel: OWSQuotedReplyModel? = nil) {
+    init(
+        isGroupStory: Bool,
+        quotedReplyModel: QuotedReplyModel? = nil,
+        spoilerState: SpoilerRenderState
+    ) {
+        self.isGroupStory = isGroupStory
         self.quotedReplyModel = quotedReplyModel
+        self.spoilerState = spoilerState
         super.init(frame: CGRect.zero)
 
         // When presenting or dismissing the keyboard, there may be a slight
@@ -74,7 +89,7 @@ class StoryReplyInputToolbar: UIView {
             backgroundColor = .clear
 
             let blurEffect: UIBlurEffect
-            if #available(iOS 13, *), quotedReplyModel != nil {
+            if quotedReplyModel != nil {
                 blurEffect = UIBlurEffect(style: .systemThickMaterialDark)
             } else {
                 blurEffect = Theme.darkThemeBarBlurEffect
@@ -98,20 +113,23 @@ class StoryReplyInputToolbar: UIView {
 
         let containerView = UIView.container()
         addSubview(containerView)
-        containerView.autoPinEdgesToSuperviewEdges()
+        containerView.autoPinEdgesToSuperviewEdges(with: .zero, excludingEdge: .bottom)
+        containerView.autoPinEdge(toSuperviewSafeArea: .bottom)
+
+        containerView.addSubview(reactionPicker)
+        reactionPicker.autoPinEdges(toSuperviewEdgesExcludingEdge: .bottom)
 
         containerView.addSubview(textContainer)
         textContainer.autoPinEdge(toSuperviewMargin: .left, withInset: OWSTableViewController2.defaultHOuterMargin)
-        textContainer.autoPinHeightToSuperview(withMargin: 8)
+        textContainer.autoPinEdge(.top, to: .bottom, of: reactionPicker)
+        textContainer.autoPinEdge(toSuperviewMargin: .bottom, withInset: 8)
+        textContainer.autoPinEdge(toSuperviewEdge: .right, withInset: OWSTableViewController2.defaultHOuterMargin, relation: .greaterThanOrEqual)
 
-        containerView.addSubview(sendButton)
-        sendButton.autoPinEdge(toSuperviewEdge: .right, withInset: 2)
-        sendButton.autoPinEdge(toSuperviewEdge: .bottom)
-        sendButton.autoPinEdge(.left, to: .right, of: textContainer, withOffset: 2)
-
-        containerView.addSubview(reactButton)
-        reactButton.autoAlignAxis(.vertical, toSameAxisOf: sendButton)
-        reactButton.autoAlignAxis(.horizontal, toSameAxisOf: sendButton)
+        containerView.addSubview(rightEdgeControlsView)
+        rightEdgeControlsView.autoPinEdge(toSuperviewEdge: .right, withInset: 2)
+        rightEdgeControlsView.autoPinEdge(toSuperviewEdge: .bottom)
+        rightEdgeControlsView.autoPinEdge(.left, to: .right, of: textContainer, withOffset: 2)
+        rightEdgeControlsView.autoAlignAxis(.horizontal, toSameAxisOf: textContainer)
 
         textViewHeightConstraint = textView.autoSetDimension(.height, toSize: minTextViewHeight)
 
@@ -130,25 +148,51 @@ class StoryReplyInputToolbar: UIView {
 
     // MARK: - Subviews
 
-    private lazy var sendButton: UIButton = {
-        let button = UIButton(type: .system)
-        button.accessibilityLabel = MessageStrings.sendButton
-        button.accessibilityIdentifier = UIView.accessibilityIdentifier(in: self, name: "sendButton")
-        button.setImage(UIImage(imageLiteralResourceName: "send-blue-32"), for: .normal)
-        button.addTarget(self, action: #selector(didTapSend), for: .touchUpInside)
-        button.autoSetDimensions(to: CGSize(square: 48))
-        return button
+    private lazy var rightEdgeControlsView: RightEdgeControlsView = {
+        let view = RightEdgeControlsView()
+        view.sendButton.addTarget(self, action: #selector(didTapSend), for: .touchUpInside)
+        return view
     }()
 
-    private lazy var reactButton: UIButton = {
-        let button = OWSButton(imageName: "add-reaction-outline-24", tintColor: Theme.darkThemePrimaryColor) { [weak self] in
-            self?.didTapReact()
+    private class RightEdgeControlsView: UIView {
+        var sendButtonHidden = true {
+            didSet {
+                sendButton.alpha = sendButtonHidden ? 0 : 1
+                sendButton.transform = sendButtonHidden ? .scale(0.1) : .identity
+                invalidateIntrinsicContentSize()
+            }
         }
-        button.autoSetDimensions(to: CGSize(square: 48))
-        return button
-    }()
 
-    private lazy var textView: MentionTextView = {
+        lazy var sendButton: UIButton = {
+            let button = UIButton(type: .system)
+            button.accessibilityLabel = MessageStrings.sendButton
+            button.accessibilityIdentifier = UIView.accessibilityIdentifier(in: self, name: "sendButton")
+            button.setImage(UIImage(imageLiteralResourceName: "send-blue-32"), for: .normal)
+            button.bounds.size = .init(width: 48, height: 48)
+            return button
+        }()
+
+        override init(frame: CGRect) {
+            super.init(frame: frame)
+            sendButton.setContentHuggingHorizontalHigh()
+            sendButton.setCompressionResistanceHorizontalHigh()
+            addSubview(sendButton)
+            sendButton.autoCenterInSuperview()
+
+            setContentHuggingHigh()
+            setCompressionResistanceHigh()
+        }
+
+        required init?(coder: NSCoder) {
+            fatalError("init(coder:) has not been implemented")
+        }
+
+        override var intrinsicContentSize: CGSize {
+            .init(width: sendButtonHidden ? 0 : 48, height: 48)
+        }
+    }
+
+    private lazy var textView: BodyRangesTextView = {
         let textView = buildTextView()
         textView.scrollIndicatorInsets = UIEdgeInsets(top: 5, left: 0, bottom: 5, right: 3)
         textView.mentionDelegate = self
@@ -165,13 +209,33 @@ class StoryReplyInputToolbar: UIView {
         textView.resignFirstResponder()
     }
 
+    private lazy var reactionPicker: MessageReactionPicker = MessageReactionPicker(selectedEmoji: nil, delegate: delegate, style: .inline, forceDarkTheme: true)
+
     private lazy var placeholderTextView: UITextView = {
         let placeholderTextView = buildTextView()
 
-        placeholderTextView.text = OWSLocalizedString(
-            "STORY_REPLY_TEXT_FIELD_PLACEHOLDER",
-            comment: "placeholder text for replying to a story"
-        )
+        let placeholderText = {
+            if isGroupStory {
+                return OWSLocalizedString(
+                    "STORY_REPLY_TO_GROUP_TEXT_FIELD_PLACEHOLDER",
+                    comment: "placeholder text for replying to a group story"
+                )
+            } else if let quotedReplyModel {
+                let format = OWSLocalizedString(
+                    "STORY_REPLY_TO_PRIVATE_TEXT_FIELD_PLACEHOLDER",
+                    comment: "placeholder text for replying to a private story. Embeds {{author name}}"
+                )
+                let authorName = contactsManager.displayName(for: quotedReplyModel.authorAddress)
+                return String(format: format, authorName)
+            } else {
+                return OWSLocalizedString(
+                    "STORY_REPLY_TEXT_FIELD_PLACEHOLDER",
+                    comment: "placeholder text for replying to a story"
+                )
+            }
+        }()
+
+        placeholderTextView.setMessageBody(.init(text: placeholderText, ranges: .empty), txProvider: databaseStorage.readTxProvider)
         placeholderTextView.isEditable = false
         placeholderTextView.textContainer.maximumNumberOfLines = 1
         placeholderTextView.textContainer.lineBreakMode = .byTruncatingTail
@@ -184,22 +248,10 @@ class StoryReplyInputToolbar: UIView {
         let textContainer = UIStackView()
         textContainer.axis = .vertical
 
-        if let headerLabel = buildHeaderLabel() {
-            textContainer.addArrangedSubview(headerLabel)
-        }
-
         let bubbleView = UIStackView()
         bubbleView.axis = .vertical
         bubbleView.addBackgroundView(withBackgroundColor: .ows_gray75, cornerRadius: minTextViewHeight / 2)
         textContainer.addArrangedSubview(bubbleView)
-
-        if let quotedReplyModel = quotedReplyModel {
-            let previewView = StoryReplyPreviewView(quotedReplyModel: quotedReplyModel)
-            let previewViewContainer = UIView()
-            previewViewContainer.addSubview(previewView)
-            previewView.autoPinEdgesToSuperviewEdges(with: UIEdgeInsets(top: 8, leading: 8, bottom: 2, trailing: 8))
-            bubbleView.addArrangedSubview(previewViewContainer)
-        }
 
         let textAndPlaceholderContainer = UIView()
         bubbleView.addArrangedSubview(textAndPlaceholderContainer)
@@ -207,56 +259,23 @@ class StoryReplyInputToolbar: UIView {
         textAndPlaceholderContainer.addSubview(placeholderTextView)
         textAndPlaceholderContainer.addSubview(textView)
 
-        textView.autoPinWidthToSuperview()
-        textView.autoPinHeightToSuperview(withMargin: 4)
+        textView.autoPinEdgesToSuperviewEdges()
         placeholderTextView.autoPinEdges(toEdgesOf: textView)
 
         return textContainer
     }()
 
-    private func buildTextView() -> MentionTextView {
-        let textView = MentionTextView()
+    private func buildTextView() -> BodyRangesTextView {
+        let textView = BodyRangesTextView()
 
         textView.keyboardAppearance = Theme.darkThemeKeyboardAppearance
         textView.backgroundColor = .clear
         textView.tintColor = Theme.darkThemePrimaryColor
 
-        let textViewFont = UIFont.ows_dynamicTypeBody
+        let textViewFont = UIFont.dynamicTypeBody
         textView.font = textViewFont
         textView.textColor = Theme.darkThemePrimaryColor
         return textView
-    }
-
-    private func buildHeaderLabel() -> UIView? {
-        guard let headerText: String = {
-            switch quotedReplyModel {
-            case .some(let quotedReplyModel):
-                guard !quotedReplyModel.authorAddress.isLocalAddress else {
-                    fallthrough
-                }
-                let format = OWSLocalizedString(
-                    "STORY_REPLY_TEXT_FIELD_HEADER_FORMAT",
-                    comment: "header text for replying to private story. Embeds {{author name}}"
-                )
-                let authorName = contactsManager.displayName(for: quotedReplyModel.authorAddress)
-                return String(format: format, authorName)
-            case .none:
-                return nil
-            }
-        }() else {
-            return nil
-        }
-
-        let label = UILabel()
-        label.textColor = Theme.darkThemeSecondaryTextAndIconColor
-        label.font = .ows_dynamicTypeFootnote
-        label.text = headerText
-
-        let container = UIView()
-        container.addSubview(label)
-        label.autoPinEdgesToSuperviewEdges(with: .init(top: 2, leading: 4, bottom: 10, trailing: 4))
-
-        return container
     }
 
     // MARK: - Actions
@@ -278,10 +297,10 @@ class StoryReplyInputToolbar: UIView {
 
         updateHeight(textView: textView)
 
-        let hasAnyText = !textView.text.isEmptyOrNil
+        let hasAnyText = !textView.isEmpty
         placeholderTextView.isHidden = hasAnyText
 
-        let hasNonWhitespaceText = !textView.text.ows_stripped().isEmpty
+        let hasNonWhitespaceText = !textView.isWhitespaceOrEmpty
         setSendButtonHidden(!hasNonWhitespaceText, animated: animated)
     }
 
@@ -290,23 +309,17 @@ class StoryReplyInputToolbar: UIView {
     private func setSendButtonHidden(_ isHidden: Bool, animated: Bool) {
         guard isHidden != isSendButtonHidden else { return }
 
-        let setButtonHidden: (UIButton, Bool) -> Void = { button, isHidden in
-            button.alpha = isHidden ? 0 : 1
-            button.transform = isHidden ? .scale(0.1) : .identity
-        }
-
         isSendButtonHidden = isHidden
 
         guard animated else {
-            setButtonHidden(sendButton, isHidden)
-            setButtonHidden(reactButton, !isHidden)
+            self.rightEdgeControlsView.sendButtonHidden = isHidden
             return
         }
 
         let animator = UIViewPropertyAnimator(duration: 0.25, springDamping: 0.645, springResponse: 0.25)
         animator.addAnimations {
-            setButtonHidden(self.sendButton, isHidden)
-            setButtonHidden(self.reactButton, !isHidden)
+            self.rightEdgeControlsView.sendButtonHidden = isHidden
+            self.layoutIfNeeded()
         }
         animator.startAnimation()
     }
@@ -339,28 +352,34 @@ class StoryReplyInputToolbar: UIView {
     }
 }
 
-extension StoryReplyInputToolbar: MentionTextViewDelegate {
+extension StoryReplyInputToolbar: BodyRangesTextViewDelegate {
 
-    func textViewDidBeginTypingMention(_ textView: MentionTextView) {}
+    func textViewDidBeginTypingMention(_ textView: BodyRangesTextView) {}
 
-    func textViewDidEndTypingMention(_ textView: MentionTextView) {}
+    func textViewDidEndTypingMention(_ textView: BodyRangesTextView) {}
 
-    func textViewMentionPickerParentView(_ textView: MentionTextView) -> UIView? {
+    func textViewMentionPickerParentView(_ textView: BodyRangesTextView) -> UIView? {
         delegate?.storyReplyInputToolbarMentionPickerParentView(self)
     }
 
-    func textViewMentionPickerReferenceView(_ textView: MentionTextView) -> UIView? {
+    func textViewMentionPickerReferenceView(_ textView: BodyRangesTextView) -> UIView? {
         delegate?.storyReplyInputToolbarMentionPickerReferenceView(self)
     }
 
-    func textViewMentionPickerPossibleAddresses(_ textView: MentionTextView) -> [SignalServiceAddress] {
-        delegate?.storyReplyInputToolbarMentionPickerPossibleAddresses(self) ?? []
+    func textViewMentionPickerPossibleAddresses(_ textView: BodyRangesTextView, tx: DBReadTransaction) -> [SignalServiceAddress] {
+        delegate?.storyReplyInputToolbarMentionPickerPossibleAddresses(self, tx: tx) ?? []
     }
 
-    func textView(_ textView: MentionTextView, didDeleteMention mention: Mention) {}
+    func textViewMentionCacheInvalidationKey(_ textView: BodyRangesTextView) -> String {
+        return delegate?.storyReplyInputToolbarMentionCacheInvalidationKey() ?? UUID().uuidString
+    }
 
-    func textViewMentionStyle(_ textView: MentionTextView) -> Mention.Style {
-        .groupReply
+    public func textViewDisplayConfiguration(_ textView: BodyRangesTextView) -> HydratedMessageBody.DisplayConfiguration {
+        return .composingGroupStoryReply()
+    }
+
+    public func mentionPickerStyle(_ textView: BodyRangesTextView) -> MentionPickerStyle {
+        return .groupReply
     }
 
     public func textViewDidChange(_ textView: UITextView) {

@@ -26,7 +26,6 @@ public protocol ConversationPickerDelegate: AnyObject {
 
 // MARK: -
 
-@objc
 open class ConversationPickerViewController: OWSTableViewController2 {
 
     public weak var pickerDelegate: ConversationPickerDelegate?
@@ -119,6 +118,7 @@ open class ConversationPickerViewController: OWSTableViewController2 {
         self.topHeader = searchBarWrapper
         self.bottomFooter = footerView
         selection.delegate = self
+        contactsViewHelper.addObserver(self)
     }
 
     private var approvalMode: ApprovalMode {
@@ -266,36 +266,44 @@ open class ConversationPickerViewController: OWSTableViewController2 {
             return Promise.value(nil)
         }
 
-        return firstly(on: .global()) {
+        return firstly(on: DispatchQueue.global()) {
             Self.databaseStorage.read { transaction in
-                self.fullTextSearcher.searchForConvsersationPickerScreen(searchText: searchText, transaction: transaction)
+                self.fullTextSearcher.searchForConversationPickerScreen(searchText: searchText, transaction: transaction)
             }
         }
     }
 
-    func buildGroupItem(_ groupThread: TSGroupThread, transaction: SDSAnyReadTransaction) -> GroupConversationItem {
-        let isBlocked = self.blockingManager.isThreadBlocked(groupThread, transaction: transaction)
-        let dmConfig = groupThread.disappearingMessagesConfiguration(with: transaction)
-        return GroupConversationItem(groupThreadId: groupThread.uniqueId,
-                                     isBlocked: isBlocked,
-                                     disappearingMessagesConfig: dmConfig)
+    private func buildGroupItem(
+        _ groupThread: TSGroupThread,
+        isBlocked: Bool,
+        transaction tx: SDSAnyReadTransaction
+    ) -> GroupConversationItem {
+        let dmConfigurationStore = DependenciesBridge.shared.disappearingMessagesConfigurationStore
+        let dmConfig = dmConfigurationStore.fetchOrBuildDefault(for: .thread(groupThread), tx: tx.asV2Read)
+        return GroupConversationItem(
+            groupThreadId: groupThread.uniqueId,
+            isBlocked: isBlocked,
+            disappearingMessagesConfig: dmConfig
+        )
     }
 
-    func buildContactItem(_ address: SignalServiceAddress, transaction: SDSAnyReadTransaction) -> ContactConversationItem {
-        let isBlocked = self.blockingManager.isAddressBlocked(address, transaction: transaction)
-        let dmConfig = TSContactThread.getWithContactAddress(address, transaction: transaction)?.disappearingMessagesConfiguration(with: transaction)
-
-        let contactName = contactsManager.displayName(for: address,
-                                                      transaction: transaction)
-
-        let comparableName = contactsManager.comparableName(for: address,
-                                                            transaction: transaction)
-
-        return ContactConversationItem(address: address,
-                                       isBlocked: isBlocked,
-                                       disappearingMessagesConfig: dmConfig,
-                                       contactName: contactName,
-                                       comparableName: comparableName)
+    private func buildContactItem(
+        _ address: SignalServiceAddress,
+        isBlocked: Bool,
+        transaction tx: SDSAnyReadTransaction
+    ) -> ContactConversationItem {
+        let thread = TSContactThread.getWithContactAddress(address, transaction: tx)
+        let dmConfigurationStore = DependenciesBridge.shared.disappearingMessagesConfigurationStore
+        let dmConfig = thread.map { dmConfigurationStore.fetchOrBuildDefault(for: .thread($0), tx: tx.asV2Read) }
+        let contactName = contactsManager.displayName(for: address, transaction: tx)
+        let comparableName = contactsManager.comparableName(for: address, transaction: tx)
+        return ContactConversationItem(
+            address: address,
+            isBlocked: isBlocked,
+            disappearingMessagesConfig: dmConfig,
+            contactName: contactName,
+            comparableName: comparableName
+        )
     }
 
     fileprivate func buildConversationCollection() -> ConversationCollection {
@@ -320,9 +328,29 @@ open class ConversationPickerViewController: OWSTableViewController2 {
                     return
                 }
 
+                let isThreadBlocked = self.blockingManager.isThreadBlocked(
+                    thread,
+                    transaction: transaction
+                )
+                if isThreadBlocked {
+                    return
+                }
+
                 switch thread {
                 case let contactThread as TSContactThread:
-                    let item = self.buildContactItem(contactThread.contactAddress, transaction: transaction)
+                    let isThreadHidden = DependenciesBridge.shared.recipientHidingManager.isHiddenAddress(
+                        contactThread.contactAddress,
+                        tx: transaction.asV2Read
+                    )
+                    if isThreadHidden {
+                        return
+                    }
+                    let item = self.buildContactItem(
+                        contactThread.contactAddress,
+                        isBlocked: isThreadBlocked,
+                        transaction: transaction
+                    )
+
                     seenAddresses.insert(contactThread.contactAddress)
                     if self.sectionOptions.contains(.recents) && pinnedThreadIds.contains(thread.uniqueId) {
                         let recentItem = RecentConversationItem(backingItem: .contact(item))
@@ -337,7 +365,13 @@ open class ConversationPickerViewController: OWSTableViewController2 {
                     guard groupThread.isLocalUserFullMember else {
                         return
                     }
-                    let item = self.buildGroupItem(groupThread, transaction: transaction)
+
+                    let item = self.buildGroupItem(
+                        groupThread,
+                        isBlocked: isThreadBlocked,
+                        transaction: transaction
+                    )
+
                     if self.sectionOptions.contains(.recents) && pinnedThreadIds.contains(thread.uniqueId) {
                         let recentItem = RecentConversationItem(backingItem: .group(item))
                         pinnedItemsByThreadId[thread.uniqueId] = recentItem
@@ -367,7 +401,29 @@ open class ConversationPickerViewController: OWSTableViewController2 {
                 }
                 seenAddresses.insert(address)
 
-                let contactItem = self.buildContactItem(address, transaction: transaction)
+                let isContactBlocked = self.blockingManager.isAddressBlocked(
+                    address,
+                    transaction: transaction
+                )
+
+                if isContactBlocked {
+                    return
+                }
+
+                let isRecipientHidden = DependenciesBridge.shared.recipientHidingManager.isHiddenAddress(
+                    address,
+                    tx: transaction.asV2Read
+                )
+                if isRecipientHidden {
+                    return
+                }
+
+                let contactItem = self.buildContactItem(
+                    address,
+                    isBlocked: isContactBlocked,
+                    transaction: transaction
+                )
+
                 contactItems.append(contactItem)
             }
             contactItems.sort()
@@ -386,6 +442,7 @@ open class ConversationPickerViewController: OWSTableViewController2 {
                 includeImplicitGroupThreads: true,
                 excludeHiddenContexts: true,
                 prioritizeThreadsCreatedAfter: creationDate,
+                blockingManager: self.blockingManager,
                 transaction: transaction
             )
             if
@@ -409,17 +466,55 @@ open class ConversationPickerViewController: OWSTableViewController2 {
             return Promise.value(buildConversationCollection())
         }
 
-        return firstly(on: .global()) {
+        return firstly(on: DispatchQueue.global()) {
             Self.databaseStorage.read { transaction in
                 let groupItems = searchResults.groupThreads.compactMap { groupThread -> GroupConversationItem? in
-                    guard self.threadFilter(groupThread) else { return nil }
-                    guard groupThread.canSendChatMessagesToThread(ignoreAnnouncementOnly: true) else {
+                    guard
+                        self.threadFilter(groupThread),
+                        groupThread.canSendChatMessagesToThread(ignoreAnnouncementOnly: true)
+                    else {
                         return nil
                     }
-                    return self.buildGroupItem(groupThread, transaction: transaction)
+
+                    let isThreadBlocked = self.blockingManager.isThreadBlocked(
+                        groupThread,
+                        transaction: transaction
+                    )
+
+                    if isThreadBlocked {
+                        return nil
+                    }
+
+                    return self.buildGroupItem(
+                        groupThread,
+                        isBlocked: isThreadBlocked,
+                        transaction: transaction
+                    )
                 }
-                let contactItems = searchResults.signalAccounts.map { self.buildContactItem($0.recipientAddress, transaction: transaction) }
-                let storyItems = searchResults.storyThreads.compactMap { StoryConversationItem.from(thread: $0) }
+
+                let contactItems = searchResults.signalAccounts.compactMap { account -> ContactConversationItem? in
+                    let isAddressBlocked = self.blockingManager.isAddressBlocked(
+                        account.recipientAddress,
+                        transaction: transaction
+                    )
+
+                    if isAddressBlocked {
+                        return nil
+                    }
+
+                    return self.buildContactItem(
+                        account.recipientAddress,
+                        isBlocked: isAddressBlocked,
+                        transaction: transaction
+                    )
+                }
+
+                let storyItems = StoryConversationItem.buildItems(
+                    from: searchResults.storyThreads,
+                    excludeHiddenContexts: false,
+                    blockingManager: self.blockingManager,
+                    transaction: transaction
+                )
 
                 return ConversationCollection(
                     contactConversations: contactItems,
@@ -443,7 +538,7 @@ open class ConversationPickerViewController: OWSTableViewController2 {
     // MARK: - Button Actions
 
     @objc
-    func onTouchCancelButton() {
+    private func onTouchCancelButton() {
         pickerDelegate?.conversationPickerDidCancel(self)
     }
 
@@ -484,7 +579,7 @@ open class ConversationPickerViewController: OWSTableViewController2 {
             {
                 addMediaPreview(to: section, textAttachment: textAttachment)
             }
-            contents.addSection(section)
+            contents.add(section)
         }
 
         // Stories Section
@@ -511,7 +606,7 @@ open class ConversationPickerViewController: OWSTableViewController2 {
                 }
                 hasContents = true
             }
-            contents.addSection(section)
+            contents.add(section)
         }
 
         // Recents Section
@@ -524,7 +619,7 @@ open class ConversationPickerViewController: OWSTableViewController2 {
                 addConversations(to: section, conversations: conversationCollection.recentConversations)
                 hasContents = true
             }
-            contents.addSection(section)
+            contents.add(section)
         }
 
         // Contacts Section
@@ -537,7 +632,7 @@ open class ConversationPickerViewController: OWSTableViewController2 {
                 addConversations(to: section, conversations: conversationCollection.contactConversations)
                 hasContents = true
             }
-            contents.addSection(section)
+            contents.add(section)
         }
 
         // Groups Section
@@ -550,7 +645,7 @@ open class ConversationPickerViewController: OWSTableViewController2 {
                 addConversations(to: section, conversations: conversationCollection.groupConversations)
                 hasContents = true
             }
-            contents.addSection(section)
+            contents.add(section)
         }
 
         // "No matches" Section
@@ -559,7 +654,7 @@ open class ConversationPickerViewController: OWSTableViewController2 {
             let section = OWSTableSection()
             section.add(.label(withText: OWSLocalizedString("CONVERSATION_SEARCH_NO_RESULTS",
                                                            comment: "keyboard toolbar label when no messages match the search string")))
-            contents.addSection(section)
+            contents.add(section)
         }
 
         setContents(contents, shouldReload: shouldReload)
@@ -572,7 +667,24 @@ open class ConversationPickerViewController: OWSTableViewController2 {
         }
     }
 
+    /// This must be retained for as long as we want to be able
+    /// to display recipient context menus in this view controller.
+    private lazy var recipientContextMenuHelper = {
+        return RecipientContextMenuHelper(
+            databaseStorage: databaseStorage,
+            blockingManager: blockingManager,
+            recipientHidingManager: DependenciesBridge.shared.recipientHidingManager,
+            accountManager: tsAccountManager,
+            contactsManager: contactsManager,
+            fromViewController: self
+        )
+    }()
+
     private func addConversationPickerCell(to section: OWSTableSection, for item: ConversationItem) {
+        var contextMenuActionProvider: UIContextMenuActionProvider?
+        if case let .contact(address) = item.messageRecipient {
+            contextMenuActionProvider = recipientContextMenuHelper.actionProvider(address: address)
+        }
         section.add(OWSTableItem(dequeueCellBlock: { tableView in
             guard let cell = tableView.dequeueReusableCell(withIdentifier: ConversationPickerCell.reuseIdentifier) as? ConversationPickerCell else {
                 owsFailDebug("Missing cell.")
@@ -585,7 +697,8 @@ open class ConversationPickerViewController: OWSTableViewController2 {
         },
         actionBlock: { [weak self] in
             self?.didToggleSelection(conversation: item)
-        }))
+        },
+        contextMenuActionProvider: contextMenuActionProvider))
     }
 
     private func addMediaPreview(
@@ -609,7 +722,7 @@ open class ConversationPickerViewController: OWSTableViewController2 {
             mediaPreviewBorder.layer.cornerRadius = mediaPreview.layer.cornerRadius
             container.insertSubview(mediaPreviewBorder, belowSubview: mediaPreview)
 
-            mediaPreviewBorder.autoPin(toEdgesOf: mediaPreview, with: .init(margin: -3))
+            mediaPreviewBorder.autoPinEdges(toEdgesOf: mediaPreview, with: .init(margin: -3))
 
             secondMediaPreview.layer.masksToBounds = true
             secondMediaPreview.layer.cornerRadius = 18
@@ -698,10 +811,12 @@ open class ConversationPickerViewController: OWSTableViewController2 {
                     cell.preservesSuperviewLayoutMargins = true
                     cell.contentView.preservesSuperviewLayoutMargins = true
 
-                    let iconView = OWSTableItem.buildIconInCircleView(icon: .settingsShowAllMembers,
-                                                                      iconSize: AvatarBuilder.smallAvatarSizePoints,
-                                                                      innerIconSize: 24,
-                                                                      iconTintColor: Theme.primaryTextColor)
+                    let iconView = OWSTableItem.buildIconInCircleView(
+                        icon: .groupInfoShowAllMembers,
+                        iconSize: AvatarBuilder.smallAvatarSizePoints,
+                        innerIconSize: 20,
+                        iconTintColor: Theme.primaryTextColor
+                    )
 
                     let rowLabel = UILabel()
                     rowLabel.text = CommonStrings.seeAllButton
@@ -742,7 +857,9 @@ open class ConversationPickerViewController: OWSTableViewController2 {
         }
     }
 
-    public func tableView(_ tableView: UITableView, willDisplay cell: UITableViewCell, forRowAt indexPath: IndexPath) {
+    public override func tableView(_ tableView: UITableView, willDisplay cell: UITableViewCell, forRowAt indexPath: IndexPath) {
+        super.tableView(tableView, willDisplay: cell, forRowAt: indexPath)
+
         guard let conversation = conversation(for: indexPath) else {
             return
         }
@@ -1008,7 +1125,7 @@ private class VideoSegmentingTooltipView: TooltipView {
     public override func bubbleContentView() -> UIView {
         let label = UILabel()
         label.text = text
-        label.font = .ows_dynamicTypeFootnoteClamped
+        label.font = .dynamicTypeFootnoteClamped
         label.textColor = .ows_white
         label.numberOfLines = 0
 
@@ -1055,7 +1172,7 @@ extension ConversationPickerViewController: UISearchBarDelegate {
             guard searchBar.text == searchText else { throw PromiseError.cancelled }
 
             return self.buildConversationCollection(searchResults: searchResults)
-        }.done(on: .main) { [weak self] conversationCollection in
+        }.done(on: DispatchQueue.main) { [weak self] conversationCollection in
             guard let self = self else { return }
 
             self.conversationCollection = conversationCollection
@@ -1224,6 +1341,9 @@ internal class ConversationPickerCell: ContactTableViewCell {
 
         if let storyItem = conversationItem as? StoryConversationItem {
             configuration.attributedSubtitle = storyItem.subtitle(transaction: transaction)?.asAttributedString
+            configuration.storyState = storyItem.storyState
+        } else {
+            configuration.storyState = nil
         }
 
         super.configure(configuration: configuration, transaction: transaction)
@@ -1269,7 +1389,7 @@ internal class ConversationPickerCell: ContactTableViewCell {
         }
 
         let timerView = DisappearingTimerConfigurationView(durationSeconds: disappearingMessagesConfig.durationSeconds)
-        timerView.tintColor = Theme.middleGrayColor
+        timerView.tintColor = .ows_middleGray
         let timerSize = CGSize(square: 44)
 
         let stackView = ManualStackView(name: "stackView")
@@ -1288,13 +1408,13 @@ internal class ConversationPickerCell: ContactTableViewCell {
     }
 
     lazy var unselectedBadgeView: UIView = {
-        let imageView = UIImageView(image: #imageLiteral(resourceName: "empty-circle-outline-24").withRenderingMode(.alwaysTemplate))
+        let imageView = UIImageView(image: Theme.iconImage(.circle))
         imageView.tintColor = .ows_gray25
         return imageView
     }()
 
     lazy var selectedBadgeView: UIView = {
-        let imageView = UIImageView(image: #imageLiteral(resourceName: "check-circle-solid-new-24").withRenderingMode(.alwaysTemplate))
+        let imageView = UIImageView(image: Theme.iconImage(.checkCircleFill))
         imageView.tintColor = Theme.accentBlueColor
         return imageView
     }()
@@ -1464,5 +1584,12 @@ private struct ConversationCollection {
                 return false
             }
         }
+    }
+}
+
+extension ConversationPickerViewController: ContactsViewHelperObserver {
+    public func contactsViewHelperDidUpdateContacts() {
+        /// Triggers subsequent call to `updateTableContents`.
+        self.conversationCollection = self.buildConversationCollection()
     }
 }

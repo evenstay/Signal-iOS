@@ -1,26 +1,19 @@
-Milijuni ljudi svakodnevno koriste Signal za besplatnu i trenutnu komunikaciju bilo gdje u svijetu. Šaljite i primajte povjerljive poruke, sudjelujte u HD glasovnim/video pozivima i istražujte sve veći niz novih značajki koje vam pomažu da ostanete povezani. Signalova napredna tehnologija očuvanja privatnosti uvijek je omogućena, tako da se možete usredotočiti na dijeljenje važnih trenutaka s važnim osobama.
+Signal je aplikacija za razmjenu poruka u kojoj je privatnost na prvom mjestu. Besplatna i jednostavna za korištenje, u potpunosti štiti privatnost vaših razgovora snažnim sveobuhvatnim šifriranjem.
 
-• Recite bilo što - najsuvremenije end-to-end šifriranje (koje pokreće Signal Protocol™ otvorenog kôda) čuva vaše razgovore. Privatnost nije neobavezni dio - ona je način na koji Signal funkcionira. Svaka poruka, svaki poziv, svaki put.
+• Besplatno šaljite tekstualne i glasovne poruke, fotografije, videozapise, GIF-ove i datoteke. Signal koristi podatkovnu vezu vašeg mobilnog uređaja kako biste izbjegli SMS i MMS naknade.
 
-• Budite brzi - poruke se isporučuju brzo i pouzdano, čak i na sporim mrežama. Signal je optimiziran za rad u najnepoželjnijem okruženju.
+• Uputite šifrirane glasovne pozive i videopozive vrhunske kvalitete svojim prijateljima. Grupni pozivi podržavaju do 40 sudionika.
 
-• Osjećajte se slobodnim - Signal je potpuno neovisna, neprofitna (501c3) organizacija. Razvoj podržavaju korisnici poput vas. Bez oglasa. Bez pratitelja. Bez šale.
+• Ostanite povezani uz grupne razgovore za do 1000 osoba. Kontrolirajte tko može objavljivati i upravljati članovima grupe u postavkama dopuštenja administratora.
 
-• Budite svoji - možete koristiti postojeći telefonski broj i popis kontakata da biste sigurno komunicirali sa svojim prijateljima.
+• Dijelite fotografije, tekst i videozapise putem priča koje nestaju nakon 24 sata. Postavke privatnosti omogućuju vam da točno odredite tko može vidjeti svaku vašu priču.
 
-• Slobodno govorite - bilo da žive u drugom dijelu grada ili preko oceana, Signalova poboljšana kvaliteta zvuka i videa omogućiti će vam da se osjećate još bližima vašim prijateljima i obitelji.
+• Signal je stvoren za vašu privatnost. Ne znamo ništa o vama ni o ljudima s kojima pričate. Naš Signal Protocol otvorenog koda znači da ne možemo čitati vaše poruke niti slušati vaše pozive. A ne može ni nitko drugi. Bez sporednih ulaza, bez prikupljanja podataka, bez kompromisa. 
 
-• Šapat u sjeni - Prebacite se na tamnu temu ako odbijate vidjeti svjetlost.
+• Signal je neovisan i nije stvoren radi zarade; ovo je drugačija vrsta tehnologije iz drugačije vrste organizacije. Kao neprofitnu organizaciju tipa 501c3 podržavaju nas vaše donacije, a ne oglašivači ili investitori. 
 
-• Zvuči poznato - odaberite prilagođena upozorenja za svaki kontakt ili u potpunosti onemogućite zvuk. Simon i Garfunkel napisali su hit pjesmu o tome 1964. godine, a zvuk tišine možete iskusiti kad god poželite odabirom „Bez zvuka“ kao zvuk obavijesti.
+• Za podršku, pitanja ili više informacija posjetite https://support.signal.org/
 
-• Vizualizirajte ovo - koristite ugrađene značajke za uređivanje fotografija da biste skicirali, izrezali i preokrenuli vaše fotografije koje šaljete. Postoji čak tekstualni alat tako da možete dodati više od 1000 riječi koje vaša fotografija već vrijedi.
+Za provjeru našeg izvornog koda, posjetite https://github.com/signalapp 
 
-
-Za podršku, pitanja ili više informacija posjetite:
-https://support.signal.org
-
-Izvorni kȏd:
-https://github.com/signalapp
-
-Pratite nas na Twitteru (@signalapp) i Instagramu (@signal_app) za sva najnovija ažuriranja i najave.
+Pratite nas na Twitteru @signalapp i Instagramu @signal_app

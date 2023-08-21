@@ -3,10 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
-import UIKit
+import SignalServiceKit
 
-@objc
 public enum OWSNavigationBarStyle: Int {
     case solid, alwaysDark, blur
 
@@ -22,10 +20,8 @@ public enum OWSNavigationBarStyle: Int {
     }
 }
 
-@objc
 public class OWSNavigationBar: UINavigationBar {
 
-    @objc
     public var fullWidth: CGFloat {
         return superview?.frame.width ?? .zero
     }
@@ -93,9 +89,14 @@ public class OWSNavigationBar: UINavigationBar {
     // MARK: Background Color
 
     internal var navbarBackgroundColorOverride: UIColor?
+    internal var navbarTintColorOverride: UIColor?
 
     private var navbarBackgroundColor: UIColor {
         return navbarBackgroundColorOverride ?? Theme.navbarBackgroundColor
+    }
+
+    private var navbarTintColor: UIColor {
+        return navbarTintColorOverride ?? Theme.primaryTextColor
     }
 
     // MARK: Appearance
@@ -103,7 +104,6 @@ public class OWSNavigationBar: UINavigationBar {
     private var style: OWSNavigationBarStyle?
     private var appearance: OWSNavigationBarAppearance?
 
-    @objc
     internal func setStyle(_ style: OWSNavigationBarStyle, animated: Bool) {
         self.style = style
         updateAppearance(animated: animated)
@@ -114,7 +114,8 @@ public class OWSNavigationBar: UINavigationBar {
 
         let appearance = OWSNavigationBarAppearance.appearance(
             for: style ?? .blur,
-            navbarBackgroundColor: navbarBackgroundColor
+            navbarBackgroundColor: navbarBackgroundColor,
+            tintColor: navbarTintColor
         )
 
         guard appearance != self.appearance else {
@@ -253,10 +254,14 @@ internal struct OWSNavigationBarAppearance: Equatable {
 
     var titleTextColor: UIColor?
 
-    static func appearance(for style: OWSNavigationBarStyle, navbarBackgroundColor: UIColor) -> Self {
+    static func appearance(
+        for style: OWSNavigationBarStyle,
+        navbarBackgroundColor: UIColor,
+        tintColor: UIColor
+    ) -> Self {
         var appearance = OWSNavigationBarAppearance()
         appearance.barStyle = Theme.barStyle
-        appearance.tintColor = Theme.primaryTextColor
+        appearance.tintColor = tintColor
         if UIAccessibility.isReduceTransparencyEnabled {
             appearance.backgroundStyle = .image(navbarBackgroundColor)
         } else {
@@ -273,7 +278,7 @@ internal struct OWSNavigationBarAppearance: Equatable {
 
         let applyDarkThemeOverride = {
             appearance.barStyle = .black
-            appearance.backgroundStyle = .tint(Theme.darkThemeBackgroundColor.withAlphaComponent(0.6))
+            appearance.backgroundStyle = .tint(Theme.darkThemeBackgroundColor)
             appearance.tintColor = Theme.darkThemePrimaryColor
         }
 

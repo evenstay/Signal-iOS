@@ -10,7 +10,6 @@
 #import "NSTimer+OWS.h"
 #import "OWSBackgroundTask.h"
 #import "OWSDisappearingMessagesConfiguration.h"
-#import "SSKEnvironment.h"
 #import "TSIncomingMessage.h"
 #import "TSMessage.h"
 #import "TSThread.h"
@@ -36,7 +35,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 void AssertIsOnDisappearingMessagesQueue(void);
 
-void AssertIsOnDisappearingMessagesQueue()
+void AssertIsOnDisappearingMessagesQueue(void)
 {
 #ifdef DEBUG
     dispatch_assert_queue(OWSDisappearingMessagesJob.serialQueue);
@@ -85,10 +84,7 @@ void AssertIsOnDisappearingMessagesQueue()
     static dispatch_queue_t queue = nil;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
-        NS_VALID_UNTIL_END_OF_SCOPE NSString *label = [OWSDispatch createLabel:@"disappearingMessages"];
-        const char *cStringLabel = [label cStringUsingEncoding:NSUTF8StringEncoding];
-
-        queue = dispatch_queue_create(cStringLabel, DISPATCH_QUEUE_SERIAL_WITH_AUTORELEASE_POOL);
+        queue = dispatch_queue_create("org.signal.disappearing-messages", DISPATCH_QUEUE_SERIAL_WITH_AUTORELEASE_POOL);
     });
     return queue;
 }
@@ -120,14 +116,10 @@ void AssertIsOnDisappearingMessagesQueue()
                                                       return;
                                                   }
 
-                                                  OWSLogInfo(
-                                                      @"Removing message which expired at: %lld", message.expiresAt);
                                                   [message anyRemoveWithTransaction:transaction];
                                                   expirationCount++;
                                               }];
     });
-
-    OWSLogDebug(@"Removed %lu expired messages", (unsigned long)expirationCount);
 
     OWSAssertDebug(backgroundTask);
     backgroundTask = nil;
@@ -232,6 +224,11 @@ void AssertIsOnDisappearingMessagesQueue()
         if (self.hasStarted) {
             return;
         }
+
+        if ([[self class] isDatabaseCorrupted]) {
+            return;
+        }
+
         self.hasStarted = YES;
 
         dispatch_async(OWSDisappearingMessagesJob.serialQueue, ^{

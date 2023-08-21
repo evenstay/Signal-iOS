@@ -93,9 +93,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Aquest color personalitzat s&apos;usa en %1$d conversa. Vols suprimir-lo per a totes?</string>
+			<string>Aquest color personalitzat s&apos;usa en %1$d xat. Vols eliminar-lo per a tots?</string>
 			<key>other</key>
-			<string>Aquest color personalitzat s&apos;està utilitzant en %1$d converses. Vols suprimir-lo de totes?</string>
+			<string>Aquest color personalitzat s&apos;usa en %1$d xats. Vols eliminar-lo per a tots?</string>
 		</dict>
 	</dict>
 	<key>CHAT_COLOR_SETTINGS_UPDATE_ALERT_MESSAGE_%d</key>
@@ -109,9 +109,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Aquest color s&apos;usa en %1$d conversa. Vols desar els canvis per a totes?</string>
+			<string>Aquest color s&apos;usa en %1$d xat. Vols desar els canvis per a tots?</string>
 			<key>other</key>
-			<string>Aquest color personalitzat s&apos;està utilitzant en %1$d converses. Vols desar els canvis per a totes?</string>
+			<string>Aquest color personalitzat s&apos;està utilitzant en %1$d xats. Vols desar els canvis per a tots?</string>
 		</dict>
 	</dict>
 	<key>CONVERSATION_DELETE_CONFIRMATIONS_ALERT_TITLE_%d</key>
@@ -125,9 +125,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Vols suprimir el xat?</string>
+			<string>Vols eliminar el xat?</string>
 			<key>other</key>
-			<string>Vols suprimir %1$d xats?</string>
+			<string>Vols eliminar %1$d xats?</string>
 		</dict>
 	</dict>
 	<key>CONVERSATION_DELETE_CONFIRMATION_ALERT_MESSAGES_%d</key>
@@ -141,9 +141,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Aquesta conversa se suprimirà d&apos;aquest dispositiu.</string>
+			<string>Aquest xat s&apos;eliminarà del dispositiu.</string>
 			<key>other</key>
-			<string>Aquestes converses s&apos;eliminaran d&apos;aquest dispositiu.</string>
+			<string>Aquests xats s&apos;eliminaran d&apos;aquest dispositiu.</string>
 		</dict>
 	</dict>
 	<key>CONVERSATION_PICKER_CAN_SELECT_NO_MORE_CONVERSATIONS_%d</key>
@@ -157,7 +157,7 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>No pots seleccionar més d&apos;1 xat.</string>
+			<string>No pots seleccionar més de %1$d xat.</string>
 			<key>other</key>
 			<string>No pots seleccionar més de %1$d xats.</string>
 		</dict>
@@ -285,7 +285,7 @@
 			<string>S&apos;ha assolit el nombre màxim de membres del grup: %1$d.</string>
 		</dict>
 	</dict>
-	<key>EXPIRATION_WARNING_%d</key>
+	<key>EDIT_MESSAGE_SEND_TOO_MANY_EDITS_ERROR</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
 		<string>%#@text@</string>
@@ -296,9 +296,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>La versió actual de Signal caducarà d&apos;aquí a 1 dia. Toca per actualitzar-la a la versió més recent.</string>
+			<string>Només es pot fer %1$d canvi en aquest missatge.</string>
 			<key>other</key>
-			<string>La versió actual de Signal caducarà d&apos;aquí a %1$d dies. Toca per actualitzar-la a la versió més recent.</string>
+			<string>Només es poden fer %1$d canvis en aquest missatge.</string>
 		</dict>
 	</dict>
 	<key>FORWARD_MESSAGE_FIRST_FORWARD_PROCEED_%d</key>
@@ -315,22 +315,6 @@
 			<string>Envia %1$d missatge</string>
 			<key>other</key>
 			<string>Envia %1$d missatges</string>
-		</dict>
-	</dict>
-	<key>GROUPS_LEGACY_GROUP_DROPPED_MEMBERS_BANNER_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>%1$d membre no s&apos;ha pogut tornar a afegir al grup nou. Vols afegir-lo ara?</string>
-			<key>other</key>
-			<string>%1$d membres no s&apos;han pogut tornar a afegir al grup nou. Vols afegir-los ara?</string>
 		</dict>
 	</dict>
 	<key>GROUPS_TOO_MANY_MEMBERS_ALERT_MESSAGE_%d</key>
@@ -573,22 +557,6 @@
 			<string>%1$d membres</string>
 		</dict>
 	</dict>
-	<key>GROUP_REMOTE_USER_INVITED_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>S&apos;han convidat %1$d persona al grup.</string>
-			<key>other</key>
-			<string>S&apos;han convidat %1$d persones al grup.</string>
-		</dict>
-	</dict>
 	<key>GROUP_REMOTE_USER_INVITED_BY_REMOTE_USER_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -669,38 +637,6 @@
 			<string>Història de grup · %1$d espectadors</string>
 		</dict>
 	</dict>
-	<key>GROUP_WAS_MIGRATED_USERS_DROPPED_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>No s&apos;ha pogut afegir un membre al nou grup i s&apos;ha suprimit del grup.</string>
-			<key>other</key>
-			<string>No s&apos;han pogut afegir %1$d membres al nou grup i s&apos;han suprimit del grup.</string>
-		</dict>
-	</dict>
-	<key>GROUP_WAS_MIGRATED_USERS_INVITED_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>Un membre no s&apos;ha pogut afegir al grup nou i ha estat convidat a afegir-s&apos;hi.</string>
-			<key>other</key>
-			<string>%1$d membres no s&apos;han pogut afegir al grup nou i han estat convidats a afegir-s&apos;hi.</string>
-		</dict>
-	</dict>
 	<key>IMAGE_PICKER_CAN_SELECT_NO_MORE_TOAST_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -733,7 +669,7 @@
 			<string>%1$d grups en comú</string>
 		</dict>
 	</dict>
-	<key>MEDIA_GALLERY_DELETE_MESSAGES_%d</key>
+	<key>MEDIA_GALLERY_DELETE_MEDIA_TITLE</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
 		<string>%#@text@</string>
@@ -744,9 +680,25 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Suprimeix %1$d missatge</string>
+			<string>Eliminar %1$d element?</string>
 			<key>other</key>
-			<string>Suprimeix %1$d missatges</string>
+			<string>Eliminar %1$d elements?</string>
+		</dict>
+	</dict>
+	<key>MEDIA_GALLERY_DELETE_MEDIA_TOAST</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>S&apos;ha eliminat un element</string>
+			<key>other</key>
+			<string>S&apos;han eliminat %1$d elements</string>
 		</dict>
 	</dict>
 	<key>MEDIA_GALLERY_ITEM_IMAGE_COUNT_%d</key>
@@ -779,6 +731,22 @@
 			<string>%1$d element</string>
 			<key>other</key>
 			<string>%1$d elements</string>
+		</dict>
+	</dict>
+	<key>MEDIA_PAGE_FORWARD_MEDIA_CONFIRM_TITLE_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Reenviar %1$d</string>
+			<key>other</key>
+			<string>Reenviar %1$d</string>
 		</dict>
 	</dict>
 	<key>MESSAGES_VIEW_GROUP_N_MEMBERS_BLOCKED_%d</key>
@@ -941,22 +909,6 @@
 			<string>%1$d espectadors</string>
 		</dict>
 	</dict>
-	<key>ONBOARDING_2FA_INVALID_PIN_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@caption@</string>
-		<key>caption</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>PIN incorrecte. Es queda %1$d intent.</string>
-			<key>other</key>
-			<string>PIN incorrecte. Et queden %1$d intents.</string>
-		</dict>
-	</dict>
 	<key>PENDING_GROUP_MEMBERS_MEMBER_INVITED_USERS_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -1053,36 +1005,20 @@
 			<string>Història personalitzada · %1$d espectadors</string>
 		</dict>
 	</dict>
-	<key>REGISTER_2FA_INVALID_PIN_ALERT_MESSAGE_%d</key>
+	<key>REREGISTER_INVALID_PIN_ATTEMPT_COUNT_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@caption@</string>
-		<key>caption</key>
+		<string>%#@text@</string>
+		<key>text</key>
 		<dict>
 			<key>NSStringFormatSpecTypeKey</key>
 			<string>NSStringPluralRuleType</string>
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Et queda 1 intent. Si esgotes els intents, pots crear un PIN nou. Pots registrar-te i utilitzar el teu compte, però perdràs algunes configuracions, com ara la informació del perfil.</string>
+			<string>%1$d intent</string>
 			<key>other</key>
-			<string>Et queden %1$d intents. Si esgotes els intents, pots crear un PIN nou. Pots registrar-te i utilitzar el teu compte, però perdràs alguns dels teus ajustos, com ara la informació del perfil.</string>
-		</dict>
-	</dict>
-	<key>REGISTER_2FA_INVALID_PIN_ALERT_MESSAGE_REGLOCK_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@caption@</string>
-		<key>caption</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>Et queda %1$d intent. Si esgotes els intents, el teu compte es bloquejarà. Al cap de 7 dies d&apos;inactivitat, pots tornar-te a registrar sense el PIN. El teu compte s&apos;esborrarà i se&apos;n suprimirà tot el contingut.</string>
-			<key>other</key>
-			<string>Et queden %1$d intents. Si esgotes els intents, el teu compte es bloquejarà. Al cap de 7 dies d&apos;inactivitat, pots tornar-te a registrar sense el PIN. El teu compte s&apos;esborrarà i se&apos;n suprimirà tot el contingut.</string>
+			<string>%1$d intents</string>
 		</dict>
 	</dict>
 	<key>STORIES_SHARESHEET_PARTIAL_SEND_SUBTITLE_%d</key>

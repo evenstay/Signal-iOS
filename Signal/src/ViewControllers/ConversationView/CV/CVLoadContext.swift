@@ -3,7 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalServiceKit
+import SignalUI
 
 // Conversation view loads have been decomposed into a series
 // of discrete phases. There's a bunch of common state used
@@ -15,22 +16,26 @@ struct CVLoadContext: CVItemBuildingContext {
     let loadRequest: CVLoadRequest
     let threadViewModel: ThreadViewModel
     let viewStateSnapshot: CVViewStateSnapshot
-    let messageMapping: CVMessageMapping
+    let spoilerState: SpoilerRenderState
+    let messageLoader: MessageLoader
     let prevRenderState: CVRenderState
     let transaction: SDSAnyReadTransaction
     let avatarBuilder: CVAvatarBuilder
 
-    init(loadRequest: CVLoadRequest,
-         threadViewModel: ThreadViewModel,
-         viewStateSnapshot: CVViewStateSnapshot,
-         messageMapping: CVMessageMapping,
-         prevRenderState: CVRenderState,
-         transaction: SDSAnyReadTransaction) {
-
+    init(
+        loadRequest: CVLoadRequest,
+        threadViewModel: ThreadViewModel,
+        viewStateSnapshot: CVViewStateSnapshot,
+        spoilerState: SpoilerRenderState,
+        messageLoader: MessageLoader,
+        prevRenderState: CVRenderState,
+        transaction: SDSAnyReadTransaction
+    ) {
         self.loadRequest = loadRequest
         self.threadViewModel = threadViewModel
         self.viewStateSnapshot = viewStateSnapshot
-        self.messageMapping = messageMapping
+        self.spoilerState = spoilerState
+        self.messageLoader = messageLoader
         self.prevRenderState = prevRenderState
         self.transaction = transaction
         self.avatarBuilder = CVAvatarBuilder(transaction: transaction)

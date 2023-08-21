@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
-import SignalServiceKit
 import SignalMessaging
+import SignalServiceKit
+import SignalUI
 
 class DonationReceiptsViewController: OWSTableViewController2 {
 
@@ -27,7 +27,7 @@ class DonationReceiptsViewController: OWSTableViewController2 {
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        title = NSLocalizedString("DONATION_RECEIPTS", comment: "Title of view where you can see all of your donation receipts, or button to take you there")
+        title = OWSLocalizedString("DONATION_RECEIPTS", comment: "Title of view where you can see all of your donation receipts, or button to take you there")
         defaultSeparatorInsetLeading = Self.cellHInnerMargin + 24 + OWSTableItem.iconSpacing
 
         donationReceipts = Self.databaseStorage.read { DonationReceiptFinder.fetchAllInReverseDateOrder(transaction: $0) }
@@ -72,7 +72,7 @@ class DonationReceiptsViewController: OWSTableViewController2 {
 
                     let accessibilityIdentifier = UIView.accessibilityIdentifier(in: self, name: "donation_receipt.\(donationReceipt.uniqueId)")
 
-                    return OWSTableItem.buildImageNameCell(
+                    return OWSTableItem.buildImageCell(
                         image: profileBadgeImage,
                         itemName: formattedDate,
                         subtitle: donationReceipt.localizedName,
@@ -92,12 +92,12 @@ class DonationReceiptsViewController: OWSTableViewController2 {
         }
 
         let footerSection = OWSTableSection()
-        footerSection.footerTitle = NSLocalizedString(
+        footerSection.footerTitle = OWSLocalizedString(
             "DONATION_RECEIPTS_MIGHT_BE_MISSING_IF_YOU_REINSTALLED",
             comment: "Text at the bottom of the donation receipts list, telling users that receipts might not be available"
         )
         sections.append(footerSection)
 
-        contents.addSections(sections)
+        contents.add(sections: sections)
     }
 }

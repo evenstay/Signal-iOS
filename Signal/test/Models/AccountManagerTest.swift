@@ -4,8 +4,9 @@
 //
 
 import XCTest
-import SignalServiceKit
+
 @testable import Signal
+@testable import SignalServiceKit
 
 struct VerificationFailedError: Error { }
 struct FailedToGetRPRegistrationTokenError: Error { }
@@ -23,7 +24,7 @@ class FailingTSAccountManager: TSAccountManager {
 
         super.init()
 
-        self.phoneNumberAwaitingVerification = "+13235555555"
+        self.phoneNumberAwaitingVerification = E164ObjC(E164("+13235555555")!)
     }
 
     override func verifyRegistration(request: TSRequest,
@@ -56,8 +57,8 @@ class TokenObtainingTSAccountManager: VerifyingTSAccountManager {
 }
 
 class VerifyingPushRegistrationManager: PushRegistrationManager {
-    public override func requestPushTokens(forceRotation: Bool) -> Promise<(pushToken: String, voipToken: String?)> {
-        return Promise.value(("a", "b"))
+    public override func requestPushTokens(forceRotation: Bool, timeOutEventually: Bool = false) -> Promise<PushRegistrationManager.ApnRegistrationId> {
+        return .value(.init(apnsToken: "a", voipToken: "b"))
     }
 }
 
@@ -67,75 +68,11 @@ class AccountManagerTest: SignalBaseTest {
         super.setUp()
 
         let tsAccountManager = FailingTSAccountManager()
-        let sskEnvironment = SSKEnvironment.shared as! MockSSKEnvironment
-        sskEnvironment.tsAccountManagerRef = tsAccountManager
+        SSKEnvironment.shared.setTsAccountManagerForUnitTests(tsAccountManager)
     }
 
     override func tearDown() {
         super.tearDown()
-    }
-
-    func testRegisterWhenEmptyCode() {
-        let accountManager = AccountManager()
-
-        let expectation = self.expectation(description: "should fail")
-
-        firstly {
-            accountManager.register(verificationCode: "", pin: "", checkForAvailableTransfer: false)
-        }.done {
-            XCTFail("Should fail")
-        }.catch { error in
-            let nserror = error as NSError
-            if OWSErrorCode(rawValue: nserror.code) == OWSErrorCode.userError {
-                expectation.fulfill()
-            } else {
-                XCTFail("Unexpected error: \(error)")
-            }
-        }
-
-        self.waitForExpectations(timeout: 1.0, handler: nil)
-    }
-
-    func testRegisterWhenVerificationFails() {
-        let accountManager = AccountManager()
-
-        let expectation = self.expectation(description: "should fail")
-
-        firstly {
-            accountManager.register(verificationCode: "123456", pin: "", checkForAvailableTransfer: false)
-        }.done {
-            XCTFail("Should fail")
-        }.catch { error in
-            if error is VerificationFailedError {
-                expectation.fulfill()
-            } else {
-                XCTFail("Unexpected error: \(error)")
-            }
-        }
-
-        self.waitForExpectations(timeout: 1.0, handler: nil)
-    }
-
-    func testSuccessfulRegistration() {
-        let tsAccountManager = TokenObtainingTSAccountManager()
-        let sskEnvironment = SSKEnvironment.shared as! MockSSKEnvironment
-        sskEnvironment.tsAccountManagerRef = tsAccountManager
-
-        AppEnvironment.shared.pushRegistrationManagerRef = VerifyingPushRegistrationManager()
-
-        let accountManager = AccountManager()
-
-        let expectation = self.expectation(description: "should succeed")
-
-        firstly {
-            accountManager.register(verificationCode: "123456", pin: "", checkForAvailableTransfer: false)
-        }.done {
-            expectation.fulfill()
-        }.catch { error in
-            XCTFail("Unexpected error: \(error)")
-        }
-
-        self.waitForExpectations(timeout: 5.0, handler: nil)
     }
 
     func testUpdatePushTokens() {

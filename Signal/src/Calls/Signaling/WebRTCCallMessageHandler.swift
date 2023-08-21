@@ -7,12 +7,10 @@ import Foundation
 import SignalServiceKit
 import SignalMessaging
 
-@objc(OWSWebRTCCallMessageHandler)
 public class WebRTCCallMessageHandler: NSObject, OWSCallMessageHandler {
 
     // MARK: Initializers
 
-    @objc
     public override init() {
         super.init()
 
@@ -155,7 +153,7 @@ public class WebRTCCallMessageHandler: NSObject, OWSCallMessageHandler {
             messageAgeSec = (serverDeliveryTimestamp - serverReceivedTimestamp) / 1000
         }
 
-        let localDeviceId = Self.tsAccountManager.storedDeviceId(with: transaction)
+        let localDeviceId = Self.tsAccountManager.storedDeviceId(transaction: transaction)
 
         self.callService.callManager.receivedCallMessage(
             senderUuid: senderUuid,

@@ -3,30 +3,37 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalServiceKit
+import SignalUI
 
-extension ConversationViewController: MentionTextViewDelegate {
-    var supportsMentions: Bool { Mention.threadAllowsMentionSend(thread) }
+extension ConversationViewController: BodyRangesTextViewDelegate {
+    var supportsMentions: Bool { thread.allowsMentionSend }
 
-    public func textViewDidBeginTypingMention(_ textView: MentionTextView) {}
+    public func textViewDidBeginTypingMention(_ textView: BodyRangesTextView) {}
 
-    public func textViewDidEndTypingMention(_ textView: MentionTextView) {}
+    public func textViewDidEndTypingMention(_ textView: BodyRangesTextView) {}
 
-    public func textViewMentionPickerParentView(_ textView: MentionTextView) -> UIView? {
+    public func textViewMentionPickerParentView(_ textView: BodyRangesTextView) -> UIView? {
         view
     }
 
-    public func textViewMentionPickerReferenceView(_ textView: MentionTextView) -> UIView? {
+    public func textViewMentionPickerReferenceView(_ textView: BodyRangesTextView) -> UIView? {
         bottomBar
     }
 
-    public func textViewMentionPickerPossibleAddresses(_ textView: MentionTextView) -> [SignalServiceAddress] {
-        supportsMentions ? thread.recipientAddressesWithSneakyTransaction : []
+    public func textViewMentionPickerPossibleAddresses(_ textView: BodyRangesTextView, tx: DBReadTransaction) -> [SignalServiceAddress] {
+        supportsMentions ? thread.recipientAddresses(with: SDSDB.shimOnlyBridge(tx)) : []
     }
 
-    public func textView(_ textView: MentionTextView, didDeleteMention mention: Mention) {}
+    public func textViewMentionCacheInvalidationKey(_ textView: BodyRangesTextView) -> String {
+        return thread.uniqueId
+    }
 
-    public func textViewMentionStyle(_ textView: MentionTextView) -> Mention.Style {
-        .composing
+    public func textViewDisplayConfiguration(_ textView: BodyRangesTextView) -> HydratedMessageBody.DisplayConfiguration {
+        return .composing(textViewColor: textView.textColor)
+    }
+
+    public func mentionPickerStyle(_ textView: BodyRangesTextView) -> MentionPickerStyle {
+        return .default
     }
 }

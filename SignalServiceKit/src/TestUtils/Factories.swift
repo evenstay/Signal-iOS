@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import SignalCoreKit
 
 #if TESTABLE_BUILD
 
@@ -21,7 +22,7 @@ import Foundation
 ///
 /// Create 12 thread's with 100 messages each
 ///
-///     let factory = ContractThreadFactory()
+///     let factory = ContactThreadFactory()
 ///     factory.messageCount = 100
 ///     factory.create(count: 12)
 ///
@@ -303,27 +304,30 @@ public class IncomingMessageFactory: NSObject, Factory {
 
         // The builder() factory method requires us to specify every
         // property so that this will break if we add any new properties.
-        let builder = TSIncomingMessageBuilder.builder(thread: thread,
-                                                       timestamp: timestampBuilder(),
-                                                       authorAddress: authorAddressBuilder(thread),
-                                                       sourceDeviceId: sourceDeviceIdBuilder(),
-                                                       messageBody: messageBodyBuilder(),
-                                                       bodyRanges: bodyRangesBuilder(),
-                                                       attachmentIds: attachmentIdsBuilder(),
-                                                       expiresInSeconds: expiresInSecondsBuilder(),
-                                                       quotedMessage: quotedMessageBuilder(),
-                                                       contactShare: contactShareBuilder(),
-                                                       linkPreview: linkPreviewBuilder(),
-                                                       messageSticker: messageStickerBuilder(),
-                                                       serverTimestamp: serverTimestampBuilder(),
-                                                       serverDeliveryTimestamp: serverDeliveryTimestampBuilder(),
-                                                       serverGuid: serverGuidBuilder(),
-                                                       wasReceivedByUD: wasReceivedByUDBuilder(),
-                                                       isViewOnceMessage: isViewOnceMessageBuilder(),
-                                                       storyAuthorAddress: storyAuthorAddressBuilder(),
-                                                       storyTimestamp: storyTimestampBuilder(),
-                                                       storyReactionEmoji: storyReactionEmojiBuilder(),
-                                                       giftBadge: giftBadgeBuilder())
+        let builder = TSIncomingMessageBuilder.builder(
+            thread: thread,
+            timestamp: timestampBuilder(),
+            authorAci: authorAciBuilder(thread),
+            sourceDeviceId: sourceDeviceIdBuilder(),
+            messageBody: messageBodyBuilder(),
+            bodyRanges: bodyRangesBuilder(),
+            attachmentIds: attachmentIdsBuilder(),
+            editState: editStateBuilder(),
+            expiresInSeconds: expiresInSecondsBuilder(),
+            quotedMessage: quotedMessageBuilder(),
+            contactShare: contactShareBuilder(),
+            linkPreview: linkPreviewBuilder(),
+            messageSticker: messageStickerBuilder(),
+            serverTimestamp: serverTimestampBuilder(),
+            serverDeliveryTimestamp: serverDeliveryTimestampBuilder(),
+            serverGuid: serverGuidBuilder(),
+            wasReceivedByUD: wasReceivedByUDBuilder(),
+            isViewOnceMessage: isViewOnceMessageBuilder(),
+            storyAuthorAddress: storyAuthorAddressBuilder(),
+            storyTimestamp: storyTimestampBuilder(),
+            storyReactionEmoji: storyReactionEmojiBuilder(),
+            giftBadge: giftBadgeBuilder()
+        )
         let item = builder.build()
         item.anyInsert(transaction: transaction)
         return item
@@ -354,17 +358,24 @@ public class IncomingMessageFactory: NSObject, Factory {
     }
 
     @objc
-    public var authorAddressBuilder: (TSThread) -> SignalServiceAddress = { thread in
-        switch thread {
-        case let contactThread as TSContactThread:
-            return contactThread.contactAddress
-        case let groupThread as TSGroupThread:
-            let randomAddress = groupThread.recipientAddressesWithSneakyTransaction.randomElement() ?? CommonGenerator.address()
-            return randomAddress
-        default:
-            owsFailDebug("unexpected thread type")
-            return CommonGenerator.address()
-        }
+    public var editStateBuilder: () -> TSEditState = {
+        return .none
+    }
+
+    @objc
+    public var authorAciBuilder: (TSThread) -> AciObjC = { thread in
+        return { () -> SignalServiceAddress in
+            switch thread {
+            case let contactThread as TSContactThread:
+                return contactThread.contactAddress
+            case let groupThread as TSGroupThread:
+                let randomAddress = groupThread.recipientAddressesWithSneakyTransaction.randomElement() ?? CommonGenerator.address()
+                return randomAddress
+            default:
+                owsFailDebug("unexpected thread type")
+                return CommonGenerator.address()
+            }
+        }().aci.map { AciObjC($0) }!
     }
 
     @objc

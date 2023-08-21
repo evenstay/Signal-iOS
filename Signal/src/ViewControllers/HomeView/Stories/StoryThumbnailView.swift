@@ -3,7 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalServiceKit
+import SignalUI
 
 class StoryThumbnailView: UIView {
     enum Attachment: Equatable {
@@ -13,8 +14,8 @@ class StoryThumbnailView: UIView {
 
         static func from(_ attachment: StoryMessageAttachment, transaction: SDSAnyReadTransaction) -> Self {
             switch attachment {
-            case .file(let attachmentId):
-                guard let attachment = TSAttachment.anyFetch(uniqueId: attachmentId, transaction: transaction) else {
+            case .file(let file):
+                guard let attachment = TSAttachment.anyFetch(uniqueId: file.attachmentId, transaction: transaction) else {
                     owsFailDebug("Unexpectedly missing attachment for story")
                     return .missing
                 }
@@ -25,7 +26,7 @@ class StoryThumbnailView: UIView {
         }
     }
 
-    init(attachment: Attachment) {
+    init(attachment: Attachment, interactionIdentifier: InteractionSnapshotIdentifier, spoilerState: SpoilerRenderState) {
         super.init(frame: .zero)
 
         layer.cornerRadius = 12
@@ -51,7 +52,11 @@ class StoryThumbnailView: UIView {
                 owsFailDebug("Unexpected attachment type \(type(of: attachment))")
             }
         case .text(let attachment):
-            let textThumbnailView = TextAttachmentView(attachment: attachment).asThumbnailView()
+            let textThumbnailView = TextAttachmentView(
+                attachment: attachment,
+                interactionIdentifier: interactionIdentifier,
+                spoilerState: spoilerState
+            ).asThumbnailView()
             addSubview(textThumbnailView)
             textThumbnailView.autoPinEdgesToSuperviewEdges()
         case .missing:

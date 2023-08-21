@@ -93,9 +93,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Essa cor personalizada é usada em %1$d chat. Quer removê-la?</string>
+			<string>Essa cor personalizada é usada em %1$d chat. Quer apagá-la?</string>
 			<key>other</key>
-			<string>Essa cor personalizada é usada em %1$d chats. Quer removê-la de todos os chats?</string>
+			<string>Essa cor personalizada é usada em %1$d chats. Quer apagá-la de todos os chats?</string>
 		</dict>
 	</dict>
 	<key>CHAT_COLOR_SETTINGS_UPDATE_ALERT_MESSAGE_%d</key>
@@ -127,7 +127,7 @@
 			<key>one</key>
 			<string>Excluir chat?</string>
 			<key>other</key>
-			<string>Excluir %1$d chats?</string>
+			<string>Apagar %1$d chats?</string>
 		</dict>
 	</dict>
 	<key>CONVERSATION_DELETE_CONFIRMATION_ALERT_MESSAGES_%d</key>
@@ -141,9 +141,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Este chat será excluído deste dispositivo.</string>
+			<string>Este chat será excluído do dispositivo.</string>
 			<key>other</key>
-			<string>Estes chats serão excluídos deste dispositivo.</string>
+			<string>Estes chats serão apagados deste dispositivo.</string>
 		</dict>
 	</dict>
 	<key>CONVERSATION_PICKER_CAN_SELECT_NO_MORE_CONVERSATIONS_%d</key>
@@ -264,9 +264,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Excluir mensagem?</string>
+			<string>Apagar mensagem?</string>
 			<key>other</key>
-			<string>Excluir %1$d mensagens?</string>
+			<string>Apagar %1$d mensagens?</string>
 		</dict>
 	</dict>
 	<key>EDIT_GROUP_ERROR_CANNOT_ADD_MEMBER_GROUP_FULL_%d</key>
@@ -285,7 +285,7 @@
 			<string>O grupo atingiu a capacidade máxima de %1$d membros.</string>
 		</dict>
 	</dict>
-	<key>EXPIRATION_WARNING_%d</key>
+	<key>EDIT_MESSAGE_SEND_TOO_MANY_EDITS_ERROR</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
 		<string>%#@text@</string>
@@ -296,9 +296,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Sua versão do Signal vai expirar em %1$d dia. Toque para atualizar para a versão mais recente.</string>
+			<string>Só é possível fazer %1$d edição nesta mensagem.</string>
 			<key>other</key>
-			<string>Sua versão do Signal vai expirar em %1$d dias. Toque para atualizar para a versão mais recente.</string>
+			<string>Só é possível fazer %1$d edições nesta mensagem.</string>
 		</dict>
 	</dict>
 	<key>FORWARD_MESSAGE_FIRST_FORWARD_PROCEED_%d</key>
@@ -315,22 +315,6 @@
 			<string>Enviar mensagem</string>
 			<key>other</key>
 			<string>Enviar %1$d mensagens</string>
-		</dict>
-	</dict>
-	<key>GROUPS_LEGACY_GROUP_DROPPED_MEMBERS_BANNER_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>Não foi possível adicionar novamente %1$d membro ao novo grupo. Quer adicioná-lo agora?</string>
-			<key>other</key>
-			<string>Não foi possível adicionar novamente %1$d membros ao novo grupo. Quer adicioná-los agora?</string>
 		</dict>
 	</dict>
 	<key>GROUPS_TOO_MANY_MEMBERS_ALERT_MESSAGE_%d</key>
@@ -573,22 +557,6 @@
 			<string>%1$d membros</string>
 		</dict>
 	</dict>
-	<key>GROUP_REMOTE_USER_INVITED_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>%1$d pessoa foi convidada para o grupo.</string>
-			<key>other</key>
-			<string>%1$d pessoas foram convidadas para o grupo.</string>
-		</dict>
-	</dict>
 	<key>GROUP_REMOTE_USER_INVITED_BY_REMOTE_USER_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -669,38 +637,6 @@
 			<string>Story do grupo · %1$d visualizadores</string>
 		</dict>
 	</dict>
-	<key>GROUP_WAS_MIGRATED_USERS_DROPPED_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>Não foi possível adicionar o membro ao novo grupo. O membro foi removido do grupo.</string>
-			<key>other</key>
-			<string>Não foi possível adicionar %1$d membros ao novo grupo. Os membros foram removidos do grupo.</string>
-		</dict>
-	</dict>
-	<key>GROUP_WAS_MIGRATED_USERS_INVITED_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>Não foi possível adicionar o membro ao novo grupo. Um convite para participar foi enviado ao membro.</string>
-			<key>other</key>
-			<string>Não foi possível adicionar %1$d membros ao novo grupo. Convites para participar foram enviados ao membros.</string>
-		</dict>
-	</dict>
 	<key>IMAGE_PICKER_CAN_SELECT_NO_MORE_TOAST_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -733,7 +669,7 @@
 			<string>%1$d grupos em comum</string>
 		</dict>
 	</dict>
-	<key>MEDIA_GALLERY_DELETE_MESSAGES_%d</key>
+	<key>MEDIA_GALLERY_DELETE_MEDIA_TITLE</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
 		<string>%#@text@</string>
@@ -744,9 +680,25 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Excluir %1$d mensagem</string>
+			<string>Excluir %1$d item?</string>
 			<key>other</key>
-			<string>Excluir %1$d mensagens</string>
+			<string>Excluir %1$d itens?</string>
+		</dict>
+	</dict>
+	<key>MEDIA_GALLERY_DELETE_MEDIA_TOAST</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Um item excluído</string>
+			<key>other</key>
+			<string>%1$d itens excluídos</string>
 		</dict>
 	</dict>
 	<key>MEDIA_GALLERY_ITEM_IMAGE_COUNT_%d</key>
@@ -779,6 +731,22 @@
 			<string>%1$d item</string>
 			<key>other</key>
 			<string>%1$d itens</string>
+		</dict>
+	</dict>
+	<key>MEDIA_PAGE_FORWARD_MEDIA_CONFIRM_TITLE_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Encaminhar %1$d</string>
+			<key>other</key>
+			<string>Encaminhar %1$d</string>
 		</dict>
 	</dict>
 	<key>MESSAGES_VIEW_GROUP_N_MEMBERS_BLOCKED_%d</key>
@@ -941,22 +909,6 @@
 			<string>%1$d visualizadores</string>
 		</dict>
 	</dict>
-	<key>ONBOARDING_2FA_INVALID_PIN_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@caption@</string>
-		<key>caption</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>PIN incorreto. %1$d tentativa restante.</string>
-			<key>other</key>
-			<string>PIN incorreto. %1$d tentativas restantes.</string>
-		</dict>
-	</dict>
 	<key>PENDING_GROUP_MEMBERS_MEMBER_INVITED_USERS_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -1053,36 +1005,20 @@
 			<string>Story personalizado · %1$d visualizadores</string>
 		</dict>
 	</dict>
-	<key>REGISTER_2FA_INVALID_PIN_ALERT_MESSAGE_%d</key>
+	<key>REREGISTER_INVALID_PIN_ATTEMPT_COUNT_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@caption@</string>
-		<key>caption</key>
+		<string>%#@text@</string>
+		<key>text</key>
 		<dict>
 			<key>NSStringFormatSpecTypeKey</key>
 			<string>NSStringPluralRuleType</string>
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Você tem %1$d tentativa restante. Se não acertar, pode criar um PIN novo. Você pode se registrar e usar sua conta, mas perderá algumas configurações salvas como as informações do seu perfil.</string>
+			<string>%1$d tentativa</string>
 			<key>other</key>
-			<string>Você tem %1$d tentativas restantes. Se não acertar, pode criar um PIN novo. Você pode se registrar e usar sua conta, mas perderá algumas configurações salvas como as informações do seu perfil.</string>
-		</dict>
-	</dict>
-	<key>REGISTER_2FA_INVALID_PIN_ALERT_MESSAGE_REGLOCK_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@caption@</string>
-		<key>caption</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>Você tem %1$d tentativa restante. Se não conseguir se lembrar do seu PIN, sua conta será bloqueada. Depois de 7 dias de inatividade, você pode se registrar novamente sem usar seu PIN. Sua conta será excluída e seu conteúdo apagado.</string>
-			<key>other</key>
-			<string>Você tem %1$d tentativas restantes. Se não conseguir se lembrar do seu PIN, sua conta será bloqueada. Depois de 7 dias de inatividade, você pode se registrar novamente sem usar seu PIN. Sua conta será excluída e seu conteúdo apagado.</string>
+			<string>%1$d tentativas</string>
 		</dict>
 	</dict>
 	<key>STORIES_SHARESHEET_PARTIAL_SEND_SUBTITLE_%d</key>

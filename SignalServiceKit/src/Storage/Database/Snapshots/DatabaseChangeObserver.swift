@@ -5,6 +5,7 @@
 
 import Foundation
 import GRDB
+import SignalCoreKit
 
 @objc
 public protocol DatabaseChangeDelegate: AnyObject {
@@ -39,15 +40,11 @@ func AssertHasDatabaseChangeObserverLock() {
 
 @objc
 public class DatabaseChangeObserver: NSObject {
-
-    @objc
-    public static let databaseDidCommitInteractionChangeNotification = Notification.Name("databaseDidCommitInteractionChangeNotification")
-
     public static let kMaxIncrementalRowChanges = 200
 
     private lazy var nonModelTables: Set<String> = Set([
-                                                        MediaGalleryRecord.databaseTableName,
-                                                        PendingReadReceiptRecord.databaseTableName
+        MediaGalleryRecord.databaseTableName,
+        PendingReadReceiptRecord.databaseTableName
     ])
 
     // We protect DatabaseChangeObserver state with an UnfairLock.
@@ -262,7 +259,7 @@ public class DatabaseChangeObserver: NSObject {
 
 extension DatabaseChangeObserver: TransactionObserver {
 
-    public func observes(eventWithTableName tableName: String) -> Bool {
+    private func observes(eventWithTableName tableName: String) -> Bool {
         guard !tableName.hasPrefix(GRDBFullTextSearchFinder.contentTableName) else {
             return false
         }
@@ -278,7 +275,7 @@ extension DatabaseChangeObserver: TransactionObserver {
         observes(eventWithTableName: eventKind.tableName)
     }
 
-    public func observes(event: DatabaseEvent) -> Bool {
+    private func observes(event: DatabaseEvent) -> Bool {
         observes(eventWithTableName: event.tableName)
     }
 
@@ -310,7 +307,7 @@ extension DatabaseChangeObserver: TransactionObserver {
         pendingChanges.append(tableName: TSInteraction.table.tableName)
 
         if !pendingChanges.threadUniqueIds.contains(interaction.uniqueThreadId) {
-            let interactionThread: TSThread? = interaction.thread(transaction: transaction.asAnyRead)
+            let interactionThread: TSThread? = interaction.thread(tx: transaction.asAnyRead)
             if let thread = interactionThread {
                 didTouch(thread: thread, transaction: transaction)
             } else {
@@ -434,11 +431,6 @@ extension DatabaseChangeObserver: TransactionObserver {
                 Self.committedChangesLock.withLock {
                     self.committedChanges.setLastError(error)
                 }
-            }
-
-            let didModifyInteractions = pendingChangesToCommit.tableNames.contains(InteractionRecord.databaseTableName)
-            if didModifyInteractions {
-                NotificationCenter.default.postNotificationNameAsync(Self.databaseDidCommitInteractionChangeNotification, object: nil)
             }
 
             #if TESTABLE_BUILD

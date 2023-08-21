@@ -3,10 +3,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalMessaging
 import SignalRingRTC
 import SignalServiceKit
-import SignalMessaging
+import SignalUI
 
 // All Observer methods will be invoked from the main thread.
 public protocol CallObserver: AnyObject {
@@ -65,7 +65,6 @@ public class SignalCall: NSObject, CallManagerCallReference {
         case removed
     }
 
-    @objc
     var isGroupCall: Bool {
         switch mode {
         case .group: return true
@@ -90,7 +89,6 @@ public class SignalCall: NSObject, CallManagerCallReference {
         }
     }
 
-    @objc
     var individualCall: IndividualCall! {
         owsAssertDebug(isIndividualCall)
         guard case .individual(let call) = mode else {
@@ -100,9 +98,12 @@ public class SignalCall: NSObject, CallManagerCallReference {
         return call
     }
 
-    public var isTerminatedIndividualCall: Bool {
+    public var hasTerminated: Bool {
         switch mode {
         case .group:
+            if case .incomingRingCancelled = groupCallRingState {
+                return true
+            }
             return false
         case .individual(let call):
             return call.hasTerminated
@@ -175,12 +176,15 @@ public class SignalCall: NSObject, CallManagerCallReference {
         case ringing
         case ringingEnded
         case incomingRing(caller: SignalServiceAddress, ringId: Int64)
+        case incomingRingCancelled
 
         var isIncomingRing: Bool {
-            if case .incomingRing = self {
+            switch self {
+            case .incomingRing, .incomingRingCancelled:
                 return true
+            default:
+                return false
             }
-            return false
         }
     }
 
@@ -415,7 +419,11 @@ public class SignalCall: NSObject, CallManagerCallReference {
     }
 
     func markRemovedFromSystem() {
-        owsAssertDebug(systemState == .reported, "call \(localId) had unexpected system state: \(systemState)")
+        // This was an assert that was firing when coming back online after missing
+        // a call while offline. See IOS-3416
+        if systemState != .reported {
+            Logger.warn("call \(localId) had unexpected system state: \(systemState)")
+        }
         systemState = .removed
     }
 }

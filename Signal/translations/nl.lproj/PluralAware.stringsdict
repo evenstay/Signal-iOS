@@ -93,9 +93,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Deze zelfgekozen kleur wordt nog in %1$d gesprek gebruikt. Wil je het voor dat gesprek wissen?</string>
+			<string>Deze zelfgekozen kleur wordt nog in %1$d chat gebruikt. Wil je dit wissen?</string>
 			<key>other</key>
-			<string>Deze zelfgekozen kleur wordt nog in %1$d gesprekken gebruikt. Wil je het voor al die gesprekken wissen?</string>
+			<string>Deze zelfgekozen kleur wordt nog in %1$d chats gebruikt. Wil je het voor alle chats wissen?</string>
 		</dict>
 	</dict>
 	<key>CHAT_COLOR_SETTINGS_UPDATE_ALERT_MESSAGE_%d</key>
@@ -109,9 +109,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Deze kleur wordt in %1$d gesprek gebruikt. Wil je de wijziging ook op dat gesprek toepassen?</string>
+			<string>Deze kleur wordt in %1$d chat gebruikt. Wil je de wijziging ook op die chat toepassen?</string>
 			<key>other</key>
-			<string>Deze kleur wordt in %1$d gesprekken gebruikt. Wil je de wijziging op alle gesprekken toepassen?</string>
+			<string>Deze kleur wordt in %1$d chats gebruikt. Wil je de wijziging op alle chats toepassen?</string>
 		</dict>
 	</dict>
 	<key>CONVERSATION_DELETE_CONFIRMATIONS_ALERT_TITLE_%d</key>
@@ -125,9 +125,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>%1$d gesprek wissen?</string>
+			<string>%1$d chat verwijderen?</string>
 			<key>other</key>
-			<string>%1$d gesprekken wissen?</string>
+			<string>%1$d chats verwijderen?</string>
 		</dict>
 	</dict>
 	<key>CONVERSATION_DELETE_CONFIRMATION_ALERT_MESSAGES_%d</key>
@@ -141,9 +141,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Dit gesprek zal alleen op dit apparaat worden gewist.</string>
+			<string>Deze chat zal alleen op dit apparaat worden verwijderd.</string>
 			<key>other</key>
-			<string>Deze gesprekken zullen alleen op dit apparaat worden gewist.</string>
+			<string>Deze chats zullen alleen op dit apparaat worden verwijderen.</string>
 		</dict>
 	</dict>
 	<key>CONVERSATION_PICKER_CAN_SELECT_NO_MORE_CONVERSATIONS_%d</key>
@@ -157,9 +157,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Je kunt niet meer dan %1$d gesprek selecteren.</string>
+			<string>Je kunt niet meer dan %1$d chat selecteren.</string>
 			<key>other</key>
-			<string>Je kunt niet meer dan %1$d gesprekken selecteren.</string>
+			<string>Je kunt niet meer dan %1$d chats selecteren.</string>
 		</dict>
 	</dict>
 	<key>CONVERSATION_SEARCH_RESULTS_%d_%d</key>
@@ -285,7 +285,7 @@
 			<string>Je hebt de maximale groepsomvang van %1$d leden bereikt.</string>
 		</dict>
 	</dict>
-	<key>EXPIRATION_WARNING_%d</key>
+	<key>EDIT_MESSAGE_SEND_TOO_MANY_EDITS_ERROR</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
 		<string>%#@text@</string>
@@ -296,9 +296,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Deze versie van Signal zal binnen %1$d dag verlopen. Tik hier om bij te werken naar de meest recente versie.</string>
+			<string>Dit bericht kan slechts %1$d keer bewerkt worden.</string>
 			<key>other</key>
-			<string>Deze versie van Signal zal binnen %1$d dagen verlopen. Tik hier om bij te werken naar de meest recente versie.</string>
+			<string>Dit bericht kan slechts %1$d keren bewerkt worden.</string>
 		</dict>
 	</dict>
 	<key>FORWARD_MESSAGE_FIRST_FORWARD_PROCEED_%d</key>
@@ -315,22 +315,6 @@
 			<string>Bericht verzenden</string>
 			<key>other</key>
 			<string>%1$d berichten verzenden</string>
-		</dict>
-	</dict>
-	<key>GROUPS_LEGACY_GROUP_DROPPED_MEMBERS_BANNER_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>%1$d lid kon niet worden toegevoegd aan de nieuwe groep. Wil je diegene nu toevoegen?</string>
-			<key>other</key>
-			<string>%1$d leden konden niet worden toegevoegd aan de nieuwe groep. Wil je ze nu toevoegen?</string>
 		</dict>
 	</dict>
 	<key>GROUPS_TOO_MANY_MEMBERS_ALERT_MESSAGE_%d</key>
@@ -573,22 +557,6 @@
 			<string>%1$d leden</string>
 		</dict>
 	</dict>
-	<key>GROUP_REMOTE_USER_INVITED_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>%1$d persoon is uitgenodigd om lid te worden van de groep.</string>
-			<key>other</key>
-			<string>%1$d personen zijn uitgenodigd om lid te worden van de groep.</string>
-		</dict>
-	</dict>
 	<key>GROUP_REMOTE_USER_INVITED_BY_REMOTE_USER_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -669,38 +637,6 @@
 			<string>Groepsverhaal · %1$d kijkers</string>
 		</dict>
 	</dict>
-	<key>GROUP_WAS_MIGRATED_USERS_DROPPED_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>Een lid kon niet worden toegevoegd aan de nieuwe groep en is uit de groep verwijderd.</string>
-			<key>other</key>
-			<string>%1$d leden konden niet toegevoegd worden aan de nieuwe groep en zijn uit de groep verwijderd.</string>
-		</dict>
-	</dict>
-	<key>GROUP_WAS_MIGRATED_USERS_INVITED_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>Een lid kon niet worden toegevoegd aan de nieuwe groep en heeft een uitnodiging gekregen om lid te worden.</string>
-			<key>other</key>
-			<string>%1$d leden konden niet worden toegevoegd aan de nieuwe groep en hebben een uitnodiging gekregen om lid te worden.</string>
-		</dict>
-	</dict>
 	<key>IMAGE_PICKER_CAN_SELECT_NO_MORE_TOAST_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -733,7 +669,7 @@
 			<string>%1$d gemeenschappelijke groepen</string>
 		</dict>
 	</dict>
-	<key>MEDIA_GALLERY_DELETE_MESSAGES_%d</key>
+	<key>MEDIA_GALLERY_DELETE_MEDIA_TITLE</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
 		<string>%#@text@</string>
@@ -744,9 +680,25 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>%1$d bericht wissen</string>
+			<string>%1$d item verwijderen?</string>
 			<key>other</key>
-			<string>%1$d berichten wissen</string>
+			<string>%1$d items verwijderen?</string>
+		</dict>
+	</dict>
+	<key>MEDIA_GALLERY_DELETE_MEDIA_TOAST</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Een item verwijderd</string>
+			<key>other</key>
+			<string>%1$d items verwijderd</string>
 		</dict>
 	</dict>
 	<key>MEDIA_GALLERY_ITEM_IMAGE_COUNT_%d</key>
@@ -779,6 +731,22 @@
 			<string>%1$d item</string>
 			<key>other</key>
 			<string>%1$d items</string>
+		</dict>
+	</dict>
+	<key>MEDIA_PAGE_FORWARD_MEDIA_CONFIRM_TITLE_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d doorsturen</string>
+			<key>other</key>
+			<string>%1$d doorsturen</string>
 		</dict>
 	</dict>
 	<key>MESSAGES_VIEW_GROUP_N_MEMBERS_BLOCKED_%d</key>
@@ -941,22 +909,6 @@
 			<string>%1$d kijkers</string>
 		</dict>
 	</dict>
-	<key>ONBOARDING_2FA_INVALID_PIN_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@caption@</string>
-		<key>caption</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>Foutieve pincode. %1$d poging resterend.</string>
-			<key>other</key>
-			<string>Foutieve pincode. %1$d pogingen resterend.</string>
-		</dict>
-	</dict>
 	<key>PENDING_GROUP_MEMBERS_MEMBER_INVITED_USERS_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -1053,36 +1005,20 @@
 			<string>Aangepast verhaal · %1$d kijkers</string>
 		</dict>
 	</dict>
-	<key>REGISTER_2FA_INVALID_PIN_ALERT_MESSAGE_%d</key>
+	<key>REREGISTER_INVALID_PIN_ATTEMPT_COUNT_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@caption@</string>
-		<key>caption</key>
+		<string>%#@text@</string>
+		<key>text</key>
 		<dict>
 			<key>NSStringFormatSpecTypeKey</key>
 			<string>NSStringPluralRuleType</string>
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Je hebt nog %1$d poging. Als je geen pogingen meer over hebt, kun je nog wel een nieuwe pincode aanmaken. Je kunt dan opnieuw registreren en je account gebruiken, maar opgeslagen instellingen zoals je profielinformatie worden verwijderd.</string>
+			<string>%1$d poging</string>
 			<key>other</key>
-			<string>Je hebt nog %1$d pogingen. Als je geen pogingen meer over hebt, kun je nog wel een nieuwe pincode aanmaken. Je kunt dan opnieuw registreren en je account gebruiken, maar opgeslagen instellingen zoals je profielinformatie worden verwijderd.</string>
-		</dict>
-	</dict>
-	<key>REGISTER_2FA_INVALID_PIN_ALERT_MESSAGE_REGLOCK_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@caption@</string>
-		<key>caption</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>Je hebt nog %1$d poging. Als je geen pogingen meer over hebt, wordt Signal voor dit telefoonnummer tijdelijk vergrendeld. Na 7 dagen kun je je telefoonnummer opnieuw registreren zonder je pincode. Je account wordt gewist en alle inhoud wordt verwijderd.</string>
-			<key>other</key>
-			<string>Je hebt nog %1$d pogingen. Als je geen pogingen meer over hebt, wordt Signal voor dit telefoonnummer tijdelijk vergrendeld. Na 7 dagen kun je je telefoonnummer opnieuw registreren zonder je pincode. Je account wordt gewist en alle inhoud wordt verwijderd.</string>
+			<string>%1$d pogingen</string>
 		</dict>
 	</dict>
 	<key>STORIES_SHARESHEET_PARTIAL_SEND_SUBTITLE_%d</key>

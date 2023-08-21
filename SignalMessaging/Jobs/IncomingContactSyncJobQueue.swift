@@ -3,21 +3,19 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalServiceKit
 
 public extension Notification.Name {
     static let IncomingContactSyncDidComplete = Notification.Name("IncomingContactSyncDidComplete")
 }
 
-@objc(OWSIncomingContactSyncJobQueue)
 public class IncomingContactSyncJobQueue: NSObject, JobQueue {
 
     public typealias DurableOperationType = IncomingContactSyncOperation
     public let requiresInternet: Bool = true
     public let isEnabled: Bool = true
     public static let maxRetries: UInt = 4
-    @objc
-    public static let jobRecordLabel: String = OWSIncomingContactSyncJobRecord.defaultLabel
+    public static let jobRecordLabel: String = IncomingContactSyncJobRecord.defaultLabel
     public var jobRecordLabel: String {
         return type(of: self).jobRecordLabel
     }
@@ -25,7 +23,6 @@ public class IncomingContactSyncJobQueue: NSObject, JobQueue {
     public var runningOperations = AtomicArray<IncomingContactSyncOperation>()
     public var isSetup = AtomicBool(false)
 
-    @objc
     public override init() {
         super.init()
 
@@ -38,7 +35,7 @@ public class IncomingContactSyncJobQueue: NSObject, JobQueue {
         defaultSetup()
     }
 
-    public func didMarkAsReady(oldJobRecord: OWSIncomingContactSyncJobRecord, transaction: SDSAnyWriteTransaction) {
+    public func didMarkAsReady(oldJobRecord: IncomingContactSyncJobRecord, transaction: SDSAnyWriteTransaction) {
         // no special handling
     }
 
@@ -49,30 +46,33 @@ public class IncomingContactSyncJobQueue: NSObject, JobQueue {
         return operationQueue
     }()
 
-    public func operationQueue(jobRecord: OWSIncomingContactSyncJobRecord) -> OperationQueue {
+    public func operationQueue(jobRecord: IncomingContactSyncJobRecord) -> OperationQueue {
         return defaultQueue
     }
 
-    public func buildOperation(jobRecord: OWSIncomingContactSyncJobRecord, transaction: SDSAnyReadTransaction) throws -> IncomingContactSyncOperation {
-        return IncomingContactSyncOperation(jobRecord: jobRecord)
+    public func buildOperation(jobRecord: IncomingContactSyncJobRecord, transaction: SDSAnyReadTransaction) throws -> IncomingContactSyncOperation {
+        guard let localIdentifiers = tsAccountManager.localIdentifiers(transaction: transaction) else {
+            throw OWSAssertionError("Not registered.")
+        }
+        return IncomingContactSyncOperation(jobRecord: jobRecord, localIdentifiers: localIdentifiers)
     }
 
     @objc
     public func add(attachmentId: String, isComplete: Bool, transaction: SDSAnyWriteTransaction) {
-        let jobRecord = OWSIncomingContactSyncJobRecord(
+        let jobRecord = IncomingContactSyncJobRecord(
             attachmentId: attachmentId,
-            isComplete: isComplete,
-            label: self.jobRecordLabel
+            isCompleteContactSync: isComplete,
+            label: jobRecordLabel
         )
         self.add(jobRecord: jobRecord, transaction: transaction)
     }
 }
 
 public class IncomingContactSyncOperation: OWSOperation, DurableOperation {
-    public typealias JobRecordType = OWSIncomingContactSyncJobRecord
+    public typealias JobRecordType = IncomingContactSyncJobRecord
     public typealias DurableOperationDelegateType = IncomingContactSyncJobQueue
     public weak var durableOperationDelegate: IncomingContactSyncJobQueue?
-    public var jobRecord: OWSIncomingContactSyncJobRecord
+    public let jobRecord: IncomingContactSyncJobRecord
     public var operation: OWSOperation {
         return self
     }
@@ -81,8 +81,11 @@ public class IncomingContactSyncOperation: OWSOperation, DurableOperation {
 
     // MARK: -
 
-    init(jobRecord: OWSIncomingContactSyncJobRecord) {
+    private let localIdentifiers: LocalIdentifiers
+
+    init(jobRecord: IncomingContactSyncJobRecord, localIdentifiers: LocalIdentifiers) {
         self.jobRecord = jobRecord
+        self.localIdentifiers = localIdentifiers
     }
 
     // MARK: - Durable Operation Overrides
@@ -94,7 +97,7 @@ public class IncomingContactSyncOperation: OWSOperation, DurableOperation {
     public override func run() {
         firstly { () -> Promise<TSAttachmentStream> in
             try self.getAttachmentStream()
-        }.done(on: .global()) { attachmentStream in
+        }.done(on: DispatchQueue.global()) { attachmentStream in
             self.newThreads = []
             try Bench(title: "processing incoming contact sync file") {
                 try self.process(attachmentStream: attachmentStream)
@@ -199,8 +202,8 @@ public class IncomingContactSyncOperation: OWSOperation, DurableOperation {
             }
             try databaseStorage.write { transaction in
                 for contact in contacts {
-                    try self.process(contactDetails: contact, transaction: transaction)
-                    processedAddresses.append(contact.address)
+                    let contactAddress = try self.process(contactDetails: contact, transaction: transaction)
+                    processedAddresses.append(contactAddress)
                 }
             }
             return true
@@ -210,8 +213,7 @@ public class IncomingContactSyncOperation: OWSOperation, DurableOperation {
     private static func buildBatch(contactStream: ContactsInputStream) throws -> [ContactDetails]? {
         let batchSize = 8
         var contacts = [ContactDetails]()
-        while contacts.count < batchSize,
-              let contact = try contactStream.decodeContact() {
+        while contacts.count < batchSize, let contact = try contactStream.decodeContact() {
             contacts.append(contact)
         }
         guard !contacts.isEmpty else {
@@ -220,19 +222,38 @@ public class IncomingContactSyncOperation: OWSOperation, DurableOperation {
         return contacts
     }
 
-    private func process(contactDetails: ContactDetails, transaction: SDSAnyWriteTransaction) throws {
+    private func process(contactDetails: ContactDetails, transaction: SDSAnyWriteTransaction) throws -> SignalServiceAddress {
         Logger.debug("contactDetails: \(contactDetails)")
 
-        // Mark as registered, since we trust the contact information sent from our other devices.
-        SignalRecipient.mark(asRegisteredAndGet: contactDetails.address, trustLevel: .high, transaction: transaction)
+        let recipientFetcher = DependenciesBridge.shared.recipientFetcher
+        let recipientMerger = DependenciesBridge.shared.recipientMerger
+
+        let recipient: SignalRecipient
+        if let aci = contactDetails.aci {
+            recipient = recipientMerger.applyMergeFromLinkedDevice(
+                localIdentifiers: localIdentifiers,
+                aci: aci,
+                phoneNumber: contactDetails.phoneNumber,
+                tx: transaction.asV2Write
+            )
+            // Mark as registered only if we have a UUID (we always do in this branch).
+            // If we don't have a UUID, contacts can't be registered.
+            recipient.markAsRegisteredAndSave(tx: transaction)
+        } else if let phoneNumber = contactDetails.phoneNumber {
+            recipient = recipientFetcher.fetchOrCreate(phoneNumber: phoneNumber, tx: transaction.asV2Write)
+        } else {
+            throw OWSAssertionError("No identifier in ContactDetails.")
+        }
+
+        let address = recipient.address
 
         let contactThread: TSContactThread
         let isNewThread: Bool
-        if let existingThread = TSContactThread.getWithContactAddress(contactDetails.address, transaction: transaction) {
+        if let existingThread = TSContactThread.getWithContactAddress(address, transaction: transaction) {
             contactThread = existingThread
             isNewThread = false
         } else {
-            let newThread = TSContactThread(contactAddress: contactDetails.address)
+            let newThread = TSContactThread(contactAddress: address)
             newThread.shouldThreadBeVisible = true
 
             contactThread = newThread
@@ -250,58 +271,64 @@ public class IncomingContactSyncOperation: OWSOperation, DurableOperation {
         }
 
         let disappearingMessageToken = DisappearingMessageToken.token(forProtoExpireTimer: contactDetails.expireTimer)
-        GroupManager.remoteUpdateDisappearingMessages(withContactOrV1GroupThread: contactThread,
-                                                      disappearingMessageToken: disappearingMessageToken,
-                                                      groupUpdateSourceAddress: nil,
-                                                      transaction: transaction)
+        GroupManager.remoteUpdateDisappearingMessages(
+            withContactThread: contactThread,
+            disappearingMessageToken: disappearingMessageToken,
+            changeAuthor: nil,
+            localIdentifiers: LocalIdentifiersObjC(localIdentifiers),
+            transaction: transaction
+        )
 
         if let verifiedProto = contactDetails.verifiedProto {
-            try self.identityManager.processIncomingVerifiedProto(verifiedProto,
-                                                                  transaction: transaction)
+            try self.identityManager.processIncomingVerifiedProto(verifiedProto, transaction: transaction)
         }
 
         if let profileKey = contactDetails.profileKey {
-            self.profileManager.setProfileKeyData(profileKey,
-                                                  for: contactDetails.address,
-                                                  userProfileWriter: .syncMessage,
-                                                  transaction: transaction)
+            self.profileManager.setProfileKeyData(
+                profileKey,
+                for: address,
+                userProfileWriter: .syncMessage,
+                authedAccount: .implicit(),
+                transaction: transaction
+            )
         }
 
         if contactDetails.isBlocked {
-            if !self.blockingManager.isAddressBlocked(contactDetails.address, transaction: transaction) {
-                self.blockingManager.addBlockedAddress(contactDetails.address,
-                                                       blockMode: .remote,
-                                                       transaction: transaction)
+            if !self.blockingManager.isAddressBlocked(address, transaction: transaction) {
+                self.blockingManager.addBlockedAddress(address, blockMode: .remote, transaction: transaction)
             }
         } else {
-            if self.blockingManager.isAddressBlocked(contactDetails.address, transaction: transaction) {
-                self.blockingManager.removeBlockedAddress(contactDetails.address,
-                                                          wasLocallyInitiated: false,
-                                                          transaction: transaction)
+            if self.blockingManager.isAddressBlocked(address, transaction: transaction) {
+                self.blockingManager.removeBlockedAddress(address, wasLocallyInitiated: false, transaction: transaction)
             }
         }
+
+        return address
     }
 
-    /// Clear all persisted ``SignalAccount``s other than the given set,
-    /// received during a complete sync.
+    /// Clear ``SignalAccount``s that weren't part of a complete sync.
     ///
     /// Although "system contact" details (represented by a ``SignalAccount``)
     /// are synced via StorageService rather than contact sync messages, any
     /// contacts not included in a complete contact sync are not present on the
-    /// primary device and therefore should be in neither StorageService nor on
-    /// this linked device.
+    /// primary device and should there be removed from this linked device.
+    ///
+    /// In theory, StorageService updates should handle removing these contacts.
+    /// However, there's no periodic sync check our state against
+    /// StorageService, so this job continues to fulfill that role. In the
+    /// future, if you're removing this method, you should first ensure that
+    /// periodic full syncs of contact details happen with StorageService.
     private func pruneContacts(exceptThoseReceivedFromCompleteSync addresses: [SignalServiceAddress]) {
-        let setOfAddresses = Set(addresses)
+        // Every contact sync includes your own address. However, we shouldn't
+        // create a SignalAccount for your own address. (If you're a primary, this
+        // is handled by ContactsMaps.phoneNumbers(…).)
+        let setOfAddresses = Set(addresses.lazy.filter { !self.localIdentifiers.contains(address: $0) })
         self.databaseStorage.write { transaction in
             // Rather than collecting SignalAccount objects, collect their unique IDs.
             // This operation can run in the memory-constrainted NSE, so trade off a
             // bit of speed to save memory.
             var uniqueIdsToRemove = [String]()
-            SignalAccount.anyEnumerate(transaction: transaction, batchSize: 8) { signalAccount, _ in
-                guard let contact = signalAccount.contact, !contact.isFromLocalAddressBook else {
-                    // This only cleans up contacts from a contact sync.
-                    return
-                }
+            SignalAccount.anyEnumerate(transaction: transaction, batchingPreference: .batched(8)) { signalAccount, _ in
                 guard !setOfAddresses.contains(signalAccount.recipientAddress) else {
                     // This contact was received in this batch, so don't remove it.
                     return
@@ -316,6 +343,9 @@ public class IncomingContactSyncOperation: OWSOperation, DurableOperation {
                     }
                     signalAccount.anyRemove(transaction: transaction)
                 }
+            }
+            if !uniqueIdsToRemove.isEmpty {
+                contactsManagerImpl.didUpdateSignalAccounts(transaction: transaction)
             }
         }
     }

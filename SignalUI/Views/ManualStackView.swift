@@ -13,7 +13,6 @@ import SignalMessaging
 // masksToBounds, shadow, etc. you should use this subclass instead.
 //
 // See: https://developer.apple.com/documentation/quartzcore/catransformlayer
-@objc
 open class ManualStackViewWithLayer: ManualStackView {
     override open class var layerClass: AnyClass {
         CALayer.self
@@ -22,7 +21,6 @@ open class ManualStackViewWithLayer: ManualStackView {
 
 // MARK: -
 
-@objc
 open class ManualStackView: ManualLayoutView {
 
     public typealias Measurement = ManualStackMeasurement
@@ -31,7 +29,6 @@ open class ManualStackView: ManualLayoutView {
 
     public var measurement: Measurement?
 
-    @objc
     public required init(name: String, arrangedSubviews: [UIView] = []) {
         super.init(name: name)
 
@@ -39,7 +36,6 @@ open class ManualStackView: ManualLayoutView {
     }
 
     @available(*, unavailable, message: "use other constructor instead.")
-    @objc
     public required init(name: String) {
         fatalError("init(name:) has not been implemented")
     }
@@ -79,6 +75,11 @@ open class ManualStackView: ManualLayoutView {
     private struct ArrangementItem {
         let subview: UIView
         let frame: CGRect
+
+        init(subview: UIView, frame: CGRect) {
+            self.subview = subview
+            self.frame = frame
+        }
 
         func apply() {
             if subview.frame != frame {
@@ -128,7 +129,6 @@ open class ManualStackView: ManualLayoutView {
         return measurement.measuredSize
     }
 
-    @objc
     public override func addSubview(_ view: UIView) {
         owsAssertDebug(!subviews.contains(view))
         super.addSubview(view)
@@ -136,7 +136,6 @@ open class ManualStackView: ManualLayoutView {
     }
 
     // NOTE: This method does _NOT_ call the superclass implementation.
-    @objc
     public func addArrangedSubview(_ view: UIView) {
         addSubview(view)
         owsAssertDebug(!arrangedSubviews.contains(view))
@@ -156,21 +155,18 @@ open class ManualStackView: ManualLayoutView {
         }
     }
 
-    @objc
     public override func willRemoveSubview(_ view: UIView) {
         arrangedSubviews = self.arrangedSubviews.filter { view != $0 }
         super.willRemoveSubview(view)
         invalidateArrangement()
     }
 
-    @objc
     public func removeArrangedSubview(_ view: UIView) {
         view.removeFromSuperview()
 
         arrangedSubviews = arrangedSubviews.filter { $0 != view }
     }
 
-    @objc
     public override func layoutSubviews() {
         AssertIsOnMainThread()
 
@@ -612,7 +608,7 @@ open class ManualStackView: ManualLayoutView {
 
 // MARK: -
 
-// TODO: Can this be moved to UIView+OWS.swift?
+//// TODO: Can this be moved to UIView+OWS.swift?
 fileprivate extension CGRect {
 
     var width: CGFloat {
@@ -783,6 +779,10 @@ public struct ManualStackMeasurement: Equatable {
 
     fileprivate let subviewInfos: [ManualStackSubviewInfo]
 
+    init(measuredSize: CGSize, subviewInfos: [ManualStackSubviewInfo]) {
+        self.measuredSize =  measuredSize
+        self.subviewInfos = subviewInfos
+    }
     fileprivate var subviewMeasuredSizes: [CGSize] {
         subviewInfos.map { $0.measuredSize }
     }

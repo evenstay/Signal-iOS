@@ -3,7 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalCoreKit
+import SignalUI
 
 public class CVComponentUnreadIndicator: CVComponentBase, CVRootComponent {
 
@@ -114,13 +115,17 @@ public class CVComponentUnreadIndicator: CVComponentBase, CVRootComponent {
     }
 
     private var titleLabelConfig: CVLabelConfig {
-        CVLabelConfig(text: NSLocalizedString("MESSAGES_VIEW_UNREAD_INDICATOR",
-                                              comment: "Indicator that separates read from unread messages."),
-                      font: UIFont.ows_dynamicTypeFootnote.ows_semibold,
-                      textColor: Theme.primaryTextColor,
-                      numberOfLines: 0,
-                      lineBreakMode: .byTruncatingTail,
-                      textAlignment: .center)
+        CVLabelConfig.unstyledText(
+            OWSLocalizedString(
+                "MESSAGES_VIEW_UNREAD_INDICATOR",
+                comment: "Indicator that separates read from unread messages."
+            ),
+            font: UIFont.dynamicTypeFootnote.semibold(),
+            textColor: Theme.primaryTextColor,
+            numberOfLines: 0,
+            lineBreakMode: .byTruncatingTail,
+            textAlignment: .center
+        )
     }
 
     private var outerStackConfig: CVStackViewConfig {

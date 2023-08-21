@@ -3,7 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalServiceKit
+import SignalUI
 
 // Represents some _renderable_ portion of an Conversation View item.
 // It could be the entire item or some part thereof.
@@ -313,11 +314,11 @@ public struct CVComponentAndView {
 
 public enum CVComponentKey: CustomStringConvertible, CaseIterable {
     // These components appear in CVComponentMessage.
+    case footer
     case bodyText
     case bodyMedia
     case senderName
     case senderAvatar
-    case footer
     case sticker
     case quotedReply
     case linkPreview

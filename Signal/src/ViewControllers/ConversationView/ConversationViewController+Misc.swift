@@ -4,8 +4,8 @@
 //
 
 import ContactsUI
-import Foundation
 import SignalMessaging
+import SignalUI
 
 public extension ConversationViewController {
 
@@ -21,7 +21,7 @@ public extension ConversationViewController {
         groupV2UpdatesObjc.tryToRefreshV2GroupUpToCurrentRevisionAfterMessageProcessingWithThrottling(groupThread)
     }
 
-    func showUnblockConversationUI(completion: BlockActionCompletionBlock?) {
+    func showUnblockConversationUI(completion: BlockListUIUtils.Completion?) {
         self.userHasScrolled = false
 
         // To avoid "noisy" animations (hiding the keyboard before showing
@@ -32,7 +32,7 @@ public extension ConversationViewController {
         // hidden.
         dismissKeyBoard()
 
-        BlockListUIUtils.showUnblockThreadActionSheet(thread, from: self, completionBlock: completion)
+        BlockListUIUtils.showUnblockThreadActionSheet(thread, from: self, completion: completion)
     }
 
     // MARK: - Identity
@@ -48,59 +48,6 @@ public extension ConversationViewController {
         SafetyNumberConfirmationSheet.presentIfNecessary(addresses: thread.recipientAddressesWithSneakyTransaction,
                                                          confirmationText: confirmationText,
                                                          completion: completion)
-    }
-
-    // MARK: -
-
-    func resendFailedOutgoingMessage(_ message: TSOutgoingMessage) {
-        // If the message was remotely deleted, resend a *delete* message
-        // rather than the message itself.
-        let messageToSend = (message.wasRemotelyDeleted
-                             ? databaseStorage.read { TSOutgoingDeleteMessage(thread: thread, message: message, transaction: $0) }
-                             : message)
-
-        let recipientsWithChangedSafetyNumber = message.failedRecipientAddresses(errorCode: UntrustedIdentityError.errorCode)
-        if !recipientsWithChangedSafetyNumber.isEmpty {
-            // Show special safety number change dialog
-            let sheet = SafetyNumberConfirmationSheet(addressesToConfirm: recipientsWithChangedSafetyNumber,
-                                                      confirmationText: MessageStrings.sendButton) { didConfirm in
-                if didConfirm {
-                    Self.databaseStorage.asyncWrite { transaction in
-                        Self.sskJobQueues.messageSenderJobQueue.add(
-                            message: messageToSend.asPreparer,
-                            transaction: transaction
-                        )
-                    }
-                }
-            }
-            self.present(sheet, animated: true, completion: nil)
-            return
-        }
-
-        let actionSheet = ActionSheetController(title: nil,
-                                                message: message.mostRecentFailureText)
-        actionSheet.addAction(OWSActionSheets.cancelAction)
-
-        actionSheet.addAction(ActionSheetAction(title: CommonStrings.deleteForMeButton,
-                                                style: .destructive) { _ in
-            Self.databaseStorage.write { transaction in
-                message.anyRemove(transaction: transaction)
-            }
-        })
-
-        actionSheet.addAction(ActionSheetAction(title: NSLocalizedString("SEND_AGAIN_BUTTON", comment: ""),
-                                                accessibilityIdentifier: "send_again",
-                                                style: .default) { _ in
-            Self.databaseStorage.asyncWrite { transaction in
-                Self.sskJobQueues.messageSenderJobQueue.add(
-                    message: messageToSend.asPreparer,
-                    transaction: transaction
-                )
-            }
-        })
-
-        dismissKeyBoard()
-        self.presentActionSheet(actionSheet)
     }
 
     // MARK: - Verification
@@ -142,11 +89,13 @@ public extension ConversationViewController {
                     owsFailDebug("Invalid identityKey.")
                     continue
                 }
-                Self.identityManager.setVerificationState(.default,
-                                                          identityKey: recipientIdentity.identityKey,
-                                                          address: address,
-                                                          isUserInitiatedChange: true,
-                                                          transaction: transaction)
+                Self.identityManager.setVerificationState(
+                    .default,
+                    identityKey: recipientIdentity.identityKey,
+                    address: address,
+                    isUserInitiatedChange: true,
+                    transaction: transaction
+                )
             }
         }
     }
@@ -180,7 +129,7 @@ public extension ConversationViewController {
     func presentMissingQuotedReplyToast() {
         Logger.info("")
 
-        let toastText = NSLocalizedString("QUOTED_REPLY_ORIGINAL_MESSAGE_DELETED",
+        let toastText = OWSLocalizedString("QUOTED_REPLY_ORIGINAL_MESSAGE_DELETED",
                                           comment: "Toast alert text shown when tapping on a quoted message which we cannot scroll to because the local copy of the message was since deleted.")
         presentToastCVC(toastText)
     }
@@ -188,7 +137,7 @@ public extension ConversationViewController {
     func presentRemotelySourcedQuotedReplyToast() {
         Logger.info("")
 
-        let toastText = NSLocalizedString("QUOTED_REPLY_ORIGINAL_MESSAGE_REMOTELY_SOURCED",
+        let toastText = OWSLocalizedString("QUOTED_REPLY_ORIGINAL_MESSAGE_REMOTELY_SOURCED",
                                           comment: "Toast alert text shown when tapping on a quoted message which we cannot scroll to because the local copy of the message didn't exist when the quote was received.")
         presentToastCVC(toastText)
     }
@@ -196,7 +145,7 @@ public extension ConversationViewController {
     func presentViewOnceAlreadyViewedToast() {
         Logger.info("")
 
-        let toastText = NSLocalizedString("VIEW_ONCE_ALREADY_VIEWED_TOAST",
+        let toastText = OWSLocalizedString("VIEW_ONCE_ALREADY_VIEWED_TOAST",
                                           comment: "Toast alert text shown when tapping on a view-once message that has already been viewed.")
         presentToastCVC(toastText)
     }
@@ -204,7 +153,7 @@ public extension ConversationViewController {
     func presentViewOnceOutgoingToast() {
         Logger.info("")
 
-        let toastText = NSLocalizedString("VIEW_ONCE_OUTGOING_TOAST",
+        let toastText = OWSLocalizedString("VIEW_ONCE_OUTGOING_TOAST",
                                           comment: "Toast alert text shown when tapping on a view-once message that you have sent.")
         presentToastCVC(toastText)
     }
@@ -233,7 +182,10 @@ public extension ConversationViewController {
         }
         var viewControllers = viewControllersUpToSelf
 
-        let settingsView = ConversationSettingsViewController(threadViewModel: threadViewModel)
+        let settingsView = ConversationSettingsViewController(
+            threadViewModel: threadViewModel,
+            spoilerState: viewState.spoilerState
+        )
         settingsView.conversationSettingsViewDelegate = self
         viewControllers.append(settingsView)
 
@@ -247,7 +199,11 @@ public extension ConversationViewController {
                 viewControllers.append(view)
             }
         case .showAllMedia:
-            viewControllers.append(MediaTileViewController(thread: thread))
+            viewControllers.append(AllMediaViewController(
+                thread: thread,
+                spoilerState: viewState.spoilerState,
+                name: title
+            ))
         }
 
         navigationController?.setViewControllers(viewControllers, animated: true)
@@ -280,7 +236,7 @@ public extension ConversationViewController {
         AssertIsOnMainThread()
 
         if withHapticFeedback {
-            ImpactHapticFeedback.impactOccured(style: .light)
+            ImpactHapticFeedback.impactOccurred(style: .light)
         }
 
         var groupViewHelper: GroupViewHelper?
@@ -289,7 +245,7 @@ public extension ConversationViewController {
             groupViewHelper!.delegate = self
         }
 
-        let actionSheet = MemberActionSheet(address: address, groupViewHelper: groupViewHelper)
+        let actionSheet = MemberActionSheet(address: address, groupViewHelper: groupViewHelper, spoilerState: spoilerState)
         actionSheet.present(from: self)
     }
 }
@@ -310,8 +266,11 @@ extension ConversationViewController: ConversationSettingsViewDelegate {
 
         Self.databaseStorage.write { transaction in
             // We updated the group, so if there was a pending message request we should accept it.
-            ThreadUtil.addThreadToProfileWhitelistIfEmptyOrPendingRequestAndSetDefaultTimer(thread: self.thread,
-                                                                                            transaction: transaction)
+            ThreadUtil.addThreadToProfileWhitelistIfEmptyOrPendingRequest(
+                thread,
+                setDefaultTimerIfNecessary: true,
+                tx: transaction
+            )
         }
     }
 
@@ -407,72 +366,6 @@ public extension ConversationViewController {
     func previewSetup() {
         isInPreviewPlatter = true
         actionOnOpen = .none
-    }
-}
-
-// MARK: - Unread Counts
-
-public extension ConversationViewController {
-    var unreadMessageCount: UInt {
-        get { viewState.unreadMessageCount }
-        set {
-            guard viewState.unreadMessageCount != newValue else {
-                return
-            }
-            viewState.unreadMessageCount = newValue
-            configureScrollDownButtons()
-        }
-    }
-
-    var unreadMentionMessages: [TSMessage] {
-        get { viewState.unreadMentionMessages }
-        set {
-            guard viewState.unreadMentionMessages != newValue else {
-                return
-            }
-            viewState.unreadMentionMessages = newValue
-            configureScrollDownButtons()
-        }
-    }
-
-    func updateUnreadMessageFlagUsingAsyncTransaction() {
-        // Resubmits to the main queue because we can't verify we're not already in a transaction we don't know about.
-        // This method may be called in response to all sorts of view state changes, e.g. scroll state. These changes
-        // can be a result of a UIKit response to app activity that already has an open transaction.
-        //
-        // We need a transaction to proceed, but we can't verify that we're not already in one (unless explicitly handed
-        // one) To workaround this, we async a block to open a fresh transaction on the main queue.
-        DispatchQueue.main.async {
-            Self.databaseStorage.read { transaction in
-                self.updateUnreadMessageFlag(transaction: transaction)
-            }
-        }
-    }
-
-    func updateUnreadMessageFlag(transaction: SDSAnyReadTransaction) {
-        AssertIsOnMainThread()
-
-        let interactionFinder = InteractionFinder(threadUniqueId: thread.uniqueId)
-        let unreadCount = interactionFinder.unreadCount(transaction: transaction.unwrapGrdbRead)
-        self.unreadMessageCount = unreadCount
-
-        if let localAddress = tsAccountManager.localAddress {
-            self.unreadMentionMessages = MentionFinder.messagesMentioning(address: localAddress,
-                                                                          in: thread,
-                                                                          includeReadMessages: false,
-                                                                          transaction: transaction.unwrapGrdbRead)
-        } else {
-            owsFailDebug("Missing localAddress.")
-        }
-    }
-
-    /// Checks to see if the unread message flag can be cleared. Shortcircuits if the flag is not set to begin with
-    func clearUnreadMessageFlagIfNecessary() {
-        AssertIsOnMainThread()
-
-        if unreadMessageCount > 0 {
-            updateUnreadMessageFlagUsingAsyncTransaction()
-        }
     }
 }
 
@@ -580,7 +473,7 @@ extension ConversationViewController {
         if nil != self.presentedViewController {
             return
         }
-        if OWSWindowManager.shared.shouldShowCallView {
+        if WindowManager.shared.shouldShowCallView {
             return
         }
         if navigationController?.topViewController != self {
@@ -594,7 +487,6 @@ extension ConversationViewController {
         let isShowingUnreadMessage = lastVisibleSortId > self.lastSortIdMarkedRead
         if !self.isMarkingAsRead && isShowingUnreadMessage {
             self.isMarkingAsRead = true
-            clearUnreadMessageFlagIfNecessary()
 
             BenchManager.benchAsync(title: "marking as read") { benchCompletion in
                 Self.receiptManager.markAsReadLocally(beforeSortId: lastVisibleSortId,

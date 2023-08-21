@@ -41,19 +41,15 @@ public extension TSThread {
         return groupThread.groupModel
     }
 
-    var isBlockedByMigration: Bool {
-        isGroupV1Thread
-    }
-
     var canSendReactionToThread: Bool {
-        guard !isBlockedByMigration else {
+        guard !isGroupV1Thread else {
             return false
         }
         return true
     }
 
     var canSendNonChatMessagesToThread: Bool {
-        guard !isBlockedByMigration else {
+        guard !isGroupV1Thread else {
             return false
         }
         return true
@@ -65,7 +61,7 @@ public extension TSThread {
     }
 
     func canSendChatMessagesToThread(ignoreAnnouncementOnly: Bool = false) -> Bool {
-        guard !isBlockedByMigration else {
+        guard !isGroupV1Thread else {
             return false
         }
         if !ignoreAnnouncementOnly {
@@ -185,23 +181,6 @@ public extension TSThread {
         }
         lastVisibleInteractionStore.setData(data, key: thread.uniqueId, transaction: transaction)
     }
-
-    @available(swift, obsoleted: 1.0)
-    @objc
-    func numberOfInteractions(transaction: SDSAnyReadTransaction) -> UInt {
-        numberOfInteractions(transaction: transaction)
-    }
-
-    func numberOfInteractions(
-        with storyReplyQueryMode: StoryReplyQueryMode = .excludeGroupReplies,
-        transaction: SDSAnyReadTransaction
-    ) -> UInt {
-        InteractionFinder(threadUniqueId: uniqueId).count(
-            excludingPlaceholders: true,
-            storyReplyQueryMode: storyReplyQueryMode,
-            transaction: transaction
-        )
-    }
 }
 
 // MARK: - Drafts
@@ -232,6 +211,22 @@ extension TSThread {
         }
         let ranges: MessageBodyRanges = thread.messageDraftBodyRanges ?? .empty
         return MessageBody(text: messageDraft, ranges: ranges)
+    }
+
+    @objc
+    public func editTarget(transaction: SDSAnyReadTransaction) -> TSOutgoingMessage? {
+        guard
+            let editTargetTimestamp = editTargetTimestamp?.uint64Value,
+            let localAddress = tsAccountManager.localAddress
+        else {
+            return nil
+        }
+        return InteractionFinder.findMessage(
+            withTimestamp: editTargetTimestamp,
+            threadId: uniqueId,
+            author: localAddress,
+            transaction: transaction
+        ) as? TSOutgoingMessage
     }
 }
 

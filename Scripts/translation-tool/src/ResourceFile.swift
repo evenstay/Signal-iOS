@@ -42,12 +42,14 @@ private let languageMap: [String: String] = [
     "sv": "sv",
     "th": "th",
     "tr": "tr",
+    "ug": "ug",
     "uk-UA": "uk",
     "ur": "ur",
     "vi": "vi",
     "zh-CN": "zh_CN",
     "zh-HK": "zh_HK",
-    "zh-TW": "zh_TW"
+    "zh-TW": "zh_TW",
+    "zh-YU": "yue"
 ]
 
 struct ResourceFile: TranslatableFile {

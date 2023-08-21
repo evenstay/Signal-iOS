@@ -13,7 +13,7 @@ public class GRDBGroupsV2MessageJobFinder: NSObject {
 
     @objc
     public func addJob(envelopeData: Data,
-                       plaintextData: Data?,
+                       plaintextData: Data,
                        groupId: Data,
                        wasReceivedByUD: Bool,
                        serverDeliveryTimestamp: UInt64,
@@ -81,7 +81,15 @@ public class GRDBGroupsV2MessageJobFinder: NSObject {
                 WHERE \(incomingGroupsV2MessageJobColumn: .groupId) = ?
             )
         """
-        return try! Bool.fetchOne(transaction.database, sql: sql, arguments: [groupId]) ?? false
+        do {
+            return try Bool.fetchOne(transaction.database, sql: sql, arguments: [groupId]) ?? false
+        } catch {
+            DatabaseCorruptionState.flagDatabaseReadCorruptionIfNecessary(
+                userDefaults: CurrentAppContext().appUserDefaults(),
+                error: error
+            )
+            owsFail("Failed to check job")
+        }
     }
 
     @objc
@@ -91,7 +99,15 @@ public class GRDBGroupsV2MessageJobFinder: NSObject {
             FROM \(IncomingGroupsV2MessageJobRecord.databaseTableName)
             WHERE \(incomingGroupsV2MessageJobColumn: .groupId) = ?
         """
-        return try! UInt.fetchOne(transaction.database, sql: sql, arguments: [groupId]) ?? 0
+        do {
+            return try UInt.fetchOne(transaction.database, sql: sql, arguments: [groupId]) ?? 0
+        } catch {
+            DatabaseCorruptionState.flagDatabaseReadCorruptionIfNecessary(
+                userDefaults: CurrentAppContext().appUserDefaults(),
+                error: error
+            )
+            owsFail("Failed to get job count")
+        }
     }
 
     @objc
@@ -106,7 +122,7 @@ public class GRDBGroupsV2MessageJobFinder: NSObject {
             FROM \(IncomingGroupsV2MessageJobRecord.databaseTableName)
             WHERE \(incomingGroupsV2MessageJobColumn: .uniqueId) in (\(commaSeparatedIds))
         """
-        transaction.executeUpdate(sql: sql)
+        transaction.execute(sql: sql)
     }
 
     @objc

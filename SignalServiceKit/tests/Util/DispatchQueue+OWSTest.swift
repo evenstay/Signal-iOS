@@ -8,7 +8,7 @@ import XCTest
 
 @testable import SignalServiceKit
 
-class DispatchQueueOWSTests: SSKBaseTestSwift {
+class DispatchQueueOWSTests: XCTestCase {
 
     func testQoSFlooring() {
         // Setup: Construct a map, (QoSClass) -> (UInt32 that should floor to its key)
@@ -49,23 +49,19 @@ class DispatchQueueOWSTests: SSKBaseTestSwift {
         let sharedQueuesAtQoS: [DispatchQoS.QoSClass: [DispatchQueue]] = [
             .background: [
                 DispatchQueue.sharedBackground,
-                DispatchQueue.sharedQueue(at: .background),
-                OWSDispatch.sharedQueue(at: QOS_CLASS_BACKGROUND)
+                DispatchQueue.sharedQueue(at: .background)
             ],
             .utility: [
                 DispatchQueue.sharedUtility,
-                DispatchQueue.sharedQueue(at: .utility),
-                OWSDispatch.sharedQueue(at: QOS_CLASS_UTILITY)
+                DispatchQueue.sharedQueue(at: .utility)
             ],
             .userInitiated: [
                 DispatchQueue.sharedUserInitiated,
-                DispatchQueue.sharedQueue(at: .userInitiated),
-                OWSDispatch.sharedQueue(at: QOS_CLASS_USER_INITIATED)
+                DispatchQueue.sharedQueue(at: .userInitiated)
             ],
             .userInteractive: [
                 DispatchQueue.sharedUserInteractive,
-                DispatchQueue.sharedQueue(at: .userInteractive),
-                OWSDispatch.sharedQueue(at: QOS_CLASS_USER_INTERACTIVE)
+                DispatchQueue.sharedQueue(at: .userInteractive)
             ]
         ]
 

@@ -42,10 +42,9 @@ public enum LocalUserDisplayMode: UInt {
 // Avatars are expensive to build.  By caching requests / content separately,
 // we can avoid building avatars unnecessarily while ensuring that avatars
 // update correctly without worrying about cache evacuation.
-@objc
+
 public class AvatarBuilder: NSObject {
 
-    @objc
     public static var shared: AvatarBuilder {
         Self.avatarBuilder
     }
@@ -54,18 +53,12 @@ public class AvatarBuilder: NSObject {
     public static let smallAvatarSizePoints: UInt = 36
     @objc
     public static let standardAvatarSizePoints: UInt = 48
-    @objc
     public static let mediumAvatarSizePoints: UInt = 68
-    @objc
     public static let largeAvatarSizePoints: UInt = 96
 
-    @objc
     public static var smallAvatarSizePixels: CGFloat { CGFloat(smallAvatarSizePoints).pointsAsPixels }
-    @objc
     public static var standardAvatarSizePixels: CGFloat { CGFloat(standardAvatarSizePoints).pointsAsPixels }
-    @objc
     public static var mediumAvatarSizePixels: CGFloat { CGFloat(mediumAvatarSizePoints).pointsAsPixels }
-    @objc
     public static var largeAvatarSizePixels: CGFloat { CGFloat(largeAvatarSizePoints).pointsAsPixels }
 
     // MARK: -
@@ -105,13 +98,13 @@ public class AvatarBuilder: NSObject {
     }
 
     @objc
-    func contactsDidChange(notification: Notification) {
+    private func contactsDidChange(notification: Notification) {
         AssertIsOnMainThread()
         requestToContentCache.removeAllObjects()
     }
 
     @objc
-    func otherUsersProfileDidChange(notification: Notification) {
+    private func otherUsersProfileDidChange(notification: Notification) {
         AssertIsOnMainThread()
         if let address = notification.userInfo?[kNSNotificationKey_ProfileAddress] as? SignalServiceAddress {
             addressToAvatarIdentifierCache.removeObject(forKey: address)
@@ -119,7 +112,7 @@ public class AvatarBuilder: NSObject {
     }
 
     @objc
-    func localUsersProfileDidChange(notification: Notification) {
+    private func localUsersProfileDidChange(notification: Notification) {
         AssertIsOnMainThread()
         if let address = tsAccountManager.localAddress {
             addressToAvatarIdentifierCache.removeObject(forKey: address)
@@ -128,7 +121,6 @@ public class AvatarBuilder: NSObject {
 
     // MARK: -
 
-    @objc
     public func avatarImage(forThread thread: TSThread,
                             diameterPoints: UInt,
                             localUserDisplayMode: LocalUserDisplayMode,
@@ -141,7 +133,6 @@ public class AvatarBuilder: NSObject {
         )
     }
 
-    @objc
     public func avatarImage(forThread thread: TSThread,
                             diameterPixels: CGFloat,
                             localUserDisplayMode: LocalUserDisplayMode,
@@ -155,7 +146,6 @@ public class AvatarBuilder: NSObject {
         return avatarImage(forRequest: request, transaction: transaction)
     }
 
-    @objc
     public func avatarImageWithSneakyTransaction(forAddress address: SignalServiceAddress,
                                                  diameterPoints: UInt,
                                                  localUserDisplayMode: LocalUserDisplayMode) -> UIImage? {
@@ -180,7 +170,6 @@ public class AvatarBuilder: NSObject {
                        shouldBlurAvatar: shouldBlurAvatar)
     }
 
-    @objc
     public func avatarImage(forAddress address: SignalServiceAddress,
                             diameterPoints: UInt,
                             localUserDisplayMode: LocalUserDisplayMode,
@@ -192,7 +181,6 @@ public class AvatarBuilder: NSObject {
         return avatarImage(forRequest: request, transaction: transaction)
     }
 
-    @objc
     public func avatarImage(forAddress address: SignalServiceAddress,
                             diameterPixels: CGFloat,
                             localUserDisplayMode: LocalUserDisplayMode,
@@ -206,7 +194,6 @@ public class AvatarBuilder: NSObject {
 
     // Never builds; only returns an avatar if there is already a copy
     // in a cache.
-    @objc
     public func precachedAvatarImage(forAddress address: SignalServiceAddress,
                                      diameterPoints: UInt,
                                      localUserDisplayMode: LocalUserDisplayMode,
@@ -238,7 +225,6 @@ public class AvatarBuilder: NSObject {
                        shouldBlurAvatar: shouldBlurAvatar)
     }
 
-    @objc
     public func avatarImage(forGroupThread groupThread: TSGroupThread,
                             diameterPoints: UInt,
                             transaction: SDSAnyReadTransaction) -> UIImage? {
@@ -250,7 +236,6 @@ public class AvatarBuilder: NSObject {
 
     // Never builds; only returns an avatar if there is already a copy
     // in a cache.
-    @objc
     public func precachedAvatarImage(forGroupThread groupThread: TSGroupThread,
                                      diameterPoints: UInt,
                                      transaction: SDSAnyReadTransaction) -> UIImage? {
@@ -266,7 +251,6 @@ public class AvatarBuilder: NSObject {
         return contentToImageCache.object(forKey: content.cacheKey)
     }
 
-    @objc
     public func avatarImageForLocalUserWithSneakyTransaction(diameterPoints: UInt,
                                                              localUserDisplayMode: LocalUserDisplayMode) -> UIImage? {
         databaseStorage.read { transaction in
@@ -276,7 +260,6 @@ public class AvatarBuilder: NSObject {
         }
     }
 
-    @objc
     public func avatarImageForLocalUser(diameterPoints: UInt,
                                         localUserDisplayMode: LocalUserDisplayMode,
                                         transaction: SDSAnyReadTransaction) -> UIImage? {
@@ -326,7 +309,6 @@ public class AvatarBuilder: NSObject {
         return avatarImage(forGroupId: groupId, diameterPixels: UInt(diameterPixels))
     }
 
-    @objc
     public func avatarImage(forGroupId groupId: Data, diameterPixels: UInt) -> UIImage? {
         let shouldBlurAvatar = false
         let requestType: RequestType = .groupDefaultIcon(groupId: groupId)
@@ -357,15 +339,17 @@ public class AvatarBuilder: NSObject {
         diameterPixels: UInt,
         transaction: SDSAnyReadTransaction
     ) -> UIImage? {
-        guard let localAddress = tsAccountManager.localAddress else {
-            owsFailDebug("Missing local address")
-            return nil
-        }
-
-        let theme = AvatarTheme.forAddress(localAddress)
-        let nameComponents = Self.contactsManager.nameComponents(for: localAddress, transaction: transaction)
-
         let requestType: RequestType = {
+            guard let localAddress = tsAccountManager.localAddress else {
+                return .contactDefaultIcon(theme: .default)
+            }
+
+            let theme = AvatarTheme.forAddress(localAddress)
+            let nameComponents = Self.contactsManager.nameComponents(
+                for: localAddress,
+                transaction: transaction
+            )
+
             if let nameComponents = nameComponents,
                let initials = Self.contactInitials(forPersonNameComponents: nameComponents) {
                 return .text(text: initials, theme: theme)
@@ -373,11 +357,13 @@ public class AvatarBuilder: NSObject {
                 return .contactDefaultIcon(theme: theme)
             }
         }()
+
         let request = Request(
             requestType: requestType,
             diameterPixels: CGFloat(diameterPixels),
             shouldBlurAvatar: false
         )
+
         return avatarImage(forRequest: request, transaction: transaction)
     }
 
@@ -564,11 +550,11 @@ public class AvatarBuilder: NSObject {
         }
 
         static func groupDefault(theme: AvatarTheme) -> Self {
-            return .tintedImage(name: "group-outline-resizable", theme: theme)
+            return .tintedImage(name: "group-resizable", theme: theme)
         }
 
         static func contactDefaultIcon(theme: AvatarTheme) -> Self {
-            return .tintedImage(name: "contact-outline-resizable", theme: theme)
+            return .tintedImage(name: "person-resizable", theme: theme)
         }
 
         fileprivate var cacheKey: String {
@@ -1283,7 +1269,7 @@ fileprivate extension String {
 // MARK: -
 
 extension AvatarBuilder {
-    @objc
+
     public static func buildNoiseAvatar(diameterPoints: UInt) -> UIImage? {
         let diameterPixels = CGFloat(diameterPoints).pointsAsPixels
         let backgroundColor = UIColor(rgbHex: 0xaca6633)
@@ -1319,7 +1305,6 @@ extension AvatarBuilder {
         }
     }
 
-    @objc
     public static func buildRandomAvatar(diameterPoints: UInt) -> UIImage? {
         let eyes = [ ":", "=", "8", "B" ]
         let mouths = [ "3", ")", "(", "|", "\\", "P", "D", "o" ]

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import UIKit
+import SignalCoreKit
 
 // This GR:
 //
@@ -23,21 +23,18 @@ class ImageEditorPanGestureRecognizer: UIPanGestureRecognizer {
 
     // MARK: - Touch Handling
 
-    @objc
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
         updateLocationHistory(event: event)
 
         super.touchesBegan(touches, with: event)
     }
 
-    @objc
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent) {
         updateLocationHistory(event: event)
 
         super.touchesMoved(touches, with: event)
     }
 
-    @objc
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent) {
         updateLocationHistory(event: event)
 

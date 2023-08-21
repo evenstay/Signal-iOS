@@ -3,12 +3,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import CoreServices
+import SignalServiceKit
+import SignalUI
 
 class SetWallpaperViewController: OWSTableViewController2 {
-    lazy var collectionView = WallpaperCollectionView(container: self,
-                                                      thread: thread) { [weak self] wallpaper in
+    lazy var collectionView = WallpaperCollectionView(container: self, shouldDimInDarkMode: shouldDimInDarkMode) { [weak self] wallpaper in
         guard let self = self else { return }
         let vc = PreviewWallpaperViewController(
             mode: .preset(selectedWallpaper: wallpaper),
@@ -18,23 +18,26 @@ class SetWallpaperViewController: OWSTableViewController2 {
         self.presentFullScreen(UINavigationController(rootViewController: vc), animated: true)
     }
 
-    let thread: TSThread?
-    public init(thread: TSThread? = nil) {
-        self.thread = thread
-        super.init()
-
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(updateTableContents),
-            name: Wallpaper.wallpaperDidChangeNotification,
-            object: nil
+    static func load(thread: TSThread?, tx: SDSAnyReadTransaction) -> SetWallpaperViewController {
+        return SetWallpaperViewController(
+            thread: thread,
+            shouldDimInDarkMode: Wallpaper.dimInDarkMode(for: thread, transaction: tx)
         )
+    }
+
+    private let thread: TSThread?
+    private let shouldDimInDarkMode: Bool
+
+    init(thread: TSThread?, shouldDimInDarkMode: Bool) {
+        self.thread = thread
+        self.shouldDimInDarkMode = shouldDimInDarkMode
+        super.init()
     }
 
     public override func viewDidLoad() {
         super.viewDidLoad()
 
-        title = NSLocalizedString("SET_WALLPAPER_TITLE", comment: "Title for the set wallpaper settings view.")
+        title = OWSLocalizedString("SET_WALLPAPER_TITLE", comment: "Title for the set wallpaper settings view.")
 
         updateTableContents()
     }
@@ -65,15 +68,15 @@ class SetWallpaperViewController: OWSTableViewController2 {
     }
 
     @objc
-    func updateTableContents() {
+    private func updateTableContents() {
         let contents = OWSTableContents()
 
         let photosSection = OWSTableSection()
         photosSection.customHeaderHeight = 14
 
         let choosePhotoItem = OWSTableItem.disclosureItem(
-            icon: .settingsAllMedia,
-            name: NSLocalizedString("SET_WALLPAPER_CHOOSE_PHOTO",
+            icon: .buttonPhotoLibrary,
+            name: OWSLocalizedString("SET_WALLPAPER_CHOOSE_PHOTO",
                                     comment: "Title for the wallpaper choose from photos option"),
             accessibilityIdentifier: UIView.accessibilityIdentifier(in: self, name: "choose_photo")
         ) { [weak self] in
@@ -86,10 +89,10 @@ class SetWallpaperViewController: OWSTableViewController2 {
         }
         photosSection.add(choosePhotoItem)
 
-        contents.addSection(photosSection)
+        contents.add(photosSection)
 
         let presetsSection = OWSTableSection()
-        presetsSection.headerTitle = NSLocalizedString("SET_WALLPAPER_PRESETS",
+        presetsSection.headerTitle = OWSLocalizedString("SET_WALLPAPER_PRESETS",
                                                        comment: "Title for the wallpaper presets section")
 
         let presetsItem = OWSTableItem { [weak self] in
@@ -101,7 +104,7 @@ class SetWallpaperViewController: OWSTableViewController2 {
         } actionBlock: {}
         presetsSection.add(presetsItem)
 
-        contents.addSection(presetsSection)
+        contents.add(presetsSection)
 
         self.contents = contents
     }
@@ -144,17 +147,19 @@ extension SetWallpaperViewController: PreviewWallpaperDelegate {
 }
 
 class WallpaperCollectionView: UICollectionView {
-    let thread: TSThread?
-    let flowLayout = UICollectionViewFlowLayout()
-    let selectionHandler: (Wallpaper) -> Void
-    lazy var heightConstraint = autoSetDimension(.height, toSize: 0)
-    weak var container: OWSTableViewController2!
+    private let shouldDimInDarkMode: Bool
+    private let flowLayout = UICollectionViewFlowLayout()
+    private let selectionHandler: (Wallpaper) -> Void
+    private lazy var heightConstraint = autoSetDimension(.height, toSize: 0)
+    private weak var container: OWSTableViewController2!
 
-    init(container: OWSTableViewController2,
-         thread: TSThread?,
-         selectionHandler: @escaping (Wallpaper) -> Void) {
+    init(
+        container: OWSTableViewController2,
+        shouldDimInDarkMode: Bool,
+        selectionHandler: @escaping (Wallpaper) -> Void
+    ) {
         self.container = container
-        self.thread = thread
+        self.shouldDimInDarkMode = shouldDimInDarkMode
         self.selectionHandler = selectionHandler
 
         flowLayout.minimumLineSpacing = 4
@@ -215,7 +220,7 @@ extension WallpaperCollectionView: UICollectionViewDataSource, UICollectionViewD
             return cell
         }
 
-        wallpaperCell.configure(for: wallpaper, thread: thread)
+        wallpaperCell.configure(for: wallpaper, shouldDimInDarkMode: shouldDimInDarkMode)
 
         return wallpaperCell
     }
@@ -235,16 +240,16 @@ class WallpaperCell: UICollectionViewCell {
     var wallpaperView: UIView?
     var wallpaper: Wallpaper?
 
-    func configure(for wallpaper: Wallpaper, thread: TSThread?) {
+    func configure(for wallpaper: Wallpaper, shouldDimInDarkMode: Bool) {
         guard wallpaper != self.wallpaper else { return }
 
         self.wallpaper = wallpaper
         wallpaperView?.removeFromSuperview()
-        let shouldDimInDarkTheme = databaseStorage.read { transaction in
-            Wallpaper.dimInDarkMode(for: thread, transaction: transaction)
-        }
-        wallpaperView = Wallpaper.view(for: wallpaper,
-                                       shouldDimInDarkTheme: shouldDimInDarkTheme)?.asPreviewView()
+        wallpaperView = Wallpaper.viewBuilder(
+            for: wallpaper,
+            customPhoto: { nil },
+            shouldDimInDarkTheme: shouldDimInDarkMode
+        )?.build().asPreviewView()
 
         guard let wallpaperView = wallpaperView else {
             return owsFailDebug("Missing wallpaper view")
@@ -253,16 +258,5 @@ class WallpaperCell: UICollectionViewCell {
         contentView.addSubview(wallpaperView)
         contentView.clipsToBounds = true
         wallpaperView.autoPinEdgesToSuperviewEdges()
-
-        if showChatColorPreview {
-            let chatColor = wallpaper.defaultChatColor
-            let chatColorView = ColorOrGradientSwatchView(setting: chatColor.setting,
-                                                          shapeMode: .rectangle)
-            contentView.addSubview(chatColorView)
-            chatColorView.autoPinEdgesToSuperviewEdges(with: .zero, excludingEdge: .leading)
-            chatColorView.autoSetDimension(.width, toSize: 20)
-        }
     }
-
-    private let showChatColorPreview = false
 }

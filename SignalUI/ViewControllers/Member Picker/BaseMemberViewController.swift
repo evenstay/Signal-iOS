@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalServiceKit
 
 public protocol MemberViewDelegate: AnyObject {
     var memberViewRecipientSet: OrderedSet<PickedRecipient> { get }
@@ -36,7 +36,6 @@ public protocol MemberViewDelegate: AnyObject {
 
 // MARK: -
 
-@objc
 open class BaseMemberViewController: RecipientPickerContainerViewController {
 
     // This delegate is the subclass.
@@ -68,7 +67,6 @@ open class BaseMemberViewController: RecipientPickerContainerViewController {
 
     // MARK: - View Lifecycle
 
-    @objc
     open override func viewDidLoad() {
         super.viewDidLoad()
 
@@ -77,7 +75,7 @@ open class BaseMemberViewController: RecipientPickerContainerViewController {
         memberBar.delegate = self
 
         // Don't use dynamic type in this label.
-        memberCountLabel.font = UIFont.ows_dynamicTypeBody2.withSize(12)
+        memberCountLabel.font = UIFont.regularFont(ofSize: 12)
         memberCountLabel.textColor = Theme.isDarkThemeEnabled ? .ows_gray05 : .ows_gray60
         memberCountLabel.textAlignment = CurrentAppContext().isRTL ? .left : .right
 
@@ -85,7 +83,7 @@ open class BaseMemberViewController: RecipientPickerContainerViewController {
         memberCountLabel.autoPinEdgesToSuperviewMargins()
         memberCountWrapper.layoutMargins = UIEdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 12)
 
-        recipientPicker.groupsToShow = .showNoGroups
+        recipientPicker.groupsToShow = .noGroups
         recipientPicker.delegate = self
         addChild(recipientPicker)
         view.addSubview(recipientPicker.view)
@@ -98,7 +96,6 @@ open class BaseMemberViewController: RecipientPickerContainerViewController {
         updateMemberCount()
     }
 
-    @objc
     open override func viewWillLayoutSubviews() {
         updateMemberBarHeightConstraint()
 
@@ -296,13 +293,15 @@ extension BaseMemberViewController: RecipientPickerDelegate {
             return
         }
 
-        let (isPreExistingMember, isBlocked) = databaseStorage.read { readTx -> (Bool, Bool) in
+        let (isPreExistingMember, isExcluded) = databaseStorage.read { tx -> (Bool, Bool) in
             let isPreexisting = memberViewDelegate.memberViewIsPreExistingMember(
                 recipient,
-                transaction: readTx)
-            let isBlocked = blockingManager.isAddressBlocked(address, transaction: readTx)
+                transaction: tx)
+            let isBlocked = blockingManager.isAddressBlocked(address, transaction: tx)
+            let isHidden = DependenciesBridge.shared.recipientHidingManager.isHiddenAddress(address, tx: tx.asV2Read)
+            let isExcluded = isBlocked || isHidden
 
-            return (isPreexisting, isBlocked)
+            return (isPreexisting, isExcluded)
         }
 
         guard !isPreExistingMember else {
@@ -325,7 +324,7 @@ extension BaseMemberViewController: RecipientPickerDelegate {
 
         if isCurrentMember {
             removeRecipient(recipient)
-        } else if isBlocked && !memberViewDelegate.memberViewShouldAllowBlockedSelection() {
+        } else if isExcluded && !memberViewDelegate.memberViewShouldAllowBlockedSelection() {
             BlockListUIUtils.showUnblockAddressActionSheet(address,
                                                            from: self) { isStillBlocked in
                 if !isStillBlocked {
@@ -392,7 +391,7 @@ extension BaseMemberViewController: RecipientPickerDelegate {
         let isPreExistingMember = memberViewDelegate.memberViewIsPreExistingMember(recipient,
                                                                                    transaction: transaction)
 
-        let pickedIconName = memberViewDelegate.memberViewCustomIconNameForPickedMember(recipient) ?? "check-circle-solid-new-24"
+        let pickedIconName = memberViewDelegate.memberViewCustomIconNameForPickedMember(recipient) ?? Theme.iconName(.checkCircleFill)
         let pickedIconColor = memberViewDelegate.memberViewCustomIconColorForPickedMember(recipient) ?? Theme.accentBlueColor
 
         let imageView = CVImageView()
@@ -401,7 +400,7 @@ extension BaseMemberViewController: RecipientPickerDelegate {
         } else if isCurrentMember {
             imageView.setTemplateImageName(pickedIconName, tintColor: pickedIconColor)
         } else {
-            imageView.setTemplateImageName("empty-circle-outline-24", tintColor: .ows_gray25)
+            imageView.setTemplateImageName(Theme.iconName(.circle), tintColor: .ows_gray25)
         }
         return ContactCellAccessoryView(accessoryView: imageView, size: .square(24))
     }

@@ -22,7 +22,7 @@ NSString *OWSVerificationStateToString(OWSVerificationState verificationState)
     }
 }
 
-SSKProtoVerifiedState OWSVerificationStateToProtoState(OWSVerificationState verificationState)
+static SSKProtoVerifiedState OWSVerificationStateToProtoState(OWSVerificationState verificationState)
 {
     switch (verificationState) {
         case OWSVerificationStateDefault:
@@ -46,7 +46,7 @@ SSKProtoVerified *_Nullable BuildVerifiedProtoWithAddress(SignalServiceAddress *
     OWSCAssertDebug(verificationState != OWSVerificationStateNoLongerVerified);
 
     SSKProtoVerifiedBuilder *verifiedBuilder = [SSKProtoVerified builder];
-    verifiedBuilder.destinationUuid = address.uuidString;
+    verifiedBuilder.destinationAci = address.aciString;
     verifiedBuilder.identityKey = identityKey;
     verifiedBuilder.state = OWSVerificationStateToProtoState(verificationState);
 

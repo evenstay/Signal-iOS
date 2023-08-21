@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalServiceKit
 
 // The outcome of a CVC load is an update that describes how to 
 // transition from the last render state to the new render state.
@@ -19,7 +19,7 @@ struct CVUpdate {
         // the view should be updated using the update items.
         //
         // TODO: Do we need shouldAnimateUpdates? How does this fit with the scroll action?
-        case diff(items: [Item], threadInteractionCount: UInt, shouldAnimateUpdate: Bool)
+        case diff(items: [Item], shouldAnimateUpdate: Bool)
 
         // MARK: -
 
@@ -44,14 +44,6 @@ struct CVUpdate {
     var loadType: CVLoadType { loadRequest.loadType }
 
     typealias Item = BatchUpdate<CVRenderItem>.Item
-
-    public func logLoadEvent(_ label: String,
-                             file: String = #file,
-                             function: String = #function,
-                             line: Int = #line) {
-        let label = "\(label) [\(prevRenderState.items.count) -> \(renderState.items.count)]"
-        loadRequest.logLoadEvent(label, file: file, function: function, line: line)
-    }
 }
 
 // MARK: -
@@ -64,10 +56,11 @@ extension CVUpdate {
         renderItem.interactionUniqueId
     }
 
-    static func build(renderState: CVRenderState,
-                      prevRenderState: CVRenderState,
-                      loadRequest: CVLoadRequest,
-                      threadInteractionCount: UInt) -> CVUpdate {
+    static func build(
+        renderState: CVRenderState,
+        prevRenderState: CVRenderState,
+        loadRequest: CVLoadRequest
+    ) -> CVUpdate {
 
         func buildUpdate(type: CVUpdateType) -> CVUpdate {
             CVUpdate(type: type,
@@ -135,9 +128,10 @@ extension CVUpdate {
                                                                oldItemCount: oldItems.count,
                                                                appearanceChangedItemIdSet: appearanceChangedItemIdSet)
 
-            return buildUpdate(type: .diff(items: batchUpdateItems,
-                                           threadInteractionCount: threadInteractionCount,
-                                           shouldAnimateUpdate: shouldAnimateUpdate))
+            return buildUpdate(type: .diff(
+                items: batchUpdateItems,
+                shouldAnimateUpdate: shouldAnimateUpdate
+            ))
         } catch {
             owsFailDebug("Error: \(error)")
             return buildUpdate(type: .reloadAll)

@@ -72,6 +72,19 @@ public class TSErrorMessageBuilder: TSMessageBuilder {
         return TSErrorMessageBuilder(thread: thread, errorType: errorType)
     }
 
+    @objc
+    public class func errorMessageBuilder(
+        errorType: TSErrorMessageType,
+        sourceAci: AciObjC,
+        tx: SDSAnyWriteTransaction
+    ) -> TSErrorMessageBuilder {
+        let thread = TSContactThread.getOrCreateThread(
+            withContactAddress: SignalServiceAddress(sourceAci.wrappedAciValue),
+            transaction: tx
+        )
+        return TSErrorMessageBuilder(thread: thread, errorType: errorType)
+    }
+
     private var hasBuilt = false
 
     @objc
@@ -81,5 +94,12 @@ public class TSErrorMessageBuilder: TSMessageBuilder {
         }
         hasBuilt = true
         return TSErrorMessage(errorMessageWithBuilder: self)
+    }
+}
+
+extension TSErrorMessage {
+
+    public func plaintextBody(_ tx: SDSAnyReadTransaction) -> String {
+        return self.rawBody(with: tx.unwrapGrdbRead) ?? ""
     }
 }

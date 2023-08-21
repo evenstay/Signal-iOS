@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalMessaging
+import SignalUI
 
 enum ViewOnceState: Equatable {
     case unknown
@@ -226,21 +226,21 @@ fileprivate extension CVComponentViewOnce {
         switch viewOnceState {
         case .unknown:
             owsFailDebug("Invalid value.")
-            return "viewed-once-24"
+            return "view_once-dash"
         case .incomingExpired:
-            return "viewed-once-24"
+            return "view_once-dash"
         case .incomingDownloading:
             owsFailDebug("Unexpected state.")
             return nil
         case .incomingFailed, .incomingPending:
-            return "arrow-down-circle-outline-24"
+            return "arrow-circle-down"
         case .incomingAvailable:
-            return "view-once-24"
+            return "view_once"
         case .outgoingFailed:
-            return "retry-24"
+            return "refresh"
         case .outgoingSending,
              .outgoingSentExpired:
-            return "viewed-once-24"
+            return "view_once-dash"
         case .incomingInvalidContent:
             owsFailDebug("Unexpected state.")
             return nil
@@ -294,11 +294,13 @@ fileprivate extension CVComponentViewOnce {
 
     var labelConfig: CVLabelConfig {
         func buildDefaultConfig(text: String) -> CVLabelConfig {
-            return CVLabelConfig(text: text,
-                                 font: UIFont.ows_dynamicTypeSubheadline.ows_semibold,
-                                 textColor: textColor,
-                                 numberOfLines: 1,
-                                 lineBreakMode: .byTruncatingTail)
+            return CVLabelConfig.unstyledText(
+                text,
+                font: UIFont.dynamicTypeSubheadline.semibold(),
+                textColor: textColor,
+                numberOfLines: 1,
+                lineBreakMode: .byTruncatingTail
+            )
         }
 
         switch viewOnceState {
@@ -306,17 +308,17 @@ fileprivate extension CVComponentViewOnce {
             owsFailDebug("Invalid value.")
             return buildDefaultConfig(text: CommonStrings.genericError)
         case .incomingExpired:
-            let text = NSLocalizedString("PER_MESSAGE_EXPIRATION_VIEWED",
+            let text = OWSLocalizedString("PER_MESSAGE_EXPIRATION_VIEWED",
                                          comment: "Label for view-once messages indicating that the local user has viewed the message's contents.")
             return buildDefaultConfig(text: text)
         case .incomingDownloading:
-            let text = NSLocalizedString("MESSAGE_STATUS_DOWNLOADING", comment: "message status while message is downloading.")
+            let text = OWSLocalizedString("MESSAGE_STATUS_DOWNLOADING", comment: "message status while message is downloading.")
             return buildDefaultConfig(text: text)
         case .incomingFailed:
             let text = CommonStrings.retryButton
             return buildDefaultConfig(text: text)
         case .incomingPending:
-            let text = NSLocalizedString("ACTION_TAP_TO_DOWNLOAD", comment: "A label for 'tap to download' buttons.")
+            let text = OWSLocalizedString("ACTION_TAP_TO_DOWNLOAD", comment: "A label for 'tap to download' buttons.")
             return buildDefaultConfig(text: text)
         case .incomingAvailable:
             let text: String
@@ -335,18 +337,20 @@ fileprivate extension CVComponentViewOnce {
             return buildDefaultConfig(text: text)
         case .outgoingSending,
              .outgoingSentExpired:
-            let text = NSLocalizedString(
+            let text = OWSLocalizedString(
                 "PER_MESSAGE_EXPIRATION_OUTGOING_MESSAGE", comment: "Label for outgoing view-once messages.")
             return buildDefaultConfig(text: text)
         case .incomingInvalidContent:
-            let text = NSLocalizedString(
+            let text = OWSLocalizedString(
                 "PER_MESSAGE_EXPIRATION_INVALID_CONTENT", comment: "Label for view-once messages that have invalid content.")
             // Reconfigure label for this state only.
-            return CVLabelConfig(text: text,
-                                 font: UIFont.ows_dynamicTypeSubheadline,
-                                 textColor: Theme.secondaryTextAndIconColor,
-                                 numberOfLines: 0,
-                                 lineBreakMode: .byWordWrapping)
+            return CVLabelConfig.unstyledText(
+                text,
+                font: UIFont.dynamicTypeSubheadline,
+                textColor: Theme.secondaryTextAndIconColor,
+                numberOfLines: 0,
+                lineBreakMode: .byWordWrapping
+            )
         }
     }
 
@@ -376,6 +380,6 @@ fileprivate extension CVComponentViewOnce {
 extension CVComponentViewOnce: CVAccessibilityComponent {
     public var accessibilityDescription: String {
         // TODO: We could include the media type (video, image, animated image).
-        labelConfig.stringValue
+        labelConfig.text.accessibilityDescription
     }
 }

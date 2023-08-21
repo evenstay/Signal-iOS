@@ -3,8 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
-import UIKit
+import SignalServiceKit
 import SignalUI
 
 protocol ProfileNameViewControllerDelegate: AnyObject {
@@ -13,7 +12,6 @@ protocol ProfileNameViewControllerDelegate: AnyObject {
 
 // MARK: -
 
-@objc
 class ProfileNameViewController: OWSTableViewController2 {
     private let givenNameTextField = OWSTextField()
     private let familyNameTextField = OWSTextField()
@@ -76,7 +74,7 @@ class ProfileNameViewController: OWSTableViewController2 {
     }
 
     private func updateNavigation() {
-        title = NSLocalizedString("PROFILE_NAME_VIEW_TITLE", comment: "Title for the profile name view.")
+        title = OWSLocalizedString("PROFILE_NAME_VIEW_TITLE", comment: "Title for the profile name view.")
 
         navigationItem.leftBarButtonItem = UIBarButtonItem(
             barButtonSystemItem: .cancel,
@@ -117,7 +115,7 @@ class ProfileNameViewController: OWSTableViewController2 {
         givenNameTextField.returnKeyType = .next
         givenNameTextField.autocorrectionType = .no
         givenNameTextField.spellCheckingType = .no
-        givenNameTextField.placeholder = NSLocalizedString(
+        givenNameTextField.placeholder = OWSLocalizedString(
             "PROFILE_VIEW_GIVEN_NAME_DEFAULT_TEXT",
             comment: "Default text for the given name field of the profile view."
         )
@@ -128,7 +126,7 @@ class ProfileNameViewController: OWSTableViewController2 {
         familyNameTextField.returnKeyType = .done
         familyNameTextField.autocorrectionType = .no
         familyNameTextField.spellCheckingType = .no
-        familyNameTextField.placeholder = NSLocalizedString(
+        familyNameTextField.placeholder = OWSLocalizedString(
             "PROFILE_VIEW_FAMILY_NAME_DEFAULT_TEXT",
             comment: "Default text for the family name field of the profile view."
         )
@@ -168,7 +166,7 @@ class ProfileNameViewController: OWSTableViewController2 {
             addTextField(familyNameTextField)
         }
 
-        contents.addSection(namesSection)
+        contents.add(namesSection)
 
         self.contents = contents
     }
@@ -178,7 +176,7 @@ class ProfileNameViewController: OWSTableViewController2 {
 
         cell.selectionStyle = .none
 
-        textField.font = .ows_dynamicTypeBodyClamped
+        textField.font = .dynamicTypeBodyClamped
         textField.textColor = Theme.primaryTextColor
 
         cell.addSubview(textField)
@@ -188,7 +186,7 @@ class ProfileNameViewController: OWSTableViewController2 {
     }
 
     @objc
-    func didTapCancel() {
+    private func didTapCancel() {
         guard hasUnsavedChanges else {
             dismiss(animated: true)
             return
@@ -200,9 +198,9 @@ class ProfileNameViewController: OWSTableViewController2 {
     }
 
     @objc
-    func didTapDone() {
+    private func didTapDone() {
         if normalizedGivenName?.isEmpty != false {
-            OWSActionSheets.showErrorAlert(message: NSLocalizedString(
+            OWSActionSheets.showErrorAlert(message: OWSLocalizedString(
                 "PROFILE_VIEW_ERROR_GIVEN_NAME_REQUIRED",
                 comment: "Error message shown when user tries to update profile without a given name"
             ))
@@ -210,7 +208,7 @@ class ProfileNameViewController: OWSTableViewController2 {
         }
 
         if profileManagerImpl.isProfileNameTooLong(normalizedGivenName) {
-            OWSActionSheets.showErrorAlert(message: NSLocalizedString(
+            OWSActionSheets.showErrorAlert(message: OWSLocalizedString(
                 "PROFILE_VIEW_ERROR_GIVEN_NAME_TOO_LONG",
                 comment: "Error message shown when user tries to update profile with a given name that is too long."
             ))
@@ -218,7 +216,7 @@ class ProfileNameViewController: OWSTableViewController2 {
         }
 
         if profileManagerImpl.isProfileNameTooLong(normalizedFamilyName) {
-            OWSActionSheets.showErrorAlert(message: NSLocalizedString(
+            OWSActionSheets.showErrorAlert(message: OWSLocalizedString(
                 "PROFILE_VIEW_ERROR_FAMILY_NAME_TOO_LONG",
                 comment: "Error message shown when user tries to update profile with a family name that is too long."
             ))

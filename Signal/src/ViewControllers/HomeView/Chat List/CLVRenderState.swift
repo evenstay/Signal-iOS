@@ -3,10 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalServiceKit
 
-@objc
-public class CLVRenderState: NSObject {
+public class CLVRenderState {
 
     let viewInfo: CLVViewInfo
 
@@ -16,7 +15,6 @@ public class CLVRenderState: NSObject {
     var archiveCount: UInt { viewInfo.archiveCount }
     var inboxCount: UInt { viewInfo.inboxCount }
 
-    @objc
     var visibleThreadCount: Int { pinnedThreads.count + unpinnedThreads.count }
 
     var hasArchivedThreadsRow: Bool { viewInfo.hasArchivedThreadsRow }
@@ -42,7 +40,6 @@ public class CLVRenderState: NSObject {
         !pinnedThreads.isEmpty && !unpinnedThreads.isEmpty
     }
 
-    @objc
     func thread(forIndexPath indexPath: IndexPath, expectsSuccess: Bool = true) -> TSThread? {
         guard let section = ChatListSection(rawValue: indexPath.section) else {
             if expectsSuccess {
@@ -76,7 +73,6 @@ public class CLVRenderState: NSObject {
         }
     }
 
-    @objc
     func indexPath(forUniqueId uniqueId: String) -> IndexPath? {
         if let index = (unpinnedThreads.firstIndex { $0.uniqueId == uniqueId}) {
             return IndexPath(item: index, section: ChatListSection.unpinned.rawValue)

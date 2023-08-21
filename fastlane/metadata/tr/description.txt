@@ -1,26 +1,19 @@
-Milyonlarca insan, Signal'i anlık iletişim için dünyanın her tarafından ücretsiz olarak kullanıyor. Yüksek netliğe sahip iletiler gönderin ve alın, sesli ve görüntülü aramalarda yer alın, bağlı kalmanıza yardımcı olacak genişleyen yeni özellikleri keşfedin. Signal'in gelişmiş gizlilik koruma teknolojisi her zaman açıktır, böylelikle önem verdiğiniz anıları sizin için önemli olan insanlarla paylaşmaya odaklanabilirsiniz.
+Signal, gizlilik odaklı bir mesajlaşma uygulamasıdır. İletişimi tamamen gizli tutan güçlü uçtan uca şifreleme ile ücretsiz ve kullanımı kolaydır.
 
-• İstediğinizi söyleyin – Teknoloji harikası uçtan uca şifreleme (açık kaynaklı Signal Protocol™) sohbetlerinizi güvenli tutar. Gizlilik isteğe bağlı bir kip değil, Signal'in çalışma şeklidir. Her ileti, her arama, her zaman.
+• Metinleri, sesli mesajları, fotoğrafları, videoları, GIF'leri ve dosyaları ücretsiz olarak gönderebilirsin. Signal, telefonunun veri bağlantısını kullanır böylece SMS ve MMS ücretlerinden kurtulursun.
 
-• Hızlanın – Yavaş bir bağlantıda bile iletiler hızlı ve güvenli bir şekilde gönderilir. Signal olabildiğince sıkıntılı ortamlarda çalışmak için optimize edildi.
+• Son derece net bir şekilde şifrelenmiş sesli ve görüntülü aramalarla arkadaşlarını arayabilirsin. Signal 40 kişiye kadar olan grup görüşmeleriyle destekliyor.
 
-• Özgür hissedin – Signal tamamen bağımsız 501c3 kar amacı gütmeyen kuruluştur. Yazılımın geliştirilmesi sizin gibi kullanıcılar tarafından desteklenmektedir. Reklam yok. İzleme yok. Şaka yok.
+• 1.000 kişiye kadar grup sohbetleriyle her zaman bağlantıda kal. Yönetici izin ayarları ile kimlerin paylaşım yapabileceğini ve grup üyelerini yönetebileceğini kontrol et.
 
-• Kendiniz olun – Arkadaşlarınızla güvenli bir şekilde iletişim kurmak için mevcut telefon numaranızı ve rehberinizi kullanabilirsiniz.
+• 24 saat sonra kaybolan resim, metin ve video Hikayeleri paylaş. Gizlilik ayarları, her bir Hikayeyi tam olarak kimlerin görebileceğini kontrol etmeni sağlar.
 
-• Konuşun – İster şehrin öbür ucunda ister okyanus ötesinde olsun, Signal'in gelişmiş ses ve görüntü kalitesi arkadaşlarınızı ve ailenizi size daha yakın hissettirecektir.
+• Signal, gizliliğin için tasarlandı. Senin hakkında veya kimlerle konuştuğun hakkında hiçbir şey bilmiyoruz. Açık kaynak Signal Protokolümüz, mesajlarını okuyamayacağımız veya aramalarını dinleyemeyeceğimiz anlamına gelir. Buna başkaları da dahil. Gizli giriş yok, veri toplama yok, taviz yok. 
 
-• Gölgelerde fısıldayın – Işığı görmeye dayanamıyorsanız karanlık temaya geçiş yapın.
+• Signal bağımsızdır ve kâr amacı gütmez, yani bildiğinden farklı türde bir kuruluştan farklı türde bir teknoloji sunar. 501c3 kapsamında kâr amacı gütmeyen bir kuruluş olarak reklamcılar veya yatırımcılar tarafından değil, senin gibi kişilerin bağışlarıyla destekleniyoruz. 
 
-• Tanıdık gelsin – Her kişiye farklı uyarı seçin, veya sesleri tamamen kapatın. Simon ve Garfunkel'in 1964 yılında hakkında popüler bir şarkı yazdığı sessizliğin sesini, istediğiniz zaman bildirim sesi ayarını "Hiçbiri" seçerek deneyimleyebilirsiniz.
+• Destek, sorular veya daha fazla bilgi için lütfen https://support.signal.org/ adresini ziyaret et.
 
-• Bunu çek – Gönderilen fotoğraflarınız üzerinde çizim, kırpma, döndürme gibi işlemleri yapmak için dahili görüntü düzenleyiciyi kullanın. 1,000 kelimeye bedel fotoğrafınıza daha da fazlasını ekleyebileceğiniz yazı yazma aracı bile var.
+Kaynak kodumuzu kontrol etmek için https://github.com/signalapp adresini ziyaret et. 
 
-
-Destek, soru veya daha fazla bilgi için lütfen aşağıdaki adresi ziyaret edin:
-https://support.signal.org
-
-Kaynak kodu:
-https://github.com/signalapp
-
-En son güncellemeler ve duyurular için Twitter (@signalapp) ve Instagram'da (@signal_app) bizi takip edin.
+Bizi Twitter'daki @signalapp ve Instagram'daki @signal_app hesaplarından takip edebilirsin

@@ -3,8 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
-import UIKit
+import SignalCoreKit
 
 protocol ApprovalRailCellViewDelegate: AnyObject {
     func approvalRailCellView(_ approvalRailCellView: ApprovalRailCellView,
@@ -32,13 +31,21 @@ class ApprovalRailCellView: GalleryRailCellView {
 
         button.alpha = 0
         button.bounds = CGRect(origin: .zero, size: CGSize(square: 24))
-        button.setImage(#imageLiteral(resourceName: "media-composer-trash"), for: .normal)
+        button.setImage(UIImage(imageLiteralResourceName: "trash-20"), for: .normal)
         button.tintColor = .white
         return button
     }()
 
-    override init(frame: CGRect) {
-        super.init(frame: frame)
+    init() {
+        let configuration = GalleryRailCellConfiguration(
+            cornerRadius: 10,
+            itemBorderWidth: 1.5,
+            itemBorderColor: .white,
+            focusedItemBorderWidth: 2,
+            focusedItemBorderColor: Theme.accentBlueColor,
+            focusedItemOverlayColor: .ows_blackAlpha50
+        )
+        super.init(configuration: configuration)
         addSubview(deleteButton)
     }
 
@@ -51,29 +58,21 @@ class ApprovalRailCellView: GalleryRailCellView {
         deleteButton.center = bounds.center
     }
 
-    override func setIsSelected(_ isSelected: Bool) {
-        super.setIsSelected(isSelected)
-
-        if isSelected {
-            if let approvalRailCellDelegate = self.approvalRailCellDelegate,
-               approvalRailCellDelegate.canRemoveApprovalRailCellView(self) {
-
+    override var isCellFocused: Bool {
+        didSet {
+            if isCellFocused, let approvalRailCellDelegate, approvalRailCellDelegate.canRemoveApprovalRailCellView(self) {
                 deleteButton.alpha = 1
-                dimmerView.backgroundColor = .ows_blackAlpha50
+            } else {
+                deleteButton.alpha = 0
             }
-        } else {
-            deleteButton.alpha = 0
-            dimmerView.backgroundColor = .clear
         }
     }
 }
 
 class AddMediaRailCellView: GalleryRailCellView {
 
-    override init(frame: CGRect) {
-        super.init(frame: frame)
-
-        dimmerView.isHidden = true
+    init() {
+        super.init(configuration: .empty)
     }
 
     required init?(coder aDecoder: NSCoder) {

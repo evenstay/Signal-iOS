@@ -3,13 +3,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import UIKit
 import SignalMessaging
 import SignalUI
 
-@objc
 public class ChatListCell: UITableViewCell {
-    @objc
+
     public static let reuseIdentifier = "ChatListCell"
 
     private var avatarView: ConversationAvatarView?
@@ -34,6 +32,7 @@ public class ChatListCell: UITableViewCell {
     public var isCellVisible = false {
         didSet {
             updateTypingIndicatorState()
+            spoilerConfigBuilder.isViewVisible = isCellVisible
         }
     }
 
@@ -77,10 +76,16 @@ public class ChatListCell: UITableViewCell {
     //   be rendered in the cell, its measurement/layout, etc.
     //   CLVCellContentToken is expensive to build.
     struct Configuration {
+
+        struct OverrideSnippet {
+            let text: CVTextValue
+            let config: HydratedMessageBody.DisplayConfiguration
+        }
+
         let thread: ThreadViewModel
         let lastReloadDate: Date?
         let isBlocked: Bool
-        let overrideSnippet: NSAttributedString?
+        let overrideSnippet: OverrideSnippet?
         let overrideDate: Date?
 
         fileprivate var hasOverrideSnippet: Bool {
@@ -103,11 +108,13 @@ public class ChatListCell: UITableViewCell {
             }
         }
 
-        init(thread: ThreadViewModel,
-             lastReloadDate: Date?,
-             isBlocked: Bool,
-             overrideSnippet: NSAttributedString? = nil,
-             overrideDate: Date? = nil) {
+        init(
+            thread: ThreadViewModel,
+            lastReloadDate: Date?,
+            isBlocked: Bool,
+            overrideSnippet: OverrideSnippet? = nil,
+            overrideDate: Date? = nil
+        ) {
             self.thread = thread
             self.lastReloadDate = lastReloadDate
             self.isBlocked = isBlocked
@@ -124,28 +131,28 @@ public class ChatListCell: UITableViewCell {
     // MARK: - View Constants
 
     private static var unreadFont: UIFont {
-        UIFont.ows_dynamicTypeCaption1Clamped
+        UIFont.dynamicTypeCaption1Clamped
     }
 
     private static var dateTimeFont: UIFont {
-        .ows_dynamicTypeCaption1Clamped
+        .dynamicTypeCaption1Clamped
     }
 
     private static var snippetFont: UIFont {
-        .ows_dynamicTypeSubheadlineClamped
+        .dynamicTypeSubheadlineClamped
     }
 
     private static var nameFont: UIFont {
-        UIFont.ows_dynamicTypeBodyClamped.ows_semibold
+        UIFont.dynamicTypeBodyClamped.semibold()
     }
 
     // Used for profile names.
     private static var nameSecondaryFont: UIFont {
-        UIFont.ows_dynamicTypeBodyClamped.ows_italic
+        UIFont.dynamicTypeBodyClamped.italic()
     }
 
-    private static var snippetColor: UIColor {
-        Theme.isDarkThemeEnabled ? .ows_gray25 : .ows_gray45
+    private static var snippetColor: ThemedColor {
+        return ThemedColor(light: .ows_gray45, dark: .ows_gray25)
     }
 
     // This value is now larger than AvatarBuilder.standardAvatarSizePoints.
@@ -253,7 +260,7 @@ public class ChatListCell: UITableViewCell {
 
         // Reserve space for two lines of snippet text, taking into account
         // the worst-case snippet content.
-        let snippetLineHeight = CGFloat(ceil(snippetLabelConfig.font.ows_semibold.lineHeight * 1.2))
+        let snippetLineHeight = CGFloat(ceil(snippetLabelConfig.font.semibold().lineHeight * 1.2))
 
         // Use a fixed size for the snippet label and its wrapper.
         let bottomRowWrapperSize = CGSize(width: 0, height: snippetLineHeight * 2)
@@ -307,7 +314,11 @@ public class ChatListCell: UITableViewCell {
                                   unreadBadgeMeasurements: unreadBadgeMeasurements)
     }
 
-    func configure(cellContentToken: CLVCellContentToken, asyncAvatarLoadingAllowed: Bool = true) {
+    func configure(
+        cellContentToken: CLVCellContentToken,
+        spoilerAnimationManager: SpoilerAnimationManager,
+        asyncAvatarLoadingAllowed: Bool = true
+    ) {
         AssertIsOnMainThread()
 
         OWSTableItem.configureCell(self)
@@ -337,6 +348,9 @@ public class ChatListCell: UITableViewCell {
         let snippetLineHeight = measurements.snippetLineHeight
 
         snippetLabelConfig.applyForRendering(label: snippetLabel)
+        spoilerConfigBuilder.text = snippetLabelConfig.text
+        spoilerConfigBuilder.displayConfig = snippetLabelConfig.displayConfig
+        spoilerConfigBuilder.animationManager = spoilerAnimationManager
 
         owsAssertDebug(avatarView == nil, "ChatListCell.configure without prior reset called")
         avatarView = ConversationAvatarView(sizeClass: .fiftySix, localUserDisplayMode: .noteToSelf, useAutolayout: true)
@@ -378,9 +392,8 @@ public class ChatListCell: UITableViewCell {
         topRowStackSubviews.append(nameLabel)
 
         if shouldShowMuteIndicator {
-            muteIconView.setTemplateImageName("bell-disabled-outline-24",
-                                              tintColor: Theme.primaryTextColor)
-            muteIconView.tintColor = Self.snippetColor
+            muteIconView.image = UIImage(imageLiteralResourceName: "bell-slash")
+            muteIconView.tintColor = Self.snippetColor.color(isDarkThemeEnabled: Theme.isDarkThemeEnabled)
             topRowStackSubviews.append(muteIconView)
         }
 
@@ -409,7 +422,7 @@ public class ChatListCell: UITableViewCell {
             let snippetSize = self.snippetLabel.sizeThatFits(view.bounds.size)
             if DebugFlags.internalLogging,
                snippetSize.height > snippetLineHeight * 2 {
-                owsFailDebug("view: \(view.bounds.size), snippetSize: \(snippetSize), snippetLineHeight: \(snippetLineHeight), snippetLabelConfig: \(snippetLabelConfig.stringValue)")
+                owsFailDebug("view: \(view.bounds.size), snippetSize: \(snippetSize), snippetLineHeight: \(snippetLineHeight), snippetLabelConfig: \(snippetLabelConfig)")
             }
             let snippetFrame = CGRect(x: 0,
                                       y: 0,
@@ -557,7 +570,7 @@ public class ChatListCell: UITableViewCell {
         }
 
         var statusIndicatorImage: UIImage?
-        var messageStatusViewTintColor = snippetColor
+        var messageStatusViewTintColor = snippetColor.color(isDarkThemeEnabled: Theme.isDarkThemeEnabled)
         var shouldAnimateStatusIcon = false
 
         let messageStatus =
@@ -582,10 +595,10 @@ public class ChatListCell: UITableViewCell {
             }
             statusIndicatorImage = UIImage(named: "message_status_read")
         case .failed:
-            statusIndicatorImage = UIImage(named: "error-outline-12")
+            statusIndicatorImage = UIImage(named: "error-circle-extra-small")
             messageStatusViewTintColor = .ows_accentRed
         case .pending:
-            statusIndicatorImage = UIImage(named: "error-outline-12")
+            statusIndicatorImage = UIImage(named: "error-circle-extra-small")
             messageStatusViewTintColor = .ows_gray60
         }
         if statusIndicatorImage == nil {
@@ -635,12 +648,14 @@ public class ChatListCell: UITableViewCell {
         case .unreadWithCount(let unreadCount):
             text = unreadCount > 0 ? OWSFormat.formatUInt(unreadCount) : ""
         }
-        return CVLabelConfig(text: text,
-                             font: unreadFont,
-                             textColor: .ows_white,
-                             numberOfLines: 1,
-                             lineBreakMode: .byTruncatingTail,
-                             textAlignment: .center)
+        return CVLabelConfig.unstyledText(
+            text,
+            font: unreadFont,
+            textColor: .ows_white,
+            numberOfLines: 1,
+            lineBreakMode: .byTruncatingTail,
+            textAlignment: .center
+        )
     }
 
     private static func measureUnreadBadge(unreadIndicatorLabelConfig: CVLabelConfig?) -> CLVUnreadBadgeMeasurements? {
@@ -688,109 +703,115 @@ public class ChatListCell: UITableViewCell {
 
     // MARK: - Label Configs
 
-    private static func attributedSnippet(configuration: Configuration) -> NSAttributedString {
+    private static func cvTextSnippet(configuration: Configuration) -> CVTextValue {
         owsAssertDebug(configuration.thread.chatListInfo != nil)
         let snippet: CLVSnippet = configuration.thread.chatListInfo?.snippet ?? .none
 
         switch snippet {
         case .blocked:
-            return NSAttributedString(string: NSLocalizedString("HOME_VIEW_BLOCKED_CONVERSATION",
-                                                                comment: "Table cell subtitle label for a conversation the user has blocked."),
-                                      attributes: [
-                                        .font: snippetFont,
-                                        .foregroundColor: snippetColor
-                                      ])
+            return .attributedText(
+                NSAttributedString(
+                    string: OWSLocalizedString(
+                        "HOME_VIEW_BLOCKED_CONVERSATION",
+                        comment: "Table cell subtitle label for a conversation the user has blocked."
+                    ),
+                    attributes: [
+                        .font: snippetFont,
+                        .foregroundColor: snippetColor.color(isDarkThemeEnabled: Theme.isDarkThemeEnabled)
+                    ]
+                )
+            )
         case .pendingMessageRequest(let addedToGroupByName):
             // If you haven't accepted the message request for this thread, don't show the latest message
 
             // For group threads, show who we think added you (if we know)
             if let addedToGroupByName = addedToGroupByName {
-                let addedToGroupFormat = NSLocalizedString("HOME_VIEW_MESSAGE_REQUEST_ADDED_TO_GROUP_FORMAT",
-                                                           comment: "Table cell subtitle label for a group the user has been added to. {Embeds inviter name}")
-                return NSAttributedString(string: String(format: addedToGroupFormat, addedToGroupByName),
-                                          attributes: [
-                                            .font: snippetFont,
-                                            .foregroundColor: snippetColor
-                                          ])
+                let addedToGroupFormat = OWSLocalizedString(
+                    "HOME_VIEW_MESSAGE_REQUEST_ADDED_TO_GROUP_FORMAT",
+                    comment: "Table cell subtitle label for a group the user has been added to. {Embeds inviter name}"
+                )
+                return .attributedText(
+                    NSAttributedString(
+                        string: String(format: addedToGroupFormat, addedToGroupByName),
+                        attributes: [
+                            .font: snippetFont,
+                            .foregroundColor: snippetColor.color(isDarkThemeEnabled: Theme.isDarkThemeEnabled)
+                        ]
+                    )
+                )
             } else {
                 // Otherwise just show a generic "message request" message
-                let text = NSLocalizedString("HOME_VIEW_MESSAGE_REQUEST_CONVERSATION",
-                                             comment: "Table cell subtitle label for a conversation the user has not accepted.")
-                return NSAttributedString(string: text,
-                                          attributes: [
-                                            .font: snippetFont,
-                                            .foregroundColor: snippetColor
-                                          ])
+                let text = OWSLocalizedString(
+                    "HOME_VIEW_MESSAGE_REQUEST_CONVERSATION",
+                    comment: "Table cell subtitle label for a conversation the user has not accepted."
+                )
+                return .attributedText(
+                    NSAttributedString(
+                        string: text,
+                        attributes: [
+                            .font: snippetFont,
+                            .foregroundColor: snippetColor.color(isDarkThemeEnabled: Theme.isDarkThemeEnabled)
+                        ]
+                    )
+                )
             }
         case .draft(let draftText):
-            let snippetText = NSMutableAttributedString()
-            snippetText.append(NSLocalizedString("HOME_VIEW_DRAFT_PREFIX",
-                                                 comment: "A prefix indicating that a message preview is a draft"),
-                               attributes: [
-                                .font: snippetFont.ows_italic,
-                                .foregroundColor: snippetColor
-                               ])
-            snippetText.append(draftText,
-                               attributes: [
-                                .font: snippetFont,
-                                .foregroundColor: snippetColor
-                               ])
-            return snippetText
+            let prefixText = OWSLocalizedString(
+                "HOME_VIEW_DRAFT_PREFIX",
+                comment: "A prefix indicating that a message preview is a draft"
+            )
+            let prefix = StyleOnlyMessageBody(
+                text: prefixText,
+                style: .italic
+            )
+            return .messageBody(draftText.addingStyledPrefix(prefix))
         case .voiceMemoDraft:
             let snippetText = NSMutableAttributedString()
-            snippetText.append(NSLocalizedString("HOME_VIEW_DRAFT_PREFIX",
-                                                 comment: "A prefix indicating that a message preview is a draft"),
-                               attributes: [
-                                .font: snippetFont.ows_italic,
-                                .foregroundColor: snippetColor
-                               ])
-            snippetText.append("🎤",
-                               attributes: [
-                                .font: snippetFont,
-                                .foregroundColor: snippetColor
-                               ])
-            snippetText.append(" ",
-                               attributes: [
-                                .font: snippetFont,
-                                .foregroundColor: snippetColor
-                               ])
-            snippetText.append(NSLocalizedString("ATTACHMENT_TYPE_VOICE_MESSAGE",
-                                                 comment: "Short text label for a voice message attachment, used for thread preview and on the lock screen"),
-                               attributes: [
-                                .font: snippetFont,
-                                .foregroundColor: snippetColor
-                               ])
-            return snippetText
+            snippetText.append(
+                OWSLocalizedString(
+                    "HOME_VIEW_DRAFT_PREFIX",
+                    comment: "A prefix indicating that a message preview is a draft"
+                ),
+                attributes: [
+                    .font: snippetFont.italic(),
+                    .foregroundColor: snippetColor.color(isDarkThemeEnabled: Theme.isDarkThemeEnabled)
+                ]
+            )
+            snippetText.append(
+                "🎤",
+                attributes: [
+                    .font: snippetFont,
+                    .foregroundColor: snippetColor.color(isDarkThemeEnabled: Theme.isDarkThemeEnabled)
+                ]
+            )
+            snippetText.append(
+                " ",
+                attributes: [
+                    .font: snippetFont,
+                    .foregroundColor: snippetColor.color(isDarkThemeEnabled: Theme.isDarkThemeEnabled)
+                ]
+            )
+            snippetText.append(
+                OWSLocalizedString(
+                    "ATTACHMENT_TYPE_VOICE_MESSAGE",
+                    comment: "Short text label for a voice message attachment, used for thread preview and on the lock screen"
+                ),
+                attributes: [
+                    .font: snippetFont,
+                    .foregroundColor: snippetColor.color(isDarkThemeEnabled: Theme.isDarkThemeEnabled)
+                ]
+            )
+            return .attributedText(snippetText)
         case .contactSnippet(let lastMessageText):
-            return NSAttributedString(string: lastMessageText,
-                                      attributes: [
-                                        .font: snippetFont,
-                                        .foregroundColor: snippetColor
-                                      ])
+            return .messageBody(lastMessageText)
         case .groupSnippet(let lastMessageText, let senderName):
-            let snippetText = NSMutableAttributedString()
-            snippetText.append(senderName,
-                               attributes: [
-                                .font: snippetFont.ows_medium,
-                                .foregroundColor: snippetColor
-                               ])
-            snippetText.append(":",
-                               attributes: [
-                                .font: snippetFont.ows_medium,
-                                .foregroundColor: snippetColor
-                               ])
-            snippetText.append(" ",
-                               attributes: [
-                                .font: snippetFont
-                               ])
-            snippetText.append(lastMessageText,
-                               attributes: [
-                                .font: snippetFont,
-                                .foregroundColor: snippetColor
-                               ])
-            return snippetText
+            let prefix = StyleOnlyMessageBody(
+                text: "\(senderName): ",
+                style: .bold
+            )
+            return .messageBody(lastMessageText.addingStyledPrefix(prefix))
         case .none:
-            return NSAttributedString(string: "")
+            return .text("")
         }
     }
 
@@ -804,10 +825,12 @@ public class ChatListCell: UITableViewCell {
         if let labelDate = configuration.overrideDate ?? thread.chatListInfo?.lastMessageDate {
             text = DateUtil.formatDateShort(labelDate)
         }
-        return CVLabelConfig(text: text,
-                             font: dateTimeFont,
-                             textColor: snippetColor,
-                             textAlignment: .trailing)
+        return CVLabelConfig.unstyledText(
+            text,
+            font: dateTimeFont,
+            textColor: snippetColor.color(isDarkThemeEnabled: Theme.isDarkThemeEnabled),
+            textAlignment: .trailing
+        )
     }
 
     private static func nameLabelConfig(configuration: Configuration) -> CVLabelConfig {
@@ -827,29 +850,37 @@ public class ChatListCell: UITableViewCell {
                 }
             }
         }()
-        return CVLabelConfig(text: text,
-                             font: nameFont,
-                             textColor: Theme.primaryTextColor,
-                             lineBreakMode: .byTruncatingTail)
+        return CVLabelConfig.unstyledText(
+            text,
+            font: nameFont,
+            textColor: Theme.primaryTextColor,
+            lineBreakMode: .byTruncatingTail
+        )
     }
 
     private static func snippetLabelConfig(configuration: Configuration) -> CVLabelConfig {
-        let attributedText: NSAttributedString = {
-            if let overrideSnippet = configuration.overrideSnippet {
-                return overrideSnippet
-            }
-            return self.attributedSnippet(configuration: configuration)
-        }()
-        return CVLabelConfig(attributedText: attributedText,
-                             font: snippetFont,
-                             textColor: snippetColor,
-                             numberOfLines: 2,
-                             lineBreakMode: .byTruncatingTail)
+        let textColor = snippetColor.color(isDarkThemeEnabled: Theme.isDarkThemeEnabled)
+        let text: CVTextValue
+        let displayConfig: HydratedMessageBody.DisplayConfiguration
+        if let overrideSnippet = configuration.overrideSnippet {
+            text = overrideSnippet.text
+            displayConfig = overrideSnippet.config
+        } else {
+            text = self.cvTextSnippet(configuration: configuration)
+            displayConfig = .conversationListSnippet(font: snippetFont, textColor: snippetColor)
+        }
+        return CVLabelConfig(
+            text: text,
+            displayConfig: displayConfig,
+            font: snippetFont,
+            textColor: textColor,
+            numberOfLines: 2,
+            lineBreakMode: .byTruncatingTail
+        )
     }
 
     // MARK: - Reuse
 
-    @objc
     public override func prepareForReuse() {
         super.prepareForReuse()
 
@@ -869,9 +900,24 @@ public class ChatListCell: UITableViewCell {
 
         cellContentToken = nil
         typingIndicatorView.resetForReuse()
+        spoilerConfigBuilder.text = nil
 
         NotificationCenter.default.removeObserver(self)
     }
+
+    // MARK: - Spoiler animation
+
+    private lazy var spoilerConfigBuilder = SpoilerableTextConfig.Builder(isViewVisible: isCellVisible) {
+        didSet {
+            snippetLabelSpoilerAnimator.updateAnimationState(spoilerConfigBuilder)
+        }
+    }
+
+    private lazy var snippetLabelSpoilerAnimator: SpoilerableLabelAnimator = {
+        let animator = SpoilerableLabelAnimator(label: snippetLabel)
+        animator.updateAnimationState(spoilerConfigBuilder)
+        return animator
+    }()
 
     // MARK: - Name
 

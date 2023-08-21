@@ -3,10 +3,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import Photos
 import PhotosUI
 import SignalMessaging
+import SignalUI
 
 protocol RecentPhotosDelegate: AnyObject {
     var isMediaLibraryAccessGranted: Bool { get }
@@ -48,7 +48,7 @@ class RecentPhotosCollectionView: UICollectionView {
         library.add(delegate: self)
         return library
     }()
-    private lazy var collection = photoLibrary.defaultPhotoCollection()
+    private lazy var collection = photoLibrary.defaultPhotoAlbum()
     private lazy var collectionContents = collection.contents(ascending: false, limit: maxRecentPhotos)
 
     var itemSize: CGSize = .zero {
@@ -64,7 +64,7 @@ class RecentPhotosCollectionView: UICollectionView {
         return size
     }
 
-    private let collectionViewFlowLayout = UICollectionViewFlowLayout()
+    private let collectionViewFlowLayout = RTLEnabledCollectionViewFlowLayout()
 
     init() {
         super.init(frame: .zero, collectionViewLayout: collectionViewFlowLayout)
@@ -134,7 +134,7 @@ extension RecentPhotosCollectionView: UICollectionViewDelegate {
             self?.fetchingAttachmentIndex = nil
         }.catch { error in
             Logger.error("Error: \(error)")
-            OWSActionSheets.showActionSheet(title: NSLocalizedString("IMAGE_PICKER_FAILED_TO_PROCESS_ATTACHMENTS", comment: "alert title"))
+            OWSActionSheets.showActionSheet(title: OWSLocalizedString("IMAGE_PICKER_FAILED_TO_PROCESS_ATTACHMENTS", comment: "alert title"))
         }
     }
 }
@@ -179,7 +179,7 @@ extension RecentPhotosCollectionView: UICollectionViewDataSource {
     }
 }
 
-class SelectMorePhotosCell: UICollectionViewCell {
+private class SelectMorePhotosCell: UICollectionViewCell {
 
     static let reuseIdentifier = "SelectMorePhotosCell"
 
@@ -199,9 +199,9 @@ class SelectMorePhotosCell: UICollectionViewCell {
         titleLabel.numberOfLines = 0
         titleLabel.lineBreakMode = .byWordWrapping
         titleLabel.textAlignment = .center
-        titleLabel.font = fixedFont.ows_semibold
+        titleLabel.font = fixedFont.semibold()
         titleLabel.textColor = Theme.primaryTextColor
-        titleLabel.text = NSLocalizedString(
+        titleLabel.text = OWSLocalizedString(
             "IMAGE_PICKER_CHANGE_PHOTOS_TITLE",
             comment: "Title show that the user has granted limited access to their photos and can change that in the Settings app."
         )
@@ -212,7 +212,7 @@ class SelectMorePhotosCell: UICollectionViewCell {
         explanationLabel.textAlignment = .center
         explanationLabel.font = fixedFont
         explanationLabel.textColor = Theme.secondaryTextAndIconColor
-        explanationLabel.text = NSLocalizedString(
+        explanationLabel.text = OWSLocalizedString(
             "IMAGE_PICKER_CHANGE_PHOTOS_EXPLANATION",
             comment: "Explanation showing that the user has granted limited access to their photos and can change that in the Settings app."
         )
@@ -220,7 +220,7 @@ class SelectMorePhotosCell: UICollectionViewCell {
         let button = OWSFlatButton()
         button.useDefaultCornerRadius()
         button.setTitle(
-            title: NSLocalizedString(
+            title: OWSLocalizedString(
                 "IMAGE_PICKER_CHANGE_PHOTOS",
                 comment: "Button that will present a view for the user to change the photos Signal has access to."
             ),
@@ -263,7 +263,7 @@ class SelectMorePhotosCell: UICollectionViewCell {
     }
 }
 
-class RecentPhotoCell: UICollectionViewCell {
+private class RecentPhotoCell: UICollectionViewCell {
 
     static let reuseIdentifier = "RecentPhotoCell"
 
@@ -271,7 +271,7 @@ class RecentPhotoCell: UICollectionViewCell {
     private var contentTypeBadgeView: UIImageView?
     private var durationLabel: UILabel?
     private var durationLabelBackground: UIView?
-    let loadingIndicator = UIActivityIndicatorView(style: .whiteLarge)
+    let loadingIndicator = UIActivityIndicatorView(style: .large)
 
     var item: PhotoGridItem?
 
@@ -303,7 +303,7 @@ class RecentPhotoCell: UICollectionViewCell {
     override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
         super.traitCollectionDidChange(previousTraitCollection)
 
-        if let durationLabel = durationLabel,
+        if let durationLabel,
            previousTraitCollection?.preferredContentSizeCategory != traitCollection.preferredContentSizeCategory {
             durationLabel.font = RecentPhotoCell.durationLabelFont()
         }
@@ -319,7 +319,7 @@ class RecentPhotoCell: UICollectionViewCell {
 
     private static func durationLabelFont() -> UIFont {
         let fontDescriptor = UIFontDescriptor.preferredFontDescriptor(withTextStyle: .caption1)
-        return UIFont.ows_semiboldFont(withSize: max(12, fontDescriptor.pointSize))
+        return UIFont.semiboldFont(ofSize: max(12, fontDescriptor.pointSize))
     }
 
     private func setContentTypeBadge(image: UIImage?) {
@@ -341,7 +341,7 @@ class RecentPhotoCell: UICollectionViewCell {
     }
 
     private func setMedia(itemType: PhotoGridItemType) {
-        guard case .video(let duration) = itemType else {
+        guard case .video(let promisedDuration) = itemType, let duration = promisedDuration.value else {
             durationLabel?.isHidden = true
             durationLabelBackground?.isHidden = true
             return
@@ -402,7 +402,7 @@ class RecentPhotoCell: UICollectionViewCell {
 
         switch item.type {
         case .animated:
-            setContentTypeBadge(image: #imageLiteral(resourceName: "ic_gallery_badge_gif"))
+            setContentTypeBadge(image: UIImage(imageLiteralResourceName: "gif-rectangle"))
         case .photo, .video:
             setContentTypeBadge(image: nil)
         }

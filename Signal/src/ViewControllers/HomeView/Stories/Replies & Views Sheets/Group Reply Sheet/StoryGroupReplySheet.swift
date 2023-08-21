@@ -3,10 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalMessaging
 import SignalServiceKit
-import UIKit
+import SignalUI
 
 class StoryGroupReplySheet: InteractiveSheetViewController, StoryGroupReplier {
     override var interactiveScrollViews: [UIScrollView] { [groupReplyViewController.tableView] }
@@ -19,8 +18,8 @@ class StoryGroupReplySheet: InteractiveSheetViewController, StoryGroupReplier {
     var storyMessage: StoryMessage { groupReplyViewController.storyMessage }
     var threadUniqueId: String? { groupReplyViewController.thread?.uniqueId }
 
-    init(storyMessage: StoryMessage) {
-        self.groupReplyViewController = StoryGroupReplyViewController(storyMessage: storyMessage)
+    init(storyMessage: StoryMessage, spoilerState: SpoilerRenderState) {
+        self.groupReplyViewController = StoryGroupReplyViewController(storyMessage: storyMessage, spoilerState: spoilerState)
 
         super.init()
 

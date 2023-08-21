@@ -58,6 +58,7 @@ public struct AttachmentRecord: SDSRecord {
     public let cdnNumber: UInt32
     public let isAnimatedCached: Bool?
     public let attachmentSchemaVersion: UInt
+    public let videoDuration: Double?
 
     public enum CodingKeys: String, CodingKey, ColumnExpression, CaseIterable {
         case id
@@ -90,6 +91,7 @@ public struct AttachmentRecord: SDSRecord {
         case cdnNumber
         case isAnimatedCached
         case attachmentSchemaVersion
+        case videoDuration
     }
 
     public static func columnName(_ column: AttachmentRecord.CodingKeys, fullyQualified: Bool = false) -> String {
@@ -143,6 +145,7 @@ public extension AttachmentRecord {
         cdnNumber = row[27]
         isAnimatedCached = row[28]
         attachmentSchemaVersion = row[29]
+        videoDuration = row[30]
     }
 }
 
@@ -159,7 +162,6 @@ public extension String.StringInterpolation {
 
 // MARK: - Deserialization
 
-// TODO: Rework metadata to not include, for example, columns, column indices.
 extension TSAttachment {
     // This method defines how to deserialize a model, given a
     // database row.  The recordType column is used to determine
@@ -187,6 +189,7 @@ extension TSAttachment {
             let serverId: UInt64 = record.serverId
             let sourceFilename: String? = record.sourceFilename
             let uploadTimestamp: UInt64 = record.uploadTimestamp
+            let videoDuration: NSNumber? = SDSDeserialization.optionalNumericAsNSNumber(record.videoDuration, name: "videoDuration", conversion: { NSNumber(value: $0) })
 
             return TSAttachment(grdbId: recordId,
                                 uniqueId: uniqueId,
@@ -202,7 +205,8 @@ extension TSAttachment {
                                 encryptionKey: encryptionKey,
                                 serverId: serverId,
                                 sourceFilename: sourceFilename,
-                                uploadTimestamp: uploadTimestamp)
+                                uploadTimestamp: uploadTimestamp,
+                                videoDuration: videoDuration)
 
         case .attachmentPointer:
 
@@ -220,6 +224,7 @@ extension TSAttachment {
             let serverId: UInt64 = record.serverId
             let sourceFilename: String? = record.sourceFilename
             let uploadTimestamp: UInt64 = record.uploadTimestamp
+            let videoDuration: NSNumber? = SDSDeserialization.optionalNumericAsNSNumber(record.videoDuration, name: "videoDuration", conversion: { NSNumber(value: $0) })
             let digest: Data? = SDSDeserialization.optionalData(record.digest, name: "digest")
             let lazyRestoreFragmentId: String? = record.lazyRestoreFragmentId
             let mediaSizeSerialized: Data? = record.mediaSize
@@ -246,6 +251,7 @@ extension TSAttachment {
                                        serverId: serverId,
                                        sourceFilename: sourceFilename,
                                        uploadTimestamp: uploadTimestamp,
+                                       videoDuration: videoDuration,
                                        digest: digest,
                                        lazyRestoreFragmentId: lazyRestoreFragmentId,
                                        mediaSize: mediaSize,
@@ -268,6 +274,7 @@ extension TSAttachment {
             let serverId: UInt64 = record.serverId
             let sourceFilename: String? = record.sourceFilename
             let uploadTimestamp: UInt64 = record.uploadTimestamp
+            let videoDuration: NSNumber? = SDSDeserialization.optionalNumericAsNSNumber(record.videoDuration, name: "videoDuration", conversion: { NSNumber(value: $0) })
             let cachedAudioDurationSeconds: NSNumber? = SDSDeserialization.optionalNumericAsNSNumber(record.cachedAudioDurationSeconds, name: "cachedAudioDurationSeconds", conversion: { NSNumber(value: $0) })
             let cachedImageHeight: NSNumber? = SDSDeserialization.optionalNumericAsNSNumber(record.cachedImageHeight, name: "cachedImageHeight", conversion: { NSNumber(value: $0) })
             let cachedImageWidth: NSNumber? = SDSDeserialization.optionalNumericAsNSNumber(record.cachedImageWidth, name: "cachedImageWidth", conversion: { NSNumber(value: $0) })
@@ -297,6 +304,7 @@ extension TSAttachment {
                                       serverId: serverId,
                                       sourceFilename: sourceFilename,
                                       uploadTimestamp: uploadTimestamp,
+                                      videoDuration: videoDuration,
                                       cachedAudioDurationSeconds: cachedAudioDurationSeconds,
                                       cachedImageHeight: cachedImageHeight,
                                       cachedImageWidth: cachedImageWidth,
@@ -348,7 +356,7 @@ extension TSAttachment: SDSModel {
 
     public class func anyEnumerateIndexable(
         transaction: SDSAnyReadTransaction,
-        block: @escaping (SDSIndexableModel) -> Void
+        block: (SDSIndexableModel) -> Void
     ) {
         anyEnumerate(transaction: transaction, batched: false) { model, _ in
             block(model)
@@ -384,6 +392,7 @@ extension TSAttachment: DeepCopyable {
             let serverId: UInt64 = modelToCopy.serverId
             let sourceFilename: String? = modelToCopy.sourceFilename
             let uploadTimestamp: UInt64 = modelToCopy.uploadTimestamp
+            let videoDuration: NSNumber? = modelToCopy.videoDuration
             let cachedAudioDurationSeconds: NSNumber? = modelToCopy.cachedAudioDurationSeconds
             let cachedImageHeight: NSNumber? = modelToCopy.cachedImageHeight
             let cachedImageWidth: NSNumber? = modelToCopy.cachedImageWidth
@@ -410,6 +419,7 @@ extension TSAttachment: DeepCopyable {
                                       serverId: serverId,
                                       sourceFilename: sourceFilename,
                                       uploadTimestamp: uploadTimestamp,
+                                      videoDuration: videoDuration,
                                       cachedAudioDurationSeconds: cachedAudioDurationSeconds,
                                       cachedImageHeight: cachedImageHeight,
                                       cachedImageWidth: cachedImageWidth,
@@ -438,6 +448,7 @@ extension TSAttachment: DeepCopyable {
             let serverId: UInt64 = modelToCopy.serverId
             let sourceFilename: String? = modelToCopy.sourceFilename
             let uploadTimestamp: UInt64 = modelToCopy.uploadTimestamp
+            let videoDuration: NSNumber? = modelToCopy.videoDuration
             let digest: Data? = modelToCopy.digest
             let lazyRestoreFragmentId: String? = modelToCopy.lazyRestoreFragmentId
             let mediaSize: CGSize = modelToCopy.mediaSize
@@ -459,6 +470,7 @@ extension TSAttachment: DeepCopyable {
                                        serverId: serverId,
                                        sourceFilename: sourceFilename,
                                        uploadTimestamp: uploadTimestamp,
+                                       videoDuration: videoDuration,
                                        digest: digest,
                                        lazyRestoreFragmentId: lazyRestoreFragmentId,
                                        mediaSize: mediaSize,
@@ -483,6 +495,7 @@ extension TSAttachment: DeepCopyable {
             let serverId: UInt64 = modelToCopy.serverId
             let sourceFilename: String? = modelToCopy.sourceFilename
             let uploadTimestamp: UInt64 = modelToCopy.uploadTimestamp
+            let videoDuration: NSNumber? = modelToCopy.videoDuration
 
             return TSAttachment(grdbId: id,
                                 uniqueId: uniqueId,
@@ -498,7 +511,8 @@ extension TSAttachment: DeepCopyable {
                                 encryptionKey: encryptionKey,
                                 serverId: serverId,
                                 sourceFilename: sourceFilename,
-                                uploadTimestamp: uploadTimestamp)
+                                uploadTimestamp: uploadTimestamp,
+                                videoDuration: videoDuration)
         }
 
     }
@@ -541,9 +555,8 @@ extension TSAttachmentSerializer {
     static var cdnNumberColumn: SDSColumnMetadata { SDSColumnMetadata(columnName: "cdnNumber", columnType: .int64) }
     static var isAnimatedCachedColumn: SDSColumnMetadata { SDSColumnMetadata(columnName: "isAnimatedCached", columnType: .int, isOptional: true) }
     static var attachmentSchemaVersionColumn: SDSColumnMetadata { SDSColumnMetadata(columnName: "attachmentSchemaVersion", columnType: .int64) }
+    static var videoDurationColumn: SDSColumnMetadata { SDSColumnMetadata(columnName: "videoDuration", columnType: .double, isOptional: true) }
 
-    // TODO: We should decide on a naming convention for
-    //       tables that store models.
     public static var table: SDSTableMetadata {
         SDSTableMetadata(collection: TSAttachment.collection(),
                          tableName: "model_TSAttachment",
@@ -577,7 +590,8 @@ extension TSAttachmentSerializer {
         cdnKeyColumn,
         cdnNumberColumn,
         isAnimatedCachedColumn,
-        attachmentSchemaVersionColumn
+        attachmentSchemaVersionColumn,
+        videoDurationColumn
         ])
     }
 }
@@ -722,14 +736,6 @@ public class TSAttachmentCursor: NSObject, SDSCursor {
 
 // MARK: - Obj-C Fetch
 
-// TODO: We may eventually want to define some combination of:
-//
-// * fetchCursor, fetchOne, fetchAll, etc. (ala GRDB)
-// * Optional "where clause" parameters for filtering.
-// * Async flavors with completions.
-//
-// TODO: I've defined flavors that take a read transaction.
-//       Or we might take a "connection" if we end up having that class.
 @objc
 public extension TSAttachment {
     class func grdbFetchCursor(transaction: GRDBReadTransaction) -> TSAttachmentCursor {
@@ -738,6 +744,10 @@ public extension TSAttachment {
             let cursor = try AttachmentRecord.fetchCursor(database)
             return TSAttachmentCursor(transaction: transaction, cursor: cursor)
         } catch {
+            DatabaseCorruptionState.flagDatabaseReadCorruptionIfNecessary(
+                userDefaults: CurrentAppContext().appUserDefaults(),
+                error: error
+            )
             owsFailDebug("Read failed: \(error)")
             return TSAttachmentCursor(transaction: transaction, cursor: nil)
         }
@@ -771,16 +781,20 @@ public extension TSAttachment {
 
     // Traverses all records.
     // Records are not visited in any particular order.
-    class func anyEnumerate(transaction: SDSAnyReadTransaction,
-                            block: @escaping (TSAttachment, UnsafeMutablePointer<ObjCBool>) -> Void) {
+    class func anyEnumerate(
+        transaction: SDSAnyReadTransaction,
+        block: (TSAttachment, UnsafeMutablePointer<ObjCBool>) -> Void
+    ) {
         anyEnumerate(transaction: transaction, batched: false, block: block)
     }
 
     // Traverses all records.
     // Records are not visited in any particular order.
-    class func anyEnumerate(transaction: SDSAnyReadTransaction,
-                            batched: Bool = false,
-                            block: @escaping (TSAttachment, UnsafeMutablePointer<ObjCBool>) -> Void) {
+    class func anyEnumerate(
+        transaction: SDSAnyReadTransaction,
+        batched: Bool = false,
+        block: (TSAttachment, UnsafeMutablePointer<ObjCBool>) -> Void
+    ) {
         let batchSize = batched ? Batching.kDefaultBatchSize : 0
         anyEnumerate(transaction: transaction, batchSize: batchSize, block: block)
     }
@@ -789,9 +803,11 @@ public extension TSAttachment {
     // Records are not visited in any particular order.
     //
     // If batchSize > 0, the enumeration is performed in autoreleased batches.
-    class func anyEnumerate(transaction: SDSAnyReadTransaction,
-                            batchSize: UInt,
-                            block: @escaping (TSAttachment, UnsafeMutablePointer<ObjCBool>) -> Void) {
+    class func anyEnumerate(
+        transaction: SDSAnyReadTransaction,
+        batchSize: UInt,
+        block: (TSAttachment, UnsafeMutablePointer<ObjCBool>) -> Void
+    ) {
         switch transaction.readTransaction {
         case .grdbRead(let grdbTransaction):
             let cursor = TSAttachment.grdbFetchCursor(transaction: grdbTransaction)
@@ -812,16 +828,20 @@ public extension TSAttachment {
 
     // Traverses all records' unique ids.
     // Records are not visited in any particular order.
-    class func anyEnumerateUniqueIds(transaction: SDSAnyReadTransaction,
-                                     block: @escaping (String, UnsafeMutablePointer<ObjCBool>) -> Void) {
+    class func anyEnumerateUniqueIds(
+        transaction: SDSAnyReadTransaction,
+        block: (String, UnsafeMutablePointer<ObjCBool>) -> Void
+    ) {
         anyEnumerateUniqueIds(transaction: transaction, batched: false, block: block)
     }
 
     // Traverses all records' unique ids.
     // Records are not visited in any particular order.
-    class func anyEnumerateUniqueIds(transaction: SDSAnyReadTransaction,
-                                     batched: Bool = false,
-                                     block: @escaping (String, UnsafeMutablePointer<ObjCBool>) -> Void) {
+    class func anyEnumerateUniqueIds(
+        transaction: SDSAnyReadTransaction,
+        batched: Bool = false,
+        block: (String, UnsafeMutablePointer<ObjCBool>) -> Void
+    ) {
         let batchSize = batched ? Batching.kDefaultBatchSize : 0
         anyEnumerateUniqueIds(transaction: transaction, batchSize: batchSize, block: block)
     }
@@ -830,9 +850,11 @@ public extension TSAttachment {
     // Records are not visited in any particular order.
     //
     // If batchSize > 0, the enumeration is performed in autoreleased batches.
-    class func anyEnumerateUniqueIds(transaction: SDSAnyReadTransaction,
-                                     batchSize: UInt,
-                                     block: @escaping (String, UnsafeMutablePointer<ObjCBool>) -> Void) {
+    class func anyEnumerateUniqueIds(
+        transaction: SDSAnyReadTransaction,
+        batchSize: UInt,
+        block: (String, UnsafeMutablePointer<ObjCBool>) -> Void
+    ) {
         switch transaction.readTransaction {
         case .grdbRead(let grdbTransaction):
             grdbEnumerateUniqueIds(transaction: grdbTransaction,
@@ -870,43 +892,20 @@ public extension TSAttachment {
         }
     }
 
-    // WARNING: Do not use this method for any models which do cleanup
-    //          in their anyWillRemove(), anyDidRemove() methods.
-    class func anyRemoveAllWithoutInstantation(transaction: SDSAnyWriteTransaction) {
-        switch transaction.writeTransaction {
-        case .grdbWrite(let grdbTransaction):
-            do {
-                try AttachmentRecord.deleteAll(grdbTransaction.database)
-            } catch {
-                owsFailDebug("deleteAll() failed: \(error)")
-            }
-        }
-
-        if ftsIndexMode != .never {
-            FullTextSearchFinder.allModelsWereRemoved(collection: collection(), transaction: transaction)
-        }
-    }
-
     class func anyRemoveAllWithInstantation(transaction: SDSAnyWriteTransaction) {
-        // To avoid mutationDuringEnumerationException, we need
-        // to remove the instances outside the enumeration.
+        // To avoid mutationDuringEnumerationException, we need to remove the
+        // instances outside the enumeration.
         let uniqueIds = anyAllUniqueIds(transaction: transaction)
 
-        var index: Int = 0
-        Batching.loop(batchSize: Batching.kDefaultBatchSize,
-                      loopBlock: { stop in
-            guard index < uniqueIds.count else {
-                stop.pointee = true
-                return
+        for uniqueId in uniqueIds {
+            autoreleasepool {
+                guard let instance = anyFetch(uniqueId: uniqueId, transaction: transaction) else {
+                    owsFailDebug("Missing instance.")
+                    return
+                }
+                instance.anyRemove(transaction: transaction)
             }
-            let uniqueId = uniqueIds[index]
-            index += 1
-            guard let instance = anyFetch(uniqueId: uniqueId, transaction: transaction) else {
-                owsFailDebug("Missing instance.")
-                return
-            }
-            instance.anyRemove(transaction: transaction)
-        })
+        }
 
         if ftsIndexMode != .never {
             FullTextSearchFinder.allModelsWereRemoved(collection: collection(), transaction: transaction)
@@ -923,7 +922,15 @@ public extension TSAttachment {
         case .grdbRead(let grdbTransaction):
             let sql = "SELECT EXISTS ( SELECT 1 FROM \(AttachmentRecord.databaseTableName) WHERE \(attachmentColumn: .uniqueId) = ? )"
             let arguments: StatementArguments = [uniqueId]
-            return try! Bool.fetchOne(grdbTransaction.database, sql: sql, arguments: arguments) ?? false
+            do {
+                return try Bool.fetchOne(grdbTransaction.database, sql: sql, arguments: arguments) ?? false
+            } catch {
+                DatabaseCorruptionState.flagDatabaseReadCorruptionIfNecessary(
+                    userDefaults: CurrentAppContext().appUserDefaults(),
+                    error: error
+                )
+                owsFail("Missing instance.")
+            }
         }
     }
 }
@@ -939,6 +946,10 @@ public extension TSAttachment {
             let cursor = try AttachmentRecord.fetchCursor(transaction.database, sqlRequest)
             return TSAttachmentCursor(transaction: transaction, cursor: cursor)
         } catch {
+            DatabaseCorruptionState.flagDatabaseReadCorruptionIfNecessary(
+                userDefaults: CurrentAppContext().appUserDefaults(),
+                error: error
+            )
             Logger.verbose("sql: \(sql)")
             owsFailDebug("Read failed: \(error)")
             return TSAttachmentCursor(transaction: transaction, cursor: nil)
@@ -1013,8 +1024,9 @@ class TSAttachmentSerializer: SDSSerializer {
         let cdnNumber: UInt32 = model.cdnNumber
         let isAnimatedCached: Bool? = nil
         let attachmentSchemaVersion: UInt = model.attachmentSchemaVersion
+        let videoDuration: Double? = archiveOptionalNSNumber(model.videoDuration, conversion: { $0.doubleValue })
 
-        return AttachmentRecord(delegate: model, id: id, recordType: recordType, uniqueId: uniqueId, albumMessageId: albumMessageId, attachmentType: attachmentType, blurHash: blurHash, byteCount: byteCount, caption: caption, contentType: contentType, encryptionKey: encryptionKey, serverId: serverId, sourceFilename: sourceFilename, cachedAudioDurationSeconds: cachedAudioDurationSeconds, cachedImageHeight: cachedImageHeight, cachedImageWidth: cachedImageWidth, creationTimestamp: creationTimestamp, digest: digest, isUploaded: isUploaded, isValidImageCached: isValidImageCached, isValidVideoCached: isValidVideoCached, lazyRestoreFragmentId: lazyRestoreFragmentId, localRelativeFilePath: localRelativeFilePath, mediaSize: mediaSize, pointerType: pointerType, state: state, uploadTimestamp: uploadTimestamp, cdnKey: cdnKey, cdnNumber: cdnNumber, isAnimatedCached: isAnimatedCached, attachmentSchemaVersion: attachmentSchemaVersion)
+        return AttachmentRecord(delegate: model, id: id, recordType: recordType, uniqueId: uniqueId, albumMessageId: albumMessageId, attachmentType: attachmentType, blurHash: blurHash, byteCount: byteCount, caption: caption, contentType: contentType, encryptionKey: encryptionKey, serverId: serverId, sourceFilename: sourceFilename, cachedAudioDurationSeconds: cachedAudioDurationSeconds, cachedImageHeight: cachedImageHeight, cachedImageWidth: cachedImageWidth, creationTimestamp: creationTimestamp, digest: digest, isUploaded: isUploaded, isValidImageCached: isValidImageCached, isValidVideoCached: isValidVideoCached, lazyRestoreFragmentId: lazyRestoreFragmentId, localRelativeFilePath: localRelativeFilePath, mediaSize: mediaSize, pointerType: pointerType, state: state, uploadTimestamp: uploadTimestamp, cdnKey: cdnKey, cdnNumber: cdnNumber, isAnimatedCached: isAnimatedCached, attachmentSchemaVersion: attachmentSchemaVersion, videoDuration: videoDuration)
     }
 }
 

@@ -3,8 +3,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import XCTest
+import LibSignalClient
 import SignalCoreKit
+import XCTest
+
 @testable import SignalServiceKit
 
 final class DisappearingMessageFinderTest: SSKBaseTestSwift {
@@ -21,13 +23,11 @@ final class DisappearingMessageFinderTest: SSKBaseTestSwift {
         SignalServiceAddress(phoneNumber: "+12225550123")
     }
 
-    func otherAddress() -> SignalServiceAddress {
-        SignalServiceAddress(phoneNumber: "+13335550198")
-    }
+    private lazy var otherAddress = SignalServiceAddress(serviceId: FutureAci.randomForTesting(), phoneNumber: "+13335550198")
 
     func thread(with transaction: SDSAnyWriteTransaction) -> TSThread {
         TSContactThread.getOrCreateThread(
-            withContactAddress: otherAddress(),
+            withContactAddress: otherAddress,
             transaction: transaction
         )
     }
@@ -48,7 +48,7 @@ final class DisappearingMessageFinderTest: SSKBaseTestSwift {
 
             let incomingMessageBuilder = TSIncomingMessageBuilder(thread: thread, messageBody: body)
             incomingMessageBuilder.timestamp = 1
-            incomingMessageBuilder.authorAddress = otherAddress()
+            incomingMessageBuilder.authorAci = AciObjC(otherAddress.aci!)
             incomingMessageBuilder.expiresInSeconds = expiresInSeconds
             let message = incomingMessageBuilder.build()
             message.anyInsert(transaction: transaction)
@@ -215,12 +215,12 @@ final class DisappearingMessageFinderTest: SSKBaseTestSwift {
         write { transaction in
             // Mark outgoing message as "sent", "delivered" or "delivered and read" using production methods.
             expiringSentOutgoingMessage.update(
-                withSentRecipient: otherAddress(),
+                withSentRecipient: otherAddress.untypedServiceIdObjC!,
                 wasSentByUD: false,
                 transaction: transaction
             )
             expiringDeliveredOutgoingMessage.update(
-                withDeliveredRecipient: otherAddress(),
+                withDeliveredRecipient: otherAddress,
                 recipientDeviceId: 0,
                 deliveryTimestamp: Date.ows_millisecondTimestamp(),
                 context: PassthroughDeliveryReceiptContext(),
@@ -228,7 +228,7 @@ final class DisappearingMessageFinderTest: SSKBaseTestSwift {
             )
             let nowMs = Date.ows_millisecondTimestamp()
             expiringDeliveredAndReadOutgoingMessage.update(
-                withReadRecipient: otherAddress(),
+                withReadRecipient: otherAddress,
                 recipientDeviceId: 0,
                 readTimestamp: nowMs,
                 transaction: transaction

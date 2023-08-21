@@ -16,7 +16,7 @@ NS_ASSUME_NONNULL_BEGIN
 @class SignalServiceAddress;
 @class TSInteraction;
 @class TSInvalidIdentityKeyReceivingErrorMessage;
-@class TSThreadReplyInfo;
+@class ThreadReplyInfoObjC;
 
 typedef NS_CLOSED_ENUM(NSUInteger, TSThreadMentionNotificationMode) {
     TSThreadMentionNotificationMode_Default = 0,
@@ -59,7 +59,9 @@ typedef NS_CLOSED_ENUM(NSUInteger, TSThreadStoryViewMode) {
 
 // zero if thread has never had an interaction.
 // The corresponding interaction may have been deleted.
-@property (nonatomic, readonly) int64_t lastInteractionRowId;
+@property (nonatomic, readonly) uint64_t lastInteractionRowId;
+
+@property (nonatomic, nullable) NSNumber *editTargetTimestamp;
 
 - (instancetype)init NS_DESIGNATED_INITIALIZER;
 - (nullable instancetype)initWithCoder:(NSCoder *)coder NS_DESIGNATED_INITIALIZER;
@@ -76,9 +78,10 @@ typedef NS_CLOSED_ENUM(NSUInteger, TSThreadStoryViewMode) {
                       uniqueId:(NSString *)uniqueId
    conversationColorNameObsolete:(NSString *)conversationColorNameObsolete
                     creationDate:(nullable NSDate *)creationDate
+             editTargetTimestamp:(nullable NSNumber *)editTargetTimestamp
               isArchivedObsolete:(BOOL)isArchivedObsolete
           isMarkedUnreadObsolete:(BOOL)isMarkedUnreadObsolete
-            lastInteractionRowId:(int64_t)lastInteractionRowId
+            lastInteractionRowId:(uint64_t)lastInteractionRowId
           lastSentStoryTimestamp:(nullable NSNumber *)lastSentStoryTimestamp
        lastVisibleSortIdObsolete:(uint64_t)lastVisibleSortIdObsolete
 lastVisibleSortIdOnScreenPercentageObsolete:(double)lastVisibleSortIdOnScreenPercentageObsolete
@@ -89,7 +92,7 @@ lastVisibleSortIdOnScreenPercentageObsolete:(double)lastVisibleSortIdOnScreenPer
      mutedUntilTimestampObsolete:(uint64_t)mutedUntilTimestampObsolete
            shouldThreadBeVisible:(BOOL)shouldThreadBeVisible
                    storyViewMode:(TSThreadStoryViewMode)storyViewMode
-NS_DESIGNATED_INITIALIZER NS_SWIFT_NAME(init(grdbId:uniqueId:conversationColorNameObsolete:creationDate:isArchivedObsolete:isMarkedUnreadObsolete:lastInteractionRowId:lastSentStoryTimestamp:lastVisibleSortIdObsolete:lastVisibleSortIdOnScreenPercentageObsolete:mentionNotificationMode:messageDraft:messageDraftBodyRanges:mutedUntilDateObsolete:mutedUntilTimestampObsolete:shouldThreadBeVisible:storyViewMode:));
+NS_DESIGNATED_INITIALIZER NS_SWIFT_NAME(init(grdbId:uniqueId:conversationColorNameObsolete:creationDate:editTargetTimestamp:isArchivedObsolete:isMarkedUnreadObsolete:lastInteractionRowId:lastSentStoryTimestamp:lastVisibleSortIdObsolete:lastVisibleSortIdOnScreenPercentageObsolete:mentionNotificationMode:messageDraft:messageDraftBodyRanges:mutedUntilDateObsolete:mutedUntilTimestampObsolete:shouldThreadBeVisible:storyViewMode:));
 
 // clang-format on
 
@@ -111,10 +114,8 @@ NS_DESIGNATED_INITIALIZER NS_SWIFT_NAME(init(grdbId:uniqueId:conversationColorNa
 /**
  * Get all messages in the thread we weren't able to decrypt
  */
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-- (NSArray<TSInvalidIdentityKeyReceivingErrorMessage *> *)receivedMessagesForInvalidKey:(NSData *)key;
-#pragma clang diagnostic pop
+- (NSArray<TSInvalidIdentityKeyReceivingErrorMessage *> *)receivedMessagesForInvalidKey:(NSData *)key
+                                                                                     tx:(SDSAnyReadTransaction *)tx;
 
 - (BOOL)hasSafetyNumbers;
 
@@ -144,13 +145,6 @@ NS_DESIGNATED_INITIALIZER NS_SWIFT_NAME(init(grdbId:uniqueId:conversationColorNa
 - (void)removeAllThreadInteractionsWithTransaction:(SDSAnyWriteTransaction *)transaction
     NS_SWIFT_NAME(removeAllThreadInteractions(transaction:));
 
-
-#pragma mark Disappearing Messages
-
-- (OWSDisappearingMessagesConfiguration *)disappearingMessagesConfigurationWithTransaction:
-    (SDSAnyReadTransaction *)transaction;
-- (uint32_t)disappearingMessagesDurationWithTransaction:(SDSAnyReadTransaction *)transaction;
-
 /**
  *  Sets the draft of a thread. Typically called when leaving a conversation view.
  *
@@ -158,7 +152,8 @@ NS_DESIGNATED_INITIALIZER NS_SWIFT_NAME(init(grdbId:uniqueId:conversationColorNa
  *  @param transaction Database transaction.
  */
 - (void)updateWithDraft:(nullable MessageBody *)draftMessageBody
-              replyInfo:(nullable TSThreadReplyInfo *)replyInfo
+              replyInfo:(nullable ThreadReplyInfoObjC *)replyInfo
+    editTargetTimestamp:(nullable NSNumber *)editTargetTimestamp
             transaction:(SDSAnyWriteTransaction *)transaction;
 
 @property (atomic, readonly) uint64_t mutedUntilTimestampObsolete;
@@ -183,6 +178,10 @@ NS_DESIGNATED_INITIALIZER NS_SWIFT_NAME(init(grdbId:uniqueId:conversationColorNa
 - (void)updateWithStoryViewMode:(TSThreadStoryViewMode)storyViewMode
                     transaction:(SDSAnyWriteTransaction *)transaction
     NS_SWIFT_NAME(updateWithStoryViewMode(_:transaction:));
+
+#pragma mark - Merging
+
+- (void)mergeFrom:(TSThread *)otherThread;
 
 @end
 

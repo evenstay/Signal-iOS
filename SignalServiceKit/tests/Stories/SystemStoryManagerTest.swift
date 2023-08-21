@@ -14,18 +14,27 @@ class SystemStoryManagerTest: SSKBaseTestSwift {
         return signalService as! OWSSignalServiceMock
     }
 
+    var scheduler: TestScheduler!
+
     var manager: SystemStoryManager!
 
     override func setUp() {
         super.setUp()
+        scheduler = TestScheduler()
         tsAccountManager.registerForTests(withLocalNumber: "+17875550101", uuid: UUID(), pni: UUID())
-        manager = SystemStoryManager(fileSystem: OnboardingStoryManagerFilesystemMock.self)
+        manager = SystemStoryManager(
+            fileSystem: OnboardingStoryManagerFilesystemMock.self,
+            schedulers: TestSchedulers(scheduler: scheduler)
+        )
+
+        // Make everything sync.
+        scheduler.start()
     }
 
     // MARK: - Downloading
 
     func testDownloadStory() throws {
-        mockSignalService.mockUrlSessionBuilder = { _ in
+        mockSignalService.mockUrlSessionBuilder = { _, _, _ in
             let mockSession = MockDownloadSession()
             var dataCount = 0
             mockSession.dataPromiseSource = { url in
@@ -79,23 +88,12 @@ class SystemStoryManagerTest: SSKBaseTestSwift {
             return mockSession
         }
 
-        let expectation = self.expectation(description: "promise fulfillment")
         let downloadPromise = manager.enqueueOnboardingStoryDownload()
-
-        downloadPromise.observe { result in
-            switch result {
-            case .success:
-                break
-            case .failure(let error):
-                XCTFail("Error when downloading: \(error)")
-            }
-            expectation.fulfill()
-        }
-        self.waitForExpectations(timeout: timeout)
+        XCTAssertNotNil(downloadPromise.value)
     }
 
     func testDownloadStory_multipleTimes() throws {
-        mockSignalService.mockUrlSessionBuilder = { _ in
+        mockSignalService.mockUrlSessionBuilder = { _, _, _ in
             let mockSession = MockDownloadSession()
             var dataCount = 0
             mockSession.dataPromiseSource = { url in
@@ -149,59 +147,34 @@ class SystemStoryManagerTest: SSKBaseTestSwift {
             return mockSession
         }
 
-        let firstExpectation = self.expectation(description: "1st promise")
+        scheduler.stop()
+
         let firstDownloadPromise = manager.enqueueOnboardingStoryDownload()
 
         // before the first can fulfill, start a second
-        let secondExpectation = self.expectation(description: "2nd promise")
         let secondDownloadPromise = manager.enqueueOnboardingStoryDownload()
 
-        firstDownloadPromise.observe { result in
-            switch result {
-            case .success:
-                break
-            case .failure(let error):
-                XCTFail("Error when downloading: \(error)")
-            }
-            firstExpectation.fulfill()
-        }
-        secondDownloadPromise.observe { result in
-            switch result {
-            case .success:
-                break
-            case .failure(let error):
-                XCTFail("Error when downloading: \(error)")
-            }
-            secondExpectation.fulfill()
-        }
-        self.waitForExpectations(timeout: timeout)
+        scheduler.start()
+
+        XCTAssertNotNil(firstDownloadPromise.value)
+        XCTAssertNotNil(secondDownloadPromise.value)
 
         // After we've fulfilled, try again, which should't redownload.
 
-        mockSignalService.mockUrlSessionBuilder = { _ in
+        mockSignalService.mockUrlSessionBuilder = { _, _, _ in
             XCTFail("Should not be issuing another network request.")
             return .init()
         }
 
-        let thirdExpectation = self.expectation(description: "3rd promise")
         let thirdDownloadPromise = manager.enqueueOnboardingStoryDownload()
 
-        thirdDownloadPromise.observe { result in
-            switch result {
-            case .success:
-                break
-            case .failure(let error):
-                XCTFail("Error when downloading: \(error)")
-            }
-            thirdExpectation.fulfill()
-        }
-        self.waitForExpectations(timeout: timeout)
+        XCTAssertNotNil(thirdDownloadPromise.value)
     }
 
     // MARK: - Viewed state
 
     func testCleanUpViewedStory() throws {
-        mockSignalService.mockUrlSessionBuilder = { _ in
+        mockSignalService.mockUrlSessionBuilder = { _, _, _ in
             let mockSession = MockDownloadSession()
             var dataCount = 0
             mockSession.dataPromiseSource = { url in
@@ -255,19 +228,8 @@ class SystemStoryManagerTest: SSKBaseTestSwift {
             return mockSession
         }
 
-        let downloadExpectation = self.expectation(description: "download promise")
         let downloadPromise = manager.enqueueOnboardingStoryDownload()
-
-        downloadPromise.observe { result in
-            switch result {
-            case .success:
-                break
-            case .failure(let error):
-                XCTFail("Error when downloading: \(error)")
-            }
-            downloadExpectation.fulfill()
-        }
-        self.waitForExpectations(timeout: timeout)
+        XCTAssertNotNil(downloadPromise.value)
 
         // Mark all the stories viewed.
         let viewedDate = Date().addingTimeInterval(-SystemStoryManager.Constants.postViewingTimeout)
@@ -290,19 +252,8 @@ class SystemStoryManagerTest: SSKBaseTestSwift {
             )
         }
 
-        let cleanupExpectation = self.expectation(description: "cleanup")
         let cleanupPromise = manager.cleanUpOnboardingStoryIfNeeded()
-
-        cleanupPromise.observe { result in
-            switch result {
-            case .success:
-                break
-            case .failure(let error):
-                XCTFail("Error when cleaning up: \(error)")
-            }
-            cleanupExpectation.fulfill()
-        }
-        self.wait(for: [cleanupExpectation], timeout: timeout)
+        XCTAssertNotNil(cleanupPromise.value)
 
         // Check that stories were indeed deleted.
         read { transaction in
@@ -324,20 +275,9 @@ class SystemStoryManagerTest: SSKBaseTestSwift {
             try manager.markOnboardingStoryDownloaded(messageUniqueIds: ["1234"], transaction: $0)
         }
 
-        let cleanupExpectation = self.expectation(description: "cleanup")
         // Triggering a download should do the cleanup.
         let cleanupPromise = manager.enqueueOnboardingStoryDownload()
-
-        cleanupPromise.observe { result in
-            switch result {
-            case .success:
-                break
-            case .failure(let error):
-                XCTFail("Error when cleaning up: \(error)")
-            }
-            cleanupExpectation.fulfill()
-        }
-        self.wait(for: [cleanupExpectation], timeout: timeout)
+        XCTAssertNotNil(cleanupPromise.value)
 
         read { transaction in
             if let mockManager = Self.systemStoryManager as? SystemStoryManagerMock {
@@ -350,10 +290,8 @@ class SystemStoryManagerTest: SSKBaseTestSwift {
         }
     }
 
-    #if BROKEN_TESTS
-
     func testCleanUpViewedStory_notTimedOut() throws {
-        mockSignalService.mockUrlSessionBuilder = { _ in
+        mockSignalService.mockUrlSessionBuilder = { _, _, _ in
             let mockSession = MockDownloadSession()
             var dataCount = 0
             mockSession.dataPromiseSource = { url in
@@ -407,19 +345,8 @@ class SystemStoryManagerTest: SSKBaseTestSwift {
             return mockSession
         }
 
-        let downloadExpectation = self.expectation(description: "download promise")
         let downloadPromise = manager.enqueueOnboardingStoryDownload()
-
-        downloadPromise.observe { result in
-            switch result {
-            case .success:
-                break
-            case .failure(let error):
-                XCTFail("Error when downloading: \(error)")
-            }
-            downloadExpectation.fulfill()
-        }
-        self.waitForExpectations(timeout: timeout)
+        XCTAssertNotNil(downloadPromise.value)
 
         // Mark all the stories viewed, but recently so they aren't timed out.
         let viewedDate = Date()
@@ -435,19 +362,8 @@ class SystemStoryManagerTest: SSKBaseTestSwift {
             }
         }
 
-        let cleanupExpectation = self.expectation(description: "cleanup")
         let cleanupPromise = manager.cleanUpOnboardingStoryIfNeeded()
-
-        cleanupPromise.observe { result in
-            switch result {
-            case .success:
-                break
-            case .failure(let error):
-                XCTFail("Error when cleaning up: \(error)")
-            }
-            cleanupExpectation.fulfill()
-        }
-        self.wait(for: [cleanupExpectation], timeout: timeout)
+        XCTAssertNotNil(cleanupPromise.value)
 
         // Check that stories were not deleted.
         read { transaction in
@@ -455,8 +371,6 @@ class SystemStoryManagerTest: SSKBaseTestSwift {
             XCTAssertEqual(stories.count, Self.imageNames.count)
         }
     }
-
-    #endif
 
     // MARK: - Helpers
 
@@ -479,7 +393,7 @@ class SystemStoryManagerTest: SSKBaseTestSwift {
     }
 }
 
-private class MockDownloadSession: OWSURLSessionMock {
+private class MockDownloadSession: BaseOWSURLSessionMock {
 
     var dataPromiseSource: ((URL?) -> Promise<HTTPResponse>)?
 
@@ -498,7 +412,7 @@ private class MockDownloadSession: OWSURLSessionMock {
 
     override func downloadTaskPromise(
         request: URLRequest,
-        progress progressBlock: OWSURLSessionMock.ProgressBlock?
+        progress progressBlock: BaseOWSURLSessionMock.ProgressBlock?
     ) -> Promise<OWSUrlDownloadResponse> {
         guard let downloadPromiseSource = downloadPromiseSource else {
             fatalError()

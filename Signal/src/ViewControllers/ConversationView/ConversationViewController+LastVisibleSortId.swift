@@ -3,13 +3,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalServiceKit
 
 extension ConversationViewController {
 
     /// The visible content rect in the collection view's coordinate space
     /// This rect does not include displayed cells occluded by content inset
-    @objc
     var visibleContentRect: CGRect {
         let collectionViewBounds = collectionView.bounds
         let insetBounds = collectionViewBounds.inset(by: collectionView.adjustedContentInset)
@@ -85,8 +84,18 @@ extension ConversationViewController {
             return
         }
 
-        let thread = self.thread
-        let readAndUpdateBlock = { (newValue: TSThread.LastVisibleInteraction?) in
+        let newValue: TSThread.LastVisibleInteraction? = {
+            guard
+                let lastVisibleIndexPath,
+                let reference = firstRenderItemReferenceWithSortId(atOrBeforeIndexPath: lastVisibleIndexPath)
+            else {
+                return nil
+            }
+            let onScreenPercentage = percentOfIndexPathVisibleAboveBottom(reference.indexPath)
+            return TSThread.LastVisibleInteraction(sortId: reference.sortId, onScreenPercentage: onScreenPercentage)
+        }()
+
+        let updateBlock: () -> Void = { [thread] in
             let oldValue = self.databaseStorage.read { transaction in
                 thread.lastVisibleInteraction(transaction: transaction)
             }
@@ -100,26 +109,9 @@ extension ConversationViewController {
             }
         }
         if async {
-            if let lastVisibleIndexPath = lastVisibleIndexPath, let reference = firstRenderItemReferenceWithSortId(atOrBeforeIndexPath: lastVisibleIndexPath) {
-                let onScreenPercentage = percentOfIndexPathVisibleAboveBottom(reference.indexPath)
-                DispatchQueue.sharedUserInitiated.async {
-                    readAndUpdateBlock(TSThread.LastVisibleInteraction(sortId: reference.sortId,
-                                                                       onScreenPercentage: onScreenPercentage))
-                }
-            } else {
-                DispatchQueue.sharedUserInitiated.async {
-                    readAndUpdateBlock(nil)
-                }
-            }
+            DispatchQueue.sharedUserInitiated.async { updateBlock() }
         } else {
-            var newValue: TSThread.LastVisibleInteraction?
-            if let lastVisibleIndexPath = lastVisibleIndexPath,
-               let reference = firstRenderItemReferenceWithSortId(atOrBeforeIndexPath: lastVisibleIndexPath) {
-                let onScreenPercentage = percentOfIndexPathVisibleAboveBottom(reference.indexPath)
-                newValue = TSThread.LastVisibleInteraction(sortId: reference.sortId,
-                                                           onScreenPercentage: onScreenPercentage)
-            }
-            readAndUpdateBlock(newValue)
+            updateBlock()
         }
     }
 

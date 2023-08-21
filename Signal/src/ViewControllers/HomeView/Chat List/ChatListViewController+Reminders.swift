@@ -3,26 +3,30 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalServiceKit
+import SignalUI
 
-@objc
-public class CLVReminderViews: NSObject {
+public class CLVReminderViews: Dependencies {
 
     fileprivate let reminderViewCell = UITableViewCell()
     fileprivate let reminderStackView = UIStackView()
-    fileprivate let expiredView = ExpirationNagView()
+    fileprivate let expiredView = ExpirationNagView(
+        dateProvider: Date.provider,
+        appExpiry: DependenciesBridge.shared.appExpiry,
+        osExpiry: OsExpiry.default,
+        device: UIDevice.current
+    )
     fileprivate var deregisteredView = UIView()
     fileprivate var outageView = UIView()
     fileprivate var archiveReminderView = UIView()
     fileprivate let paymentsReminderView = UIView()
+    fileprivate var usernameCorruptedReminderView = UIView()
+    fileprivate var usernameLinkCorruptedReminderView = UIView()
 
-    @objc
-    public weak var viewController: ChatListViewController?
+    public weak var chatListViewController: ChatListViewController?
 
-    required override init() {
+    required init() {
         AssertIsOnMainThread()
-
-        super.init()
 
         reminderStackView.axis = .vertical
         reminderStackView.spacing = 0
@@ -30,56 +34,137 @@ public class CLVReminderViews: NSObject {
         reminderViewCell.contentView.addSubview(reminderStackView)
         reminderStackView.autoPinEdgesToSuperviewEdges()
         reminderViewCell.accessibilityIdentifier = "reminderViewCell"
-        reminderViewCell.accessibilityIdentifier = "reminderStackView"
+        reminderStackView.accessibilityIdentifier = "reminderStackView"
 
-        deregisteredView = ReminderView.nag(text: (TSAccountManager.shared.isPrimaryDevice
-                                                    ? NSLocalizedString("DEREGISTRATION_WARNING",
-                                                                        comment: "Label warning the user that they have been de-registered.")
-                                                    : NSLocalizedString("UNLINKED_WARNING",
-                                                                        comment: "Label warning the user that they have been unlinked from their primary device.")),
-                                            tapAction: { [weak self] in
-                                                self?.didTapDeregisteredView()
-                                            })
+        let deregisteredText: String
+        let deregisteredActionTitle: String
+        if TSAccountManager.shared.isPrimaryDevice {
+            deregisteredText = OWSLocalizedString(
+                "DEREGISTRATION_WARNING",
+                comment: "Label warning the user that they have been de-registered."
+            )
+            deregisteredActionTitle = OWSLocalizedString(
+                "DEREGISTRATION_WARNING_ACTION_TITLE",
+                comment: "If the user has been deregistered, they'll see a warning. This is This is the call to action on that warning."
+            )
+        } else {
+            deregisteredText = OWSLocalizedString(
+                "UNLINKED_WARNING",
+                comment: "Label warning the user that they have been unlinked from their primary device."
+            )
+            deregisteredActionTitle = OWSLocalizedString(
+                "UNLINKED_WARNING_ACTION_TITLE",
+                comment: "If this device has become unlinked from their primary device, they'll see a warning. This is the call to action on that warning."
+            )
+        }
+        deregisteredView = ReminderView(
+            style: .warning,
+            text: deregisteredText,
+            actionTitle: deregisteredActionTitle,
+            tapAction: { [weak self] in self?.didTapDeregisteredView() }
+        )
         reminderStackView.addArrangedSubview(deregisteredView)
         deregisteredView.accessibilityIdentifier = "deregisteredView"
 
         reminderStackView.addArrangedSubview(expiredView)
         expiredView.accessibilityIdentifier = "expiredView"
 
-        outageView = ReminderView.nag(text: NSLocalizedString("OUTAGE_WARNING",
-                                                              comment: "Label warning the user that the Signal service may be down."),
-                                      tapAction: nil)
+        outageView = ReminderView(
+            style: .warning,
+            text: OWSLocalizedString(
+                "OUTAGE_WARNING",
+                comment: "Label warning the user that the Signal service may be down."
+            )
+        )
         reminderStackView.addArrangedSubview(outageView)
         outageView.accessibilityIdentifier = "outageView"
 
-        archiveReminderView = ReminderView.explanation(text: (databaseStorage.read { SSKPreferences.shouldKeepMutedChatsArchived(transaction: $0) }
-                                                              ? NSLocalizedString("INBOX_VIEW_ARCHIVE_MODE_MUTED_CHATS_REMINDER",
-                                                                                  comment: "Label reminding the user that they are in archive mode, and that muted chats remain archived when they receive a new message.")
-                                                              : NSLocalizedString("INBOX_VIEW_ARCHIVE_MODE_REMINDER",
-                                                                                  comment: "Label reminding the user that they are in archive mode, and that chats are unarchived when they receive a new message.")))
+        archiveReminderView = ReminderView(
+            style: .info,
+            text: {
+                let shouldKeepMutedChatsArchived = databaseStorage.read { transaction in
+                    return SSKPreferences.shouldKeepMutedChatsArchived(transaction: transaction)
+                }
+                if shouldKeepMutedChatsArchived {
+                    return OWSLocalizedString(
+                        "INBOX_VIEW_ARCHIVE_MODE_MUTED_CHATS_REMINDER",
+                        comment: "Label reminding the user that they are in archive mode, and that muted chats remain archived when they receive a new message."
+                    )
+                } else {
+                    return OWSLocalizedString(
+                        "INBOX_VIEW_ARCHIVE_MODE_REMINDER",
+                        comment: "Label reminding the user that they are in archive mode, and that chats are unarchived when they receive a new message."
+                    )
+                }
+            }()
+        )
         reminderStackView.addArrangedSubview(archiveReminderView)
         archiveReminderView.accessibilityIdentifier = "archiveReminderView"
 
         reminderStackView.addArrangedSubview(paymentsReminderView)
         paymentsReminderView.accessibilityIdentifier = "paymentsReminderView"
+
+        usernameCorruptedReminderView = ReminderView(
+            style: .warning,
+            text: OWSLocalizedString(
+                "REMINDER_VIEW_USERNAME_CORRUPTED_WARNING",
+                comment: "Label warning the user that something is wrong with their username."
+            ),
+            tapAction: { [weak self] in self?.didTapUsernameCorruptedReminderView() }
+        )
+        usernameLinkCorruptedReminderView = ReminderView(
+            style: .warning,
+            text: OWSLocalizedString(
+                "REMINDER_VIEW_USERNAME_LINK_CORRUPTED_WARNING",
+                comment: "Label warning the user that something is wrong with their username link."
+            ),
+            tapAction: { [weak self] in self?.didTapUsernameLinkCorruptedReminderView() }
+        )
+        reminderStackView.addArrangedSubviews([
+            usernameCorruptedReminderView,
+            usernameLinkCorruptedReminderView
+        ])
     }
 
     @objc
     private func didTapDeregisteredView() {
         AssertIsOnMainThread()
-        guard let viewController = viewController else {
-            owsFailDebug("Missing viewController.")
+
+        guard let chatListViewController else {
             return
         }
-        RegistrationUtils.showReregistrationUI(from: viewController)
+
+        RegistrationUtils.showReregistrationUI(fromViewController: chatListViewController)
+    }
+
+    @objc
+    private func didTapUsernameCorruptedReminderView() {
+        guard let chatListViewController else {
+            return
+        }
+
+        chatListViewController.showAppSettings(mode: .corruptedUsernameResolution)
+    }
+
+    @objc
+    private func didTapUsernameLinkCorruptedReminderView() {
+        guard let chatListViewController else {
+            return
+        }
+
+        chatListViewController.showAppSettings(mode: .corruptedUsernameLinkResolution)
     }
 
     public var hasVisibleReminders: Bool {
-        (!self.archiveReminderView.isHidden ||
+        (
+            !self.archiveReminderView.isHidden ||
             !self.deregisteredView.isHidden ||
             !self.outageView.isHidden ||
             !self.expiredView.isHidden ||
-            !self.paymentsReminderView.isHidden)
+            !self.paymentsReminderView.isHidden ||
+            !self.usernameCorruptedReminderView.isHidden ||
+            !self.usernameLinkCorruptedReminderView.isHidden
+        )
     }
 }
 
@@ -87,7 +172,6 @@ public class CLVReminderViews: NSObject {
 
 extension ChatListViewController {
 
-    @objc
     public var unreadPaymentNotificationsCount: UInt {
         get { viewState.unreadPaymentNotificationsCount }
         set { viewState.unreadPaymentNotificationsCount = newValue }
@@ -98,7 +182,6 @@ extension ChatListViewController {
         set { viewState.firstUnreadPaymentModel = newValue }
     }
 
-    @objc
     public var reminderViewCell: UITableViewCell { reminderViews.reminderViewCell }
 
     fileprivate var reminderStackView: UIStackView { reminderViews.reminderStackView }
@@ -107,21 +190,19 @@ extension ChatListViewController {
     fileprivate var outageView: UIView { reminderViews.outageView }
     fileprivate var archiveReminderView: UIView { reminderViews.archiveReminderView }
     fileprivate var paymentsReminderView: UIView { reminderViews.paymentsReminderView }
+    fileprivate var usernameCorruptedReminderView: UIView { reminderViews.usernameCorruptedReminderView }
+    fileprivate var usernameLinkCorruptedReminderView: UIView { reminderViews.usernameLinkCorruptedReminderView }
 
-    @objc
     public var reminderViews: CLVReminderViews { viewState.reminderViews }
 
-    @objc
     public func updateReminderViews() {
         AssertIsOnMainThread()
 
         archiveReminderView.isHidden = chatListMode != .archive
-        deregisteredView.isHidden = (!TSAccountManager.shared.isDeregistered() ||
-                                        TSAccountManager.shared.isTransferInProgress)
+        deregisteredView.isHidden = !tsAccountManager.isDeregistered || tsAccountManager.isTransferInProgress
         outageView.isHidden = !OutageDetection.shared.hasOutage
 
-        expiredView.isHidden = !AppExpiry.shared.isExpiringSoon
-        expiredView.updateText()
+        expiredView.update()
 
         if unreadPaymentNotificationsCount == 1,
            let firstUnreadPaymentModel = self.firstUnreadPaymentModel {
@@ -140,10 +221,13 @@ extension ChatListViewController {
                                                        unreadCount: unreadPaymentNotificationsCount)
         }
 
+        databaseStorage.read { tx in
+            updateUsernameStateViews(tx: tx)
+        }
+
         loadCoordinator.loadIfNecessary()
     }
 
-    @objc
     public func updateUnreadPaymentNotificationsCountWithSneakyTransaction() {
         AssertIsOnMainThread()
 
@@ -168,5 +252,23 @@ extension ChatListViewController {
 
         updateBarButtonItems()
         updateReminderViews()
+    }
+
+    /// Update reminder views as appropriate for the current username state.
+    private func updateUsernameStateViews(tx: SDSAnyReadTransaction) {
+        let currentUsernameState = DependenciesBridge.shared.localUsernameManager
+            .usernameState(tx: tx.asV2Read)
+
+        switch currentUsernameState {
+        case .unset, .available:
+            usernameCorruptedReminderView.isHidden = true
+            usernameLinkCorruptedReminderView.isHidden = true
+        case .linkCorrupted:
+            usernameCorruptedReminderView.isHidden = true
+            usernameLinkCorruptedReminderView.isHidden = false
+        case .usernameAndLinkCorrupted:
+            usernameCorruptedReminderView.isHidden = false
+            usernameLinkCorruptedReminderView.isHidden = true
+        }
     }
 }

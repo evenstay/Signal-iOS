@@ -3,14 +3,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalMessaging
+import SignalUI
 
-@objc
 public class LogPickerViewController: OWSTableViewController2 {
     let logDirUrl: URL
 
-    @objc
     public init(logDirUrl: URL) {
         self.logDirUrl = logDirUrl
         super.init()
@@ -23,15 +21,15 @@ public class LogPickerViewController: OWSTableViewController2 {
 
     public func updateTableContents() {
         let contents = OWSTableContents()
-        contents.addSection(buildPreferenceSection())
-        contents.addSection(buildActionsSection())
-        contents.addSection(buildLogsSection())
+        contents.add(buildPreferenceSection())
+        contents.add(buildActionsSection())
+        contents.add(buildLogsSection())
         self.contents = contents
     }
 
     private func buildPreferenceSection() -> OWSTableSection {
         let enableItem = OWSTableItem.switch(withText: "🚂 Play Sound When Errors Occur",
-                                             isOn: { OWSPreferences.isAudibleErrorLoggingEnabled() },
+                                             isOn: { Preferences.isAudibleErrorLoggingEnabled},
                                              target: self,
                                              selector: #selector(didToggleAudiblePreference(_:)))
         return OWSTableSection(title: "Preferences", items: [enableItem])
@@ -40,7 +38,7 @@ public class LogPickerViewController: OWSTableViewController2 {
     private func buildActionsSection() -> OWSTableSection {
         let exportItem = OWSTableItem(title: "Export Logs") {
             Logger.flush()
-            Pastelog.exportLogs()
+            DebugLogs.exportLogs()
         }
         return OWSTableSection(title: "Actions", items: [exportItem])
     }
@@ -87,20 +85,18 @@ public class LogPickerViewController: OWSTableViewController2 {
     }
 
     @objc
-    func didToggleAudiblePreference(_ sender: UISwitch) {
-        OWSPreferences.setIsAudibleErrorLoggingEnabled(sender.isOn)
+    private func didToggleAudiblePreference(_ sender: UISwitch) {
+        Preferences.setIsAudibleErrorLoggingEnabled(sender.isOn)
         if sender.isOn {
             ErrorLogger.playAlertSound()
         }
     }
 }
 
-@objc
 public class LogViewController: UIViewController {
 
     let logUrl: URL
 
-    @objc
     public init(logUrl: URL) {
         self.logUrl = logUrl
         super.init(nibName: nil, bundle: nil)
@@ -119,12 +115,10 @@ public class LogViewController: UIViewController {
 
     override public func viewDidLoad() {
         super.viewDidLoad()
-        navigationItem.rightBarButtonItems = [UIBarButtonItem(barButtonSystemItem: .action,
-                                                              target: self,
-                                                              action: #selector(didTapShare(_:))),
-                                              UIBarButtonItem(barButtonSystemItem: .trash,
-                                                              target: self,
-                                                              action: #selector(didTapTrash(_:)))]
+        navigationItem.rightBarButtonItems = [
+            UIBarButtonItem(image: Theme.iconImage(.buttonShare), style: .plain, target: self, action: #selector(didTapShare(_:))),
+            UIBarButtonItem(image: Theme.iconImage(.buttonDelete), style: .plain, target: self, action: #selector(didTapTrash(_:)))
+        ]
     }
 
     func loadLogText() {
@@ -142,7 +136,7 @@ public class LogViewController: UIViewController {
     }
 
     @objc
-    func didTapTrash(_ sender: UIBarButtonItem) {
+    private func didTapTrash(_ sender: UIBarButtonItem) {
         // truncate logUrl
         do {
             try NSData().write(to: logUrl)
@@ -153,7 +147,7 @@ public class LogViewController: UIViewController {
     }
 
     @objc
-    func didTapShare(_ sender: UIBarButtonItem) {
+    private func didTapShare(_ sender: UIBarButtonItem) {
         let logText = textView.text ?? "Empty Log"
         let vc = UIActivityViewController(activityItems: [logText], applicationActivities: [])
         present(vc, animated: true)

@@ -11,7 +11,6 @@
 #import "NSData+keyVersionByte.h"
 #import "OWSDisappearingMessagesConfiguration.h"
 #import "OWSRecipientIdentity.h"
-#import "SignalAccount.h"
 #import "TSContactThread.h"
 #import <SignalCoreKit/Cryptography.h>
 #import <SignalCoreKit/NSData+OWS.h>
@@ -36,7 +35,7 @@ NS_ASSUME_NONNULL_BEGIN
 
     SSKProtoContactDetailsBuilder *contactBuilder = [SSKProtoContactDetails builder];
     [contactBuilder setContactE164:signalAccount.recipientAddress.phoneNumber];
-    [contactBuilder setContactUuid:signalAccount.recipientAddress.uuidString];
+    [contactBuilder setAci:signalAccount.recipientAddress.aciString];
 
     // TODO: this should be removed after a 90-day timer from when Desktop stops
     // relying on names in contact sync messages, and is instead using the
@@ -74,14 +73,7 @@ NS_ASSUME_NONNULL_BEGIN
         SSKProtoContactDetailsAvatarBuilder *avatarBuilder = [SSKProtoContactDetailsAvatar builder];
         [avatarBuilder setContentType:OWSMimeTypeImageJpeg];
         [avatarBuilder setLength:(uint32_t)avatarJpegData.length];
-
-        NSError *error;
-        SSKProtoContactDetailsAvatar *_Nullable avatar = [avatarBuilder buildAndReturnError:&error];
-        if (error || !avatar) {
-            OWSLogError(@"could not build protobuf: %@", error);
-            return;
-        }
-        [contactBuilder setAvatar:avatar];
+        [contactBuilder setAvatar:[avatarBuilder buildInfallibly]];
     }
 
     if (profileKeyData) {

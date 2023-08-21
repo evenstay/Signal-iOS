@@ -3,12 +3,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import MobileCoin
 import SignalMessaging
 import SignalServiceKit
+import SignalUI
 
-@objc
 class TestingViewController: OWSTableViewController2 {
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -24,7 +23,7 @@ class TestingViewController: OWSTableViewController2 {
         do {
             let section = OWSTableSection()
             section.footerTitle = LocalizationNotNeeded("These values are temporary and will reset on next launch of the app.")
-            contents.addSection(section)
+            contents.add(section)
         }
 
         do {
@@ -34,7 +33,7 @@ class TestingViewController: OWSTableViewController2 {
                 NotificationCenter.default.post(name: TestableFlag.ResetAllTestableFlagsNotification, object: nil)
                 self?.updateTableContents()
             })
-            contents.addSection(section)
+            contents.add(section)
         }
 
         func buildSwitchItem(title: String, testableFlag: TestableFlag) -> OWSTableItem {
@@ -53,7 +52,7 @@ class TestingViewController: OWSTableViewController2 {
             let section = OWSTableSection()
             section.footerTitle = testableFlag.details
             section.add(buildSwitchItem(title: testableFlag.title, testableFlag: testableFlag))
-            contents.addSection(section)
+            contents.add(section)
         }
 
         // MARK: - Other
@@ -64,11 +63,11 @@ class TestingViewController: OWSTableViewController2 {
                 subscriberIDSection.footerTitle = LocalizationNotNeeded("Resets subscriberID, which clears current subscription state. Do not do this in prod environment")
                 subscriberIDSection.add(OWSTableItem.actionItem(withText: LocalizationNotNeeded("Clear subscriberID State")) {
                     SDSDatabaseStorage.shared.write { transaction in
-                        SubscriptionManager.setSubscriberID(nil, transaction: transaction)
-                        SubscriptionManager.setSubscriberCurrencyCode(nil, transaction: transaction)
+                        SubscriptionManagerImpl.setSubscriberID(nil, transaction: transaction)
+                        SubscriptionManagerImpl.setSubscriberCurrencyCode(nil, transaction: transaction)
                     }
                 })
-                contents.addSection(subscriberIDSection)
+                contents.add(subscriberIDSection)
             }
         }
 

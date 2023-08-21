@@ -4,9 +4,8 @@
 //
 
 import SignalMessaging
-import UIKit
+import SignalUI
 
-@objc(OWSPinConfirmationViewController)
 public class PinConfirmationViewController: OWSViewController {
 
     private let completionHandler: ((Bool) -> Void)
@@ -41,8 +40,11 @@ public class PinConfirmationViewController: OWSViewController {
     }
     private var hasGuessedWrong = false
 
-    @objc
+    private let context: ViewControllerContext
+
     init(title: String, explanation: String, actionText: String, completionHandler: @escaping (Bool) -> Void) {
+        // TODO[ViewContextPiping]
+        self.context = ViewControllerContext.shared
         self.titleText = title
         self.explanationText = explanation
         self.actionText = actionText
@@ -104,7 +106,7 @@ public class PinConfirmationViewController: OWSViewController {
 
         let titleLabel = UILabel()
         titleLabel.textColor = Theme.primaryTextColor
-        titleLabel.font = UIFont.ows_dynamicTypeTitle3Clamped.ows_semibold
+        titleLabel.font = UIFont.dynamicTypeTitle3Clamped.semibold()
         titleLabel.numberOfLines = 0
         titleLabel.lineBreakMode = .byWordWrapping
         titleLabel.textAlignment = .center
@@ -117,16 +119,19 @@ public class PinConfirmationViewController: OWSViewController {
         explanationLabel.textAlignment = .center
         explanationLabel.lineBreakMode = .byWordWrapping
         explanationLabel.textColor = Theme.secondaryTextAndIconColor
-        explanationLabel.font = .ows_dynamicTypeSubheadlineClamped
+        explanationLabel.font = .dynamicTypeSubheadlineClamped
         explanationLabel.accessibilityIdentifier = "pinConfirmation.explanationLabel"
         explanationLabel.text = explanationText
 
         // Pin text field
 
         pinTextField.delegate = self
-        pinTextField.keyboardType = KeyBackupService.currentPinType == .alphanumeric ? .default : .asciiCapableNumberPad
+        let currentPinType = context.db.read { tx in
+            context.svr.currentPinType(transaction: tx)
+        }
+        pinTextField.keyboardType = currentPinType == .alphanumeric ? .default : .asciiCapableNumberPad
         pinTextField.textColor = Theme.primaryTextColor
-        pinTextField.font = .ows_dynamicTypeBodyClamped
+        pinTextField.font = .dynamicTypeBodyClamped
         pinTextField.textAlignment = .center
         pinTextField.isSecureTextEntry = true
         pinTextField.defaultTextAttributes.updateValue(5, forKey: .kern)
@@ -138,7 +143,7 @@ public class PinConfirmationViewController: OWSViewController {
 
         validationWarningLabel.textColor = .ows_accentRed
         validationWarningLabel.textAlignment = .center
-        validationWarningLabel.font = UIFont.ows_dynamicTypeCaption1Clamped
+        validationWarningLabel.font = UIFont.dynamicTypeCaption1Clamped
         validationWarningLabel.accessibilityIdentifier = "pinConfirmation.validationWarningLabel"
 
         let pinStack = UIStackView(arrangedSubviews: [
@@ -156,7 +161,7 @@ public class PinConfirmationViewController: OWSViewController {
         pinStack.autoSetDimension(.width, toSize: 227)
         pinStackRow.setContentHuggingVerticalHigh()
 
-        let font = UIFont.ows_dynamicTypeBodyClamped.ows_semibold
+        let font = UIFont.dynamicTypeBodyClamped.semibold()
         let buttonHeight = OWSFlatButton.heightForFont(font)
         let submitButton = OWSFlatButton.button(
             title: actionText,
@@ -173,7 +178,7 @@ public class PinConfirmationViewController: OWSViewController {
         let cancelButton = UIButton()
         cancelButton.setTitle(CommonStrings.cancelButton, for: .normal)
         cancelButton.setTitleColor(Theme.accentBlueColor, for: .normal)
-        cancelButton.titleLabel?.font = .ows_dynamicTypeSubheadlineClamped
+        cancelButton.titleLabel?.font = .dynamicTypeSubheadlineClamped
         cancelButton.addTarget(self, action: #selector(cancelPressed), for: .touchUpInside)
         cancelButton.accessibilityIdentifier = "pinConfirmation.cancelButton"
 
@@ -222,14 +227,14 @@ public class PinConfirmationViewController: OWSViewController {
     // MARK: - Events
 
     @objc
-    func cancelPressed() {
+    private func cancelPressed() {
         Logger.info("")
 
         dismiss(animated: true) { self.completionHandler(false) }
     }
 
     @objc
-    func submitPressed() {
+    private func submitPressed() {
         verifyAndDismissOnSuccess(pinTextField.text)
     }
 
@@ -267,10 +272,10 @@ public class PinConfirmationViewController: OWSViewController {
 
         switch validationState {
         case .tooShort:
-            validationWarningLabel.text = NSLocalizedString("PIN_REMINDER_TOO_SHORT_ERROR",
+            validationWarningLabel.text = OWSLocalizedString("PIN_REMINDER_TOO_SHORT_ERROR",
                                                             comment: "Label indicating that the attempted PIN is too short")
         case .mismatch:
-            validationWarningLabel.text = NSLocalizedString("PIN_REMINDER_MISMATCH_ERROR",
+            validationWarningLabel.text = OWSLocalizedString("PIN_REMINDER_MISMATCH_ERROR",
                                                             comment: "Label indicating that the attempted PIN does not match the user's PIN")
         default:
             break
@@ -332,10 +337,13 @@ extension PinConfirmationViewController: UIViewControllerTransitioningDelegate {
 extension PinConfirmationViewController: UITextFieldDelegate {
     public func textField(_ textField: UITextField, shouldChangeCharactersIn range: NSRange, replacementString string: String) -> Bool {
         let hasPendingChanges: Bool
-        if KeyBackupService.currentPinType == .alphanumeric {
+        let currentPinType = context.db.read { tx in
+            context.svr.currentPinType(transaction: tx)
+        }
+        if currentPinType == .alphanumeric {
             hasPendingChanges = true
         } else {
-            ViewControllerUtils.ows2FAPINTextField(textField, shouldChangeCharactersIn: range, replacementString: string)
+            TextFieldFormatting.ows2FAPINTextField(textField, changeCharactersIn: range, replacementString: string)
             hasPendingChanges = false
         }
 

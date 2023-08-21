@@ -3,10 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalMessaging
+import SignalUI
 
-@objc
 public class AddToGroupViewController: OWSTableViewController2 {
 
     private let address: SignalServiceAddress
@@ -30,7 +29,7 @@ public class AddToGroupViewController: OWSTableViewController2 {
     public override func viewDidLoad() {
         super.viewDidLoad()
 
-        title = NSLocalizedString("ADD_TO_GROUP_TITLE", comment: "Title of the 'add to group' view.")
+        title = OWSLocalizedString("ADD_TO_GROUP_TITLE", comment: "Title of the 'add to group' view.")
 
         navigationItem.leftBarButtonItem = UIBarButtonItem(barButtonSystemItem: .cancel, target: self, action: #selector(didPressCloseButton))
 
@@ -108,7 +107,7 @@ public class AddToGroupViewController: OWSTableViewController2 {
         }
 
         guard !groupThread.groupModel.groupMembership.isMemberOfAnyKind(address) else {
-            let toastFormat = NSLocalizedString(
+            let toastFormat = OWSLocalizedString(
                 "ADD_TO_GROUP_ALREADY_MEMBER_TOAST_FORMAT",
                 comment: "A toast on the 'add to group' view indicating the user is already a member. Embeds {contact name} and {group name}"
             )
@@ -117,16 +116,16 @@ public class AddToGroupViewController: OWSTableViewController2 {
             return
         }
 
-        let messageFormat = NSLocalizedString("ADD_TO_GROUP_ACTION_SHEET_MESSAGE_FORMAT",
+        let messageFormat = OWSLocalizedString("ADD_TO_GROUP_ACTION_SHEET_MESSAGE_FORMAT",
                                             comment: "The title on the 'add to group' confirmation action sheet. Embeds {contact name, group name}")
 
         OWSActionSheets.showConfirmationAlert(
-            title: NSLocalizedString(
+            title: OWSLocalizedString(
                 "ADD_TO_GROUP_ACTION_SHEET_TITLE",
                 comment: "The title on the 'add to group' confirmation action sheet."
             ),
             message: String(format: messageFormat, shortName, groupThread.groupNameOrDefault),
-            proceedTitle: NSLocalizedString("ADD_TO_GROUP_ACTION_PROCEED_BUTTON",
+            proceedTitle: OWSLocalizedString("ADD_TO_GROUP_ACTION_PROCEED_BUTTON",
                                             comment: "The button on the 'add to group' confirmation to add the user to the group."),
             proceedStyle: .default) { _ in
                 self.addToGroup(groupThread, shortName: shortName)
@@ -137,14 +136,14 @@ public class AddToGroupViewController: OWSTableViewController2 {
         AssertIsOnMainThread()
         owsAssert(groupThread.isGroupV2Thread)  // non-gv2 filtered above when fetching groups
 
-        guard let uuid = self.address.uuid else {
+        guard let serviceId = self.address.serviceId else {
             GroupViewUtils.showInvalidGroupMemberAlert(fromViewController: self)
             return
         }
 
         let oldGroupModel = groupThread.groupModel
 
-        guard !oldGroupModel.groupMembership.isMemberOfAnyKind(uuid) else {
+        guard !oldGroupModel.groupMembership.isMemberOfAnyKind(serviceId) else {
             let error = OWSAssertionError("Receipient is already in group")
             GroupViewUtils.showUpdateErrorUI(error: error)
             return
@@ -156,7 +155,7 @@ public class AddToGroupViewController: OWSTableViewController2 {
             updateDescription: self.logTag,
             updateBlock: {
                 GroupManager.addOrInvite(
-                    aciOrPniUuids: [uuid],
+                    serviceIds: [serviceId],
                     toExistingGroup: oldGroupModel
                 )
             },
@@ -168,7 +167,7 @@ public class AddToGroupViewController: OWSTableViewController2 {
 
     private func notifyOfAddedAndDismiss(groupThread: TSGroupThread, shortName: String) {
         dismiss(animated: true) { [presentingViewController] in
-            let toastFormat = NSLocalizedString(
+            let toastFormat = OWSLocalizedString(
                 "ADD_TO_GROUP_SUCCESS_TOAST_FORMAT",
                 comment: "A toast on the 'add to group' view indicating the user was added. Embeds {contact name} and {group name}"
             )
@@ -180,7 +179,7 @@ public class AddToGroupViewController: OWSTableViewController2 {
     // MARK: -
 
     private func item(forGroupThread groupThread: TSGroupThread) -> OWSTableItem {
-        let alreadyAMemberText = NSLocalizedString(
+        let alreadyAMemberText = OWSLocalizedString(
             "ADD_TO_GROUP_ALREADY_A_MEMBER",
             comment: "Text indicating your contact is already a member of the group on the 'add to group' view."
         )

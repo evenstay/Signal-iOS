@@ -5,13 +5,28 @@
 
 import Foundation
 
-public class AppExpiry: NSObject {
+// MARK: - AppExpiry protocol
+
+public protocol AppExpiry {
+    var expirationDate: Date { get }
+    var isExpired: Bool { get }
+
+    func warmCaches(with: DBReadTransaction)
+    func setHasAppExpiredAtCurrentVersion(db: DB)
+    func setExpirationDateForCurrentVersion(_ newExpirationDate: Date?, db: DB)
+}
+
+// MARK: - AppExpiry implementation
+
+public class AppExpiryImpl: AppExpiry {
 
     @objc
     public static let appExpiredStatusCode: UInt = 499
 
-    @objc
-    public let keyValueStore = SDSKeyValueStore(collection: "AppExpiry")
+    private let keyValueStore: KeyValueStore
+    private let dateProvider: DateProvider
+    private let appVersion: AppVersion
+    private let schedulers: Schedulers
 
     private struct ExpirationState: Codable, Equatable {
         let version4: String
@@ -25,8 +40,8 @@ public class AppExpiry: NSObject {
 
         let expirationDate: Date?
 
-        init(mode: Mode = .default, expirationDate: Date? = nil) {
-            self.version4 = AppVersion.shared().currentAppVersion4
+        init(version4: String, mode: Mode = .default, expirationDate: Date? = nil) {
+            self.version4 = version4
             self.mode = mode
             self.expirationDate = expirationDate
 
@@ -36,64 +51,70 @@ public class AppExpiry: NSObject {
             owsAssertDebug(mode != .atDate || expirationDate != nil)
         }
     }
-    private let expirationState = AtomicValue<ExpirationState>(.init(mode: .default))
-    private static var expirationStateKey: String { "expirationState" }
+    private let expirationState: AtomicValue<ExpirationState>
 
-    @objc
-    public required override init() {
-        super.init()
+    static let keyValueCollection = "AppExpiry"
+    static let keyValueKey = "expirationState"
 
-        SwiftSingletons.register(self)
+    public init(
+        keyValueStoreFactory: KeyValueStoreFactory,
+        dateProvider: @escaping DateProvider,
+        appVersion: AppVersion,
+        schedulers: Schedulers
+    ) {
+        self.keyValueStore = keyValueStoreFactory.keyValueStore(collection: Self.keyValueCollection)
+        self.dateProvider = dateProvider
+        self.appVersion = appVersion
+        self.schedulers = schedulers
 
-        AppReadiness.runNowOrWhenAppWillBecomeReady {
-            // We don't need to re-warm this cache after a device migration.
-            self.warmCaches()
-        }
+        self.expirationState = AtomicValue(
+            .init(version4: appVersion.currentAppVersion4, mode: .default)
+        )
     }
 
     private func logExpirationState() {
         if isExpired {
             Logger.info("Build is expired.")
         } else {
-            Logger.info("Build expires in \(daysUntilBuildExpiry) days")
+            let oneDayInSeconds: TimeInterval = 86400
+            let now = dateProvider()
+            let daysUntilExpiry = Int(floor(expirationDate.timeIntervalSince(now) / oneDayInSeconds))
+            Logger.info("Build expires in \(daysUntilExpiry) day(s)")
         }
     }
 
-    private func warmCaches() {
-        owsAssertDebug(GRDBSchemaMigrator.areMigrationsComplete)
+    public func warmCaches(with tx: DBReadTransaction) {
+        let persistedExpirationState: ExpirationState? = try? self.keyValueStore.getCodableValue(
+            forKey: Self.keyValueKey,
+            transaction: tx
+        )
 
-        if let persistedExpirationState: ExpirationState = databaseStorage.read(block: { transaction in
-            guard let persistedExpirationState: ExpirationState = try? self.keyValueStore.getCodableValue(
-                forKey: Self.expirationStateKey,
-                transaction: transaction
-            ) else {
-                return nil
-            }
-
-            // We only want to restore the persisted state if it's for our current version.
-            guard persistedExpirationState.version4 == appVersion.currentAppVersion4 else {
-                return nil
-            }
-
-            return persistedExpirationState
-        }) {
-            expirationState.set(persistedExpirationState)
+        // We only want to restore the persisted state if it's for our current version.
+        guard
+            let persistedExpirationState,
+            persistedExpirationState.version4 == appVersion.currentAppVersion4
+        else {
+            return
         }
+
+        expirationState.set(persistedExpirationState)
 
         logExpirationState()
     }
 
-    private func updateExpirationState(_ state: ExpirationState) {
+    private func updateExpirationState(_ state: ExpirationState, db: DB) {
         expirationState.set(state)
 
         logExpirationState()
 
-        databaseStorage.asyncWrite { transaction in
+        db.asyncWrite { transaction in
             do {
                 // Don't write or fire notification if the value hasn't changed.
-                if let oldState: ExpirationState = try self.keyValueStore.getCodableValue(forKey: Self.expirationStateKey,
-                                                                                          transaction: transaction),
-                   oldState == state {
+                let oldState: ExpirationState? = try self.keyValueStore.getCodableValue(
+                    forKey: Self.keyValueKey,
+                    transaction: transaction
+                )
+                if let oldState, oldState == state {
                     return
                 }
             } catch {
@@ -102,13 +123,14 @@ public class AppExpiry: NSObject {
             do {
                 try self.keyValueStore.setCodable(
                     state,
-                    key: Self.expirationStateKey,
+                    key: Self.keyValueKey,
                     transaction: transaction
                 )
             } catch {
                 owsFailDebug("Error persisting expiration state \(error)")
             }
-            transaction.addAsyncCompletionOffMain {
+
+            transaction.addAsyncCompletion(on: self.schedulers.global()) {
                 NotificationCenter.default.postNotificationNameAsync(
                     Self.AppExpiryDidChange,
                     object: nil
@@ -117,29 +139,33 @@ public class AppExpiry: NSObject {
         }
     }
 
-    @objc
-    public func setHasAppExpiredAtCurrentVersion() {
+    public func setHasAppExpiredAtCurrentVersion(db: DB) {
         Logger.warn("")
 
-        updateExpirationState(ExpirationState(mode: .immediately))
+        let newState = ExpirationState(version4: appVersion.currentAppVersion4, mode: .immediately)
+        updateExpirationState(newState, db: db)
     }
 
-    @objc
-    public func setExpirationDateForCurrentVersion(_ newExpirationDate: Date?) {
+    public func setExpirationDateForCurrentVersion(_ newExpirationDate: Date?, db: DB) {
         guard !isExpired else {
             return owsFailDebug("Ignoring expiration date change for expired build.")
         }
 
         Logger.warn("\(String(describing: newExpirationDate))")
 
+        let newState: ExpirationState
         if let newExpirationDate = newExpirationDate {
             // Ignore any expiration date that is later than when the app expires by default.
-            guard newExpirationDate < Self.defaultExpirationDate else { return }
-
-            updateExpirationState(ExpirationState(mode: .atDate, expirationDate: newExpirationDate))
+            guard newExpirationDate < AppVersionImpl.shared.defaultExpirationDate else { return }
+            newState = .init(
+                version4: appVersion.currentAppVersion4,
+                mode: .atDate,
+                expirationDate: newExpirationDate
+            )
         } else {
-            updateExpirationState(ExpirationState(mode: .default))
+            newState = .init(version4: appVersion.currentAppVersion4, mode: .default)
         }
+        updateExpirationState(newState, db: db)
     }
 
     @objc
@@ -149,7 +175,7 @@ public class AppExpiry: NSObject {
         let state = expirationState.get()
         switch state.mode {
         case .default:
-            return Self.defaultExpirationDate
+            return appVersion.defaultExpirationDate
         case .atDate:
             guard let expirationDate = state.expirationDate else {
                 owsFailDebug("Missing expiration date, expiring immediately")
@@ -162,48 +188,29 @@ public class AppExpiry: NSObject {
     }
 
     @objc
-    public var daysUntilBuildExpiry: Int {
-        guard let daysUntilExpiry = Calendar.current.dateComponents(
-            [.day],
-            from: Date(),
-            to: expirationDate
-        ).day else {
-            owsFailDebug("Unexpectedly found nil daysUntilExpiry, this should not be possible.")
-            return 0
-        }
-        return daysUntilExpiry
+    public var isExpired: Bool { expirationDate < dateProvider() }
+}
+
+// MARK: - Build time
+
+fileprivate extension AppVersion {
+    var defaultExpirationDate: Date { buildDate.addingTimeInterval(90 * kDayInterval) }
+}
+
+// MARK: - Objective-C interop
+
+@objc(AppExpiry)
+public class AppExpiryForObjC: NSObject {
+    private let appExpiry: AppExpiry
+
+    @objc
+    public static let shared = AppExpiryForObjC(DependenciesBridge.shared.appExpiry)
+
+    public init(_ appExpiry: AppExpiry) {
+        self.appExpiry = appExpiry
     }
 
     @objc
-    public var isExpiringSoon: Bool {
-        return daysUntilBuildExpiry <= 10
-    }
-
-    @objc
-    public var isExpired: Bool {
-        return expirationDate < Date()
-    }
-
-    // MARK: - Build Time
-
-    private static let defaultExpirationDate: Date = {
-        guard let buildTime = loadBuildTime() else {
-            owsAssert(OWSIsTestableBuild(), "Production builds should always expire.")
-            Logger.debug("No build timestamp, assuming app never expires.")
-            return .distantFuture
-        }
-        // By default, we expire 90 days after the app was compiled.
-        return buildTime.addingTimeInterval(90 * kDayInterval)
-    }()
-
-    private static func loadBuildTime() -> Date? {
-        guard
-            let buildDetails = Bundle.main.app.object(forInfoDictionaryKey: "BuildDetails") as? [String: Any],
-            let buildTimestamp = buildDetails["Timestamp"] as? TimeInterval
-        else {
-            return nil
-        }
-        return Date(timeIntervalSince1970: buildTimestamp)
-    }
-
+    @available(swift, obsoleted: 1.0)
+    public var isExpired: Bool { appExpiry.isExpired }
 }

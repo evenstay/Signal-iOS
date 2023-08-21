@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalCoreKit
 import YYImage
 
 public class CVUtils {
@@ -12,13 +12,13 @@ public class CVUtils {
     private init() {}
 
     private static let workQueue_userInitiated: DispatchQueue = {
-        DispatchQueue(label: OWSDispatch.createLabel("conversationView.workQueue_userInitiated"),
+        DispatchQueue(label: "org.signal.conversation-view.user-initiated",
                       qos: .userInitiated,
                       autoreleaseFrequency: .workItem)
     }()
 
     private static let workQueue_userInteractive: DispatchQueue = {
-        DispatchQueue(label: OWSDispatch.createLabel("conversationView.workQueue_userInteractive"),
+        DispatchQueue(label: "org.signal.conversation-view.user-interactive",
                       qos: .userInteractive,
                       autoreleaseFrequency: .workItem)
     }()
@@ -26,12 +26,6 @@ public class CVUtils {
     public static func workQueue(isInitialLoad: Bool) -> DispatchQueue {
         isInitialLoad ? workQueue_userInteractive : workQueue_userInitiated
     }
-
-    public static let landingQueue: DispatchQueue = {
-        DispatchQueue(label: OWSDispatch.createLabel("conversationView.landingQueue"),
-                      qos: .userInitiated,
-                      autoreleaseFrequency: .workItem)
-    }()
 }
 
 // MARK: -
@@ -42,7 +36,6 @@ public protocol CVView: UIView {
 
 // MARK: -
 
-@objc
 open class CVLabel: UILabel, CVView {
     public override func updateConstraints() {
         super.updateConstraints()
@@ -51,13 +44,17 @@ open class CVLabel: UILabel, CVView {
     }
 
     public func reset() {
+        // NOTE: we have to reset the attributed text and then the text;
+        // this is the magic incantation that prevents properties from
+        // a previously-set attributed string from applying to subsequent
+        // attributed strings.
+        self.attributedText = nil
         self.text = nil
     }
 }
 
 // MARK: -
 
-@objc
 open class CVImageView: UIImageView, CVView {
     public override func updateConstraints() {
         super.updateConstraints()
@@ -123,7 +120,6 @@ open class CVImageView: UIImageView, CVView {
 
     // MARK: - Circles
 
-    @objc
     public static func circleView() -> CVImageView {
         let result = CVImageView()
         result.addLayoutBlock { view in
@@ -135,7 +131,6 @@ open class CVImageView: UIImageView, CVView {
 
 // MARK: -
 
-@objc
 open class CVAnimatedImageView: YYAnimatedImageView, CVView {
     public override func updateConstraints() {
         super.updateConstraints()

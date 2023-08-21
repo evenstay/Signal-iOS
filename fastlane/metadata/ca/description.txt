@@ -1,26 +1,19 @@
-Milions de persones utilitzen el Signal cada dia per a una comunicació gratuïta i instantània a qualsevol part del món. Envieu i rebeu missatges d'alta fidelitat, participeu en trucades de veu / vídeo d'alta definició i exploreu un conjunt creixent de funcions noves que us ajudaran a estar connectat. La tecnologia avançada de preservació de la privadesa del Signal està sempre habilitada, de manera que us podeu concentrar a compartir els moments importants amb les persones que us importen.
+• Signal és una aplicació de missatgeria centrada en la privacitat. És gratuïta i fàcil d'utilitzar, amb un fort xifratge d'extrem a extrem que manté la teva comunicació completament privada.
 
-• Digueu el que vulgueu. L'encriptació d'extrem a extrem d’última generació (amb la força del protocol de codi obert del Signal) manté les converses segures. La privadesa no és un mode opcional, sinó la manera com funciona el Signal. Cada missatge, cada trucada, cada vegada.
+• Envia de manera gratuïta missatges, notes de veu, fotos, vídeos, GIFs i arxius. Signal utilitza la connexió de dades del telèfon, així pots evitar les tarifes d'SMS i MMS.
 
-• Aneu de pressa. Els missatges es lliuren de manera ràpida i fiable, fins i tot en xarxes lentes. El Signal està optimitzat per funcionar en l’entorn més restringit possible.
+• Truca als teus amics amb trucades de veu i videotrucades encriptades i nítides. S'admeten trucades en grup per a un màxim de 40 persones.
 
-• Sentiu-vos lliures. El Signal és independent i no té ànim de lucre. El desenvolupament compta amb ajuts i donacions de persones com tu. Sense anuncis. Sense rastrejadors. Sense bromes.
+• No perdis mai el contacte amb xats grupals de fins a 1.000 persones. Controla qui pot publicar i gestionar els membres del grup amb la configuració de permisos d'administrador.
 
-• Sigueu autèntics. Podeu usar el número de telèfon i la llibreta d'adreces per comunicar-vos amb seguretat amb les amistats.
+• Comparteix Històries d'imatge, text i vídeo que desapareixeran automàticament al cap de 24 hores. La configuració de privacitat et manté a càrrec de qui pot veure exactament cada història.
 
-• Expresseu-vos. Tant si viuen a l'altre costat de la ciutat com de l’oceà, la qualitat d’àudio i vídeo millorada del Signal farà que els amics i familiars se sentin més a prop.
+• Signal està dissenyada per a la teva privacitat. No sabem res de tu ni amb qui estàs parlant. El nostre protocol de codi obert de Signal significa que no podem llegir els teus missatges ni escoltar les teves trucades. Ni tampoc pot fer-ho ningú més. Sense portes posteriors, sense recollida de dades, sense compromisos. 
 
-• Xiuxiuegeu a l'ombra. Canvieu al tema fosc si no voleu veure la llum.
+• Signal és independent i sense ànim de lucre; un tipus de tecnologia diferent d'un tipus d'organització diferent. Com a entitat sense ànim de lucre 501c3, comptem amb el suport de les teves donacions, no d'anunciants o inversors. 
 
-• So familiar. Seleccioneu alertes personalitzades per a cada contacte o desactiveu-ne completament els sorolls. Simon i Garfunkel en van escriure una cançó d'èxit el 1964 i ara podeu experimentar el so del silenci quan vulgueu si trieu "Cap" com a to de notificació.
+• Si necessites assistència, tens alguna pregunta o vols saber-ne més, visita https://support.signal.org/
 
-• Imagineu-vos-ho. Useu les funcions integrades d’edició d’imatges per esbossar, retallar i capgirar les fotografies que envieu. Fins i tot hi ha una eina de text per afegir més paraules a les 1.000 que ja val la imatge.
+Per consultar el nostre codi font, visita https://github.com/signalapp 
 
-
-Per obtenir assistència, per a preguntes o més informació, visiteu
-https://support.signal.org
-
-Codi font:
-https://github.com/signalapp
-
-Seguiu-nos a Twitter (@signalapp) i Instagram (@signal_app) per estar al dia de les darreres actualitzacions i anuncis.
+Segueix-nos a Twitter @signalapp i Instagram @signal_app

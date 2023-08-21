@@ -3,13 +3,19 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalCoreKit
 import SignalServiceKit
+import SignalUI
+
+enum EmojiPickerSection {
+    case messageEmoji
+    case recentEmoji
+    case emojiCategory(categoryIndex: Int)
+}
 
 protocol EmojiPickerCollectionViewDelegate: AnyObject {
     func emojiPicker(_ emojiPicker: EmojiPickerCollectionView, didSelectEmoji emoji: EmojiWithSkinTones)
-    func emojiPicker(_ emojiPicker: EmojiPickerCollectionView, didScrollToSection section: Int)
+    func emojiPicker(_ emojiPicker: EmojiPickerCollectionView, didScrollToSection section: EmojiPickerSection)
     func emojiPickerWillBeginDragging(_ emojiPicker: EmojiPickerCollectionView)
 
 }
@@ -20,7 +26,23 @@ class EmojiPickerCollectionView: UICollectionView {
     private static let keyValueStore = SDSKeyValueStore(collection: "EmojiPickerCollectionView")
     private static let recentEmojiKey = "recentEmoji"
 
+    /// Reads the stored recent emoji and removes duplicates using `removingNonNormalizedDuplicates`.
+    static func getRecentEmoji(tx: SDSAnyReadTransaction) -> [EmojiWithSkinTones] {
+        let recentEmojiStrings = keyValueStore.getObject(
+            forKey: EmojiPickerCollectionView.recentEmojiKey,
+            transaction: tx
+        ) as? [String] ?? []
+
+        return recentEmojiStrings
+            .compactMap(EmojiWithSkinTones.init(rawValue:))
+            .removingNonNormalizedDuplicates()
+    }
+
     weak var pickerDelegate: EmojiPickerCollectionViewDelegate?
+
+    // The emoji already applied to the message
+    private let messageEmoji: [EmojiWithSkinTones]
+    var hasMessageEmoji: Bool { !messageEmoji.isEmpty }
 
     private let recentEmoji: [EmojiWithSkinTones]
     var hasRecentEmoji: Bool { !recentEmoji.isEmpty }
@@ -54,39 +76,43 @@ class EmojiPickerCollectionView: UICollectionView {
 
     lazy var tapGestureRecognizer = UITapGestureRecognizer(target: self, action: #selector(dismissSkinTonePicker))
 
-    init() {
+    init(message: TSMessage?) {
         layout = UICollectionViewFlowLayout()
         layout.itemSize = CGSize(square: EmojiPickerCollectionView.emojiWidth)
         layout.minimumInteritemSpacing = EmojiPickerCollectionView.minimumSpacing
         layout.sectionInset = UIEdgeInsets(top: 0, leading: EmojiPickerCollectionView.margins, bottom: 0, trailing: EmojiPickerCollectionView.margins)
 
-        (recentEmoji, allSendableEmojiByCategory) = SDSDatabaseStorage.shared.read { transaction in
-            let rawRecentEmoji = EmojiPickerCollectionView.keyValueStore.getObject(
-                forKey: EmojiPickerCollectionView.recentEmojiKey,
-                transaction: transaction
-            ) as? [String] ?? []
-
-            var recentEmoji = rawRecentEmoji.compactMap { EmojiWithSkinTones(rawValue: $0) }
-
-            // Some emoji have two different code points but identical appearances. Let's remove them!
-            // If we normalize to a different emoji than the one currently in our array, we want to drop
-            // the non-normalized variant if the normalized variant already exists. Otherwise, map to the
-            // normalized variant.
-            for (idx, emoji) in recentEmoji.enumerated().reversed() {
-                if !emoji.isNormalized {
-                    if recentEmoji.contains(emoji.normalized) {
-                        recentEmoji.remove(at: idx)
-                    } else {
-                        recentEmoji[idx] = emoji.normalized
-                    }
-                }
+        let messageReacts: [OWSReaction]
+        (messageReacts, recentEmoji, allSendableEmojiByCategory) = SDSDatabaseStorage.shared.read { transaction in
+            let messageReacts: [OWSReaction]
+            if let message {
+                messageReacts = ReactionFinder(uniqueMessageId: message.uniqueId).allReactions(transaction: transaction.unwrapGrdbRead)
+            } else {
+                messageReacts = []
             }
+
+            let recentEmoji = EmojiPickerCollectionView.getRecentEmoji(tx: transaction)
 
             let allSendableEmojiByCategory = Emoji.allSendableEmojiByCategoryWithPreferredSkinTones(
                 transaction: transaction
             )
-            return (recentEmoji, allSendableEmojiByCategory)
+
+            return (messageReacts, recentEmoji, allSendableEmojiByCategory)
         }
+        // Remove duplicates while preserving order.
+        var messageEmojiSet = Set<EmojiWithSkinTones>()
+        var dedupedEmoji = [EmojiWithSkinTones]()
+        for react in messageReacts {
+            guard let emoji = EmojiWithSkinTones(rawValue: react.emoji) else {
+                continue
+            }
+            guard !messageEmojiSet.contains(emoji.normalized) else {
+                continue
+            }
+            messageEmojiSet.insert(emoji.normalized)
+            dedupedEmoji.append(emoji)
+        }
+        self.messageEmoji = dedupedEmoji
 
         super.init(frame: .zero, collectionViewLayout: layout)
 
@@ -128,22 +154,84 @@ class EmojiPickerCollectionView: UICollectionView {
 
     // At max, we show 3 rows of recent emoji
     private var maxRecentEmoji: Int { numberOfColumns * 3 }
-    private var categoryIndexOffset: Int { hasRecentEmoji ? 1 : 0}
+
+    private func section(raw: Int) -> EmojiPickerSection {
+        switch (hasMessageEmoji, hasRecentEmoji) {
+        case (true, true):
+            // Message emoji, then recents, then categories.
+            switch raw {
+            case 0: return .messageEmoji
+            case 1: return .recentEmoji
+            default: return .emojiCategory(categoryIndex: raw - 2)
+            }
+        case (true, false):
+            // Message emoji and then categories
+            switch raw {
+            case 0: return .messageEmoji
+            default: return .emojiCategory(categoryIndex: raw - 1)
+            }
+        case (false, true):
+            // Recents and then categories
+            switch raw {
+            case 0: return .recentEmoji
+            default: return .emojiCategory(categoryIndex: raw - 1)
+            }
+        case (false, false):
+            return .emojiCategory(categoryIndex: raw)
+        }
+    }
+
+    private func rawSection(from section: EmojiPickerSection) -> Int {
+        switch (hasMessageEmoji, hasRecentEmoji) {
+        case (true, true):
+            // Message emoji, then recents, then categories.
+            switch section {
+            case .messageEmoji: return 0
+            case .recentEmoji: return 1
+            case .emojiCategory(let categoryIndex): return categoryIndex + 2
+            }
+        case (true, false):
+            // Message emoji and then categories
+            switch section {
+            case .messageEmoji: return 0
+            case .recentEmoji: return 0
+            case .emojiCategory(let categoryIndex): return categoryIndex + 1
+            }
+        case (false, true):
+            // Recents and then categories
+            switch section {
+            case .messageEmoji: return 0
+            case .recentEmoji: return 0
+            case .emojiCategory(let categoryIndex): return categoryIndex + 1
+            }
+        case (false, false):
+            switch section {
+            case .messageEmoji: return 0
+            case .recentEmoji: return 0
+            case .emojiCategory(let categoryIndex): return categoryIndex
+            }
+        }
+    }
 
     func emojiForSection(_ section: Int) -> [EmojiWithSkinTones] {
-        guard section > 0 || !hasRecentEmoji else { return Array(recentEmoji[0..<min(maxRecentEmoji, recentEmoji.count)]) }
+        switch self.section(raw: section) {
+        case .messageEmoji:
+            return messageEmoji
+        case .recentEmoji:
+            return Array(recentEmoji[0..<min(maxRecentEmoji, recentEmoji.count)])
+        case .emojiCategory(let categoryIndex):
+            guard let category = Emoji.Category.allCases[safe: categoryIndex] else {
+                owsFailDebug("Unexpectedly missing category for section \(section)")
+                return []
+            }
 
-        guard let category = Emoji.Category.allCases[safe: section - categoryIndexOffset] else {
-            owsFailDebug("Unexpectedly missing category for section \(section)")
-            return []
+            guard let categoryEmoji = allSendableEmojiByCategory[category] else {
+                owsFailDebug("Unexpectedly missing emoji for category \(category)")
+                return []
+            }
+
+            return categoryEmoji
         }
-
-        guard let categoryEmoji = allSendableEmojiByCategory[category] else {
-            owsFailDebug("Unexpectedly missing emoji for category \(category)")
-            return []
-        }
-
-        return categoryEmoji
     }
 
     func emojiForIndexPath(_ indexPath: IndexPath) -> EmojiWithSkinTones? {
@@ -151,17 +239,25 @@ class EmojiPickerCollectionView: UICollectionView {
     }
 
     func nameForSection(_ section: Int) -> String? {
-        guard section > 0 || !hasRecentEmoji else {
-            return NSLocalizedString("EMOJI_CATEGORY_RECENTS_NAME",
-                                     comment: "The name for the emoji category 'Recents'")
-        }
+        switch self.section(raw: section) {
+        case .messageEmoji:
+            return OWSLocalizedString(
+                "EMOJI_CATEGORY_ON_MESSAGE_NAME",
+                comment: "The name for the emoji section for emojis already used on the message"
+            )
+        case .recentEmoji:
+            return OWSLocalizedString(
+                "EMOJI_CATEGORY_RECENTS_NAME",
+                comment: "The name for the emoji category 'Recents'"
+            )
+        case .emojiCategory(let categoryIndex):
+            guard let category = Emoji.Category.allCases[safe: categoryIndex] else {
+                owsFailDebug("Unexpectedly missing category for section \(section)")
+                return nil
+            }
 
-        guard let category = Emoji.Category.allCases[safe: section - categoryIndexOffset] else {
-            owsFailDebug("Unexpectedly missing category for section \(section)")
-            return nil
+            return category.localizedName
         }
-
-        return category.localizedName
     }
 
     func recordRecentEmoji(_ emoji: EmojiWithSkinTones, transaction: SDSAnyWriteTransaction) {
@@ -194,12 +290,12 @@ class EmojiPickerCollectionView: UICollectionView {
 
         let newLowestVisibleSection = indexPathsForVisibleItems.reduce(into: Set<Int>()) { $0.insert($1.section) }.min() ?? 0
 
-        guard scrollingToSection == nil || newLowestVisibleSection == scrollingToSection else { return }
+        guard scrollingToSection == nil || newLowestVisibleSection == self.rawSection(from: scrollingToSection!) else { return }
 
         scrollingToSection = nil
 
         if lowestVisibleSection != newLowestVisibleSection {
-            pickerDelegate?.emojiPicker(self, didScrollToSection: newLowestVisibleSection)
+            pickerDelegate?.emojiPicker(self, didScrollToSection: self.section(raw: newLowestVisibleSection))
             lowestVisibleSection = newLowestVisibleSection
         }
     }
@@ -220,19 +316,43 @@ class EmojiPickerCollectionView: UICollectionView {
             return []
         }
 
-        return allSendableEmoji.filter { emoji in
+        if
+            searchText.count == 1,
+            let searchEmoji = EmojiWithSkinTones(rawValue: searchText)
+        {
+            return [searchEmoji]
+        }
+
+        // Anchored matches are emoji that have a term that starts with the
+        // search text. Unanchored matches are emoji that have a term that
+        // contains the search text elsewhere.
+        let initialResult = (anchoredMatches: [EmojiWithSkinTones](), unanchoredMatches: [EmojiWithSkinTones]())
+        let result = allSendableEmoji.reduce(into: initialResult) { partialResult, emoji in
             let terms = emojiSearchIndex?[emoji.baseEmoji.rawValue] ?? [emoji.baseEmoji.name]
+
+            var unanchoredMatch = false
             for term in terms {
-                if term.range(of: searchText, options: [.caseInsensitive]) != nil {
-                    return true
+                if let range = term.range(of: searchText, options: [.caseInsensitive]) {
+                    if range.lowerBound == term.startIndex {
+                        partialResult.anchoredMatches.append(emoji)
+                        return
+                    } else {
+                        unanchoredMatch = true
+                        // Don't break here to continue to check for anchored matches
+                    }
                 }
             }
-            return false
+
+            if unanchoredMatch {
+                partialResult.unanchoredMatches.append(emoji)
+            }
         }
+
+        return result.anchoredMatches + result.unanchoredMatches
     }
 
     @objc
-    func emojiSearchManifestUpdated(notification: Notification) {
+    private func emojiSearchManifestUpdated(notification: Notification) {
         emojiSearchLocalization = EmojiSearchIndex.searchIndexLocalizationForLocale(NSLocale.current.identifier)
         if let emojiSearchLocalization = emojiSearchLocalization {
             emojiSearchIndex = EmojiSearchIndex.emojiSearchIndex(for: emojiSearchLocalization, shouldFetch: false)
@@ -240,17 +360,17 @@ class EmojiPickerCollectionView: UICollectionView {
     }
 
     @objc
-    func emojiSearchIndexUpdated(notification: Notification) {
+    private func emojiSearchIndexUpdated(notification: Notification) {
         if let emojiSearchLocalization = emojiSearchLocalization {
             emojiSearchIndex = EmojiSearchIndex.emojiSearchIndex(for: emojiSearchLocalization, shouldFetch: false)
         }
     }
 
-    var scrollingToSection: Int?
-    func scrollToSectionHeader(_ section: Int, animated: Bool) {
+    var scrollingToSection: EmojiPickerSection?
+    func scrollToSectionHeader(_ section: EmojiPickerSection, animated: Bool) {
         guard let attributes = layoutAttributesForSupplementaryElement(
             ofKind: UICollectionView.elementKindSectionHeader,
-            at: IndexPath(item: 0, section: section)
+            at: IndexPath(item: 0, section: self.rawSection(from: section))
         ) else { return }
         scrollingToSection = section
         setContentOffset(CGPoint(x: 0, y: (attributes.frame.minY - contentInset.top)), animated: animated)
@@ -259,7 +379,7 @@ class EmojiPickerCollectionView: UICollectionView {
     private weak var currentSkinTonePicker: EmojiSkinTonePicker?
 
     @objc
-    func handleLongPress(sender: UILongPressGestureRecognizer) {
+    private func handleLongPress(sender: UILongPressGestureRecognizer) {
 
         switch sender.state {
         case .began:
@@ -294,7 +414,7 @@ class EmojiPickerCollectionView: UICollectionView {
     }
 
     @objc
-    func dismissSkinTonePicker() {
+    private func dismissSkinTonePicker() {
         currentSkinTonePicker?.dismiss()
         currentSkinTonePicker = nil
     }
@@ -318,6 +438,7 @@ extension EmojiPickerCollectionView: UICollectionViewDelegate {
 
         SDSDatabaseStorage.shared.asyncWrite { transaction in
             self.recordRecentEmoji(emoji, transaction: transaction)
+            emoji.baseEmoji.setPreferredSkinTones(emoji.skinTones, transaction: transaction)
         }
 
         pickerDelegate?.emojiPicker(self, didSelectEmoji: emoji)
@@ -330,7 +451,12 @@ extension EmojiPickerCollectionView: UICollectionViewDataSource {
     }
 
     func numberOfSections(in collectionView: UICollectionView) -> Int {
-        return isSearching ? 1 : Emoji.Category.allCases.count + categoryIndexOffset
+        guard !isSearching else { return 1 }
+        var numSections = 0
+        if hasMessageEmoji { numSections += 1 }
+        if hasRecentEmoji { numSections += 1 }
+        numSections += Emoji.Category.allCases.count
+        return numSections
     }
 
     func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
@@ -429,7 +555,7 @@ private class EmojiSectionHeader: UICollectionReusableView {
             trailing: EmojiPickerCollectionView.margins
         )
 
-        label.font = UIFont.ows_dynamicTypeFootnoteClamped.ows_semibold
+        label.font = UIFont.dynamicTypeFootnoteClamped.semibold()
         label.textColor = Theme.secondaryTextAndIconColor
         addSubview(label)
         label.autoPinEdgesToSuperviewMargins()
@@ -486,8 +612,7 @@ private class EmojiSearchIndex: NSObject {
                 throw OWSAssertionError("Unable to parse emoji manifest from response body.")
             }
 
-            let remoteVersionString: String = try parser.required(key: "version")
-            let remoteVersion = Int(remoteVersionString) ?? 0
+            let remoteVersion: Int = try parser.required(key: "version")
             let remoteLocalizations: [String] = try parser.required(key: "languages")
             if remoteVersion != searchIndexVersion {
                 Logger.info("[Emoji Search] Invalidating search index, old version \(searchIndexVersion), new version \(remoteVersion)")
@@ -609,19 +734,4 @@ private class EmojiSearchIndex: NSObject {
 
         return index
     }
-}
-
-fileprivate extension EmojiWithSkinTones {
-
-    var normalized: EmojiWithSkinTones {
-        switch (baseEmoji, skinTones) {
-        case (let base, nil) where base.normalized != base:
-            return EmojiWithSkinTones(baseEmoji: base.normalized)
-        default:
-            return self
-        }
-    }
-
-    var isNormalized: Bool { self == normalized }
-
 }

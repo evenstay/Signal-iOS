@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalMessaging
+import SignalUI
 
 public extension ConversationViewController {
 
@@ -21,8 +21,9 @@ public extension ConversationViewController {
         let label = buildBannerLabel(title: title)
         label.textAlignment = .center
 
-        let closeIcon = UIImage(named: "banner_close")!
+        let closeIcon = UIImage(imageLiteralResourceName: "x-extra-small")
         let closeButton = UIImageView(image: closeIcon)
+        closeButton.tintColor = .white
         bannerView.addSubview(closeButton)
         let kBannerCloseButtonPadding: CGFloat = 8
         closeButton.autoPinEdge(toSuperviewEdge: .top, withInset: kBannerCloseButtonPadding)
@@ -49,7 +50,7 @@ public extension ConversationViewController {
     ) -> UIView {
         owsAssertDebug(!pendingMemberRequests.isEmpty)
 
-        let format = NSLocalizedString("PENDING_GROUP_MEMBERS_REQUEST_BANNER_%d", tableName: "PluralAware",
+        let format = OWSLocalizedString("PENDING_GROUP_MEMBERS_REQUEST_BANNER_%d", tableName: "PluralAware",
                                        comment: "Format for banner indicating that there are pending member requests to join the group. Embeds {{ the number of pending member requests }}.")
         let title = String.localizedStringWithFormat(format, pendingMemberRequests.count)
 
@@ -66,25 +67,15 @@ public extension ConversationViewController {
 
             self.ensureBannerState()
         }
-        dismissButton.titleLabel?.font = UIFont.ows_dynamicTypeSubheadlineClamped.ows_semibold
-        let viewRequestsLabel = NSLocalizedString("PENDING_GROUP_MEMBERS_REQUEST_BANNER_VIEW_REQUESTS",
+        dismissButton.titleLabel?.font = UIFont.dynamicTypeSubheadlineClamped.semibold()
+        let viewRequestsLabel = OWSLocalizedString("PENDING_GROUP_MEMBERS_REQUEST_BANNER_VIEW_REQUESTS",
                                                   comment: "Label for the 'view requests' button in the pending member requests banner.")
         let viewRequestsButton = OWSButton(title: viewRequestsLabel, block: viewMemberRequestsBlock)
-        viewRequestsButton.titleLabel?.font = UIFont.ows_dynamicTypeSubheadlineClamped.ows_semibold
+        viewRequestsButton.titleLabel?.font = UIFont.dynamicTypeSubheadlineClamped.semibold()
 
         return Self.createBanner(title: title,
                                  buttons: [dismissButton, viewRequestsButton],
                                  accessibilityIdentifier: "pending_group_request_banner")
-    }
-
-    // MARK: - Dropped Group Members Banner
-
-    func createDroppedGroupMembersBannerIfNecessary(viewState: CVViewState) -> UIView? {
-        guard let droppedMembersInfo = GroupMigrationActionSheet.buildDroppedMembersInfo(thread: thread) else {
-            return nil
-        }
-        return createDroppedGroupMembersBanner(viewState: viewState,
-                                               droppedMembersInfo: droppedMembersInfo)
     }
 
     // MARK: - Name collision banners
@@ -110,10 +101,10 @@ public extension ConversationViewController {
         }
 
         let banner = NameCollisionBanner()
-        banner.labelText = NSLocalizedString(
+        banner.labelText = OWSLocalizedString(
             "MESSAGE_REQUEST_NAME_COLLISON_BANNER_LABEL",
             comment: "Banner label notifying user that a new message is from a user with the same name as an existing contact")
-        banner.reviewActionText = NSLocalizedString(
+        banner.reviewActionText = OWSLocalizedString(
             "MESSAGE_REQUEST_REVIEW_NAME_COLLISION",
             comment: "Button to allow user to review known name collisions with an incoming message request")
 
@@ -135,26 +126,27 @@ public extension ConversationViewController {
     func createGroupMembershipCollisionBannerIfNecessary() -> UIView? {
         guard let groupThread = thread as? TSGroupThread else { return nil }
 
-        // Collision discovery can be expensive, so we only build our banner if we've already done the expensive bit
-        guard let collisionFinder = viewState.groupNameCollisionFinder, collisionFinder.hasFetchedProfileUpdateMessages else {
-            guard viewState.groupNameCollisionFinder == nil else {
-                // We already have a collision finder. It just hasn't finished fetching.
-                return nil
-            }
-
+        // Collision discovery can be expensive, so we only build our banner if
+        // we've already done the expensive bit
+        guard let collisionFinder = viewState.groupNameCollisionFinder else {
             let collisionFinder = GroupMembershipNameCollisionFinder(thread: groupThread)
             viewState.groupNameCollisionFinder = collisionFinder
 
-            firstly(on: .sharedUserInitiated) {
+            firstly(on: DispatchQueue.sharedUserInitiated) {
                 self.databaseStorage.read { readTx in
                     // Prewarm our collision finder off the main thread
                     _ = collisionFinder.findCollisions(transaction: readTx)
                 }
-            }.done(on: .main) {
+            }.done(on: DispatchQueue.main) {
                 self.ensureBannerState()
             }.catch { error in
                 owsFailDebug("\(error)")
             }
+            return nil
+        }
+
+        guard collisionFinder.hasFetchedProfileUpdateMessages else {
+            // We already have a collision finder. It just hasn't finished fetching.
             return nil
         }
 
@@ -165,7 +157,7 @@ public extension ConversationViewController {
 
             let totalCollisionElementCount = collisionSets.reduce(0) { $0 + $1.elements.count }
 
-            let titleFormat = NSLocalizedString("GROUP_MEMBERSHIP_COLLISIONS_BANNER_TITLE_%d", tableName: "PluralAware",
+            let titleFormat = OWSLocalizedString("GROUP_MEMBERSHIP_COLLISIONS_BANNER_TITLE_%d", tableName: "PluralAware",
                                                 comment: "Banner title alerting user to a name collision set ub the group membership. Embeds {{ total number of colliding members }}")
             let title = String.localizedStringWithFormat(titleFormat, totalCollisionElementCount)
 
@@ -188,7 +180,7 @@ public extension ConversationViewController {
 
         let banner = NameCollisionBanner()
         banner.labelText = title
-        banner.reviewActionText = NSLocalizedString(
+        banner.reviewActionText = OWSLocalizedString(
             "GROUP_MEMBERSHIP_NAME_COLLISION_BANNER_REVIEW_BUTTON",
             comment: "Button to allow user to review known name collisions in group membership")
         if let avatar1 = avatar1, let avatar2 = avatar2 {
@@ -218,51 +210,9 @@ public extension ConversationViewController {
 
 fileprivate extension ConversationViewController {
 
-    typealias DroppedMembersInfo = GroupMigrationActionSheet.DroppedMembersInfo
-
-}
-
-// MARK: -
-
-fileprivate extension ConversationViewController {
-
-    func createDroppedGroupMembersBanner(viewState: CVViewState,
-                                         droppedMembersInfo: DroppedMembersInfo) -> UIView {
-        let titleFormat = NSLocalizedString("GROUPS_LEGACY_GROUP_DROPPED_MEMBERS_BANNER_%d", tableName: "PluralAware",
-                                            comment: "Format for the title for the the 'dropped group members' banner. Embeds: {{ the number of dropped group members }}.")
-        let title = String.localizedStringWithFormat(titleFormat, droppedMembersInfo.addableMembers.count)
-
-        let notNowButton = OWSButton(title: CommonStrings.notNowButton) { [weak self] in
-            guard let self = self else { return }
-            AssertIsOnMainThread()
-            self.databaseStorage.write { viewState.hideDroppedGroupMembersBanner(transaction: $0) }
-            self.ensureBannerState()
-        }
-        notNowButton.titleLabel?.font = UIFont.ows_dynamicTypeSubheadlineClamped.ows_semibold
-
-        let addMembersButtonText = NSLocalizedString("GROUPS_LEGACY_GROUP_RE_ADD_DROPPED_GROUP_MEMBERS_BUTTON",
-                                                     comment: "Label for the 'add members' button in the 're-add dropped groups members' banner.")
-        let addMembersButton = OWSButton(title: addMembersButtonText) { [weak self] in
-            self?.reAddDroppedGroupMembers(droppedMembersInfo: droppedMembersInfo)
-        }
-        addMembersButton.titleLabel?.font = UIFont.ows_dynamicTypeSubheadlineClamped.ows_semibold
-
-        return Self.createBanner(title: title,
-                                 buttons: [notNowButton, addMembersButton],
-                                 accessibilityIdentifier: "dropped_group_members_banner")
-    }
-
-    func reAddDroppedGroupMembers(droppedMembersInfo: DroppedMembersInfo) {
-        let mode = GroupMigrationActionSheet.Mode.reAddDroppedMembers(members: droppedMembersInfo.addableMembers)
-        let view = GroupMigrationActionSheet(groupThread: droppedMembersInfo.groupThread, mode: mode)
-        view.present(fromViewController: self)
-    }
-
-    // MARK: -
-
     static func buildBannerLabel(title: String) -> UILabel {
         let label = UILabel()
-        label.font = UIFont.ows_dynamicTypeSubheadlineClamped.ows_semibold
+        label.font = UIFont.dynamicTypeSubheadlineClamped.semibold()
         label.text = title
         label.textColor = .white
         label.numberOfLines = 0
@@ -275,7 +225,7 @@ fileprivate extension ConversationViewController {
                              accessibilityIdentifier: String) -> UIView {
 
         let titleLabel = buildBannerLabel(title: title)
-        titleLabel.font = .ows_dynamicTypeSubheadlineClamped
+        titleLabel.font = .dynamicTypeSubheadlineClamped
 
         let buttonRow = UIStackView(arrangedSubviews: [UIView.hStretchingSpacer()] + buttons)
         buttonRow.axis = .horizontal
@@ -375,7 +325,7 @@ private class NameCollisionBanner: UIView {
     private let label: UILabel = {
         let label = UILabel()
         label.numberOfLines = 0
-        label.font = UIFont.ows_dynamicTypeFootnote
+        label.font = UIFont.dynamicTypeFootnote
         label.textColor = Theme.secondaryTextAndIconColor
         return label
     }()
@@ -385,9 +335,7 @@ private class NameCollisionBanner: UIView {
         let borderWidth: CGFloat = 2
         let totalSize = avatarSize.plus(CGSize(square: borderWidth))
 
-        let imageView = UIImageView.withTemplateImageName(
-            "info-outline-24",
-            tintColor: Theme.secondaryTextAndIconColor)
+        let imageView = UIImageView.withTemplateImageName("info", tintColor: Theme.secondaryTextAndIconColor)
         imageView.contentMode = .center
 
         imageView.layer.borderColor = Theme.secondaryBackgroundColor.cgColor
@@ -414,9 +362,9 @@ private class NameCollisionBanner: UIView {
 
     private let closeButton: OWSButton = {
         let button = OWSButton(
-            imageName: "x-circle-16",
+            imageName: "x-circle-compact",
             tintColor: Theme.secondaryTextAndIconColor)
-        button.accessibilityLabel = NSLocalizedString("BANNER_CLOSE_ACCESSIBILITY_LABEL",
+        button.accessibilityLabel = OWSLocalizedString("BANNER_CLOSE_ACCESSIBILITY_LABEL",
                                                       comment: "Accessibility label for banner close button")
         button.translatesAutoresizingMaskIntoConstraints = false
         button.setCompressionResistanceHigh()
@@ -428,7 +376,7 @@ private class NameCollisionBanner: UIView {
         let button = OWSButton()
         button.setTitleColor(Theme.accentBlueColor, for: .normal)
         button.setTitleColor(Theme.accentBlueColor.withAlphaComponent(0.7), for: .highlighted)
-        button.titleLabel?.font = UIFont.ows_dynamicTypeFootnote
+        button.titleLabel?.font = UIFont.dynamicTypeFootnote
         button.translatesAutoresizingMaskIntoConstraints = false
         return button
     }()
@@ -514,14 +462,14 @@ extension ConversationViewController {
                 let address = noLongerVerifiedAddressSample.first!
                 let displayName = contactsManager.displayName(for: address)
                 let format = (isGroupConversation
-                                ? NSLocalizedString("MESSAGES_VIEW_1_MEMBER_NO_LONGER_VERIFIED_FORMAT",
+                                ? OWSLocalizedString("MESSAGES_VIEW_1_MEMBER_NO_LONGER_VERIFIED_FORMAT",
                                                     comment: "Indicates that one member of this group conversation is no longer verified. Embeds {{user's name or phone number}}.")
-                                : NSLocalizedString("MESSAGES_VIEW_CONTACT_NO_LONGER_VERIFIED_FORMAT",
+                                : OWSLocalizedString("MESSAGES_VIEW_CONTACT_NO_LONGER_VERIFIED_FORMAT",
                                                     comment: "Indicates that this 1:1 conversation is no longer verified. Embeds {{user's name or phone number}}."))
                 message = String(format: format, displayName)
 
             default:
-                message = NSLocalizedString("MESSAGES_VIEW_N_MEMBERS_NO_LONGER_VERIFIED",
+                message = OWSLocalizedString("MESSAGES_VIEW_N_MEMBERS_NO_LONGER_VERIFIED",
                                             comment: "Indicates that more than one member of this group conversation is no longer verified.")
             }
             if let message = message {
@@ -539,7 +487,7 @@ extension ConversationViewController {
                 let blockedGroupMemberCount = self.blockedGroupMemberCount
                 if blockedGroupMemberCount > 0 {
                     return String.localizedStringWithFormat(
-                        NSLocalizedString("MESSAGES_VIEW_GROUP_N_MEMBERS_BLOCKED_%d", tableName: "PluralAware",
+                        OWSLocalizedString("MESSAGES_VIEW_GROUP_N_MEMBERS_BLOCKED_%d", tableName: "PluralAware",
                                           comment: "Indicates that some members of this group has been blocked. Embeds {{the number of blocked users in this group}}."),
                         blockedGroupMemberCount)
                 } else {
@@ -573,16 +521,6 @@ extension ConversationViewController {
                     self?.showConversationSettingsAndShowMemberRequests()
                 }
 
-                banners.append(banner)
-            }
-
-            if
-                let banner = createDroppedGroupMembersBannerIfNecessary(viewState: viewState),
-                databaseStorage.read(block: {
-                    // We will skip this read if the above check fails, which
-                    // will be most of the time.
-                    viewState.shouldShowDroppedGroupMembersBanner(transaction: $0)
-                }) {
                 banners.append(banner)
             }
         }
@@ -658,10 +596,10 @@ extension ConversationViewController {
         case 0:
             return
         case 1:
-            title = NSLocalizedString("VERIFY_PRIVACY",
+            title = OWSLocalizedString("VERIFY_PRIVACY",
                                       comment: "Label for button or row which allows users to verify the safety number of another user.")
         default:
-            title = NSLocalizedString("VERIFY_PRIVACY_MULTIPLE",
+            title = OWSLocalizedString("VERIFY_PRIVACY_MULTIPLE",
                                       comment: "Label for button or row which allows users to verify the safety numbers of multiple users.")
         }
 
@@ -689,8 +627,9 @@ extension ConversationViewController {
         }
 
         let blockedMembers = databaseStorage.read { readTx in
-            groupThread.groupModel.groupMembers
-                .filter { blockingManager.isAddressBlocked($0, transaction: readTx) }
+            groupThread.groupModel.groupMembers.filter {
+                blockingManager.isAddressBlocked($0, transaction: readTx)
+            }
         }
         return blockedMembers.count
     }

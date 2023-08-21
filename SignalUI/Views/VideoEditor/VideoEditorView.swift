@@ -17,7 +17,7 @@ protocol VideoEditorViewControllerProviding: AnyObject {
 }
 
 // A view for editing outgoing video attachments.
-class VideoEditorView: AttachmentPrepContentView {
+class VideoEditorView: UIView {
 
     weak var delegate: VideoEditorViewDelegate?
     weak var dataSource: VideoEditorDataSource?
@@ -29,12 +29,12 @@ class VideoEditorView: AttachmentPrepContentView {
 
     private lazy var playerView: VideoPlayerView = {
         let playerView = VideoPlayerView()
-        playerView.videoPlayer = OWSVideoPlayer(url: URL(fileURLWithPath: model.srcVideoPath))
+        playerView.videoPlayer = VideoPlayer(url: URL(fileURLWithPath: model.srcVideoPath))
         playerView.delegate = self
         return playerView
     }()
     private lazy var playButton: UIButton = {
-        let playButton = RoundMediaButton(image: #imageLiteral(resourceName: "play-solid-34"), backgroundStyle: .blur)
+        let playButton = RoundMediaButton(image: UIImage(imageLiteralResourceName: "play-fill-32"), backgroundStyle: .blur)
         playButton.accessibilityLabel = OWSLocalizedString("PLAY_BUTTON_ACCESSABILITY_LABEL",
                                                            comment: "Accessibility label for button to start media playback")
         // this makes the blur circle 72 pts in diameter
@@ -85,12 +85,12 @@ class VideoEditorView: AttachmentPrepContentView {
         addSubview(view)
         // This emulates the behavior of contentMode = .scaleAspectFit using iOS auto layout constraints.
         addConstraints({
-            let constraints = [ view.centerXAnchor.constraint(equalTo: contentLayoutGuide.centerXAnchor),
-                                view.centerYAnchor.constraint(equalTo: contentLayoutGuide.centerYAnchor) ]
+            let constraints = [ view.centerXAnchor.constraint(equalTo: centerXAnchor),
+                                view.centerYAnchor.constraint(equalTo: centerYAnchor) ]
             constraints.forEach { $0.priority = .defaultHigh - 100 }
             return constraints
         }())
-        addConstraint(view.topAnchor.constraint(greaterThanOrEqualTo: contentLayoutGuide.topAnchor))
+        addConstraint(view.topAnchor.constraint(greaterThanOrEqualTo: topAnchor))
         view.autoPin(toAspectRatio: aspectRatio)
         view.autoMatch(.width, to: .width, of: self, withMultiplier: 1.0, relation: .lessThanOrEqual)
         view.autoMatch(.height, to: .height, of: self, withMultiplier: 1.0, relation: .lessThanOrEqual)
@@ -145,7 +145,7 @@ class VideoEditorView: AttachmentPrepContentView {
 
     func playVideo() {
         if ensureSeekReflectsTrimming() {
-            // If this delay isn't induced OWSVideoPlayer.play() would reset
+            // If this delay isn't induced VideoPlayer.play() would reset
             // current position to 0, likely because AVPlayer hasn't yet
             // had a chance to update its currentTime.
             DispatchQueue.main.async {
@@ -223,8 +223,8 @@ class VideoEditorView: AttachmentPrepContentView {
             ModalActivityIndicatorViewController.present(fromViewController: viewController, canCancel: false) { modalVC in
                 firstly {
                     self.saveVideoPromise()
-                }.done(on: .main) {
-                    modalVC.dismiss {}
+                }.done(on: DispatchQueue.main) {
+                    modalVC.dismiss()
                 }.catch { _ in
                     modalVC.dismiss {
                         OWSActionSheets.showErrorAlert(message: OWSLocalizedString("ERROR_COULD_NOT_SAVE_VIDEO", comment: "Error indicating that 'save video' failed."))
@@ -247,18 +247,18 @@ class VideoEditorView: AttachmentPrepContentView {
             return dstPath
         }
 
-        return firstly(on: .sharedUtility) { () -> Promise<String> in
+        return firstly(on: DispatchQueue.sharedUtility) { () -> Promise<String> in
             guard self.model.needsRender else {
                 // Nothing to render, just use the original file
                 let copy = try createCopyOfFile(self.model.srcVideoPath)
                 return Promise.value(copy)
             }
 
-            return self.model.ensureCurrentRender().result.map(on: .sharedUtility) { result in
+            return self.model.ensureCurrentRender().result.map(on: DispatchQueue.sharedUtility) { result in
                 try createCopyOfFile(result.getResultPath())
             }
 
-        }.then(on: .sharedUtility) { (videoFilePath: String) -> Promise<Void> in
+        }.then(on: DispatchQueue.sharedUtility) { (videoFilePath: String) -> Promise<Void> in
             Promise { future in
                 let videoUrl = URL(fileURLWithPath: videoFilePath)
 

@@ -21,7 +21,6 @@ NS_ASSUME_NONNULL_BEGIN
 
 /// `text` may omit the calling code or duplicate the value in `callingCode`.
 + (nullable PhoneNumber *)tryParsePhoneNumberFromUserSpecifiedText:(NSString *)text callingCode:(NSString *)callingCode;
-+ (nullable PhoneNumber *)tryParsePhoneNumberFromE164:(NSString *)text;
 + (nullable PhoneNumber *)phoneNumberFromUserSpecifiedText:(NSString *)text;
 
 // This will try to parse the input text as a phone number using
@@ -41,13 +40,12 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSString *)toE164;
 - (nullable NSNumber *)getCountryCode;
 @property (nonatomic, readonly, nullable) NSString *nationalNumber;
+@property (nonatomic, readonly, nullable) NSString *nationalNumberFormatted;
 - (BOOL)isValid;
 
 - (NSComparisonResult)compare:(PhoneNumber *)other;
 
 + (NSString *)defaultCountryCode;
-
-+ (BOOL)resemblesE164:(NSString *)text;
 
 @end
 

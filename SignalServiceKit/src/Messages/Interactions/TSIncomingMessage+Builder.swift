@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import LibSignalClient
 
 // Every time we add a new property to TSIncomingMessage, we should:
 //
@@ -12,9 +13,9 @@ import Foundation
 @objc
 public class TSIncomingMessageBuilder: TSMessageBuilder {
     @objc
-    public var authorAddress: SignalServiceAddress?
+    public var authorAci: AciObjC?
     @objc
-    public var sourceDeviceId: UInt32 = OWSDevicePrimaryDeviceId
+    public var sourceDeviceId: UInt32 = OWSDevice.primaryDeviceId
     @objc
     public var serverTimestamp: NSNumber?
     @objc
@@ -26,16 +27,20 @@ public class TSIncomingMessageBuilder: TSMessageBuilder {
 
     public required init(thread: TSThread,
                          timestamp: UInt64? = nil,
-                         authorAddress: SignalServiceAddress? = nil,
+                         authorAci: Aci? = nil,
                          sourceDeviceId: UInt32 = 0,
                          messageBody: String? = nil,
                          bodyRanges: MessageBodyRanges? = nil,
                          attachmentIds: [String]? = nil,
+                         editState: TSEditState = .none,
                          expiresInSeconds: UInt32 = 0,
+                         // expireStartedAt should always initialized to zero for new incoming messages.
+                         expireStartedAt: UInt64 = 0,
                          quotedMessage: TSQuotedMessage? = nil,
                          contactShare: OWSContact? = nil,
                          linkPreview: OWSLinkPreview? = nil,
                          messageSticker: MessageSticker? = nil,
+                         read: Bool = false,
                          serverTimestamp: NSNumber? = nil,
                          serverDeliveryTimestamp: UInt64 = 0,
                          serverGuid: String? = nil,
@@ -51,20 +56,21 @@ public class TSIncomingMessageBuilder: TSMessageBuilder {
                    messageBody: messageBody,
                    bodyRanges: bodyRanges,
                    attachmentIds: attachmentIds,
+                   editState: editState,
                    expiresInSeconds: expiresInSeconds,
-                   // expireStartedAt is always initialized to zero for incoming messages.
-                   expireStartedAt: 0,
+                   expireStartedAt: expireStartedAt,
                    quotedMessage: quotedMessage,
                    contactShare: contactShare,
                    linkPreview: linkPreview,
                    messageSticker: messageSticker,
                    isViewOnceMessage: isViewOnceMessage,
+                   read: read,
                    storyAuthorAddress: storyAuthorAddress,
                    storyTimestamp: storyTimestamp,
                    storyReactionEmoji: storyReactionEmoji,
                    giftBadge: giftBadge)
 
-        self.authorAddress = authorAddress
+        self.authorAci = authorAci.map { AciObjC($0) }
         self.sourceDeviceId = sourceDeviceId
         self.serverTimestamp = serverTimestamp
         self.serverDeliveryTimestamp = serverDeliveryTimestamp
@@ -90,11 +96,12 @@ public class TSIncomingMessageBuilder: TSMessageBuilder {
     @objc
     public class func builder(thread: TSThread,
                               timestamp: UInt64,
-                              authorAddress: SignalServiceAddress?,
+                              authorAci: AciObjC?,
                               sourceDeviceId: UInt32,
                               messageBody: String?,
                               bodyRanges: MessageBodyRanges?,
                               attachmentIds: [String]?,
+                              editState: TSEditState,
                               expiresInSeconds: UInt32,
                               quotedMessage: TSQuotedMessage?,
                               contactShare: OWSContact?,
@@ -111,11 +118,12 @@ public class TSIncomingMessageBuilder: TSMessageBuilder {
                               giftBadge: OWSGiftBadge?) -> TSIncomingMessageBuilder {
         return TSIncomingMessageBuilder(thread: thread,
                                         timestamp: timestamp,
-                                        authorAddress: authorAddress,
+                                        authorAci: authorAci?.wrappedAciValue,
                                         sourceDeviceId: sourceDeviceId,
                                         messageBody: messageBody,
                                         bodyRanges: bodyRanges,
                                         attachmentIds: attachmentIds,
+                                        editState: editState,
                                         expiresInSeconds: expiresInSeconds,
                                         quotedMessage: quotedMessage,
                                         contactShare: contactShare,

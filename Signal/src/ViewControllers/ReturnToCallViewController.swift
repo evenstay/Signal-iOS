@@ -3,10 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
-import UIKit
+import SignalServiceKit
+import SignalUI
 
-@objc
 public protocol CallViewControllerWindowReference: AnyObject {
     var localVideoViewReference: UIView { get }
     var remoteVideoViewReference: UIView { get }
@@ -18,10 +17,8 @@ public protocol CallViewControllerWindowReference: AnyObject {
 
 // MARK: -
 
-@objc
 public class ReturnToCallViewController: UIViewController {
 
-    @objc
     public static var pipSize: CGSize {
         let nineBySixteen = CGSize(width: 90, height: 160)
         let fourByThree = CGSize(width: 272, height: 204)
@@ -40,7 +37,6 @@ public class ReturnToCallViewController: UIViewController {
 
     private weak var callViewController: CallViewControllerWindowReference?
 
-    @objc
     public func displayForCallViewController(_ callViewController: CallViewControllerWindowReference) {
         guard callViewController !== self.callViewController else { return }
 
@@ -64,6 +60,7 @@ public class ReturnToCallViewController: UIViewController {
             return self.profileManagerImpl.profileAvatar(
                 for: callViewController.remoteVideoAddress,
                 downloadIfMissing: true,
+                authedAccount: .implicit(),
                 transaction: transaction
             )
         }
@@ -73,7 +70,6 @@ public class ReturnToCallViewController: UIViewController {
         animatePipPresentation(snapshot: callViewSnapshot)
     }
 
-    @objc
     public func resignCall() {
         callViewController?.localVideoViewReference.removeFromSuperview()
         callViewController?.remoteVideoViewReference.removeFromSuperview()
@@ -161,7 +157,7 @@ public class ReturnToCallViewController: UIViewController {
         isAnimating = true
 
         let previousOrigin = window.frame.origin
-        window.frame = OWSWindowManager.shared.rootWindow.bounds
+        window.frame = WindowManager.shared.rootWindow.bounds
 
         view.addSubview(snapshot)
         snapshot.autoPinEdgesToSuperviewEdges()
@@ -194,7 +190,7 @@ public class ReturnToCallViewController: UIViewController {
         //   would be hard, and
         // - this is just a nicety; nothing bad actually happens if the PiP window overlaps those views.
         let bottomBarEstimatedHeight: CGFloat = 56
-        let safeAreaInsets = OWSWindowManager.shared.rootWindow.safeAreaInsets
+        let safeAreaInsets = WindowManager.shared.rootWindow.safeAreaInsets
 
         var rect = CurrentAppContext().frame
         rect = rect.inset(by: safeAreaInsets)
@@ -224,27 +220,14 @@ public class ReturnToCallViewController: UIViewController {
             size: Self.pipSize
         ).pinnedToVerticalEdge(of: pipBoundingRect)
 
-        let animationOptions: UIView.AnimationOptions
-        switch animationCurve ?? .easeInOut {
-        case .easeInOut:
-            animationOptions = .curveEaseInOut
-        case .easeIn:
-            animationOptions = .curveEaseIn
-        case .easeOut:
-            animationOptions = .curveEaseOut
-        case .linear:
-            animationOptions = .curveLinear
-        @unknown default:
-            animationOptions = .curveEaseInOut
-        }
-        UIView.animate(withDuration: animationDuration ?? 0.25, delay: 0, options: animationOptions) {
+        UIView.animate(withDuration: animationDuration ?? 0.25, delay: 0, options: animationCurve.asAnimationOptions) {
             self.updateLocalVideoFrame()
             window.frame = newFrame
         }
     }
 
     @objc
-    func handlePan(sender: UIPanGestureRecognizer) {
+    private func handlePan(sender: UIPanGestureRecognizer) {
         guard let window = view.window else { return owsFailDebug("missing window") }
 
         // Don't try to reset to the old frame when the keyboard is dismissed.
@@ -270,7 +253,7 @@ public class ReturnToCallViewController: UIViewController {
 
     @objc
     private func handleTap(sender: UITapGestureRecognizer) {
-        OWSWindowManager.shared.returnToCallView()
+        WindowManager.shared.returnToCallView()
     }
 
     @objc

@@ -4,26 +4,43 @@
 //
 
 import Foundation
+import LibSignalClient
 import SignalCoreKit
 
 @objc
 public class RemoteConfig: BaseFlags {
 
+    /// Difference between the last time the server says it is and the time our local device says it is.
+    /// Add this to the local device time to get the "real" time according to the server.
+    ///
+    /// This will always be noisy; for one the server response takes variable time to get to us, so
+    /// really this represents the time on the server when it crafted its response, not when we got it.
+    /// And of course the local clock can change.
+    fileprivate let lastKnownClockSkew: TimeInterval
+
     // rather than interact with `config` directly, prefer encoding any string constants
     // into a getter below...
     fileprivate let isEnabledFlags: [String: Bool]
     fileprivate let valueFlags: [String: AnyObject]
+    fileprivate let timeGatedFlags: [String: Date]
     private let standardMediaQualityLevel: ImageQualityLevel?
     private let paymentsDisabledRegions: PhoneNumberRegions
     private let applePayDisabledRegions: PhoneNumberRegions
     private let creditAndDebitCardDisabledRegions: PhoneNumberRegions
     private let paypalDisabledRegions: PhoneNumberRegions
 
-    init(isEnabledFlags: [String: Bool],
-         valueFlags: [String: AnyObject]) {
+    init(
+        clockSkew: TimeInterval,
+        isEnabledFlags: [String: Bool],
+        valueFlags: [String: AnyObject],
+        timeGatedFlags: [String: Date],
+        account: AuthedAccount
+    ) {
+        self.lastKnownClockSkew = clockSkew
         self.isEnabledFlags = isEnabledFlags
         self.valueFlags = valueFlags
-        self.standardMediaQualityLevel = Self.determineStandardMediaQualityLevel(valueFlags: valueFlags)
+        self.timeGatedFlags = timeGatedFlags
+        self.standardMediaQualityLevel = Self.determineStandardMediaQualityLevel(valueFlags: valueFlags, account: account)
         self.paymentsDisabledRegions = Self.parsePhoneNumberRegions(valueFlags: valueFlags, flag: .paymentsDisabledRegions)
         self.applePayDisabledRegions = Self.parsePhoneNumberRegions(valueFlags: valueFlags, flag: .applePayDisabledRegions)
         self.creditAndDebitCardDisabledRegions = Self.parsePhoneNumberRegions(valueFlags: valueFlags, flag: .creditAndDebitCardDisabledRegions)
@@ -31,70 +48,17 @@ public class RemoteConfig: BaseFlags {
     }
 
     @objc
-    public static var kbs: Bool {
-        // This feature latches "on" – once they have a master key in KBS,
-        // even if we turn it off on the server they will keep using KBS.
-        guard !KeyBackupService.hasMasterKey else { return true }
-        return isEnabled(.kbs)
-    }
-
-    private static let forceDisableUuidSafetyNumbers = true
-
-    @objc
-    public static var uuidSafetyNumbers: Bool {
-        guard !forceDisableUuidSafetyNumbers else { return false }
-        return isEnabled(.uuidSafetyNumbers)
-    }
-
-    @objc
     public static var groupsV2MaxGroupSizeRecommended: UInt {
-        let defaultValue: UInt = 151
-        guard AppReadiness.isAppReady else {
-            owsFailDebug("Storage is not yet ready.")
-            return defaultValue
-        }
-        guard let rawValue: AnyObject = value(.groupsV2MaxGroupSizeRecommended) else {
-            return defaultValue
-        }
-        guard let stringValue = rawValue as? String else {
-            owsFailDebug("Unexpected value.")
-            return defaultValue
-        }
-        guard let uintValue = UInt(stringValue) else {
-            owsFailDebug("Invalid value.")
-            return defaultValue
-        }
-        return uintValue
+        getUIntValue(forFlag: .groupsV2MaxGroupSizeRecommended, defaultValue: 151)
     }
 
     @objc
     public static var groupsV2MaxGroupSizeHardLimit: UInt {
-        let defaultValue: UInt = 1001
-        guard AppReadiness.isAppReady else {
-            owsFailDebug("Storage is not yet ready.")
-            return defaultValue
-        }
-        guard let rawValue: AnyObject = value(.groupsV2MaxGroupSizeHardLimit) else {
-            return defaultValue
-        }
-        guard let stringValue = rawValue as? String else {
-            owsFailDebug("Unexpected value.")
-            return defaultValue
-        }
-        guard let uintValue = UInt(stringValue) else {
-            owsFailDebug("Invalid value.")
-            return defaultValue
-        }
-        return uintValue
+        getUIntValue(forFlag: .groupsV2MaxGroupSizeHardLimit, defaultValue: 1001)
     }
 
     public static var groupsV2MaxBannedMembers: UInt {
         groupsV2MaxGroupSizeHardLimit
-    }
-
-    @objc
-    public static var groupCalling: Bool {
-        return DebugFlags.forceGroupCalling || !isEnabled(.groupCallingKillSwitch)
     }
 
     @objc
@@ -175,8 +139,7 @@ public class RemoteConfig: BaseFlags {
     }
 
     public static var canDonateMonthlyWithPaypal: Bool {
-        // TODO: [PayPal] Once monthly donations are supported, remove this override.
-        !isEnabled(.paypalMonthlyDonationKillSwitch) && false
+        !isEnabled(.paypalMonthlyDonationKillSwitch)
     }
 
     public static var paypalDisabledRegions: PhoneNumberRegions {
@@ -184,12 +147,12 @@ public class RemoteConfig: BaseFlags {
         return remoteConfig.paypalDisabledRegions
     }
 
-    private static func determineStandardMediaQualityLevel(valueFlags: [String: AnyObject]) -> ImageQualityLevel? {
+    private static func determineStandardMediaQualityLevel(valueFlags: [String: AnyObject], account: AuthedAccount) -> ImageQualityLevel? {
         let rawFlag: String = Flags.SupportedValuesFlags.standardMediaQualityLevel.rawFlag
 
         guard
             let csvString = valueFlags[rawFlag] as? String,
-            let stringValue = Self.countryCodeValue(csvString: csvString, csvDescription: rawFlag),
+            let stringValue = Self.countryCodeValue(csvString: csvString, csvDescription: rawFlag, account: account),
             let uintValue = UInt(stringValue),
             let defaultMediaQuality = ImageQualityLevel(rawValue: uintValue)
         else {
@@ -232,14 +195,6 @@ public class RemoteConfig: BaseFlags {
     }
 
     @objc
-    public static var changePhoneNumberUI: Bool {
-        if DebugFlags.forceChangePhoneNumberUI.get() {
-            return true
-        }
-        return isEnabled(.changePhoneNumberUI)
-    }
-
-    @objc
     public static var stories: Bool {
         if DebugFlags.forceStories {
             return true
@@ -248,20 +203,6 @@ public class RemoteConfig: BaseFlags {
             return false
         }
         return true
-    }
-
-    @objc
-    public static var keepMutedChatsArchivedOption: Bool {
-        DebugFlags.internalSettings || isEnabled(.keepMutedChatsArchivedOption)
-    }
-
-    @objc
-    public static var canReceiveGiftBadges: Bool {
-        FeatureFlags.shouldUseRemoteConfigForReceivingGiftBadges && isEnabled(.canReceiveGiftBadges, defaultValue: true)
-    }
-
-    public static var canSendGiftBadges: Bool {
-        return FeatureFlags.isPrerelease && isEnabled(.canSendGiftBadgesInPrerelease, defaultValue: false)
     }
 
     public static var inboundGroupRings: Bool {
@@ -273,32 +214,114 @@ public class RemoteConfig: BaseFlags {
     }
 
     public static var maxGroupCallRingSize: UInt {
-        let defaultValue: UInt = 16
-        guard AppReadiness.isAppReady else {
-            owsFailDebug("Storage is not yet ready.")
-            return defaultValue
-        }
-        guard let rawValue: AnyObject = value(.maxGroupCallRingSize) else {
-            return defaultValue
-        }
-        guard let stringValue = rawValue as? String else {
-            owsFailDebug("Unexpected value.")
-            return defaultValue
-        }
-        guard let uintValue = UInt(stringValue) else {
-            owsFailDebug("Invalid value.")
-            return defaultValue
-        }
-        return uintValue
-    }
-
-    public static var contactDiscoveryV2: Bool {
-        // Use a hardcoded value. When this is ready to ship, switch to the remote config.
-        FeatureFlags.contactDiscoveryV2
+        getUIntValue(forFlag: .maxGroupCallRingSize, defaultValue: 16)
     }
 
     public static var enableAutoAPNSRotation: Bool {
         return isEnabled(.enableAutoAPNSRotation, defaultValue: false)
+    }
+
+    public static var defaultToAciSafetyNumber: Bool {
+        return isEnabled(.safetyNumberAci)
+    }
+
+    /// The minimum length for a valid nickname, in Unicode codepoints.
+    public static var minNicknameLength: UInt32 {
+        getUInt32Value(forFlag: .minNicknameLength, defaultValue: 3)
+    }
+
+    /// The maximum length for a valid nickname, in Unicode codepoints.
+    public static var maxNicknameLength: UInt32 {
+        getUInt32Value(forFlag: .maxNicknameLength, defaultValue: 32)
+    }
+
+    /// NOTE: serialized, be careful changing raw values.
+    public enum SVRConfiguration: Int {
+        /// Exclusively read/write to KBS (as if SVR2 didn't exist)
+        case kbsOnly = 0
+        /// Write to SVR2 and then KBS. Require both to succeed.
+        /// Read from SVR2 first; if it has no backups, read from KBS.
+        case mirroring = 1
+        /// Exclusively read/write to SVR2.
+        case svr2Only = 2
+    }
+
+    public var svrConfiguration: SVRConfiguration {
+        if isEnabled(.exclusiveSVR2) {
+            return .svr2Only
+        }
+        if isEnabled(.stopMirroringToSVR2Override) {
+            return .kbsOnly
+        }
+        return .mirroring
+    }
+
+    static var tryToReturnAcisWithoutUaks: Bool {
+        if !FeatureFlags.phoneNumberIdentifiers {
+            return true
+        }
+        if TSConstants.isUsingProductionService {
+            return true
+        }
+        if OWSIsDebugBuild() {
+            return true
+        }
+        if !isEnabled(.cdsDisableCompatibilityMode) {
+            return true
+        }
+        return false
+    }
+
+    public static var maxAttachmentDownloadSizeBytes: UInt {
+        return getUIntValue(forFlag: .maxAttachmentDownloadSizeBytes, defaultValue: 100 * 1024 * 1024)
+    }
+
+    // MARK: UInt values
+
+    private static func getUIntValue(
+        forFlag flag: Flags.SupportedValuesFlags,
+        defaultValue: UInt
+    ) -> UInt {
+        getStringConvertibleValue(
+            forFlag: flag,
+            defaultValue: defaultValue
+        )
+    }
+
+    private static func getUInt32Value(
+        forFlag flag: Flags.SupportedValuesFlags,
+        defaultValue: UInt32
+    ) -> UInt32 {
+        getStringConvertibleValue(
+            forFlag: flag,
+            defaultValue: defaultValue
+        )
+    }
+
+    private static func getStringConvertibleValue<V>(
+        forFlag flag: Flags.SupportedValuesFlags,
+        defaultValue: V
+    ) -> V where V: LosslessStringConvertible {
+        guard AppReadiness.isAppReady else {
+            owsFailDebug("Storage is not yet ready.")
+            return defaultValue
+        }
+
+        guard let rawValue: AnyObject = value(flag) else {
+            return defaultValue
+        }
+
+        guard let stringValue = rawValue as? String else {
+            owsFailDebug("Unexpected value.")
+            return defaultValue
+        }
+
+        guard let value = V(stringValue) else {
+            owsFailDebug("Invalid value.")
+            return defaultValue
+        }
+
+        return value
     }
 
     // MARK: - Country code buckets
@@ -308,27 +331,27 @@ public class RemoteConfig: BaseFlags {
     ///
     /// - Parameter csvString: a CSV containing `<country-code>:<parts-per-million>` pairs
     /// - Parameter key: a key to use as part of bucketing
-    static func isCountryCodeBucketEnabled(csvString: String, key: String, csvDescription: String) -> Bool {
+    static func isCountryCodeBucketEnabled(csvString: String, key: String, csvDescription: String, account: AuthedAccount) -> Bool {
         guard
-            let countryCodeValue = countryCodeValue(csvString: csvString, csvDescription: csvDescription),
+            let countryCodeValue = countryCodeValue(csvString: csvString, csvDescription: csvDescription, account: account),
             let countEnabled = UInt64(countryCodeValue)
         else {
             return false
         }
 
-        return isBucketEnabled(key: key, countEnabled: countEnabled, bucketSize: 1_000_000)
+        return isBucketEnabled(key: key, countEnabled: countEnabled, bucketSize: 1_000_000, account: account)
     }
 
-    private static func isCountryCodeBucketEnabled(flag: Flags.SupportedValuesFlags, valueFlags: [String: AnyObject]) -> Bool {
+    private static func isCountryCodeBucketEnabled(flag: Flags.SupportedValuesFlags, valueFlags: [String: AnyObject], account: AuthedAccount) -> Bool {
         let rawFlag = flag.rawFlag
         guard let csvString = valueFlags[rawFlag] as? String else { return false }
 
-        return isCountryCodeBucketEnabled(csvString: csvString, key: rawFlag, csvDescription: rawFlag)
+        return isCountryCodeBucketEnabled(csvString: csvString, key: rawFlag, csvDescription: rawFlag, account: account)
     }
 
     /// Given a CSV of `<country-code>:<value>` pairs, extract the `<value>`
     /// corresponding to the current user's country.
-    private static func countryCodeValue(csvString: String, csvDescription: String) -> String? {
+    private static func countryCodeValue(csvString: String, csvDescription: String, account: AuthedAccount) -> String? {
         guard !csvString.isEmpty else { return nil }
 
         // The value should always be a comma-separated list of country codes colon-separated
@@ -343,35 +366,53 @@ public class RemoteConfig: BaseFlags {
                 let countryCode = components[0]
                 let countryValue = components[1]
                 result[countryCode] = countryValue
-        }
+            }
 
         guard !countryCodeToValueMap.isEmpty else { return nil }
 
-        guard let localE164 = TSAccountManager.shared.localNumber,
-            let localCountryCode = PhoneNumber(fromE164: localE164)?.getCountryCode()?.stringValue else {
+        let localE164: String
+        switch account.info {
+        case .explicit(let explicitAccount):
+            localE164 = explicitAccount.e164.stringValue
+        case .implicit:
+            guard let e164 = TSAccountManager.shared.localNumber else {
                 owsFailDebug("Missing local number")
                 return nil
+            }
+            localE164 = e164
+        }
+
+        guard let localCountryCode = PhoneNumber(fromE164: localE164)?.getCountryCode()?.stringValue else {
+            owsFailDebug("Invalid local number")
+            return nil
         }
 
         return countryCodeToValueMap[localCountryCode] ?? countryCodeToValueMap["*"]
     }
 
-    private static func isBucketEnabled(key: String, countEnabled: UInt64, bucketSize: UInt64) -> Bool {
-        guard let uuid = TSAccountManager.shared.localUuid else {
-            owsFailDebug("Missing local UUID")
-            return false
+    private static func isBucketEnabled(key: String, countEnabled: UInt64, bucketSize: UInt64, account: AuthedAccount) -> Bool {
+        let aci: Aci
+        switch account.info {
+        case .explicit(let explicitAccount):
+            aci = Aci(fromUUID: explicitAccount.aci)
+        case .implicit:
+            guard let localAci = TSAccountManager.shared.localIdentifiers?.aci else {
+                owsFailDebug("Missing local UUID")
+                return false
+            }
+            aci = localAci
         }
 
-        return countEnabled > bucket(key: key, uuid: uuid, bucketSize: bucketSize)
+        return countEnabled > bucket(key: key, aci: aci, bucketSize: bucketSize)
     }
 
-    static func bucket(key: String, uuid: UUID, bucketSize: UInt64) -> UInt64 {
+    static func bucket(key: String, aci: Aci, bucketSize: UInt64) -> UInt64 {
         guard var data = (key + ".").data(using: .utf8) else {
             owsFailDebug("Failed to get data from key")
             return 0
         }
 
-        data.append(uuid.data)
+        data.append(Data(aci.serviceIdBinary))
 
         guard let hash = Cryptography.computeSHA256Digest(data) else {
             owsFailDebug("Failed to calculate hash")
@@ -404,7 +445,26 @@ public class RemoteConfig: BaseFlags {
         guard let remoteConfig = Self.remoteConfigManager.cachedConfig else {
             return defaultValue
         }
-        return remoteConfig.isEnabledFlags[flag.rawFlag] ?? defaultValue
+        return remoteConfig.isEnabled(flag, defaultValue: defaultValue)
+    }
+
+    private func isEnabled(_ flag: Flags.SupportedIsEnabledFlags, defaultValue: Bool = false) -> Bool {
+        return isEnabledFlags[flag.rawFlag] ?? defaultValue
+    }
+
+    private static func isEnabled(_ flag: Flags.SupportedTimeGatedFlags, defaultValue: Bool = false) -> Bool {
+        guard let remoteConfig = Self.remoteConfigManager.cachedConfig else {
+            return defaultValue
+        }
+        return remoteConfig.isEnabled(flag, defaultValue: defaultValue)
+    }
+
+    private func isEnabled(_ flag: Flags.SupportedTimeGatedFlags, defaultValue: Bool = false) -> Bool {
+        guard let dateThreshold = timeGatedFlags[flag.rawFlag] else {
+            return defaultValue
+        }
+        let correctedDate = Date().addingTimeInterval(self.lastKnownClockSkew)
+        return correctedDate >= dateThreshold
     }
 
     private static func value<T>(_ flag: Flags.SupportedValuesFlags) -> T? {
@@ -473,14 +533,17 @@ private struct Flags {
     // marked true regardless of the remote state.
     enum StickyIsEnabledFlags: String, FlagType {
         case uuidSafetyNumbers
+        case stopMirroringToSVR2Override
+        case exclusiveSVR2
     }
 
     // Values defined in this array will update while the app is running,
     // as soon as we fetch an update to the remote config. They will not
     // wait for an app restart.
     enum HotSwappableIsEnabledFlags: String, FlagType {
-        // This can't be empty, so we define a bogus case. Remove this if you add a flag here.
-        case __noHotSwappableIsEnabledFlags
+        case barrierFsyncKillSwitch
+        case stopMirroringToSVR2Override
+        case exclusiveSVR2
     }
 
     // We filter the received config down to just the supported flags.
@@ -489,18 +552,13 @@ private struct Flags {
     // a sticky flag to 100% in beta then turn it back to 0% before going
     // to production.
     enum SupportedIsEnabledFlags: String, FlagType {
-        case kbs
-        case uuidSafetyNumbers
-        case groupCallingKillSwitch
+        case barrierFsyncKillSwitch
+        case deprecated_uuidSafetyNumbers = "uuidSafetyNumbers"
         case automaticSessionResetKillSwitch
         case paymentsResetKillSwitch
         case senderKeyKillSwitch
         case messageResendKillSwitch
         case donorBadgeDisplayKillSwitch
-        case changePhoneNumberUI
-        case keepMutedChatsArchivedOption
-        case canSendGiftBadgesInPrerelease
-        case canReceiveGiftBadges
         case groupRings2
         case inboundGroupRingsKillSwitch
         case storiesKillSwitch
@@ -513,8 +571,11 @@ private struct Flags {
         case paypalOneTimeDonationKillSwitch
         case paypalGiftDonationKillSwitch
         case paypalMonthlyDonationKillSwitch
-        case contactDiscoveryV2
         case enableAutoAPNSRotation
+        case ringrtcNwPathMonitorTrialKillSwitch
+        case stopMirroringToSVR2Override
+        case exclusiveSVR2
+        case cdsDisableCompatibilityMode
     }
 
     // Values defined in this array remain set once they are
@@ -558,6 +619,22 @@ private struct Flags {
         case creditAndDebitCardDisabledRegions
         case paypalDisabledRegions
         case maxGroupCallRingSize
+        case minNicknameLength
+        case maxNicknameLength
+        case maxAttachmentDownloadSizeBytes
+    }
+
+    // We filter the received config down to just the supported values.
+    // This ensures if we have a sticky value it doesn't get inadvertently
+    // set because we cached a value before it went public. e.g. if we set
+    // a sticky value to X in beta then remove it before going to production.
+    //
+    // These flags are time-gated. This means they are hot-swappable by default.
+    // Even if we don't fetch a fresh remote config, we may cross the time threshold
+    // while the app is in memory, updating the value from false to true.
+    // As such we also take fresh remote config values and swap them in at runtime.
+    enum SupportedTimeGatedFlags: String, FlagType {
+        case safetyNumberAci
     }
 }
 
@@ -582,6 +659,11 @@ private extension FlagType {
         case "creditAndDebitCardDisabledRegions": return "global.donations.ccDisabledRegions"
         case "paypalDisabledRegions": return "global.donations.paypalDisabledRegions"
         case "maxGroupCallRingSize": return "global.calling.maxGroupCallRingSize"
+        case "minNicknameLength": return "global.nicknames.min"
+        case "maxNicknameLength": return "global.nicknames.max"
+        case "safetyNumberAci": return "global.safetyNumberAci"
+        case "cdsDisableCompatibilityMode": return "cds.disableCompatibilityMode"
+        case "maxAttachmentDownloadSizeBytes": return "global.attachments.maxBytes"
         default: return Flags.prefix + rawValue
         }
     }
@@ -592,11 +674,18 @@ private extension FlagType {
 // MARK: -
 
 @objc
-public protocol RemoteConfigManager: AnyObject {
+public protocol RemoteConfigManagerObjc: AnyObject {
     var cachedConfig: RemoteConfig? { get }
 
     func warmCaches()
 }
+
+public protocol RemoteConfigManager: RemoteConfigManagerObjc {
+
+    func refresh(account: AuthedAccount) -> Promise<RemoteConfig>
+}
+
+#if TESTABLE_BUILD
 
 // MARK: -
 
@@ -605,21 +694,28 @@ public class StubbableRemoteConfigManager: NSObject, RemoteConfigManager {
     public var cachedConfig: RemoteConfig?
 
     public func warmCaches() {}
+
+    public func refresh(account: AuthedAccount) -> Promise<RemoteConfig> {
+        return .value(cachedConfig!)
+    }
 }
+
+#endif
 
 // MARK: -
 
-@objc
-public class ServiceRemoteConfigManager: NSObject, RemoteConfigManager {
-
-    let keyValueStore: SDSKeyValueStore = SDSKeyValueStore(collection: "RemoteConfigManager")
+public class ServiceRemoteConfigManager: RemoteConfigManager {
+    private let appExpiry: AppExpiry
+    private let db: DB
+    private let keyValueStore: KeyValueStore
+    private let tsAccountManager: TSAccountManager
+    private let serviceClient: SignalServiceClient
 
     // MARK: -
 
     private let hasWarmedCache = AtomicBool(false)
 
     private var _cachedConfig = AtomicOptional<RemoteConfig>(nil)
-    @objc
     public private(set) var cachedConfig: RemoteConfig? {
         get {
             if !hasWarmedCache.get() {
@@ -631,9 +727,18 @@ public class ServiceRemoteConfigManager: NSObject, RemoteConfigManager {
         set { _cachedConfig.set(newValue) }
     }
 
-    @objc
-    public override init() {
-        super.init()
+    public init(
+        appExpiry: AppExpiry,
+        db: DB,
+        keyValueStoreFactory: KeyValueStoreFactory,
+        tsAccountManager: TSAccountManager,
+        serviceClient: SignalServiceClient
+    ) {
+        self.appExpiry = appExpiry
+        self.db = db
+        self.keyValueStore = keyValueStoreFactory.keyValueStore(collection: "RemoteConfigManager")
+        self.tsAccountManager = tsAccountManager
+        self.serviceClient = serviceClient
 
         // The fetched config won't take effect until the *next* launch.
         // That's not ideal, but we can't risk changing configs in the middle
@@ -662,38 +767,94 @@ public class ServiceRemoteConfigManager: NSObject, RemoteConfigManager {
     func registrationStateDidChange() {
         AssertIsOnMainThread()
 
-        guard tsAccountManager.isRegistered else { return }
+        guard tsAccountManager.isRegistered && !tsAccountManager.isDeregistered else { return }
         Logger.info("Refreshing and immediately applying new flags due to new registration.")
-        refresh().done(on: .global()) {
-            self.cacheCurrent()
-        }.catch { error in
-            owsFailDebug("Failed to update remote config after registration change \(error)")
+        refresh().catch { error in
+            Logger.error("Failed to update remote config after registration change \(error)")
         }
     }
 
     public func warmCaches() {
         owsAssertDebug(GRDBSchemaMigrator.areMigrationsComplete)
 
-        cacheCurrent()
+        // swiftlint:disable large_tuple
+        let (
+            lastKnownClockSkew,
+            isEnabledFlags,
+            valueFlags,
+            timeGatedFlags,
+            isUsingBarrierFsync
+        ): (TimeInterval, [String: Bool], [String: AnyObject], [String: Date], Bool) = db.read { transaction in
+            return (
+                self.keyValueStore.getLastKnownClockSkew(transaction: transaction),
+                self.keyValueStore.getRemoteConfigIsEnabledFlags(transaction: transaction) ?? [:],
+                self.keyValueStore.getRemoteConfigValueFlags(transaction: transaction) ?? [:],
+                self.keyValueStore.getRemoteConfigTimeGatedFlags(transaction: transaction) ?? [:],
+                SqliteUtil.isUsingBarrierFsync(
+                    db: SDSDB.shimOnlyBridge(transaction).unwrapGrdbRead.database
+                )
+            )
+        }
+        // swiftlint:enable large_tuple
+        if TSAccountManager.shared.isRegisteredAndReady {
+            let remoteConfig = cacheCurrent(
+                clockSkew: lastKnownClockSkew,
+                isEnabledFlags: isEnabledFlags,
+                valueFlags: valueFlags,
+                timeGatedFlags: timeGatedFlags,
+                account: .implicit()
+            )
+            (DependenciesBridge.shared.svr as? OrchestratingSVRImpl)?.setRemoteConfiguration(remoteConfig.svrConfiguration)
+        }
+        warmSecondaryCaches(isEnabledFlags: isEnabledFlags, valueFlags: valueFlags, isUsingBarrierFsync: isUsingBarrierFsync)
 
         AppReadiness.runNowOrWhenAppWillBecomeReady {
             RemoteConfig.logFlags()
         }
     }
 
-    private func cacheCurrent() {
-        var isEnabledFlags = [String: Bool]()
-        var valueFlags = [String: AnyObject]()
-        self.databaseStorage.read { transaction in
-            isEnabledFlags = self.keyValueStore.getRemoteConfigIsEnabledFlags(transaction: transaction) ?? [:]
-            valueFlags = self.keyValueStore.getRemoteConfigValueFlags(transaction: transaction) ?? [:]
-        }
-
+    fileprivate func cacheCurrent(
+        clockSkew: TimeInterval,
+        isEnabledFlags: [String: Bool],
+        valueFlags: [String: AnyObject],
+        timeGatedFlags: [String: Date],
+        account: AuthedAccount
+    ) -> RemoteConfig {
+        let remoteConfig = RemoteConfig(
+            clockSkew: clockSkew,
+            isEnabledFlags: isEnabledFlags,
+            valueFlags: valueFlags,
+            timeGatedFlags: timeGatedFlags,
+            account: account
+        )
         if !isEnabledFlags.isEmpty || !valueFlags.isEmpty {
             Logger.info("Loaded stored config. isEnabledFlags: \(isEnabledFlags), valueFlags: \(valueFlags)")
-            self.cachedConfig = RemoteConfig(isEnabledFlags: isEnabledFlags, valueFlags: valueFlags)
+            self.cachedConfig = remoteConfig
         } else {
             Logger.info("no stored remote config")
+        }
+        return remoteConfig
+    }
+
+    fileprivate func warmSecondaryCaches(
+        isEnabledFlags: [String: Bool],
+        valueFlags: [String: AnyObject],
+        isUsingBarrierFsync: Bool
+    ) {
+        // This will be tripped in the unlikely event that the kill switch is enabled,
+        // but typically won't result in a write.
+        let shouldUseBarrierFsync: Bool = {
+            let rawFlag = Flags.HotSwappableIsEnabledFlags.barrierFsyncKillSwitch.rawValue
+            let isKilled = isEnabledFlags[rawFlag] ?? false
+            return !isKilled
+        }()
+        if shouldUseBarrierFsync != isUsingBarrierFsync {
+            self.db.write { tx in
+                try? SqliteUtil.setBarrierFsync(
+                    db: SDSDB.shimOnlyBridge(tx).unwrapGrdbRead.database,
+                    enabled: shouldUseBarrierFsync
+                )
+            }
         }
 
         checkClientExpiration(valueFlags: valueFlags)
@@ -711,7 +872,7 @@ public class ServiceRemoteConfigManager: NSObject, RemoteConfigManager {
         let backoffDelay = OWSOperation.retryIntervalForExponentialBackoff(failureCount: consecutiveFailures)
         let earliestPermittedAttempt = lastAttempt.addingTimeInterval(backoffDelay)
 
-        let lastSuccess = databaseStorage.read { keyValueStore.getLastFetched(transaction: $0) }
+        let lastSuccess = db.read { keyValueStore.getLastFetched(transaction: $0) }
         let nextScheduledRefresh = (lastSuccess ?? .distantPast).addingTimeInterval(Self.refreshInterval)
 
         return max(earliestPermittedAttempt, nextScheduledRefresh)
@@ -748,18 +909,28 @@ public class ServiceRemoteConfigManager: NSObject, RemoteConfigManager {
     }
 
     @discardableResult
-    private func refresh() -> Promise<Void> {
+    public func refresh(account: AuthedAccount = .implicit()) -> Promise<RemoteConfig> {
         AssertIsOnMainThread()
         Logger.info("Refreshing remote config.")
         lastAttempt = Date()
 
-        return firstly(on: .global()) {
-            self.serviceClient.getRemoteConfig()
-        }.done(on: .global()) { (fetchedConfig: [String: RemoteConfigItem]) in
+        let promise = firstly(on: DispatchQueue.global()) {
+            self.serviceClient.getRemoteConfig(auth: account.chatServiceAuth)
+        }.map(on: DispatchQueue.global()) { (fetchedConfig: RemoteConfigResponse) in
+
+            let clockSkew: TimeInterval
+            if let serverEpochTimeSeconds = fetchedConfig.serverEpochTimeSeconds {
+                let dateAccordingToServer = Date(timeIntervalSince1970: TimeInterval(serverEpochTimeSeconds))
+                clockSkew = dateAccordingToServer.timeIntervalSince(Date())
+            } else {
+                clockSkew = 0
+            }
+
             // Extract the _supported_ flags from the fetched config.
             var isEnabledFlags = [String: Bool]()
             var valueFlags = [String: AnyObject]()
-            fetchedConfig.forEach { (key: String, item: RemoteConfigItem) in
+            var timeGatedFlags = [String: Date]()
+            fetchedConfig.items.forEach { (key: String, item: RemoteConfigItem) in
                 switch item {
                 case .isEnabled(let isEnabled):
                     if Flags.SupportedIsEnabledFlags.allRawFlags.contains(key) {
@@ -772,6 +943,12 @@ public class ServiceRemoteConfigManager: NSObject, RemoteConfigManager {
                         } else {
                             owsFailDebug("Invalid value: \(value) \(type(of: value))")
                         }
+                    } else if Flags.SupportedTimeGatedFlags.allRawFlags.contains(key) {
+                        if let secondsSinceEpoch = value as? TimeInterval {
+                            timeGatedFlags[key] = Date(timeIntervalSince1970: secondsSinceEpoch)
+                        } else {
+                            owsFailDebug("Invalid value: \(value) \(type(of: value))")
+                        }
                     }
                 }
             }
@@ -780,6 +957,7 @@ public class ServiceRemoteConfigManager: NSObject, RemoteConfigManager {
 
             var cachedIsEnabledFlags = self.cachedConfig?.isEnabledFlags ?? [:]
             var cachedValueFlags = self.cachedConfig?.valueFlags ?? [:]
+            let cachedTimeGatedFlags = self.cachedConfig?.timeGatedFlags ?? [:]
 
             for flag in Flags.HotSwappableIsEnabledFlags.allRawFlags {
                 cachedIsEnabledFlags[flag] = isEnabledFlags[flag]
@@ -789,13 +967,20 @@ public class ServiceRemoteConfigManager: NSObject, RemoteConfigManager {
                 cachedValueFlags[flag] = valueFlags[flag]
             }
 
-            self.cachedConfig = RemoteConfig(isEnabledFlags: cachedIsEnabledFlags, valueFlags: cachedValueFlags)
+            self.cachedConfig = RemoteConfig(
+                clockSkew: clockSkew,
+                isEnabledFlags: cachedIsEnabledFlags,
+                valueFlags: cachedValueFlags,
+                timeGatedFlags: cachedTimeGatedFlags,
+                account: account
+            )
 
             Logger.info("Hotswapped new remoteConfig. isEnabledFlags: \(cachedIsEnabledFlags), valueFlags: \(cachedValueFlags)")
 
             // Persist all flags in the database to be applied on next launch.
 
-            self.databaseStorage.write { transaction in
+            var isUsingBarrierFsync: Bool = false
+            self.db.write { transaction in
                 // Preserve any sticky flags.
                 if let existingConfig = self.keyValueStore.getRemoteConfigIsEnabledFlags(transaction: transaction) {
                     existingConfig.forEach { (key: String, value: Bool) in
@@ -816,20 +1001,71 @@ public class ServiceRemoteConfigManager: NSObject, RemoteConfigManager {
                     }
                 }
 
+                isUsingBarrierFsync = {
+                    let rawFlag = Flags.HotSwappableIsEnabledFlags.barrierFsyncKillSwitch.rawValue
+                    let isKilled = isEnabledFlags[rawFlag] ?? false
+                    return !isKilled
+                }()
+
+                try? SqliteUtil.setBarrierFsync(
+                    db: SDSDB.shimOnlyBridge(transaction).unwrapGrdbWrite.database,
+                    enabled: isUsingBarrierFsync
+                )
+
+                self.keyValueStore.setClockSkew(clockSkew, transaction: transaction)
                 self.keyValueStore.setRemoteConfigIsEnabledFlags(isEnabledFlags, transaction: transaction)
                 self.keyValueStore.setRemoteConfigValueFlags(valueFlags, transaction: transaction)
                 self.keyValueStore.setLastFetched(Date(), transaction: transaction)
+
                 self.checkClientExpiration(valueFlags: valueFlags)
             }
 
+            // As a special case, persist RingRTC field trials. See comments in
+            // ``RingrtcFieldTrials`` for details.
+            RingrtcFieldTrials.saveNwPathMonitorTrialState(
+                isEnabled: {
+                    let flag = Flags.SupportedIsEnabledFlags.ringrtcNwPathMonitorTrialKillSwitch
+                    let isKilled = isEnabledFlags[flag.rawValue] ?? false
+                    return !isKilled
+                }(),
+                in: CurrentAppContext().appUserDefaults()
+            )
+
             self.consecutiveFailures = 0
             Logger.info("Stored new remoteConfig. isEnabledFlags: \(isEnabledFlags), valueFlags: \(valueFlags)")
-        }.catch(on: .main) { error in
+            let remoteConfig: RemoteConfig
+            if !self.hasWarmedCache.get() {
+                // Only set if we haven't warmed already, as we don't want to overwrite
+                // non-hotswappable flags.
+                // hotswappable flags get set above independently.
+                remoteConfig = self.cacheCurrent(
+                    clockSkew: clockSkew,
+                    isEnabledFlags: isEnabledFlags,
+                    valueFlags: valueFlags,
+                    timeGatedFlags: timeGatedFlags,
+                    account: account
+                )
+                self.warmSecondaryCaches(isEnabledFlags: isEnabledFlags, valueFlags: valueFlags, isUsingBarrierFsync: isUsingBarrierFsync)
+            } else {
+                remoteConfig = RemoteConfig(
+                    clockSkew: clockSkew,
+                    isEnabledFlags: isEnabledFlags,
+                    valueFlags: valueFlags,
+                    timeGatedFlags: timeGatedFlags,
+                    account: account
+                )
+            }
+            return remoteConfig
+        }
+
+        promise.catch(on: DispatchQueue.main) { error in
             Logger.error("error: \(error)")
             self.consecutiveFailures += 1
-        }.ensure(on: .main) {
+        }.ensure(on: DispatchQueue.main) {
             self.scheduleNextRefresh()
-        }
+        }.cauterize()
+
+        return promise
     }
 }
 
@@ -866,10 +1102,10 @@ private extension ServiceRemoteConfigManager {
 
                 if let remoteExpirationDate = remoteExpirationDate(minimumVersions: minimumVersions) {
                     Logger.info("Setting client expiration date: \(remoteExpirationDate)")
-                    AppExpiry.shared.setExpirationDateForCurrentVersion(remoteExpirationDate)
+                    appExpiry.setExpirationDateForCurrentVersion(remoteExpirationDate, db: db)
                 } else {
                     Logger.info("Clearing client expiration date")
-                    AppExpiry.shared.setExpirationDateForCurrentVersion(nil)
+                    appExpiry.setExpirationDateForCurrentVersion(nil, db: db)
                 }
             }
         }
@@ -918,7 +1154,7 @@ private extension ServiceRemoteConfigManager {
 
     private func remoteExpirationDate(minimumVersions: [MinimumVersion]) -> Date? {
         var oldestEnforcementDate: Date?
-        let currentVersion4 = appVersion.currentAppVersion4
+        let currentVersion4 = AppVersionImpl.shared.currentAppVersion4
         for minimumVersion in minimumVersions {
             // We only are interested in minimum versions greater than our current version.
             // Note: This method of comparison will only work as long as we always use
@@ -941,13 +1177,13 @@ private extension ServiceRemoteConfigManager {
 
 // MARK: -
 
-private extension SDSKeyValueStore {
+private extension KeyValueStore {
 
     // MARK: - Remote Config Enabled Flags
 
     private static var remoteConfigIsEnabledFlagsKey: String { "remoteConfigKey" }
 
-    func getRemoteConfigIsEnabledFlags(transaction: SDSAnyReadTransaction) -> [String: Bool]? {
+    func getRemoteConfigIsEnabledFlags(transaction: DBReadTransaction) -> [String: Bool]? {
         guard let object = getObject(forKey: Self.remoteConfigIsEnabledFlagsKey,
                                      transaction: transaction) else {
             return nil
@@ -961,7 +1197,7 @@ private extension SDSKeyValueStore {
         return remoteConfig
     }
 
-    func setRemoteConfigIsEnabledFlags(_ newValue: [String: Bool], transaction: SDSAnyWriteTransaction) {
+    func setRemoteConfigIsEnabledFlags(_ newValue: [String: Bool], transaction: DBWriteTransaction) {
         return setObject(newValue,
                          key: Self.remoteConfigIsEnabledFlagsKey,
                          transaction: transaction)
@@ -971,7 +1207,7 @@ private extension SDSKeyValueStore {
 
     private static var remoteConfigValueFlagsKey: String { "remoteConfigValueFlags" }
 
-    func getRemoteConfigValueFlags(transaction: SDSAnyReadTransaction) -> [String: AnyObject]? {
+    func getRemoteConfigValueFlags(transaction: DBReadTransaction) -> [String: AnyObject]? {
         guard let object = getObject(forKey: Self.remoteConfigValueFlagsKey, transaction: transaction) else {
             return nil
         }
@@ -984,19 +1220,52 @@ private extension SDSKeyValueStore {
         return remoteConfig
     }
 
-    func setRemoteConfigValueFlags(_ newValue: [String: AnyObject], transaction: SDSAnyWriteTransaction) {
+    func setRemoteConfigValueFlags(_ newValue: [String: AnyObject], transaction: DBWriteTransaction) {
         return setObject(newValue, key: Self.remoteConfigValueFlagsKey, transaction: transaction)
+    }
+
+    // MARK: - Remote Config Time Gated Flags
+
+    private static var remoteConfigTimeGatedFlagsKey: String { "remoteConfigTimeGatedFlags" }
+
+    func getRemoteConfigTimeGatedFlags(transaction: DBReadTransaction) -> [String: Date]? {
+        guard let object = getObject(forKey: Self.remoteConfigTimeGatedFlagsKey, transaction: transaction) else {
+            return nil
+        }
+
+        guard let remoteConfig = object as? [String: Date] else {
+            owsFailDebug("unexpected object: \(object)")
+            return nil
+        }
+
+        return remoteConfig
+    }
+
+    func setRemoteConfigTimeGatedFlags(_ newValue: [String: Date], transaction: DBWriteTransaction) {
+        return setObject(newValue, key: Self.remoteConfigTimeGatedFlagsKey, transaction: transaction)
     }
 
     // MARK: - Last Fetched
 
     var lastFetchedKey: String { "lastFetchedKey" }
 
-    func getLastFetched(transaction: SDSAnyReadTransaction) -> Date? {
+    func getLastFetched(transaction: DBReadTransaction) -> Date? {
         return getDate(lastFetchedKey, transaction: transaction)
     }
 
-    func setLastFetched(_ newValue: Date, transaction: SDSAnyWriteTransaction) {
+    func setLastFetched(_ newValue: Date, transaction: DBWriteTransaction) {
         return setDate(newValue, key: lastFetchedKey, transaction: transaction)
+    }
+
+    // MARK: - Clock Skew
+
+    var clockSkewKey: String { "clockSkewKey" }
+
+    func getLastKnownClockSkew(transaction: DBReadTransaction) -> TimeInterval {
+        return getDouble(clockSkewKey, defaultValue: 0, transaction: transaction)
+    }
+
+    func setClockSkew(_ newValue: TimeInterval, transaction: DBWriteTransaction) {
+        return setDouble(newValue, key: clockSkewKey, transaction: transaction)
     }
 }

@@ -4,8 +4,11 @@
 //
 
 import Foundation
+import SignalMessaging
+import SignalServiceKit
+import SignalUI
 
-public enum GalleryDirection {
+enum GalleryDirection {
     case before, after, around
 }
 
@@ -28,21 +31,47 @@ class MediaGalleryAlbum {
     }
 }
 
-public class MediaGalleryItem: Equatable, Hashable, MediaGallerySectionItem {
+class MediaGalleryItem: Equatable, Hashable, MediaGallerySectionItem {
+    struct Sender {
+        let name: String
+        let abbreviatedName: String
+    }
+
     let message: TSMessage
+    let sender: Sender?
     let attachmentStream: TSAttachmentStream
+
     let galleryDate: GalleryDate
-    let captionForDisplay: String?
+    let captionForDisplay: MediaCaptionView.Content?
     let albumIndex: Int
     let orderingKey: MediaGalleryItemOrderingKey
 
-    init(message: TSMessage, attachmentStream: TSAttachmentStream) {
+    init(
+        message: TSMessage,
+        sender: Sender?,
+        attachmentStream: TSAttachmentStream,
+        spoilerState: SpoilerRenderState,
+        transaction: SDSAnyReadTransaction
+    ) {
         self.message = message
+        self.sender = sender
         self.attachmentStream = attachmentStream
-        self.captionForDisplay = attachmentStream.caption?.filterForDisplay
         self.galleryDate = GalleryDate(message: message)
         self.albumIndex = message.attachmentIds.firstIndex(of: attachmentStream.uniqueId) ?? 0
         self.orderingKey = MediaGalleryItemOrderingKey(messageSortKey: message.sortId, attachmentSortKey: albumIndex)
+        if let captionText = attachmentStream.caption?.filterForDisplay {
+            self.captionForDisplay = .attachmentStreamCaption(captionText)
+        } else if let body = message.body {
+            let hydratedMessageBody = MessageBody(
+                text: body,
+                ranges: message.bodyRanges ?? .empty
+            ).hydrating(
+                mentionHydrator: ContactsMentionHydrator.mentionHydrator(transaction: transaction.asV2Read)
+            )
+            self.captionForDisplay = .messageBody(hydratedMessageBody, .fromInteraction(message))
+        } else {
+            self.captionForDisplay = nil
+        }
     }
 
     var isVideo: Bool {
@@ -64,7 +93,7 @@ public class MediaGalleryItem: Equatable, Hashable, MediaGallerySectionItem {
 
     var uniqueId: String { attachmentStream.uniqueId }
 
-    public typealias AsyncThumbnailBlock = (UIImage) -> Void
+    typealias AsyncThumbnailBlock = (UIImage) -> Void
     func thumbnailImage(async: @escaping AsyncThumbnailBlock) -> UIImage? {
         attachmentStream.thumbnailImageSmall(success: async, failure: {})
         return nil
@@ -76,13 +105,13 @@ public class MediaGalleryItem: Equatable, Hashable, MediaGallerySectionItem {
 
     // MARK: Equatable
 
-    public static func == (lhs: MediaGalleryItem, rhs: MediaGalleryItem) -> Bool {
+    static func == (lhs: MediaGalleryItem, rhs: MediaGalleryItem) -> Bool {
         return lhs.attachmentStream.uniqueId == rhs.attachmentStream.uniqueId
     }
 
     // MARK: Hashable
 
-    public func hash(into hasher: inout Hasher) {
+    func hash(into hasher: inout Hasher) {
         hasher.combine(attachmentStream.uniqueId)
     }
 
@@ -147,7 +176,7 @@ struct GalleryDate: Hashable, Comparable, Equatable {
 
     var localizedString: String {
         if isThisMonth {
-            return NSLocalizedString("MEDIA_GALLERY_THIS_MONTH_HEADER", comment: "Section header in media gallery collection view")
+            return OWSLocalizedString("MEDIA_GALLERY_THIS_MONTH_HEADER", comment: "Section header in media gallery collection view")
         } else if isThisYear {
             return type(of: self).thisYearFormatter.string(from: self.interval.start)
         } else {
@@ -169,9 +198,9 @@ struct GalleryDate: Hashable, Comparable, Equatable {
 
 protocol MediaGalleryDelegate: AnyObject {
     func mediaGallery(_ mediaGallery: MediaGallery, willDelete items: [MediaGalleryItem], initiatedBy: AnyObject)
-    func mediaGallery(_ mediaGallery: MediaGallery, deletedSections: IndexSet, deletedItems: [IndexPath])
+    func mediaGalleryDidDeleteItem(_ mediaGallery: MediaGallery)
 
-    func mediaGallery(_ mediaGallery: MediaGallery, didReloadItemsInSections sections: IndexSet)
+    func mediaGalleryDidReloadItems(_ mediaGallery: MediaGallery)
     /// `mediaGallery` has added one or more new sections at the end.
     func didAddSectionInMediaGallery(_ mediaGallery: MediaGallery)
     func didReloadAllSectionsInMediaGallery(_ mediaGallery: MediaGallery)
@@ -193,6 +222,10 @@ protocol MediaGalleryDelegate: AnyObject {
     ///
     /// If an attempted mutation had no effects, applyUpdate will not be called.
     func mediaGallery(_ mediaGallery: MediaGallery, applyUpdate update: MediaGallery.Update)
+
+    /// Return true to avoid applying an update from an asynchronous operation immediately.
+    /// You must call `runAsyncCompletionsIfPossible` once the condition clears.
+    func mediaGalleryShouldDeferUpdate(_ mediaGallery: MediaGallery) -> Bool
 }
 
 /// A value that is associated with each mutation of MediaGallerySections.
@@ -200,6 +233,9 @@ struct MediaGalleryUpdateUserData {
     /// If enabled, animations will be disabled for the batch update. Other mutations that ended up in the journal will also get their animations disabled if any user
     /// data in the update has this set to true.
     var disableAnimations = false
+
+    /// Set to true when inserts to the top should not cause a scroll.
+    var shouldRecordContentSizeBeforeInsertingToTop = false
 }
 
 /// A backing store for media views (page-based or tile-based)
@@ -213,6 +249,11 @@ class MediaGallery: Dependencies {
     typealias Sections = MediaGallerySections<Loader, MediaGalleryUpdateUserData>
     typealias Update = Sections.Update
     typealias Journal = [JournalingOrderedDictionaryChange<Sections.ItemChange>]
+    typealias MediaType = MediaGalleryFinder.MediaType
+
+    // Used for filtering.
+    private(set) var allowedMediaType: MediaType
+    private let fileType: AllMediaFileType
 
     private var deletedAttachmentIds: Set<String> = Set() {
         didSet {
@@ -225,17 +266,21 @@ class MediaGallery: Dependencies {
         }
     }
 
-    private let mediaGalleryFinder: MediaGalleryFinder
+    private var mediaGalleryFinder: MediaGalleryFinder
     private var sections: Sections!
+    private let spoilerState: SpoilerRenderState
 
     deinit {
         Logger.debug("")
     }
 
-    @objc
-    init(thread: TSThread) {
-        self.mediaGalleryFinder = MediaGalleryFinder(thread: thread)
-        self.sections = MediaGallerySections(loader: Loader(mediaGallery: self))
+    init(thread: TSThread, fileType: AllMediaFileType, spoilerState: SpoilerRenderState) {
+        allowedMediaType = MediaType.defaultMediaType(for: fileType)
+        let finder = MediaGalleryFinder(thread: thread, allowedMediaType: allowedMediaType)
+        self.mediaGalleryFinder = finder
+        self.spoilerState = spoilerState
+        self.fileType = fileType
+        self.sections = MediaGallerySections(loader: Loader(mediaGallery: self, finder: finder))
         NotificationCenter.default.addObserver(self,
                                                selector: #selector(Self.newAttachmentsAvailable(_:)),
                                                name: MediaGalleryManager.newAttachmentsAvailableNotification,
@@ -257,6 +302,10 @@ class MediaGallery: Dependencies {
     ///   - It ensures the journal is processed for all mutations.
     private func mutate<T>(_ closure: (inout Sections) -> T) -> T {
         let result = closure(&self.sections)
+        // If there were deferred updates, we have to invoke those closures immediately. This might cause inertia
+        // scrolling to jitter, but that's better than running completion blocks out of order. It's not a big problem
+        // because synchronous mutations during scrolling should be rare.
+        runAsyncCompletionsUnconditionally()
         applyPendingUpdate()
         return result
     }
@@ -273,8 +322,35 @@ class MediaGallery: Dependencies {
                                 completion: @escaping (T) -> Void) {
         closure(&self.sections) { [weak self] result in
             guard let self else { return }
-            self.applyPendingUpdate()
-            completion(result)
+            self.addAsyncCompletion { [weak self] in
+                guard let self else {
+                    return
+                }
+                self.applyPendingUpdate()
+                completion(result)
+            }
+        }
+    }
+
+    private var asyncCompletionQueue = [() -> Void]()
+
+    private func addAsyncCompletion(_ closure: @escaping () -> Void) {
+        asyncCompletionQueue.append(closure)
+        runAsyncCompletionsIfPossible()
+    }
+
+    func runAsyncCompletionsIfPossible() {
+        if delegates.contains(where: { $0.mediaGalleryShouldDeferUpdate(self) }) {
+            return
+        }
+        runAsyncCompletionsUnconditionally()
+    }
+
+    private func runAsyncCompletionsUnconditionally() {
+        let queue = asyncCompletionQueue
+        asyncCompletionQueue.removeAll()
+        for closure in queue {
+            closure()
         }
     }
 
@@ -285,6 +361,9 @@ class MediaGallery: Dependencies {
                 break
             }
             delegate.mediaGallery(self, applyUpdate: pendingUpdate)
+        }
+        if !pendingUpdate.hasBeenCommitted {
+            _ = pendingUpdate.commit()
         }
     }
 
@@ -316,23 +395,11 @@ class MediaGallery: Dependencies {
             return
         }
 
-        let sectionsToDelete = mutate { sections in
-            let (sectionIndexesNeedingUpdate, sectionsToDelete) = sections.reloadSections(for: sectionsNeedingUpdate)
-
-            delegates.forEach {
-                $0.mediaGallery(self, didReloadItemsInSections: sectionIndexesNeedingUpdate)
-            }
-
-            if !sectionsToDelete.isEmpty {
-                sections.removeEmptySections(atIndexes: sectionsToDelete)
-            }
-            return sectionsToDelete
+        mutate { sections in
+            _ = sections.reloadSections(for: sectionsNeedingUpdate)
         }
-
-        if !sectionsToDelete.isEmpty {
-            delegates.forEach {
-                $0.mediaGallery(self, deletedSections: sectionsToDelete, deletedItems: [])
-            }
+        delegates.forEach {
+            $0.mediaGalleryDidReloadItems(self)
         }
     }
 
@@ -357,7 +424,7 @@ class MediaGallery: Dependencies {
             delegates.forEach { $0.didReloadAllSectionsInMediaGallery(self) }
         } else {
             if !newAttachmentResult.update.isEmpty {
-                delegates.forEach { $0.mediaGallery(self, didReloadItemsInSections: newAttachmentResult.update) }
+                delegates.forEach { $0.mediaGalleryDidReloadItems(self) }
             }
             if newAttachmentResult.didAddAtEnd {
                 delegates.forEach { $0.didAddSectionInMediaGallery(self) }
@@ -371,7 +438,11 @@ class MediaGallery: Dependencies {
     internal var hasFetchedMostRecent: Bool { sections.hasFetchedMostRecent }
     internal var galleryDates: [GalleryDate] { sections.sectionDates }
 
-    private func buildGalleryItem(attachment: TSAttachment, transaction: SDSAnyReadTransaction) -> MediaGalleryItem? {
+    private func buildGalleryItem(
+        attachment: TSAttachment,
+        spoilerState: SpoilerRenderState,
+        transaction: SDSAnyReadTransaction
+    ) -> MediaGalleryItem? {
         guard let attachmentStream = attachment as? TSAttachmentStream else {
             owsFailDebug("gallery doesn't yet support showing undownloaded attachments")
             return nil
@@ -383,7 +454,46 @@ class MediaGallery: Dependencies {
             return nil
         }
 
-        return MediaGalleryItem(message: message, attachmentStream: attachmentStream)
+        let sender: MediaGalleryItem.Sender? = {
+            let senderAddress: SignalServiceAddress? = {
+                if let incomingMessage = message as? TSIncomingMessage {
+                    return incomingMessage.authorAddress
+                }
+
+                return tsAccountManager.localAddress(with: transaction)
+            }()
+
+            if let senderAddress {
+                let senderName = contactsManager.nameForAddress(
+                    senderAddress,
+                    localUserDisplayMode: .asLocalUser,
+                    short: false,
+                    transaction: transaction
+                )
+
+                let senderAbbreviatedName = contactsManager.nameForAddress(
+                    senderAddress,
+                    localUserDisplayMode: .asLocalUser,
+                    short: true,
+                    transaction: transaction
+                )
+
+                return MediaGalleryItem.Sender(
+                    name: senderName.string,
+                    abbreviatedName: senderAbbreviatedName.string
+                )
+            }
+
+            return nil
+        }()
+
+        return MediaGalleryItem(
+            message: message,
+            sender: sender,
+            attachmentStream: attachmentStream,
+            spoilerState: spoilerState,
+            transaction: transaction
+        )
     }
 
     internal func album(for item: MediaGalleryItem) -> MediaGalleryAlbum {
@@ -419,7 +529,8 @@ class MediaGallery: Dependencies {
                                            async: Bool = false,
                                            userData: MediaGalleryUpdateUserData? = nil,
                                            completion: ((_ newSections: IndexSet) -> Void)? = nil) {
-        let anchorItem: MediaGalleryItem? = sections.loadedItem(at: IndexPath(item: itemIndex, section: sectionIndex))
+        Logger.info("")
+        let anchorItem: MediaGalleryItem? = sections.loadedItem(at: MediaGalleryIndexPath(item: itemIndex, section: sectionIndex))
 
         // May include a negative start location.
         let naiveRequestRange: Range<Int> = {
@@ -455,6 +566,7 @@ class MediaGallery: Dependencies {
         }()
 
         if async {
+            Logger.info("will ensure loaded asynchronously")
             mutateAsync { sections, callback in
                 sections.asyncEnsureItemsLoaded(in: naiveRequestRange,
                                                 relativeToSection: sectionIndex,
@@ -465,6 +577,7 @@ class MediaGallery: Dependencies {
                 completion?(newlyLoadedSections)
             }
         } else {
+            Logger.info("will ensure loaded synchronously")
             let newlyLoadedSections = mutate { sections in
                 sections.ensureItemsLoaded(in: naiveRequestRange,
                                            relativeToSection: sectionIndex,
@@ -491,15 +604,20 @@ class MediaGallery: Dependencies {
     }
 
     internal func ensureLoadedForDetailView(focusedAttachment: TSAttachment) -> MediaGalleryItem? {
-        let newItem: MediaGalleryItem? = databaseStorage.read { transaction in
-            guard let focusedItem = buildGalleryItem(attachment: focusedAttachment, transaction: transaction) else {
+        Logger.info("")
+        let newItem: MediaGalleryItem? = databaseStorage.read { transaction -> MediaGalleryItem? in
+            guard let focusedItem = buildGalleryItem(
+                attachment: focusedAttachment,
+                spoilerState: spoilerState,
+                transaction: transaction
+            ) else {
                 return nil
             }
 
-            guard let offsetInSection = mediaGalleryFinder.mediaIndex(of: focusedItem.attachmentStream,
-                                                                      in: focusedItem.galleryDate.interval,
-                                                                      excluding: deletedAttachmentIds,
-                                                                      transaction: transaction.unwrapGrdbRead) else {
+            guard let rowid = mediaGalleryFinder.rowid(of: focusedItem.attachmentStream,
+                                                       in: focusedItem.galleryDate.interval,
+                                                       excluding: deletedAttachmentIds,
+                                                       transaction: transaction.unwrapGrdbRead) else {
                 // The item may have just been deleted.
                 Logger.warn("showing detail for item not in the database")
                 return nil
@@ -508,10 +626,13 @@ class MediaGallery: Dependencies {
             return mutate { sections in
                 if sections.isEmpty {
                     // Set up the current section only.
-                    sections.loadInitialSection(for: focusedItem.galleryDate)
+                    return sections.loadInitialSection(for: focusedItem.galleryDate,
+                                                       replacement: (item: focusedItem,
+                                                                     rowid: rowid),
+                                                       transaction: transaction)
+                } else {
+                    return sections.getOrReplaceItem(focusedItem, rowid: rowid)
                 }
-
-                return sections.getOrReplaceItem(focusedItem, offsetInSection: offsetInSection)
             }
         }
 
@@ -521,10 +642,12 @@ class MediaGallery: Dependencies {
 
         // For a speedy load, we only fetch a few items on either side of
         // the initial message
+        Logger.info("ensureGalleryItemsLoaded: will call")
         ensureGalleryItemsLoaded(.around,
                                  item: focusedItem,
                                  amount: kGallerySwipeLoadBatchSize * 2,
                                  shouldLoadAlbumRemainder: true)
+        Logger.info("ensureGalleryItemsLoaded: finished")
 
         return focusedItem
     }
@@ -546,6 +669,20 @@ class MediaGallery: Dependencies {
         }
     }
 
+    internal func asyncLoadEarlierSections(batchSize: Int,
+                                           highPriority: Bool,
+                                           userData: MediaGalleryUpdateUserData? = nil,
+                                           completion: ((Int) -> Void)?) {
+        mutateAsync { sections, callback in
+            sections.asyncLoadEarlierSections(batchSize: batchSize,
+                                              highPriority: highPriority,
+                                              userData: userData,
+                                              completion: callback)
+        } completion: { numberOfSectionsLoaded in
+            completion?(numberOfSectionsLoaded)
+        }
+    }
+
     /// Loads at least one section after the latest section, though not any of the items in it.
     ///
     /// Operates in bulk in an attempt to cut down on database traffic, meaning it may measure multiple sections at once.
@@ -555,6 +692,17 @@ class MediaGallery: Dependencies {
         return mutate { sections in
             sections.loadLaterSections(batchSize: batchSize, userData: userData)
         }
+    }
+
+    internal func asyncLoadLaterSections(batchSize: Int,
+                                         userData: MediaGalleryUpdateUserData? = nil,
+                                         completion: ((Int) -> Void)?) {
+        mutateAsync { sections, callback in
+            sections.asyncLoadLaterSections(batchSize: batchSize, userData: userData, completion: callback)
+        } completion: { numberOfSectionsLoaded in
+            completion?(numberOfSectionsLoaded)
+        }
+
     }
 
     // MARK: -
@@ -569,8 +717,12 @@ class MediaGallery: Dependencies {
         _delegates = _delegates.filter({ $0.value != nil}) + [Weak(value: delegate)]
     }
 
+    internal func removeAllDelegates() {
+        _delegates = []
+    }
+
     internal func delete(items: [MediaGalleryItem],
-                         atIndexPaths givenIndexPaths: [IndexPath]? = nil,
+                         atIndexPaths givenIndexPaths: [MediaGalleryIndexPath]? = nil,
                          initiatedBy: AnyObject) {
         AssertIsOnMainThread()
 
@@ -585,28 +737,30 @@ class MediaGallery: Dependencies {
 
         deletedAttachmentIds.formUnion(items.lazy.map { $0.attachmentStream.uniqueId })
 
-        self.databaseStorage.asyncWrite { transaction in
+        self.databaseStorage.asyncWrite { tx in
             do {
                 for item in items {
                     let message = item.message
                     let attachment = item.attachmentStream
-                    message.removeAttachment(attachment, transaction: transaction)
+                    message.removeAttachment(attachment, transaction: tx)
                     // We always have to check the database in case we do more than one deletion (at a time or in a
                     // row) without reloading existing media items and their associated message models.
-                    var shouldDeleteMessage = message.attachmentIds.isEmpty
-                    if !shouldDeleteMessage {
-                        let upToDateAttachmentCount = try self.mediaGalleryFinder.countAllAttachments(
-                            of: message,
-                            transaction: transaction.unwrapGrdbRead)
-                        if upToDateAttachmentCount == 0 {
-                            // Refresh attachment list on the model, so deletion doesn't try to remove them again.
-                            message.anyReload(transaction: transaction)
-                            shouldDeleteMessage = true
+                    let shouldDeleteMessage: Bool = try {
+                        if message.attachmentIds.isEmpty {
+                            return true
                         }
-                    }
+                        let upToDateCount = try self.mediaGalleryFinder.countAllAttachments(of: message, transaction: tx.unwrapGrdbRead)
+                        if upToDateCount == 0 {
+                            return true
+                        }
+                        return false
+                    }()
                     if shouldDeleteMessage {
-                        Logger.debug("removing message after removing last media attachment")
-                        message.anyRemove(transaction: transaction)
+                        // Refresh attachment list on the model, so deletion doesn't try to remove
+                        // them again. Also, this ensures we've fetched the latest message details
+                        // within this transaction.
+                        message.anyReload(transaction: tx)
+                        message.anyRemove(transaction: tx)
                     }
                 }
             } catch {
@@ -614,7 +768,7 @@ class MediaGallery: Dependencies {
             }
         }
 
-        var deletedIndexPaths: [IndexPath]
+        var deletedIndexPaths: [MediaGalleryIndexPath]
         if let indexPaths = givenIndexPaths {
             if OWSIsDebugBuild() {
                 for (item, path) in zip(items, indexPaths) {
@@ -626,13 +780,12 @@ class MediaGallery: Dependencies {
             deletedIndexPaths = items.compactMap { sections.indexPath(for: $0) }
             owsAssertDebug(deletedIndexPaths.count == items.count, "removing an item that wasn't loaded")
         }
-        deletedIndexPaths.sort()
 
-        let deletedSections = mutate { sections in
+        _ = mutate { sections in
             sections.removeLoadedItems(atIndexPaths: deletedIndexPaths)
         }
 
-        delegates.forEach { $0.mediaGallery(self, deletedSections: deletedSections, deletedItems: deletedIndexPaths) }
+        delegates.forEach { $0.mediaGalleryDidDeleteItem(self) }
     }
 
     // MARK: -
@@ -640,15 +793,38 @@ class MediaGallery: Dependencies {
     /// Searches the appropriate section for this item.
     ///
     /// Will return nil if the item was not loaded through the gallery.
-    internal func indexPath(for item: MediaGalleryItem) -> IndexPath? {
+    internal func indexPath(for item: MediaGalleryItem) -> MediaGalleryIndexPath? {
         return sections.indexPath(for: item)
     }
 
     /// Returns the item at `path`, which will be `nil` if not yet loaded.
     ///
     /// `path` must be a valid path for the items currently loaded.
-    internal func galleryItem(at path: IndexPath) -> MediaGalleryItem? {
+    internal func galleryItem(at path: MediaGalleryIndexPath) -> MediaGalleryItem? {
         return sections.loadedItem(at: path)
+    }
+
+    internal func galleryItemWithoutLoading(at path: MediaGalleryIndexPath) -> MediaGalleryItem? {
+        return sections.itemsBySection[path.section].value[path.item].item
+    }
+
+    /// Change what media is filtered out.
+    ///
+    /// - Parameters:
+    ///   - allowedMediaType: If `nil`, do not filter results. Otherwise, show only media of this type.
+    ///   - loadUntil: Load sections from the latest until this date, inclusive.
+    ///   - batchSize: Number of items to load at once.
+    func setAllowedMediaType(_ allowedMediaType: MediaType, loadUntil: GalleryDate, batchSize: Int, firstVisibleIndexPath: MediaGalleryIndexPath?) -> MediaGalleryIndexPath? {
+        self.allowedMediaType = allowedMediaType
+        return mutate { sections in
+            mediaGalleryFinder = MediaGalleryFinder(thread: mediaGalleryFinder.thread,
+                                                    allowedMediaType: allowedMediaType)
+            let newLoader = Loader(mediaGallery: self, finder: mediaGalleryFinder)
+            return sections.replaceLoader(loader: newLoader,
+                                          batchSize: batchSize,
+                                          loadUntil: loadUntil,
+                                          searchFor: firstVisibleIndexPath)
+        }
     }
 
     private let kGallerySwipeLoadBatchSize: Int = 5
@@ -664,7 +840,7 @@ class MediaGallery: Dependencies {
     }
 
     private func galleryItem(_ direction: GalleryDirection, item currentItem: MediaGalleryItem) -> MediaGalleryItem? {
-        let advance: (IndexPath) -> IndexPath?
+        let advance: (MediaGalleryIndexPath) -> MediaGalleryIndexPath?
         switch direction {
         case .around:
             owsFailDebug("should not use this function with .around")
@@ -728,54 +904,70 @@ extension MediaGallery {
         typealias EnumerationCompletion = MediaGalleryFinder.EnumerationCompletion
         typealias Item = MediaGalleryItem
 
-        fileprivate unowned var mediaGallery: MediaGallery
+        fileprivate weak var mediaGallery: MediaGallery?
+        fileprivate let finder: MediaGalleryFinder
 
-        func rowIdsOfItemsInSection(for date: GalleryDate,
-                                    offset: Int,
-                                    ascending: Bool,
-                                    transaction: SDSAnyReadTransaction) -> [Int64] {
-            mediaGallery.mediaGalleryFinder.rowIds(in: date.interval,
-                                                   excluding: mediaGallery.deletedAttachmentIds,
-                                                   offset: offset,
-                                                   ascending: ascending,
-                                                   transaction: transaction.unwrapGrdbRead)
+        func rowIdsAndDatesOfItemsInSection(for date: GalleryDate,
+                                            offset: Int,
+                                            ascending: Bool,
+                                            transaction: SDSAnyReadTransaction) -> [RowIdAndDate] {
+            guard let mediaGallery else {
+                return []
+            }
+            return finder.rowIdsAndDates(in: date.interval,
+                                         excluding: mediaGallery.deletedAttachmentIds,
+                                         offset: offset,
+                                         ascending: ascending,
+                                         transaction: transaction.unwrapGrdbRead)
         }
 
         func enumerateTimestamps(before date: Date,
                                  count: Int,
                                  transaction: SDSAnyReadTransaction,
                                  block: (Date, Int64) -> Void) -> EnumerationCompletion {
-            mediaGallery.mediaGalleryFinder.enumerateTimestamps(before: date,
-                                                                excluding: mediaGallery.deletedAttachmentIds,
-                                                                count: count,
-                                                                transaction: transaction.unwrapGrdbRead,
-                                                                block: block)
+            guard let mediaGallery else {
+                return .reachedEnd
+            }
+            return finder.enumerateTimestamps(before: date,
+                                              excluding: mediaGallery.deletedAttachmentIds,
+                                              count: count,
+                                              transaction: transaction.unwrapGrdbRead,
+                                              block: block)
         }
 
         func enumerateTimestamps(after date: Date,
                                  count: Int,
                                  transaction: SDSAnyReadTransaction,
                                  block: (Date, Int64) -> Void) -> EnumerationCompletion {
-            mediaGallery.mediaGalleryFinder.enumerateTimestamps(after: date,
-                                                                excluding: mediaGallery.deletedAttachmentIds,
-                                                                count: count,
-                                                                transaction: transaction.unwrapGrdbRead,
-                                                                block: block)
+            guard let mediaGallery else {
+                return .reachedEnd
+            }
+            return finder.enumerateTimestamps(after: date,
+                                              excluding: mediaGallery.deletedAttachmentIds,
+                                              count: count,
+                                              transaction: transaction.unwrapGrdbRead,
+                                              block: block)
         }
 
         func enumerateItems(in interval: DateInterval,
                             range: Range<Int>,
                             transaction: SDSAnyReadTransaction,
                             block: (_ offset: Int, _ uniqueId: String, _ buildItem: () -> MediaGalleryItem) -> Void) {
-            mediaGallery.mediaGalleryFinder.enumerateMediaAttachments(
+            guard let mediaGallery else {
+                return
+            }
+            finder.enumerateMediaAttachments(
                 in: interval,
                 excluding: mediaGallery.deletedAttachmentIds,
                 range: NSRange(range),
                 transaction: transaction.unwrapGrdbRead
             ) { offset, attachment in
                 block(offset, attachment.uniqueId) {
-                    guard let item: MediaGalleryItem = mediaGallery.buildGalleryItem(attachment: attachment,
-                                                                                     transaction: transaction) else {
+                    guard let item: MediaGalleryItem = mediaGallery.buildGalleryItem(
+                        attachment: attachment,
+                        spoilerState: mediaGallery.spoilerState,
+                        transaction: transaction
+                    ) else {
                         owsFail("unexpectedly failed to buildGalleryItem for attachment #\(offset) \(attachment)")
                     }
                     return item

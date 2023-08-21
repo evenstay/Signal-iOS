@@ -30,7 +30,7 @@ public extension GroupsV2Impl {
     private static let restoreGroupsOperationQueue: OperationQueue = {
         let queue = OperationQueue()
         queue.maxConcurrentOperationCount = 1
-        queue.name = "restoreGroupsOperationQueue"
+        queue.name = "GroupsV2-Restore"
         return queue
     }()
 
@@ -57,6 +57,7 @@ public extension GroupsV2Impl {
 
     static func enqueueGroupRestore(
         groupRecord: StorageServiceProtoGroupV2Record,
+        account: AuthedAccount,
         transaction: SDSAnyWriteTransaction
     ) {
 
@@ -88,7 +89,7 @@ public extension GroupsV2Impl {
         groupsFromStorageService_EnqueuedRecordForRestore.setData(serializedData, key: key, transaction: transaction)
 
         transaction.addAsyncCompletionOffMain {
-            self.enqueueRestoreGroupPass()
+            self.enqueueRestoreGroupPass(account: account)
         }
     }
 
@@ -96,7 +97,7 @@ public extension GroupsV2Impl {
         return masterKeyData.hexadecimalString
     }
 
-    private static var canProcessGroupRestore: Bool {
+    private static func canProcessGroupRestore(account: AuthedAccount) -> Bool {
         // CurrentAppContext().isMainAppAndActive should
         // only be called on the main thread.
         guard CurrentAppContext().isMainApp,
@@ -106,17 +107,22 @@ public extension GroupsV2Impl {
         guard reachabilityManager.isReachable else {
             return false
         }
-        guard tsAccountManager.isRegisteredAndReady else {
-            return false
+        switch account.info {
+        case .explicit:
+            break
+        case .implicit:
+            guard tsAccountManager.isRegisteredAndReady else {
+                return false
+            }
         }
         return true
     }
 
-    static func enqueueRestoreGroupPass() {
-        guard canProcessGroupRestore else {
+    static func enqueueRestoreGroupPass(account: AuthedAccount) {
+        guard canProcessGroupRestore(account: account) else {
             return
         }
-        let operation = RestoreGroupOperation()
+        let operation = RestoreGroupOperation(account: account)
         GroupsV2Impl.restoreGroupsOperationQueue.addOperation(operation)
     }
 
@@ -153,8 +159,8 @@ public extension GroupsV2Impl {
     // Every invocation of this method should remove (up to) one group from the queue.
     //
     // This method should only be called on restoreGroupsOperationQueue.
-    private static func tryToRestoreNextGroup() -> Promise<RestoreGroupOutcome> {
-        guard canProcessGroupRestore else {
+    private static func tryToRestoreNextGroup(account: AuthedAccount) -> Promise<RestoreGroupOutcome> {
+        guard canProcessGroupRestore(account: account) else {
             return Promise.value(.cantProcess)
         }
         return Promise<RestoreGroupOutcome> { future in
@@ -186,7 +192,15 @@ public extension GroupsV2Impl {
                 let markAsComplete = {
                     databaseStorage.write { transaction in
                         // Now that the thread exists, re-apply the pending group record from storage service.
-                        _ = groupRecord?.mergeWithLocalGroup(transaction: transaction)
+                        if let groupRecord {
+                            let recordUpdater = StorageServiceGroupV2RecordUpdater(
+                                authedAccount: account,
+                                blockingManager: blockingManager,
+                                groupsV2: groupsV2Swift,
+                                profileManager: profileManager
+                            )
+                            _ = recordUpdater.mergeRecord(groupRecord, transaction: transaction)
+                        }
 
                         self.groupsFromStorageService_EnqueuedRecordForRestore.removeValue(forKey: key, transaction: transaction)
                         self.groupsFromStorageService_LegacyEnqueuedForRestore.removeValue(forKey: key, transaction: transaction)
@@ -223,7 +237,7 @@ public extension GroupsV2Impl {
                     markAsComplete()
                     future.resolve(.success)
                 }.catch { error in
-                    if error.isNetworkConnectivityFailure {
+                    if error.isNetworkFailureOrTimeout {
                         Logger.warn("Error: \(error)")
                         return future.resolve(.retryableFailure)
                     } else {
@@ -245,20 +259,23 @@ public extension GroupsV2Impl {
 
     private class RestoreGroupOperation: OWSOperation {
 
-        required override init() {
+        private let account: AuthedAccount
+
+        required init(account: AuthedAccount) {
+            self.account = account
             super.init()
         }
 
         public override func run() {
-            firstly {
-                GroupsV2Impl.tryToRestoreNextGroup()
-            }.done(on: .global()) { outcome in
+            firstly { [account] in
+                GroupsV2Impl.tryToRestoreNextGroup(account: account)
+            }.done(on: DispatchQueue.global()) { [account] outcome in
                 Logger.verbose("Group restore complete.")
 
                 switch outcome {
                 case .success, .unretryableFailure:
                     // Continue draining queue.
-                    GroupsV2Impl.enqueueRestoreGroupPass()
+                    GroupsV2Impl.enqueueRestoreGroupPass(account: account)
                 case .retryableFailure:
                     // Pause processing for now.
                     // Presumably network failures are preventing restores.
@@ -268,7 +285,7 @@ public extension GroupsV2Impl {
                     break
                 }
                 self.reportSuccess()
-            }.catch(on: .global()) { (error) in
+            }.catch(on: DispatchQueue.global()) { (error) in
                 // tryToRestoreNextGroup() should never fail.
                 owsFailDebug("Group restore failed: \(error)")
                 self.reportError(SSKUnretryableError.restoreGroupFailed)

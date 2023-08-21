@@ -3,20 +3,17 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import UIKit
+import SignalServiceKit
 import SignalUI
 
-@objc
-public protocol SendPaymentMemoViewDelegate {
+public protocol SendPaymentMemoViewDelegate: AnyObject {
     func didChangeMemo(memoMessage: String?)
 }
 
 // MARK: -
 
-@objc
 public class SendPaymentMemoViewController: OWSViewController {
 
-    @objc
     public weak var delegate: SendPaymentMemoViewDelegate?
 
     private let rootStack = UIStackView()
@@ -53,7 +50,7 @@ public class SendPaymentMemoViewController: OWSViewController {
     }
 
     private func createContents() {
-        navigationItem.title = NSLocalizedString("PAYMENTS_NEW_PAYMENT_ADD_MEMO",
+        navigationItem.title = OWSLocalizedString("PAYMENTS_NEW_PAYMENT_ADD_MEMO",
                                                  comment: "Label for the 'add memo' ui in the 'send payment' UI.")
         navigationItem.leftBarButtonItem = UIBarButtonItem(barButtonSystemItem: .cancel,
                                                            target: self,
@@ -85,9 +82,9 @@ public class SendPaymentMemoViewController: OWSViewController {
         view.backgroundColor = OWSTableViewController2.tableBackgroundColor(isUsingPresentedStyle: true)
 
         memoTextField.backgroundColor = .clear
-        memoTextField.font = .ows_dynamicTypeBodyClamped
+        memoTextField.font = .dynamicTypeBodyClamped
         memoTextField.textColor = Theme.primaryTextColor
-        let placeholder = NSAttributedString(string: NSLocalizedString("PAYMENTS_NEW_PAYMENT_MESSAGE_PLACEHOLDER",
+        let placeholder = NSAttributedString(string: OWSLocalizedString("PAYMENTS_NEW_PAYMENT_MESSAGE_PLACEHOLDER",
                                                                        comment: "Placeholder for the new payment or payment request message."),
                                              attributes: [
                                                 .foregroundColor: Theme.secondaryTextAndIconColor
@@ -96,7 +93,7 @@ public class SendPaymentMemoViewController: OWSViewController {
         memoTextField.delegate = self
         memoTextField.addTarget(self, action: #selector(textFieldDidChange), for: .editingChanged)
 
-        memoCharacterCountLabel.font = .ows_dynamicTypeBodyClamped
+        memoCharacterCountLabel.font = .dynamicTypeBodyClamped
         memoCharacterCountLabel.textColor = Theme.ternaryTextColor
 
         memoCharacterCountLabel.setCompressionResistanceHorizontalHigh()
@@ -143,7 +140,7 @@ public class SendPaymentMemoViewController: OWSViewController {
             return
         }
 
-        let format = NSLocalizedString("PAYMENTS_NEW_PAYMENT_MESSAGE_COUNT_FORMAT",
+        let format = OWSLocalizedString("PAYMENTS_NEW_PAYMENT_MESSAGE_COUNT_FORMAT",
                                        comment: "Format for the 'message character count indicator' for the 'new payment or payment request' view. Embeds {{ %1$@ the number of characters in the message, %2$@ the maximum number of characters in the message }}.")
         memoCharacterCountLabel.text = String(format: format,
                                               OWSFormat.formatInt(strippedMemoMessage.count),
@@ -153,19 +150,19 @@ public class SendPaymentMemoViewController: OWSViewController {
     // MARK: - Events
 
     @objc
-    func didTapCancelMemo() {
+    private func didTapCancelMemo() {
         navigationController?.popViewController(animated: true)
     }
 
     @objc
-    func didTapDoneMemo() {
+    private func didTapDoneMemo() {
         let memoMessage = memoTextField.text?.ows_stripped()
         delegate?.didChangeMemo(memoMessage: memoMessage)
         navigationController?.popViewController(animated: true)
     }
 
     @objc
-    func textFieldDidChange(_ textField: UITextField) {
+    private func textFieldDidChange(_ textField: UITextField) {
         updateMemoCharacterCount()
     }
 }

@@ -3,10 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalMessaging
+import SignalUI
 
-@objc(OWSAvatarTableViewCell)
 public class AvatarTableViewCell: UITableViewCell {
 
     private let columns: UIStackView
@@ -19,7 +18,6 @@ public class AvatarTableViewCell: UITableViewCell {
     private let _detailTextLabel: UILabel
     override public var detailTextLabel: UILabel? { _detailTextLabel }
 
-    @objc
     public override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
         self.avatarView =  AvatarImageView()
         avatarView.autoSetDimensions(to: CGSize(square: CGFloat(AvatarBuilder.standardAvatarSizePoints)))
@@ -46,8 +44,7 @@ public class AvatarTableViewCell: UITableViewCell {
         fatalError("init(coder:) has not been implemented")
     }
 
-    @objc
-    public func configure(image: UIImage?, text: String?, detailText: String?) {
+    public func configure(image: UIImage?, text: String?, detailText: String? = nil) {
         self.avatarView.image = image
         self.textLabel?.text = text
         self.detailTextLabel?.text = detailText
@@ -55,7 +52,6 @@ public class AvatarTableViewCell: UITableViewCell {
         OWSTableItem.configureCell(self)
     }
 
-    @objc
     public override func prepareForReuse() {
         super.prepareForReuse()
 

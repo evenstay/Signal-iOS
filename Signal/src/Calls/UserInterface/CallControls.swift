@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalRingRTC
 import SignalServiceKit
+import SignalUI
 
 @objc
 protocol CallControlsDelegate: AnyObject {
@@ -21,26 +21,26 @@ protocol CallControlsDelegate: AnyObject {
 class CallControls: UIView {
     private lazy var hangUpButton: CallButton = {
         let button = createButton(
-            iconName: "phone-down-solid-28",
+            iconName: "phone-down-fill-28",
             action: #selector(CallControlsDelegate.didPressHangup)
         )
         button.unselectedBackgroundColor = .ows_accentRed
         return button
     }()
     private(set) lazy var audioSourceButton = createButton(
-        iconName: "speaker-solid-28",
+        iconName: "speaker-fill-28",
         action: #selector(CallControlsDelegate.didPressAudioSource)
     )
     private lazy var muteButton = createButton(
-        iconName: "mic-off-solid-28",
+        iconName: "mic-slash-fill-28",
         action: #selector(CallControlsDelegate.didPressMute)
     )
     private lazy var videoButton = createButton(
-        iconName: "video-solid-28",
+        iconName: "video-fill-28",
         action: #selector(CallControlsDelegate.didPressVideo)
     )
     private lazy var ringButton = createButton(
-        iconName: "ring-28",
+        iconName: "bell-ring-fill-28",
         action: #selector(CallControlsDelegate.didPressRing)
     )
     private lazy var flipCameraButton: CallButton = {
@@ -53,7 +53,7 @@ class CallControls: UIView {
         return button
     }()
 
-    private lazy var joinButtonActivityIndicator = UIActivityIndicatorView(style: .white)
+    private lazy var joinButtonActivityIndicator = UIActivityIndicatorView(style: .medium)
 
     private lazy var joinButton: UIButton = {
         let height: CGFloat = 56
@@ -61,7 +61,7 @@ class CallControls: UIView {
         let button = OWSButton()
         button.setTitleColor(.ows_white, for: .normal)
         button.setBackgroundImage(UIImage(color: .ows_accentGreen), for: .normal)
-        button.titleLabel?.font = UIFont.ows_dynamicTypeBodyClamped.ows_semibold
+        button.titleLabel?.font = UIFont.dynamicTypeBodyClamped.semibold()
         button.clipsToBounds = true
         button.layer.cornerRadius = height / 2
         button.block = { [weak self, unowned button] in
@@ -189,11 +189,11 @@ class CallControls: UIView {
             audioSourceButton.isHidden = false
 
             if audioSource.isBuiltInEarPiece {
-                audioSourceButton.iconName = "phone-solid-28"
+                audioSourceButton.iconName = "phone-fill-28"
             } else if audioSource.isBuiltInSpeaker {
-                audioSourceButton.iconName = "speaker-solid-28"
+                audioSourceButton.iconName = "speaker-fill-28"
             } else {
-                audioSourceButton.iconName = "speaker-bt-solid-28"
+                audioSourceButton.iconName = "speaker-bt-fill-28"
             }
         } else if UIDevice.current.isIPad {
             // iPad *only* supports speaker mode, if there are no external
@@ -206,7 +206,7 @@ class CallControls: UIView {
             audioSourceButton.isHidden = !isLocalVideoMuted
 
             // No bluetooth audio detected
-            audioSourceButton.iconName = "speaker-solid-28"
+            audioSourceButton.iconName = "speaker-fill-28"
             audioSourceButton.showDropdownArrow = false
         }
 
@@ -221,12 +221,12 @@ class CallControls: UIView {
             joinButton.adjustsImageWhenHighlighted = false
 
             joinButton.setTitle(
-                NSLocalizedString(
+                OWSLocalizedString(
                     "GROUP_CALL_IS_FULL",
                     comment: "Text explaining the group call is full"),
                 for: .normal)
 
-        } else if joinState == .joining {
+        } else if joinState == .joining || joinState == .pending {
             joinButton.isUserInteractionEnabled = false
             joinButtonActivityIndicator.startAnimating()
 
@@ -238,8 +238,8 @@ class CallControls: UIView {
             joinButton.isUserInteractionEnabled = true
             joinButtonActivityIndicator.stopAnimating()
 
-            let startCallText = NSLocalizedString("GROUP_CALL_START_BUTTON", comment: "Button to start a group call")
-            let joinCallText = NSLocalizedString("GROUP_CALL_JOIN_BUTTON", comment: "Button to join an ongoing group call")
+            let startCallText = OWSLocalizedString("GROUP_CALL_START_BUTTON", comment: "Button to start a group call")
+            let joinCallText = OWSLocalizedString("GROUP_CALL_JOIN_BUTTON", comment: "Button to join an ongoing group call")
 
             joinButton.setTitle(call.ringRestrictions.contains(.callInProgress) ? joinCallText : startCallText,
                                 for: .normal)

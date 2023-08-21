@@ -22,7 +22,7 @@ protocol ConversationTextViewToolbarDelegate: AnyObject {
 
 // MARK: -
 
-class ConversationInputTextView: MentionTextView {
+class ConversationInputTextView: BodyRangesTextView {
 
     private lazy var placeholderView = UILabel()
     private var placeholderConstraints: [NSLayoutConstraint]?
@@ -30,8 +30,8 @@ class ConversationInputTextView: MentionTextView {
     weak var inputTextViewDelegate: ConversationInputTextViewDelegate?
     weak var textViewToolbarDelegate: ConversationTextViewToolbarDelegate?
 
-    var trimmedText: String { text.ows_stripped() }
-    var untrimmedText: String { text }
+    var trimmedText: String { textStorage.string.ows_stripped() }
+    var untrimmedText: String { textStorage.string }
     private var textIsChanging = false
 
     required init() {
@@ -47,7 +47,7 @@ class ConversationInputTextView: MentionTextView {
         contentMode = .redraw
         dataDetectorTypes = []
 
-        placeholderView.text = NSLocalizedString(
+        placeholderView.text = OWSLocalizedString(
             "INPUT_TOOLBAR_MESSAGE_PLACEHOLDER",
             comment: "Placeholder text displayed in empty input box in chat screen."
         )
@@ -56,12 +56,12 @@ class ConversationInputTextView: MentionTextView {
         addSubview(placeholderView)
 
         // We need to do these steps _after_ placeholderView is configured.
-        font = .ows_dynamicTypeBody
+        font = .dynamicTypeBody
         textColor = Theme.primaryTextColor
         textAlignment = .natural
         textContainer.lineFragmentPadding = 0
         contentInset = .zero
-        text = nil
+        setMessageBody(nil, txProvider: databaseStorage.readTxProvider)
 
         ensurePlaceholderConstraints()
         updatePlaceholderVisibility()
@@ -113,31 +113,11 @@ class ConversationInputTextView: MentionTextView {
     }
 
     private func updatePlaceholderVisibility() {
-        placeholderView.isHidden = !text.isEmpty
+        placeholderView.isHidden = !textStorage.string.isEmpty
     }
 
     override var font: UIFont? {
         didSet { placeholderView.font = font }
-    }
-
-    override func setContentOffset(_ contentOffset: CGPoint, animated: Bool) {
-        // When creating new lines, contentOffset is animated, but because because
-        // we are simultaneously resizing the text view, on pre-iOS 13 this can
-        // cause the text in the textview to be "too high" in the text view.
-        // Solution is to disable animation for setting content offset between
-        // -textViewShouldChange... and -textViewDidChange.
-        //
-        // We can't unilaterally disable *all* animated scrolling because that breaks
-        // manipulation of the cursor in scrollable text. Animation is required to
-        // slow the text view scrolling down to human scale when the cursor reaches
-        // the top or bottom edge.
-        let shouldAnimate: Bool
-        if #available(iOS 13, *) {
-            shouldAnimate = animated
-        } else {
-            shouldAnimate = animated && !textIsChanging
-        }
-        super.setContentOffset(contentOffset, animated: shouldAnimate)
     }
 
     override var contentInset: UIEdgeInsets {
@@ -148,11 +128,10 @@ class ConversationInputTextView: MentionTextView {
         didSet { ensurePlaceholderConstraints() }
     }
 
-    override var text: String! {
-        didSet {
-            updatePlaceholderVisibility()
-            updateTextContainerInset()
-        }
+    override func setMessageBody(_ messageBody: MessageBody?, txProvider: ((DBReadTransaction) -> Void) -> Void) {
+        super.setMessageBody(messageBody, txProvider: txProvider)
+        updatePlaceholderVisibility()
+        updateTextContainerInset()
     }
 
     override func becomeFirstResponder() -> Bool {
@@ -169,7 +148,7 @@ class ConversationInputTextView: MentionTextView {
 
     override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
         if action == #selector(paste(_:)) {
-            if pasteboardHasPossibleAttachment {
+            if pasteboardHasPossibleAttachment && !super.disallowsAnyPasteAction() {
                 return true
             }
         }

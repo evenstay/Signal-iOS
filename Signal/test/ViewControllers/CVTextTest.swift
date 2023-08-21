@@ -3,15 +3,19 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
-@testable import Signal
-@testable import SignalUI
 import BonMot
+import XCTest
 
-class CVTextTest: SignalBaseTest {
+@testable import Signal
+@testable import SignalServiceKit
+@testable import SignalUI
+
+#if TESTABLE_BUILD
+
+class CVTextTest: XCTestCase {
     func testTextViewMeasurement() {
         let configs = [
-            CVTextViewConfig(text: "short", font: .ows_dynamicTypeBody, textColor: .black),
+            CVTextViewConfig(text: "short", font: .dynamicTypeBody, textColor: .black),
             CVTextViewConfig(
                 text: """
                 Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nullam lectus nulla, eleifend eget libero sit amet, tempor lobortis lacus. Nulla luctus id mi a auctor. Etiam bibendum sed ante et blandit. Phasellus bibendum commodo dapibus. Vivamus lorem diam, finibus vitae mi vel, dignissim ornare felis. Praesent nibh sem, bibendum vitae fringilla ac, sodales ut ipsum. Vestibulum metus magna, elementum eu dapibus in, faucibus at lacus. In ac ornare nisi, ac fringilla sem. Sed ultricies sollicitudin semper. In hac habitasse platea dictumst.
@@ -20,7 +24,7 @@ class CVTextTest: SignalBaseTest {
 
                 Etiam sed felis nunc. Suspendisse vestibulum elit eu dignissim accumsan. Morbi tortor arcu, vulputate eu varius vel, varius ac sapien. Aenean ut efficitur augue. Sed semper diam at ipsum aliquet scelerisque. Pellentesque blandit quis sem non euismod. Sed accumsan tellus quis sapien fermentum, quis dapibus urna tincidunt. Nam mattis fermentum nisl, non eleifend tortor facilisis sed. Vestibulum vitae efficitur dolor. Nam ligula odio, molestie eu porttitor eu, dignissim ut nulla. Ut tempor diam id sapien mattis dignissim. Pellentesque accumsan nibh a velit convallis laoreet.
                 """,
-                font: .ows_dynamicTypeBody,
+                font: .dynamicTypeBody,
                 textColor: .black
             ),
             CVTextViewConfig(
@@ -29,7 +33,7 @@ class CVTextTest: SignalBaseTest {
 
                 Ετ δθο σολεατ αθδιαμ, σιτ πθταντ σανcτθσ ιδ. Αν αccθμσαν ιντερπρεταρισ εθμ, μελ νολθισσε διγνισσιμ νε. Φορενσιβθσ ρεφορμιδανσ θλλαμcορπερ θτ ηασ, ναμ απεριαμ αλιqθιδ αν. Cθ σολθμ δελενιτ πατριοqθε εθμ, δετραcτο cονσετετθρ εστ τε. Νοvθμ σανcτθσ σεδ νο.
                 """,
-                font: .ows_dynamicTypeBody,
+                font: .dynamicTypeBody,
                 textColor: .black
             ),
             CVTextViewConfig(
@@ -40,7 +44,7 @@ class CVTextTest: SignalBaseTest {
                 علي الجانب الآخر نشجب ونستنكر هؤلاء الرجال المفتونون بنشوة اللحظة الهائمون في رغباتهم فلا يدركون ما يعقبها من الألم والأسي المحتم، واللوم كذلك يشمل هؤلاء الذين أخفقوا في واجباتهم نتيجة لضعف إرادتهم فيتساوي مع هؤلاء الذين يتجنبون وينأون عن تحمل الكدح والألم .
 
                 """,
-                font: .ows_dynamicTypeBody,
+                font: .dynamicTypeBody,
                 textColor: .black
             ),
             CVTextViewConfig(
@@ -49,21 +53,21 @@ class CVTextTest: SignalBaseTest {
 
                 足己謙告保士清修根選暮区細理貨聞年半。読治問形球漂注出裏下公療演続。芸意記栄山写日撃掲国主治当性発。生意逃免渡資一取引裕督転。応点続果安罰村必禁家政拳。写禁法考証言心彫埼権川関員奏届新営覚掲。南応要参愛類娘都誰定尚同勝積鎌記写塁。政回過市主覧貨張加主子義空教対券。載捕構方聞度名出結字夜何動問暮理詳半話。
                 """,
-                font: .ows_dynamicTypeBody,
+                font: .dynamicTypeBody,
                 textColor: .black
             ),
             CVTextViewConfig(
                 text: """
                 Lorem ipsum dolor sit amet 😟, consectetur adipiscing elit. Nullam lectus nulla, eleifend eget libero sit amet, tempor lobortis lacus. Nulla luctus id mi a auctor. Etiam bibendum sed ante et blandit. Phasellus bibendum commodo dapibus. Vivamus lorem diam, finibus vitae mi vel, dignissim ornare felis. Praesent nibh sem 🧐, bibendum vitae fringilla ac, sodales ut ipsum. Vestibulum metus magna, elementum eu dapibus in, faucibus at lacus. In ac 🤞 ornare nisi, ac fringilla sem. Sed ultricies sollicitudin semper. In hac habitasse platea dictumst.
                 """,
-                font: .ows_dynamicTypeBody,
+                font: .dynamicTypeBody,
                 textColor: .black
             ),
             CVTextViewConfig(
                 text: """
                 He’s awesome. This album isn’t listed on his discography, but it’s a cool album of duets with Courtney Barnett: https://open.spotify.com/album/3gvo4nvimDdqA9c3y7Bptc?si=aA8z06HoQAG8Xl2MbhFiRQ
                 """,
-                font: .ows_dynamicTypeBody,
+                font: .dynamicTypeBody,
                 textColor: .black
             ),
             CVTextViewConfig(
@@ -74,37 +78,37 @@ class CVTextTest: SignalBaseTest {
 
                 Etiam sed felis nunc. Suspendisse vestibulum elit eu dignissim accumsan. Morbi tortor arcu, vulputate eu varius vel, varius ac sapien. Aenean ut efficitur augue. Sed semper diam at ipsum aliquet scelerisque. Pellentesque blandit quis sem non euismod. Sed accumsan tellus quis sapien fermentum, quis dapibus urna tincidunt. Nam mattis fermentum nisl, non eleifend tortor facilisis sed. Vestibulum vitae efficitur dolor. Nam ligula odio, molestie eu porttitor eu, dignissim ut nulla. Ut tempor diam id sapien mattis dignissim. Pellentesque accumsan nibh a velit convallis laoreet.
                 """,
-                font: .ows_dynamicTypeBody,
+                font: .dynamicTypeBody,
                 textColor: .black
             ),
             CVTextViewConfig(
                 attributedText: NSAttributedString(string: "short"),
-                font: .ows_dynamicTypeBody,
+                font: .dynamicTypeBody,
                 textColor: .black
             ),
             CVTextViewConfig(
                 attributedText: NSAttributedString(string: "one\ntwo\nthree"),
-                font: .ows_dynamicTypeBody,
+                font: .dynamicTypeBody,
                 textColor: .black
             ),
             CVTextViewConfig(
                 attributedText: NSAttributedString.composed(of: [
-                    #imageLiteral(resourceName: "video-solid-16"), "Some text", "\n", #imageLiteral(resourceName: "video-solid-16"), "Some text2"
+                    Theme.iconImage(.video16), "Some text", "\n", Theme.iconImage(.video16), "Some text2"
                 ]),
-                font: .ows_dynamicTypeBody,
+                font: .dynamicTypeBody,
                 textColor: .black
             ),
             CVTextViewConfig(
                 attributedText: {
                     let labelText = NSMutableAttributedString()
 
-                    labelText.appendTemplatedImage(named: "compose-outline-16",
-                                                   font: .ows_dynamicTypeFootnote,
+                    labelText.appendTemplatedImage(named: Theme.iconName(.compose16),
+                                                   font: .dynamicTypeFootnote,
                                                    heightReference: .lineHeight)
                     labelText.append("  You changed the group name to “Test Group Call 2“.\n", attributes: [:])
 
-                    labelText.appendTemplatedImage(named: "photo-outline-16",
-                                                   font: .ows_dynamicTypeFootnote,
+                    labelText.appendTemplatedImage(named: Theme.iconName(.photo16),
+                                                   font: .dynamicTypeFootnote,
                                                    heightReference: .lineHeight)
                     labelText.append("  You updated the photo.", attributes: [:])
 
@@ -115,7 +119,7 @@ class CVTextTest: SignalBaseTest {
 
                     return labelText
                 }(),
-                font: .ows_dynamicTypeFootnote,
+                font: .dynamicTypeFootnote,
                 textColor: .black,
                 textAlignment: .center
             )
@@ -134,20 +138,24 @@ class CVTextTest: SignalBaseTest {
     }
 
     static func bodyTextLabelConfig(textViewConfig: CVTextViewConfig) -> CVTextLabel.Config {
-        return CVTextLabel.Config(attributedString: textViewConfig.text.attributedString,
-                                  font: textViewConfig.font,
-                                  textColor: textViewConfig.textColor,
-                                  selectionStyling: [.foregroundColor: UIColor.orange],
-                                  textAlignment: textViewConfig.textAlignment ?? .natural,
-                                  lineBreakMode: .byWordWrapping,
-                                  numberOfLines: 0,
-                                  cacheKey: textViewConfig.cacheKey,
-                                  items: [])
+        return CVTextLabel.Config(
+            text: textViewConfig.text,
+            displayConfig: textViewConfig.displayConfiguration,
+            font: textViewConfig.font,
+            textColor: textViewConfig.textColor,
+            selectionStyling: [.foregroundColor: UIColor.orange],
+            textAlignment: textViewConfig.textAlignment ?? .natural,
+            lineBreakMode: .byWordWrapping,
+            numberOfLines: 0,
+            cacheKey: textViewConfig.cacheKey,
+            items: [],
+            linkifyStyle: .underlined(bodyTextColor: textViewConfig.textColor)
+        )
     }
 
     func testLabelMeasurement() {
         let configs = [
-            CVLabelConfig(text: "short", font: .ows_dynamicTypeBody, textColor: .black, numberOfLines: 1),
+            CVLabelConfig(text: "short", font: .dynamicTypeBody, textColor: .black, numberOfLines: 1),
             CVLabelConfig(
                 text: """
                 Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nullam lectus nulla, eleifend eget libero sit amet, tempor lobortis lacus. Nulla luctus id mi a auctor. Etiam bibendum sed ante et blandit. Phasellus bibendum commodo dapibus. Vivamus lorem diam, finibus vitae mi vel, dignissim ornare felis. Praesent nibh sem, bibendum vitae fringilla ac, sodales ut ipsum. Vestibulum metus magna, elementum eu dapibus in, faucibus at lacus. In ac ornare nisi, ac fringilla sem. Sed ultricies sollicitudin semper. In hac habitasse platea dictumst.
@@ -156,7 +164,7 @@ class CVTextTest: SignalBaseTest {
 
                 Etiam sed felis nunc. Suspendisse vestibulum elit eu dignissim accumsan. Morbi tortor arcu, vulputate eu varius vel, varius ac sapien. Aenean ut efficitur augue. Sed semper diam at ipsum aliquet scelerisque. Pellentesque blandit quis sem non euismod. Sed accumsan tellus quis sapien fermentum, quis dapibus urna tincidunt. Nam mattis fermentum nisl, non eleifend tortor facilisis sed. Vestibulum vitae efficitur dolor. Nam ligula odio, molestie eu porttitor eu, dignissim ut nulla. Ut tempor diam id sapien mattis dignissim. Pellentesque accumsan nibh a velit convallis laoreet.
                 """,
-                font: .ows_dynamicTypeBody,
+                font: .dynamicTypeBody,
                 textColor: .black,
                 numberOfLines: 3
             ),
@@ -166,7 +174,7 @@ class CVTextTest: SignalBaseTest {
 
                 Ετ δθο σολεατ αθδιαμ, σιτ πθταντ σανcτθσ ιδ. Αν αccθμσαν ιντερπρεταρισ εθμ, μελ νολθισσε διγνισσιμ νε. Φορενσιβθσ ρεφορμιδανσ θλλαμcορπερ θτ ηασ, ναμ απεριαμ αλιqθιδ αν. Cθ σολθμ δελενιτ πατριοqθε εθμ, δετραcτο cονσετετθρ εστ τε. Νοvθμ σανcτθσ σεδ νο.
                 """,
-                font: .ows_dynamicTypeBody,
+                font: .dynamicTypeBody,
                 textColor: .black,
                 numberOfLines: 0
 
@@ -179,7 +187,7 @@ class CVTextTest: SignalBaseTest {
                 علي الجانب الآخر نشجب ونستنكر هؤلاء الرجال المفتونون بنشوة اللحظة الهائمون في رغباتهم فلا يدركون ما يعقبها من الألم والأسي المحتم، واللوم كذلك يشمل هؤلاء الذين أخفقوا في واجباتهم نتيجة لضعف إرادتهم فيتساوي مع هؤلاء الذين يتجنبون وينأون عن تحمل الكدح والألم .
 
                 """,
-                font: .ows_dynamicTypeBody,
+                font: .dynamicTypeBody,
                 textColor: .black,
                 numberOfLines: 0
             ),
@@ -189,7 +197,7 @@ class CVTextTest: SignalBaseTest {
 
                 足己謙告保士清修根選暮区細理貨聞年半。読治問形球漂注出裏下公療演続。芸意記栄山写日撃掲国主治当性発。生意逃免渡資一取引裕督転。応点続果安罰村必禁家政拳。写禁法考証言心彫埼権川関員奏届新営覚掲。南応要参愛類娘都誰定尚同勝積鎌記写塁。政回過市主覧貨張加主子義空教対券。載捕構方聞度名出結字夜何動問暮理詳半話。
                 """,
-                font: .ows_dynamicTypeBody,
+                font: .dynamicTypeBody,
                 textColor: .black,
                 numberOfLines: 0
             ),
@@ -197,7 +205,7 @@ class CVTextTest: SignalBaseTest {
                 text: """
                 Lorem ipsum dolor sit amet 😟, consectetur adipiscing elit. Nullam lectus nulla, eleifend eget libero sit amet, tempor lobortis lacus. Nulla luctus id mi a auctor. Etiam bibendum sed ante et blandit. Phasellus bibendum commodo dapibus. Vivamus lorem diam, finibus vitae mi vel, dignissim ornare felis. Praesent nibh sem 🧐, bibendum vitae fringilla ac, sodales ut ipsum. Vestibulum metus magna, elementum eu dapibus in, faucibus at lacus. In ac 🤞 ornare nisi, ac fringilla sem. Sed ultricies sollicitudin semper. In hac habitasse platea dictumst.
                 """,
-                font: .ows_dynamicTypeBody,
+                font: .dynamicTypeBody,
                 textColor: .black,
                 numberOfLines: 0
             ),
@@ -205,7 +213,7 @@ class CVTextTest: SignalBaseTest {
                 text: """
                 Lorem ipsum dolor sit amet 😟, consectetur adipiscing elit. Nullam lectus nulla, eleifend eget libero sit amet, tempor lobortis lacus. Nulla luctus id mi a auctor. Etiam bibendum sed ante et blandit. Phasellus bibendum commodo dapibus. Vivamus lorem diam, finibus vitae mi vel, dignissim ornare felis. Praesent nibh sem 🧐, bibendum vitae fringilla ac, sodales ut ipsum. Vestibulum metus magna, elementum eu dapibus in, faucibus at lacus. In ac 🤞 ornare nisi, ac fringilla sem. Sed ultricies sollicitudin semper. In hac habitasse platea dictumst.
                 """,
-                font: .ows_dynamicTypeBody,
+                font: .dynamicTypeBody,
                 textColor: .black,
                 numberOfLines: 2
             ),
@@ -213,28 +221,28 @@ class CVTextTest: SignalBaseTest {
                 text: """
                 Lorem ipsum dolor sit amet 😟, consectetur adipiscing elit. Nullam lectus nulla, eleifend eget libero sit amet, tempor lobortis lacus. Nulla luctus id mi a auctor. Etiam bibendum sed ante et blandit. Phasellus bibendum commodo dapibus. Vivamus lorem diam, finibus vitae mi vel, dignissim ornare felis. Praesent nibh sem 🧐, bibendum vitae fringilla ac, sodales ut ipsum. Vestibulum metus magna, elementum eu dapibus in, faucibus at lacus. In ac 🤞 ornare nisi, ac fringilla sem. Sed ultricies sollicitudin semper. In hac habitasse platea dictumst.
                 """,
-                font: .ows_dynamicTypeBody,
+                font: .dynamicTypeBody,
                 textColor: .black,
                 numberOfLines: 5,
                 lineBreakMode: .byTruncatingMiddle
             ),
             CVLabelConfig(
                 attributedText: NSAttributedString(string: "short"),
-                font: .ows_dynamicTypeBody,
+                font: .dynamicTypeBody,
                 textColor: .black,
                 numberOfLines: 1
             ),
             CVLabelConfig(
                 attributedText: NSAttributedString(string: "one\ntwo\nthree"),
-                font: .ows_dynamicTypeBody,
+                font: .dynamicTypeBody,
                 textColor: .black,
                 numberOfLines: 0
             ),
             CVLabelConfig(
                 attributedText: NSAttributedString.composed(of: [
-                    #imageLiteral(resourceName: "video-solid-16"), "Some text", "\n", #imageLiteral(resourceName: "video-solid-16"), "Some text2"
+                    Theme.iconImage(.video16), "Some text", "\n", Theme.iconImage(.video16), "Some text2"
                 ]),
-                font: .ows_dynamicTypeBody,
+                font: .dynamicTypeBody,
                 textColor: .black,
                 numberOfLines: 0
             ),
@@ -242,13 +250,13 @@ class CVTextTest: SignalBaseTest {
                 attributedText: {
                     let labelText = NSMutableAttributedString()
 
-                    labelText.appendTemplatedImage(named: "compose-outline-16",
-                                                   font: .ows_dynamicTypeFootnote,
+                    labelText.appendTemplatedImage(named: Theme.iconName(.compose16),
+                                                   font: .dynamicTypeFootnote,
                                                    heightReference: .lineHeight)
                     labelText.append("  You changed the group name to “Test Group Call 2“.\n", attributes: [:])
 
-                    labelText.appendTemplatedImage(named: "photo-outline-16",
-                                                   font: .ows_dynamicTypeFootnote,
+                    labelText.appendTemplatedImage(named: Theme.iconName(.photo16),
+                                                   font: .dynamicTypeFootnote,
                                                    heightReference: .lineHeight)
                     labelText.append("  You updated the photo.", attributes: [:])
 
@@ -259,7 +267,7 @@ class CVTextTest: SignalBaseTest {
 
                     return labelText
                 }(),
-                font: .ows_dynamicTypeFootnote,
+                font: .dynamicTypeFootnote,
                 textColor: .black,
                 numberOfLines: 0,
                 lineBreakMode: .byWordWrapping,
@@ -282,15 +290,25 @@ class CVTextTest: SignalBaseTest {
     }
 
     func testLinkifyWithTruncation() {
-        let truncatedData = NSMutableAttributedString(string: "https://signal.org/foo https://signal.org/ba…")
-        CVComponentBodyText.linkifyData(attributedText: truncatedData,
-                                        linkifyStyle: .linkAttribute,
-                                        hasPendingMessageRequest: false,
-                                        shouldAllowLinkification: true,
-                                        textWasTruncated: true)
+        let fullText = NSMutableAttributedString(string: "https://signal.org/foo https://signal.org/bar/baz")
+        let truncatedText = NSMutableAttributedString(string: "https://signal.org/foo https://signal.org/ba…")
+        var dataItems = CVComponentBodyText.detectItems(
+            text: DisplayableText.testOnlyInit(fullContent: .attributedText(fullText), truncatedContent: .attributedText(truncatedText)),
+            hasPendingMessageRequest: false,
+            shouldAllowLinkification: true,
+            textWasTruncated: true,
+            revealedSpoilerIds: Set(),
+            interactionUniqueId: UUID().uuidString,
+            interactionIdentifier: InteractionSnapshotIdentifier(timestamp: 0, authorAci: nil)
+        )
+        CVTextLabel.linkifyData(
+            attributedText: truncatedText,
+            linkifyStyle: .linkAttribute,
+            items: dataItems
+        )
         var values: [String] = []
         var ranges: [NSRange] = []
-        truncatedData.enumerateAttribute(.link, in: truncatedData.entireRange, options: []) { value, range, _ in
+        truncatedText.enumerateAttribute(.link, in: truncatedText.entireRange, options: []) { value, range, _ in
             if let value = value {
                 values.append(value as! String)
                 ranges.append(range)
@@ -299,30 +317,49 @@ class CVTextTest: SignalBaseTest {
         XCTAssertEqual(["https://signal.org/foo"], values)
         XCTAssertEqual([NSRange(location: 0, length: 22)], ranges)
 
-        truncatedData.removeAttribute(.link, range: truncatedData.entireRange)
-        CVComponentBodyText.linkifyData(attributedText: truncatedData,
-                                        linkifyStyle: .linkAttribute,
-                                        hasPendingMessageRequest: false,
-                                        shouldAllowLinkification: true,
-                                        textWasTruncated: false)
+        truncatedText.removeAttribute(.link, range: truncatedText.entireRange)
+        dataItems = CVComponentBodyText.detectItems(
+            text: DisplayableText.testOnlyInit(fullContent: .attributedText(fullText), truncatedContent: .attributedText(truncatedText)),
+            hasPendingMessageRequest: false,
+            shouldAllowLinkification: true,
+            textWasTruncated: false,
+            revealedSpoilerIds: Set(),
+            interactionUniqueId: UUID().uuidString,
+            interactionIdentifier: InteractionSnapshotIdentifier(timestamp: 0, authorAci: nil)
+        )
+        CVTextLabel.linkifyData(
+            attributedText: fullText,
+            linkifyStyle: .linkAttribute,
+            items: dataItems
+        )
         values.removeAll()
         ranges.removeAll()
-        truncatedData.enumerateAttribute(.link, in: truncatedData.entireRange, options: []) { value, range, _ in
+        fullText.enumerateAttribute(.link, in: fullText.entireRange, options: []) { value, range, _ in
             if let value = value {
                 values.append(value as! String)
                 ranges.append(range)
             }
         }
-        XCTAssertEqual(["https://signal.org/foo", "https://signal.org/ba"], values)
-        XCTAssertEqual([NSRange(location: 0, length: 22), NSRange(location: 23, length: 21)], ranges)
+        XCTAssertEqual(["https://signal.org/foo", "https://signal.org/bar/baz"], values)
+        XCTAssertEqual([NSRange(location: 0, length: 22), NSRange(location: 23, length: 26)], ranges)
 
         // Should work on more than just URLs.
+        let fullEmail = NSMutableAttributedString(string: "moxie@example.com moxie@signal.org")
         let truncatedEmail = NSMutableAttributedString(string: "moxie@example.com moxie@signal.or…")
-        CVComponentBodyText.linkifyData(attributedText: truncatedEmail,
-                                        linkifyStyle: .linkAttribute,
-                                        hasPendingMessageRequest: false,
-                                        shouldAllowLinkification: true,
-                                        textWasTruncated: true)
+        dataItems = CVComponentBodyText.detectItems(
+            text: DisplayableText.testOnlyInit(fullContent: .attributedText(fullEmail), truncatedContent: .attributedText(truncatedEmail)),
+            hasPendingMessageRequest: false,
+            shouldAllowLinkification: true,
+            textWasTruncated: true,
+            revealedSpoilerIds: Set(),
+            interactionUniqueId: UUID().uuidString,
+            interactionIdentifier: InteractionSnapshotIdentifier(timestamp: 0, authorAci: nil)
+        )
+        CVTextLabel.linkifyData(
+            attributedText: truncatedEmail,
+            linkifyStyle: .linkAttribute,
+            items: dataItems
+        )
         values.removeAll()
         truncatedEmail.enumerateAttribute(.link, in: truncatedEmail.entireRange, options: []) { value, _, _ in
             if let value = value {
@@ -331,12 +368,22 @@ class CVTextTest: SignalBaseTest {
         }
         XCTAssertEqual(["mailto:moxie@example.com"], values)
 
+        let fullPhone = NSMutableAttributedString(string: "+16505555555 +16505555555")
         let truncatedPhone = NSMutableAttributedString(string: "+16505555555 +1650555555…")
-        CVComponentBodyText.linkifyData(attributedText: truncatedPhone,
-                                        linkifyStyle: .linkAttribute,
-                                        hasPendingMessageRequest: false,
-                                        shouldAllowLinkification: true,
-                                        textWasTruncated: true)
+        dataItems = CVComponentBodyText.detectItems(
+            text: DisplayableText.testOnlyInit(fullContent: .attributedText(fullPhone), truncatedContent: .attributedText(truncatedPhone)),
+            hasPendingMessageRequest: false,
+            shouldAllowLinkification: true,
+            textWasTruncated: true,
+            revealedSpoilerIds: Set(),
+            interactionUniqueId: UUID().uuidString,
+            interactionIdentifier: InteractionSnapshotIdentifier(timestamp: 0, authorAci: nil)
+        )
+        CVTextLabel.linkifyData(
+            attributedText: truncatedPhone,
+            linkifyStyle: .linkAttribute,
+            items: dataItems
+        )
         values.removeAll()
         truncatedPhone.enumerateAttribute(.link, in: truncatedPhone.entireRange, options: []) { value, _, _ in
             if let value = value {
@@ -346,3 +393,81 @@ class CVTextTest: SignalBaseTest {
         XCTAssertEqual(["tel:+16505555555"], values)
     }
 }
+
+extension CVLabelConfig {
+
+    fileprivate init(
+        text: String,
+        font: UIFont,
+        textColor: UIColor,
+        numberOfLines: Int = 1,
+        lineBreakMode: NSLineBreakMode = .byWordWrapping
+    ) {
+        self.init(
+            text: .text(text),
+            displayConfig: .forUnstyledText(font: font, textColor: textColor),
+            font: font,
+            textColor: textColor,
+            numberOfLines: numberOfLines,
+            lineBreakMode: lineBreakMode
+        )
+    }
+
+    fileprivate init(
+        attributedText: NSAttributedString,
+        font: UIFont,
+        textColor: UIColor,
+        numberOfLines: Int = 1,
+        lineBreakMode: NSLineBreakMode = .byWordWrapping,
+        textAlignment: NSTextAlignment? = nil
+    ) {
+        self.init(
+            text: .attributedText(attributedText),
+            displayConfig: .forUnstyledText(font: font, textColor: textColor),
+            font: font,
+            textColor: textColor,
+            numberOfLines: numberOfLines,
+            lineBreakMode: lineBreakMode,
+            textAlignment: textAlignment
+        )
+    }
+}
+
+extension CVTextViewConfig {
+
+    fileprivate init(
+        text: String,
+        font: UIFont,
+        textColor: UIColor
+    ) {
+        self.init(
+            text: .text(text),
+            font: font,
+            textColor: textColor,
+            displayConfiguration: .forUnstyledText(font: font, textColor: textColor),
+            linkifyStyle: .linkAttribute,
+            linkItems: [],
+            matchedSearchRanges: []
+        )
+    }
+
+    fileprivate init(
+        attributedText: NSAttributedString,
+        font: UIFont,
+        textColor: UIColor,
+        textAlignment: NSTextAlignment? = nil
+    ) {
+        self.init(
+            text: .attributedText(attributedText),
+            font: font,
+            textColor: textColor,
+            textAlignment: textAlignment,
+            displayConfiguration: .forUnstyledText(font: font, textColor: textColor),
+            linkifyStyle: .linkAttribute,
+            linkItems: [],
+            matchedSearchRanges: []
+        )
+    }
+}
+
+#endif

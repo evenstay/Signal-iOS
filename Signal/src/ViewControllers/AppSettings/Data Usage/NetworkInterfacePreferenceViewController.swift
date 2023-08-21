@@ -3,7 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalServiceKit
+import SignalUI
 
 class NetworkInterfacePreferenceViewController: OWSTableViewController2 {
     private var selectedOption: NetworkInterfaceSet?
@@ -28,7 +29,7 @@ class NetworkInterfacePreferenceViewController: OWSTableViewController2 {
 
     func updateTableContents() {
         self.contents = OWSTableContents(sections: [
-            OWSTableSection(header: nil, items: availableOptions.compactMap { option in
+            OWSTableSection(items: availableOptions.compactMap { option in
                 guard let name = Self.name(forInterfaceSet: option) else { return nil }
 
                 return OWSTableItem(
@@ -45,16 +46,16 @@ class NetworkInterfacePreferenceViewController: OWSTableViewController2 {
 
     static func name(forInterfaceSet interfaceSet: NetworkInterfaceSet) -> String? {
         switch interfaceSet {
-        case .none: return NSLocalizedString(
+        case .none: return OWSLocalizedString(
             "NETWORK_INTERFACE_SET_NEVER",
             comment: "String representing the 'never' condition of having no supported network interfaces")
-        case .cellular: return NSLocalizedString(
+        case .cellular: return OWSLocalizedString(
             "NETWORK_INTERFACE_SET_CELLULAR",
             comment: "String representing only the cellular interface")
-        case .wifi: return NSLocalizedString(
+        case .wifi: return OWSLocalizedString(
             "NETWORK_INTERFACE_SET_WIFI",
             comment: "String representing only the wifi interface")
-        case .wifiAndCellular: return NSLocalizedString(
+        case .wifiAndCellular: return OWSLocalizedString(
             "NETWORK_INTERFACE_SET_WIFI_CELLULAR",
             comment: "String representing both wifi and cellular interfaces")
         default: return nil

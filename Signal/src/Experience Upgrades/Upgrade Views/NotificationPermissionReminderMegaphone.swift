@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalMessaging
+import SignalUI
 
 class NotificationPermissionReminderMegaphone: MegaphoneView {
     weak var actionSheetController: ActionSheetController?
@@ -12,45 +12,45 @@ class NotificationPermissionReminderMegaphone: MegaphoneView {
     init(experienceUpgrade: ExperienceUpgrade, fromViewController: UIViewController) {
         super.init(experienceUpgrade: experienceUpgrade)
 
-        titleText = NSLocalizedString("NOTIFICATION_PERMISSION_REMINDER_MEGAPHONE_TITLE",
+        titleText = OWSLocalizedString("NOTIFICATION_PERMISSION_REMINDER_MEGAPHONE_TITLE",
                                       comment: "Title for notification permission reminder megaphone")
-        bodyText = NSLocalizedString("NOTIFICATION_PERMISSION_REMINDER_MEGAPHONE_BODY",
+        bodyText = OWSLocalizedString("NOTIFICATION_PERMISSION_REMINDER_MEGAPHONE_BODY",
                                      comment: "Body for notification permission reminder megaphone")
         imageName = "notificationMegaphone"
 
-        let primaryButtonTitle = NSLocalizedString("NOTIFICATION_PERMISSION_REMINDER_MEGAPHONE_ACTION",
+        let primaryButtonTitle = OWSLocalizedString("NOTIFICATION_PERMISSION_REMINDER_MEGAPHONE_ACTION",
                                                    comment: "Action text for notification permission reminder megaphone")
 
         let primaryButton = MegaphoneView.Button(title: primaryButtonTitle) { [weak self] in
             guard let self = self else { return }
 
             let turnOnView = TurnOnPermissionView(
-                title: NSLocalizedString(
+                title: OWSLocalizedString(
                     "NOTIFICATION_PERMISSION_ACTION_SHEET_TITLE",
                     comment: "Title for notification permission action sheet"
                 ),
-                message: NSLocalizedString(
+                message: OWSLocalizedString(
                     "NOTIFICATION_PERMISSION_ACTION_SHEET_BODY",
                     comment: "Body for notification permission action sheet"
                 ),
                 steps: [
                     .init(
                         icon: nil,
-                        text: NSLocalizedString(
+                        text: OWSLocalizedString(
                             "NOTIFICATION_PERMISSION_ACTION_SHEET_STEP_ONE",
                             comment: "First step for notification permission action sheet"
                         )
                     ),
                     .init(
                         icon: #imageLiteral(resourceName: "notifications-32"),
-                        text: NSLocalizedString(
+                        text: OWSLocalizedString(
                             "NOTIFICATION_PERMISSION_ACTION_SHEET_STEP_TWO",
                             comment: "Second step for notification permission action sheet"
                         )
                     ),
                     .init(
-                        icon: #imageLiteral(resourceName: "toggle-32"),
-                        text: NSLocalizedString(
+                        icon: UIImage(imageLiteralResourceName: "toggle-32"),
+                        text: OWSLocalizedString(
                             "NOTIFICATION_PERMISSION_ACTION_SHEET_STEP_THREE",
                             comment: "Third step for notification permission action sheet"
                         )
@@ -67,7 +67,7 @@ class NotificationPermissionReminderMegaphone: MegaphoneView {
 
         let secondaryButton = snoozeButton(
             fromViewController: fromViewController,
-            snoozeTitle: NSLocalizedString("NOTIFICATION_PERMISSION_NOT_NOW_ACTION",
+            snoozeTitle: OWSLocalizedString("NOTIFICATION_PERMISSION_NOT_NOW_ACTION",
                                            comment: "Snooze action text for contact permission reminder megaphone")
         )
         setButtons(primary: primaryButton, secondary: secondaryButton)
@@ -121,7 +121,7 @@ class TurnOnPermissionView: UIStackView {
         let titleLabel = UILabel()
         titleLabel.text = text
         titleLabel.textColor = Theme.primaryTextColor
-        titleLabel.font = UIFont.ows_dynamicTypeTitle2.ows_semibold
+        titleLabel.font = UIFont.dynamicTypeTitle2.semibold()
         titleLabel.numberOfLines = 0
         titleLabel.lineBreakMode = .byWordWrapping
         titleLabel.textAlignment = .center
@@ -133,7 +133,7 @@ class TurnOnPermissionView: UIStackView {
     func explanationLabel(explanationText: String) -> UILabel {
         let explanationLabel = UILabel()
         explanationLabel.textColor = Theme.secondaryTextAndIconColor
-        explanationLabel.font = .ows_dynamicTypeBody2
+        explanationLabel.font = .dynamicTypeBody2
         explanationLabel.text = explanationText
         explanationLabel.numberOfLines = 0
         explanationLabel.textAlignment = .center
@@ -144,7 +144,7 @@ class TurnOnPermissionView: UIStackView {
     }
 
     func button(title: String, selector: Selector) -> OWSFlatButton {
-        let font = UIFont.ows_dynamicTypeBodyClamped.ows_semibold
+        let font = UIFont.dynamicTypeBodyClamped.semibold()
         let buttonHeight = OWSFlatButton.heightForFont(font)
         let button = OWSFlatButton.button(title: title,
                                           font: font,
@@ -168,7 +168,7 @@ class TurnOnPermissionView: UIStackView {
         let numberLabel = UILabel()
         numberLabel.text = "\(number)" + "."
         numberLabel.textColor = Theme.primaryTextColor
-        numberLabel.font = .ows_dynamicTypeBodyClamped
+        numberLabel.font = .dynamicTypeBodyClamped
         numberLabel.textAlignment = .right
 
         let numberLabelContainer = UIView()
@@ -200,7 +200,7 @@ class TurnOnPermissionView: UIStackView {
         let stepLabel = UILabel()
         stepLabel.text = step.text
         stepLabel.textColor = Theme.primaryTextColor
-        stepLabel.font = .ows_dynamicTypeBodyClamped
+        stepLabel.font = .dynamicTypeBodyClamped
         stepLabel.setCompressionResistanceHorizontalHigh()
         stepLabel.setContentHuggingHorizontalLow()
         stepLabel.autoSetDimension(.height, toSize: 32, relation: .greaterThanOrEqual)

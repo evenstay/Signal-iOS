@@ -3,10 +3,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalServiceKit
+import SignalUI
 
-@objc
-class ExperienceUpgradeManager: NSObject {
+class ExperienceUpgradeManager: Dependencies {
 
     private static weak var lastPresented: ExperienceUpgradeView?
 
@@ -14,7 +14,6 @@ class ExperienceUpgradeManager: NSObject {
     // before we display the splash.
     static let splashStartDay = 7
 
-    @objc
     static func presentNext(fromViewController: UIViewController) -> Bool {
         let optionalNext = databaseStorage.read(block: { transaction in
             return ExperienceUpgradeFinder.next(transaction: transaction.unwrapGrdbRead)
@@ -52,7 +51,7 @@ class ExperienceUpgradeManager: NSObject {
             megaphone?.present(fromViewController: fromViewController)
             lastPresented = megaphone
             didPresentView = true
-        } else if hasSplash, !SignalApp.shared().hasSelectedThread, let splash = splash(forExperienceUpgrade: next) {
+        } else if hasSplash, !SignalApp.shared.hasSelectedThread, let splash = splash(forExperienceUpgrade: next) {
             fromViewController.presentFormSheet(OWSNavigationController(rootViewController: splash), animated: true)
             lastPresented = splash
             didPresentView = true
@@ -73,13 +72,11 @@ class ExperienceUpgradeManager: NSObject {
 
     // MARK: - Experience Specific Helpers
 
-    @objc
     static func dismissSplashWithoutCompletingIfNecessary() {
         guard let lastPresented = lastPresented as? SplashViewController else { return }
         lastPresented.dismissWithoutCompleting(animated: false, completion: nil)
     }
 
-    @objc
     static func dismissPINReminderIfNecessary() {
         dismissLastPresented(ifMatching: .pinReminder)
     }
@@ -133,6 +130,7 @@ class ExperienceUpgradeManager: NSObject {
                 .introducingPins,
                 .pinReminder,
                 .notificationPermissionReminder,
+                .createUsernameReminder,
                 .contactPermissionReminder:
             return true
         case .remoteMegaphone:
@@ -145,7 +143,7 @@ class ExperienceUpgradeManager: NSObject {
         }
     }
 
-    fileprivate static func megaphone(forExperienceUpgrade experienceUpgrade: ExperienceUpgrade, fromViewController: UIViewController) -> MegaphoneView? {
+    private static func megaphone(forExperienceUpgrade experienceUpgrade: ExperienceUpgrade, fromViewController: UIViewController) -> MegaphoneView? {
         switch experienceUpgrade.manifest {
         case .introducingPins:
             return IntroducingPinsMegaphone(experienceUpgrade: experienceUpgrade, fromViewController: fromViewController)
@@ -153,6 +151,32 @@ class ExperienceUpgradeManager: NSObject {
             return PinReminderMegaphone(experienceUpgrade: experienceUpgrade, fromViewController: fromViewController)
         case .notificationPermissionReminder:
             return NotificationPermissionReminderMegaphone(experienceUpgrade: experienceUpgrade, fromViewController: fromViewController)
+        case .createUsernameReminder:
+            let usernameIsUnset: Bool = databaseStorage.read { tx in
+                return DependenciesBridge.shared.localUsernameManager
+                    .usernameState(tx: tx.asV2Read).isExplicitlyUnset
+            }
+
+            guard usernameIsUnset else {
+                owsFailDebug("Should never try and show this megaphone if a username is set!")
+                return nil
+            }
+
+            return CreateUsernameMegaphone(
+                usernameSelectionCoordinator: .init(
+                    currentUsername: nil,
+                    context: .init(
+                        databaseStorage: databaseStorage,
+                        networkManager: networkManager,
+                        schedulers: DependenciesBridge.shared.schedulers,
+                        storageServiceManager: storageServiceManager,
+                        usernameEducationManager: DependenciesBridge.shared.usernameEducationManager,
+                        localUsernameManager: DependenciesBridge.shared.localUsernameManager
+                    )
+                ),
+                experienceUpgrade: experienceUpgrade,
+                fromViewController: fromViewController
+            )
         case .contactPermissionReminder:
             return ContactPermissionReminderMegaphone(experienceUpgrade: experienceUpgrade, fromViewController: fromViewController)
         case .remoteMegaphone(let megaphone):

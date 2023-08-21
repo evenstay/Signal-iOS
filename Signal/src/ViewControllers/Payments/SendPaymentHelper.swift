@@ -3,9 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalMessaging
-import UIKit
+import SignalUI
 
 public struct SendPaymentInfo {
     let recipient: SendPaymentRecipient
@@ -94,13 +93,13 @@ class SendPaymentHelper: Dependencies {
     public static func buildBottomButton(title: String,
                                          target: Any,
                                          selector: Selector) -> UIView {
-        let button = OWSFlatButton.button(title: title,
+        let button = OWSFlatButton.insetButton(title: title,
                                           font: bottomButtonFont,
                                           titleColor: .white,
                                           backgroundColor: .ows_accentBlue,
                                           target: target,
                                           selector: selector)
-        button.autoSetHeightUsingFont()
+        button.autoSetHeightUsingFont(extraVerticalInsets: 6)
         return button
     }
 
@@ -121,22 +120,23 @@ class SendPaymentHelper: Dependencies {
     // the same exact height.
     public static var bottomControlHeight: CGFloat {
         max(progressIndicatorSize,
-            OWSFlatButton.heightForFont(bottomButtonFont))
+            OWSFlatButton.heightForFont(bottomButtonFont) + 2.0)
     }
 
     public static var bottomButtonFont: UIFont {
-        UIFont.ows_dynamicTypeBody.ows_semibold
+        UIFont.dynamicTypeBody.semibold()
     }
 
     public static func buildBottomLabel() -> UILabel {
         let label = UILabel()
-        label.font = .ows_dynamicTypeBody2Clamped
+        label.font = .dynamicTypeBody2Clamped
         label.textColor = Theme.secondaryTextAndIconColor
         label.textAlignment = .center
         return label
     }
 
     public func updateBalanceLabel(_ balanceLabel: UILabel) {
+        AssertIsOnMainThread()
 
         guard let maximumPaymentAmount = self.maximumPaymentAmount else {
             // Use whitespace to ensure that the height of the label
@@ -145,7 +145,7 @@ class SendPaymentHelper: Dependencies {
             return
         }
 
-        let format = NSLocalizedString("PAYMENTS_NEW_PAYMENT_BALANCE_FORMAT",
+        let format = OWSLocalizedString("PAYMENTS_NEW_PAYMENT_BALANCE_FORMAT",
                                        comment: "Format for the 'balance' indicator. Embeds {{ the current payments balance }}.")
         balanceLabel.text = String(format: format,
                                    Self.formatMobileCoinAmount(maximumPaymentAmount))
@@ -154,11 +154,11 @@ class SendPaymentHelper: Dependencies {
     private func updateMaximumPaymentAmount() {
         firstly {
             Self.paymentsSwift.maximumPaymentAmount()
-        }.done(on: .main) { [weak self] maximumPaymentAmount in
+        }.done(on: DispatchQueue.main) { [weak self] maximumPaymentAmount in
             guard let self = self else { return }
             self.maximumPaymentAmount = maximumPaymentAmount
             self.delegate?.balanceDidChange()
-        }.catch(on: .global()) { [weak self] error in
+        }.catch(on: DispatchQueue.global()) { [weak self] error in
             if case PaymentsError.insufficientFunds = error {
                 guard let self = self else { return }
                 self.maximumPaymentAmount = TSPaymentAmount(currency: .mobileCoin, picoMob: 0)
@@ -202,7 +202,7 @@ class SendPaymentHelper: Dependencies {
 
         let formattedAmount = PaymentsFormat.format(paymentAmount: paymentAmount,
                                                     isShortForm: false)
-        let format = NSLocalizedString("PAYMENTS_NEW_PAYMENT_CURRENCY_FORMAT",
+        let format = OWSLocalizedString("PAYMENTS_NEW_PAYMENT_CURRENCY_FORMAT",
                                        comment: "Format for currency amounts in the 'send payment' UI. Embeds {{ %1$@ the current payments balance, %2$@ the currency indicator }}.")
         return String(format: format,
                       formattedAmount,

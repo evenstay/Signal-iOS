@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import LibSignalClient
 import Mantle
 
 @objc
@@ -143,40 +144,34 @@ public extension OWSUserProfile {
     // MARK: - Encryption
 
     class func encrypt(profileData: Data, profileKey: OWSAES256Key) -> Data? {
-        assert(profileKey.keyData.count == kAES256_KeyByteLength)
-        return Cryptography.encryptAESGCMProfileData(plainTextData: profileData, key: profileKey)
+        return try? Aes256GcmEncryptedData.encrypt(profileData, key: profileKey.keyData).concatenate()
     }
 
     class func decrypt(profileData: Data, profileKey: OWSAES256Key) -> Data? {
-        assert(profileKey.keyData.count == kAES256_KeyByteLength)
-        return Cryptography.decryptAESGCMProfileData(encryptedData: profileData, key: profileKey)
+        return try? Aes256GcmEncryptedData(concatenated: profileData).decrypt(key: profileKey.keyData)
     }
 
-    class func decrypt(profileNameData: Data, profileKey: OWSAES256Key, address: SignalServiceAddress) -> PersonNameComponents? {
+    class func decrypt(profileNameData: Data, profileKey: OWSAES256Key) -> PersonNameComponents? {
         guard let decryptedData = decrypt(profileData: profileNameData, profileKey: profileKey) else { return nil }
+
+        func parseNameSegment(_ nameSegment: Data?) -> String? {
+            return nameSegment.flatMap({ String(data: $0, encoding: .utf8) })?.strippedOrNil
+        }
 
         // Unpad profile name. The given and family name are stored
         // in the string like "<given name><null><family name><null padding>"
         let nameSegments: [Data] = decryptedData.split(separator: 0x00)
 
         // Given name is required
-        guard nameSegments.count > 0,
-              let givenName = String(data: nameSegments[0], encoding: .utf8), !givenName.isEmpty else {
-            Logger.warn("unexpectedly missing first name for \(address), isLocal: \(address.isLocalAddress).")
+        guard let givenName = parseNameSegment(nameSegments.first) else {
+            Logger.warn("unexpectedly missing given name")
             return nil
-        }
-
-        // Family name is optional
-        let familyName: String?
-        if nameSegments.count > 1 {
-            familyName = String(data: nameSegments[1], encoding: .utf8)
-        } else {
-            familyName = nil
         }
 
         var nameComponents = PersonNameComponents()
         nameComponents.givenName = givenName
-        nameComponents.familyName = familyName
+        // Family name is optional
+        nameComponents.familyName = parseNameSegment(nameSegments.dropFirst().first)
         return nameComponents
     }
 
@@ -263,6 +258,31 @@ public extension OWSUserProfile {
         }
         return value
     }
+
+    // MARK: - Indexing
+
+    /// Reindex associated models.
+    ///
+    /// The profile can affect how accounts, recipients, contact threads, and
+    /// group threads are indexed, so we need to re-index them whenever the
+    /// profile changes.
+    func reindexAssociatedModels(transaction: SDSAnyWriteTransaction) {
+        if let signalAccount = AnySignalAccountFinder().signalAccount(for: address, transaction: transaction) {
+            FullTextSearchFinder.modelWasUpdated(model: signalAccount, transaction: transaction)
+        }
+
+        if let signalRecipient = AnySignalRecipientFinder().signalRecipient(for: address, transaction: transaction) {
+            FullTextSearchFinder.modelWasUpdated(model: signalRecipient, transaction: transaction)
+        }
+
+        if let contactThread = TSContactThread.getWithContactAddress(address, transaction: transaction) {
+            FullTextSearchFinder.modelWasUpdated(model: contactThread, transaction: transaction)
+        }
+
+        TSGroupMember.enumerateGroupMembers(for: address, transaction: transaction) { groupMember, _ in
+            FullTextSearchFinder.modelWasUpdated(model: groupMember, transaction: transaction)
+        }
+    }
 }
 
 // MARK: -
@@ -340,12 +360,6 @@ public class UserProfileChanges: NSObject {
     @objc
     public var bioEmoji: OptionalStringValue?
     @objc
-    public var username: OptionalStringValue?
-    @objc
-    public var isStoriesCapable: BoolValue?
-    @objc
-    public var canReceiveGiftBadges: BoolValue?
-    @objc
     public var avatarUrlPath: OptionalStringValue?
     @objc
     public var avatarFileName: OptionalStringValue?
@@ -357,6 +371,13 @@ public class UserProfileChanges: NSObject {
     public var profileKey: OptionalProfileKeyValue?
     @objc
     public var badges: [OWSUserProfileBadgeInfo]?
+
+    @objc
+    public var isStoriesCapable: BoolValue?
+    @objc
+    public var canReceiveGiftBadges: BoolValue?
+    @objc
+    public var isPniCapable: BoolValue?
 
     @objc
     public let updateMethodName: String
@@ -374,118 +395,155 @@ public class UserProfileChanges: NSObject {
 @objc
 public extension OWSUserProfile {
 
-    @objc(updateWithGivenName:familyName:userProfileWriter:transaction:completion:)
-    func update(givenName: String?,
-                familyName: String?,
-                userProfileWriter: UserProfileWriter,
-                transaction: SDSAnyWriteTransaction,
-                completion: OWSUserProfileCompletion?) {
+    @objc(updateWithGivenName:familyName:userProfileWriter:authedAccount:transaction:completion:)
+    func update(
+        givenName: String?,
+        familyName: String?,
+        userProfileWriter: UserProfileWriter,
+        authedAccount: AuthedAccount,
+        transaction: SDSAnyWriteTransaction,
+        completion: OWSUserProfileCompletion?
+    ) {
         let changes = UserProfileChanges()
         changes.givenName = .init(givenName)
         changes.familyName = .init(familyName)
-        apply(changes,
-              userProfileWriter: userProfileWriter,
-              transaction: transaction,
-              completion: completion)
+        apply(
+            changes,
+            userProfileWriter: userProfileWriter,
+            authedAccount: authedAccount,
+            transaction: transaction,
+            completion: completion
+        )
     }
 
-    func update(givenName: String?,
-                familyName: String?,
-                avatarUrlPath: String?,
-                avatarFileName: String?,
-                userProfileWriter: UserProfileWriter,
-                transaction: SDSAnyWriteTransaction,
-                completion: OWSUserProfileCompletion?) {
+    func update(
+        givenName: String?,
+        familyName: String?,
+        avatarUrlPath: String?,
+        avatarFileName: String?,
+        userProfileWriter: UserProfileWriter,
+        authedAccount: AuthedAccount,
+        transaction: SDSAnyWriteTransaction,
+        completion: OWSUserProfileCompletion?
+    ) {
         let changes = UserProfileChanges()
         changes.givenName = .init(givenName)
         changes.familyName = .init(familyName)
         changes.avatarUrlPath = .init(avatarUrlPath)
         changes.avatarFileName = .init(avatarFileName)
-        apply(changes,
-              userProfileWriter: userProfileWriter,
-              transaction: transaction,
-              completion: completion)
+        apply(
+            changes,
+            userProfileWriter: userProfileWriter,
+            authedAccount: authedAccount,
+            transaction: transaction,
+            completion: completion
+        )
     }
 
-    @objc(updateWithGivenName:familyName:bio:bioEmoji:username:isStoriesCapable:badges:canReceiveGiftBadges:avatarUrlPath:lastFetchDate:userProfileWriter:transaction:completion:)
-    func update(givenName: String?,
-                familyName: String?,
-                bio: String?,
-                bioEmoji: String?,
-                username: String?,
-                isStoriesCapable: Bool,
-                badges: [OWSUserProfileBadgeInfo],
-                canReceiveGiftBadges: Bool,
-                avatarUrlPath: String?,
-                lastFetchDate: Date,
-                userProfileWriter: UserProfileWriter,
-                transaction: SDSAnyWriteTransaction,
-                completion: OWSUserProfileCompletion?) {
+    @objc(updateWithGivenName:familyName:bio:bioEmoji:badges:avatarUrlPath:lastFetchDate:isStoriesCapable:canReceiveGiftBadges:isPniCapable:userProfileWriter:authedAccount:transaction:completion:)
+    func update(
+        givenName: String?,
+        familyName: String?,
+        bio: String?,
+        bioEmoji: String?,
+        badges: [OWSUserProfileBadgeInfo],
+        avatarUrlPath: String?,
+        lastFetchDate: Date,
+        isStoriesCapable: Bool,
+        canReceiveGiftBadges: Bool,
+        isPniCapable: Bool,
+        userProfileWriter: UserProfileWriter,
+        authedAccount: AuthedAccount,
+        transaction: SDSAnyWriteTransaction,
+        completion: OWSUserProfileCompletion?
+    ) {
         let changes = UserProfileChanges()
         changes.givenName = .init(givenName)
         changes.familyName = .init(familyName)
         changes.bio = .init(bio)
         changes.bioEmoji = .init(bioEmoji)
-        changes.username = .init(username)
-        changes.isStoriesCapable = .init(isStoriesCapable)
         changes.badges = badges
-        changes.canReceiveGiftBadges = .init(canReceiveGiftBadges)
         changes.avatarUrlPath = .init(avatarUrlPath)
         changes.lastFetchDate = .init(lastFetchDate)
-        apply(changes,
-              userProfileWriter: userProfileWriter,
-              transaction: transaction,
-              completion: completion)
+
+        changes.isStoriesCapable = .init(isStoriesCapable)
+        changes.canReceiveGiftBadges = .init(canReceiveGiftBadges)
+        changes.isPniCapable = .init(isPniCapable)
+
+        apply(
+            changes,
+            userProfileWriter: userProfileWriter,
+            authedAccount: authedAccount,
+            transaction: transaction,
+            completion: completion
+        )
     }
 
-    @objc(updateWithGivenName:familyName:bio:bioEmoji:username:isStoriesCapable:badges:canReceiveGiftBadges:avatarUrlPath:avatarFileName:lastFetchDate:userProfileWriter:transaction:completion:)
-    func update(givenName: String?,
-                familyName: String?,
-                bio: String?,
-                bioEmoji: String?,
-                username: String?,
-                isStoriesCapable: Bool,
-                badges: [OWSUserProfileBadgeInfo],
-                canReceiveGiftBadges: Bool,
-                avatarUrlPath: String?,
-                avatarFileName: String?,
-                lastFetchDate: Date,
-                userProfileWriter: UserProfileWriter,
-                transaction: SDSAnyWriteTransaction,
-                completion: OWSUserProfileCompletion?) {
+    @objc(updateWithGivenName:familyName:bio:bioEmoji:badges:avatarUrlPath:avatarFileName:lastFetchDate:isStoriesCapable:canReceiveGiftBadges:isPniCapable:userProfileWriter:authedAccount:transaction:completion:)
+    func update(
+        givenName: String?,
+        familyName: String?,
+        bio: String?,
+        bioEmoji: String?,
+        badges: [OWSUserProfileBadgeInfo],
+        avatarUrlPath: String?,
+        avatarFileName: String?,
+        lastFetchDate: Date,
+        isStoriesCapable: Bool,
+        canReceiveGiftBadges: Bool,
+        isPniCapable: Bool,
+        userProfileWriter: UserProfileWriter,
+        authedAccount: AuthedAccount,
+        transaction: SDSAnyWriteTransaction,
+        completion: OWSUserProfileCompletion?
+    ) {
         let changes = UserProfileChanges()
         changes.givenName = .init(givenName)
         changes.familyName = .init(familyName)
         changes.bio = .init(bio)
         changes.bioEmoji = .init(bioEmoji)
-        changes.username = .init(username)
-        changes.isStoriesCapable = .init(isStoriesCapable)
         changes.badges = badges
-        changes.canReceiveGiftBadges = .init(canReceiveGiftBadges)
         changes.avatarUrlPath = .init(avatarUrlPath)
         changes.avatarFileName = .init(avatarFileName)
         changes.lastFetchDate = .init(lastFetchDate)
-        apply(changes,
-              userProfileWriter: userProfileWriter,
-              transaction: transaction,
-              completion: completion)
+
+        changes.isStoriesCapable = .init(isStoriesCapable)
+        changes.canReceiveGiftBadges = .init(canReceiveGiftBadges)
+        changes.isPniCapable = .init(isPniCapable)
+
+        apply(
+            changes,
+            userProfileWriter: userProfileWriter,
+            authedAccount: authedAccount,
+            transaction: transaction,
+            completion: completion
+        )
     }
 
-    func update(avatarFileName: String?,
-                userProfileWriter: UserProfileWriter,
-                transaction: SDSAnyWriteTransaction) {
+    func update(
+        avatarFileName: String?,
+        userProfileWriter: UserProfileWriter,
+        authedAccount: AuthedAccount,
+        transaction: SDSAnyWriteTransaction
+    ) {
         let changes = UserProfileChanges()
         changes.avatarFileName = .init(avatarFileName)
-        apply(changes,
-              userProfileWriter: userProfileWriter,
-              transaction: transaction,
-              completion: nil)
+        apply(
+            changes,
+            userProfileWriter: userProfileWriter,
+            authedAccount: authedAccount,
+            transaction: transaction,
+            completion: nil
+        )
     }
 
-    func clear(profileKey: OWSAES256Key?,
-               userProfileWriter: UserProfileWriter,
-               transaction: SDSAnyWriteTransaction,
-               completion: OWSUserProfileCompletion?) {
+    func clear(
+        profileKey: OWSAES256Key?,
+        userProfileWriter: UserProfileWriter,
+        authedAccount: AuthedAccount,
+        transaction: SDSAnyWriteTransaction,
+        completion: OWSUserProfileCompletion?
+    ) {
         // This is only used for debugging.
         owsAssertDebug(userProfileWriter == .debugging)
         let changes = UserProfileChanges()
@@ -494,110 +552,156 @@ public extension OWSUserProfile {
         changes.familyName = .init(nil)
         changes.bio = .init(nil)
         changes.bioEmoji = .init(nil)
-        changes.username = .init(nil)
         // builder.isStoriesCapable = .init(nil)
         changes.avatarUrlPath = .init(nil)
         changes.avatarFileName = .init(nil)
         // builder.lastFetchDate = .init(nil)
         // builder.lastMessagingDate = .init(nil)
-        apply(changes,
-              userProfileWriter: userProfileWriter,
-              transaction: transaction,
-              completion: completion)
+        apply(
+            changes,
+            userProfileWriter: userProfileWriter,
+            authedAccount: authedAccount,
+            transaction: transaction,
+            completion: completion
+        )
     }
 
-    func update(profileKey: OWSAES256Key?,
-                userProfileWriter: UserProfileWriter,
-                transaction: SDSAnyWriteTransaction,
-                completion: OWSUserProfileCompletion?) {
+    func update(
+        profileKey: OWSAES256Key?,
+        userProfileWriter: UserProfileWriter,
+        authedAccount: AuthedAccount,
+        transaction: SDSAnyWriteTransaction,
+        completion: OWSUserProfileCompletion?
+    ) {
         let changes = UserProfileChanges()
         changes.profileKey = .init(profileKey)
-        apply(changes,
-              userProfileWriter: userProfileWriter,
-              transaction: transaction,
-              completion: completion)
+        apply(
+            changes,
+            userProfileWriter: userProfileWriter,
+            authedAccount: authedAccount,
+            transaction: transaction,
+            completion: completion
+        )
     }
 
-    @objc(updateWithGivenName:familyName:avatarUrlPath:userProfileWriter:transaction:completion:)
-    func update(givenName: String?,
-                familyName: String?,
-                avatarUrlPath: String?,
-                userProfileWriter: UserProfileWriter,
-                transaction: SDSAnyWriteTransaction,
-                completion: OWSUserProfileCompletion?) {
+    @objc(updateWithGivenName:familyName:avatarUrlPath:userProfileWriter:authedAccount:transaction:completion:)
+    func update(
+        givenName: String?,
+        familyName: String?,
+        avatarUrlPath: String?,
+        userProfileWriter: UserProfileWriter,
+        authedAccount: AuthedAccount,
+        transaction: SDSAnyWriteTransaction,
+        completion: OWSUserProfileCompletion?
+    ) {
         let changes = UserProfileChanges()
         changes.givenName = .init(givenName)
         changes.familyName = .init(familyName)
         changes.avatarUrlPath = .init(avatarUrlPath)
-        apply(changes,
-              userProfileWriter: userProfileWriter,
-              transaction: transaction,
-              completion: completion)
+        apply(
+            changes,
+            userProfileWriter: userProfileWriter,
+            authedAccount: authedAccount,
+            transaction: transaction,
+            completion: completion
+        )
     }
 
-    func update(username: String?,
-                isStoriesCapable: Bool,
-                canReceiveGiftBadges: Bool,
-                userProfileWriter: UserProfileWriter,
-                transaction: SDSAnyWriteTransaction) {
+    func update(
+        isStoriesCapable: Bool,
+        canReceiveGiftBadges: Bool,
+        isPniCapable: Bool,
+        userProfileWriter: UserProfileWriter,
+        authedAccount: AuthedAccount,
+        transaction: SDSAnyWriteTransaction
+    ) {
         let changes = UserProfileChanges()
-        changes.username = .init(username)
         changes.isStoriesCapable = .init(isStoriesCapable)
         changes.canReceiveGiftBadges = .init(canReceiveGiftBadges)
-        apply(changes,
-              userProfileWriter: userProfileWriter,
-              transaction: transaction,
-              completion: nil)
+        changes.isPniCapable = .init(isPniCapable)
+        apply(
+            changes,
+            userProfileWriter: userProfileWriter,
+            authedAccount: authedAccount,
+            transaction: transaction,
+            completion: nil
+        )
     }
 
-    func update(username: String?,
-                isStoriesCapable: Bool,
-                canReceiveGiftBadges: Bool,
-                lastFetchDate: Date,
-                userProfileWriter: UserProfileWriter,
-                transaction: SDSAnyWriteTransaction) {
+    func update(
+        lastFetchDate: Date,
+        isStoriesCapable: Bool,
+        canReceiveGiftBadges: Bool,
+        isPniCapable: Bool,
+        userProfileWriter: UserProfileWriter,
+        authedAccount: AuthedAccount,
+        transaction: SDSAnyWriteTransaction
+    ) {
         let changes = UserProfileChanges()
-        changes.username = .init(username)
-        changes.isStoriesCapable = .init(isStoriesCapable)
-        changes.canReceiveGiftBadges = .init(canReceiveGiftBadges)
         changes.lastFetchDate = .init(lastFetchDate)
-        apply(changes,
-              userProfileWriter: userProfileWriter,
-              transaction: transaction,
-              completion: nil)
+
+        changes.isStoriesCapable = .init(isStoriesCapable)
+        changes.canReceiveGiftBadges = .init(canReceiveGiftBadges)
+        changes.isPniCapable = .init(isPniCapable)
+
+        apply(
+            changes,
+            userProfileWriter: userProfileWriter,
+            authedAccount: authedAccount,
+            transaction: transaction,
+            completion: nil
+        )
     }
 
-    func update(lastMessagingDate: Date,
-                userProfileWriter: UserProfileWriter,
-                transaction: SDSAnyWriteTransaction) {
+    func update(
+        lastMessagingDate: Date,
+        userProfileWriter: UserProfileWriter,
+        authedAccount: AuthedAccount,
+        transaction: SDSAnyWriteTransaction
+    ) {
         let changes = UserProfileChanges()
         changes.lastMessagingDate = .init(lastMessagingDate)
-        apply(changes,
-              userProfileWriter: userProfileWriter,
-              transaction: transaction,
-              completion: nil)
+        apply(
+            changes,
+            userProfileWriter: userProfileWriter,
+            authedAccount: authedAccount,
+            transaction: transaction,
+            completion: nil
+        )
     }
 
     #if TESTABLE_BUILD
-    func update(lastFetchDate: Date,
-                userProfileWriter: UserProfileWriter,
-                transaction: SDSAnyWriteTransaction) {
+    func update(
+        lastFetchDate: Date,
+        userProfileWriter: UserProfileWriter,
+        authedAccount: AuthedAccount,
+        transaction: SDSAnyWriteTransaction
+    ) {
         let changes = UserProfileChanges()
         changes.lastFetchDate = .init(lastFetchDate)
-        apply(changes,
-              userProfileWriter: userProfileWriter,
-              transaction: transaction,
-              completion: nil)
+        apply(
+            changes,
+            userProfileWriter: userProfileWriter,
+            authedAccount: authedAccount,
+            transaction: transaction,
+            completion: nil
+        )
     }
 
-    func discardProfileKey(userProfileWriter: UserProfileWriter,
-                           transaction: SDSAnyWriteTransaction) {
+    func discardProfileKey(
+        userProfileWriter: UserProfileWriter,
+        authedAccount: AuthedAccount,
+        transaction: SDSAnyWriteTransaction
+    ) {
         let changes = UserProfileChanges()
         changes.profileKey = .init(nil)
-        apply(changes,
-              userProfileWriter: userProfileWriter,
-              transaction: transaction,
-              completion: nil)
+        apply(
+            changes,
+            userProfileWriter: userProfileWriter,
+            authedAccount: authedAccount,
+            transaction: transaction,
+            completion: nil
+        )
     }
     #endif
 }
@@ -608,6 +712,6 @@ extension OWSUserProfile {
             owsAssertDebug(address.isValid)
             return resolve(address)
         }
-        return userProfileFinder.userProfiles(for: resolvedAddresses, transaction: transaction)
+        return userProfileFinder.userProfiles(for: resolvedAddresses, tx: transaction)
     }
 }

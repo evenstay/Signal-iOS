@@ -4,11 +4,12 @@
 //
 
 import Foundation
+import LibSignalClient
 import XCTest
 
 @testable import SignalServiceKit
 
-class RemoteConfigManagerTests: SSKBaseTestSwift {
+class RemoteConfigManagerTests: XCTestCase {
     func test_bucketCalculation() {
         let testCases: [(String, String, UInt64, UInt64)] = [
             ("research.megaphone.1", "15b9729c-51ea-4ddb-b516-652befe78062", 1_000_000, 243_315),
@@ -17,7 +18,7 @@ class RemoteConfigManagerTests: SSKBaseTestSwift {
             ("research.megaphone.1", "15b9729c-51ea-4ddb-b516-652befe78062", 100_000, 43_315)
         ]
         for (key, uuidString, bucketSize, expectedBucket) in testCases {
-            let actualBucket = RemoteConfig.bucket(key: key, uuid: UUID(uuidString: uuidString)!, bucketSize: bucketSize)
+            let actualBucket = RemoteConfig.bucket(key: key, aci: Aci.constantForTesting(uuidString), bucketSize: bucketSize)
             XCTAssertEqual(actualBucket, expectedBucket)
         }
     }

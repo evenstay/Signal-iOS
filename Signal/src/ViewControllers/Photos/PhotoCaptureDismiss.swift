@@ -3,7 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalCoreKit
+import SignalUI
 
 class PhotoCaptureInteractiveDismiss: UIPercentDrivenInteractiveTransition {
     var interactionInProgress = false
@@ -65,7 +66,7 @@ class PhotoCaptureInteractiveDismiss: UIPercentDrivenInteractiveTransition {
             farEnoughToCompleteTransition = progress >= 1
             update(progress)
 
-            interactiveDismissDelegate?.interactiveDismissUpdate(self, didChangeTouchOffset: offset)
+            interactiveDismissDelegate?.interactiveDismiss(self, didChangeProgress: progress, touchOffset: offset)
             if handlesAnimation {
                 guard let frame = initialDimissFrame else {return}
                 let delta = self.constainSwipe(offset: offset)
@@ -83,7 +84,7 @@ class PhotoCaptureInteractiveDismiss: UIPercentDrivenInteractiveTransition {
         case .ended:
             if shouldCompleteTransition {
                 finish()
-                interactiveDismissDelegate?.interactiveDismissDidFinish(self)
+                interactiveDismissDelegate?.interactiveDismiss(self, didFinishWithVelocity: nil)
             } else {
                 cancel()
                 interactiveDismissDelegate?.interactiveDismissDidCancel(self)

@@ -3,15 +3,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import MultipeerConnectivity
 import SignalMessaging
 import SignalUI
 
-@objc
 class ConversationSplitViewController: UISplitViewController, ConversationSplit {
 
-    fileprivate var deviceTransferNavController: DeviceTransferNavigationController?
+    fileprivate var deviceTransferNavController: OutgoingDeviceTransferNavigationController?
 
     let homeVC = HomeTabBarController()
     private let detailPlaceholderVC = NoSelectedConversationViewController()
@@ -20,18 +18,16 @@ class ConversationSplitViewController: UISplitViewController, ConversationSplit 
     private lazy var detailNavController = OWSNavigationController()
     private lazy var lastActiveInterfaceOrientation = CurrentAppContext().interfaceOrientation
 
-    @objc
     private(set) weak var selectedConversationViewController: ConversationViewController?
 
     weak var navigationTransitionDelegate: UINavigationControllerDelegate?
 
     /// The thread, if any, that is currently presented in the view hieararchy. It may be currently
     /// covered by a modal presentation or a pushed view controller.
-    @objc
     var selectedThread: TSThread? {
         // If the placeholder view is in the view hierarchy, there is no selected thread.
         guard detailPlaceholderVC.view.superview == nil else { return nil }
-        guard let selectedConversationViewController = selectedConversationViewController else { return nil }
+        guard let selectedConversationViewController else { return nil }
 
         // In order to not show selected when collapsed during an interactive dismissal,
         // we verify the conversation is still in the nav stack when collapsed. There is
@@ -43,14 +39,12 @@ class ConversationSplitViewController: UISplitViewController, ConversationSplit 
 
     /// Returns the currently selected thread if it is visible on screen, otherwise
     /// returns nil.
-    @objc
     var visibleThread: TSThread? {
         guard view.window?.isKeyWindow == true else { return nil }
         guard selectedConversationViewController?.isViewVisible == true else { return nil }
         return selectedThread
     }
 
-    @objc
     var topViewController: UIViewController? {
         guard !isCollapsed else {
             return chatListNavController.topViewController
@@ -59,7 +53,6 @@ class ConversationSplitViewController: UISplitViewController, ConversationSplit 
         return detailNavController.topViewController ?? chatListNavController.topViewController
     }
 
-    @objc
     init() {
         super.init(nibName: nil, bundle: nil)
 
@@ -69,7 +62,7 @@ class ConversationSplitViewController: UISplitViewController, ConversationSplit 
         delegate = self
         preferredDisplayMode = .allVisible
 
-        NotificationCenter.default.addObserver(self, selector: #selector(applyTheme), name: .ThemeDidChange, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(applyTheme), name: .themeDidChange, object: nil)
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(orientationDidChange),
@@ -90,42 +83,23 @@ class ConversationSplitViewController: UISplitViewController, ConversationSplit 
     }
 
     @objc
-    func applyTheme() {
+    private func applyTheme() {
         view.backgroundColor = Theme.isDarkThemeEnabled ? UIColor(rgbHex: 0x292929) : UIColor(rgbHex: 0xd6d6d6)
     }
 
     @objc
-    func orientationDidChange() {
+    private func orientationDidChange() {
         AssertIsOnMainThread()
         guard UIApplication.shared.applicationState == .active else { return }
         lastActiveInterfaceOrientation = CurrentAppContext().interfaceOrientation
     }
 
     @objc
-    func didBecomeActive() {
+    private func didBecomeActive() {
         AssertIsOnMainThread()
         lastActiveInterfaceOrientation = CurrentAppContext().interfaceOrientation
     }
 
-    private var hasHiddenExtraSubivew = false
-    override func viewWillLayoutSubviews() {
-        super.viewWillLayoutSubviews()
-
-        // We don't want to hide anything on iOS 13, as the extra subview no longer exists
-        if #available(iOS 13, *) { hasHiddenExtraSubivew = true }
-
-        // HACK: UISplitViewController adds an extra subview behind the navigation
-        // bar area that extends across both views. As far as I can tell, it's not
-        // possible to adjust the color of this view. It gets reset constantly.
-        // Without this fix, the space between the primary and detail view has a
-        // hairline of the wrong color, most apparent in dark mode.
-        guard !hasHiddenExtraSubivew, let firstSubview = view.subviews.first,
-              !viewControllers.map({ $0.view }).contains(firstSubview) else { return }
-        hasHiddenExtraSubivew = true
-        firstSubview.isHidden = true
-    }
-
-    @objc(closeSelectedConversationAnimated:)
     func closeSelectedConversation(animated: Bool) {
         guard let selectedConversationViewController = selectedConversationViewController else { return }
 
@@ -142,7 +116,6 @@ class ConversationSplitViewController: UISplitViewController, ConversationSplit 
         }
     }
 
-    @objc
     func presentThread(_ thread: TSThread, action: ConversationViewAction, focusMessageId: String?, animated: Bool) {
         AssertIsOnMainThread()
 
@@ -151,7 +124,7 @@ class ConversationSplitViewController: UISplitViewController, ConversationSplit 
         // This results in conversations opening up in the wrong pane when you were in portrait and then
         // try and open the app in landscape. We work around this by dispatching to the next runloop
         // at which point things have stabilized.
-        if #available(iOS 13, *), UIApplication.shared.applicationState != .active, lastActiveInterfaceOrientation != CurrentAppContext().interfaceOrientation {
+        if UIApplication.shared.applicationState != .active, lastActiveInterfaceOrientation != CurrentAppContext().interfaceOrientation {
             if #available(iOS 14, *) { owsFailDebug("check if this still happens") }
             // Reset this to avoid getting stuck in a loop. We're becoming active.
             lastActiveInterfaceOrientation = CurrentAppContext().interfaceOrientation
@@ -187,12 +160,14 @@ class ConversationSplitViewController: UISplitViewController, ConversationSplit 
         // can maintain its scroll position when navigating back.
         homeVC.chatListViewController.updateLastViewedThread(thread, animated: animated)
 
-        let threadViewModel = databaseStorage.read {
-            return ThreadViewModel(thread: thread,
-                                   forChatList: false,
-                                   transaction: $0)
+        let vc = databaseStorage.read { tx in
+            ConversationViewController.load(
+                threadViewModel: ThreadViewModel(thread: thread, forChatList: false, transaction: tx),
+                action: action,
+                focusMessageId: focusMessageId,
+                tx: tx
+            )
         }
-        let vc = ConversationViewController(threadViewModel: threadViewModel, action: action, focusMessageId: focusMessageId)
 
         selectedConversationViewController = vc
 
@@ -203,11 +178,7 @@ class ConversationSplitViewController: UISplitViewController, ConversationSplit 
             return detailNavController
         }()
 
-        if animated {
-            showDetailViewController(detailVC, sender: self)
-        } else {
-            UIView.performWithoutAnimation { showDetailViewController(detailVC, sender: self) }
-        }
+        showDetailViewController(viewController: detailVC, animated: animated)
     }
 
     override var shouldAutorotate: Bool {
@@ -234,8 +205,14 @@ class ConversationSplitViewController: UISplitViewController, ConversationSplit 
     // it presents the view modally instead of within the split view controller.
     // We never want this to happen, so we implement a version that knows the
     // correct context is always the split view controller.
+    override func showDetailViewController(_ vc: UIViewController, sender _: Any?) {
+        showDetailViewController(viewController: vc, animated: true)
+    }
+
+    /// Present the given controller as our detail view controller as
+    /// appropriate for our current context.
     private weak var currentDetailViewController: UIViewController?
-    override func showDetailViewController(_ vc: UIViewController, sender: Any?) {
+    func showDetailViewController(viewController: UIViewController, animated: Bool) {
         if isCollapsed {
             var viewControllersToDisplay = chatListNavController.viewControllers
             // If we already have a detail VC displayed, we want to replace it.
@@ -245,8 +222,8 @@ class ConversationSplitViewController: UISplitViewController, ConversationSplit 
                let detailVCIndex = viewControllersToDisplay.firstIndex(of: currentDetailVC) {
                 viewControllersToDisplay = Array(viewControllersToDisplay[0..<detailVCIndex])
             }
-            viewControllersToDisplay.append(vc)
-            chatListNavController.setViewControllers(viewControllersToDisplay, animated: true)
+            viewControllersToDisplay.append(viewController)
+            chatListNavController.setViewControllers(viewControllersToDisplay, animated: animated)
         } else {
             // There is a race condition at app launch where `isCollapsed` cannot be
             // relied upon. This leads to a crash where viewControllers is empty, so
@@ -257,7 +234,7 @@ class ConversationSplitViewController: UISplitViewController, ConversationSplit 
             // returning stale information. The latter seems most plausible, but is near
             // impossible to reproduce.
             owsAssertDebug(viewControllers.first == homeVC)
-            viewControllers = [homeVC, vc]
+            viewControllers = [homeVC, viewController]
         }
 
         // If the detail VC is a nav controller, we want to keep track of
@@ -265,10 +242,10 @@ class ConversationSplitViewController: UISplitViewController, ConversationSplit 
         // point of the current detail view when replacing it while
         // collapsed. At that point, this nav controller's view controllers
         // will have been merged into the primary nav controller.
-        if let vc = vc as? UINavigationController {
-            currentDetailViewController = vc.viewControllers.first
+        if let navController = viewController as? UINavigationController {
+            currentDetailViewController = navController.viewControllers.first
         } else {
-            currentDetailViewController = vc
+            currentDetailViewController = viewController
         }
     }
 
@@ -280,55 +257,55 @@ class ConversationSplitViewController: UISplitViewController, ConversationSplit 
 
     let chatListKeyCommands = [
         UIKeyCommand(
+            action: #selector(showNewConversationView),
             input: "n",
             modifierFlags: .command,
-            action: #selector(showNewConversationView),
-            discoverabilityTitle: NSLocalizedString(
+            discoverabilityTitle: OWSLocalizedString(
                 "KEY_COMMAND_NEW_MESSAGE",
                 comment: "A keyboard command to present the new message dialog."
             )
         ),
         UIKeyCommand(
+            action: #selector(showNewGroupView),
             input: "g",
             modifierFlags: .command,
-            action: #selector(showNewGroupView),
-            discoverabilityTitle: NSLocalizedString(
+            discoverabilityTitle: OWSLocalizedString(
                 "KEY_COMMAND_NEW_GROUP",
                 comment: "A keyboard command to present the new group dialog."
             )
         ),
         UIKeyCommand(
+            action: #selector(showAppSettings),
             input: ",",
             modifierFlags: .command,
-            action: #selector(showAppSettings),
-            discoverabilityTitle: NSLocalizedString(
+            discoverabilityTitle: OWSLocalizedString(
                 "KEY_COMMAND_SETTINGS",
                 comment: "A keyboard command to present the application settings dialog."
             )
         ),
         UIKeyCommand(
+            action: #selector(focusSearch),
             input: "f",
             modifierFlags: .command,
-            action: #selector(focusSearch),
-            discoverabilityTitle: NSLocalizedString(
+            discoverabilityTitle: OWSLocalizedString(
                 "KEY_COMMAND_SEARCH",
                 comment: "A keyboard command to begin a search on the conversation list."
             )
         ),
         UIKeyCommand(
+            action: #selector(selectPreviousConversation),
             input: UIKeyCommand.inputUpArrow,
             modifierFlags: .alternate,
-            action: #selector(selectPreviousConversation),
-            discoverabilityTitle: NSLocalizedString(
+            discoverabilityTitle: OWSLocalizedString(
                 "KEY_COMMAND_PREVIOUS_CONVERSATION",
                 comment: "A keyboard command to jump to the previous conversation in the list."
             )
         ),
         UIKeyCommand(
+            action: #selector(selectNextConversation),
             input: UIKeyCommand.inputDownArrow,
             modifierFlags: .alternate,
-            action: #selector(selectNextConversation),
-            discoverabilityTitle: NSLocalizedString(
+            discoverabilityTitle: OWSLocalizedString(
                 "KEY_COMMAND_NEXT_CONVERSATION",
                 comment: "A keyboard command to jump to the next conversation in the list."
             )
@@ -338,73 +315,73 @@ class ConversationSplitViewController: UISplitViewController, ConversationSplit 
     var selectedConversationKeyCommands: [UIKeyCommand] {
         return [
             UIKeyCommand(
+                action: #selector(openConversationSettings),
                 input: "i",
                 modifierFlags: [.command, .shift],
-                action: #selector(openConversationSettings),
-                discoverabilityTitle: NSLocalizedString(
+                discoverabilityTitle: OWSLocalizedString(
                     "KEY_COMMAND_CONVERSATION_INFO",
                     comment: "A keyboard command to open the current conversation's settings."
                 )
             ),
             UIKeyCommand(
+                action: #selector(openAllMedia),
                 input: "m",
                 modifierFlags: [.command, .shift],
-                action: #selector(openAllMedia),
-                discoverabilityTitle: NSLocalizedString(
+                discoverabilityTitle: OWSLocalizedString(
                     "KEY_COMMAND_ALL_MEDIA",
                     comment: "A keyboard command to open the current conversation's all media view."
                 )
             ),
             UIKeyCommand(
+                action: #selector(openGifSearch),
                 input: "g",
                 modifierFlags: [.command, .shift],
-                action: #selector(openGifSearch),
-                discoverabilityTitle: NSLocalizedString(
+                discoverabilityTitle: OWSLocalizedString(
                     "KEY_COMMAND_GIF_SEARCH",
                     comment: "A keyboard command to open the current conversations GIF picker."
                 )
             ),
             UIKeyCommand(
+                action: #selector(openAttachmentKeyboard),
                 input: "u",
                 modifierFlags: .command,
-                action: #selector(openAttachmentKeyboard),
-                discoverabilityTitle: NSLocalizedString(
+                discoverabilityTitle: OWSLocalizedString(
                     "KEY_COMMAND_ATTACHMENTS",
                     comment: "A keyboard command to open the current conversation's attachment picker."
                 )
             ),
             UIKeyCommand(
+                action: #selector(openStickerKeyboard),
                 input: "s",
                 modifierFlags: [.command, .shift],
-                action: #selector(openStickerKeyboard),
-                discoverabilityTitle: NSLocalizedString(
+                discoverabilityTitle: OWSLocalizedString(
                     "KEY_COMMAND_STICKERS",
                     comment: "A keyboard command to open the current conversation's sticker picker."
                 )
             ),
             UIKeyCommand(
+                action: #selector(archiveSelectedConversation),
                 input: "a",
                 modifierFlags: [.command, .shift],
-                action: #selector(archiveSelectedConversation),
-                discoverabilityTitle: NSLocalizedString(
+                discoverabilityTitle: OWSLocalizedString(
                     "KEY_COMMAND_ARCHIVE",
                     comment: "A keyboard command to archive the current conversation."
                 )
             ),
             UIKeyCommand(
+                action: #selector(unarchiveSelectedConversation),
                 input: "u",
                 modifierFlags: [.command, .shift],
-                action: #selector(unarchiveSelectedConversation),
-                discoverabilityTitle: NSLocalizedString(
+                discoverabilityTitle: OWSLocalizedString(
                     "KEY_COMMAND_UNARCHIVE",
                     comment: "A keyboard command to unarchive the current conversation."
                 )
             ),
             UIKeyCommand(
+                action: #selector(focusInputToolbar),
                 input: "t",
                 modifierFlags: [.command, .shift],
-                action: #selector(focusInputToolbar),
-                discoverabilityTitle: NSLocalizedString(
+                discoverabilityTitle: OWSLocalizedString(
                     "KEY_COMMAND_FOCUS_COMPOSER",
                     comment: "A keyboard command to focus the current conversation's input field."
                 )
@@ -444,7 +421,7 @@ class ConversationSplitViewController: UISplitViewController, ConversationSplit 
         homeVC.chatListViewController.showAppSettings()
     }
 
-    func showAppSettingsWithMode(_ mode: ShowAppSettingsMode) {
+    func showAppSettingsWithMode(_ mode: ChatListViewController.ShowAppSettingsMode) {
         homeVC.chatListViewController.showAppSettings(mode: mode)
     }
 
@@ -603,7 +580,6 @@ extension ConversationSplitViewController: UINavigationControllerDelegate {
     }
 }
 
-@objc
 extension ChatListViewController {
     var conversationSplitViewController: ConversationSplitViewController? {
         return splitViewController as? ConversationSplitViewController
@@ -616,7 +592,6 @@ extension StoriesViewController {
     }
 }
 
-@objc
 extension ConversationViewController {
     var conversationSplitViewController: ConversationSplitViewController? {
         return splitViewController as? ConversationSplitViewController
@@ -643,7 +618,6 @@ private class NoSelectedConversationViewController: OWSViewController {
         applyTheme()
     }
 
-    @objc
     override func themeDidChange() {
         super.themeDidChange()
         applyTheme()
@@ -672,7 +646,7 @@ extension ConversationSplitViewController: DeviceTransferServiceObserver {
 
     func deviceTransferServiceDiscoveredNewDevice(peerId: MCPeerID, discoveryInfo: [String: String]?) {
         guard deviceTransferNavController?.presentingViewController == nil else { return }
-        let navController = DeviceTransferNavigationController()
+        let navController = OutgoingDeviceTransferNavigationController()
         deviceTransferNavController = navController
         navController.present(fromViewController: self)
     }

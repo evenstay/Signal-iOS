@@ -60,20 +60,14 @@ public extension NSObject {
         AppEnvironment.shared.speechManagerRef
     }
 
+    @nonobjc
     final var deviceSleepManager: DeviceSleepManager {
         .shared
     }
 
+    @nonobjc
     static var deviceSleepManager: DeviceSleepManager {
         .shared
-    }
-
-    final var signalApp: SignalApp {
-        .shared()
-    }
-
-    static var signalApp: SignalApp {
-        .shared()
     }
 
     var avatarHistoryManager: AvatarHistoryManager {
@@ -82,14 +76,6 @@ public extension NSObject {
 
     static var avatarHistoryManager: AvatarHistoryManager {
         AppEnvironment.shared.avatarHistorManagerRef
-    }
-
-    var windowManager: OWSWindowManager {
-        AppEnvironment.shared.windowManagerRef
-    }
-
-    static var windowManager: OWSWindowManager {
-        AppEnvironment.shared.windowManagerRef
     }
 }
 
@@ -144,14 +130,6 @@ public extension Dependencies {
         .shared
     }
 
-    var signalApp: SignalApp {
-        .shared()
-    }
-
-    static var signalApp: SignalApp {
-        .shared()
-    }
-
     var avatarHistoryManager: AvatarHistoryManager {
         AppEnvironment.shared.avatarHistorManagerRef
     }
@@ -159,19 +137,10 @@ public extension Dependencies {
     static var avatarHistoryManager: AvatarHistoryManager {
         AppEnvironment.shared.avatarHistorManagerRef
     }
-
-    var windowManager: OWSWindowManager {
-        AppEnvironment.shared.windowManagerRef
-    }
-
-    static var windowManager: OWSWindowManager {
-        AppEnvironment.shared.windowManagerRef
-    }
 }
 
 // MARK: - Swift-only Dependencies
 
-@objc
 extension NSObject {
     final var deviceTransferService: DeviceTransferService { .shared }
 
@@ -186,7 +155,6 @@ public extension Dependencies {
 
 // MARK: -
 
-@objc
 extension DeviceTransferService {
     static var shared: DeviceTransferService {
         AppEnvironment.shared.deviceTransferServiceRef
@@ -195,7 +163,6 @@ extension DeviceTransferService {
 
 // MARK: -
 
-@objc
 extension PushRegistrationManager {
     static var shared: PushRegistrationManager {
         AppEnvironment.shared.pushRegistrationManagerRef
@@ -204,7 +171,6 @@ extension PushRegistrationManager {
 
 // MARK: -
 
-@objc
 extension OWSSyncManager {
     static var shared: OWSSyncManager {
         SSKEnvironment.shared.syncManagerRef as! OWSSyncManager
@@ -213,9 +179,8 @@ extension OWSSyncManager {
 
 // MARK: -
 
-@objc
-public extension OWSWindowManager {
-    static var shared: OWSWindowManager {
+extension WindowManager {
+    static var shared: WindowManager {
         AppEnvironment.shared.windowManagerRef
     }
 }

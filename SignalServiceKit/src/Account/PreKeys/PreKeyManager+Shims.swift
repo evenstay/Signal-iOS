@@ -1,0 +1,35 @@
+//
+// Copyright 2023 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
+//
+
+import Foundation
+
+extension PreKey {
+    public enum Manager {
+        public enum Shims {
+            public typealias MessageProcessor = _PreKeyManager_MessageProcessorShim
+        }
+
+        public enum Wrappers {
+            public typealias MessageProcessor = _PreKeyManager_MessageProcessorWrapper
+        }
+    }
+}
+
+// MARK: - MessageProcessor
+
+public protocol _PreKeyManager_MessageProcessorShim {
+    func fetchingAndProcessingCompletePromise() -> Promise<Void>
+}
+
+public struct _PreKeyManager_MessageProcessorWrapper: PreKey.Manager.Shims.MessageProcessor {
+    private let messageProcessor: MessageProcessor
+    public init(messageProcessor: MessageProcessor) {
+        self.messageProcessor = messageProcessor
+    }
+
+    public func fetchingAndProcessingCompletePromise() -> Promise<Void> {
+        messageProcessor.fetchingAndProcessingCompletePromise()
+    }
+}

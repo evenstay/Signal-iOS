@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import SignalCoreKit
 
 public typealias AccountId = String
 
@@ -17,20 +18,46 @@ public extension SignalRecipient {
 @objc
 public class OWSAccountIdFinder: NSObject {
     @objc
-    public class func accountId(forAddress address: SignalServiceAddress,
-                                transaction: SDSAnyReadTransaction) -> AccountId? {
-        return SignalRecipient.get(address: address, mustHaveDevices: false, transaction: transaction)?.accountId
+    public class func accountId(
+        forAddress address: SignalServiceAddress,
+        transaction: SDSAnyReadTransaction
+    ) -> AccountId? {
+        return SignalRecipient.fetchRecipient(for: address, onlyIfRegistered: false, tx: transaction)?.accountId
     }
 
+    /// Fetches (or creates) a SignalRecipient for a provided address.
+    ///
+    /// In general, callers should prefer using ``RecipientFetcher`` directly.
     @objc
-    public class func ensureAccountId(forAddress address: SignalServiceAddress,
-                                      transaction: SDSAnyWriteTransaction) -> AccountId {
-        if let accountId = accountId(forAddress: address, transaction: transaction) {
-            return accountId
-        }
+    public class func ensureAccountId(
+        forAddress address: SignalServiceAddress,
+        transaction: SDSAnyWriteTransaction
+    ) -> AccountId {
+        return ensureRecipient(forAddress: address, transaction: transaction).uniqueId
+    }
 
-        let recipient = SignalRecipient.mark(asRegisteredAndGet: address, trustLevel: .low, transaction: transaction)
-        return recipient.accountId
+    public class func ensureRecipient(
+        forAddress address: SignalServiceAddress,
+        transaction: SDSAnyWriteTransaction
+    ) -> SignalRecipient {
+        let recipientFetcher = DependenciesBridge.shared.recipientFetcher
+        let recipient: SignalRecipient
+        if let serviceId = address.untypedServiceId {
+            recipient = recipientFetcher.fetchOrCreate(serviceId: serviceId, tx: transaction.asV2Write)
+        } else if let phoneNumber = address.e164 {
+            recipient = recipientFetcher.fetchOrCreate(phoneNumber: phoneNumber, tx: transaction.asV2Write)
+        } else {
+            // This can happen for historical reasons. It shouldn't happen, but it
+            // could. We could return [[NSUUID UUID] UUIDString] and avoid persisting
+            // anything to disk. However, it's possible that a caller may expect to be
+            // able to fetch the recipient based on the value we return, so we need to
+            // ensure that the return value can be fetched. In the future, we should
+            // update all callers to ensure they pass valid addresses.
+            owsFailDebug("Fetching accountId for invalid address.")
+            recipient = SignalRecipient(aci: nil, phoneNumber: nil)
+            recipient.anyInsert(transaction: transaction)
+        }
+        return recipient
     }
 
     @objc

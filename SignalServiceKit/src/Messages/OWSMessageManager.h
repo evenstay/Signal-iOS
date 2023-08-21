@@ -11,7 +11,11 @@ NS_ASSUME_NONNULL_BEGIN
 
 @class MessageManagerRequest;
 @class SDSAnyWriteTransaction;
+@class SSKProtoDataMessage;
 @class SSKProtoEnvelope;
+@class SSKProtoSyncMessage;
+@class ServerReceiptEnvelope;
+@class TSThread;
 
 typedef NS_CLOSED_ENUM(NSUInteger, OWSMessageManagerMessageType)
 {
@@ -24,43 +28,23 @@ typedef NS_CLOSED_ENUM(NSUInteger, OWSMessageManagerMessageType)
     OWSMessageManagerMessageTypeDecryptionErrorMessage,
     OWSMessageManagerMessageTypeStoryMessage,
     OWSMessageManagerMessageTypeHasSenderKeyDistributionMessage,
+    OWSMessageManagerMessageTypeEditMessage,
     OWSMessageManagerMessageTypeUnknown
 };
 
 @interface OWSMessageManager : OWSMessageHandler
 
-// processEnvelope: can be called from any thread.
-//
-// Returns YES on success.
-- (BOOL)processEnvelope:(SSKProtoEnvelope *)envelope
-                   plaintextData:(NSData *_Nullable)plaintextData
-                 wasReceivedByUD:(BOOL)wasReceivedByUD
-         serverDeliveryTimestamp:(uint64_t)serverDeliveryTimestamp
-    shouldDiscardVisibleMessages:(BOOL)shouldDiscardVisibleMessages
-                     transaction:(SDSAnyWriteTransaction *)transaction;
-
-- (BOOL)handleRequest:(MessageManagerRequest *)request
+- (void)handleRequest:(MessageManagerRequest *)request
               context:(id<DeliveryReceiptContext>)context
           transaction:(SDSAnyWriteTransaction *)transaction;
 
-- (BOOL)canProcessEnvelope:(SSKProtoEnvelope *)envelope transaction:(SDSAnyWriteTransaction *)transaction;
-
-- (void)checkForUnknownLinkedDevice:(SSKProtoEnvelope *)envelope
-                        transaction:(SDSAnyWriteTransaction *)transaction
-    NS_SWIFT_NAME(checkForUnknownLinkedDevice(inEnvelope:transaction:));
-
-- (void)finishProcessingEnvelope:(SSKProtoEnvelope *)envelope transaction:(SDSAnyWriteTransaction *)transaction;
-
-- (MessageManagerRequest *_Nullable)requestForEnvelope:(SSKProtoEnvelope *)envelope
-                                         plaintextData:(NSData *)plaintextData
-                                       wasReceivedByUD:(BOOL)wasReceivedByUD
-                               serverDeliveryTimestamp:(uint64_t)serverDeliveryTimestamp
-                          shouldDiscardVisibleMessages:(BOOL)shouldDiscardVisibleMessages
-                                           transaction:(SDSAnyWriteTransaction *)transaction;
+- (TSThread *_Nullable)preprocessDataMessage:(SSKProtoDataMessage *)dataMessage
+                                    envelope:(SSKProtoEnvelope *)envelope
+                                 transaction:(SDSAnyWriteTransaction *)transaction;
 
 - (void)logUnactionablePayload:(SSKProtoEnvelope *)envelope;
 
-- (void)handleDeliveryReceipt:(SSKProtoEnvelope *)envelope
+- (void)handleDeliveryReceipt:(ServerReceiptEnvelope *)envelope
                       context:(id<DeliveryReceiptContext>)context
                   transaction:(SDSAnyWriteTransaction *)transaction;
 

@@ -27,10 +27,11 @@ class PhotoMediaSize {
 class PhotoPickerAssetItem: PhotoGridItem {
 
     let asset: PHAsset
-    let photoCollectionContents: PhotoCollectionContents
+    let photoCollectionContents: PhotoAlbumContents
     let photoMediaSize: PhotoMediaSize
+    var mediaMetadata: MediaMetadata? { nil }
 
-    init(asset: PHAsset, photoCollectionContents: PhotoCollectionContents, photoMediaSize: PhotoMediaSize) {
+    init(asset: PHAsset, photoCollectionContents: PhotoAlbumContents, photoMediaSize: PhotoMediaSize) {
         self.asset = asset
         self.photoCollectionContents = photoCollectionContents
         self.photoMediaSize = photoMediaSize
@@ -40,7 +41,7 @@ class PhotoPickerAssetItem: PhotoGridItem {
 
     var type: PhotoGridItemType {
         if asset.mediaType == .video {
-            return .video(asset.duration)
+            return .video(Promise.value(asset.duration))
         } else if asset.playbackStyle == .imageAnimated {
             return .animated
         } else {
@@ -49,6 +50,8 @@ class PhotoPickerAssetItem: PhotoGridItem {
     }
 
     var creationDate: Date? { asset.creationDate }
+
+    var isFavorite: Bool { asset.isFavorite }
 
     func asyncThumbnail(completion: @escaping (UIImage?) -> Void) -> UIImage? {
         var syncImageResult: UIImage?
@@ -75,10 +78,11 @@ class PhotoPickerAssetItem: PhotoGridItem {
     }
 }
 
-class PhotoCollectionContents {
+class PhotoAlbumContents {
 
-    let fetchResult: PHFetchResult<PHAsset>
-    let localizedTitle: String?
+    private let fetchResult: PHFetchResult<PHAsset>
+    private let ascending: Bool
+    private let limit: Int
 
     enum PhotoLibraryError: Error {
         case assertionError(description: String)
@@ -86,9 +90,10 @@ class PhotoCollectionContents {
         case failedToExportAsset(underlyingError: Error?)
     }
 
-    init(fetchResult: PHFetchResult<PHAsset>, localizedTitle: String?) {
+    init(fetchResult: PHFetchResult<PHAsset>, ascending: Bool, limit: Int) {
         self.fetchResult = fetchResult
-        self.localizedTitle = localizedTitle
+        self.ascending = ascending
+        self.limit = limit == 0 ? .max : limit
     }
 
     private let imageManager = PHCachingImageManager()
@@ -96,7 +101,7 @@ class PhotoCollectionContents {
     // MARK: - Asset Accessors
 
     var assetCount: Int {
-        return fetchResult.count
+        return min(fetchResult.count, limit)
     }
 
     var lastAsset: PHAsset? {
@@ -114,7 +119,7 @@ class PhotoCollectionContents {
     }
 
     func asset(at index: Int) -> PHAsset {
-        return fetchResult.object(at: index)
+        return fetchResult.object(at: ascending ? index : fetchResult.count - index - 1)
     }
 
     // MARK: - AssetItem Accessors
@@ -152,7 +157,7 @@ class PhotoCollectionContents {
             options.version = .current
             options.deliveryMode = .highQualityFormat
 
-            _ = imageManager.requestImageData(for: asset, options: options) { imageData, dataUTI, _, _ in
+            _ = imageManager.requestImageDataAndOrientation(for: asset, options: options) { imageData, dataUTI, _, _ in
 
                 guard let imageData = imageData else {
                     future.reject(PhotoLibraryError.assertionError(description: "imageData was unexpectedly nil"))
@@ -220,7 +225,7 @@ class PhotoCollectionContents {
     func outgoingAttachment(for asset: PHAsset) -> Promise<SignalAttachment> {
         switch asset.mediaType {
         case .image:
-            return requestImageDataSource(for: asset).map(on: .global()) { (dataSource: DataSource, dataUTI: String) in
+            return requestImageDataSource(for: asset).map(on: DispatchQueue.global()) { (dataSource: DataSource, dataUTI: String) in
                 return SignalAttachment.attachment(dataSource: dataSource, dataUTI: dataUTI)
             }
         case .video:
@@ -231,12 +236,53 @@ class PhotoCollectionContents {
     }
 }
 
-class PhotoCollection {
+class PhotoCollectionFolderContents {
+    private let fetchResult: PHFetchResult<PHCollection>
+
+    init(fetchResult: PHFetchResult<PHCollection>) {
+        self.fetchResult = fetchResult
+    }
+
+    var collectionCount: Int {
+        fetchResult.count
+    }
+
+    func collections() -> [PhotoCollection] {
+        fetchResult
+            .objects(at: IndexSet(0..<fetchResult.count))
+            .compactMap(PhotoCollection.init(collection:))
+    }
+
+    func previewAssetItems(photoMediaSize: PhotoMediaSize) -> [PhotoPickerAssetItem] {
+        var assetItems: [PhotoPickerAssetItem] = []
+
+        let options = PHFetchOptions()
+        options.fetchLimit = 1
+
+        for i in 0..<fetchResult.count {
+            guard let assetCollection = fetchResult.object(at: i) as? PHAssetCollection else { continue }
+            let contentsFetchResults = PHAsset.fetchAssets(in: assetCollection, options: options)
+            let contents = PhotoAlbumContents(fetchResult: contentsFetchResults, ascending: false, limit: 1)
+
+            if let assetItem = contents.firstAssetItem(photoMediaSize: photoMediaSize) {
+                assetItems.append(assetItem)
+            }
+
+            if assetItems.count >= 4 {
+                break
+            }
+        }
+
+        return assetItems
+    }
+}
+
+class PhotoAlbum {
     private let collection: PHAssetCollection
 
     // The user never sees this collection, but we use it for a null object pattern
     // when the user has denied photos access.
-    static let empty = PhotoCollection(collection: PHAssetCollection())
+    static let empty = PhotoAlbum(collection: PHAssetCollection())
 
     init(collection: PHAssetCollection) {
         self.collection = collection
@@ -247,24 +293,85 @@ class PhotoCollection {
             let localizedTitle = collection.localizedTitle?.stripped,
             !localizedTitle.isEmpty
         else {
-            return NSLocalizedString("PHOTO_PICKER_UNNAMED_COLLECTION", comment: "label for system photo collections which have no name.")
+            return OWSLocalizedString("PHOTO_PICKER_UNNAMED_COLLECTION", comment: "label for system photo collections which have no name.")
         }
         return localizedTitle
     }
 
-    func contents(ascending: Bool = true, limit: Int = 0) -> PhotoCollectionContents {
-        let options = PHFetchOptions()
-        options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: ascending)]
-        options.fetchLimit = limit
-        let fetchResult = PHAsset.fetchAssets(in: collection, options: options)
-
-        return PhotoCollectionContents(fetchResult: fetchResult, localizedTitle: localizedTitle())
+    func contents(ascending: Bool = true, limit: Int = 0) -> PhotoAlbumContents {
+        let fetchResult = PHAsset.fetchAssets(in: collection, options: nil)
+        return PhotoAlbumContents(fetchResult: fetchResult, ascending: ascending, limit: limit)
     }
 }
 
-extension PhotoCollection: Equatable {
-    static func == (lhs: PhotoCollection, rhs: PhotoCollection) -> Bool {
+extension PhotoAlbum: Equatable {
+    static func == (lhs: PhotoAlbum, rhs: PhotoAlbum) -> Bool {
         return lhs.collection == rhs.collection
+    }
+}
+
+class PhotoCollectionFolder {
+    private let collection: PHCollectionList
+
+    init(collectionList: PHCollectionList) {
+        self.collection = collectionList
+    }
+
+    func localizedTitle() -> String {
+        guard
+            let localizedTitle = collection.localizedTitle?.stripped,
+            !localizedTitle.isEmpty
+        else {
+            return OWSLocalizedString("PHOTO_PICKER_UNNAMED_COLLECTION", comment: "label for system photo collections which have no name.")
+        }
+        return localizedTitle
+    }
+
+    func contents() -> PhotoCollectionFolderContents {
+        let fetchResult = PHAssetCollection.fetchCollections(in: collection, options: nil)
+        return PhotoCollectionFolderContents(fetchResult: fetchResult)
+    }
+}
+
+extension PhotoCollectionFolder: Equatable {
+    static func == (lhs: PhotoCollectionFolder, rhs: PhotoCollectionFolder) -> Bool {
+        return lhs.collection == rhs.collection
+    }
+}
+
+enum PhotoCollection {
+    case album(PhotoAlbum)
+    case folder(PhotoCollectionFolder)
+
+    // The user never sees this collection, but we use it for a null object pattern
+    // when the user has denied photos access.
+    static let empty = PhotoCollection.album(.empty)
+
+    init(assetCollection: PHAssetCollection) {
+        self = .album(PhotoAlbum(collection: assetCollection))
+    }
+
+    init(collectionList: PHCollectionList) {
+        self = .folder(PhotoCollectionFolder(collectionList: collectionList))
+    }
+
+    init?(collection: PHCollection) {
+        if let assetCollection = collection as? PHAssetCollection {
+            self.init(assetCollection: assetCollection)
+        } else if let assetCollectionList = collection as? PHCollectionList {
+            self.init(collectionList: assetCollectionList)
+        } else {
+            return nil
+        }
+    }
+
+    func localizedTitle() -> String {
+        switch self {
+        case .album(let album):
+            return album.localizedTitle()
+        case .folder(let folder):
+            return folder.localizedTitle()
+        }
     }
 }
 
@@ -295,21 +402,21 @@ class PhotoLibrary: NSObject, PHPhotoLibraryChangeObserver {
         PHPhotoLibrary.shared().unregisterChangeObserver(self)
     }
 
-    func defaultPhotoCollection() -> PhotoCollection {
-        var fetchedCollection: PhotoCollection?
+    func defaultPhotoAlbum() -> PhotoAlbum {
+        var fetchedCollection: PhotoAlbum?
         PHAssetCollection.fetchAssetCollections(
             with: .smartAlbum,
             subtype: .smartAlbumUserLibrary,
             options: fetchOptions
         ).enumerateObjects { collection, _, stop in
-            fetchedCollection = PhotoCollection(collection: collection)
+            fetchedCollection = PhotoAlbum(collection: collection)
             stop.pointee = true
         }
 
         guard let photoCollection = fetchedCollection else {
             Logger.info("Using empty photo collection.")
             assert(PHPhotoLibrary.authorizationStatus() == .denied)
-            return PhotoCollection.empty
+            return PhotoAlbum.empty
         }
 
         return photoCollection
@@ -335,18 +442,17 @@ class PhotoLibrary: NSObject, PHPhotoLibraryChangeObserver {
             }
             collectionIds.insert(collectionId)
 
-            guard let assetCollection = collection as? PHAssetCollection else {
-                // TODO: Add support for albmus nested in folders.
-                if collection is PHCollectionList { return }
+            if let assetCollection = collection as? PHAssetCollection {
+                guard !hideIfEmpty || assetCollection.estimatedAssetCount > 0 else {
+                    return
+                }
+
+                collections.append(PhotoCollection(assetCollection: assetCollection))
+            } else if let assetCollectionList = collection as? PHCollectionList {
+                collections.append(PhotoCollection(collectionList: assetCollectionList))
+            } else {
                 owsFailDebug("Asset collection has unexpected type: \(type(of: collection))")
-                return
             }
-
-            guard !hideIfEmpty || assetCollection.estimatedAssetCount > 0 else {
-                return
-            }
-
-            collections.append(PhotoCollection(collection: assetCollection))
         }
         let processPHAssetCollections: ((fetchResult: PHFetchResult<PHAssetCollection>, hideIfEmpty: Bool)) -> Void = { arg in
             let (fetchResult, hideIfEmpty) = arg

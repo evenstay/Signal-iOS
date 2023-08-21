@@ -348,6 +348,10 @@ public extension UIEdgeInsets {
             }
         }
     }
+
+    var isNonEmpty: Bool {
+        left != 0 || right != 0 || top != 0 || bottom != 0
+    }
 }
 
 // MARK: -
@@ -364,29 +368,5 @@ public extension CGFloat {
     static var epsilon: CGFloat {
         // ulpOfOne is the difference between 1.0 and the next largest CGFloat value.
         .ulpOfOne
-    }
-}
-
-// MARK: -
-
-extension UIGestureRecognizer {
-    @objc
-    public var stateString: String {
-        switch state {
-        case .possible:
-            return "UIGestureRecognizerStatePossible"
-        case .began:
-            return "UIGestureRecognizerStateBegan"
-        case .changed:
-            return "UIGestureRecognizerStateChanged"
-        case .ended:
-            return "UIGestureRecognizerStateEnded"
-        case .cancelled:
-            return "UIGestureRecognizerStateCancelled"
-        case .failed:
-            return "UIGestureRecognizerStateFailed"
-        default:
-            return "Unknown"
-        }
     }
 }

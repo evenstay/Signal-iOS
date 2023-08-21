@@ -15,34 +15,22 @@ NS_ASSUME_NONNULL_BEGIN
 
 @implementation OWSOutgoingResendRequest
 
-- (nullable instancetype)initWithFailedEnvelope:(SSKProtoEnvelope *)envelope
-                                     cipherType:(uint8_t)cipherType
-                          failedEnvelopeGroupId:(nullable NSData *)failedEnvelopeGroupId
-                                    transaction:(SDSAnyWriteTransaction *)transaction
+- (instancetype)initWithErrorMessageBytes:(NSData *)errorMessageBytes
+                                sourceAci:(AciObjC *)sourceAci
+                    failedEnvelopeGroupId:(nullable NSData *)failedEnvelopeGroupId
+                              transaction:(SDSAnyWriteTransaction *)transaction
 {
-    OWSAssertDebug(envelope.content);
+    OWSAssertDebug(errorMessageBytes);
+    OWSAssertDebug(sourceAci);
     OWSAssertDebug(transaction);
 
-    SignalServiceAddress *sender = [[SignalServiceAddress alloc] initWithUuidString:envelope.sourceUuid];
-    if (!sender.isValid) {
-        OWSFailDebug(@"Invalid UUID");
-        return nil;
-    }
+    SignalServiceAddress *sender = [[SignalServiceAddress alloc] initWithServiceIdObjC:sourceAci];
     TSContactThread *thread = [TSContactThread getOrCreateThreadWithContactAddress:sender transaction:transaction];
-    NSData *errorData = [self buildDecryptionErrorFrom:envelope.content
-                                                  type:cipherType
-                              originalMessageTimestamp:envelope.timestamp
-                                        senderDeviceId:envelope.sourceDevice];
-    if (!errorData) {
-        OWSFailDebug(@"Couldn't build DecryptionErrorMessage");
-        return nil;
-    }
-
     TSOutgoingMessageBuilder *builder = [TSOutgoingMessageBuilder outgoingMessageBuilderWithThread:thread];
     self = [super initOutgoingMessageWithBuilder:builder transaction:transaction];
     if (self) {
-        _decryptionErrorData = errorData;
-        _failedEnvelopeGroupId = failedEnvelopeGroupId;
+        _decryptionErrorData = [errorMessageBytes copy];
+        _failedEnvelopeGroupId = [failedEnvelopeGroupId copy];
     }
     return self;
 }

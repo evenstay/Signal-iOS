@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import SignalCoreKit
 
 @objc(OWSMessagePipelineSupervisor)
 public class MessagePipelineSupervisor: NSObject {
@@ -12,30 +13,18 @@ public class MessagePipelineSupervisor: NSObject {
 
     private let lock = UnfairLock()
     private let pipelineStages = NSHashTable<MessageProcessingPipelineStage>.weakObjects()
-    private var suspensionCount = 0
+    private var suspensions = Set<Suspension>()
 
     // MARK: - Lifecycle
-
-    /// Constructs an instance of `MessagePipelineSupervisor` to be treated as a shared instance for the application.
-    /// Should not be called more than once per app launch
-    @objc
-    public static func createStandardSupervisor() -> MessagePipelineSupervisor {
-        self.init(isolated: false)
-    }
 
     /// Initializes a MessagePipelineSupervisor
     /// - Parameter isolated: If set true, the returned instance is not configured to be a singleton.
     ///   Only to be used by tests.
     @objc
-    required init(isolated: Bool = false) {
+    public override init() {
         super.init()
-        assert(!isolated || CurrentAppContext().isRunningTests,
-               "The isolated parameter may only be set in a test context")
 
-        if !isolated {
-            SwiftSingletons.register(self)
-            configureDefaultSuspensions()
-        }
+        SwiftSingletons.register(self)
     }
 
     // MARK: - Public
@@ -44,22 +33,46 @@ public class MessagePipelineSupervisor: NSObject {
     @objc
     public var isMessageProcessingPermitted: Bool {
         if CurrentAppContext().shouldProcessIncomingMessages {
-            return lock.withLock { (suspensionCount == 0) }
+            return lock.withLock { suspensions.isEmpty }
         } else {
             return false
         }
     }
 
+    public enum Suspension: Hashable {
+        case nseWakingUpApp(suspensionId: UUID, payloadString: String)
+        case pendingChangeNumber
+
+        fileprivate var reasonString: String {
+            switch self {
+            case .nseWakingUpApp(_, let payloadString):
+                return "Waking main app for \(payloadString)"
+            case .pendingChangeNumber:
+                return "Pending change number"
+            }
+        }
+    }
+
     /// Invoking this method will ensure that all registered message processing stages are notified that they should
     /// suspend their activity. This suppression will persist until the returned handle is invalidated.
-    /// Note: The caller *must* invalidate the returned handle.
-    @objc
-    public func suspendMessageProcessing(for reason: String) -> MessagePipelineSuspensionHandle {
-        incrementSuspensionCount(for: reason)
+    /// Note: The caller *must* invalidate the returned handle; if it is deallocated without having been invalidated it will crash the app.
+    public func suspendMessageProcessing(for suspension: Suspension) -> MessagePipelineSuspensionHandle {
+        addSuspension(suspension)
         let handle = MessagePipelineSuspensionHandle {
-            self.decrementSuspensionCount(for: "Handle invalidation: \(reason)")
+            self.removeSuspension(suspension)
         }
         return handle
+    }
+
+    /// Invoking this method will ensure that all registered message processing stages are notified that they should
+    /// suspend their activity. This suppression will persist until the suspension is explicitly lifted.
+    /// For this reason calling this method is highly dangerous, and the variety that returns a handle is preferred where possible.
+    public func suspendMessageProcessingWithoutHandle(for suspension: Suspension) {
+        addSuspension(suspension)
+    }
+
+    public func unsuspendMessageProcessing(for suspension: Suspension) {
+        removeSuspension(suspension)
     }
 
     /// Registers a message processing stage to receive updates on whether processing is permitted
@@ -80,27 +93,36 @@ public class MessagePipelineSupervisor: NSObject {
 
     // MARK: - Private
 
-    private func incrementSuspensionCount(for reason: String) {
-        let updatedCount: Int = lock.withLock {
-            suspensionCount += 1
-            return suspensionCount
+    private func addSuspension(_ suspension: Suspension) {
+        let (oldCount, updatedCount): (Int, Int) = lock.withLock {
+            let oldCount = suspensions.count
+            suspensions.insert(suspension)
+            return (oldCount, suspensions.count)
         }
-        Logger.info("Incremented suspension refcount to \(updatedCount) for reason: \(reason)")
-        if updatedCount == 1 {
-            notifyOfSuspensionStateChange()
+        if oldCount != updatedCount {
+            Logger.info("Incremented suspension refcount to \(updatedCount) for reason: \(suspension.reasonString)")
+            if updatedCount == 1 {
+                notifyOfSuspensionStateChange()
+            }
+        } else {
+            Logger.info("Already suspended for reason: \(suspension.reasonString)")
         }
     }
 
-    private func decrementSuspensionCount(for reason: String) {
-        let updatedCount: Int = lock.withLock {
-            suspensionCount -= 1
-            return suspensionCount
+    private func removeSuspension(_ suspension: Suspension) {
+        let (oldCount, updatedCount): (Int, Int) = lock.withLock {
+            let oldCount = suspensions.count
+            suspensions.remove(suspension)
+            return (oldCount, suspensions.count)
         }
-        Logger.info("Decremented suspension refcount to \(updatedCount) for reason: \(reason)")
-        assert(updatedCount >= 0, "Suspension refcount dipped below zero")
+        if oldCount != updatedCount {
+            Logger.info("Decremented suspension refcount to \(updatedCount) for reason: \(suspension.reasonString)")
 
-        if updatedCount == 0 {
-            notifyOfSuspensionStateChange()
+            if updatedCount == 0 {
+                notifyOfSuspensionStateChange()
+            }
+        } else {
+            Logger.info("Was already not suspended, doing nothing for reason: \(suspension.reasonString)")
         }
     }
 
@@ -116,29 +138,6 @@ public class MessagePipelineSupervisor: NSObject {
                 stage.supervisorDidSuspendMessageProcessing?(self)
             } else {
                 stage.supervisorDidResumeMessageProcessing?(self)
-            }
-        }
-    }
-
-    private func configureDefaultSuspensions() {
-        // By default, we want to make sure we're suspending message processing until
-        // a UUID backfill task completes. Only do this if:
-        // - We're in a context that will try processing messages
-        // - We're not in a testing context. runNowOrWhenApp...Ready blocks never get invoked during tests,
-        //   and this prevents a UUIDBackfillTask from ever starting.
-        let shouldBackfillUUIDs = CurrentAppContext().shouldProcessIncomingMessages &&
-                                  !CurrentAppContext().isRunningTests
-        if shouldBackfillUUIDs {
-            let uuidBackfillSuspension = suspendMessageProcessing(for: "UUID Backfill")
-            AppReadiness.runNowOrWhenAppDidBecomeReadySync {
-                firstly {
-                    UUIDBackfillTask(
-                        contactDiscoveryManager: self.contactDiscoveryManager,
-                        databaseStorage: self.databaseStorage
-                    ).perform()
-                }.ensure(on: .global()) {
-                    uuidBackfillSuspension.invalidate()
-                }.cauterize()
             }
         }
     }

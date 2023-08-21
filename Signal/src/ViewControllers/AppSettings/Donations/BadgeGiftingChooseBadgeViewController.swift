@@ -3,11 +3,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
-import UIKit
 import SignalMessaging
+import SignalUI
 
 public class BadgeGiftingChooseBadgeViewController: OWSTableViewController2 {
+    typealias GiftConfiguration = SubscriptionManagerImpl.DonationConfiguration.GiftConfiguration
+    typealias PaymentMethodsConfiguration = SubscriptionManagerImpl.DonationConfiguration.PaymentMethodsConfiguration
+
     // MARK: - State management
 
     enum State {
@@ -16,16 +18,16 @@ public class BadgeGiftingChooseBadgeViewController: OWSTableViewController2 {
         case loadFailed
         case loaded(
             selectedCurrencyCode: Currency.Code,
-            badge: ProfileBadge,
-            pricesByCurrencyCode: [Currency.Code: FiatMoney]
+            giftConfiguration: GiftConfiguration,
+            paymentMethodsConfiguration: PaymentMethodsConfiguration
         )
 
         public var canContinue: Bool {
             switch self {
             case .initializing, .loading, .loadFailed:
                 return false
-            case let .loaded(selectedCurrencyCode, _, pricesByCurrencyCode):
-                let isValid = pricesByCurrencyCode[selectedCurrencyCode] != nil
+            case let .loaded(selectedCurrencyCode, giftConfiguration, _):
+                let isValid = giftConfiguration.presetAmount[selectedCurrencyCode] != nil
                 owsAssertDebug(isValid, "State was loaded but it was invalid")
                 return isValid
             }
@@ -36,14 +38,16 @@ public class BadgeGiftingChooseBadgeViewController: OWSTableViewController2 {
             case .initializing, .loading, .loadFailed:
                 assertionFailure("Invalid state; cannot select currency code")
                 return self
-            case let .loaded(_, badge, pricesByCurrencyCode):
-                guard pricesByCurrencyCode[newCurrencyCode] != nil else {
+            case let .loaded(_, giftConfiguration, paymentMethodsConfiguration):
+                guard giftConfiguration.presetAmount[newCurrencyCode] != nil else {
                     assertionFailure("Tried to select a currency code that doesn't exist")
                     return self
                 }
-                return .loaded(selectedCurrencyCode: newCurrencyCode,
-                               badge: badge,
-                               pricesByCurrencyCode: pricesByCurrencyCode)
+                return .loaded(
+                    selectedCurrencyCode: newCurrencyCode,
+                    giftConfiguration: giftConfiguration,
+                    paymentMethodsConfiguration: paymentMethodsConfiguration
+                )
             }
         }
     }
@@ -66,36 +70,33 @@ public class BadgeGiftingChooseBadgeViewController: OWSTableViewController2 {
     }
 
     private func loadData() -> Guarantee<State> {
-        firstly { () -> Promise<(ProfileBadge, [Currency.Code: FiatMoney])> in
-            Logger.info("[Gifting] Fetching badge data...")
-            return SubscriptionManager.fetchDonationConfiguration().map { donationConfiguration in
-                (
-                    donationConfiguration.gift.badge,
-                    donationConfiguration.gift.presetAmount
-                )
-            }
-        }.then { (giftBadge: ProfileBadge, pricesByCurrencyCode: [Currency.Code: FiatMoney]) -> Promise<(ProfileBadge, [Currency.Code: FiatMoney])> in
+        firstly {
+            Logger.info("[Gifting] Fetching donation configuration...")
+            return SubscriptionManagerImpl.fetchDonationConfiguration()
+        }.then { donationConfiguration -> Promise<SubscriptionManagerImpl.DonationConfiguration> in
             Logger.info("[Gifting] Populating badge assets...")
-            return self.profileManager.badgeStore.populateAssetsOnBadge(giftBadge).map { (giftBadge, pricesByCurrencyCode) }
-        }.then { (giftBadge: ProfileBadge, pricesByCurrencyCode: [Currency.Code: FiatMoney]) -> Guarantee<State> in
+            let giftBadge = donationConfiguration.gift.badge
+            return self.profileManager.badgeStore.populateAssetsOnBadge(giftBadge)
+                .map { donationConfiguration }
+        }.then { donationConfiguration -> Guarantee<State> in
             let defaultCurrencyCode = DonationUtilities.chooseDefaultCurrency(
                 preferred: [
                     Locale.current.currencyCode?.uppercased(),
                     "USD",
-                    pricesByCurrencyCode.keys.first
+                    donationConfiguration.gift.presetAmount.keys.first
                 ],
-                supported: pricesByCurrencyCode.keys
+                supported: donationConfiguration.gift.presetAmount.keys
             )
             guard let defaultCurrencyCode = defaultCurrencyCode else {
                 // This indicates a bug, either in the iOS app or the server.
-                owsFailDebug("[Gifting] Successfully loaded data, but a preferred currency could not be found")
+                owsFailBeta("[Gifting] Successfully loaded data, but a preferred currency could not be found")
                 return Guarantee.value(.loadFailed)
             }
 
             return Guarantee.value(.loaded(
                 selectedCurrencyCode: defaultCurrencyCode,
-                badge: giftBadge,
-                pricesByCurrencyCode: pricesByCurrencyCode
+                giftConfiguration: donationConfiguration.gift,
+                paymentMethodsConfiguration: donationConfiguration.paymentMethods
             ))
         }.recover { error -> Guarantee<State> in
             Logger.warn("\(error)")
@@ -106,13 +107,17 @@ public class BadgeGiftingChooseBadgeViewController: OWSTableViewController2 {
     private func didTapNext() {
         switch state {
         case .initializing, .loading, .loadFailed:
-            owsFailDebug("Tapped next when the state wasn't loaded")
-        case let .loaded(selectedCurrencyCode, badge, pricesByCurrencyCode):
-            guard let price = pricesByCurrencyCode[selectedCurrencyCode] else {
-                owsFailDebug("State is invalid. We selected a currency code that we don't have a price for")
+            owsFailBeta("Tapped next when the state wasn't loaded")
+        case let .loaded(selectedCurrencyCode, giftConfiguration, paymentMethodsConfiguration):
+            guard let price = giftConfiguration.presetAmount[selectedCurrencyCode] else {
+                owsFailBeta("State is invalid. We selected a currency code that we don't have a price for")
                 return
             }
-            let vc = BadgeGiftingChooseRecipientViewController(badge: badge, price: price)
+            let vc = BadgeGiftingChooseRecipientViewController(
+                badge: giftConfiguration.badge,
+                price: price,
+                paymentMethodsConfiguration: paymentMethodsConfiguration
+            )
             self.navigationController?.pushViewController(vc, animated: true)
         }
     }
@@ -154,20 +159,24 @@ public class BadgeGiftingChooseBadgeViewController: OWSTableViewController2 {
 
                 let titleLabel = UILabel()
                 introStack.addArrangedSubview(titleLabel)
-                titleLabel.text = NSLocalizedString("BADGE_GIFTING_CHOOSE_BADGE_TITLE",
-                                                    comment: "Title on the screen where you choose a gift badge")
+                titleLabel.text = OWSLocalizedString(
+                    "DONATION_ON_BEHALF_OF_A_FRIEND_CHOOSE_BADGE_TITLE",
+                    comment: "Users can donate on behalf of a friend, and the friend will receive a badge. This is the title on the screen where users choose the badge their friend will receive."
+                )
                 titleLabel.textAlignment = .center
-                titleLabel.font = UIFont.ows_dynamicTypeTitle2.ows_semibold
+                titleLabel.font = UIFont.dynamicTypeTitle2.semibold()
                 titleLabel.numberOfLines = 0
                 titleLabel.lineBreakMode = .byWordWrapping
                 titleLabel.autoPinWidthToSuperview(withMargin: 26)
 
                 let paragraphLabel = UILabel()
                 introStack.addArrangedSubview(paragraphLabel)
-                paragraphLabel.text = NSLocalizedString("BADGE_GIFTING_CHOOSE_BADGE_DESCRIPTION",
-                                                        comment: "Short paragraph on the screen where you choose a gift badge")
+                paragraphLabel.text = OWSLocalizedString(
+                    "DONATION_ON_BEHALF_OF_A_FRIEND_CHOOSE_BADGE_DESCRIPTION",
+                    comment: "Users can donate on behalf of a friend, and the friend will receive a badge. This is a short paragraph on the screen where users choose the badge their friend will receive."
+                )
                 paragraphLabel.textAlignment = .center
-                paragraphLabel.font = UIFont.ows_dynamicTypeBody
+                paragraphLabel.font = UIFont.dynamicTypeBody
                 paragraphLabel.numberOfLines = 0
                 paragraphLabel.lineBreakMode = .byWordWrapping
                 paragraphLabel.autoPinWidthToSuperview(withMargin: 26)
@@ -184,8 +193,12 @@ public class BadgeGiftingChooseBadgeViewController: OWSTableViewController2 {
             result += loadingSections()
         case .loadFailed:
             result += loadFailedSections()
-        case let .loaded(selectedCurrencyCode, badge, pricesByCurrencyCode):
-            result += loadedSections(selectedCurrencyCode: selectedCurrencyCode, badge: badge, pricesByCurrencyCode: pricesByCurrencyCode)
+        case let .loaded(selectedCurrencyCode, giftConfiguration, _):
+            result += loadedSections(
+                selectedCurrencyCode: selectedCurrencyCode,
+                badge: giftConfiguration.badge,
+                pricesByCurrencyCode: giftConfiguration.presetAmount
+            )
         }
 
         return result
@@ -210,9 +223,9 @@ public class BadgeGiftingChooseBadgeViewController: OWSTableViewController2 {
 
             let textLabel = UILabel()
             stackView.addArrangedSubview(textLabel)
-            textLabel.text = NSLocalizedString("DONATION_VIEW_LOAD_FAILED",
+            textLabel.text = OWSLocalizedString("DONATION_VIEW_LOAD_FAILED",
                                                comment: "Text that's shown when the donation view fails to load data, probably due to network failure")
-            textLabel.font = .ows_dynamicTypeBody2
+            textLabel.font = .dynamicTypeBody2
             textLabel.textAlignment = .center
             textLabel.textColor = Theme.primaryTextColor
             textLabel.numberOfLines = 0
@@ -269,7 +282,7 @@ public class BadgeGiftingChooseBadgeViewController: OWSTableViewController2 {
             }
 
             cell.contentView.addSubview(currencyPickerButton)
-            currencyPickerButton.autoPinEdgesToSuperviewEdges(withInsets: UIEdgeInsets(top: 0, leading: 0, bottom: 12, trailing: 0))
+            currencyPickerButton.autoPinEdgesToSuperviewEdges(with: UIEdgeInsets(top: 0, leading: 0, bottom: 12, trailing: 0))
 
             return cell
         }))
@@ -280,7 +293,7 @@ public class BadgeGiftingChooseBadgeViewController: OWSTableViewController2 {
             let cell = AppSettingsViewsUtil.newCell(cellOuterInsets: self.cellOuterInsets)
 
             guard let price = pricesByCurrencyCode[selectedCurrencyCode] else {
-                owsFailDebug("State is invalid. We selected a currency code that we don't have a price for.")
+                owsFailBeta("State is invalid. We selected a currency code that we don't have a price for.")
                 return cell
             }
             let badgeCellView = GiftBadgeCellView(badge: badge, price: price)
@@ -317,7 +330,7 @@ public class BadgeGiftingChooseBadgeViewController: OWSTableViewController2 {
         nextButton.dimsWhenHighlighted = true
         nextButton.layer.cornerRadius = 8
         nextButton.backgroundColor = .ows_accentBlue
-        nextButton.titleLabel?.font = UIFont.ows_dynamicTypeBody.ows_semibold
+        nextButton.titleLabel?.font = UIFont.dynamicTypeBody.semibold()
         nextButton.autoSetDimension(.height, toSize: 48)
         nextButton.autoPinWidthToSuperviewMargins()
 

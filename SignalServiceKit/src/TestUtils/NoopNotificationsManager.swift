@@ -13,6 +13,13 @@ public class NoopNotificationsManager: NSObject, NotificationsProtocol {
         Logger.warn("skipping notification for: \(incomingMessage.description)")
     }
 
+    public func notifyUser(forIncomingMessage incomingMessage: TSIncomingMessage,
+                           editTarget: TSIncomingMessage,
+                           thread: TSThread,
+                           transaction: SDSAnyReadTransaction) {
+        Logger.warn("skipping notification for: \(incomingMessage.description)")
+    }
+
     public func notifyUser(forReaction reaction: OWSReaction,
                            onOutgoingMessage message: TSOutgoingMessage,
                            thread: TSThread,
@@ -24,6 +31,15 @@ public class NoopNotificationsManager: NSObject, NotificationsProtocol {
                            thread: TSThread,
                            transaction: SDSAnyWriteTransaction) {
         Logger.warn("skipping notification for: \(errorMessage.description)")
+    }
+
+    public func notifyUser(
+        forTSMessage message: TSMessage,
+        thread: TSThread,
+        wantsSound: Bool,
+        transaction: SDSAnyWriteTransaction
+    ) {
+        Logger.warn("skipping notification for: \(message.description)")
     }
 
     public func notifyUser(forPreviewableInteraction previewableInteraction: TSInteraction & OWSPreviewText,
@@ -43,6 +59,10 @@ public class NoopNotificationsManager: NSObject, NotificationsProtocol {
         Logger.warn("Skipping internal error notification: \(errorString)")
     }
 
+    public func notifyUserOfDeregistration(transaction: SDSAnyWriteTransaction) {
+        Logger.warn("skipping deregistration notification")
+    }
+
     public func clearAllNotifications() {
         Logger.warn("clearAllNotifications")
     }
@@ -57,5 +77,9 @@ public class NoopNotificationsManager: NSObject, NotificationsProtocol {
 
     public func cancelNotifications(reactionId: String) {
         Logger.warn("cancelNotifications for reactionId: \(reactionId)")
+    }
+
+    public func cancelNotificationsForMissedCalls(threadUniqueId: String) {
+        Logger.warn("cancelNotificationsForMissedCalls for threadId: \(threadUniqueId)")
     }
 }

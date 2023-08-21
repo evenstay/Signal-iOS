@@ -20,7 +20,7 @@ public class OWSMockSyncManager: NSObject, SyncManagerProtocol {
     }
 
     @objc
-    public func sendAllSyncRequestMessages() -> AnyPromise {
+    public func sendAllSyncRequestMessagesIfNecessary() -> AnyPromise {
         Logger.info("")
 
         return AnyPromise(Promise.value(()))
@@ -45,15 +45,7 @@ public class OWSMockSyncManager: NSObject, SyncManagerProtocol {
         Logger.info("")
     }
 
-    public func sendPniIdentitySyncRequestMessage() {
-        Logger.info("")
-    }
-
     public func sendKeysSyncMessage() {
-        Logger.info("")
-    }
-
-    public func sendPniIdentitySyncMessage() {
         Logger.info("")
     }
 
@@ -66,10 +58,6 @@ public class OWSMockSyncManager: NSObject, SyncManagerProtocol {
     }
 
     public func processIncomingContactsSyncMessage(_ syncMessage: SSKProtoSyncMessageContacts, transaction: SDSAnyWriteTransaction) {
-        Logger.info("")
-    }
-
-    public func processIncomingGroupsSyncMessage(_ syncMessage: SSKProtoSyncMessageGroups, transaction: SDSAnyWriteTransaction) {
         Logger.info("")
     }
 

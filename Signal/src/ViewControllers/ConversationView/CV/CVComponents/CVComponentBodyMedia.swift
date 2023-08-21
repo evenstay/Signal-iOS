@@ -148,7 +148,7 @@ public class CVComponentBodyMedia: CVComponentBase, CVComponent {
 
         if hasDownloadButton {
             let iconView = CVImageView()
-            iconView.setTemplateImageName("arrow-down-24", tintColor: UIColor.ows_white)
+            iconView.setTemplateImageName(Theme.iconName(.arrowDown), tintColor: UIColor.ows_white)
             if albumView.itemViews.count > 1 {
                 let downloadStackConfig = ManualStackView.Config(axis: .horizontal,
                                                                  alignment: .center,
@@ -167,14 +167,17 @@ public class CVComponentBodyMedia: CVComponentBase, CVComponent {
 
                 let downloadLabel = CVLabel()
                 let downloadFormat = (areAllItemsImages
-                                        ? NSLocalizedString("MEDIA_GALLERY_ITEM_IMAGE_COUNT_%d", tableName: "PluralAware",
+                                        ? OWSLocalizedString("MEDIA_GALLERY_ITEM_IMAGE_COUNT_%d", tableName: "PluralAware",
                                         comment: "Format for an indicator of the number of image items in a media gallery. Embeds {{ the number of items in the media gallery }}.")
-                                        : NSLocalizedString("MEDIA_GALLERY_ITEM_MIXED_COUNT_%d", tableName: "PluralAware",
+                                        : OWSLocalizedString("MEDIA_GALLERY_ITEM_MIXED_COUNT_%d", tableName: "PluralAware",
                                         comment: "Format for an indicator of the number of image or video items in a media gallery. Embeds {{ the number of items in the media gallery }}."))
                 downloadStack.addArrangedSubview(downloadLabel)
-                let downloadLabelConfig = CVLabelConfig(text: String.localizedStringWithFormat(downloadFormat, items.count),
-                                                        font: .ows_dynamicTypeSubheadline,
-                                                        textColor: UIColor.ows_white)
+                let downloadLabelConfig = CVLabelConfig(
+                    text: .text(String.localizedStringWithFormat(downloadFormat, items.count)),
+                    displayConfig: .forUnstyledText(font: .dynamicTypeSubheadline, textColor: .ows_white),
+                    font: .dynamicTypeSubheadline,
+                    textColor: UIColor.ows_white
+                )
                 downloadLabelConfig.applyForRendering(label: downloadLabel)
                 let downloadLabelSize = CVText.measureLabel(config: downloadLabelConfig,
                                                             maxWidth: CGFloat.greatestFiniteMagnitude)
@@ -215,9 +218,12 @@ public class CVComponentBodyMedia: CVComponentBase, CVComponent {
                     downloadSizeView.backgroundColor = UIColor.ows_black.withAlphaComponent(0.8)
                     downloadSizeView.layoutMargins = UIEdgeInsets(hMargin: 8, vMargin: 1)
 
-                    let downloadSizeLabelConfig = CVLabelConfig(text: downloadSizeText.joined(separator: " • "),
-                                                                font: .ows_dynamicTypeCaption1,
-                                                                textColor: .ows_white)
+                    let downloadSizeLabelConfig = CVLabelConfig(
+                        text: .text(downloadSizeText.joined(separator: " • ")),
+                        displayConfig: .forUnstyledText(font: .dynamicTypeCaption1, textColor: .ows_white),
+                        font: .dynamicTypeCaption1,
+                        textColor: .ows_white
+                    )
                     let downloadSizeLabel = CVLabel()
                     downloadSizeLabelConfig.applyForRendering(label: downloadSizeLabel)
                     let downloadSizeLabelSize = CVText.measureLabel(config: downloadSizeLabelConfig,
@@ -249,9 +255,7 @@ public class CVComponentBodyMedia: CVComponentBase, CVComponent {
         return componentView.innerShadowView
     }
 
-    private static var senderNameFont: UIFont {
-        UIFont.ows_dynamicTypeCaption1.ows_semibold
-    }
+    private static var senderNameFont: UIFont { UIFont.dynamicTypeCaption1.semibold() }
 
     private var stackConfig: CVStackViewConfig {
         CVStackViewConfig(axis: .vertical,
@@ -476,7 +480,7 @@ extension CVComponentBodyMedia: CVAccessibilityComponent {
     public var accessibilityDescription: String {
         // TODO: We could describe how many media
         // and their type (video, image, animated image).
-        NSLocalizedString("ACCESSIBILITY_LABEL_MEDIA",
+        OWSLocalizedString("ACCESSIBILITY_LABEL_MEDIA",
                           comment: "Accessibility label for media.")
     }
 }

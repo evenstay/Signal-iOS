@@ -22,13 +22,13 @@ class StoryGroupRepliesAndViewsSheet: InteractiveSheetViewController, StoryGroup
     var threadUniqueId: String? { groupReplyViewController.thread?.uniqueId }
 
     private lazy var viewsButton = createToggleButton(
-        title: NSLocalizedString("STORIES_VIEWS_TAB", comment: "Title text for the 'views' tab on the stories views & replies sheet")
+        title: OWSLocalizedString("STORIES_VIEWS_TAB", comment: "Title text for the 'views' tab on the stories views & replies sheet")
     ) { [weak self] in
         self?.switchToViewsTab(animated: true)
     }
 
     private lazy var repliesButton = createToggleButton(
-        title: NSLocalizedString("STORIES_REPLIES_TAB", comment: "Title text for the 'replies' tab on the stories views & replies sheet")
+        title: OWSLocalizedString("STORIES_REPLIES_TAB", comment: "Title text for the 'replies' tab on the stories views & replies sheet")
     ) { [weak self] in
         self?.switchToRepliesTab(animated: true)
     }
@@ -41,8 +41,8 @@ class StoryGroupRepliesAndViewsSheet: InteractiveSheetViewController, StoryGroup
     }
     var focusedTab: Tab = .views
 
-    init(storyMessage: StoryMessage, context: StoryContext) {
-        self.groupReplyViewController = StoryGroupReplyViewController(storyMessage: storyMessage)
+    init(storyMessage: StoryMessage, context: StoryContext, spoilerState: SpoilerRenderState) {
+        self.groupReplyViewController = StoryGroupReplyViewController(storyMessage: storyMessage, spoilerState: spoilerState)
         self.viewsViewController = StoryViewsViewController(storyMessage: storyMessage, context: context)
 
         super.init()
@@ -171,7 +171,7 @@ class StoryGroupRepliesAndViewsSheet: InteractiveSheetViewController, StoryGroup
         button.autoSetDimension(.height, toSize: 28)
         button.layer.cornerRadius = 14
         button.clipsToBounds = true
-        button.titleLabel?.font = UIFont.ows_semiboldFont(withSize: 15)
+        button.titleLabel?.font = UIFont.semiboldFont(ofSize: 15)
         button.contentEdgeInsets = UIEdgeInsets(hMargin: 12, vMargin: 4)
         button.setTitle(title, for: .normal)
         button.setTitleColor(Theme.darkThemePrimaryColor, for: .normal)

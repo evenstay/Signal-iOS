@@ -3,28 +3,26 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalMessaging
+import SignalUI
 
-@objc
 protocol AddToBlockListDelegate: AnyObject {
     func addToBlockListComplete()
 }
 
-@objc
 class AddToBlockListViewController: RecipientPickerContainerViewController {
-    @objc
+
     weak var delegate: AddToBlockListDelegate?
 
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        title = NSLocalizedString("SETTINGS_ADD_TO_BLOCK_LIST_TITLE",
+        title = OWSLocalizedString("SETTINGS_ADD_TO_BLOCK_LIST_TITLE",
                                   comment: "Title for the 'add to block list' view.")
 
         recipientPicker.selectionMode = .blocklist
-        recipientPicker.groupsToShow = .showAllGroupsWhenSearching
-        recipientPicker.findByPhoneNumberButtonTitle = NSLocalizedString(
+        recipientPicker.groupsToShow = .allGroupsWhenSearching
+        recipientPicker.findByPhoneNumberButtonTitle = OWSLocalizedString(
             "BLOCK_LIST_VIEW_BLOCK_BUTTON",
             comment: "A label for the block button in the block list view"
         )
@@ -38,25 +36,17 @@ class AddToBlockListViewController: RecipientPickerContainerViewController {
     }
 
     func block(address: SignalServiceAddress) {
-        BlockListUIUtils.showBlockAddressActionSheet(
-            address,
-            from: self,
-            completionBlock: { [weak self] isBlocked in
-                guard isBlocked else { return }
-                self?.delegate?.addToBlockListComplete()
-            }
-        )
+        BlockListUIUtils.showBlockAddressActionSheet(address, from: self) { [weak self] isBlocked in
+            guard isBlocked else { return }
+            self?.delegate?.addToBlockListComplete()
+        }
     }
 
     func block(thread: TSThread) {
-        BlockListUIUtils.showBlockThreadActionSheet(
-            thread,
-            from: self,
-            completionBlock: { [weak self] isBlocked in
-                guard isBlocked else { return }
-                self?.delegate?.addToBlockListComplete()
-            }
-        )
+        BlockListUIUtils.showBlockThreadActionSheet(thread, from: self) { [weak self] isBlocked in
+            guard isBlocked else { return }
+            self?.delegate?.addToBlockListComplete()
+        }
     }
 }
 
@@ -117,6 +107,18 @@ extension AddToBlockListViewController: RecipientPickerDelegate {
             return MessageStrings.conversationIsBlocked
         }
     }
+
+    func recipientPicker(
+        _ recipientPickerViewController: RecipientPickerViewController,
+        accessoryViewForRecipient recipient: PickedRecipient,
+        transaction: SDSAnyReadTransaction
+    ) -> ContactCellAccessoryView? { nil }
+
+    func recipientPicker(
+        _ recipientPickerViewController: RecipientPickerViewController,
+        attributedSubtitleForRecipient recipient: PickedRecipient,
+        transaction: SDSAnyReadTransaction
+    ) -> NSAttributedString? { nil }
 
     func recipientPickerTableViewWillBeginDragging(_ recipientPickerViewController: RecipientPickerViewController) {}
 

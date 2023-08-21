@@ -3,7 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalCoreKit
+import SignalUI
 
 public protocol PaymentsRestoreWalletDelegate: AnyObject {
     func restoreWalletDidComplete()
@@ -11,7 +12,6 @@ public protocol PaymentsRestoreWalletDelegate: AnyObject {
 
 // MARK: -
 
-@objc
 public class PaymentsRestoreWalletSplashViewController: OWSViewController {
 
     private weak var restoreWalletDelegate: PaymentsRestoreWalletDelegate?
@@ -25,7 +25,7 @@ public class PaymentsRestoreWalletSplashViewController: OWSViewController {
     public override func viewDidLoad() {
         super.viewDidLoad()
 
-        title = NSLocalizedString("SETTINGS_PAYMENTS_RESTORE_WALLET_TITLE",
+        title = OWSLocalizedString("SETTINGS_PAYMENTS_RESTORE_WALLET_TITLE",
                                   comment: "Title for the 'restore payments wallet' view of the app settings.")
 
         OWSTableViewController2.removeBackButtonText(viewController: self)
@@ -65,16 +65,16 @@ public class PaymentsRestoreWalletSplashViewController: OWSViewController {
         let heroImage = UIImageView(image: UIImage(named: "recovery-phrase"))
 
         let titleLabel = UILabel()
-        titleLabel.text = NSLocalizedString("SETTINGS_PAYMENTS_RESTORE_WALLET_SPLASH_TITLE",
+        titleLabel.text = OWSLocalizedString("SETTINGS_PAYMENTS_RESTORE_WALLET_SPLASH_TITLE",
                                             comment: "Title for the first step of the 'restore payments wallet' views.")
-        titleLabel.font = UIFont.ows_dynamicTypeTitle2Clamped.ows_semibold
+        titleLabel.font = UIFont.dynamicTypeTitle2Clamped.semibold()
         titleLabel.textColor = Theme.primaryTextColor
         titleLabel.textAlignment = .center
 
         let explanationLabel = PaymentsViewUtils.buildTextWithLearnMoreLinkTextView(
-            text: NSLocalizedString("SETTINGS_PAYMENTS_RESTORE_WALLET_SPLASH_EXPLANATION",
+            text: OWSLocalizedString("SETTINGS_PAYMENTS_RESTORE_WALLET_SPLASH_EXPLANATION",
                                     comment: "Explanation of the 'restore payments wallet' process payments settings."),
-            font: .ows_dynamicTypeBody2Clamped,
+            font: .dynamicTypeBody2Clamped,
             learnMoreUrl: "https://support.signal.org/hc/en-us/articles/360057625692#payments_wallet_restore_passphrase")
         explanationLabel.textAlignment = .center
 
@@ -90,18 +90,18 @@ public class PaymentsRestoreWalletSplashViewController: OWSViewController {
         topStack.isLayoutMarginsRelativeArrangement = true
         topStack.layoutMargins = UIEdgeInsets(hMargin: 20, vMargin: 0)
 
-        let pasteFromPasteboardButton = OWSFlatButton.button(title: NSLocalizedString("SETTINGS_PAYMENTS_RESTORE_WALLET_PASTE_FROM_PASTEBOARD",
+        let pasteFromPasteboardButton = OWSFlatButton.button(title: OWSLocalizedString("SETTINGS_PAYMENTS_RESTORE_WALLET_PASTE_FROM_PASTEBOARD",
                                                                                       comment: "Label for the 'restore passphrase from pasteboard' button in the 'restore payments wallet from passphrase' view."),
-                                               font: UIFont.ows_dynamicTypeBody.ows_semibold,
+                                               font: UIFont.dynamicTypeBody.semibold(),
                                                titleColor: .ows_accentBlue,
                                                backgroundColor: backgroundColor,
                                                target: self,
                                                selector: #selector(didTapPasteFromPasteboardButton))
         pasteFromPasteboardButton.autoSetHeightUsingFont()
 
-        let enterManuallyButton = OWSFlatButton.button(title: NSLocalizedString("SETTINGS_PAYMENTS_RESTORE_WALLET_ENTER_MANUALLY",
+        let enterManuallyButton = OWSFlatButton.button(title: OWSLocalizedString("SETTINGS_PAYMENTS_RESTORE_WALLET_ENTER_MANUALLY",
                                                                                 comment: "Label for the 'enter passphrase manually' button in the 'restore payments wallet from passphrase' view."),
-                                               font: UIFont.ows_dynamicTypeBody.ows_semibold,
+                                               font: UIFont.dynamicTypeBody.semibold(),
                                                titleColor: .white,
                                                backgroundColor: .ows_accentBlue,
                                                target: self,
@@ -127,7 +127,7 @@ public class PaymentsRestoreWalletSplashViewController: OWSViewController {
     // MARK: - Events
 
     @objc
-    func didTapDismiss() {
+    private func didTapDismiss() {
         dismiss(animated: true, completion: nil)
     }
 

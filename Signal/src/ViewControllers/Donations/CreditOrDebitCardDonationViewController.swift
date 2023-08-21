@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
-import SignalMessaging
 import AuthenticationServices
+import SignalMessaging
+import SignalUI
 
 class CreditOrDebitCardDonationViewController: OWSTableViewController2 {
     let donationAmount: FiatMoney
@@ -80,6 +80,8 @@ class CreditOrDebitCardDonationViewController: OWSTableViewController2 {
                     priorSubscriptionLevel: currentSubscriptionLevel,
                     subscriberID: subscriberID
                 )
+            case let .gift(thread, messageText):
+                giftDonation(with: creditOrDebitCard, in: thread, messageText: messageText)
             }
         }
     }
@@ -91,7 +93,7 @@ class CreditOrDebitCardDonationViewController: OWSTableViewController2 {
             paymentMethod: .creditOrDebitCard,
             currentSubscription: {
                 switch donationMode {
-                case .oneTime: return nil
+                case .oneTime, .gift: return nil
                 case let .monthly(_, _, currentSubscription, _): return currentSubscription
                 }
             }()
@@ -107,16 +109,16 @@ class CreditOrDebitCardDonationViewController: OWSTableViewController2 {
         let linkPart = StringStyle.Part.link(SupportConstants.subscriptionFAQURL)
 
         subheaderTextView.attributedText = .composed(of: [
-            NSLocalizedString(
+            OWSLocalizedString(
                 "CARD_DONATION_SUBHEADER_TEXT",
                 comment: "On the credit/debit card donation screen, a small amount of information text is shown. This is that text. It should (1) instruct users to enter their credit/debit card information (2) tell them that Signal does not collect or store their personal information."
             ),
             " ",
-            NSLocalizedString(
+            OWSLocalizedString(
                 "CARD_DONATION_SUBHEADER_LEARN_MORE",
                 comment: "On the credit/debit card donation screen, a small amount of information text is shown. Users can click this link to learn more information."
             ).styled(with: linkPart)
-        ]).styled(with: .color(Theme.primaryTextColor), .font(.ows_dynamicTypeBody))
+        ]).styled(with: .color(Theme.primaryTextColor), .font(.dynamicTypeBody))
         subheaderTextView.linkTextAttributes = [
             .foregroundColor: Theme.accentBlueColor,
             .underlineColor: UIColor.clear,
@@ -147,14 +149,14 @@ class CreditOrDebitCardDonationViewController: OWSTableViewController2 {
 
         cardNumberView.render(errorMessage: {
             guard invalidFields.contains(.cardNumber) else { return nil }
-            return NSLocalizedString(
+            return OWSLocalizedString(
                 "CARD_DONATION_CARD_NUMBER_GENERIC_ERROR",
                 comment: "Users can donate to Signal with a credit or debit card. If their card number is invalid, this generic error message will be shown. Try to use a short string to make space in the UI."
             )
         }())
         expirationView.render(errorMessage: {
             guard invalidFields.contains(.expirationDate) else { return nil }
-            return NSLocalizedString(
+            return OWSLocalizedString(
                 "CARD_DONATION_EXPIRATION_DATE_GENERIC_ERROR",
                 comment: "Users can donate to Signal with a credit or debit card. If their expiration date is invalid, this generic error message will be shown. Try to use a short string to make space in the UI."
             )
@@ -162,12 +164,12 @@ class CreditOrDebitCardDonationViewController: OWSTableViewController2 {
         cvvView.render(errorMessage: {
             guard invalidFields.contains(.cvv) else { return nil }
             if cvvView.text.count > cardType.cvvCount {
-                return NSLocalizedString(
+                return OWSLocalizedString(
                     "CARD_DONATION_CVV_TOO_LONG_ERROR",
                     comment: "Users can donate to Signal with a credit or debit card. If their card verification code (CVV) is too long, this error will be shown. Try to use a short string to make space in the UI."
                 )
             } else {
-                return NSLocalizedString(
+                return OWSLocalizedString(
                     "CARD_DONATION_CVV_GENERIC_ERROR",
                     comment: "Users can donate to Signal with a credit or debit card. If their card verification code (CVV) is invalid for reasons we cannot determine, this generic error message will be shown. Try to use a short string to make space in the UI."
                 )
@@ -197,13 +199,13 @@ class CreditOrDebitCardDonationViewController: OWSTableViewController2 {
                     let headerLabel = UILabel()
                     headerLabel.text = {
                         let amountString = DonationUtilities.format(money: self.donationAmount)
-                        let format = NSLocalizedString(
+                        let format = OWSLocalizedString(
                             "CARD_DONATION_HEADER",
                             comment: "Users can donate to Signal with a credit or debit card. This is the heading on that screen, telling them how much they'll donate. Embeds {{formatted amount of money}}, such as \"$20\"."
                         )
                         return String(format: format, amountString)
                     }()
-                    headerLabel.font = .ows_dynamicTypeTitle3.ows_semibold
+                    headerLabel.font = .dynamicTypeTitle3.semibold()
                     headerLabel.textAlignment = .center
                     headerLabel.numberOfLines = 0
                     headerLabel.lineBreakMode = .byWordWrapping
@@ -293,7 +295,7 @@ class CreditOrDebitCardDonationViewController: OWSTableViewController2 {
 
     private lazy var cardNumberView: FormFieldView = {
         let result = FormFieldView(
-            title: NSLocalizedString(
+            title: OWSLocalizedString(
                 "CARD_DONATION_CARD_NUMBER_LABEL",
                 comment: "Users can donate to Signal with a credit or debit card. This is the label for the card number field on that screen."
             ),
@@ -336,11 +338,11 @@ class CreditOrDebitCardDonationViewController: OWSTableViewController2 {
 
     private lazy var expirationView: FormFieldView = {
         let result = FormFieldView(
-            title: NSLocalizedString(
+            title: OWSLocalizedString(
                 "CARD_DONATION_EXPIRATION_DATE_LABEL",
                 comment: "Users can donate to Signal with a credit or debit card. This is the label for the expiration date field on that screen. Try to use a short string to make space in the UI. (For example, the English text uses \"Exp. Date\" instead of \"Expiration Date\")."
             ),
-            placeholder: NSLocalizedString(
+            placeholder: OWSLocalizedString(
                 "CARD_DONATION_EXPIRATION_DATE_PLACEHOLDER",
                 comment: "Users can donate to Signal with a credit or debit card. This is the label for the card expiration date field on that screen."
             ),
@@ -355,7 +357,7 @@ class CreditOrDebitCardDonationViewController: OWSTableViewController2 {
 
     private lazy var cvvView: FormFieldView = {
         let result = FormFieldView(
-            title: NSLocalizedString(
+            title: OWSLocalizedString(
                 "CARD_DONATION_CVV_LABEL",
                 comment: "Users can donate to Signal with a credit or debit card. This is the label for the card verification code (CVV) field on that screen."
             ),
@@ -370,7 +372,7 @@ class CreditOrDebitCardDonationViewController: OWSTableViewController2 {
     // MARK: - Submit button, footer
 
     private lazy var submitButton: OWSButton = {
-        let title = NSLocalizedString(
+        let title = OWSLocalizedString(
             "CARD_DONATION_DONATE_BUTTON",
             comment: "Users can donate to Signal with a credit or debit card. This is the text on the \"Donate\" button."
         )
@@ -381,7 +383,7 @@ class CreditOrDebitCardDonationViewController: OWSTableViewController2 {
         result.dimsWhenDisabled = true
         result.layer.cornerRadius = 8
         result.backgroundColor = .ows_accentBlue
-        result.titleLabel?.font = .ows_dynamicTypeBody.ows_semibold
+        result.titleLabel?.font = .dynamicTypeBody.semibold()
         result.autoSetDimension(.height, toSize: 48, relation: .greaterThanOrEqual)
         return result
     }()

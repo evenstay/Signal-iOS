@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalMessaging
+import SignalUI
 
 class DisappearingMessagesTimerSettingsViewController: OWSTableViewController2 {
     let thread: TSThread?
@@ -39,7 +39,7 @@ class DisappearingMessagesTimerSettingsViewController: OWSTableViewController2 {
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        title = NSLocalizedString(
+        title = OWSLocalizedString(
             "DISAPPEARING_MESSAGES",
             comment: "table cell label in conversation settings"
         )
@@ -93,15 +93,15 @@ class DisappearingMessagesTimerSettingsViewController: OWSTableViewController2 {
 
         let footerHeaderSection = OWSTableSection()
         footerHeaderSection.footerTitle = isUniversal
-            ? NSLocalizedString(
+            ? OWSLocalizedString(
                 "DISAPPEARING_MESSAGES_UNIVERSAL_DESCRIPTION",
                 comment: "subheading in privacy settings"
             )
-            : NSLocalizedString(
+            : OWSLocalizedString(
                 "DISAPPEARING_MESSAGES_DESCRIPTION",
                 comment: "subheading in conversation settings"
             )
-        contents.addSection(footerHeaderSection)
+        contents.add(footerHeaderSection)
 
         guard !useCustomPicker else {
             let section = OWSTableSection()
@@ -118,13 +118,13 @@ class DisappearingMessagesTimerSettingsViewController: OWSTableViewController2 {
                 },
                 actionBlock: {}
             ))
-            contents.addSection(section)
+            contents.add(section)
             return
         }
 
         let section = OWSTableSection()
-        section.add(.actionItem(
-            icon: configuration.isEnabled ? .empty : .accessoryCheckmark,
+        section.add(.item(
+            icon: configuration.isEnabled ? .empty : .checkmark,
             name: CommonStrings.switchOff,
             accessibilityIdentifier: UIView.accessibilityIdentifier(in: self, name: "timer_off"),
             actionBlock: { [weak self] in
@@ -136,9 +136,9 @@ class DisappearingMessagesTimerSettingsViewController: OWSTableViewController2 {
         ))
 
         for duration in disappearingMessagesDurations {
-            section.add(.actionItem(
-                icon: (configuration.isEnabled && duration == configuration.durationSeconds) ? .accessoryCheckmark : .empty,
-                name: NSString.formatDurationSeconds(duration, useShortFormat: false),
+            section.add(.item(
+                icon: (configuration.isEnabled && duration == configuration.durationSeconds) ? .checkmark : .empty,
+                name: DateUtil.formatDuration(seconds: duration, useShortFormat: false),
                 accessibilityIdentifier: UIView.accessibilityIdentifier(in: self, name: "timer_\(duration)"),
                 actionBlock: { [weak self] in
                     guard let self = self else { return }
@@ -152,12 +152,12 @@ class DisappearingMessagesTimerSettingsViewController: OWSTableViewController2 {
         let isCustomTime = configuration.isEnabled && !disappearingMessagesDurations.contains(configuration.durationSeconds)
 
         section.add(.disclosureItem(
-            icon: isCustomTime ? .accessoryCheckmark : .empty,
-            name: NSLocalizedString(
+            icon: isCustomTime ? .checkmark : .empty,
+            name: OWSLocalizedString(
                 "DISAPPEARING_MESSAGES_CUSTOM_TIME",
                 comment: "Disappearing message option to define a custom time"
             ),
-            accessoryText: isCustomTime ? NSString.formatDurationSeconds(configuration.durationSeconds, useShortFormat: false) : nil,
+            accessoryText: isCustomTime ? DateUtil.formatDuration(seconds: configuration.durationSeconds, useShortFormat: false) : nil,
             accessibilityIdentifier: UIView.accessibilityIdentifier(in: self, name: "timer_custom"),
             actionBlock: { [weak self] in
                 guard let self = self else { return }
@@ -172,7 +172,7 @@ class DisappearingMessagesTimerSettingsViewController: OWSTableViewController2 {
             }
         ))
 
-        contents.addSection(section)
+        contents.add(section)
     }
 
     var disappearingMessagesDurations: [UInt32] {
@@ -180,7 +180,7 @@ class DisappearingMessagesTimerSettingsViewController: OWSTableViewController2 {
     }
 
     @objc
-    func didTapCancel() {
+    private func didTapCancel() {
         guard hasUnsavedChanges else {
             dismiss(animated: true)
             return
@@ -192,7 +192,7 @@ class DisappearingMessagesTimerSettingsViewController: OWSTableViewController2 {
     }
 
     @objc
-    func didTapDone() {
+    private func didTapDone() {
         let configuration = self.configuration
 
         // We use this view some places that don't have a thread like the
@@ -211,7 +211,7 @@ class DisappearingMessagesTimerSettingsViewController: OWSTableViewController2 {
             updateDescription: "Update disappearing messages configuration",
             updateBlock: { () -> Promise<Void> in
                 // We're sending a message, so we're accepting any pending message request.
-                ThreadUtil.addThreadToProfileWhitelistIfEmptyOrPendingRequestAndSetDefaultTimerWithSneakyTransaction(thread: thread)
+                ThreadUtil.addThreadToProfileWhitelistIfEmptyOrPendingRequestAndSetDefaultTimerWithSneakyTransaction(thread)
 
                 return GroupManager.localUpdateDisappearingMessages(thread: thread,
                                                                     disappearingMessageToken: configuration.asToken)
@@ -249,23 +249,23 @@ private class CustomTimePicker: UIPickerView, UIPickerViewDataSource, UIPickerVi
 
         var name: String {
             switch self {
-            case .second: return NSLocalizedString(
+            case .second: return OWSLocalizedString(
                 "DISAPPEARING_MESSAGES_SECONDS",
                 comment: "The unit for a number of seconds"
             )
-            case .minute: return NSLocalizedString(
+            case .minute: return OWSLocalizedString(
                 "DISAPPEARING_MESSAGES_MINUTES",
                 comment: "The unit for a number of minutes"
             )
-            case .hour: return NSLocalizedString(
+            case .hour: return OWSLocalizedString(
                 "DISAPPEARING_MESSAGES_HOURS",
                 comment: "The unit for a number of hours"
             )
-            case .day: return NSLocalizedString(
+            case .day: return OWSLocalizedString(
                 "DISAPPEARING_MESSAGES_DAYS",
                 comment: "The unit for a number of days"
             )
-            case .week: return NSLocalizedString(
+            case .week: return OWSLocalizedString(
                 "DISAPPEARING_MESSAGES_WEEKS",
                 comment: "The unit for a number of weeks"
             )

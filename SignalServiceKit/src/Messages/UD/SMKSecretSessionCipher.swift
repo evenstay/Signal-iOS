@@ -3,13 +3,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import Curve25519Kit
-import SignalCoreKit
+import Foundation
 import LibSignalClient
+import SignalCoreKit
 
 public struct SecretSessionKnownSenderError: Error {
-    public let senderAddress: SignalServiceAddress
+    public let senderAci: Aci
     public let senderDeviceId: UInt32
     public let cipherType: CiphertextMessage.MessageType
     public let groupId: Data?
@@ -17,8 +17,8 @@ public struct SecretSessionKnownSenderError: Error {
     public let contentHint: UnidentifiedSenderMessageContent.ContentHint
     public let underlyingError: Error
 
-    init(messageContent: UnidentifiedSenderMessageContent, underlyingError: Error) {
-        self.senderAddress = SignalServiceAddress(messageContent.senderCertificate.sender, trustLevel: .low)
+    init(senderAci: Aci, messageContent: UnidentifiedSenderMessageContent, underlyingError: Error) {
+        self.senderAci = senderAci
         self.senderDeviceId = messageContent.senderCertificate.sender.deviceId
         self.cipherType = messageContent.messageType
         self.groupId = messageContent.groupId.map { Data($0) }
@@ -36,21 +36,6 @@ public enum SMKSecretSessionCipherError: Int, Error {
 
 // MARK: -
 
-private class SMKSecretKeySpec: NSObject {
-
-    @objc
-    public let keyData: Data
-    @objc
-    public let algorithm: String
-
-    init(keyData: Data, algorithm: String) {
-        self.keyData = keyData
-        self.algorithm = algorithm
-    }
-}
-
-// MARK: -
-
 @objc
 public enum SMKMessageType: Int {
     case whisper
@@ -59,27 +44,12 @@ public enum SMKMessageType: Int {
     case plaintext
 }
 
-@objc
-public class SMKDecryptResult: NSObject {
-
-    @objc
-    public let senderAddress: SignalServiceAddress
-    @objc
-    public let senderDeviceId: Int
-    @objc
-    public let paddedPayload: Data
-    @objc
-    public let messageType: SMKMessageType
-
-    init(senderAddress: SignalServiceAddress,
-         senderDeviceId: Int,
-         paddedPayload: Data,
-         messageType: SMKMessageType) {
-        self.senderAddress = senderAddress
-        self.senderDeviceId = senderDeviceId
-        self.paddedPayload = paddedPayload
-        self.messageType = messageType
-    }
+public struct SMKDecryptResult {
+    let senderAci: Aci
+    let senderE164: String?
+    let senderDeviceId: UInt32
+    let paddedPayload: Data
+    let messageType: SMKMessageType
 }
 
 // MARK: -
@@ -91,8 +61,8 @@ fileprivate extension ProtocolAddress {
 }
 
 fileprivate extension SignalServiceAddress {
-    convenience init(_ address: SealedSenderAddress, trustLevel: SignalRecipientTrustLevel) {
-        self.init(uuid: UUID(uuidString: address.uuidString), phoneNumber: address.e164, trustLevel: trustLevel)
+    convenience init(_ address: SealedSenderAddress) {
+        self.init(uuid: UUID(uuidString: address.uuidString), phoneNumber: address.e164)
     }
 }
 
@@ -115,14 +85,10 @@ fileprivate extension SMKMessageType {
 
 @objc
 public class SMKSecretSessionCipher: NSObject {
-
-    private let kUDPrefixString = "UnidentifiedDelivery"
-
-    private let kSMKSecretSessionCipherMacLength: UInt = 10
-
     private let currentSessionStore: SessionStore
     private let currentPreKeyStore: PreKeyStore
     private let currentSignedPreKeyStore: SignedPreKeyStore
+    private let currentKyberPreKeyStore: KyberPreKeyStore
     private let currentIdentityStore: IdentityKeyStore
     private let currentSenderKeyStore: LibSignalClient.SenderKeyStore
 
@@ -130,12 +96,14 @@ public class SMKSecretSessionCipher: NSObject {
     public init(sessionStore: SessionStore,
                 preKeyStore: PreKeyStore,
                 signedPreKeyStore: SignedPreKeyStore,
+                kyberPreKeyStore: KyberPreKeyStore,
                 identityStore: IdentityKeyStore,
                 senderKeyStore: LibSignalClient.SenderKeyStore) throws {
 
         self.currentSessionStore = sessionStore
         self.currentPreKeyStore = preKeyStore
         self.currentSignedPreKeyStore = signedPreKeyStore
+        self.currentKyberPreKeyStore = kyberPreKeyStore
         self.currentIdentityStore = identityStore
         self.currentSenderKeyStore = senderKeyStore
     }
@@ -143,19 +111,15 @@ public class SMKSecretSessionCipher: NSObject {
     // MARK: - Public
 
     public func encryptMessage(
-        recipient: SignalServiceAddress,
-        deviceId: Int32,
+        for serviceId: UntypedServiceId,
+        deviceId: UInt32,
         paddedPlaintext: Data,
         contentHint: UnidentifiedSenderMessageContent.ContentHint,
         groupId: Data?,
         senderCertificate: SenderCertificate,
         protocolContext: StoreContext
     ) throws -> Data {
-
-        guard deviceId > 0 else {
-            throw SMKError.assertionError(description: "\(logTag) invalid deviceId")
-        }
-        let recipientAddress = try ProtocolAddress(from: recipient, deviceId: UInt32(bitPattern: deviceId))
+        let recipientAddress = try ProtocolAddress(uuid: serviceId.uuidValue, deviceId: deviceId)
 
         let ciphertextMessage = try signalEncrypt(
             message: paddedPlaintext,
@@ -213,10 +177,14 @@ public class SMKSecretSessionCipher: NSObject {
 
     // public Pair<SignalProtocolAddress, byte[]> decrypt(CertificateValidator validator, byte[] ciphertext, long timestamp)
     //    throws InvalidMetadataMessageException, InvalidMetadataVersionException, ProtocolInvalidMessageException, ProtocolInvalidKeyException, ProtocolNoSessionException, ProtocolLegacyMessageException, ProtocolInvalidVersionException, ProtocolDuplicateMessageException, ProtocolInvalidKeyIdException, ProtocolUntrustedIdentityException
-    public func decryptMessage(trustRoot: PublicKey,
-                               cipherTextData: Data,
-                               timestamp: UInt64,
-                               protocolContext: StoreContext?) throws -> SMKDecryptResult {
+    public func decryptMessage(
+        trustRoot: PublicKey,
+        cipherTextData: Data,
+        timestamp: UInt64,
+        localIdentifiers: LocalIdentifiers,
+        localDeviceId: UInt32,
+        protocolContext: StoreContext?
+    ) throws -> SMKDecryptResult {
         guard timestamp > 0 else {
             throw SMKError.assertionError(description: "\(logTag) invalid timestamp")
         }
@@ -228,10 +196,16 @@ public class SMKSecretSessionCipher: NSObject {
                                                                   context: context)
 
         let sender = messageContent.senderCertificate.sender
-        // Low trust because we haven't verified the certificate yet.
-        let senderAddress = SignalServiceAddress(sender, trustLevel: .low)
 
-        guard !senderAddress.isLocalAddress || sender.deviceId != TSAccountManager.shared.storedDeviceId() else {
+        // NOTE: We use the sender properties from the sender certificate, not from this class' properties.
+        guard sender.deviceId <= Int32.max else {
+            throw SMKError.assertionError(description: "\(logTag) Invalid senderDeviceId.")
+        }
+        guard let senderAci = Aci.parseFrom(aciString: sender.uuidString) else {
+            throw SMKError.assertionError(description: "\(logTag) Invalid senderAci.")
+        }
+
+        if localIdentifiers.aci == senderAci && sender.deviceId == localDeviceId {
             Logger.info("Discarding self-sent message")
             throw SMKSecretSessionCipherError.selfSentMessage
         }
@@ -247,18 +221,19 @@ public class SMKSecretSessionCipher: NSObject {
             // return new Pair<>(new SignalProtocolAddress(content.getSenderCertificate().getSender(),
             //     content.getSenderCertificate().getSenderDeviceId()),
             //     decrypt(content));
-            //
-            // NOTE: We use the sender properties from the sender certificate, not from this class' properties.
-            guard sender.deviceId <= Int32.max else {
-                throw SMKError.assertionError(description: "\(logTag) Invalid senderDeviceId.")
-            }
-            return SMKDecryptResult(senderAddress: SignalServiceAddress(sender, trustLevel: .high),
-                                    senderDeviceId: Int(sender.deviceId),
-                                    paddedPayload: Data(paddedMessagePlaintext),
-                                    messageType: SMKMessageType(messageContent.messageType))
+            return SMKDecryptResult(
+                senderAci: senderAci,
+                senderE164: sender.e164,
+                senderDeviceId: sender.deviceId,
+                paddedPayload: Data(paddedMessagePlaintext),
+                messageType: SMKMessageType(messageContent.messageType)
+            )
         } catch {
-            throw SecretSessionKnownSenderError(messageContent: messageContent,
-                                                underlyingError: error)
+            throw SecretSessionKnownSenderError(
+                senderAci: senderAci,
+                messageContent: messageContent,
+                underlyingError: error
+            )
         }
     }
 
@@ -303,6 +278,7 @@ public class SMKSecretSessionCipher: NSObject {
                 identityStore: currentIdentityStore,
                 preKeyStore: currentPreKeyStore,
                 signedPreKeyStore: currentSignedPreKeyStore,
+                kyberPreKeyStore: currentKyberPreKeyStore,
                 context: context)
         case .senderKey:
             plaintextData = try groupDecrypt(
@@ -318,30 +294,5 @@ public class SMKSecretSessionCipher: NSObject {
                 description: "\(logTag) Not prepared to handle this message type: \(unknownType.rawValue)")
         }
         return Data(plaintextData)
-    }
-}
-
-// MARK: - Internal for testing
-
-extension SMKSecretSessionCipher {
-
-    // Only allow nil contexts for testing
-    func encryptMessage(
-        recipient: SignalServiceAddress,
-        deviceId: Int32,
-        paddedPlaintext: Data,
-        contentHint: UnidentifiedSenderMessageContent.ContentHint = .default,
-        groupId: Data? = nil,
-        senderCertificate: SenderCertificate,
-        protocolContext: StoreContext? = nil
-    ) throws -> Data {
-        try encryptMessage(
-            recipient: recipient,
-            deviceId: deviceId,
-            paddedPlaintext: paddedPlaintext,
-            contentHint: contentHint,
-            groupId: groupId,
-            senderCertificate: senderCertificate,
-            protocolContext: protocolContext ?? NullContext())
     }
 }

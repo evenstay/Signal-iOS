@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalMessaging
 import SignalServiceKit
+import SignalUI
 
 protocol CVLoadCoordinatorDelegate: UIScrollViewDelegate {
     var viewState: CVViewState { get }
@@ -27,8 +27,6 @@ protocol CVLoadCoordinatorDelegate: UIScrollViewDelegate {
     var isScrollNearTopOfLoadWindow: Bool { get }
 
     var isScrollNearBottomOfLoadWindow: Bool { get }
-
-    var isLayoutApplyingUpdate: Bool { get }
 
     var areCellsAnimating: Bool { get }
 
@@ -57,6 +55,7 @@ public class CVLoadCoordinator: NSObject {
     private let threadUniqueId: String
 
     private var conversationStyle: ConversationStyle
+    private let spoilerState: SpoilerRenderState
 
     var renderState: CVRenderState
 
@@ -73,29 +72,40 @@ public class CVLoadCoordinator: NSObject {
         }
     }
 
-    private var hasClearedUnreadMessagesIndicator = false
+    private var oldestUnreadMessageSortId: UInt64?
 
-    private let messageMapping: CVMessageMapping
+    private let messageLoader: MessageLoader
 
     // TODO: Remove. This model will get stale.
     private let thread: TSThread
 
-    required init(viewState: CVViewState) {
+    required init(
+        viewState: CVViewState,
+        threadViewModel: ThreadViewModel,
+        conversationViewModel: ConversationViewModel,
+        oldestUnreadMessageSortId: UInt64?
+    ) {
         self.viewState = viewState
-        let threadViewModel = viewState.threadViewModel
         self.threadUniqueId = threadViewModel.threadRecord.uniqueId
         self.thread = threadViewModel.threadRecord
         self.conversationStyle = viewState.conversationStyle
-
-        let viewStateSnapshot = CVViewStateSnapshot.snapshot(viewState: viewState,
-                                                             typingIndicatorsSender: nil,
-                                                             hasClearedUnreadMessagesIndicator: hasClearedUnreadMessagesIndicator,
-                                                             previousViewStateSnapshot: nil)
-        self.renderState = CVRenderState.defaultRenderState(threadViewModel: threadViewModel,
-                                                            viewStateSnapshot: viewStateSnapshot)
-
-        self.messageMapping = CVMessageMapping(thread: threadViewModel.threadRecord)
-
+        self.spoilerState = viewState.spoilerState
+        self.oldestUnreadMessageSortId = oldestUnreadMessageSortId
+        let viewStateSnapshot = CVViewStateSnapshot.snapshot(
+            viewState: viewState,
+            typingIndicatorsSender: nil,
+            oldestUnreadMessageSortId: oldestUnreadMessageSortId,
+            previousViewStateSnapshot: nil
+        )
+        self.renderState = CVRenderState.defaultRenderState(
+            threadViewModel: threadViewModel,
+            conversationViewModel: conversationViewModel,
+            viewStateSnapshot: viewStateSnapshot
+        )
+        self.messageLoader = MessageLoader(
+            batchFetcher: ConversationViewBatchFetcher(interactionFinder: InteractionFinder(threadUniqueId: thread.uniqueId)),
+            interactionFetchers: [Self.modelReadCaches.interactionReadCache, SDSInteractionFetcherImpl()]
+        )
         super.init()
     }
 
@@ -153,16 +163,8 @@ public class CVLoadCoordinator: NSObject {
                                                name: OWSContactsManager.skipGroupAvatarBlurDidChange,
                                                object: nil)
         NotificationCenter.default.addObserver(self,
-                                               selector: #selector(conversationChatColorSettingDidChange),
-                                               name: ChatColors.conversationChatColorSettingDidChange,
-                                               object: nil)
-        NotificationCenter.default.addObserver(self,
-                                               selector: #selector(customChatColorsDidChange),
-                                               name: ChatColors.customChatColorsDidChange,
-                                               object: nil)
-        NotificationCenter.default.addObserver(self,
-                                               selector: #selector(autoChatColorsDidChange),
-                                               name: ChatColors.autoChatColorsDidChange,
+                                               selector: #selector(chatColorsDidChange),
+                                               name: ChatColors.chatColorsDidChangeNotification,
                                                object: nil)
         NotificationCenter.default.addObserver(self,
                                                selector: #selector(phoneNumberDidChange),
@@ -172,12 +174,12 @@ public class CVLoadCoordinator: NSObject {
     }
 
     @objc
-    func applicationDidEnterBackground() {
+    private func applicationDidEnterBackground() {
         resetClearedUnreadMessagesIndicator()
     }
 
     @objc
-    func typingIndicatorStateDidChange(notification: Notification) {
+    private func typingIndicatorStateDidChange(notification: Notification) {
         AssertIsOnMainThread()
 
         guard let notificationThreadId = notification.object as? String else {
@@ -191,7 +193,7 @@ public class CVLoadCoordinator: NSObject {
     }
 
     @objc
-    func profileWhitelistDidChange() {
+    private func profileWhitelistDidChange() {
         AssertIsOnMainThread()
 
         enqueueReload(canReuseInteractionModels: true,
@@ -199,7 +201,7 @@ public class CVLoadCoordinator: NSObject {
     }
 
     @objc
-    func blockListDidChange() {
+    private func blockListDidChange() {
         AssertIsOnMainThread()
 
         enqueueReload(canReuseInteractionModels: true,
@@ -207,7 +209,7 @@ public class CVLoadCoordinator: NSObject {
     }
 
     @objc
-    func localProfileDidChange() {
+    private func localProfileDidChange() {
         AssertIsOnMainThread()
 
         enqueueReload(canReuseInteractionModels: true,
@@ -215,7 +217,7 @@ public class CVLoadCoordinator: NSObject {
     }
 
     @objc
-    func otherUsersProfileDidChange(notification: Notification) {
+    private func otherUsersProfileDidChange(notification: Notification) {
         AssertIsOnMainThread()
 
         if let contactThread = thread as? TSContactThread {
@@ -234,7 +236,7 @@ public class CVLoadCoordinator: NSObject {
     }
 
     @objc
-    func phoneNumberDidChange(notification: Notification) {
+    private func phoneNumberDidChange(notification: Notification) {
         AssertIsOnMainThread()
 
         var notificationAddressKeys = Set<String>()
@@ -261,7 +263,7 @@ public class CVLoadCoordinator: NSObject {
     }
 
     @objc
-    func skipContactAvatarBlurDidChange(notification: Notification) {
+    private func skipContactAvatarBlurDidChange(notification: Notification) {
         guard let address = notification.userInfo?[OWSContactsManager.skipContactAvatarBlurAddressKey] as? SignalServiceAddress else {
             owsFailDebug("Missing address.")
             return
@@ -280,7 +282,7 @@ public class CVLoadCoordinator: NSObject {
     }
 
     @objc
-    func skipGroupAvatarBlurDidChange(notification: Notification) {
+    private func skipGroupAvatarBlurDidChange(notification: Notification) {
         guard let groupUniqueId = notification.userInfo?[OWSContactsManager.skipGroupAvatarBlurGroupUniqueIdKey] as? String else {
             owsFailDebug("Missing groupId.")
             return
@@ -293,24 +295,8 @@ public class CVLoadCoordinator: NSObject {
     }
 
     @objc
-    private func conversationChatColorSettingDidChange(_ notification: NSNotification) {
-        guard let threadUniqueId = notification.userInfo?[ChatColors.conversationChatColorSettingDidChangeThreadUniqueIdKey] as? String else {
-            owsFailDebug("Missing threadUniqueId.")
-            return
-        }
-        guard threadUniqueId == thread.uniqueId else {
-            return
-        }
-        delegate?.chatColorDidChange()
-    }
-
-    @objc
-    private func customChatColorsDidChange(_ notification: NSNotification) {
-        delegate?.chatColorDidChange()
-    }
-
-    @objc
-    private func autoChatColorsDidChange(_ notification: NSNotification) {
+    private func chatColorsDidChange(_ notification: NSNotification) {
+        guard notification.object == nil || (notification.object as? String) == thread.uniqueId else { return }
         delegate?.chatColorDidChange()
     }
 
@@ -344,17 +330,7 @@ public class CVLoadCoordinator: NSObject {
     // This property should only be accessed on the main thread.
     private var loadRequestBuilder = CVLoadRequest.Builder()
 
-    // We should only have one "building" and one "landing"
-    // in flight at a time. We _can_ start building request B
-    // while A is still "landing", but only after its landing
-    // has _begun_ (but not yet complete).
-    //
-    // We can only build one load at a time more many reasons.
-    // Entities like the MessageMapping are not thread-safe.
-    // Each load is based
-    private let loadBuildingRequestId = AtomicOptional<CVLoadRequest.RequestId>(nil)
-    private let loadLandingRequestId = AtomicOptional<CVLoadRequest.RequestId>(nil)
-    private static let canOverlapLandingAnimations = true
+    private var isBuildingLoad = false
 
     private let autoLoadMoreThreshold: TimeInterval = 2 * kSecondInterval
 
@@ -469,16 +445,11 @@ public class CVLoadCoordinator: NSObject {
     func clearUnreadMessagesIndicator() {
         AssertIsOnMainThread()
 
-        // Once we've cleared the unread messages indicator,
-        // make sure we don't show it again.
-        hasClearedUnreadMessagesIndicator = true
-
-        guard nil != messageMapping.oldestUnreadInteraction else {
+        guard oldestUnreadMessageSortId != nil else {
             return
         }
-
-        loadRequestBuilder.clearOldestUnreadInteraction()
-        loadIfNecessary()
+        oldestUnreadMessageSortId = nil
+        enqueueReload()
     }
 
     // MARK: -
@@ -486,10 +457,9 @@ public class CVLoadCoordinator: NSObject {
     func resetClearedUnreadMessagesIndicator() {
         AssertIsOnMainThread()
 
-        hasClearedUnreadMessagesIndicator = false
-
-        loadRequestBuilder.clearOldestUnreadInteraction()
-        loadIfNecessary()
+        // TODO: Implement this method correctly by allowing the unread indicator
+        // to be shown past initial load so we don't mark all messages as read on
+        // foreground if we have a chat open.
     }
 
     // MARK: -
@@ -513,41 +483,20 @@ public class CVLoadCoordinator: NSObject {
         AssertIsOnMainThread()
 
         let conversationStyle = self.conversationStyle
+        let spoilerState = self.spoilerState
         guard conversationStyle.viewWidth > 0 else {
             Logger.info("viewWidth not yet set.")
             return
         }
-        guard let loadRequest = loadRequestBuilder.build() else {
-            // No load is needed.
+        guard !isBuildingLoad, let loadRequest = loadRequestBuilder.build() else {
             return
         }
-        if CVLoader.verboseLogging {
-            Logger.info("Trying to begin load.")
-        }
-        guard loadBuildingRequestId.tryToSetIfNil(loadRequest.requestId) else {
-            Logger.verbose("Ignoring; already loading.")
-            return
-        }
-        loadRequestBuilder.loadBegun()
-        if CVLoader.verboseLogging {
-            Logger.info("Loading[\(loadRequest.requestId)]")
-        }
-
+        isBuildingLoad = true
         loadRequestBuilder = CVLoadRequest.Builder()
 
-        load(loadRequest: loadRequest,
-             conversationStyle: conversationStyle)
-    }
-
-    private func load(loadRequest: CVLoadRequest, conversationStyle: ConversationStyle) {
-        AssertIsOnMainThread()
         // We should do an "initial" load IFF this is our first load.
         owsAssertDebug(loadRequest.isInitialLoad == renderState.isEmptyInitialState)
 
-        guard loadBuildingRequestId.get() == loadRequest.requestId else {
-            owsFailDebug("loadBuildingRequestId is not set.")
-            return
-        }
         let prevRenderState = renderState
 
         if loadRequest.loadType == .loadOlder {
@@ -557,94 +506,54 @@ public class CVLoadCoordinator: NSObject {
         }
 
         let typingIndicatorsSender = typingIndicatorsImpl.typingAddress(forThread: thread)
-        let viewStateSnapshot = CVViewStateSnapshot.snapshot(viewState: viewState,
-                                                             typingIndicatorsSender: typingIndicatorsSender,
-                                                             hasClearedUnreadMessagesIndicator: hasClearedUnreadMessagesIndicator,
-                                                             previousViewStateSnapshot: prevRenderState.viewStateSnapshot)
-        let loader = CVLoader(threadUniqueId: threadUniqueId,
-                              loadRequest: loadRequest,
-                              viewStateSnapshot: viewStateSnapshot,
-                              prevRenderState: prevRenderState,
-                              messageMapping: messageMapping)
+        let viewStateSnapshot = CVViewStateSnapshot.snapshot(
+            viewState: viewState,
+            typingIndicatorsSender: typingIndicatorsSender,
+            oldestUnreadMessageSortId: oldestUnreadMessageSortId,
+            previousViewStateSnapshot: prevRenderState.viewStateSnapshot
+        )
+        let loader = CVLoader(
+            threadUniqueId: threadUniqueId,
+            loadRequest: loadRequest,
+            viewStateSnapshot: viewStateSnapshot,
+            spoilerState: spoilerState,
+            prevRenderState: prevRenderState,
+            messageLoader: messageLoader
+        )
 
-        if CVLoader.verboseLogging {
-            Logger.info("Before load promise[\(loadRequest.requestId)]")
-        }
-
-        firstly { () -> Promise<CVUpdate> in
-            let updatePromise = loader.loadPromise()
-
-            if CVLoader.verboseLogging {
-                // If we're doing verbose logging, add this step to the promise chain
-                // so that we can measure the delay dispatching onto .main.
-                return updatePromise.map(on: CVUtils.landingQueue) { (update: CVUpdate) -> CVUpdate in
-                    loadRequest.logLoadEvent("Load landing dispatch")
-                    return update
-                }
-            } else {
-                return updatePromise
-            }
-        }.then(on: .main) { [weak self] (update: CVUpdate) -> Promise<CVUpdate> in
-            loadRequest.logLoadEvent("Load landing ready")
+        firstly {
+            loader.loadPromise()
+        }.then(on: DispatchQueue.main) { [weak self] (update: CVUpdate) -> Promise<Void> in
             guard let self = self else {
                 throw OWSGenericError("Missing self.")
             }
             return self.loadLandWhenSafePromise(update: update)
-        }.done(on: .main) { [weak self] (update: CVUpdate) -> Void in
-            self?.loadDidSucceed(update: update)
-        }.catch(on: .main) { [weak self] (error) in
-            self?.loadDidFail(loadRequest: loadRequest, error: error)
+        }.ensure(on: DispatchQueue.main) { [weak self] in
+            guard let self else { return }
+            owsAssertDebug(self.isBuildingLoad)
+            self.isBuildingLoad = false
+            // Initiate new load if necessary.
+            self.loadIfNecessary()
+        }.catch(on: DispatchQueue.main) { error in
+            owsFailDebug("Load failed[\(loadRequest.requestId)]: \(error)")
         }
-    }
-
-    private func loadDidSucceed(update: CVUpdate) {
-        AssertIsOnMainThread()
-
-        let loadRequest = update.loadRequest
-        loadRequest.logLoadEvent("Load complete \(update.prevRenderState.items.count) -> \(renderState.items.count)")
-
-        let didClearBuildingFlag = loadBuildingRequestId.tryToClearIfEqual(loadRequest.requestId)
-        // This flag should already be cleared.
-        owsAssertDebug(!didClearBuildingFlag)
-        let didClearLandingFlag = loadLandingRequestId.tryToClearIfEqual(loadRequest.requestId)
-        if Self.canOverlapLandingAnimations {
-            owsAssertDebug(!didClearLandingFlag)
-        } else {
-            owsAssertDebug(didClearLandingFlag)
-        }
-
-        // Initiate new load if necessary.
-        loadIfNecessary()
-    }
-
-    private func loadDidFail(loadRequest: CVLoadRequest, error: Error) {
-        AssertIsOnMainThread()
-
-        owsFailDebug("Load failed[\(loadRequest.requestId)]: \(error)")
-
-        let didClearBuildingFlag = loadBuildingRequestId.tryToClearIfEqual(loadRequest.requestId)
-        let didClearLandingFlag = loadLandingRequestId.tryToClearIfEqual(loadRequest.requestId)
-        owsAssertDebug(didClearBuildingFlag || didClearLandingFlag)
-
-        // Initiate new load if necessary.
-        loadIfNecessary()
     }
 
     // MARK: - Safe Landing
 
     // Lands the load when it is safe, blocking on animations,
     // previous loads landing, etc.
-    private func loadLandWhenSafePromise(update: CVUpdate) -> Promise<CVUpdate> {
+    private func loadLandWhenSafePromise(update: CVUpdate) -> Promise<Void> {
         AssertIsOnMainThread()
 
-        let (loadPromise, loadFuture) = Promise<CVUpdate>.pending()
+        let (loadPromise, loadFuture) = Promise<Void>.pending()
 
         loadLandWhenSafe(update: update, loadFuture: loadFuture)
 
         return loadPromise
     }
 
-    private func loadLandWhenSafe(update: CVUpdate, loadFuture: Future<CVUpdate>) {
+    private func loadLandWhenSafe(update: CVUpdate, loadFuture: Future<Void>) {
 
         guard let delegate = self.delegate else {
             loadFuture.reject(OWSGenericError("Missing self or delegate."))
@@ -658,33 +567,15 @@ public class CVLoadCoordinator: NSObject {
             if let lastKeyboardAnimationDate = viewState.lastKeyboardAnimationDate,
                lastKeyboardAnimationDate.isAfterNow,
                viewState.selectionAnimationState != .willAnimate {
-                if CVLoader.verboseLogging {
-                    Logger.verbose("Waiting for keyboard animation.")
-                }
                 return false
             }
             guard viewState.selectionAnimationState != .animating  else {
-                if CVLoader.verboseLogging {
-                    Logger.verbose("Waiting for selection animation.")
-                }
                 return false
             }
             if let interaction = viewState.collectionViewActiveContextMenuInteraction, interaction.contextMenuVisible {
-                if CVLoader.verboseLogging {
-                    Logger.verbose("Waiting for context menu animation.")
-                }
-                return false
-            }
-            guard Self.canOverlapLandingAnimations || !delegate.isLayoutApplyingUpdate else {
-                if CVLoader.verboseLogging {
-                    Logger.verbose("Waiting for isLayoutApplyingUpdate.")
-                }
                 return false
             }
             guard !delegate.areCellsAnimating else {
-                if CVLoader.verboseLogging {
-                    Logger.verbose("Waiting for areCellsAnimating.")
-                }
                 return false
             }
             return true
@@ -692,13 +583,7 @@ public class CVLoadCoordinator: NSObject {
 
         let loadRequest = update.loadRequest
 
-        // It's important that we only set loadLandingRequestId if canLandLoad is true.
-        guard canLandLoad(),
-              self.loadLandingRequestId.tryToSetIfNil(loadRequest.requestId) else {
-
-            if CVLoader.verboseLogging {
-                Logger.verbose("Waiting to land load.")
-            }
+        guard canLandLoad() else {
             // We wait in a pretty tight loop to ensure loads land in a timely way.
             //
             // DispatchQueue.asyncAfter() will take longer to perform
@@ -715,108 +600,11 @@ public class CVLoadCoordinator: NSObject {
 
         self.renderState = renderState
 
-        let (loadDidLandPromise, loadDidLandFuture) = Promise<Void>.pending()
-        updateLoadLanding(renderState: renderState,
-                          loadRequest: loadRequest,
-                          loadDidLandFuture: loadDidLandFuture)
-
         delegate.updateWithNewRenderState(update: update,
                                           scrollAction: loadRequest.scrollAction,
                                           updateToken: updateToken)
 
-        loadRequest.logLoadEvent("Load landing begun \(update.prevRenderState.items.count) -> \(renderState.items.count)")
-
-        // Once this load's landing has _begun_ we can start building the next load.
-        // loadLandingRequestId ensures that we only land one load at a time.
-        //
-        // We cannot start building the next load until this point, since the next
-        // load will...
-        //
-        // * ...use the current renderState state as a point of departure.
-        // * ...assume the UICollectionView has already been updated to reflect
-        //   this load, so that it can safely performBatchUpdates().
-        let didClearBuildingFlag = self.loadBuildingRequestId.tryToClearIfEqual(loadRequest.requestId)
-        owsAssertDebug(didClearBuildingFlag)
-
-        // If we can overlap landing animations, we can start landing the next
-        // load immediately after we start landing this load.  If we commit to
-        // this behavior, we can eliminate loadLandingRequestId.
-        if Self.canOverlapLandingAnimations {
-            loadDidLandImmediately()
-
-            let didClearLandingFlag = loadLandingRequestId.tryToClearIfEqual(loadRequest.requestId)
-            owsAssertDebug(didClearLandingFlag)
-        }
-
-        // Initiate new load if necessary.
-        loadIfNecessary()
-
-        // Wait for landing to complete.
-        firstly { () -> Promise<Void> in
-            loadDidLandPromise
-        }.done(on: CVUtils.landingQueue) {
-            loadRequest.logLoadEvent("Load landing complete")
-            loadFuture.resolve(update)
-        }.catch(on: CVUtils.landingQueue) { error in
-            loadFuture.reject(error)
-        }
-    }
-
-    // MARK: - LoadLanding
-
-    private struct LoadLanding {
-        let renderStateId: UInt
-        let loadRequestId: UInt
-        private var loadDidLandFuture: Future<Void>?
-
-        init(renderStateId: UInt, loadRequestId: UInt, loadDidLandFuture: Future<Void>) {
-            self.renderStateId = renderStateId
-            self.loadRequestId = loadRequestId
-            self.loadDidLandFuture = loadDidLandFuture
-        }
-
-        func fulfill() {
-            AssertIsOnMainThread()
-
-            guard let loadDidLandFuture = self.loadDidLandFuture else {
-                owsFailDebug("Missing loadDidLandFuture.")
-                return
-            }
-            if CVLoader.verboseLogging {
-                Logger.info("LoadLanding fulfilled[\(loadRequestId)]")
-            }
-            loadDidLandFuture.resolve()
-        }
-    }
-    private var currentLoadLanding: LoadLanding?
-
-    private func updateLoadLanding(renderState: CVRenderState,
-                                   loadRequest: CVLoadRequest,
-                                   loadDidLandFuture: Future<Void>) {
-        if let currentLoadLanding = self.currentLoadLanding {
-            currentLoadLanding.fulfill()
-        }
-        self.currentLoadLanding = LoadLanding(renderStateId: renderState.renderStateId,
-                                              loadRequestId: loadRequest.requestId,
-                                              loadDidLandFuture: loadDidLandFuture)
-    }
-
-    func loadDidLandInView(renderState: CVRenderState) {
-        AssertIsOnMainThread()
-
-        guard let currentLoadLanding = currentLoadLanding,
-              currentLoadLanding.renderStateId == renderState.renderStateId else {
-            return
-        }
-        currentLoadLanding.fulfill()
-        self.currentLoadLanding = nil
-    }
-
-    func loadDidLandImmediately() {
-        AssertIsOnMainThread()
-
-        currentLoadLanding?.fulfill()
-        self.currentLoadLanding = nil
+        loadFuture.resolve()
     }
 }
 
@@ -852,7 +640,6 @@ extension CVLoadCoordinator: DatabaseChangeDelegate {
 
 // MARK: -
 
-@objc
 extension CVLoadCoordinator: UICollectionViewDataSource {
 
     public static let messageSection: Int = 0
@@ -929,7 +716,7 @@ extension CVLoadCoordinator: UICollectionViewDataSource {
         //        } else if (viewItem.stickerInfo) {
         //            cellName = [NSString stringWithFormat:@"message.sticker.%@", [viewItem.stickerInfo asKey]];
         //        }
-        //        cell.accessibilityIdentifier = ACCESSIBILITY_IDENTIFIER_WITH_NAME(self, cellName);
+        //        cell.accessibilityIdentifier = "CVLoadCoordinator.\(cellName)"
         // #endif
         //
         // return cell;
@@ -965,7 +752,6 @@ extension CVLoadCoordinator: UICollectionViewDataSource {
 
 // MARK: -
 
-@objc
 extension CVLoadCoordinator: UICollectionViewDelegate {
 
     public func collectionView(_ collectionView: UICollectionView, willDisplay cell: UICollectionViewCell, forItemAt indexPath: IndexPath) {
@@ -993,7 +779,6 @@ extension CVLoadCoordinator: UICollectionViewDelegate {
 
 // MARK: -
 
-@objc
 extension CVLoadCoordinator: ConversationViewLayoutDelegate {
 
     public var layoutItems: [ConversationViewLayoutItem] {

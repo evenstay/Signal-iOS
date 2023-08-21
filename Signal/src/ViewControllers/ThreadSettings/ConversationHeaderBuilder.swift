@@ -106,14 +106,14 @@ struct ConversationHeaderBuilder: Dependencies {
                 groupMembersText.append(" ")
                 groupMembersText.append("•")
                 groupMembersText.append(" ")
-                groupMembersText.append(NSLocalizedString("GROUPS_LEGACY_GROUP_INDICATOR",
+                groupMembersText.append(OWSLocalizedString("GROUPS_LEGACY_GROUP_INDICATOR",
                                                           comment: "Label indicating a legacy group."))
             }
             builder.addSubtitleLabel(text: groupMembersText)
         }
 
         if groupThread.isGroupV1Thread {
-            builder.addLegacyGroupView(groupThread: groupThread)
+            builder.addLegacyGroupView()
         }
 
         builder.addButtons()
@@ -182,7 +182,7 @@ struct ConversationHeaderBuilder: Dependencies {
                     }
                     UIPasteboard.general.string = recipientAddress.phoneNumber
 
-                    let toast = NSLocalizedString("COPIED_TO_CLIPBOARD",
+                    let toast = OWSLocalizedString("COPIED_TO_CLIPBOARD",
                                                   comment: "Indicator that a value has been copied to the clipboard.")
                     delegate.tableViewController.presentToast(text: toast)
                 }
@@ -202,9 +202,9 @@ struct ConversationHeaderBuilder: Dependencies {
         ) == .verified
         if isVerified {
             let subtitle = NSMutableAttributedString()
-            subtitle.appendTemplatedImage(named: "check-12", font: .ows_dynamicTypeSubheadlineClamped)
+            subtitle.appendTemplatedImage(named: "check-extra-small", font: .dynamicTypeSubheadlineClamped)
             subtitle.append(" ")
-            subtitle.append(NSLocalizedString("PRIVACY_IDENTITY_IS_VERIFIED_BADGE",
+            subtitle.append(OWSLocalizedString("PRIVACY_IDENTITY_IS_VERIFIED_BADGE",
                                               comment: "Badge indicating that the user is verified."))
             builder.addSubtitleLabel(attributedText: subtitle)
         }
@@ -245,13 +245,13 @@ struct ConversationHeaderBuilder: Dependencies {
         if options.contains(.message) {
             buttons.append(buildIconButton(
                 icon: .settingsChats,
-                text: NSLocalizedString(
+                text: OWSLocalizedString(
                         "CONVERSATION_SETTINGS_MESSAGE_BUTTON",
                         comment: "Button to message the chat"
                     ),
                 action: { [weak delegate] in
                     guard let delegate = delegate else { return }
-                    delegate.signalApp.presentConversation(for: delegate.thread, action: .compose, animated: true)
+                    SignalApp.shared.presentConversationForThread(delegate.thread, action: .compose, animated: true)
                 }
             ))
         }
@@ -262,8 +262,8 @@ struct ConversationHeaderBuilder: Dependencies {
 
             if options.contains(.videoCall) {
                 buttons.append(buildIconButton(
-                    icon: .videoCall,
-                    text: NSLocalizedString(
+                    icon: .buttonVideoCall,
+                    text: OWSLocalizedString(
                         "CONVERSATION_SETTINGS_VIDEO_CALL_BUTTON",
                         comment: "Button to start a video call"
                     ),
@@ -276,8 +276,8 @@ struct ConversationHeaderBuilder: Dependencies {
 
             if !delegate.thread.isGroupThread, options.contains(.audioCall) {
                 buttons.append(buildIconButton(
-                    icon: .audioCall,
-                    text: NSLocalizedString(
+                    icon: .buttonVoiceCall,
+                    text: OWSLocalizedString(
                         "CONVERSATION_SETTINGS_AUDIO_CALL_BUTTON",
                         comment: "Button to start a audio call"
                     ),
@@ -291,13 +291,13 @@ struct ConversationHeaderBuilder: Dependencies {
 
         if options.contains(.mute) {
             buttons.append(buildIconButton(
-                icon: .settingsMuted,
+                icon: .buttonMute,
                 text: delegate.threadViewModel.isMuted
-                    ? NSLocalizedString(
+                    ? OWSLocalizedString(
                         "CONVERSATION_SETTINGS_MUTED_BUTTON",
                         comment: "Button to unmute the chat"
                     )
-                    : NSLocalizedString(
+                    : OWSLocalizedString(
                         "CONVERSATION_SETTINGS_MUTE_BUTTON",
                         comment: "Button to mute the chat"
                     ),
@@ -313,10 +313,10 @@ struct ConversationHeaderBuilder: Dependencies {
             ))
         }
 
-        if options.contains(.search), !delegate.isBlockedByMigration {
+        if options.contains(.search), !delegate.isGroupV1Thread {
             buttons.append(buildIconButton(
-                icon: .settingsSearch,
-                text: NSLocalizedString(
+                icon: .buttonSearch,
+                text: OWSLocalizedString(
                     "CONVERSATION_SETTINGS_SEARCH_BUTTON",
                     comment: "Button to search the chat"
                 ),
@@ -359,43 +359,19 @@ struct ConversationHeaderBuilder: Dependencies {
 
     private var maxIconButtonWidth: CGFloat = 0
     mutating func buildIconButton(icon: ThemeIcon, text: String, isEnabled: Bool = true, action: @escaping () -> Void) -> UIView {
-        let button = OWSButton { [weak delegate] in
+        let button = SettingsHeaderButton(
+            text: text,
+            icon: icon,
+            backgroundColor: delegate.tableViewController.cellBackgroundColor,
+            isEnabled: isEnabled
+        ) { [weak delegate] in
             delegate?.tappedButton()
             action()
         }
-        button.dimsWhenHighlighted = true
-        button.isEnabled = isEnabled
-        button.layer.cornerRadius = 10
-        button.clipsToBounds = true
-        button.setBackgroundImage(UIImage(color: delegate.tableViewController.cellBackgroundColor), for: .normal)
-        button.accessibilityLabel = text
 
-        let imageView = UIImageView()
-        imageView.setTemplateImageName(Theme.iconName(icon), tintColor: Theme.primaryTextColor)
-        imageView.autoSetDimension(.height, toSize: 24)
-        imageView.contentMode = .scaleAspectFit
-
-        button.addSubview(imageView)
-        imageView.autoPinWidthToSuperview()
-        imageView.autoPinEdge(toSuperviewEdge: .top, withInset: 8)
-
-        let label = UILabel()
-        label.font = .ows_dynamicTypeCaption2Clamped
-        label.textColor = Theme.primaryTextColor
-        label.textAlignment = .center
-        label.text = text
-        label.sizeToFit()
-        label.setCompressionResistanceHorizontalHigh()
-
-        let buttonMinimumWidth = label.width + 24
-        if maxIconButtonWidth < buttonMinimumWidth {
-            maxIconButtonWidth = buttonMinimumWidth
+        if maxIconButtonWidth < button.minimumWidth {
+            maxIconButtonWidth = button.minimumWidth
         }
-
-        button.addSubview(label)
-        label.autoPinWidthToSuperview(withMargin: 12)
-        label.autoPinEdge(toSuperviewEdge: .bottom, withInset: 6)
-        label.autoPinEdge(.top, to: .bottom, of: imageView, withOffset: 2)
 
         return button
     }
@@ -407,7 +383,7 @@ struct ConversationHeaderBuilder: Dependencies {
             renderLocalUserAsNoteToSelf: true,
             transaction: transaction
         )
-        previewView.font = .ows_dynamicTypeSubheadlineClamped
+        previewView.font = .dynamicTypeSubheadlineClamped
         previewView.textColor = Theme.secondaryTextAndIconColor
         previewView.textAlignment = .center
         previewView.numberOfLines = 2
@@ -419,12 +395,12 @@ struct ConversationHeaderBuilder: Dependencies {
 
     mutating func addCreateGroupDescriptionButton() {
         let button = OWSButton { [weak delegate] in delegate?.didTapAddGroupDescription() }
-        button.setTitle(NSLocalizedString(
+        button.setTitle(OWSLocalizedString(
             "GROUP_DESCRIPTION_PLACEHOLDER",
             comment: "Placeholder text for 'group description' field."
         ), for: .normal)
         button.setTitleColor(Theme.secondaryTextAndIconColor, for: .normal)
-        button.titleLabel?.font = .ows_dynamicTypeSubheadlineClamped
+        button.titleLabel?.font = .dynamicTypeSubheadlineClamped
 
         subviews.append(UIView.spacer(withHeight: hasSubtitleLabel ? 4 : 8))
         subviews.append(button)
@@ -455,7 +431,7 @@ struct ConversationHeaderBuilder: Dependencies {
         )
         label.textColor = Theme.primaryTextColor
         // TODO: See if design really wants this custom font size.
-        label.font = UIFont.ows_semiboldFont(withSize: UIFont.ows_dynamicTypeTitle1Clamped.pointSize * (13/14))
+        label.font = UIFont.semiboldFont(ofSize: UIFont.dynamicTypeTitle1Clamped.pointSize * (13/14))
         label.lineBreakMode = .byTruncatingTail
         return label
     }
@@ -476,16 +452,10 @@ struct ConversationHeaderBuilder: Dependencies {
         return label
     }
 
-    mutating func addLegacyGroupView(groupThread: TSGroupThread) {
+    mutating func addLegacyGroupView() {
         subviews.append(UIView.spacer(withHeight: 12))
 
-        let migrationInfo = GroupsV2Migration.migrationInfoForManualMigration(groupThread: groupThread,
-                                                                              transaction: transaction)
-        let legacyGroupView = LegacyGroupView(
-            groupThread: groupThread,
-            migrationInfo: migrationInfo,
-            viewController: delegate
-        )
+        let legacyGroupView = LegacyGroupView(viewController: delegate)
         legacyGroupView.configure()
         legacyGroupView.backgroundColor = delegate.tableViewController.cellBackgroundColor
         subviews.append(legacyGroupView)
@@ -498,7 +468,7 @@ struct ConversationHeaderBuilder: Dependencies {
         // or the attributes will get overridden
         label.textColor = Theme.secondaryTextAndIconColor
         label.lineBreakMode = .byTruncatingTail
-        label.font = .ows_dynamicTypeSubheadlineClamped
+        label.font = .dynamicTypeSubheadlineClamped
 
         label.attributedText = attributedText
 
@@ -532,7 +502,7 @@ protocol ConversationHeaderDelegate: UIViewController, Dependencies, Conversatio
 
     var avatarView: PrimaryImageView? { get set }
 
-    var isBlockedByMigration: Bool { get }
+    var isGroupV1Thread: Bool { get }
     var canEditConversationAttributes: Bool { get }
 
     func updateTableContents(shouldReload: Bool)
@@ -585,13 +555,13 @@ extension ConversationHeaderDelegate {
 
         if let currentCall = callService.currentCall {
             if currentCall.thread.uniqueId == thread.uniqueId {
-                windowManager.returnToCallView()
+                WindowManager.shared.returnToCallView()
             } else {
                 owsFailDebug("Tried to start call while call was ongoing")
             }
         } else {
             // We initiated a call, so if there was a pending message request we should accept it.
-            ThreadUtil.addThreadToProfileWhitelistIfEmptyOrPendingRequestAndSetDefaultTimerWithSneakyTransaction(thread: thread)
+            ThreadUtil.addThreadToProfileWhitelistIfEmptyOrPendingRequestAndSetDefaultTimerWithSneakyTransaction(thread)
             callService.initiateCall(thread: thread, isVideo: withVideo)
         }
     }
@@ -630,7 +600,6 @@ extension ConversationSettingsViewController: GroupDescriptionViewControllerDele
 
 // MARK: -
 
-@objc
 public class OWSLabel: UILabel {
 
     // MARK: - Tap

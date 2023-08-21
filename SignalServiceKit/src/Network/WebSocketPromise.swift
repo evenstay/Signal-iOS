@@ -4,10 +4,14 @@
 //
 
 import Foundation
+import Network
 
 extension WebSocketFactory {
-    func webSocketPromise(request: URLRequest, queue: DispatchQueue) -> WebSocketPromise? {
-        guard let webSocket = buildSocket(request: request, callbackQueue: queue) else {
+    func webSocketPromise(
+        request: WebSocketRequest,
+        callbackScheduler: Scheduler
+    ) -> WebSocketPromise? {
+        guard let webSocket = buildSocket(request: request, callbackScheduler: callbackScheduler) else {
             return nil
         }
         return WebSocketPromise(webSocket: webSocket)
@@ -37,8 +41,8 @@ final class WebSocketPromise: SSKWebSocketDelegate {
         webSocket.connect()
     }
 
-    func disconnect() {
-        webSocket.disconnect()
+    func disconnect(code: URLSessionWebSocketTask.CloseCode?) {
+        webSocket.disconnect(code: code)
     }
 
     // MARK: - Sending
@@ -149,6 +153,14 @@ final class WebSocketPromise: SSKWebSocketDelegate {
         case .waitingForAllResponses(let future):
             switch state.socketError {
             case .some(WebSocketError.closeError(statusCode: WebSocketError.normalClosure, closeReason: _)):
+                // On iOS 13 & 14, we expect exactly one message. If we notice "!= 1"
+                // results on well-behaved platforms, surface it as an error since it's
+                // probably leading to incorrect behavior on iOS 13 & 14.
+                owsAssertDebug(state.receivedMessages.count == 1, "Must be exactly one message.")
+                let receivedMessages = state.receivedMessages
+                state.receivedMessages = []
+                return { future.resolve(receivedMessages) }
+            case .some(let socketError) where isNormalClosureOnOldOS(state, error: socketError):
                 let receivedMessages = state.receivedMessages
                 state.receivedMessages = []
                 return { future.resolve(receivedMessages) }
@@ -160,6 +172,36 @@ final class WebSocketPromise: SSKWebSocketDelegate {
             // Keep waiting until the socket is closed.
             return nil
         }
+    }
+
+    /// Checks if this is a "normalClosure" on iOS 13 & 14.
+    ///
+    /// On iOS 13 & 14, we get back a "Socket is not connected" error instead of
+    /// a callback to `urlSession(_:webSocketTask:didCloseWith:reason:)` when
+    /// the web socket is closed normally (ie, with a closeCode of 1000).
+    /// However, if the web socket is closed *abnormally*, the delegate method
+    /// is called. As a result, we interpret "Socket is not connected" as a
+    /// normal teardown on iOS 13 & 14 in some scenarios.
+    ///
+    /// Importantly, this heuristic behaves correctly since we expect exactly
+    /// one response when calling waitForAllResponses(). If we have a response,
+    /// it's successful. If we don't, it's a failure. In the future, if we
+    /// expect an arbitrary number of responses, we'll need a different
+    /// heuristic (it becomes impossible to know if we're still waiting for
+    /// additional responses or if we've received them all -- that EOF behavior
+    /// is exactly what the closeCode provides in the general case).
+    private func isNormalClosureOnOldOS(_ state: State, error: Error) -> Bool {
+        guard #unavailable(iOS 15) else {
+            return false
+        }
+        let nsError = error as NSError
+        guard nsError.domain == kNWErrorDomainPOSIX as String && nsError.code == ENOTCONN else {
+            return false
+        }
+        guard state.receivedMessages.count == 1 else {
+            return false
+        }
+        return true
     }
 
     // MARK: - SSKWebSocketDelegate

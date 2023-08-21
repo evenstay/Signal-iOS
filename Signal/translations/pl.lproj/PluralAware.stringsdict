@@ -113,13 +113,13 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Ten niestandardowy kolor jest używany w %1$d rozmowie. Czy chcesz go usunąć?</string>
+			<string>Ten niestandardowy kolor jest używany w %1$d czacie. Czy chcesz go usunąć?</string>
 			<key>few</key>
-			<string>Ten niestandardowy kolor jest używany w %1$d rozmowach. Czy chcesz usunąć go ze wszystkich rozmów?</string>
+			<string>Ten niestandardowy kolor jest używany w %1$d czatach. Czy chcesz usunąć go ze wszystkich czatów?</string>
 			<key>many</key>
-			<string>Ten niestandardowy kolor jest używany w %1$d rozmowach. Czy chcesz usunąć go ze wszystkich rozmów?</string>
+			<string>Ten niestandardowy kolor jest używany w %1$d czatach. Czy chcesz usunąć go ze wszystkich czatów?</string>
 			<key>other</key>
-			<string>Ten niestandardowy kolor jest używany w %1$d rozmowach. Czy chcesz usunąć go ze wszystkich rozmów?</string>
+			<string>Ten niestandardowy kolor jest używany w %1$d czatach. Czy chcesz usunąć go ze wszystkich czatów?</string>
 		</dict>
 	</dict>
 	<key>CHAT_COLOR_SETTINGS_UPDATE_ALERT_MESSAGE_%d</key>
@@ -133,13 +133,13 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Ten kolor jest używany w %1$d rozmowie. Czy chcesz usunąć go ze wszystkich rozmów?</string>
+			<string>Ten kolor jest używany w %1$d czacie. Czy chcesz zapisać zmiany dla wszystkich czatów?</string>
 			<key>few</key>
-			<string>Ten kolor jest używany w %1$d rozmowach. Czy chcesz zapisać zmiany dla wszystkich rozmów?</string>
+			<string>Ten kolor jest używany w %1$d czatach. Czy chcesz zapisać zmiany dla wszystkich czatów?</string>
 			<key>many</key>
-			<string>Ten kolor jest używany w %1$d rozmowach. Czy chcesz zapisać zmiany dla wszystkich rozmów?</string>
+			<string>Ten kolor jest używany w %1$d czatach. Czy chcesz zapisać zmiany dla wszystkich czatów?</string>
 			<key>other</key>
-			<string>Ten kolor jest używany w %1$d rozmowach. Czy chcesz zapisać zmiany dla wszystkich rozmów?</string>
+			<string>Ten kolor jest używany w %1$d czatach. Czy chcesz zapisać zmiany dla wszystkich czatów?</string>
 		</dict>
 	</dict>
 	<key>CONVERSATION_DELETE_CONFIRMATIONS_ALERT_TITLE_%d</key>
@@ -153,13 +153,13 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Usunąć rozmowę?</string>
+			<string>Usunąć czat?</string>
 			<key>few</key>
-			<string>Usunąć %1$d rozmowy?</string>
+			<string>Usunąć %1$d czaty?</string>
 			<key>many</key>
-			<string>Usunąć %1$d rozmów?</string>
+			<string>Usunąć %1$d czatów?</string>
 			<key>other</key>
-			<string>Usunąć %1$d rozmowy?</string>
+			<string>Usunąć %1$d czata?</string>
 		</dict>
 	</dict>
 	<key>CONVERSATION_DELETE_CONFIRMATION_ALERT_MESSAGES_%d</key>
@@ -173,13 +173,13 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Ta rozmowa zostanie usunięta z tego urządzenia.</string>
+			<string>Ten czat zostanie usunięty z tego urządzenia.</string>
 			<key>few</key>
-			<string>Te rozmowy zostaną usunięte z tego urządzenia.</string>
+			<string>Te czaty zostaną usunięte z tego urządzenia.</string>
 			<key>many</key>
-			<string>Te rozmowy zostaną usunięte z tego urządzenia.</string>
+			<string>Te czaty zostaną usunięte z tego urządzenia.</string>
 			<key>other</key>
-			<string>Te rozmowy zostaną usunięte z tego urządzenia.</string>
+			<string>Te czaty zostaną usunięte z tego urządzenia.</string>
 		</dict>
 	</dict>
 	<key>CONVERSATION_PICKER_CAN_SELECT_NO_MORE_CONVERSATIONS_%d</key>
@@ -193,13 +193,13 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Nie możesz wybrać więcej niż %1$d rozmowę.</string>
+			<string>Nie możesz wybrać więcej niż %1$d czat.</string>
 			<key>few</key>
-			<string>Nie możesz wybrać więcej niż %1$d rozmów.</string>
+			<string>Nie możesz wybrać więcej niż %1$d czaty.</string>
 			<key>many</key>
-			<string>Nie możesz wybrać więcej niż %1$d rozmów.</string>
+			<string>Nie możesz wybrać więcej niż %1$d czatów.</string>
 			<key>other</key>
-			<string>Nie możesz wybrać więcej niż %1$d rozmowy.</string>
+			<string>Nie możesz wybrać więcej niż %1$d czata.</string>
 		</dict>
 	</dict>
 	<key>CONVERSATION_SEARCH_RESULTS_%d_%d</key>
@@ -357,7 +357,7 @@
 			<string>Osiągnięto maksymalny rozmiar grupy %1$d członków grupy.</string>
 		</dict>
 	</dict>
-	<key>EXPIRATION_WARNING_%d</key>
+	<key>EDIT_MESSAGE_SEND_TOO_MANY_EDITS_ERROR</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
 		<string>%#@text@</string>
@@ -368,13 +368,13 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Twoja wersja Signal wygaśnie za %1$d dzień. Stuknij, aby zaktualizować do najnowszej wersji.</string>
+			<string>Tę wiadomość można edytować tylko %1$d raz.</string>
 			<key>few</key>
-			<string>Twoja wersja Signal wygaśnie za %1$d dni. Stuknij, aby zaktualizować do najnowszej wersji.</string>
+			<string>Tę wiadomość można edytować tylko %1$d razy.</string>
 			<key>many</key>
-			<string>Twoja wersja Signal wygaśnie za %1$d dni. Stuknij, aby zaktualizować do najnowszej wersji.</string>
+			<string>Tę wiadomość można edytować tylko %1$d razy.</string>
 			<key>other</key>
-			<string>Twoja wersja Signal wygaśnie za %1$d dni. Stuknij, aby zaktualizować do najnowszej wersji.</string>
+			<string>Tę wiadomość można edytować tylko %1$d raza.</string>
 		</dict>
 	</dict>
 	<key>FORWARD_MESSAGE_FIRST_FORWARD_PROCEED_%d</key>
@@ -395,26 +395,6 @@
 			<string>Wyślij %1$d wiadomości</string>
 			<key>other</key>
 			<string>Wyślij %1$d wiadomości</string>
-		</dict>
-	</dict>
-	<key>GROUPS_LEGACY_GROUP_DROPPED_MEMBERS_BANNER_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>%1$d członek nie mógł zostać ponownie dodany do nowej grupy. Czy chcesz dodać go teraz?</string>
-			<key>few</key>
-			<string>%1$d członków nie mogło zostać ponownie dodanych do nowej grupy. Czy chcesz dodać ich teraz?</string>
-			<key>many</key>
-			<string>%1$d członków nie mogło zostać ponownie dodanych do nowej grupy. Czy chcesz dodać ich teraz?</string>
-			<key>other</key>
-			<string>%1$d członków nie mogło zostać ponownie dodanych do nowej grupy. Czy chcesz dodać ich teraz?</string>
 		</dict>
 	</dict>
 	<key>GROUPS_TOO_MANY_MEMBERS_ALERT_MESSAGE_%d</key>
@@ -717,26 +697,6 @@
 			<string>%1$d członków</string>
 		</dict>
 	</dict>
-	<key>GROUP_REMOTE_USER_INVITED_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>%1$d osoba została zaproszona do grupy.</string>
-			<key>few</key>
-			<string>%1$d osoby zostały zaproszone do grupy.</string>
-			<key>many</key>
-			<string>%1$d osób zostało zaproszonych do grupy.</string>
-			<key>other</key>
-			<string>%1$d osób zostało zaproszonych do grupy.</string>
-		</dict>
-	</dict>
 	<key>GROUP_REMOTE_USER_INVITED_BY_REMOTE_USER_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -837,46 +797,6 @@
 			<string>Relacja grupowa · %1$d odbiorców</string>
 		</dict>
 	</dict>
-	<key>GROUP_WAS_MIGRATED_USERS_DROPPED_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>Jeden członek nie mógł zostać dodany do nowej grupy i został z niej usunięty.</string>
-			<key>few</key>
-			<string>%1$d członków nie mogło zostać dodanych do nowej grupy i zostało z niej usuniętych.</string>
-			<key>many</key>
-			<string>%1$d członków nie mogło zostać dodanych do nowej grupy i zostało z niej usuniętych.</string>
-			<key>other</key>
-			<string>%1$d członków nie mogło zostać dodanych do nowej grupy i zostało z niej usuniętych.</string>
-		</dict>
-	</dict>
-	<key>GROUP_WAS_MIGRATED_USERS_INVITED_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>Jeden członek nie mógł zostać dodany do nowej grupy i został do niej zaproszony.</string>
-			<key>few</key>
-			<string>%1$d członków nie mogło zostać dodanych do nowej grupy i zostało do niej zaproszonych.</string>
-			<key>many</key>
-			<string>%1$d członków nie mogło zostać dodanych do nowej grupy i zostało do niej zaproszonych.</string>
-			<key>other</key>
-			<string>%1$d członków nie mogło zostać dodanych do nowej grupy i zostało do niej zaproszonych.</string>
-		</dict>
-	</dict>
 	<key>IMAGE_PICKER_CAN_SELECT_NO_MORE_TOAST_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -917,7 +837,7 @@
 			<string>%1$d wspólne grupy</string>
 		</dict>
 	</dict>
-	<key>MEDIA_GALLERY_DELETE_MESSAGES_%d</key>
+	<key>MEDIA_GALLERY_DELETE_MEDIA_TITLE</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
 		<string>%#@text@</string>
@@ -928,13 +848,33 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Usuń %1$d wiadomość</string>
+			<string>Usunąć %1$d element?</string>
 			<key>few</key>
-			<string>Usuń %1$d wiadomości</string>
+			<string>Usunąć %1$d elementy?</string>
 			<key>many</key>
-			<string>Usuń %1$d wiadomości</string>
+			<string>Usunąć %1$d elementów?</string>
 			<key>other</key>
-			<string>Usuń %1$d wiadomości</string>
+			<string>Usunąć %1$d elementu?</string>
+		</dict>
+	</dict>
+	<key>MEDIA_GALLERY_DELETE_MEDIA_TOAST</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Usunięto jeden element</string>
+			<key>few</key>
+			<string>Usunięto %1$d elementy</string>
+			<key>many</key>
+			<string>Usunięto %1$d elementów</string>
+			<key>other</key>
+			<string>Usunięto %1$d elementu</string>
 		</dict>
 	</dict>
 	<key>MEDIA_GALLERY_ITEM_IMAGE_COUNT_%d</key>
@@ -975,6 +915,26 @@
 			<string>%1$d elementów</string>
 			<key>other</key>
 			<string>%1$d elementy</string>
+		</dict>
+	</dict>
+	<key>MEDIA_PAGE_FORWARD_MEDIA_CONFIRM_TITLE_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Przekaż %1$d</string>
+			<key>few</key>
+			<string>Przekaż %1$d</string>
+			<key>many</key>
+			<string>Przekaż %1$d</string>
+			<key>other</key>
+			<string>Przekaż %1$d</string>
 		</dict>
 	</dict>
 	<key>MESSAGES_VIEW_GROUP_N_MEMBERS_BLOCKED_%d</key>
@@ -1177,26 +1137,6 @@
 			<string>%1$d odbiorców</string>
 		</dict>
 	</dict>
-	<key>ONBOARDING_2FA_INVALID_PIN_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@caption@</string>
-		<key>caption</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>Nieprawidłowy kod PIN. Pozostała %1$d próba.</string>
-			<key>few</key>
-			<string>Nieprawidłowy kod PIN. Pozostały %1$d próby.</string>
-			<key>many</key>
-			<string>Nieprawidłowy kod PIN. Pozostało %1$d prób.</string>
-			<key>other</key>
-			<string>Nieprawidłowy kod PIN. Pozostało %1$d próby.</string>
-		</dict>
-	</dict>
 	<key>PENDING_GROUP_MEMBERS_MEMBER_INVITED_USERS_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -1317,44 +1257,24 @@
 			<string>Relacja niestandardowa · %1$d odbiorców</string>
 		</dict>
 	</dict>
-	<key>REGISTER_2FA_INVALID_PIN_ALERT_MESSAGE_%d</key>
+	<key>REREGISTER_INVALID_PIN_ATTEMPT_COUNT_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@caption@</string>
-		<key>caption</key>
+		<string>%#@text@</string>
+		<key>text</key>
 		<dict>
 			<key>NSStringFormatSpecTypeKey</key>
 			<string>NSStringPluralRuleType</string>
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Pozostała Ci %1$d próba. Po wyczerpaniu dostępnych prób możesz utworzyć nowy PIN. Możesz zarejestrować się i używać swojego konta, ale stracisz niektóre zapisane ustawienia, takie jak informacje o Twoim profilu.</string>
+			<string>%1$d próba</string>
 			<key>few</key>
-			<string>Pozostały Ci %1$d próby. Po wyczerpaniu dostępnych prób możesz utworzyć nowy PIN. Możesz zarejestrować się i używać swojego konta, ale stracisz niektóre zapisane ustawienia, takie jak informacje o Twoim profilu.</string>
+			<string>%1$d próby</string>
 			<key>many</key>
-			<string>Pozostało Ci %1$d prób. Po wyczerpaniu dostępnych prób możesz utworzyć nowy PIN. Możesz zarejestrować się i używać swojego konta, ale stracisz niektóre zapisane ustawienia, takie jak informacje o Twoim profilu.</string>
+			<string>%1$d prób</string>
 			<key>other</key>
-			<string>Pozostało Ci %1$d prób. Po wyczerpaniu dostępnych prób możesz utworzyć nowy PIN. Możesz zarejestrować się i używać swojego konta, ale stracisz niektóre zapisane ustawienia, takie jak informacje o Twoim profilu.</string>
-		</dict>
-	</dict>
-	<key>REGISTER_2FA_INVALID_PIN_ALERT_MESSAGE_REGLOCK_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@caption@</string>
-		<key>caption</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>Pozostała Ci %1$d próba. Po wyczerpaniu dostępnych prób twoje konto zostanie zablokowane. Po 7 dniach braku aktywności możesz zarejestrować się ponownie, bez użycia kodu PIN. Twoje konto zostanie skasowane, a cała jego zawartość usunięta.</string>
-			<key>few</key>
-			<string>Pozostały Ci %1$d próby. Po wyczerpaniu dostępnych prób twoje konto zostanie zablokowane. Po 7 dniach braku aktywności możesz zarejestrować się ponownie, bez użycia kodu PIN. Twoje konto zostanie skasowane, a cała jego zawartość usunięta.</string>
-			<key>many</key>
-			<string>Pozostało Ci %1$d prób. Po wyczerpaniu dostępnych prób twoje konto zostanie zablokowane. Po 7 dniach braku aktywności możesz zarejestrować się ponownie, bez użycia kodu PIN. Twoje konto zostanie skasowane, a cała jego zawartość usunięta.</string>
-			<key>other</key>
-			<string>Pozostały Ci %1$d próby. Po wyczerpaniu dostępnych prób twoje konto zostanie zablokowane. Po 7 dniach nieaktywności możesz zarejestrować się ponownie, bez użycia kodu PIN. Twoje konto zostanie skasowane, a cała jego zawartość usunięta.</string>
+			<string>%1$d próby</string>
 		</dict>
 	</dict>
 	<key>STORIES_SHARESHEET_PARTIAL_SEND_SUBTITLE_%d</key>

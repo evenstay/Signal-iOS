@@ -1,26 +1,19 @@
-Milioane de persoane folosesc Signal în fiecare zi pentru comunicare gratuită și instantanee oriunde în lume. Trimite și primește mesaje de înaltă fidelitate, efectuează apeluri vocale/video HD și explorează un set tot mai mare de funcționalități noi care te ajută să rămâi conectat. Tehnologia avansată de păstrare a confidențialității din Signal este întotdeauna activată, așa că te poți concentra pe împărtășirea momentelor care contează cu oamenii care contează.
+• Signal este o aplicație pentru mesaje care pune confidențialitatea pe primul loc. Este gratuit și ușor de folosit, cu criptare puternică integrală care păstrează comunicarea complet privată.
 
-• Spune orice – Criptarea integrală de ultimă generație (prin protocolul Signal Protocol™ cu sursă deschisă) îți păstrează conversațiile securizate. Confidențialitatea nu este o opțiune — e pur și simplu modul în care funcționează Signal la fiecare mesaj, fiecare apel, de fiecare dată.
+• Trimite texte, mesaje vocale, fotografii, videoclipuri, GIF-uri și fișiere gratuite. Signal folosește conexiunea de date a telefonului tău, așadar evită taxele SMS și MMS.
 
-• Rapid – Mesajele sunt transmise rapid și fiabil, chiar și în rețele lente. Signal este optimizat să funcționeze în cele mai restrictive medii posibile.
+• Sună-ți prietenii cu apeluri vocale și video criptate, extrem de clare. Apelurile de grup acceptă până la 40 de persoane.
 
-• Libertate – Signal este o organizație non-profit înființată în baza secțiunii 501c3 și este complet independentă. Dezvoltarea este susținută de utilizatori ca tine. Fără reclame. Fără elemente de urmărire. Pe bune.
+• Rămâi conectat/ă la conversațiile de grup cu până la 1000 de persoane. Controlează cine poate posta și gestionează membrii de grup cu setările de permisiune de administrator.
 
-• Fii tu însuți – Vei putea folosi numărul de telefon existent și adresa de contacte pentru a comunica în siguranță cu prietenii.
+• Trimite Povești video, cu imagini și text care dispar după 24 de ore. Setările de confidențialitate te păstrează în control și poți stabili cine îți vede fiecare Poveste.
 
-• Vorbește clar – Fie că locuiesc în cealaltă parte a orașului sau peste ocean, calitatea audio și video amplificată din Signal îți ține aproape prietenii și familia.
+• Signal este construit pentru confidențialitatea ta. Nu știm nimic despre tine sau despre persoanele cu care vorbești. Protocolul Signal cu surse deschise înseamnă că nu îți putem citi mesajele și nu îți putem asculta apelurile. Și nici altcineva nu poate face așa ceva. Nu există breșe, colectare de date sau compromisuri. 
 
-• Șoapte din umbră – Treci pe tema întunecată dacă nu vrei să vezi lumina.
+• Signal este o companie independentă și non-profit; un tip diferit de tehnologie pentru un tip diferit de organizație. Ca nonprofit de tip 501c3 suntem sprijiniți de donațiile tale, nu de publicitate sau investitori. 
 
-• Sunete familiare – Alege alerte personalizate pentru fiecare contact sau dezactivează complet sunetele. Simon și Garfunkel au scris un hit despre asta în 1964 și poți trăi sunetul liniștii oricând vrei selectând „Niciunul” pentru tonul de notificări.
+• Pentru asistență, întrebări sau informații suplimentare, intră pe: https://support.signal.org/
 
-• Editare imagini – Folosește funcționalitățile încorporate de editare a imaginilor ca să desenezi, să decupezi și să rotești fotografiile trimise. Imaginile valorează cât 1.000 de cuvinte, dar ai chiar și un instrument de text ca să adaugi și mai multe.
+Pentru a verifica codul nostru sursă, vizitează https://github.com/signalapp 
 
-
-Pentru asistență, întrebări sau informații suplimentare, intră pe:
-https://support.signal.org
-
-Cod-sursă:
-https://github.com/signalapp
-
-Urmărește-ne pe Twitter (@signalapp) și Instagram (@signal_app) pentru toate actualizările și anunțurile cele mai recente.
+Urmărește-ne pe Twitter @signalapp și Instagram @signal_app

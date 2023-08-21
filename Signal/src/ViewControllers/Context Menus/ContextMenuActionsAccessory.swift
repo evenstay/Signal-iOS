@@ -3,9 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalMessaging
-import UIKit
+import SignalUI
 
 public class ContextMenuActionsAccessory: ContextMenuTargetedPreviewAccessory, ContextMenuActionsViewDelegate {
 
@@ -197,7 +196,7 @@ private class ContextMenuActionsView: UIView, UIGestureRecognizerDelegate, UIScr
         ) {
             titleLabel = UILabel(frame: CGRect.zero)
             titleLabel.text = title
-            titleLabel.font = .ows_dynamicTypeBodyClamped
+            titleLabel.font = .dynamicTypeBodyClamped
             titleLabel.numberOfLines = titleMaxLines
 
             self.attributes = attributes
@@ -230,11 +229,7 @@ private class ContextMenuActionsView: UIView, UIGestureRecognizerDelegate, UIScr
             separatorView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
             isHighlighted = false
 
-            if #available(iOS 13, *) {
-                visualEffectView = UIVisualEffectView(effect: UIVibrancyEffect(blurEffect: hostBlurEffect, style: .label))
-            } else {
-                visualEffectView = UIVisualEffectView(effect: UIVibrancyEffect(blurEffect: hostBlurEffect))
-            }
+            visualEffectView = UIVisualEffectView(effect: UIVibrancyEffect(blurEffect: hostBlurEffect, style: .label))
             super.init(frame: .zero)
 
             addSubview(visualEffectView)
@@ -341,12 +336,7 @@ private class ContextMenuActionsView: UIView, UIGestureRecognizerDelegate, UIScr
         self.forceDarkTheme = forceDarkTheme
 
         scrollView = UIScrollView(frame: CGRect.zero)
-        let effect: UIBlurEffect
-        if #available(iOS 13, *) {
-            effect = .init(style: .systemThinMaterial)
-        } else {
-            effect = .init(style: .extraLight)
-        }
+        let effect: UIBlurEffect = .init(style: .systemThinMaterial)
         backdropView = UIVisualEffectView(effect: effect)
         backdropView.backgroundColor = Theme.isDarkThemeEnabled || forceDarkTheme
             ? .ows_blackAlpha80
@@ -438,7 +428,7 @@ private class ContextMenuActionsView: UIView, UIGestureRecognizerDelegate, UIScr
 
     // MARK: Gestures
     @objc
-    func tapGestureRecognized(sender: UIGestureRecognizer) {
+    private func tapGestureRecognized(sender: UIGestureRecognizer) {
         if sender.state == .began || sender.state == .changed {
             handleGestureChanged(locationInView: sender.location(in: scrollView))
         } else if sender.state == .ended {
@@ -447,7 +437,7 @@ private class ContextMenuActionsView: UIView, UIGestureRecognizerDelegate, UIScr
     }
 
     @objc
-    func hoverGestureRecognized(sender: UIGestureRecognizer) {
+    private func hoverGestureRecognized(sender: UIGestureRecognizer) {
         if sender.state == .began || sender.state == .changed {
             handleGestureChanged(locationInView: sender.location(in: scrollView))
         } else if sender.state == .ended {
@@ -475,7 +465,7 @@ private class ContextMenuActionsView: UIView, UIGestureRecognizerDelegate, UIScr
         }
 
         if highlightStateChanged {
-            ImpactHapticFeedback.impactOccured(style: .light)
+            ImpactHapticFeedback.impactOccurred(style: .light)
         }
     }
 

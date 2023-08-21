@@ -73,6 +73,10 @@ public class UserNotificationConfig {
             // Currently, .submitDebugLogs is only used as a default action.
             owsFailDebug("Show submit debug logs not supported as a UNNotificationAction")
             return nil
+        case .reregister:
+            // Currently, .reregister is only used as a default action.
+            owsFailDebug("Reregister is not supported as a UNNotificationAction")
+            return nil
         }
     }
 
@@ -128,6 +132,7 @@ public class UserNotificationConfig {
 
 class UserNotificationPresenter: Dependencies {
     typealias NotificationActionCompletion = () -> Void
+    typealias NotificationReplaceCompletion = (Bool) -> Void
 
     private static var notificationCenter: UNUserNotificationCenter { UNUserNotificationCenter.current() }
 
@@ -139,23 +144,21 @@ class UserNotificationPresenter: Dependencies {
         SwiftSingletons.register(self)
     }
 
-    func registerNotificationSettings() -> Promise<Void> {
-        return Promise { future in
+    /// Request notification permissions.
+    func registerNotificationSettings() -> Guarantee<Void> {
+        return Guarantee { done in
             Self.notificationCenter.requestAuthorization(options: [.badge, .sound, .alert]) { (granted, error) in
                 Self.notificationCenter.setNotificationCategories(UserNotificationConfig.allNotificationCategories)
 
                 if granted {
-                    Logger.debug("succeeded.")
-                } else if let error = error {
-                    Logger.error("failed with error: \(error)")
+                    Logger.info("User granted notification permission")
+                } else if let error {
+                    owsFailDebug("Notification permission request failed with error: \(error)")
                 } else {
-                    Logger.info("failed without error. User denied notification permissions.")
+                    Logger.info("User denied notification permission")
                 }
 
-                // Note that the promise is fulfilled regardless of if notification permissions were
-                // granted. This promise only indicates that the user has responded, so we can
-                // proceed with requesting push tokens and complete registration.
-                future.resolve()
+                done(())
             }
         }
     }
@@ -169,11 +172,11 @@ class UserNotificationPresenter: Dependencies {
         threadIdentifier: String?,
         userInfo: [AnyHashable: Any],
         interaction: INInteraction?,
-        sound: OWSSound?,
+        sound: Sound?,
         replacingIdentifier: String? = nil,
         completion: NotificationActionCompletion?
     ) {
-        guard tsAccountManager.isOnboarded() else {
+        guard tsAccountManager.isOnboarded else {
             Logger.info("suppressing notification since user hasn't yet completed onboarding.")
             completion?()
             return
@@ -183,7 +186,7 @@ class UserNotificationPresenter: Dependencies {
         content.categoryIdentifier = category.identifier
         content.userInfo = userInfo
         let isAppActive = CurrentAppContext().isMainAppAndActive
-        if let sound = sound, sound != OWSStandardSound.none.rawValue {
+        if let sound, sound != .standard(.none) {
             Logger.info("[Notification Sounds] presenting notification with sound")
             content.sound = sound.notificationSound(isQuiet: isAppActive)
         } else {
@@ -214,9 +217,7 @@ class UserNotificationPresenter: Dependencies {
             if let displayableTitle = title?.filterForDisplay {
                 content.title = displayableTitle
             }
-            if let displayableBody = body.filterForDisplay {
-                content.body = displayableBody
-            }
+            content.body = body.filterForDisplay
         } else {
             // Play sound and vibrate, but without a `body` no banner will show.
             Logger.debug("suppressing notification body")
@@ -305,7 +306,8 @@ class UserNotificationPresenter: Dependencies {
              .incomingCall,
              .missedCallWithActions,
              .missedCallWithoutActions,
-             .missedCallFromNoLongerVerifiedIdentity:
+             .missedCallFromNoLongerVerifiedIdentity,
+             .deregistration:
             // Always show these notifications
             return true
         case .internalError:
@@ -357,6 +359,19 @@ class UserNotificationPresenter: Dependencies {
         case .incomingMessageGeneric:
             owsFailDebug(".incomingMessageGeneric should never check shouldPresentNotification().")
             return true
+
+        }
+    }
+
+    // MARK: - Replacement
+
+    func replaceNotification(messageId: String, completion: @escaping NotificationReplaceCompletion) {
+        getNotificationsRequests { requests in
+            let didFindNotification = self.cancelSync(
+                notificationRequests: requests,
+                matching: .messageIds([messageId])
+            )
+            completion(didFindNotification)
         }
     }
 
@@ -374,6 +389,10 @@ class UserNotificationPresenter: Dependencies {
         cancel(cancellation: .reactionId(reactionId), completion: completion)
     }
 
+    func cancelNotificationsForMissedCalls(withThreadUniqueId threadId: String, completion: @escaping NotificationActionCompletion) {
+        cancel(cancellation: .missedCalls(inThreadWithUniqueId: threadId), completion: completion)
+    }
+
     func clearAllNotifications() {
         Logger.warn("Clearing all notifications")
 
@@ -385,6 +404,7 @@ class UserNotificationPresenter: Dependencies {
         case threadId(String)
         case messageIds(Set<String>)
         case reactionId(String)
+        case missedCalls(inThreadWithUniqueId: String)
     }
 
     private func getNotificationsRequests(completion: @escaping ([UNNotificationRequest]) -> Void) {
@@ -405,10 +425,11 @@ class UserNotificationPresenter: Dependencies {
         }
     }
 
+    @discardableResult
     private func cancelSync(
         notificationRequests: [UNNotificationRequest],
         matching cancellationType: CancellationType
-    ) {
+    ) -> Bool {
         let requestMatchesPredicate: (UNNotificationRequest) -> Bool = { request in
             switch cancellationType {
             case .threadId(let threadId):
@@ -432,6 +453,14 @@ class UserNotificationPresenter: Dependencies {
                 {
                     return true
                 }
+            case .missedCalls(let threadUniqueId):
+                if
+                    (request.content.userInfo[AppNotificationUserInfoKey.isMissedCall] as? Bool) == true,
+                    let requestThreadId = request.content.userInfo[AppNotificationUserInfoKey.threadId] as? String,
+                    threadUniqueId == requestThreadId
+                {
+                    return true
+                }
             }
 
             return false
@@ -448,13 +477,15 @@ class UserNotificationPresenter: Dependencies {
         }()
 
         guard !identifiersToCancel.isEmpty else {
-            return
+            return false
         }
 
         Logger.info("Removing delivered/pending notifications with identifiers: \(identifiersToCancel)")
 
         Self.notificationCenter.removeDeliveredNotifications(withIdentifiers: identifiersToCancel)
         Self.notificationCenter.removePendingNotificationRequests(withIdentifiers: identifiersToCancel)
+
+        return true
     }
 
     // This method is thread-safe.
@@ -475,14 +506,14 @@ public protocol StoryGroupReplier: UIViewController {
     var threadUniqueId: String? { get }
 }
 
-extension OWSSound {
+extension Sound {
     func notificationSound(isQuiet: Bool) -> UNNotificationSound {
-        guard let filename = OWSSounds.filename(forSound: self, quiet: isQuiet) else {
+        guard let filename = filename(quiet: isQuiet) else {
             owsFailDebug("[Notification Sounds] sound filename was unexpectedly nil")
             return UNNotificationSound.default
         }
         if
-            !FileManager.default.fileExists(atPath: (OWSSounds.soundsDirectory() as NSString).appendingPathComponent(filename))
+            !FileManager.default.fileExists(atPath: (Sounds.soundsDirectory as NSString).appendingPathComponent(filename))
             && !FileManager.default.fileExists(atPath: (Bundle.main.bundlePath as NSString).appendingPathComponent(filename))
         {
             Logger.info("[Notification Sounds] sound file doesn't exist!")

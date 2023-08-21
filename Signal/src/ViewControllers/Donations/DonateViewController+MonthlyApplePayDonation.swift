@@ -25,22 +25,60 @@ extension DonateViewController {
             owsFail("[Donations] Invalid state; cannot pay")
         }
 
+        Logger.info("[Donations] Starting monthly Apple Pay donation")
+
+        let badgesSnapshot = BadgeThanksSheet.currentProfileBadgesSnapshot()
+
         // See also: code for other payment methods, such as credit/debit card.
-        firstly(on: .sharedUserInitiated) { () -> Promise<Void> in
-            if let subscriberID = monthly.subscriberID, monthly.currentSubscription != nil {
-                return SubscriptionManager.cancelSubscription(for: subscriberID)
+        firstly(on: DispatchQueue.sharedUserInitiated) { () -> Promise<Void> in
+            if let existingSubscriberId = monthly.subscriberID, monthly.currentSubscription != nil {
+                Logger.info("[Donations] Cancelling existing subscription")
+
+                return SubscriptionManagerImpl.cancelSubscription(for: existingSubscriberId)
             } else {
+                Logger.info("[Donations] No existing subscription to cancel")
+
                 return Promise.value(())
             }
-        }.then(on: .sharedUserInitiated) {
-            SubscriptionManager.setupNewSubscription(
-                subscription: selectedSubscriptionLevel,
-                applePayPayment: payment,
+        }.then(on: DispatchQueue.sharedUserInitiated) { () -> Promise<Data> in
+            Logger.info("[Donations] Preparing new monthly subscription with Apple Pay")
+
+            return SubscriptionManagerImpl.prepareNewSubscription(
                 currencyCode: monthly.selectedCurrencyCode
             )
-        }.done(on: .main) { (subscriberID: Data) in
+        }.then(on: DispatchQueue.sharedUserInitiated) { subscriberId -> Promise<(Data, String)> in
+            firstly { () -> Promise<String> in
+                Logger.info("[Donations] Creating Signal payment method for new monthly subscription with Apple Pay")
+
+                return Stripe.createSignalPaymentMethodForSubscription(subscriberId: subscriberId)
+            }.then(on: DispatchQueue.sharedUserInitiated) { clientSecret -> Promise<String> in
+                Logger.info("[Donations] Authorizing payment for new monthly subscription with Apple Pay")
+
+                return Stripe.setupNewSubscription(
+                    clientSecret: clientSecret,
+                    paymentMethod: .applePay(payment: payment),
+                    show3DS: { _ in
+                        owsFail("[Donations] 3D Secure should not be shown for Apple Pay")
+                    }
+                )
+            }.map(on: DispatchQueue.sharedUserInitiated) { paymentId in
+                (subscriberId, paymentId)
+            }
+        }.then(on: DispatchQueue.sharedUserInitiated) { (subscriberId, paymentId) -> Promise<Data> in
+            Logger.info("[Donations] Finalizing new subscription for Apple Pay donation")
+
+            return SubscriptionManagerImpl.finalizeNewSubscription(
+                forSubscriberId: subscriberId,
+                withPaymentId: paymentId,
+                usingPaymentMethod: .applePay,
+                subscription: selectedSubscriptionLevel,
+                currencyCode: monthly.selectedCurrencyCode
+            ).map(on: DispatchQueue.sharedUserInitiated) { _ in subscriberId }
+        }.done(on: DispatchQueue.main) { subscriberID in
             let authResult = PKPaymentAuthorizationResult(status: .success, errors: nil)
             completion(authResult)
+
+            Logger.info("[Donations] Redeeming monthly receipt for Apple Pay donation")
 
             DonationViewsUtil.redeemMonthlyReceipts(
                 usingPaymentProcessor: .stripe,
@@ -52,18 +90,22 @@ extension DonateViewController {
             DonationViewsUtil.wrapPromiseInProgressView(
                 from: self,
                 promise: DonationViewsUtil.waitForSubscriptionJob()
-            ).done(on: .main) {
+            ).done(on: DispatchQueue.main) {
+                Logger.info("[Donations] Monthly card donation finished")
+
                 self.didCompleteDonation(
                     badge: selectedSubscriptionLevel.badge,
-                    thanksSheetType: .subscription
+                    thanksSheetType: .subscription,
+                    oldBadgesSnapshot: badgesSnapshot
                 )
-            }.catch(on: .main) { [weak self] error in
+            }.catch(on: DispatchQueue.main) { [weak self] error in
+                Logger.info("[Donations] Monthly card donation failed")
+
                 self?.didFailDonation(error: error, mode: .monthly, paymentMethod: .applePay)
             }
-        }.catch(on: .main) { error in
+        }.catch(on: DispatchQueue.main) { error in
             let authResult = PKPaymentAuthorizationResult(status: .failure, errors: [error])
             completion(authResult)
-            SubscriptionManager.terminateTransactionIfPossible = false
             owsFailDebug("[Donations] Error setting up subscription, \(error)")
         }
     }

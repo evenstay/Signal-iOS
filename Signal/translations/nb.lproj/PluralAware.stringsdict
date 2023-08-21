@@ -93,9 +93,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Denne selvvalgte fargen brukes i %1$d samtale. Vil du fjerne den?</string>
+			<string>Denne egendefinerte fargen brukes i %1$d samtale. Ønsker du å slette den?</string>
 			<key>other</key>
-			<string>Denne selvvalgte fargen brukes i %1$d samtaler. Vil du fjerne den i alle samtalene?</string>
+			<string>Denne egendefinerte fargen brukes i %1$d samtaler. Ønsker du å slette den for alle samtalene?</string>
 		</dict>
 	</dict>
 	<key>CHAT_COLOR_SETTINGS_UPDATE_ALERT_MESSAGE_%d</key>
@@ -141,7 +141,7 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Denne samtalen vil slettes fra enheten.</string>
+			<string>Denne samtalen slettes fra denne enheten.</string>
 			<key>other</key>
 			<string>Disse samtalene vil slettes fra enheten.</string>
 		</dict>
@@ -285,7 +285,7 @@
 			<string>Maks gruppestørrelse på %1$d medlemmer er nådd.</string>
 		</dict>
 	</dict>
-	<key>EXPIRATION_WARNING_%d</key>
+	<key>EDIT_MESSAGE_SEND_TOO_MANY_EDITS_ERROR</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
 		<string>%#@text@</string>
@@ -296,9 +296,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Din nåværende Signal-versjon utløper om %1$d dag. Trykk for å oppdatere til den nyeste versjonen.</string>
+			<string>Du kan kun gjøre %1$d endring i denne meldingen.</string>
 			<key>other</key>
-			<string>Din nåværende Signal-versjon utløper om %1$d dager. Trykk for å oppdatere til den nyeste versjonen.</string>
+			<string>Du kan kun gjøre %1$d endringer i denne meldingen.</string>
 		</dict>
 	</dict>
 	<key>FORWARD_MESSAGE_FIRST_FORWARD_PROCEED_%d</key>
@@ -315,22 +315,6 @@
 			<string>Send %1$d melding</string>
 			<key>other</key>
 			<string>Send %1$d meldinger</string>
-		</dict>
-	</dict>
-	<key>GROUPS_LEGACY_GROUP_DROPPED_MEMBERS_BANNER_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>%1$d medlem kunne ikke legges til på nytt i den nye gruppen. Vil du legge det til nå?</string>
-			<key>other</key>
-			<string>%1$d medlemmer kunne ikke legges til på nytt i den nye gruppen. Vil du legge dem til nå?</string>
 		</dict>
 	</dict>
 	<key>GROUPS_TOO_MANY_MEMBERS_ALERT_MESSAGE_%d</key>
@@ -573,22 +557,6 @@
 			<string>%1$d medlemmer</string>
 		</dict>
 	</dict>
-	<key>GROUP_REMOTE_USER_INVITED_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>%1$d person ble invitert til å bli med i gruppen.</string>
-			<key>other</key>
-			<string>%1$d personer ble invitert til å bli med i gruppen.</string>
-		</dict>
-	</dict>
 	<key>GROUP_REMOTE_USER_INVITED_BY_REMOTE_USER_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -669,38 +637,6 @@
 			<string>Gruppestory · Sett av %1$d</string>
 		</dict>
 	</dict>
-	<key>GROUP_WAS_MIGRATED_USERS_DROPPED_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>%1$d medlem kunne ikke legges til i den nye gruppen og har blitt fjernet.</string>
-			<key>other</key>
-			<string>%1$d medlemmer kunne ikke legges til i den nye gruppen og har blitt fjernet.</string>
-		</dict>
-	</dict>
-	<key>GROUP_WAS_MIGRATED_USERS_INVITED_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>%1$d medlem kunne ikke legges til i den nye gruppen og har blitt invitert på nytt.</string>
-			<key>other</key>
-			<string>%1$d medlemmer kunne ikke legges til i den nye gruppen og har blitt invitert på nytt.</string>
-		</dict>
-	</dict>
 	<key>IMAGE_PICKER_CAN_SELECT_NO_MORE_TOAST_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -733,7 +669,7 @@
 			<string>%1$d grupper til felles</string>
 		</dict>
 	</dict>
-	<key>MEDIA_GALLERY_DELETE_MESSAGES_%d</key>
+	<key>MEDIA_GALLERY_DELETE_MEDIA_TITLE</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
 		<string>%#@text@</string>
@@ -744,9 +680,25 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Slett %1$d melding</string>
+			<string>Vil du slette %1$d element?</string>
 			<key>other</key>
-			<string>Slett %1$d meldinger</string>
+			<string>Vil du slette %1$d elementer?</string>
+		</dict>
+	</dict>
+	<key>MEDIA_GALLERY_DELETE_MEDIA_TOAST</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d element ble slettet</string>
+			<key>other</key>
+			<string>%1$d elementer ble slettet</string>
 		</dict>
 	</dict>
 	<key>MEDIA_GALLERY_ITEM_IMAGE_COUNT_%d</key>
@@ -779,6 +731,22 @@
 			<string>%1$d element</string>
 			<key>other</key>
 			<string>%1$d elementer</string>
+		</dict>
+	</dict>
+	<key>MEDIA_PAGE_FORWARD_MEDIA_CONFIRM_TITLE_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Videresend %1$d</string>
+			<key>other</key>
+			<string>Videresend %1$d</string>
 		</dict>
 	</dict>
 	<key>MESSAGES_VIEW_GROUP_N_MEMBERS_BLOCKED_%d</key>
@@ -941,22 +909,6 @@
 			<string>Sett av %1$d</string>
 		</dict>
 	</dict>
-	<key>ONBOARDING_2FA_INVALID_PIN_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@caption@</string>
-		<key>caption</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>Feil PIN-kode. %1$d forsøk gjenstår.</string>
-			<key>other</key>
-			<string>Feil PIN-kode. %1$d forsøk gjenstår.</string>
-		</dict>
-	</dict>
 	<key>PENDING_GROUP_MEMBERS_MEMBER_INVITED_USERS_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -1053,36 +1005,20 @@
 			<string>Egendefinert story · Sett av %1$d</string>
 		</dict>
 	</dict>
-	<key>REGISTER_2FA_INVALID_PIN_ALERT_MESSAGE_%d</key>
+	<key>REREGISTER_INVALID_PIN_ATTEMPT_COUNT_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@caption@</string>
-		<key>caption</key>
+		<string>%#@text@</string>
+		<key>text</key>
 		<dict>
 			<key>NSStringFormatSpecTypeKey</key>
 			<string>NSStringPluralRuleType</string>
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Du har %1$d forsøk igjen. Du kan lage en ny PIN-kode hvis du går tom for forsøk. Du kan registrere og bruke kontoen din, men du mister enkelte lagrede innstillinger, som profilinformasjonen din.</string>
+			<string>%1$d forsøk</string>
 			<key>other</key>
-			<string>Du har %1$d forsøk igjen. Du kan lage en ny PIN-kode hvis du går tom for forsøk. Du kan registrere og bruke kontoen din, men du mister enkelte lagrede innstillinger, som profilinformasjonen din.</string>
-		</dict>
-	</dict>
-	<key>REGISTER_2FA_INVALID_PIN_ALERT_MESSAGE_REGLOCK_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@caption@</string>
-		<key>caption</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>Du har %1$d forsøk igjen. Kontoen din sperres hvis du går tom for forsøk. Du kan registrere deg på nytt uten PIN-koden din etter syv dager med inaktivitet. Alle innstillinger og alt innhold slettes automatisk fra kontoen din.</string>
-			<key>other</key>
-			<string>Du har %1$d forsøk igjen. Kontoen din sperres hvis du går tom for forsøk. Du kan registrere deg på nytt uten PIN-koden din etter syv dager med inaktivitet. Alle innstillinger og alt innhold slettes automatisk fra kontoen din.</string>
+			<string>%1$d forsøk</string>
 		</dict>
 	</dict>
 	<key>STORIES_SHARESHEET_PARTIAL_SEND_SUBTITLE_%d</key>

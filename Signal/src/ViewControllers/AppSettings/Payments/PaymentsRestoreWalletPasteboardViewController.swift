@@ -3,10 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalMessaging
+import SignalUI
 
-@objc
 public class PaymentsRestoreWalletPasteboardViewController: OWSViewController {
 
     private weak var restoreWalletDelegate: PaymentsRestoreWalletDelegate?
@@ -26,7 +25,7 @@ public class PaymentsRestoreWalletPasteboardViewController: OWSViewController {
     public override func viewDidLoad() {
         super.viewDidLoad()
 
-        title = NSLocalizedString("SETTINGS_PAYMENTS_RESTORE_WALLET_PASTE_TITLE",
+        title = OWSLocalizedString("SETTINGS_PAYMENTS_RESTORE_WALLET_PASTE_TITLE",
                                   comment: "Title for the 'restore payments wallet from pasteboard' view of the app settings.")
 
         OWSTableViewController2.removeBackButtonText(viewController: self)
@@ -74,7 +73,7 @@ public class PaymentsRestoreWalletPasteboardViewController: OWSViewController {
         view.backgroundColor = OWSTableViewController2.tableBackgroundColor(isUsingPresentedStyle: true)
 
         textField.textColor = Theme.primaryTextColor
-        textField.font = .ows_dynamicTypeBodyClamped
+        textField.font = .dynamicTypeBodyClamped
         textField.keyboardAppearance = Theme.keyboardAppearance
         textField.autocapitalizationType = .none
         textField.autocorrectionType = .no
@@ -85,7 +84,7 @@ public class PaymentsRestoreWalletPasteboardViewController: OWSViewController {
         textField.accessibilityIdentifier = "payments.passphrase.restore-paste"
         textField.delegate = self
 
-        textField.placeholder = NSLocalizedString("SETTINGS_PAYMENTS_RESTORE_WALLET_PASTE_PLACEHOLDER",
+        textField.placeholder = OWSLocalizedString("SETTINGS_PAYMENTS_RESTORE_WALLET_PASTE_PLACEHOLDER",
                                                   comment: "Format for the placeholder text in the 'restore payments wallet from pasteboard' view of the app settings.")
 
         let textfieldStack = UIStackView(arrangedSubviews: [ textField ])
@@ -97,7 +96,7 @@ public class PaymentsRestoreWalletPasteboardViewController: OWSViewController {
         textfieldStack.addBackgroundView(withBackgroundColor: Theme.backgroundColor, cornerRadius: 10)
 
         let nextButton = OWSFlatButton.button(title: CommonStrings.nextButton,
-                                              font: UIFont.ows_dynamicTypeBody.ows_semibold,
+                                              font: UIFont.dynamicTypeBody.semibold(),
                                               titleColor: .white,
                                               backgroundColor: .ows_accentBlue,
                                               target: self,
@@ -117,17 +116,17 @@ public class PaymentsRestoreWalletPasteboardViewController: OWSViewController {
     // MARK: - Events
 
     @objc
-    func didTapDismiss() {
+    private func didTapDismiss() {
         navigationController?.popViewController(animated: true)
     }
 
     @objc
-    func didTapNextButton() {
+    private func didTapNextButton() {
         tryToRestoreFromPassphrase()
     }
 
     @objc
-    func tryToRestoreFromPassphrase() {
+    private func tryToRestoreFromPassphrase() {
         guard let restoreWalletDelegate = restoreWalletDelegate else {
             owsFailDebug("Missing restoreWalletDelegate.")
             dismiss(animated: true, completion: nil)
@@ -146,7 +145,7 @@ public class PaymentsRestoreWalletPasteboardViewController: OWSViewController {
             }
         }
         guard let passphrase = tryToParsePassphrase() else {
-            OWSActionSheets.showErrorAlert(message: NSLocalizedString("SETTINGS_PAYMENTS_RESTORE_WALLET_WORD_INVALID_PASSPHRASE",
+            OWSActionSheets.showErrorAlert(message: OWSLocalizedString("SETTINGS_PAYMENTS_RESTORE_WALLET_WORD_INVALID_PASSPHRASE",
                                                                       comment: "Error indicating that the user has entered an invalid payments passphrase in the 'restore payments wallet' views."))
             return
         }

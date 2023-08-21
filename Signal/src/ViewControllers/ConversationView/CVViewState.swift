@@ -3,7 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalServiceKit
+import SignalUI
 
 public protocol CVViewStateDelegate: AnyObject {
     func viewStateUIModeDidChange(oldValue: ConversationUIMode)
@@ -17,12 +18,10 @@ public protocol CVViewStateDelegate: AnyObject {
 public class CVViewState: NSObject {
     public weak var delegate: CVViewStateDelegate?
 
-    public var threadViewModel: ThreadViewModel
+    public let threadUniqueId: String
     public var conversationStyle: ConversationStyle
     public var inputToolbar: ConversationInputToolbar?
     public let headerView = ConversationHeaderView()
-
-    public var hasTriedToMigrateGroup = false
 
     public let inputAccessoryPlaceholder = InputAccessoryViewPlaceholder()
     public var bottomBar = UIView.container()
@@ -80,6 +79,7 @@ public class CVViewState: NSObject {
 
     public let selectionState = CVSelectionState()
     public let textExpansion = CVTextExpansion()
+    public let spoilerState = SpoilerRenderState()
     public let messageSwipeActionState = CVMessageSwipeActionState()
 
     public var isDarkThemeEnabled: Bool = Theme.isDarkThemeEnabled
@@ -94,6 +94,7 @@ public class CVViewState: NSObject {
 
     public var groupCallTooltip: GroupCallTooltip?
     public var groupCallTooltipTailReferenceView: UIView?
+    public var didAlreadyShowGroupCallTooltipEnoughTimes: Bool
     public var hasIncrementedGroupCallTooltipShownCount = false
     public var groupCallBarButtonItem: UIBarButtonItem?
 
@@ -101,13 +102,10 @@ public class CVViewState: NSObject {
 
     public let scrollDownButton = ConversationScrollButton(iconName: "chevron-down-20")
     public var isHidingScrollDownButton = false
-    public let scrollToNextMentionButton = ConversationScrollButton(iconName: "mention-24")
+    public let scrollToNextMentionButton = ConversationScrollButton(iconName: "at-display")
     public var isHidingScrollToNextMentionButton = false
     public var scrollUpdateTimer: Timer?
     public var isWaitingForDeceleration = false
-
-    public var unreadMessageCount: UInt = 0
-    public var unreadMentionMessages = [TSMessage]()
 
     public var actionOnOpen: ConversationViewAction = .none
 
@@ -135,20 +133,16 @@ public class CVViewState: NSObject {
 
     public var presentationStatus: CVPresentationStatus = .notYetPresented
 
-    #if TESTABLE_BUILD
-    public let initialLoadBenchSteps = BenchSteps(title: "initialLoadBenchSteps")
-    public let presentationStatusBenchSteps = BenchSteps(title: "presentationStatusBenchSteps")
-    #endif
-
     public let backgroundContainer = CVBackgroundContainer()
+    public var wallpaperViewBuilder: WallpaperViewBuilder?
 
     weak var reactionsDetailSheet: ReactionsDetailSheet?
 
+    public var lastKeyboardAnimationDate: Date?
+
     // MARK: - Voice Messages
 
-    public var currentVoiceMessageModel: VoiceMessageModel?
-
-    public var lastKeyboardAnimationDate: Date?
+    var inProgressVoiceMessage: VoiceMessageInProgressDraft?
 
     // MARK: - Gift Badges
 
@@ -158,20 +152,25 @@ public class CVViewState: NSObject {
 
     // MARK: - 
 
-    public required init(threadViewModel: ThreadViewModel,
-                         conversationStyle: ConversationStyle) {
-        self.threadViewModel = threadViewModel
+    public required init(
+        threadUniqueId: String,
+        conversationStyle: ConversationStyle,
+        didAlreadyShowGroupCallTooltipEnoughTimes: Bool
+    ) {
+        self.threadUniqueId = threadUniqueId
         self.conversationStyle = conversationStyle
+        self.didAlreadyShowGroupCallTooltipEnoughTimes = didAlreadyShowGroupCallTooltipEnoughTimes
     }
 }
 
 // MARK: -
 
-public extension ConversationViewController {
+extension ConversationViewController {
 
     var threadViewModel: ThreadViewModel { renderState.threadViewModel }
 
-    @objc
+    var conversationViewModel: ConversationViewModel { renderState.conversationViewModel }
+
     var thread: TSThread { threadViewModel.threadRecord }
 
     var disappearingMessagesConfiguration: OWSDisappearingMessagesConfiguration { threadViewModel.disappearingMessagesConfiguration }
@@ -313,12 +312,6 @@ public extension ConversationViewController {
         set { viewState.reactionsDetailSheet = newValue }
     }
     var contactShareViewHelper: ContactShareViewHelper { viewState.contactShareViewHelper }
-
-    // MARK: -
-
-    #if TESTABLE_BUILD
-    var initialLoadBenchSteps: BenchSteps { viewState.initialLoadBenchSteps }
-    #endif
 }
 
 // MARK: -
@@ -487,15 +480,6 @@ public extension ConversationViewController {
         AssertIsOnMainThread()
 
         if viewState.presentationStatus.rawValue < value.rawValue {
-            Logger.verbose("presentationStatus: \(viewState.presentationStatus) -> \(value).")
-
-            #if TESTABLE_BUILD
-            viewState.presentationStatusBenchSteps.step(value.description)
-            if value == .firstViewDidAppearHasCompleted {
-                viewState.presentationStatusBenchSteps.logAll()
-            }
-            #endif
-
             viewState.presentationStatus = value
         }
     }

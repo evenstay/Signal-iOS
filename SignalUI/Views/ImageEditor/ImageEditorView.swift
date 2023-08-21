@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import UIKit
+import SignalServiceKit
 
 protocol ImageEditorViewDelegate: AnyObject {
 
@@ -22,19 +22,13 @@ protocol ImageEditorViewDelegate: AnyObject {
 
 // A view for editing outgoing image attachments.
 // It can also be used to render the final output.
-class ImageEditorView: AttachmentPrepContentView {
+class ImageEditorView: UIView {
 
     weak var delegate: ImageEditorViewDelegate?
 
     let model: ImageEditorModel
 
     let canvasView: ImageEditorCanvasView
-
-    override var contentLayoutMargins: UIEdgeInsets {
-        didSet {
-            canvasView.contentLayoutMargins = contentLayoutMargins
-        }
-    }
 
     required init(model: ImageEditorModel, delegate: ImageEditorViewDelegate?) {
         self.model = model
@@ -76,6 +70,11 @@ class ImageEditorView: AttachmentPrepContentView {
         addGestureRecognizer(tapGestureRecognizer)
         addGestureRecognizer(pinchGestureRecognizer)
         updateGestureRecognizers()
+
+        let doubleTapGesture = UITapGestureRecognizer(target: nil, action: nil)
+        doubleTapGesture.numberOfTapsRequired = 2
+        addGestureRecognizer(doubleTapGesture)
+        tapGestureRecognizer.require(toFail: doubleTapGesture)
     }
 
     private func updateGestureRecognizers() {

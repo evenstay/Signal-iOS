@@ -3,11 +3,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalRingRTC
 import SignalMessaging
+import SignalUI
 
-@objc
 class GroupCallMemberSheet: InteractiveSheetViewController {
     override var interactiveScrollViews: [UIScrollView] { [tableView] }
 
@@ -78,7 +77,7 @@ class GroupCallMemberSheet: InteractiveSheetViewController {
                     let displayName: String
                     let comparableName: String
                     if member.address.isLocalAddress {
-                        displayName = NSLocalizedString(
+                        displayName = OWSLocalizedString(
                             "GROUP_CALL_YOU_ON_ANOTHER_DEVICE",
                             comment: "Text describing the local user in the group call members sheet when connected from another device."
                         )
@@ -168,11 +167,11 @@ extension GroupCallMemberSheet: UITableViewDataSource, UITableViewDelegate {
 
     func tableView(_ tableView: UITableView, viewForHeaderInSection section: Int) -> UIView? {
         let label = UILabel()
-        label.font = UIFont.ows_dynamicTypeSubheadlineClamped.ows_semibold
+        label.font = UIFont.dynamicTypeSubheadlineClamped.semibold()
         label.textColor = Theme.darkThemePrimaryColor
 
         if sortedMembers.count > 0 {
-            let formatString = NSLocalizedString(
+            let formatString = OWSLocalizedString(
                 "GROUP_CALL_IN_THIS_CALL_%d", tableName: "PluralAware",
                 comment: "String indicating how many people are current in the call"
             )
@@ -248,10 +247,10 @@ private class GroupCallMemberCell: UITableViewCell {
         selectionStyle = .none
         layoutMargins = UIEdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16)
 
-        nameLabel.font = .ows_dynamicTypeBody
+        nameLabel.font = .dynamicTypeBody
 
         audioMutedIndicator.contentMode = .scaleAspectFit
-        audioMutedIndicator.setTemplateImage(#imageLiteral(resourceName: "mic-off-solid-28"), tintColor: .ows_white)
+        audioMutedIndicator.setTemplateImageName("mic-slash-fill-compact", tintColor: .ows_white)
         audioMutedIndicator.autoSetDimensions(to: CGSize(square: 16))
         audioMutedIndicator.setContentHuggingHorizontalHigh()
         let audioMutedWrapper = UIView()
@@ -259,12 +258,12 @@ private class GroupCallMemberCell: UITableViewCell {
         audioMutedIndicator.autoPinEdgesToSuperviewEdges()
 
         videoMutedIndicator.contentMode = .scaleAspectFit
-        videoMutedIndicator.setTemplateImage(#imageLiteral(resourceName: "video-off-solid-28"), tintColor: .ows_white)
+        videoMutedIndicator.setTemplateImageName("video-slash-fill-compact", tintColor: .ows_white)
         videoMutedIndicator.autoSetDimensions(to: CGSize(square: 16))
         videoMutedIndicator.setContentHuggingHorizontalHigh()
 
         presentingIndicator.contentMode = .scaleAspectFit
-        presentingIndicator.setTemplateImage(#imageLiteral(resourceName: "share-screen-solid-28"), tintColor: .ows_white)
+        presentingIndicator.setTemplateImageName("share_screen-fill-compact", tintColor: .ows_white)
         presentingIndicator.autoSetDimensions(to: CGSize(square: 16))
         presentingIndicator.setContentHuggingHorizontalHigh()
 
@@ -329,9 +328,9 @@ private class GroupCallEmptyCell: UITableViewCell {
         imageView.autoPinTopToSuperviewMargin(withInset: 32)
 
         let label = UILabel()
-        label.font = .ows_dynamicTypeSubheadlineClamped
+        label.font = .dynamicTypeSubheadlineClamped
         label.textColor = Theme.darkThemePrimaryColor
-        label.text = NSLocalizedString("GROUP_CALL_NOBODY_IS_IN_YET",
+        label.text = OWSLocalizedString("GROUP_CALL_NOBODY_IS_IN_YET",
                                        comment: "Text explaining to the user that nobody has joined this call yet.")
         label.numberOfLines = 0
         label.lineBreakMode = .byWordWrapping

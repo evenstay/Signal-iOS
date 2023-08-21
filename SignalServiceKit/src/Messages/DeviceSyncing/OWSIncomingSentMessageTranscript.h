@@ -15,6 +15,7 @@ NS_ASSUME_NONNULL_BEGIN
 @class SSKProtoAttachmentPointer;
 @class SSKProtoDataMessage;
 @class SSKProtoSyncMessageSent;
+@class ServiceIdObjC;
 @class SignalServiceAddress;
 @class TSPaymentCancellation;
 @class TSPaymentNotification;
@@ -32,18 +33,17 @@ NS_ASSUME_NONNULL_BEGIN
                        serverTimestamp:(uint64_t)serverTimestamp
                            transaction:(SDSAnyWriteTransaction *)transaction;
 
-@property (nonatomic, readonly) SignalServiceAddress *recipientAddress;
+@property (nonatomic, readonly, nullable) SignalServiceAddress *recipientAddress;
 @property (nonatomic, readonly) uint64_t timestamp;
 @property (nonatomic, readonly) uint64_t dataMessageTimestamp;
 @property (nonatomic, readonly) uint64_t serverTimestamp;
 @property (nonatomic, readonly) uint64_t expirationStartedAt;
 @property (nonatomic, readonly) uint32_t expirationDuration;
-@property (nonatomic, readonly) BOOL isGroupUpdate;
 @property (nonatomic, readonly) BOOL isExpirationTimerUpdate;
 @property (nonatomic, readonly) BOOL isEndSessionMessage;
 @property (nonatomic, readonly, nullable) NSData *groupId;
-@property (nonatomic, readonly) NSString *body;
-@property (nonatomic, readonly) MessageBodyRanges *bodyRanges;
+@property (nonatomic, readonly, nullable) NSString *body;
+@property (nonatomic, readonly, nullable) MessageBodyRanges *bodyRanges;
 @property (nonatomic, readonly) NSArray<SSKProtoAttachmentPointer *> *attachmentPointerProtos;
 @property (nonatomic, readonly, nullable) TSThread *thread;
 @property (nonatomic, readonly, nullable) TSQuotedMessage *quotedMessage;
@@ -61,10 +61,10 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly, nullable) NSNumber *storyTimestamp;
 @property (nonatomic, readonly, nullable) SignalServiceAddress *storyAuthorAddress;
 
-// If either nonUdRecipientIds or udRecipientIds is nil,
-// this is either a legacy transcript or it reflects a legacy sync message.
-@property (nonatomic, readonly, nullable) NSArray<SignalServiceAddress *> *nonUdRecipientAddresses;
-@property (nonatomic, readonly, nullable) NSArray<SignalServiceAddress *> *udRecipientAddresses;
+// If either nonUdRecipients or udRecipients is nil, this is either a
+// legacy transcript or it reflects a legacy sync message.
+@property (nonatomic, readonly, nullable) NSArray<ServiceIdObjC *> *nonUdRecipients;
+@property (nonatomic, readonly, nullable) NSArray<ServiceIdObjC *> *udRecipients;
 
 @end
 

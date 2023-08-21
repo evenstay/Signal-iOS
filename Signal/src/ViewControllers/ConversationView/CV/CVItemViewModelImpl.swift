@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalServiceKit
+import SignalUI
 
-@objc
 public class CVComponentStateWrapper: NSObject, CVItemViewModel {
     public var interaction: TSInteraction
     public var componentState: CVComponentState
@@ -63,7 +63,6 @@ public class CVComponentStateWrapper: NSObject, CVItemViewModel {
 public class CVItemViewModelImpl: CVComponentStateWrapper {
     public let renderItem: CVRenderItem
 
-    @objc
     public required init(renderItem: CVRenderItem) {
         AssertIsOnMainThread()
 
@@ -156,6 +155,10 @@ public class CVItemViewModelImpl: CVComponentStateWrapper {
 
 extension CVItemViewModelImpl {
 
+    var canEditMessage: Bool {
+        return EditManager.canShowEditMenu(interaction: interaction, thread: thread)
+    }
+
     var canCopyOrShareOrSpeakText: Bool {
         guard !isViewOnce else {
             return false
@@ -174,7 +177,7 @@ extension CVItemViewModelImpl {
         guard let displayableBodyText = self.displayableBodyText else {
             return
         }
-        MentionTextView.copyAttributedStringToPasteboard(displayableBodyText.fullAttributedText)
+        BodyRangesTextView.copyToPasteboard(displayableBodyText.fullTextValue)
     }
 
     var canShareMedia: Bool {
@@ -221,7 +224,7 @@ extension CVItemViewModelImpl {
         guard !attachments.isEmpty else {
             return
         }
-        AttachmentSharing.showShareUI(forAttachments: attachments, sender: sender)
+        AttachmentSharing.showShareUI(for: attachments, sender: sender)
     }
 
     var canForwardMessage: Bool {

@@ -94,40 +94,13 @@ public class SSKPreferences: NSObject {
 
     // MARK: -
 
+    private static var didDropYdbKey: String { "didDropYdb" }
     private static var didEverUseYdbKey: String { "didEverUseYdb" }
 
     @objc
-    public static func didEverUseYdb() -> Bool {
-        let appUserDefaults = CurrentAppContext().appUserDefaults()
-        guard let preference = appUserDefaults.object(forKey: didEverUseYdbKey) as? NSNumber else {
-            return false
-        }
-        return preference.boolValue
-    }
-
-    @objc
-    public static func setDidEverUseYdb(_ value: Bool) {
-        let appUserDefaults = CurrentAppContext().appUserDefaults()
-        appUserDefaults.set(value, forKey: didEverUseYdbKey)
-        appUserDefaults.synchronize()
-    }
-
-    private static var didDropYdbKey: String { "didDropYdb" }
-
-    @objc
-    public static func didDropYdb() -> Bool {
-        let appUserDefaults = CurrentAppContext().appUserDefaults()
-        guard let preference = appUserDefaults.object(forKey: didDropYdbKey) as? NSNumber else {
-            return false
-        }
-        return preference.boolValue
-    }
-
-    @objc
-    public static func setDidDropYdb(_ value: Bool) {
-        let appUserDefaults = CurrentAppContext().appUserDefaults()
-        appUserDefaults.set(value, forKey: didDropYdbKey)
-        appUserDefaults.synchronize()
+    public static func clearLegacyDatabaseFlags(from userDefaults: UserDefaults) {
+        userDefaults.removeObject(forKey: didDropYdbKey)
+        userDefaults.removeObject(forKey: didEverUseYdbKey)
     }
 
     // MARK: - messageRequestInteractionIdEpoch
@@ -157,20 +130,13 @@ public class SSKPreferences: NSObject {
     // MARK: - Badge Count
 
     private static let includeMutedThreadsInBadgeCount = "includeMutedThreadsInBadgeCount"
-    private static var includeMutedThreadsInBadgeCountCached: Bool?
 
-    @objc
     public static func includeMutedThreadsInBadgeCount(transaction: SDSAnyReadTransaction) -> Bool {
-        if let value = includeMutedThreadsInBadgeCountCached { return value }
-        let value = store.getBool(includeMutedThreadsInBadgeCount, defaultValue: false, transaction: transaction)
-        includeMutedThreadsInBadgeCountCached = value
-        return value
+        return store.getBool(includeMutedThreadsInBadgeCount, defaultValue: false, transaction: transaction)
     }
 
-    @objc
     public static func setIncludeMutedThreadsInBadgeCount(_ value: Bool, transaction: SDSAnyWriteTransaction) {
         store.setBool(value, key: includeMutedThreadsInBadgeCount, transaction: transaction)
-        includeMutedThreadsInBadgeCountCached = value
     }
 
     // MARK: - Profile avatar preference

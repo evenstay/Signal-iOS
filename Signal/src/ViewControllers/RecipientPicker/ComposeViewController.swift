@@ -3,21 +3,22 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalMessaging
+import SignalUI
 
 @objc
 class ComposeViewController: RecipientPickerContainerViewController {
+
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        title = NSLocalizedString("MESSAGE_COMPOSEVIEW_TITLE", comment: "Title for the compose view.")
+        title = OWSLocalizedString("MESSAGE_COMPOSEVIEW_TITLE", comment: "Title for the compose view.")
 
         view.backgroundColor = Theme.backgroundColor
 
         recipientPicker.shouldShowInvites = true
         recipientPicker.shouldShowNewGroup = true
-        recipientPicker.groupsToShow = .showGroupsThatUserIsMemberOfWhenSearching
+        recipientPicker.groupsToShow = .groupsThatUserIsMemberOfWhenSearching
         recipientPicker.shouldHideLocalRecipient = false
 
         recipientPicker.delegate = self
@@ -32,15 +33,17 @@ class ComposeViewController: RecipientPickerContainerViewController {
     }
 
     @objc
-    func dismissPressed() {
+    private func dismissPressed() {
         dismiss(animated: true)
     }
 
     @objc
-    func newGroupPressed() {
+    private func newGroupPressed() {
         showNewGroupUI()
     }
 
+    /// Presents the conversation for the given address and dismisses this
+    /// controller such that the conversation is visible.
     func newConversation(address: SignalServiceAddress) {
         AssertIsOnMainThread()
         owsAssertDebug(address.isValid)
@@ -52,9 +55,31 @@ class ComposeViewController: RecipientPickerContainerViewController {
         self.newConversation(thread: thread)
     }
 
+    /// Presents the conversation for the given thread and dismisses this
+    /// controller such that the conversation is visible.
+    ///
+    /// - Note
+    /// In practice, the view controller dismissing us here is the same one
+    /// (a ``ConversationSplitViewController``) that will ultimately present the
+    /// conversation. To that end, there be dragons in potential races between
+    /// the two actions, which seem to particularly be prominent when this
+    /// method is called from a `DispatchQueue.main` block. (This happens, for
+    /// example, when doing some asynchronous work, such as a lookup, which
+    /// completes in a `DispatchQueue.main` block that calls this method.)
+    ///
+    /// Some example dragons found at the time of writing include user
+    /// interaction being disabled on the nav bar, incorrect nav bar layout,
+    /// keyboards refusing to pop, and the conversation input toolbar being
+    /// hidden behind the keyboard if it does pop.
+    ///
+    /// Ensuring that the presentation and dismissal are in separate dispatch
+    /// blocks seems to dodge the dragons.
     func newConversation(thread: TSThread) {
-        SignalApp.shared().presentConversation(for: thread, action: .compose, animated: false)
-        presentingViewController?.dismiss(animated: true)
+        SignalApp.shared.presentConversationForThread(thread, action: .compose, animated: false)
+
+        DispatchQueue.main.async { [weak self] in
+            self?.presentingViewController?.dismiss(animated: true)
+        }
     }
 
     func showNewGroupUI() {
@@ -104,6 +129,14 @@ extension ComposeViewController: RecipientPickerDelegate {
             #if DEBUG
             let isBlocked = blockingManager.isAddressBlocked(address, transaction: transaction)
             owsAssert(!isBlocked, "It should be impossible to see a blocked connection in this view")
+
+            if FeatureFlags.recipientHiding {
+                let isHidden = DependenciesBridge.shared.recipientHidingManager.isHiddenAddress(
+                    address,
+                    tx: transaction.asV2Read
+                )
+                owsAssert(!isHidden, "It should be impossible to see a hidden recipient in this view")
+            }
             #endif
             return nil
         case .group(let thread):
@@ -111,6 +144,12 @@ extension ComposeViewController: RecipientPickerDelegate {
             return MessageStrings.conversationIsBlocked
         }
     }
+
+    func recipientPicker(
+        _ recipientPickerViewController: RecipientPickerViewController,
+        accessoryViewForRecipient recipient: PickedRecipient,
+        transaction: SDSAnyReadTransaction
+    ) -> ContactCellAccessoryView? { nil }
 
     func recipientPicker(_ recipientPickerViewController: RecipientPickerViewController,
                          attributedSubtitleForRecipient recipient: PickedRecipient,

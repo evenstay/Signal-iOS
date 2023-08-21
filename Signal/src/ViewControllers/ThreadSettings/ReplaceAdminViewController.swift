@@ -3,11 +3,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
-import UIKit
+import LibSignalClient
+import SignalServiceKit
+import SignalUI
 
 protocol ReplaceAdminViewControllerDelegate: AnyObject {
-    func replaceAdmin(uuid: UUID)
+    func replaceAdmin(newAdminAci: Aci)
 }
 
 // MARK: -
@@ -30,11 +31,10 @@ class ReplaceAdminViewController: OWSTableViewController2 {
 
     // MARK: - View Lifecycle
 
-    @objc
     public override func viewDidLoad() {
         super.viewDidLoad()
 
-        title = NSLocalizedString("REPLACE_ADMIN_VIEW_TITLE",
+        title = OWSLocalizedString("REPLACE_ADMIN_VIEW_TITLE",
                                   comment: "The title for the 'replace group admin' view.")
 
         tableView.register(ContactTableViewCell.self, forCellReuseIdentifier: ContactTableViewCell.reuseIdentifier)
@@ -61,7 +61,7 @@ class ReplaceAdminViewController: OWSTableViewController2 {
                     Self.databaseStorage.read { transaction in
                         let configuration = ContactCellConfiguration(address: address, localUserDisplayMode: .asUser)
                         let imageView = CVImageView()
-                        imageView.setTemplateImageName("empty-circle-outline-24", tintColor: .ows_gray25)
+                        imageView.setTemplateImageName(Theme.iconName(.circle), tintColor: .ows_gray25)
                         configuration.accessoryView = ContactCellAccessoryView(accessoryView: imageView, size: .square(24))
 
                         cell.configure(configuration: configuration, transaction: transaction)
@@ -75,17 +75,17 @@ class ReplaceAdminViewController: OWSTableViewController2 {
             ))
         }
 
-        contents.addSection(section)
+        contents.add(section)
 
         self.contents = contents
     }
 
     private func candidateWasSelected(candidate: SignalServiceAddress) {
-        guard let replacementAdminUuid = candidate.uuid else {
+        guard let replacementAdminAci = candidate.serviceId as? Aci else {
             owsFailDebug("Invalid replacement Admin.")
             return
         }
 
-        replaceAdminViewControllerDelegate?.replaceAdmin(uuid: replacementAdminUuid)
+        replaceAdminViewControllerDelegate?.replaceAdmin(newAdminAci: replacementAdminAci)
     }
 }

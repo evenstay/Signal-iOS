@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalUI
 
 public class AppSettingsViewsUtil {
     public class func newCell(cellOuterInsets: UIEdgeInsets) -> UITableViewCell {
@@ -27,13 +27,7 @@ public class AppSettingsViewsUtil {
                 cell.contentView.addSubview(stackView)
                 stackView.autoPinEdgesToSuperviewEdges()
 
-                let activitySpinner: UIActivityIndicatorView
-                if #available(iOS 13, *) {
-                    activitySpinner = UIActivityIndicatorView(style: .medium)
-                } else {
-                    activitySpinner = UIActivityIndicatorView(style: .gray)
-                }
-
+                let activitySpinner = UIActivityIndicatorView(style: .medium)
                 activitySpinner.startAnimating()
 
                 stackView.addArrangedSubview(activitySpinner)

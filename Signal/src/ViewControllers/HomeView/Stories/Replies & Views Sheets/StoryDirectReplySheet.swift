@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import UIKit
 import SignalServiceKit
+import SignalUI
 
 public class StoryDirectReplySheet: OWSViewController, StoryReplySheet {
 
@@ -13,9 +13,9 @@ public class StoryDirectReplySheet: OWSViewController, StoryReplySheet {
     var bottomBar: UIView { inputToolbar }
     lazy var inputToolbar: StoryReplyInputToolbar = {
         let quotedReplyModel = databaseStorage.read {
-            OWSQuotedReplyModel.quotedReply(from: storyMessage, transaction: $0)
+            QuotedReplyModel(storyMessage: storyMessage, transaction: $0)
         }
-        let toolbar = StoryReplyInputToolbar(quotedReplyModel: quotedReplyModel)
+        let toolbar = StoryReplyInputToolbar(isGroupStory: false, quotedReplyModel: quotedReplyModel, spoilerState: spoilerState)
         toolbar.delegate = self
         return toolbar
     }()
@@ -27,9 +27,11 @@ public class StoryDirectReplySheet: OWSViewController, StoryReplySheet {
 
     let backdropView: UIView? = UIView()
 
-    @objc
-    init(storyMessage: StoryMessage) {
+    let spoilerState: SpoilerRenderState
+
+    init(storyMessage: StoryMessage, spoilerState: SpoilerRenderState) {
         self.storyMessage = storyMessage
+        self.spoilerState = spoilerState
         super.init()
         modalPresentationStyle = .custom
     }

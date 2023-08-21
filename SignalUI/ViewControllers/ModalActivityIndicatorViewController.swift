@@ -3,14 +3,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import MediaPlayer
 import SignalServiceKit
 import SignalMessaging
 
 // A modal view that be used during blocking interactions (e.g. waiting on response from
 // service or on the completion of a long-running local operation).
-@objc
 public class ModalActivityIndicatorViewController: OWSViewController {
 
     let canCancel: Bool
@@ -18,7 +16,6 @@ public class ModalActivityIndicatorViewController: OWSViewController {
     private let isInvisible: Bool
 
     private let _wasCancelled = AtomicBool(false)
-    @objc
     public var wasCancelled: Bool {
         _wasCancelled.get()
     }
@@ -48,7 +45,6 @@ public class ModalActivityIndicatorViewController: OWSViewController {
         super.init()
     }
 
-    @objc
     public class func present(fromViewController: UIViewController,
                               canCancel: Bool,
                               backgroundBlock: @escaping (ModalActivityIndicatorViewController) -> Void) {
@@ -59,7 +55,6 @@ public class ModalActivityIndicatorViewController: OWSViewController {
                 backgroundBlock: backgroundBlock)
     }
 
-    @objc
     public class func present(fromViewController: UIViewController,
                               canCancel: Bool,
                               presentationDelay: TimeInterval,
@@ -71,7 +66,6 @@ public class ModalActivityIndicatorViewController: OWSViewController {
                 backgroundBlock: backgroundBlock)
     }
 
-    @objc
     public class func presentAsInvisible(fromViewController: UIViewController,
                                          backgroundBlock: @escaping (ModalActivityIndicatorViewController) -> Void) {
         present(fromViewController: fromViewController,
@@ -81,7 +75,6 @@ public class ModalActivityIndicatorViewController: OWSViewController {
                 backgroundBlock: backgroundBlock)
     }
 
-    @objc
     public class func present(fromViewController: UIViewController,
                               canCancel: Bool,
                               presentationDelay: TimeInterval,
@@ -102,12 +95,11 @@ public class ModalActivityIndicatorViewController: OWSViewController {
         }
     }
 
-    @objc
-    public func dismiss(completion completionParam: @escaping () -> Void) {
+    public func dismiss(completion completionParam: (() -> Void)? = nil) {
         AssertIsOnMainThread()
 
         let completion = {
-            completionParam()
+            completionParam?()
             self.wasCancelledFuture.reject(OWSGenericError("ModalActivityIndicatorViewController was not cancelled."))
         }
 
@@ -131,7 +123,7 @@ public class ModalActivityIndicatorViewController: OWSViewController {
     /// - Parameter completionIfNotCanceled:
     ///     If the modal hasn't been canceled, dismiss it and then call this
     ///     block. Note: If the modal was canceled, the block isn't invoked.
-    public func dismissIfNotCanceled(completionIfNotCanceled: @escaping () -> Void) {
+    public func dismissIfNotCanceled(completionIfNotCanceled: @escaping () -> Void = {}) {
         if wasCancelled {
             return
         }
@@ -152,7 +144,7 @@ public class ModalActivityIndicatorViewController: OWSViewController {
                                             : UIColor(white: 0, alpha: 0.25))
             self.view.isOpaque = false
 
-            let activityIndicator = UIActivityIndicatorView(style: .whiteLarge)
+            let activityIndicator = UIActivityIndicatorView(style: .large)
             self.activityIndicator = activityIndicator
             self.view.addSubview(activityIndicator)
             activityIndicator.autoCenterInSuperview()
@@ -162,12 +154,12 @@ public class ModalActivityIndicatorViewController: OWSViewController {
                 cancelButton.setTitle(CommonStrings.cancelButton, for: .normal)
                 cancelButton.setTitleColor(UIColor.white, for: .normal)
                 cancelButton.backgroundColor = UIColor.ows_gray80
-                let font = UIFont.ows_dynamicTypeBody.ows_semibold
+                let font = UIFont.dynamicTypeBody.semibold()
                 cancelButton.titleLabel?.font = font
-                cancelButton.layer.cornerRadius = ScaleFromIPhone5To7Plus(4, 5)
+                cancelButton.layer.cornerRadius = .scaleFromIPhone5To7Plus(4, 5)
                 cancelButton.clipsToBounds = true
                 cancelButton.addTarget(self, action: #selector(cancelPressed), for: .touchUpInside)
-                let buttonWidth = ScaleFromIPhone5To7Plus(140, 160)
+                let buttonWidth = CGFloat.scaleFromIPhone5To7Plus(140, 160)
                 let buttonHeight = OWSFlatButton.heightForFont(font)
                 self.view.addSubview(cancelButton)
                 cancelButton.autoHCenterInSuperview()
@@ -223,7 +215,7 @@ public class ModalActivityIndicatorViewController: OWSViewController {
     }
 
     @objc
-    func presentTimerFired() {
+    private func presentTimerFired() {
         AssertIsOnMainThread()
 
         clearTimer()
@@ -235,13 +227,13 @@ public class ModalActivityIndicatorViewController: OWSViewController {
     }
 
     @objc
-    func cancelPressed() {
+    private func cancelPressed() {
         AssertIsOnMainThread()
 
         _wasCancelled.set(true)
 
         self.wasCancelledFuture.resolve()
 
-        dismiss {}
+        dismiss()
     }
 }

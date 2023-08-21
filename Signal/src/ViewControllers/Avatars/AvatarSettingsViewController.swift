@@ -4,8 +4,8 @@
 //
 
 import CoreServices
-import Foundation
 import SignalMessaging
+import SignalUI
 
 class AvatarSettingsViewController: OWSTableViewController2 {
     let context: AvatarContext
@@ -81,7 +81,7 @@ class AvatarSettingsViewController: OWSTableViewController2 {
     }
 
     @objc
-    func didTapCancel() {
+    private func didTapCancel() {
         guard state.isNew else { return dismiss(animated: true) }
         OWSActionSheets.showPendingChangesActionSheet(discardAction: { [weak self] in
             self?.dismiss(animated: true)
@@ -89,7 +89,7 @@ class AvatarSettingsViewController: OWSTableViewController2 {
     }
 
     @objc
-    func didTapDone() {
+    private func didTapDone() {
         defer { dismiss(animated: true) }
 
         guard case .new(let model) = state else {
@@ -157,7 +157,7 @@ class AvatarSettingsViewController: OWSTableViewController2 {
         clearButton.addSubview(secondaryShadowView)
         secondaryShadowView.autoPinEdgesToSuperviewEdges()
 
-        xImageView.image = #imageLiteral(resourceName: "x-20").withRenderingMode(.alwaysTemplate)
+        xImageView.image = UIImage(imageLiteralResourceName: "x-20")
         xImageView.autoSetDimensions(to: CGSize.square(20))
         xImageView.contentMode = .scaleAspectFit
 
@@ -172,7 +172,7 @@ class AvatarSettingsViewController: OWSTableViewController2 {
     }
 
     @objc
-    func didTapClear() {
+    private func didTapClear() {
         state = .new(nil)
         updateTableContents()
     }
@@ -182,7 +182,7 @@ class AvatarSettingsViewController: OWSTableViewController2 {
         defer { self.contents = contents }
 
         let section = OWSTableSection()
-        section.headerTitle = NSLocalizedString(
+        section.headerTitle = OWSLocalizedString(
             "AVATAR_SETTINGS_VIEW_SELECT_AN_AVATAR",
             comment: "Title for the previously used and preset avatar section."
         )
@@ -193,7 +193,7 @@ class AvatarSettingsViewController: OWSTableViewController2 {
             self.configureAvatarsCell(cell)
             return cell
         } actionBlock: {})
-        contents.addSection(section)
+        contents.add(section)
     }
 
     private func updateNavigation() {
@@ -327,8 +327,8 @@ class AvatarSettingsViewController: OWSTableViewController2 {
     private func buildHeaderButtons() -> [UIView] {
         return [
             buildHeaderButton(
-                icon: .cameraButton,
-                text: NSLocalizedString(
+                icon: .buttonCamera,
+                text: OWSLocalizedString(
                     "AVATAR_SETTINGS_VIEW_CAMERA_BUTTON",
                     comment: "Text indicating the user can select an avatar from their camera"
                 ),
@@ -346,8 +346,8 @@ class AvatarSettingsViewController: OWSTableViewController2 {
                 }
             ),
             buildHeaderButton(
-                icon: .settingsAllMedia,
-                text: NSLocalizedString(
+                icon: .buttonPhotoLibrary,
+                text: OWSLocalizedString(
                     "AVATAR_SETTINGS_VIEW_PHOTO_BUTTON",
                     comment: "Text indicating the user can select an avatar from their photos"
                 ),
@@ -364,8 +364,8 @@ class AvatarSettingsViewController: OWSTableViewController2 {
                 }
             ),
             buildHeaderButton(
-                icon: .text24,
-                text: NSLocalizedString(
+                icon: .buttonText,
+                text: OWSLocalizedString(
                     "AVATAR_SETTINGS_VIEW_TEXT_BUTTON",
                     comment: "Text indicating the user can create a new avatar with text"
                 ),
@@ -426,40 +426,18 @@ class AvatarSettingsViewController: OWSTableViewController2 {
 
     private var maxIconButtonWidth: CGFloat = 0
     private func buildHeaderButton(icon: ThemeIcon, text: String, isEnabled: Bool = true, action: @escaping () -> Void) -> UIView {
-        let button = OWSButton(block: action)
-        button.dimsWhenHighlighted = true
-        button.isEnabled = isEnabled
-        button.layer.cornerRadius = 10
-        button.clipsToBounds = true
-        button.setBackgroundImage(UIImage(color: Self.cellBackgroundColor(isUsingPresentedStyle: true)), for: .normal)
-        button.accessibilityLabel = text
 
-        let imageView = UIImageView()
-        imageView.setTemplateImageName(Theme.iconName(icon), tintColor: Theme.primaryTextColor)
-        imageView.autoSetDimension(.height, toSize: 24)
-        imageView.contentMode = .scaleAspectFit
+        let button = SettingsHeaderButton(
+            text: text,
+            icon: icon,
+            backgroundColor: Self.cellBackgroundColor(isUsingPresentedStyle: true),
+            isEnabled: isEnabled,
+            block: action
+        )
 
-        button.addSubview(imageView)
-        imageView.autoPinWidthToSuperview()
-        imageView.autoPinEdge(toSuperviewEdge: .top, withInset: 8)
-
-        let label = UILabel()
-        label.font = .ows_dynamicTypeCaption2Clamped
-        label.textColor = Theme.primaryTextColor
-        label.textAlignment = .center
-        label.text = text
-        label.sizeToFit()
-        label.setCompressionResistanceHorizontalHigh()
-
-        let buttonMinimumWidth = label.width + 24
-        if maxIconButtonWidth < buttonMinimumWidth {
-            maxIconButtonWidth = buttonMinimumWidth
+        if maxIconButtonWidth < button.minimumWidth {
+            maxIconButtonWidth = button.minimumWidth
         }
-
-        button.addSubview(label)
-        label.autoPinWidthToSuperview(withMargin: 12)
-        label.autoPinEdge(toSuperviewEdge: .bottom, withInset: 6)
-        label.autoPinEdge(.top, to: .bottom, of: imageView, withOffset: 2)
 
         return button
     }
@@ -541,7 +519,6 @@ private protocol OptionViewDelegate: AnyObject {
     func didSelectOptionView(_ optionView: OptionView, model: AvatarModel)
     func didEditOptionView(_ optionView: OptionView, model: AvatarModel)
     func didDeleteOptionView(_ optionView: OptionView, model: AvatarModel)
-    func presentActionSheet(_ alert: ActionSheetController)
 }
 
 private class OptionView: UIView {
@@ -549,7 +526,7 @@ private class OptionView: UIView {
     private var imageViewInsetConstraints: [NSLayoutConstraint]?
     private let editOverlayView = AvatarImageView()
 
-    private weak var delegate: OptionViewDelegate?
+    private weak var delegate: (OptionViewDelegate & UIViewController)?
 
     var isSelected = false {
         didSet {
@@ -558,7 +535,7 @@ private class OptionView: UIView {
         }
     }
 
-    init(delegate: OptionViewDelegate) {
+    init(delegate: OptionViewDelegate & UIViewController) {
         self.delegate = delegate
 
         super.init(frame: .zero)
@@ -567,13 +544,12 @@ private class OptionView: UIView {
         imageView.autoPinEdgesToSuperviewEdges()
         updateSelectionState()
 
+        editOverlayView.image = UIImage(imageLiteralResourceName: "edit-fill")
         editOverlayView.backgroundColor = .ows_blackAlpha20
-        editOverlayView.image = #imageLiteral(resourceName: "compose-solid-24").tintedImage(color: .ows_white)
+        editOverlayView.tintColor = .white
         editOverlayView.contentMode = .center
         imageView.addSubview(editOverlayView)
-        editOverlayView.autoPinEdgesToSuperviewEdges(
-            withInsets: UIEdgeInsets(margin: 2.5)
-        )
+        editOverlayView.autoPinEdgesToSuperviewEdges(with: UIEdgeInsets(margin: 2.5))
         editOverlayView.layer.borderWidth = 1.5
         editOverlayView.isHidden = true
 
@@ -593,7 +569,7 @@ private class OptionView: UIView {
     }
 
     @objc
-    func handleTap() {
+    private func handleTap() {
         guard let model = model else {
             return owsFailDebug("Unexpectedly missing model in OptionView")
         }
@@ -607,7 +583,7 @@ private class OptionView: UIView {
     }
 
     @objc
-    func handleLongPress() {
+    private func handleLongPress() {
         guard let model = model else {
             return owsFailDebug("Unexpectedly missing model in OptionView")
         }

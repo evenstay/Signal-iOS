@@ -92,10 +92,14 @@ public class CVComponentThreadDetails: CVComponentBase, CVRootComponent {
             unblurAvatarIconView.setTemplateImageName("tap-outline-24", tintColor: .ows_white)
             unblurAvatarSubviewInfos.append(CGSize.square(24).asManualSubviewInfo(hasFixedSize: true))
 
-            let unblurAvatarLabelConfig = CVLabelConfig(text: NSLocalizedString("THREAD_DETAILS_TAP_TO_UNBLUR_AVATAR",
-                                                                                comment: "Indicator that a blurred avatar can be revealed by tapping."),
-                                                        font: UIFont.ows_dynamicTypeSubheadlineClamped,
-                                                        textColor: .ows_white)
+            let unblurAvatarLabelConfig = CVLabelConfig.unstyledText(
+                OWSLocalizedString(
+                    "THREAD_DETAILS_TAP_TO_UNBLUR_AVATAR",
+                    comment: "Indicator that a blurred avatar can be revealed by tapping."
+                ),
+                font: UIFont.dynamicTypeSubheadlineClamped,
+                textColor: .ows_white
+            )
             let maxWidth = CGFloat(avatarSizeClass.diameter) - 12
             let unblurAvatarLabelSize = CVText.measureLabel(config: unblurAvatarLabelConfig, maxWidth: maxWidth)
             unblurAvatarSubviewInfos.append(unblurAvatarLabelSize.asManualSubviewInfo)
@@ -158,7 +162,7 @@ public class CVComponentThreadDetails: CVComponentBase, CVRootComponent {
             let groupDescriptionPreviewView = componentView.groupDescriptionPreviewView
             let config = groupDescriptionTextLabelConfig(text: groupDescriptionText)
             groupDescriptionPreviewView.apply(config: config)
-            groupDescriptionPreviewView.groupName = titleLabelConfig.stringValue
+            groupDescriptionPreviewView.groupName = titleText
             innerViews.append(UIView.spacer(withHeight: vSpacingMutualGroups))
             innerViews.append(groupDescriptionPreviewView)
         }
@@ -178,48 +182,59 @@ public class CVComponentThreadDetails: CVComponentBase, CVRootComponent {
     private let vSpacingMutualGroups: CGFloat = 4
 
     private var titleLabelConfig: CVLabelConfig {
-        CVLabelConfig(text: titleText,
-                      font: UIFont.ows_dynamicTypeTitle1.ows_semibold,
-                      textColor: Theme.secondaryTextAndIconColor,
-                      numberOfLines: 0,
-                      lineBreakMode: .byWordWrapping,
-                      textAlignment: .center)
+        CVLabelConfig.unstyledText(
+            titleText,
+            font: UIFont.dynamicTypeTitle1.semibold(),
+            textColor: Theme.secondaryTextAndIconColor,
+            numberOfLines: 0,
+            lineBreakMode: .byWordWrapping,
+            textAlignment: .center
+        )
     }
 
     private func bioLabelConfig(text: String) -> CVLabelConfig {
-        CVLabelConfig(text: text,
-                      font: .ows_dynamicTypeSubheadline,
-                      textColor: Theme.secondaryTextAndIconColor,
-                      numberOfLines: 0,
-                      lineBreakMode: .byWordWrapping,
-                      textAlignment: .center)
+        CVLabelConfig.unstyledText(
+            text,
+            font: .dynamicTypeSubheadline,
+            textColor: Theme.secondaryTextAndIconColor,
+            numberOfLines: 0,
+            lineBreakMode: .byWordWrapping,
+            textAlignment: .center
+        )
     }
 
     private func detailsLabelConfig(text: String) -> CVLabelConfig {
-        CVLabelConfig(text: text,
-                      font: .ows_dynamicTypeSubheadline,
-                      textColor: Theme.secondaryTextAndIconColor,
-                      numberOfLines: 0,
-                      lineBreakMode: .byWordWrapping,
-                      textAlignment: .center)
+        CVLabelConfig.unstyledText(
+            text,
+            font: .dynamicTypeSubheadline,
+            textColor: Theme.secondaryTextAndIconColor,
+            numberOfLines: 0,
+            lineBreakMode: .byWordWrapping,
+            textAlignment: .center
+        )
     }
 
     private func mutualGroupsLabelConfig(attributedText: NSAttributedString) -> CVLabelConfig {
-        CVLabelConfig(attributedText: attributedText,
-                      font: .ows_dynamicTypeSubheadline,
-                      textColor: Theme.secondaryTextAndIconColor,
-                      numberOfLines: 0,
-                      lineBreakMode: .byWordWrapping,
-                      textAlignment: .center)
+        CVLabelConfig(
+            text: .attributedText(attributedText),
+            displayConfig: .forUnstyledText(font: .dynamicTypeSubheadline, textColor: Theme.secondaryTextAndIconColor),
+            font: .dynamicTypeSubheadline,
+            textColor: Theme.secondaryTextAndIconColor,
+            numberOfLines: 0,
+            lineBreakMode: .byWordWrapping,
+            textAlignment: .center
+        )
     }
 
     private func groupDescriptionTextLabelConfig(text: String) -> CVLabelConfig {
-        CVLabelConfig(text: text,
-                      font: .ows_dynamicTypeSubheadline,
-                      textColor: Theme.secondaryTextAndIconColor,
-                      numberOfLines: 2,
-                      lineBreakMode: .byTruncatingTail,
-                      textAlignment: .center)
+        CVLabelConfig.unstyledText(
+            text,
+            font: .dynamicTypeSubheadline,
+            textColor: Theme.secondaryTextAndIconColor,
+            numberOfLines: 2,
+            lineBreakMode: .byTruncatingTail,
+            textAlignment: .center
+        )
     }
 
     private static let avatarSizeClass = ConversationAvatarView.Configuration.SizeClass.oneHundredTwelve
@@ -282,7 +297,7 @@ public class CVComponentThreadDetails: CVComponentBase, CVRootComponent {
 
         let detailsText = { () -> String? in
             if contactThread.isNoteToSelf {
-                return NSLocalizedString("THREAD_DETAILS_NOTE_TO_SELF_EXPLANATION",
+                return OWSLocalizedString("THREAD_DETAILS_NOTE_TO_SELF_EXPLANATION",
                                          comment: "Subtitle appearing at the top of the users 'note to self' conversation")
             }
             var details: String?
@@ -294,16 +309,6 @@ public class CVComponentThreadDetails: CVComponentBase, CVRootComponent {
                 }
             }
 
-            if let username = Self.profileManagerImpl.username(for: contactThread.contactAddress,
-                                                               transaction: transaction) {
-                if let formattedUsername = CommonFormats.formatUsername(username), threadName != formattedUsername {
-                    if let existingDetails = details {
-                        details = existingDetails + "\n" + formattedUsername
-                    } else {
-                        details = formattedUsername
-                    }
-                }
-            }
             return details
         }()
 
@@ -319,29 +324,29 @@ public class CVComponentThreadDetails: CVComponentBase, CVRootComponent {
 
             let formatString: String
             var formatArgs: [AttributedFormatArg] = mutualGroupNames.map { name in
-                return .string(name, attributes: [.font: UIFont.ows_dynamicTypeSubheadline.ows_semibold])
+                return .string(name, attributes: [.font: UIFont.dynamicTypeSubheadline.semibold()])
             }
 
             switch mutualGroupNames.count {
             case 0:
                 return nil
             case 1:
-                formatString = NSLocalizedString(
+                formatString = OWSLocalizedString(
                     "THREAD_DETAILS_ONE_MUTUAL_GROUP",
                     comment: "A string indicating a mutual group the user shares with this contact. Embeds {{mutual group name}}"
                 )
             case 2:
-                formatString = NSLocalizedString(
+                formatString = OWSLocalizedString(
                     "THREAD_DETAILS_TWO_MUTUAL_GROUP",
                     comment: "A string indicating two mutual groups the user shares with this contact. Embeds {{mutual group name}}"
                 )
             case 3:
-                formatString = NSLocalizedString(
+                formatString = OWSLocalizedString(
                     "THREAD_DETAILS_THREE_MUTUAL_GROUP",
                     comment: "A string indicating three mutual groups the user shares with this contact. Embeds {{mutual group name}}"
                 )
             default:
-                formatString = NSLocalizedString(
+                formatString = OWSLocalizedString(
                     "THREAD_DETAILS_MORE_MUTUAL_GROUP",
                     comment: "A string indicating two mutual groups the user shares with this contact and that there are more unlisted. Embeds {{mutual group name}}"
                 )

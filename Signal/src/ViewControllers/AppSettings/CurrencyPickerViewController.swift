@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalCoreKit
 import SignalMessaging
+import SignalUI
 
 protocol CurrencyPickerDataSource {
     var currentCurrencyCode: Currency.Code { get }
@@ -38,7 +38,7 @@ class CurrencyPickerViewController<DataSourceType: CurrencyPickerDataSource>: OW
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        title = NSLocalizedString("CURRENCY_PICKER_VIEW_TITLE",
+        title = OWSLocalizedString("CURRENCY_PICKER_VIEW_TITLE",
                                   comment: "Title for the 'currency picker' view in the app settings.")
 
         navigationItem.leftBarButtonItem = UIBarButtonItem(barButtonSystemItem: .cancel, target: self, action: #selector(didTapCancel))
@@ -73,24 +73,22 @@ class CurrencyPickerViewController<DataSourceType: CurrencyPickerDataSource>: OW
 
         let preferredSection = OWSTableSection()
         preferredSection.customHeaderHeight = 12
-        preferredSection.separatorInsetLeading = NSNumber(value: Double(OWSTableViewController2.cellHInnerMargin))
+        preferredSection.separatorInsetLeading = OWSTableViewController2.cellHInnerMargin
         for currencyInfo in preferredCurrencyInfos {
             preferredSection.add(buildTableItem(forCurrencyInfo: currencyInfo,
                                                 currentCurrencyCode: currentCurrencyCode))
         }
-        contents.addSection(preferredSection)
+        contents.add(preferredSection)
 
         let supportedSection = OWSTableSection()
-        supportedSection.separatorInsetLeading = NSNumber(value: Double(OWSTableViewController2.cellHInnerMargin))
-        supportedSection.headerTitle = NSLocalizedString("SETTINGS_PAYMENTS_CURRENCY_VIEW_SECTION_ALL_CURRENCIES",
+        supportedSection.separatorInsetLeading = OWSTableViewController2.cellHInnerMargin
+        supportedSection.headerTitle = OWSLocalizedString("SETTINGS_PAYMENTS_CURRENCY_VIEW_SECTION_ALL_CURRENCIES",
                                                          comment: "Label for 'all currencies' section in the payment currency settings.")
         if supportedCurrencyInfos.isEmpty {
             supportedSection.add(OWSTableItem(customCellBlock: {
                 let cell = OWSTableItem.newCell()
 
-                let activityIndicator = UIActivityIndicatorView(style: Theme.isDarkThemeEnabled
-                                                                    ? .white
-                                                                    : .gray)
+                let activityIndicator = UIActivityIndicatorView(style: .medium)
                 activityIndicator.startAnimating()
 
                 cell.contentView.addSubview(activityIndicator)
@@ -107,7 +105,7 @@ class CurrencyPickerViewController<DataSourceType: CurrencyPickerDataSource>: OW
                                                     currentCurrencyCode: currentCurrencyCode))
             }
         }
-        contents.addSection(supportedSection)
+        contents.add(supportedSection)
 
         self.contents = contents
     }
@@ -143,7 +141,7 @@ class CurrencyPickerViewController<DataSourceType: CurrencyPickerDataSource>: OW
                                                   currentCurrencyCode: currentCurrencyCode))
             }
         }
-        contents.addSection(resultsSection)
+        contents.add(resultsSection)
 
         self.contents = contents
     }
@@ -158,12 +156,12 @@ class CurrencyPickerViewController<DataSourceType: CurrencyPickerDataSource>: OW
 
             let nameLabel = UILabel()
             nameLabel.text = currencyInfo.name
-            nameLabel.font = UIFont.ows_dynamicTypeBodyClamped
+            nameLabel.font = UIFont.dynamicTypeBodyClamped
             nameLabel.textColor = Theme.primaryTextColor
 
             let currencyCodeLabel = UILabel()
             currencyCodeLabel.text = currencyCode.uppercased()
-            currencyCodeLabel.font = UIFont.ows_dynamicTypeFootnoteClamped
+            currencyCodeLabel.font = UIFont.dynamicTypeFootnoteClamped
             currencyCodeLabel.textColor = Theme.secondaryTextAndIconColor
 
             let stackView = UIStackView(arrangedSubviews: [ nameLabel, currencyCodeLabel ])
@@ -200,7 +198,7 @@ class CurrencyPickerViewController<DataSourceType: CurrencyPickerDataSource>: OW
     }
 
     @objc
-    func didTapCancel() {
+    private func didTapCancel() {
         dismissPicker()
     }
 
@@ -274,7 +272,7 @@ class PaymentsCurrencyPickerDataSource: NSObject, CurrencyPickerDataSource {
     }
 
     @objc
-    func paymentConversionRatesDidChange() {
+    private func paymentConversionRatesDidChange() {
         supportedCurrencyInfos = paymentsCurrenciesSwift.supportedCurrencyInfosWithCurrencyConversions
     }
 }

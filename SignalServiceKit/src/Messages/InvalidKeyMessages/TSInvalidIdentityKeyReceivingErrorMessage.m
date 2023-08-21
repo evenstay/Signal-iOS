@@ -6,16 +6,14 @@
 #import "TSInvalidIdentityKeyReceivingErrorMessage.h"
 #import "AxolotlExceptions.h"
 #import "NSData+keyVersionByte.h"
-#import "OWSFingerprint.h"
 #import "OWSIdentityManager.h"
 #import "OWSMessageManager.h"
-#import "SSKEnvironment.h"
 #import "TSContactThread.h"
 #import <SignalServiceKit/SignalServiceKit-Swift.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
-__attribute__((deprecated)) @interface TSInvalidIdentityKeyReceivingErrorMessage()
+/* DEPRECATED */ @interface TSInvalidIdentityKeyReceivingErrorMessage ()
 
 @property (nonatomic, readonly, copy) NSString *authorId;
 
@@ -100,6 +98,7 @@ __attribute__((deprecated)) @interface TSInvalidIdentityKeyReceivingErrorMessage
                             body:(nullable NSString *)body
                       bodyRanges:(nullable MessageBodyRanges *)bodyRanges
                     contactShare:(nullable OWSContact *)contactShare
+                       editState:(TSEditState)editState
                  expireStartedAt:(uint64_t)expireStartedAt
                        expiresAt:(uint64_t)expiresAt
                 expiresInSeconds:(unsigned int)expiresInSeconds
@@ -133,6 +132,7 @@ __attribute__((deprecated)) @interface TSInvalidIdentityKeyReceivingErrorMessage
                               body:body
                         bodyRanges:bodyRanges
                       contactShare:contactShare
+                         editState:editState
                    expireStartedAt:expireStartedAt
                          expiresAt:expiresAt
                   expiresInSeconds:expiresInSeconds
@@ -198,11 +198,16 @@ __attribute__((deprecated)) @interface TSInvalidIdentityKeyReceivingErrorMessage
         return;
     }
 
-    [[OWSIdentityManager shared] saveRemoteIdentity:newKey address:self.envelope.sourceAddress];
+    DatabaseStorageWrite(self.databaseStorage, ^(SDSAnyWriteTransaction *tx) {
+        [self.identityManager saveRemoteIdentity:newKey address:self.envelope.sourceAddress transaction:tx];
+    });
+
+    __block NSArray<TSInvalidIdentityKeyReceivingErrorMessage *> *_Nullable messagesToDecrypt;
+    [self.databaseStorage readWithBlock:^(SDSAnyReadTransaction *tx) {
+        messagesToDecrypt = [[self threadWithTx:tx] receivedMessagesForInvalidKey:newKey tx:tx];
+    }];
 
     // Decrypt this and any old messages for the newly accepted key
-    NSArray<TSInvalidIdentityKeyReceivingErrorMessage *> *_Nullable messagesToDecrypt =
-        [self.threadWithSneakyTransaction receivedMessagesForInvalidKey:newKey];
     [self decryptWithMessagesToDecrypt:messagesToDecrypt];
 }
 

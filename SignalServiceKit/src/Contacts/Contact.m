@@ -5,8 +5,6 @@
 
 #import "Contact.h"
 #import "PhoneNumber.h"
-#import "SSKEnvironment.h"
-#import "SignalRecipient.h"
 #import "TSAccountManager.h"
 #import <Contacts/Contacts.h>
 #import <SignalCoreKit/Cryptography.h>
@@ -243,41 +241,9 @@ NS_ASSUME_NONNULL_BEGIN
     return [NSString stringWithFormat:@"%@: %@", self.fullName, self.userTextPhoneNumbers];
 }
 
-+ (NSComparator)comparatorSortingNamesByFirstThenLast:(BOOL)firstNameOrdering {
-    return ^NSComparisonResult(id obj1, id obj2) {
-        Contact *contact1 = (Contact *)obj1;
-        Contact *contact2 = (Contact *)obj2;
-        
-        if (firstNameOrdering) {
-            return [contact1.comparableNameFirstLast caseInsensitiveCompare:contact2.comparableNameFirstLast];
-        } else {
-            return [contact1.comparableNameLastFirst caseInsensitiveCompare:contact2.comparableNameLastFirst];
-        }
-    };
-}
-
 + (NSString *)formattedFullNameWithCNContact:(CNContact *)cnContact
 {
     return [CNContactFormatter stringFromContact:cnContact style:CNContactFormatterStyleFullName].ows_stripped;
-}
-
-- (NSString *)nameForAddress:(SignalServiceAddress *)address
-         registeredAddresses:(NSArray<SignalServiceAddress *> *)registeredAddresses
-{
-    OWSAssertDebug(address.isValid);
-    OWSAssertDebug([registeredAddresses containsObject:address]);
-
-    // We don't have contacts entries for addresses without phone numbers
-    if (!address.phoneNumber) {
-        return nil;
-    }
-
-    NSString *value = self.phoneNumberNameMap[address.phoneNumber];
-    if (!value) {
-        return OWSLocalizedString(@"PHONE_NUMBER_TYPE_UNKNOWN",
-            @"Label used when we don't what kind of phone number it is (e.g. mobile/work/home).");
-    }
-    return value;
 }
 
 + (nullable NSData *)avatarDataForCNContact:(nullable CNContact *)cnContact

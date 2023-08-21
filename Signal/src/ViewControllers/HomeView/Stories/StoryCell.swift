@@ -67,15 +67,16 @@ class StoryCell: UITableViewCell {
     }
 
     private var attachment: StoryThumbnailView.Attachment?
+    private var revealedSpoilerIds: Set<StyleIdType>?
 
-    func configure(with model: StoryViewModel) {
+    func configure(with model: StoryViewModel, spoilerState: SpoilerRenderState) {
         configureSubtitle(with: model)
 
         switch model.context {
-        case .authorUuid:
-            replyImageView.image = #imageLiteral(resourceName: "reply-solid-20").withRenderingMode(.alwaysTemplate)
+        case .authorAci:
+            replyImageView.image = UIImage(imageLiteralResourceName: "reply-fill-20")
         case .groupId:
-            replyImageView.image = #imageLiteral(resourceName: "messages-solid-20").withRenderingMode(.alwaysTemplate)
+            replyImageView.image = UIImage(imageLiteralResourceName: "thread-fill-20").withRenderingMode(.alwaysTemplate)
         case .privateStory:
             owsFailDebug("Unexpectedly had private story on stories list")
         case .none:
@@ -86,12 +87,12 @@ class StoryCell: UITableViewCell {
         replyImageView.tintColor = Theme.isDarkThemeEnabled ? Theme.secondaryTextAndIconColor : .ows_gray45
 
         nameLabel.numberOfLines = 2
-        nameLabel.font = .ows_dynamicTypeHeadline
+        nameLabel.font = .dynamicTypeHeadline
         nameLabel.textColor = Theme.primaryTextColor
         nameLabel.text = model.latestMessageName
 
         nameIconView.contentMode = .center
-        nameIconView.image = UIImage(named: "official-checkmark-20")
+        nameIconView.image = Theme.iconImage(.official)
         nameIconView.isHiddenInStackView = !model.isSystemStory
 
         avatarView.updateWithSneakyTransactionIfNecessary { config in
@@ -102,11 +103,17 @@ class StoryCell: UITableViewCell {
         }
 
         attachmentThumbnail.backgroundColor = Theme.washColor
-        if self.attachment != model.latestMessageAttachment {
+        let revealedSpoilerIds = spoilerState.revealState.revealedSpoilerIds(interactionIdentifier: model.latestMessageIdentifier)
+        if self.attachment != model.latestMessageAttachment || self.revealedSpoilerIds != revealedSpoilerIds {
             self.attachment = model.latestMessageAttachment
+            self.revealedSpoilerIds = revealedSpoilerIds
             attachmentThumbnail.removeAllSubviews()
 
-            let storyThumbnailView = StoryThumbnailView(attachment: model.latestMessageAttachment)
+            let storyThumbnailView = StoryThumbnailView(
+                attachment: model.latestMessageAttachment,
+                interactionIdentifier: model.latestMessageIdentifier,
+                spoilerState: spoilerState
+            )
             attachmentThumbnail.addSubview(storyThumbnailView)
             storyThumbnailView.autoPinEdgesToSuperviewEdges()
         }
@@ -120,7 +127,7 @@ class StoryCell: UITableViewCell {
 
     func configureSubtitle(with model: StoryViewModel) {
         subtitleStack.isHidden = model.isSystemStory
-        subtitleLabel.font = .ows_dynamicTypeSubheadline
+        subtitleLabel.font = .dynamicTypeSubheadline
         subtitleLabel.textColor = Theme.isDarkThemeEnabled ? Theme.secondaryTextAndIconColor : .ows_gray45
 
         switch model.latestMessageSendingState {
@@ -128,12 +135,12 @@ class StoryCell: UITableViewCell {
             subtitleLabel.text = DateUtil.formatTimestampRelatively(model.latestMessageTimestamp)
             failedIconView.isHiddenInStackView = true
         case .sending, .pending:
-            subtitleLabel.text = NSLocalizedString("STORY_SENDING", comment: "Text indicating that the story is currently sending")
+            subtitleLabel.text = OWSLocalizedString("STORY_SENDING", comment: "Text indicating that the story is currently sending")
             failedIconView.isHiddenInStackView = true
         case .failed:
             subtitleLabel.text = model.latestMessage.hasSentToAnyRecipients
-                ? NSLocalizedString("STORY_SEND_PARTIALLY_FAILED", comment: "Text indicating that the story send has partially failed")
-                : NSLocalizedString("STORY_SEND_FAILED", comment: "Text indicating that the story send has failed")
+                ? OWSLocalizedString("STORY_SEND_PARTIALLY_FAILED", comment: "Text indicating that the story send has partially failed")
+                : OWSLocalizedString("STORY_SEND_FAILED", comment: "Text indicating that the story send has failed")
             failedIconView.image = Theme.iconImage(.error16)
             failedIconView.isHiddenInStackView = false
         case .sent_OBSOLETE, .delivered_OBSOLETE:

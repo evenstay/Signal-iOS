@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import LibSignalClient
 import SignalCoreKit
 
 @objc
@@ -12,13 +13,14 @@ public class StoryManager: NSObject {
 
     @objc
     public class func setup() {
-        AppReadiness.runNowOrWhenAppDidBecomeReadyAsync {
-            cacheAreStoriesEnabled()
-            cacheAreViewReceiptsEnabled()
+        cacheAreStoriesEnabled()
+        cacheAreViewReceiptsEnabled()
 
-            // Create My Story thread if necessary
+        AppReadiness.runNowOrWhenAppDidBecomeReadyAsync {
             Self.databaseStorage.asyncWrite { transaction in
+                // Create My Story thread if necessary
                 TSPrivateStoryThread.getOrCreateMyStory(transaction: transaction)
+
                 if CurrentAppContext().isMainApp {
                     TSPrivateStoryThread.cleanupDeletedTimestamps(transaction: transaction)
                 }
@@ -26,11 +28,10 @@ public class StoryManager: NSObject {
         }
     }
 
-    @objc
     public class func processIncomingStoryMessage(
         _ storyMessage: SSKProtoStoryMessage,
         timestamp: UInt64,
-        author: SignalServiceAddress,
+        author: Aci,
         transaction: SDSAnyWriteTransaction
     ) throws {
         // Drop all story messages until the feature is enabled.
@@ -45,8 +46,13 @@ public class StoryManager: NSObject {
             return
         }
 
-        guard !blockingManager.isAddressBlocked(author, transaction: transaction) else {
+        guard !blockingManager.isAddressBlocked(SignalServiceAddress(author), transaction: transaction) else {
             Logger.warn("Dropping story message with timestamp \(timestamp) from blocked author \(author)")
+            return
+        }
+
+        if DependenciesBridge.shared.recipientHidingManager.isHiddenAddress(SignalServiceAddress(author), tx: transaction.asV2Read) {
+            Logger.warn("Dropping story message with timestamp \(timestamp) from hidden author \(author)")
             return
         }
 
@@ -76,7 +82,7 @@ public class StoryManager: NSObject {
             }
 
         } else {
-            guard profileManager.isUser(inProfileWhitelist: author, transaction: transaction) else {
+            guard profileManager.isUser(inProfileWhitelist: SignalServiceAddress(author), transaction: transaction) else {
                 Logger.warn("Dropping story message with timestamp \(timestamp) from unapproved author \(author).")
                 return
             }
@@ -85,8 +91,9 @@ public class StoryManager: NSObject {
         if let profileKey = storyMessage.profileKey {
             profileManager.setProfileKeyData(
                 profileKey,
-                for: author,
+                for: SignalServiceAddress(author),
                 userProfileWriter: .localUser,
+                authedAccount: .implicit(),
                 transaction: transaction
             )
         }
@@ -100,9 +107,9 @@ public class StoryManager: NSObject {
         ) else { return }
 
         switch message.context {
-        case .authorUuid(let uuid):
+        case .authorAci(let authorAci):
             // Make sure the thread exists for the contact who sent us this story.
-            _ = TSContactThread.getOrCreateThread(withContactAddress: .init(uuid: uuid), transaction: transaction)
+            _ = TSContactThread.getOrCreateThread(withContactAddress: SignalServiceAddress(authorAci), transaction: transaction)
         case .groupId, .privateStory, .none:
             break
         }
@@ -124,7 +131,7 @@ public class StoryManager: NSObject {
 
         let existingStory = StoryFinder.story(
             timestamp: proto.timestamp,
-            author: tsAccountManager.localAddress!,
+            author: tsAccountManager.localIdentifiers(transaction: transaction)!.aci,
             transaction: transaction
         )
 
@@ -206,14 +213,14 @@ public class StoryManager: NSObject {
     /// * The context has been recently interacted with (sent message to group, 1:1, viewed story, etc), is associated with a pinned thread, or has been recently viewed
     /// * We have not already exceeded the limit for how many unviewed stories we should download for this context
     private class func startAutomaticDownloadIfNecessary(for message: StoryMessage, transaction: SDSAnyWriteTransaction) {
-        guard case .file(let attachmentId) = message.attachment else {
+        guard case .file(let file) = message.attachment else {
             // We always auto-download non-file story attachments, this will generally only be link preview thumbnails.
             Logger.info("Automatically enqueueing download of non-file based story with timestamp \(message.timestamp)")
             attachmentDownloads.enqueueDownloadOfAttachmentsForNewStoryMessage(message, transaction: transaction)
             return
         }
 
-        guard let attachmentPointer = TSAttachmentPointer.anyFetchAttachmentPointer(uniqueId: attachmentId, transaction: transaction) else {
+        guard let attachmentPointer = TSAttachmentPointer.anyFetchAttachmentPointer(uniqueId: file.attachmentId, transaction: transaction) else {
             // Already downloaded, nothing to do.
             return
         }
@@ -224,9 +231,9 @@ public class StoryManager: NSObject {
             switch otherMessage.attachment {
             case .text:
                 unviewedDownloadedStoriesForContext += 1
-            case .file(let attachmentId):
-                guard let attachment = TSAttachment.anyFetch(uniqueId: attachmentId, transaction: transaction) else {
-                    owsFailDebug("Missing attachment for attachmentId \(attachmentId)")
+            case .file(let file):
+                guard let attachment = TSAttachment.anyFetch(uniqueId: file.attachmentId, transaction: transaction) else {
+                    owsFailDebug("Missing attachment for attachmentId \(file.attachmentId)")
                     return
                 }
                 if let pointer = attachment as? TSAttachmentPointer, [.downloading, .enqueued].contains(pointer.state) {
@@ -257,7 +264,7 @@ public class StoryManager: NSObject {
         ).map(\.sourceContext.asStoryContext)
         let autoDownloadContexts = (pinnedThreads + recentlyInteractedThreads).map { $0.storyContext } + recentlyViewedContexts
 
-        if autoDownloadContexts.contains(message.context) || autoDownloadContexts.contains(.authorUuid(message.authorUuid)) {
+        if autoDownloadContexts.contains(message.context) || autoDownloadContexts.contains(.authorAci(message.authorAci)) {
             Logger.info("Automatically downloading attachments for story with timestamp \(message.timestamp) and context \(message.context)")
 
             attachmentDownloads.enqueueDownloadOfAttachmentsForNewStoryMessage(message, transaction: transaction)
@@ -322,7 +329,13 @@ extension StoryManager {
     }
 
     public static func appendStoryHeaders(to request: inout URLRequest) {
-        request.setValue(areStoriesEnabled ? "true" : "false", forHTTPHeaderField: "X-Signal-Receive-Stories")
+        for (key, value) in buildStoryHeaders() {
+            request.setValue(value, forHTTPHeaderField: key)
+        }
+    }
+
+    public static func buildStoryHeaders() -> [String: String] {
+        ["X-Signal-Receive-Stories": areStoriesEnabled ? "true" : "false"]
     }
 }
 
@@ -338,6 +351,7 @@ extension StoryManager {
         keyValueStore.getBool(areViewReceiptsEnabledKey, transaction: transaction) ?? receiptManager.areReadReceiptsEnabled(transaction: transaction)
     }
 
+    // TODO: should this live on OWSReceiptManager?
     public static func setAreViewReceiptsEnabled(_ enabled: Bool, shouldUpdateStorageService: Bool = true, transaction: SDSAnyWriteTransaction) {
         keyValueStore.setBool(enabled, key: areViewReceiptsEnabledKey, transaction: transaction)
         areViewReceiptsEnabled = enabled
@@ -356,7 +370,7 @@ extension StoryManager {
 
 public enum StoryContext: Equatable, Hashable, Dependencies {
     case groupId(Data)
-    case authorUuid(UUID)
+    case authorAci(Aci)
     case privateStory(String)
     case none
 }
@@ -365,8 +379,8 @@ public extension TSThread {
     var storyContext: StoryContext {
         if let groupThread = self as? TSGroupThread {
             return .groupId(groupThread.groupId)
-        } else if let contactThread = self as? TSContactThread, let authorUuid = contactThread.contactAddress.uuid {
-            return .authorUuid(authorUuid)
+        } else if let contactThread = self as? TSContactThread, let authorAci = contactThread.contactAddress.serviceId as? Aci {
+            return .authorAci(authorAci)
         } else if let privateStoryThread = self as? TSPrivateStoryThread {
             return .privateStory(privateStoryThread.uniqueId)
         } else {
@@ -381,8 +395,8 @@ public extension StoryContext {
         switch self {
         case .groupId(let data):
             return .group(groupId: data)
-        case .authorUuid(let uUID):
-            return .contact(contactUuid: uUID)
+        case .authorAci(let authorAci):
+            return .contact(contactAci: authorAci)
         case .privateStory:
             return nil
         case .none:
@@ -397,9 +411,9 @@ public extension StoryContext {
                 forGroupId: data,
                 transaction: transaction
             )
-        case .authorUuid(let uuid):
+        case .authorAci(let authorAci):
             return TSContactThread.getWithContactAddress(
-                uuid.asSignalServiceAddress(),
+                SignalServiceAddress(authorAci),
                 transaction: transaction
             )?.uniqueId
         case .privateStory(let uniqueId):
@@ -413,9 +427,9 @@ public extension StoryContext {
         switch self {
         case .groupId(let data):
             return TSGroupThread.fetch(groupId: data, transaction: transaction)
-        case .authorUuid(let uuid):
+        case .authorAci(let authorAci):
             return TSContactThread.getWithContactAddress(
-                SignalServiceAddress(uuid: uuid),
+                SignalServiceAddress(authorAci),
                 transaction: transaction
             )
         case .privateStory(let uniqueId):
@@ -437,10 +451,7 @@ public extension StoryContext {
     func isHidden(
         transaction: SDSAnyReadTransaction
     ) -> Bool {
-        if
-            case .authorUuid(let uuid) = self,
-            SignalServiceAddress(uuid: uuid).isSystemStoryAddress
-        {
+        if self == .authorAci(StoryMessage.systemStoryAuthor) {
             return Self.systemStoryManager.areSystemStoriesHidden(transaction: transaction)
         }
         return self.associatedData(transaction: transaction)?.isHidden ?? false
@@ -451,8 +462,8 @@ public extension StoryContextAssociatedData.SourceContext {
 
     var asStoryContext: StoryContext {
         switch self {
-        case .contact(let contactUuid):
-            return .authorUuid(contactUuid)
+        case .contact(let contactAci):
+            return .authorAci(contactAci)
         case .group(let groupId):
             return .groupId(groupId)
         }

@@ -4,7 +4,10 @@
 //
 
 import XCTest
+
 @testable import Signal
+@testable import SignalServiceKit
+@testable import SignalUI
 
 class ConversationViewTest: SignalBaseTest {
     func testConversationStyleComparison() throws {
@@ -18,19 +21,19 @@ class ConversationViewTest: SignalBaseTest {
                                        viewWidth: 100,
                                        hasWallpaper: false,
                                        isWallpaperPhoto: false,
-                                       chatColor: .placeholderValue)
+                                       chatColor: ChatColors.Constants.defaultColor.colorSetting)
         let style2 = ConversationStyle(type: .`default`,
                                        thread: thread,
                                        viewWidth: 100,
                                        hasWallpaper: false,
                                        isWallpaperPhoto: false,
-                                       chatColor: .placeholderValue)
+                                       chatColor: ChatColors.Constants.defaultColor.colorSetting)
         let style3 = ConversationStyle(type: .`default`,
                                        thread: thread,
                                        viewWidth: 101,
                                        hasWallpaper: false,
                                        isWallpaperPhoto: false,
-                                       chatColor: .placeholderValue)
+                                       chatColor: ChatColors.Constants.defaultColor.colorSetting)
 
         XCTAssertFalse(style1.isDarkThemeEnabled)
         XCTAssertFalse(style2.isDarkThemeEnabled)
@@ -48,7 +51,7 @@ class ConversationViewTest: SignalBaseTest {
                                        viewWidth: 100,
                                        hasWallpaper: false,
                                        isWallpaperPhoto: false,
-                                       chatColor: .placeholderValue)
+                                       chatColor: ChatColors.Constants.defaultColor.colorSetting)
 
         XCTAssertFalse(style1.isDarkThemeEnabled)
         XCTAssertFalse(style2.isDarkThemeEnabled)

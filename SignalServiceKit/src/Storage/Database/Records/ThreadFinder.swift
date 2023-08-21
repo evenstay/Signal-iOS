@@ -148,8 +148,17 @@ public class GRDBThreadFinder: NSObject, ThreadFinder {
             ORDER BY \(threadColumn: .lastInteractionRowId) DESC
             """
 
-        try ThreadRecord.fetchCursor(transaction.database, sql: sql).forEach { threadRecord in
-            block(try TSThread.fromRecord(threadRecord))
+        do {
+            try ThreadRecord.fetchCursor(transaction.database, sql: sql).forEach { threadRecord in
+                block(try TSThread.fromRecord(threadRecord))
+            }
+        } catch {
+            DatabaseCorruptionState.flagDatabaseReadCorruptionIfNecessary(
+                userDefaults: CurrentAppContext().appUserDefaults(),
+                error: error
+            )
+            // rethrow the error after marking database
+            throw error
         }
     }
 
@@ -216,6 +225,18 @@ public class GRDBThreadFinder: NSObject, ThreadFinder {
         // If this is a group thread and we're not a member, never show the message request.
         if isGroupThread, !isLocalUserInGroup { return false }
 
+        if
+            let thread = thread as? TSContactThread,
+            DependenciesBridge.shared.recipientHidingManager.isHiddenAddress(
+                thread.contactAddress,
+                tx: transaction.asAnyRead.asV2Read
+            )
+        {
+            // If the user hides a contact and said contact subsequently sends an incoming
+            // message, we display the message request UI.
+            return GRDBInteractionFinder(threadUniqueId: thread.uniqueId).mostRecentInteraction(transaction: transaction)?.interactionType == .incomingMessage
+        }
+
         // If the thread is already whitelisted, do nothing. The user has already
         // accepted the request for this thread.
         guard !Self.profileManager.isThread(
@@ -245,27 +266,26 @@ public class GRDBThreadFinder: NSObject, ThreadFinder {
     @objc
     public class func shouldSetDefaultDisappearingMessageTimer(
         thread: TSThread,
-        transaction: GRDBReadTransaction
+        transaction tx: GRDBReadTransaction
     ) -> Bool {
         // We never set the default timer for group threads. Group thread timers
         // are set during group creation.
         guard !thread.isGroupThread else { return false }
 
+        let dmConfigurationStore = DependenciesBridge.shared.disappearingMessagesConfigurationStore
+
         // Make sure the universal timer is enabled.
-        guard OWSDisappearingMessagesConfiguration.fetchOrBuildDefaultUniversalConfiguration(
-            with: transaction.asAnyRead
-        ).isEnabled else {
+        guard dmConfigurationStore.fetchOrBuildDefault(for: .universal, tx: tx.asAnyRead.asV2Read).isEnabled else {
             return false
         }
 
         // Make sure there the current timer is disabled.
-        guard !thread.disappearingMessagesConfiguration(with: transaction.asAnyRead).isEnabled else {
+        guard !dmConfigurationStore.fetchOrBuildDefault(for: .thread(thread), tx: tx.asAnyRead.asV2Read).isEnabled else {
             return false
         }
 
         // Make sure there has been no user initiated interactions.
-        return !GRDBInteractionFinder(threadUniqueId: thread.uniqueId)
-            .hasUserInitiatedInteraction(transaction: transaction)
+        return !GRDBInteractionFinder(threadUniqueId: thread.uniqueId).hasUserInitiatedInteraction(transaction: tx)
     }
 
     @objc
@@ -298,7 +318,15 @@ public class GRDBThreadFinder: NSObject, ThreadFinder {
         )
         """
         let arguments: StatementArguments = [SDSRecordType.groupThread.rawValue]
-        return try! Bool.fetchOne(transaction.database, sql: sql, arguments: arguments) ?? false
+        do {
+            return try Bool.fetchOne(transaction.database, sql: sql, arguments: arguments) ?? false
+        } catch {
+            DatabaseCorruptionState.flagDatabaseReadCorruptionIfNecessary(
+                userDefaults: CurrentAppContext().appUserDefaults(),
+                error: error
+            )
+            owsFail("Failed to find group thread")
+        }
     }
 
     public func storyThreads(includeImplicitGroupThreads: Bool, transaction: GRDBReadTransaction) -> [TSThread] {

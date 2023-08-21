@@ -4,29 +4,16 @@
 //
 
 #import "DebugLogger.h"
-#import "OWSPreferences.h"
-#import "OWSScrubbingLogFormatter.h"
 #import <AudioToolbox/AudioServices.h>
 #import <CocoaLumberjack/DDTTYLogger.h>
 #import <SignalCoreKit/NSDate+OWS.h>
+#import <SignalMessaging/SignalMessaging-Swift.h>
 #import <SignalServiceKit/AppContext.h>
-#import <SignalServiceKit/AppVersion.h>
 #import <SignalServiceKit/OWSFileSystem.h>
 #import <SignalServiceKit/SignalServiceKit-Swift.h>
 #import <SignalServiceKit/TestAppContext.h>
 
 NS_ASSUME_NONNULL_BEGIN
-
-const NSUInteger kMaxDebugLogFileSize = 1024 * 1024 * 3;
-
-@interface DebugLogger ()
-
-@property (nonatomic, nullable) DDFileLogger *fileLogger;
-
-@end
-
-@interface DebugLogFileManager : DDLogFileManagerDefault
-@end
 
 #pragma mark -
 
@@ -80,51 +67,6 @@ const NSUInteger kMaxDebugLogFileSize = 1024 * 1024 * 3;
     ];
 }
 
-- (NSString *)logsDirPath
-{
-    return CurrentAppContext().debugLogsDirPath;
-}
-
-- (void)enableFileLogging
-{
-    if (CurrentAppContext().isRunningTests) {
-        return;
-    }
-    NSString *logsDirPath = [self logsDirPath];
-
-    // Logging to file, because it's in the Cache folder, they are not uploaded in iTunes/iCloud backups.
-    id<DDLogFileManager> logFileManager = [[DebugLogFileManager alloc] initWithLogsDirectory:logsDirPath
-                                                                  defaultFileProtectionLevel:@""];
-    self.fileLogger = [[DDFileLogger alloc] initWithLogFileManager:logFileManager];
-
-    // 24 hour rolling.
-    self.fileLogger.rollingFrequency = kDayInterval;
-
-    if (SSKDebugFlags.extraDebugLogs) {
-        // Keep extra log files in internal builds.
-        self.fileLogger.logFileManager.maximumNumberOfLogFiles = 32;
-    } else {
-        // Keep last 3 days of logs - or last 3 logs (if logs rollover due to max file size).
-        self.fileLogger.logFileManager.maximumNumberOfLogFiles = 3;
-    }
-
-    self.fileLogger.maximumFileSize = kMaxDebugLogFileSize;
-    self.fileLogger.logFormatter = [OWSScrubbingLogFormatter new];
-
-    [DDLog addLogger:self.fileLogger];
-}
-
-- (void)disableFileLogging
-{
-    [DDLog removeLogger:self.fileLogger];
-    self.fileLogger = nil;
-}
-
-- (void)enableTTYLogging
-{
-    [DDLog addLogger:DDTTYLogger.sharedInstance];
-}
-
 - (NSURL *)errorLogsDir
 {
     NSString *logDirPath = [OWSFileSystem.cachesDirectoryPath stringByAppendingPathComponent:@"ErrorLogs"];
@@ -170,80 +112,6 @@ const NSUInteger kMaxDebugLogFileSize = 1024 * 1024 * 3;
     [logPathSet addObjectsFromArray:self.fileLogger.logFileManager.unsortedLogFilePaths];
     NSArray<NSString *> *logPaths = logPathSet.allObjects;
     return [logPaths sortedArrayUsingSelector:@selector((compare:))];
-}
-
-- (void)wipeLogs
-{
-    NSArray<NSString *> *logFilePaths = self.allLogFilePaths;
-
-    BOOL reenableLogging = (self.fileLogger ? YES : NO);
-    if (reenableLogging) {
-        [self disableFileLogging];
-    }
-
-    NSFileManager *fileManager = [NSFileManager defaultManager];
-    NSError *error;
-    for (NSString *logFilePath in logFilePaths) {
-        BOOL success = [fileManager removeItemAtPath:logFilePath error:&error];
-        if (!success || error) {
-            OWSFailDebug(@"Failed to delete log file: %@", error);
-        }
-    }
-
-    if (reenableLogging) {
-        [self enableFileLogging];
-    }
-}
-
-- (void)removeObsoleteDebugLogs
-{
-    NSArray<NSString *> *allBundleIds = @[
-        [NSBundle.mainBundle.bundleIdPrefix stringByAppendingString:@".signal"],
-        [NSBundle.mainBundle.bundleIdPrefix stringByAppendingString:@".signal.shareextension"],
-        [NSBundle.mainBundle.bundleIdPrefix stringByAppendingString:@".signal.SignalNSE"],
-
-        // Obsolete, should not be included:
-        // @"org.whispersystems.signal.NotificationServiceExtension",
-    ];
-
-    BOOL (^hasKnownAppId)(NSString *) = ^(NSString *logFileName) {
-        for (NSString *appId in allBundleIds) {
-            NSString *prefix = [appId stringByAppendingString:@" "];
-            if ([logFileName hasPrefix:prefix]) {
-                return YES;
-            }
-        }
-        return NO;
-    };
-
-    NSArray<NSString *> *logFilePaths = self.allLogFilePaths;
-
-    NSFileManager *fileManager = [NSFileManager defaultManager];
-    NSError *error;
-    for (NSString *logFilePath in logFilePaths) {
-        NSString *logFileName = logFilePath.lastPathComponent;
-        if (!hasKnownAppId(logFileName)) {
-            OWSLogInfo(@"Removing: %@", logFileName);
-            BOOL success = [fileManager removeItemAtPath:logFilePath error:&error];
-            if (!success || error) {
-                // Ignore failures for dotfiles that get generated in simulator environments
-                if (!([Platform isSimulator] && [logFileName hasPrefix:@"."])) {
-                    OWSFailDebug(@"Failed to delete log file: %@", error);
-                }
-            }
-        }
-    }
-}
-
-static NSString *const kFirstValidLogVersion = @"5.35.1";
-- (void)postLaunchLogCleanup
-{
-    NSString *lastCompletedAppLaunch = AppVersion.shared.lastCompletedLaunchMainAppVersion;
-    if ([AppVersion compareAppVersion:lastCompletedAppLaunch with:kFirstValidLogVersion] == NSOrderedAscending) {
-        [self wipeLogs];
-        OWSLogWarn(@"Wiped logs. (%@ < %@)", lastCompletedAppLaunch, kFirstValidLogVersion);
-    }
-    [self removeObsoleteDebugLogs];
 }
 
 @end

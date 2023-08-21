@@ -6,7 +6,8 @@
 import Foundation
 
 public class SignalMessagingJobQueues: NSObject {
-    override init() {
+
+    public override init() {
         incomingContactSyncJobQueue = IncomingContactSyncJobQueue()
         incomingGroupSyncJobQueue = IncomingGroupSyncJobQueue()
         sessionResetJobQueue = SessionResetJobQueue()
@@ -22,11 +23,10 @@ public class SignalMessagingJobQueues: NSObject {
     public let incomingContactSyncJobQueue: IncomingContactSyncJobQueue
     @objc
     public let incomingGroupSyncJobQueue: IncomingGroupSyncJobQueue
-    @objc
-    public let sessionResetJobQueue: SessionResetJobQueue
 
     // MARK: Swift-only
 
+    public let sessionResetJobQueue: SessionResetJobQueue
     public let broadcastMediaMessageJobQueue: BroadcastMediaMessageJobQueue
     public let subscriptionReceiptCredentialJobQueue: SubscriptionReceiptCredentialJobQueue
     public let sendGiftBadgeJobQueue: SendGiftBadgeJobQueue

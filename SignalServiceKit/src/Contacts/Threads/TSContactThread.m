@@ -7,7 +7,6 @@
 #import "ContactsManagerProtocol.h"
 #import "NotificationsProtocol.h"
 #import "OWSIdentityManager.h"
-#import "SSKEnvironment.h"
 #import <SignalServiceKit/SignalServiceKit-Swift.h>
 
 NS_ASSUME_NONNULL_BEGIN
@@ -17,8 +16,8 @@ NSUInteger const TSContactThreadSchemaVersion = 1;
 
 @interface TSContactThread ()
 
-@property (nonatomic, nullable, readonly) NSString *contactPhoneNumber;
-@property (nonatomic, nullable, readonly) NSString *contactUUID;
+@property (nonatomic, nullable) NSString *contactPhoneNumber;
+@property (nonatomic, nullable) NSString *contactUUID;
 @property (nonatomic, readonly) NSUInteger contactThreadSchemaVersion;
 
 @end
@@ -46,9 +45,10 @@ NSUInteger const TSContactThreadSchemaVersion = 1;
                       uniqueId:(NSString *)uniqueId
    conversationColorNameObsolete:(NSString *)conversationColorNameObsolete
                     creationDate:(nullable NSDate *)creationDate
+             editTargetTimestamp:(nullable NSNumber *)editTargetTimestamp
               isArchivedObsolete:(BOOL)isArchivedObsolete
           isMarkedUnreadObsolete:(BOOL)isMarkedUnreadObsolete
-            lastInteractionRowId:(int64_t)lastInteractionRowId
+            lastInteractionRowId:(uint64_t)lastInteractionRowId
           lastSentStoryTimestamp:(nullable NSNumber *)lastSentStoryTimestamp
        lastVisibleSortIdObsolete:(uint64_t)lastVisibleSortIdObsolete
 lastVisibleSortIdOnScreenPercentageObsolete:(double)lastVisibleSortIdOnScreenPercentageObsolete
@@ -67,6 +67,7 @@ lastVisibleSortIdOnScreenPercentageObsolete:(double)lastVisibleSortIdOnScreenPer
                         uniqueId:uniqueId
      conversationColorNameObsolete:conversationColorNameObsolete
                       creationDate:creationDate
+               editTargetTimestamp:editTargetTimestamp
                 isArchivedObsolete:isArchivedObsolete
             isMarkedUnreadObsolete:isMarkedUnreadObsolete
               lastInteractionRowId:lastInteractionRowId

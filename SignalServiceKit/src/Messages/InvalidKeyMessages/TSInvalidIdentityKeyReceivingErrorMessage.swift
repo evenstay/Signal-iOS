@@ -25,15 +25,17 @@ extension TSInvalidIdentityKeyReceivingErrorMessage {
                 owsFailDebug("Missing envelopeData.")
                 continue
             }
-            messageProcessor.processEncryptedEnvelopeData(envelopeData,
-                                                          serverDeliveryTimestamp: 0,
-                                                          envelopeSource: .identityChangeError) { _ in
+            messageProcessor.processReceivedEnvelopeData(
+                envelopeData,
+                serverDeliveryTimestamp: 0,
+                envelopeSource: .identityChangeError
+            ) { _ in
                 // Here we remove the existing error message because handleReceivedEnvelope will
                 // either
                 //  1.) succeed and create a new successful message in the thread or...
                 //  2.) fail and create a new identical error message in the thread.
-                Self.databaseStorage.write { transaction in
-                    errorMessage.anyRemove(transaction: transaction)
+                Self.databaseStorage.write { tx in
+                    TSInteraction.anyFetch(uniqueId: errorMessage.uniqueId, transaction: tx)?.anyRemove(transaction: tx)
                 }
             }
         }

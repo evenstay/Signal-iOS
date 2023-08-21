@@ -3,7 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
+import LibSignalClient
 import XCTest
+
 @testable import SignalServiceKit
 
 final class ContactDiscoveryManagerTest: XCTestCase {
@@ -15,7 +17,7 @@ final class ContactDiscoveryManagerTest: XCTestCase {
         }
 
         static func foundResponse(for phoneNumbers: Set<String>) -> Set<SignalRecipient> {
-            Set(phoneNumbers.lazy.map { SignalRecipient(phoneNumber: $0, uuid: UUID(), devices: [1])})
+            Set(phoneNumbers.lazy.map { SignalRecipient(aci: Aci.randomForTesting(), phoneNumber: E164($0)!, deviceIds: [1])})
         }
     }
 
@@ -48,7 +50,7 @@ final class ContactDiscoveryManagerTest: XCTestCase {
         initialRequestFuture.resolve([])
         waitForExpectations(timeout: 10)
 
-        XCTAssertEqual(queuedRequestResult?.map { $0.recipientPhoneNumber! }, ["+16505550101"])
+        XCTAssertEqual(queuedRequestResult?.map { $0.phoneNumber! }, ["+16505550101"])
     }
 
     func testRateLimit() throws {
@@ -132,7 +134,7 @@ final class ContactDiscoveryManagerTest: XCTestCase {
         }.cauterize()
         wait(for: [requestExpectation], timeout: 10)
         if let result {
-            return Set(result.map { $0.recipientPhoneNumber! })
+            return Set(result.map { $0.phoneNumber! })
         }
         return nil
     }
@@ -165,10 +167,10 @@ final class ContactDiscoveryManagerTest: XCTestCase {
         var caseCount = 0
         for mode in Set(ContactDiscoveryMode.allCasesOrderedByRateLimitPriority) {
             switch mode {
-            case .oneOffUserRequest, .uuidBackfill, .outgoingMessage, .groupMigration, .contactIntersection:
+            case .oneOffUserRequest, .outgoingMessage, .contactIntersection:
                 caseCount += 1
             }
         }
-        XCTAssertEqual(caseCount, 5)  // every case appears
+        XCTAssertEqual(caseCount, 3)  // every case appears
     }
 }

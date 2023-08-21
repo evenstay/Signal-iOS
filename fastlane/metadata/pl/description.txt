@@ -1,26 +1,19 @@
-Miliony osób korzystają codziennie z komunikatora Signal, aby bezpłatnie i natychmiastowo komunikować się na całym świecie. Bezpiecznie wysyłaj i otrzymuj wiadomości, bierz udział w połączeniach głosowych i wideo w jakości HD i odkrywaj coraz większy zestaw nowych funkcji, które pomagają Ci utrzymywać kontakt. W komunikatorze Signal jest zawsze włączona zaawansowana technologia zachowywania prywatności, co pozwala skupić się na istotnych chwilach z bliskimi.
+Signal to aplikacja do przesyłania wiadomości, której główną ideą jest prywatność. Jest darmowa i łatwa w użyciu, a dzięki wysokiemu poziomowi szyfrowania end-to-end zapewnia pełną prywatność komunikacji.
 
-• Mów cokolwiek - aplikacja Signal używa zaawansowanego szyfrowania metodą end-to-end (zasilanego przez protokół typu open source „Signal Protocol”), aby zapewnić bezpieczeństwo Twoim konwersacjom. Prywatność to nie tryb opcjonalny — aplikacja Signal po prostu tak działa. Przy każdej wiadomości i każdym połączeniu, zawsze.
+• Wysyłaj bezpłatnie wiadomości, wiadomości głosowe, zdjęcia, wideo, GIF-y i pliki. Signal korzysta z przesyłu danych telefonii komórkowej, dzięki czemu unikasz opłat za SMS-y oraz MMS-y.
 
-• Nie trać czasu — Wiadomości są wysyłane szybko i sprawnie, nawet w powolnych sieciach. Aplikację Signal zoptymalizowano w celu działania w jak najbardziej ograniczonym środowisku.
+• Prowadź najwyższej jakości zaszyfrowane rozmowy audio i wideo. Obsługujemy połączenia grupowe do maksimum 40 osób.
 
-• Nie przepłacaj — Aplikacja Signal to oprogramowanie non-profit typu 501c3. Jej produkcja jest wspierana przez użytkowników, takich jak Ty. Żadnych reklam i śledzenia. Serio.
+• Pozostań w kontakcie z nawet tysiącem użytkowników dzięki czatom grupowym. Kontroluj, kto może publikować i zarządzać listą członków grupy, za pomocą uprawnień administratora.
 
-• Bądź sobą — Możesz użyć obecnego numeru telefonu i książki adresowej, aby bezpiecznie komunikować się ze znajomymi.
+• Udostępniaj znikające po 24 godzinach relacje ze zdjęciami, wideo i tekstem. Dzięki ustawieniom prywatności masz pełną kontrolę nad tym, kto może wyświetlić każdą relację.
 
-• Mów wyraźnie — Nieważne, czy Twoi znajomi i rodzina mieszkają za miastem czy za oceanem. Ulepszona jakość audio i wideo aplikacji Signal zmniejsza dystans.
+• Stworzyliśmy Signal z myślą o ochronie prywatności. Nie wiemy nic o Tobie ani o tym, z kim rozmawiasz. Nasz otwarty protokół Signal oznacza, że nie możemy czytać Twoich wiadomości ani słuchać Twoich rozmów. Ani my, ani nikt inny. Bez ściemy, bez zbierania danych, bez kompromisów. 
 
-• Szepcz w ciemności — Przełącz się na ciemny motyw, jeśli nie chcesz widzieć światła.
+• Signal to niezależna organizacja non profit, działająca na zupełnie innych zasadach niż wielkie korporacje z branży technologicznej. Jako organizacja non profit typu 501c3 polegamy na darowiznach użytkowników, a nie na reklamodawcach czy inwestorach. 
 
-• Spersonalizuj dźwięki — Wybierz osobne alerty dla każdego kontaktu lub całkiem wyłącz dźwięki. Tak jak Simon & Garfunkel w swoim hicie z 1964 r., ty również możesz wsłuchać się w dźwięk ciszy, ustawiając dzwonek powiadomień jako „Brak”.
+• Aby zadać pytania, uzyskać pomoc lub otrzymać więcej informacji, odwiedź stronę: https://support.signal.org/
 
-• Zobrazuj to — Użyj wbudowanych funkcji edycji obrazów, aby szkicować, przycinać i obracać wysyłane obrazy. Jest nawet narzędzie tekstowe, pozwalające dodać nawet tysiąc słów, których wart jest już obraz.
+Aby sprawdzić nasz kod źródłowy, odwiedź https://github.com/signalapp 
 
-
-Aby zadać pytania, uzyskać pomoc lub więcej informacji, odwiedź stronę:
-https://support.signal.org
-
-Kod źródłowy:
-https://github.com/signalapp
-
-Śledź nas na Twitterze (@signalapp) i Instagramie (@signal_app), aby uzyskać informacje o najnowszych aktualizacjach i zapowiedziach.
+Śledź nas na Twitterze (@signalapp) i Instagramie (@signal_app)

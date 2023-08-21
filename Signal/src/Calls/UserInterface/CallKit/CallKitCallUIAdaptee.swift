@@ -3,12 +3,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
-import UIKit
-import CallKit
 import AVFoundation
-import SignalServiceKit
+import CallKit
 import SignalMessaging
+import SignalServiceKit
+import SignalUI
 
 /**
  * Connects user interface to the CallService using CallKit.
@@ -46,7 +45,7 @@ final class CallKitCallUIAdaptee: NSObject, CallUIAdaptee, CXProviderDelegate {
 
     // The app's provider configuration, representing its CallKit capabilities
     class func buildProviderConfiguration(useSystemCallLog: Bool) -> CXProviderConfiguration {
-        let localizedName = NSLocalizedString("APPLICATION_NAME", comment: "Name of application")
+        let localizedName = OWSLocalizedString("APPLICATION_NAME", comment: "Name of application")
         let providerConfiguration = CXProviderConfiguration(localizedName: localizedName)
 
         providerConfiguration.supportsVideo = true
@@ -111,10 +110,10 @@ final class CallKitCallUIAdaptee: NSObject, CallUIAdaptee, CXProviderDelegate {
         if showNamesOnCallScreen {
             return contactsManager.displayNameWithSneakyTransaction(thread: call.thread)
         } else if call.isIndividualCall {
-            return NSLocalizedString("CALLKIT_ANONYMOUS_CONTACT_NAME",
+            return OWSLocalizedString("CALLKIT_ANONYMOUS_CONTACT_NAME",
                                      comment: "The generic name used for calls if CallKit privacy is enabled")
         } else {
-            return NSLocalizedString("CALLKIT_ANONYMOUS_GROUP_NAME",
+            return OWSLocalizedString("CALLKIT_ANONYMOUS_GROUP_NAME",
                                      comment: "The generic name used for group calls if CallKit privacy is enabled")
         }
     }
@@ -138,7 +137,14 @@ final class CallKitCallUIAdaptee: NSObject, CallUIAdaptee, CXProviderDelegate {
 
     private func endCallOnceReported(_ call: SignalCall, reason: CXCallEndedReason) {
         Self.providerReadyFlag.runNowOrWhenDidBecomeReadySync {
-            guard call.systemState != .pending else {
+            switch call.systemState {
+            case .notReported:
+                // Do nothing. This call was never reported to CallKit, so we don't need to report it ending.
+                // This happens for calls missed while offline.
+                // (If CallKit ever adds a way to report *past* missed calls, this might be a place to do it.)
+                break
+            case .pending:
+                // We've reported the call to CallKit, but CallKit hasn't confirmed it yet.
                 // Try again soon, but give up if the call ends some other way and is destroyed.
                 DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1), qos: .userInitiated) { [weak call] in
                     guard let call = call else {
@@ -146,11 +152,12 @@ final class CallKitCallUIAdaptee: NSObject, CallUIAdaptee, CXProviderDelegate {
                     }
                     self.endCallOnceReported(call, reason: reason)
                 }
-                return
+            case .reported:
+                self.provider.reportCall(with: call.localId, endedAt: nil, reason: reason)
+                self.callManager.removeCall(call)
+            case .removed:
+                Logger.warn("call \(call.localId) already ended, but is now ending a second time with reason code \(reason)")
             }
-
-            self.provider.reportCall(with: call.localId, endedAt: nil, reason: reason)
-            self.callManager.removeCall(call)
         }
     }
 
@@ -374,7 +381,7 @@ final class CallKitCallUIAdaptee: NSObject, CallUIAdaptee, CXProviderDelegate {
             case .doNotRing, .shouldRing:
                 // Immediately consider ourselves connected.
                 recipientAcceptedCall(call)
-            case .incomingRing:
+            case .incomingRing, .incomingRingCancelled:
                 owsFailDebug("should not happen for an outgoing call")
                 // Recover by considering ourselves connected
                 recipientAcceptedCall(call)
@@ -395,18 +402,28 @@ final class CallKitCallUIAdaptee: NSObject, CallUIAdaptee, CXProviderDelegate {
         if call.isGroupCall {
             // Explicitly unmute to request permissions, if needed.
             callService.updateIsLocalAudioMuted(isLocalAudioMuted: call.isOutgoingAudioMuted)
+            // Explicitly start video to request permissions, if needed.
+            // This has the added effect of putting the video mute button in the correct state
+            // if the user has disabled camera permissions for the app.
+            callService.updateIsLocalVideoMuted(isLocalVideoMuted: call.groupCall.isOutgoingVideoMuted)
             callService.joinGroupCallIfNecessary(call)
             action.fulfill()
-        } else if call.individualCall.state == .localRinging_Anticipatory {
-            // We can't answer the call until RingRTC is ready
-            call.individualCall.state = .accepting
-            call.individualCall.deferredAnswerCompletion = {
+        } else {
+            // Explicitly start video to request permissions, if needed.
+            // This has the added effect of putting the video mute button in the correct state
+            // if the user has disabled camera permissions for the app.
+            callService.updateIsLocalVideoMuted(isLocalVideoMuted: !call.individualCall.hasLocalVideo)
+            if call.individualCall.state == .localRinging_Anticipatory {
+                // We can't answer the call until RingRTC is ready
+                call.individualCall.state = .accepting
+                call.individualCall.deferredAnswerCompletion = {
+                    action.fulfill()
+                }
+            } else {
+                owsAssertDebug(call.individualCall.state == .localRinging_ReadyToAnswer)
+                self.callService.individualCallService.handleAcceptCall(call)
                 action.fulfill()
             }
-        } else {
-            owsAssertDebug(call.individualCall.state == .localRinging_ReadyToAnswer)
-            self.callService.individualCallService.handleAcceptCall(call)
-            action.fulfill()
         }
     }
 
@@ -477,7 +494,7 @@ final class CallKitCallUIAdaptee: NSObject, CallUIAdaptee, CXProviderDelegate {
     func provider(_ provider: CXProvider, timedOutPerforming action: CXAction) {
         AssertIsOnMainThread()
 
-        if #available(iOS 13, *), let muteAction = action as? CXSetMutedCallAction {
+        if let muteAction = action as? CXSetMutedCallAction {
             guard callManager.callWithLocalId(muteAction.callUUID) != nil else {
                 // When a call is over, if it was muted, CallKit "helpfully" attempts to unmute the
                 // call with "CXSetMutedCallAction", presumably to help us clean up state.

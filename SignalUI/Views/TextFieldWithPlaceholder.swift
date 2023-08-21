@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalCoreKit
 
 public protocol TextFieldWithPlaceholderDelegate: AnyObject {
 
@@ -92,7 +92,7 @@ public class TextFieldWithPlaceholder: UIView {
 
         textfield.addTarget(self, action: #selector(textFieldDidChange), for: .editingChanged)
 
-        NotificationCenter.default.addObserver(self, selector: #selector(applyTheme), name: .ThemeDidChange, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(applyTheme), name: .themeDidChange, object: nil)
 
         updatePlaceholderVisibility()
     }

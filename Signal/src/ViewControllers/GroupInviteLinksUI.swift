@@ -6,9 +6,7 @@
 import Foundation
 import SignalMessaging
 import SignalUI
-import UIKit
 
-@objc
 public class GroupInviteLinksUI: UIView {
 
     @available(*, unavailable, message: "Do not instantiate this class.")
@@ -16,15 +14,13 @@ public class GroupInviteLinksUI: UIView {
         fatalError("init(coder:) has not been implemented")
     }
 
-    @objc
-    public static func openGroupInviteLink(_ url: URL,
-                                           fromViewController: UIViewController) {
+    public static func openGroupInviteLink(_ url: URL, fromViewController: UIViewController) {
         AssertIsOnMainThread()
 
         let showInvalidInviteLinkAlert = {
-            OWSActionSheets.showActionSheet(title: NSLocalizedString("GROUP_LINK_INVALID_GROUP_INVITE_LINK_ERROR_TITLE",
+            OWSActionSheets.showActionSheet(title: OWSLocalizedString("GROUP_LINK_INVALID_GROUP_INVITE_LINK_ERROR_TITLE",
                                                                      comment: "Title for the 'invalid group invite link' alert."),
-                                            message: NSLocalizedString("GROUP_LINK_INVALID_GROUP_INVITE_LINK_ERROR_MESSAGE",
+                                            message: OWSLocalizedString("GROUP_LINK_INVALID_GROUP_INVITE_LINK_ERROR_MESSAGE",
                                                                       comment: "Message for the 'invalid group invite link' alert."))
         }
 
@@ -47,7 +43,7 @@ public class GroupInviteLinksUI: UIView {
         if let existingGroupThread = (databaseStorage.read { transaction in
             TSGroupThread.fetch(groupId: groupV2ContextInfo.groupId, transaction: transaction)
         }), existingGroupThread.isLocalUserFullMember || existingGroupThread.isLocalUserRequestingMember {
-            SignalApp.shared().presentConversation(for: existingGroupThread, animated: true)
+            SignalApp.shared.presentConversationForThread(existingGroupThread, animated: true)
             return
         }
 
@@ -59,7 +55,7 @@ public class GroupInviteLinksUI: UIView {
 
 // MARK: -
 
-private class GroupInviteLinksActionSheet: ActionSheetController {
+private class GroupInviteLinksActionSheet: ActionSheetController, Dependencies {
 
     private let groupInviteLinkInfo: GroupInviteLinkInfo
     private let groupV2ContextInfo: GroupV2ContextInfo
@@ -103,15 +99,13 @@ private class GroupInviteLinksActionSheet: ActionSheetController {
 
         avatarView.autoSetDimension(.width, toSize: CGFloat(Self.avatarSize))
 
-        groupTitleLabel.font = UIFont.ows_semiboldFont(
-            withSize: UIFont.ows_dynamicTypeTitle1Clamped.pointSize * (13/14)
-        )
+        groupTitleLabel.font = UIFont.semiboldFont(ofSize: UIFont.dynamicTypeTitle1Clamped.pointSize * (13/14))
         groupTitleLabel.textColor = Theme.primaryTextColor
 
-        groupSubtitleLabel.font = UIFont.ows_dynamicTypeSubheadline
+        groupSubtitleLabel.font = UIFont.dynamicTypeSubheadline
         groupSubtitleLabel.textColor = Theme.secondaryTextAndIconColor
 
-        groupDescriptionPreview.font = .ows_dynamicTypeSubheadline
+        groupDescriptionPreview.font = .dynamicTypeSubheadline
         groupDescriptionPreview.textColor = Theme.secondaryTextAndIconColor
         groupDescriptionPreview.numberOfLines = 2
         groupDescriptionPreview.textAlignment = .center
@@ -128,9 +122,9 @@ private class GroupInviteLinksActionSheet: ActionSheetController {
         headerStack.axis = .vertical
         headerStack.alignment = .center
 
-        messageLabel.text = NSLocalizedString("GROUP_LINK_ACTION_SHEET_VIEW_MESSAGE",
+        messageLabel.text = OWSLocalizedString("GROUP_LINK_ACTION_SHEET_VIEW_MESSAGE",
                                               comment: "Message text for the 'group invite link' action sheet.")
-        messageLabel.font = .ows_dynamicTypeFootnote
+        messageLabel.font = .dynamicTypeFootnote
         messageLabel.textColor = Theme.secondaryTextAndIconColor
         messageLabel.numberOfLines = 0
         messageLabel.lineBreakMode = .byWordWrapping
@@ -139,7 +133,7 @@ private class GroupInviteLinksActionSheet: ActionSheetController {
 
         let buttonColor: UIColor = Theme.isDarkThemeEnabled ? .ows_gray65 : .ows_gray05
         let cancelButton = OWSFlatButton.button(title: CommonStrings.cancelButton,
-                                                font: UIFont.ows_dynamicTypeBody.ows_semibold,
+                                                font: UIFont.dynamicTypeBody.semibold(),
                                                 titleColor: Theme.secondaryTextAndIconColor,
                                                 backgroundColor: buttonColor,
                                                 target: self,
@@ -148,9 +142,9 @@ private class GroupInviteLinksActionSheet: ActionSheetController {
         cancelButton.cornerRadius = 14
         self.cancelButton = cancelButton
 
-        let joinButton = OWSFlatButton.button(title: NSLocalizedString("GROUP_LINK_ACTION_SHEET_VIEW_JOIN_BUTTON",
+        let joinButton = OWSFlatButton.button(title: OWSLocalizedString("GROUP_LINK_ACTION_SHEET_VIEW_JOIN_BUTTON",
                                                                        comment: "Label for the 'join' button in the 'group invite link' action sheet."),
-                                              font: UIFont.ows_dynamicTypeBody.ows_semibold,
+                                              font: UIFont.dynamicTypeBody.semibold(),
                                               titleColor: .ows_accentBlue,
                                               backgroundColor: buttonColor,
                                               target: self,
@@ -160,7 +154,7 @@ private class GroupInviteLinksActionSheet: ActionSheetController {
         self.joinButton = joinButton
 
         let invalidOkayButton = OWSFlatButton.button(title: CommonStrings.okayButton,
-                                              font: UIFont.ows_dynamicTypeBody.ows_semibold,
+                                              font: UIFont.dynamicTypeBody.semibold(),
                                               titleColor: Theme.primaryTextColor,
                                               backgroundColor: buttonColor,
                                               target: self,
@@ -181,7 +175,7 @@ private class GroupInviteLinksActionSheet: ActionSheetController {
         buttonStack.spacing = 10
 
         let divider = UIView()
-        divider.autoSetDimension(.height, toSize: CGHairlineWidth())
+        divider.autoSetDimension(.height, toSize: .hairlineWidth)
         divider.backgroundColor = buttonColor
 
         let stackView = UIStackView(arrangedSubviews: [
@@ -205,14 +199,14 @@ private class GroupInviteLinksActionSheet: ActionSheetController {
     private func loadDefaultContent() {
         avatarView.image = Self.avatarBuilder.avatarImage(forGroupId: groupV2ContextInfo.groupId,
                                                           diameterPoints: Self.avatarSize)
-        groupTitleLabel.text = NSLocalizedString("GROUP_LINK_ACTION_SHEET_VIEW_LOADING_TITLE",
+        groupTitleLabel.text = OWSLocalizedString("GROUP_LINK_ACTION_SHEET_VIEW_LOADING_TITLE",
                                                  comment: "Label indicating that the group info is being loaded in the 'group invite link' action sheet.")
         groupSubtitleLabel.text = ""
         groupDescriptionPreview.descriptionText = ""
     }
 
     private func loadLinkPreview() {
-        firstly(on: .global()) {
+        firstly(on: DispatchQueue.global()) {
             self.groupsV2Impl.fetchGroupInviteLinkPreview(inviteLinkPassword: self.groupInviteLinkInfo.inviteLinkPassword,
                                                           groupSecretParamsData: self.groupV2ContextInfo.groupSecretParamsData,
                                                           allowCached: false)
@@ -230,10 +224,10 @@ private class GroupInviteLinksActionSheet: ActionSheetController {
                 Logger.warn("User blocked: \(error)")
                 self?.dismiss(animated: true, completion: {
                     OWSActionSheets.showActionSheet(
-                        title: NSLocalizedString(
+                        title: OWSLocalizedString(
                             "GROUP_LINK_ACTION_SHEET_VIEW_CANNOT_JOIN_GROUP_TITLE",
                             comment: "Title indicating that you cannot join a group in the 'group invite link' action sheet."),
-                        message: NSLocalizedString(
+                        message: OWSLocalizedString(
                             "GROUP_LINK_ACTION_SHEET_VIEW_BLOCKED_FROM_JOINING_SUBTITLE",
                             comment: "Subtitle indicating that the local user has been blocked from joining the group"))
                 })
@@ -246,7 +240,7 @@ private class GroupInviteLinksActionSheet: ActionSheetController {
     }
 
     private func loadGroupAvatar(avatarUrlPath: String) {
-        firstly(on: .global()) {
+        firstly(on: DispatchQueue.global()) {
             self.groupsV2Impl.fetchGroupInviteLinkAvatar(avatarUrlPath: avatarUrlPath,
                                                          groupSecretParamsData: self.groupV2ContextInfo.groupSecretParamsData)
         }.done { [weak self] (groupAvatar: Data) in
@@ -262,13 +256,12 @@ private class GroupInviteLinksActionSheet: ActionSheetController {
 
         self.groupInviteLinkPreview = groupInviteLinkPreview
 
-        let groupName = groupInviteLinkPreview.title.filterForDisplay?.nilIfEmpty
-            ?? TSGroupThread.defaultGroupName
+        let groupName = groupInviteLinkPreview.title.filterForDisplay.nilIfEmpty ?? TSGroupThread.defaultGroupName
         groupTitleLabel.text = groupName
         groupSubtitleLabel.text = GroupViewUtils.formatGroupMembersLabel(
             memberCount: Int(groupInviteLinkPreview.memberCount)
         )
-        if let descriptionText = groupInviteLinkPreview.descriptionText?.filterForDisplay?.nilIfEmpty {
+        if let descriptionText = groupInviteLinkPreview.descriptionText?.filterForDisplay.nilIfEmpty {
             groupDescriptionPreview.descriptionText = descriptionText
             groupDescriptionPreview.groupName = groupName
             groupDescriptionPreview.isHidden = false
@@ -295,9 +288,9 @@ private class GroupInviteLinksActionSheet: ActionSheetController {
 
         self.groupInviteLinkPreview = nil
 
-        groupTitleLabel.text = NSLocalizedString("GROUP_LINK_ACTION_SHEET_VIEW_CANNOT_JOIN_GROUP_TITLE",
+        groupTitleLabel.text = OWSLocalizedString("GROUP_LINK_ACTION_SHEET_VIEW_CANNOT_JOIN_GROUP_TITLE",
                                                  comment: "Title indicating that you cannot join a group in the 'group invite link' action sheet.")
-        groupSubtitleLabel.text = NSLocalizedString("GROUP_LINK_ACTION_SHEET_VIEW_EXPIRED_LINK_SUBTITLE",
+        groupSubtitleLabel.text = OWSLocalizedString("GROUP_LINK_ACTION_SHEET_VIEW_EXPIRED_LINK_SUBTITLE",
                                                     comment: "Subtitle indicating that the group invite link has expired in the 'group invite link' action sheet.")
         messageLabel.textColor = Theme.backgroundColor
         cancelButton?.isHidden = true
@@ -306,12 +299,12 @@ private class GroupInviteLinksActionSheet: ActionSheetController {
     }
 
     @objc
-    func didTapCancel(_ sender: UIButton) {
+    private func didTapCancel(_ sender: UIButton) {
         dismiss(animated: true)
     }
 
     @objc
-    func didTapInvalidOkay(_ sender: UIButton) {
+    private func didTapInvalidOkay(_ sender: UIButton) {
         dismiss(animated: true)
     }
 
@@ -327,7 +320,7 @@ private class GroupInviteLinksActionSheet: ActionSheetController {
     }
 
     @objc
-    func didTapJoin(_ sender: UIButton) {
+    private func didTapJoin(_ sender: UIButton) {
         AssertIsOnMainThread()
 
         Logger.info("")
@@ -335,7 +328,7 @@ private class GroupInviteLinksActionSheet: ActionSheetController {
         guard doesLocalUserSupportGroupsV2 else {
             Logger.warn("Local user does not support groups v2.")
             showActionSheet(title: CommonStrings.errorAlertTitle,
-                            message: NSLocalizedString("GROUP_LINK_LOCAL_USER_DOES_NOT_SUPPORT_GROUPS_V2_ERROR_MESSAGE",
+                            message: OWSLocalizedString("GROUP_LINK_LOCAL_USER_DOES_NOT_SUPPORT_GROUPS_V2_ERROR_MESSAGE",
                                                        comment: "Error message indicating that the local user does not support groups v2."))
             return
         }
@@ -346,7 +339,7 @@ private class GroupInviteLinksActionSheet: ActionSheetController {
         let existingAvatarData = self.avatarData
 
         ModalActivityIndicatorViewController.present(fromViewController: self, canCancel: false) { modalActivityIndicator in
-            firstly(on: .global()) { () -> Promise<GroupInviteLinkPreview> in
+            firstly(on: DispatchQueue.global()) { () -> Promise<GroupInviteLinkPreview> in
                 if let existingGroupInviteLinkPreview = existingGroupInviteLinkPreview {
                     // View has already downloaded the preview.
                     return Promise.value(existingGroupInviteLinkPreview)
@@ -356,7 +349,7 @@ private class GroupInviteLinksActionSheet: ActionSheetController {
                 return self.groupsV2Impl.fetchGroupInviteLinkPreview(inviteLinkPassword: self.groupInviteLinkInfo.inviteLinkPassword,
                                                                      groupSecretParamsData: self.groupV2ContextInfo.groupSecretParamsData,
                                                                      allowCached: false)
-            }.then(on: .global()) { (groupInviteLinkPreview: GroupInviteLinkPreview) -> Promise<(GroupInviteLinkPreview, Data?)> in
+            }.then(on: DispatchQueue.global()) { (groupInviteLinkPreview: GroupInviteLinkPreview) -> Promise<(GroupInviteLinkPreview, Data?)> in
                 guard let avatarUrlPath = groupInviteLinkPreview.avatarUrlPath else {
                     // Group has no avatar.
                     return Promise.value((groupInviteLinkPreview, nil))
@@ -365,12 +358,12 @@ private class GroupInviteLinksActionSheet: ActionSheetController {
                     // View has already downloaded the avatar.
                     return Promise.value((groupInviteLinkPreview, existingAvatarData))
                 }
-                return firstly(on: .global()) {
+                return firstly(on: DispatchQueue.global()) {
                     self.groupsV2Impl.fetchGroupInviteLinkAvatar(avatarUrlPath: avatarUrlPath,
                                                                  groupSecretParamsData: self.groupV2ContextInfo.groupSecretParamsData)
-                }.map(on: .global()) { (groupAvatar: Data) in
+                }.map(on: DispatchQueue.global()) { (groupAvatar: Data) in
                     (groupInviteLinkPreview, groupAvatar)
-                }.recover(on: .global()) { error -> Promise<(GroupInviteLinkPreview, Data?)> in
+                }.recover(on: DispatchQueue.global()) { error -> Promise<(GroupInviteLinkPreview, Data?)> in
                     Logger.warn("Error: \(error)")
                     // We made a best effort to fill in the avatar.
                     // Don't block joining the group on downloading
@@ -378,7 +371,7 @@ private class GroupInviteLinksActionSheet: ActionSheetController {
                     // placeholder model if at all.
                     return Promise.value((groupInviteLinkPreview, nil))
                 }
-            }.then(on: .global()) { (groupInviteLinkPreview: GroupInviteLinkPreview, avatarData: Data?) in
+            }.then(on: DispatchQueue.global()) { (groupInviteLinkPreview: GroupInviteLinkPreview, avatarData: Data?) in
                 GroupManager.joinGroupViaInviteLink(groupId: self.groupV2ContextInfo.groupId,
                                                     groupSecretParamsData: self.groupV2ContextInfo.groupSecretParamsData,
                                                     inviteLinkPassword: self.groupInviteLinkInfo.inviteLinkPassword,
@@ -389,7 +382,7 @@ private class GroupInviteLinksActionSheet: ActionSheetController {
                     AssertIsOnMainThread()
                     self?.dismiss(animated: true) {
                         AssertIsOnMainThread()
-                        SignalApp.shared().presentConversation(for: groupThread, animated: true)
+                        SignalApp.shared.presentConversationForThread(groupThread, animated: true)
                     }
                 }
             }.catch { error in
@@ -399,26 +392,26 @@ private class GroupInviteLinksActionSheet: ActionSheetController {
                     AssertIsOnMainThread()
 
                     self.showActionSheet(
-                        title: NSLocalizedString(
+                        title: OWSLocalizedString(
                             "GROUP_LINK_ACTION_SHEET_VIEW_CANNOT_JOIN_GROUP_TITLE",
                             comment: "Title indicating that you cannot join a group in the 'group invite link' action sheet."),
 
                         message: {
                             switch error {
                             case GroupsV2Error.expiredGroupInviteLink:
-                                return NSLocalizedString(
+                                return OWSLocalizedString(
                                     "GROUP_LINK_ACTION_SHEET_VIEW_EXPIRED_LINK_SUBTITLE",
                                     comment: "Subtitle indicating that the group invite link has expired in the 'group invite link' action sheet.")
                             case GroupsV2Error.localUserBlockedFromJoining:
-                                return NSLocalizedString(
+                                return OWSLocalizedString(
                                     "GROUP_LINK_ACTION_SHEET_VIEW_BLOCKED_FROM_JOINING_SUBTITLE",
                                     comment: "Subtitle indicating that the local user has been blocked from joining the group")
-                            case _ where error.isNetworkConnectivityFailure:
-                                return NSLocalizedString(
+                            case _ where error.isNetworkFailureOrTimeout:
+                                return OWSLocalizedString(
                                     "GROUP_LINK_COULD_NOT_REQUEST_TO_JOIN_GROUP_DUE_TO_NETWORK_ERROR_MESSAGE",
                                     comment: "Error message the attempt to request to join the group failed due to network connectivity.")
                             default:
-                                return NSLocalizedString(
+                                return OWSLocalizedString(
                                     "GROUP_LINK_COULD_NOT_REQUEST_TO_JOIN_GROUP_ERROR_MESSAGE",
                                     comment: "Error message the attempt to request to join the group failed.")
                             }

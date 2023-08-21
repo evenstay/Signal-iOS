@@ -3,7 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalServiceKit
+import SignalUI
 
 public enum ScrollAlignment: Int {
     case top
@@ -116,7 +117,6 @@ extension ConversationViewController {
         collectionView.setContentOffset(newContentOffset, animated: animated)
     }
 
-    @objc(scrollToInitialPositionAnimated:)
     func scrollToInitialPosition(animated: Bool) {
 
         guard loadCoordinator.hasRenderState else {
@@ -159,7 +159,6 @@ extension ConversationViewController {
 
     // This method scrolls to the bottom of the _conversation_,
     // not the load window.
-    @objc(scrollToBottomOfConversationAnimated:)
     func scrollToBottomOfConversation(animated: Bool) {
         if canLoadNewerItems {
             loadCoordinator.loadAndScrollToNewestItems(isAnimated: animated)
@@ -168,7 +167,6 @@ extension ConversationViewController {
         }
     }
 
-    @objc(scrollToLastVisibleInteractionAnimated:)
     func scrollToLastVisibleInteraction(animated: Bool) {
         guard let lastVisibleInteraction = lastVisibleInteractionWithSneakyTransaction() else {
             return scrollToBottomOfConversation(animated: animated)
@@ -279,8 +277,7 @@ extension ConversationViewController {
         updateLastKnownDistanceFromBottom()
     }
 
-    func scrollToQuotedMessage(_ quotedReply: OWSQuotedReplyModel,
-                               isAnimated: Bool) {
+    func scrollToQuotedMessage(_ quotedReply: QuotedReplyModel, isAnimated: Bool) {
         if quotedReply.isRemotelySourced {
             presentRemotelySourcedQuotedReplyToast()
             return
@@ -291,13 +288,39 @@ extension ConversationViewController {
                                           author: quotedReply.authorAddress,
                                           transaction: transaction)
         }
-        guard let message = quotedMessage, !message.wasRemotelyDeleted else {
-            presentMissingQuotedReplyToast()
-            return
+        if let quotedMessage {
+            if quotedMessage.wasRemotelyDeleted {
+                presentMissingQuotedReplyToast()
+                return
+            }
+
+            let targetUniqueId: String
+            switch quotedMessage.editState {
+            case .latestRevisionRead, .latestRevisionUnread, .none:
+                targetUniqueId = quotedMessage.uniqueId
+            case .pastRevision:
+                // If this is an older edit revision, find the current
+                // edit and use that uniqueId instead of the old one.
+                let currentEdit = databaseStorage.read { transaction in
+                    EditMessageFinder.findMessage(
+                        fromEdit: quotedMessage,
+                        transaction: transaction
+                    )
+                }
+                if let currentEdit {
+                    targetUniqueId = currentEdit.uniqueId
+                } else {
+                    owsFailDebug("Couldn't find original edit")
+                    return
+                }
+            }
+
+            ensureInteractionLoadedThenScrollToInteraction(
+                targetUniqueId,
+                alignment: .centerIfNotEntirelyOnScreen,
+                isAnimated: isAnimated
+            )
         }
-        ensureInteractionLoadedThenScrollToInteraction(message.uniqueId,
-                                                       alignment: .centerIfNotEntirelyOnScreen,
-                                                       isAnimated: isAnimated)
     }
 
     func ensureInteractionLoadedThenScrollToInteraction(_ interactionId: String,
@@ -400,10 +423,12 @@ extension ConversationViewController {
 
     @objc
     func scrollToNextMentionButtonTapped() {
-        if let nextMessage = unreadMentionMessages.first {
-            ensureInteractionLoadedThenScrollToInteraction(nextMessage.uniqueId,
-                                                           alignment: .bottomIfNotEntirelyOnScreen,
-                                                           isAnimated: true)
+        if let nextMessageId = conversationViewModel.unreadMentionMessageIds.first {
+            ensureInteractionLoadedThenScrollToInteraction(
+                nextMessageId,
+                alignment: .bottomIfNotEntirelyOnScreen,
+                isAnimated: true
+            )
         }
     }
 
@@ -630,27 +655,22 @@ extension ConversationViewController {
         public var uniqueId: String { interaction.uniqueId }
     }
 
-    public func lastVisibleInteractionIdWithSneakyTransaction(_ threadViewModel: ThreadViewModel) -> String? {
-        lastVisibleInteractionWithSneakyTransaction(thread: threadViewModel.threadRecord)?.uniqueId
+    public static func lastVisibleInteractionId(for thread: TSThread, tx: SDSAnyReadTransaction) -> String? {
+        return lastVisibleInteraction(for: thread, tx: tx)?.uniqueId
     }
 
     private func lastVisibleInteractionWithSneakyTransaction() -> LastVisibleInteraction? {
-        lastVisibleInteractionWithSneakyTransaction(thread: thread)
+        return databaseStorage.read { tx in Self.lastVisibleInteraction(for: thread, tx: tx) }
     }
 
-    private func lastVisibleInteractionWithSneakyTransaction(thread: TSThread) -> LastVisibleInteraction? {
-        databaseStorage.read { transaction in
-            guard let lastVisibleInteraction = thread.lastVisibleInteraction(transaction: transaction),
-                  let interaction = thread.firstInteraction(atOrAroundSortId: lastVisibleInteraction.sortId,
-                                                            transaction: transaction) else {
-
-                return nil
-            }
-
-            let onScreenPercentage = lastVisibleInteraction.onScreenPercentage
-
-            return LastVisibleInteraction(interaction: interaction,
-                                          onScreenPercentage: onScreenPercentage)
+    private static func lastVisibleInteraction(for thread: TSThread, tx: SDSAnyReadTransaction) -> LastVisibleInteraction? {
+        guard
+            let lastVisibleInteraction = thread.lastVisibleInteraction(transaction: tx),
+            let interaction = thread.firstInteraction(atOrAroundSortId: lastVisibleInteraction.sortId, transaction: tx)
+        else {
+            return nil
         }
+        let onScreenPercentage = lastVisibleInteraction.onScreenPercentage
+        return LastVisibleInteraction(interaction: interaction, onScreenPercentage: onScreenPercentage)
     }
 }

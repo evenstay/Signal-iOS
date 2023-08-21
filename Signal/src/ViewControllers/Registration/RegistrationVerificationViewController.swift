@@ -1,689 +1,714 @@
 //
-// Copyright 2019 Signal Messenger, LLC
+// Copyright 2023 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import UIKit
-import SignalCoreKit
+import SignalMessaging
+import SignalUI
 
-@objc
-protocol RegistrationVerificationViewController: AnyObject {
+// MARK: - RegistrationVerificationValidationError
 
-    var viewModel: RegistrationVerificationViewModel { get }
-    var primaryView: UIView { get }
-    var phoneNumberE164: String? { get }
+public enum RegistrationVerificationValidationError: Equatable {
+    case invalidVerificationCode(invalidCode: String)
 
-    func tryToVerify(verificationCode: String)
+    /// We tried to send via sms and failed, but voice code might work
+    /// so we are on this screen now. An error should be shown.
+    case failedInitialTransport(failedTransport: Registration.CodeTransport)
 
-    func resendCode(asPhoneCall: Bool)
+    /// A third party provider failed to send an sms or call to the session's number.
+    /// May be permanent (the user should probably use a different number)
+    /// or transient (the user should try again later).
+    /// Regardless we let the user submit a code or retry.
+    case providerFailure(isPermanent: Bool)
 
-    func registrationNavigateBack()
+    /// Requesting a code failed with some unknown error; show a
+    /// generic dialog and let the user dismiss. They might have actually
+    /// gotten a code, so let them submit or resend.
+    case genericCodeRequestError(isNetworkError: Bool)
+
+    // These three errors are what happens when we try and
+    // take the three respective actions but are rejected
+    // with a timeout. The State should have timeout information.
+    case smsResendTimeout
+    case voiceResendTimeout
+    case submitCodeTimeout
 }
 
-// MARK: -
+// MARK: - RegistrationVerificationState
 
-@objc
-class RegistrationVerificationViewModel: NSObject {
-    weak var viewController: RegistrationVerificationViewController?
+public struct RegistrationVerificationState: Equatable {
+    let e164: E164
+    let nextSMSDate: Date?
+    let nextCallDate: Date?
+    let nextVerificationAttemptDate: Date?
+    // If false, no option to go back and change e164 will be shown.
+    let canChangeE164: Bool
+    let showHelpText: Bool
+    let validationError: RegistrationVerificationValidationError?
 
-    var canResend = false
-    var titleLabel: UILabel?
-    var subtitleLabel: UILabel?
-    var backLink: OWSFlatButton?
-    var backButtonSpacer: UIView?
-    let verificationCodeView = RegistrationVerificationCodeView()
-    var resendCodeButton: OWSFlatButton?
-    var callMeButton: OWSFlatButton?
-    let errorLabel = UILabel()
-    let progressView: AnimatedProgressView = {
-        let view = AnimatedProgressView()
-        view.hidesWhenStopped = false
-        view.alpha = 0
-        return view
-    }()
-
-    var equalSpacerHeightConstraint: NSLayoutConstraint?
-    var pinnedSpacerHeightConstraint: NSLayoutConstraint?
-    var buttonHeightConstraints: [NSLayoutConstraint] = []
-
-    // MARK: - Methods
-
-    func createViews(vc: RegistrationBaseViewController) {
-        AssertIsOnMainThread()
-
-        guard let viewController = self.viewController else {
-            owsFailDebug("Missing viewController.")
-            return
-        }
-        let primaryView = viewController.primaryView
-
-        let formattedPhoneNumber = PhoneNumber.bestEffortLocalizedPhoneNumber(
-            withE164: viewController.phoneNumberE164 ?? "")
-            .replacingOccurrences(of: " ", with: "\u{00a0}")
-
-        let titleLabel = vc.createTitleLabel(
-            text: NSLocalizedString(
-                "ONBOARDING_VERIFICATION_TITLE_LABEL",
-                comment: "Title label for the onboarding verification page")
-        )
-
-        let subtitleLabel = vc.createExplanationLabel(
-            explanationText: String(
-                format: NSLocalizedString(
-                    "ONBOARDING_VERIFICATION_TITLE_DEFAULT_FORMAT",
-                    comment: "Format for the title of the 'onboarding verification' view. Embeds {{the user's phone number}}."),
-                formattedPhoneNumber)
-        )
-
-        self.titleLabel = titleLabel
-        self.subtitleLabel = subtitleLabel
-        titleLabel.accessibilityIdentifier = "onboarding.verification." + "titleLabel"
-        subtitleLabel.accessibilityIdentifier = "onboarding.verification." + "subtitleLabel"
-
-        let backLink = vc.linkButton(title: NSLocalizedString("ONBOARDING_VERIFICATION_BACK_LINK",
-                                                              comment: "Label for the link that lets users change their phone number in the onboarding views."),
-                                     target: self,
-                                     selector: #selector(backLinkTapped))
-        self.backLink = backLink
-        backLink.accessibilityIdentifier = "onboarding.verification." + "backLink"
-
-        verificationCodeView.delegate = self
-
-        errorLabel.text = NSLocalizedString("ONBOARDING_VERIFICATION_INVALID_CODE",
-                                            comment: "Label indicating that the verification code is incorrect in the 'onboarding verification' view.")
-        errorLabel.textColor = .ows_accentRed
-        errorLabel.font = UIFont.ows_dynamicTypeBodyClamped.ows_semibold
-        errorLabel.textAlignment = .center
-        errorLabel.autoSetDimension(.height, toSize: errorLabel.font.lineHeight)
-        errorLabel.accessibilityIdentifier = "onboarding.verification." + "errorLabel"
-
-        // Wrap the error label in a row so that we can show/hide it without affecting view layout.
-        let errorRow = UIView()
-        errorRow.addSubview(errorLabel)
-        errorLabel.autoPinEdgesToSuperviewEdges()
-
-        let resendCodeButton = vc.linkButton(title: "", target: self, selector: #selector(resendCodeButtonTapped))
-        resendCodeButton.enableMultilineLabel()
-        resendCodeButton.accessibilityIdentifier = "onboarding.verification." + "resendCodeButton"
-        self.resendCodeButton = resendCodeButton
-
-        let callMeButton = vc.linkButton(title: "", target: self, selector: #selector(callMeButtonTapped))
-        callMeButton.enableMultilineLabel()
-        callMeButton.accessibilityIdentifier = "onboarding.verification." + "callMeButton"
-        self.callMeButton = callMeButton
-
-        let buttonStack = UIStackView(arrangedSubviews: [
-            resendCodeButton,
-            UIView.hStretchingSpacer(),
-            callMeButton
-        ])
-        buttonStack.axis = .horizontal
-        buttonStack.alignment = .fill
-        resendCodeButton.autoPinWidth(toWidthOf: callMeButton)
-
-        let titleSpacer = SpacerView(preferredHeight: 12)
-        let subtitleSpacer = SpacerView(preferredHeight: 4)
-        let backButtonSpacer = SpacerView(preferredHeight: 4)
-        let onboardingCodeSpacer = SpacerView(preferredHeight: 12)
-        let errorSpacer = SpacerView(preferredHeight: 4)
-        let bottomSpacer = SpacerView(preferredHeight: 4)
-        self.backButtonSpacer = backButtonSpacer
-
-        let stackView = UIStackView(arrangedSubviews: [
-            titleLabel, titleSpacer,
-            subtitleLabel, subtitleSpacer,
-            backLink, backButtonSpacer,
-            verificationCodeView, onboardingCodeSpacer,
-            errorRow, errorSpacer,
-            buttonStack, bottomSpacer
-        ])
-        stackView.axis = .vertical
-        stackView.alignment = .fill
-        primaryView.addSubview(stackView)
-        primaryView.addSubview(progressView)
-
-        // Here comes a bunch of autolayout prioritization to make sure we can fit on an iPhone 5s/SE
-        // It's complicated, but there are a few rules that help here:
-        // - First, set required constraints on everything that's *critical* for usability
-        // - Next, progressively add non-required constraints that are nice to have, but not critical.
-        // - Finally, pick one and only one view in the stack and set its contentHugging explicitly low
-        //
-        // - Non-required constraints should each have a unique priority. This is important to resolve
-        //   autolayout ambiguity e.g. I have 10pts of extra space, and two equally weighted constraints
-        //   that both consume 8pts. What do I satisfy?
-        // - Every view should have an intrinsicContentSize. Content Hugging and Content Compression
-        //   don't mean much without a content size.
-        stackView.autoPinEdge(toSuperviewSafeArea: .top, withInset: 0, relation: .greaterThanOrEqual)
-        NSLayoutConstraint.autoSetPriority(.defaultHigh) {
-            stackView.autoPinEdge(toSuperviewMargin: .top)
-        }
-        stackView.autoPinWidthToSuperviewMargins()
-        stackView.autoPinEdge(.bottom, to: .bottom, of: vc.keyboardLayoutGuideViewSafeArea)
-        progressView.autoCenterInSuperview()
-
-        // For when things get *really* cramped, here's what's required:
-        self.equalSpacerHeightConstraint = backButtonSpacer.autoMatch(.height, to: .height, of: errorSpacer)
-        self.pinnedSpacerHeightConstraint = backButtonSpacer.autoSetDimension(.height, toSize: 0)
-        pinnedSpacerHeightConstraint?.isActive = false
-        [subtitleLabel, verificationCodeView, errorRow].forEach { $0.setCompressionResistanceVerticalHigh() }
-
-        // We need at least one line of text for the back link. We don't care about the insets
-        let minimumHeight = backLink.sizeThatFitsMaxSize.height - backLink.contentEdgeInsets.totalHeight
-        backLink.autoSetDimension(.height, toSize: minimumHeight, relation: .greaterThanOrEqual)
-
-        // Once we satisfied the above constraints, start to add back in padding/insets. First the buttons and title
-        callMeButton.setContentCompressionResistancePriority(.required - 10, for: .vertical)
-        resendCodeButton.setContentCompressionResistancePriority(.required - 10, for: .vertical)
-        titleLabel.setContentCompressionResistancePriority(.required - 20, for: .vertical)
-        backLink.setContentCompressionResistancePriority(.required - 30, for: .vertical)
-
-        // Then the preferred spacer size
-        bottomSpacer.setContentCompressionResistancePriority(.defaultHigh - 10, for: .vertical)
-        titleSpacer.setContentCompressionResistancePriority(.defaultHigh - 20, for: .vertical)
-        subtitleSpacer.setContentCompressionResistancePriority(.defaultHigh - 30, for: .vertical)
-        onboardingCodeSpacer.setContentCompressionResistancePriority(.defaultHigh - 40, for: .vertical)
-        backButtonSpacer.setContentCompressionResistancePriority(.defaultHigh - 50, for: .vertical)
-
-        // If we're flush with space, bump up the bottomSpacer spacer to 16, then the bottom layout margins
-        NSLayoutConstraint.autoSetPriority(.defaultHigh - 40) {
-            bottomSpacer.autoSetDimension(.height, toSize: 16, relation: .greaterThanOrEqual)
-        }
-        NSLayoutConstraint.autoSetPriority(.defaultLow) {
-            bottomSpacer.autoSetDimension(.height, toSize: vc.primaryLayoutMargins.bottom)
-        }
-
-        // And if we have so much space we don't know what to do with it, grow the space between
-        // the error label and the button stack button. Usually the top space will grow along with
-        // it because of the equal spacing constraint
-        errorSpacer.setContentHuggingPriority(.init(100), for: .vertical)
-
-        startCodeCountdown()
-        updateResendButtons()
-        UIView.performWithoutAnimation {
-            setHasInvalidCode(false)
-        }
+    public enum ExitConfiguration: Equatable {
+        case noExitAllowed
+        case exitReRegistration
+        case exitChangeNumber
     }
 
-    private func tryToVerify() {
-        AssertIsOnMainThread()
+    let exitConfiguration: ExitConfiguration
+}
 
-        guard let viewController = self.viewController else {
-            owsFailDebug("Missing viewController.")
-            return
-        }
+// MARK: - RegistrationVerificationPresenter
 
-        Logger.info("")
-        setHasInvalidCode(false)
-        guard verificationCodeView.isComplete else { return }
+protocol RegistrationVerificationPresenter: AnyObject {
+    func returnToPhoneNumberEntry()
+    func requestSMSCode()
+    func requestVoiceCode()
+    func submitVerificationCode(_ code: String)
+    func exitRegistration()
+}
 
-        let spinnerLabel = NSLocalizedString(
-            "ONBOARDING_VERIFICATION_CODE_VALIDATION_PROGRESS_LABEL",
-            comment: "Label for a progress spinner currently validating code")
-        setProgressView(animating: true, text: spinnerLabel)
-        verificationCodeView.resignFirstResponder()
+// MARK: - RegistrationVerificationViewController
 
-        viewController.tryToVerify(verificationCode: verificationCodeView.verificationCode)
+class RegistrationVerificationViewController: OWSViewController {
+    public init(
+        state: RegistrationVerificationState,
+        presenter: RegistrationVerificationPresenter
+    ) {
+        self.state = state
+        self.presenter = presenter
+
+        super.init()
     }
 
-    func setProgressView(animating: Bool, text: String? = nil) {
-        text.map { progressView.loadingText = $0 }
-
-        if animating, !progressView.isAnimating {
-            progressView.startAnimating()
-            UIView.animate(withDuration: 0.25, delay: 0.25, options: .beginFromCurrentState) {
-                self.backLink?.setEnabled(false)
-                self.resendCodeButton?.setEnabled(false)
-                self.callMeButton?.setEnabled(false)
-
-                self.progressView.alpha = 1
-                self.verificationCodeView.alpha = 0
-                self.errorLabel.alpha = 0
-            }
-
-        } else if !animating, progressView.isAnimating {
-            UIView.animate(withDuration: 0.25, delay: 0, options: .beginFromCurrentState) {
-                self.backLink?.setEnabled(true)
-                self.resendCodeButton?.setEnabled(true)
-                self.callMeButton?.setEnabled(true)
-
-                self.progressView.alpha = 0
-                self.verificationCodeView.alpha = 1
-                self.errorLabel.alpha = 1
-            } completion: { _ in
-                self.progressView.stopAnimatingImmediately()
-            }
-        }
+    @available(*, unavailable)
+    public override init() {
+        owsFail("This should not be called")
     }
 
-    func setHasInvalidCode(_ isInvalid: Bool) {
-        UIView.animate(withDuration: 0.25, delay: 0, options: .beginFromCurrentState) {
-            self.verificationCodeView.setHasError(isInvalid)
-            self.errorLabel.alpha = isInvalid ? 1 : 0
-        }
+    public func updateState(_ state: RegistrationVerificationState) {
+        self.state = state
     }
-
-    // MARK: - Code State
-
-    private static var countdownDuration: TimeInterval { 60 }
-    var codeCountdownTimer: Timer?
-    var codeCountdownStart: NSDate?
 
     deinit {
-        codeCountdownTimer?.invalidate()
+        nowTimer?.invalidate()
+        nowTimer = nil
     }
 
-    private func startCodeCountdown() {
-        codeCountdownStart = NSDate()
-        codeCountdownTimer = Timer.weakScheduledTimer(withTimeInterval: 0.25,
-                                                      target: self,
-                                                      selector: #selector(codeCountdownTimerFired),
-                                                      userInfo: nil,
-                                                      repeats: true)
+    // MARK: Internal state
+
+    private var state: RegistrationVerificationState {
+        didSet { render() }
     }
 
-    @objc
-    public func codeCountdownTimerFired() {
-        guard let codeCountdownStart = codeCountdownStart else {
-            owsFailDebug("Missing codeCountdownStart.")
-            return
-        }
-        guard let codeCountdownTimer = codeCountdownTimer else {
-            owsFailDebug("Missing codeCountdownTimer.")
-            return
-        }
+    private weak var presenter: RegistrationVerificationPresenter?
 
-        let countdownInterval = abs(codeCountdownStart.timeIntervalSinceNow)
+    private var now = Date() {
+        didSet { render() }
+    }
+    private var nowTimer: Timer?
 
-        if countdownInterval >= Self.countdownDuration {
-            // Countdown complete.
-            codeCountdownTimer.invalidate()
-            self.codeCountdownTimer = nil
-
-            canResend = true
-        }
-
-        // Update the resend buttons UI to reflect the countdown.
-        updateResendButtons()
+    private var canRequestSMSCode: Bool {
+        guard let nextDate = state.nextSMSDate else { return false }
+        return nextDate <= now
     }
 
-    private func updateResendButtons() {
-        AssertIsOnMainThread()
+    private var canRequestVoiceCode: Bool {
+        guard let nextDate = state.nextCallDate else { return false }
+        return nextDate <= now
+    }
 
-        guard let codeCountdownStart = codeCountdownStart else {
-            owsFailDebug("Missing codeCountdownStart.")
-            return
-        }
+    private var previouslyRenderedValidationError: RegistrationVerificationValidationError?
 
-        resendCodeButton?.setEnabled(canResend)
-        callMeButton?.setEnabled(canResend)
+    // MARK: Rendering
 
-        if canResend {
-            let resendCodeTitle = NSLocalizedString(
-                "ONBOARDING_VERIFICATION_RESEND_CODE_BUTTON",
-                comment: "Label for button to resend SMS verification code.")
-            let callMeTitle = NSLocalizedString(
-                "ONBOARDING_VERIFICATION_CALL_ME_BUTTON",
-                comment: "Label for button to perform verification with a phone call.")
+    private func button(
+        title: String = "",
+        selector: Selector,
+        accessibilityIdentifierSuffix: String
+    ) -> UIButton {
+        let result = UIButton(type: .system)
 
-            resendCodeButton?.setTitle(
-                title: resendCodeTitle,
-                font: .ows_dynamicTypeSubheadlineClamped,
-                titleColor: Theme.accentBlueColor)
-            callMeButton?.setTitle(
-                title: callMeTitle,
-                font: .ows_dynamicTypeSubheadlineClamped,
-                titleColor: Theme.accentBlueColor)
+        result.addTarget(self, action: selector, for: .touchUpInside)
 
+        result.setTitle(title, for: .normal)
+        if let titleLabel = result.titleLabel {
+            titleLabel.font = .dynamicTypeSubheadlineClamped
+            titleLabel.numberOfLines = 0
+            titleLabel.lineBreakMode = .byWordWrapping
+            titleLabel.textAlignment = .center
+            result.heightAnchor.constraint(
+                greaterThanOrEqualTo: titleLabel.heightAnchor
+            ).isActive = true
         } else {
-            let countdownInterval = abs(codeCountdownStart.timeIntervalSinceNow)
-            let countdownRemaining = max(0, Self.countdownDuration - countdownInterval)
-            let formattedCountdown = OWSFormat.localizedDurationString(from: round(countdownRemaining))
+            owsFailBeta("Button has no title label")
+        }
 
-            let resendCodeCountdownFormat = NSLocalizedString(
+        result.accessibilityIdentifier = "registration.verification.\(accessibilityIdentifierSuffix)"
+
+        return result
+    }
+
+    private lazy var titleLabel: UILabel = {
+        let result = UILabel.titleLabelForRegistration(text: OWSLocalizedString(
+            "ONBOARDING_VERIFICATION_TITLE_LABEL",
+            comment: "Title label for the onboarding verification page"
+        ))
+        result.accessibilityIdentifier = "registration.verification.titleLabel"
+        return result
+    }()
+
+    private var explanationLabelText: String {
+        let format = OWSLocalizedString(
+            "ONBOARDING_VERIFICATION_TITLE_DEFAULT_FORMAT",
+            comment: "Format for the title of the 'onboarding verification' view. Embeds {{the user's phone number}}."
+        )
+        return String(format: format, state.e164.stringValue.e164FormattedAsPhoneNumberWithoutBreaks)
+    }
+
+    private lazy var explanationLabel: UILabel = {
+        let result = UILabel.explanationLabelForRegistration(text: explanationLabelText)
+        result.accessibilityIdentifier = "registration.verification.explanationLabel"
+        return result
+    }()
+
+    private lazy var wrongNumberButton = button(
+        title: OWSLocalizedString(
+            "ONBOARDING_VERIFICATION_BACK_LINK",
+            comment: "Label for the link that lets users change their phone number in the onboarding views."
+        ),
+        selector: #selector(didTapWrongNumberButton),
+        accessibilityIdentifierSuffix: "wrongNumberButton"
+    )
+
+    private lazy var verificationCodeView: RegistrationVerificationCodeView = {
+        let result = RegistrationVerificationCodeView()
+        result.delegate = self
+        return result
+    }()
+
+    private lazy var helpButton = button(
+        title: OWSLocalizedString(
+            "ONBOARDING_VERIFICATION_HELP_LINK",
+            comment: "Label for a button to get help entering a verification code when registering."
+        ),
+        selector: #selector(didTapHelpButton),
+        accessibilityIdentifierSuffix: "helpButton"
+    )
+
+    private lazy var resendSMSCodeButton = button(
+        selector: #selector(didTapResendSMSCode),
+        accessibilityIdentifierSuffix: "resendSMSCodeButton"
+    )
+
+    private lazy var requestVoiceCodeButton = button(
+        selector: #selector(didTapSendVoiceCode),
+        accessibilityIdentifierSuffix: "requestVoiceCodeButton"
+    )
+
+    private lazy var contextButton: ContextMenuButton = {
+        let result = ContextMenuButton()
+        result.showsContextMenuAsPrimaryAction = true
+        result.autoSetDimensions(to: .square(40))
+        return result
+    }()
+
+    private lazy var contextBarButton = UIBarButtonItem(
+        customView: contextButton,
+        accessibilityIdentifier: "registration.verificationCode.contextButton"
+    )
+
+    public override func viewDidLoad() {
+        super.viewDidLoad()
+
+        navigationItem.setHidesBackButton(true, animated: false)
+
+        initialRender()
+
+        // We don't need this timer in all cases but it's simpler to start it in all cases.
+        nowTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            self.now = Date()
+        }
+    }
+
+    private var isViewAppeared = false
+
+    public override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+
+        verificationCodeView.becomeFirstResponder()
+
+        showValidationErrorUiIfNecessary()
+
+        isViewAppeared = true
+    }
+
+    public override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+
+        if contextButton.isShowingContextMenu {
+            contextButton.dismissContextMenu(animated: animated)
+        }
+
+        isViewAppeared = false
+    }
+
+    public override func themeDidChange() {
+        super.themeDidChange()
+        render()
+    }
+
+    private func initialRender() {
+        let scrollView = UIScrollView()
+        view.addSubview(scrollView)
+        scrollView.autoPinWidthToSuperview()
+        scrollView.autoPinEdge(.top, to: .top, of: keyboardLayoutGuideViewSafeArea)
+        scrollView.autoPinEdge(.bottom, to: .bottom, of: keyboardLayoutGuideViewSafeArea)
+
+        let stackView = UIStackView()
+        stackView.axis = .vertical
+        stackView.spacing = 12
+        stackView.layoutMargins = UIEdgeInsets.layoutMarginsForRegistration(
+            traitCollection.horizontalSizeClass
+        )
+        stackView.isLayoutMarginsRelativeArrangement = true
+        stackView.setContentHuggingHigh()
+        scrollView.addSubview(stackView)
+        stackView.autoPinWidth(toWidthOf: scrollView)
+        stackView.heightAnchor.constraint(
+            greaterThanOrEqualTo: scrollView.contentLayoutGuide.heightAnchor
+        ).isActive = true
+        stackView.heightAnchor.constraint(
+            greaterThanOrEqualTo: scrollView.frameLayoutGuide.heightAnchor
+        ).isActive = true
+
+        stackView.addArrangedSubview(titleLabel)
+
+        stackView.addArrangedSubview(explanationLabel)
+
+        stackView.addArrangedSubview(wrongNumberButton)
+        stackView.setCustomSpacing(24, after: wrongNumberButton)
+
+        stackView.addArrangedSubview(verificationCodeView)
+        stackView.setCustomSpacing(24, after: verificationCodeView)
+
+        stackView.addArrangedSubview(helpButton)
+
+        stackView.addArrangedSubview(UIView.vStretchingSpacer())
+
+        let resendButtonsContainer = UIStackView(arrangedSubviews: [
+            resendSMSCodeButton,
+            requestVoiceCodeButton
+        ])
+        resendButtonsContainer.axis = .horizontal
+        resendButtonsContainer.distribution = .fillEqually
+
+        stackView.addArrangedSubview(resendButtonsContainer)
+
+        render()
+    }
+
+    private func render() {
+        switch state.exitConfiguration {
+        case .noExitAllowed:
+            navigationItem.leftBarButtonItem = nil
+        case .exitReRegistration:
+            navigationItem.leftBarButtonItem = contextBarButton
+            contextButton.contextMenu = ContextMenu([
+                .init(
+                    title: OWSLocalizedString(
+                        "EXIT_REREGISTRATION",
+                        comment: "Button to exit re-registration, shown in context menu."
+                    ),
+                    handler: { [weak self] _ in
+                        self?.presenter?.exitRegistration()
+                    }
+                )
+            ])
+        case .exitChangeNumber:
+            navigationItem.leftBarButtonItem = contextBarButton
+            contextButton.contextMenu = ContextMenu([
+                .init(
+                    title: OWSLocalizedString(
+                        "EXIT_CHANGE_NUMBER",
+                        comment: "Button to exit change number, shown in context menu."
+                    ),
+                    handler: { [weak self] _ in
+                        self?.presenter?.exitRegistration()
+                    }
+                )
+            ])
+        }
+
+        contextButton.setImage(Theme.iconImage(.buttonMore), for: .normal)
+        contextButton.tintColor = Theme.accentBlueColor
+
+        renderResendButton(
+            button: resendSMSCodeButton,
+            date: state.nextSMSDate,
+            enabledString: OWSLocalizedString(
+                "ONBOARDING_VERIFICATION_RESEND_CODE_BUTTON",
+                comment: "Label for button to resend SMS verification code."
+            ),
+            countdownFormat: OWSLocalizedString(
                 "ONBOARDING_VERIFICATION_RESEND_CODE_COUNTDOWN_FORMAT",
-                comment: "Format string for button counting down time until SMS code can be resent. Embeds {{time remaining}}.")
-            let callMeCountdownFormat = NSLocalizedString(
+                comment: "Format string for button counting down time until SMS code can be resent. Embeds {{time remaining}}."
+            )
+        )
+        renderResendButton(
+            button: requestVoiceCodeButton,
+            date: state.nextCallDate,
+            enabledString: OWSLocalizedString(
+                "ONBOARDING_VERIFICATION_CALL_ME_BUTTON",
+                comment: "Label for button to perform verification with a phone call."
+            ),
+            countdownFormat: OWSLocalizedString(
                 "ONBOARDING_VERIFICATION_CALL_ME_COUNTDOWN_FORMAT",
-                comment: "Format string for button counting down time until phone call verification can be performed. Embeds {{time remaining}}.")
+                comment: "Format string for button counting down time until phone call verification can be performed. Embeds {{time remaining}}."
+            )
+        )
 
-            let resendCodeTitle = String(format: resendCodeCountdownFormat, formattedCountdown)
-            let callMeTitle = String(format: callMeCountdownFormat, formattedCountdown)
-            resendCodeButton?.setTitle(
-                title: resendCodeTitle,
-                font: .ows_dynamicTypeSubheadlineClamped,
-                titleColor: Theme.secondaryTextAndIconColor)
-            callMeButton?.setTitle(
-                title: callMeTitle,
-                font: .ows_dynamicTypeSubheadlineClamped,
-                titleColor: Theme.secondaryTextAndIconColor)
-        }
-    }
-
-    private func resendCode(asPhoneCall: Bool) {
-        AssertIsOnMainThread()
-
-        guard let viewController = self.viewController else {
-            owsFailDebug("Missing viewController.")
-            return
+        if isViewAppeared {
+            showValidationErrorUiIfNecessary()
         }
 
-        verificationCodeView.resignFirstResponder()
-        viewController.resendCode(asPhoneCall: asPhoneCall)
+        view.backgroundColor = Theme.backgroundColor
+        titleLabel.textColor = .colorForRegistrationTitleLabel
+        explanationLabel.textColor = .colorForRegistrationExplanationLabel
+        explanationLabel.text = explanationLabelText
+        wrongNumberButton.isHidden = state.canChangeE164.negated
+        helpButton.isHidden = state.showHelpText.negated
+
+        verificationCodeView.updateColors()
     }
 
-    // MARK: - Events
+    private lazy var retryAfterFormatter: DateFormatter = {
+        let result = DateFormatter()
+        result.dateFormat = "m:ss"
+        result.timeZone = TimeZone(identifier: "UTC")!
+        return result
+    }()
 
-    @objc
-    func backLinkTapped() {
-        AssertIsOnMainThread()
+    private func renderResendButton(
+        button: UIButton,
+        date: Date?,
+        enabledString: String,
+        countdownFormat: String
+    ) {
+        // UIButton will flash when we update the title.
+        UIView.performWithoutAnimation {
+            defer { button.layoutIfNeeded() }
 
-        guard let viewController = self.viewController else {
-            owsFailDebug("Missing viewController.")
-            return
-        }
-        viewController.registrationNavigateBack()
-    }
+            guard let date else {
+                button.isHidden = true
+                button.isEnabled = false
+                return
+            }
 
-    @objc
-    func resendCodeButtonTapped() {
-        guard canResend else { return }
-        Logger.info("")
-        resendCode(asPhoneCall: false)
-    }
-
-    @objc
-    func callMeButtonTapped() {
-        guard canResend else { return }
-        Logger.info("")
-        resendCode(asPhoneCall: true)
-    }
-}
-
-// MARK: -
-
-extension RegistrationVerificationViewModel: RegistrationVerificationCodeViewDelegate {
-    public func codeViewDidChange() {
-        AssertIsOnMainThread()
-
-        setHasInvalidCode(false)
-
-        tryToVerify()
-    }
-}
-
-// MARK: -
-
-extension RegistrationVerificationViewController {
-    var canResend: Bool { viewModel.canResend }
-    var titleLabel: UILabel? { viewModel.titleLabel }
-    var subtitleLabel: UILabel? { viewModel.subtitleLabel }
-    var backLink: OWSFlatButton? { viewModel.backLink }
-    var backButtonSpacer: UIView? { viewModel.backButtonSpacer }
-    var verificationCodeView: RegistrationVerificationCodeView { viewModel.verificationCodeView }
-    var resendCodeButton: OWSFlatButton? { viewModel.resendCodeButton }
-    var callMeButton: OWSFlatButton? { viewModel.callMeButton }
-    var errorLabel: UILabel { viewModel.errorLabel }
-    var progressView: AnimatedProgressView { viewModel.progressView }
-    var equalSpacerHeightConstraint: NSLayoutConstraint? { viewModel.equalSpacerHeightConstraint }
-    var pinnedSpacerHeightConstraint: NSLayoutConstraint? { viewModel.pinnedSpacerHeightConstraint }
-    var buttonHeightConstraints: [NSLayoutConstraint] { viewModel.buttonHeightConstraints }
-}
-
-// MARK: -
-
-private protocol RegistrationVerificationCodeTextFieldDelegate: AnyObject {
-    func textFieldDidDeletePrevious()
-}
-
-// MARK: -
-
-// Editing a code should feel seamless, as even though
-// the UITextField only lets you edit a single digit at
-// a time.  For deletes to work properly, we need to
-// detect delete events that would affect the _previous_
-// digit.
-private class RegistrationVerificationCodeTextField: UITextField {
-
-    fileprivate weak var codeDelegate: RegistrationVerificationCodeTextFieldDelegate?
-
-    override func deleteBackward() {
-        var isDeletePrevious = false
-        if let selectedTextRange = selectedTextRange {
-            let cursorPosition = offset(from: beginningOfDocument, to: selectedTextRange.start)
-            if cursorPosition == 0 {
-                isDeletePrevious = true
+            if date <= now {
+                button.isEnabled = true
+                button.setTitle(enabledString, for: .normal)
+            } else {
+                button.isEnabled = false
+                button.setTitle(
+                    {
+                        let timeRemaining = max(date.timeIntervalSince(now), 0)
+                        let durationString = retryAfterFormatter.string(from: Date(timeIntervalSinceReferenceDate: timeRemaining))
+                        return String(format: countdownFormat, durationString)
+                    }(),
+                    for: .normal
+                )
             }
         }
+    }
 
-        super.deleteBackward()
+    private func showValidationErrorUiIfNecessary() {
+        let oldError = previouslyRenderedValidationError
+        let newError = state.validationError
 
-        if isDeletePrevious {
-            codeDelegate?.textFieldDidDeletePrevious()
+        previouslyRenderedValidationError = newError
+
+        guard let newError, oldError != newError else { return }
+        switch newError {
+        case .invalidVerificationCode(let code):
+            let message = OWSLocalizedString(
+                "REGISTRATION_VERIFICATION_ERROR_INVALID_VERIFICATION_CODE",
+                comment: "During registration and re-registration, users may have to enter a code to verify ownership of their phone number. If they enter an invalid code, they will see this error message."
+            )
+            if verificationCodeView.verificationCode == code {
+                verificationCodeView.clear()
+            }
+            OWSActionSheets.showActionSheet(title: nil, message: message)
+
+        case .providerFailure(let isPermanent):
+            let message: String
+            if isPermanent {
+                message = OWSLocalizedString(
+                    "REGISTRATION_PROVIDER_FAILURE_MESSAGE_PERMANENT",
+                    comment: "Error shown if an SMS/call service provider is permanently unable to send a verification code to the provided number."
+                )
+            } else {
+                message = OWSLocalizedString(
+                    "REGISTRATION_PROVIDER_FAILURE_MESSAGE_TRANSIENT",
+                    comment: "Error shown if an SMS/call service provider is temporarily unable to send a verification code to the provided number."
+                )
+            }
+            OWSActionSheets.showActionSheet(title: nil, message: message)
+
+        case .genericCodeRequestError(let isNetworkError):
+            let title: String?
+            let message: String
+            if isNetworkError {
+                title = OWSLocalizedString(
+                    "REGISTRATION_NETWORK_ERROR_TITLE",
+                    comment: "A network error occurred during registration, and an error is shown to the user. This is the title on that error sheet."
+                )
+                message = OWSLocalizedString(
+                    "REGISTRATION_NETWORK_ERROR_BODY",
+                    comment: "A network error occurred during registration, and an error is shown to the user. This is the body on that error sheet."
+                )
+            } else {
+                title = nil
+                message = CommonStrings.somethingWentWrongTryAgainLaterError
+            }
+            OWSActionSheets.showActionSheet(title: title, message: message)
+
+        case .failedInitialTransport(let failedTransport):
+            let errorMessage: String
+            let alternativeTransportButtonText: String
+            let alternativeTransport: Registration.CodeTransport
+            switch failedTransport {
+            case .sms:
+                errorMessage = OWSLocalizedString(
+                    "REGISTRATION_SMS_CODE_FAILED_TRY_VOICE_ERROR",
+                    comment: "Error message when sending a verification code via sms failed, but resending via voice call might succeed."
+                )
+                alternativeTransportButtonText = OWSLocalizedString(
+                    "REGISTRATION_SMS_CODE_FAILED_TRY_VOICE_BUTTON",
+                    comment: "Button when sending a verification code via sms failed, but resending via voice call might succeed."
+                )
+                alternativeTransport = .voice
+            case .voice:
+                errorMessage = OWSLocalizedString(
+                    "REGISTRATION_VOICE_CODE_FAILED_TRY_SMS_ERROR",
+                    comment: "Error message when sending a verification code via voice call failed, but resending via sms might succeed."
+                )
+                alternativeTransportButtonText = OWSLocalizedString(
+                    "REGISTRATION_VOICE_CODE_FAILED_TRY_SMS_BUTTON",
+                    comment: "Button when sending a verification code via voice call failed, but resending via sms might succeed."
+                )
+                alternativeTransport = .sms
+            }
+            let actionSheet = ActionSheetController(title: nil, message: errorMessage)
+            actionSheet.addAction(.init(
+                title: alternativeTransportButtonText,
+                accessibilityIdentifier: nil,
+                handler: { [weak self] _ in
+                    switch alternativeTransport {
+                    case .sms:
+                        self?.presenter?.requestSMSCode()
+                    case .voice:
+                        self?.presenter?.requestVoiceCode()
+                    }
+                }
+            ))
+            actionSheet.addAction(.init(
+                title: CommonStrings.cancelButton,
+                accessibilityIdentifier: nil
+            ))
+            self.present(actionSheet, animated: true)
+            return
+
+        case .smsResendTimeout, .voiceResendTimeout:
+            let message = OWSLocalizedString(
+                "REGISTER_RATE_LIMITING_ALERT",
+                comment: "Body of action sheet shown when rate-limited during registration."
+            )
+            OWSActionSheets.showActionSheet(title: nil, message: message)
+
+        case .submitCodeTimeout:
+            guard let nextVerificationAttemptDate = state.nextVerificationAttemptDate else {
+                return
+            }
+            let now = Date()
+            if now >= nextVerificationAttemptDate {
+                return
+            }
+            let format = OWSLocalizedString(
+                "REGISTRATION_SUBMIT_CODE_RATE_LIMIT_ALERT_FORMAT",
+                comment: "Alert shown when submitting a verification code too many times. Embeds {{ duration }}, such as \"5:00\""
+            )
+
+            let formatter: DateFormatter = {
+                let result = DateFormatter()
+                result.dateFormat = "m:ss"
+                result.timeZone = TimeZone(identifier: "UTC")!
+                return result
+            }()
+
+            let timeRemaining = max(nextVerificationAttemptDate.timeIntervalSince(now), 0)
+            let durationString = formatter.string(from: Date(timeIntervalSinceReferenceDate: timeRemaining))
+            let message = String(format: format, durationString)
+            OWSActionSheets.showActionSheet(title: nil, message: message)
         }
     }
 
+    // MARK: Events
+
+    @objc
+    private func didTapWrongNumberButton() {
+        Logger.info("")
+
+        presenter?.returnToPhoneNumberEntry()
+    }
+
+    @objc
+    private func didTapHelpButton() {
+        Logger.info("")
+
+        self.present(RegistrationVerificationHelpSheetViewController(), animated: true)
+    }
+
+    @objc
+    private func didTapResendSMSCode() {
+        Logger.info("")
+
+        guard canRequestSMSCode else { return }
+
+        presentActionSheet(.forRegistrationVerificationConfirmation(
+            mode: .sms,
+            e164: state.e164.stringValue,
+            didConfirm: { [weak self] in self?.presenter?.requestSMSCode() },
+            didRequestEdit: { [weak self] in self?.presenter?.returnToPhoneNumberEntry() }
+        ))
+    }
+
+    @objc
+    private func didTapSendVoiceCode() {
+        Logger.info("")
+
+        guard canRequestVoiceCode else { return }
+
+        presentActionSheet(.forRegistrationVerificationConfirmation(
+            mode: .voice,
+            e164: state.e164.stringValue,
+            didConfirm: { [weak self] in self?.presenter?.requestVoiceCode() },
+            didRequestEdit: { [weak self] in self?.presenter?.returnToPhoneNumberEntry() }
+        ))
+    }
 }
 
-// MARK: -
+// MARK: - RegistrationVerificationCodeViewDelegate
 
-protocol RegistrationVerificationCodeViewDelegate: AnyObject {
-    func codeViewDidChange()
-}
-
-// MARK: -
-
-// The RegistrationVerificationCodeView is a special "verification code"
-// editor that should feel like editing a single piece
-// of text (ala UITextField) even though the individual
-// digits of the code are visually separated.
-//
-// We use a separate UILabel for each digit, and move
-// around a single UITextfield to let the user edit the
-// last/next digit.
-class RegistrationVerificationCodeView: UIView {
-
-    weak var delegate: RegistrationVerificationCodeViewDelegate?
-
-    public init() {
-        super.init(frame: .zero)
-
-        createSubviews()
-
-        updateViewState()
-    }
-
-    required init?(coder aDecoder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-
-    private let digitCount = 6
-    private var digitLabels = [UILabel]()
-    private var digitStrokes = [UIView]()
-
-    private let cellFont: UIFont = UIFont.ows_dynamicTypeLargeTitle1Clamped
-    private let interCellSpacing: CGFloat = 8
-    private let segmentSpacing: CGFloat = 24
-    private let strokeWidth: CGFloat = 3
-
-    private var cellSize: CGSize {
-        let vMargin: CGFloat = 4
-        let cellHeight: CGFloat = cellFont.lineHeight + vMargin * 2
-        let cellWidth: CGFloat = cellHeight * 2 / 3
-        return CGSize(width: cellWidth, height: cellHeight)
-    }
-
-    override var intrinsicContentSize: CGSize {
-        let totalWidth = (CGFloat(digitCount) * (cellSize.width + interCellSpacing)) + segmentSpacing
-        let totalHeight = strokeWidth + cellSize.height
-        return CGSize(width: totalWidth, height: totalHeight)
-    }
-
-    // We use a single text field to edit the "current" digit.
-    // The "current" digit is usually the "last"
-    fileprivate let textfield = RegistrationVerificationCodeTextField()
-    private var currentDigitIndex = 0
-    private var textfieldConstraints = [NSLayoutConstraint]()
-
-    // The current complete text - the "model" for this view.
-    private var digitText = ""
-
-    var isComplete: Bool {
-        return digitText.count == digitCount
-    }
-    var verificationCode: String {
-        return digitText
-    }
-
-    private func createSubviews() {
-        textfield.textAlignment = .left
-        textfield.delegate = self
-        textfield.codeDelegate = self
-
-        textfield.textColor = Theme.primaryTextColor
-        textfield.font = UIFont.ows_dynamicTypeLargeTitle1Clamped
-        textfield.keyboardType = .numberPad
-        textfield.textContentType = .oneTimeCode
-
-        var digitViews = [UIView]()
-        (0..<digitCount).forEach { (_) in
-            let (digitView, digitLabel, digitStroke) = makeCellView(text: "", hasStroke: true)
-
-            digitLabels.append(digitLabel)
-            digitStrokes.append(digitStroke)
-            digitViews.append(digitView)
+extension RegistrationVerificationViewController: RegistrationVerificationCodeViewDelegate {
+    func codeViewDidChange() {
+        if verificationCodeView.isComplete {
+            Logger.info("Submitting verification code")
+            verificationCodeView.resignFirstResponder()
+            // Clear any errors so we render new ones.
+            previouslyRenderedValidationError = nil
+            presenter?.submitVerificationCode(verificationCodeView.verificationCode)
         }
+    }
+}
 
-        digitViews.insert(UIView.spacer(withWidth: segmentSpacing), at: 3)
+// MARK: - RegistrationVerificationHelpSheetViewController
 
-        let stackView = UIStackView(arrangedSubviews: digitViews)
+private class RegistrationVerificationHelpSheetViewController: InteractiveSheetViewController {
+
+    private var intrinsicSizeObservation: NSKeyValueObservation?
+
+    public required init() {
+        super.init()
+
+        scrollView.bounces = false
+        scrollView.isScrollEnabled = false
+
+        stackView.axis = .vertical
+        stackView.alignment = .fill
+        stackView.spacing = 12
+
+        stackView.addArrangedSubview(header)
+        stackView.setCustomSpacing(20, after: header)
+        let bulletPoints = bulletPoints
+        stackView.addArrangedSubviews(bulletPoints)
+
+        // TODO[Registration]: there should be a contact support link here.
+
+        let insets = UIEdgeInsets(top: 20, left: 24, bottom: 80, right: 24)
+        contentView.addSubview(scrollView)
+        scrollView.autoPinEdgesToSuperviewEdges()
+        scrollView.addSubview(stackView)
+        stackView.autoPinEdgesToSuperviewEdges(with: insets)
+        stackView.autoConstrainAttribute(.width, to: .width, of: contentView, withOffset: -insets.totalWidth)
+
+        self.allowsExpansion = false
+        intrinsicSizeObservation = stackView.observe(\.bounds, changeHandler: { [weak self] stackView, _ in
+            self?.minimizedHeight = stackView.bounds.height + insets.totalHeight
+            self?.scrollView.isScrollEnabled = (self?.maxHeight ?? 0) < stackView.bounds.height
+        })
+    }
+
+    override public func viewSafeAreaInsetsDidChange() {
+        super.viewSafeAreaInsetsDidChange()
+        scrollView.isScrollEnabled = self.maxHeight < stackView.bounds.height
+    }
+
+    let scrollView = UIScrollView()
+    let stackView = UIStackView()
+
+    let header: UILabel = {
+        let label = UILabel()
+        label.textAlignment = .center
+        label.font = UIFont.dynamicTypeTitle2.semibold()
+        label.text = OWSLocalizedString(
+            "ONBOARDING_VERIFICATION_HELP_LINK",
+            comment: "Label for a button to get help entering a verification code when registering."
+        )
+        label.numberOfLines = 0
+        label.lineBreakMode = .byWordWrapping
+        return label
+    }()
+
+    let bulletPoints: [UIView] = {
+        return [
+            OWSLocalizedString(
+                "ONBOARDING_VERIFICATION_HELP_BULLET_1",
+                comment: "First bullet point for the explainer sheet for registering via verification code."
+            ),
+            OWSLocalizedString(
+                "ONBOARDING_VERIFICATION_HELP_BULLET_2",
+                comment: "Second bullet point for the explainer sheet for registering via verification code."
+            ),
+            OWSLocalizedString(
+                "ONBOARDING_VERIFICATION_HELP_BULLET_3",
+                comment: "Third bullet point for the explainer sheet for registering via verification code."
+            )
+        ].map { text in
+            return RegistrationVerificationHelpSheetViewController.listPointView(text: text)
+        }
+    }()
+
+    private static func listPointView(text: String) -> UIStackView {
+        let stackView = UIStackView(frame: .zero)
+
         stackView.axis = .horizontal
         stackView.alignment = .center
-        stackView.spacing = interCellSpacing
-        addSubview(stackView)
-        stackView.autoPinHeightToSuperview()
-        stackView.autoHCenterInSuperview()
+        stackView.spacing = 8
 
-        self.addSubview(textfield)
-    }
+        let label = UILabel()
+        label.text = text
+        label.numberOfLines = 0
+        label.textColor = Theme.primaryTextColor
+        label.font = .dynamicTypeBodyClamped
 
-    private func makeCellView(text: String, hasStroke: Bool) -> (UIView, UILabel, UIView) {
-        let digitView = UIView()
+        let bulletPoint = UIView()
+        bulletPoint.backgroundColor = UIColor(rgbHex: 0xC4C4C4)
 
-        let digitLabel = UILabel()
-        digitLabel.text = text
-        digitLabel.font = cellFont
-        digitLabel.textColor = Theme.primaryTextColor
-        digitLabel.textAlignment = .center
-        digitView.addSubview(digitLabel)
-        digitLabel.autoCenterInSuperview()
+        stackView.addArrangedSubview(.spacer(withWidth: 4))
+        stackView.addArrangedSubview(bulletPoint)
+        stackView.addArrangedSubview(label)
 
-        let strokeColor = (hasStroke ? Theme.secondaryTextAndIconColor : UIColor.clear)
-        let strokeView = digitView.addBottomStroke(color: strokeColor, strokeWidth: strokeWidth)
-        strokeView.layer.cornerRadius = strokeWidth / 2
-
-        digitView.autoSetDimensions(to: cellSize)
-        return (digitView, digitLabel, strokeView)
-    }
-
-    private func digit(at index: Int) -> String {
-        guard index < digitText.count else {
-            return ""
-        }
-        return digitText.substring(from: index).substring(to: 1)
-    }
-
-    // Ensure that all labels are displaying the correct
-    // digit (if any) and that the UITextField has replaced
-    // the "current" digit.
-    private func updateViewState() {
-        currentDigitIndex = min(digitCount - 1,
-                                digitText.count)
-
-        (0..<digitCount).forEach { (index) in
-            let digitLabel = digitLabels[index]
-            digitLabel.text = digit(at: index)
-            digitLabel.isHidden = index == currentDigitIndex
-        }
-
-        NSLayoutConstraint.deactivate(textfieldConstraints)
-        textfieldConstraints.removeAll()
-
-        let digitLabelToReplace = digitLabels[currentDigitIndex]
-        textfield.text = digit(at: currentDigitIndex)
-        textfieldConstraints.append(textfield.autoAlignAxis(.horizontal, toSameAxisOf: digitLabelToReplace))
-        textfieldConstraints.append(textfield.autoAlignAxis(.vertical, toSameAxisOf: digitLabelToReplace))
-
-        // Move cursor to end of text.
-        let newPosition = textfield.endOfDocument
-        textfield.selectedTextRange = textfield.textRange(from: newPosition, to: newPosition)
-    }
-
-    @discardableResult
-    public override func becomeFirstResponder() -> Bool {
-        return textfield.becomeFirstResponder()
-    }
-
-    @discardableResult
-    public override func resignFirstResponder() -> Bool {
-        return textfield.resignFirstResponder()
-    }
-
-    func setHasError(_ hasError: Bool) {
-        let backgroundColor = (hasError ? UIColor.ows_accentRed : Theme.secondaryTextAndIconColor)
-        for digitStroke in digitStrokes {
-            digitStroke.backgroundColor = backgroundColor
-        }
-    }
-
-    func set(verificationCode: String) {
-        digitText = verificationCode
-
-        updateViewState()
-
-        self.delegate?.codeViewDidChange()
-    }
-}
-
-// MARK: -
-
-extension RegistrationVerificationCodeView: UITextFieldDelegate {
-    public func textField(_ textField: UITextField, shouldChangeCharactersIn range: NSRange, replacementString newString: String) -> Bool {
-        var oldText = ""
-        if let textFieldText = textField.text {
-            oldText = textFieldText
-        }
-        let left = oldText.substring(to: range.location)
-        let right = oldText.substring(from: range.location + range.length)
-        let unfiltered = left + newString + right
-        let characterSet = CharacterSet(charactersIn: "0123456789")
-        let filtered = unfiltered.components(separatedBy: characterSet.inverted).joined()
-        let filteredAndTrimmed = filtered.substring(to: 1)
-        textField.text = filteredAndTrimmed
-
-        digitText = digitText.substring(to: currentDigitIndex) + filteredAndTrimmed
-
-        updateViewState()
-
-        self.delegate?.codeViewDidChange()
-
-        // Inform our caller that we took care of performing the change.
-        return false
-    }
-
-    public func textFieldShouldReturn(_ textField: UITextField) -> Bool {
-        self.delegate?.codeViewDidChange()
-
-        return false
-    }
-}
-
-// MARK: -
-
-extension RegistrationVerificationCodeView: RegistrationVerificationCodeTextFieldDelegate {
-    public func textFieldDidDeletePrevious() {
-        if digitText.isEmpty { return }
-        digitText = digitText.substring(to: currentDigitIndex - 1)
-
-        updateViewState()
+        bulletPoint.autoSetDimensions(to: .init(width: 4, height: 14))
+        label.setCompressionResistanceHigh()
+        return stackView
     }
 }

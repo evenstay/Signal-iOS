@@ -9,10 +9,6 @@ class ExpandableContactListView: UIView {
 
     var contactNames: [String] = [] {
         didSet {
-            guard #available(iOS 13, *) else {
-                textLabel.text = contactNames.joined(separator: ", ")
-                return
-            }
             textLabel.text = ListFormatter().string(from: contactNames)
         }
     }
@@ -42,7 +38,7 @@ class ExpandableContactListView: UIView {
         pillView.addSubview(backgroundView)
         backgroundView.autoPinEdgesToSuperviewEdges()
 
-        let arrowView = UIImageView(image: UIImage(imageLiteralResourceName: "arrow-up-16"))
+        let arrowView = UIImageView(image: UIImage(imageLiteralResourceName: "arrow-up-compact"))
         pillView.addSubview(arrowView)
         arrowView.autoPinEdge(toSuperviewMargin: .leading, withInset: 2)
         arrowView.autoVCenterInSuperview()
@@ -116,7 +112,7 @@ class ExpandableContactListView: UIView {
         let label = UILabel()
         label.numberOfLines = 1
         label.lineBreakMode = .byClipping
-        label.font = .ows_dynamicTypeBody2Clamped
+        label.font = .dynamicTypeBody2Clamped
         label.translatesAutoresizingMaskIntoConstraints = false
         return label
     }()

@@ -7,25 +7,21 @@ import Foundation
 
 extension Notification.Name {
     public static var isCensorshipCircumventionActiveDidChange: Self {
-        return .init(rawValue: OWSSignalService.isCensorshipCircumventionActiveDidChangeNotificationName)
+        return .init(rawValue: OWSSignalServiceObjC.isCensorshipCircumventionActiveDidChangeNotificationName)
     }
 }
 
-@objc
-public class OWSSignalService: NSObject, OWSSignalServiceProtocol {
-
-    // MARK: - Protocol Conformance
-
-    @objc
-    public let keyValueStore = SDSKeyValueStore(collection: "kTSStorageManager_OWSSignalService")
-
+public class OWSSignalServiceObjC: NSObject {
     @objc
     public static var isCensorshipCircumventionActiveDidChangeNotificationName: String {
         return "NSNotificationNameIsCensorshipCircumventionActiveDidChange"
     }
+}
 
-    @Atomic
-    public private(set) var isCensorshipCircumventionActive: Bool = false {
+public class OWSSignalService: OWSSignalServiceProtocol, Dependencies {
+    private let keyValueStore = SDSKeyValueStore(collection: "kTSStorageManager_OWSSignalService")
+
+    @Atomic public private(set) var isCensorshipCircumventionActive: Bool = false {
         didSet {
             guard isCensorshipCircumventionActive != oldValue else {
                 return
@@ -38,13 +34,10 @@ public class OWSSignalService: NSObject, OWSSignalServiceProtocol {
         }
     }
 
-    @objc
     @Atomic public private(set) var hasCensoredPhoneNumber: Bool = false
 
-    @objc
     private let isCensorshipCircumventionManuallyActivatedLock = UnfairLock()
 
-    @objc
     public var isCensorshipCircumventionManuallyActivated: Bool {
         get {
             isCensorshipCircumventionManuallyActivatedLock.withLock {
@@ -59,10 +52,8 @@ public class OWSSignalService: NSObject, OWSSignalServiceProtocol {
         }
     }
 
-    @objc
     private let isCensorshipCircumventionManuallyDisabledLock = UnfairLock()
 
-    @objc
     public var isCensorshipCircumventionManuallyDisabled: Bool {
         get {
             isCensorshipCircumventionManuallyDisabledLock.withLock {
@@ -77,10 +68,8 @@ public class OWSSignalService: NSObject, OWSSignalServiceProtocol {
         }
     }
 
-    @objc
     private let manualCensorshipCircumventionCountryCodeLock = UnfairLock()
 
-    @objc
     public var manualCensorshipCircumventionCountryCode: String? {
         get {
             manualCensorshipCircumventionCountryCodeLock.withLock {
@@ -94,14 +83,7 @@ public class OWSSignalService: NSObject, OWSSignalServiceProtocol {
         }
     }
 
-    @objc
-    public var domainFrontBaseURL: URL {
-        owsAssertDebug(self.isCensorshipCircumventionActive)
-        return self.buildCensorshipConfiguration().domainFrontBaseURL
-    }
-
-    @objc
-    public func buildCensorshipConfiguration() -> OWSCensorshipConfiguration {
+    private func buildCensorshipConfiguration() -> OWSCensorshipConfiguration {
         owsAssertDebug(self.isCensorshipCircumventionActive)
 
         if self.isCensorshipCircumventionManuallyActivated {
@@ -127,8 +109,7 @@ public class OWSSignalService: NSObject, OWSSignalServiceProtocol {
         return configuration
     }
 
-    @objc
-    public func typeUnsafe_buildUrlSession(for signalServiceType: Any) -> Any {
+    public func buildUrlEndpoint(for signalServiceInfo: SignalServiceInfo) -> OWSURLSessionEndpoint {
         // If there's an open transaction when this is called, and if censorship
         // circumvention is enabled, `buildCensorshipConfiguration()` will crash.
         // Add a database read here so that we crash in both `if` branches.
@@ -137,9 +118,7 @@ public class OWSSignalService: NSObject, OWSSignalServiceProtocol {
             return true
         }(), "Must not have open transaction.")
 
-        let signalServiceInfo = (signalServiceType as! SignalServiceType).signalServiceInfo()
         let isCensorshipCircumventionActive = self.isCensorshipCircumventionActive
-        let urlSession: OWSURLSessionProtocol
         if isCensorshipCircumventionActive {
             let censorshipConfiguration = buildCensorshipConfiguration()
             let frontingURLWithoutPathPrefix = censorshipConfiguration.domainFrontBaseURL
@@ -154,53 +133,54 @@ public class OWSSignalService: NSObject, OWSSignalServiceProtocol {
             let baseUrl = frontingURLWithPathPrefix
             let securityPolicy = censorshipConfiguration.domainFrontSecurityPolicy
             let extraHeaders = ["Host": TSConstants.censorshipReflectorHost]
-            urlSession = OWSURLSession(
+            return OWSURLSessionEndpoint(
                 baseUrl: baseUrl,
                 frontingInfo: frontingInfo,
                 securityPolicy: securityPolicy,
-                configuration: OWSURLSession.defaultConfigurationWithoutCaching,
                 extraHeaders: extraHeaders
             )
         } else {
             let baseUrl = signalServiceInfo.baseUrl
             let securityPolicy: OWSHTTPSecurityPolicy
-            switch signalServiceType as! SignalServiceType {
-            case .updates:
-                securityPolicy = OWSURLSession.defaultSecurityPolicy
-            default:
+            if signalServiceInfo.shouldUseSignalCertificate {
                 securityPolicy = OWSURLSession.signalServiceSecurityPolicy
+            } else {
+                securityPolicy = OWSURLSession.defaultSecurityPolicy
             }
-
-            urlSession = OWSURLSession(
+            return OWSURLSessionEndpoint(
                 baseUrl: baseUrl,
+                frontingInfo: nil,
                 securityPolicy: securityPolicy,
-                configuration: OWSURLSession.defaultConfigurationWithoutCaching,
-                extraHeaders: [:],
-                canUseSignalProxy: true
+                extraHeaders: [:]
             )
         }
+    }
+
+    public func buildUrlSession(
+        for signalServiceInfo: SignalServiceInfo,
+        endpoint: OWSURLSessionEndpoint,
+        configuration: URLSessionConfiguration?
+    ) -> OWSURLSessionProtocol {
+        let urlSession = OWSURLSession(
+            endpoint: endpoint,
+            configuration: configuration ?? OWSURLSession.defaultConfigurationWithoutCaching,
+            maxResponseSize: nil,
+            canUseSignalProxy: endpoint.frontingInfo == nil
+        )
         urlSession.shouldHandleRemoteDeprecation = signalServiceInfo.shouldHandleRemoteDeprecation
         return urlSession
     }
 
     // MARK: - Internal Implementation
 
-    public override init() {
-        super.init()
-
+    public init() {
         observeNotifications()
-    }
-
-    deinit {
-        NotificationCenter.default.removeObserver(self)
     }
 
     // MARK: Setup
 
-    @objc
     public func warmCaches() {
         updateHasCensoredPhoneNumber()
-        updateIsCensorshipCircumventionActive()
     }
 
     private func observeNotifications() {
@@ -336,9 +316,4 @@ public class OWSSignalService: NSObject, OWSSignalServiceProtocol {
         static let isCensorshipCircumventionManuallyDisabledKey = "kTSStorageManager_isCensorshipCircumventionManuallyDisabled"
         static let manualCensorshipCircumventionCountryCodeKey = "kTSStorageManager_ManualCensorshipCircumventionCountryCode"
     }
-}
-
-private enum SerializerType {
-    case json
-    case binary
 }

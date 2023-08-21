@@ -23,7 +23,6 @@ public class VersionedProfileRequestImpl: NSObject, VersionedProfileRequest {
 
 // MARK: -
 
-@objc
 public class VersionedProfilesImpl: NSObject, VersionedProfilesSwift, VersionedProfiles {
 
     private enum CredentialStore {
@@ -31,15 +30,8 @@ public class VersionedProfilesImpl: NSObject, VersionedProfilesSwift, VersionedP
 
         private static let expiringCredentialStore = SDSKeyValueStore(collection: "VersionedProfilesImpl.expiringCredentialStore")
 
-        private static func storeKey(forAddress address: SignalServiceAddress) throws -> String {
-            guard
-                address.isValid,
-                let uuid = address.uuid
-            else {
-                throw OWSAssertionError("Address invalid or missing UUID: \(address)")
-            }
-
-            return uuid.uuidString
+        private static func storeKey(for aci: Aci) -> String {
+            return aci.serviceIdUppercaseString
         }
 
         static func dropDeprecatedCredentialsIfNecessary(transaction: SDSAnyWriteTransaction) {
@@ -47,18 +39,18 @@ public class VersionedProfilesImpl: NSObject, VersionedProfilesSwift, VersionedP
         }
 
         static func hasValidCredential(
-            forAddress address: SignalServiceAddress,
+            for aci: Aci,
             transaction: SDSAnyReadTransaction
         ) throws -> Bool {
-            try getValidCredential(forAddress: address, transaction: transaction) != nil
+            try getValidCredential(for: aci, transaction: transaction) != nil
         }
 
         static func getValidCredential(
-            forAddress address: SignalServiceAddress,
+            for aci: Aci,
             transaction: SDSAnyReadTransaction
         ) throws -> ExpiringProfileKeyCredential? {
             guard let credentialData = expiringCredentialStore.getData(
-                try storeKey(forAddress: address),
+                storeKey(for: aci),
                 transaction: transaction
             ) else {
                 return nil
@@ -71,7 +63,7 @@ public class VersionedProfilesImpl: NSObject, VersionedProfilesSwift, VersionedP
                 // because we're in a read-only transaction. When we try and
                 // fetch a new credential for this address we'll overwrite this
                 // expired one.
-                Logger.info("Found expired credential for address \(address)")
+                Logger.info("Found expired credential for serviceId \(aci)")
                 return nil
             }
 
@@ -80,7 +72,7 @@ public class VersionedProfilesImpl: NSObject, VersionedProfilesSwift, VersionedP
 
         static func setCredential(
             _ credential: ExpiringProfileKeyCredential,
-            forAddress address: SignalServiceAddress,
+            for aci: Aci,
             transaction: SDSAnyWriteTransaction
         ) throws {
             let credentialData = credential.serialize().asData
@@ -91,19 +83,13 @@ public class VersionedProfilesImpl: NSObject, VersionedProfilesSwift, VersionedP
 
             expiringCredentialStore.setData(
                 credentialData,
-                key: try storeKey(forAddress: address),
+                key: storeKey(for: aci),
                 transaction: transaction
             )
         }
 
-        static func removeValue(
-            forAddress address: SignalServiceAddress,
-            transaction: SDSAnyWriteTransaction
-        ) throws {
-            expiringCredentialStore.removeValue(
-                forKey: try storeKey(forAddress: address),
-                transaction: transaction
-            )
+        static func removeValue(for aci: Aci, transaction: SDSAnyWriteTransaction) {
+            expiringCredentialStore.removeValue(forKey: storeKey(for: aci), transaction: transaction)
         }
 
         static func removeAll(transaction: SDSAnyWriteTransaction) {
@@ -133,27 +119,37 @@ public class VersionedProfilesImpl: NSObject, VersionedProfilesSwift, VersionedP
 
     // MARK: - Update
 
-    public func updateProfilePromise(profileGivenName: String?,
-                                     profileFamilyName: String?,
-                                     profileBio: String?,
-                                     profileBioEmoji: String?,
-                                     profileAvatarData: Data?,
-                                     visibleBadgeIds: [String],
-                                     unsavedRotatedProfileKey: OWSAES256Key?) -> Promise<VersionedProfileUpdate> {
+    public func updateProfilePromise(
+        profileGivenName: String?,
+        profileFamilyName: String?,
+        profileBio: String?,
+        profileBioEmoji: String?,
+        profileAvatarData: Data?,
+        visibleBadgeIds: [String],
+        unsavedRotatedProfileKey: OWSAES256Key?,
+        authedAccount: AuthedAccount
+    ) -> Promise<VersionedProfileUpdate> {
 
         let profileKeyToUse = unsavedRotatedProfileKey ?? self.profileManager.localProfileKey()
-        return firstly(on: .global()) {
-            guard let localUuid = self.tsAccountManager.localUuid else {
-                throw OWSAssertionError("Missing localUuid.")
+        return firstly(on: DispatchQueue.global()) {
+            let localAci: Aci
+            switch authedAccount.info {
+            case .explicit(let info):
+                localAci = info.localIdentifiers.aci
+            case .implicit:
+                guard let implicitLocalAci = self.tsAccountManager.localIdentifiers?.aci else {
+                    throw OWSAssertionError("Missing localUuid.")
+                }
+                localAci = implicitLocalAci
             }
 
             if unsavedRotatedProfileKey != nil {
                 Logger.info("Updating local profile with unsaved rotated profile key")
             }
-            return localUuid
-        }.then(on: .global()) { (localUuid: UUID) -> Promise<HTTPResponse> in
+            return localAci
+        }.then(on: DispatchQueue.global()) { (localAci: Aci) -> Promise<HTTPResponse> in
             let localProfileKey = try self.parseProfileKey(profileKey: profileKeyToUse)
-            let commitment = try localProfileKey.getCommitment(uuid: localUuid)
+            let commitment = try localProfileKey.getCommitment(userId: localAci)
             let commitmentData = commitment.serialize().asData
             let hasAvatar = profileAvatarData != nil
 
@@ -236,18 +232,21 @@ public class VersionedProfilesImpl: NSObject, VersionedProfilesSwift, VersionedP
                                                               paddedLengths: [554],
                                                               validBase64Lengths: [776])
 
-            let profileKeyVersion = try localProfileKey.getProfileKeyVersion(uuid: localUuid)
+            let profileKeyVersion = try localProfileKey.getProfileKeyVersion(userId: localAci)
             let profileKeyVersionString = try profileKeyVersion.asHexadecimalString()
-            let request = OWSRequestFactory.versionedProfileSetRequest(withName: nameValue,
-                                                                       bio: bioValue,
-                                                                       bioEmoji: bioEmojiValue,
-                                                                       hasAvatar: hasAvatar,
-                                                                       paymentAddress: paymentAddressValue,
-                                                                       visibleBadgeIds: visibleBadgeIds,
-                                                                       version: profileKeyVersionString,
-                                                                       commitment: commitmentData)
+            let request = OWSRequestFactory.versionedProfileSetRequest(
+                withName: nameValue,
+                bio: bioValue,
+                bioEmoji: bioEmojiValue,
+                hasAvatar: hasAvatar,
+                paymentAddress: paymentAddressValue,
+                visibleBadgeIds: visibleBadgeIds,
+                version: profileKeyVersionString,
+                commitment: commitmentData,
+                auth: authedAccount.chatServiceAuth
+            )
             return self.networkManager.makePromise(request: request)
-        }.then(on: .global()) { response -> Promise<VersionedProfileUpdate> in
+        }.then(on: DispatchQueue.global()) { response -> Promise<VersionedProfileUpdate> in
             if let profileAvatarData = profileAvatarData {
                 guard let encryptedProfileAvatarData = OWSUserProfile.encrypt(profileData: profileAvatarData,
                                                                               profileKey: profileKeyToUse) else {
@@ -282,45 +281,48 @@ public class VersionedProfilesImpl: NSObject, VersionedProfilesSwift, VersionedP
 
     // MARK: - Get
 
-    public func versionedProfileRequest(address: SignalServiceAddress,
-                                        udAccessKey: SMKUDAccessKey?) throws -> VersionedProfileRequest {
-        guard
-            address.isValid,
-            let uuid: UUID = address.uuid
-        else {
-            throw OWSAssertionError("Address invalid or missing UUID: \(address)")
-        }
-
+    public func versionedProfileRequest(
+        for aci: Aci,
+        udAccessKey: SMKUDAccessKey?,
+        auth: ChatServiceAuth
+    ) throws -> VersionedProfileRequest {
         var requestContext: ProfileKeyCredentialRequestContext?
         var profileKeyVersionArg: String?
         var credentialRequestArg: Data?
         var profileKeyForRequest: OWSAES256Key?
         try databaseStorage.read { transaction in
             // We try to include the profile key if we have one.
-            guard let profileKeyForAddress: OWSAES256Key = self.profileManager.profileKey(for: address,
-                                                                                          transaction: transaction) else {
+            guard let profileKeyForAddress = self.profileManager.profileKey(
+                for: SignalServiceAddress(aci),
+                transaction: transaction)
+            else {
                 return
             }
             profileKeyForRequest = profileKeyForAddress
             let profileKey: ProfileKey = try self.parseProfileKey(profileKey: profileKeyForAddress)
-            let profileKeyVersion = try profileKey.getProfileKeyVersion(uuid: uuid)
+            let profileKeyVersion = try profileKey.getProfileKeyVersion(userId: aci)
             profileKeyVersionArg = try profileKeyVersion.asHexadecimalString()
 
             // We need to request a credential if we don't have a valid one already.
-            if !(try CredentialStore.hasValidCredential(forAddress: address, transaction: transaction)) {
+            if !(try CredentialStore.hasValidCredential(for: aci, transaction: transaction)) {
                 let clientZkProfileOperations = try self.clientZkProfileOperations()
-                let context = try clientZkProfileOperations.createProfileKeyCredentialRequestContext(uuid: uuid,
-                                                                                                     profileKey: profileKey)
+                let context = try clientZkProfileOperations.createProfileKeyCredentialRequestContext(
+                    userId: aci,
+                    profileKey: profileKey
+                )
                 requestContext = context
                 let credentialRequest = try context.getRequest()
                 credentialRequestArg = credentialRequest.serialize().asData
             }
         }
 
-        let request = OWSRequestFactory.getVersionedProfileRequest(address: address,
-                                                                   profileKeyVersion: profileKeyVersionArg,
-                                                                   credentialRequest: credentialRequestArg,
-                                                                   udAccessKey: udAccessKey)
+        let request = OWSRequestFactory.getVersionedProfileRequest(
+            aci: AciObjC(aci),
+            profileKeyVersion: profileKeyVersionArg,
+            credentialRequest: credentialRequestArg,
+            udAccessKey: udAccessKey,
+            auth: auth
+        )
 
         return VersionedProfileRequestImpl(request: request, requestContext: requestContext, profileKey: profileKeyForRequest)
     }
@@ -333,8 +335,7 @@ public class VersionedProfilesImpl: NSObject, VersionedProfilesSwift, VersionedP
         return try ProfileKey(contents: profileKeyDataBytes)
     }
 
-    public func didFetchProfile(profile: SignalServiceProfile,
-                                profileRequest: VersionedProfileRequest) {
+    public func didFetchProfile(profile: SignalServiceProfile, profileRequest: VersionedProfileRequest) {
         do {
             guard let profileRequest = profileRequest as? VersionedProfileRequestImpl else {
                 return
@@ -360,10 +361,13 @@ public class VersionedProfilesImpl: NSObject, VersionedProfilesSwift, VersionedP
                 throw OWSAssertionError("Missing profile key for credential from versioned profile fetch.")
             }
 
-            let address = profile.address
+            // ACI TODO: This must be an Aci, but the compiler loses type information. Fix that.
+            guard let aci = profile.serviceId as? Aci else {
+                throw OWSAssertionError("Missing ACI.")
+            }
 
-            try databaseStorage.write { transaction throws in
-                guard let currentProfileKey = profileManager.profileKey(for: address, transaction: transaction) else {
+            try databaseStorage.write { tx throws in
+                guard let currentProfileKey = profileManager.profileKey(for: SignalServiceAddress(aci), transaction: tx) else {
                     throw OWSAssertionError("Missing profile key in database.")
                 }
 
@@ -375,11 +379,7 @@ public class VersionedProfilesImpl: NSObject, VersionedProfilesSwift, VersionedP
                     return
                 }
 
-                try CredentialStore.setCredential(
-                    profileKeyCredential,
-                    forAddress: address,
-                    transaction: transaction
-                )
+                try CredentialStore.setCredential(profileKeyCredential, for: aci, transaction: tx)
             }
         } catch {
             owsFailDebug("Invalid credential: \(error).")
@@ -390,25 +390,18 @@ public class VersionedProfilesImpl: NSObject, VersionedProfilesSwift, VersionedP
     // MARK: - Credentials
 
     public func validProfileKeyCredential(
-        for address: SignalServiceAddress,
+        for aci: Aci,
         transaction: SDSAnyReadTransaction
     ) throws -> ExpiringProfileKeyCredential? {
-        try CredentialStore.getValidCredential(
-            forAddress: address,
-            transaction: transaction
-        )
+        try CredentialStore.getValidCredential(for: aci, transaction: transaction)
     }
 
-    @objc(clearProfileKeyCredentialForAddress:transaction:)
+    @objc(clearProfileKeyCredentialForServiceId:transaction:)
     public func clearProfileKeyCredential(
-        for address: SignalServiceAddress,
+        for aci: AciObjC,
         transaction: SDSAnyWriteTransaction
     ) {
-        do {
-            try CredentialStore.removeValue(forAddress: address, transaction: transaction)
-        } catch let error {
-            owsFailDebug("Failed to clear credential for address \(address): \(error)")
-        }
+        CredentialStore.removeValue(for: aci.wrappedAciValue, transaction: transaction)
     }
 
     public func clearProfileKeyCredentials(transaction: SDSAnyWriteTransaction) {

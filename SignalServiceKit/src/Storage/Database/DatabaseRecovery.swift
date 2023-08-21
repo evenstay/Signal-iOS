@@ -14,12 +14,15 @@ public enum DatabaseRecoveryError: Error {
 
 /// Tries to recover corrupted databases.
 ///
-/// Database recovery is split into two parts:
+/// Database recovery is split into three parts:
 ///
-/// 1. "Dump and restore". Before most of the app is set up (i.e., before database connections are
+/// 1. Rebuild existing database. If we're lucky, we might be able to rebuild the existing database
+///    in-place. This just runs `REINDEX` for now. We might be able to do other things in the future
+///    like rebuilding the FTS index. If this succeeds, we probably don't need to do the rest.
+/// 2. "Dump and restore". Before most of the app is set up (i.e., before database connections are
 ///    established), we copy some data into a new database and then make that new database the
 ///    primary database, clobbering the old one.
-/// 2. "Manual recreation". After the app is mostly set up, we attempt to recover some additional
+/// 3. "Manual recreation". After the app is mostly set up, we attempt to recover some additional
 ///    data, such as full-text search indexes, which can be recomputed.
 ///
 /// Why have this split?
@@ -30,8 +33,30 @@ public enum DatabaseRecoveryError: Error {
 /// - As of this writing, the code makes it challenging to do some data restoration, such as
 ///   restoring full-text search indexes, without the app being mostly set up.
 ///
-/// It's up to the caller to coordinate these two steps, and decide which is necessary.
+/// It's up to the caller to coordinate these steps, and decide which are necessary.
 public enum DatabaseRecovery {}
+
+// MARK: - Rebuild
+
+public extension DatabaseRecovery {
+    /// Rebuild the existing database in-place.
+    ///
+    /// This just runs `REINDEX` for now. We might be able to do other things in the future like
+    /// rebuilding the FTS index.
+    static func rebuildExistingDatabase(at databaseFileUrl: URL) {
+        Logger.info("Attempting to reindex the database...")
+
+        let databaseStorage = DatabaseRecovery.databaseStorage(at: databaseFileUrl)
+        databaseStorage.write { transaction in
+            do {
+                try SqliteUtil.reindex(db: transaction.unwrapGrdbWrite.database)
+                Logger.info("Reindexed database")
+            } catch {
+                Logger.warn("Failed to reindex database")
+            }
+        }
+    }
+}
 
 // MARK: - Dump and restore
 
@@ -224,8 +249,8 @@ public extension DatabaseRecovery {
             OWSReaction.databaseTableName,
             OWSRecipientIdentity.table.tableName,
             OWSUserProfile.table.tableName,
-            SignalAccount.table.tableName,
-            SignalRecipient.table.tableName,
+            SignalAccount.databaseTableName,
+            SignalRecipient.databaseTableName,
             StoryMessage.databaseTableName,
             TSAttachment.table.tableName,
             TSInteraction.table.tableName,
@@ -235,7 +260,13 @@ public extension DatabaseRecovery {
             TSThread.table.tableName,
             ThreadAssociatedData.databaseTableName,
             // We'd like to get receipts back, but it's okay if we don't get them all.
-            DonationReceipt.databaseTableName
+            DonationReceipt.databaseTableName,
+            // We'd like to keep our own username, and lookups for our contacts'
+            // usernames. However, we don't want to block recovery on them.
+            UsernameLookupRecord.databaseTableName,
+            // This table should be recovered with the same effort as the
+            // TSInteraction table. It doesn't hold any value without that data.
+            EditRecord.databaseTableName
         ]
 
         private static func prepareToCopyTablesWithBestEffort(
@@ -291,7 +322,7 @@ public extension DatabaseRecovery {
             DisappearingMessagesConfigurationRecord.databaseTableName,
             // We don't want to get our linked devices wrong.
             // We *could* fetch these from the server. Could be a good followup change.
-            OWSDevice.table.tableName
+            OWSDevice.databaseTableName
         ]
 
         /// Copy tables that must be copied flawlessly. Operation throws if any tables fail.
@@ -391,7 +422,7 @@ public extension DatabaseRecovery {
             MessageSendLog.Payload.databaseTableName,
             MessageSendLog.Recipient.databaseTableName,
             // We'd rather not try to resurrect jobs, as they may result in unintended behavior (e.g., a bad message send).
-            JobRecordRecord.databaseTableName,
+            JobRecord.databaseTableName,
             PendingReadReceiptRecord.databaseTableName,
             PendingViewedReceiptRecord.databaseTableName,
             OWSMessageContentJob.table.tableName, // also, this one is deprecated
@@ -402,13 +433,17 @@ public extension DatabaseRecovery {
             KnownStickerPack.table.tableName,
             ProfileBadge.databaseTableName,
             StickerPack.table.tableName,
+            HiddenRecipient.databaseTableName,
             // Not essential.
             StoryContextAssociatedData.databaseTableName,
             ExperienceUpgrade.databaseTableName,
             InstalledSticker.table.tableName,
             TestModel.table.tableName,
             CancelledGroupRing.databaseTableName,
-            CdsPreviousE164.databaseTableName
+            CdsPreviousE164.databaseTableName,
+            SpamReportingTokenRecord.databaseTableName,
+            // Used to update data for active calls, useless retroactively.
+            CallRecord.databaseTableName
         ]
 
         /// Log the tables we're explicitly skipping.
@@ -441,58 +476,63 @@ public extension DatabaseRecovery {
             from: SDSDatabaseStorage,
             to: SDSDatabaseStorage
         ) -> TableCopyResult {
-            owsAssert(isSafe(sqlName: tableName))
+            owsAssert(SqliteUtil.isSafe(sqlName: tableName))
 
-            return from.read { fromTransaction -> TableCopyResult in
-                let fromDb = fromTransaction.unwrapGrdbRead.database
+            do {
+                return try from.readThrows { fromTransaction -> TableCopyResult in
+                    let fromDb = fromTransaction.unwrapGrdbRead.database
 
-                let columnNames: [String]
-                let cursor: RowCursor
-                do {
-                    columnNames = try getColumnNames(db: fromDb, tableName: tableName)
-                    cursor = try Row.fetchCursor(fromDb, sql: "SELECT * FROM \(tableName)")
-                } catch {
-                    Logger.warn("Could not create cursor for table \(tableName) with error: \(error)")
-                    return .totalFailure(error: error)
-                }
-
-                let insertSql = insertSql(tableName: tableName, columnNames: columnNames)
-
-                return to.write { toTransaction in
-                    let toDb = toTransaction.unwrapGrdbWrite.database
-
-                    let insertStatement: Statement
+                    let columnNames: [String]
+                    let cursor: RowCursor
                     do {
-                        insertStatement = try toDb.makeStatement(sql: insertSql)
+                        columnNames = try getColumnNames(db: fromDb, tableName: tableName)
+                        cursor = try Row.fetchCursor(fromDb, sql: "SELECT * FROM \(tableName)")
                     } catch {
-                        Logger.warn("Could not create prepared insert statement. \(error)")
+                        Logger.warn("Could not create cursor for table \(tableName) with error: \(error)")
                         return .totalFailure(error: error)
                     }
 
-                    var rowsCopied: UInt = 0
-                    var latestError: Error?
+                    let insertSql = insertSql(tableName: tableName, columnNames: columnNames)
 
-                    do {
-                        try cursor.forEach { row in
-                            let statementArguments = StatementArguments(row.asDictionary)
-                            do {
-                                try insertStatement.execute(arguments: statementArguments)
-                                rowsCopied += 1
-                            } catch {
-                                latestError = error
-                            }
+                    return to.write { toTransaction in
+                        let toDb = toTransaction.unwrapGrdbWrite.database
+
+                        let insertStatement: Statement
+                        do {
+                            insertStatement = try toDb.makeStatement(sql: insertSql)
+                        } catch {
+                            Logger.warn("Could not create prepared insert statement. \(error)")
+                            return .totalFailure(error: error)
                         }
-                    } catch {
-                        Logger.warn("Error while iterating: \(error)")
-                        latestError = error
-                    }
 
-                    if let latestError = latestError {
-                        return .copiedSomeButHadTrouble(error: latestError, rowsCopied: rowsCopied)
-                    } else {
-                        return .wentFlawlessly(rowsCopied: rowsCopied)
+                        var rowsCopied: UInt = 0
+                        var latestError: Error?
+
+                        do {
+                            try cursor.forEach { row in
+                                let statementArguments = StatementArguments(row.asDictionary)
+                                do {
+                                    try insertStatement.execute(arguments: statementArguments)
+                                    rowsCopied += 1
+                                } catch {
+                                    latestError = error
+                                }
+                            }
+                        } catch {
+                            Logger.warn("Error while iterating: \(error)")
+                            latestError = error
+                        }
+
+                        if let latestError = latestError {
+                            return .copiedSomeButHadTrouble(error: latestError, rowsCopied: rowsCopied)
+                        } else {
+                            return .wentFlawlessly(rowsCopied: rowsCopied)
+                        }
                     }
                 }
+            } catch {
+                Logger.warn("Error when reading: \(error)")
+                return .totalFailure(error: error)
             }
         }
 
@@ -501,40 +541,15 @@ public extension DatabaseRecovery {
         /// Determine whether a table name *could* lead to SQL injection.
         ///
         /// This is unlikely to happen, and should always return `true`.
-        /// See documentation for `isSafe` for more.
+        /// See documentation for ``SqliteUtil.isSafe`` for more.
         private static func allTableNamesAreSafe() -> Bool {
             (tablesToCopyWithBestEffort + tablesThatMustBeCopiedFlawlessly).allSatisfy {
-                isSafe(sqlName: $0)
+                SqliteUtil.isSafe(sqlName: $0)
             }
         }
 
-        /// Determine whether a name *could* lead to SQL injection.
-        ///
-        /// This is unlikely to happen, and should always return `true`.
-        ///
-        /// GRDB (perhaps because of SQLite) doesn't allow table names to be passed as arguments,
-        /// to help us avoid SQL injection. We'd like to do something like this, but can't:
-        ///
-        ///     let sql = "SELECT * FROM ?"
-        ///     try Row.fetchAll(db, sql: sql, arguments: ["my_table_name"])
-        ///
-        /// We have similar issues with column names.
-        ///
-        /// Instead, we just interpolate the name into the raw SQL string. It's unlikely that we'll
-        /// we'll have a table/column name that causes SQL injection, but this method helps ensure
-        /// that. There should also be unit tests that do something similar, further protecting us
-        /// from this unlikely (but costly, if it happens) mistake.
-        private static func isSafe(sqlName: String) -> Bool {
-            return (
-                !sqlName.isEmpty &&
-                sqlName.utf8ByteCount < 1000 &&
-                !sqlName.lowercased().starts(with: "sqlite") &&
-                sqlName.range(of: "^[a-zA-Z][a-zA-Z0-9_]*$", options: .regularExpression) != nil
-            )
-        }
-
         private static func getColumnNames(db: Database, tableName: String) throws -> [String] {
-            owsAssert(isSafe(sqlName: tableName))
+            owsAssert(SqliteUtil.isSafe(sqlName: tableName))
 
             var result = [String]()
             let cursor = try Row.fetchCursor(db, sql: "PRAGMA table_info(\(tableName))")
@@ -548,9 +563,9 @@ public extension DatabaseRecovery {
         }
 
         private static func insertSql(tableName: String, columnNames: [String]) -> String {
-            owsAssert(isSafe(sqlName: tableName))
+            owsAssert(SqliteUtil.isSafe(sqlName: tableName))
             for columnName in columnNames {
-                owsAssert(isSafe(sqlName: columnName))
+                owsAssert(SqliteUtil.isSafe(sqlName: columnName))
             }
 
             let columnNamesSql = columnNames.joined(separator: ", ")
@@ -657,6 +672,19 @@ extension DatabaseRecovery {
 
     private static func databaseStorage(at url: URL) -> SDSDatabaseStorage {
         SDSDatabaseStorage(databaseFileUrl: url, delegate: databaseStorageDelegate)
+    }
+
+    public static func integrityCheck(databaseFileUrl: URL) -> SqliteUtil.IntegrityCheckResult {
+        Logger.info("Running integrity check on database...")
+        let result = databaseStorage(at: databaseFileUrl).read { transaction in
+            let db = transaction.unwrapGrdbRead.database
+            return SqliteUtil.quickCheck(db: db)
+        }
+        switch result {
+        case .ok: Logger.info("Integrity check succeeded!")
+        case .notOk: Logger.warn("Integrity check failed")
+        }
+        return result
     }
 }
 

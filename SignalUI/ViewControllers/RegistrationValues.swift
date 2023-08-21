@@ -7,8 +7,7 @@ import Foundation
 import SignalCoreKit
 import SignalServiceKit
 
-@objc
-public class RegistrationCountryState: NSObject {
+public struct RegistrationCountryState: Equatable, Dependencies {
     // e.g. France
     public let countryName: String
     // e.g. +33
@@ -16,7 +15,6 @@ public class RegistrationCountryState: NSObject {
     // e.g. FR
     public let countryCode: String
 
-    @objc
     public init(countryName: String,
                 callingCode: String,
                 countryCode: String) {
@@ -92,25 +90,32 @@ public class RegistrationCountryState: NSObject {
 
 // MARK: -
 
-@objc
-public class RegistrationPhoneNumber: NSObject {
-    public let e164: String
-    public let userInput: String
+public struct RegistrationPhoneNumber {
+    public let countryState: RegistrationCountryState
+    public let nationalNumber: String
+    public let e164: E164?
 
-    @objc
-    public init(e164: String, userInput: String) {
-        self.e164 = e164
-        self.userInput = userInput
+    public init(countryState: RegistrationCountryState, nationalNumber: String) {
+        self.countryState = countryState
+        self.nationalNumber = nationalNumber
+        self.e164 = E164("\(countryState.callingCode)\(nationalNumber)")
     }
 
-    public var asPhoneNumber: PhoneNumber? {
-        PhoneNumber(fromE164: e164)
+    public init?(e164: E164) {
+        guard
+            let countryState = RegistrationCountryState.countryState(forE164: e164.stringValue),
+            let nationalNumber = PhoneNumber(fromE164: e164.stringValue)?.nationalNumber
+        else {
+            return nil
+        }
+        self.countryState = countryState
+        self.nationalNumber = nationalNumber
+        self.e164 = e164
     }
 }
 
 // MARK: -
 
-@objc
 public class RegistrationValues: NSObject {
 
     private static let kKeychainService_LastRegistered = "kKeychainService_LastRegistered"

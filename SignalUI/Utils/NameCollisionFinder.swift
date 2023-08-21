@@ -3,6 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
+import SignalServiceKit
+
 /// A collection of addresses (and adjacent info) that collide (i.e. the user many confuse one element's `currentName` for another)
 /// Useful when reporting a profile spoofing attempt to the user.
 /// In cases where a colliding addresses' display name has recently changed, `oldName` and `latestUpdate` may be populated.
@@ -70,7 +72,7 @@ public class ContactThreadNameCollisionFinder: NameCollisionFinder, Dependencies
             return []
         }
 
-        let collisionCandidates = Self.contactsViewHelper.signalAccounts(
+        let collisionCandidates = contactsViewHelper.signalAccounts(
             matchingSearch: contactThread.contactAddress.displayName(transaction: transaction),
             transaction: transaction)
 

@@ -3,12 +3,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalMessaging
 import SignalUI
 
-@objc
-public protocol ConversationHeaderViewDelegate {
+public protocol ConversationHeaderViewDelegate: AnyObject {
     func didTapConversationHeaderView(_ conversationHeaderView: ConversationHeaderView)
     func didTapConversationHeaderViewAvatar(_ conversationHeaderView: ConversationHeaderView)
 }
@@ -47,9 +45,9 @@ public class ConversationHeaderView: UIView {
         }
     }
 
-    public let titlePrimaryFont: UIFont =  UIFont.ows_semiboldFont(withSize: 17)
-    public let titleSecondaryFont: UIFont =  UIFont.ows_regularFont(withSize: 9)
-    public let subtitleFont: UIFont = UIFont.ows_regularFont(withSize: 12)
+    public let titlePrimaryFont = UIFont.semiboldFont(ofSize: 17)
+    public let titleSecondaryFont = UIFont.regularFont(ofSize: 9)
+    public let subtitleFont = UIFont.regularFont(ofSize: 12)
 
     private let titleLabel: UILabel
     private let titleIconView: UIImageView
@@ -119,7 +117,7 @@ public class ConversationHeaderView: UIView {
         let tapGesture = UITapGestureRecognizer(target: self, action: #selector(didTapView))
         rootStack.addGestureRecognizer(tapGesture)
 
-        NotificationCenter.default.addObserver(self, selector: #selector(themeDidChange), name: .ThemeDidChange, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(themeDidChange), name: .themeDidChange, object: nil)
     }
 
     required public init(coder: NSCoder) {
@@ -144,7 +142,7 @@ public class ConversationHeaderView: UIView {
     }
 
     @objc
-    func themeDidChange() {
+    private func themeDidChange() {
         titleLabel.textColor = Theme.navbarTitleColor
         subtitleLabel.textColor = Theme.navbarTitleColor
     }
@@ -163,7 +161,7 @@ public class ConversationHeaderView: UIView {
     // MARK: Delegate Methods
 
     @objc
-    func didTapView(tapGesture: UITapGestureRecognizer) {
+    private func didTapView(tapGesture: UITapGestureRecognizer) {
         guard tapGesture.state == .recognized else {
             return
         }

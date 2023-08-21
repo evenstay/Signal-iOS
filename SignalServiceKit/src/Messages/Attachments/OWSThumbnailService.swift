@@ -75,7 +75,7 @@ public class OWSThumbnailService: NSObject {
     public typealias FailureBlock = (Error) -> Void
 
     @objc
-    public static let serialQueue = DispatchQueue(label: "OWSThumbnailService")
+    public static let serialQueue = DispatchQueue(label: "org.signal.thumbnail-service")
 
     private var serialQueue: DispatchQueue { OWSThumbnailService.serialQueue }
 
@@ -108,12 +108,6 @@ public class OWSThumbnailService: NSObject {
                                                        failure: failure)
             self.thumbnailRequestStack.append(thumbnailRequest)
 
-            self.processNextRequestSync()
-        }
-    }
-
-    private func processNextRequestAsync() {
-        serialQueue.async {
             self.processNextRequestSync()
         }
     }

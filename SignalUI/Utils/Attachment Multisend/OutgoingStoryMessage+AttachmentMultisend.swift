@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalServiceKit
 
 extension OutgoingStoryMessage {
     override class func prepareForMultisending(
@@ -18,7 +18,10 @@ extension OutgoingStoryMessage {
             case .media(let attachments):
                 for identifiedAttachment in attachments {
                     let attachment = identifiedAttachment.value
-                    attachment.captionText = state.approvalMessageBody?.plaintextBody(transaction: transaction.unwrapGrdbRead)
+                    let captionBody = state.approvalMessageBody?
+                        .hydrating(mentionHydrator: ContactsMentionHydrator.mentionHydrator(transaction: transaction.asV2Read))
+                        .asStyleOnlyBody()
+                    attachment.captionText = captionBody?.text
                     let attachmentStream = try attachment
                         .buildOutgoingAttachmentInfo()
                         .asStreamConsumingDataSource(withIsVoiceMessage: attachment.isVoiceMessage)
@@ -37,7 +40,10 @@ extension OutgoingStoryMessage {
                         )
                     } else {
                         message = try OutgoingStoryMessage.createUnsentMessage(
-                            attachment: .file(attachmentId: attachmentStream.uniqueId),
+                            attachment: .file(StoryMessageFileAttachment(
+                                attachmentId: attachmentStream.uniqueId,
+                                captionStyles: captionBody?.collapsedStyles ?? []
+                            )),
                             thread: destination.thread,
                             transaction: transaction
                         )
@@ -70,7 +76,7 @@ extension OutgoingStoryMessage {
                     )
                 } else {
                     message = try OutgoingStoryMessage.createUnsentMessage(
-                        attachment: .text(attachment: finalTextAttachment),
+                        attachment: .text(finalTextAttachment),
                         thread: destination.thread,
                         transaction: transaction
                     )

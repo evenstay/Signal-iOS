@@ -28,7 +28,7 @@ public class OWSUpload: NSObject {
 
     @objc
     public static let serialQueue: DispatchQueue = {
-        return DispatchQueue(label: OWSDispatch.createLabel("upload"),
+        return DispatchQueue(label: "org.signal.upload",
                              qos: .utility,
                              autoreleaseFrequency: .workItem)
     }()
@@ -37,13 +37,8 @@ public class OWSUpload: NSObject {
 // MARK: -
 
 fileprivate extension OWSUpload {
-
     static func cdnUrlSession(forCdnNumber cdnNumber: UInt32) -> OWSURLSessionProtocol {
         signalService.urlSessionForCdn(cdnNumber: cdnNumber)
-    }
-
-    static func cdn0UrlSession() -> OWSURLSessionProtocol {
-        signalService.urlSessionForCdn(cdnNumber: 0)
     }
 }
 
@@ -141,39 +136,15 @@ public class OWSAttachmentUploadV2: NSObject {
                 : uploadV2(progressBlock: progressBlock))
     }
 
-    // Performs a request, trying to use the websocket
-    // and failing over to REST.
-    //
-    // TODO: Remove skipWebsocket.
-    private func performRequest(skipWebsocket: Bool = false,
-                                requestBlock: @escaping () -> TSRequest) -> Promise<HTTPResponse> {
-        firstly(on: Self.serialQueue) { () -> Promise<HTTPResponse> in
-            let formRequest = requestBlock()
-            let shouldUseWebsocket: Bool
-            if Self.signalService.isCensorshipCircumventionActive {
-                shouldUseWebsocket = false
-            } else if FeatureFlags.deprecateREST {
-                shouldUseWebsocket = true
-            } else {
-                shouldUseWebsocket = (Self.socketManager.canMakeRequests(webSocketType: .identified) &&
-                                      !skipWebsocket)
-            }
-            if shouldUseWebsocket {
-                return firstly(on: Self.serialQueue) { () -> Promise<HTTPResponse> in
-                    owsAssertDebug(!formRequest.isUDRequest)
-                    return Self.socketManager.makeRequestPromise(request: formRequest)
-                }.recover(on: Self.serialQueue) { error -> Promise<HTTPResponse> in
-                    if FeatureFlags.deprecateREST {
-                        throw error
-                    } else {
-                        // Failover to REST request.
-                        return self.performRequest(skipWebsocket: true, requestBlock: requestBlock)
-                    }
-                }
-            } else {
-                return Self.networkManager.makePromise(request: formRequest)
-            }
-        }
+    /// Performs a request, trying to use the websocket and failing over to REST.
+    private func performRequest(_ request: TSRequest) -> Promise<HTTPResponse> {
+        networkManager.makePromise(
+            request: request,
+            canUseWebSocket: (
+                OWSWebSocket.canAppUseSocketsToMakeRequests
+                && socketManager.canMakeRequests(webSocketType: .identified)
+            )
+        )
     }
 
     // MARK: - V2
@@ -181,9 +152,7 @@ public class OWSAttachmentUploadV2: NSObject {
     public func uploadV2(progressBlock: ProgressBlock? = nil) -> Promise<Void> {
         firstly(on: Self.serialQueue) {
             // Fetch attachment upload form.
-            self.performRequest {
-                return OWSRequestFactory.allocAttachmentRequestV2()
-            }
+            self.performRequest(OWSRequestFactory.allocAttachmentRequestV2())
         }.then(on: Self.serialQueue) { [weak self] (response: HTTPResponse) -> Promise<OWSUploadFormV2> in
             guard let self = self else {
                 throw OWSAssertionError("Upload deallocated")
@@ -241,9 +210,7 @@ public class OWSAttachmentUploadV2: NSObject {
 
         return firstly(on: Self.serialQueue) {
             // Fetch attachment upload form.
-            return self.performRequest {
-                return OWSRequestFactory.allocAttachmentRequestV3()
-            }
+            self.performRequest(OWSRequestFactory.allocAttachmentRequestV3())
         }.map(on: Self.serialQueue) { [weak self] (response: HTTPResponse) -> Void in
             guard let self = self else {
                 throw OWSAssertionError("Upload deallocated")
@@ -403,7 +370,7 @@ public class OWSAttachmentUploadV2: NSObject {
             }
             return locationUrl
         }.recover(on: Self.serialQueue) { (error: Error) -> Promise<URL> in
-            guard error.isNetworkConnectivityFailure else {
+            guard error.isNetworkFailureOrTimeout else {
                 throw error
             }
             let maxRetryCount: Int = 3
@@ -511,7 +478,7 @@ public class OWSAttachmentUploadV2: NSObject {
             }
         }.recover(on: Self.serialQueue) { (error: Error) -> Promise<Void> in
 
-            guard error.isNetworkConnectivityFailure else {
+            guard error.isNetworkFailureOrTimeout else {
                 throw error
             }
             guard uploadV3Metadata.canRetry else {
@@ -584,7 +551,7 @@ public class OWSAttachmentUploadV2: NSObject {
             var canRetry = false
             if case OWSUploadError.missingRangeHeader = error {
                 canRetry = true
-            } else if error.isNetworkConnectivityFailure {
+            } else if error.isNetworkFailureOrTimeout {
                 canRetry = true
             }
             guard canRetry else {
@@ -670,8 +637,7 @@ public extension OWSUpload {
                         uploadForm: OWSUploadFormV2,
                         uploadUrlPath: String,
                         progressBlock: ProgressBlock? = nil) -> Promise<String> {
-
-        guard !AppExpiry.shared.isExpired else {
+        if DependenciesBridge.shared.appExpiry.isExpired {
             return Promise(error: OWSAssertionError("App is expired."))
         }
 
@@ -680,7 +646,7 @@ public extension OWSUpload {
             let dataFileUrl = OWSFileSystem.temporaryFileUrl(isAvailableWhileDeviceLocked: true)
             try data.write(to: dataFileUrl)
 
-            let request = try cdn0UrlSession.buildRequest(uploadUrlPath, method: .post)
+            let request = try cdn0UrlSession.endpoint.buildRequest(uploadUrlPath, method: .post)
 
             // We have to build up the form manually vs. simply passing in a parameters dict
             // because AWS is sensitive to the order of the form params (at least the "key"
@@ -701,7 +667,7 @@ public extension OWSUpload {
 
                 progressBlock?(progress)
             })
-        }.map(on: .global()) { (_: HTTPResponse) -> String in
+        }.map(on: DispatchQueue.global()) { (_: HTTPResponse) -> String in
             Logger.verbose("Success.")
             let uploadedUrlPath = uploadForm.key
             return uploadedUrlPath

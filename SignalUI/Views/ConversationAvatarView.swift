@@ -4,6 +4,7 @@
 //
 
 import GRDB
+import LibSignalClient
 import UIKit
 import SignalMessaging
 
@@ -12,10 +13,10 @@ public protocol ConversationAvatarViewDelegate: AnyObject {
 
     func presentStoryViewController()
     func presentAvatarViewController()
-
-    func presentActionSheet(_ vc: ActionSheetController, animated: Bool)
 }
-public extension ConversationAvatarViewDelegate {
+
+public extension ConversationAvatarViewDelegate where Self: UIViewController {
+
     func didTapAvatar(_ configuration: ConversationAvatarView.Configuration) {
         if configuration.hasStoriesToDisplay {
             let actionSheet = ActionSheetController()
@@ -181,24 +182,11 @@ public class ConversationAvatarView: UIView, CVView, PrimaryImageView {
             /// Won't show the ring even if there are stories.
             case disabled
             /// Shows the ring based on the provided state; won't observe updates.
-            case fixed(StoryState)
+            case fixed(StoryContextViewState)
             /// Shows the ring if needed and observes story state changes.
             /// Optional initial value to speed up first load, if not provided state
             /// will be loaded on its own.
-            case autoUpdate(state: StoryState? = nil)
-        }
-
-        public enum StoryState: Equatable {
-            case unviewed
-            case viewed
-            case noStories
-
-            var hasStoriesToDisplay: Bool {
-                switch self {
-                case .noStories: return false
-                case .viewed, .unviewed: return true
-                }
-            }
+            case autoUpdate(state: StoryContextViewState? = nil)
         }
 
         public var storyConfiguration: StoryConfiguration = .disabled
@@ -364,7 +352,7 @@ public class ConversationAvatarView: UIView, CVView, PrimaryImageView {
     // so the most recently enqueued avatars are most likely to be
     // visible. To put it another way, we don't cancel loads so
     // the oldest loads are most likely to be unnecessary.
-    private static let serialQueue = ReverseDispatchQueue(label: "org.signal.ConversationAvatarView",
+    private static let serialQueue = ReverseDispatchQueue(label: "org.signal.conversation-avatar.loading",
                                                           qos: .userInitiated, autoreleaseFrequency: .workItem)
 
     private func enqueueAsyncModelUpdate() {
@@ -447,7 +435,7 @@ public class ConversationAvatarView: UIView, CVView, PrimaryImageView {
     override public func layoutSubviews() {
         super.layoutSubviews()
 
-        let storyState: Configuration.StoryState?
+        let storyState: StoryContextViewState?
         switch configuration.storyConfiguration {
         case .disabled:
             storyState = nil
@@ -489,10 +477,8 @@ public class ConversationAvatarView: UIView, CVView, PrimaryImageView {
         }
     }
 
-    @objc
     public override var intrinsicContentSize: CGSize { configuration.sizeClass.size }
 
-    @objc
     public override func sizeThatFits(_ size: CGSize) -> CGSize { intrinsicContentSize }
 
     // MARK: - Controls
@@ -511,7 +497,7 @@ public class ConversationAvatarView: UIView, CVView, PrimaryImageView {
         return tapGestureRecognizer
     }()
 
-    public weak var interactionDelegate: ConversationAvatarViewDelegate? {
+    public weak var interactionDelegate: (ConversationAvatarViewDelegate & UIViewController)? {
         didSet {
             if interactionDelegate != nil, oldValue == nil {
                 avatarView.addGestureRecognizer(avatarTapGestureRecognizer)
@@ -549,7 +535,7 @@ public class ConversationAvatarView: UIView, CVView, PrimaryImageView {
         NotificationCenter.default.removeObserver(self)
         NotificationCenter.default.addObserver(self,
                                                selector: #selector(themeDidChange),
-                                               name: .ThemeDidChange,
+                                               name: .themeDidChange,
                                                object: nil)
 
         guard let dataSource = configuration.dataSource else { return }
@@ -616,9 +602,9 @@ public class ConversationAvatarView: UIView, CVView, PrimaryImageView {
         if
             let contactAddress = dataSource.contactAddress,
             !contactAddress.isLocalAddress,
-            let contactUUID = contactAddress.uuid?.uuidString
+            let contactAci = contactAddress.serviceId as? Aci
         {
-            storyContextAssociatedDataFilterPredicate = Column(StoryContextAssociatedData.columnName(.contactUuid)) == contactUUID
+            storyContextAssociatedDataFilterPredicate = Column(StoryContextAssociatedData.columnName(.contactAci)) == contactAci.serviceIdUppercaseString
         } else if let groupId = dataSource.groupId {
             // == not available for data, use single item set contains which is the same thing.
             storyContextAssociatedDataFilterPredicate = Set([groupId]).contains(Column(StoryContextAssociatedData.columnName(.groupId)))
@@ -642,7 +628,7 @@ public class ConversationAvatarView: UIView, CVView, PrimaryImageView {
                         self?.stopObservingStoryChanges()
                         return
                     }
-                    let newStoryState: Configuration.StoryState = {
+                    let newStoryState: StoryContextViewState = {
                         guard
                             StoryManager.areStoriesEnabled,
                             associatedData?.hasUnexpiredStories ?? false

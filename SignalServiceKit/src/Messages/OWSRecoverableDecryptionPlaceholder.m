@@ -11,16 +11,12 @@ NS_ASSUME_NONNULL_BEGIN
 
 @implementation OWSRecoverableDecryptionPlaceholder
 
-- (nullable instancetype)initWithFailedEnvelope:(SSKProtoEnvelope *)envelope
-                               untrustedGroupId:(nullable NSData *)untrustedGroupId
-                                    transaction:(SDSAnyWriteTransaction *)writeTx
+- (nullable instancetype)initWithFailedEnvelopeTimestamp:(uint64_t)timestamp
+                                               sourceAci:(AciObjC *)sourceAci
+                                        untrustedGroupId:(nullable NSData *)untrustedGroupId
+                                             transaction:(SDSAnyWriteTransaction *)writeTx
 {
-    SignalServiceAddress *sender = [[SignalServiceAddress alloc] initWithUuidString:envelope.sourceUuid];
-    if (!sender) {
-        OWSFailDebug(@"Invalid UUID");
-        return nil;
-    }
-
+    SignalServiceAddress *sender = [[SignalServiceAddress alloc] initWithServiceIdObjC:sourceAci];
     TSThread *thread;
     if (untrustedGroupId.length > 0) {
         [TSGroupThread ensureGroupIdMappingForGroupId:untrustedGroupId transaction:writeTx];
@@ -41,7 +37,7 @@ NS_ASSUME_NONNULL_BEGIN
     }
     TSErrorMessageBuilder *builder =
         [TSErrorMessageBuilder errorMessageBuilderWithThread:thread errorType:TSErrorMessageDecryptionFailure];
-    builder.timestamp = envelope.timestamp;
+    builder.timestamp = timestamp;
     builder.senderAddress = sender;
     return [super initErrorMessageWithBuilder:builder];
 }
@@ -100,12 +96,6 @@ NS_ASSUME_NONNULL_BEGIN
         return OWSLocalizedString(
             @"ERROR_MESSAGE_DECRYPTION_FAILURE_UNKNOWN_SENDER", @"Error message for a decryption failure.");
     }
-}
-
-- (void)anyDidInsertWithTransaction:(SDSAnyWriteTransaction *)transaction
-{
-    [super anyDidInsertWithTransaction:transaction];
-    [self.messageDecrypter scheduleCleanupIfNecessaryFor:self transaction:transaction];
 }
 
 #pragma mark - <OWSReadTracking>

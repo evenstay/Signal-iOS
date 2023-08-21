@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalMessaging
+import SignalUI
 
 protocol PreviewWallpaperDelegate: AnyObject {
     func previewWallpaperDidCancel(_ vc: PreviewWallpaperViewController)
@@ -113,7 +113,7 @@ class PreviewWallpaperViewController: UIViewController {
         super.viewDidLoad()
 
         navigationItem.hidesBackButton = true
-        title = NSLocalizedString("WALLPAPER_PREVIEW_TITLE", comment: "Title for the wallpaper preview view.")
+        title = OWSLocalizedString("WALLPAPER_PREVIEW_TITLE", comment: "Title for the wallpaper preview view.")
     }
 
     func setCurrentWallpaperAndDismiss() {
@@ -141,30 +141,19 @@ class PreviewWallpaperViewController: UIViewController {
 
     private var standalonePage: WallpaperPage?
     func modeDidChange() {
-        let chatColor = Self.databaseStorage.read { transaction -> ChatColor? in
-            if let thread = self.thread {
-                return ChatColors.chatColorSetting(thread: thread,
-                                                   shouldHonorDefaultSetting: true,
-                                                   transaction: transaction)
-            } else {
-                return ChatColors.defaultChatColorSetting(transaction: transaction)
-            }
-        }
-
+        let resolvedWallpaper: Wallpaper
         switch mode {
         case .photo(let selectedPhoto):
             owsAssertDebug(self.standalonePage == nil)
-            let standalonePage = WallpaperPage(wallpaper: .photo,
-                                               thread: thread,
-                                               photo: selectedPhoto)
+            resolvedWallpaper = .photo
+            let standalonePage = WallpaperPage(wallpaper: resolvedWallpaper, thread: thread, photo: selectedPhoto)
             self.standalonePage = standalonePage
             view.insertSubview(standalonePage.view, at: 0)
             addChild(standalonePage)
             standalonePage.view.autoPinEdgesToSuperviewEdges()
             blurButton.isHidden = false
-
-            mockConversationView.customChatColor = chatColor ?? Wallpaper.photo.defaultChatColor
         case .preset(let selectedWallpaper):
+            resolvedWallpaper = selectedWallpaper
             if pageViewController.view.superview == nil {
                 view.insertSubview(pageViewController.view, at: 0)
                 addChild(pageViewController)
@@ -172,27 +161,25 @@ class PreviewWallpaperViewController: UIViewController {
                 pageViewController.dataSource = self
                 pageViewController.delegate = self
             }
-
-            currentPage = WallpaperPage(wallpaper: selectedWallpaper,
-                                        thread: thread)
+            currentPage = WallpaperPage(wallpaper: selectedWallpaper, thread: thread)
             blurButton.isHidden = true
-
-            mockConversationView.customChatColor = chatColor ?? selectedWallpaper.defaultChatColor
         }
-
         mockConversationView.model = buildMockConversationModel()
+        mockConversationView.customChatColor = databaseStorage.read { tx in
+            ChatColors.resolvedChatColor(for: thread, previewWallpaper: resolvedWallpaper, tx: tx)
+        }
     }
 
     func buildMockConversationModel() -> MockConversationView.MockModel {
         let outgoingText: String = {
             guard let thread = thread else {
-                return NSLocalizedString(
+                return OWSLocalizedString(
                     "WALLPAPER_PREVIEW_OUTGOING_MESSAGE_ALL_CHATS",
                     comment: "The outgoing bubble text when setting a wallpaper for all chats."
                 )
             }
 
-            let formatString = NSLocalizedString(
+            let formatString = OWSLocalizedString(
                 "WALLPAPER_PREVIEW_OUTGOING_MESSAGE_FORMAT",
                 comment: "The outgoing bubble text when setting a wallpaper for specific chat. Embeds {{chat name}}"
             )
@@ -203,12 +190,12 @@ class PreviewWallpaperViewController: UIViewController {
         let incomingText: String
         switch mode {
         case .photo:
-            incomingText = NSLocalizedString(
+            incomingText = OWSLocalizedString(
                 "WALLPAPER_PREVIEW_INCOMING_MESSAGE_PHOTO",
                 comment: "The incoming bubble text when setting a photo"
             )
         case .preset:
-            incomingText = NSLocalizedString(
+            incomingText = OWSLocalizedString(
                 "WALLPAPER_PREVIEW_INCOMING_MESSAGE_PRESET",
                 comment: "The incoming bubble text when setting a preset"
             )
@@ -332,10 +319,14 @@ private class WallpaperPage: UIViewController {
         let shouldDimInDarkTheme = databaseStorage.read { transaction in
             Wallpaper.dimInDarkMode(for: thread, transaction: transaction)
         }
-        guard let wallpaperView = Wallpaper.view(for: wallpaper,
-                                                 photo: photo,
-                                                 shouldDimInDarkTheme: shouldDimInDarkTheme) else {
-            return owsFailDebug("Failed to create photo wallpaper view")
+        let wallpaperView = Wallpaper.viewBuilder(
+            for: wallpaper,
+            customPhoto: { photo },
+            shouldDimInDarkTheme: shouldDimInDarkTheme
+        )?.build()
+        guard let wallpaperView else {
+            owsFailDebug("Failed to create photo wallpaper view")
+            return
         }
         self.wallpaperView = wallpaperView
 
@@ -418,7 +409,7 @@ private class WallpaperPage: UIViewController {
         photo?.withGaussianBlurPromise(
             radius: 10,
             resizeToMaxPixelDimension: 1024
-        ).done(on: .main) { [weak self] blurredPhoto in
+        ).done(on: DispatchQueue.main) { [weak self] blurredPhoto in
             self?.blurredPhoto = blurredPhoto
             self?.updatePhoto()
         }.catch { error in
@@ -512,9 +503,9 @@ class BlurButton: UIButton {
         checkImageView.contentMode = .scaleAspectFit
         checkImageView.isUserInteractionEnabled = false
 
-        label.font = .ows_semiboldFont(withSize: 14)
+        label.font = .semiboldFont(ofSize: 14)
         label.textColor = .white
-        label.text = NSLocalizedString("WALLPAPER_PREVIEW_BLUR_BUTTON",
+        label.text = OWSLocalizedString("WALLPAPER_PREVIEW_BLUR_BUTTON",
                                        comment: "Blur button on wallpaper preview.")
         addSubview(label)
         label.autoPinHeightToSuperviewMargins()
@@ -537,13 +528,15 @@ class BlurButton: UIButton {
     override var isSelected: Bool {
         didSet {
             UIView.transition(with: checkImageView, duration: 0.15, options: .transitionCrossDissolve) {
-                self.checkImageView.image = self.isSelected ? #imageLiteral(resourceName: "check-circle-filled-16") : #imageLiteral(resourceName: "circle-outline-16")
+                self.checkImageView.image = self.isSelected
+                    ? UIImage(imageLiteralResourceName: "check-circle-fill-compact")
+                    : UIImage(imageLiteralResourceName: "circle-compact")
             } completion: { _ in }
         }
     }
 
     @objc
-    func didTap() {
+    private func didTap() {
         isSelected = !isSelected
         action(isSelected)
     }

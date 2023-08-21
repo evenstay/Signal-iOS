@@ -3,7 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalCoreKit
+import SignalUI
 
 public class CVComponentContactShare: CVComponentBase, CVComponent {
 
@@ -83,13 +84,12 @@ public class CVComponentContactShare: CVComponentBase, CVComponent {
 
 extension CVComponentContactShare: CVAccessibilityComponent {
     public var accessibilityDescription: String {
-        if let contactName = contactShare.displayName.filterForDisplay,
-           !contactName.isEmpty {
-            let format = NSLocalizedString("ACCESSIBILITY_LABEL_CONTACT_FORMAT",
+        if let contactName = contactShare.displayName.filterForDisplay.nilIfEmpty {
+            let format = OWSLocalizedString("ACCESSIBILITY_LABEL_CONTACT_FORMAT",
                                            comment: "Accessibility label for contact. Embeds: {{ the contact name }}.")
             return String(format: format, contactName)
         } else {
-            return NSLocalizedString("ACCESSIBILITY_LABEL_CONTACT",
+            return OWSLocalizedString("ACCESSIBILITY_LABEL_CONTACT",
                                      comment: "Accessibility label for contact.")
         }
     }

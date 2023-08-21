@@ -5,10 +5,11 @@
 
 import Foundation
 import GRDB
+import LibSignalClient
 import SignalCoreKit
 
 @objc(OWSReaction) // Named explicitly to preserve NSKeyedUnarchiving compatability
-public final class OWSReaction: NSObject, SDSCodableModel, NSSecureCoding {
+public final class OWSReaction: NSObject, SDSCodableModel, Decodable, NSSecureCoding {
     public static let databaseTableName = "model_OWSReaction"
     public static var recordType: UInt { SDSRecordType.reaction.rawValue }
 
@@ -26,57 +27,56 @@ public final class OWSReaction: NSObject, SDSCodableModel, NSSecureCoding {
     }
 
     public var id: Int64?
+
     @objc
     public let uniqueId: String
 
     @objc
     public let uniqueMessageId: String
-    @objc
+
     public let emoji: String
-    @objc
-    public let reactor: SignalServiceAddress
-    @objc
+    public let reactorAci: Aci?
+    public let reactorPhoneNumber: String?
     public let sentAtTimestamp: UInt64
-    @objc
     public let receivedAtTimestamp: UInt64
-    @objc
     public private(set) var read: Bool
 
-    @objc
+    public var reactor: SignalServiceAddress {
+        SignalServiceAddress(serviceId: reactorAci, phoneNumber: reactorPhoneNumber)
+    }
+
     public required init(
         uniqueMessageId: String,
         emoji: String,
-        reactor: SignalServiceAddress,
+        reactor: Aci,
         sentAtTimestamp: UInt64,
         receivedAtTimestamp: UInt64
     ) {
         self.uniqueId = UUID().uuidString
         self.uniqueMessageId = uniqueMessageId
         self.emoji = emoji
-        self.reactor = reactor
+        self.reactorAci = reactor
+        self.reactorPhoneNumber = nil
         self.sentAtTimestamp = sentAtTimestamp
         self.receivedAtTimestamp = receivedAtTimestamp
         self.read = false
     }
 
-    @objc
     public func markAsRead(transaction: SDSAnyWriteTransaction) {
         anyUpdate(transaction: transaction) { reaction in
             reaction.read = true
         }
-        notificationsManager?.cancelNotifications(reactionId: uniqueId)
+        notificationsManager.cancelNotifications(reactionId: uniqueId)
     }
 
-    // TODO: Figure out how to avoid having to duplicate this implementation
-    // in order to expose the method to ObjC
     @objc
-    public class func anyEnumerate(
+    public static func anyEnumerateObjc(
         transaction: SDSAnyReadTransaction,
-        batched: Bool = false,
+        batched: Bool,
         block: @escaping (OWSReaction, UnsafeMutablePointer<ObjCBool>) -> Void
     ) {
-        let batchSize = batched ? Batching.kDefaultBatchSize : 0
-        anyEnumerate(transaction: transaction, batchSize: batchSize, block: block)
+        let batchingPreference: BatchingPreference = batched ? .batched() : .unbatched
+        anyEnumerate(transaction: transaction, batchingPreference: batchingPreference, block: block)
     }
 
     // MARK: - Codable
@@ -93,9 +93,9 @@ public final class OWSReaction: NSObject, SDSCodableModel, NSSecureCoding {
         uniqueMessageId = try container.decode(String.self, forKey: .uniqueMessageId)
         emoji = try container.decode(String.self, forKey: .emoji)
 
-        let reactorUuid = try container.decodeIfPresent(UUID.self, forKey: .reactorUUID)
-        let reactorE164 = try container.decodeIfPresent(String.self, forKey: .reactorE164)
-        reactor = SignalServiceAddress(uuid: reactorUuid, phoneNumber: reactorE164)
+        // If we have an ACI, ignore the phone number.
+        reactorAci = try container.decodeIfPresent(UUID.self, forKey: .reactorUUID).map { Aci(fromUUID: $0) }
+        reactorPhoneNumber = (reactorAci != nil) ? nil : try container.decodeIfPresent(String.self, forKey: .reactorE164)
 
         sentAtTimestamp = try container.decode(UInt64.self, forKey: .sentAtTimestamp)
         receivedAtTimestamp = try container.decode(UInt64.self, forKey: .receivedAtTimestamp)
@@ -106,14 +106,18 @@ public final class OWSReaction: NSObject, SDSCodableModel, NSSecureCoding {
         var container = encoder.container(keyedBy: CodingKeys.self)
 
         try id.map { try container.encode($0, forKey: .id) }
-        try container.encode(recordType, forKey: .recordType)
+        try container.encode(Self.recordType, forKey: .recordType)
         try container.encode(uniqueId, forKey: .uniqueId)
 
         try container.encode(uniqueMessageId, forKey: .uniqueMessageId)
         try container.encode(emoji, forKey: .emoji)
 
-        try reactor.uuid.map { try container.encode($0, forKey: .reactorUUID) }
-        try reactor.phoneNumber.map { try container.encode($0, forKey: .reactorE164) }
+        // If we have an ACI, ignore the phone number.
+        if let reactorAci {
+            try container.encode(reactorAci.rawUUID, forKey: .reactorUUID)
+        } else if let reactorPhoneNumber {
+            try container.encode(reactorPhoneNumber, forKey: .reactorE164)
+        }
 
         try container.encode(sentAtTimestamp, forKey: .sentAtTimestamp)
         try container.encode(receivedAtTimestamp, forKey: .receivedAtTimestamp)
@@ -131,8 +135,12 @@ public final class OWSReaction: NSObject, SDSCodableModel, NSSecureCoding {
         coder.encode(uniqueMessageId, forKey: CodingKeys.uniqueMessageId.rawValue)
         coder.encode(emoji, forKey: CodingKeys.emoji.rawValue)
 
-        reactor.uuid.map { coder.encode($0, forKey: CodingKeys.reactorUUID.rawValue) }
-        reactor.phoneNumber.map { coder.encode($0, forKey: CodingKeys.reactorE164.rawValue) }
+        // If we have an ACI, ignore the phone number.
+        if let reactorAci {
+            coder.encode(reactorAci.rawUUID, forKey: CodingKeys.reactorUUID.rawValue)
+        } else if let reactorPhoneNumber {
+            coder.encode(reactorPhoneNumber, forKey: CodingKeys.reactorE164.rawValue)
+        }
 
         coder.encode(NSNumber(value: sentAtTimestamp), forKey: CodingKeys.sentAtTimestamp.rawValue)
         coder.encode(NSNumber(value: receivedAtTimestamp), forKey: CodingKeys.receivedAtTimestamp.rawValue)
@@ -160,9 +168,12 @@ public final class OWSReaction: NSObject, SDSCodableModel, NSSecureCoding {
         }
         self.emoji = emoji
 
-        let reactorUuid = coder.decodeObject(of: NSUUID.self, forKey: CodingKeys.reactorUUID.rawValue) as UUID?
-        let reactorE164 = coder.decodeObject(of: NSString.self, forKey: CodingKeys.reactorE164.rawValue) as String?
-        self.reactor = SignalServiceAddress(uuid: reactorUuid, phoneNumber: reactorE164)
+        // If we have an ACI, ignore the phone number.
+        let reactorAciUuid = coder.decodeObject(of: NSUUID.self, forKey: CodingKeys.reactorUUID.rawValue)
+        reactorAci = reactorAciUuid.map { Aci(fromUUID: $0 as UUID) }
+        reactorPhoneNumber = (reactorAci != nil) ? nil : {
+            coder.decodeObject(of: NSString.self, forKey: CodingKeys.reactorE164.rawValue) as String?
+        }()
 
         guard let sentAtTimestamp = coder.decodeObject(of: NSNumber.self, forKey: CodingKeys.sentAtTimestamp.rawValue)?.uint64Value else {
             owsFailDebug("Missing sentAtTimestamp")

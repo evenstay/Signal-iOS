@@ -4,8 +4,65 @@
 //
 
 import AVFAudio
+import SignalServiceKit
+import SignalUI
 
 extension ConversationViewController: MessageActionsDelegate {
+
+    func messageActionsEditItem(_ itemViewModel: CVItemViewModelImpl) {
+        populateMessageEdit(itemViewModel)
+    }
+
+    func populateMessageEdit(_ itemViewModel: CVItemViewModelImpl) {
+        guard let message = itemViewModel.interaction as? TSOutgoingMessage else {
+            return owsFailDebug("Invalid interaction.")
+        }
+
+        var editValidationError: EditSendValidationError?
+        var quotedReplyModel: QuotedReplyModel?
+        Self.databaseStorage.read { transaction in
+
+            // If edit send validation fails (timeframe expired,
+            // too many edits, etc), display a message here.
+            if let error = context.editManager.validateCanSendEdit(
+                targetMessageTimestamp: message.timestamp,
+                thread: self.thread,
+                tx: transaction.asV2Read
+            ) {
+                editValidationError = error
+                return
+            }
+
+            if message.quotedMessage != nil {
+                quotedReplyModel = QuotedReplyModel(
+                    message: message,
+                    transaction: transaction
+                )
+            }
+        }
+
+        if let editValidationError {
+            OWSActionSheets.showActionSheet(message: editValidationError.localizedDescription)
+        } else {
+            inputToolbar?.quotedReply = quotedReplyModel
+            inputToolbar?.editTarget = message
+
+            inputToolbar?.editThumbnail = nil
+            if let imageStream = itemViewModel.bodyMediaAttachmentStreams.first(where: \.isValidImage) {
+                imageStream.thumbnailImageSmall { [weak inputToolbar = self.inputToolbar] image in
+                    // If editing already ended, don't set it
+                    guard let inputToolbar,
+                          inputToolbar.shouldShowEditUI else { return }
+                    inputToolbar.editThumbnail = image
+                } failure: {
+                    owsFailDebug("Could not load thumnail.")
+                }
+            }
+
+            inputToolbar?.beginEditingMessage()
+        }
+    }
+
     func messageActionsShowDetailsForItem(_ itemViewModel: CVItemViewModelImpl) {
         showDetailView(itemViewModel)
     }
@@ -21,7 +78,12 @@ extension ConversationViewController: MessageActionsDelegate {
             return owsFailDebug("Missing panHandler")
         }
 
-        let detailVC = MessageDetailViewController(message: message, thread: thread)
+        let detailVC = MessageDetailViewController(
+            message: message,
+            spoilerState: self.viewState.spoilerState,
+            editManager: self.context.editManager,
+            thread: thread
+        )
         detailVC.detailDelegate = self
         conversationSplitViewController?.navigationTransitionDelegate = detailVC
         panHandler.messageDetailViewController = detailVC
@@ -44,7 +106,12 @@ extension ConversationViewController: MessageActionsDelegate {
             detailVC = messageDetailViewController
             detailVC.pushPercentDrivenTransition = panHandler.percentDrivenTransition
         } else {
-            detailVC = MessageDetailViewController(message: message, thread: thread)
+            detailVC = MessageDetailViewController(
+                message: message,
+                spoilerState: self.viewState.spoilerState,
+                editManager: self.context.editManager,
+                thread: thread
+            )
             detailVC.detailDelegate = self
             conversationSplitViewController?.navigationTransitionDelegate = detailVC
         }
@@ -71,8 +138,7 @@ extension ConversationViewController: MessageActionsDelegate {
 
         let load = {
             Self.databaseStorage.read { transaction in
-                OWSQuotedReplyModel.quotedReplyForSending(withItem: itemViewModel,
-                                                          transaction: transaction)
+                QuotedReplyModel.forSending(item: itemViewModel, transaction: transaction)
             }
         }
         guard let quotedReply = load() else {
@@ -80,6 +146,7 @@ extension ConversationViewController: MessageActionsDelegate {
             return
         }
 
+        inputToolbar.editTarget = nil
         inputToolbar.quotedReply = quotedReply
         inputToolbar.beginEditingMessage()
     }
@@ -114,6 +181,8 @@ extension ConversationViewController: MessageActionsDelegate {
                 return AVSpeechUtterance(string: text)
             case .attributedText(let attributedText):
                 return AVSpeechUtterance(attributedString: attributedText)
+            case .messageBody(let messageBody):
+                return messageBody.utterance
             }
         }()
 

@@ -1,26 +1,19 @@
-Des millions de personnes utilisent Signal tous les jours pour des communications gratuites et instantanées partout dans le monde. Envoyez et recevez des messages haute-fidélité, participez à des appels voix ou vidéo HD et explorez un nombre croissant de nouvelles fonctions qui vous aident à rester connecté. La technologie évoluée de protection de la vie privée et des données personnelles de Signal est toujours active. Vous pouvez donc vous concentrer sur le partage de moments importants avec ceux qui comptent pour vous.
+L’application de messagerie Signal fait de la confidentialité sa priorité. Gratuite et facile à utiliser, l’application assure un cryptage performant de bout en bout pour des communications confidentielles.
 
-• Dites ce qu’il vous plaît – un chiffrement de bout en bout de pointe (propulsé par le protocole à code source ouvert « Signal Protocol™ ») assure la sécurité de vos conversations. La protection de votre vie privée et de vos données personnelles n’est pas une option, elle est intégrée à Signal, dès la conception. Pour tous les messages, tous les appels, tout le temps.
+• Envoyez des messages textes ou vocaux, partagez des photos, des vidéos, des GIF et des fichiers gratuitement. Signal utilise la connexion de données de votre téléphone pour éviter les coûts générés par l’envoi de SMS et de MMS.
 
-• Communiquez rapidement – les messages sont remis rapidement et avec fiabilité, même sur les réseaux lents. Signal est optimisée pour fonctionner dans les environnements les plus contraignants.
+• Passez des appels vocaux et vidéo entièrement cryptés et extrêmement clairs. Les appels de groupe peuvent compter jusqu’à 40 personnes.
 
-• Sentez-vous libre – Signal est un organisme sans but lucratif 501(c)(3) entièrement indépendant. Le développement est financé par des utilisateurs tels que vous. Aucune publicité, aucun traqueur, vraiment.
+• Gardez le contact avec des groupes de discussion pouvant compter jusqu’à 1 000 personnes. Profitez des fonctions du rôle d’administrateur et contrôlez la publication des messages tout en gérant les membres participants.
 
-• Soyez vous-même – vous pouvez utiliser votre numéro de téléphone et votre carnet d’adresses existants pour communiquer en toute sécurité avec vos amis.
+• Partagez des images, du texte et des Stories éphémères qui disparaissent automatiquement après 24 heures. Les paramètres de confidentialité vous permettent de contrôler précisément qui peut consulter chaque Story.
 
-• Exprimez-vous – qu’ils vivent à l’autre bout de la ville ou par-delà l’océan, avec la qualité améliorée du son et de la vidéo de Signal, votre famille et vos amis sembleront plus proches.
+• Signal a été développée pour préserver votre vie privée. Nous ne disposons d’aucune donnée vous concernant vous ou votre interlocuteur. Notre protocole Open Source ne nous permet ni de lire ni d’écouter vos messages et appels. Ni nous, ni personne. Pas de porte dérobée, pas de collecte de données, pas de compromis. 
 
-• Murmurer dans l’ombre – adoptez le thème sombre si vous refusez de voir la lumière.
+• Signal est une fondation indépendante, sans but lucratif. Nous proposons une solution technologique alternative, pensée par un organisme alternatif. En tant qu’organisme à but non lucratif 501(c)(3), nous fonctionnons grâce à vos dons, et non par le biais d’annonceurs ou d’investisseurs. 
 
-• Des sonneries à votre goût – choisissez des alertes personnalisées pour chacun de vos contacts ou désactivez tous les sons. Comme le « silence est d’or », vous pouvez configurer votre sonnerie de notification sur « Aucune ».
+• Si vous avez des questions, besoin d’aide ou recherchez davantage d’informations, veuillez consulter le site https://support.signal.org/.
 
-• Image-inez – utilisez les fonctions intégrées de retouche d’image pour esquisser, rogner ou retourner vos photos. Et avec l’outil Texte, vous pouvez ajouter encore plus de mots aux 1 000 que votre image vaut déjà.
+Pour consulter notre code source, rendez-vous sur https://github.com/signalapp. 
 
-
-Pour de l’assistance, des questions ou plus de précisions, veuillez visiter :
-https://support.signal.org
-
-Code source :
-https://github.com/signalapp
-
-Pour toutes les dernières nouvelles et annonces, suivez-nous sur Twitter (@signalapp) et sur Instagram (@signal_app).
+Suivez-nous sur Twitter @signalapp et Instagram @signal_app

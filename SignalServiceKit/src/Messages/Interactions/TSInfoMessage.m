@@ -5,7 +5,6 @@
 
 #import "TSInfoMessage.h"
 #import "ContactsManagerProtocol.h"
-#import "SSKEnvironment.h"
 #import <SignalCoreKit/NSDate+OWS.h>
 #import <SignalServiceKit/SignalServiceKit-Swift.h>
 
@@ -20,6 +19,8 @@ const InfoMessageUserInfoKey InfoMessageUserInfoKeyNewDisappearingMessageToken
     = @"InfoMessageUserInfoKeyNewDisappearingMessageToken";
 const InfoMessageUserInfoKey InfoMessageUserInfoKeyGroupUpdateSourceAddress
     = @"InfoMessageUserInfoKeyGroupUpdateSourceAddress";
+const InfoMessageUserInfoKey InfoMessageUserInfoKeyUpdaterKnownToBeLocalUser
+    = @"InfoMessageUserInfoKeyUpdaterWasLocalUser";
 const InfoMessageUserInfoKey InfoMessageUserInfoKeyProfileChanges = @"InfoMessageUserInfoKeyProfileChanges";
 const InfoMessageUserInfoKey InfoMessageUserInfoKeyChangePhoneNumberUuid
     = @"InfoMessageUserInfoKeyChangePhoneNumberUuid";
@@ -140,6 +141,7 @@ NSUInteger TSInfoMessageSchemaVersion = 2;
                             body:(nullable NSString *)body
                       bodyRanges:(nullable MessageBodyRanges *)bodyRanges
                     contactShare:(nullable OWSContact *)contactShare
+                       editState:(TSEditState)editState
                  expireStartedAt:(uint64_t)expireStartedAt
                        expiresAt:(uint64_t)expiresAt
                 expiresInSeconds:(unsigned int)expiresInSeconds
@@ -171,6 +173,7 @@ NSUInteger TSInfoMessageSchemaVersion = 2;
                               body:body
                         bodyRanges:bodyRanges
                       contactShare:contactShare
+                         editState:editState
                    expireStartedAt:expireStartedAt
                          expiresAt:expiresAt
                   expiresInSeconds:expiresInSeconds
@@ -217,19 +220,22 @@ NSUInteger TSInfoMessageSchemaVersion = 2;
     return OWSInteractionType_Info;
 }
 
-- (NSString *)systemMessageTextWithTransaction:(SDSAnyReadTransaction *)transaction
+- (NSString *)conversationSystemMessageComponentTextWithTransaction:(SDSAnyReadTransaction *)transaction
 {
     switch (self.messageType) {
         case TSInfoMessageSyncedThread:
+            // This particular string is here, and not in `infoMessagePreviewTextWithTransaction`,
+            // because we want it to be excluded from everywhere except chat list rendering.
+            // e.g. not in the conversation list preview.
             return OWSLocalizedString(@"INFO_MESSAGE_SYNCED_THREAD",
                                      @"Shown in inbox and conversation after syncing as a placeholder indicating why your message history "
                                      @"is missing.");
         default:
-            return [self previewTextWithTransaction:transaction];
+            return [self infoMessagePreviewTextWithTransaction:transaction];
     }
 }
 
-- (NSString *)previewTextWithTransaction:(SDSAnyReadTransaction *)transaction
+- (NSString *)infoMessagePreviewTextWithTransaction:(SDSAnyReadTransaction *)transaction
 {
     switch (_messageType) {
         case TSInfoMessageTypeSessionDidEnd:
@@ -298,6 +304,12 @@ NSUInteger TSInfoMessageSchemaVersion = 2;
                 @"Indicates that another user has changed their phone number. Embeds: {{ the user's name}}".);
             return [NSString stringWithFormat:format, userName];
         }
+        case TSInfoMessageContactHidden:
+            /// This does not control whether to show the info message in the chat
+            /// preview. To control that, see ``TSInteraction.shouldAppearInInbox``.
+            return OWSLocalizedString(@"INFO_MESSAGE_CONTACT_REMOVED",
+                @"Indicates that the recipient has been removed from the current user's contacts and that messaging "
+                @"them will re-add them.");
     }
 
     OWSFailDebug(@"Unknown info message type");
@@ -323,6 +335,7 @@ NSUInteger TSInfoMessageSchemaVersion = 2;
         case TSInfoMessageSyncedThread:
         case TSInfoMessageProfileUpdate:
         case TSInfoMessagePhoneNumberChange:
+        case TSInfoMessageContactHidden:
             return NO;
         case TSInfoMessageUserJoinedSignal:
             // In the conversation list, we want conversations with an unread "new user" notification to

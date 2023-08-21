@@ -555,7 +555,7 @@ class CameraCaptureControl: UIView {
 
 protocol CameraZoomSelectionControlDelegate: AnyObject {
 
-    func cameraZoomControl(_ cameraZoomControl: CameraZoomSelectionControl, didSelect camera: PhotoCapture.CameraType)
+    func cameraZoomControl(_ cameraZoomControl: CameraZoomSelectionControl, didSelect camera: CameraCaptureSession.CameraType)
 
     func cameraZoomControl(_ cameraZoomControl: CameraZoomSelectionControl, didChangeZoomFactor zoomFactor: CGFloat)
 }
@@ -564,9 +564,9 @@ class CameraZoomSelectionControl: UIView {
 
     weak var delegate: CameraZoomSelectionControlDelegate?
 
-    private let availableCameras: [PhotoCapture.CameraType]
+    private let availableCameras: [CameraCaptureSession.CameraType]
 
-    var selectedCamera: PhotoCapture.CameraType
+    var selectedCamera: CameraCaptureSession.CameraType
     var currentZoomFactor: CGFloat {
         didSet {
             var viewFound = false
@@ -607,7 +607,7 @@ class CameraZoomSelectionControl: UIView {
         }
     }
 
-    required init(availableCameras: [(cameraType: PhotoCapture.CameraType, defaultZoomFactor: CGFloat)]) {
+    required init(availableCameras: [(cameraType: CameraCaptureSession.CameraType, defaultZoomFactor: CGFloat)]) {
         owsAssertDebug(!availableCameras.isEmpty, "availableCameras must not be empty.")
 
         self.availableCameras = availableCameras.map { $0.cameraType }
@@ -654,7 +654,7 @@ class CameraZoomSelectionControl: UIView {
     // MARK: - Selection
 
     @objc
-    public func handleTap(gesture: UITapGestureRecognizer) {
+    private func handleTap(gesture: UITapGestureRecognizer) {
         guard gesture.state == .ended else { return }
 
         var tappedView: CameraSelectionCircleView?
@@ -682,7 +682,7 @@ class CameraZoomSelectionControl: UIView {
 
     private class CameraSelectionCircleView: UIView {
 
-        let camera: PhotoCapture.CameraType
+        let camera: CameraCaptureSession.CameraType
         let defaultZoomFactor: CGFloat
         var currentZoomFactor: CGFloat = 1
 
@@ -696,11 +696,11 @@ class CameraZoomSelectionControl: UIView {
             let label = UILabel()
             label.textAlignment = .center
             label.textColor = .ows_white
-            label.font = .ows_semiboldFont(withSize: 11)
+            label.font = .semiboldFont(ofSize: 11)
             return label
         }()
 
-        required init(camera: PhotoCapture.CameraType, defaultZoomFactor: CGFloat) {
+        required init(camera: CameraCaptureSession.CameraType, defaultZoomFactor: CGFloat) {
             self.camera = camera
             self.defaultZoomFactor = defaultZoomFactor
             self.currentZoomFactor = defaultZoomFactor
@@ -800,7 +800,7 @@ class CameraZoomSelectionControl: UIView {
 
 private class LockView: UIView {
 
-    private let imageViewLock = UIImageView(image: UIImage(named: "media-composer-lock-outline"))
+    private let imageViewLock = UIImageView(image: UIImage(named: "lock-28"))
     private let blurBackgroundView = CircleBlurView(effect: UIBlurEffect(style: .dark))
     private let whiteBackgroundView = CircleView()
     private let whiteCircleView = CircleView()
@@ -893,7 +893,7 @@ private class LockView: UIView {
     }
 }
 
-class RecordingTimerView: PillView {
+class RecordingDurationView: PillView {
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -911,7 +911,7 @@ class RecordingTimerView: PillView {
         addSubview(stackView)
         stackView.autoPinEdgesToSuperviewMargins()
 
-        updateView()
+        updateDurationLabel()
     }
 
     @available(*, unavailable, message: "Use init(frame:) instead")
@@ -919,11 +919,29 @@ class RecordingTimerView: PillView {
         fatalError("init(coder:) has not been implemented")
     }
 
+    var duration: TimeInterval = 0 {
+        didSet {
+            updateDurationLabel()
+        }
+    }
+
+    // If `true` red dot next to duration label will flash.
+    var isRecordingInProgress: Bool = false {
+        didSet {
+            guard oldValue != isRecordingInProgress else { return }
+            if isRecordingInProgress {
+                startAnimatingRedDot()
+            } else {
+                stopAnimatingRedDot()
+            }
+        }
+    }
+
     // MARK: - Subviews
 
     private let label: UILabel = {
         let label = UILabel()
-        label.font = UIFont.ows_monospacedDigitFont(withSize: 20)
+        label.font = UIFont.monospacedDigitFont(ofSize: 20)
         label.textAlignment = .center
         label.textColor = UIColor.white
         return label
@@ -939,106 +957,38 @@ class RecordingTimerView: PillView {
 
     // MARK: -
 
-    var recordingStartTime: TimeInterval?
-
-    func startCounting() {
-        guard timer == nil else { return }
-        recordingStartTime = CACurrentMediaTime()
-        timer = Timer.weakScheduledTimer(withTimeInterval: 0.1, target: self, selector: #selector(updateView), userInfo: nil, repeats: true)
-        UIView.animate(withDuration: 0.5,
-                       delay: 0,
-                       options: [.autoreverse, .repeat],
-                       animations: { self.icon.alpha = 1 })
-        updateView()
+    private func startAnimatingRedDot() {
+        UIView.animate(
+            withDuration: 0.5,
+            delay: 0,
+            options: [ .autoreverse, .repeat ],
+            animations: { self.icon.alpha = 1 }
+        )
     }
 
-    func stopCounting() {
-        timer?.invalidate()
-        timer = nil
+    private func stopAnimatingRedDot() {
         icon.layer.removeAllAnimations()
         UIView.animate(withDuration: 0.4) {
             self.icon.alpha = 0
         }
     }
 
-    // MARK: -
-
-    private var timer: Timer?
-
     private lazy var timeFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateFormat = "mm:ss"
         formatter.timeZone = TimeZone(identifier: "UTC")!
-
         return formatter
     }()
 
-    // This method should only be called when the call state is "connected".
-    var recordingDuration: TimeInterval {
-        guard let recordingStartTime = recordingStartTime else {
-            return 0
-        }
-
-        return CACurrentMediaTime() - recordingStartTime
-    }
-
-    @objc
-    private func updateView() {
-        let recordingDuration = self.recordingDuration
-        let durationDate = Date(timeIntervalSinceReferenceDate: recordingDuration)
+    private func updateDurationLabel() {
+        let durationDate = Date(timeIntervalSinceReferenceDate: duration)
         label.text = timeFormatter.string(from: durationDate)
-    }
-}
-
-@available(iOS, deprecated: 13.0, message: "Use `overrideUserInterfaceStyle` instead.")
-private protocol UserInterfaceStyleOverride {
-
-    var userInterfaceStyleOverride: UIUserInterfaceStyle { get set }
-
-    var effectiveUserInterfaceStyle: UIUserInterfaceStyle { get }
-
-}
-
-private extension UserInterfaceStyleOverride {
-
-    var effectiveUserInterfaceStyle: UIUserInterfaceStyle {
-        if userInterfaceStyleOverride != .unspecified {
-            return userInterfaceStyleOverride
-        }
-        if let uiView = self as? UIView {
-            return uiView.traitCollection.userInterfaceStyle
-        }
-        return .unspecified
-    }
-
-    static func blurEffectStyle(for userInterfaceStyle: UIUserInterfaceStyle) -> UIBlurEffect.Style {
-        switch userInterfaceStyle {
-        case .dark:
-            return .dark
-        case .light:
-            return .extraLight
-        default:
-            owsFailDebug("It is an error to pass UIUserInterfaceStyleUnspecified.")
-            return .regular
-        }
-    }
-
-    static func tintColor(for userInterfaceStyle: UIUserInterfaceStyle) -> UIColor {
-        switch userInterfaceStyle {
-        case .dark:
-            return Theme.darkThemePrimaryColor
-        case .light:
-            return .ows_gray60
-        default:
-            owsFailDebug("It is an error to pass UIUserInterfaceStyleUnspecified.")
-            return .ows_accentBlue
-        }
     }
 }
 
 // MARK: - Buttons
 
-class MediaDoneButton: UIButton, UserInterfaceStyleOverride {
+class MediaDoneButton: UIButton {
 
     var badgeNumber: Int = 0 {
         didSet {
@@ -1047,16 +997,16 @@ class MediaDoneButton: UIButton, UserInterfaceStyleOverride {
         }
     }
 
-    var userInterfaceStyleOverride: UIUserInterfaceStyle = .unspecified {
+    override var overrideUserInterfaceStyle: UIUserInterfaceStyle {
         didSet {
-            if oldValue != userInterfaceStyleOverride {
+            if oldValue != overrideUserInterfaceStyle {
                 updateStyle()
             }
         }
     }
 
     private static var font: UIFont {
-        return UIFont.ows_dynamicTypeSubheadline.ows_monospaced
+        return UIFont.dynamicTypeSubheadline.monospaced()
     }
 
     private let numberFormatter: NumberFormatter = {
@@ -1080,17 +1030,10 @@ class MediaDoneButton: UIButton, UserInterfaceStyleOverride {
     }()
     private let blurBackgroundView = UIVisualEffectView(effect: UIBlurEffect(style: .regular))
     private let chevronImageView: UIImageView = {
-        let image: UIImage?
-        if #available(iOS 13, *) {
-            image = UIImage(systemName: "chevron.right")
-        } else {
-            image = UIImage(named: "chevron-right-20")
-        }
+        let image = UIImage(systemName: "chevron.right")
         let chevronImageView = UIImageView(image: image!.withRenderingMode(.alwaysTemplate).imageFlippedForRightToLeftLayoutDirection())
         chevronImageView.contentMode = .center
-        if #available(iOS 13, *) {
-            chevronImageView.preferredSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: MediaDoneButton.font.pointSize)
-        }
+        chevronImageView.preferredSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: MediaDoneButton.font.pointSize)
         return chevronImageView
     }()
     private var dimmerView: UIView?
@@ -1125,10 +1068,8 @@ class MediaDoneButton: UIButton, UserInterfaceStyleOverride {
 
     override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
         if traitCollection.preferredContentSizeCategory != previousTraitCollection?.preferredContentSizeCategory {
-            textLabel.font = .ows_dynamicTypeSubheadline.ows_monospaced
-            if #available(iOS 13, *) {
-                chevronImageView.preferredSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: textLabel.font.pointSize)
-            }
+            textLabel.font = .dynamicTypeSubheadline.monospaced()
+            chevronImageView.preferredSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: textLabel.font.pointSize)
         }
         if traitCollection.userInterfaceStyle != previousTraitCollection?.userInterfaceStyle {
             updateStyle()
@@ -1154,19 +1095,29 @@ class MediaDoneButton: UIButton, UserInterfaceStyleOverride {
     }
 
     private func updateStyle() {
-        let userInterfaceStyle = effectiveUserInterfaceStyle
-        // ".unspecified" is present during initialization on iOS 12.
-        guard userInterfaceStyle != .unspecified else { return }
-        blurBackgroundView.effect = UIBlurEffect(style: MediaDoneButton.blurEffectStyle(for: userInterfaceStyle))
-        chevronImageView.tintColor = MediaDoneButton.tintColor(for: userInterfaceStyle)
+        let blurStyle: UIBlurEffect.Style
+        let tintColor: UIColor
+        switch overrideUserInterfaceStyle {
+        case .dark:
+            blurStyle = .dark
+            tintColor = Theme.darkThemePrimaryColor
+        case .light:
+            blurStyle = .extraLight
+            tintColor = .ows_gray60
+        default:
+            blurStyle = .regular
+            tintColor = .ows_accentBlue
+        }
+        blurBackgroundView.effect = UIBlurEffect(style: blurStyle)
+        chevronImageView.tintColor = tintColor
     }
 }
 
 class FlashModeButton: RoundMediaButton {
 
-    private static let flashOn = UIImage(named: "media-composer-flash-filled")
-    private static let flashOff = UIImage(named: "media-composer-flash-outline")
-    private static let flashAuto = UIImage(named: "media-composer-flash-auto")
+    private static let flashOn = UIImage(named: "flash-on")
+    private static let flashOff = UIImage(named: "flash-off")
+    private static let flashAuto = UIImage(named: "flash-auto")
 
     private var flashMode: AVCaptureDevice.FlashMode = .auto
 
@@ -1200,7 +1151,7 @@ class CameraChooserButton: RoundMediaButton {
     var isFrontCameraActive = false
 
     init(backgroundStyle: RoundMediaButton.BackgroundStyle) {
-        super.init(image: UIImage(named: "media-composer-switch-camera"), backgroundStyle: backgroundStyle, customView: nil)
+        super.init(image: UIImage(named: "switch-camera-28"), backgroundStyle: backgroundStyle, customView: nil)
     }
 
     func performSwitchAnimation() {
@@ -1213,8 +1164,8 @@ class CameraChooserButton: RoundMediaButton {
 
 class CaptureModeButton: RoundMediaButton {
 
-    private static let batchModeOn = UIImage(named: "media-composer-create-album-solid")
-    private static let batchModeOff = UIImage(named: "media-composer-create-album-outline")
+    private static let batchModeOn = UIImage(named: "multicapture-on")
+    private static let batchModeOff = UIImage(named: "multicapture-off")
 
     init() {
         super.init(image: CaptureModeButton.batchModeOff, backgroundStyle: .blur, customView: nil)
@@ -1262,7 +1213,7 @@ class MediaPickerThumbnailButton: UIButton {
         placeholderView.clipsToBounds = true
         placeholderView.isUserInteractionEnabled = false
         insertSubview(placeholderView, at: 0)
-        placeholderView.autoPinEdgesToSuperviewEdges(withInsets: contentEdgeInsets)
+        placeholderView.autoPinEdgesToSuperviewEdges(with: contentEdgeInsets)
 
         var authorizationStatus: PHAuthorizationStatus
         if #available(iOS 14, *) {
@@ -1274,12 +1225,8 @@ class MediaPickerThumbnailButton: UIButton {
 
         // Async Fetch last image
         DispatchQueue.global(qos: .userInteractive).async {
-            let fetchOptions = PHFetchOptions()
-            fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
-            fetchOptions.fetchLimit = 1
-
-            let fetchResult = PHAsset.fetchAssets(with: PHAssetMediaType.image, options: fetchOptions)
-            if fetchResult.count > 0, let asset = fetchResult.firstObject {
+            let fetchResult = PHAsset.fetchAssets(with: PHAssetMediaType.image, options: nil)
+            if let asset = fetchResult.lastObject {
                 let targetImageSize = CGSize(square: MediaPickerThumbnailButton.visibleSize)
                 PHImageManager.default().requestImage(for: asset, targetSize: targetImageSize, contentMode: .aspectFill, options: nil) { (image, _) in
                     if let image = image {
@@ -1314,20 +1261,20 @@ class MediaPickerThumbnailButton: UIButton {
 
 class CameraTopBar: MediaTopBar {
 
-    let closeButton = RoundMediaButton(image: UIImage(named: "media-composer-close"), backgroundStyle: .blur)
+    let closeButton = RoundMediaButton(image: UIImage(named: "x-28"), backgroundStyle: .blur)
 
     private let cameraControlsContainerView: UIStackView
     let flashModeButton = FlashModeButton()
     let batchModeButton = CaptureModeButton()
 
-    let recordingTimerView = RecordingTimerView(frame: .zero)
+    let recordingTimerView = RecordingDurationView(frame: .zero)
 
     override init(frame: CGRect) {
         cameraControlsContainerView = UIStackView(arrangedSubviews: [ batchModeButton, flashModeButton ])
 
         super.init(frame: frame)
 
-        closeButton.accessibilityLabel = NSLocalizedString("CAMERA_VO_CLOSE_BUTTON",
+        closeButton.accessibilityLabel = OWSLocalizedString("CAMERA_VO_CLOSE_BUTTON",
                                                            comment: "VoiceOver label for close (X) button in camera.")
 
         addSubview(closeButton)
@@ -1381,12 +1328,12 @@ class CameraTopBar: MediaTopBar {
         case .cameraControls:
             closeButton.setIsHidden(false, animated: animated)
             cameraControlsContainerView.setIsHidden(false, animated: animated)
-            recordingTimerView.setIsHidden(true, animated: animated)
+            recordingTimerView.setIsHidden(true, animated: false)
 
         case .closeButton:
             closeButton.setIsHidden(false, animated: animated)
             cameraControlsContainerView.setIsHidden(true, animated: animated)
-            recordingTimerView.setIsHidden(true, animated: animated)
+            recordingTimerView.setIsHidden(true, animated: false)
 
         case .videoRecording:
             closeButton.setIsHidden(true, animated: animated)
@@ -1529,7 +1476,7 @@ class CameraBottomBar: UIView {
 
             proceedButton.isHidden = true
             proceedButton.isEnabled = false
-            proceedButton.accessibilityValue = NSLocalizedString("CAMERA_VO_ARROW_RIGHT_PROCEED",
+            proceedButton.accessibilityValue = OWSLocalizedString("CAMERA_VO_ARROW_RIGHT_PROCEED",
                                                                  comment: "VoiceOver label for -> button in text story composer.")
             proceedButton.translatesAutoresizingMaskIntoConstraints = false
             addSubview(proceedButton)
@@ -1613,11 +1560,11 @@ class CameraBottomBar: UIView {
 
     fileprivate class ContentTypeSelectionControl: UISegmentedControl {
 
-        static private let titleCamera = NSLocalizedString(
+        static private let titleCamera = OWSLocalizedString(
             "STORY_COMPOSER_CAMERA",
             comment: "One of two possible sources when composing a new story. Displayed at the bottom in in-app camera."
         )
-        static private let titleText = NSLocalizedString(
+        static private let titleText = OWSLocalizedString(
             "STORY_COMPOSER_TEXT",
             comment: "One of two possible sources when composing a new story. Displayed at the bottom in in-app camera."
         )
@@ -1634,14 +1581,8 @@ class CameraBottomBar: UIView {
             setBackgroundImage(tintColorImage, for: .normal, barMetrics: .default)
             setDividerImage(tintColorImage, forLeftSegmentState: .normal, rightSegmentState: .normal, barMetrics: .default)
 
-            let normalFont, selectedFont: UIFont
-            if #available(iOS 13, *) {
-                normalFont = UIFont.monospacedSystemFont(ofSize: 14, weight: .semibold)
-                selectedFont = UIFont.monospacedSystemFont(ofSize: 14, weight: .bold)
-            } else {
-                normalFont = UIFont.systemFont(ofSize: 14, weight: .semibold)
-                selectedFont = UIFont.systemFont(ofSize: 14, weight: .bold)
-            }
+            let normalFont = UIFont.monospacedSystemFont(ofSize: 14, weight: .semibold)
+            let selectedFont = UIFont.monospacedSystemFont(ofSize: 14, weight: .bold)
 
             setTitleTextAttributes([ .font: normalFont, .foregroundColor: UIColor(white: 1, alpha: 0.7) ], for: .normal)
             setTitleTextAttributes([ .font: selectedFont, .foregroundColor: UIColor.white ], for: .selected)
@@ -1723,11 +1664,11 @@ extension CameraCaptureControl {
         get {
             switch state {
             case .initial:
-                return NSLocalizedString("CAMERA_VO_TAKE_PICTURE",
+                return OWSLocalizedString("CAMERA_VO_TAKE_PICTURE",
                                          comment: "VoiceOver label for the round capture button in in-app camera.")
 
             case .recordingUsingVoiceOver:
-                return NSLocalizedString("CAMERA_VO_STOP_VIDEO_REC",
+                return OWSLocalizedString("CAMERA_VO_STOP_VIDEO_REC",
                                          comment: "VoiceOver label for the round capture button in in-app camera during video recording.")
 
             default:
@@ -1741,7 +1682,7 @@ extension CameraCaptureControl {
     override var accessibilityCustomActions: [UIAccessibilityCustomAction]? {
         get {
             guard state == .initial else { return [] }
-            let actionName = NSLocalizedString("CAMERA_VO_TAKE_VIDEO",
+            let actionName = OWSLocalizedString("CAMERA_VO_TAKE_VIDEO",
                                                comment: "VoiceOver label for other possible action for round capture button in in-app camera.")
             return [ UIAccessibilityCustomAction(name: actionName, target: self, selector: #selector(accessibilityStartVideoRecording)) ] }
         set { super.accessibilityCustomActions = newValue }
@@ -1783,7 +1724,7 @@ extension MediaDoneButton {
         get {
             guard badgeNumber > 0 else { return nil }
 
-            let format = NSLocalizedString("CAMERA_VO_N_ITEMS", tableName: "PluralAware",
+            let format = OWSLocalizedString("CAMERA_VO_N_ITEMS", tableName: "PluralAware",
                                            comment: "VoiceOver text for blue Done button in camera, describing how many items have already been captured.")
             return String.localizedStringWithFormat(format, badgeNumber)
         }
@@ -1797,7 +1738,7 @@ extension FlashModeButton {
 
     override var accessibilityLabel: String? {
         get {
-            NSLocalizedString("CAMERA_VO_FLASH_BUTTON",
+            OWSLocalizedString("CAMERA_VO_FLASH_BUTTON",
                               comment: "VoiceOver label for Flash button in camera.")
         }
         set { super.accessibilityLabel = newValue }
@@ -1807,15 +1748,15 @@ extension FlashModeButton {
         get {
             switch flashMode {
             case .auto:
-                return NSLocalizedString("CAMERA_VO_FLASH_AUTO",
+                return OWSLocalizedString("CAMERA_VO_FLASH_AUTO",
                                          comment: "VoiceOver description of current flash setting.")
 
             case .on:
-                return NSLocalizedString("CAMERA_VO_FLASH_ON",
+                return OWSLocalizedString("CAMERA_VO_FLASH_ON",
                                          comment: "VoiceOver description of current flash setting.")
 
             case .off:
-                return NSLocalizedString("CAMERA_VO_FLASH_OFF",
+                return OWSLocalizedString("CAMERA_VO_FLASH_OFF",
                                          comment: "VoiceOver description of current flash setting.")
 
             @unknown default:
@@ -1831,7 +1772,7 @@ extension CameraChooserButton {
 
     override var accessibilityLabel: String? {
         get {
-            NSLocalizedString("CAMERA_VO_CAMERA_CHOOSER_BUTTON",
+            OWSLocalizedString("CAMERA_VO_CAMERA_CHOOSER_BUTTON",
                               comment: "VoiceOver label for Switch Camera button in in-app camera.")
         }
         set { super.accessibilityLabel = newValue }
@@ -1839,7 +1780,7 @@ extension CameraChooserButton {
 
     override var accessibilityHint: String? {
         get {
-            NSLocalizedString("CAMERA_VO_CAMERA_CHOOSER_HINT",
+            OWSLocalizedString("CAMERA_VO_CAMERA_CHOOSER_HINT",
                               comment: "VoiceOver hint for Switch Camera button in in-app camera.")
         }
         set { super.accessibilityHint = newValue }
@@ -1848,10 +1789,10 @@ extension CameraChooserButton {
     override var accessibilityValue: String? {
         get {
             if isFrontCameraActive {
-                return NSLocalizedString("CAMERA_VO_CAMERA_FRONT_FACING",
+                return OWSLocalizedString("CAMERA_VO_CAMERA_FRONT_FACING",
                                          comment: "VoiceOver value for Switch Camera button that tells which camera is currently active.")
             } else {
-                return NSLocalizedString("CAMERA_VO_CAMERA_BACK_FACING",
+                return OWSLocalizedString("CAMERA_VO_CAMERA_BACK_FACING",
                                          comment: "VoiceOver value for Switch Camera button that tells which camera is currently active.")
             }
         }
@@ -1863,7 +1804,7 @@ extension CaptureModeButton {
 
     override var accessibilityLabel: String? {
         get {
-            NSLocalizedString("CAMERA_VO_CAMERA_ALBUM_MODE",
+            OWSLocalizedString("CAMERA_VO_CAMERA_ALBUM_MODE",
                               comment: "VoiceOver label for Flash button in camera.")
         }
         set { super.accessibilityLabel = newValue }
@@ -1873,11 +1814,11 @@ extension CaptureModeButton {
         get {
             switch captureMode {
             case .single:
-                return NSLocalizedString("CAMERA_VO_CAMERA_ALBUM_MODE_OFF",
+                return OWSLocalizedString("CAMERA_VO_CAMERA_ALBUM_MODE_OFF",
                                          comment: "VoiceOver label for Switch Camera button in in-app camera.")
 
             case .multi:
-                return NSLocalizedString("CAMERA_VO_CAMERA_ALBUM_MODE_ON",
+                return OWSLocalizedString("CAMERA_VO_CAMERA_ALBUM_MODE_ON",
                                          comment: "VoiceOver label for Switch Camera button in in-app camera.")
             }
         }
@@ -1889,7 +1830,7 @@ extension MediaPickerThumbnailButton {
 
     override var accessibilityLabel: String? {
         get {
-            NSLocalizedString("CAMERA_VO_PHOTO_LIBRARY_BUTTON",
+            OWSLocalizedString("CAMERA_VO_PHOTO_LIBRARY_BUTTON",
                               comment: "VoiceOver label for button to choose existing photo/video in in-app camera")
         }
         set { super.accessibilityLabel = newValue }
@@ -1910,7 +1851,7 @@ extension CameraZoomSelectionControl {
 
     override var accessibilityLabel: String? {
         get {
-            NSLocalizedString("CAMERA_VO_ZOOM", comment: "VoiceOver label for camera zoom control.")
+            OWSLocalizedString("CAMERA_VO_ZOOM", comment: "VoiceOver label for camera zoom control.")
         }
         set { super.accessibilityLabel = newValue }
     }
@@ -1928,7 +1869,7 @@ extension CameraZoomSelectionControl {
         get {
             guard let zoomValueString = CameraZoomSelectionControl.voiceOverNumberFormatter.string(for: currentZoomFactor) else { return nil }
 
-            let formatString = NSLocalizedString("CAMERA_VO_ZOOM_LEVEL",
+            let formatString = OWSLocalizedString("CAMERA_VO_ZOOM_LEVEL",
                                                  comment: "VoiceOver description of current camera zoom level.")
             return String(format: formatString, zoomValueString)
         }
@@ -1981,7 +1922,7 @@ extension CameraBottomBar.ContentTypeSelectionControl {
 
     override var accessibilityLabel: String? {
         get {
-            NSLocalizedString(
+            OWSLocalizedString(
                 "CAMERA_VO_COMPOSER_MODE",
                 comment: "VoiceOver label for composer mode (CAMERA|TEXT) selector at the bottom of in-app camera screen."
             )

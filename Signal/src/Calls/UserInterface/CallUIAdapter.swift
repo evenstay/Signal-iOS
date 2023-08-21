@@ -40,12 +40,12 @@ extension CallUIAdaptee {
     internal func showCall(_ call: SignalCall) {
         AssertIsOnMainThread()
 
-        guard !call.isTerminatedIndividualCall else {
-            Logger.info("Not showing window for terminated individual call")
+        guard !call.hasTerminated else {
+            Logger.info("Not showing window for terminated call \(call)")
             return
         }
 
-        Logger.info("showCall")
+        Logger.info("\(call)")
 
         let callViewController: UIViewController & CallViewControllerWindowReference
         if call.isGroupCall {
@@ -55,7 +55,7 @@ extension CallUIAdaptee {
         }
 
         callViewController.modalTransitionStyle = .crossDissolve
-        OWSWindowManager.shared.startCall(callViewController)
+        WindowManager.shared.startCall(viewController: callViewController)
     }
 
     internal func reportMissedCall(_ call: SignalCall) {
@@ -93,7 +93,6 @@ extension CallUIAdaptee {
  * Notify the user of call related activities.
  * Driven by either a CallKit or System notifications adaptee
  */
-@objc
 public class CallUIAdapter: NSObject, CallServiceObserver {
 
     lazy var nonCallKitAdaptee = NonCallKitCallUIAdaptee()
@@ -110,8 +109,8 @@ public class CallUIAdapter: NSObject, CallServiceObserver {
             return nil
         } else {
             Logger.info("using callkit adaptee for iOS11+")
-            let showNames = preferences.notificationPreviewType() != .noNameNoPreview
-            let useSystemCallLog = preferences.isSystemCallLogEnabled()
+            let showNames = preferences.notificationPreviewType != .noNameNoPreview
+            let useSystemCallLog = preferences.isSystemCallLogEnabled
 
             return CallKitCallUIAdaptee(showNamesOnCallScreen: showNames,
                                         useSystemCallLog: useSystemCallLog)
@@ -141,7 +140,6 @@ public class CallUIAdapter: NSObject, CallServiceObserver {
         }
     }
 
-    @objc
     public static var isCallkitDisabledForLocale: Bool {
         let locale = Locale.current
         guard let regionCode = locale.regionCode else {
@@ -225,7 +223,6 @@ public class CallUIAdapter: NSObject, CallServiceObserver {
         adaptee(for: call).startOutgoingCall(call: call)
     }
 
-    @objc
     public func answerCall(localId: UUID) {
         AssertIsOnMainThread()
 
@@ -248,7 +245,6 @@ public class CallUIAdapter: NSObject, CallServiceObserver {
         adaptee(for: call).answerCall(call)
     }
 
-    @objc
     public func startAndShowOutgoingCall(thread: TSContactThread, hasLocalVideo: Bool) {
         AssertIsOnMainThread()
 

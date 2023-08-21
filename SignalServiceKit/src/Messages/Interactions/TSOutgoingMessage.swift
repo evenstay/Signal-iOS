@@ -29,6 +29,7 @@ public class TSOutgoingMessageBuilder: TSMessageBuilder {
                          messageBody: String? = nil,
                          bodyRanges: MessageBodyRanges? = nil,
                          attachmentIds: [String]? = nil,
+                         editState: TSEditState = .none,
                          expiresInSeconds: UInt32 = 0,
                          expireStartedAt: UInt64 = 0,
                          isVoiceMessage: Bool = false,
@@ -52,6 +53,7 @@ public class TSOutgoingMessageBuilder: TSMessageBuilder {
                    messageBody: messageBody,
                    bodyRanges: bodyRanges,
                    attachmentIds: attachmentIds,
+                   editState: editState,
                    expiresInSeconds: expiresInSeconds,
                    expireStartedAt: expireStartedAt,
                    quotedMessage: quotedMessage,
@@ -216,32 +218,45 @@ public extension TSOutgoingMessage {
     }
 
     @objc(maybeClearShouldSharePhoneNumberForRecipient:recipientDeviceId:transaction:)
-    func maybeClearShouldSharePhoneNumber(for recipientAddress: SignalServiceAddress,
-                                          recipientDeviceId deviceId: UInt32,
-                                          transaction: SDSAnyWriteTransaction) {
+    func maybeClearShouldSharePhoneNumber(
+        for recipientAddress: SignalServiceAddress,
+        recipientDeviceId deviceId: UInt32,
+        transaction: SDSAnyWriteTransaction
+    ) {
+        guard let serviceId = recipientAddress.untypedServiceId else {
+            // We can't be sharing our phone number b/c there's no ServiceId.
+            return
+        }
+
         guard recipientAddressStates?[recipientAddress]?.wasSentByUD == true else {
             // Can't be sure the message was actually decrypted by the recipient,
             // because the server sends delivery receipts for non-sealed-sender messages.
             return
         }
+
         guard identityManager.shouldSharePhoneNumber(with: recipientAddress, transaction: transaction) else {
             // Not currently sharing anyway!
             return
         }
 
-        guard let messagePayload = MessageSendLog.fetchPayload(address: recipientAddress,
-                                                               deviceId: Int64(deviceId),
-                                                               timestamp: timestamp,
-                                                               transaction: transaction),
-              let payloadId = messagePayload.payloadId else {
+        let messageSendLog = SSKEnvironment.shared.messageSendLogRef
+        let messagePayload = messageSendLog.fetchPayload(
+            recipientServiceId: serviceId,
+            recipientDeviceId: deviceId,
+            timestamp: timestamp,
+            tx: transaction
+        )
+        guard let messagePayload, let payloadId = messagePayload.payloadId else {
             // Can't check whether this message included a PNI signature.
             return
         }
 
-        guard let devicesPendingDelivery = MessageSendLog.devicesPendingDelivery(forPayloadId: payloadId,
-                                                                                 address: recipientAddress,
-                                                                                 transaction: transaction),
-              devicesPendingDelivery == [Int64(deviceId)] else {
+        let deviceIdsPendingDelivery = messageSendLog.deviceIdsPendingDelivery(
+            for: payloadId,
+            recipientServiceId: serviceId,
+            tx: transaction
+        )
+        guard let deviceIdsPendingDelivery, deviceIdsPendingDelivery == [deviceId] else {
             // Other devices still need the PniSignature.
             return
         }
@@ -264,12 +279,6 @@ public extension TSOutgoingMessage {
 }
 
 // MARK: Sender Key + Message Send Log
-
-@objc
-enum EncryptionStyle: Int {
-    case whisper
-    case plaintext
-}
 
 extension TSOutgoingMessage {
 
@@ -305,7 +314,7 @@ extension TSOutgoingMessage {
     /// OWSOutgoingMessageResendResponse
     @objc
     func envelopeGroupIdWithTransaction(_ transaction: SDSAnyReadTransaction) -> Data? {
-        (thread(transaction: transaction) as? TSGroupThread)?.groupId
+        (thread(tx: transaction) as? TSGroupThread)?.groupId
     }
 
     /// Indicates whether or not this message's proto should be saved into the MessageSendLog
@@ -320,55 +329,65 @@ extension TSOutgoingMessage {
     /// Currently only overridden by OWSOutgoingResendRequest (this is asserted in the MessageSender implementation)
     @objc
     var encryptionStyle: EncryptionStyle { .whisper }
+
+    @objc
+    func clearMessageSendLogEntry(forRecipient address: SignalServiceAddress, deviceId: UInt32, tx: SDSAnyWriteTransaction) {
+        // MSL entries will only exist for addresses with UUIDs
+        guard let serviceId = address.untypedServiceId else {
+            return
+        }
+        let messageSendLog = SSKEnvironment.shared.messageSendLogRef
+        messageSendLog.recordSuccessfulDelivery(
+            message: self,
+            recipientServiceId: serviceId,
+            recipientDeviceId: deviceId,
+            tx: tx
+        )
+    }
+
+    @objc
+    func markMessageSendLogEntryCompleteIfNeeded(tx: SDSAnyWriteTransaction) {
+        guard sendingRecipientAddresses().isEmpty else {
+            return
+        }
+        let messageSendLog = SSKEnvironment.shared.messageSendLogRef
+        messageSendLog.sendComplete(message: self, tx: tx)
+    }
 }
 
 // MARK: - Transcripts
 
 public extension TSOutgoingMessage {
-    @objc
-    @available(swift, obsoleted: 1.0)
-    func sendSyncTranscript() -> AnyPromise {
-        AnyPromise(sendSyncTranscript())
-    }
-
     func sendSyncTranscript() -> Promise<Void> {
-        guard shouldSyncTranscript() else {
-            return Promise(error: OWSAssertionError("Unexpectedly attempted to send sync transcript for message"))
-        }
-
-        return databaseStorage.write(.promise) { transaction in
-            guard let localThread = TSAccountManager.getOrCreateLocalThread(transaction: transaction) else {
+        return databaseStorage.write(.promise) { tx in
+            guard let localThread = TSAccountManager.getOrCreateLocalThread(transaction: tx) else {
                 throw OWSAssertionError("Missing local thread")
             }
 
-            guard let transcript = self.buildTranscriptSyncMessage(
-                localThread: localThread,
-                transaction: transaction
-            ) else {
+            guard let localUuid = Self.tsAccountManager.localUuid else {
+                throw OWSAssertionError("Missing local uuid")
+            }
+
+            guard let transcript = self.buildTranscriptSyncMessage(localThread: localThread, transaction: tx) else {
                 throw OWSAssertionError("Failed to build transcript")
             }
 
-            guard let plaintext = transcript.buildPlainTextData(localThread, transaction: transaction) else {
-                throw OWSAssertionError("Missing proto")
+            guard let serializedMessage = self.messageSender.buildAndRecordMessage(transcript, in: localThread, tx: tx) else {
+                throw OWSAssertionError("Couldn't serialize message.")
             }
-
-            let payloadId = MessageSendLog.recordPayload(plaintext, forMessageBeingSent: transcript, transaction: transaction)
 
             return OWSMessageSend(
                 message: transcript,
-                plaintextContent: plaintext,
-                plaintextPayloadId: payloadId,
+                plaintextContent: serializedMessage.plaintextData,
+                plaintextPayloadId: serializedMessage.payloadId,
                 thread: localThread,
-                address: Self.tsAccountManager.localAddress!,
+                serviceId: UntypedServiceId(localUuid),
                 udSendingAccess: nil,
                 localAddress: Self.tsAccountManager.localAddress!,
                 sendErrorBlock: nil
             )
-        }.then { messageSend in
-            return MessageSender.ensureSessions(forMessageSends: [messageSend], ignoreErrors: true).map { messageSend }
         }.then { messageSend -> Promise<Void> in
-            Self.messageSender.sendMessage(toRecipient: messageSend)
-            return messageSend.promise
+            Self.messageSender.performMessageSendAttempt(messageSend)
         }
     }
 }

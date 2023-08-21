@@ -3,13 +3,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalServiceKit
+import SignalUI
 
 // This captures the CV view state that can affect the load.
 // It is used when building, measuring & configuring components and their views.
 struct CVViewStateSnapshot: Dependencies {
 
     let textExpansion: CVTextExpansion
+    let spoilerReveal: SpoilerRevealState.Snapshot
     let messageSwipeActionState: CVMessageSwipeActionState
 
     // We can only measure (configure) with a given ConversationStyle.
@@ -34,34 +36,45 @@ struct CVViewStateSnapshot: Dependencies {
 
     let searchText: String?
 
-    let hasClearedUnreadMessagesIndicator: Bool
+    let oldestUnreadMessageSortId: UInt64?
 
     let currentCallThreadId: String?
 
-    static func snapshot(viewState: CVViewState,
-                         typingIndicatorsSender: SignalServiceAddress?,
-                         hasClearedUnreadMessagesIndicator: Bool,
-                         previousViewStateSnapshot: CVViewStateSnapshot?) -> CVViewStateSnapshot {
-        CVViewStateSnapshot(textExpansion: viewState.textExpansion.copy(),
-                            messageSwipeActionState: viewState.messageSwipeActionState.copy(),
-                            coreState: viewState.asCoreState,
-                            typingIndicatorsSender: typingIndicatorsSender,
-                            uiMode: viewState.uiMode,
-                            previousUIMode: previousViewStateSnapshot?.uiMode ?? .normal,
-                            searchText: viewState.lastSearchedText,
-                            hasClearedUnreadMessagesIndicator: hasClearedUnreadMessagesIndicator,
-                            currentCallThreadId: callService.currentCall?.thread.uniqueId)
+    static func snapshot(
+        viewState: CVViewState,
+        typingIndicatorsSender: SignalServiceAddress?,
+        oldestUnreadMessageSortId: UInt64?,
+        previousViewStateSnapshot: CVViewStateSnapshot?
+    ) -> CVViewStateSnapshot {
+        CVViewStateSnapshot(
+            textExpansion: viewState.textExpansion.copy(),
+            spoilerReveal: viewState.spoilerState.revealState.snapshot(),
+            messageSwipeActionState: viewState.messageSwipeActionState.copy(),
+            coreState: viewState.asCoreState,
+            typingIndicatorsSender: typingIndicatorsSender,
+            uiMode: viewState.uiMode,
+            previousUIMode: previousViewStateSnapshot?.uiMode ?? .normal,
+            searchText: viewState.lastSearchedText,
+            oldestUnreadMessageSortId: oldestUnreadMessageSortId,
+            currentCallThreadId: callService.currentCall?.thread.uniqueId
+        )
     }
 
-    static func mockSnapshotForStandaloneItems(coreState: CVCoreState) -> CVViewStateSnapshot {
-        CVViewStateSnapshot(textExpansion: CVTextExpansion(),
-                            messageSwipeActionState: CVMessageSwipeActionState(),
-                            coreState: coreState,
-                            typingIndicatorsSender: nil,
-                            uiMode: .normal,
-                            previousUIMode: .normal,
-                            searchText: nil,
-                            hasClearedUnreadMessagesIndicator: false,
-                            currentCallThreadId: nil)
+    static func mockSnapshotForStandaloneItems(
+        coreState: CVCoreState,
+        spoilerReveal: SpoilerRevealState
+    ) -> CVViewStateSnapshot {
+        CVViewStateSnapshot(
+            textExpansion: CVTextExpansion(),
+            spoilerReveal: spoilerReveal.snapshot(),
+            messageSwipeActionState: CVMessageSwipeActionState(),
+            coreState: coreState,
+            typingIndicatorsSender: nil,
+            uiMode: .normal,
+            previousUIMode: .normal,
+            searchText: nil,
+            oldestUnreadMessageSortId: nil,
+            currentCallThreadId: nil
+        )
     }
 }

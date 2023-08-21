@@ -3,8 +3,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-@testable import SignalServiceKit
+import LibSignalClient
 import XCTest
+
+@testable import SignalServiceKit
 
 class OWSIdentityManagerTests: SSKBaseTestSwift {
     override func setUp() {
@@ -32,7 +34,11 @@ class OWSIdentityManagerTests: SSKBaseTestSwift {
         let newKey = Randomness.generateRandomBytes(32)
         let address = SignalServiceAddress(phoneNumber: "+12223334444")
         write { transaction in
-            identityManager.saveRemoteIdentity(newKey, address: address, transaction: transaction)
+            identityManager.saveRemoteIdentity(
+                newKey,
+                address: address,
+                transaction: transaction
+            )
             XCTAssert(identityManager.isTrustedIdentityKey(newKey,
                                                            address: address,
                                                            direction: .outgoing,
@@ -48,7 +54,11 @@ class OWSIdentityManagerTests: SSKBaseTestSwift {
         let originalKey = Randomness.generateRandomBytes(32)
         let address = SignalServiceAddress(phoneNumber: "+12223334444")
         write { transaction in
-            identityManager.saveRemoteIdentity(originalKey, address: address, transaction: transaction)
+            identityManager.saveRemoteIdentity(
+                originalKey,
+                address: address,
+                transaction: transaction
+            )
 
             XCTAssert(identityManager.isTrustedIdentityKey(originalKey,
                                                            address: address,
@@ -73,10 +83,10 @@ class OWSIdentityManagerTests: SSKBaseTestSwift {
     }
 
     func testIdentityKey() {
-        let newKey = identityManager.generateNewIdentityKey(for: .aci)
+        let newKey = identityManager.generateAndPersistNewIdentityKey(for: .aci)
         XCTAssertEqual(newKey.publicKey.count, 32)
 
-        let pniKey = identityManager.generateNewIdentityKey(for: .pni)
+        let pniKey = identityManager.generateAndPersistNewIdentityKey(for: .pni)
         XCTAssertEqual(pniKey.publicKey.count, 32)
         XCTAssertNotEqual(pniKey.privateKey, newKey.privateKey)
 
@@ -88,8 +98,8 @@ class OWSIdentityManagerTests: SSKBaseTestSwift {
     }
 
     func testShouldSharePhoneNumber() {
-        let aliceAddress = SignalServiceAddress(uuid: UUID(), phoneNumber: "+12223334444")
-        let bobAddress = SignalServiceAddress(uuid: UUID(), phoneNumber: "+17775556666")
+        let aliceAddress = SignalServiceAddress(serviceId: FutureAci.randomForTesting(), phoneNumber: "+12223334444")
+        let bobAddress = SignalServiceAddress(serviceId: FutureAci.randomForTesting(), phoneNumber: "+17775556666")
 
         write { transaction in
             // {}

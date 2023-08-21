@@ -38,6 +38,12 @@ extension StoryReplySheet {
             return
         }
 
+        // Note: Because we drop all incoming and existing stories from hidden recipients, we do not
+        // specially handle the hidden recipient case here. It is possible we could encounter an edge
+        // case, such as if a contact is being hidden on another device while we're replying to their
+        // story on this device. If this happens, we accept that the hide will be undone if the
+        // ordering is hide -> reply.
+
         guard !SafetyNumberConfirmationSheet.presentIfNecessary(
             addresses: thread.recipientAddressesWithSneakyTransaction,
             confirmationText: SafetyNumberStrings.confirmSendButton,
@@ -52,10 +58,15 @@ extension StoryReplySheet {
         let shouldUseThreadDMTimer = !thread.isGroupThread
 
         ThreadUtil.enqueueSendAsyncWrite { [weak self] transaction in
-            ThreadUtil.addThreadToProfileWhitelistIfEmptyOrPendingRequest(thread: thread, setDefaultTimerIfNecessary: shouldUseThreadDMTimer, transaction: transaction)
+            ThreadUtil.addThreadToProfileWhitelistIfEmptyOrPendingRequest(
+                thread,
+                setDefaultTimerIfNecessary: shouldUseThreadDMTimer,
+                tx: transaction
+            )
 
             if shouldUseThreadDMTimer {
-                builder.expiresInSeconds = thread.disappearingMessagesDuration(with: transaction)
+                let dmConfigurationStore = DependenciesBridge.shared.disappearingMessagesConfigurationStore
+                builder.expiresInSeconds = dmConfigurationStore.durationSeconds(for: thread, tx: transaction.asV2Read)
             }
 
             let message = builder.build(transaction: transaction)
@@ -103,7 +114,9 @@ extension StoryReplySheet {
     func didSelectAnyEmoji() {
         dismissReactionPicker()
 
-        let sheet = EmojiPickerSheet { [weak self] selectedEmoji in
+        // nil is intentional, the message is for showing other reactions already
+        // on the message, which we don't wanna do for stories.
+        let sheet = EmojiPickerSheet(message: nil) { [weak self] selectedEmoji in
             guard let selectedEmoji = selectedEmoji else { return }
             self?.tryToSendReaction(selectedEmoji.rawValue)
         }
@@ -115,7 +128,7 @@ extension StoryReplySheet {
 
 extension StoryReplySheet {
     func storyReplyInputToolbarDidTapSend(_ storyReplyInputToolbar: StoryReplyInputToolbar) {
-        guard let messageBody = storyReplyInputToolbar.messageBody, !messageBody.text.isEmpty else {
+        guard let messageBody = storyReplyInputToolbar.messageBodyForSending, !messageBody.text.isEmpty else {
             return owsFailDebug("Unexpectedly missing message body")
         }
 
@@ -143,9 +156,13 @@ extension StoryReplySheet {
     func storyReplyInputToolbarDidBeginEditing(_ storyReplyInputToolbar: StoryReplyInputToolbar) {}
     func storyReplyInputToolbarHeightDidChange(_ storyReplyInputToolbar: StoryReplyInputToolbar) {}
 
-    func storyReplyInputToolbarMentionPickerPossibleAddresses(_ storyReplyInputToolbar: StoryReplyInputToolbar) -> [SignalServiceAddress] {
+    func storyReplyInputToolbarMentionPickerPossibleAddresses(_ storyReplyInputToolbar: StoryReplyInputToolbar, tx: DBReadTransaction) -> [SignalServiceAddress] {
         guard let thread = thread, thread.isGroupThread else { return [] }
-        return thread.recipientAddressesWithSneakyTransaction
+        return thread.recipientAddresses(with: SDSDB.shimOnlyBridge(tx))
+    }
+
+    func storyReplyInputToolbarMentionCacheInvalidationKey() -> String {
+        return thread?.uniqueId ?? UUID().uuidString
     }
 
     func storyReplyInputToolbarMentionPickerParentView(_ storyReplyInputToolbar: StoryReplyInputToolbar) -> UIView? {

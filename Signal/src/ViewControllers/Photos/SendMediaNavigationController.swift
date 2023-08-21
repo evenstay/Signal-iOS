@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import Photos
 import SignalMessaging
 import SignalUI
@@ -29,7 +28,9 @@ protocol SendMediaNavDataSource: AnyObject {
 
     var sendMediaNavRecipientNames: [String] { get }
 
-    var sendMediaNavMentionableAddresses: [SignalServiceAddress] { get }
+    func sendMediaNavMentionableAddresses(tx: DBReadTransaction) -> [SignalServiceAddress]
+
+    func sendMediaNavMentionCacheInvalidationKey() -> String
 }
 
 class CameraFirstCaptureNavigationController: SendMediaNavigationController {
@@ -42,8 +43,7 @@ class CameraFirstCaptureNavigationController: SendMediaNavigationController {
 
     private var cameraFirstCaptureSendFlow: CameraFirstCaptureSendFlow!
 
-    @objc
-    class func cameraFirstModal(storiesOnly: Bool = false, delegate: CameraFirstCaptureDelegate?) -> CameraFirstCaptureNavigationController {
+    class func cameraFirstModal(storiesOnly: Bool = false, delegate: CameraFirstCaptureDelegate) -> CameraFirstCaptureNavigationController {
         let navController = CameraFirstCaptureNavigationController()
         navController.setViewControllers([navController.captureViewController], animated: false)
 
@@ -71,21 +71,6 @@ class SendMediaNavigationController: OWSNavigationController {
 
     override var childForStatusBarStyle: UIViewController? {
         topViewController
-    }
-
-    override func viewDidAppear(_ animated: Bool) {
-        super.viewDidAppear(animated)
-        DispatchQueue.main.async {
-            // Pre-layout views for snappier response should the user decide to switch.
-
-            if PHPhotoLibrary.authorizationStatus() == .authorized {
-                self.mediaLibraryViewController.view.layoutIfNeeded()
-            }
-
-            if AVCaptureDevice.authorizationStatus(for: .video) == .authorized {
-                self.captureViewController.view.layoutIfNeeded()
-            }
-        }
     }
 
     // MARK: -
@@ -187,7 +172,8 @@ class SendMediaNavigationController: OWSNavigationController {
         let approvalViewController = AttachmentApprovalViewController(options: options, attachmentApprovalItems: attachmentApprovalItems)
         approvalViewController.approvalDelegate = self
         approvalViewController.approvalDataSource = self
-        approvalViewController.messageBody = sendMediaNavDataSource.sendMediaNavInitialMessageBody(self)
+        let messageBody = sendMediaNavDataSource.sendMediaNavInitialMessageBody(self)
+        approvalViewController.setMessageBody(messageBody, txProvider: DependenciesBridge.shared.db.readTxProvider)
 
         if animated {
             fadeTo(viewControllers: viewControllers + [approvalViewController], duration: 0.3)
@@ -202,7 +188,7 @@ class SendMediaNavigationController: OWSNavigationController {
         } else {
             let alert = ActionSheetController(title: nil, message: nil, theme: .translucentDark)
 
-            let confirmAbandonText = NSLocalizedString("SEND_MEDIA_CONFIRM_ABANDON_ALBUM",
+            let confirmAbandonText = OWSLocalizedString("SEND_MEDIA_CONFIRM_ABANDON_ALBUM",
                                                        comment: "alert action, confirming the user wants to exit the media flow and abandon any photos they've taken")
             let confirmAbandonAction = ActionSheetAction(title: confirmAbandonText,
                                                          style: .destructive,
@@ -226,7 +212,7 @@ extension SendMediaNavigationController {
     // MARK: - Too Many
 
     func showTooManySelectedToast() {
-        let toastFormat = NSLocalizedString("IMAGE_PICKER_CAN_SELECT_NO_MORE_TOAST_%d", tableName: "PluralAware",
+        let toastFormat = OWSLocalizedString("IMAGE_PICKER_CAN_SELECT_NO_MORE_TOAST_%d", tableName: "PluralAware",
                                             comment: "Momentarily shown to the user when attempting to select more images than is allowed. Embeds {{max number of items}} that can be shared.")
 
         let toastText = String.localizedStringWithFormat(toastFormat, SignalAttachment.maxAttachmentsAllowed)
@@ -251,7 +237,7 @@ extension SendMediaNavigationController: PhotoCaptureViewControllerDelegate {
     }
 
     func photoCaptureViewControllerDidCancel(_ photoCaptureViewController: PhotoCaptureViewController) {
-        let dontAbandonText = NSLocalizedString("SEND_MEDIA_RETURN_TO_CAMERA", comment: "alert action when the user decides not to cancel the media flow after all.")
+        let dontAbandonText = OWSLocalizedString("SEND_MEDIA_RETURN_TO_CAMERA", comment: "alert action when the user decides not to cancel the media flow after all.")
         didRequestExit(dontAbandonText: dontAbandonText)
     }
 
@@ -302,11 +288,11 @@ extension SendMediaNavigationController: PhotoCaptureViewControllerDelegate {
             return
         }
         // Ask to delete all existing media attachments.
-        let title = NSLocalizedString("SEND_MEDIA_TURN_OFF_MM_TITLE",
+        let title = OWSLocalizedString("SEND_MEDIA_TURN_OFF_MM_TITLE",
                                       comment: "In-app camera: title for the prompt to turn off multi-mode that will cause previously taken photos to be discarded.")
-        let message = NSLocalizedString("SEND_MEDIA_TURN_OFF_MM_MESSAGE",
+        let message = OWSLocalizedString("SEND_MEDIA_TURN_OFF_MM_MESSAGE",
                                         comment: "In-app camera: message for the prompt to turn off multi-mode that will cause previously taken photos to be discarded.")
-        let buttonTitle = NSLocalizedString("SEND_MEDIA_TURN_OFF_MM_BUTTON",
+        let buttonTitle = OWSLocalizedString("SEND_MEDIA_TURN_OFF_MM_BUTTON",
                                             comment: "In-app camera: confirmation button in the prompt to turn off multi-mode.")
         let actionSheet = ActionSheetController(title: title, message: message, theme: .translucentDark)
         actionSheet.addAction(ActionSheetAction(title: buttonTitle, style: .destructive) { _ in
@@ -338,7 +324,7 @@ extension SendMediaNavigationController: PhotoCaptureViewControllerDataSource {
 
 extension SendMediaNavigationController: ImagePickerGridControllerDelegate {
 
-    func imagePickerDidRequestSendMedia(_ imagePicker: ImagePickerGridController) {
+    func imagePickerDidComplete(_ imagePicker: ImagePickerGridController) {
         if let navigationController = presentedViewController as? OWSNavigationController,
            navigationController.viewControllers.contains(imagePicker) {
             dismiss(animated: true) {
@@ -364,15 +350,15 @@ extension SendMediaNavigationController: ImagePickerGridControllerDelegate {
     func showApprovalAfterProcessingAnyMediaLibrarySelections() {
         let backgroundBlock: (ModalActivityIndicatorViewController) -> Void = { modal in
             let approvalItemsPromise: Promise<[AttachmentApprovalItem]> = Promise.when(fulfilled: self.attachmentDraftCollection.attachmentApprovalItemPromises)
-            firstly { () -> Promise<Swift.Result<[AttachmentApprovalItem], Error>> in
+            firstly { () -> Promise<Result<[AttachmentApprovalItem], Error>> in
                 return Promise.race(
-                    approvalItemsPromise.map { attachmentApprovalItems -> Swift.Result<[AttachmentApprovalItem], Error> in
-                        Swift.Result.success(attachmentApprovalItems)
+                    approvalItemsPromise.map { attachmentApprovalItems -> Result<[AttachmentApprovalItem], Error> in
+                        .success(attachmentApprovalItems)
                     },
-                    modal.wasCancelledPromise.map { _ -> Swift.Result<[AttachmentApprovalItem], Error> in
-                        Swift.Result.failure(OWSGenericError("Modal was cancelled."))
+                    modal.wasCancelledPromise.map { _ -> Result<[AttachmentApprovalItem], Error> in
+                        .failure(OWSGenericError("Modal was cancelled."))
                     })
-            }.map { (result: Swift.Result<[AttachmentApprovalItem], Error>) in
+            }.map { (result: Result<[AttachmentApprovalItem], Error>) in
                 modal.dismiss {
                     switch result {
                     case .success(let attachmentApprovalItems):
@@ -386,7 +372,7 @@ extension SendMediaNavigationController: ImagePickerGridControllerDelegate {
             }.catch { error in
                 Logger.error("failed to prepare attachments. error: \(error)")
                 modal.dismiss {
-                    OWSActionSheets.showActionSheet(title: NSLocalizedString("IMAGE_PICKER_FAILED_TO_PROCESS_ATTACHMENTS", comment: "alert title"))
+                    OWSActionSheets.showActionSheet(title: OWSLocalizedString("IMAGE_PICKER_FAILED_TO_PROCESS_ATTACHMENTS", comment: "alert title"))
                 }
             }
         }
@@ -479,8 +465,12 @@ extension SendMediaNavigationController: AttachmentApprovalViewControllerDataSou
         sendMediaNavDataSource?.sendMediaNavRecipientNames ?? []
     }
 
-    var attachmentApprovalMentionableAddresses: [SignalServiceAddress] {
-        sendMediaNavDataSource?.sendMediaNavMentionableAddresses ?? []
+    func attachmentApprovalMentionableAddresses(tx: DBReadTransaction) -> [SignalServiceAddress] {
+        sendMediaNavDataSource?.sendMediaNavMentionableAddresses(tx: tx) ?? []
+    }
+
+    func attachmentApprovalMentionCacheInvalidationKey() -> String {
+        sendMediaNavDataSource?.sendMediaNavMentionCacheInvalidationKey() ?? UUID().uuidString
     }
 }
 

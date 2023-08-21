@@ -3,12 +3,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalUI
 
-@objc(OWSJoinGroupCallPill)
 class JoinGroupCallPill: UIControl {
 
-    @objc
     public var buttonText: String? {
         get { return callLabel.text }
         set {
@@ -22,14 +20,14 @@ class JoinGroupCallPill: UIControl {
 
     private let callImageView: UIImageView = {
         let imageView = UIImageView()
-        imageView.setTemplateImageName("video-solid-24", tintColor: .ows_white)
+        imageView.setTemplateImageName("video-fill", tintColor: .ows_white)
         imageView.isUserInteractionEnabled = false
         return imageView
     }()
 
     private let callLabel: UILabel = {
         let label = UILabel()
-        label.font = UIFont.ows_dynamicTypeSubheadlineClamped.ows_semibold
+        label.font = UIFont.dynamicTypeSubheadlineClamped.semibold()
         label.isUserInteractionEnabled = false
         return label
     }()
@@ -74,7 +72,7 @@ class JoinGroupCallPill: UIControl {
         backgroundPill.autoPinEdgesToSuperviewEdges()
         dimmingView.autoPinEdgesToSuperviewEdges()
 
-        NotificationCenter.default.addObserver(self, selector: #selector(themeDidChange), name: .ThemeDidChange, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(themeDidChange), name: .themeDidChange, object: nil)
         applyStyle()
     }
 
@@ -87,7 +85,7 @@ class JoinGroupCallPill: UIControl {
     }
 
     @objc
-    func themeDidChange() {
+    private func themeDidChange() {
         applyStyle()
     }
 

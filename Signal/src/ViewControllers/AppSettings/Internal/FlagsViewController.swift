@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalServiceKit
+import SignalUI
 
-@objc
 class FlagsViewController: OWSTableViewController2 {
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -18,9 +18,9 @@ class FlagsViewController: OWSTableViewController2 {
     func updateTableContents() {
         let contents = OWSTableContents()
 
-        contents.addSection(buildSection(title: "Remote Config", flagMap: RemoteConfig.allFlags()))
-        contents.addSection(buildSection(title: "Feature Flags", flagMap: FeatureFlags.allFlags()))
-        contents.addSection(buildSection(title: "Debug Flags", flagMap: DebugFlags.allFlags()))
+        contents.add(buildSection(title: "Remote Config", flagMap: RemoteConfig.allFlags()))
+        contents.add(buildSection(title: "Feature Flags", flagMap: FeatureFlags.allFlags()))
+        contents.add(buildSection(title: "Debug Flags", flagMap: DebugFlags.allFlags()))
 
         self.contents = contents
     }

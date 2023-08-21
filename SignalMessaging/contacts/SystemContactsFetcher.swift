@@ -14,8 +14,7 @@ enum Result<T, ErrorType> {
 }
 
 protocol ContactStoreAdaptee {
-    var authorizationStatus: ContactStoreAuthorizationStatus { get }
-    var supportsContactEditing: Bool { get }
+    var rawAuthorizationStatus: RawContactAuthorizationStatus { get }
     func requestAccess(completionHandler: @escaping (Bool, Error?) -> Void)
     func fetchContacts() -> Result<[Contact], Error>
     func fetchCNContact(contactId: String) -> CNContact?
@@ -29,8 +28,6 @@ class ContactsFrameworkContactStoreAdaptee: NSObject, ContactStoreAdaptee {
     private var changeHandler: (() -> Void)?
     private var initializedObserver = false
     private var lastSortOrder: CNContactSortOrder?
-
-    let supportsContactEditing = true
 
     private static let minimalContactKeys: [CNKeyDescriptor] = [
         CNContactFormatter.descriptorForRequiredKeys(for: .fullName),
@@ -53,8 +50,8 @@ class ContactsFrameworkContactStoreAdaptee: NSObject, ContactStoreAdaptee {
         }
     }
 
-    var authorizationStatus: ContactStoreAuthorizationStatus {
-        let authorizationStatus = CNContactStore.authorizationStatus(for: CNEntityType.contacts)
+    var rawAuthorizationStatus: RawContactAuthorizationStatus {
+        let authorizationStatus = CNContactStore.authorizationStatus(for: .contacts)
         switch authorizationStatus {
         case .notDetermined:
             return .notDetermined
@@ -80,7 +77,7 @@ class ContactsFrameworkContactStoreAdaptee: NSObject, ContactStoreAdaptee {
     }
 
     @objc
-    func didBecomeActive() {
+    private func didBecomeActive() {
         AppReadiness.runNowOrWhenAppDidBecomeReadyAsync {
             let currentSortOrder = CNContactsUserDefaults.shared().sortOrder
 
@@ -96,7 +93,7 @@ class ContactsFrameworkContactStoreAdaptee: NSObject, ContactStoreAdaptee {
     }
 
     @objc
-    func runChangeHandler() {
+    private func runChangeHandler() {
         guard let changeHandler = self.changeHandler else {
             owsFailDebug("trying to run change handler before it was registered")
             return
@@ -160,23 +157,22 @@ class ContactsFrameworkContactStoreAdaptee: NSObject, ContactStoreAdaptee {
 }
 
 @objc
-public enum ContactStoreAuthorizationStatus: UInt {
-    case notDetermined,
-         restricted,
-         denied,
-         authorized
-}
-
-@objc
 public protocol SystemContactsFetcherDelegate: AnyObject {
-    func systemContactsFetcher(_ systemContactsFetcher: SystemContactsFetcher, updatedContacts contacts: [Contact], isUserRequested: Bool)
-    func systemContactsFetcher(_ systemContactsFetcher: SystemContactsFetcher, hasAuthorizationStatus authorizationStatus: ContactStoreAuthorizationStatus)
+    func systemContactsFetcher(
+        _ systemContactsFetcher: SystemContactsFetcher,
+        updatedContacts contacts: [Contact],
+        isUserRequested: Bool
+    )
+    func systemContactsFetcher(
+        _ systemContactsFetcher: SystemContactsFetcher,
+        hasAuthorizationStatus authorizationStatus: RawContactAuthorizationStatus
+    )
 }
 
 @objc
 public class SystemContactsFetcher: NSObject {
 
-    private let serialQueue = DispatchQueue(label: "SystemContactsFetcherQueue")
+    private let serialQueue = DispatchQueue(label: "org.signal.contacts.system-fetcher")
 
     var lastContactUpdateHash: Int?
     var lastDelegateNotificationDate: Date?
@@ -185,26 +181,11 @@ public class SystemContactsFetcher: NSObject {
     @objc
     public weak var delegate: SystemContactsFetcherDelegate?
 
-    public var authorizationStatus: ContactStoreAuthorizationStatus {
-        return contactStoreAdapter.authorizationStatus
+    @objc
+    public var rawAuthorizationStatus: RawContactAuthorizationStatus {
+        return contactStoreAdapter.rawAuthorizationStatus
     }
 
-    @objc
-    public var isAuthorized: Bool {
-        guard self.authorizationStatus != .notDetermined else {
-            owsFailDebug("should have called `requestOnce` before checking authorization status.")
-            return false
-        }
-
-        return self.authorizationStatus == .authorized
-    }
-
-    @objc
-    public var isDenied: Bool {
-        return self.authorizationStatus == .denied
-    }
-
-    @objc
     public private(set) var systemContactsHaveBeenRequestedAtLeastOnce = false
     private var hasSetupObservation = false
 
@@ -215,11 +196,6 @@ public class SystemContactsFetcher: NSObject {
         super.init()
 
         SwiftSingletons.register(self)
-    }
-
-    @objc
-    public var supportsContactEditing: Bool {
-        return self.contactStoreAdapter.supportsContactEditing
     }
 
     private func setupObservationIfNecessary() {
@@ -263,7 +239,7 @@ public class SystemContactsFetcher: NSObject {
         }
         setupObservationIfNecessary()
 
-        switch authorizationStatus {
+        switch rawAuthorizationStatus {
         case .notDetermined:
             if CurrentAppContext().isInBackground() {
                 Logger.error("do not request contacts permission when app is in background")
@@ -291,8 +267,8 @@ public class SystemContactsFetcher: NSObject {
         case .authorized:
             self.updateContacts(completion: completion)
         case .denied, .restricted:
-            Logger.debug("contacts were \(self.authorizationStatus)")
-            self.delegate?.systemContactsFetcher(self, hasAuthorizationStatus: authorizationStatus)
+            Logger.debug("contacts were \(rawAuthorizationStatus)")
+            self.delegate?.systemContactsFetcher(self, hasAuthorizationStatus: rawAuthorizationStatus)
             completion(nil)
         }
     }
@@ -305,15 +281,15 @@ public class SystemContactsFetcher: NSObject {
             Logger.info("Skipping contacts fetch in NSE.")
             return
         }
-        guard authorizationStatus == .authorized else {
-            self.delegate?.systemContactsFetcher(self, hasAuthorizationStatus: authorizationStatus)
+        guard rawAuthorizationStatus == .authorized else {
+            self.delegate?.systemContactsFetcher(self, hasAuthorizationStatus: rawAuthorizationStatus)
             return
         }
         guard !systemContactsHaveBeenRequestedAtLeastOnce else {
             return
         }
 
-        updateContacts(completion: nil, isUserRequested: false)
+        updateContacts(isUserRequested: false, completion: nil)
     }
 
     @objc
@@ -325,17 +301,16 @@ public class SystemContactsFetcher: NSObject {
             completion(error)
             return
         }
-        guard authorizationStatus == .authorized else {
+        guard rawAuthorizationStatus == .authorized else {
             owsFailDebug("should have already requested contact access")
-            self.delegate?.systemContactsFetcher(self, hasAuthorizationStatus: authorizationStatus)
+            self.delegate?.systemContactsFetcher(self, hasAuthorizationStatus: rawAuthorizationStatus)
             completion(nil)
             return
         }
 
-        updateContacts(completion: completion, isUserRequested: true)
+        updateContacts(isUserRequested: true, completion: completion)
     }
 
-    @objc
     public func refreshAfterContactsChange() {
         AssertIsOnMainThread()
 
@@ -343,16 +318,19 @@ public class SystemContactsFetcher: NSObject {
             Logger.info("Skipping contacts fetch in NSE.")
             return
         }
-        guard authorizationStatus == .authorized else {
+        guard rawAuthorizationStatus == .authorized else {
             Logger.info("ignoring contacts change; no access.")
-            self.delegate?.systemContactsFetcher(self, hasAuthorizationStatus: authorizationStatus)
+            self.delegate?.systemContactsFetcher(self, hasAuthorizationStatus: rawAuthorizationStatus)
             return
         }
 
-        updateContacts(completion: nil, isUserRequested: false)
+        updateContacts(isUserRequested: false, completion: nil)
     }
 
-    private func updateContacts(completion completionParam: ((Error?) -> Void)?, isUserRequested: Bool = false) {
+    private func updateContacts(
+        isUserRequested: Bool = false,
+        completion completionParam: ((Error?) -> Void)?
+    ) {
         AssertIsOnMainThread()
 
         guard !CurrentAppContext().isNSE else {
@@ -454,7 +432,7 @@ public class SystemContactsFetcher: NSObject {
 
     @objc
     public func fetchCNContact(contactId: String) -> CNContact? {
-        guard authorizationStatus == .authorized else {
+        guard rawAuthorizationStatus == .authorized else {
             Logger.error("contact fetch failed; no access.")
             return nil
         }

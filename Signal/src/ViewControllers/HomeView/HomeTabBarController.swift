@@ -17,17 +17,18 @@ class HomeTabBarController: UITabBarController {
     lazy var chatListViewController = ChatListViewController()
     lazy var chatListNavController = OWSNavigationController(rootViewController: chatListViewController)
     lazy var chatListTabBarItem = UITabBarItem(
-        title: NSLocalizedString("CHAT_LIST_TITLE_INBOX", comment: "Title for the chat list's default mode."),
-        image: UIImage(named: "chats-tab-bar"),
-        selectedImage: UIImage(named: "chats-tab-bar")
+        title: OWSLocalizedString("CHAT_LIST_TITLE_INBOX", comment: "Title for the chat list's default mode."),
+        image: UIImage(imageLiteralResourceName: "tab-chats"),
+        selectedImage: UIImage(named: "tab-chats")
     )
 
-    lazy var storiesViewController = StoriesViewController()
+    // No need to share spoiler render state across the whole app.
+    lazy var storiesViewController = StoriesViewController(spoilerState: SpoilerRenderState())
     lazy var storiesNavController = OWSNavigationController(rootViewController: storiesViewController)
     lazy var storiesTabBarItem = UITabBarItem(
-        title: NSLocalizedString("STORIES_TITLE", comment: "Title for the stories view."),
-        image: UIImage(named: "stories-tab-bar"),
-        selectedImage: UIImage(named: "stories-tab-bar")
+        title: OWSLocalizedString("STORIES_TITLE", comment: "Title for the stories view."),
+        image: UIImage(named: "tab-stories"),
+        selectedImage: UIImage(named: "tab-stories")
     )
 
     var selectedTab: Tabs {
@@ -57,18 +58,16 @@ class HomeTabBarController: UITabBarController {
         }
 
         NotificationCenter.default.addObserver(self, selector: #selector(storiesEnabledStateDidChange), name: .storiesEnabledStateDidChange, object: nil)
-        NotificationCenter.default.addObserver(self, selector: #selector(applyTheme), name: .ThemeDidChange, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(applyTheme), name: .themeDidChange, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(didEnterForeground), name: .OWSApplicationWillEnterForeground, object: nil)
         applyTheme()
-
-        databaseStorage.appendDatabaseChangeDelegate(self)
 
         viewControllers = [chatListNavController, storiesNavController]
 
         chatListNavController.tabBarItem = chatListTabBarItem
         storiesNavController.tabBarItem = storiesTabBarItem
 
-        updateChatListBadge()
+        AppEnvironment.shared.badgeManager.addObserver(self)
         storyBadgeCountManager.beginObserving(observer: self)
 
         // We read directly from the database here, as the cache may not have been warmed by the time
@@ -79,19 +78,19 @@ class HomeTabBarController: UITabBarController {
     }
 
     @objc
-    func didEnterForeground() {
+    private func didEnterForeground() {
         if selectedTab == .stories {
             storyBadgeCountManager.markAllStoriesRead()
         }
     }
 
     @objc
-    func applyTheme() {
+    private func applyTheme() {
         tabBar.tintColor = Theme.primaryTextColor
     }
 
     @objc
-    func storiesEnabledStateDidChange() {
+    private func storiesEnabledStateDidChange() {
         if StoryManager.areStoriesEnabled {
             setTabBarHidden(false, animated: false)
         } else {
@@ -101,14 +100,6 @@ class HomeTabBarController: UITabBarController {
             selectedTab = .chatList
             setTabBarHidden(true, animated: false)
         }
-    }
-
-    func updateChatListBadge() {
-        guard RemoteConfig.stories else { return }
-        let unreadMessageCount = databaseStorage.read { transaction in
-            InteractionFinder.unreadCountInAllThreads(transaction: transaction.unwrapGrdbRead)
-        }
-        chatListTabBarItem.badgeValue = unreadMessageCount > 0 ? "\(unreadMessageCount)" : nil
     }
 
     // MARK: - Hiding the tab bar
@@ -173,19 +164,9 @@ class HomeTabBarController: UITabBarController {
     }
 }
 
-extension HomeTabBarController: DatabaseChangeDelegate {
-    func databaseChangesDidUpdate(databaseChanges: DatabaseChanges) {
-        if databaseChanges.didUpdateInteractions || databaseChanges.didUpdateModel(collection: String(describing: ThreadAssociatedData.self)) {
-            updateChatListBadge()
-        }
-    }
-
-    func databaseChangesDidUpdateExternally() {
-        updateChatListBadge()
-    }
-
-    func databaseChangesDidReset() {
-        updateChatListBadge()
+extension HomeTabBarController: BadgeObserver {
+    func didUpdateBadgeValue(_ badgeManager: BadgeManager, badgeValue: UInt) {
+        chatListTabBarItem.badgeValue = badgeValue > 0 ? "\(badgeValue)" : nil
     }
 }
 
@@ -246,10 +227,8 @@ extension HomeTabBarController: UITabBarControllerDelegate {
     }
 }
 
-@objc
 public class OWSTabBar: UITabBar {
 
-    @objc
     public var fullWidth: CGFloat {
         return superview?.frame.width ?? .zero
     }
@@ -258,7 +237,6 @@ public class OWSTabBar: UITabBar {
         fatalError("init(coder:) has not been implemented")
     }
 
-    @objc
     public static let backgroundBlurMutingFactor: CGFloat = 0.5
     var blurEffectView: UIVisualEffectView?
 
@@ -267,7 +245,7 @@ public class OWSTabBar: UITabBar {
 
         NotificationCenter.default.addObserver(self,
                                                selector: #selector(themeDidChange),
-                                               name: .ThemeDidChange,
+                                               name: .themeDidChange,
                                                object: nil)
     }
 
@@ -339,11 +317,10 @@ public class OWSTabBar: UITabBar {
     }
 
     @objc
-    public func themeDidChange() {
+    private func themeDidChange() {
         applyTheme()
     }
 
-    @objc
     public var respectsTheme: Bool = true {
         didSet {
             themeDidChange()
@@ -352,14 +329,12 @@ public class OWSTabBar: UITabBar {
 
     // MARK: Override Theme
 
-    @objc
     public enum TabBarStyle: Int {
         case `default`
     }
 
     private var currentStyle: TabBarStyle?
 
-    @objc
     public func switchToStyle(_ style: TabBarStyle, animated: Bool = false) {
         AssertIsOnMainThread()
 

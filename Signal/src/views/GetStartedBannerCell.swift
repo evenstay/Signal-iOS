@@ -3,7 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalCoreKit
+import SignalUI
 
 enum GetStartedBannerEntry: String, CaseIterable {
     case newGroup
@@ -31,14 +32,14 @@ class GetStartedBannerCell: UICollectionViewCell {
     }()
 
     private let closeButton: OWSButton = {
-        let button = OWSButton(imageName: "x-16", tintColor: .ows_white)
+        let button = OWSButton(imageName: "x-compact", tintColor: .ows_white)
         button.backgroundColor = .ows_gray40
         return button
     }()
 
     private let actionButton: OWSButton = {
         let button = OWSButton()
-        button.titleLabel?.font = UIFont.ows_dynamicTypeSubheadlineClamped.ows_semibold
+        button.titleLabel?.font = UIFont.dynamicTypeSubheadlineClamped.semibold()
         button.titleLabel?.adjustsFontForContentSizeCategory = true
         button.titleLabel?.lineBreakMode = .byTruncatingTail
 
@@ -101,7 +102,7 @@ class GetStartedBannerCell: UICollectionViewCell {
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(applyTheme),
-            name: .ThemeDidChange,
+            name: .themeDidChange,
             object: nil)
 
         applyTheme()
@@ -122,7 +123,7 @@ class GetStartedBannerCell: UICollectionViewCell {
     }
 
     @objc
-    func applyTheme() {
+    private func applyTheme() {
         let titleColor: UIColor = Theme.isDarkThemeEnabled ? .ows_gray05 : .ows_accentBlue
         actionButton.setTitleColor(titleColor, for: .normal)
 
@@ -148,13 +149,13 @@ private extension GetStartedBannerEntry {
     var buttonText: String {
         switch self {
         case .newGroup:
-            return NSLocalizedString("GET_STARTED_CARD_NEW_GROUP", comment: "'Get Started' button directing users to create a group")
+            return OWSLocalizedString("GET_STARTED_CARD_NEW_GROUP", comment: "'Get Started' button directing users to create a group")
         case .inviteFriends:
-            return NSLocalizedString("GET_STARTED_CARD_INVITE_FRIENDS", comment: "'Get Started' button directing users to invite friends")
+            return OWSLocalizedString("GET_STARTED_CARD_INVITE_FRIENDS", comment: "'Get Started' button directing users to invite friends")
         case .appearance:
-            return NSLocalizedString("GET_STARTED_CARD_APPEARANCE", comment: "'Get Started' button directing users to appearance")
+            return OWSLocalizedString("GET_STARTED_CARD_APPEARANCE", comment: "'Get Started' button directing users to appearance")
         case .avatarBuilder:
-            return NSLocalizedString("GET_STARTED_CARD_AVATAR_BUILDER", comment: "'Get Started' button direction users to avatar builder")
+            return OWSLocalizedString("GET_STARTED_CARD_AVATAR_BUILDER", comment: "'Get Started' button direction users to avatar builder")
         }
     }
 }

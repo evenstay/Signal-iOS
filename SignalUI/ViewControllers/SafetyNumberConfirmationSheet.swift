@@ -7,7 +7,6 @@ import Foundation
 import SignalMessaging
 import SignalServiceKit
 
-@objc
 public class SafetyNumberConfirmationSheet: UIViewController {
     let stackView = UIStackView()
     let contentView = UIView()
@@ -17,10 +16,12 @@ public class SafetyNumberConfirmationSheet: UIViewController {
 
     struct Item {
         let address: SignalServiceAddress
-        let displayName: String?
-        let verificationState: OWSVerificationState?
+        let displayName: String
+        let verificationState: OWSVerificationState
     }
-    var items = [Item]()
+
+    private var confirmationItems: [Item]
+
     let confirmAction: ActionSheetAction
     let cancelAction: ActionSheetAction
     let completionHandler: (Bool) -> Void
@@ -28,43 +29,82 @@ public class SafetyNumberConfirmationSheet: UIViewController {
 
     public let theme: Theme.ActionSheet
 
-    @objc
-    @available(swift, obsoleted: 1.0)
-    public convenience init(addressesToConfirm addresses: [SignalServiceAddress], confirmationText: String, completionHandler: @escaping (Bool) -> Void) {
-        self.init(addressesToConfirm: addresses, confirmationText: confirmationText, completionHandler: completionHandler)
-    }
+    public init(
+        addressesToConfirm: [SignalServiceAddress],
+        confirmationText: String,
+        cancelText: String = CommonStrings.cancelButton,
+        theme: Theme.ActionSheet = .translucentDark,
+        completionHandler: @escaping (Bool) -> Void
+    ) {
+        assert(!addressesToConfirm.isEmpty)
 
-    public init(addressesToConfirm addresses: [SignalServiceAddress],
-                confirmationText: String,
-                cancelText: String = CommonStrings.cancelButton,
-                theme: Theme.ActionSheet = .translucentDark,
-                completionHandler: @escaping (Bool) -> Void) {
+        self.confirmationItems = Self.databaseStorage.read { transaction in
+            Self.buildConfirmationItems(
+                addressesToConfirm: addressesToConfirm,
+                transaction: transaction
+            )
+        }
 
-        assert(!addresses.isEmpty)
         self.confirmAction = ActionSheetAction(title: confirmationText, style: .default)
         self.cancelAction = ActionSheetAction(title: cancelText, style: .cancel)
         self.completionHandler = completionHandler
         self.theme = theme
+
         super.init(nibName: nil, bundle: nil)
+
         modalPresentationStyle = .custom
         transitioningDelegate = self
 
-        SDSDatabaseStorage.shared.read { transaction in
-            self.items = addresses.map {
-                return Item(
-                    address: $0,
-                    displayName: Self.contactsManager.displayName(for: $0, transaction: transaction),
-                    verificationState: Self.identityManager.verificationState(for: $0, transaction: transaction)
-                )
-            }
-        }
+        observeIdentityChangeNotification()
     }
 
     required init?(coder aDecoder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
 
+    fileprivate static func buildConfirmationItems(
+        addressesToConfirm: [SignalServiceAddress],
+        transaction: SDSAnyReadTransaction
+    ) -> [Item] {
+        addressesToConfirm.map { address in
+            return Item(
+                address: address,
+                displayName: contactsManager.displayName(for: address, transaction: transaction),
+                verificationState: identityManager.verificationState(for: address, transaction: transaction)
+            )
+        }
+    }
+
+    // MARK: - Identity change notification
+
+    private func observeIdentityChangeNotification() {
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(identityStateDidChange),
+            name: .identityStateDidChange,
+            object: nil
+        )
+    }
+
+    /// Rebuild our confirmation items and reload the table, to ensure we
+    /// reflect the latest identity state after the user may have verified
+    /// one of the addresses we presented.
     @objc
+    private func identityStateDidChange() {
+        databaseStorage.read { transaction in
+            let addressesToConfirm = confirmationItems.map { $0.address }
+
+            confirmationItems = Self.buildConfirmationItems(
+                addressesToConfirm: addressesToConfirm,
+                transaction: transaction
+            )
+        }
+
+        tableView.reloadData()
+    }
+
+    // MARK: - Present if necessary
+
     public class func presentIfNecessary(address: SignalServiceAddress, confirmationText: String, completion: @escaping (Bool) -> Void) -> Bool {
         return presentIfNecessary(addresses: [address], confirmationText: confirmationText, completion: completion)
     }
@@ -75,7 +115,6 @@ public class SafetyNumberConfirmationSheet: UIViewController {
      * @returns true  if an alert was shown
      *          false if there were no unconfirmed identities
      */
-    @objc
     public class func presentIfNecessary(
         addresses: [SignalServiceAddress],
         confirmationText: String,
@@ -144,7 +183,7 @@ public class SafetyNumberConfirmationSheet: UIViewController {
         titleLabel.textAlignment = .center
         titleLabel.numberOfLines = 0
         titleLabel.lineBreakMode = .byWordWrapping
-        titleLabel.font = UIFont.ows_dynamicTypeBody2.ows_semibold
+        titleLabel.font = UIFont.dynamicTypeBody2.semibold()
         titleLabel.textColor = theme.headerTitleColor
         titleLabel.text = OWSLocalizedString("SAFETY_NUMBER_CONFIRMATION_TITLE",
                                              comment: "Title for the 'safety number confirmation' view")
@@ -153,7 +192,7 @@ public class SafetyNumberConfirmationSheet: UIViewController {
         messageLabel.textAlignment = .center
         messageLabel.numberOfLines = 0
         messageLabel.lineBreakMode = .byWordWrapping
-        messageLabel.font = .ows_dynamicTypeBody2
+        messageLabel.font = .dynamicTypeBody2
         messageLabel.textColor = theme.headerMessageColor
         messageLabel.text = OWSLocalizedString("SAFETY_NUMBER_CONFIRMATION_MESSAGE",
                                                comment: "Message for the 'safety number confirmation' view")
@@ -186,7 +225,7 @@ public class SafetyNumberConfirmationSheet: UIViewController {
         confirmAction.button.releaseAction = { [weak self] in
             guard let self = self else { return }
             let identityManager = self.identityManager
-            let unconfirmedAddresses = self.items.map { $0.address }
+            let unconfirmedAddresses = self.confirmationItems.map { $0.address }
 
             self.databaseStorage.asyncWrite(block: { writeTx in
                 for address in unconfirmedAddresses {
@@ -202,7 +241,8 @@ public class SafetyNumberConfirmationSheet: UIViewController {
                         identityKey: identityKey,
                         address: address,
                         isUserInitiatedChange: true,
-                        transaction: writeTx)
+                        transaction: writeTx
+                    )
                 }
             }, completionQueue: .main) {
                 self.completionHandler(true)
@@ -230,7 +270,7 @@ public class SafetyNumberConfirmationSheet: UIViewController {
     }
 
     @objc
-    func didTapBackdrop(_ sender: UITapGestureRecognizer) {
+    private func didTapBackdrop(_ sender: UITapGestureRecognizer) {
         guard allowsDismissal else { return }
         dismiss(animated: true)
     }
@@ -258,14 +298,14 @@ public class SafetyNumberConfirmationSheet: UIViewController {
     var minimizedHeight: CGFloat {
         // We want to show, at most, 3.5 rows when minimized. When we have
         // less than 4 rows, we will match our size to the number of rows.
-        let compactTableViewHeight = min(CGFloat(items.count), 3.5) * cellHeight
+        let compactTableViewHeight = min(CGFloat(confirmationItems.count), 3.5) * cellHeight
         let preferredMinimizedHeight = baseStackViewHeight + compactTableViewHeight + view.safeAreaInsets.bottom
 
         return min(maximizedHeight, preferredMinimizedHeight)
     }
 
     var maximizedHeight: CGFloat {
-        let tableViewHeight = CGFloat(items.count) * cellHeight
+        let tableViewHeight = CGFloat(confirmationItems.count) * cellHeight
         let preferredMaximizedHeight = baseStackViewHeight + tableViewHeight + view.safeAreaInsets.bottom
         let maxPermittedHeight = CurrentAppContext().frame.height - view.safeAreaInsets.top - 16
 
@@ -331,7 +371,7 @@ public class SafetyNumberConfirmationSheet: UIViewController {
     }
 
     @objc
-    func handlePan(_ sender: UIPanGestureRecognizer) {
+    private func handlePan(_ sender: UIPanGestureRecognizer) {
         switch sender.state {
         case .began, .changed:
             guard beginInteractiveTransitionIfNecessary(sender),
@@ -478,7 +518,7 @@ extension SafetyNumberConfirmationSheet: UITableViewDelegate, UITableViewDataSou
     }
 
     public func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return items.count
+        return confirmationItems.count
     }
 
     public func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
@@ -489,7 +529,7 @@ extension SafetyNumberConfirmationSheet: UITableViewDelegate, UITableViewDataSou
             return cell
         }
 
-        guard let item = items[safe: indexPath.row] else {
+        guard let item = confirmationItems[safe: indexPath.row] else {
             return cell
         }
 
@@ -517,7 +557,7 @@ private class SafetyNumberCell: ContactTableViewCell {
         button.setTitle(
             title: OWSLocalizedString("SAFETY_NUMBER_CONFIRMATION_VIEW_ACTION",
                                       comment: "View safety number action for the 'safety number confirmation' view"),
-            font: UIFont.ows_dynamicTypeBody2.ows_semibold,
+            font: UIFont.dynamicTypeBody2.semibold(),
             titleColor: Theme.ActionSheet.default.safetyNumberChangeButtonTextColor
         )
         button.useDefaultCornerRadius()
@@ -545,19 +585,22 @@ private class SafetyNumberCell: ContactTableViewCell {
             configuration.accessoryView = ContactCellAccessoryView(accessoryView: buttonWrapper,
                                                                    size: buttonSize)
 
-            if let verificationState = item.verificationState, verificationState == .noLongerVerified {
-                let previouslyVerified = NSMutableAttributedString()
-                previouslyVerified.appendTemplatedImage(named: "check-12", font: UIFont.ows_regularFont(withSize: 11))
-                previouslyVerified.append(" ")
-                previouslyVerified.append(
-                    OWSLocalizedString("SAFETY_NUMBER_CONFIRMATION_PREVIOUSLY_VERIFIED",
-                                       comment: "Text explaining that the given contact previously had their safety number verified.")
-                )
-                configuration.attributedSubtitle = previouslyVerified
-            } else if let displayName = item.displayName {
+            switch item.verificationState {
+            case .noLongerVerified:
+                configuration.attributedSubtitle = .prefixedWithCheck(text: OWSLocalizedString(
+                    "SAFETY_NUMBER_CONFIRMATION_PREVIOUSLY_VERIFIED",
+                    comment: "Text explaining that the given contact previously had their safety number verified."
+                ))
+            case .verified:
+                configuration.attributedSubtitle = .prefixedWithCheck(text: OWSLocalizedString(
+                    "SAFETY_NUMBER_CONFIRMATION_VERIFIED",
+                    comment: "Text explaining that the given contact has had their safety number verified."
+                ))
+            case .`default`:
                 if let phoneNumber = item.address.phoneNumber {
                     let formattedPhoneNumber = PhoneNumber.bestEffortLocalizedPhoneNumber(withE164: phoneNumber)
-                    if displayName != formattedPhoneNumber {
+
+                    if item.displayName != formattedPhoneNumber {
                         configuration.attributedSubtitle = NSAttributedString(string: formattedPhoneNumber)
                     }
                 }
@@ -574,6 +617,20 @@ private class SafetyNumberCell: ContactTableViewCell {
         backgroundColor = theme.backgroundColor
         button.setBackgroundColors(upColor: theme.safetyNumberChangeButtonBackgroundColor)
         button.setTitleColor(theme.safetyNumberChangeButtonTextColor)
+    }
+}
+
+private extension NSAttributedString {
+    static func prefixedWithCheck(
+        text: String
+    ) -> NSAttributedString {
+        let string = NSMutableAttributedString()
+
+        string.appendTemplatedImage(named: "check-extra-small", font: UIFont.regularFont(ofSize: 11))
+        string.append(" ")
+        string.append(text)
+
+        return string
     }
 }
 

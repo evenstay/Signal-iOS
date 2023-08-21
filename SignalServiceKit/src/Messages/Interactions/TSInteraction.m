@@ -187,35 +187,16 @@ NSString *NSStringFromOWSInteractionType(OWSInteractionType value)
 
 #pragma mark Thread
 
-- (nullable TSThread *)threadWithSneakyTransaction
+- (nullable TSThread *)threadWithTx:(SDSAnyReadTransaction *)tx
 {
     if (self.uniqueThreadId == nil) {
-        // This might be a true for a few legacy interactions enqueued in
-        // the message sender.  The message sender will handle this case.
-        // Note that this method is not declared as nullable.
-        OWSFailDebug(@"Missing uniqueThreadId.");
+        // This might be true for a few legacy interactions enqueued in the message
+        // sender. The message sender will handle this case.
         return nil;
     }
 
-    __block TSThread *_Nullable thread;
-    [self.databaseStorage readWithBlock:^(SDSAnyReadTransaction *transaction) {
-        thread = [TSThread anyFetchWithUniqueId:self.uniqueThreadId transaction:transaction];
-        OWSAssertDebug(thread);
-    }];
-    return thread;
-}
-
-- (TSThread *)threadWithTransaction:(SDSAnyReadTransaction *)transaction
-{
-    if (self.uniqueThreadId == nil) {
-        // This might be a true for a few legacy interactions enqueued in
-        // the message sender.  The message sender will handle this case.
-        // Note that this method is not declared as nullable.
-        OWSFailDebug(@"Missing uniqueThreadId.");
-        return nil;
-    }
-
-    return [TSThread anyFetchWithUniqueId:self.uniqueThreadId transaction:transaction];
+    // However, it's also possible that the thread doesn't exist.
+    return [TSThread anyFetchWithUniqueId:self.uniqueThreadId transaction:tx];
 }
 
 #pragma mark Date operations
@@ -228,22 +209,6 @@ NSString *NSStringFromOWSInteractionType(OWSInteractionType value)
 - (NSDate *)timestampDate
 {
     return [NSDate ows_dateWithMillisecondsSince1970:self.timestamp];
-}
-
-- (NSComparisonResult)compareForSorting:(TSInteraction *)other
-{
-    OWSAssertDebug(other);
-
-    uint64_t sortId1 = self.sortId;
-    uint64_t sortId2 = other.sortId;
-
-    if (sortId1 > sortId2) {
-        return NSOrderedDescending;
-    } else if (sortId1 < sortId2) {
-        return NSOrderedAscending;
-    } else {
-        return NSOrderedSame;
-    }
 }
 
 - (OWSInteractionType)interactionType
@@ -265,7 +230,7 @@ NSString *NSStringFromOWSInteractionType(OWSInteractionType value)
 {
     [super anyDidInsertWithTransaction:transaction];
 
-    TSThread *fetchedThread = [self threadWithTransaction:transaction];
+    TSThread *fetchedThread = [self threadWithTx:transaction];
     [fetchedThread updateWithInsertedMessage:self transaction:transaction];
 
     // Don't update interactionReadCache; this instance's sortId isn't
@@ -283,7 +248,7 @@ NSString *NSStringFromOWSInteractionType(OWSInteractionType value)
 {
     [super anyDidUpdateWithTransaction:transaction];
 
-    TSThread *fetchedThread = [self threadWithTransaction:transaction];
+    TSThread *fetchedThread = [self threadWithTx:transaction];
     [fetchedThread updateWithUpdatedMessage:self transaction:transaction];
 
     [self.modelReadCaches.interactionReadCache didUpdateInteraction:self transaction:transaction];
@@ -294,11 +259,11 @@ NSString *NSStringFromOWSInteractionType(OWSInteractionType value)
     [super anyDidRemoveWithTransaction:transaction];
 
     if (![transaction shouldIgnoreInteractionUpdatesForThreadUniqueId:self.uniqueThreadId]) {
-        TSThread *fetchedThread = [self threadWithTransaction:transaction];
+        TSThread *fetchedThread = [self threadWithTx:transaction];
         [fetchedThread updateWithRemovedMessage:self transaction:transaction];
     }
 
-    [MessageSendLog deleteAllPayloadsForInteraction:self transaction:transaction];
+    [MessageSendLogObjC deleteAllPayloadsForInteraction:self tx:transaction];
     [self.modelReadCaches.interactionReadCache didRemoveInteraction:self transaction:transaction];
 }
 

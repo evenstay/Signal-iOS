@@ -11,6 +11,7 @@ import SignalMessaging
 let kMaxMessageBodyCharacterCount = 2000
 
 protocol AttachmentTextToolbarDelegate: AnyObject {
+    func attachmentTextToolbarWillBeginEditing(_ attachmentTextToolbar: AttachmentTextToolbar)
     func attachmentTextToolbarDidBeginEditing(_ attachmentTextToolbar: AttachmentTextToolbar)
     func attachmentTextToolbarDidEndEditing(_ attachmentTextToolbar: AttachmentTextToolbar)
     func attachmentTextToolbarDidChange(_ attachmentTextToolbar: AttachmentTextToolbar)
@@ -25,7 +26,7 @@ class AttachmentTextToolbar: UIView {
     weak var delegate: AttachmentTextToolbarDelegate?
 
     // Forward mention-related calls directly to the view controller.
-    weak var mentionTextViewDelegate: MentionTextViewDelegate?
+    weak var mentionTextViewDelegate: BodyRangesTextViewDelegate?
 
     private var isViewOnceEnabled: Bool = false
     func setIsViewOnce(enabled: Bool, animated: Bool) {
@@ -38,19 +39,17 @@ class AttachmentTextToolbar: UIView {
         textView.isFirstResponder
     }
 
-    var messageBody: MessageBody? {
-        get {
-            // Ignore message text if "view-once" is enabled.
-            guard !isViewOnceEnabled else {
-                return nil
-            }
-            return textView.messageBody
+    var messageBodyForSending: MessageBody? {
+        // Ignore message text if "view-once" is enabled.
+        guard !isViewOnceEnabled else {
+            return nil
         }
+        return textView.messageBodyForSending
+    }
 
-        set {
-            textView.messageBody = newValue
-            updateAppearance(animated: false)
-        }
+    func setMessageBody(_ messageBody: MessageBody?, txProvider: EditableMessageBodyTextStorage.ReadTxProvider) {
+        textView.setMessageBody(messageBody, txProvider: txProvider)
+        updateAppearance(animated: false)
     }
 
     // MARK: - Initializers
@@ -152,7 +151,7 @@ class AttachmentTextToolbar: UIView {
     }
 
     private func updateAppearance(animated: Bool) {
-        let hasText = !textView.text.isEmptyOrNil
+        let hasText = !textView.isEmpty
         let isEditing = isEditingText
 
         addMessageButton.setIsHidden(hasText || isEditing || isViewOnceEnabled, animated: animated)
@@ -206,7 +205,7 @@ class AttachmentTextToolbar: UIView {
 
     // MARK: - Subviews
 
-    lazy private(set) var textView: MentionTextView = {
+    lazy private(set) var textView: BodyRangesTextView = {
         let textView = buildTextView()
         textView.returnKeyType = .done
         textView.scrollIndicatorInsets = UIEdgeInsets(top: 5, left: 0, bottom: 5, right: 3)
@@ -218,7 +217,7 @@ class AttachmentTextToolbar: UIView {
 
     private lazy var placeholderTextView: UITextView = {
         let placeholderTextView = buildTextView()
-        placeholderTextView.text = placeholderText
+        placeholderTextView.setMessageBody(.init(text: placeholderText, ranges: .empty), txProvider: databaseStorage.readTxProvider)
         placeholderTextView.isEditable = false
         placeholderTextView.isUserInteractionEnabled = false
         placeholderTextView.textContainer.maximumNumberOfLines = 1
@@ -228,14 +227,13 @@ class AttachmentTextToolbar: UIView {
     }()
 
     private lazy var addMessageButton: UIButton = {
-        let button = OWSButton(title: placeholderText) { [weak self] in
-            guard let self = self else { return }
-            self.didTapAddMessage()
-        }
+        let button = UIButton(type: .custom)
+        button.setTitle(placeholderText, for: .normal)
         button.setTitleColor(.ows_white, for: .normal)
         button.titleLabel?.lineBreakMode = .byTruncatingTail
         button.titleLabel?.textAlignment = .center
-        button.titleLabel?.font = .ows_dynamicTypeBodyClamped
+        button.titleLabel?.font = .dynamicTypeBodyClamped
+        button.addTarget(self, action: #selector(didTapAddMessage), for: .touchDown)
         return button
     }()
 
@@ -246,7 +244,7 @@ class AttachmentTextToolbar: UIView {
         label.lineBreakMode = .byTruncatingTail
         label.textAlignment = .center
         label.textColor = .ows_whiteAlpha50
-        label.font = .ows_dynamicTypeBodyClamped
+        label.font = .dynamicTypeBodyClamped
         return label
     }()
 
@@ -259,7 +257,7 @@ class AttachmentTextToolbar: UIView {
     }()
 
     private lazy var doneButton: UIButton = {
-        let doneButton = OWSButton(imageName: "check-24", tintColor: .white) { [weak self] in
+        let doneButton = OWSButton(imageName: Theme.iconName(.checkmark), tintColor: .white) { [weak self] in
             guard let self = self else { return }
             self.didTapFinishEditing()
         }
@@ -297,12 +295,12 @@ class AttachmentTextToolbar: UIView {
         return wrapperView
     }()
 
-    private func buildTextView() -> MentionTextView {
+    private func buildTextView() -> AttachmentTextView {
         let textView = AttachmentTextView()
         textView.keyboardAppearance = Theme.darkThemeKeyboardAppearance
         textView.backgroundColor = .clear
         textView.tintColor = Theme.darkThemePrimaryColor
-        textView.font = .ows_dynamicTypeBodyClamped
+        textView.font = .dynamicTypeBodyClamped
         textView.textColor = Theme.darkThemePrimaryColor
         return textView
     }
@@ -325,32 +323,38 @@ extension AttachmentTextToolbar {
     }
 }
 
-extension AttachmentTextToolbar: MentionTextViewDelegate {
+extension AttachmentTextToolbar: BodyRangesTextViewDelegate {
 
-    func textViewDidBeginTypingMention(_ textView: MentionTextView) {
+    func textViewDidBeginTypingMention(_ textView: BodyRangesTextView) {
         mentionTextViewDelegate?.textViewDidBeginTypingMention(textView)
     }
 
-    func textViewDidEndTypingMention(_ textView: MentionTextView) {
+    func textViewDidEndTypingMention(_ textView: BodyRangesTextView) {
         mentionTextViewDelegate?.textViewDidEndTypingMention(textView)
     }
 
-    func textViewMentionPickerParentView(_ textView: MentionTextView) -> UIView? {
+    func textViewMentionPickerParentView(_ textView: BodyRangesTextView) -> UIView? {
         return mentionTextViewDelegate?.textViewMentionPickerParentView(textView)
     }
 
-    func textViewMentionPickerReferenceView(_ textView: MentionTextView) -> UIView? {
+    func textViewMentionPickerReferenceView(_ textView: BodyRangesTextView) -> UIView? {
         return mentionTextViewDelegate?.textViewMentionPickerReferenceView(textView)
     }
 
-    func textViewMentionPickerPossibleAddresses(_ textView: MentionTextView) -> [SignalServiceAddress] {
-        return mentionTextViewDelegate?.textViewMentionPickerPossibleAddresses(textView) ?? []
+    func textViewMentionPickerPossibleAddresses(_ textView: BodyRangesTextView, tx: DBReadTransaction) -> [SignalServiceAddress] {
+        return mentionTextViewDelegate?.textViewMentionPickerPossibleAddresses(textView, tx: tx) ?? []
     }
 
-    func textView(_ textView: MentionTextView, didDeleteMention mention: Mention) {}
+    public func textViewDisplayConfiguration(_ textView: BodyRangesTextView) -> HydratedMessageBody.DisplayConfiguration {
+        return .composingAttachment()
+    }
 
-    func textViewMentionStyle(_ textView: MentionTextView) -> Mention.Style {
+    public func mentionPickerStyle(_ textView: BodyRangesTextView) -> MentionPickerStyle {
         return .composingAttachment
+    }
+
+    public func textViewMentionCacheInvalidationKey(_ textView: BodyRangesTextView) -> String {
+        return mentionTextViewDelegate?.textViewMentionCacheInvalidationKey(textView) ?? UUID().uuidString
     }
 }
 
@@ -373,6 +377,8 @@ extension AttachmentTextToolbar: UITextViewDelegate {
     }
 
     public func textViewShouldBeginEditing(_ textView: UITextView) -> Bool {
+        delegate?.attachmentTextToolbarWillBeginEditing(self)
+
         // Putting these lines in `textViewDidBeginEditing` doesn't work.
         textView.textContainer.lineBreakMode = .byWordWrapping
         textView.textContainer.maximumNumberOfLines = 0

@@ -4,17 +4,19 @@
 //
 
 import XCTest
-@testable import SignalServiceKit
-@testable import SignalMessaging
-@testable import Signal
+
 @testable import MobileCoin
+@testable import Signal
+@testable import SignalMessaging
+@testable import SignalServiceKit
+@testable import SignalUI
 
 class PaymentsFormatTest: SignalBaseTest {
 
     override func setUp() {
         super.setUp()
 
-        SSKEnvironment.shared.paymentsHelperRef = PaymentsHelperImpl()
+        SSKEnvironment.shared.setPaymentsHelperForUnitTests(PaymentsHelperImpl())
         SUIEnvironment.shared.paymentsRef = PaymentsImpl()
     }
 

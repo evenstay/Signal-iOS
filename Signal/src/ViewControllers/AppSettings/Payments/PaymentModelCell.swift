@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalCoreKit
 import SignalUI
 
 public class PaymentModelCell: UITableViewCell {
@@ -60,13 +60,13 @@ public class PaymentModelCell: UITableViewCell {
 
         var arrangedSubviews = [UIView]()
 
-        nameLabel.font = .ows_dynamicTypeBodyClamped
+        nameLabel.font = .dynamicTypeBodyClamped
         nameLabel.textColor = Theme.primaryTextColor
 
-        statusLabel.font = .ows_dynamicTypeSubheadlineClamped
+        statusLabel.font = .dynamicTypeSubheadlineClamped
         statusLabel.textColor = Theme.ternaryTextColor
 
-        amountLabel.font = .ows_dynamicTypeBodyClamped
+        amountLabel.font = .dynamicTypeBodyClamped
         amountLabel.textColor = (paymentItem.isIncoming
                                     ? UIColor.ows_accentGreen
                                     : Theme.primaryTextColor)
@@ -124,7 +124,6 @@ public class PaymentModelCell: UITableViewCell {
         accessoryType = .disclosureIndicator
     }
 
-    @objc
     public override func prepareForReuse() {
         super.prepareForReuse()
 

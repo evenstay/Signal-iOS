@@ -125,9 +125,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Желите ли да избришете %1$d ћаскање?</string>
+			<string>Желите ли да избришете ћаскања (%1$d)?</string>
 			<key>other</key>
-			<string>Желите ли да избришете %1$d ћаскања?</string>
+			<string>Желите ли да избришете ћаскања (%1$d)?</string>
 		</dict>
 	</dict>
 	<key>CONVERSATION_DELETE_CONFIRMATION_ALERT_MESSAGES_%d</key>
@@ -264,7 +264,7 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Желите ли да избришете поруке (%1$d)?</string>
+			<string>Желите ли да избришете поруку?</string>
 			<key>other</key>
 			<string>Желите ли да избришете поруке (%1$d)?</string>
 		</dict>
@@ -285,7 +285,7 @@
 			<string>Достигнут је максималан број чланова у групи (%1$d).</string>
 		</dict>
 	</dict>
-	<key>EXPIRATION_WARNING_%d</key>
+	<key>EDIT_MESSAGE_SEND_TOO_MANY_EDITS_ERROR</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
 		<string>%#@text@</string>
@@ -296,9 +296,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Ваша верзија Signal-а истиче за %1$d дан. Додирните овде да ажурирате апликацију на најновију верзију.</string>
+			<string>Број измена које се могу унети у ову поруку: %1$d.</string>
 			<key>other</key>
-			<string>Ваша верзија Signal-а истиче за %1$d дан(а). Додирните овде да ажурирате апликацију на најновију верзију.</string>
+			<string>Број измена које се могу унети у ову поруку: %1$d.</string>
 		</dict>
 	</dict>
 	<key>FORWARD_MESSAGE_FIRST_FORWARD_PROCEED_%d</key>
@@ -315,22 +315,6 @@
 			<string>Пошаљи поруке (%1$d)</string>
 			<key>other</key>
 			<string>Пошаљи поруке (%1$d)</string>
-		</dict>
-	</dict>
-	<key>GROUPS_LEGACY_GROUP_DROPPED_MEMBERS_BANNER_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>%1$d члана није било могуће поново додати у нову групу. Желите ли да додате тог члана сада?</string>
-			<key>other</key>
-			<string>Њих %1$d није било могуће поново додати у нову групу. Желите ли да додате те чланове сада?</string>
 		</dict>
 	</dict>
 	<key>GROUPS_TOO_MANY_MEMBERS_ALERT_MESSAGE_%d</key>
@@ -573,22 +557,6 @@
 			<string>Чланова: %1$d</string>
 		</dict>
 	</dict>
-	<key>GROUP_REMOTE_USER_INVITED_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>%1$d особа је позвана у групу.</string>
-			<key>other</key>
-			<string>Њих %1$d је позвано у групу.</string>
-		</dict>
-	</dict>
 	<key>GROUP_REMOTE_USER_INVITED_BY_REMOTE_USER_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -669,38 +637,6 @@
 			<string>Групна прича · Гледалаца: %1$d</string>
 		</dict>
 	</dict>
-	<key>GROUP_WAS_MIGRATED_USERS_DROPPED_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>%1$d члана није било могуће додати у нову групу и тај члан је уклоњен из групе.</string>
-			<key>other</key>
-			<string>Њих %1$d није било могуће додати у нову групу и ти чланови су уклоњени из групе.</string>
-		</dict>
-	</dict>
-	<key>GROUP_WAS_MIGRATED_USERS_INVITED_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>%1$d члана није било могуће додати у нову групу и тај члан је добио позивницу да се придружи.</string>
-			<key>other</key>
-			<string>Њих %1$d није било могуће додати у нову групу и ти чланови су добили позивницу да се придруже.</string>
-		</dict>
-	</dict>
 	<key>IMAGE_PICKER_CAN_SELECT_NO_MORE_TOAST_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -733,7 +669,7 @@
 			<string>Заједничких група: %1$d</string>
 		</dict>
 	</dict>
-	<key>MEDIA_GALLERY_DELETE_MESSAGES_%d</key>
+	<key>MEDIA_GALLERY_DELETE_MEDIA_TITLE</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
 		<string>%#@text@</string>
@@ -744,9 +680,25 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Избриши поруке (%1$d)</string>
+			<string>Желите ли да избришете ставке (%1$d)?</string>
 			<key>other</key>
-			<string>Избриши поруке (%1$d)</string>
+			<string>Желите ли да избришете ставке (%1$d)?</string>
+		</dict>
+	</dict>
+	<key>MEDIA_GALLERY_DELETE_MEDIA_TOAST</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Избрисаних ставки: %1$d</string>
+			<key>other</key>
+			<string>Избрисаних ставки: %1$d</string>
 		</dict>
 	</dict>
 	<key>MEDIA_GALLERY_ITEM_IMAGE_COUNT_%d</key>
@@ -781,6 +733,22 @@
 			<string>Ставки: %1$d</string>
 		</dict>
 	</dict>
+	<key>MEDIA_PAGE_FORWARD_MEDIA_CONFIRM_TITLE_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Проследи %1$d</string>
+			<key>other</key>
+			<string>Проследи %1$d</string>
+		</dict>
+	</dict>
 	<key>MESSAGES_VIEW_GROUP_N_MEMBERS_BLOCKED_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -794,7 +762,7 @@
 			<key>one</key>
 			<string>Блокирали сте %1$d члана ове групе</string>
 			<key>other</key>
-			<string>Блокирали сте њих %1$d у групи</string>
+			<string>Блокирали сте њих %1$d у овој групи</string>
 		</dict>
 	</dict>
 	<key>MESSAGE_ACTIONS_TOOLBAR_CAPTION_%d</key>
@@ -941,22 +909,6 @@
 			<string>Гледалаца: %1$d</string>
 		</dict>
 	</dict>
-	<key>ONBOARDING_2FA_INVALID_PIN_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@caption@</string>
-		<key>caption</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>Нетачан PIN. Преосталих покушаја: %1$d</string>
-			<key>other</key>
-			<string>Нетачан PIN. Преосталих покушаја: %1$d</string>
-		</dict>
-	</dict>
 	<key>PENDING_GROUP_MEMBERS_MEMBER_INVITED_USERS_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -1053,36 +1005,20 @@
 			<string>Прича · Гледалаца: %1$d</string>
 		</dict>
 	</dict>
-	<key>REGISTER_2FA_INVALID_PIN_ALERT_MESSAGE_%d</key>
+	<key>REREGISTER_INVALID_PIN_ATTEMPT_COUNT_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@caption@</string>
-		<key>caption</key>
+		<string>%#@text@</string>
+		<key>text</key>
 		<dict>
 			<key>NSStringFormatSpecTypeKey</key>
 			<string>NSStringPluralRuleType</string>
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Преостао вам је још %1$d покушај. Ако искористите све покушаје, мораћете да креирате нови PIN. Можете да региструјете и користите свој налог, али изгубићете неке сачуване поставке као што су ваши подаци на профилу.</string>
+			<string>Број покушаја који вам је преостао је %1$d</string>
 			<key>other</key>
-			<string>Преостало вам је још %1$d покушаја. Ако искористите све покушаје, мораћете да креирате нови PIN. Можете да региструјете и користите свој налог, али изгубићете неке сачуване поставке, као што су ваши подаци на профилу.</string>
-		</dict>
-	</dict>
-	<key>REGISTER_2FA_INVALID_PIN_ALERT_MESSAGE_REGLOCK_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@caption@</string>
-		<key>caption</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>Преостао вам је још %1$d покушај. Ако искористите све покушаје, налог ће вам бити закључан. Након 7 дана неактивности моћи ћете поново да се региструјете без PIN-а. Налог ће вам бити избрисан, као и сав његов садржај.</string>
-			<key>other</key>
-			<string>Преостало вам је још %1$d покушаја. Ако искористите све покушаје, налог ће вам бити закључан. Након 7 дана неактивности моћи ћете поново да се региструјете без PIN-а. Налог ће вам бити избрисан, као и сав његов садржај.</string>
+			<string>Број покушаја који вам је преостао је %1$d</string>
 		</dict>
 	</dict>
 	<key>STORIES_SHARESHEET_PARTIAL_SEND_SUBTITLE_%d</key>

@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
+import LibSignalClient
 import PassKit
 import QuickLook
 import SignalMessaging
@@ -16,6 +17,8 @@ extension ConversationViewController: CVComponentDelegate {
     public var isConversationPreview: Bool { false }
 
     public var wallpaperBlurProvider: WallpaperBlurProvider? { backgroundContainer }
+
+    public var spoilerState: SpoilerRenderState { return self.viewState.spoilerState }
 
     public func enqueueReload() {
         self.loadCoordinator.enqueueReload()
@@ -173,6 +176,24 @@ extension ConversationViewController: CVComponentDelegate {
         expandTruncatedTextOrPresentLongTextView(itemViewModel)
     }
 
+    public func didTapShowEditHistory(_ itemViewModel: CVItemViewModelImpl) {
+        AssertIsOnMainThread()
+
+        guard let message = itemViewModel.interaction as? TSMessage else {
+            owsFailDebug("Invalid interaction.")
+            return
+        }
+
+        let sheet = EditHistoryTableSheetViewController(
+            message: message,
+            spoilerState: viewState.spoilerState,
+            editManager: self.context.editManager,
+            database: databaseStorage
+        )
+        sheet.delegate = self
+        self.present(sheet, animated: true)
+    }
+
     public func didTapFailedOrPendingDownloads(_ message: TSMessage) {
         AssertIsOnMainThread()
 
@@ -191,22 +212,30 @@ extension ConversationViewController: CVComponentDelegate {
     }
 
     public func didTapBrokenVideo() {
-        let toastText = NSLocalizedString("VIDEO_BROKEN",
-                                          comment: "Toast alert text shown when tapping on a video that cannot be played.")
+        let toastText = OWSLocalizedString("VIDEO_BROKEN",
+                                           comment: "Toast alert text shown when tapping on a video that cannot be played.")
         presentToastCVC(toastText)
     }
 
     // MARK: - Messages
 
-    public func didTapBodyMedia(itemViewModel: CVItemViewModelImpl,
-                                attachmentStream: TSAttachmentStream,
-                                imageView: UIView) {
+    public func didTapBodyMedia(
+        itemViewModel: CVItemViewModelImpl,
+        attachmentStream: TSAttachmentStream,
+        imageView: UIView
+    ) {
         AssertIsOnMainThread()
 
         dismissKeyBoard()
 
-        let pageVC = MediaPageViewController(initialMediaAttachment: attachmentStream,
-                                             thread: self.thread)
+        guard let pageVC = MediaPageViewController(
+            initialMediaAttachment: attachmentStream,
+            thread: self.thread,
+            spoilerState: self.viewState.spoilerState
+        ) else {
+            return
+        }
+
         self.present(pageVC, animated: true, completion: nil)
     }
 
@@ -228,22 +257,25 @@ extension ConversationViewController: CVComponentDelegate {
         }
     }
 
-    public func didTapQuotedReply(_ quotedReply: OWSQuotedReplyModel) {
+    public func didTapQuotedReply(_ quotedReply: QuotedReplyModel) {
         AssertIsOnMainThread()
         owsAssertDebug(quotedReply.timestamp > 0)
         owsAssertDebug(quotedReply.authorAddress.isValid)
 
         if quotedReply.isStory {
+            guard let quotedStoryAuthorAci = quotedReply.authorAddress.aci else {
+                return
+            }
             guard let quotedStory = databaseStorage.read(
-                block: { StoryFinder.story(timestamp: quotedReply.timestamp, author: quotedReply.authorAddress, transaction: $0) }
+                block: { StoryFinder.story(timestamp: quotedReply.timestamp, author: quotedStoryAuthorAci, transaction: $0) }
             ) else { return }
 
             let context: StoryContext
             if
-                let contactUUID = self.threadViewModel.contactAddress?.uuid,
+                let contactServiceId = self.threadViewModel.contactAddress?.serviceId,
                 quotedStory.authorAddress.isLocalAddress,
                 case let .outgoing(recipientStates) = quotedStory.manifest,
-                let recipientState = recipientStates[contactUUID],
+                let recipientState = recipientStates[contactServiceId],
                 let validContext = recipientState.firstValidContext()
             {
                 // If its an outgoing story from the local user and the contact
@@ -252,10 +284,14 @@ extension ConversationViewController: CVComponentDelegate {
                 context = validContext
             } else {
                 // Else fall back to thinking this is an incoming story from this contact.
-                context = .authorUuid(quotedStory.authorUuid)
+                context = .authorAci(quotedStory.authorAci)
             }
 
-            let vc = StoryPageViewController(context: context, loadMessage: quotedStory)
+            let vc = StoryPageViewController(
+                context: context,
+                spoilerState: spoilerState,
+                loadMessage: quotedStory
+            )
             presentFullScreen(vc, animated: true)
         } else {
             scrollToQuotedMessage(quotedReply, isAnimated: true)
@@ -291,7 +327,11 @@ extension ConversationViewController: CVComponentDelegate {
             return
         }
 
-        if SignalMe.isPossibleUrl(url) { return cvc_didTapSignalMeLink(url: url) }
+        if SignalDotMePhoneNumberLink.isPossibleUrl(url) {
+            return cvc_didTapSignalMeLink(url: url)
+        } else if let usernameLink = Usernames.UsernameLink(usernameLinkUrl: url) {
+            return didTapUsernameLink(usernameLink: usernameLink)
+        }
 
         UIApplication.shared.open(url, options: [:], completionHandler: nil)
     }
@@ -342,7 +382,23 @@ extension ConversationViewController: CVComponentDelegate {
     }
 
     public func cvc_didTapSignalMeLink(url: URL) {
-        SignalMe.openChat(url: url, fromViewController: self)
+        SignalDotMePhoneNumberLink.openChat(url: url, fromViewController: self)
+    }
+
+    public func didTapUsernameLink(usernameLink: Usernames.UsernameLink) {
+        databaseStorage.read { tx in
+            UsernameQuerier().queryForUsernameLink(
+                link: usernameLink,
+                fromViewController: self,
+                tx: tx,
+                onSuccess: { aci in
+                    SignalApp.shared.presentConversationForAddress(
+                        SignalServiceAddress(aci),
+                        animated: true
+                    )
+                }
+            )
+        }
     }
 
     public func didTapShowMessageDetail(_ itemViewModel: CVItemViewModelImpl) {
@@ -398,6 +454,14 @@ extension ConversationViewController: CVComponentDelegate {
         // return from FingerprintViewController.
         dismissKeyBoard()
 
+        var address = address
+        // Reload the address from disk if missing info so we don't rely on any cache.
+        if address.untypedServiceId == nil || address.e164 == nil {
+            databaseStorage.read { tx in
+                address = SignalRecipient.fetchRecipient(for: address, onlyIfRegistered: false, tx: tx)?.address ?? address
+            }
+        }
+
         FingerprintViewController.present(from: self, address: address)
     }
 
@@ -417,14 +481,14 @@ extension ConversationViewController: CVComponentDelegate {
         headerImageView.autoSetDimension(.height, toSize: 110)
 
         let displayName = contactsManager.displayName(for: address)
-        let messageFormat = NSLocalizedString("UNVERIFIED_SAFETY_NUMBER_CHANGE_DESCRIPTION_FORMAT",
+        let messageFormat = OWSLocalizedString("UNVERIFIED_SAFETY_NUMBER_CHANGE_DESCRIPTION_FORMAT",
                                               comment: "Description for the unverified safety number change. Embeds {name of contact with identity change}")
 
         let actionSheet = ActionSheetController(title: nil,
                                                 message: String(format: messageFormat, displayName))
         actionSheet.customHeader = headerView
 
-        actionSheet.addAction(ActionSheetAction(title: NSLocalizedString("UNVERIFIED_SAFETY_NUMBER_VERIFY_ACTION",
+        actionSheet.addAction(ActionSheetAction(title: OWSLocalizedString("UNVERIFIED_SAFETY_NUMBER_VERIFY_ACTION",
                                                                          comment: "Action to verify a safety number after it has changed"),
                                                 style: .default) { [weak self] _ in
             self?.showFingerprint(address: address)
@@ -440,13 +504,13 @@ extension ConversationViewController: CVComponentDelegate {
         AssertIsOnMainThread()
 
         let keyOwner = contactsManager.displayName(for: message.theirSignalAddress())
-        let titleFormat = NSLocalizedString("SAFETY_NUMBERS_ACTIONSHEET_TITLE", comment: "Action sheet heading")
+        let titleFormat = OWSLocalizedString("SAFETY_NUMBERS_ACTIONSHEET_TITLE", comment: "Action sheet heading")
         let titleText = String(format: titleFormat, keyOwner)
 
         let actionSheet = ActionSheetController(title: titleText, message: nil)
         actionSheet.addAction(OWSActionSheets.cancelAction)
 
-        actionSheet.addAction(ActionSheetAction(title: NSLocalizedString("SHOW_SAFETY_NUMBER_ACTION",
+        actionSheet.addAction(ActionSheetAction(title: OWSLocalizedString("SHOW_SAFETY_NUMBER_ACTION",
                                                                          comment: "Action sheet item"),
                                                 accessibilityIdentifier: "show_safety_number",
                                                 style: .default) { [weak self] _ in
@@ -454,7 +518,7 @@ extension ConversationViewController: CVComponentDelegate {
             self?.showFingerprint(address: message.theirSignalAddress())
         })
 
-        actionSheet.addAction(ActionSheetAction(title: NSLocalizedString("ACCEPT_NEW_IDENTITY_ACTION",
+        actionSheet.addAction(ActionSheetAction(title: OWSLocalizedString("ACCEPT_NEW_IDENTITY_ACTION",
                                                                          comment: "Action sheet item"),
                                                 accessibilityIdentifier: "accept_safety_number",
                                                 style: .default) { _ in
@@ -484,14 +548,14 @@ extension ConversationViewController: CVComponentDelegate {
         let threadName = databaseStorage.read { transaction in
             Self.contactsManager.displayName(for: self.thread, transaction: transaction)
         }
-        let alertMessage = String(format: NSLocalizedString("CORRUPTED_SESSION_DESCRIPTION",
+        let alertMessage = String(format: OWSLocalizedString("CORRUPTED_SESSION_DESCRIPTION",
                                                             comment: "ActionSheet title"),
                                   threadName)
         let alert = ActionSheetController(title: nil, message: alertMessage)
 
         alert.addAction(OWSActionSheets.cancelAction)
 
-        alert.addAction(ActionSheetAction(title: NSLocalizedString("FINGERPRINT_SHRED_KEYMATERIAL_BUTTON",
+        alert.addAction(ActionSheetAction(title: OWSLocalizedString("FINGERPRINT_SHRED_KEYMATERIAL_BUTTON",
                                                                    comment: ""),
                                           accessibilityIdentifier: "reset_session",
                                           style: .default) { [weak self] _ in
@@ -524,9 +588,9 @@ extension ConversationViewController: CVComponentDelegate {
         headerImageView.autoSetDimension(.width, toSize: 200)
         headerImageView.autoSetDimension(.height, toSize: 110)
 
-        ContactSupportAlert.presentAlert(title: NSLocalizedString("SESSION_REFRESH_ALERT_TITLE",
+        ContactSupportAlert.presentAlert(title: OWSLocalizedString("SESSION_REFRESH_ALERT_TITLE",
                                                                   comment: "Title for the session refresh alert"),
-                                         message: NSLocalizedString("SESSION_REFRESH_ALERT_MESSAGE",
+                                         message: OWSLocalizedString("SESSION_REFRESH_ALERT_MESSAGE",
                                                                     comment: "Description for the session refresh alert"),
                                          emailSupportFilter: "Signal iOS Session Refresh",
                                          fromViewController: self,
@@ -548,15 +612,15 @@ extension ConversationViewController: CVComponentDelegate {
             owsFailDebug("Invalid thread.")
             return
         }
-        firstly(on: .global()) { () -> Promise<Void> in
+        firstly(on: DispatchQueue.global()) { () -> Promise<Void> in
             GroupManager.sendGroupUpdateMessage(thread: groupThread)
-        }.done(on: .global()) {
+        }.done(on: DispatchQueue.global()) {
             Logger.info("Group updated, removing group creation error.")
 
             Self.databaseStorage.write { transaction in
                 message.anyRemove(transaction: transaction)
             }
-        }.catch(on: .global()) { error in
+        }.catch(on: DispatchQueue.global()) { error in
             owsFailDebug("Error: \(error)")
         }
     }
@@ -621,23 +685,20 @@ extension ConversationViewController: CVComponentDelegate {
     public func didTapFailedOutgoingMessage(_ message: TSOutgoingMessage) {
         AssertIsOnMainThread()
 
-        resendFailedOutgoingMessage(message)
+        let promptBuilder = ResendMessagePromptBuilder(
+            databaseStorage: databaseStorage,
+            messageSenderJobQueue: sskJobQueues.messageSenderJobQueue
+        )
+        dismissKeyBoard()
+        self.present(promptBuilder.build(for: message), animated: true)
     }
 
-    public func didTapShowGroupMigrationLearnMoreActionSheet(infoMessage: TSInfoMessage,
-                                                             oldGroupModel: TSGroupModel,
-                                                             newGroupModel: TSGroupModel) {
+    public func didTapGroupMigrationLearnMore() {
         AssertIsOnMainThread()
-
-        guard let groupThread = thread as? TSGroupThread else {
-            owsFailDebug("Invalid thread.")
-            return
-        }
-
-        let actionSheet = GroupMigrationActionSheet.actionSheetForMigratedGroup(groupThread: groupThread,
-                                                                                oldGroupModel: oldGroupModel,
-                                                                                newGroupModel: newGroupModel)
-        actionSheet.present(fromViewController: self)
+        presentFormSheet(
+            LegacyGroupLearnMoreViewController(mode: .explainNewGroups),
+            animated: true
+        )
     }
 
     public func didTapGroupInviteLinkPromotion(groupModel: TSGroupModel) {
@@ -683,7 +744,7 @@ extension ConversationViewController: CVComponentDelegate {
     public func didTapBlockRequest(
         groupModel: TSGroupModelV2,
         requesterName: String,
-        requesterUuid: UUID
+        requesterAci: Aci
     ) {
         AssertIsOnMainThread()
 
@@ -716,7 +777,7 @@ extension ConversationViewController: CVComponentDelegate {
                         // this call will still block them.
                         GroupManager.acceptOrDenyMemberRequestsV2(
                             groupModel: groupModel,
-                            uuids: [requesterUuid],
+                            aci: requesterAci,
                             shouldAccept: false
                         )
                     },
@@ -733,58 +794,54 @@ extension ConversationViewController: CVComponentDelegate {
     public func didTapShowUpgradeAppUI() {
         AssertIsOnMainThread()
 
-        let url = "https://itunes.apple.com/us/app/signal-private-messenger/id874139669?mt=8"
-        UIApplication.shared.open(URL(string: url)!, options: [:], completionHandler: nil)
+        UIApplication.shared.open(TSConstants.appStoreUrl, options: [:], completionHandler: nil)
     }
 
-    public func didTapUpdateSystemContact(_ address: SignalServiceAddress,
-                                          newNameComponents: PersonNameComponents) {
-        AssertIsOnMainThread()
-
-        guard contactsManagerImpl.supportsContactEditing else {
-            owsFailDebug("Contact editing unexpectedly unsupported")
-            return
+    public func didTapUpdateSystemContact(_ address: SignalServiceAddress, newNameComponents: PersonNameComponents) {
+        guard let navigationController else {
+            return owsFailDebug("Missing navigationController.")
         }
-
-        guard let contactViewController = contactsViewHelper.contactViewController(for: address,
-                                                                                   editImmediately: true,
-                                                                                   addToExisting: nil,
-                                                                                   updatedNameComponents: newNameComponents) else {
-            owsFailDebug("Could not build contact view.")
-            return
-        }
-        contactViewController.delegate = self
-        navigationController?.pushViewController(contactViewController, animated: true)
+        contactsViewHelper.checkEditingAuthorization(
+            authorizedBehavior: .pushViewController(on: navigationController, viewController: {
+                let result = self.contactsViewHelper.contactViewController(
+                    for: address,
+                    editImmediately: true,
+                    addToExisting: nil,
+                    updatedNameComponents: newNameComponents
+                )
+                result.delegate = self
+                return result
+            }),
+            unauthorizedBehavior: .presentError(from: self)
+        )
     }
 
-    public func didTapPhoneNumberChange(uuid: UUID,
-                                        phoneNumberOld: String,
-                                        phoneNumberNew: String) {
-        AssertIsOnMainThread()
-
-        guard contactsManagerImpl.supportsContactEditing else {
-            owsFailDebug("Contact editing unexpectedly unsupported")
-            return
+    public func didTapPhoneNumberChange(uuid: UUID, phoneNumberOld: String, phoneNumberNew: String) {
+        guard let navigationController else {
+            return owsFailDebug("Missing navigationController.")
         }
+        contactsViewHelper.checkEditingAuthorization(
+            authorizedBehavior: .pushViewController(on: navigationController, viewController: {
+                guard let existingContact: CNContact = self.databaseStorage.read(block: {
+                    guard let contact = self.contactsManagerImpl.contact(forPhoneNumber: phoneNumberOld, transaction: $0) else { return nil }
+                    return self.contactsManager.cnContact(withId: contact.cnContactId)
+                }) else {
+                    owsFailDebug("Missing existing contact for phone number change.")
+                    return nil
+                }
 
-        guard let existingContact: CNContact = databaseStorage.read(block: {
-            guard let contact = contactsManagerImpl.contact(forPhoneNumber: phoneNumberOld, transaction: $0) else { return nil }
-            return contactsManager.cnContact(withId: contact.cnContactId)
-        }) else {
-            owsFailDebug("Missing existing contact for phone number change.")
-            return
-        }
-
-        let address = SignalServiceAddress(uuid: uuid, phoneNumber: phoneNumberNew)
-        guard let contactViewController = contactsViewHelper.contactViewController(for: address,
-                                                                                   editImmediately: true,
-                                                                                   addToExisting: existingContact,
-                                                                                   updatedNameComponents: nil) else {
-            owsFailDebug("Could not build contact view.")
-            return
-        }
-        contactViewController.delegate = self
-        navigationController?.pushViewController(contactViewController, animated: true)
+                let address = SignalServiceAddress(uuid: uuid, phoneNumber: phoneNumberNew)
+                let result = self.contactsViewHelper.contactViewController(
+                    for: address,
+                    editImmediately: true,
+                    addToExisting: existingContact,
+                    updatedNameComponents: nil
+                )
+                result.delegate = self
+                return result
+            }),
+            unauthorizedBehavior: .presentError(from: self)
+        )
     }
 
     public func didTapViewOnceAttachment(_ interaction: TSInteraction) {

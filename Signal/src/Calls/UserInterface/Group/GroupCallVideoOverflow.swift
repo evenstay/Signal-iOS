@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalRingRTC
+import SignalServiceKit
 
 protocol GroupCallVideoOverflowDelegate: AnyObject {
     var firstOverflowMemberIndex: Int { get }
@@ -86,7 +86,7 @@ class GroupCallVideoOverflow: UICollectionView {
     }
 
     @objc
-    func updateOrientationOverride() {
+    private func updateOrientationOverride() {
         // If we're on iPhone and screen sharing, we want to allow
         // the user to change the orientation. We fake this by
         // manually transforming the cells.

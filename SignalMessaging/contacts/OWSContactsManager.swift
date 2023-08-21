@@ -6,6 +6,39 @@
 import Foundation
 import SignalServiceKit
 
+// MARK: - OWSContactsMangerSwiftValues
+
+class OWSContactsManagerSwiftValues {
+
+    fileprivate var systemContactsCache: SystemContactsCache?
+
+    fileprivate let systemContactsDataProvider = AtomicOptional<SystemContactsDataProvider>(nil)
+
+    fileprivate var primaryDeviceSystemContactsDataProvider: PrimaryDeviceSystemContactsDataProvider? {
+        systemContactsDataProvider.get() as? PrimaryDeviceSystemContactsDataProvider
+    }
+
+    fileprivate let usernameLookupManager: UsernameLookupManager
+
+    init(usernameLookupManager: UsernameLookupManager) {
+        self.usernameLookupManager = usernameLookupManager
+    }
+}
+
+// MARK: Build for ObjC
+
+extension OWSContactsManagerSwiftValues {
+    /// This method allows ObjC code to get an instance of this class, without
+    /// exposing the Swift-only types required by the constructor. Note that
+    /// this method will fail if ``DependenciesBridge`` has not yet been
+    /// created.
+    static func makeWithValuesFromDependenciesBridge() -> OWSContactsManagerSwiftValues {
+        .init(usernameLookupManager: DependenciesBridge.shared.usernameLookupManager)
+    }
+}
+
+// MARK: - Some caches
+
 // TODO: Should we use these caches in NSE?
 fileprivate extension OWSContactsManager {
     static let skipContactAvatarBlurByUuidStore = SDSKeyValueStore(collection: "OWSContactsManager.skipContactAvatarBlurByUuidStore")
@@ -235,7 +268,6 @@ fileprivate extension OWSContactsManager {
 
 // MARK: -
 
-@objc
 public extension OWSContactsManager {
 
     // MARK: - Low Trust Thread Warnings
@@ -334,7 +366,6 @@ public extension OWSContactsManager {
         }
     }
 
-    @nonobjc
     func blurAvatar(_ image: UIImage) -> UIImage? {
         do {
             return try image.withGaussianBlur(radius: 16, resizeToMaxPixelDimension: 100)
@@ -346,6 +377,7 @@ public extension OWSContactsManager {
 
     // MARK: - Sorting
 
+    @objc
     func sortSignalAccountsWithSneakyTransaction(_ signalAccounts: [SignalAccount]) -> [SignalAccount] {
         databaseStorage.read { transaction in
             self.sortSignalAccounts(signalAccounts, transaction: transaction)
@@ -572,7 +604,7 @@ extension OWSContactsManager {
         }
 
         if let phoneNumber = self.phoneNumber(for: address, transaction: transaction),
-           let contact = contactsManagerCache.contact(forPhoneNumber: phoneNumber, transaction: transaction),
+           let contact = contact(forPhoneNumber: phoneNumber, transaction: transaction),
            let cnContactId = contact.cnContactId,
            let avatarData = self.avatarData(forCNContactId: cnContactId),
            let validData = validateIfNecessary(avatarData) {
@@ -601,48 +633,12 @@ extension OWSContactsManager {
 extension OWSContactsManager {
     // TODO: It would be preferable to figure out some way to use ReverseDispatchQueue.
     @objc
-    static let intersectionQueue = DispatchQueue(label: OWSDispatch.createLabel("contacts.intersectionQueue"))
+    static let intersectionQueue = DispatchQueue(label: "org.signal.contacts.intersection")
     @objc
     var intersectionQueue: DispatchQueue { Self.intersectionQueue }
 
-    // TODO: Move to Contact class?
-    private static func accountLabel(forFetchedContact fetchedContact: FetchedContact,
-                                     address: SignalServiceAddress) -> String? {
-
-        owsAssertDebug(address.isValid)
-        let registeredAddresses = fetchedContact.registeredAddresses
-        owsAssertDebug(registeredAddresses.contains(address))
-        let contact = fetchedContact.contact
-
-        guard registeredAddresses.count > 1 else {
-            return nil
-        }
-
-        // 1. Find the address type of this account.
-        let addressLabel: String = contact.name(for: address,
-                                                   registeredAddresses: registeredAddresses).filterStringForDisplay()
-
-        // 2. Find all addresses for this contact of the same type.
-        let addressesWithTheSameName = registeredAddresses.filter {
-            addressLabel == contact.name(for: $0,
-                                            registeredAddresses: registeredAddresses).filterStringForDisplay()
-        }.stableSort()
-
-        owsAssertDebug(addressesWithTheSameName.contains(address))
-        if addressesWithTheSameName.count > 1,
-           let index = addressesWithTheSameName.firstIndex(of: address) {
-            let format = OWSLocalizedString("PHONE_NUMBER_TYPE_AND_INDEX_NAME_FORMAT",
-                                           comment: "Format for phone number label with an index. Embeds {{Phone number label (e.g. 'home')}} and {{index, e.g. 2}}.")
-            return String(format: format,
-                          addressLabel,
-                          OWSFormat.formatUInt(UInt(index))).filterStringForDisplay()
-        } else {
-            return addressLabel
-        }
-    }
-
     private static func buildContactAvatarHash(contact: Contact) -> Data? {
-        func buildHash() -> Data? {
+        return autoreleasepool {
             guard let cnContactId: String = contact.cnContactId else {
                 owsFailDebug("Missing cnContactId.")
                 return nil
@@ -656,160 +652,99 @@ extension OWSContactsManager {
             }
             return contactAvatarHash
         }
-        if CurrentAppContext().isMainApp {
-            return buildHash()
-        } else {
-            return autoreleasepool {
-                buildHash()
-            }
-        }
     }
 
-    private struct SystemContactsManagerCache {
-        let signalAccounts: [SignalAccount]
-        let seenAddresses: Set<SignalServiceAddress>
-    }
-
-    private struct FetchedContact {
-        let contact: Contact
-        let signalRecipients: [SignalRecipient]
-        let registeredAddresses: [SignalServiceAddress]
-    }
-
-    private static func buildSystemContactsManagerCache(forLocalSystemContacts contacts: [Contact],
-                                                        transaction: SDSAnyReadTransaction) -> SystemContactsManagerCache {
-
-        let fetchedContacts: [FetchedContact] = contacts.map { contact in
-            let signalRecipients = contact.signalRecipients(transaction: transaction)
-            let registeredAddresses = contact.registeredAddresses(transaction: transaction)
-            return FetchedContact(contact: contact,
-                                  signalRecipients: signalRecipients,
-                                  registeredAddresses: registeredAddresses)
-        }
-        var seenAddresses = Set<SignalServiceAddress>()
+    private static func buildSignalAccounts(
+        for systemContacts: [Contact],
+        transaction: SDSAnyReadTransaction
+    ) -> [SignalAccount] {
         var signalAccounts = [SignalAccount]()
-        for fetchedContact in fetchedContacts {
-            let contact = fetchedContact.contact
-
-            var signalRecipients = fetchedContact.signalRecipients
+        var seenAddresses = Set<SignalServiceAddress>()
+        for contact in systemContacts {
+            var signalRecipients = contact.signalRecipients(transaction: transaction)
             guard !signalRecipients.isEmpty else {
                 continue
             }
             // TODO: Confirm ordering.
-            signalRecipients.sort { $0.compare($1) == .orderedAscending }
-            // We use Batching since contact avatars could be large.
-            Batching.enumerate(signalRecipients, batchSize: 12) { signalRecipient in
+            signalRecipients.sort { $0.address.compare($1.address) == .orderedAscending }
+            for signalRecipient in signalRecipients {
                 if seenAddresses.contains(signalRecipient.address) {
-                    Logger.verbose("Ignoring duplicate contact: \(signalRecipient.address), \(contact.fullName)")
-                    return
+                    continue
                 }
                 seenAddresses.insert(signalRecipient.address)
 
-                var multipleAccountLabelText: String?
-                if signalRecipients.count > 1 {
-                    multipleAccountLabelText = Self.accountLabel(forFetchedContact: fetchedContact,
-                                                                 address: signalRecipient.address)
-                }
+                let multipleAccountLabelText = contact.uniquePhoneNumberLabel(
+                    for: signalRecipient.address,
+                    relatedAddresses: signalRecipients.map { $0.address }
+                )
                 let contactAvatarHash = Self.buildContactAvatarHash(contact: contact)
-                let signalAccount = SignalAccount(signalRecipient: signalRecipient,
-                                                  contact: contact,
-                                                  contactAvatarHash: contactAvatarHash,
-                                                  multipleAccountLabelText: multipleAccountLabelText)
+                let signalAccount = SignalAccount(
+                    contact: contact,
+                    contactAvatarHash: contactAvatarHash,
+                    multipleAccountLabelText: multipleAccountLabelText,
+                    recipientPhoneNumber: signalRecipient.address.phoneNumber,
+                    recipientUUID: signalRecipient.address.uuidString)
                 signalAccounts.append(signalAccount)
             }
         }
-        return SystemContactsManagerCache(signalAccounts: signalAccounts.stableSort(),
-                                          seenAddresses: seenAddresses)
+        return signalAccounts.stableSort()
     }
 
     @objc
-    static func buildSignalAccountsAndUpdatePersistedState(
-        forFetchedSystemContacts localSystemContacts: [Contact],
-        completion: @escaping ([SignalAccount]) -> Void
-    ) {
+    func buildSignalAccountsAndUpdatePersistedState(forFetchedSystemContacts localSystemContacts: [Contact]) {
         intersectionQueue.async {
-            var localSystemContactsSignalAccounts = [SignalAccount]()
-            var seenAddresses = Set<SignalServiceAddress>()
-            var persistedSignalAccounts = [SignalAccount]()
-            var persistedSignalAccountMap = [SignalServiceAddress: SignalAccount]()
-            var signalAccountsToKeep = [SignalServiceAddress: SignalAccount]()
-            Self.databaseStorage.read { transaction in
-                let systemContactsManagerCache = buildSystemContactsManagerCache(forLocalSystemContacts: localSystemContacts,
-                                                                                 transaction: transaction)
-                localSystemContactsSignalAccounts = systemContactsManagerCache.signalAccounts
-                seenAddresses = systemContactsManagerCache.seenAddresses
-
-                SignalAccount.anyEnumerate(transaction: transaction) { (signalAccount, _) in
-                    persistedSignalAccountMap[signalAccount.recipientAddress] = signalAccount
-                    persistedSignalAccounts.append(signalAccount)
-
-                    // If we find a persisted contact that is not from the
-                    // local address book, it represents a contact from the
-                    // address book on the primary device that was synced to
-                    // this (linked) device. We should keep it, and not
-                    // overwrite it since the primary device's system contacts
-                    // always take precendence.
-                    if
-                        let contact = signalAccount.contact,
-                        !contact.isFromLocalAddressBook
-                    {
-                        signalAccountsToKeep[signalAccount.recipientAddress] = signalAccount
-                    }
-                }
+            let (oldSignalAccounts, newSignalAccounts) = Self.databaseStorage.read { transaction in
+                let oldSignalAccounts = SignalAccount.anyFetchAll(transaction: transaction)
+                let newSignalAccounts = Self.buildSignalAccounts(for: localSystemContacts, transaction: transaction)
+                return (oldSignalAccounts, newSignalAccounts)
             }
+            let oldSignalAccountsMap: [SignalServiceAddress: SignalAccount] = Dictionary(
+                oldSignalAccounts.lazy.map { ($0.recipientAddress, $0) },
+                uniquingKeysWith: { _, new in new }
+            )
+            var newSignalAccountsMap = [SignalServiceAddress: SignalAccount]()
 
-            var signalAccountsToUpsert = [SignalAccount]()
-            for signalAccount in localSystemContactsSignalAccounts {
+            var signalAccountsToInsert = [SignalAccount]()
+            for newSignalAccount in newSignalAccounts {
+                let address = newSignalAccount.recipientAddress
+
                 // The user might have multiple entries in their address book with the same phone number.
-                if
-                    let otherSignalAccount = signalAccountsToKeep[signalAccount.recipientAddress],
-                    let contact = otherSignalAccount.contact,
-                    contact.isFromLocalAddressBook
-                {
-                    Logger.warn("Ignoring redundant signal account: \(signalAccount.recipientAddress)")
+                if newSignalAccountsMap[address] != nil {
+                    Logger.warn("Ignoring redundant signal account: \(address)")
                     continue
                 }
 
-                if let persistedSignalAccount = persistedSignalAccountMap[signalAccount.recipientAddress] {
-                    let keepPersistedAccount: Bool
+                let oldSignalAccountToKeep: SignalAccount?
+                switch oldSignalAccountsMap[address] {
+                case .none:
+                    oldSignalAccountToKeep = nil
 
-                    if persistedSignalAccount.hasSameContent(signalAccount) {
-                        // Same content, no need to update.
-                        keepPersistedAccount = true
-                    } else if
-                        let contact = persistedSignalAccount.contact,
-                        !contact.isFromLocalAddressBook
-                    {
-                        // If the contact is not local to this device, then we are
-                        // a linked device and have synced this from the primary.
-                        // We should not overwrite the synced primary-device system
-                        // contact.
-                        keepPersistedAccount = true
-                    } else {
-                        keepPersistedAccount = false
-                    }
+                case .some(let oldSignalAccount) where oldSignalAccount.hasSameContent(newSignalAccount):
+                    // Same content, no need to update.
+                    oldSignalAccountToKeep = oldSignalAccount
 
-                    if keepPersistedAccount {
-                        signalAccountsToKeep[signalAccount.recipientAddress] = persistedSignalAccount
-                        continue
-                    }
+                case .some:
+                    oldSignalAccountToKeep = nil
                 }
 
-                signalAccountsToKeep[signalAccount.recipientAddress] = signalAccount
-                signalAccountsToUpsert.append(signalAccount)
+                if let oldSignalAccount = oldSignalAccountToKeep {
+                    newSignalAccountsMap[address] = oldSignalAccount
+                } else {
+                    newSignalAccountsMap[address] = newSignalAccount
+                    signalAccountsToInsert.append(newSignalAccount)
+                }
             }
 
             // Clean up orphans.
             var signalAccountsToRemove = [SignalAccount]()
-            for signalAccount in persistedSignalAccounts {
-                if let signalAccountToKeep = signalAccountsToKeep[signalAccount.recipientAddress],
-                   signalAccountToKeep.uniqueId == signalAccount.uniqueId {
-                    // If the SignalAccount is going to be inserted or updated,
-                    // it doesn't need to be cleaned up.
+            for signalAccount in oldSignalAccounts {
+                if newSignalAccountsMap[signalAccount.recipientAddress]?.uniqueId == signalAccount.uniqueId {
+                    // If the SignalAccount is going to be inserted or updated, it doesn't need
+                    // to be cleaned up.
                     continue
                 }
-                // Clean up instances that have been replaced by another instance
-                // or are no longer in the system contacts.
+                // Clean up instances that have been replaced by another instance or are no
+                // longer in the system contacts.
                 signalAccountsToRemove.append(signalAccount)
             }
 
@@ -823,22 +758,23 @@ extension OWSContactsManager {
                     }
                 }
 
-                if signalAccountsToUpsert.count > 0 {
-                    Logger.info("Saving \(signalAccountsToUpsert.count) SignalAccounts.")
-                    for signalAccount in signalAccountsToUpsert {
+                if signalAccountsToInsert.count > 0 {
+                    Logger.info("Saving \(signalAccountsToInsert.count) SignalAccounts.")
+                    for signalAccount in signalAccountsToInsert {
                         Logger.verbose("Saving SignalAccount: \(signalAccount.recipientAddress)")
-                        signalAccount.anyUpsert(transaction: transaction)
+                        signalAccount.anyInsert(transaction: transaction)
                     }
                 }
 
-                let signalAccountCount = SignalAccount.anyCount(transaction: transaction)
-                Logger.info("SignalAccount cache size: \(signalAccountCount).")
+                Logger.info("SignalAccount count: \(newSignalAccountsMap.count).")
 
-                // Add system contacts to the profile whitelist immediately
-                // so that they do not see the "message request" UI.
-                Self.profileManager.addUsers(toProfileWhitelist: Array(seenAddresses),
-                                             userProfileWriter: UserProfileWriter.systemContactsFetch,
-                                             transaction: transaction)
+                // Add system contacts to the profile whitelist immediately so that they do
+                // not see the "message request" UI.
+                Self.profileManager.addUsers(
+                    toProfileWhitelist: Array(newSignalAccountsMap.keys),
+                    userProfileWriter: .systemContactsFetch,
+                    transaction: transaction
+                )
 
 #if DEBUG
                 let persistedAddresses = SignalAccount.anyFetchAll(transaction: transaction).map {
@@ -851,13 +787,18 @@ extension OWSContactsManager {
 
             // Once we've persisted new SignalAccount state, we should let
             // StorageService know.
-            updateStorageServiceForSystemContactsFetch(
-                allSignalAccountsBeforeFetch: persistedSignalAccountMap,
-                allSignalAccountsAfterFetch: signalAccountsToKeep
+            Self.updateStorageServiceForSystemContactsFetch(
+                allSignalAccountsBeforeFetch: oldSignalAccountsMap,
+                allSignalAccountsAfterFetch: newSignalAccountsMap
             )
 
+            let didChangeAnySignalAccount = !signalAccountsToRemove.isEmpty || !signalAccountsToInsert.isEmpty
             DispatchQueue.main.async {
-                completion(Array(signalAccountsToKeep.values))
+                // Post a notification if something changed or this is the first load since launch.
+                let shouldNotify = didChangeAnySignalAccount || !self.hasLoadedSystemContacts
+                self.hasLoadedSystemContacts = true
+                self.swiftValues.systemContactsCache?.unsortedSignalAccounts.set(Array(newSignalAccountsMap.values))
+                self.didUpdateSignalAccounts(shouldClearCache: false, shouldNotify: shouldNotify)
             }
         }
     }
@@ -885,10 +826,7 @@ extension OWSContactsManager {
             let mapping = accounts.reduce(into: [SignalServiceAddress: Contact]()) { partialResult, kv in
                 let (address, account) = kv
 
-                guard
-                    let contact = account.contact,
-                    contact.isFromLocalAddressBook
-                else {
+                guard let contact = account.contact else {
                     return
                 }
 
@@ -933,42 +871,243 @@ extension OWSContactsManager {
 
         storageServiceManager.recordPendingUpdates(updatedAddresses: Array(addressesToUpdateInStorageService))
     }
+
+    func didUpdateSignalAccounts(transaction: SDSAnyWriteTransaction) {
+        transaction.addTransactionFinalizationBlock(forKey: "OWSContactsManager.didUpdateSignalAccounts") { _ in
+            self.didUpdateSignalAccounts(shouldClearCache: true, shouldNotify: true)
+        }
+    }
+
+    private func didUpdateSignalAccounts(shouldClearCache: Bool, shouldNotify: Bool) {
+        if shouldClearCache {
+            swiftValues.systemContactsCache?.unsortedSignalAccounts.set(nil)
+        }
+        if shouldNotify {
+            NotificationCenter.default.postNotificationNameAsync(.OWSContactsManagerSignalAccountsDidChange, object: nil)
+        }
+    }
 }
 
 // MARK: - Intersection
 
-@objc
 extension OWSContactsManager {
-    func intersectContacts(
-        _ phoneNumbers: Set<String>,
-        retryDelaySeconds: TimeInterval,
-        success: @escaping (Set<SignalRecipient>) -> Void,
-        failure: @escaping (Error) -> Void
+    private enum Constants {
+        static let nextFullIntersectionDate = "OWSContactsManagerKeyNextFullIntersectionDate2"
+        static let lastKnownContactPhoneNumbers = "OWSContactsManagerKeyLastKnownContactPhoneNumbers"
+        static let didIntersectAddressBook = "didIntersectAddressBook"
+    }
+
+    @objc
+    func updateContacts(_ addressBookContacts: [Contact]?, isUserRequested: Bool) {
+        intersectionQueue.async { self._updateContacts(addressBookContacts, isUserRequested: isUserRequested) }
+    }
+
+    private func _updateContacts(_ addressBookContacts: [Contact]?, isUserRequested: Bool) {
+        let (localNumber, contactsMaps) = databaseStorage.write { tx in
+            let localNumber = tsAccountManager.localNumber(with: tx)
+            let contactsMaps = ContactsMaps.build(contacts: addressBookContacts ?? [], localNumber: localNumber)
+            setContactsMaps(contactsMaps, localNumber: localNumber, transaction: tx)
+            return (localNumber, contactsMaps)
+        }
+        cnContactCache.removeAllObjects()
+
+        NotificationCenter.default.postNotificationNameAsync(.OWSContactsManagerContactsDidChange, object: nil)
+
+        intersectContacts(
+            addressBookContacts, localNumber: localNumber, isUserRequested: isUserRequested
+        ).done(on: DispatchQueue.global()) {
+            self.buildSignalAccountsAndUpdatePersistedState(forFetchedSystemContacts: contactsMaps.allContacts)
+        }.catch(on: DispatchQueue.global()) { error in
+            owsFailDebug("Couldn't intersect contacts: \(error)")
+        }
+    }
+
+    private func fetchPriorIntersectionPhoneNumbers(tx: SDSAnyReadTransaction) -> Set<String>? {
+        keyValueStore.getObject(forKey: Constants.lastKnownContactPhoneNumbers, transaction: tx) as? Set<String>
+    }
+
+    private func setPriorIntersectionPhoneNumbers(_ phoneNumbers: Set<String>, tx: SDSAnyWriteTransaction) {
+        keyValueStore.setObject(phoneNumbers, key: Constants.lastKnownContactPhoneNumbers, transaction: tx)
+    }
+
+    private enum IntersectionMode {
+        /// It's time for the regularly-scheduled full intersection.
+        case fullIntersection
+
+        /// It's not time for the regularly-scheduled full intersection. Only check
+        /// new phone numbers.
+        case deltaIntersection(priorPhoneNumbers: Set<String>)
+    }
+
+    private func fetchIntersectionMode(isUserRequested: Bool, tx: SDSAnyReadTransaction) -> IntersectionMode {
+        if isUserRequested {
+            return .fullIntersection
+        }
+        let nextFullIntersectionDate = keyValueStore.getDate(Constants.nextFullIntersectionDate, transaction: tx)
+        guard let nextFullIntersectionDate, nextFullIntersectionDate.isAfterNow else {
+            return .fullIntersection
+        }
+        guard let priorPhoneNumbers = fetchPriorIntersectionPhoneNumbers(tx: tx) else {
+            // We don't know the prior phone numbers, so do a `.fullIntersection`.
+            return .fullIntersection
+        }
+        return .deltaIntersection(priorPhoneNumbers: priorPhoneNumbers)
+    }
+
+    private func intersectionPhoneNumbers(for contacts: [Contact]) -> Set<String> {
+        var result = Set<String>()
+        for contact in contacts {
+            result.formUnion(contact.e164sForIntersection)
+        }
+        return result
+    }
+
+    private func intersectContacts(
+        _ addressBookContacts: [Contact]?,
+        localNumber: String?,
+        isUserRequested: Bool
+    ) -> Promise<Void> {
+        let (intersectionMode, signalRecipientPhoneNumbers) = databaseStorage.read { tx in
+            let intersectionMode = fetchIntersectionMode(isUserRequested: isUserRequested, tx: tx)
+            let signalRecipientPhoneNumbers = SignalRecipient.fetchAllPhoneNumbers(tx: tx)
+            return (intersectionMode, signalRecipientPhoneNumbers)
+        }
+        let addressBookPhoneNumbers = addressBookContacts.map { intersectionPhoneNumbers(for: $0) }
+
+        var phoneNumbersToIntersect = Set(signalRecipientPhoneNumbers.keys)
+        if let addressBookPhoneNumbers {
+            phoneNumbersToIntersect.formUnion(addressBookPhoneNumbers)
+        }
+        if case .deltaIntersection(let priorPhoneNumbers) = intersectionMode {
+            phoneNumbersToIntersect.subtract(priorPhoneNumbers)
+        }
+        if let localNumber {
+            phoneNumbersToIntersect.remove(localNumber)
+        }
+
+        switch intersectionMode {
+        case .fullIntersection:
+            Logger.info("Performing full intersection for \(phoneNumbersToIntersect.count) phone numbers.")
+        case .deltaIntersection:
+            Logger.info("Performing delta intersection for \(phoneNumbersToIntersect.count) phone numbers.")
+        }
+
+        let intersectionPromise = intersectContacts(phoneNumbersToIntersect, retryDelaySeconds: 1)
+        return intersectionPromise.done(on: intersectionQueue) { intersectedRecipients in
+            Self.databaseStorage.write { tx in
+                self.migrateDidIntersectAddressBookIfNeeded(tx: tx)
+                self.postJoinNotificationsIfNeeded(
+                    addressBookPhoneNumbers: addressBookPhoneNumbers,
+                    phoneNumberRegistrationStatus: signalRecipientPhoneNumbers,
+                    intersectedRecipients: intersectedRecipients,
+                    tx: tx
+                )
+                self.didFinishIntersection(mode: intersectionMode, phoneNumbers: phoneNumbersToIntersect, tx: tx)
+            }
+        }
+    }
+
+    private func migrateDidIntersectAddressBookIfNeeded(tx: SDSAnyWriteTransaction) {
+        // This is carefully-constructed migration code that can be deleted in the
+        // future without requiring additional cleanup logic. If we don't know
+        // whether or not the address book has ever been intersected (ie we're
+        // running this logic for the first time in a version that includes this
+        // new flag), we set the flag based on whether or not we've ever performed
+        // a full intersection (ie whether or not we've intersected the address
+        // book). (Once we delete this logic, users who haven't run it will
+        // potentially miss one round of "User Joined Signal" notifications, but
+        // that's a reasonable fallback.)
+        //
+        // TODO: Delete this migration method on/after Jan 31, 2024.
+        if keyValueStore.hasValue(forKey: Constants.didIntersectAddressBook, transaction: tx) {
+            return
+        }
+        keyValueStore.setBool(
+            keyValueStore.hasValue(forKey: Constants.nextFullIntersectionDate, transaction: tx),
+            key: Constants.didIntersectAddressBook,
+            transaction: tx
+        )
+    }
+
+    private func postJoinNotificationsIfNeeded(
+        addressBookPhoneNumbers: Set<String>?,
+        phoneNumberRegistrationStatus: [String: Bool],
+        intersectedRecipients: some Sequence<SignalRecipient>,
+        tx: SDSAnyWriteTransaction
     ) {
-        owsAssertDebug(!phoneNumbers.isEmpty)
+        guard let addressBookPhoneNumbers else {
+            return
+        }
+        let didIntersectAtLeastOnce = keyValueStore.getBool(Constants.didIntersectAddressBook, defaultValue: false, transaction: tx)
+        guard didIntersectAtLeastOnce else {
+            // This is the first address book intersection. Don't post notifications,
+            // but mark the flag so that we post notifications next time.
+            keyValueStore.setBool(true, key: Constants.didIntersectAddressBook, transaction: tx)
+            return
+        }
+        guard Self.preferences.shouldNotifyOfNewAccounts(transaction: tx) else {
+            return
+        }
+        for signalRecipient in intersectedRecipients {
+            guard let phoneNumber = signalRecipient.phoneNumber else {
+                continue  // Can't happen.
+            }
+            guard addressBookPhoneNumbers.contains(phoneNumber) else {
+                continue  // Not in the address book -- no notification.
+            }
+            guard phoneNumberRegistrationStatus[phoneNumber] != true else {
+                continue  // They were already registered -- no notification.
+            }
+            NewAccountDiscovery.postNotification(for: signalRecipient, tx: tx)
+        }
+    }
+
+    private func didFinishIntersection(
+        mode intersectionMode: IntersectionMode,
+        phoneNumbers: Set<String>,
+        tx: SDSAnyWriteTransaction
+    ) {
+        switch intersectionMode {
+        case .fullIntersection:
+            setPriorIntersectionPhoneNumbers(phoneNumbers, tx: tx)
+            let nextFullIntersectionDate = Date(timeIntervalSinceNow: RemoteConfig.cdsSyncInterval)
+            keyValueStore.setDate(nextFullIntersectionDate, key: Constants.nextFullIntersectionDate, transaction: tx)
+
+        case .deltaIntersection:
+            // If a user has a "flaky" address book (perhaps it's a network-linked
+            // directory that goes in and out of existence), we could get thrashing
+            // between what the last known set is, causing us to re-intersect contacts
+            // many times within the debounce interval. So while we're doing
+            // incremental intersections, we *accumulate*, rather than replace, the set
+            // of recently intersected contacts.
+            let priorPhoneNumbers = fetchPriorIntersectionPhoneNumbers(tx: tx) ?? []
+            setPriorIntersectionPhoneNumbers(priorPhoneNumbers.union(phoneNumbers), tx: tx)
+        }
+    }
+
+    private func intersectContacts(
+        _ phoneNumbers: Set<String>,
+        retryDelaySeconds: TimeInterval
+    ) -> Promise<Set<SignalRecipient>> {
         owsAssertDebug(retryDelaySeconds > 0)
 
-        firstly {
-            contactDiscoveryManager.lookUp(
-                phoneNumbers: phoneNumbers,
-                mode: .contactIntersection
-            )
-        }.done(on: .global()) { signalRecipients in
-            Logger.info("Successfully intersected contacts.")
-            success(signalRecipients)
-        }.`catch`(on: .global()) { error in
+        if phoneNumbers.isEmpty {
+            return .value([])
+        }
+        return contactDiscoveryManager.lookUp(
+            phoneNumbers: phoneNumbers,
+            mode: .contactIntersection
+        ).recover(on: DispatchQueue.global()) { (error) -> Promise<Set<SignalRecipient>> in
             var retryAfter: TimeInterval = retryDelaySeconds
 
             if let cdsError = error as? ContactDiscoveryError {
                 guard cdsError.code != ContactDiscoveryError.Kind.rateLimit.rawValue else {
                     Logger.error("Contact intersection hit rate limit with error: \(error)")
-                    failure(error)
-                    return
+                    return Promise(error: error)
                 }
                 guard cdsError.retrySuggested else {
                     Logger.error("Contact intersection error suggests not to retry. Aborting without rescheduling.")
-                    failure(error)
-                    return
+                    return Promise(error: error)
                 }
                 if let retryAfterDate = cdsError.retryAfterDate {
                     retryAfter = max(retryAfter, retryAfterDate.timeIntervalSinceNow)
@@ -977,8 +1116,8 @@ extension OWSContactsManager {
 
             // TODO: Abort if another contact intersection succeeds in the meantime.
             Logger.warn("Contact intersection failed with error: \(error). Rescheduling.")
-            DispatchQueue.global().asyncAfter(deadline: .now() + retryAfter) {
-                self.intersectContacts(phoneNumbers, retryDelaySeconds: retryDelaySeconds * 2, success: success, failure: failure)
+            return Guarantee.after(seconds: retryAfter).then(on: DispatchQueue.global()) {
+                self.intersectContacts(phoneNumbers, retryDelaySeconds: retryDelaySeconds * 2)
             }
         }
     }
@@ -986,10 +1125,8 @@ extension OWSContactsManager {
 
 // MARK: -
 
-@objc
 public extension OWSContactsManager {
 
-    @nonobjc
     private static let unknownAddressFetchDateMap = AtomicDictionary<UUID, Date>()
 
     @objc(fetchProfileForUnknownAddress:)
@@ -1020,85 +1157,150 @@ public extension Array where Element == SignalAccount {
     }
 }
 
-// MARK: -
+// MARK: System Contacts
+
+private class SystemContactsCache {
+    let unsortedSignalAccounts = AtomicOptional<[SignalAccount]>(nil)
+    let contactsMaps = AtomicOptional<ContactsMaps>(nil)
+}
 
 extension OWSContactsManager {
+    @objc
+    func setUpSystemContacts() {
+        updateSystemContactsDataProvider()
+        registerForRegistrationStateNotification()
+        if CurrentAppContext().isMainApp {
+            warmSystemContactsCache()
+        }
+    }
+
+    public func setIsPrimaryDevice() {
+        updateSystemContactsDataProvider(forcePrimary: true)
+    }
+
+    private func registerForRegistrationStateNotification() {
+        let notificationCenter = NotificationCenter.default
+        notificationCenter.addObserver(
+            self,
+            selector: #selector(registrationStateDidChange),
+            name: .registrationStateDidChange,
+            object: nil
+        )
+    }
+
+    @objc
+    private func registrationStateDidChange() {
+        updateSystemContactsDataProvider()
+    }
+
+    private func updateSystemContactsDataProvider(forcePrimary: Bool = false) {
+        let dataProvider: SystemContactsDataProvider?
+        if forcePrimary {
+            dataProvider = PrimaryDeviceSystemContactsDataProvider()
+        } else if !tsAccountManager.isRegistered {
+            dataProvider = nil
+        } else if tsAccountManager.isPrimaryDevice {
+            dataProvider = PrimaryDeviceSystemContactsDataProvider()
+        } else {
+            dataProvider = LinkedDeviceSystemContactsDataProvider()
+        }
+        swiftValues.systemContactsDataProvider.set(dataProvider)
+    }
+
+    private func warmSystemContactsCache() {
+        let systemContactsCache = SystemContactsCache()
+        swiftValues.systemContactsCache = systemContactsCache
+
+        InstrumentsMonitor.measure(category: "appstart", parent: "caches", name: "warmSystemContactsCache") {
+            databaseStorage.read {
+                var phoneNumberCount = 0
+                if let dataProvider = swiftValues.systemContactsDataProvider.get() {
+                    let contactsMaps = buildContactsMaps(using: dataProvider, transaction: $0)
+                    systemContactsCache.contactsMaps.set(contactsMaps)
+                    phoneNumberCount = contactsMaps.phoneNumberToContactMap.count
+                }
+
+                let unsortedSignalAccounts = fetchUnsortedSignalAccounts(transaction: $0)
+                systemContactsCache.unsortedSignalAccounts.set(unsortedSignalAccounts)
+                let signalAccountCount = unsortedSignalAccounts.count
+
+                Logger.info("There are \(phoneNumberCount) phone numbers and \(signalAccountCount) SignalAccounts.")
+            }
+        }
+    }
+
+    @objc
+    public func contact(forPhoneNumber phoneNumber: String, transaction: SDSAnyReadTransaction) -> Contact? {
+        if let cachedValue = swiftValues.systemContactsCache?.contactsMaps.get() {
+            return cachedValue.phoneNumberToContactMap[phoneNumber]
+        }
+        guard let dataProvider = swiftValues.systemContactsDataProvider.get() else {
+            owsFailDebug("Can't access contacts until registration is finished.")
+            return nil
+        }
+        return dataProvider.fetchSystemContact(for: phoneNumber, transaction: transaction)
+    }
+
+    private func buildContactsMaps(
+        using dataProvider: SystemContactsDataProvider,
+        transaction: SDSAnyReadTransaction
+    ) -> ContactsMaps {
+        let systemContacts = dataProvider.fetchAllSystemContacts(transaction: transaction)
+        let localNumber = tsAccountManager.localNumber(with: transaction)
+        return ContactsMaps.build(contacts: systemContacts, localNumber: localNumber)
+    }
+
+    @objc
+    func setContactsMaps(_ contactsMaps: ContactsMaps, localNumber: String?, transaction: SDSAnyWriteTransaction) {
+        guard let dataProvider = swiftValues.primaryDeviceSystemContactsDataProvider else {
+            return owsFailDebug("Can't modify contacts maps on linked devices.")
+        }
+        let oldContactsMaps = swiftValues.systemContactsCache?.contactsMaps.swap(contactsMaps)
+        dataProvider.setContactsMaps(
+            contactsMaps,
+            oldContactsMaps: { oldContactsMaps ?? buildContactsMaps(using: dataProvider, transaction: transaction) },
+            localNumber: localNumber,
+            transaction: transaction
+        )
+    }
+
+    private func fetchUnsortedSignalAccounts(transaction: SDSAnyReadTransaction) -> [SignalAccount] {
+        SignalAccount.anyFetchAll(transaction: transaction)
+    }
 
     @objc
     public func unsortedSignalAccounts(transaction: SDSAnyReadTransaction) -> [SignalAccount] {
-        contactsManagerCache.unsortedSignalAccounts(transaction: transaction)
-    }
-
-    // Order respects the systems contact sorting preference.
-    @objc
-    public func sortedSignalAccounts(transaction: SDSAnyReadTransaction) -> [SignalAccount] {
-        contactsManagerCache.sortedSignalAccounts(transaction: transaction)
-    }
-
-    @objc
-    public func sortedSignalAccountsWithSneakyTransaction() -> [SignalAccount] {
-        databaseStorage.read { transaction in
-            sortedSignalAccounts(transaction: transaction)
+        if let cachedValue = swiftValues.systemContactsCache?.unsortedSignalAccounts.get() {
+            return cachedValue
         }
+        let uncachedValue = fetchUnsortedSignalAccounts(transaction: transaction)
+        swiftValues.systemContactsCache?.unsortedSignalAccounts.set(uncachedValue)
+        return uncachedValue
     }
 
-    private static func removeLocalContact(contacts: [Contact],
-                                           transaction: SDSAnyReadTransaction) -> [Contact] {
-        let localNumber: String? = tsAccountManager.localNumber(with: transaction)
-
-        var contactIdSet = Set<String>()
-        return contacts.compactMap { contact in
-            // Skip local contacts.
-            func isLocalContact() -> Bool {
-                for phoneNumber in contact.parsedPhoneNumbers {
-                    if phoneNumber.toE164() == localNumber {
-                        return true
-                    }
-                }
-                return false
-            }
-            guard !isLocalContact() else {
-                return nil
-            }
-            // De-deduplicate.
-            guard !contactIdSet.contains(contact.uniqueId) else {
-                return nil
-            }
-            contactIdSet.insert(contact.uniqueId)
-            return contact
+    private func allUnsortedContacts(transaction: SDSAnyReadTransaction) -> [Contact] {
+        guard let dataProvider = swiftValues.systemContactsDataProvider.get() else {
+            owsFailDebug("Can't access contacts until registration is finished.")
+            return []
         }
+        let localNumber = tsAccountManager.localNumber(with: transaction)
+        return dataProvider.fetchAllSystemContacts(transaction: transaction)
+            .filter { !$0.hasPhoneNumber(localNumber) }
     }
 
-    @objc
-    public func allUnsortedContacts(transaction: SDSAnyReadTransaction) -> [Contact] {
-        Self.removeLocalContact(contacts: contactsManagerCache.allContacts(transaction: transaction),
-                                transaction: transaction)
-    }
-
-    @objc
     public func allSortedContacts(transaction: SDSAnyReadTransaction) -> [Contact] {
-        let contacts = (allUnsortedContacts(transaction: transaction) as NSArray)
-        let comparator = Contact.comparatorSortingNames(byFirstThenLast: self.shouldSortByGivenName)
-        return contacts.sortedArray(options: [], usingComparator: comparator) as! [Contact]
+        allUnsortedContacts(transaction: transaction)
+            .sorted { comparableName(for: $0).caseInsensitiveCompare(comparableName(for: $1)) == .orderedAscending }
     }
+}
 
+// MARK: - Contact Names
+
+extension OWSContactsManager {
     @objc
     public func comparableNameForSignalAccountWithSneakyTransaction(_ signalAccount: SignalAccount) -> String {
         databaseStorage.read { transaction in
             self.comparableName(for: signalAccount, transaction: transaction)
-        }
-    }
-
-    @objc
-    public func displayName(forSignalAccount signalAccount: SignalAccount,
-                            transaction: SDSAnyReadTransaction) -> String {
-        self.displayName(for: signalAccount.recipientAddress, transaction: transaction)
-    }
-
-    @objc
-    public func displayNameForSignalAccountWithSneakyTransaction(_ signalAccount: SignalAccount) -> String {
-        databaseStorage.read { transaction in
-            self.displayName(forSignalAccount: signalAccount, transaction: transaction)
         }
     }
 
@@ -1121,13 +1323,11 @@ extension OWSContactsManager {
                                      transaction: transaction).lazy.map {
                 return $0?.nilIfEmpty
             }
-        }.refine { addresses in
-            return self.profileManager.usernames(forAddresses: Array(addresses), transaction: transaction).map { maybeUsername in
-                guard let username = maybeUsername.stringOrNil else {
-                    return nil
-                }
-                return CommonFormats.formatUsername(username)
-            }
+        }.refine { addresses -> [String?] in
+            swiftValues.usernameLookupManager.fetchUsernames(
+                forAddresses: addresses,
+                transaction: transaction.asV2Read
+            )
         }.refine { addresses in
             return addresses.lazy.map {
                 self.fetchProfile(forUnknownAddress: $0)
@@ -1136,7 +1336,6 @@ extension OWSContactsManager {
         }
     }
 
-    @objc
     public func displayNamesByAddress(
         for addresses: [SignalServiceAddress],
         transaction: SDSAnyReadTransaction
@@ -1149,16 +1348,8 @@ extension OWSContactsManager {
         displayNamesRefinery(for: addresses, transaction: transaction).values.map { $0! }
     }
 
-    func phoneNumbers(for addresses: [SignalServiceAddress],
-                      transaction: SDSAnyReadTransaction) -> [String?] {
-        return Refinery<SignalServiceAddress, String>(addresses).refine {
-            return $0.map { $0.phoneNumber?.filterStringForDisplay() }
-        }.refine { (addresses: AnySequence<SignalServiceAddress>) -> [String?] in
-            let accounts = fetchSignalAccounts(for: addresses, transaction: transaction)
-            return accounts.map { maybeAccount in
-                return maybeAccount?.recipientPhoneNumber?.filterStringForDisplay()
-            }
-        }.values
+    func phoneNumbers(for addresses: [SignalServiceAddress], transaction: SDSAnyReadTransaction) -> [String?] {
+        return addresses.map { E164($0.phoneNumber)?.stringValue }
     }
 
     func fetchSignalAccounts(for addresses: AnySequence<SignalServiceAddress>,
@@ -1211,12 +1402,46 @@ extension OWSContactsManager {
 private extension SignalAccount {
     var fullName: String? {
         // Name may be either the nickname or the full name of the contact
-        guard let fullName = contactPreferredDisplayName()?.nilIfEmpty else {
+        guard let fullName = contactPreferredDisplayName() else {
             return nil
         }
         guard let label = multipleAccountLabelText.nilIfEmpty else {
             return fullName
         }
         return "\(fullName) (\(label))"
+    }
+}
+
+extension ContactsManagerProtocol {
+    public func nameForAddress(_ address: SignalServiceAddress,
+                               localUserDisplayMode: LocalUserDisplayMode,
+                               short: Bool,
+                               transaction: SDSAnyReadTransaction) -> NSAttributedString {
+        let name: String
+        if address.isLocalAddress {
+            switch localUserDisplayMode {
+            case .noteToSelf:
+                name = MessageStrings.noteToSelf
+            case .asLocalUser:
+                name = CommonStrings.you
+            case .asUser:
+                if short {
+                    name = shortDisplayName(for: address,
+                                            transaction: transaction)
+                } else {
+                    name = displayName(for: address,
+                                       transaction: transaction)
+                }
+            }
+        } else {
+            if short {
+                name = shortDisplayName(for: address,
+                                        transaction: transaction)
+            } else {
+                name = displayName(for: address,
+                                   transaction: transaction)
+            }
+        }
+        return name.asAttributedString
     }
 }

@@ -11,6 +11,7 @@ NS_ASSUME_NONNULL_BEGIN
 typedef void (^OWSUserProfileCompletion)(void);
 
 @class AnyUserProfileFinder;
+@class AuthedAccount;
 @class OWSAES256Key;
 @class OWSUserProfileBadgeInfo;
 @class SDSAnyReadTransaction;
@@ -40,7 +41,15 @@ NSString *NSStringForUserProfileWriter(UserProfileWriter userProfileWriter);
 
 @interface OWSUserProfile : BaseModel <OWSMaybeUserProfile>
 
+/// Represents the uppercase ServiceId string for this profile's recipient.
+///
+/// - Note
+/// This property name includes `UUID` for compatibility with SDS (to match the
+/// SQLite column), but **may not contain a valid UUID string**.
+@property (atomic, nullable) NSString *recipientUUID;
+@property (atomic, nullable) NSString *recipientPhoneNumber;
 @property (atomic, readonly) SignalServiceAddress *address;
+
 @property (atomic, readonly, nullable) OWSAES256Key *profileKey;
 @property (atomic, readonly, nullable) NSString *unfilteredGivenName;
 @property (atomic, readonly, nullable) NSString *givenName;
@@ -50,11 +59,8 @@ NSString *NSStringForUserProfileWriter(UserProfileWriter userProfileWriter);
 @property (atomic, readonly, nullable) NSString *fullName;
 @property (atomic, readonly, nullable) NSString *bio;
 @property (atomic, readonly, nullable) NSString *bioEmoji;
-@property (atomic, readonly, nullable) NSString *username;
-@property (atomic, readonly) BOOL isStoriesCapable;
 @property (atomic, readonly, nullable) OWSUserProfileBadgeInfo *primaryBadge;
 @property (atomic, readonly, nullable) NSArray<OWSUserProfileBadgeInfo *> *profileBadgeInfo;
-@property (atomic, readonly) BOOL canReceiveGiftBadges;
 @property (atomic, readonly, nullable) NSString *avatarUrlPath;
 // This filename is relative to OWSProfileManager.profileAvatarsDirPath.
 @property (atomic, readonly, nullable) NSString *avatarFileName;
@@ -63,6 +69,13 @@ NSString *NSStringForUserProfileWriter(UserProfileWriter userProfileWriter);
 // received a message from this user.  It is coarse;
 // we only update it every N hours.
 @property (atomic, readonly, nullable) NSDate *lastMessagingDate;
+
+/// Does this profile have the Stories capability?
+@property (atomic, readonly) BOOL isStoriesCapable;
+/// Does this profile have the gift badges capability?
+@property (atomic, readonly) BOOL canReceiveGiftBadges;
+/// Does this profile have the PNI capability?
+@property (atomic, readonly) BOOL isPniCapable;
 
 + (instancetype)new NS_UNAVAILABLE;
 - (instancetype)init NS_UNAVAILABLE;
@@ -89,6 +102,7 @@ NSString *NSStringForUserProfileWriter(UserProfileWriter userProfileWriter);
                         bioEmoji:(nullable NSString *)bioEmoji
             canReceiveGiftBadges:(BOOL)canReceiveGiftBadges
                       familyName:(nullable NSString *)familyName
+                    isPniCapable:(BOOL)isPniCapable
                 isStoriesCapable:(BOOL)isStoriesCapable
                    lastFetchDate:(nullable NSDate *)lastFetchDate
                lastMessagingDate:(nullable NSDate *)lastMessagingDate
@@ -97,8 +111,7 @@ NSString *NSStringForUserProfileWriter(UserProfileWriter userProfileWriter);
                      profileName:(nullable NSString *)profileName
             recipientPhoneNumber:(nullable NSString *)recipientPhoneNumber
                    recipientUUID:(nullable NSString *)recipientUUID
-                        username:(nullable NSString *)username
-NS_DESIGNATED_INITIALIZER NS_SWIFT_NAME(init(grdbId:uniqueId:avatarFileName:avatarUrlPath:bio:bioEmoji:canReceiveGiftBadges:familyName:isStoriesCapable:lastFetchDate:lastMessagingDate:profileBadgeInfo:profileKey:profileName:recipientPhoneNumber:recipientUUID:username:));
+NS_DESIGNATED_INITIALIZER NS_SWIFT_NAME(init(grdbId:uniqueId:avatarFileName:avatarUrlPath:bio:bioEmoji:canReceiveGiftBadges:familyName:isPniCapable:isStoriesCapable:lastFetchDate:lastMessagingDate:profileBadgeInfo:profileKey:profileName:recipientPhoneNumber:recipientUUID:));
 
 // clang-format on
 
@@ -115,10 +128,8 @@ NS_DESIGNATED_INITIALIZER NS_SWIFT_NAME(init(grdbId:uniqueId:avatarFileName:avat
                                           transaction:(SDSAnyReadTransaction *)transaction;
 
 + (OWSUserProfile *)getOrBuildUserProfileForAddress:(SignalServiceAddress *)recipientId
+                                      authedAccount:(AuthedAccount *)authedAccount
                                         transaction:(SDSAnyWriteTransaction *)transaction;
-
-+ (nullable OWSUserProfile *)userProfileForUsername:(NSString *)username
-                                        transaction:(SDSAnyReadTransaction *)transaction;
 
 + (BOOL)localUserProfileExistsWithTransaction:(SDSAnyReadTransaction *)transaction;
 - (void)loadBadgeContentWithTransaction:(SDSAnyReadTransaction *)transaction;
@@ -126,6 +137,7 @@ NS_DESIGNATED_INITIALIZER NS_SWIFT_NAME(init(grdbId:uniqueId:avatarFileName:avat
 // For use by the OWSUserProfile extension only.
 - (void)applyChanges:(UserProfileChanges *)changes
     userProfileWriter:(UserProfileWriter)userProfileWriter
+        authedAccount:(AuthedAccount *)authedAccount
           transaction:(SDSAnyWriteTransaction *)transaction
            completion:(nullable OWSUserProfileCompletion)completion;
 
@@ -138,9 +150,6 @@ NS_DESIGNATED_INITIALIZER NS_SWIFT_NAME(init(grdbId:uniqueId:avatarFileName:avat
 + (void)resetProfileStorage;
 
 + (NSSet<NSString *> *)allProfileAvatarFilePathsWithTransaction:(SDSAnyReadTransaction *)transaction;
-
-+ (void)mergeUserProfilesIfNecessaryForAddress:(SignalServiceAddress *)address
-                                   transaction:(SDSAnyWriteTransaction *)transaction;
 
 - (OWSUserProfile *)shallowCopy;
 

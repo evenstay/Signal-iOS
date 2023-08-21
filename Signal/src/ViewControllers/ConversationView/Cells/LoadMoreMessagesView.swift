@@ -3,7 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalCoreKit
+import SignalUI
 
 public class LoadMoreMessagesView: UICollectionReusableView {
 
@@ -14,7 +15,7 @@ public class LoadMoreMessagesView: UICollectionReusableView {
     // MARK: Init
 
     override public init(frame: CGRect) {
-        label.text = NSLocalizedString("CONVERSATION_VIEW_LOADING_MORE_MESSAGES",
+        label.text = OWSLocalizedString("CONVERSATION_VIEW_LOADING_MORE_MESSAGES",
                                        comment: "Indicates that the app is loading more messages in this conversation.")
         super.init(frame: frame)
         addSubview(label)
@@ -35,6 +36,6 @@ public class LoadMoreMessagesView: UICollectionReusableView {
 
     public func configureForDisplay() {
         label.textColor = Theme.secondaryTextAndIconColor
-        label.font = UIFont.ows_semiboldFont(withSize: 16)
+        label.font = UIFont.semiboldFont(ofSize: 16)
     }
 }

@@ -122,10 +122,6 @@ NS_ASSUME_NONNULL_BEGIN
 {
 }
 
-- (void)setMainAppBadgeNumber:(NSInteger)value
-{
-}
-
 - (nullable UIViewController *)frontmostViewController
 {
     return nil;
@@ -153,10 +149,6 @@ NS_ASSUME_NONNULL_BEGIN
 - (UIInterfaceOrientation)interfaceOrientation
 {
     return UIInterfaceOrientationPortrait;
-}
-
-- (void)setNetworkActivityIndicatorVisible:(BOOL)value
-{
 }
 
 #pragma mark -
@@ -203,11 +195,6 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)hasUI
 {
     return YES;
-}
-
-- (BOOL)didLastLaunchNotTerminate
-{
-    return NO;
 }
 
 - (BOOL)hasActiveCall

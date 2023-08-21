@@ -7,7 +7,6 @@
 #import "AppReadiness.h"
 #import "OWSDisappearingMessagesConfiguration.h"
 #import "OWSReadTracking.h"
-#import "SSKEnvironment.h"
 #import "TSAccountManager.h"
 #import "TSIncomingMessage.h"
 #import "TSInfoMessage.h"
@@ -36,7 +35,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, nullable) MessageBodyRanges *messageDraftBodyRanges;
 
 @property (atomic) uint64_t mutedUntilTimestampObsolete;
-@property (nonatomic) int64_t lastInteractionRowId;
+@property (nonatomic) uint64_t lastInteractionRowId;
 
 @property (nonatomic, nullable) NSDate *mutedUntilDateObsolete;
 @property (nonatomic) uint64_t lastVisibleSortIdObsolete;
@@ -93,9 +92,10 @@ NS_ASSUME_NONNULL_BEGIN
                       uniqueId:(NSString *)uniqueId
    conversationColorNameObsolete:(NSString *)conversationColorNameObsolete
                     creationDate:(nullable NSDate *)creationDate
+             editTargetTimestamp:(nullable NSNumber *)editTargetTimestamp
               isArchivedObsolete:(BOOL)isArchivedObsolete
           isMarkedUnreadObsolete:(BOOL)isMarkedUnreadObsolete
-            lastInteractionRowId:(int64_t)lastInteractionRowId
+            lastInteractionRowId:(uint64_t)lastInteractionRowId
           lastSentStoryTimestamp:(nullable NSNumber *)lastSentStoryTimestamp
        lastVisibleSortIdObsolete:(uint64_t)lastVisibleSortIdObsolete
 lastVisibleSortIdOnScreenPercentageObsolete:(double)lastVisibleSortIdOnScreenPercentageObsolete
@@ -116,6 +116,7 @@ lastVisibleSortIdOnScreenPercentageObsolete:(double)lastVisibleSortIdOnScreenPer
 
     _conversationColorNameObsolete = conversationColorNameObsolete;
     _creationDate = creationDate;
+    _editTargetTimestamp = editTargetTimestamp;
     _isArchivedObsolete = isArchivedObsolete;
     _isMarkedUnreadObsolete = isMarkedUnreadObsolete;
     _lastInteractionRowId = lastInteractionRowId;
@@ -174,11 +175,7 @@ lastVisibleSortIdOnScreenPercentageObsolete:(double)lastVisibleSortIdOnScreenPer
 {
     [super anyDidInsertWithTransaction:transaction];
 
-    [ThreadAssociatedData createIfMissingForThreadUniqueId:self.uniqueId transaction:transaction];
-
-#if TESTABLE_BUILD
-    OWSAssertDebug(nil != [ThreadAssociatedData fetchForThreadUniqueId:self.uniqueId transaction:transaction]);
-#endif
+    [ThreadAssociatedData createFor:self.uniqueId warnIfPresent:YES transaction:transaction];
 
     if (self.shouldThreadBeVisible && ![SSKPreferences hasSavedThreadWithTransaction:transaction]) {
         [SSKPreferences setHasSavedThread:YES transaction:transaction];
@@ -191,10 +188,6 @@ lastVisibleSortIdOnScreenPercentageObsolete:(double)lastVisibleSortIdOnScreenPer
 {
     [super anyDidUpdateWithTransaction:transaction];
 
-#if TESTABLE_BUILD
-    OWSAssertDebug(nil != [ThreadAssociatedData fetchForThreadUniqueId:self.uniqueId transaction:transaction]);
-#endif
-
     if (self.shouldThreadBeVisible && ![SSKPreferences hasSavedThreadWithTransaction:transaction]) {
         [SSKPreferences setHasSavedThread:YES transaction:transaction];
     }
@@ -204,28 +197,10 @@ lastVisibleSortIdOnScreenPercentageObsolete:(double)lastVisibleSortIdOnScreenPer
     [PinnedThreadManager handleUpdatedThread:self transaction:transaction];
 }
 
-- (void)anyDidRemoveWithTransaction:(SDSAnyWriteTransaction *)transaction
-{
-    [super anyDidRemoveWithTransaction:transaction];
-
-    [self.modelReadCaches.threadReadCache didRemoveThread:self transaction:transaction];
-}
-
 - (void)anyWillRemoveWithTransaction:(SDSAnyWriteTransaction *)transaction
 {
-    [SDSDatabaseStorage.shared updateIdMappingWithThread:self transaction:transaction];
-
     [super anyWillRemoveWithTransaction:transaction];
-
-    [self removeAllThreadInteractionsWithTransaction:transaction];
-
-    // Remove any associated data
-    [ThreadAssociatedData removeForThreadUniqueId:self.uniqueId transaction:transaction];
-
-    // TODO: If we ever use transaction finalizations for more than
-    // de-bouncing thread touches, we should promote this to TSYapDatabaseObject
-    // (or at least include it in the "will remove" hook for any relevant models.
-    [transaction addRemovedFinalizationKey:self.transactionFinalizationKey];
+    OWSFail(@"Not supported.");
 }
 
 - (void)removeAllThreadInteractionsWithTransaction:(SDSAnyWriteTransaction *)transaction
@@ -306,7 +281,7 @@ lastVisibleSortIdOnScreenPercentageObsolete:(double)lastVisibleSortIdOnScreenPer
 #pragma mark - Interactions
 
 /**
- * Iterate over this thread's interactions
+ * Iterate over this thread's interactions.
  */
 - (void)enumerateRecentInteractionsWithTransaction:(SDSAnyReadTransaction *)transaction
                                         usingBlock:(void (^)(TSInteraction *interaction))block
@@ -323,41 +298,30 @@ lastVisibleSortIdOnScreenPercentageObsolete:(double)lastVisibleSortIdOnScreenPer
     }
 }
 
-/**
- * Enumerates all the threads interactions. Note this will explode if you try to create a transaction in the block.
- * If you need a transaction, use the sister method: `enumerateInteractionsWithTransaction:usingBlock`
- */
-- (void)enumerateRecentInteractionsUsingBlock:(void (^)(TSInteraction *interaction))block
-{
-    [self.databaseStorage readWithBlock:^(SDSAnyReadTransaction *transaction) {
-        [self enumerateRecentInteractionsWithTransaction:transaction
-                                              usingBlock:^(TSInteraction *interaction) {
-                                                  block(interaction);
-                                              }];
-    }];
-}
-
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
 - (NSArray<TSInvalidIdentityKeyReceivingErrorMessage *> *)receivedMessagesForInvalidKey:(NSData *)key
+                                                                                     tx:(SDSAnyReadTransaction *)tx
 {
     NSMutableArray *errorMessages = [NSMutableArray new];
-    [self enumerateRecentInteractionsUsingBlock:^(TSInteraction *interaction) {
-        if ([interaction isKindOfClass:[TSInvalidIdentityKeyReceivingErrorMessage class]]) {
-            TSInvalidIdentityKeyReceivingErrorMessage *error = (TSInvalidIdentityKeyReceivingErrorMessage *)interaction;
-            @try {
-                if ([[error throws_newIdentityKey] isEqualToData:key]) {
-                    [errorMessages addObject:(TSInvalidIdentityKeyReceivingErrorMessage *)interaction];
-                }
-            } @catch (NSException *exception) {
-                OWSFailDebug(@"exception: %@", exception);
-            }
-        }
-    }];
+    [self enumerateRecentInteractionsWithTransaction:tx
+                                          usingBlock:^(TSInteraction *interaction) {
+                                              if ([interaction isKindOfClass:[TSInvalidIdentityKeyReceivingErrorMessage
+                                                                                 class]]) {
+                                                  TSInvalidIdentityKeyReceivingErrorMessage *error
+                                                      = (TSInvalidIdentityKeyReceivingErrorMessage *)interaction;
+                                                  @try {
+                                                      if ([[error throws_newIdentityKey] isEqualToData:key]) {
+                                                          [errorMessages
+                                                              addObject:(TSInvalidIdentityKeyReceivingErrorMessage *)
+                                                                            interaction];
+                                                      }
+                                                  } @catch (NSException *exception) {
+                                                      OWSFailDebug(@"exception: %@", exception);
+                                                  }
+                                              }
+                                          }];
 
-    return [errorMessages copy];
+    return errorMessages;
 }
-#pragma clang diagnostic pop
 
 - (nullable TSInteraction *)lastInteractionForInboxWithTransaction:(SDSAnyReadTransaction *)transaction
 {
@@ -385,14 +349,14 @@ lastVisibleSortIdOnScreenPercentageObsolete:(double)lastVisibleSortIdOnScreenPer
     [self updateWithMessage:message wasMessageInserted:NO transaction:transaction];
 }
 
-- (int64_t)messageSortIdForMessage:(TSInteraction *)message transaction:(SDSAnyWriteTransaction *)transaction
+- (uint64_t)messageSortIdForMessage:(TSInteraction *)message transaction:(SDSAnyWriteTransaction *)transaction
 {
     if (message.grdbId == nil) {
         OWSFailDebug(@"Missing messageSortId.");
     } else if (message.grdbId.unsignedLongLongValue == 0) {
         OWSFailDebug(@"Invalid messageSortId.");
     } else {
-        return message.grdbId.longLongValue;
+        return message.grdbId.unsignedLongLongValue;
     }
     return 0;
 }
@@ -417,29 +381,15 @@ lastVisibleSortIdOnScreenPercentageObsolete:(double)lastVisibleSortIdOnScreenPer
         return;
     }
 
-    int64_t messageSortId = [self messageSortIdForMessage:message transaction:transaction];
+    uint64_t messageSortId = [self messageSortIdForMessage:message transaction:transaction];
     BOOL needsToMarkAsVisible = !self.shouldThreadBeVisible;
 
     ThreadAssociatedData *associatedData = [ThreadAssociatedData fetchOrDefaultForThread:self transaction:transaction];
 
-    BOOL needsToClearArchived = associatedData.isArchived && wasMessageInserted;
-
-    // Don't clear archived during migrations.
-    if (!CurrentAppContext().isRunningTests && !AppReadiness.isAppReady) {
-        needsToClearArchived = NO;
-    }
-
-    // Don't clear archived during thread import
-    if ([message isKindOfClass:TSInfoMessage.class]
-        && ((TSInfoMessage *)message).messageType == TSInfoMessageSyncedThread) {
-        needsToClearArchived = NO;
-    }
-
-    // Don't clear archive if muted and the user has
-    // requested we don't for muted conversations.
-    if (associatedData.isMuted && [SSKPreferences shouldKeepMutedChatsArchivedWithTransaction:transaction]) {
-        needsToClearArchived = NO;
-    }
+    BOOL needsToClearArchived = [self shouldClearArchivedStatusWhenUpdatingWithMessage:message
+                                                                    wasMessageInserted:wasMessageInserted
+                                                                  threadAssociatedData:associatedData
+                                                                           transaction:transaction];
 
     BOOL needsToUpdateLastInteractionRowId = messageSortId > self.lastInteractionRowId;
 
@@ -468,12 +418,47 @@ lastVisibleSortIdOnScreenPercentageObsolete:(double)lastVisibleSortIdOnScreenPer
     }
 }
 
+- (BOOL)shouldClearArchivedStatusWhenUpdatingWithMessage:(TSInteraction *)message
+                                      wasMessageInserted:(BOOL)wasMessageInserted
+                                    threadAssociatedData:(ThreadAssociatedData *)threadAssociatedData
+                                             transaction:(SDSAnyReadTransaction *)transaction
+{
+    BOOL needsToClearArchived = threadAssociatedData.isArchived && wasMessageInserted;
+
+    // Shouldn't clear archived during migrations.
+    if (!CurrentAppContext().isRunningTests && !AppReadiness.isAppReady) {
+        needsToClearArchived = NO;
+    }
+
+    // Shouldn't clear archived during thread import.
+    if ([message isKindOfClass:TSInfoMessage.class]
+        && ((TSInfoMessage *)message).messageType == TSInfoMessageSyncedThread) {
+        needsToClearArchived = NO;
+    }
+
+    // Shouldn't clear archived if:
+    // - The thread is muted.
+    // - The user has requested we keep muted chats archived.
+    // - The message was sent by someone other than the current user. (If the
+    //   current user sent the message, we should clear archived.)
+    {
+        BOOL threadIsMuted = threadAssociatedData.isMuted;
+        BOOL shouldKeepMutedChatsArchived = [SSKPreferences shouldKeepMutedChatsArchivedWithTransaction:transaction];
+        BOOL wasMessageSentByUs = [message isKindOfClass:[TSOutgoingMessage class]];
+        if (threadIsMuted && shouldKeepMutedChatsArchived && !wasMessageSentByUs) {
+            needsToClearArchived = NO;
+        }
+    }
+
+    return needsToClearArchived;
+}
+
 - (void)updateWithRemovedMessage:(TSInteraction *)message transaction:(SDSAnyWriteTransaction *)transaction
 {
     OWSAssertDebug(message != nil);
     OWSAssertDebug(transaction != nil);
 
-    int64_t messageSortId = [self messageSortIdForMessage:message transaction:transaction];
+    uint64_t messageSortId = [self messageSortIdForMessage:message transaction:transaction];
     BOOL needsToUpdateLastInteractionRowId = messageSortId == self.lastInteractionRowId;
 
     NSNumber *_Nullable lastVisibleSortId = [self lastVisibleSortIdWithTransaction:transaction];
@@ -523,12 +508,14 @@ lastVisibleSortIdOnScreenPercentageObsolete:(double)lastVisibleSortIdOnScreenPer
 
 - (void)softDeleteThreadWithTransaction:(SDSAnyWriteTransaction *)transaction
 {
+    OWSLogInfo(@"Soft deleting thread with ID %@", self.uniqueId);
+
     [self removeAllThreadInteractionsWithTransaction:transaction];
     [self anyUpdateWithTransaction:transaction
                              block:^(TSThread *thread) {
                                  thread.messageDraft = nil;
                                  thread.shouldThreadBeVisible = NO;
-                                 [TSThreadReplyInfo deleteWithThreadUniqueID:thread.uniqueId transaction:transaction];
+                                 [ThreadReplyInfoObjC deleteWithThreadUniqueId:thread.uniqueId tx:transaction];
                              }];
 
     // Delete any intents we previously donated for this thread.
@@ -538,26 +525,6 @@ lastVisibleSortIdOnScreenPercentageObsolete:(double)lastVisibleSortIdOnScreenPer
 - (BOOL)hasPendingMessageRequestWithTransaction:(GRDBReadTransaction *)transaction
 {
     return [GRDBThreadFinder hasPendingMessageRequestWithThread:self transaction:transaction];
-}
-
-#pragma mark - Disappearing Messages
-
-- (OWSDisappearingMessagesConfiguration *)disappearingMessagesConfigurationWithTransaction:
-    (SDSAnyReadTransaction *)transaction
-{
-    return [OWSDisappearingMessagesConfiguration fetchOrBuildDefaultWithThread:self transaction:transaction];
-}
-
-- (uint32_t)disappearingMessagesDurationWithTransaction:(SDSAnyReadTransaction *)transaction
-{
-
-    OWSDisappearingMessagesConfiguration *config = [self disappearingMessagesConfigurationWithTransaction:transaction];
-
-    if (!config.isEnabled) {
-        return 0;
-    } else {
-        return config.durationSeconds;
-    }
 }
 
 #pragma mark - Archival
@@ -577,18 +544,20 @@ lastVisibleSortIdOnScreenPercentageObsolete:(double)lastVisibleSortIdOnScreenPer
 }
 
 - (void)updateWithDraft:(nullable MessageBody *)draftMessageBody
-              replyInfo:(nullable TSThreadReplyInfo *)replyInfo
+              replyInfo:(nullable ThreadReplyInfoObjC *)replyInfo
+    editTargetTimestamp:(nullable NSNumber *)editTargetTimestamp
             transaction:(SDSAnyWriteTransaction *)transaction
 {
     [self anyUpdateWithTransaction:transaction
                              block:^(TSThread *thread) {
                                  thread.messageDraft = draftMessageBody.text;
                                  thread.messageDraftBodyRanges = draftMessageBody.ranges;
+                                 thread.editTargetTimestamp = editTargetTimestamp;
                              }];
     if (replyInfo != nil) {
-        [replyInfo saveWithThreadUniqueID:self.uniqueId transaction:transaction error:nil];
+        [replyInfo saveWithThreadUniqueId:self.uniqueId tx:transaction];
     } else {
-        [TSThreadReplyInfo deleteWithThreadUniqueID:self.uniqueId transaction:transaction];
+        [ThreadReplyInfoObjC deleteWithThreadUniqueId:self.uniqueId tx:transaction];
     }
 }
 
@@ -622,6 +591,21 @@ lastVisibleSortIdOnScreenPercentageObsolete:(double)lastVisibleSortIdOnScreenPer
 - (void)updateWithStoryViewMode:(TSThreadStoryViewMode)storyViewMode transaction:(SDSAnyWriteTransaction *)transaction
 {
     [self anyUpdateWithTransaction:transaction block:^(TSThread *thread) { thread.storyViewMode = storyViewMode; }];
+}
+
+#pragma mark - Merging
+
+- (void)mergeFrom:(TSThread *)otherThread
+{
+    self.shouldThreadBeVisible = self.shouldThreadBeVisible || otherThread.shouldThreadBeVisible;
+    self.lastInteractionRowId = MAX(self.lastInteractionRowId, otherThread.lastInteractionRowId);
+
+    // Copy the draft if this thread doesn't have one. We always assign both
+    // values if we assign one of them since they're related.
+    if (self.messageDraft == nil) {
+        self.messageDraft = otherThread.messageDraft;
+        self.messageDraftBodyRanges = otherThread.messageDraftBodyRanges;
+    }
 }
 
 @end

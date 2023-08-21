@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import SignalCoreKit
 
 /// A ContactDiscoveryManager coordinates CDS lookup requests.
 ///
@@ -31,10 +32,7 @@ public protocol ContactDiscoveryManager {
     /// rate limits than small requests. Even if contact intersection tries to
     /// look up 1,000 phone numbers and fails due to a rate limit, a small
     /// request for a single phone number might not fail. As a result, rate
-    /// limits apply only to the current mode and any lower-priority modes. (By
-    /// applying them to lower-priority modes, we mitigate a scenario where
-    /// UUIDBackfillTask is waiting to run and a smaller contact intersection
-    /// runs and further delays UUIDBackfillTask.)
+    /// limits apply only to the current mode and any lower-priority modes.
     ///
     /// - Parameters:
     ///   - phoneNumbers: The set of phone numbers to discover.
@@ -72,29 +70,18 @@ public enum ContactDiscoveryMode {
     /// have to tap the screen each time you call `lookUp` with this mode.
     case oneOffUserRequest
 
-    /// Used by UUIDBackfillTask.
-    ///
-    /// Notably, incoming messages are blocked until this lookup is complete, so
-    /// it's of the utmost importance.
-    case uuidBackfill
-
     /// Used to resolve recipients when sending a message.
     ///
     /// Notably, outgoing messages to specific people/chats are blocked until
     /// this lookup is complete.
     case outgoingMessage
 
-    /// Used when manually migrating a group from v1 to v2.
-    case groupMigration
-
     /// Used during contact intersection.
     case contactIntersection
 
     static let allCasesOrderedByRateLimitPriority: [ContactDiscoveryMode] = [
         .oneOffUserRequest,
-        .uuidBackfill,
         .outgoingMessage,
-        .groupMigration,
         .contactIntersection
     ]
 }
@@ -112,9 +99,24 @@ public final class ContactDiscoveryManagerImpl: NSObject, ContactDiscoveryManage
         SwiftSingletons.register(self)
     }
 
-    @objc
-    convenience override init() {
-        self.init(contactDiscoveryTaskQueue: ContactDiscoveryTaskQueueImpl())
+    public convenience init(
+        db: DB,
+        recipientFetcher: RecipientFetcher,
+        recipientMerger: RecipientMerger,
+        tsAccountManager: TSAccountManager,
+        udManager: OWSUDManager,
+        websocketFactory: WebSocketFactory
+    ) {
+        self.init(
+            contactDiscoveryTaskQueue: ContactDiscoveryTaskQueueImpl(
+                db: db,
+                recipientFetcher: recipientFetcher,
+                recipientMerger: recipientMerger,
+                tsAccountManager: tsAccountManager,
+                udManager: udManager,
+                websocketFactory: websocketFactory
+            )
+        )
     }
 
     public func lookUp(phoneNumbers: Set<String>, mode: ContactDiscoveryMode) -> Promise<Set<SignalRecipient>> {
@@ -214,14 +216,14 @@ public final class ContactDiscoveryManagerImpl: NSObject, ContactDiscoveryManage
         let fetchedPhoneNumbers = undiscoverableCache.phoneNumbersToFetch(for: request)
         firstly {
             contactDiscoveryTaskQueue.perform(for: fetchedPhoneNumbers, mode: request.mode)
-        }.recover(on: .global()) { error -> Promise<Set<SignalRecipient>> in
+        }.recover(on: DispatchQueue.global()) { error -> Promise<Set<SignalRecipient>> in
             self.handleRateLimitErrorIfNeeded(error: error, request: request)
             throw error
-        }.done(on: .global()) { signalRecipients in
+        }.done(on: DispatchQueue.global()) { signalRecipients in
             request.future.resolve(signalRecipients)
             self.undiscoverableCache.processResults(signalRecipients, requestedPhoneNumbers: fetchedPhoneNumbers)
             completion()
-        }.catch(on: .global()) { error in
+        }.catch(on: DispatchQueue.global()) { error in
             request.future.reject(error)
             completion()
         }
@@ -309,10 +311,10 @@ public final class ContactDiscoveryManagerImpl: NSObject, ContactDiscoveryManage
 
         private func shouldFetchAnyPhoneNumber(for request: PendingRequest) -> Bool {
             switch request.mode {
-            case .oneOffUserRequest, .uuidBackfill, .contactIntersection:
+            case .oneOffUserRequest, .contactIntersection:
                 // These always perform a fetch -- no need to consult the cache.
                 return true
-            case .outgoingMessage, .groupMigration:
+            case .outgoingMessage:
                 // Fall through to check the cache before initiating the request.
                 break
             }
@@ -337,7 +339,7 @@ public final class ContactDiscoveryManagerImpl: NSObject, ContactDiscoveryManage
         ) {
             let now = Date()
             let missingPhoneNumbers = requestedPhoneNumbers
-                .subtracting(signalRecipients.lazy.compactMap { $0.recipientPhoneNumber })
+                .subtracting(signalRecipients.lazy.compactMap { $0.phoneNumber })
             for missingPhoneNumber in missingPhoneNumbers {
                 phoneNumberFetchDates[missingPhoneNumber] = now
             }

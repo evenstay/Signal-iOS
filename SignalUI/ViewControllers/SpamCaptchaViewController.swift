@@ -6,9 +6,10 @@
 import SignalMessaging
 import UIKit
 
-@objc
 public class SpamCaptchaViewController: UIViewController, CaptchaViewDelegate {
+
     private var captchaView: CaptchaView?
+
     var completionHandler: ((String?) -> Void)?
 
     private init() {
@@ -35,9 +36,7 @@ public class SpamCaptchaViewController: UIViewController, CaptchaViewDelegate {
         super.viewDidLoad()
         captchaView?.loadCaptcha()
 
-        if #available(iOS 13.0, *) {
-            isModalInPresentation = true
-        }
+        isModalInPresentation = true
         navigationItem.title = OWSLocalizedString("SPAM_CAPTCHA_VIEW_CONTROLLER", comment: "Title for the captcha view controller")
         navigationItem.leftBarButtonItem = UIBarButtonItem(
             barButtonSystemItem: .stop,
@@ -47,7 +46,7 @@ public class SpamCaptchaViewController: UIViewController, CaptchaViewDelegate {
     }
 
     @objc
-    func didTapCancel() {
+    private func didTapCancel() {
         completionHandler?(nil)
         completionHandler = nil
     }
@@ -67,11 +66,11 @@ public class SpamCaptchaViewController: UIViewController, CaptchaViewDelegate {
 }
 
 extension SpamCaptchaViewController {
-    @objc
+
     public static func presentActionSheet(from fromVC: UIViewController) {
 
         let titleLabel = UILabel()
-        titleLabel.font = UIFont.ows_dynamicTypeTitle2Clamped.ows_semibold
+        titleLabel.font = UIFont.dynamicTypeTitle2Clamped.semibold()
         titleLabel.textColor = Theme.primaryTextColor
         titleLabel.numberOfLines = 0
         titleLabel.lineBreakMode = .byWordWrapping
@@ -79,7 +78,7 @@ extension SpamCaptchaViewController {
         titleLabel.text = OWSLocalizedString("SPAM_CAPTCHA_SHEET_TITLE", comment: "Title for action sheet explaining captcha requirement.")
 
         let bodyLabel = UILabel()
-        bodyLabel.font = .ows_dynamicTypeBody2Clamped
+        bodyLabel.font = .dynamicTypeBody2Clamped
         bodyLabel.textColor = Theme.primaryTextColor
         bodyLabel.numberOfLines = 0
         bodyLabel.lineBreakMode = .byWordWrapping
@@ -88,7 +87,7 @@ extension SpamCaptchaViewController {
         let continueButton = OWSFlatButton()
         continueButton.setTitle(
             title: CommonStrings.continueButton,
-            font: UIFont.ows_dynamicTypeBodyClamped.ows_semibold,
+            font: UIFont.dynamicTypeBodyClamped.semibold(),
             titleColor: .white)
         continueButton.setBackgroundColors(upColor: Theme.accentBlueColor)
         continueButton.layer.cornerRadius = 8
@@ -149,7 +148,6 @@ extension SpamCaptchaViewController {
         fromVC.present(sheet, animated: true, completion: nil)
     }
 
-    @objc
     static func presentCaptchaVC(from fromVC: UIViewController) {
         let vc = SpamCaptchaViewController()
         vc.completionHandler = { token in

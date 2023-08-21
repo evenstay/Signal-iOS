@@ -20,7 +20,7 @@ class AttachmentApprovalToolbar: UIView {
         var doneButtonIcon: DoneButtonIcon = .send
 
         enum DoneButtonIcon: String {
-            case send = "send-blue-42"
+            case send = "send-blue-42-dark"
             case next = "chevron-right-colored-42"
         }
     }
@@ -44,8 +44,14 @@ class AttachmentApprovalToolbar: UIView {
 
         return view
     }()
-    let buttonAddMedia: UIButton = RoundMediaButton(image: #imageLiteral(resourceName: "media-editor-add-photos"), backgroundStyle: .blur)
-    let buttonViewOnce: UIButton = RoundMediaButton(image: #imageLiteral(resourceName: "media-editor-view-once"), backgroundStyle: .blur)
+    let buttonAddMedia: UIButton = RoundMediaButton(
+        image: UIImage(imageLiteralResourceName: "plus-square-28"),
+        backgroundStyle: .blur
+    )
+    let buttonViewOnce: UIButton = RoundMediaButton(
+        image: UIImage(imageLiteralResourceName: "view_once-28"),
+        backgroundStyle: .blur
+    )
     // Contains message input field and a button to finish editing.
     let attachmentTextToolbar: AttachmentTextToolbar
     weak var attachmentTextToolbarDelegate: AttachmentTextToolbarDelegate?
@@ -83,9 +89,8 @@ class AttachmentApprovalToolbar: UIView {
         attachmentTextToolbar.setIsViewOnce(enabled: configuration.isViewOnceOn, animated: false)
 
         galleryRailView = GalleryRailView()
-        galleryRailView.hidesAutomatically = false
+        galleryRailView.itemSize = 44
         galleryRailView.scrollFocusMode = .keepWithinBounds
-        galleryRailView.autoSetDimension(.height, toSize: 60)
 
         super.init(frame: frame)
 
@@ -164,7 +169,7 @@ class AttachmentApprovalToolbar: UIView {
         buttonAddMedia.setIsHidden(!configuration.isAddMoreVisible, animated: animated)
 
         // Update image and visibility of the "View Once" button.
-        let viewOnceButtonImage = UIImage(imageLiteralResourceName: configuration.isViewOnceOn ? "media-editor-view-once" : "media-editor-view-infinite")
+        let viewOnceButtonImage = UIImage(imageLiteralResourceName: configuration.isViewOnceOn ? "view_once-28" : "view_once-infinite-28")
         buttonViewOnce.setImage(viewOnceButtonImage, animated: animated)
         buttonViewOnce.setIsHidden(!configuration.canToggleViewOnce, animated: animated)
 
@@ -255,6 +260,10 @@ class AttachmentApprovalToolbar: UIView {
 
 extension AttachmentApprovalToolbar: AttachmentTextToolbarDelegate {
 
+    func attachmentTextToolbarWillBeginEditing(_ attachmentTextToolbar: AttachmentTextToolbar) {
+        attachmentTextToolbarDelegate?.attachmentTextToolbarWillBeginEditing(attachmentTextToolbar)
+    }
+
     func attachmentTextToolbarDidBeginEditing(_ attachmentTextToolbar: AttachmentTextToolbar) {
         updateContents(animated: true)
         attachmentTextToolbarDelegate?.attachmentTextToolbarDidBeginEditing(attachmentTextToolbar)
@@ -282,7 +291,6 @@ extension AttachmentApprovalToolbar {
     // The tooltip lies outside this view's bounds, so we
     // need to special-case the hit testing so that it can
     // intercept touches within its bounds.
-    @objc
     public override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
         if let viewOnceTooltip = self.viewOnceTooltip {
             let tooltipFrame = convert(viewOnceTooltip.bounds, from: viewOnceTooltip)
@@ -300,7 +308,7 @@ extension AttachmentApprovalToolbar {
         guard !configuration.isViewOnceOn && configuration.canToggleViewOnce else {
             return false
         }
-        guard !preferences.wasViewOnceTooltipShown() else {
+        guard !preferences.wasViewOnceTooltipShown else {
             return false
         }
         return true
@@ -408,24 +416,36 @@ private class MediaToolbar: UIView {
     // MARK: - Layout
 
     static private let buttonBackgroundColor = RoundMediaButton.defaultBackgroundColor
-    let penToolButton: UIButton = RoundMediaButton(image: #imageLiteral(resourceName: "media-editor-tool-pen"), backgroundStyle: .solid(buttonBackgroundColor))
-    let cropToolButton: UIButton = RoundMediaButton(image: #imageLiteral(resourceName: "media-editor-tool-crop"), backgroundStyle: .solid(buttonBackgroundColor))
-    let mediaQualityButton: UIButton = RoundMediaButton(image: #imageLiteral(resourceName: "media-editor-quality"), backgroundStyle: .solid(buttonBackgroundColor))
-    let saveMediaButton: UIButton = RoundMediaButton(image: #imageLiteral(resourceName: "save-outline-24"), backgroundStyle: .solid(buttonBackgroundColor))
+    let penToolButton: UIButton = RoundMediaButton(
+        image: UIImage(imageLiteralResourceName: "brush-pen-28"),
+        backgroundStyle: .solid(buttonBackgroundColor)
+    )
+    let cropToolButton: UIButton = RoundMediaButton(
+        image: UIImage(imageLiteralResourceName: "crop-rotate-28"),
+        backgroundStyle: .solid(buttonBackgroundColor)
+    )
+    lazy var mediaQualityButton: UIButton = RoundMediaButton(
+        image: MediaToolbar.imageMediaQualityStandard,
+        backgroundStyle: .solid(MediaToolbar.buttonBackgroundColor)
+    )
+    let saveMediaButton: UIButton = RoundMediaButton(
+        image: UIImage(imageLiteralResourceName: "save-28"),
+        backgroundStyle: .solid(buttonBackgroundColor)
+    )
     let sendButton: UIButton = {
         let button = UIButton(type: .system)
         button.setImage(
             UIImage(imageLiteralResourceName: AttachmentApprovalToolbar.Configuration.DoneButtonIcon.send.rawValue),
             for: .normal
         )
-        button.contentEdgeInsets = UIEdgeInsets(margin: 8)
+        button.contentEdgeInsets = UIEdgeInsets(margin: UIDevice.current.isNarrowerThanIPhone6 ? 4 : 8)
         button.accessibilityLabel = MessageStrings.sendButton
         button.sizeToFit()
         return button
     }()
 
-    private static let imageMediaQualityHigh = #imageLiteral(resourceName: "media-editor-quality-high")
-    private static let imageMediaQualityStandard = #imageLiteral(resourceName: "media-editor-quality")
+    private static let imageMediaQualityHigh = UIImage(imageLiteralResourceName: "quality-high")
+    private static let imageMediaQualityStandard = UIImage(imageLiteralResourceName: "quality-standard")
 
     fileprivate func setIsMediaQualityHigh(enabled: Bool, animated: Bool) {
         let image = enabled ? MediaToolbar.imageMediaQualityHigh : MediaToolbar.imageMediaQualityStandard

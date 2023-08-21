@@ -13,21 +13,17 @@ import SignalMessaging
 import SignalServiceKit
 import UIKit
 
-@objc
 public protocol ContactsPickerDelegate: AnyObject {
-    func contactsPicker(_: ContactsPicker, contactFetchDidFail error: NSError)
     func contactsPickerDidCancel(_: ContactsPicker)
     func contactsPicker(_: ContactsPicker, didSelectContact contact: Contact)
     func contactsPicker(_: ContactsPicker, didSelectMultipleContacts contacts: [Contact])
     func contactsPicker(_: ContactsPicker, shouldSelectContact contact: Contact) -> Bool
 }
 
-@objc
 public enum SubtitleCellValue: Int {
     case phoneNumber, email, none
 }
 
-@objc
 open class ContactsPicker: OWSViewController, UITableViewDelegate, UITableViewDataSource, UISearchBarDelegate {
 
     var tableView: UITableView!
@@ -35,10 +31,7 @@ open class ContactsPicker: OWSViewController, UITableViewDelegate, UITableViewDa
 
     // MARK: - Properties
 
-    private let contactCellReuseIdentifier = "contactCellReuseIdentifier"
-
     private let collation = UILocalizedIndexedCollation.current()
-    public var collationForTests: UILocalizedIndexedCollation { collation }
     private let contactStore = CNContactStore()
 
     // Data Source State
@@ -47,15 +40,14 @@ open class ContactsPicker: OWSViewController, UITableViewDelegate, UITableViewDa
     private lazy var selectedContacts = [Contact]()
 
     // Configuration
-    @objc
     public weak var contactsPickerDelegate: ContactsPickerDelegate?
     private let subtitleCellType: SubtitleCellValue
     private let allowsMultipleSelection: Bool
     private let allowedContactKeys: [CNKeyDescriptor] = ContactsFrameworkContactStoreAdaptee.allowedContactKeys
+    private let sortOrder: CNContactSortOrder = CNContactsUserDefaults.shared().sortOrder
 
     // MARK: - Initializers
 
-    @objc
     required public init(allowsMultipleSelection: Bool, subtitleCellType: SubtitleCellValue) {
         self.allowsMultipleSelection = allowsMultipleSelection
         self.subtitleCellType = subtitleCellType
@@ -103,8 +95,6 @@ open class ContactsPicker: OWSViewController, UITableViewDelegate, UITableViewDa
         initializeBarButtons()
         reloadContacts()
         updateSearchResults(searchText: "")
-
-        NotificationCenter.default.addObserver(self, selector: #selector(self.didChangePreferredContentSize), name: UIContentSizeCategory.didChangeNotification, object: nil)
     }
 
     public override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
@@ -115,8 +105,7 @@ open class ContactsPicker: OWSViewController, UITableViewDelegate, UITableViewDa
         tableView.separatorColor = Theme.cellSeparatorColor
     }
 
-    @objc
-    public func didChangePreferredContentSize() {
+    public override func contentSizeCategoryDidChange() {
         self.tableView.reloadData()
     }
 
@@ -131,74 +120,35 @@ open class ContactsPicker: OWSViewController, UITableViewDelegate, UITableViewDa
     }
 
     private func registerContactCell() {
-        tableView.register(ContactCell.self, forCellReuseIdentifier: contactCellReuseIdentifier)
+        tableView.register(ContactCell.self, forCellReuseIdentifier: ContactCell.reuseIdentifier)
     }
 
     // MARK: - Contact Operations
 
     private func reloadContacts() {
-        getContacts( onError: { error in
-            Logger.error("failed to reload contacts with error:\(error)")
-        })
-    }
-
-    private func getContacts(onError errorHandler: @escaping (_ error: Error) -> Void) {
-        switch CNContactStore.authorizationStatus(for: CNEntityType.contacts) {
-        case CNAuthorizationStatus.denied, CNAuthorizationStatus.restricted:
-            let title = NSLocalizedString("INVITE_FLOW_REQUIRES_CONTACT_ACCESS_TITLE", comment: "Alert title when contacts disabled while trying to invite contacts to signal")
-            let body = NSLocalizedString("INVITE_FLOW_REQUIRES_CONTACT_ACCESS_BODY", comment: "Alert body when contacts disabled while trying to invite contacts to signal")
-
-            let alert = ActionSheetController(title: title, message: body)
-
-            let dismissText = CommonStrings.cancelButton
-
-            let cancelAction = ActionSheetAction(title: dismissText, style: .cancel, handler: {  _ in
-                let error = NSError(domain: "contactsPickerErrorDomain", code: 1, userInfo: [NSLocalizedDescriptionKey: "No Contacts Access"])
-                self.contactsPickerDelegate?.contactsPicker(self, contactFetchDidFail: error)
-                errorHandler(error)
-            })
-            alert.addAction(cancelAction)
-
-            let settingsText = CommonStrings.openSettingsButton
-            let openSettingsAction = ActionSheetAction(title: settingsText, style: .default, handler: { (_) in
-                CurrentAppContext().openSystemSettings()
-            })
-            alert.addAction(openSettingsAction)
-
-            self.presentActionSheet(alert)
-
-        case CNAuthorizationStatus.notDetermined:
-            // This case means the user is prompted for the first time for allowing contacts
-            contactStore.requestAccess(for: CNEntityType.contacts) { (granted, error) -> Void in
-                // At this point an alert is provided to the user to provide access to contacts. This will get invoked if a user responds to the alert
-                if granted {
-                    self.getContacts(onError: errorHandler)
-                } else {
-                    errorHandler(error!)
-                }
-            }
-
-        case  CNAuthorizationStatus.authorized:
-            // Authorization granted by user for this app.
+        guard contactsManagerImpl.sharingAuthorization == .authorized else {
+            return owsFailDebug("Not authorized.")
+        }
+        do {
             var contacts = [CNContact]()
-
-            do {
-                let contactFetchRequest = CNContactFetchRequest(keysToFetch: allowedContactKeys)
-                contactFetchRequest.sortOrder = .userDefault
-                try contactStore.enumerateContacts(with: contactFetchRequest) { (contact, _) -> Void in
-                    contacts.append(contact)
-                }
-                self.sections = collatedContacts(contacts)
-            } catch {
-                Logger.error("Failed to fetch contacts with error: \(error)")
+            let contactFetchRequest = CNContactFetchRequest(keysToFetch: allowedContactKeys)
+            contactFetchRequest.sortOrder = .userDefault
+            try contactStore.enumerateContacts(with: contactFetchRequest) { (contact, _) -> Void in
+                contacts.append(contact)
             }
-        @unknown default:
-            errorHandler(OWSAssertionError("Unexpected enum value"))
+            self.sections = collatedContacts(contacts)
+        } catch {
+            Logger.error("Failed to fetch contacts with error: \(error)")
         }
     }
 
     public func collatedContacts(_ contacts: [CNContact]) -> [[CNContact]] {
-        let selector: Selector = #selector(getter: CNContact.nameForCollating)
+        let selector: Selector
+        if sortOrder == .familyName {
+            selector = #selector(getter: CNContact.collationNameSortedByFamilyName)
+        } else {
+            selector = #selector(getter: CNContact.collationNameSortedByGivenName)
+        }
 
         var collated = Array(repeating: [CNContact](), count: collation.sectionTitles.count)
         for contact in contacts {
@@ -227,16 +177,13 @@ open class ContactsPicker: OWSViewController, UITableViewDelegate, UITableViewDa
     // MARK: - Table View Delegates
 
     open func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        guard let cell = tableView.dequeueReusableCell(withIdentifier: contactCellReuseIdentifier, for: indexPath) as? ContactCell else {
-            owsFailDebug("cell had unexpected type")
-            return UITableViewCell()
-        }
+        let cell = tableView.dequeueReusableCell(ContactCell.self, for: indexPath)!
 
         let dataSource = filteredSections
         let cnContact = dataSource[indexPath.section][indexPath.row]
         let contact = Contact(systemContact: cnContact)
 
-        cell.configure(contact: contact, subtitleType: subtitleCellType, showsWhenSelected: self.allowsMultipleSelection)
+        cell.configure(contact: contact, sortOrder: sortOrder, subtitleType: subtitleCellType, showsWhenSelected: self.allowsMultipleSelection)
         let isSelected = selectedContacts.contains(where: { $0.uniqueId == contact.uniqueId })
         cell.isSelected = isSelected
 
@@ -313,12 +260,12 @@ open class ContactsPicker: OWSViewController, UITableViewDelegate, UITableViewDa
     // MARK: - Button Actions
 
     @objc
-    func onTouchCancelButton() {
+    private func onTouchCancelButton() {
         contactsPickerDelegate?.contactsPickerDidCancel(self)
     }
 
     @objc
-    func onTouchDoneButton() {
+    private func onTouchDoneButton() {
         contactsPickerDelegate?.contactsPicker(self, didSelectMultipleContacts: selectedContacts)
     }
 
@@ -348,44 +295,23 @@ open class ContactsPicker: OWSViewController, UITableViewDelegate, UITableViewDa
     }
 }
 
-let ContactSortOrder = computeSortOrder()
-
-func computeSortOrder() -> CNContactSortOrder {
-    let comparator = CNContact.comparator(forNameSortOrder: .userDefault)
-
-    let contact0 = CNMutableContact()
-    contact0.givenName = "A"
-    contact0.familyName = "Z"
-
-    let contact1 = CNMutableContact()
-    contact1.givenName = "Z"
-    contact1.familyName = "A"
-
-    let result = comparator(contact0, contact1)
-
-    if result == .orderedAscending {
-        return .givenName
-    } else {
-        return .familyName
-    }
-}
-
-fileprivate extension CNContact {
-    /**
-     * Sorting Key used by collation
-     */
+extension CNContact {
     @objc
-    var nameForCollating: String {
-        if self.familyName.isEmpty && self.givenName.isEmpty {
-            return self.emailAddresses.first?.value as String? ?? ""
-        }
+    fileprivate var collationNameSortedByGivenName: String { collationName(sortOrder: .givenName) }
 
-        let compositeName: String
-        if ContactSortOrder == .familyName {
-            compositeName = "\(self.familyName) \(self.givenName)"
-        } else {
-            compositeName = "\(self.givenName) \(self.familyName)"
+    @objc
+    fileprivate var collationNameSortedByFamilyName: String { collationName(sortOrder: .familyName) }
+
+    func collationName(sortOrder: CNContactSortOrder) -> String {
+        return (collationContactName(sortOrder: sortOrder) ?? (emailAddresses.first?.value as String?) ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func collationContactName(sortOrder: CNContactSortOrder) -> String? {
+        let contactNames: [String] = [familyName.nilIfEmpty, givenName.nilIfEmpty].compacted()
+        guard !contactNames.isEmpty else {
+            return nil
         }
-        return compositeName.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+        return ((sortOrder == .familyName) ? contactNames : contactNames.reversed()).joined(separator: " ")
     }
 }

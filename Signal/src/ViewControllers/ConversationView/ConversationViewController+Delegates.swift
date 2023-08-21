@@ -66,22 +66,18 @@ extension ConversationViewController: AttachmentApprovalViewControllerDataSource
         [ Self.contactsManager.displayNameWithSneakyTransaction(thread: thread) ]
     }
 
-    public var attachmentApprovalMentionableAddresses: [SignalServiceAddress] {
-        supportsMentions ? thread.recipientAddressesWithSneakyTransaction : []
+    public func attachmentApprovalMentionableAddresses(tx: DBReadTransaction) -> [SignalServiceAddress] {
+        supportsMentions ? thread.recipientAddresses(with: SDSDB.shimOnlyBridge(tx)) : []
+    }
+
+    public func attachmentApprovalMentionCacheInvalidationKey() -> String {
+        return thread.uniqueId
     }
 }
 
 // MARK: -
 
 extension ConversationViewController: ContactsPickerDelegate {
-
-    public func contactsPicker(_: ContactsPicker, contactFetchDidFail error: NSError) {
-        AssertIsOnMainThread()
-
-        Logger.verbose("Error: \(error)")
-
-        dismiss(animated: true, completion: nil)
-    }
 
     public func contactsPickerDidCancel(_: ContactsPicker) {
         AssertIsOnMainThread()
@@ -170,8 +166,11 @@ extension ConversationViewController: ContactShareApprovalViewControllerDelegate
 
         let thread = self.thread
         Self.databaseStorage.asyncWrite { transaction in
-            let didAddToProfileWhitelist = ThreadUtil.addThreadToProfileWhitelistIfEmptyOrPendingRequestAndSetDefaultTimer(thread: thread,
-                                                                                                                           transaction: transaction)
+            let didAddToProfileWhitelist = ThreadUtil.addThreadToProfileWhitelistIfEmptyOrPendingRequest(
+                thread,
+                setDefaultTimerIfNecessary: true,
+                tx: transaction
+            )
 
             // TODO - in line with QuotedReply and other message attachments, saving should happen as part of sending
             // preparation rather than duplicated here and in the SAE
@@ -247,7 +246,10 @@ extension ConversationViewController: ConversationHeaderViewDelegate {
         AssertIsOnMainThread()
 
         if conversationHeaderView.avatarView.configuration.hasStoriesToDisplay {
-            let vc = StoryPageViewController(context: thread.storyContext)
+            let vc = StoryPageViewController(
+                context: thread.storyContext,
+                spoilerState: spoilerState
+            )
             present(vc, animated: true)
         } else {
             showConversationSettings()
@@ -409,14 +411,16 @@ extension ConversationViewController: InputAccessoryViewPlaceholderDelegate {
             // is a private value not represented in UIViewAnimationOptions.
             // We don't use a block based animation here because it's not
             // possible to pass a curve directly to block animations.
-            UIView.beginAnimations("keyboardStateChange", context: nil)
-            UIView.setAnimationBeginsFromCurrentState(true)
-            UIView.setAnimationCurve(animationCurve)
-            UIView.setAnimationDuration(duration)
-            updateBottomBarPosition()
-            // To minimize risk, only animatedly update insets when animating quoted reply for now
-            if isAnimatingHeightChange { updateContentInsets() }
-            UIView.commitAnimations()
+            UIView.animate(
+                withDuration: duration,
+                delay: 0,
+                options: animationCurve.asAnimationOptions,
+                animations: { [self] in
+                    updateBottomBarPosition()
+                    // To minimize risk, only animatedly update insets when animating quoted reply for now
+                    if isAnimatingHeightChange { updateContentInsets() }
+                }
+            )
             if !isAnimatingHeightChange { updateContentInsets() }
         } else {
             updateBottomBarPosition()

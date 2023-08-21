@@ -3,15 +3,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
-import UIKit
+import SignalServiceKit
 
-@objc
-public class TextFieldHelper: NSObject {
+public class TextFieldHelper {
 
     // Used to implement the UITextFieldDelegate method: `textField:shouldChangeCharactersInRange:replacementString`
     // Takes advantage of Swift's superior unicode handling to append partial pasted text without splitting multi-byte characters.
-    @objc
     public class func textField(_ textField: UITextField,
                                 shouldChangeCharactersInRange editingRange: NSRange,
                                 replacementString: String,
@@ -23,16 +20,20 @@ public class TextFieldHelper: NSObject {
                        maxGlyphCount: nil)
     }
 
-    public class func textField(_ textField: UITextField,
-                                shouldChangeCharactersInRange editingRange: NSRange,
-                                replacementString: String,
-                                maxByteCount: Int? = nil,
-                                maxGlyphCount: Int? = nil) -> Bool {
+    public class func textField(
+        _ textField: UITextField,
+        shouldChangeCharactersInRange editingRange: NSRange,
+        replacementString: String,
+        maxByteCount: Int? = nil,
+        maxUnicodeScalarCount: Int? = nil,
+        maxGlyphCount: Int? = nil
+    ) -> Bool {
         let (shouldChange, changedString) = TextHelper.shouldChangeCharactersInRange(
             with: textField.text,
             editingRange: editingRange,
             replacementString: replacementString,
             maxByteCount: maxByteCount,
+            maxUnicodeScalarCount: maxUnicodeScalarCount,
             maxGlyphCount: maxGlyphCount
         )
 
@@ -45,12 +46,10 @@ public class TextFieldHelper: NSObject {
     }
 }
 
-@objc
-public class TextViewHelper: NSObject {
+public class TextViewHelper {
 
     // Used to implement the UITextViewDelegate method: `textView:shouldChangeTextIn:replacementText`
     // Takes advantage of Swift's superior unicode handling to append partial pasted text without splitting multi-byte characters.
-    @objc
     public class func textView(_ textView: UITextView,
                                shouldChangeTextIn range: NSRange,
                                replacementText: String,
@@ -91,15 +90,22 @@ public enum TextHelper {
         editingRange: NSRange,
         replacementString: String,
         maxByteCount: Int? = nil,
+        maxUnicodeScalarCount: Int? = nil,
         maxGlyphCount: Int? = nil
     ) -> (shouldChange: Bool, changedString: String?) {
         // At least one must be set.
-        owsAssertDebug(maxByteCount != nil || maxGlyphCount != nil)
+        owsAssertDebug(maxByteCount != nil || maxGlyphCount != nil || maxUnicodeScalarCount != nil)
 
         func hasValidLength(_ string: String) -> Bool {
             if let maxByteCount = maxByteCount {
                 let byteCount = string.utf8.count
                 guard byteCount <= maxByteCount else {
+                    return false
+                }
+            }
+            if let maxUnicodeScalarCount {
+                let unicodeScalarCount = string.unicodeScalars.count
+                guard unicodeScalarCount <= maxUnicodeScalarCount else {
                     return false
                 }
             }

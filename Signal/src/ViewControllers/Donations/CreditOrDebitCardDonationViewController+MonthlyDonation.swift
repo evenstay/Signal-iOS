@@ -14,45 +14,73 @@ extension CreditOrDebitCardDonationViewController {
         with creditOrDebitCard: Stripe.PaymentMethod.CreditOrDebitCard,
         newSubscriptionLevel: SubscriptionLevel,
         priorSubscriptionLevel: SubscriptionLevel?,
-        subscriberID: Data?
+        subscriberID existingSubscriberId: Data?
     ) {
+        let currencyCode = self.donationAmount.currencyCode
+
         Logger.info("[Donations] Starting monthly card donation")
 
         DonationViewsUtil.wrapPromiseInProgressView(
             from: self,
-            promise: firstly(on: .sharedUserInitiated) { () -> Promise<Void> in
-                if let subscriberID, priorSubscriptionLevel != nil {
+            promise: firstly(on: DispatchQueue.sharedUserInitiated) { () -> Promise<Void> in
+                if let existingSubscriberId, priorSubscriptionLevel != nil {
                     Logger.info("[Donations] Cancelling existing subscription")
-                    return SubscriptionManager.cancelSubscription(for: subscriberID)
+
+                    return SubscriptionManagerImpl.cancelSubscription(for: existingSubscriberId)
                 } else {
+                    Logger.info("[Donations] No existing subscription to cancel")
+
                     return Promise.value(())
                 }
-            }.then(on: .sharedUserInitiated) { () -> Promise<Data> in
-                Logger.info("[Donations] Setting up new monthly subscription with card")
-                return SubscriptionManager.setupNewSubscription(
+            }.then(on: DispatchQueue.sharedUserInitiated) { () -> Promise<Data> in
+                Logger.info("[Donations] Preparing new monthly subscription with card")
+
+                return SubscriptionManagerImpl.prepareNewSubscription(currencyCode: currencyCode)
+            }.then(on: DispatchQueue.sharedUserInitiated) { subscriberId -> Promise<(Data, String)> in
+                firstly { () -> Promise<String> in
+                    Logger.info("[Donations] Creating Signal payment method for new monthly subscription with card")
+
+                    return Stripe.createSignalPaymentMethodForSubscription(subscriberId: subscriberId)
+                }.then(on: DispatchQueue.sharedUserInitiated) { clientSecret -> Promise<String> in
+                    Logger.info("[Donations] Authorizing payment for new monthly subscription with card")
+
+                    return Stripe.setupNewSubscription(
+                        clientSecret: clientSecret,
+                        paymentMethod: .creditOrDebitCard(creditOrDebitCard: creditOrDebitCard),
+                        show3DS: { redirectUrl in
+                            Logger.info("[Donations] Monthly card donation needs 3DS. Presenting...")
+                            return self.show3DS(for: redirectUrl).asVoid()
+                        }
+                    )
+                }.map(on: DispatchQueue.sharedUserInitiated) { paymentId -> (Data, String) in
+                    (subscriberId, paymentId)
+                }
+            }.then(on: DispatchQueue.sharedUserInitiated) { (subscriberId, paymentId) -> Promise<Data> in
+                Logger.info("[Donations] Finalizing new subscription for card donation")
+
+                return SubscriptionManagerImpl.finalizeNewSubscription(
+                    forSubscriberId: subscriberId,
+                    withPaymentId: paymentId,
+                    usingPaymentMethod: .creditOrDebitCard,
                     subscription: newSubscriptionLevel,
-                    creditOrDebitCard: creditOrDebitCard,
-                    currencyCode: self.donationAmount.currencyCode,
-                    show3DS: { [weak self] redirectUrl -> Promise<Void> in
-                        guard let self else { return .init(error: DonationJobError.assertion) }
-                        Logger.info("[Donations] Monthly card donation needs 3DS. Presenting...")
-                        return self.show3DS(for: redirectUrl).asVoid()
-                    }
-                )
-            }.then(on: .sharedUserInitiated) { (subscriberID: Data) in
+                    currencyCode: currencyCode
+                ).map(on: DispatchQueue.sharedUserInitiated) { _ in subscriberId }
+            }.then(on: DispatchQueue.sharedUserInitiated) { subscriberId in
                 Logger.info("[Donations] Redeeming monthly receipts for card donation")
+
                 DonationViewsUtil.redeemMonthlyReceipts(
                     usingPaymentProcessor: .stripe,
-                    subscriberID: subscriberID,
+                    subscriberID: subscriberId,
                     newSubscriptionLevel: newSubscriptionLevel,
                     priorSubscriptionLevel: priorSubscriptionLevel
                 )
+
                 return DonationViewsUtil.waitForSubscriptionJob()
             }
-        ).done(on: .main) { [weak self] in
+        ).done(on: DispatchQueue.main) { [weak self] in
             Logger.info("[Donations] Monthly card donation finished")
             self?.onFinished()
-        }.catch(on: .main) { [weak self] error in
+        }.catch(on: DispatchQueue.main) { [weak self] error in
             Logger.info("[Donations] Monthly card donation failed")
             self?.didFailDonation(error: error)
         }

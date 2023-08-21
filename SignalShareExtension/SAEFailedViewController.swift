@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import UIKit
-import SignalMessaging
 import PureLayout
+import SignalMessaging
+import SignalUI
 
 // All Observer methods will be invoked from the main thread.
 protocol SAEFailedViewDelegate: AnyObject {
@@ -41,7 +41,7 @@ class SAEFailedViewController: UIViewController {
                                                                 action: #selector(cancelPressed))
         self.navigationItem.title = "Signal"
 
-        self.view.backgroundColor = Theme.launchScreenBackground
+        self.view.backgroundColor = Theme.launchScreenBackgroundColor
 
         let logoImage = UIImage(named: "signal-logo-128-launch-screen")
         let logoImageView = UIImageView(image: logoImage)
@@ -53,7 +53,7 @@ class SAEFailedViewController: UIViewController {
 
         let titleLabel = UILabel()
         titleLabel.textColor = UIColor.white
-        titleLabel.font = UIFont.ows_semiboldFont(withSize: 18)
+        titleLabel.font = .semiboldFont(ofSize: 18)
         titleLabel.text = failureTitle
         titleLabel.textAlignment = .center
         titleLabel.numberOfLines = 0
@@ -65,7 +65,7 @@ class SAEFailedViewController: UIViewController {
 
         let messageLabel = UILabel()
         messageLabel.textColor = UIColor.white
-        messageLabel.font = UIFont.ows_regularFont(withSize: 14)
+        messageLabel.font = .regularFont(ofSize: 14)
         messageLabel.text = failureMessage
         messageLabel.textAlignment = .center
         messageLabel.numberOfLines = 0
@@ -89,7 +89,7 @@ class SAEFailedViewController: UIViewController {
     // MARK: - Event Handlers
 
     @objc
-    func cancelPressed(sender: UIButton) {
+    private func cancelPressed(sender: UIButton) {
         guard let delegate = delegate else {
             owsFailDebug("missing delegate")
             return

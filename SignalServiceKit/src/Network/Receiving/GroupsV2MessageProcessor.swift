@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import SignalCoreKit
 
 private struct IncomingGroupsV2MessageJobInfo {
     let job: IncomingGroupsV2MessageJob
@@ -102,7 +103,7 @@ class IncomingGroupsV2MessageQueue: NSObject, MessageProcessingPipelineStage {
     // MARK: -
 
     fileprivate func enqueue(envelopeData: Data,
-                             plaintextData: Data?,
+                             plaintextData: Data,
                              groupId: Data,
                              wasReceivedByUD: Bool,
                              serverDeliveryTimestamp: UInt64,
@@ -131,6 +132,12 @@ class IncomingGroupsV2MessageQueue: NSObject, MessageProcessingPipelineStage {
     private let unfairLock = UnfairLock()
     private var groupIdsBeingProcessed: Set<Data> = Set()
 
+    fileprivate var isActivelyProcessing: Bool {
+        return unfairLock.withLock {
+            return groupIdsBeingProcessed.isEmpty.negated
+        }
+    }
+
     // At any given time, we need to ensure that there is exactly
     // one GroupsMessageProcessor for each group that needs to
     // process incoming messages.
@@ -141,9 +148,12 @@ class IncomingGroupsV2MessageQueue: NSObject, MessageProcessingPipelineStage {
             owsFailDebug("App is not ready.")
             return
         }
-        let canProcess = (messagePipelineSupervisor.isMessageProcessingPermitted &&
-                            tsAccountManager.isRegisteredAndReady &&
-                            !DebugFlags.suppressBackgroundActivity)
+
+        let canProcess = (
+            messagePipelineSupervisor.isMessageProcessingPermitted &&
+            tsAccountManager.isRegisteredAndReady
+        )
+
         guard canProcess else {
             // Don't process queues.
             return
@@ -172,14 +182,14 @@ class IncomingGroupsV2MessageQueue: NSObject, MessageProcessingPipelineStage {
         }
 
         for processor in messageProcessors {
-            firstly(on: .global()) { () -> Promise<Void> in
+            firstly(on: DispatchQueue.global()) { () -> Promise<Void> in
                 processor.promise
-            }.ensure(on: .global()) {
+            }.ensure(on: DispatchQueue.global()) {
                 self.unfairLock.withLock {
                     _ = self.groupIdsBeingProcessed.remove(processor.groupId)
                 }
                 self.drainQueues()
-            }.catch(on: .global()) { error in
+            }.catch(on: DispatchQueue.global()) { error in
                 owsFailDebug("Error: \(error)")
             }
         }
@@ -304,9 +314,11 @@ internal class GroupsMessageProcessor: MessageProcessingPipelineStage, Dependenc
     private func processWorkStep(retryDelayAfterFailure: TimeInterval = 1.0) {
         owsAssertDebug(isDrainingQueue.get())
 
-        let canProcess = (messagePipelineSupervisor.isMessageProcessingPermitted &&
-                            tsAccountManager.isRegisteredAndReady &&
-                            !DebugFlags.suppressBackgroundActivity)
+        let canProcess = (
+            messagePipelineSupervisor.isMessageProcessingPermitted &&
+            tsAccountManager.isRegisteredAndReady
+        )
+
         guard canProcess else {
             Logger.warn("Cannot process.")
             future.resolve()
@@ -542,13 +554,6 @@ internal class GroupsMessageProcessor: MessageProcessingPipelineStage, Dependenc
             return []
         }
 
-        let reportFailure = { (transaction: SDSAnyWriteTransaction) in
-            // TODO: Add analytics.
-            let errorMessage = ThreadlessErrorMessage.corruptedMessageInUnknownThread()
-            self.notificationsManager?.notifyUser(forThreadlessErrorMessage: errorMessage,
-                                                  transaction: transaction)
-        }
-
         var processedJobs = [IncomingGroupsV2MessageJob]()
         for jobInfo in jobInfos {
             let job = jobInfo.job
@@ -560,20 +565,17 @@ internal class GroupsMessageProcessor: MessageProcessingPipelineStage, Dependenc
                 // Do nothing.
                 Logger.verbose("Discarding job.")
             } else {
-                guard let envelope = jobInfo.envelope else {
-                    owsFailDebug("Missing envelope.")
-                    reportFailure(transaction)
-                    continue
-                }
-                let shouldDiscardVisibleMessages = discardMode == .discardVisibleMessages
-                if !self.messageManager.processEnvelope(envelope,
-                                                        plaintextData: job.plaintextData,
-                                                        wasReceivedByUD: job.wasReceivedByUD,
-                                                        serverDeliveryTimestamp: job.serverDeliveryTimestamp,
-                                                        shouldDiscardVisibleMessages: shouldDiscardVisibleMessages,
-                                                        transaction: transaction) {
-                    reportFailure(transaction)
-                }
+                // The forced unwraps are checked in `discardMode`, so they can't fail.
+                // TODO: Refactor so that the compiler enforces the above statement.
+                self.messageManager.processEnvelope(
+                    jobInfo.envelope!,
+                    plaintextData: job.plaintextData!,
+                    wasReceivedByUD: job.wasReceivedByUD,
+                    serverDeliveryTimestamp: job.serverDeliveryTimestamp,
+                    shouldDiscardVisibleMessages: discardMode == .discardVisibleMessages,
+                    localIdentifiers: tsAccountManager.localIdentifiers(transaction: transaction)!,
+                    tx: transaction
+                )
             }
             processedJobs.append(job)
 
@@ -616,7 +618,7 @@ internal class GroupsMessageProcessor: MessageProcessingPipelineStage, Dependenc
                 owsFailDebug("Invalid embeddedUpdateOutcome: .failureShouldFailoverToService.")
                 throw GroupsV2Error.shouldDiscard
             }
-        }.recover(on: .global()) { error in
+        }.recover(on: DispatchQueue.global()) { error in
             self.databaseStorage.write { transaction in
                 if self.isRetryableError(error) {
                     Logger.warn("Error: \(error)")
@@ -643,23 +645,12 @@ internal class GroupsMessageProcessor: MessageProcessingPipelineStage, Dependenc
     private func updateGroupPromise(jobInfo: IncomingGroupsV2MessageJobInfo) -> Promise<UpdateOutcome> {
         // First, we try to update the group locally using changes embedded in
         // the group context (if any).
-        firstly(on: .global()) { () -> Promise<Void> in
-            guard let groupContextInfo = jobInfo.groupContextInfo else {
-                owsFailDebug("Missing groupContextInfo.")
-                return Promise.value(())
-            }
-            return firstly(on: .global()) { () -> Promise<Void> in
-                self.groupsV2Swift.updateAlreadyMigratedGroupIfNecessary(v2GroupId: groupContextInfo.groupId)
-            }.recover(on: .global()) {error -> Promise<Void> in
-                owsFailDebug("Error: \(error)")
-                throw GroupsV2Error.shouldRetry
-            }
-        }.then(on: .global()) { () -> Promise<UpdateOutcome> in
+        firstly(on: DispatchQueue.global()) { () -> Promise<UpdateOutcome> in
             self.tryToUpdateUsingEmbeddedGroupUpdate(jobInfo: jobInfo)
-        }.recover(on: .global()) { _ in
+        }.recover(on: DispatchQueue.global()) { _ in
             owsFailDebug("tryToUpdateUsingEmbeddedGroupUpdate should never fail.")
             return Guarantee.value(UpdateOutcome.failureShouldFailoverToService)
-        }.then(on: .global()) { (embeddedUpdateOutcome: UpdateOutcome) -> Promise<UpdateOutcome> in
+        }.then(on: DispatchQueue.global()) { (embeddedUpdateOutcome: UpdateOutcome) -> Promise<UpdateOutcome> in
             if embeddedUpdateOutcome == .failureShouldFailoverToService {
                 return self.tryToUpdateUsingService(jobInfo: jobInfo)
             } else {
@@ -736,7 +727,7 @@ internal class GroupsMessageProcessor: MessageProcessingPipelineStage, Dependenc
                 // another client, not the service.
                 return try self.groupsV2Swift.parseAndVerifyChangeActionsProto(changeActionsProtoData,
                                                                                ignoreSignature: false)
-            }.then(on: .global()) { (changeActionsProto: GroupsProtoGroupChangeActions) throws -> Promise<TSGroupThread> in
+            }.then(on: DispatchQueue.global()) { (changeActionsProto: GroupsProtoGroupChangeActions) throws -> Promise<TSGroupThread> in
                 guard changeActionsProto.revision == contextRevision else {
                     throw OWSAssertionError("Embedded change proto revision doesn't match context revision.")
                 }
@@ -744,7 +735,7 @@ internal class GroupsMessageProcessor: MessageProcessingPipelineStage, Dependenc
                                                                            changeActionsProto: changeActionsProto,
                                                                            ignoreSignature: false,
                                                                            groupSecretParamsData: oldGroupModel.secretParamsData)
-            }.map(on: .global()) { (updatedGroupThread: TSGroupThread) throws -> Void in
+            }.map(on: DispatchQueue.global()) { (updatedGroupThread: TSGroupThread) throws -> Void in
                 guard let updatedGroupModel = updatedGroupThread.groupModel as? TSGroupModelV2 else {
                     owsFailDebug("Invalid group model.")
                     return future.resolve(.failureShouldFailoverToService)
@@ -761,7 +752,7 @@ internal class GroupsMessageProcessor: MessageProcessingPipelineStage, Dependenc
                 }
                 Logger.info("Successfully applied embedded change proto from group context.")
                 return future.resolve(.successShouldProcess)
-            }.catch(on: .global()) { error in
+            }.catch(on: DispatchQueue.global()) { error in
                 if self.isRetryableError(error) {
                     Logger.warn("Error: \(error)")
                     return future.resolve(.failureShouldRetry)
@@ -793,9 +784,9 @@ internal class GroupsMessageProcessor: MessageProcessingPipelineStage, Dependenc
             self.groupV2Updates.tryToRefreshV2GroupThread(groupId: groupContextInfo.groupId,
                                                           groupSecretParamsData: groupContextInfo.groupSecretParamsData,
                                                           groupUpdateMode: groupUpdateMode)
-        }.map(on: .global()) { (_) in
+        }.map(on: DispatchQueue.global()) { (_) in
             return UpdateOutcome.successShouldProcess
-        }.recover(on: .global()) { error -> Guarantee<UpdateOutcome> in
+        }.recover(on: DispatchQueue.global()) { error -> Guarantee<UpdateOutcome> in
             if self.isRetryableError(error) {
                 Logger.warn("error: \(type(of: error)) \(error)")
                 return Guarantee.value(UpdateOutcome.failureShouldRetry)
@@ -815,7 +806,7 @@ internal class GroupsMessageProcessor: MessageProcessingPipelineStage, Dependenc
     }
 
     private func isRetryableError(_ error: Error) -> Bool {
-        if error.isNetworkConnectivityFailure {
+        if error.isNetworkFailureOrTimeout {
             return true
         }
         if let statusCode = error.httpStatusCode {
@@ -976,13 +967,21 @@ public class GroupsV2MessageProcessor: NSObject {
             return nil
         }
 
+        return groupContextV2(from: contentProto)
+    }
+
+    public class func groupContextV2(from contentProto: SSKProtoContent) -> SSKProtoGroupContextV2? {
         if let groupV2 = contentProto.dataMessage?.groupV2 {
             return groupV2
-        } else if let groupV2 = contentProto.syncMessage?.sent?.message?.groupV2 {
-            return groupV2
-        } else {
-            return nil
         }
+        if let groupV2 = contentProto.syncMessage?.sent?.message?.groupV2 {
+            return groupV2
+        }
+        return nil
+    }
+
+    public func isActivelyProcessing() -> Bool {
+        return processingQueue.isActivelyProcessing
     }
 
     @objc

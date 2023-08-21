@@ -74,15 +74,8 @@ public extension OWSFileSystem {
                     return !isDirectory.boolValue
                 }
 
-        } catch {
-            let nsError = error as NSError
-            let isCocoaNoSuchFileError = (nsError.domain == NSCocoaErrorDomain && nsError.code == NSFileReadNoSuchFileError)
-
-            if isCocoaNoSuchFileError {
-                return []
-            } else {
-                throw error
-            }
+        } catch CocoaError.fileReadNoSuchFile {
+            return []
         }
     }
 }
@@ -146,7 +139,7 @@ public extension OWSFileSystem {
                 owsAssertDebug(knownNoWritePermissionUrls.contains(attemptedUrl))
                 return false
             } else {
-                owsFailDebug("Error: \(error)")
+                owsFailDebug("Error: \(nsError.shortDescription)")
             }
             return false
         }

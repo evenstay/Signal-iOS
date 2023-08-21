@@ -3,13 +3,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalMessaging
 import SignalServiceKit
+import SignalUI
 
-@objc
 public class ContactSupportAlert: NSObject {
-    @objc
+
     public class func presentAlert(title: String, message: String, emailSupportFilter: String, fromViewController: UIViewController, additionalActions: [ActionSheetAction] = [], customHeader: UIView? = nil, showCancel: Bool = true) {
         presentStep1(title: title, message: message, emailSupportFilter: emailSupportFilter, fromViewController: fromViewController, additionalActions: additionalActions, customHeader: customHeader, showCancel: showCancel)
     }
@@ -33,7 +32,7 @@ public class ContactSupportAlert: NSObject {
     }
 
     public class func presentStep2(emailSupportFilter: String, fromViewController: UIViewController) {
-        let submitWithLogTitle = NSLocalizedString("CONTACT_SUPPORT_SUBMIT_WITH_LOG", comment: "Button text")
+        let submitWithLogTitle = OWSLocalizedString("CONTACT_SUPPORT_SUBMIT_WITH_LOG", comment: "Button text")
         let submitWithLogAction = ActionSheetAction(title: submitWithLogTitle, style: .default) { [weak fromViewController] _ in
             guard let fromViewController = fromViewController else { return }
 
@@ -49,9 +48,9 @@ public class ContactSupportAlert: NSObject {
                 _ = modal.wasCancelledPromise.done { operation.cancel() }
 
                 firstly {
-                    operation.perform(on: .sharedUserInitiated)
+                    operation.perform(on: DispatchQueue.sharedUserInitiated)
                 }.done {
-                    modal.dismiss {}
+                    modal.dismiss()
                 }.catch { error in
                     guard !modal.wasCancelled else { return }
                     showError(error, emailSupportFilter: emailSupportFilter, fromViewController: fromViewController)
@@ -59,7 +58,7 @@ public class ContactSupportAlert: NSObject {
             }
         }
 
-        let submitWithoutLogTitle = NSLocalizedString("CONTACT_SUPPORT_SUBMIT_WITHOUT_LOG", comment: "Button text")
+        let submitWithoutLogTitle = OWSLocalizedString("CONTACT_SUPPORT_SUBMIT_WITHOUT_LOG", comment: "Button text")
         let submitWithoutLogAction = ActionSheetAction(title: submitWithoutLogTitle, style: .default) { [weak fromViewController] _ in
             guard let fromViewController = fromViewController else { return }
 
@@ -68,8 +67,8 @@ public class ContactSupportAlert: NSObject {
             }
         }
 
-        let title = NSLocalizedString("CONTACT_SUPPORT_PROMPT_TO_INCLUDE_DEBUG_LOG_TITLE", comment: "Alert title")
-        let message = NSLocalizedString("CONTACT_SUPPORT_PROMPT_TO_INCLUDE_DEBUG_LOG_MESSAGE", comment: "Alert body")
+        let title = OWSLocalizedString("CONTACT_SUPPORT_PROMPT_TO_INCLUDE_DEBUG_LOG_TITLE", comment: "Alert title")
+        let message = OWSLocalizedString("CONTACT_SUPPORT_PROMPT_TO_INCLUDE_DEBUG_LOG_MESSAGE", comment: "Alert body")
         let actionSheet = ActionSheetController(title: title, message: message)
         actionSheet.addAction(submitWithLogAction)
         actionSheet.addAction(submitWithoutLogAction)
@@ -79,14 +78,14 @@ public class ContactSupportAlert: NSObject {
     }
 
     private class func showError(_ error: Error, emailSupportFilter: String, fromViewController: UIViewController) {
-        let retryTitle = NSLocalizedString("CONTACT_SUPPORT_PROMPT_ERROR_TRY_AGAIN", comment: "button text")
+        let retryTitle = OWSLocalizedString("CONTACT_SUPPORT_PROMPT_ERROR_TRY_AGAIN", comment: "button text")
         let retryAction = ActionSheetAction(title: retryTitle, style: .default) { [weak fromViewController] _ in
             guard let fromViewController = fromViewController else { return }
 
             presentStep2(emailSupportFilter: emailSupportFilter, fromViewController: fromViewController)
         }
 
-        let message = NSLocalizedString("CONTACT_SUPPORT_PROMPT_ERROR_ALERT_BODY", comment: "Alert body")
+        let message = OWSLocalizedString("CONTACT_SUPPORT_PROMPT_ERROR_ALERT_BODY", comment: "Alert body")
         let actionSheet = ActionSheetController(title: error.userErrorDescription, message: message)
         actionSheet.addAction(retryAction)
         actionSheet.addAction(OWSActionSheets.cancelAction)
@@ -96,7 +95,7 @@ public class ContactSupportAlert: NSObject {
 }
 
 enum ContactSupportError: Error {
-    case pasteLogError(localizedDescription: String)
+    case debugLogsError(localizedDescription: String)
 }
 extension ContactSupportError: LocalizedError, UserErrorDescriptionProvider {
     var errorDescription: String? {
@@ -105,24 +104,26 @@ extension ContactSupportError: LocalizedError, UserErrorDescriptionProvider {
 
     public var localizedDescription: String {
         switch self {
-        case .pasteLogError(let localizedDescription):
+        case .debugLogsError(let localizedDescription):
             return localizedDescription
         }
     }
 }
 
-extension Pastelog {
+extension DebugLogs {
     class func uploadLog() -> Promise<URL> {
         return Promise { future in
-            Pastelog.uploadLogs(success: future.resolve,
-                                failure: { localizedErrorDescription, logArchiveOrDirectoryPath in
-                // FIXME: Should we do something with the local log file?
-                if let logArchiveOrDirectoryPath = logArchiveOrDirectoryPath {
-                    _ = OWSFileSystem.deleteFile(logArchiveOrDirectoryPath)
+            DebugLogs.uploadLogs(
+                success: future.resolve,
+                failure: { localizedErrorDescription, logArchiveOrDirectoryPath in
+                    // FIXME: Should we do something with the local log file?
+                    if let logArchiveOrDirectoryPath = logArchiveOrDirectoryPath {
+                        _ = OWSFileSystem.deleteFile(logArchiveOrDirectoryPath)
+                    }
+                    let error = ContactSupportError.debugLogsError(localizedDescription: localizedErrorDescription)
+                    future.reject(error)
                 }
-                let error = ContactSupportError.pasteLogError(localizedDescription: localizedErrorDescription)
-                future.reject(error)
-            })
+            )
         }
     }
 }

@@ -9,7 +9,6 @@ import SignalMessaging
 import SignalServiceKit
 import Vision
 
-@objc
 public enum QRCodeScanOutcome: UInt {
     case stopScanning
     case continueScanning
@@ -17,7 +16,6 @@ public enum QRCodeScanOutcome: UInt {
 
 // MARK: -
 
-@objc
 public protocol QRCodeScanDelegate: AnyObject {
     // A QR code scan might yield a String payload, Data payload or both.
     //
@@ -55,50 +53,33 @@ public protocol QRCodeScanDelegate: AnyObject {
 
 // MARK: -
 
-@objc
 public class QRCodeScanViewController: OWSViewController {
 
-    @objc(QRCodeScanViewAppearance)
-    public enum Appearance: UInt {
-        case normal
+    public enum Appearance {
+        case masked(maskWindowOffset: CGPoint = .zero)
         case unadorned
 
         fileprivate var backgroundColor: UIColor {
             switch self {
-            case .normal:
+            case .masked:
                 return .ows_black
             case .unadorned:
                 return .clear
-            }
-        }
-
-        fileprivate var shouldMaskView: Bool {
-            switch self {
-            case .normal:
-                return true
-            case .unadorned:
-                return false
             }
         }
     }
 
     private let appearance: Appearance
 
-    @objc
     public weak var delegate: QRCodeScanDelegate?
+
+    private let delegateHasAcceptedScanResults = AtomicBool(false)
 
     private var scanner: QRCodeScanner?
 
-    private let canDeliverResultsFlag = AtomicBool(false)
-
-    @objc
     public required init(appearance: Appearance) {
         self.appearance = appearance
         super.init()
-    }
-
-    deinit {
-        stopScanning()
     }
 
     public override var prefersStatusBarHidden: Bool {
@@ -115,7 +96,6 @@ public class QRCodeScanViewController: OWSViewController {
 
     // MARK: - View Lifecycle
 
-    @objc
     public override func viewDidLoad() {
         AssertIsOnMainThread()
 
@@ -162,14 +142,14 @@ public class QRCodeScanViewController: OWSViewController {
     }
 
     @objc
-    func didEnterBackground() {
+    private func didEnterBackground() {
         AssertIsOnMainThread()
 
         stopScanning()
     }
 
     @objc
-    func didBecomeActive() {
+    private func didBecomeActive() {
         AssertIsOnMainThread()
 
         tryToStartScanning()
@@ -203,43 +183,54 @@ public class QRCodeScanViewController: OWSViewController {
     private func startScanning() {
         AssertIsOnMainThread()
 
-        guard nil == scanner else {
+        guard
+            scanner == nil,
+            !delegateHasAcceptedScanResults.get()
+        else {
             return
         }
 
-        let couldEnable = canDeliverResultsFlag.tryToSetFlag()
-        owsAssertDebug(couldEnable)
-
-        view.removeAllSubviews()
-
         let scanner = QRCodeScanner(sampleBufferDelegate: self)
         self.scanner = scanner
+
+        view.removeAllSubviews()
 
         let previewView = scanner.previewView
         view.addSubview(previewView)
         previewView.autoPinEdgesToSuperviewEdges()
 
-        if appearance.shouldMaskView {
+        switch appearance {
+        case .unadorned:
+            break
+        case let .masked(maskWindowOffset):
             let maskingView = BezierPathView { layer, bounds in
-                // Add a circular mask
-                let path = UIBezierPath(rect: bounds)
-                let margin = ScaleFromIPhone5To7Plus(8, 16)
+                // Add a mask with a rounded-rectangular window.
+                let rectSize: CGSize = .square(232)
+                let rectOrigin: CGPoint = {
+                    let unadjusted = (bounds.size - rectSize).asPoint * 0.5
+                    return unadjusted + maskWindowOffset
+                }()
 
-                // Center the circle's bounding rectangle
-                let circleDiameter = bounds.size.smallerAxis - margin * 2
-                let circleSize = CGSize.square(circleDiameter)
-                let circleRect = CGRect(origin: (bounds.size - circleSize).asPoint * 0.5,
-                                        size: circleSize)
-                let circlePath = UIBezierPath(roundedRect: circleRect,
-                                              cornerRadius: circleDiameter / 2)
-                path.append(circlePath)
+                let rect = CGRect(
+                    origin: rectOrigin,
+                    size: rectSize
+                )
+
+                let path = UIBezierPath(rect: bounds)
+                let rectPath = UIBezierPath(
+                    roundedRect: rect,
+                    cornerRadius: 32
+                )
+
+                path.append(rectPath)
                 path.usesEvenOddFillRule = true
 
                 layer.path = path.cgPath
                 layer.fillRule = .evenOdd
-                layer.fillColor = UIColor.gray.cgColor
-                layer.opacity = 0.5
+                layer.fillColor = UIColor.black.cgColor
+                layer.opacity = 0.4
             }
+
             self.view.addSubview(maskingView)
             maskingView.autoPinEdgesToSuperviewEdges()
         }
@@ -285,8 +276,7 @@ public class QRCodeScanViewController: OWSViewController {
     }()
 
     private func processClassification(_ request: VNRequest) {
-        guard canDeliverResultsFlag.get() else {
-            // Already complete.
+        guard !delegateHasAcceptedScanResults.get() else {
             return
         }
 
@@ -329,23 +319,27 @@ public class QRCodeScanViewController: OWSViewController {
             guard let barcodeDescriptor = barcode.barcodeDescriptor as? CIQRCodeDescriptor else {
                 return nil
             }
+
             let qrCodeCodewords = barcodeDescriptor.errorCorrectedPayload
             let qrCodeVersion = barcodeDescriptor.symbolVersion
             let qrCodeString: String? = barcode.payloadStringValue
-            let qrCodeData: Data? = QRCodePayload.parse(codewords: qrCodeCodewords,
-                                                        qrCodeVersion: qrCodeVersion)?.data
+            let qrCodeData: Data? = QRCodePayload.parse(
+                codewords: qrCodeCodewords,
+                qrCodeVersion: qrCodeVersion
+            )?.data
+
             guard qrCodeString != nil || qrCodeData != nil else {
                 return nil
             }
-            return QRCode(qrCodeCodewords: qrCodeCodewords,
-                          qrCodeVersion: qrCodeVersion,
-                          qrCodeString: qrCodeString,
-                          qrCodeData: qrCodeData)
+
+            return QRCode(
+                qrCodeCodewords: qrCodeCodewords,
+                qrCodeVersion: qrCodeVersion,
+                qrCodeString: qrCodeString,
+                qrCodeData: qrCodeData
+            )
         }
 
-        guard !qrCodes.isEmpty else {
-            return
-        }
         guard let qrCode = qrCodes.first else {
             return
         }
@@ -353,26 +347,26 @@ public class QRCodeScanViewController: OWSViewController {
         Logger.info("Scanned QR Code.")
 
         DispatchQueue.main.async { [weak self] in
-            guard let self = self,
-                  let delegate = self.delegate else {
+            guard
+                let self = self,
+                let delegate = self.delegate,
+                !self.delegateHasAcceptedScanResults.get()
+            else {
                 return
             }
 
-            let outcome = delegate.qrCodeScanViewScanned(self,
-                                                         qrCodeData: qrCode.qrCodeData,
-                                                         qrCodeString: qrCode.qrCodeString)
+            let outcome = delegate.qrCodeScanViewScanned(
+                self,
+                qrCodeData: qrCode.qrCodeData,
+                qrCodeString: qrCode.qrCodeString
+            )
+
             switch outcome {
             case .stopScanning:
-                guard self.canDeliverResultsFlag.tryToClearFlag() else {
-                    // Already complete.
-                    return
-                }
-
+                self.delegateHasAcceptedScanResults.set(true)
                 self.stopScanning()
 
-                // Vibrate
-                ImpactHapticFeedback.impactOccured(style: .medium)
-
+                ImpactHapticFeedback.impactOccurred(style: .medium)
             case .continueScanning:
                 break
             }
@@ -606,7 +600,7 @@ private class QRCodeScanner {
 
     lazy private(set) var previewView = QRCodeScanPreviewView(session: session)
 
-    private let sessionQueue = DispatchQueue(label: "QRCodeScanner.sessionQueue")
+    private let sessionQueue = DispatchQueue(label: "org.signal.qrcode-scanner")
 
     private let session = AVCaptureSession()
     private let output: QRCodeScanOutput
@@ -760,11 +754,9 @@ private class QRCodeScanner {
         // Camera types in descending order of preference.
         var deviceTypes = [AVCaptureDevice.DeviceType]()
         deviceTypes.append(.builtInWideAngleCamera)
-        if #available(iOS 13, *) {
-            deviceTypes.append(.builtInUltraWideCamera)
-            deviceTypes.append(.builtInDualWideCamera)
-            deviceTypes.append(.builtInTripleCamera)
-        }
+        deviceTypes.append(.builtInUltraWideCamera)
+        deviceTypes.append(.builtInDualWideCamera)
+        deviceTypes.append(.builtInTripleCamera)
         deviceTypes.append(.builtInDualCamera)
         deviceTypes.append(.builtInTelephotoCamera)
 

@@ -28,7 +28,7 @@ public protocol HTTPResponse {
 
 // A common protocol for errors from OWSUrlSession, NetworkManager, SocketManager, etc.
 public protocol HTTPError {
-    var requestUrl: URL { get }
+    var requestUrl: URL? { get }
     // status is zero by default, if request never made or failed.
     var responseStatusCode: Int { get }
     var responseHeaders: OWSHttpHeaders? { get }
@@ -56,7 +56,7 @@ public struct HTTPErrorServiceResponse {
 // MARK: -
 
 public enum OWSHTTPError: Error, IsRetryableProvider, UserErrorDescriptionProvider {
-    case missingRequest(requestUrl: URL)
+    case missingRequest
     case invalidAppState(requestUrl: URL)
     case invalidRequest(requestUrl: URL)
     case invalidResponse(requestUrl: URL)
@@ -94,19 +94,15 @@ public enum OWSHTTPError: Error, IsRetryableProvider, UserErrorDescriptionProvid
     // NSError bridging: the error code within the given domain.
     public var errorUserInfo: [String: Any] {
         var result = [String: Any]()
-        if let responseError = self.responseError {
-            result[NSUnderlyingErrorKey] = responseError
-        }
+        result[NSUnderlyingErrorKey] = responseError
         result[NSLocalizedDescriptionKey] = localizedDescription
-        if let customLocalizedRecoverySuggestion = self.customLocalizedRecoverySuggestion {
-            result[NSLocalizedRecoverySuggestionErrorKey] = customLocalizedRecoverySuggestion
-        }
+        result[NSLocalizedRecoverySuggestionErrorKey] = customLocalizedRecoverySuggestion
         return result
     }
 
     public var localizedDescription: String {
-        if let customLocalizedRecoverySuggestion = self.customLocalizedRecoverySuggestion {
-            return customLocalizedRecoverySuggestion
+        if let customLocalizedDescription {
+            return customLocalizedDescription
         }
         switch self {
         case .missingRequest, .invalidAppState, .invalidRequest, .networkFailure:
@@ -148,10 +144,10 @@ public enum OWSHTTPError: Error, IsRetryableProvider, UserErrorDescriptionProvid
 
 extension OWSHTTPError: HTTPError {
 
-    public var requestUrl: URL {
+    public var requestUrl: URL? {
         switch self {
-        case .missingRequest(let requestUrl):
-            return requestUrl
+        case .missingRequest:
+            return nil
         case .invalidAppState(let requestUrl):
             return requestUrl
         case .invalidRequest(let requestUrl):
@@ -216,7 +212,7 @@ extension OWSHTTPError: HTTPError {
         }
     }
 
-    public var customLocalizedDescription: String? {
+    fileprivate var customLocalizedDescription: String? {
         switch self {
         case .missingRequest, .invalidAppState, .invalidRequest, .invalidResponse, .networkFailure:
             return nil
@@ -225,7 +221,7 @@ extension OWSHTTPError: HTTPError {
         }
     }
 
-    public var customLocalizedRecoverySuggestion: String? {
+    fileprivate var customLocalizedRecoverySuggestion: String? {
         switch self {
         case .missingRequest, .invalidAppState, .invalidRequest, .invalidResponse, .networkFailure:
             return nil
@@ -250,7 +246,7 @@ extension OWSHTTPError: HTTPError {
                 return true
             }
             if let responseError = responseError {
-                return responseError.isNetworkConnectivityFailure
+                return responseError.isNetworkFailureOrTimeout
             }
             return false
         }

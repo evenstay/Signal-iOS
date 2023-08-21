@@ -22,6 +22,8 @@ NSUInteger const TSAttachmentSchemaVersion = 1;
 
 @property (nonatomic, nullable) NSString *blurHash;
 
+@property (nonatomic, nullable) NSNumber *videoDuration;
+
 @end
 
 #pragma mark -
@@ -43,6 +45,7 @@ NSUInteger const TSAttachmentSchemaVersion = 1;
                   albumMessageId:(nullable NSString *)albumMessageId
                         blurHash:(nullable NSString *)blurHash
                  uploadTimestamp:(unsigned long long)uploadTimestamp
+                   videoDuration:(nullable NSNumber *)videoDuration
 {
     OWSAssertDebug(serverId > 0 || cdnKey.length > 0);
     OWSAssertDebug(encryptionKey.length > 0);
@@ -73,6 +76,7 @@ NSUInteger const TSAttachmentSchemaVersion = 1;
     _albumMessageId = albumMessageId;
     _blurHash = blurHash;
     _uploadTimestamp = uploadTimestamp;
+    _videoDuration = videoDuration;
 
     _attachmentSchemaVersion = TSAttachmentSchemaVersion;
 
@@ -151,7 +155,7 @@ NSUInteger const TSAttachmentSchemaVersion = 1;
 // that represent downloaded incoming attachments.
 - (instancetype)initWithPointer:(TSAttachmentPointer *)pointer transaction:(SDSAnyReadTransaction *)transaction
 {
-    if (![pointer lazyRestoreFragmentWithTransaction:transaction]) {
+    if (pointer.lazyRestoreFragmentId == nil) {
         OWSAssertDebug(pointer.serverId > 0 || pointer.cdnKey.length > 0);
         OWSAssertDebug(pointer.encryptionKey.length > 0);
         if (pointer.byteCount <= 0) {
@@ -241,6 +245,7 @@ NSUInteger const TSAttachmentSchemaVersion = 1;
                         serverId:(unsigned long long)serverId
                   sourceFilename:(nullable NSString *)sourceFilename
                  uploadTimestamp:(unsigned long long)uploadTimestamp
+                   videoDuration:(nullable NSNumber *)videoDuration
 {
     self = [super initWithGrdbId:grdbId
                         uniqueId:uniqueId];
@@ -262,6 +267,7 @@ NSUInteger const TSAttachmentSchemaVersion = 1;
     _serverId = serverId;
     _sourceFilename = sourceFilename;
     _uploadTimestamp = uploadTimestamp;
+    _videoDuration = videoDuration;
 
     [self sdsFinalizeAttachment];
 
@@ -312,6 +318,11 @@ NSUInteger const TSAttachmentSchemaVersion = 1;
     return @"TSAttachements";
 }
 
+- (BOOL)isVoiceMessageIncludingLegacyMessages
+{
+    return self.isVoiceMessage || !self.sourceFilename || self.sourceFilename.length == 0;
+}
+
 - (NSString *)description {
     NSString *attachmentString;
 
@@ -335,7 +346,7 @@ NSUInteger const TSAttachmentSchemaVersion = 1;
     } else if ([MIMETypeUtil isAudio:self.contentType]) {
         // a missing filename is the legacy way to determine if an audio attachment is
         // a voice note vs. other arbitrary audio attachments.
-        if (self.isVoiceMessage || !self.sourceFilename || self.sourceFilename.length == 0) {
+        if (self.isVoiceMessageIncludingLegacyMessages) {
             attachmentString = OWSLocalizedString(@"ATTACHMENT_TYPE_VOICE_MESSAGE",
                 @"Short text label for a voice message attachment, used for thread preview and on the lock screen");
         } else {
@@ -405,7 +416,7 @@ NSUInteger const TSAttachmentSchemaVersion = 1;
 
 - (BOOL)isVideo
 {
-    return [MIMETypeUtil isVideo:self.contentType];
+    return [OWSVideoAttachmentDetection.sharedInstance attachmentIsVideo:self];
 }
 
 - (BOOL)isAudio
@@ -436,7 +447,7 @@ NSUInteger const TSAttachmentSchemaVersion = 1;
 
 - (BOOL)isLoopingVideo
 {
-    return self.attachmentType == TSAttachmentTypeGIF && self.isVideo;
+    return [OWSVideoAttachmentDetection.sharedInstance attachmentIsLoopingVideo:self];
 }
 
 - (BOOL)isVisualMedia
@@ -513,6 +524,12 @@ NSUInteger const TSAttachmentSchemaVersion = 1;
                              block:^(TSAttachment *attachment) {
                                  attachment.blurHash = blurHash;
                              }];
+}
+
+- (void)updateWithVideoDuration:(nullable NSNumber *)videoDuration transaction:(SDSAnyWriteTransaction *)transaction
+{
+    [self anyUpdateWithTransaction:transaction
+                             block:^(TSAttachment *_Nonnull attachment) { attachment.videoDuration = videoDuration; }];
 }
 
 #pragma mark - Relationships

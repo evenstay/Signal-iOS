@@ -5,9 +5,7 @@
 
 import SignalMessaging
 import SignalUI
-import UIKit
 
-@objc
 class BlockingAnnouncementOnlyView: UIStackView {
 
     private let thread: TSThread
@@ -48,9 +46,9 @@ class BlockingAnnouncementOnlyView: UIStackView {
         addSubview(blurView)
         blurView.autoPinEdgesToSuperviewEdges()
 
-        let format = NSLocalizedString("GROUPS_ANNOUNCEMENT_ONLY_BLOCKING_SEND_OR_CALL_FORMAT",
+        let format = OWSLocalizedString("GROUPS_ANNOUNCEMENT_ONLY_BLOCKING_SEND_OR_CALL_FORMAT",
                                        comment: "Format for indicator that only group administrators can starts a group call and sends messages to an 'announcement-only' group. Embeds {{ a \"admins\" link. }}.")
-        let adminsText = NSLocalizedString("GROUPS_ANNOUNCEMENT_ONLY_ADMINISTRATORS",
+        let adminsText = OWSLocalizedString("GROUPS_ANNOUNCEMENT_ONLY_ADMINISTRATORS",
                                            comment: "Label for group administrators in the 'announcement-only' group UI.")
         let text = String(format: format, adminsText)
         let attributedString = NSMutableAttributedString(string: text)
@@ -60,7 +58,7 @@ class BlockingAnnouncementOnlyView: UIStackView {
         forSubstring: adminsText)
 
         let label = UILabel()
-        label.font = .ows_dynamicTypeSubheadlineClamped
+        label.font = .dynamicTypeSubheadlineClamped
         label.textColor = forceDarkMode ? Theme.darkThemeSecondaryTextAndIconColor : Theme.secondaryTextAndIconColor
         label.attributedText = attributedString
         label.textAlignment = .center
@@ -119,7 +117,6 @@ class BlockingAnnouncementOnlyView: UIStackView {
 
 // MARK: -
 
-@objc
 class MessageUserSubsetSheet: OWSTableSheetViewController {
     private let addresses: [SignalServiceAddress]
     private let forceDarkMode: Bool
@@ -155,13 +152,13 @@ class MessageUserSubsetSheet: OWSTableSheetViewController {
         defer { tableViewController.setContents(contents, shouldReload: shouldReload) }
 
         let section = OWSTableSection()
-        let header = NSLocalizedString("GROUPS_ANNOUNCEMENT_ONLY_CONTACT_ADMIN",
+        let header = OWSLocalizedString("GROUPS_ANNOUNCEMENT_ONLY_CONTACT_ADMIN",
                                        comment: "Label indicating the user can contact a group administrators of an 'announcement-only' group.")
         section.headerAttributedTitle = NSAttributedString(string: header, attributes: [
-            .font: UIFont.ows_dynamicTypeBodyClamped.ows_semibold,
+            .font: UIFont.dynamicTypeBodyClamped.semibold(),
             .foregroundColor: forceDarkMode ? Theme.darkThemePrimaryColor : Theme.primaryTextColor
             ])
-        contents.addSection(section)
+        contents.add(section)
         for address in addresses {
             section.add(OWSTableItem(
                             dequeueCellBlock: { [weak self] tableView in
@@ -183,9 +180,7 @@ class MessageUserSubsetSheet: OWSTableSheetViewController {
                             },
                 actionBlock: { [weak self] in
                     self?.dismiss(animated: true) {
-                        Self.signalApp.presentConversation(for: address,
-                                                           action: .compose,
-                                                           animated: true)
+                        SignalApp.shared.presentConversationForAddress(address, action: .compose, animated: true)
                     }
                 }))
         }

@@ -3,9 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalMessaging
-import UIKit
+import SignalUI
 
 class DonationReceiptViewController: OWSTableViewController2 {
     let model: DonationReceipt
@@ -18,9 +17,9 @@ class DonationReceiptViewController: OWSTableViewController2 {
 
     let shareReceiptButton: OWSButton = {
         let button = OWSButton()
-        button.setTitle(NSLocalizedString("DONATION_RECEIPT_EXPORT_RECEIPT_BUTTON", comment: "Text on the button that exports the receipt"),
+        button.setTitle(OWSLocalizedString("DONATION_RECEIPT_EXPORT_RECEIPT_BUTTON", comment: "Text on the button that exports the receipt"),
                         for: .normal)
-        button.titleLabel?.font = .ows_dynamicTypeBodyClamped.ows_semibold
+        button.titleLabel?.font = .dynamicTypeBodyClamped.semibold()
         button.clipsToBounds = true
         button.layer.cornerRadius = 8
         button.contentEdgeInsets = UIEdgeInsets(top: 13, leading: 13, bottom: 13, trailing: 13)
@@ -54,7 +53,7 @@ class DonationReceiptViewController: OWSTableViewController2 {
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        title = NSLocalizedString("DONATION_RECEIPT_DETAILS", comment: "Title on the view where you can see a single receipt")
+        title = OWSLocalizedString("DONATION_RECEIPT_DETAILS", comment: "Title on the view where you can see a single receipt")
 
         shareReceiptButton.block = { self.showShareReceiptActivity() }
         shareReceiptButtonContainer.addArrangedSubview(shareReceiptButton)
@@ -114,12 +113,12 @@ class DonationReceiptViewController: OWSTableViewController2 {
     private func detailsSection() -> OWSTableSection {
         OWSTableSection(items: [
             .item(
-                name: NSLocalizedString("DONATION_RECEIPT_TYPE", comment: "Section title for donation type on receipts"),
+                name: OWSLocalizedString("DONATION_RECEIPT_TYPE", comment: "Section title for donation type on receipts"),
                 subtitle: model.localizedName,
                 accessibilityIdentifier: UIView.accessibilityIdentifier(in: self, name: "donation_receipt_details_type")
             ),
             .item(
-                name: NSLocalizedString("DONATION_RECEIPT_DATE_PAID", comment: "Section title for donation date on receipts"),
+                name: OWSLocalizedString("DONATION_RECEIPT_DATE_PAID", comment: "Section title for donation date on receipts"),
                 subtitle: dateFormatter.string(from: model.timestamp),
                 accessibilityIdentifier: UIView.accessibilityIdentifier(in: self, name: "donation_receipt_details_date")
             )
@@ -139,42 +138,11 @@ class DonationReceiptViewController: OWSTableViewController2 {
     }
 
     private func showShareReceiptActivity() {
-        // HACK: `UIActivityViewController` will sometimes dismiss its parent due to an iOS bug
-        // (see links below). To get around this, we present an invisible view controller and
-        // have that present the `UIActivityViewController`. Then, when the latter completes,
-        // we dismiss the invisible one.
-        //
-        // - <https://stackoverflow.com/q/56903030>
-        // - <https://stackoverflow.com/q/59413850>
-        // - <https://developer.apple.com/forums/thread/119482>
-        // - <https://github.com/iMacHumphries/TestShareSheet>
-        let wrapperViewControllerToFixIosBug = UIViewController()
-        wrapperViewControllerToFixIosBug.modalPresentationStyle = .overCurrentContext
-        wrapperViewControllerToFixIosBug.view.backgroundColor = .clear
-
-        let image = DonationReceiptImageActivityItemProvider(donationReceipt: model)
-        let shareActivityViewController = UIActivityViewController(activityItems: [image], applicationActivities: [])
-        if let popoverPresentationController = shareActivityViewController.popoverPresentationController {
-            popoverPresentationController.sourceView = self.shareReceiptButton
-        }
-        shareActivityViewController.excludedActivityTypes = [
-            .addToReadingList,
-            .assignToContact,
-            .openInIBooks,
-            .postToFacebook,
-            .postToFlickr,
-            .postToTencentWeibo,
-            .postToTwitter,
-            .postToVimeo,
-            .postToWeibo
-        ]
-        shareActivityViewController.completionWithItemsHandler = { _, _, _, _ in
-            wrapperViewControllerToFixIosBug.dismiss(animated: false)
-        }
-
-        self.present(wrapperViewControllerToFixIosBug, animated: false) {
-            wrapperViewControllerToFixIosBug.present(shareActivityViewController, animated: true)
-        }
+        ShareActivityUtil.present(
+            activityItems: [DonationReceiptImageActivityItemProvider(donationReceipt: model)],
+            from: self,
+            sourceView: shareReceiptButton
+        )
     }
 
     // MARK: - Donation receipt image activity provider
@@ -237,7 +205,7 @@ class DonationReceiptViewController: OWSTableViewController2 {
             containerView.backgroundColor = .white
             containerView.isOpaque = true
             containerView.addSubview(stackView)
-            stackView.autoPinEdgesToSuperviewEdges(withInsets: containerMargins)
+            stackView.autoPinEdgesToSuperviewEdges(with: containerMargins)
 
             return containerView
         }
@@ -261,13 +229,13 @@ class DonationReceiptViewController: OWSTableViewController2 {
         }
 
         private class func titleView() -> UIView {
-            label(NSLocalizedString("DONATION_RECEIPT_TITLE", comment: "Title on donation receipts"),
+            label(OWSLocalizedString("DONATION_RECEIPT_TITLE", comment: "Title on donation receipts"),
                   fontSize: 20)
         }
 
         private class func amountView(donationReceipt: DonationReceipt) -> UIView {
             let arrangedSubviews = [
-                label(NSLocalizedString("DONATION_RECEIPT_AMOUNT", comment: "Section title for donation amount on receipts")),
+                label(OWSLocalizedString("DONATION_RECEIPT_AMOUNT", comment: "Section title for donation amount on receipts")),
                 label(DonationUtilities.format(money: donationReceipt.amount), isAlignedToEdge: true)
             ]
             let amountView = UIStackView(arrangedSubviews: arrangedSubviews)
@@ -278,17 +246,17 @@ class DonationReceiptViewController: OWSTableViewController2 {
         }
 
         private class func donationTypeView(donationReceipt: DonationReceipt) -> UIView {
-            detailView(title: NSLocalizedString("DONATION_RECEIPT_TYPE", comment: "Section title for donation type on receipts"),
+            detailView(title: OWSLocalizedString("DONATION_RECEIPT_TYPE", comment: "Section title for donation type on receipts"),
                        subtitle: donationReceipt.localizedName)
         }
 
         private class func datePaidView(donationReceipt: DonationReceipt) -> UIView {
-            detailView(title: NSLocalizedString("DONATION_RECEIPT_DATE_PAID", comment: "Section title for donation date on receipts"),
+            detailView(title: OWSLocalizedString("DONATION_RECEIPT_DATE_PAID", comment: "Section title for donation date on receipts"),
                        subtitle: dateFormatter().string(from: donationReceipt.timestamp))
         }
 
         private class func footerView() -> UIView {
-            label(NSLocalizedString("DONATION_RECEIPT_FOOTER", comment: "Footer text at the bottom of donation receipts"),
+            label(OWSLocalizedString("DONATION_RECEIPT_FOOTER", comment: "Footer text at the bottom of donation receipts"),
                   fontSize: 12,
                   textColor: .ows_gray60)
         }

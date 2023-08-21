@@ -48,7 +48,7 @@ public class ConversationPickerFailedRecipientsSheet: OWSTableSheetViewControlle
         doneButton.dimsWhenHighlighted = true
         doneButton.layer.cornerRadius = 8
         doneButton.backgroundColor = .ows_accentBlue
-        doneButton.titleLabel?.font = UIFont.ows_dynamicTypeBody.ows_semibold
+        doneButton.titleLabel?.font = UIFont.dynamicTypeBody.semibold()
         footerStack.addArrangedSubview(doneButton)
         doneButton.autoSetDimension(.height, toSize: 48)
         doneButton.autoPinWidthToSuperview(withMargin: 48)
@@ -66,7 +66,7 @@ public class ConversationPickerFailedRecipientsSheet: OWSTableSheetViewControlle
         let contents = OWSTableContents()
 
         let headerSection = OWSTableSection()
-        headerSection.separatorInsetLeading = NSNumber(value: OWSTableViewController2.cellHInnerMargin + 32)
+        headerSection.separatorInsetLeading = OWSTableViewController2.cellHInnerMargin + 32
 
         let headerTitle: String
         let headerSubtitle: String
@@ -100,7 +100,7 @@ public class ConversationPickerFailedRecipientsSheet: OWSTableSheetViewControlle
             subtitle: headerSubtitle
         )
         headerSection.customHeaderView = headerView
-        contents.addSection(headerSection)
+        contents.add(headerSection)
 
         let failedStoriesSection = OWSTableSection()
         failedStoriesSection.headerTitle = OWSLocalizedString(
@@ -119,7 +119,7 @@ public class ConversationPickerFailedRecipientsSheet: OWSTableSheetViewControlle
                 return cell
             }))
         }
-        contents.addSection(failedStoriesSection)
+        contents.add(failedStoriesSection)
 
         if !remainingConversationItems.isEmpty {
             let remainingConversationsSection = OWSTableSection()
@@ -139,7 +139,7 @@ public class ConversationPickerFailedRecipientsSheet: OWSTableSheetViewControlle
                     return cell
                 }))
             }
-            contents.addSection(remainingConversationsSection)
+            contents.add(remainingConversationsSection)
         }
 
         return contents
@@ -155,14 +155,14 @@ public class ConversationPickerFailedRecipientsSheet: OWSTableSheetViewControlle
 
             titleLabel.text = title
             titleLabel.textAlignment = .center
-            titleLabel.font = .ows_dynamicTypeTitle2.ows_semibold
+            titleLabel.font = .dynamicTypeTitle2.semibold()
             titleLabel.textColor = Theme.primaryTextColor
             addSubview(titleLabel)
 
             subtitleLabel.numberOfLines = 0
             subtitleLabel.text = subtitle
             subtitleLabel.textAlignment = .center
-            subtitleLabel.font = .ows_dynamicTypeSubheadline
+            subtitleLabel.font = .dynamicTypeSubheadline
             subtitleLabel.textColor = Theme.primaryTextColor
             addSubview(subtitleLabel)
 

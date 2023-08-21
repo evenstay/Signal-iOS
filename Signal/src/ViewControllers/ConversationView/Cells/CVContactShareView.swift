@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalMessaging
+import SignalUI
 
 public class CVContactShareView: ManualStackView {
 
@@ -62,12 +62,9 @@ public class CVContactShareView: ManualStackView {
 
         avatarView.image = state.avatar
 
-        let disclosureImageName = (CurrentAppContext().isRTL
-                                    ? "small_chevron_left"
-                                    : "small_chevron_right")
         let disclosureColor = state.conversationStyle.bubbleTextColor(isIncoming: state.isIncoming)
-        disclosureImageView.setTemplateImageName(disclosureImageName,
-                                                 tintColor: disclosureColor)
+        disclosureImageView.setTemplateImage(UIImage(imageLiteralResourceName: "chevron-right-20"),
+                                             tintColor: disclosureColor)
 
         self.configure(config: Self.outerStackConfig,
                              cellMeasurement: cellMeasurement,
@@ -95,10 +92,12 @@ public class CVContactShareView: ManualStackView {
 
     private static func topLabelConfig(state: State) -> CVLabelConfig {
         let textColor = state.conversationStyle.bubbleTextColor(isIncoming: state.isIncoming)
-        return CVLabelConfig(text: state.contactShare.displayName,
-                             font: .ows_dynamicTypeBody2.ows_semibold,
-                             textColor: textColor,
-                             lineBreakMode: .byTruncatingTail)
+        return CVLabelConfig.unstyledText(
+            state.contactShare.displayName,
+            font: .dynamicTypeBody2.semibold(),
+            textColor: textColor,
+            lineBreakMode: .byTruncatingTail
+        )
     }
 
     private static func bottomLabelConfig(state: State) -> CVLabelConfig? {
@@ -107,10 +106,12 @@ public class CVContactShareView: ManualStackView {
         }
         let text = PhoneNumber.bestEffortLocalizedPhoneNumber(withE164: firstPhoneNumber)
         let textColor = state.conversationStyle.bubbleSecondaryTextColor(isIncoming: state.isIncoming)
-        return CVLabelConfig(text: text,
-                             font: .ows_dynamicTypeCaption1,
-                             textColor: textColor,
-                             lineBreakMode: .byTruncatingTail)
+        return CVLabelConfig.unstyledText(
+            text,
+            font: .dynamicTypeCaption1,
+            textColor: textColor,
+            lineBreakMode: .byTruncatingTail
+        )
     }
 
     private static let measurementKey_outerStack = "CVContactShareView.measurementKey_outerStack"

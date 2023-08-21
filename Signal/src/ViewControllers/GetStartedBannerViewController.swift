@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalServiceKit
+import SignalUI
 
-@objc(OWSGetStartedBannerViewControllerDelegate)
 protocol GetStartedBannerViewControllerDelegate: AnyObject {
     func getStartedBannerDidTapInviteFriends(_ banner: GetStartedBannerViewController)
     func getStartedBannerDidTapCreateGroup(_ banner: GetStartedBannerViewController)
@@ -14,16 +14,15 @@ protocol GetStartedBannerViewControllerDelegate: AnyObject {
     func getStartedBannerDidTapAvatarBuilder(_ banner: GetStartedBannerViewController)
 }
 
-@objc(OWSGetStartedBannerViewController)
 class GetStartedBannerViewController: UIViewController, UICollectionViewDelegateFlowLayout {
 
     // MARK: - Views
 
     private let header: UILabel = {
         let label = UILabel()
-        label.font = UIFont.ows_dynamicTypeBodyClamped.ows_semibold
+        label.font = UIFont.dynamicTypeBodyClamped.semibold()
         label.adjustsFontForContentSizeCategory = true
-        label.text = NSLocalizedString(
+        label.text = OWSLocalizedString(
             "GET_STARTED_BANNER_TITLE",
             comment: "Title for the 'Get Started' banner")
         return label
@@ -54,9 +53,8 @@ class GetStartedBannerViewController: UIViewController, UICollectionViewDelegate
 
     // MARK: - Data
 
-    @objc
     public var hasIncompleteCards: Bool { bannerContent.count > 0 }
-    @objc
+
     public var opaqueHeight: CGFloat { view.height - gradientBackdrop.height }
 
     private weak var delegate: GetStartedBannerViewControllerDelegate?
@@ -65,7 +63,6 @@ class GetStartedBannerViewController: UIViewController, UICollectionViewDelegate
 
     // MARK: - Lifecycle
 
-    @objc
     init(delegate: GetStartedBannerViewControllerDelegate) {
         self.delegate = delegate
         super.init(nibName: nil, bundle: nil)
@@ -77,7 +74,7 @@ class GetStartedBannerViewController: UIViewController, UICollectionViewDelegate
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(applyTheme),
-            name: .ThemeDidChange,
+            name: .themeDidChange,
             object: nil)
 
         NotificationCenter.default.addObserver(
@@ -274,7 +271,6 @@ extension GetStartedBannerViewController {
     private static let keyValueStore = SDSKeyValueStore(collection: "GetStartedBannerViewController")
     private static let completePrefix = "ActiveCard."
 
-    @objc(enableAllCardsWithTransaction:)
     static func enableAllCards(writeTx: SDSAnyWriteTransaction) {
         var didChange = false
 

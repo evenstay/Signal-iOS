@@ -5,9 +5,7 @@
 
 import SignalMessaging
 import SignalServiceKit
-import UIKit
 
-@objc
 public class GroupTableViewCell: UITableViewCell {
 
     private let avatarView = ConversationAvatarView(sizeClass: .thirtySix, localUserDisplayMode: .asUser)
@@ -15,15 +13,14 @@ public class GroupTableViewCell: UITableViewCell {
     private let subtitleLabel = UILabel()
     private let accessoryLabel = UILabel()
 
-    @objc
     var accessoryMessage: String?
 
     public init() {
         super.init(style: .default, reuseIdentifier: GroupTableViewCell.logTag())
 
         // Font config
-        nameLabel.font = .ows_dynamicTypeBody
-        subtitleLabel.font = UIFont.ows_regularFont(withSize: 11.0)
+        nameLabel.font = .dynamicTypeBody
+        subtitleLabel.font = .regularFont(ofSize: 11)
 
         // Layout
 
@@ -41,8 +38,8 @@ public class GroupTableViewCell: UITableViewCell {
         columns.autoPinHeightToSuperview(withMargin: 7)
 
         // Accessory Label
-        accessoryLabel.font = .ows_semiboldFont(withSize: 13)
-        accessoryLabel.textColor = Theme.middleGrayColor
+        accessoryLabel.font = .semiboldFont(ofSize: 13)
+        accessoryLabel.textColor = .ows_middleGray
         accessoryLabel.textAlignment = .right
         accessoryLabel.isHidden = true
     }
@@ -51,7 +48,6 @@ public class GroupTableViewCell: UITableViewCell {
         fatalError("init(coder:) has not been implemented")
     }
 
-    @objc
     public func configure(thread: TSGroupThread, customSubtitle: String? = nil, customTextColor: UIColor? = nil) {
         OWSTableItem.configureCell(self)
 

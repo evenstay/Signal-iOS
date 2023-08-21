@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import LibSignalClient
 import SignalMessaging
 import SignalUI
 
@@ -12,11 +13,14 @@ class StoryInfoSheet: OWSTableSheetViewController {
     let context: StoryContext
     var dismissHandler: (() -> Void)?
 
+    private let spoilerState: SpoilerRenderState
+
     override var sheetBackgroundColor: UIColor { .ows_gray90 }
 
-    init(storyMessage: StoryMessage, context: StoryContext) {
+    init(storyMessage: StoryMessage, context: StoryContext, spoilerState: SpoilerRenderState) {
         self.storyMessage = storyMessage
         self.context = context
+        self.spoilerState = spoilerState
         super.init()
 
         databaseStorage.appendDatabaseChangeDelegate(self)
@@ -44,7 +48,7 @@ class StoryInfoSheet: OWSTableSheetViewController {
 
         let metadataSection = OWSTableSection()
         metadataSection.hasBackground = false
-        contents.addSection(metadataSection)
+        contents.add(metadataSection)
 
         metadataSection.add(.init(customCellBlock: { [weak self] in
             let cell = OWSTableItem.newCell()
@@ -59,9 +63,9 @@ class StoryInfoSheet: OWSTableSheetViewController {
 
         switch storyMessage.manifest {
         case .outgoing(let recipientStates):
-            contents.addSections(buildStatusSections(for: recipientStates))
+            contents.add(sections: buildStatusSections(for: recipientStates))
         case .incoming:
-            contents.addSection(buildSenderSection())
+            contents.add(buildSenderSection())
         }
     }
 
@@ -71,7 +75,7 @@ class StoryInfoSheet: OWSTableSheetViewController {
         stackView.axis = .vertical
 
         let timestampLabel = buildValueLabel(
-            name: NSLocalizedString(
+            name: OWSLocalizedString(
                 "MESSAGE_METADATA_VIEW_SENT_DATE_TIME",
                 comment: "Label for the 'sent date & time' field of the 'message metadata' view."
             ),
@@ -90,7 +94,7 @@ class StoryInfoSheet: OWSTableSheetViewController {
             }
 
             let receivedTimestampLabel = buildValueLabel(
-                name: NSLocalizedString(
+                name: OWSLocalizedString(
                     "MESSAGE_METADATA_VIEW_RECEIVED_DATE_TIME",
                     comment: "Label for the 'received date & time' field of the 'message metadata' view."
                 ),
@@ -101,15 +105,15 @@ class StoryInfoSheet: OWSTableSheetViewController {
 
         switch storyMessage.attachment {
         case .text: break
-        case .file(let attachmentId):
-            guard let attachment = databaseStorage.read(block: { TSAttachment.anyFetch(uniqueId: attachmentId, transaction: $0) }) else {
+        case .file(let file):
+            guard let attachment = databaseStorage.read(block: { TSAttachment.anyFetch(uniqueId: file.attachmentId, transaction: $0) }) else {
                 owsFailDebug("Missing attachment for story message")
                 break
             }
 
             if let formattedByteCount = byteCountFormatter.string(for: attachment.byteCount) {
                 stackView.addArrangedSubview(buildValueLabel(
-                    name: NSLocalizedString(
+                    name: OWSLocalizedString(
                         "MESSAGE_METADATA_VIEW_ATTACHMENT_FILE_SIZE",
                         comment: "Label for file size of attachments in the 'message metadata' view."
                     ),
@@ -125,7 +129,7 @@ class StoryInfoSheet: OWSTableSheetViewController {
 
     private func buildSenderSection() -> OWSTableSection {
         let section = OWSTableSection()
-        section.headerTitle = NSLocalizedString(
+        section.headerTitle = OWSLocalizedString(
             "MESSAGE_DETAILS_VIEW_SENT_FROM_TITLE",
             comment: "Title for the 'sent from' section on the 'message details' view."
         )
@@ -137,7 +141,7 @@ class StoryInfoSheet: OWSTableSheetViewController {
         return section
     }
 
-    private func buildStatusSections(for recipientStates: [UUID: StoryRecipientState]) -> [OWSTableSection] {
+    private func buildStatusSections(for recipientStates: [ServiceId: StoryRecipientState]) -> [OWSTableSection] {
         let recipientStates = recipientStates.filter { $1.isValidForContext(context) }
 
         var sections = [OWSTableSection]()
@@ -157,7 +161,7 @@ class StoryInfoSheet: OWSTableSheetViewController {
 
             let sortedRecipientAddresses = contactsManagerImpl
                 .sortSignalServiceAddressesWithSneakyTransaction(
-                    recipients.compactMap { .init(uuid: $0.key) }
+                    recipients.compactMap { SignalServiceAddress($0.key) }
                 )
 
             let section = OWSTableSection()
@@ -179,27 +183,27 @@ class StoryInfoSheet: OWSTableSheetViewController {
     private func sectionTitle(for state: OWSOutgoingMessageRecipientState) -> String {
         switch state {
         case .sent:
-            return NSLocalizedString(
+            return OWSLocalizedString(
                 "MESSAGE_METADATA_VIEW_MESSAGE_STATUS_SENT",
                 comment: "Status label for messages which are sent."
             )
         case .sending:
-            return NSLocalizedString(
+            return OWSLocalizedString(
                 "MESSAGE_METADATA_VIEW_MESSAGE_STATUS_SENDING",
                 comment: "Status label for messages which are sending."
             )
         case .pending:
-            return NSLocalizedString(
+            return OWSLocalizedString(
                 "MESSAGE_METADATA_VIEW_MESSAGE_STATUS_PAUSED",
                 comment: "Status label for messages which are paused."
             )
         case .failed:
-            return NSLocalizedString(
+            return OWSLocalizedString(
                 "MESSAGE_METADATA_VIEW_MESSAGE_STATUS_FAILED",
                 comment: "Status label for messages which are failed."
             )
         case .skipped:
-            return NSLocalizedString(
+            return OWSLocalizedString(
                 "MESSAGE_METADATA_VIEW_MESSAGE_STATUS_SKIPPED",
                 comment: "Status label for messages which were skipped."
             )
@@ -211,13 +215,13 @@ class StoryInfoSheet: OWSTableSheetViewController {
         case .sent:
             return DateUtil.formatPastTimestampRelativeToNow(storyMessage.timestamp)
         case .sending:
-            return NSLocalizedString("MESSAGE_STATUS_SENDING", comment: "message status while message is sending.")
+            return OWSLocalizedString("MESSAGE_STATUS_SENDING", comment: "message status while message is sending.")
         case .pending:
-            return NSLocalizedString("MESSAGE_STATUS_PENDING_SHORT", comment: "Label indicating that a message send was paused.")
+            return OWSLocalizedString("MESSAGE_STATUS_PENDING_SHORT", comment: "Label indicating that a message send was paused.")
         case .failed:
-            return NSLocalizedString("MESSAGE_STATUS_FAILED_SHORT", comment: "status message for failed messages")
+            return OWSLocalizedString("MESSAGE_STATUS_FAILED_SHORT", comment: "status message for failed messages")
         case .skipped:
-            return NSLocalizedString(
+            return OWSLocalizedString(
                 "MESSAGE_STATUS_RECIPIENT_SKIPPED",
                 comment: "message status if message delivery to a recipient is skipped. We skip delivering group messages to users who have left the group or unregistered their Signal account."
             )
@@ -231,7 +235,7 @@ class StoryInfoSheet: OWSTableSheetViewController {
         let messageTimestamp = "\(storyMessage.timestamp)"
         UIPasteboard.general.string = messageTimestamp
 
-        let toast = ToastController(text: NSLocalizedString(
+        let toast = ToastController(text: OWSLocalizedString(
             "MESSAGE_DETAIL_VIEW_DID_COPY_SENT_TIMESTAMP",
             comment: "Toast indicating that the user has copied the sent timestamp."
         ))
@@ -240,7 +244,7 @@ class StoryInfoSheet: OWSTableSheetViewController {
 
     private func valueLabelAttributedText(name: String, value: String) -> NSAttributedString {
         .composed(of: [
-            name.styled(with: .font(UIFont.ows_dynamicTypeFootnoteClamped.ows_semibold)),
+            name.styled(with: .font(UIFont.dynamicTypeFootnoteClamped.semibold())),
             " ",
             value
         ])
@@ -249,7 +253,7 @@ class StoryInfoSheet: OWSTableSheetViewController {
     private func buildValueLabel(name: String, value: String) -> UILabel {
         let label = UILabel()
         label.textColor = Theme.darkThemePrimaryColor
-        label.font = .ows_dynamicTypeFootnoteClamped
+        label.font = .dynamicTypeFootnoteClamped
         label.attributedText = valueLabelAttributedText(name: name, value: value)
         return label
     }
@@ -277,7 +281,7 @@ class StoryInfoSheet: OWSTableSheetViewController {
             return cell
         }, actionBlock: { [weak self] in
             guard let self = self else { return }
-            let actionSheet = MemberActionSheet(address: address, groupViewHelper: nil)
+            let actionSheet = MemberActionSheet(address: address, groupViewHelper: nil, spoilerState: self.spoilerState)
             actionSheet.present(from: self)
         })
     }
@@ -287,9 +291,9 @@ class StoryInfoSheet: OWSTableSheetViewController {
         transaction: SDSAnyReadTransaction
     ) -> ContactCellAccessoryView {
         let label = CVLabel()
-        let labelConfig = CVLabelConfig(
-            text: text,
-            font: .ows_dynamicTypeFootnoteClamped,
+        let labelConfig = CVLabelConfig.unstyledText(
+            text,
+            font: .dynamicTypeFootnoteClamped,
             textColor: Theme.darkThemeSecondaryTextAndIconColor
         )
         labelConfig.applyForRendering(label: label)

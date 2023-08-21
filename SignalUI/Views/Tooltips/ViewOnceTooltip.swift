@@ -3,9 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalCoreKit
 
-@objc
 public class ViewOnceTooltip: TooltipView {
 
     private override init(fromView: UIView,
@@ -20,7 +19,6 @@ public class ViewOnceTooltip: TooltipView {
         fatalError("init(coder:) has not been implemented")
     }
 
-    @objc
     public class func present(fromView: UIView,
                               widthReferenceView: UIView,
                               tailReferenceView: UIView,
@@ -32,7 +30,7 @@ public class ViewOnceTooltip: TooltipView {
         let label = UILabel()
         label.text = OWSLocalizedString("VIEW_ONCE_MESSAGES_TOOLTIP",
                                        comment: "Tooltip highlighting the view once messages button.")
-        label.font = UIFont.ows_dynamicTypeSubheadline
+        label.font = UIFont.dynamicTypeSubheadline
         label.textColor = UIColor.ows_white
         label.numberOfLines = 0
         label.lineBreakMode = .byWordWrapping

@@ -3,11 +3,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import Lottie
 import SignalMessaging
+import SignalUI
 
-@objc
 public enum PaymentsSettingsMode: UInt, CustomStringConvertible {
     case inAppSettings
     case standalone
@@ -26,7 +25,6 @@ public enum PaymentsSettingsMode: UInt, CustomStringConvertible {
 
 // MARK: -
 
-@objc
 public class PaymentsSettingsViewController: OWSTableViewController2 {
 
     private let mode: PaymentsSettingsMode
@@ -44,13 +42,18 @@ public class PaymentsSettingsViewController: OWSTableViewController2 {
 
     private var outdatedClientReminderView: ReminderView?
 
-    @objc
     public required init(mode: PaymentsSettingsMode) {
         self.mode = mode
 
         super.init()
 
         self.topHeader = topHeaderStackView
+
+        // Add placeholder view to stackview so it always has an calculable height.
+        let placeholderView = UIView()
+        placeholderView.translatesAutoresizingMaskIntoConstraints = false
+        placeholderView.heightAnchor.constraint(equalToConstant: 1).isActive = true
+        topHeaderStackView.addArrangedSubview(placeholderView)
     }
 
     // MARK: - Update Balance Timer
@@ -81,10 +84,79 @@ public class PaymentsSettingsViewController: OWSTableViewController2 {
         Self.paymentsSwift.updateCurrentPaymentBalance()
     }
 
+    private var hasSignificantBalance: Bool {
+        guard let paymentBalance = Self.paymentsSwift.currentPaymentBalance else {
+            return false
+        }
+        let significantPicoMob = 500 * Double(PaymentsConstants.picoMobPerMob)
+        return Double(paymentBalance.amount.picoMob) >= significantPicoMob
+    }
+
+    private static let keyValueStore = SDSKeyValueStore(collection: "PaymentSettings")
+
+    private static let savePassphraseShownKey = "PaymentsSavePassphraseShown"
+    private var savePassphraseShown: Bool {
+        get {
+            databaseStorage.read { transaction in
+                Self.keyValueStore.getBool(
+                    Self.savePassphraseShownKey,
+                    defaultValue: false,
+                    transaction: transaction
+                )
+            }
+        }
+        set {
+            databaseStorage.write { transaction in
+                Self.keyValueStore.setBool(
+                    newValue,
+                    key: Self.savePassphraseShownKey,
+                    transaction: transaction
+                )
+            }
+        }
+    }
+
+    private static let savePassphraseHelpCardEnabledKey = "PaymentsSavePassphraseHelpCardEnabled"
+    private var savePassphraseHelpCardEnabled: Bool {
+        get {
+            databaseStorage.read { transaction in
+                Self.keyValueStore.getBool(
+                    Self.savePassphraseHelpCardEnabledKey,
+                    defaultValue: false,
+                    transaction: transaction
+                )
+            }
+        }
+        set {
+            databaseStorage.write { transaction in
+                Self.keyValueStore.setBool(
+                    newValue,
+                    key: Self.savePassphraseHelpCardEnabledKey,
+                    transaction: transaction
+                )
+            }
+            updateTableContents()
+        }
+    }
+
+    private func showSavePaymentsPassphraseUIIfNeeded() {
+        guard savePassphraseShown == false else { return }
+        guard let amount = paymentsSwift.currentPaymentBalance?.amount else { return }
+        guard amount.picoMob > 0 else { return }
+        savePassphraseShown = true
+        showPaymentsPassphraseUI(style: .fromBalance)
+    }
+
+    private func clearHelpCardEnabledFromDismissedList() {
+        Self.databaseStorage.write { transaction in
+            Self.helpCardStore.removeValue(forKey: HelpCard.saveRecoveryPhrase.rawValue, transaction: transaction)
+        }
+    }
+
     // MARK: - Help Cards
 
     private enum HelpCard: String, Equatable, CaseIterable {
-        case viewRecoveryPhrase
+        case saveRecoveryPhrase
         case updatePin
         case aboutMobileCoin
         case addMoney
@@ -102,16 +174,16 @@ public class PaymentsSettingsViewController: OWSTableViewController2 {
 
     private var helpCardsForEnabled: [HelpCard] {
         // Order matters as we build this list.
-        var helpCards = [HelpCard]()
-        let hasSignificantBalance: Bool = {
-            guard let paymentBalance = Self.paymentsSwift.currentPaymentBalance else {
-                return false
-            }
-            let significantPicoMob = 500 * PaymentsConstants.picoMobPerMob
-            return paymentBalance.amount.picoMob >= significantPicoMob
-        }()
+        var helpCards = OrderedSet<HelpCard>()
+
+        if savePassphraseHelpCardEnabled {
+            helpCards.append(.saveRecoveryPhrase)
+        }
+
         if hasSignificantBalance {
-            helpCards.append(.viewRecoveryPhrase)
+            if !helpCards.contains(.saveRecoveryPhrase) {
+                helpCards.append(.saveRecoveryPhrase)
+            }
 
             let hasShortOrMissingPin: Bool = {
                 guard OWS2FAManager.shared.is2FAEnabled() else {
@@ -126,14 +198,19 @@ public class PaymentsSettingsViewController: OWSTableViewController2 {
             if hasShortOrMissingPin {
                 helpCards.append(.updatePin)
             }
+        } else {
+            clearHelpCardEnabledFromDismissedList()
         }
-        helpCards.append(contentsOf: [
+
+        let defaultCards: [HelpCard] = [
             .aboutMobileCoin,
             .addMoney,
             .cashOut
-        ])
-
-        return filterDismissedHelpCards(helpCards)
+        ]
+        for card in defaultCards {
+            helpCards.append(card)
+        }
+        return filterDismissedHelpCards(helpCards.orderedMembers)
     }
 
     private static let helpCardStore = SDSKeyValueStore(collection: "paymentsHelpCardStore")
@@ -146,6 +223,10 @@ public class PaymentsSettingsViewController: OWSTableViewController2 {
     }
 
     private func dismissHelpCard(_ helpCard: HelpCard) {
+        if helpCard == .saveRecoveryPhrase {
+            showPaymentsPassphraseUI(style: .fromHelpCardDismiss)
+            savePassphraseHelpCardEnabled = false
+        }
         databaseStorage.write { transaction in
             Self.helpCardStore.setString(helpCard.rawValue, key: helpCard.rawValue, transaction: transaction)
         }
@@ -159,18 +240,17 @@ public class PaymentsSettingsViewController: OWSTableViewController2 {
             return
         }
 
-        let reminderView = ReminderView.nag(
-            text: NSLocalizedString(
+        let reminderView = ReminderView(
+            style: .warning,
+            text: OWSLocalizedString(
                 "OUTDATED_PAYMENT_CLIENT_REMINDER_TEXT",
                 comment: "Label warning the user that they should update Signal to continue using payments."
             ),
-            tapAction: { [weak self] in
-                self?.didTapOutdatedPaymentClientReminder()
-            },
-            actionTitle: NSLocalizedString(
+            actionTitle: OWSLocalizedString(
                 "OUTDATED_PAYMENT_CLIENT_ACTION_TITLE",
                 comment: "Label for action link when the user has an outdated payment client"
-            )
+            ),
+            tapAction: { [weak self] in self?.didTapOutdatedPaymentClientReminder() }
         )
         reminderView.accessibilityIdentifier = "outdatedClientView"
         topHeaderStackView.addArrangedSubview(reminderView)
@@ -179,7 +259,7 @@ public class PaymentsSettingsViewController: OWSTableViewController2 {
     }
 
     private func didTapOutdatedPaymentClientReminder() {
-        let url = TSConstants.appStoreUpdateURL
+        let url = TSConstants.appStoreUrl
         UIApplication.shared.open(url, options: [:], completionHandler: nil)
     }
 
@@ -188,7 +268,7 @@ public class PaymentsSettingsViewController: OWSTableViewController2 {
     public override func viewDidLoad() {
         super.viewDidLoad()
 
-        title = NSLocalizedString("SETTINGS_PAYMENTS_VIEW_TITLE",
+        title = OWSLocalizedString("SETTINGS_PAYMENTS_VIEW_TITLE",
                                   comment: "Title for the 'payments settings' view in the app settings.")
 
         if mode == .standalone {
@@ -209,9 +289,8 @@ public class PaymentsSettingsViewController: OWSTableViewController2 {
 
     private func updateNavbar() {
         if paymentsHelperSwift.arePaymentsEnabled {
-            let moreOptionsIcon = UIImage(named: "more-horiz-24")?.withRenderingMode(.alwaysTemplate)
             navigationItem.rightBarButtonItem = UIBarButtonItem(
-                image: moreOptionsIcon,
+                image: Theme.iconImage(.buttonMore),
                 landscapeImagePhone: nil,
                 style: .plain,
                 target: self,
@@ -236,8 +315,11 @@ public class PaymentsSettingsViewController: OWSTableViewController2 {
         paymentsCurrencies.updateConversationRatesIfStale()
 
         startUpdateBalanceTimer()
-        let clientOutdated = OWSActionSheets.showPaymentsOutdatedClientSheetIfNeeded(title: .updateRequired)
-        if clientOutdated { createOutdatedClientReminderView() }
+        let clientOutdated = paymentsHelper.isPaymentsVersionOutdated
+        if clientOutdated {
+            OWSActionSheets.showPaymentsOutdatedClientSheet(title: .updateRequired)
+            createOutdatedClientReminderView()
+        }
         outdatedClientReminderView?.isHidden = !clientOutdated
     }
 
@@ -291,7 +373,7 @@ public class PaymentsSettingsViewController: OWSTableViewController2 {
         updateNavbar()
 
         if !Self.paymentsHelper.arePaymentsEnabled {
-            presentToast(text: NSLocalizedString("SETTINGS_PAYMENTS_PAYMENTS_DISABLED_TOAST",
+            presentToast(text: OWSLocalizedString("SETTINGS_PAYMENTS_PAYMENTS_DISABLED_TOAST",
                                                  comment: "Message indicating that payments have been disabled in the app settings."))
         }
     }
@@ -299,7 +381,9 @@ public class PaymentsSettingsViewController: OWSTableViewController2 {
     @objc
     private func isPaymentsVersionOutdatedDidChange() {
         guard UIApplication.shared.frontmostViewController == self else { return }
-        OWSActionSheets.showPaymentsOutdatedClientSheetIfNeeded(title: .updateRequired)
+        if paymentsHelper.isPaymentsVersionOutdated {
+            OWSActionSheets.showPaymentsOutdatedClientSheet(title: .updateRequired)
+        }
     }
 
     @objc
@@ -317,22 +401,26 @@ public class PaymentsSettingsViewController: OWSTableViewController2 {
     private func updateTableContentsEnabled() {
         AssertIsOnMainThread()
 
+        showSavePaymentsPassphraseUIIfNeeded()
+
         let contents = OWSTableContents()
 
         let headerSection = OWSTableSection()
         headerSection.hasBackground = false
         headerSection.shouldDisableCellSelection = true
-        headerSection.add(OWSTableItem(customCellBlock: { [weak self] in
-            let cell = OWSTableItem.newCell()
-            self?.configureEnabledHeader(cell: cell)
-            return cell
-        },
-        actionBlock: nil))
-        contents.addSection(headerSection)
+        headerSection.add(OWSTableItem(
+            customCellBlock: { [weak self] in
+                let cell = OWSTableItem.newCell()
+                self?.configureEnabledHeader(cell: cell)
+                return cell
+            },
+            actionBlock: nil
+        ))
+        contents.add(headerSection)
 
         let historySection = OWSTableSection()
         configureHistorySection(historySection, paymentsHistoryDataSource: paymentsHistoryDataSource)
-        contents.addSection(historySection)
+        contents.add(historySection)
 
         addHelpCards(contents: contents,
                      helpCards: helpCardsForEnabled)
@@ -342,7 +430,7 @@ public class PaymentsSettingsViewController: OWSTableViewController2 {
 
     private func configureEnabledHeader(cell: UITableViewCell) {
         let balanceLabel = UILabel()
-        balanceLabel.font = UIFont.ows_dynamicTypeLargeTitle1Clamped.withSize(54)
+        balanceLabel.font = UIFont.regularFont(ofSize: 54)
         balanceLabel.textAlignment = .center
         balanceLabel.adjustsFontSizeToFitWidth = true
 
@@ -360,12 +448,11 @@ public class PaymentsSettingsViewController: OWSTableViewController2 {
         conversionRefreshIcon.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(didTapConversionRefresh)))
 
         let conversionLabel = UILabel()
-        conversionLabel.font = UIFont.ows_dynamicTypeSubheadlineClamped
+        conversionLabel.font = UIFont.dynamicTypeSubheadlineClamped
         conversionLabel.textColor = Theme.secondaryTextAndIconColor
 
         let conversionInfoView = UIImageView()
-        conversionInfoView.setTemplateImageName("info-outline-24",
-                                                        tintColor: Theme.secondaryTextAndIconColor)
+        conversionInfoView.setTemplateImageName("info-compact", tintColor: Theme.secondaryTextAndIconColor)
         conversionInfoView.autoSetDimensions(to: .square(16))
         conversionInfoView.setCompressionResistanceHigh()
 
@@ -404,9 +491,7 @@ public class PaymentsSettingsViewController: OWSTableViewController2 {
             // "pending balance" and "has balance" states.
             balanceLabel.text = " "
 
-            let activityIndicator = UIActivityIndicatorView(style: Theme.isDarkThemeEnabled
-                                                                ? .white
-                                                                : .gray)
+            let activityIndicator = UIActivityIndicatorView(style: .medium)
             balanceStack.addSubview(activityIndicator)
             activityIndicator.autoCenterInSuperview()
             activityIndicator.startAnimating()
@@ -414,11 +499,11 @@ public class PaymentsSettingsViewController: OWSTableViewController2 {
             hideConversions()
         }
 
-        let addMoneyButton = buildHeaderButton(title: NSLocalizedString("SETTINGS_PAYMENTS_ADD_MONEY",
+        let addMoneyButton = buildHeaderButton(title: OWSLocalizedString("SETTINGS_PAYMENTS_ADD_MONEY",
                                                                         comment: "Label for 'add money' view in the payment settings."),
-                                               iconName: "plus-24",
+                                               iconName: "plus",
                                                selector: #selector(didTapAddMoneyButton))
-        let sendPaymentButton = buildHeaderButton(title: NSLocalizedString("SETTINGS_PAYMENTS_SEND_PAYMENT",
+        let sendPaymentButton = buildHeaderButton(title: OWSLocalizedString("SETTINGS_PAYMENTS_SEND_PAYMENT",
                                                                            comment: "Label for 'send payment' button in the payment settings."),
                                                   iconName: "send-mob-24",
                                                   selector: #selector(didTapSendPaymentButton))
@@ -461,7 +546,7 @@ public class PaymentsSettingsViewController: OWSTableViewController2 {
         let label = UILabel()
         label.text = title
         label.textColor = Theme.primaryTextColor
-        label.font = .ows_dynamicTypeCaption2Clamped
+        label.font = .dynamicTypeCaption2Clamped
 
         let stack = UIStackView(arrangedSubviews: [
             iconView,
@@ -502,7 +587,7 @@ public class PaymentsSettingsViewController: OWSTableViewController2 {
         //
         // It is sufficient to format as a time, currency conversions go stale in less than a day.
         let conversionFreshnessString = DateUtil.formatDateAsTime(currencyConversionInfo.conversionDate)
-        let formatString = NSLocalizedString("SETTINGS_PAYMENTS_BALANCE_CONVERSION_FORMAT",
+        let formatString = OWSLocalizedString("SETTINGS_PAYMENTS_BALANCE_CONVERSION_FORMAT",
                                              comment: "Format string for the 'local balance converted into local currency' indicator. Embeds: {{ %1$@ the local balance in the local currency, %2$@ the local currency code, %3$@ the date the currency conversion rate was obtained. }}..")
         return String(format: formatString, fiatAmountString, localCurrencyCode, conversionFreshnessString)
     }
@@ -517,10 +602,10 @@ public class PaymentsSettingsViewController: OWSTableViewController2 {
                 let cell = OWSTableItem.newCell()
 
                 let label = UILabel()
-                label.text = NSLocalizedString("SETTINGS_PAYMENTS_NO_ACTIVITY_INDICATOR",
+                label.text = OWSLocalizedString("SETTINGS_PAYMENTS_NO_ACTIVITY_INDICATOR",
                                                comment: "Message indicating that there is no payment activity to display in the payment settings.")
                 label.textColor = Theme.secondaryTextAndIconColor
-                label.font = UIFont.ows_dynamicTypeBodyClamped
+                label.font = UIFont.dynamicTypeBodyClamped
                 label.numberOfLines = 0
                 label.lineBreakMode = .byWordWrapping
                 label.textAlignment = .center
@@ -540,11 +625,10 @@ public class PaymentsSettingsViewController: OWSTableViewController2 {
             return
         }
 
-        section.headerTitle = NSLocalizedString("SETTINGS_PAYMENTS_RECENT_PAYMENTS",
+        section.headerTitle = OWSLocalizedString("SETTINGS_PAYMENTS_RECENT_PAYMENTS",
                                                 comment: "Label for the 'recent payments' section in the payment settings.")
 
-        section.separatorInsetLeading = NSNumber(value: Double(OWSTableViewController2.cellHInnerMargin +
-                                                                PaymentModelCell.separatorInsetLeading))
+        section.separatorInsetLeading = OWSTableViewController2.cellHInnerMargin + PaymentModelCell.separatorInsetLeading
 
         var hasMoreItems = false
         for (index, paymentItem) in paymentsHistoryDataSource.items.enumerated() {
@@ -569,7 +653,7 @@ public class PaymentsSettingsViewController: OWSTableViewController2 {
 
                 let label = UILabel()
                 label.text = CommonStrings.seeAllButton
-                label.font = .ows_dynamicTypeBodyClamped
+                label.font = .dynamicTypeBodyClamped
                 label.textColor = Theme.primaryTextColor
 
                 let stack = UIStackView(arrangedSubviews: [label])
@@ -602,7 +686,7 @@ public class PaymentsSettingsViewController: OWSTableViewController2 {
             return cell
         },
         actionBlock: nil))
-        contents.addSection(headerSection)
+        contents.add(headerSection)
 
         addHelpCards(contents: contents,
                      helpCards: helpCardsForNotEnabled)
@@ -613,10 +697,10 @@ public class PaymentsSettingsViewController: OWSTableViewController2 {
     private func configureNotEnabledCell(_ cell: UITableViewCell) {
 
         let titleLabel = UILabel()
-        titleLabel.text = NSLocalizedString("SETTINGS_PAYMENTS_OPT_IN_TITLE",
+        titleLabel.text = OWSLocalizedString("SETTINGS_PAYMENTS_OPT_IN_TITLE",
                                             comment: "Title for the 'payments opt-in' view in the app settings.")
         titleLabel.textColor = Theme.primaryTextColor
-        titleLabel.font = UIFont.ows_dynamicTypeBodyClamped.ows_semibold
+        titleLabel.font = UIFont.dynamicTypeBodyClamped.semibold()
         titleLabel.numberOfLines = 0
         titleLabel.lineBreakMode = .byWordWrapping
         titleLabel.textAlignment = .center
@@ -628,21 +712,21 @@ public class PaymentsSettingsViewController: OWSTableViewController2 {
         heroImageView.autoSetDimension(.height, toSize: heroSize)
 
         let bodyLabel = UILabel()
-        bodyLabel.text = NSLocalizedString("SETTINGS_PAYMENTS_OPT_IN_MESSAGE",
+        bodyLabel.text = OWSLocalizedString("SETTINGS_PAYMENTS_OPT_IN_MESSAGE",
                                            comment: "Message for the 'payments opt-in' view in the app settings.")
-        bodyLabel.font = .ows_dynamicTypeSubheadlineClamped
+        bodyLabel.font = .dynamicTypeSubheadlineClamped
         bodyLabel.textColor = Theme.secondaryTextAndIconColor
         bodyLabel.numberOfLines = 0
         bodyLabel.lineBreakMode = .byWordWrapping
         bodyLabel.textAlignment = .center
 
         let buttonTitle = (Self.payments.paymentsEntropy != nil
-                            ? NSLocalizedString("SETTINGS_PAYMENTS_OPT_IN_REACTIVATE_BUTTON",
+                            ? OWSLocalizedString("SETTINGS_PAYMENTS_OPT_IN_REACTIVATE_BUTTON",
                                                 comment: "Label for 'activate' button in the 'payments opt-in' view in the app settings.")
-                            : NSLocalizedString("SETTINGS_PAYMENTS_OPT_IN_ACTIVATE_BUTTON",
+                            : OWSLocalizedString("SETTINGS_PAYMENTS_OPT_IN_ACTIVATE_BUTTON",
                                                 comment: "Label for 'activate' button in the 'payments opt-in' view in the app settings."))
         let activateButton = OWSFlatButton.button(title: buttonTitle,
-                                                  font: UIFont.ows_dynamicTypeBody.ows_semibold,
+                                                  font: UIFont.dynamicTypeBody.semibold(),
                                                   titleColor: .white,
                                                   backgroundColor: .ows_accentBlue,
                                                   target: self,
@@ -660,10 +744,10 @@ public class PaymentsSettingsViewController: OWSTableViewController2 {
         ])
 
         if Self.payments.paymentsEntropy == nil {
-            let buttonTitle = NSLocalizedString("SETTINGS_PAYMENTS_RESTORE_PAYMENTS_BUTTON",
+            let buttonTitle = OWSLocalizedString("SETTINGS_PAYMENTS_RESTORE_PAYMENTS_BUTTON",
                                                 comment: "Label for 'restore payments' button in the payments settings.")
             let restorePaymentsButton = OWSFlatButton.button(title: buttonTitle,
-                                                             font: UIFont.ows_dynamicTypeBody.ows_semibold,
+                                                             font: UIFont.dynamicTypeBody.semibold(),
                                                              titleColor: .ows_accentBlue,
                                                              backgroundColor: self.tableBackgroundColor,
                                                              target: self,
@@ -688,57 +772,57 @@ public class PaymentsSettingsViewController: OWSTableViewController2 {
 
         for helpCard in helpCards {
             switch helpCard {
-            case .viewRecoveryPhrase:
-                contents.addSection(buildHelpCard(helpCard: helpCard,
-                                                  title: NSLocalizedString("SETTINGS_PAYMENTS_HELP_CARD_VIEW_PASSPHRASE_TITLE",
-                                                                           comment: "Title for the 'View Passphrase' help card in the payments settings."),
-                                                  body: NSLocalizedString("SETTINGS_PAYMENTS_HELP_CARD_VIEW_PASSPHRASE_DESCRIPTION",
-                                                                          comment: "Description for the 'View Passphrase' help card in the payments settings."),
-                                                  buttonText: NSLocalizedString("SETTINGS_PAYMENTS_HELP_CARD_VIEW_PASSPHRASE_BUTTON",
-                                                                                comment: "Label for button in the 'View Passphrase' help card in the payments settings."),
-                                                  iconName: (Theme.isDarkThemeEnabled
-                                                                ? "restore-dark"
-                                                                : "restore"),
-                                                  selector: #selector(didTapViewPassphraseCard)))
+            case .saveRecoveryPhrase:
+                contents.add(buildHelpCard(helpCard: helpCard,
+                                           title: OWSLocalizedString("SETTINGS_PAYMENTS_HELP_CARD_SAVE_PASSPHRASE_TITLE",
+                                                                     comment: "Title for the 'Save Passphrase' help card in the payments settings."),
+                                           body: OWSLocalizedString("SETTINGS_PAYMENTS_HELP_CARD_SAVE_PASSPHRASE_DESCRIPTION",
+                                                                    comment: "Description for the 'Save Passphrase' help card in the payments settings."),
+                                           buttonText: OWSLocalizedString("SETTINGS_PAYMENTS_HELP_CARD_SAVE_PASSPHRASE_BUTTON",
+                                                                          comment: "Label for button in the 'Save Passphrase' help card in the payments settings."),
+                                           iconName: (Theme.isDarkThemeEnabled
+                                                      ? "restore-dark"
+                                                      : "restore"),
+                                           selector: #selector(didTapSavePassphraseCard)))
             case .updatePin:
-                contents.addSection(buildHelpCard(helpCard: helpCard,
-                                                  title: NSLocalizedString("SETTINGS_PAYMENTS_HELP_CARD_UPDATE_PIN_TITLE",
-                                                                           comment: "Title for the 'Update PIN' help card in the payments settings."),
-                                                  body: NSLocalizedString("SETTINGS_PAYMENTS_HELP_CARD_UPDATE_PIN_DESCRIPTION",
-                                                                          comment: "Description for the 'Update PIN' help card in the payments settings."),
-                                                  buttonText: NSLocalizedString("SETTINGS_PAYMENTS_HELP_CARD_UPDATE_PIN_BUTTON",
-                                                                                comment: "Label for button in the 'Update PIN' help card in the payments settings."),
-                                                  iconName: (Theme.isDarkThemeEnabled
-                                                                ? "update-pin-dark"
-                                                                : "update-pin"),
-                                                  selector: #selector(didTapUpdatePinCard)))
+                contents.add(buildHelpCard(helpCard: helpCard,
+                                           title: OWSLocalizedString("SETTINGS_PAYMENTS_HELP_CARD_UPDATE_PIN_TITLE",
+                                                                     comment: "Title for the 'Update PIN' help card in the payments settings."),
+                                           body: OWSLocalizedString("SETTINGS_PAYMENTS_HELP_CARD_UPDATE_PIN_DESCRIPTION",
+                                                                    comment: "Description for the 'Update PIN' help card in the payments settings."),
+                                           buttonText: OWSLocalizedString("SETTINGS_PAYMENTS_HELP_CARD_UPDATE_PIN_BUTTON",
+                                                                          comment: "Label for button in the 'Update PIN' help card in the payments settings."),
+                                           iconName: (Theme.isDarkThemeEnabled
+                                                      ? "update-pin-dark"
+                                                      : "update-pin"),
+                                           selector: #selector(didTapUpdatePinCard)))
             case .aboutMobileCoin:
-                contents.addSection(buildHelpCard(helpCard: helpCard,
-                                                  title: NSLocalizedString("SETTINGS_PAYMENTS_HELP_CARD_ABOUT_MOBILECOIN_TITLE",
-                                                                           comment: "Title for the 'About MobileCoin' help card in the payments settings."),
-                                                  body: NSLocalizedString("SETTINGS_PAYMENTS_HELP_CARD_ABOUT_MOBILECOIN_DESCRIPTION",
-                                                                          comment: "Description for the 'About MobileCoin' help card in the payments settings."),
-                                                  buttonText: CommonStrings.learnMore,
-                                                  iconName: "about-mobilecoin",
-                                                  selector: #selector(didTapAboutMobileCoinCard)))
+                contents.add(buildHelpCard(helpCard: helpCard,
+                                           title: OWSLocalizedString("SETTINGS_PAYMENTS_HELP_CARD_ABOUT_MOBILECOIN_TITLE",
+                                                                     comment: "Title for the 'About MobileCoin' help card in the payments settings."),
+                                           body: OWSLocalizedString("SETTINGS_PAYMENTS_HELP_CARD_ABOUT_MOBILECOIN_DESCRIPTION",
+                                                                    comment: "Description for the 'About MobileCoin' help card in the payments settings."),
+                                           buttonText: CommonStrings.learnMore,
+                                           iconName: "about-mobilecoin",
+                                           selector: #selector(didTapAboutMobileCoinCard)))
             case .addMoney:
-                contents.addSection(buildHelpCard(helpCard: helpCard,
-                                                  title: NSLocalizedString("SETTINGS_PAYMENTS_HELP_CARD_ADDING_TO_YOUR_WALLET_TITLE",
-                                                                           comment: "Title for the 'Adding to your wallet' help card in the payments settings."),
-                                                  body: NSLocalizedString("SETTINGS_PAYMENTS_HELP_CARD_ADDING_TO_YOUR_WALLET_DESCRIPTION",
-                                                                          comment: "Description for the 'Adding to your wallet' help card in the payments settings."),
-                                                  buttonText: CommonStrings.learnMore,
-                                                  iconName: "add-money",
-                                                  selector: #selector(didTapAddingToYourWalletCard)))
+                contents.add(buildHelpCard(helpCard: helpCard,
+                                           title: OWSLocalizedString("SETTINGS_PAYMENTS_HELP_CARD_ADDING_TO_YOUR_WALLET_TITLE",
+                                                                     comment: "Title for the 'Adding to your wallet' help card in the payments settings."),
+                                           body: OWSLocalizedString("SETTINGS_PAYMENTS_HELP_CARD_ADDING_TO_YOUR_WALLET_DESCRIPTION",
+                                                                    comment: "Description for the 'Adding to your wallet' help card in the payments settings."),
+                                           buttonText: CommonStrings.learnMore,
+                                           iconName: "add-money",
+                                           selector: #selector(didTapAddingToYourWalletCard)))
             case .cashOut:
-                contents.addSection(buildHelpCard(helpCard: helpCard,
-                                                  title: NSLocalizedString("SETTINGS_PAYMENTS_HELP_CARD_CASHING_OUT_TITLE",
-                                                                           comment: "Title for the 'Cashing Out' help card in the payments settings."),
-                                                  body: NSLocalizedString("SETTINGS_PAYMENTS_HELP_CARD_CASHING_OUT_DESCRIPTION",
-                                                                          comment: "Description for the 'Cashing Out' help card in the payments settings."),
-                                                  buttonText: CommonStrings.learnMore,
-                                                  iconName: "cash-out",
-                                                  selector: #selector(didTapCashingOutCoinCard)))
+                contents.add(buildHelpCard(helpCard: helpCard,
+                                           title: OWSLocalizedString("SETTINGS_PAYMENTS_HELP_CARD_CASHING_OUT_TITLE",
+                                                                     comment: "Title for the 'Cashing Out' help card in the payments settings."),
+                                           body: OWSLocalizedString("SETTINGS_PAYMENTS_HELP_CARD_CASHING_OUT_DESCRIPTION",
+                                                                    comment: "Description for the 'Cashing Out' help card in the payments settings."),
+                                           buttonText: CommonStrings.learnMore,
+                                           iconName: "cash-out",
+                                           selector: #selector(didTapCashingOutCoinCard)))
             }
         }
     }
@@ -759,19 +843,19 @@ public class PaymentsSettingsViewController: OWSTableViewController2 {
             let titleLabel = UILabel()
             titleLabel.text = title
             titleLabel.textColor = Theme.primaryTextColor
-            titleLabel.font = UIFont.ows_dynamicTypeBodyClamped.ows_semibold
+            titleLabel.font = UIFont.dynamicTypeBodyClamped.semibold()
 
             let bodyLabel = UILabel()
             bodyLabel.text = body
             bodyLabel.textColor = Theme.secondaryTextAndIconColor
-            bodyLabel.font = UIFont.ows_dynamicTypeBody2Clamped
+            bodyLabel.font = UIFont.dynamicTypeBody2Clamped
             bodyLabel.numberOfLines = 0
             bodyLabel.lineBreakMode = .byWordWrapping
 
             let buttonLabel = UILabel()
             buttonLabel.text = buttonText
             buttonLabel.textColor = Theme.accentBlueColor
-            buttonLabel.font = UIFont.ows_dynamicTypeSubheadlineClamped
+            buttonLabel.font = UIFont.dynamicTypeSubheadlineClamped
 
             let animationView = AnimationView(name: iconName)
             animationView.contentMode = .scaleAspectFit
@@ -798,10 +882,10 @@ public class PaymentsSettingsViewController: OWSTableViewController2 {
             cell.contentView.addSubview(hStack)
             hStack.autoPinEdgesToSuperviewMargins()
 
-            let dismissIconView = UIImageView.withTemplateImageName("x-24",
-                                                                    tintColor: (Theme.isDarkThemeEnabled
-                                                                                    ? .ows_gray05
-                                                                                    : .ows_gray45))
+            let dismissIconView = UIImageView.withTemplateImage(Theme.iconImage(.buttonX),
+                                                                tintColor: (Theme.isDarkThemeEnabled
+                                                                            ? .ows_gray05
+                                                                            : .ows_gray45))
             dismissIconView.autoSetDimensions(to: .square(10))
             let dismissButton = OWSLayerView.circleView()
             dismissButton.backgroundColor = (Theme.isDarkThemeEnabled
@@ -834,28 +918,28 @@ public class PaymentsSettingsViewController: OWSTableViewController2 {
     private func showSettingsActionSheet() {
         let actionSheet = ActionSheetController(title: nil, message: nil)
 
-        actionSheet.addAction(ActionSheetAction(title: NSLocalizedString("SETTINGS_PAYMENTS_TRANSFER_TO_EXCHANGE",
+        actionSheet.addAction(ActionSheetAction(title: OWSLocalizedString("SETTINGS_PAYMENTS_TRANSFER_TO_EXCHANGE",
                                                                          comment: "Label for the 'transfer to exchange' button in the payment settings."),
                                                 accessibilityIdentifier: "payments.settings.transfer_to_exchange",
                                                 style: .default) { [weak self] _ in
             self?.didTapTransferToExchangeButton()
         })
 
-        actionSheet.addAction(ActionSheetAction(title: NSLocalizedString("SETTINGS_PAYMENTS_SET_CURRENCY",
+        actionSheet.addAction(ActionSheetAction(title: OWSLocalizedString("SETTINGS_PAYMENTS_SET_CURRENCY",
                                                                          comment: "Title for the 'set currency' view in the app settings."),
                                                 accessibilityIdentifier: "payments.settings.set_currency",
                                                 style: .default) { [weak self] _ in
             self?.didTapSetCurrencyButton()
         })
 
-        actionSheet.addAction(ActionSheetAction(title: NSLocalizedString("SETTINGS_PAYMENTS_DEACTIVATE_PAYMENTS",
+        actionSheet.addAction(ActionSheetAction(title: OWSLocalizedString("SETTINGS_PAYMENTS_DEACTIVATE_PAYMENTS",
                                                                          comment: "Label for 'deactivate payments' button in the app settings."),
                                                 accessibilityIdentifier: "payments.settings.deactivate_payments",
                                                 style: .default) { [weak self] _ in
             self?.didTapDeactivatePaymentsButton()
         })
 
-        actionSheet.addAction(ActionSheetAction(title: NSLocalizedString("SETTINGS_PAYMENTS_VIEW_RECOVERY_PASSPHRASE",
+        actionSheet.addAction(ActionSheetAction(title: OWSLocalizedString("SETTINGS_PAYMENTS_VIEW_RECOVERY_PASSPHRASE",
                                                                          comment: "Label for 'view payments recovery passphrase' button in the app settings."),
                                                 accessibilityIdentifier: "payments.settings.view_recovery_passphrase",
                                                 style: .default) { [weak self] _ in
@@ -874,9 +958,9 @@ public class PaymentsSettingsViewController: OWSTableViewController2 {
     }
 
     private func showConfirmDeactivatePaymentsUI() {
-        let actionSheet = ActionSheetController(title: NSLocalizedString("SETTINGS_PAYMENTS_DEACTIVATE_PAYMENTS_CONFIRM_TITLE",
+        let actionSheet = ActionSheetController(title: OWSLocalizedString("SETTINGS_PAYMENTS_DEACTIVATE_PAYMENTS_CONFIRM_TITLE",
                                                                          comment: "Title for the 'deactivate payments confirmation' UI in the payment settings."),
-                                                message: NSLocalizedString("SETTINGS_PAYMENTS_DEACTIVATE_PAYMENTS_CONFIRM_DESCRIPTION",
+                                                message: OWSLocalizedString("SETTINGS_PAYMENTS_DEACTIVATE_PAYMENTS_CONFIRM_DESCRIPTION",
                                                                            comment: "Description for the 'deactivate payments confirmation' UI in the payment settings."))
 
         actionSheet.addAction(ActionSheetAction(title: CommonStrings.continueButton,
@@ -902,7 +986,7 @@ public class PaymentsSettingsViewController: OWSTableViewController2 {
     }
 
     public static func showCurrencyConversionInfoAlert(fromViewController: UIViewController) {
-        let message = NSLocalizedString("SETTINGS_PAYMENTS_CURRENCY_CONVERSIONS_INFO_ALERT_MESSAGE",
+        let message = OWSLocalizedString("SETTINGS_PAYMENTS_CURRENCY_CONVERSIONS_INFO_ALERT_MESSAGE",
                                         comment: "Message for the 'currency conversions info' alert.")
         let actionSheet = ActionSheetController(title: nil, message: message)
         actionSheet.addAction(ActionSheetAction(
@@ -937,18 +1021,19 @@ public class PaymentsSettingsViewController: OWSTableViewController2 {
     private func showEnablePaymentsConfirmUI() {
         AssertIsOnMainThread()
 
-        let actionSheet = ActionSheetController(title: NSLocalizedString("SETTINGS_PAYMENTS_ACTIVATE_PAYMENTS_CONFIRM_TITLE",
+        let actionSheet = ActionSheetController(title: OWSLocalizedString("SETTINGS_PAYMENTS_ACTIVATE_PAYMENTS_CONFIRM_TITLE",
                                                                          comment: "Title for the 'activate payments confirmation' UI in the payment settings."),
-                                                message: NSLocalizedString("SETTINGS_PAYMENTS_ACTIVATE_PAYMENTS_CONFIRM_DESCRIPTION",
+                                                message: OWSLocalizedString("SETTINGS_PAYMENTS_ACTIVATE_PAYMENTS_CONFIRM_DESCRIPTION",
                                                                            comment: "Description for the 'activate payments confirmation' UI in the payment settings."))
 
-        actionSheet.addAction(ActionSheetAction(title: NSLocalizedString("SETTINGS_PAYMENTS_ACTIVATE_PAYMENTS_CONFIRM_AGREE",
+        actionSheet.addAction(ActionSheetAction(title: OWSLocalizedString("SETTINGS_PAYMENTS_ACTIVATE_PAYMENTS_CONFIRM_AGREE",
                                                                          comment: "Label for the 'agree to payments terms' button in the 'activate payments confirmation' UI in the payment settings."),
                                                 accessibilityIdentifier: "payments.settings.activate.agree",
                                                 style: .default) { [weak self] _ in
             self?.enablePayments()
+            self?.promptBiometryPaymentsLock()
         })
-        actionSheet.addAction(ActionSheetAction(title: NSLocalizedString("SETTINGS_PAYMENTS_ACTIVATE_PAYMENTS_CONFIRM_VIEW_TERMS",
+        actionSheet.addAction(ActionSheetAction(title: OWSLocalizedString("SETTINGS_PAYMENTS_ACTIVATE_PAYMENTS_CONFIRM_VIEW_TERMS",
                                                                          comment: "Label for the 'view payments terms' button in the 'activate payments confirmation' UI in the payment settings."),
                                                 accessibilityIdentifier: "payments.settings.activate.view-terms",
                                                 style: .default) { _ in
@@ -967,12 +1052,15 @@ public class PaymentsSettingsViewController: OWSTableViewController2 {
         AssertIsOnMainThread()
 
         guard !payments.isKillSwitchActive else {
-            OWSActionSheets.showErrorAlert(message: NSLocalizedString("SETTINGS_PAYMENTS_CANNOT_ACTIVATE_PAYMENTS_KILL_SWITCH",
+            OWSActionSheets.showErrorAlert(message: OWSLocalizedString("SETTINGS_PAYMENTS_CANNOT_ACTIVATE_PAYMENTS_KILL_SWITCH",
                                                                       comment: "Error message indicating that payments could not be activated because the feature is not currently available."))
             return
         }
 
-        guard !OWSActionSheets.showPaymentsOutdatedClientSheetIfNeeded(title: .updateRequired) else { return }
+        if paymentsHelper.isPaymentsVersionOutdated {
+            OWSActionSheets.showPaymentsOutdatedClientSheet(title: .updateRequired)
+            return
+        }
 
         databaseStorage.asyncWrite { transaction in
             Self.paymentsHelperSwift.enablePayments(transaction: transaction)
@@ -983,9 +1071,22 @@ public class PaymentsSettingsViewController: OWSTableViewController2 {
         }
     }
 
+    private func promptBiometryPaymentsLock() {
+        AssertIsOnMainThread()
+
+        guard let validBiometryType = BiometryType.validBiometryType else {
+            owsFailDebug("Unknown biometry type, cannot enable payments lock")
+            return
+        }
+
+        let view = PaymentsBiometryLockPromptViewController(biometryType: validBiometryType, delegate: nil)
+        let navigationVC = OWSNavigationController(rootViewController: view)
+        present(navigationVC, animated: true)
+    }
+
     private func showPaymentsActivatedToast() {
         AssertIsOnMainThread()
-        let toastText = NSLocalizedString("SETTINGS_PAYMENTS_OPT_IN_ACTIVATED_TOAST",
+        let toastText = OWSLocalizedString("SETTINGS_PAYMENTS_OPT_IN_ACTIVATED_TOAST",
                                           comment: "Message shown when payments are activated in the 'payments opt-in' view in the app settings.")
         self.presentToast(text: toastText)
     }
@@ -1021,17 +1122,20 @@ public class PaymentsSettingsViewController: OWSTableViewController2 {
     }
 
     private func didTapViewPaymentsPassphraseButton() {
-        showViewPaymentsPassphraseUI()
+        if Self.hasReviewedPassphraseWithSneakyTransaction() {
+            showPaymentsPassphraseUI(style: .reviewed)
+        } else {
+            showPaymentsPassphraseUI(style: .view)
+        }
     }
 
-    private func showViewPaymentsPassphraseUI() {
+    private func showPaymentsPassphraseUI(style: PaymentsViewPassphraseSplashViewController.Style) {
         guard let passphrase = paymentsSwift.passphrase else {
             owsFailDebug("Missing passphrase.")
             return
         }
-        let shouldShowConfirm = !Self.hasReviewedPassphraseWithSneakyTransaction()
         let view = PaymentsViewPassphraseSplashViewController(passphrase: passphrase,
-                                                              shouldShowConfirm: shouldShowConfirm,
+                                                              style: style,
                                                               viewPassphraseDelegate: self)
         let navigationVC = OWSNavigationController(rootViewController: view)
         present(navigationVC, animated: true)
@@ -1043,7 +1147,7 @@ public class PaymentsSettingsViewController: OWSTableViewController2 {
 
     private func didTapConfirmDeactivatePaymentsButton() {
         guard let paymentBalance = self.paymentsSwift.currentPaymentBalance else {
-            OWSActionSheets.showErrorAlert(message: NSLocalizedString("SETTINGS_PAYMENTS_CANNOT_DEACTIVATE_PAYMENTS_NO_BALANCE",
+            OWSActionSheets.showErrorAlert(message: OWSLocalizedString("SETTINGS_PAYMENTS_CANNOT_DEACTIVATE_PAYMENTS_NO_BALANCE",
                                                                       comment: "Error message indicating that payments could not be deactivated because the current balance is unavailable."))
             return
         }
@@ -1066,7 +1170,10 @@ public class PaymentsSettingsViewController: OWSTableViewController2 {
      }
 
     private func didTapTransferToExchangeButton() {
-        guard !OWSActionSheets.showPaymentsOutdatedClientSheetIfNeeded(title: .updateRequired) else { return }
+        if paymentsHelper.isPaymentsVersionOutdated {
+            OWSActionSheets.showPaymentsOutdatedClientSheet(title: .updateRequired)
+            return
+        }
         let view = PaymentsTransferOutViewController(transferAmount: nil)
         let navigationController = OWSNavigationController(rootViewController: view)
         present(navigationController, animated: true, completion: nil)
@@ -1080,7 +1187,7 @@ public class PaymentsSettingsViewController: OWSTableViewController2 {
     @objc
     func didTapAddMoneyButton(sender: UIGestureRecognizer) {
         guard !payments.isKillSwitchActive else {
-            OWSActionSheets.showErrorAlert(message: NSLocalizedString("SETTINGS_PAYMENTS_CANNOT_TRANSFER_IN_KILL_SWITCH",
+            OWSActionSheets.showErrorAlert(message: OWSLocalizedString("SETTINGS_PAYMENTS_CANNOT_TRANSFER_IN_KILL_SWITCH",
                                                                       comment: "Error message indicating that you cannot transfer into your payments wallet because the feature is not currently available."))
             return
         }
@@ -1092,11 +1199,16 @@ public class PaymentsSettingsViewController: OWSTableViewController2 {
     @objc
     func didTapSendPaymentButton(sender: UIGestureRecognizer) {
         guard !payments.isKillSwitchActive else {
-            OWSActionSheets.showErrorAlert(message: NSLocalizedString("SETTINGS_PAYMENTS_CANNOT_SEND_PAYMENTS_KILL_SWITCH",
+            OWSActionSheets.showErrorAlert(message: OWSLocalizedString("SETTINGS_PAYMENTS_CANNOT_SEND_PAYMENTS_KILL_SWITCH",
                                                                       comment: "Error message indicating that payments cannot be sent because the feature is not currently available."))
             return
         }
-        guard !OWSActionSheets.showPaymentsOutdatedClientSheetIfNeeded(title: .updateRequired) else { return }
+
+        if paymentsHelper.isPaymentsVersionOutdated {
+            OWSActionSheets.showPaymentsOutdatedClientSheet(title: .updateRequired)
+            return
+        }
+
         PaymentsSendRecipientViewController.presentAsFormSheet(fromViewController: self,
                                                                isOutgoingTransfer: false,
                                                                paymentRequestModel: nil)
@@ -1155,8 +1267,8 @@ public class PaymentsSettingsViewController: OWSTableViewController2 {
     }
 
     @objc
-    private func didTapViewPassphraseCard() {
-        showViewPaymentsPassphraseUI()
+    private func didTapSavePassphraseCard() {
+        showPaymentsPassphraseUI(style: .fromHelpCard)
     }
 }
 
@@ -1184,7 +1296,6 @@ extension PaymentsSettingsViewController: PaymentsHistoryDataSourceDelegate {
 
 extension PaymentsSettingsViewController: PaymentsViewPassphraseDelegate {
 
-    private static let keyValueStore = SDSKeyValueStore(collection: "PaymentSettings")
     private static let hasReviewedPassphraseKey = "hasReviewedPassphrase"
 
     public static func hasReviewedPassphraseWithSneakyTransaction() -> Bool {
@@ -1204,11 +1315,20 @@ extension PaymentsSettingsViewController: PaymentsViewPassphraseDelegate {
     }
 
     public func viewPassphraseDidComplete() {
+        self.savePassphraseHelpCardEnabled = false
         if !Self.hasReviewedPassphraseWithSneakyTransaction() {
             Self.setHasReviewedPassphraseWithSneakyTransaction()
 
-            presentToast(text: NSLocalizedString("SETTINGS_PAYMENTS_VIEW_PASSPHRASE_COMPLETE_TOAST",
+            presentToast(text: OWSLocalizedString("SETTINGS_PAYMENTS_VIEW_PASSPHRASE_COMPLETE_TOAST",
                                                  comment: "Message indicating that 'payments passphrase review' is complete."))
+        }
+    }
+
+    public func viewPassphraseDidCancel(viewController: PaymentsViewPassphraseSplashViewController) {
+        viewController.dismiss(animated: true)
+        if viewController.style.shouldShowHelpCardAfterCancel {
+            self.clearHelpCardEnabledFromDismissedList()
+            self.savePassphraseHelpCardEnabled = true
         }
     }
 }
@@ -1218,7 +1338,7 @@ extension PaymentsSettingsViewController: PaymentsViewPassphraseDelegate {
 extension PaymentsSettingsViewController: PaymentsRestoreWalletDelegate {
 
     public func restoreWalletDidComplete() {
-        presentToast(text: NSLocalizedString("SETTINGS_PAYMENTS_RESTORE_WALLET_COMPLETE_TOAST",
+        presentToast(text: OWSLocalizedString("SETTINGS_PAYMENTS_RESTORE_WALLET_COMPLETE_TOAST",
                                              comment: "Message indicating that 'restore payments wallet' is complete."))
     }
 }

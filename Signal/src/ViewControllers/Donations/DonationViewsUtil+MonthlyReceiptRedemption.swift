@@ -13,9 +13,7 @@ extension DonationViewsUtil {
         newSubscriptionLevel: SubscriptionLevel,
         priorSubscriptionLevel: SubscriptionLevel?
     ) {
-        SubscriptionManager.terminateTransactionIfPossible = false
-
-        SubscriptionManager.requestAndRedeemReceiptsIfNecessary(
+        SubscriptionManagerImpl.requestAndRedeemReceiptsIfNecessary(
             for: subscriberID,
             usingPaymentProcessor: paymentProcessor,
             subscriptionLevel: newSubscriptionLevel.level,

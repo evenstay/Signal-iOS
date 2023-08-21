@@ -4,8 +4,8 @@
 //
 
 import Foundation
+import SignalMessaging
 
-@objc
 public protocol DisappearingTimerConfigurationViewDelegate: AnyObject {
     func disappearingTimerConfigurationViewWasTapped(_ disappearingTimerView: DisappearingTimerConfigurationView)
 }
@@ -14,10 +14,8 @@ public protocol DisappearingTimerConfigurationViewDelegate: AnyObject {
 // of disappearing messages for a thread.
 //
 // If you assign a delegate, it behaves like a button.
-@objc
 public class DisappearingTimerConfigurationView: UIView {
 
-    @objc
     public weak var delegate: DisappearingTimerConfigurationViewDelegate? {
         didSet {
             // gesture recognizer is only enabled when a delegate is assigned.
@@ -35,13 +33,12 @@ public class DisappearingTimerConfigurationView: UIView {
         fatalError("init(coder:) has not been implemented")
     }
 
-    @objc
     public init(durationSeconds: UInt32) {
-        self.imageView = UIImageView(image: Theme.iconImage(.settingsTimer))
+        self.imageView = UIImageView(image: UIImage(imageLiteralResourceName: "timer"))
         imageView.contentMode = .scaleAspectFit
 
         self.label = UILabel()
-        label.text = NSString.formatDurationSeconds(durationSeconds, useShortFormat: true)
+        label.text = DateUtil.formatDuration(seconds: durationSeconds, useShortFormat: true)
         label.font = UIFont.systemFont(ofSize: 10)
         label.textAlignment = .center
         label.minimumScaleFactor = 0.5
@@ -79,7 +76,7 @@ public class DisappearingTimerConfigurationView: UIView {
     }
 
     @objc
-    func pressHandler(_ gestureRecognizer: UILongPressGestureRecognizer) {
+    private func pressHandler(_ gestureRecognizer: UILongPressGestureRecognizer) {
         Logger.verbose("")
 
         // handle touch down and touch up events separately

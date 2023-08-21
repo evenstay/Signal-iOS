@@ -5,7 +5,6 @@
 
 #import "TSAttachmentPointer.h"
 #import "MIMETypeUtil.h"
-#import "OWSBackupFragment.h"
 #import "TSAttachmentStream.h"
 #import <SignalServiceKit/SignalServiceKit-Swift.h>
 
@@ -29,6 +28,8 @@ NSString *NSStringForTSAttachmentPointerState(TSAttachmentPointerState value)
             return @"Invalid value";
     }
 }
+
+static const NSUInteger kMaxAttachmentsPerDataMessage = 100;
 
 @interface TSAttachmentStream (TSAttachmentPointer)
 
@@ -86,6 +87,7 @@ NSString *NSStringForTSAttachmentPointerState(TSAttachmentPointerState value)
                        mediaSize:(CGSize)mediaSize
                         blurHash:(nullable NSString *)blurHash
                  uploadTimestamp:(unsigned long long)uploadTimestamp
+                   videoDuration:(nullable NSNumber *)videoDuration
 {
     self = [super initWithServerId:serverId
                             cdnKey:cdnKey
@@ -97,7 +99,8 @@ NSString *NSStringForTSAttachmentPointerState(TSAttachmentPointerState value)
                            caption:caption
                     albumMessageId:albumMessageId
                           blurHash:blurHash
-                   uploadTimestamp:uploadTimestamp];
+                   uploadTimestamp:uploadTimestamp
+                     videoDuration:videoDuration];
     if (!self) {
         return self;
     }
@@ -153,6 +156,7 @@ NSString *NSStringForTSAttachmentPointerState(TSAttachmentPointerState value)
                         serverId:(unsigned long long)serverId
                   sourceFilename:(nullable NSString *)sourceFilename
                  uploadTimestamp:(unsigned long long)uploadTimestamp
+                   videoDuration:(nullable NSNumber *)videoDuration
                           digest:(nullable NSData *)digest
            lazyRestoreFragmentId:(nullable NSString *)lazyRestoreFragmentId
                        mediaSize:(CGSize)mediaSize
@@ -173,7 +177,8 @@ NSString *NSStringForTSAttachmentPointerState(TSAttachmentPointerState value)
                      encryptionKey:encryptionKey
                           serverId:serverId
                     sourceFilename:sourceFilename
-                   uploadTimestamp:uploadTimestamp];
+                   uploadTimestamp:uploadTimestamp
+                     videoDuration:videoDuration];
 
     if (!self) {
         return self;
@@ -288,7 +293,8 @@ NSString *NSStringForTSAttachmentPointerState(TSAttachmentPointerState value)
                                                                   attachmentType:attachmentType
                                                                        mediaSize:mediaSize
                                                                         blurHash:blurHash
-                                                                 uploadTimestamp:uploadTimestamp];
+                                                                 uploadTimestamp:uploadTimestamp
+                                                                   videoDuration:nil];
     return pointer;
 }
 
@@ -299,8 +305,11 @@ NSString *NSStringForTSAttachmentPointerState(TSAttachmentPointerState value)
     OWSAssertDebug(attachmentProtos);
     OWSAssertDebug(albumMessage);
 
-    NSMutableArray *attachmentPointers = [NSMutableArray new];
-    for (SSKProtoAttachmentPointer *attachmentProto in attachmentProtos) {
+    NSUInteger pointerCount = MIN(kMaxAttachmentsPerDataMessage, attachmentProtos.count);
+
+    NSMutableArray *attachmentPointers = [[NSMutableArray alloc] initWithCapacity:pointerCount];
+    for (NSUInteger i = 0; i < pointerCount; i = i + 1) {
+        SSKProtoAttachmentPointer *attachmentProto = attachmentProtos[i];
         TSAttachmentPointer *_Nullable attachmentPointer =
             [self attachmentPointerFromProto:attachmentProto albumMessage:albumMessage];
         if (attachmentPointer) {
@@ -310,37 +319,7 @@ NSString *NSStringForTSAttachmentPointerState(TSAttachmentPointerState value)
     return [attachmentPointers copy];
 }
 
-- (nullable OWSBackupFragment *)lazyRestoreFragmentWithTransaction:(SDSAnyReadTransaction *)transaction
-{
-    if (!self.lazyRestoreFragmentId) {
-        return nil;
-    }
-    OWSBackupFragment *_Nullable backupFragment = [OWSBackupFragment anyFetchWithUniqueId:self.lazyRestoreFragmentId
-                                                                              transaction:transaction];
-    OWSAssertDebug(backupFragment);
-    return backupFragment;
-}
-
 #pragma mark - Update With... Methods
-
-- (void)markForLazyRestoreWithFragment:(OWSBackupFragment *)lazyRestoreFragment
-                           transaction:(SDSAnyWriteTransaction *)transaction
-{
-    OWSAssertDebug(lazyRestoreFragment);
-    OWSAssertDebug(transaction);
-
-    if (!lazyRestoreFragment.uniqueId) {
-        // If metadata hasn't been saved yet, save now.
-        [lazyRestoreFragment anyInsertWithTransaction:transaction];
-
-        OWSAssertDebug(lazyRestoreFragment.uniqueId);
-    }
-    [self anyUpdateAttachmentPointerWithTransaction:transaction
-                                              block:^(TSAttachmentPointer *attachmentPointer) {
-                                                  [attachmentPointer
-                                                      setLazyRestoreFragmentId:lazyRestoreFragment.uniqueId];
-                                              }];
-}
 
 - (void)anyWillInsertWithTransaction:(SDSAnyWriteTransaction *)transaction
 {

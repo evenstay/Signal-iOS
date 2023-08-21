@@ -64,9 +64,10 @@
                       uniqueId:(NSString *)uniqueId
    conversationColorNameObsolete:(NSString *)conversationColorNameObsolete
                     creationDate:(nullable NSDate *)creationDate
+             editTargetTimestamp:(nullable NSNumber *)editTargetTimestamp
               isArchivedObsolete:(BOOL)isArchivedObsolete
           isMarkedUnreadObsolete:(BOOL)isMarkedUnreadObsolete
-            lastInteractionRowId:(int64_t)lastInteractionRowId
+            lastInteractionRowId:(uint64_t)lastInteractionRowId
           lastSentStoryTimestamp:(nullable NSNumber *)lastSentStoryTimestamp
        lastVisibleSortIdObsolete:(uint64_t)lastVisibleSortIdObsolete
 lastVisibleSortIdOnScreenPercentageObsolete:(double)lastVisibleSortIdOnScreenPercentageObsolete
@@ -85,6 +86,7 @@ lastVisibleSortIdOnScreenPercentageObsolete:(double)lastVisibleSortIdOnScreenPer
                         uniqueId:uniqueId
      conversationColorNameObsolete:conversationColorNameObsolete
                       creationDate:creationDate
+               editTargetTimestamp:editTargetTimestamp
                 isArchivedObsolete:isArchivedObsolete
             isMarkedUnreadObsolete:isMarkedUnreadObsolete
               lastInteractionRowId:lastInteractionRowId
@@ -144,7 +146,7 @@ lastVisibleSortIdOnScreenPercentageObsolete:lastVisibleSortIdOnScreenPercentageO
                                                }];
 
     if (updateStorageService) {
-        [SSKEnvironment.storageServiceManager
+        [SSKEnvironment.storageServiceManagerObjc
             recordPendingUpdatesWithUpdatedStoryDistributionListIds:@[ self.distributionListIdentifier ]];
     }
 }
@@ -159,7 +161,7 @@ lastVisibleSortIdOnScreenPercentageObsolete:lastVisibleSortIdOnScreenPercentageO
                                                }];
 
     if (updateStorageService) {
-        [SSKEnvironment.storageServiceManager
+        [SSKEnvironment.storageServiceManagerObjc
             recordPendingUpdatesWithUpdatedStoryDistributionListIds:@[ self.distributionListIdentifier ]];
     }
 }
@@ -172,7 +174,7 @@ lastVisibleSortIdOnScreenPercentageObsolete:lastVisibleSortIdOnScreenPercentageO
                                                block:^(TSPrivateStoryThread *thread) { thread.name = name; }];
 
     if (updateStorageService) {
-        [SSKEnvironment.storageServiceManager
+        [SSKEnvironment.storageServiceManagerObjc
             recordPendingUpdatesWithUpdatedStoryDistributionListIds:@[ self.distributionListIdentifier ]];
     }
 }

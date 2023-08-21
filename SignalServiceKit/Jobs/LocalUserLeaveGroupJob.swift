@@ -4,13 +4,15 @@
 //
 
 import Foundation
+import LibSignalClient
+import SignalCoreKit
 
 public final class LocalUserLeaveGroupOperation: OWSOperation, DurableOperation {
-    public typealias JobRecordType = OWSLocalUserLeaveGroupJobRecord
+    public typealias JobRecordType = LocalUserLeaveGroupJobRecord
     public typealias DurableOperationDelegateType = LocalUserLeaveGroupJobQueue
 
-    public let jobRecord: OWSLocalUserLeaveGroupJobRecord
-    public weak var durableOperationDelegate: LocalUserLeaveGroupJobQueue?
+    public let jobRecord: JobRecordType
+    public weak var durableOperationDelegate: DurableOperationDelegateType?
 
     public var operation: OWSOperation { self }
 
@@ -18,7 +20,7 @@ public final class LocalUserLeaveGroupOperation: OWSOperation, DurableOperation 
     private let future: Future<TSGroupThread>?
 
     fileprivate init(
-        jobRecord: OWSLocalUserLeaveGroupJobRecord,
+        jobRecord: LocalUserLeaveGroupJobRecord,
         future: Future<TSGroupThread>?
     ) {
         self.jobRecord = jobRecord
@@ -26,7 +28,7 @@ public final class LocalUserLeaveGroupOperation: OWSOperation, DurableOperation 
     }
 
     public override func run() {
-        firstly(on: .global()) { () throws -> Promise<Void> in
+        firstly(on: DispatchQueue.global()) { () throws -> Promise<Void> in
             guard self.jobRecord.waitForMessageProcessing else {
                 return Promise.value(())
             }
@@ -42,12 +44,11 @@ public final class LocalUserLeaveGroupOperation: OWSOperation, DurableOperation 
             // latest before we try and update the group
             let groupModel = try self.getGroupModelWithSneakyTransaction()
 
-            let replacementAdminUuid: UUID? = try self.jobRecord.replacementAdminUuid.map { uuidString in
-                guard let uuid = UUID(uuidString: uuidString) else {
+            let replacementAdminAci: Aci? = try self.jobRecord.replacementAdminAciString.map { aciString in
+                guard let aci = Aci.parseFrom(aciString: aciString) else {
                     throw OWSAssertionError("Unable to convert replacement admin UUID string to UUID")
                 }
-
-                return uuid
+                return aci
             }
 
             return GroupManager.updateGroupV2(
@@ -57,8 +58,8 @@ public final class LocalUserLeaveGroupOperation: OWSOperation, DurableOperation 
                 groupChangeSet.setShouldLeaveGroupDeclineInvite()
 
                 // Sometimes when we leave a group we take care to assign a new admin.
-                if let replacementAdminUuid = replacementAdminUuid {
-                    groupChangeSet.changeRoleForMember(replacementAdminUuid, role: .administrator)
+                if let replacementAdminAci {
+                    groupChangeSet.changeRoleForMember(replacementAdminAci, role: .administrator)
                 }
             }
         }.map { groupThread in
@@ -179,14 +180,14 @@ public class LocalUserLeaveGroupJobQueue: NSObject, JobQueue {
 
     public func add(
         threadId: String,
-        replacementAdminUuid: UUID?,
+        replacementAdminAci: Aci?,
         waitForMessageProcessing: Bool,
         transaction: SDSAnyWriteTransaction
     ) -> Promise<TSGroupThread> {
         Promise { future in
             self.add(
                 threadId: threadId,
-                replacementAdminUuid: replacementAdminUuid,
+                replacementAdminAci: replacementAdminAci,
                 waitForMessageProcessing: waitForMessageProcessing,
                 future: future,
                 transaction: transaction
@@ -196,16 +197,16 @@ public class LocalUserLeaveGroupJobQueue: NSObject, JobQueue {
 
     private func add(
         threadId: String,
-        replacementAdminUuid: UUID?,
+        replacementAdminAci: Aci?,
         waitForMessageProcessing: Bool,
         future: Future<TSGroupThread>,
         transaction: SDSAnyWriteTransaction
     ) {
-        let jobRecord = OWSLocalUserLeaveGroupJobRecord(
+        let jobRecord = LocalUserLeaveGroupJobRecord(
             threadId: threadId,
-            replacementAdminUuid: replacementAdminUuid?.uuidString,
+            replacementAdminAci: replacementAdminAci,
             waitForMessageProcessing: waitForMessageProcessing,
-            label: self.jobRecordLabel
+            label: jobRecordLabel
         )
 
         self.add(jobRecord: jobRecord, transaction: transaction)

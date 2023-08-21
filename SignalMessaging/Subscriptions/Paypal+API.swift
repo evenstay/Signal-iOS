@@ -5,7 +5,7 @@
 
 import Foundation
 
-// MARK: - Create a payment
+// MARK: - Boost
 
 public extension Paypal {
     /// Create a payment and get a PayPal approval URL to present to the user.
@@ -13,22 +13,18 @@ public extension Paypal {
         amount: FiatMoney,
         level: OneTimeBadgeLevel
     ) -> Promise<URL> {
-        firstly(on: .sharedUserInitiated) {
+        firstly(on: DispatchQueue.sharedUserInitiated) {
             let createBoostRequest = OWSRequestFactory.boostPaypalCreatePayment(
                 integerMoneyValue: DonationUtilities.integralAmount(for: amount),
                 inCurrencyCode: amount.currencyCode,
                 level: level.rawValue,
-                returnUrl: Paypal.returnUrl,
-                cancelUrl: Paypal.cancelUrl
+                returnUrl: Self.webAuthReturnUrl,
+                cancelUrl: Self.webAuthCancelUrl
             )
 
             return networkManager.makePromise(request: createBoostRequest)
-        }.map(on: .sharedUserInitiated) { response throws -> URL in
-            guard let json = response.responseBodyJson else {
-                throw OWSAssertionError("[Donations] Missing or invalid JSON")
-            }
-
-            guard let parser = ParamParser(responseObject: json) else {
+        }.map(on: DispatchQueue.sharedUserInitiated) { response throws -> URL in
+            guard let parser = ParamParser(responseObject: response.responseBodyJson) else {
                 throw OWSAssertionError("[Donations] Failed to decode JSON response")
             }
 
@@ -41,20 +37,16 @@ public extension Paypal {
             return approvalUrl
         }
     }
-}
 
-// MARK: - Confirm a payment
-
-public extension Paypal {
     /// Confirms a payment after a successful authentication via PayPal's web
     /// UI. Returns a payment ID that can be used to get receipt credentials.
-    static func confirmBoost(
+    static func confirmOneTimePayment(
         amount: FiatMoney,
         level: OneTimeBadgeLevel,
-        approvalParams: WebAuthApprovalParams
+        approvalParams: OneTimePaymentWebAuthApprovalParams
     ) -> Promise<String> {
-        firstly(on: .sharedUserInitiated) {
-            let confirmBoostRequest = OWSRequestFactory.boostPaypalConfirmPayment(
+        firstly(on: DispatchQueue.sharedUserInitiated) {
+            let confirmOneTimePaymentRequest = OWSRequestFactory.oneTimePaypalConfirmPayment(
                 integerMoneyValue: DonationUtilities.integralAmount(for: amount),
                 inCurrencyCode: amount.currencyCode,
                 level: level.rawValue,
@@ -63,17 +55,60 @@ public extension Paypal {
                 paymentToken: approvalParams.paymentToken
             )
 
-            return networkManager.makePromise(request: confirmBoostRequest)
-        }.map(on: .sharedUserInitiated) { response throws -> String in
-            guard let json = response.responseBodyJson else {
-                throw OWSAssertionError("[Donations] Missing or invalid JSON")
-            }
-
-            guard let parser = ParamParser(responseObject: json) else {
+            return networkManager.makePromise(request: confirmOneTimePaymentRequest)
+        }.map(on: DispatchQueue.sharedUserInitiated) { response throws -> String in
+            guard let parser = ParamParser(responseObject: response.responseBodyJson) else {
                 throw OWSAssertionError("[Donations] Failed to decode JSON response")
             }
 
             return try parser.required(key: "paymentId")
+        }
+    }
+}
+
+// MARK: - Subscription
+
+public extension Paypal {
+    struct SubscriptionAuthorizationParams {
+        /// A URL to present to the user to authorize the subscription.
+        public let approvalUrl: URL
+
+        /// An opaque ID identifying the payment method, for API calls after
+        /// subscription authorization.
+        public let paymentMethodId: String
+    }
+
+    /// Create a payment method entry with the Signal service for a subscription
+    /// processed by PayPal.
+    ///
+    /// - Returns
+    /// PayPal params used to authorize payment for the new subscription.
+    static func createSignalPaymentMethodForSubscription(
+        subscriberId: Data
+    ) -> Promise<SubscriptionAuthorizationParams> {
+        firstly {
+            let request = OWSRequestFactory.subscriptionCreatePaypalPaymentMethodRequest(
+                subscriberId: subscriberId.asBase64Url,
+                returnUrl: Self.webAuthReturnUrl,
+                cancelUrl: Self.webAuthCancelUrl
+            )
+
+            return networkManager.makePromise(request: request)
+        }.map(on: DispatchQueue.sharedUserInitiated) { response in
+            guard let parser = ParamParser(responseObject: response.responseBodyJson) else {
+                throw OWSAssertionError("[Donations] Missing or invalid response.")
+            }
+
+            guard let approvalUrl = URL(string: try parser.required(key: "approvalUrl")) else {
+                throw OWSAssertionError("[Donations] Approval URL string was not valid URL!")
+            }
+
+            let paymentMethodId: String = try parser.required(key: "token")
+
+            return SubscriptionAuthorizationParams(
+                approvalUrl: approvalUrl,
+                paymentMethodId: paymentMethodId
+            )
         }
     }
 }

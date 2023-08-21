@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import LibSignalClient
 import XCTest
 
 @testable import SignalServiceKit
@@ -50,8 +51,8 @@ class BlockingManagerTests: SSKBaseTestSwift {
                 Set(allExpectedBlockedAddresses.compactMap { $0.phoneNumber })
             )
             XCTAssertEqual(
-                Set(allFetchedBlockedAddresses.compactMap { $0.uuidString }),
-                Set(allExpectedBlockedAddresses.compactMap { $0.uuidString })
+                Set(allFetchedBlockedAddresses.compactMap { $0.untypedServiceId }),
+                Set(allExpectedBlockedAddresses.compactMap { $0.untypedServiceId })
             )
             // Next, ensure that querying an individual address or thread works properly
             generatedAddresses.forEach {
@@ -126,7 +127,7 @@ class BlockingManagerTests: SSKBaseTestSwift {
         let victimBlockedAddress = CommonGenerator.address()
         let victimGroupId = TSGroupModel.generateRandomV1GroupId()
 
-        let blockedUUIDs = Set((0..<10).map { _ in UUID() })
+        let blockedAcis = Set((0..<10).map { _ in Aci.randomForTesting() })
         let blockedE164s = Set((0..<10).map { _ in CommonGenerator.e164() })
         let blockedGroupIds = Set((0..<10).map { _ in TSGroupModel.generateRandomV1GroupId() })
         databaseStorage.write { writeTx in
@@ -146,7 +147,7 @@ class BlockingManagerTests: SSKBaseTestSwift {
                 blockMode: .localShouldNotLeaveGroups,
                 transaction: writeTx)
             blockingManager.addBlockedAddress(
-                SignalServiceAddress(uuid: blockedUUIDs.randomElement()!),
+                SignalServiceAddress(blockedAcis.randomElement()!),
                 blockMode: .localShouldNotLeaveGroups,
                 transaction: writeTx)
             blockingManager.addBlockedAddress(
@@ -159,7 +160,7 @@ class BlockingManagerTests: SSKBaseTestSwift {
         databaseStorage.write { writeTx in
             blockingManager.processIncomingSync(
                 blockedPhoneNumbers: blockedE164s,
-                blockedUUIDs: blockedUUIDs,
+                blockedAcis: Set(blockedAcis.map { AciObjC($0) }),
                 blockedGroupIds: blockedGroupIds,
                 transaction: writeTx)
         }
@@ -177,8 +178,8 @@ class BlockingManagerTests: SSKBaseTestSwift {
             XCTAssertTrue(blockedE164s
                 .map { SignalServiceAddress(phoneNumber: $0) }
                 .allSatisfy { blockingManager.isAddressBlocked($0, transaction: readTx) })
-            XCTAssertTrue(blockedUUIDs
-                .map { SignalServiceAddress(uuid: $0) }
+            XCTAssertTrue(blockedAcis
+                .map { SignalServiceAddress($0) }
                 .allSatisfy { blockingManager.isAddressBlocked($0, transaction: readTx) })
             XCTAssertTrue(blockedGroupIds
                 .allSatisfy { blockingManager.isGroupIdBlocked($0, transaction: readTx) })
@@ -186,7 +187,7 @@ class BlockingManagerTests: SSKBaseTestSwift {
             // Finally, verify that any remote state agrees
             remoteState.reloadIfNecessary(readTx)
             XCTAssertEqual(Set(remoteState.blockedGroupMap.keys), blockedGroupIds)
-            XCTAssertEqual(remoteState.blockedUUIDStrings, Set(blockedUUIDs.map { $0.uuidString }))
+            XCTAssertEqual(remoteState.blockedUUIDStrings, Set(blockedAcis.map { $0.serviceIdUppercaseString }))
             XCTAssertEqual(remoteState.blockedPhoneNumbers, blockedE164s)
         }
     }
@@ -194,7 +195,7 @@ class BlockingManagerTests: SSKBaseTestSwift {
     func testSendSyncMessage() {
         // Setup
         // ensure local client has necessary "registered" state
-        identityManager.generateNewIdentityKey(for: .aci)
+        identityManager.generateAndPersistNewIdentityKey(for: .aci)
         tsAccountManager.registerForTests(withLocalNumber: CommonGenerator.e164(), uuid: UUID())
         BlockingManager.TestingFlags.optimisticallyCommitSyncToken = true
 

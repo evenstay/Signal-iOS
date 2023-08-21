@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalServiceKit
 
 class StoryInteractiveTransitionCoordinator: UIPercentDrivenInteractiveTransition, UIGestureRecognizerDelegate {
     weak var pageViewController: StoryPageViewController!
@@ -43,7 +43,7 @@ class StoryInteractiveTransitionCoordinator: UIPercentDrivenInteractiveTransitio
     var mode: Mode = .zoom
 
     @objc
-    func handlePan(_ gestureRecognizer: UIPanGestureRecognizer) {
+    private func handlePan(_ gestureRecognizer: UIPanGestureRecognizer) {
         switch gestureRecognizer.state {
         case .began:
             interactionInProgress = true

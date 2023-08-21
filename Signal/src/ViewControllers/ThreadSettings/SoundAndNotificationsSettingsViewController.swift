@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalMessaging
+import SignalUI
 
 class SoundAndNotificationsSettingsViewController: OWSTableViewController2 {
     let threadViewModel: ThreadViewModel
@@ -15,7 +15,7 @@ class SoundAndNotificationsSettingsViewController: OWSTableViewController2 {
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        title = NSLocalizedString(
+        title = OWSLocalizedString(
             "SOUND_AND_NOTIFICATION_SETTINGS",
             comment: "table cell label in conversation settings"
         )
@@ -34,12 +34,15 @@ class SoundAndNotificationsSettingsViewController: OWSTableViewController2 {
                 return OWSTableItem.newCell()
             }
 
-            let sound = OWSSounds.notificationSound(for: self.threadViewModel.threadRecord)
-            let cell = OWSTableItem.buildCellWithAccessoryLabel(
-                icon: .settingsMessageSound,
-                itemName: NSLocalizedString("SETTINGS_ITEM_NOTIFICATION_SOUND",
-                                            comment: "Label for settings view that allows user to change the notification sound."),
-                accessoryText: OWSSounds.displayName(forSound: sound)
+            let sound = Sounds.notificationSoundForThread(self.threadViewModel.threadRecord)
+            let cell = OWSTableItem.buildCell(
+                icon: .chatSettingsMessageSound,
+                itemName: OWSLocalizedString(
+                    "SETTINGS_ITEM_NOTIFICATION_SOUND",
+                    comment: "Label for settings view that allows user to change the notification sound."
+                ),
+                accessoryText: sound.displayName,
+                accessoryType: .disclosureIndicator
             )
             cell.accessibilityIdentifier = UIView.accessibilityIdentifier(in: self, name: "notifications")
             return cell
@@ -54,7 +57,7 @@ class SoundAndNotificationsSettingsViewController: OWSTableViewController2 {
                 return OWSTableItem.newCell()
             }
 
-            var muteStatus = NSLocalizedString(
+            var muteStatus = OWSLocalizedString(
                 "CONVERSATION_SETTINGS_MUTE_NOT_MUTED",
                 comment: "Indicates that the current thread is not muted."
             )
@@ -62,7 +65,7 @@ class SoundAndNotificationsSettingsViewController: OWSTableViewController2 {
             let now = Date()
 
             if self.threadViewModel.mutedUntilTimestamp == ThreadAssociatedData.alwaysMutedTimestamp {
-                muteStatus = NSLocalizedString(
+                muteStatus = OWSLocalizedString(
                     "CONVERSATION_SETTINGS_MUTED_ALWAYS",
                     comment: "Indicates that this thread is muted forever."
                 )
@@ -82,7 +85,7 @@ class SoundAndNotificationsSettingsViewController: OWSTableViewController2 {
                     dateFormatter.timeStyle = .short
                 }
 
-                let formatString = NSLocalizedString(
+                let formatString = OWSLocalizedString(
                     "CONVERSATION_SETTINGS_MUTED_UNTIL_FORMAT",
                     comment: "Indicates that this thread is muted until a given date or time. Embeds {{The date or time which the thread is muted until}}."
                 )
@@ -92,11 +95,14 @@ class SoundAndNotificationsSettingsViewController: OWSTableViewController2 {
                 )
             }
 
-            let cell = OWSTableItem.buildCellWithAccessoryLabel(
-                icon: .settingsMuted,
-                itemName: NSLocalizedString("CONVERSATION_SETTINGS_MUTE_LABEL",
-                                            comment: "label for 'mute thread' cell in conversation settings"),
-                accessoryText: muteStatus
+            let cell = OWSTableItem.buildCell(
+                icon: .chatSettingsMute,
+                itemName: OWSLocalizedString(
+                    "CONVERSATION_SETTINGS_MUTE_LABEL",
+                    comment: "label for 'mute thread' cell in conversation settings"
+                ),
+                accessoryText: muteStatus,
+                accessoryType: .disclosureIndicator
             )
 
             cell.accessibilityIdentifier = UIView.accessibilityIdentifier(in: self, name: "mute")
@@ -110,18 +116,21 @@ class SoundAndNotificationsSettingsViewController: OWSTableViewController2 {
             }
         }))
 
-        if Mention.threadAllowsMentionSend(threadViewModel.threadRecord) {
+        if threadViewModel.threadRecord.allowsMentionSend {
             section.add(OWSTableItem(customCellBlock: { [weak self] in
                 guard let self = self else {
                     owsFailDebug("Missing self")
                     return OWSTableItem.newCell()
                 }
 
-                let cell = OWSTableItem.buildCellWithAccessoryLabel(
-                    icon: .settingsMention,
-                    itemName: NSLocalizedString("CONVERSATION_SETTINGS_MENTIONS_LABEL",
-                                                comment: "label for 'mentions' cell in conversation settings"),
-                    accessoryText: self.nameForMentionMode(self.threadViewModel.threadRecord.mentionNotificationMode)
+                let cell = OWSTableItem.buildCell(
+                    icon: .chatSettingsMentions,
+                    itemName: OWSLocalizedString(
+                        "CONVERSATION_SETTINGS_MENTIONS_LABEL",
+                        comment: "label for 'mentions' cell in conversation settings"
+                    ),
+                    accessoryText: self.nameForMentionMode(self.threadViewModel.threadRecord.mentionNotificationMode),
+                    accessoryType: .disclosureIndicator
                 )
 
                 cell.accessibilityIdentifier = UIView.accessibilityIdentifier(in: self, name: "mentions")
@@ -133,7 +142,7 @@ class SoundAndNotificationsSettingsViewController: OWSTableViewController2 {
             }))
         }
 
-        contents.addSection(section)
+        contents.add(section)
 
         self.contents = contents
     }
@@ -147,7 +156,7 @@ class SoundAndNotificationsSettingsViewController: OWSTableViewController2 {
 
     func showMentionNotificationModeActionSheet() {
         let actionSheet = ActionSheetController(
-            title: NSLocalizedString("CONVERSATION_SETTINGS_MENTION_NOTIFICATION_MODE_ACTION_SHEET_TITLE",
+            title: OWSLocalizedString("CONVERSATION_SETTINGS_MENTION_NOTIFICATION_MODE_ACTION_SHEET_TITLE",
                                      comment: "Title of the 'mention notification mode' action sheet.")
         )
 
@@ -177,12 +186,12 @@ class SoundAndNotificationsSettingsViewController: OWSTableViewController2 {
     func nameForMentionMode(_ mode: TSThreadMentionNotificationMode) -> String {
         switch mode {
         case .default, .always:
-            return NSLocalizedString(
+            return OWSLocalizedString(
                 "CONVERSATION_SETTINGS_MENTION_MODE_AlWAYS",
                 comment: "label for 'always' option for mention notifications in conversation settings"
             )
         case .never:
-            return NSLocalizedString(
+            return OWSLocalizedString(
                 "CONVERSATION_SETTINGS_MENTION_MODE_NEVER",
                 comment: "label for 'never' option for mention notifications in conversation settings"
             )

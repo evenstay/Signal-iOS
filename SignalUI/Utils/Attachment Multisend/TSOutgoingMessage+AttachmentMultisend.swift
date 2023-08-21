@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalMessaging
 
 extension TSOutgoingMessage {
@@ -15,15 +14,16 @@ extension TSOutgoingMessage {
     ) throws {
         for destination in destinations {
             // If this thread has a pending message request, treat it as accepted.
-            ThreadUtil.addThreadToProfileWhitelistIfEmptyOrPendingRequestAndSetDefaultTimer(
-                thread: destination.thread,
-                transaction: transaction
+            ThreadUtil.addThreadToProfileWhitelistIfEmptyOrPendingRequest(
+                destination.thread,
+                setDefaultTimerIfNecessary: true,
+                tx: transaction
             )
 
-            let messageBodyForContext = state.approvalMessageBody?.forNewContext(
-                destination.thread,
+            let messageBodyForContext = state.approvalMessageBody?.forForwarding(
+                to: destination.thread,
                 transaction: transaction.unwrapGrdbRead
-            )
+            ).asMessageBodyForForwarding()
 
             let message: TSOutgoingMessage
             let attachmentUUIDs: [UUID]

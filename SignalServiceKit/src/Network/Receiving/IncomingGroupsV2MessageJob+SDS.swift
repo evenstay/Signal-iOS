@@ -96,7 +96,6 @@ public extension String.StringInterpolation {
 
 // MARK: - Deserialization
 
-// TODO: Rework metadata to not include, for example, columns, column indices.
 extension IncomingGroupsV2MessageJob {
     // This method defines how to deserialize a model, given a
     // database row.  The recordType column is used to determine
@@ -162,7 +161,7 @@ extension IncomingGroupsV2MessageJob: SDSModel {
 
     public class func anyEnumerateIndexable(
         transaction: SDSAnyReadTransaction,
-        block: @escaping (SDSIndexableModel) -> Void
+        block: (SDSIndexableModel) -> Void
     ) {
         anyEnumerate(transaction: transaction, batched: false) { model, _ in
             block(model)
@@ -223,8 +222,6 @@ extension IncomingGroupsV2MessageJobSerializer {
     static var groupIdColumn: SDSColumnMetadata { SDSColumnMetadata(columnName: "groupId", columnType: .blob, isOptional: true) }
     static var serverDeliveryTimestampColumn: SDSColumnMetadata { SDSColumnMetadata(columnName: "serverDeliveryTimestamp", columnType: .int64) }
 
-    // TODO: We should decide on a naming convention for
-    //       tables that store models.
     public static var table: SDSTableMetadata {
         SDSTableMetadata(collection: IncomingGroupsV2MessageJob.collection(),
                          tableName: "model_IncomingGroupsV2MessageJob",
@@ -380,14 +377,6 @@ public class IncomingGroupsV2MessageJobCursor: NSObject, SDSCursor {
 
 // MARK: - Obj-C Fetch
 
-// TODO: We may eventually want to define some combination of:
-//
-// * fetchCursor, fetchOne, fetchAll, etc. (ala GRDB)
-// * Optional "where clause" parameters for filtering.
-// * Async flavors with completions.
-//
-// TODO: I've defined flavors that take a read transaction.
-//       Or we might take a "connection" if we end up having that class.
 @objc
 public extension IncomingGroupsV2MessageJob {
     class func grdbFetchCursor(transaction: GRDBReadTransaction) -> IncomingGroupsV2MessageJobCursor {
@@ -396,6 +385,10 @@ public extension IncomingGroupsV2MessageJob {
             let cursor = try IncomingGroupsV2MessageJobRecord.fetchCursor(database)
             return IncomingGroupsV2MessageJobCursor(transaction: transaction, cursor: cursor)
         } catch {
+            DatabaseCorruptionState.flagDatabaseReadCorruptionIfNecessary(
+                userDefaults: CurrentAppContext().appUserDefaults(),
+                error: error
+            )
             owsFailDebug("Read failed: \(error)")
             return IncomingGroupsV2MessageJobCursor(transaction: transaction, cursor: nil)
         }
@@ -415,16 +408,20 @@ public extension IncomingGroupsV2MessageJob {
 
     // Traverses all records.
     // Records are not visited in any particular order.
-    class func anyEnumerate(transaction: SDSAnyReadTransaction,
-                            block: @escaping (IncomingGroupsV2MessageJob, UnsafeMutablePointer<ObjCBool>) -> Void) {
+    class func anyEnumerate(
+        transaction: SDSAnyReadTransaction,
+        block: (IncomingGroupsV2MessageJob, UnsafeMutablePointer<ObjCBool>) -> Void
+    ) {
         anyEnumerate(transaction: transaction, batched: false, block: block)
     }
 
     // Traverses all records.
     // Records are not visited in any particular order.
-    class func anyEnumerate(transaction: SDSAnyReadTransaction,
-                            batched: Bool = false,
-                            block: @escaping (IncomingGroupsV2MessageJob, UnsafeMutablePointer<ObjCBool>) -> Void) {
+    class func anyEnumerate(
+        transaction: SDSAnyReadTransaction,
+        batched: Bool = false,
+        block: (IncomingGroupsV2MessageJob, UnsafeMutablePointer<ObjCBool>) -> Void
+    ) {
         let batchSize = batched ? Batching.kDefaultBatchSize : 0
         anyEnumerate(transaction: transaction, batchSize: batchSize, block: block)
     }
@@ -433,9 +430,11 @@ public extension IncomingGroupsV2MessageJob {
     // Records are not visited in any particular order.
     //
     // If batchSize > 0, the enumeration is performed in autoreleased batches.
-    class func anyEnumerate(transaction: SDSAnyReadTransaction,
-                            batchSize: UInt,
-                            block: @escaping (IncomingGroupsV2MessageJob, UnsafeMutablePointer<ObjCBool>) -> Void) {
+    class func anyEnumerate(
+        transaction: SDSAnyReadTransaction,
+        batchSize: UInt,
+        block: (IncomingGroupsV2MessageJob, UnsafeMutablePointer<ObjCBool>) -> Void
+    ) {
         switch transaction.readTransaction {
         case .grdbRead(let grdbTransaction):
             let cursor = IncomingGroupsV2MessageJob.grdbFetchCursor(transaction: grdbTransaction)
@@ -456,16 +455,20 @@ public extension IncomingGroupsV2MessageJob {
 
     // Traverses all records' unique ids.
     // Records are not visited in any particular order.
-    class func anyEnumerateUniqueIds(transaction: SDSAnyReadTransaction,
-                                     block: @escaping (String, UnsafeMutablePointer<ObjCBool>) -> Void) {
+    class func anyEnumerateUniqueIds(
+        transaction: SDSAnyReadTransaction,
+        block: (String, UnsafeMutablePointer<ObjCBool>) -> Void
+    ) {
         anyEnumerateUniqueIds(transaction: transaction, batched: false, block: block)
     }
 
     // Traverses all records' unique ids.
     // Records are not visited in any particular order.
-    class func anyEnumerateUniqueIds(transaction: SDSAnyReadTransaction,
-                                     batched: Bool = false,
-                                     block: @escaping (String, UnsafeMutablePointer<ObjCBool>) -> Void) {
+    class func anyEnumerateUniqueIds(
+        transaction: SDSAnyReadTransaction,
+        batched: Bool = false,
+        block: (String, UnsafeMutablePointer<ObjCBool>) -> Void
+    ) {
         let batchSize = batched ? Batching.kDefaultBatchSize : 0
         anyEnumerateUniqueIds(transaction: transaction, batchSize: batchSize, block: block)
     }
@@ -474,9 +477,11 @@ public extension IncomingGroupsV2MessageJob {
     // Records are not visited in any particular order.
     //
     // If batchSize > 0, the enumeration is performed in autoreleased batches.
-    class func anyEnumerateUniqueIds(transaction: SDSAnyReadTransaction,
-                                     batchSize: UInt,
-                                     block: @escaping (String, UnsafeMutablePointer<ObjCBool>) -> Void) {
+    class func anyEnumerateUniqueIds(
+        transaction: SDSAnyReadTransaction,
+        batchSize: UInt,
+        block: (String, UnsafeMutablePointer<ObjCBool>) -> Void
+    ) {
         switch transaction.readTransaction {
         case .grdbRead(let grdbTransaction):
             grdbEnumerateUniqueIds(transaction: grdbTransaction,
@@ -514,43 +519,20 @@ public extension IncomingGroupsV2MessageJob {
         }
     }
 
-    // WARNING: Do not use this method for any models which do cleanup
-    //          in their anyWillRemove(), anyDidRemove() methods.
-    class func anyRemoveAllWithoutInstantation(transaction: SDSAnyWriteTransaction) {
-        switch transaction.writeTransaction {
-        case .grdbWrite(let grdbTransaction):
-            do {
-                try IncomingGroupsV2MessageJobRecord.deleteAll(grdbTransaction.database)
-            } catch {
-                owsFailDebug("deleteAll() failed: \(error)")
-            }
-        }
-
-        if ftsIndexMode != .never {
-            FullTextSearchFinder.allModelsWereRemoved(collection: collection(), transaction: transaction)
-        }
-    }
-
     class func anyRemoveAllWithInstantation(transaction: SDSAnyWriteTransaction) {
-        // To avoid mutationDuringEnumerationException, we need
-        // to remove the instances outside the enumeration.
+        // To avoid mutationDuringEnumerationException, we need to remove the
+        // instances outside the enumeration.
         let uniqueIds = anyAllUniqueIds(transaction: transaction)
 
-        var index: Int = 0
-        Batching.loop(batchSize: Batching.kDefaultBatchSize,
-                      loopBlock: { stop in
-            guard index < uniqueIds.count else {
-                stop.pointee = true
-                return
+        for uniqueId in uniqueIds {
+            autoreleasepool {
+                guard let instance = anyFetch(uniqueId: uniqueId, transaction: transaction) else {
+                    owsFailDebug("Missing instance.")
+                    return
+                }
+                instance.anyRemove(transaction: transaction)
             }
-            let uniqueId = uniqueIds[index]
-            index += 1
-            guard let instance = anyFetch(uniqueId: uniqueId, transaction: transaction) else {
-                owsFailDebug("Missing instance.")
-                return
-            }
-            instance.anyRemove(transaction: transaction)
-        })
+        }
 
         if ftsIndexMode != .never {
             FullTextSearchFinder.allModelsWereRemoved(collection: collection(), transaction: transaction)
@@ -567,7 +549,15 @@ public extension IncomingGroupsV2MessageJob {
         case .grdbRead(let grdbTransaction):
             let sql = "SELECT EXISTS ( SELECT 1 FROM \(IncomingGroupsV2MessageJobRecord.databaseTableName) WHERE \(incomingGroupsV2MessageJobColumn: .uniqueId) = ? )"
             let arguments: StatementArguments = [uniqueId]
-            return try! Bool.fetchOne(grdbTransaction.database, sql: sql, arguments: arguments) ?? false
+            do {
+                return try Bool.fetchOne(grdbTransaction.database, sql: sql, arguments: arguments) ?? false
+            } catch {
+                DatabaseCorruptionState.flagDatabaseReadCorruptionIfNecessary(
+                    userDefaults: CurrentAppContext().appUserDefaults(),
+                    error: error
+                )
+                owsFail("Missing instance.")
+            }
         }
     }
 }
@@ -583,6 +573,10 @@ public extension IncomingGroupsV2MessageJob {
             let cursor = try IncomingGroupsV2MessageJobRecord.fetchCursor(transaction.database, sqlRequest)
             return IncomingGroupsV2MessageJobCursor(transaction: transaction, cursor: cursor)
         } catch {
+            DatabaseCorruptionState.flagDatabaseReadCorruptionIfNecessary(
+                userDefaults: CurrentAppContext().appUserDefaults(),
+                error: error
+            )
             Logger.verbose("sql: \(sql)")
             owsFailDebug("Read failed: \(error)")
             return IncomingGroupsV2MessageJobCursor(transaction: transaction, cursor: nil)

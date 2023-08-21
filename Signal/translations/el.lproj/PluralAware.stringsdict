@@ -93,9 +93,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Αυτό το προσαρμοσμένο χρώμα χρησιμοποιείται σε %1$d συνομιλία. Θέλεις να το διαγράψεις για όλες τις συνομιλίες;</string>
+			<string>Αυτό το εξατομικευμένο χρώμα χρησιμοποιείται σε %1$d συνομιλία. Θέλεις να το διαγράψεις από όλες τις συνομιλίες;</string>
 			<key>other</key>
-			<string>Αυτό το προσαρμοσμένο χρώμα χρησιμοποιείται σε %1$d συνομιλίες. Θέλεις να το διαγράψεις για όλες τις συνομιλίες;</string>
+			<string>Αυτό το εξατομικευμένο χρώμα χρησιμοποιείται σε %1$d συνομιλίες. Θέλεις να το διαγράψεις από όλες τις συνομιλίες;</string>
 		</dict>
 	</dict>
 	<key>CHAT_COLOR_SETTINGS_UPDATE_ALERT_MESSAGE_%d</key>
@@ -285,7 +285,7 @@
 			<string>Έφτασες το μέγιστο μέγεθος με %1$d μέλη της ομάδας.</string>
 		</dict>
 	</dict>
-	<key>EXPIRATION_WARNING_%d</key>
+	<key>EDIT_MESSAGE_SEND_TOO_MANY_EDITS_ERROR</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
 		<string>%#@text@</string>
@@ -296,9 +296,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Η έκδοση Signal που χρησιμοποιείς θα λήξει σε %1$d ημέρα. Πάτα για αναβάθμιση στην πιο πρόσφατη έκδοση.</string>
+			<string>Μόνο ο/η %1$d μπορεί να επεξεργαστεί αυτό το μήνυμα.</string>
 			<key>other</key>
-			<string>Η έκδοση Signal που χρησιμοποιείς θα λήξει σε %1$d ημέρες. Πάτα για αναβάθμιση στην πιο πρόσφατη έκδοση.</string>
+			<string>Μόνο οι %1$d μπορούν να επεξεργαστούν αυτό το μήνυμα.</string>
 		</dict>
 	</dict>
 	<key>FORWARD_MESSAGE_FIRST_FORWARD_PROCEED_%d</key>
@@ -315,22 +315,6 @@
 			<string>Αποστολή μηνύματος</string>
 			<key>other</key>
 			<string>Αποστολή %1$d μηνυμάτων</string>
-		</dict>
-	</dict>
-	<key>GROUPS_LEGACY_GROUP_DROPPED_MEMBERS_BANNER_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>%1$d μέλος δεν ήταν δυνατό να επαναπροστεθεί στη Νέα Ομάδα. Θέλεις να το προσθέσεις τώρα;</string>
-			<key>other</key>
-			<string>%1$d μέλη δεν ήταν δυνατό να επαναπροστεθούν στη Νέα Ομάδα. Θέλεις να τα προσθέσεις τώρα;</string>
 		</dict>
 	</dict>
 	<key>GROUPS_TOO_MANY_MEMBERS_ALERT_MESSAGE_%d</key>
@@ -573,22 +557,6 @@
 			<string>%1$d μέλη</string>
 		</dict>
 	</dict>
-	<key>GROUP_REMOTE_USER_INVITED_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>%1$d άτομο προσκλήθηκε στην ομάδα.</string>
-			<key>other</key>
-			<string>%1$d άτομα προσκλήθηκαν στην ομάδα.</string>
-		</dict>
-	</dict>
 	<key>GROUP_REMOTE_USER_INVITED_BY_REMOTE_USER_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -669,38 +637,6 @@
 			<string>Ιστορία ομάδας · %1$d θεατές</string>
 		</dict>
 	</dict>
-	<key>GROUP_WAS_MIGRATED_USERS_DROPPED_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>%1$d μέλος δεν ήταν δυνατό να προστεθεί στη Νέα Ομάδα και αφαιρέθηκε από την ομάδα.</string>
-			<key>other</key>
-			<string>%1$d μέλη δεν ήταν δυνατό να προστεθούν στη Νέα Ομάδα και αφαιρέθηκαν από την ομάδα.</string>
-		</dict>
-	</dict>
-	<key>GROUP_WAS_MIGRATED_USERS_INVITED_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>%1$d μέλος δεν ήταν δυνατό να προστεθεί στη Νέα Ομάδα και προσκλήθηκε για συμμετοχή.</string>
-			<key>other</key>
-			<string>%1$d μέλη δεν ήταν δυνατό να προστεθούν στη Νέα Ομάδα και προσκλήθηκαν για συμμετοχή.</string>
-		</dict>
-	</dict>
 	<key>IMAGE_PICKER_CAN_SELECT_NO_MORE_TOAST_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -733,7 +669,7 @@
 			<string>%1$d κοινές ομάδες</string>
 		</dict>
 	</dict>
-	<key>MEDIA_GALLERY_DELETE_MESSAGES_%d</key>
+	<key>MEDIA_GALLERY_DELETE_MEDIA_TITLE</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
 		<string>%#@text@</string>
@@ -744,9 +680,25 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Διαγραφή %1$d μηνύματος</string>
+			<string>Διαγραφή %1$d στοιχείου;</string>
 			<key>other</key>
-			<string>Διαγραφή %1$d μηνυμάτων</string>
+			<string>Διαγραφή %1$d στοιχείων;</string>
+		</dict>
+	</dict>
+	<key>MEDIA_GALLERY_DELETE_MEDIA_TOAST</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Ένα στοιχείο διαγράφηκε</string>
+			<key>other</key>
+			<string>%1$d στοιχεία διαγράφηκαν</string>
 		</dict>
 	</dict>
 	<key>MEDIA_GALLERY_ITEM_IMAGE_COUNT_%d</key>
@@ -779,6 +731,22 @@
 			<string>%1$d αντικείμενο</string>
 			<key>other</key>
 			<string>%1$d αντικείμενα</string>
+		</dict>
+	</dict>
+	<key>MEDIA_PAGE_FORWARD_MEDIA_CONFIRM_TITLE_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Προώθηση %1$d</string>
+			<key>other</key>
+			<string>Προώθηση %1$d</string>
 		</dict>
 	</dict>
 	<key>MESSAGES_VIEW_GROUP_N_MEMBERS_BLOCKED_%d</key>
@@ -941,22 +909,6 @@
 			<string>%1$d θεατές</string>
 		</dict>
 	</dict>
-	<key>ONBOARDING_2FA_INVALID_PIN_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@caption@</string>
-		<key>caption</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>Λάθος PIN. Απομένει %1$d προσπάθεια.</string>
-			<key>other</key>
-			<string>Λάθος ΡΙΝ. Απομένουν %1$d προσπάθειες.</string>
-		</dict>
-	</dict>
 	<key>PENDING_GROUP_MEMBERS_MEMBER_INVITED_USERS_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -1053,36 +1005,20 @@
 			<string>Προσαρμοσμένη ιστορία · %1$d θεατές</string>
 		</dict>
 	</dict>
-	<key>REGISTER_2FA_INVALID_PIN_ALERT_MESSAGE_%d</key>
+	<key>REREGISTER_INVALID_PIN_ATTEMPT_COUNT_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@caption@</string>
-		<key>caption</key>
+		<string>%#@text@</string>
+		<key>text</key>
 		<dict>
 			<key>NSStringFormatSpecTypeKey</key>
 			<string>NSStringPluralRuleType</string>
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Σου απομένει %1$d προσπάθεια. Αν εξαντλήσεις τις προσπάθειες, μπορείς να δημιουργήσεις νέο PIN. Μπορείς να εγγραφείς και να χρησιμοποιήσεις τον λογαριασμό σου, αλλά θα χάσεις κάποιες αποθηκευμένες ρυθμίσεις όπως τις πληροφορίες προφίλ.</string>
+			<string>%1$d προσπάθεια</string>
 			<key>other</key>
-			<string>Σου απομένουν %1$d προσπάθειες. Αν εξαντλήσεις τις προσπάθειες, μπορείς να δημιουργήσεις νέο PIN. Μπορείς να εγγραφείς και να χρησιμοποιήσεις τον λογαριασμό σου αλλά θα χάσεις κάποιες αποθηκευμένες ρυθμίσεις όπως τις πληροφορίες προφίλ.</string>
-		</dict>
-	</dict>
-	<key>REGISTER_2FA_INVALID_PIN_ALERT_MESSAGE_REGLOCK_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@caption@</string>
-		<key>caption</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>Σου απομένει %1$d προσπάθεια. Εάν την εξαντλήσεις, ο λογαριασμός σου θα κλειδωθεί. Μετά από 7 ημέρες αδράνειας, μπορείς να εγγραφείς ξανά χωρίς το PIN σου. Ο λογαριασμός σου θα διαγραφεί μαζί με όλο το περιεχόμενό του.</string>
-			<key>other</key>
-			<string>Σου απομένουν %1$d προσπάθειες. Εάν τις εξαντλήσεις, ο λογαριασμός σου θα κλειδωθεί. Μετά από 7 ημέρες αδράνειας, μπορείς να εγγραφείς ξανά χωρίς το PIN σου. Ο λογαριασμός σου θα διαγραφεί μαζί με όλο το περιεχόμενό του.</string>
+			<string>%1$d προσπάθειες</string>
 		</dict>
 	</dict>
 	<key>STORIES_SHARESHEET_PARTIAL_SEND_SUBTITLE_%d</key>

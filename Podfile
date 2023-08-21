@@ -1,4 +1,4 @@
-platform :ios, '12.2'
+platform :ios, '13.0'
 
 use_frameworks!
 
@@ -10,27 +10,27 @@ source 'https://cdn.cocoapods.org/'
 
 pod 'SwiftProtobuf', ">= 1.14.0"
 
-pod 'SignalCoreKit', git: 'git@github.com:signalapp/SignalCoreKit', testspecs: ["Tests"]
+pod 'SignalCoreKit', git: 'https://github.com/signalapp/SignalCoreKit', testspecs: ["Tests"]
 # pod 'SignalCoreKit', path: '../SignalCoreKit', testspecs: ["Tests"]
 
-pod 'LibSignalClient', git: 'https://github.com/signalapp/libsignal-client.git', testspecs: ["Tests"]
+ENV['LIBSIGNAL_FFI_PREBUILD_CHECKSUM'] = 'e8fa4fdae3203582032d56695bfa701b8ef15906a5caeb7db77eac44f5db6fcf'
+pod 'LibSignalClient', git: 'https://github.com/signalapp/libsignal-client.git', tag: 'v0.30.2', testspecs: ["Tests"]
 # pod 'LibSignalClient', path: '../libsignal-client', testspecs: ["Tests"]
 
-pod 'Curve25519Kit', git: 'ssh://git@github.com/signalapp/Curve25519Kit', testspecs: ["Tests"], branch: 'feature/SignalClient-adoption'
+pod 'Curve25519Kit', git: 'https://github.com/signalapp/Curve25519Kit', testspecs: ["Tests"], branch: 'feature/SignalClient-adoption'
 # pod 'Curve25519Kit', path: '../Curve25519Kit', testspecs: ["Tests"]
 
 pod 'blurhash', git: 'https://github.com/signalapp/blurhash', branch: 'signal-master'
 # pod 'blurhash', path: '../blurhash'
 
-pod 'SignalRingRTC', path: 'ThirdParty/SignalRingRTC.podspec', inhibit_warnings: true
+ENV['RINGRTC_PREBUILD_CHECKSUM'] = 'c853007f1cafbfa7345d1d6538b423d057de19a25940cdb31a67dcab858807df'
+pod 'SignalRingRTC', git: 'https://github.com/signalapp/ringrtc', tag: 'v2.30.0', inhibit_warnings: true
+# pod 'SignalRingRTC', path: '../ringrtc', testspecs: ["Tests"]
 
-pod 'SignalArgon2', git: 'https://github.com/signalapp/Argon2.git', submodules: true, testspecs: ["Tests"]
-# pod 'SignalArgon2', path: '../Argon2', testspecs: ["Tests"]
-
-# pod 'GRDB.swift/SQLCipher', path: '../GRDB.swift'
 pod 'GRDB.swift/SQLCipher'
+# pod 'GRDB.swift/SQLCipher', path: '../GRDB.swift'
 
-pod 'SQLCipher', ">= 4.0.1"
+pod 'SQLCipher', git: 'https://github.com/signalapp/sqlcipher.git', commit: '8ea0af7934e0107e4de8e96c8a7d5a95e2611eef'
 
 ###
 # forked third party pods
@@ -40,10 +40,6 @@ pod 'SQLCipher', ">= 4.0.1"
 # to our limited use of Mantle
 pod 'Mantle', git: 'https://github.com/signalapp/Mantle', branch: 'signal-master'
 # pod 'Mantle', path: '../Mantle'
-
-# Forked to incorporate our self-built binary artifact.
-pod 'OpenSSL-Universal', git: 'https://github.com/signalapp/GRKOpenSSLFramework'
-# pod 'OpenSSL-Universal', path: '../GRKOpenSSLFramework'
 
 pod 'libPhoneNumber-iOS', git: 'https://github.com/signalapp/libPhoneNumber-iOS', branch: 'signal-master'
 # pod 'libPhoneNumber-iOS', path: '../libPhoneNumber-iOS'
@@ -65,11 +61,8 @@ def ui_pods
   pod 'PureLayout', :inhibit_warnings => true
   pod 'lottie-ios', :inhibit_warnings => true
 
-  pod 'Starscream', git: 'https://github.com/signalapp/Starscream.git', branch: 'signal-release'
-  # pod 'Starscream', path: '../Starscream'
-
-  pod 'LibMobileCoin/CoreHTTP', git: 'https://github.com/signalapp/libmobilecoin-ios-artifacts.git', branch: 'signal/1.2.2'
-  pod 'MobileCoin/CoreHTTP', git: 'https://github.com/mobilecoinofficial/MobileCoin-Swift.git', :tag => 'v1.2.2'
+  pod 'LibMobileCoin/CoreHTTP', git: 'https://github.com/signalapp/libmobilecoin-ios-artifacts', :commit => '5cd4f39a24d06708d1c19aced8384740689d7f61'
+  pod 'MobileCoin/CoreHTTP', git: 'https://github.com/mobilecoinofficial/MobileCoin-Swift', tag: 'v5.0.0'
 end
 
 target 'Signal' do
@@ -130,6 +123,7 @@ post_install do |installer|
   strip_valid_archs(installer)
   update_frameworks_script(installer)
   disable_non_development_pod_warnings(installer)
+  fix_ringrtc_project_symlink(installer)
   copy_acknowledgements
 end
 
@@ -274,6 +268,14 @@ def disable_non_development_pod_warnings(installer)
       build_configuration.build_settings['OTHER_SWIFT_FLAGS'] ||= '$(inherited)'
       build_configuration.build_settings['OTHER_SWIFT_FLAGS'] << ' -suppress-warnings'
     end
+  end
+end
+
+# Workaround for RingRTC's weird cached artifacts, hopefully temporary
+def fix_ringrtc_project_symlink(installer)
+  ringrtc_header_ref = installer.pods_project.reference_for_path(installer.sandbox.pod_dir('SignalRingRTC') + 'out/release/libringrtc/ringrtc.h')
+  if ringrtc_header_ref.path.start_with?('../') || ringrtc_header_ref.path.start_with?('/') then
+    ringrtc_header_ref.path = 'out/release/libringrtc/ringrtc.h'
   end
 end
 

@@ -4,42 +4,14 @@
 //
 
 import Foundation
+import LibSignalClient
 
-public extension TSGroupMemberRole {
-    static func role(for value: GroupsProtoMemberRole) -> TSGroupMemberRole? {
-        switch value {
-        case .`default`:
-            return .normal
-        case .administrator:
-            return .administrator
-        default:
-            owsFailDebug("Invalid value: \(value.rawValue)")
-            return nil
-        }
-    }
-
-    var asProtoRole: GroupsProtoMemberRole {
-        switch self {
-        case .normal:
-            return .`default`
-        case .administrator:
-            return .administrator
-        }
-    }
-}
-
-// MARK: -
-
-extension TSGroupMemberRole: Codable {}
-
-// MARK: -
+// MARK: - GroupMemberState
 
 private enum GroupMemberState: Equatable {
     case fullMember(role: TSGroupMemberRole, didJoinFromInviteLink: Bool)
-    case invited(role: TSGroupMemberRole, addedByUuid: UUID)
-    // These members don't yet have any attributes.
-    // We'll add RequestingMemberState if they ever do.
-    case Requesting
+    case invited(role: TSGroupMemberRole, addedByAci: Aci)
+    case requesting
 
     var role: TSGroupMemberRole {
         switch self {
@@ -47,7 +19,7 @@ private enum GroupMemberState: Equatable {
             return role
         case .invited(let role, _):
             return role
-        case .Requesting:
+        case .requesting:
             return .`normal`
         }
     }
@@ -58,46 +30,37 @@ private enum GroupMemberState: Equatable {
 
     var isFullMember: Bool {
         switch self {
-        case .fullMember:
-            return true
-        default:
-            return false
+        case .fullMember: return true
+        default: return false
         }
     }
 
     var isInvited: Bool {
         switch self {
-        case .invited:
-            return true
-        default:
-            return false
+        case .invited: return true
+        default: return false
         }
     }
 
     var isRequesting: Bool {
         switch self {
-        case .Requesting:
-            return true
-        default:
-            return false
+        case .requesting: return true
+        default: return false
         }
     }
 }
 
-// MARK: -
-
 extension GroupMemberState: Codable {
-
     private enum TypeKey: UInt, Codable {
         case fullMember = 0
         case invited = 1
-        case Requesting = 2
+        case requesting = 2
     }
 
     private enum CodingKeys: String, CodingKey {
         case typeKey
         case role
-        case addedByUuid
+        case addedByAci = "addedByUuid"
         case didJoinFromInviteLink
     }
 
@@ -112,10 +75,10 @@ extension GroupMemberState: Codable {
             self = .fullMember(role: role, didJoinFromInviteLink: didJoinFromInviteLink)
         case .invited:
             let role = try container.decode(TSGroupMemberRole.self, forKey: .role)
-            let addedByUuid = try container.decode(UUID.self, forKey: .addedByUuid)
-            self = .invited(role: role, addedByUuid: addedByUuid)
-        case .Requesting:
-            self = .Requesting
+            let addedByAci = try container.decode(UUID.self, forKey: .addedByAci)
+            self = .invited(role: role, addedByAci: Aci(fromUUID: addedByAci))
+        case .requesting:
+            self = .requesting
         }
     }
 
@@ -127,84 +90,50 @@ extension GroupMemberState: Codable {
             try container.encode(TypeKey.fullMember, forKey: .typeKey)
             try container.encode(role, forKey: .role)
             try container.encode(didJoinFromInviteLink, forKey: .didJoinFromInviteLink)
-        case .invited(let role, let addedByUuid):
+        case .invited(let role, let addedByAci):
             try container.encode(TypeKey.invited, forKey: .typeKey)
             try container.encode(role, forKey: .role)
-            try container.encode(addedByUuid, forKey: .addedByUuid)
-        case .Requesting:
-            try container.encode(TypeKey.Requesting, forKey: .typeKey)
+            try container.encode(addedByAci.rawUUID, forKey: .addedByAci)
+        case .requesting:
+            try container.encode(TypeKey.requesting, forKey: .typeKey)
         }
     }
 }
-
-// MARK: -
 
 extension GroupMemberState: CustomStringConvertible {
     public var description: String {
         switch self {
-        case .fullMember:
-            return ".fullMember"
-        case .invited:
-            return ".invited"
-        case .Requesting:
-            return ".Requesting"
+        case .fullMember: return ".fullMember"
+        case .invited: return ".invited"
+        case .requesting: return ".requesting"
         }
     }
 }
 
 // MARK: -
 
-// This class is immutable.
-@objc(GroupMembershipInvalidInviteModel)
-class InvalidInviteModel: MTLModel {
-    @objc
-    var userId: Data?
-
-    @objc
-    var addedByUserId: Data?
-
-    @objc
-    public override init() {
-        super.init()
-    }
-
-    init(userId: Data?, addedByUserId: Data? = nil) {
-        self.userId = userId
-        self.addedByUserId = addedByUserId
-
-        super.init()
-    }
-
-    @objc
-    required public init?(coder aDecoder: NSCoder) {
-        super.init(coder: aDecoder)
-    }
-
-    @objc
-    public required init(dictionary dictionaryValue: [String: Any]!) throws {
-        try super.init(dictionary: dictionaryValue)
-    }
-}
-
-// MARK: -
-
-// This class is immutable.
 @objc
 public class GroupMembership: MTLModel {
 
-    typealias LegacyMemberStateMap = [SignalServiceAddress: LegacyMemberState]
-
-    // By using a single dictionary we ensure that no address has more than one state.
-    fileprivate typealias MemberStateMap = [SignalServiceAddress: GroupMemberState]
-    fileprivate var memberStates: MemberStateMap
+    // MARK: Types
 
     public typealias BannedAtTimestampMillis = UInt64
-    public typealias BannedMembersMap = [UUID: BannedAtTimestampMillis]
-    public fileprivate(set) var bannedMembers: BannedMembersMap
+    public typealias BannedMembersMap = [Aci: BannedAtTimestampMillis]
 
-    typealias InvalidInviteMap = [Data: InvalidInviteModel]
-    @objc
-    var invalidInviteMap: InvalidInviteMap
+    fileprivate typealias MemberStateMap = [SignalServiceAddress: GroupMemberState]
+    fileprivate typealias InvalidInviteMap = [Data: InvalidInviteModel]
+
+    private typealias LegacyMemberStateMap = [SignalServiceAddress: LegacyMemberState]
+
+    // MARK: Init
+
+    fileprivate var memberStates: MemberStateMap
+    public fileprivate(set) var bannedMembers: BannedMembersMap
+    private var invalidInviteMap: InvalidInviteMap
+
+    public var invalidInviteUserIds: [Data] {
+        return Array(invalidInviteMap.keys)
+    }
 
     @objc
     public override init() {
@@ -239,8 +168,8 @@ public class GroupMembership: MTLModel {
             return nil
         }
 
-        if let bannedMembers = aDecoder.decodeObject(forKey: Self.bannedMembersKey) as? BannedMembersMap {
-            self.bannedMembers = bannedMembers
+        if let bannedMembers = aDecoder.decodeObject(forKey: Self.bannedMembersKey) as? [UUID: BannedAtTimestampMillis] {
+            self.bannedMembers = bannedMembers.mapKeys(injectiveTransform: { Aci(fromUUID: $0) })
         } else {
             // TODO: (Group Abuse) we should debug assert here eventually.
             // However, while clients are learning about banned members this is
@@ -265,36 +194,13 @@ public class GroupMembership: MTLModel {
             owsFailDebug("Error: \(error)")
         }
 
-        aCoder.encode(bannedMembers, forKey: Self.bannedMembersKey)
+        aCoder.encode(bannedMembers.mapKeys(injectiveTransform: { $0.rawUUID }), forKey: Self.bannedMembersKey)
         aCoder.encode(invalidInviteMap, forKey: Self.invalidInviteMapKey)
     }
 
     @objc
     public required init(dictionary dictionaryValue: [String: Any]!) throws {
-        if let invalidInviteMap = dictionaryValue[Self.invalidInviteMapKey] as? InvalidInviteMap {
-            self.invalidInviteMap = invalidInviteMap
-        } else {
-            // invalidInviteMap is optional.
-            self.invalidInviteMap = [:]
-        }
-
-        if let memberStates = dictionaryValue[Self.memberStatesKey] as? MemberStateMap {
-            self.memberStates = memberStates
-        } else if let legacyMemberStateMap = dictionaryValue[Self.legacyMemberStatesKey] as? LegacyMemberStateMap {
-            self.memberStates = Self.convertLegacyMemberStateMap(legacyMemberStateMap)
-        } else {
-            throw OWSAssertionError("Could not decode member states.")
-        }
-
-        if let bannedMembers = dictionaryValue[Self.bannedMembersKey] as? BannedMembersMap {
-            self.bannedMembers = bannedMembers
-        } else {
-            // TODO: (Group Abuse) we should throw an assertion error here eventually.
-            // However, while clients are migrating this is a normal path to hit.
-            self.bannedMembers = [:]
-        }
-
-        super.init()
+        fatalError("init(dictionary:) has not been implemented")
     }
 
     fileprivate init(
@@ -313,14 +219,14 @@ public class GroupMembership: MTLModel {
     public init(v1Members: Set<SignalServiceAddress>) {
         var builder = Builder()
         builder.addFullMembers(v1Members, role: .normal)
-        self.memberStates = builder.asMemberStateMap()
+        self.memberStates = builder.memberStates
         self.bannedMembers = [:]
         self.invalidInviteMap = [:]
 
         super.init()
     }
 
-    // MARK: -
+    // MARK: - Equality
 
     @objc
     public override func isEqual(_ object: Any!) -> Bool {
@@ -339,9 +245,9 @@ public class GroupMembership: MTLModel {
             return false
         }
 
-        let invalidInvitesSet = Set(invalidInvites.map { $0.userId })
-        let otherInvalidInvitesSet = Set(other.invalidInvites.map { $0.userId })
-        return invalidInvitesSet == otherInvalidInvitesSet
+        let invalidlyInvitedUserIdsSet = Set(invalidInviteUserIds)
+        let otherInvalidlyInvitedUserIdsSet = Set(other.invalidInviteUserIds)
+        return invalidlyInvitedUserIdsSet == otherInvalidlyInvitedUserIdsSet
     }
 
     /// When comparing member states, ignore the `didJoinFromInviteLink` field.
@@ -382,8 +288,7 @@ public class GroupMembership: MTLModel {
             let memberState: GroupMemberState
             if legacyMemberState.isPending {
                 if let addedByUuid = legacyMemberState.addedByUuid {
-                    memberState = .invited(role: legacyMemberState.role,
-                                                     addedByUuid: addedByUuid)
+                    memberState = .invited(role: legacyMemberState.role, addedByAci: Aci(fromUUID: addedByUuid))
                 } else {
                     owsFailDebug("Missing addedByUuid.")
                     continue
@@ -409,26 +314,6 @@ public class GroupMembership: MTLModel {
             .sorted(by: { (l, r) in l.compare(r) == .orderedAscending })
     }
 
-    public func hasInvalidInvite(forUserId userId: Data) -> Bool {
-        return invalidInviteMap[userId] != nil
-    }
-
-    public var invalidInvites: [InvalidInvite] {
-        var result = [InvalidInvite]()
-        for invalidInvite in invalidInviteMap.values {
-            guard let userId = invalidInvite.userId else {
-                owsFailDebug("Missing userId.")
-                continue
-            }
-            guard let addedByUserId = invalidInvite.addedByUserId else {
-                owsFailDebug("Missing addedByUserId.")
-                continue
-            }
-            result.append(InvalidInvite(userId: userId, addedByUserId: addedByUserId))
-        }
-        return result
-    }
-
     public var asBuilder: Builder {
         return Builder(
             memberStates: memberStates,
@@ -446,17 +331,16 @@ public class GroupMembership: MTLModel {
             }
             result += "\(address), memberType: \(memberState)\n"
         }
-        for (uuid, bannedAtTimestamp) in bannedMembers {
-            result += "Banned: \(uuid.uuidString), at \(bannedAtTimestamp)\n"
+        for (aci, bannedAtTimestamp) in bannedMembers {
+            result += "Banned: \(aci), at \(bannedAtTimestamp)\n"
         }
         result += "]"
         return result
     }
 }
 
-// MARK: - Swift & Obj-C Accessors
+// MARK: - Accessors
 
-@objc
 public extension GroupMembership {
 
     var fullMemberAdministrators: Set<SignalServiceAddress> {
@@ -487,33 +371,19 @@ public extension GroupMembership {
         }.map { $0.key })
     }
 
-    // allMembersOfAnyKind includes _all_ members:
-    //
-    // * Normal and administrator.
-    // * Normal, pending profile key, requesting.
     var allMembersOfAnyKind: Set<SignalServiceAddress> {
         return Set(memberStates.keys)
     }
 
-    // allUsers includes _all_ members:
-    //
-    // * Normal and administrator.
-    // * Normal, pending profile key, requesting.
-    var allMemberUuidsOfAnyKind: Set<UUID> {
-        return Set(memberStates.keys.lazy.compactMap { $0.uuid })
-    }
-
-    var bannedMemberAddresses: Set<SignalServiceAddress> {
-        return Set(bannedMembers.keys.lazy.map { SignalServiceAddress(uuid: $0) })
+    var allMembersOfAnyKindServiceIds: Set<ServiceId> {
+        return Set(memberStates.keys.lazy.compactMap { $0.serviceId })
     }
 }
 
-// MARK: - Swift Accessors
-
 public extension GroupMembership {
 
-    func role(for uuid: UUID) -> TSGroupMemberRole? {
-        return role(for: SignalServiceAddress(uuid: uuid))
+    func role(for serviceId: ServiceId) -> TSGroupMemberRole? {
+        return role(for: SignalServiceAddress(serviceId))
     }
 
     func role(for address: SignalServiceAddress) -> TSGroupMemberRole? {
@@ -532,13 +402,13 @@ public extension GroupMembership {
             return role == .administrator
         case .invited(let role, _):
             return role == .administrator
-        case .Requesting:
+        case .requesting:
             return false
         }
     }
 
-    func isFullOrInvitedAdministrator(_ uuid: UUID) -> Bool {
-        return isFullOrInvitedAdministrator(SignalServiceAddress(uuid: uuid))
+    func isFullOrInvitedAdministrator(_ serviceId: ServiceId) -> Bool {
+        return isFullOrInvitedAdministrator(SignalServiceAddress(serviceId))
     }
 
     @objc
@@ -549,8 +419,8 @@ public extension GroupMembership {
         return memberState.isAdministrator && memberState.isFullMember
     }
 
-    func isFullMemberAndAdministrator(_ uuid: UUID) -> Bool {
-        return isFullMemberAndAdministrator(SignalServiceAddress(uuid: uuid))
+    func isFullMemberAndAdministrator(_ serviceId: ServiceId) -> Bool {
+        return isFullMemberAndAdministrator(SignalServiceAddress(serviceId))
     }
 
     @objc
@@ -561,8 +431,8 @@ public extension GroupMembership {
         return memberState.isFullMember
     }
 
-    func isFullMember(_ uuid: UUID) -> Bool {
-        isFullMember(SignalServiceAddress(uuid: uuid))
+    func isFullMember(_ serviceId: ServiceId) -> Bool {
+        return isFullMember(SignalServiceAddress(serviceId))
     }
 
     @objc
@@ -573,8 +443,8 @@ public extension GroupMembership {
         return memberState.isInvited
     }
 
-    func isInvitedMember(_ uuid: UUID) -> Bool {
-        isInvitedMember(SignalServiceAddress(uuid: uuid))
+    func isInvitedMember(_ serviceId: ServiceId) -> Bool {
+        return isInvitedMember(SignalServiceAddress(serviceId))
     }
 
     func isRequestingMember(_ address: SignalServiceAddress) -> Bool {
@@ -584,47 +454,45 @@ public extension GroupMembership {
         return memberState.isRequesting
     }
 
-    func isRequestingMember(_ uuid: UUID) -> Bool {
-        isRequestingMember(SignalServiceAddress(uuid: uuid))
+    func isRequestingMember(_ serviceId: ServiceId) -> Bool {
+        return isRequestingMember(SignalServiceAddress(serviceId))
     }
 
-    // Returns true for...
-    //
-    // * Any type: Full members, "pending invite" members, "requesting" members.
-    // * Any role: admin, non-admin.
-    //
-    // This method is intended tests the inclusive case: pending
-    // or non-pending, any role.
-    //
-    // This method does NOT return true for invalid invites,
-    // which don't have a UUID or address associated with them.
     func isMemberOfAnyKind(_ address: SignalServiceAddress) -> Bool {
         return memberStates[address] != nil
     }
 
-    func isMemberOfAnyKind(_ uuid: UUID) -> Bool {
-        return isMemberOfAnyKind(SignalServiceAddress(uuid: uuid))
+    func isMemberOfAnyKind(_ serviceId: ServiceId) -> Bool {
+        return isMemberOfAnyKind(SignalServiceAddress(serviceId))
     }
 
-    func isBannedMember(_ uuid: UUID) -> Bool {
-        bannedMembers[uuid] != nil
+    func isBannedMember(_ aci: Aci) -> Bool {
+        return bannedMembers[aci] != nil
     }
 
-    // This method should only be called for "pending profile key" members.
-    func addedByUuid(forInvitedMember address: SignalServiceAddress) -> UUID? {
+    func hasInvalidInvite(forUserId userId: Data) -> Bool {
+        return invalidInviteMap[userId] != nil
+    }
+
+    /// This method should only be called on invited members.
+    func addedByAci(forInvitedMember address: SignalServiceAddress) -> Aci? {
         guard let memberState = memberStates[address] else {
             return nil
         }
         switch memberState {
-        case .invited(_, let addedByUuid):
-            return addedByUuid
+        case .invited(_, let addedByAci):
+            return addedByAci
         default:
             owsFailDebug("Not a pending profile key member.")
             return nil
         }
     }
 
-    // This method should only be called for full members.
+    func addedByAci(forInvitedMember serviceId: ServiceId) -> Aci? {
+        return addedByAci(forInvitedMember: SignalServiceAddress(serviceId))
+    }
+
+    /// This method should only be called for full members.
     func didJoinFromInviteLink(forFullMember address: SignalServiceAddress) -> Bool {
         guard let memberState = memberStates[address] else {
             owsFailDebug("Missing member: \(address)")
@@ -642,10 +510,9 @@ public extension GroupMembership {
 
 // MARK: - Builder
 
-@objc
 public extension GroupMembership {
     struct Builder {
-        private var memberStates = MemberStateMap()
+        fileprivate var memberStates = MemberStateMap()
         private var bannedMembers = BannedMembersMap()
         private var invalidInviteMap = InvalidInviteMap()
 
@@ -663,8 +530,8 @@ public extension GroupMembership {
 
         // MARK: Member states
 
-        public mutating func remove(_ uuid: UUID) {
-            remove(SignalServiceAddress(uuid: uuid))
+        public mutating func remove(_ serviceId: ServiceId) {
+            remove(SignalServiceAddress(serviceId))
         }
 
         public mutating func remove(_ address: SignalServiceAddress) {
@@ -677,10 +544,8 @@ public extension GroupMembership {
             }
         }
 
-        public mutating func addFullMember(_ uuid: UUID,
-                                           role: TSGroupMemberRole,
-                                           didJoinFromInviteLink: Bool = false) {
-            addFullMember(SignalServiceAddress(uuid: uuid), role: role, didJoinFromInviteLink: didJoinFromInviteLink)
+        public mutating func addFullMember(_ aci: Aci, role: TSGroupMemberRole, didJoinFromInviteLink: Bool = false) {
+            addFullMember(SignalServiceAddress(aci), role: role, didJoinFromInviteLink: didJoinFromInviteLink)
         }
 
         public mutating func addFullMember(_ address: SignalServiceAddress,
@@ -699,26 +564,28 @@ public extension GroupMembership {
                        failOnDupe: false)
         }
 
-        public mutating func addInvitedMember(_ uuid: UUID,
-                                              role: TSGroupMemberRole,
-                                              addedByUuid: UUID) {
-            addInvitedMember(SignalServiceAddress(uuid: uuid), role: role, addedByUuid: addedByUuid)
+        public mutating func addInvitedMember(_ serviceId: ServiceId, role: TSGroupMemberRole, addedByAci: Aci) {
+            addInvitedMember(SignalServiceAddress(serviceId), role: role, addedByAci: addedByAci)
         }
 
-        public mutating func addInvitedMember(_ address: SignalServiceAddress,
-                                              role: TSGroupMemberRole,
-                                              addedByUuid: UUID) {
-            addInvitedMembers([address], role: role, addedByUuid: addedByUuid)
+        public mutating func addInvitedMember(
+            _ address: SignalServiceAddress,
+            role: TSGroupMemberRole,
+            addedByAci: Aci
+        ) {
+            addInvitedMembers([address], role: role, addedByAci: addedByAci)
         }
 
-        public mutating func addInvitedMembers(_ addresses: Set<SignalServiceAddress>,
-                                               role: TSGroupMemberRole,
-                                               addedByUuid: UUID) {
-            addMembers(addresses, withState: .invited(role: role, addedByUuid: addedByUuid))
+        public mutating func addInvitedMembers(
+            _ addresses: Set<SignalServiceAddress>,
+            role: TSGroupMemberRole,
+            addedByAci: Aci
+        ) {
+            addMembers(addresses, withState: .invited(role: role, addedByAci: addedByAci))
         }
 
-        public mutating func addRequestingMember(_ uuid: UUID) {
-            addRequestingMember(SignalServiceAddress(uuid: uuid))
+        public mutating func addRequestingMember(_ aci: Aci) {
+            addRequestingMember(SignalServiceAddress(aci))
         }
 
         public mutating func addRequestingMember(_ address: SignalServiceAddress) {
@@ -726,7 +593,7 @@ public extension GroupMembership {
         }
 
         public mutating func addRequestingMembers(_ addresses: Set<SignalServiceAddress>) {
-            addMembers(addresses, withState: .Requesting)
+            addMembers(addresses, withState: .requesting)
         }
 
         private mutating func addMembers(
@@ -749,44 +616,28 @@ public extension GroupMembership {
             }
         }
 
-        public mutating func copyMember(_ address: SignalServiceAddress,
-                                        from oldGroupMembership: GroupMembership) {
-            guard let memberState = oldGroupMembership.memberStates[address] else {
-                owsFailDebug("Unknown address")
-                return
-            }
-            if memberStates[address] != nil {
-                owsFailDebug("Duplicate address.")
-            }
-            memberStates[address] = memberState
-        }
-
         public func hasMemberOfAnyKind(_ address: SignalServiceAddress) -> Bool {
             nil != memberStates[address]
         }
 
-        fileprivate func asMemberStateMap() -> MemberStateMap {
-            return memberStates
-        }
-
         // MARK: Banned members
 
-        public mutating func addBannedMember(_ uuid: UUID, bannedAtTimestamp: BannedAtTimestampMillis) {
-            guard bannedMembers[uuid] == nil else {
+        public mutating func addBannedMember(_ aci: Aci, bannedAtTimestamp: BannedAtTimestampMillis) {
+            guard bannedMembers[aci] == nil else {
                 owsFailDebug("Duplicate banned member!")
                 return
             }
 
-            bannedMembers[uuid] = bannedAtTimestamp
+            bannedMembers[aci] = bannedAtTimestamp
         }
 
-        public mutating func removeBannedMember(_ uuid: UUID) {
-            guard bannedMembers[uuid] != nil else {
+        public mutating func removeBannedMember(_ aci: Aci) {
+            guard bannedMembers[aci] != nil else {
                 owsFailDebug("Removing not-currently-banned member!")
                 return
             }
 
-            bannedMembers.removeValue(forKey: uuid)
+            bannedMembers.removeValue(forKey: aci)
         }
 
         // MARK: Invalid invites
@@ -799,11 +650,6 @@ public extension GroupMembership {
             invalidInviteMap.removeValue(forKey: userId)
         }
 
-        public mutating func copyInvalidInvites(from other: GroupMembership) {
-            owsAssertDebug(invalidInviteMap.isEmpty)
-            invalidInviteMap = other.invalidInviteMap
-        }
-
         public func hasInvalidInvite(userId: Data) -> Bool {
             nil != invalidInviteMap[userId]
         }
@@ -811,7 +657,7 @@ public extension GroupMembership {
         // MARK: Build
 
         public func build() -> GroupMembership {
-            owsAssertDebug(Set(bannedMembers.keys.lazy.map { SignalServiceAddress(uuid: $0) })
+            owsAssertDebug(Set(bannedMembers.keys.lazy.map { SignalServiceAddress($0) })
                 .isDisjoint(with: Set(memberStates.keys)))
 
             var memberStates = self.memberStates
@@ -829,11 +675,133 @@ public extension GroupMembership {
     }
 }
 
-// MARK: -
+// MARK: - Local user accessors
 
-// NOTE: We only use this class for backwards compatibility.
+public extension GroupMembership {
+    /// The local PNI, if it is present and an invited member.
+    ///
+    /// - Note
+    /// PNIs can only be invited members. Further note that profile keys are
+    /// required for full and requesting members, and PNIs have no associated
+    /// profile or profile key.
+    private func localPniAsInvitedMember(localIdentifiers: LocalIdentifiers) -> Pni? {
+        if let localPni = localIdentifiers.pni, isInvitedMember(localPni) {
+            return localPni
+        }
+
+        return nil
+    }
+
+    @objc
+    var isLocalUserMemberOfAnyKind: Bool {
+        guard let localIdentifiers = tsAccountManager.localIdentifiers else {
+            return false
+        }
+
+        if isMemberOfAnyKind(localIdentifiers.aciAddress) {
+            return true
+        }
+
+        return localPniAsInvitedMember(localIdentifiers: localIdentifiers) != nil
+    }
+
+    @objc
+    var isLocalUserFullMember: Bool {
+        guard let localAci = tsAccountManager.localIdentifiers?.aci else {
+            return false
+        }
+
+        return isFullMember(localAci)
+    }
+
+    /// The ID at which the local user is invited, if at all.
+    ///
+    /// Checks membership for the local ACI first. If none is available, falls
+    /// back to checking membership for the local PNI.
+    func localUserInvitedAtServiceId(localIdentifiers: LocalIdentifiers) -> ServiceId? {
+        if isMemberOfAnyKind(localIdentifiers.aci) {
+            // If our ACI is any kind of member, return that membership rather
+            // than falling back to the PNI.
+            if isInvitedMember(localIdentifiers.aci) {
+                return localIdentifiers.aci
+            }
+
+            return nil
+        }
+
+        return localPniAsInvitedMember(localIdentifiers: localIdentifiers)
+    }
+
+    /// Whether the local user is an invited member.
+    ///
+    /// Checks membership for the local ACI first. If none is available, falls
+    /// back to checking membership for the local PNI.
+    var isLocalUserInvitedMember: Bool {
+        guard let localIdentifiers = tsAccountManager.localIdentifiers else {
+            return false
+        }
+
+        return localUserInvitedAtServiceId(localIdentifiers: localIdentifiers) != nil
+    }
+
+    var isLocalUserRequestingMember: Bool {
+        guard let localAci = tsAccountManager.localIdentifiers?.aci else {
+            return false
+        }
+
+        return isRequestingMember(localAci)
+    }
+
+    @objc
+    var isLocalUserFullOrInvitedMember: Bool {
+        return isLocalUserFullMember || isLocalUserInvitedMember
+    }
+
+    var isLocalUserFullMemberAndAdministrator: Bool {
+        guard let localAci = tsAccountManager.localIdentifiers?.aci else {
+            return false
+        }
+
+        return isFullMemberAndAdministrator(localAci)
+    }
+}
+
+// MARK: - InvalidInviteModel
+
+@objc(GroupMembershipInvalidInviteModel)
+private class InvalidInviteModel: MTLModel {
+    @objc
+    var userId: Data?
+
+    @objc
+    var addedByUserId: Data?
+
+    init(userId: Data?, addedByUserId: Data? = nil) {
+        self.userId = userId
+        self.addedByUserId = addedByUserId
+        super.init()
+    }
+
+    @objc
+    public override init() {
+        super.init()
+    }
+
+    @objc
+    required public init?(coder aDecoder: NSCoder) {
+        super.init(coder: aDecoder)
+    }
+
+    @objc
+    public required init(dictionary dictionaryValue: [String: Any]!) throws {
+        try super.init(dictionary: dictionaryValue)
+    }
+}
+
+// MARK: - LegacyMemberState
+
 @objc(_TtCC16SignalServiceKit15GroupMembership11MemberState)
-class LegacyMemberState: MTLModel {
+private class LegacyMemberState: MTLModel {
     @objc
     var role: TSGroupMemberRole = .normal
 
@@ -872,52 +840,5 @@ class LegacyMemberState: MTLModel {
     @objc
     public var isAdministrator: Bool {
         return role == .administrator
-    }
-}
-
-// MARK: - -
-
-@objc
-public extension GroupMembership {
-    var isLocalUserMemberOfAnyKind: Bool {
-        guard let localAddress = TSAccountManager.localAddress else {
-            return false
-        }
-        return isMemberOfAnyKind(localAddress)
-    }
-
-    var isLocalUserFullMember: Bool {
-        guard let localAddress = TSAccountManager.localAddress else {
-            return false
-        }
-        return isFullMember(localAddress)
-    }
-
-    var isLocalUserInvitedMember: Bool {
-        guard let localAddress = TSAccountManager.localAddress else {
-            return false
-        }
-        return isInvitedMember(localAddress)
-    }
-
-    var isLocalUserRequestingMember: Bool {
-        guard let localAddress = TSAccountManager.localAddress else {
-            return false
-        }
-        return isRequestingMember(localAddress)
-    }
-
-    var isLocalUserFullOrInvitedMember: Bool {
-        guard let localAddress = TSAccountManager.localAddress else {
-            return false
-        }
-        return (isFullMember(localAddress) || isInvitedMember(localAddress))
-    }
-
-    var isLocalUserFullMemberAndAdministrator: Bool {
-        guard let localAddress = TSAccountManager.localAddress else {
-            return false
-        }
-        return isFullMemberAndAdministrator(localAddress)
     }
 }

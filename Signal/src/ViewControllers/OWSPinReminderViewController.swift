@@ -3,12 +3,18 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import UIKit
+import SignalServiceKit
+import SignalUI
 
-@objc(OWSPinReminderViewController)
 public class PinReminderViewController: OWSViewController {
 
-    private let completionHandler: (() -> Void)?
+    enum PinReminderResult {
+        case canceled(didGuessWrong: Bool)
+        case changedOrRemovedPin
+        case succeeded
+    }
+
+    private let completionHandler: ((PinReminderResult) -> Void)?
 
     private let containerView = UIView()
     private let pinTextField = UITextField()
@@ -37,8 +43,11 @@ public class PinReminderViewController: OWSViewController {
     }
     private var hasGuessedWrong = false
 
-    @objc
-    init(completionHandler: (() -> Void)? = nil) {
+    private let context: ViewControllerContext
+
+    init(completionHandler: ((PinReminderResult) -> Void)? = nil) {
+        // TODO[ViewContextPiping]
+        self.context = ViewControllerContext.shared
         self.completionHandler = completionHandler
         super.init()
         modalPresentationStyle = .custom
@@ -98,11 +107,11 @@ public class PinReminderViewController: OWSViewController {
 
         let titleLabel = UILabel()
         titleLabel.textColor = Theme.primaryTextColor
-        titleLabel.font = UIFont.ows_dynamicTypeTitle3Clamped.ows_semibold
+        titleLabel.font = UIFont.dynamicTypeTitle3Clamped.semibold()
         titleLabel.numberOfLines = 0
         titleLabel.lineBreakMode = .byWordWrapping
         titleLabel.textAlignment = .center
-        titleLabel.text = NSLocalizedString("PIN_REMINDER_TITLE", comment: "The title for the 'pin reminder' dialog.")
+        titleLabel.text = OWSLocalizedString("PIN_REMINDER_TITLE", comment: "The title for the 'pin reminder' dialog.")
 
         // Explanation
 
@@ -111,16 +120,19 @@ public class PinReminderViewController: OWSViewController {
         explanationLabel.textAlignment = .center
         explanationLabel.lineBreakMode = .byWordWrapping
         explanationLabel.textColor = Theme.secondaryTextAndIconColor
-        explanationLabel.font = .ows_dynamicTypeSubheadlineClamped
+        explanationLabel.font = .dynamicTypeSubheadlineClamped
         explanationLabel.accessibilityIdentifier = "pinReminder.explanationLabel"
-        explanationLabel.text = NSLocalizedString("PIN_REMINDER_EXPLANATION", comment: "The explanation for the 'pin reminder' dialog.")
+        explanationLabel.text = OWSLocalizedString("PIN_REMINDER_EXPLANATION", comment: "The explanation for the 'pin reminder' dialog.")
 
         // Pin text field
 
         pinTextField.delegate = self
-        pinTextField.keyboardType = KeyBackupService.currentPinType == .alphanumeric ? .default : .asciiCapableNumberPad
+        let currentPinType = context.db.read { tx in
+            context.svr.currentPinType(transaction: tx)
+        }
+        pinTextField.keyboardType = currentPinType == .alphanumeric ? .default : .asciiCapableNumberPad
         pinTextField.textColor = Theme.primaryTextColor
-        pinTextField.font = .ows_dynamicTypeBodyClamped
+        pinTextField.font = .dynamicTypeBodyClamped
         pinTextField.textAlignment = .center
         pinTextField.isSecureTextEntry = true
         pinTextField.defaultTextAttributes.updateValue(5, forKey: .kern)
@@ -134,7 +146,7 @@ public class PinReminderViewController: OWSViewController {
         pinTextField.addTarget(self, action: #selector(verifySilently), for: .editingChanged)
 
         validationWarningLabel.textColor = .ows_accentRed
-        validationWarningLabel.font = UIFont.ows_dynamicTypeCaption1Clamped
+        validationWarningLabel.font = UIFont.dynamicTypeCaption1Clamped
         validationWarningLabel.accessibilityIdentifier = "pinReminder.validationWarningLabel"
 
         let pinStack = UIStackView(arrangedSubviews: [
@@ -152,10 +164,10 @@ public class PinReminderViewController: OWSViewController {
         pinStack.autoSetDimension(.width, toSize: 227)
         pinStackRow.setContentHuggingVerticalHigh()
 
-        let font = UIFont.ows_dynamicTypeBodyClamped.ows_semibold
+        let font = UIFont.dynamicTypeBodyClamped.semibold()
         let buttonHeight = OWSFlatButton.heightForFont(font)
         let submitButton = OWSFlatButton.button(
-            title: NSLocalizedString("BUTTON_SUBMIT",
+            title: OWSLocalizedString("BUTTON_SUBMIT",
                                      comment: "Label for the 'submit' button."),
             font: font,
             titleColor: .white,
@@ -168,9 +180,9 @@ public class PinReminderViewController: OWSViewController {
 
         // Secondary button
         let forgotButton = UIButton()
-        forgotButton.setTitle(NSLocalizedString("PIN_REMINDER_FORGOT_PIN", comment: "Text asking if the user forgot their pin for the 'pin reminder' dialog."), for: .normal)
+        forgotButton.setTitle(OWSLocalizedString("PIN_REMINDER_FORGOT_PIN", comment: "Text asking if the user forgot their pin for the 'pin reminder' dialog."), for: .normal)
         forgotButton.setTitleColor(Theme.accentBlueColor, for: .normal)
-        forgotButton.titleLabel?.font = .ows_dynamicTypeSubheadlineClamped
+        forgotButton.titleLabel?.font = .dynamicTypeSubheadlineClamped
         forgotButton.addTarget(self, action: #selector(forgotPressed), for: .touchUpInside)
         forgotButton.accessibilityIdentifier = "pinReminder.forgotButton"
 
@@ -220,7 +232,7 @@ public class PinReminderViewController: OWSViewController {
         topSpacer.autoSetDimension(.height, toSize: 20, relation: .greaterThanOrEqual)
 
         let dismissButton = UIButton()
-        dismissButton.setTemplateImageName("x-24", tintColor: Theme.primaryIconColor)
+        dismissButton.setTemplateImage(Theme.iconImage(.buttonX), tintColor: Theme.primaryIconColor)
         dismissButton.addTarget(self, action: #selector(dismissPressed), for: .touchUpInside)
         containerView.addSubview(dismissButton)
         dismissButton.autoSetDimensions(to: CGSize(square: 44))
@@ -247,17 +259,21 @@ public class PinReminderViewController: OWSViewController {
     // MARK: - Events
 
     @objc
-    func forgotPressed() {
+    private func forgotPressed() {
         Logger.info("")
 
-        let vc = PinSetupViewController.creating { [weak self] _, _ in
-            self?.presentingViewController?.dismiss(animated: true, completion: nil)
-        }
-        present(OWSNavigationController(rootViewController: vc), animated: true, completion: nil)
+        let viewController = PinSetupViewController(
+            mode: .creating,
+            hideNavigationBar: false,
+            showCancelButton: true,
+            showDisablePinButton: true,
+            completionHandler: { [weak self] _, _ in self?.completionHandler?(.changedOrRemovedPin) }
+        )
+        present(OWSNavigationController(rootViewController: viewController), animated: true)
     }
 
     @objc
-    func dismissPressed() {
+    private func dismissPressed() {
         Logger.info("")
 
         // If the user tried and guessed wrong, we'll dismiss the megaphone and
@@ -265,16 +281,16 @@ public class PinReminderViewController: OWSViewController {
         // If they didn't try and enter a PIN, we do nothing and leave the megaphone.
         if hasGuessedWrong { OWS2FAManager.shared.reminderCompleted(withIncorrectAttempts: true) }
 
-        dismiss(animated: true, completion: nil)
+        self.completionHandler?(.canceled(didGuessWrong: hasGuessedWrong))
     }
 
     @objc
-    func submitPressed() {
+    private func submitPressed() {
         verifyAndDismissOnSuccess(pinTextField.text)
     }
 
     @objc
-    func verifySilently() {
+    private func verifySilently() {
         verifyAndDismissOnSuccess(pinTextField.text, silent: true)
     }
 
@@ -299,14 +315,9 @@ public class PinReminderViewController: OWSViewController {
                 return
             }
 
-            self.dismissAndUpdateRepetitionInterval()
-            self.completionHandler?()
+            OWS2FAManager.shared.reminderCompleted(withIncorrectAttempts: self.hasGuessedWrong)
+            self.completionHandler?(.succeeded)
         }
-    }
-
-    private func dismissAndUpdateRepetitionInterval() {
-        OWS2FAManager.shared.reminderCompleted(withIncorrectAttempts: hasGuessedWrong)
-        dismiss(animated: true)
     }
 
     private func updateValidationWarnings() {
@@ -318,10 +329,10 @@ public class PinReminderViewController: OWSViewController {
 
         switch validationState {
         case .tooShort:
-            validationWarningLabel.text = NSLocalizedString("PIN_REMINDER_TOO_SHORT_ERROR",
+            validationWarningLabel.text = OWSLocalizedString("PIN_REMINDER_TOO_SHORT_ERROR",
                                                             comment: "Label indicating that the attempted PIN is too short")
         case .mismatch:
-            validationWarningLabel.text = NSLocalizedString("PIN_REMINDER_MISMATCH_ERROR",
+            validationWarningLabel.text = OWSLocalizedString("PIN_REMINDER_MISMATCH_ERROR",
                                                             comment: "Label indicating that the attempted PIN does not match the user's PIN")
         default:
             break
@@ -383,10 +394,13 @@ extension PinReminderViewController: UIViewControllerTransitioningDelegate {
 extension PinReminderViewController: UITextFieldDelegate {
     public func textField(_ textField: UITextField, shouldChangeCharactersIn range: NSRange, replacementString string: String) -> Bool {
         let hasPendingChanges: Bool
-        if KeyBackupService.currentPinType == .alphanumeric {
+        let currentPinType = context.db.read { tx in
+            context.svr.currentPinType(transaction: tx)
+        }
+        if currentPinType == .alphanumeric {
             hasPendingChanges = true
         } else {
-            ViewControllerUtils.ows2FAPINTextField(textField, shouldChangeCharactersIn: range, replacementString: string)
+            TextFieldFormatting.ows2FAPINTextField(textField, changeCharactersIn: range, replacementString: string)
             hasPendingChanges = false
 
             // Every time the text changes, try and verify the pin

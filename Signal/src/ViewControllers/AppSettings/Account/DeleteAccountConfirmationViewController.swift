@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalMessaging
+import SignalUI
 
 class DeleteAccountConfirmationViewController: OWSTableViewController2 {
     private var callingCode = "+1"
@@ -62,16 +62,16 @@ class DeleteAccountConfirmationViewController: OWSTableViewController2 {
             guard let self = self else { return UITableViewCell() }
             return self.buildHeaderCell()
         }))
-        contents.addSection(headerSection)
+        contents.add(headerSection)
 
         let confirmSection = OWSTableSection()
-        confirmSection.headerTitle = NSLocalizedString(
+        confirmSection.headerTitle = OWSLocalizedString(
             "DELETE_ACCOUNT_CONFIRMATION_SECTION_TITLE",
             comment: "Section header"
         )
 
         confirmSection.add(.disclosureItem(
-            withText: NSLocalizedString(
+            withText: OWSLocalizedString(
                 "DELETE_ACCOUNT_CONFIRMATION_COUNTRY_CODE_TITLE",
                 comment: "Title for the 'country code' row of the 'delete account confirmation' view controller."
             ),
@@ -91,7 +91,7 @@ class DeleteAccountConfirmationViewController: OWSTableViewController2 {
                 self?.phoneNumberTextField.becomeFirstResponder()
             }
         ))
-        contents.addSection(confirmSection)
+        contents.add(confirmSection)
 
         self.contents = contents
     }
@@ -106,10 +106,10 @@ class DeleteAccountConfirmationViewController: OWSTableViewController2 {
         imageView.autoHCenterInSuperview()
 
         let titleLabel = UILabel()
-        titleLabel.font = UIFont.ows_dynamicTypeTitle2.ows_semibold
+        titleLabel.font = UIFont.dynamicTypeTitle2.semibold()
         titleLabel.textColor = Theme.primaryTextColor
         titleLabel.textAlignment = .center
-        titleLabel.text = NSLocalizedString(
+        titleLabel.text = OWSLocalizedString(
             "DELETE_ACCOUNT_CONFIRMATION_TITLE",
             comment: "Title for the 'delete account' confirmation view."
         )
@@ -117,10 +117,10 @@ class DeleteAccountConfirmationViewController: OWSTableViewController2 {
         let descriptionLabel = UILabel()
         descriptionLabel.numberOfLines = 0
         descriptionLabel.lineBreakMode = .byWordWrapping
-        descriptionLabel.font = .ows_dynamicTypeSubheadline
+        descriptionLabel.font = .dynamicTypeSubheadline
         descriptionLabel.textColor = Theme.secondaryTextAndIconColor
         descriptionLabel.textAlignment = .center
-        descriptionLabel.text = NSLocalizedString(
+        descriptionLabel.text = OWSLocalizedString(
             "DELETE_ACCOUNT_CONFIRMATION_DESCRIPTION",
             comment: "Description for the 'delete account' confirmation view."
         )
@@ -144,7 +144,7 @@ class DeleteAccountConfirmationViewController: OWSTableViewController2 {
         cell.preservesSuperviewLayoutMargins = true
         cell.contentView.preservesSuperviewLayoutMargins = true
 
-        nameLabel.text = NSLocalizedString(
+        nameLabel.text = OWSLocalizedString(
             "DELETE_ACCOUNT_CONFIRMATION_PHONE_NUMBER_TITLE",
             comment: "Title for the 'phone number' row of the 'delete account confirmation' view controller."
         )
@@ -156,7 +156,7 @@ class DeleteAccountConfirmationViewController: OWSTableViewController2 {
 
         phoneNumberTextField.textColor = Theme.primaryTextColor
         phoneNumberTextField.font = OWSTableItem.accessoryLabelFont
-        phoneNumberTextField.placeholder = ViewControllerUtils.examplePhoneNumber(
+        phoneNumberTextField.placeholder = TextFieldFormatting.examplePhoneNumber(
             forCountryCode: countryCode,
             callingCode: callingCode,
             includeExampleLabel: false
@@ -177,10 +177,10 @@ class DeleteAccountConfirmationViewController: OWSTableViewController2 {
     }()
 
     @objc
-    func didTapDelete() {
+    private func didTapDelete() {
         guard hasEnteredLocalNumber else {
             OWSActionSheets.showActionSheet(
-                title: NSLocalizedString(
+                title: OWSLocalizedString(
                     "DELETE_ACCOUNT_CONFIRMATION_WRONG_NUMBER",
                     comment: "Title for the action sheet when you enter the wrong number on the 'delete account confirmation' view controller."
                 )
@@ -190,7 +190,7 @@ class DeleteAccountConfirmationViewController: OWSTableViewController2 {
 
         guard reachabilityManager.isReachable else {
             OWSActionSheets.showActionSheet(
-                title: NSLocalizedString(
+                title: OWSLocalizedString(
                     "DELETE_ACCOUNT_CONFIRMATION_NO_INTERNET",
                     comment: "Title for the action sheet when you have no internet on the 'delete account confirmation' view controller."
                 )
@@ -214,7 +214,7 @@ class DeleteAccountConfirmationViewController: OWSTableViewController2 {
     }
 
     private func showDeleteAccountPaymentsConfirmationUI(paymentBalance: TSPaymentAmount) {
-        let title = NSLocalizedString(
+        let title = OWSLocalizedString(
             "SETTINGS_DELETE_ACCOUNT_PAYMENTS_BALANCE_ALERT_TITLE",
             comment: "Title for the alert confirming whether the user wants transfer their payments balance before deleting their account.")
 
@@ -222,14 +222,14 @@ class DeleteAccountConfirmationViewController: OWSTableViewController2 {
                                                      isShortForm: false,
                                                      withCurrencyCode: true,
                                                      withSpace: true)
-        let messageFormat = NSLocalizedString(
+        let messageFormat = OWSLocalizedString(
             "SETTINGS_DELETE_ACCOUNT_PAYMENTS_BALANCE_ALERT_MESSAGE_FORMAT",
             comment: "Body for the alert confirming whether the user wants transfer their payments balance before deleting their account. Embeds: {{ the current payment balance }}.")
         let message = String(format: messageFormat, formattedBalance)
 
         let actionSheet = ActionSheetController( title: title, message: message)
 
-        actionSheet.addAction(ActionSheetAction(title: NSLocalizedString(
+        actionSheet.addAction(ActionSheetAction(title: OWSLocalizedString(
                                                     "SETTINGS_DELETE_ACCOUNT_PAYMENTS_BALANCE_ALERT_TRANSFER",
                                                     comment: "Button for transferring the user's payments balance before deleting their account."),
                                                 style: .default
@@ -237,7 +237,7 @@ class DeleteAccountConfirmationViewController: OWSTableViewController2 {
             self?.transferPaymentsButton()
         })
 
-        actionSheet.addAction(ActionSheetAction(title: NSLocalizedString(
+        actionSheet.addAction(ActionSheetAction(title: OWSLocalizedString(
                                                     "SETTINGS_DELETE_ACCOUNT_PAYMENTS_BALANCE_ALERT_DONT_TRANSFER",
                                                     comment: "Button for to _not_ transfer the user's payments balance before deleting their account."),
                                                 style: .destructive
@@ -270,15 +270,15 @@ class DeleteAccountConfirmationViewController: OWSTableViewController2 {
     private func showDeletionConfirmUI() {
 
         OWSActionSheets.showConfirmationAlert(
-            title: NSLocalizedString(
+            title: OWSLocalizedString(
                 "DELETE_ACCOUNT_CONFIRMATION_ACTION_SHEEET_TITLE",
                 comment: "Title for the action sheet confirmation title of the 'delete account confirmation' view controller."
             ),
-            message: NSLocalizedString(
+            message: OWSLocalizedString(
                 "DELETE_ACCOUNT_CONFIRMATION_ACTION_SHEEET_MESSAGE",
                 comment: "Title for the action sheet message of the 'delete account confirmation' view controller."
             ),
-            proceedTitle: NSLocalizedString(
+            proceedTitle: OWSLocalizedString(
                 "DELETE_ACCOUNT_CONFIRMATION_ACTION_SHEEET_ACTION",
                 comment: "Title for the action sheet 'delete' action of the 'delete account confirmation' view controller."
             ),
@@ -291,7 +291,7 @@ class DeleteAccountConfirmationViewController: OWSTableViewController2 {
             overlayView.autoPinEdgesToSuperviewEdges()
 
             let progressView = AnimatedProgressView(
-                loadingText: NSLocalizedString(
+                loadingText: OWSLocalizedString(
                     "DELETE_ACCOUNT_CONFIRMATION_IN_PROGRESS",
                     comment: "Indicates the work we are doing while deleting the account"
                 )
@@ -318,7 +318,7 @@ class DeleteAccountConfirmationViewController: OWSTableViewController2 {
                     progressView.removeFromSuperview()
 
                     OWSActionSheets.showActionSheet(
-                        title: NSLocalizedString(
+                        title: OWSLocalizedString(
                             "DELETE_ACCOUNT_CONFIRMATION_DELETE_FAILED",
                             comment: "Title for the action sheet when delete failed on the 'delete account confirmation' view controller."
                         )
@@ -330,11 +330,11 @@ class DeleteAccountConfirmationViewController: OWSTableViewController2 {
 
     private func deleteSubscriptionIfNecessary() -> Promise<Void> {
         let activeSubscriptionId = databaseStorage.read {
-            SubscriptionManager.getSubscriberID(transaction: $0)
+            SubscriptionManagerImpl.getSubscriberID(transaction: $0)
         }
         if let activeSubscriptionId = activeSubscriptionId {
             Logger.info("Found subscriber ID. Canceling subscription...")
-            return SubscriptionManager.cancelSubscription(for: activeSubscriptionId)
+            return SubscriptionManagerImpl.cancelSubscription(for: activeSubscriptionId)
         } else {
             return Promise.value(())
         }
@@ -369,7 +369,7 @@ class DeleteAccountConfirmationViewController: OWSTableViewController2 {
     }
 
     @objc
-    func didTapCancel() {
+    private func didTapCancel() {
         dismiss(animated: true)
     }
 }
@@ -424,7 +424,7 @@ extension DeleteAccountConfirmationViewController: UITextFieldDelegate {
     }
 
     func textField(_ textField: UITextField, shouldChangeCharactersIn range: NSRange, replacementString string: String) -> Bool {
-        ViewControllerUtils.phoneNumber(textField, changeCharactersIn: range, replacementString: string, callingCode: callingCode)
+        TextFieldFormatting.phoneNumberTextField(textField, changeCharactersIn: range, replacementString: string, callingCode: callingCode)
         return false
     }
 }

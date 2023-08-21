@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
+import SignalServiceKit
 import SignalUI
-import UIKit
 
 protocol LinkPreviewAttachmentViewControllerDelegate: AnyObject {
     func linkPreviewAttachmentViewController(_ viewController: LinkPreviewAttachmentViewController,
@@ -15,10 +15,17 @@ class LinkPreviewAttachmentViewController: InteractiveSheetViewController {
 
     weak var delegate: LinkPreviewAttachmentViewControllerDelegate?
 
+    private let linkPreviewFetcher: LinkPreviewFetcher
+
     init(_ linkPreview: OWSLinkPreviewDraft?) {
+        self.linkPreviewFetcher = LinkPreviewFetcher(
+            linkPreviewManager: Self.linkPreviewManager,
+            schedulers: DependenciesBridge.shared.schedulers,
+            onlyParseIfEnabled: false,
+            linkPreviewDraft: linkPreview
+        )
         super.init()
-        self.linkPreview = linkPreview
-        self.currentPreviewUrl = linkPreview?.url
+        self.linkPreviewFetcher.onStateChange = { [weak self] in self?.updateLinkPreview(animated: true) }
     }
 
     convenience required init() {
@@ -31,13 +38,13 @@ class LinkPreviewAttachmentViewController: InteractiveSheetViewController {
         let textField = UITextField()
         textField.autocapitalizationType = .none
         textField.autocorrectionType = .no
-        textField.font = .ows_dynamicTypeBodyClamped
+        textField.font = .dynamicTypeBodyClamped
         textField.keyboardAppearance = .dark
         textField.keyboardType = .URL
         textField.textColor = .ows_gray05
         textField.textContentType = .URL
         textField.attributedPlaceholder = NSAttributedString(
-            string: NSLocalizedString("STORY_COMPOSER_URL_FIELD_PLACEHOLDER",
+            string: OWSLocalizedString("STORY_COMPOSER_URL_FIELD_PLACEHOLDER",
                                       comment: "Placeholder text for URL input field in Text Story composer UI."),
             attributes: [ .foregroundColor: UIColor.ows_gray25 ])
         textField.setContentCompressionResistancePriority(.defaultHigh, for: .vertical)
@@ -47,12 +54,11 @@ class LinkPreviewAttachmentViewController: InteractiveSheetViewController {
         let view = PillView()
         view.backgroundColor = .ows_gray80
         view.addSubview(textField)
-        textField.autoPinEdgesToSuperviewEdges(withInsets: UIEdgeInsets(hMargin: 16, vMargin: 7))
+        textField.autoPinEdgesToSuperviewEdges(with: UIEdgeInsets(hMargin: 16, vMargin: 7))
         return view
     }()
     private let doneButton: UIButton = {
-        let button = RoundMediaButton(image: UIImage(imageLiteralResourceName: "check-24"),
-                                      backgroundStyle: .solid(.ows_accentBlue))
+        let button = RoundMediaButton(image: Theme.iconImage(.checkmark), backgroundStyle: .solid(.ows_accentBlue))
         button.layoutMargins = .zero
         button.contentEdgeInsets = UIEdgeInsets(margin: 10)
         button.layoutMargins = UIEdgeInsets(margin: 4)
@@ -91,12 +97,11 @@ class LinkPreviewAttachmentViewController: InteractiveSheetViewController {
         textField.addTarget(self, action: #selector(textDidChange), for: .editingChanged)
         doneButton.addTarget(self, action: #selector(doneButtonPressed), for: .touchUpInside)
 
-        if let linkPreview = linkPreview {
-            textField.text = linkPreview.urlString
-            linkPreviewPanel.setState(.draft(linkPreview), animated: false)
+        if let initialLinkPreview = linkPreviewFetcher.linkPreviewDraftIfLoaded {
+            textField.text = initialLinkPreview.urlString
         }
 
-        updateUIOnLinkPreviewStateChange()
+        updateLinkPreview(animated: false)
    }
 
     override func viewWillAppear(_ animated: Bool) {
@@ -136,19 +141,14 @@ class LinkPreviewAttachmentViewController: InteractiveSheetViewController {
         }
     }
 
-    private func updateUIOnLinkPreviewStateChange() {
-        doneButton.isEnabled = linkPreview != nil
-        updateSheetHeight()
-    }
-
     @objc
     private func textDidChange() {
-        updateLinkPreviewIfNecessary()
+        linkPreviewFetcher.update(textField.text ?? "", prependSchemeIfNeeded: true)
     }
 
     @objc
     private func doneButtonPressed() {
-        guard let linkPreview = linkPreview else { return }
+        guard case .draft(let linkPreview) = linkPreviewPanel.state else { return }
         delegate?.linkPreviewAttachmentViewController(self, didFinishWith: linkPreview)
     }
 
@@ -187,14 +187,11 @@ class LinkPreviewAttachmentViewController: InteractiveSheetViewController {
             let rawAnimationCurve = userInfo[UIResponder.keyboardAnimationCurveUserInfoKey] as? Int,
             let animationCurve = UIView.AnimationCurve(rawValue: rawAnimationCurve)
         {
-            UIView.beginAnimations("sheetResize", context: nil)
-            UIView.setAnimationBeginsFromCurrentState(true)
-            UIView.setAnimationCurve(animationCurve)
-            UIView.setAnimationDuration(animationDuration)
-            layoutUpdateBlock()
-            view.setNeedsLayout()
-            view.layoutIfNeeded()
-            UIView.commitAnimations()
+            UIView.animate(withDuration: animationDuration, delay: 0, options: animationCurve.asAnimationOptions) { [self] in
+                layoutUpdateBlock()
+                view.setNeedsLayout()
+                view.layoutIfNeeded()
+            }
         } else {
             UIView.performWithoutAnimation {
                 layoutUpdateBlock()
@@ -204,59 +201,32 @@ class LinkPreviewAttachmentViewController: InteractiveSheetViewController {
 
     // MARK: - Link Preview fetching
 
-    private var linkPreview: OWSLinkPreviewDraft?
-
-    private var currentPreviewUrl: URL? {
-        didSet {
-            guard currentPreviewUrl != oldValue else { return }
-            guard let previewUrl = currentPreviewUrl else { return }
-
-            linkPreviewPanel.setState(.loading, animated: true)
-
-            linkPreviewManager.fetchLinkPreview(for: previewUrl).done(on: .main) { [weak self] draft in
-                guard let self = self else { return }
-                guard self.currentPreviewUrl == previewUrl else { return }
-                self.displayLinkPreview(draft)
-            }.catch(on: .main) { [weak self] error in
-                guard let self = self else { return }
-                guard self.currentPreviewUrl == previewUrl else { return }
-
-                self.displayLinkPreview(OWSLinkPreviewDraft(url: previewUrl, title: nil))
-            }
+    private func updateLinkPreview(animated: Bool) {
+        let newState: LinkPreviewPanel.State
+        switch (linkPreviewFetcher.currentState, linkPreviewFetcher.currentUrl) {
+        case (.none, _):
+            newState = .placeholder
+        case (.loading, _):
+            newState = .loading
+        case (.loaded(let linkPreviewDraft), _):
+            newState = .draft(linkPreviewDraft)
+        case (.failed, .some(let linkPreviewUrl)):
+            newState = .draft(OWSLinkPreviewDraft(url: linkPreviewUrl, title: nil))
+        case (.failed, .none):
+            owsFailDebug("Must have linkPreviewUrl in the .failed state.")
+            newState = .placeholder
         }
-    }
+        linkPreviewPanel.setState(newState, animated: animated)
 
-    private func updateLinkPreviewIfNecessary() {
-        guard var sourceString = textField.text?.ows_stripped(), !sourceString.isEmpty else { return }
-
-        // Prepend HTTPS if address is missing one and it doesn't appear to have any other protocol specified.
-        let httpsSchemePrefix = "https://"
-        if sourceString.range(of: httpsSchemePrefix, options: [ .caseInsensitive, .anchored ]) == nil && sourceString.range(of: "://") == nil {
-            sourceString.insert(contentsOf: httpsSchemePrefix, at: sourceString.startIndex)
-        }
-
-        guard let previewUrl = linkPreviewManager.findFirstValidUrl(in: sourceString, bypassSettingsCheck: true) else {
-            clearLinkPreview()
-            return
-        }
-        currentPreviewUrl = previewUrl
-    }
-
-    private func displayLinkPreview(_ linkPreview: OWSLinkPreviewDraft) {
-        self.linkPreview = linkPreview
-        linkPreviewPanel.setState(.draft(linkPreview), animated: true)
-        updateUIOnLinkPreviewStateChange()
-    }
-
-    private func clearLinkPreview(withError error: Error? = nil) {
-        currentPreviewUrl = nil
-        linkPreview = nil
-        if let error = error, case LinkPreviewError.fetchFailure = error {
-            linkPreviewPanel.setState(.error, animated: true)
+        let isDoneEnabled: Bool
+        if case .draft = newState {
+            isDoneEnabled = true
         } else {
-            linkPreviewPanel.setState(.placeholder, animated: true)
+            isDoneEnabled = false
         }
-        updateUIOnLinkPreviewStateChange()
+        doneButton.isEnabled = isDoneEnabled
+
+        updateSheetHeight()
     }
 
     private class LinkPreviewPanel: UIView {
@@ -293,17 +263,17 @@ class LinkPreviewAttachmentViewController: InteractiveSheetViewController {
         // MARK: - Layout
 
         private lazy var placeholderView: UIView = {
-            let icon = UIImageView(image: UIImage(imageLiteralResourceName: "link-diagonal"))
+            let icon = UIImageView(image: UIImage(imageLiteralResourceName: "link"))
             icon.tintColor = .ows_gray45
             icon.setContentHuggingHigh()
 
             let label = UILabel()
-            label.font = .ows_dynamicTypeBody2Clamped
+            label.font = .dynamicTypeBody2Clamped
             label.lineBreakMode = .byWordWrapping
             label.numberOfLines = 0
             label.textAlignment = .center
             label.textColor = .ows_gray45
-            label.text = NSLocalizedString("STORY_COMPOSER_LINK_PREVIEW_PLACEHOLDER",
+            label.text = OWSLocalizedString("STORY_COMPOSER_LINK_PREVIEW_PLACEHOLDER",
                                            comment: "Displayed in text story composer when user is about to attach a link with preview")
 
             let stackView = UIStackView(arrangedSubviews: [ icon, label ])
@@ -313,7 +283,7 @@ class LinkPreviewAttachmentViewController: InteractiveSheetViewController {
             return stackView
         }()
 
-        private lazy var activityIndicatorView = UIActivityIndicatorView(style: .whiteLarge)
+        private lazy var activityIndicatorView = UIActivityIndicatorView(style: .large)
         private lazy var loadingView: UIView = {
             let view = UIView()
             view.addSubview(activityIndicatorView)
@@ -324,17 +294,17 @@ class LinkPreviewAttachmentViewController: InteractiveSheetViewController {
         private var linkPreviewView: TextAttachmentView.LinkPreviewView?
 
         private lazy var errorView: UIView = {
-            let exclamationMark = UIImageView(image: UIImage(imageLiteralResourceName: "error-outline-24"))
+            let exclamationMark = UIImageView(image: UIImage(imageLiteralResourceName: "error-circle"))
             exclamationMark.tintColor = .ows_gray15
             exclamationMark.setContentHuggingHigh()
 
             let label = UILabel()
-            label.font = .ows_dynamicTypeBody2Clamped
+            label.font = .dynamicTypeBody2Clamped
             label.lineBreakMode = .byWordWrapping
             label.numberOfLines = 0
             label.textAlignment = .center
             label.textColor = .ows_gray05
-            label.text = NSLocalizedString("STORY_COMPOSER_LINK_PREVIEW_ERROR",
+            label.text = OWSLocalizedString("STORY_COMPOSER_LINK_PREVIEW_ERROR",
                                            comment: "Displayed when failed to fetch link preview in Text Story composer.")
 
             let stackView = UIStackView(arrangedSubviews: [ exclamationMark, label ])

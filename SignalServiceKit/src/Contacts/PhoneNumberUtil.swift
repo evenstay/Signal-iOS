@@ -157,6 +157,10 @@ fileprivate extension PhoneNumberUtilWrapper {
     func getCountryCode(forRegion regionCode: String) -> NSNumber {
         nbPhoneNumberUtil.getCountryCode(forRegion: regionCode)
     }
+
+    func getNationalSignificantNumber(_ number: NBPhoneNumber) -> String {
+        return nbPhoneNumberUtil.getNationalSignificantNumber(number)
+    }
 }
 
 // MARK: -
@@ -165,6 +169,11 @@ fileprivate extension PhoneNumberUtilWrapper {
 extension PhoneNumberUtil {
     private static let unfairLock = UnfairLock()
     private var unfairLock: UnfairLock { Self.unfairLock }
+
+    @objc(nationalNumberFromPhoneNumber:)
+    public func nationalNumber(phoneNumber: NBPhoneNumber) -> String {
+        return phoneNumberUtilWrapper.getNationalSignificantNumber(phoneNumber)
+    }
 
     @objc(callingCodeFromCountryCode:)
     public static func callingCode(fromCountryCode countryCode: String) -> String? {
@@ -190,6 +199,13 @@ extension PhoneNumberUtil {
         unfairLock.withLock {
             phoneNumberUtilWrapper.countryCodes(fromCallingCode: callingCode)
         }
+    }
+
+    /// Returns the most likely country code for a calling code based on population.
+    /// If no country codes are found, returns the empty string.
+    @objc(probableCountryCodeForCallingCode:)
+    public func probableCountryCode(forCallingCode callingCode: String) -> String {
+        return countryCodes(fromCallingCode: callingCode).first ?? ""
     }
 
     private class func does(_ string: String, matchQuery query: String) -> Bool {
@@ -240,7 +256,7 @@ extension PhoneNumberUtil {
     /// Convert country code to country name.
     @objc(countryNameFromCountryCode:)
     public class func countryName(fromCountryCode countryCode: String) -> String {
-        lazy var unknownValue =  NSLocalizedString(
+        lazy var unknownValue =  OWSLocalizedString(
             "UNKNOWN_VALUE",
             comment: "Indicates an unknown or unrecognizable value."
         )

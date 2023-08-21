@@ -3,14 +3,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalMessaging
-import UIKit
+import SignalUI
 
-@objc
 protocol ThreadSwipeHandler {
-    @objc
-    optional func updateUIAfterSwipeAction()
+    func updateUIAfterSwipeAction()
 }
 
 extension ThreadSwipeHandler where Self: UIViewController {
@@ -32,7 +29,7 @@ extension ThreadSwipeHandler where Self: UIViewController {
             }
             pinnedStateAction.backgroundColor = UIColor(rgbHex: 0xff990a)
             pinnedStateAction.accessibilityLabel = CommonStrings.unpinAction
-            pinnedStateAction.image = actionImage(name: "unpin-solid-24", title: CommonStrings.unpinAction)
+            pinnedStateAction.image = actionImage(name: "pin-slash-fill", title: CommonStrings.unpinAction)
         } else {
             pinnedStateAction = UIContextualAction(style: .destructive, title: nil) { [weak self] (_, _, completion) in
                 self?.pinThread(threadViewModel: threadViewModel)
@@ -40,7 +37,7 @@ extension ThreadSwipeHandler where Self: UIViewController {
             }
             pinnedStateAction.backgroundColor = UIColor(rgbHex: 0xff990a)
             pinnedStateAction.accessibilityLabel = CommonStrings.pinAction
-            pinnedStateAction.image = actionImage(name: "pin-solid-24", title: CommonStrings.pinAction)
+            pinnedStateAction.image = actionImage(name: "pin-fill", title: CommonStrings.pinAction)
         }
 
         let readStateAction: UIContextualAction
@@ -51,7 +48,7 @@ extension ThreadSwipeHandler where Self: UIViewController {
             }
             readStateAction.backgroundColor = .ows_accentBlue
             readStateAction.accessibilityLabel = CommonStrings.readAction
-            readStateAction.image = actionImage(name: "read-solid-24", title: CommonStrings.readAction)
+            readStateAction.image = actionImage(name: "chat-check-fill", title: CommonStrings.readAction)
         } else {
             readStateAction = UIContextualAction(style: .normal, title: nil) { [weak self] (_, _, completion) in
                 completion(false)
@@ -59,7 +56,7 @@ extension ThreadSwipeHandler where Self: UIViewController {
             }
             readStateAction.backgroundColor = .ows_accentBlue
             readStateAction.accessibilityLabel = CommonStrings.unreadAction
-            readStateAction.image = actionImage(name: "unread-solid-24", title: CommonStrings.unreadAction)
+            readStateAction.image = actionImage(name: "chat-badge-fill", title: CommonStrings.unreadAction)
         }
 
         // The first action will be auto-performed for "very long swipes".
@@ -82,8 +79,10 @@ extension ThreadSwipeHandler where Self: UIViewController {
             completion(false)
         }
         muteAction.backgroundColor = .ows_accentIndigo
-        muteAction.image = actionImage(name: threadViewModel.isMuted ? "bell-solid-24" : "bell-disabled-solid-24",
-                                       title: threadViewModel.isMuted ? CommonStrings.unmuteButton : CommonStrings.muteButton)
+        muteAction.image = actionImage(
+            name: threadViewModel.isMuted ? "bell-fill" : "bell-slash-fill",
+            title: threadViewModel.isMuted ? CommonStrings.unmuteButton : CommonStrings.muteButton
+        )
         muteAction.accessibilityLabel = threadViewModel.isMuted ? CommonStrings.unmuteButton : CommonStrings.muteButton
 
         let deleteAction = UIContextualAction(style: .destructive, title: nil) { [weak self] (_, _, completion) in
@@ -91,7 +90,7 @@ extension ThreadSwipeHandler where Self: UIViewController {
             completion(false)
         }
         deleteAction.backgroundColor = .ows_accentRed
-        deleteAction.image = actionImage(name: "trash-solid-24", title: CommonStrings.deleteButton)
+        deleteAction.image = actionImage(name: "trash-fill", title: CommonStrings.deleteButton)
         deleteAction.accessibilityLabel = CommonStrings.deleteButton
 
         let archiveAction = UIContextualAction(style: .normal, title: nil) { [weak self] (_, _, completion) in
@@ -100,8 +99,9 @@ extension ThreadSwipeHandler where Self: UIViewController {
         }
 
         let archiveTitle = threadViewModel.isArchived ? CommonStrings.unarchiveAction : CommonStrings.archiveAction
+        let iconName = threadViewModel.isArchived ? "archive-up-fill" : "archive-fill"
         archiveAction.backgroundColor = Theme.isDarkThemeEnabled ? .ows_gray45 : .ows_gray25
-        archiveAction.image = actionImage(name: "archive-solid-24", title: archiveTitle)
+        archiveAction.image = actionImage(name: iconName, title: archiveTitle)
         archiveAction.accessibilityLabel = archiveTitle
 
         // The first action will be auto-performed for "very long swipes".
@@ -138,15 +138,15 @@ extension ThreadSwipeHandler where Self: UIViewController {
                                                       updateStorageService: true,
                                                       transaction: transaction)
         }
-        updateUIAfterSwipeAction?()
+        updateUIAfterSwipeAction()
     }
 
     fileprivate func deleteThreadWithConfirmation(threadViewModel: ThreadViewModel, closeConversationBlock: (() -> Void)?) {
         AssertIsOnMainThread()
 
-        let alert = ActionSheetController(title: NSLocalizedString("CONVERSATION_DELETE_CONFIRMATION_ALERT_TITLE",
+        let alert = ActionSheetController(title: OWSLocalizedString("CONVERSATION_DELETE_CONFIRMATION_ALERT_TITLE",
                                                                    comment: "Title for the 'conversation delete confirmation' alert."),
-                                          message: NSLocalizedString("CONVERSATION_DELETE_CONFIRMATION_ALERT_MESSAGE",
+                                          message: OWSLocalizedString("CONVERSATION_DELETE_CONFIRMATION_ALERT_MESSAGE",
                                                                      comment: "Message for the 'conversation delete confirmation' alert."))
         alert.addAction(ActionSheetAction(title: CommonStrings.deleteButton,
                                           style: .destructive) { [weak self] _ in
@@ -164,7 +164,7 @@ extension ThreadSwipeHandler where Self: UIViewController {
         databaseStorage.write { transaction in
             threadViewModel.threadRecord.softDelete(with: transaction)
         }
-        updateUIAfterSwipeAction?()
+        updateUIAfterSwipeAction()
     }
 
     func markThreadAsRead(threadViewModel: ThreadViewModel) {
@@ -186,14 +186,14 @@ extension ThreadSwipeHandler where Self: UIViewController {
     fileprivate func muteThreadWithSelection(threadViewModel: ThreadViewModel) {
         AssertIsOnMainThread()
 
-        let alert = ActionSheetController(title: NSLocalizedString("CONVERSATION_MUTE_CONFIRMATION_ALERT_TITLE",
+        let alert = ActionSheetController(title: OWSLocalizedString("CONVERSATION_MUTE_CONFIRMATION_ALERT_TITLE",
                                                                    comment: "Title for the 'conversation mute confirmation' alert."))
         for (title, seconds) in [
-            (NSLocalizedString("CONVERSATION_MUTE_CONFIRMATION_OPTION_1H", comment: "1 hour"), kHourInterval),
-            (NSLocalizedString("CONVERSATION_MUTE_CONFIRMATION_OPTION_8H", comment: "8 hours"), 8 * kHourInterval),
-            (NSLocalizedString("CONVERSATION_MUTE_CONFIRMATION_OPTION_1D", comment: "1 day"), kDayInterval),
-            (NSLocalizedString("CONVERSATION_MUTE_CONFIRMATION_OPTION_1W", comment: "1 week"), kWeekInterval),
-            (NSLocalizedString("CONVERSATION_MUTE_CONFIRMATION_OPTION_ALWAYS", comment: "Always"), -1)] {
+            (OWSLocalizedString("CONVERSATION_MUTE_CONFIRMATION_OPTION_1H", comment: "1 hour"), kHourInterval),
+            (OWSLocalizedString("CONVERSATION_MUTE_CONFIRMATION_OPTION_8H", comment: "8 hours"), 8 * kHourInterval),
+            (OWSLocalizedString("CONVERSATION_MUTE_CONFIRMATION_OPTION_1D", comment: "1 day"), kDayInterval),
+            (OWSLocalizedString("CONVERSATION_MUTE_CONFIRMATION_OPTION_1W", comment: "1 week"), kWeekInterval),
+            (OWSLocalizedString("CONVERSATION_MUTE_CONFIRMATION_OPTION_ALWAYS", comment: "Always"), -1)] {
             alert.addAction(ActionSheetAction(title: title, style: .default) { [weak self] _ in
                 self?.muteThread(threadViewModel: threadViewModel, duration: seconds)
             })
@@ -231,7 +231,7 @@ extension ThreadSwipeHandler where Self: UIViewController {
             }
         } catch {
             if case PinnedThreadError.tooManyPinnedThreads = error {
-                OWSActionSheets.showActionSheet(title: NSLocalizedString("PINNED_CONVERSATION_LIMIT",
+                OWSActionSheets.showActionSheet(title: OWSLocalizedString("PINNED_CONVERSATION_LIMIT",
                                                                          comment: "An explanation that you have already pinned the maximum number of conversations."))
             } else {
                 owsFailDebug("Error: \(error)")

@@ -3,13 +3,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import MobileCoin
+import SignalServiceKit
 
-@objc
 public class PaymentsProcessor: NSObject {
 
-    @objc
     public required override init() {
         super.init()
 
@@ -61,14 +59,14 @@ public class PaymentsProcessor: NSObject {
     // This ensures that they are processed serially.
     let processingQueue_outgoing: OperationQueue = {
         let operationQueue = OperationQueue()
-        operationQueue.name = "PaymentsProcessor.outgoing"
+        operationQueue.name = "PaymentsProcessor-Outgoing"
         operationQueue.maxConcurrentOperationCount = 1
         return operationQueue
     }()
     // We use another queue for all other processing.
     let processingQueue_default: OperationQueue = {
         let operationQueue = OperationQueue()
-        operationQueue.name = "PaymentsProcessor.default"
+        operationQueue.name = "PaymentsProcessor-Default"
         // We want a concurrency level high enough to ensure that
         // high-priority operations are processed in a timely manner.
         operationQueue.maxConcurrentOperationCount = 3
@@ -178,7 +176,6 @@ public class PaymentsProcessor: NSObject {
 
     // Retries occur after a fixed delay (e.g. per exponential backoff)
     // but this should short-circuit if reachability becomes available.
-    @objc
     fileprivate class RetryScheduler: NSObject {
 
         private let paymentModel: TSPaymentModel
@@ -426,17 +423,6 @@ private class PaymentProcessingOperation: OWSOperation {
     // stall and payments are processed in a timely manner.
     fileprivate static let maxInterval: TimeInterval = kSecondInterval * 30
 
-    fileprivate static func buildBadDataError(_ message: String,
-                                              file: String = #file,
-                                              function: String = #function,
-                                              line: Int = #line) -> Error {
-        if DebugFlags.paymentsIgnoreBadData.get() {
-            return OWSGenericError(message)
-        } else {
-            return OWSAssertionError(message, file: file, function: function, line: line)
-        }
-    }
-
     // Try to usher a payment "one step forward" in the processing
     // state machine.
     //
@@ -448,13 +434,13 @@ private class PaymentProcessingOperation: OWSOperation {
     private func processStep() -> Guarantee<Void> {
         // When this promise chain completes, we must call continueProcessing()
         // or endProcessing().
-        firstly(on: .global()) { () -> Promise<TSPaymentModel> in
+        firstly(on: DispatchQueue.global()) { () -> Promise<TSPaymentModel> in
             self.processStep(paymentModel: self.loadPaymentModelWithSneakyTransaction())
         }.timeout(seconds: Self.timeoutDuration, description: "process") { () -> Error in
             PaymentsError.timeout
-        }.done(on: .global()) { paymentModel in
+        }.done(on: DispatchQueue.global()) { paymentModel in
             self.delegate?.continueProcessing(paymentModel: paymentModel)
-        }.recover(on: .global()) { (error: Error) -> Guarantee<Void> in
+        }.recover(on: DispatchQueue.global()) { (error: Error) -> Guarantee<Void> in
             switch error {
             case let paymentsError as PaymentsError:
                 switch paymentsError {
@@ -616,7 +602,7 @@ private class PaymentProcessingOperation: OWSOperation {
 
         let paymentStateBeforeProcessing = paymentModel.paymentState
 
-        return firstly(on: .global()) { () -> Promise<Void> in
+        return firstly(on: DispatchQueue.global()) { () -> Promise<Void> in
             let formattedState = paymentModel.descriptionForLogs
 
             guard PaymentsProcessor.canBeProcessed(paymentModel: paymentModel) else {
@@ -729,13 +715,13 @@ private class PaymentProcessingOperation: OWSOperation {
 
         return firstly { () -> Promise<MobileCoinAPI> in
             Self.paymentsImpl.getMobileCoinAPI()
-        }.then(on: .global()) { (mobileCoinAPI: MobileCoinAPI) -> Promise<Void> in
+        }.then(on: DispatchQueue.global()) { (mobileCoinAPI: MobileCoinAPI) -> Promise<Void> in
             return mobileCoinAPI.submitTransaction(transaction: transaction)
-        }.then(on: .global()) { _ in
+        }.then(on: DispatchQueue.global()) { _ in
             Self.updatePaymentStatePromise(paymentModel: paymentModel,
                                            fromState: .outgoingUnsubmitted,
                                            toState: .outgoingUnverified)
-        }.recover(on: .global()) { (error: Error) -> Promise<Void> in
+        }.recover(on: DispatchQueue.global()) { (error: Error) -> Promise<Void> in
             if case PaymentsError.inputsAlreadySpent = error {
                 // e.g. if we double-submit a transaction, it should become unverified,
                 // not stuck in unsubmitted.
@@ -754,7 +740,7 @@ private class PaymentProcessingOperation: OWSOperation {
         Logger.verbose("")
 
         if DebugFlags.paymentsSkipSubmissionAndOutgoingVerification.get() {
-            return firstly(on: .global()) { () -> Void in
+            return firstly(on: DispatchQueue.global()) { () -> Void in
                 try Self.databaseStorage.write { transaction in
                     guard let paymentModel = TSPaymentModel.anyFetch(uniqueId: paymentModel.uniqueId,
                                                                      transaction: transaction) else {
@@ -768,7 +754,7 @@ private class PaymentProcessingOperation: OWSOperation {
 
         return firstly { () -> Promise<MobileCoinAPI> in
             Self.paymentsImpl.getMobileCoinAPI()
-        }.then(on: .global()) { (mobileCoinAPI: MobileCoinAPI) -> Promise<Void> in
+        }.then(on: DispatchQueue.global()) { (mobileCoinAPI: MobileCoinAPI) -> Promise<Void> in
             firstly { () -> Promise<MCOutgoingTransactionStatus> in
                 guard let mcTransactionData = paymentModel.mcTransactionData,
                       mcTransactionData.count > 0,
@@ -856,7 +842,7 @@ private class PaymentProcessingOperation: OWSOperation {
                                                   toState: .outgoingSent)
         }
 
-        return firstly(on: .global()) { () -> Void in
+        return firstly(on: DispatchQueue.global()) { () -> Void in
             try Self.databaseStorage.write { transaction in
                 guard let paymentModel = TSPaymentModel.anyFetch(uniqueId: paymentModel.uniqueId, transaction: transaction) else {
                     throw OWSAssertionError("Missing paymentModel.")
@@ -906,7 +892,7 @@ private class PaymentProcessingOperation: OWSOperation {
 
         return firstly { () -> Promise<MobileCoinAPI> in
             Self.paymentsImpl.getMobileCoinAPI()
-        }.then(on: .global()) { (mobileCoinAPI: MobileCoinAPI) -> Promise<MCIncomingReceiptStatus> in
+        }.then(on: DispatchQueue.global()) { (mobileCoinAPI: MobileCoinAPI) -> Promise<MCIncomingReceiptStatus> in
 
             guard let mcReceiptData = paymentModel.mcReceiptData,
                   let receipt = MobileCoin.Receipt(serializedData: mcReceiptData) else {
@@ -974,7 +960,7 @@ private class PaymentProcessingOperation: OWSOperation {
                                                   toState: TSPaymentState) -> Promise<Void> {
         owsAssertDebug(paymentModel.paymentState == fromState)
 
-        return firstly(on: .global()) { () -> Void in
+        return firstly(on: DispatchQueue.global()) { () -> Void in
             try Self.databaseStorage.write { transaction in
                 guard let paymentModel = TSPaymentModel.anyFetch(uniqueId: paymentModel.uniqueId,
                                                                  transaction: transaction) else {

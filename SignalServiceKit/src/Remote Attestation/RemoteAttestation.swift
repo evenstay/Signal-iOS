@@ -17,13 +17,35 @@ public struct RemoteAttestation: Dependencies {
 // MARK: - KBS
 
 public extension RemoteAttestation {
+
+    enum KeyBackupAuthMethod: Equatable {
+        /// Uses a pre-existing KBS auth credential.
+        case kbsAuth(Auth)
+        /// Hits the chat server for auth credentials using the provided chat server (not kbs) credentials.
+        case chatServer(ChatServiceAuth)
+        /// Hits the chat server for auth credentials using the chat server credentials on TSAccountManager.
+        case chatServerImplicitCredentials
+    }
+
     static func performForKeyBackup(
-        auth: Auth?,
+        authMethod: KeyBackupAuthMethod,
         enclave: KeyBackupEnclave
     ) -> Promise<RemoteAttestation> {
+        var kbsAuth: Auth?
+        var chatServiceAuth: ChatServiceAuth = .implicit()
+        switch authMethod {
+        case .kbsAuth(let auth):
+            kbsAuth = auth
+        case let .chatServer(auth):
+            chatServiceAuth = auth
+        case .chatServerImplicitCredentials:
+            // Don't set anything; the request will implicitly pull credentials.
+            break
+        }
         return performAttestation(
             for: .keyBackup,
-            auth: auth,
+            auth: kbsAuth,
+            chatServiceAuth: chatServiceAuth,
             config: EnclaveConfig(
                 enclaveName: enclave.name,
                 mrenclave: enclave.mrenclave,
@@ -43,65 +65,19 @@ public extension RemoteAttestation {
     }
 }
 
-// MARK: - CDS
-
-public extension RemoteAttestation {
-    struct CDSAttestation {
-        /// An opaque, server-specified identifier to link an attestation to its corresponding envelope
-        public typealias Id = String
-
-        let cookies: [HTTPCookie]
-        let auth: Auth
-        let enclaveConfig: EnclaveConfig
-        let remoteAttestations: [Id: RemoteAttestation]
-    }
-
-    static func performForCDS() -> Promise<CDSAttestation> {
-        return performAttestation(
-            for: .contactDiscovery,
-            config: EnclaveConfig(
-                enclaveName: TSConstants.contactDiscoveryEnclaveName,
-                mrenclave: TSConstants.contactDiscoveryMrEnclave,
-                host: TSConstants.contactDiscoverySGXURL,
-                censorshipCircumventionPrefix: TSConstants.contactDiscoveryCensorshipPrefix
-            )
-        ).map { attestationResponse -> CDSAttestation in
-            let attestationBody: [CDSAttestation.Id: [String: Any]] = try attestationResponse.responseBody.required(key: "attestations")
-
-            // The client MUST reject server responses with more than 3 Remote Attestation Responses attached,
-            // for security reasons.
-            guard (1..<4).contains(attestationBody.count) else {
-                throw ParamParser.ParseError.invalidFormat("attestations", description: "invalid attestation count: \(attestationBody.count)")
-            }
-
-            let attestations: [CDSAttestation.Id: RemoteAttestation] = try attestationBody.mapValues { attestationParams in
-                let parser = ParamParser(dictionary: attestationParams)
-                return try parseAttestationResponse(params: parser,
-                                            clientEphemeralKeyPair: attestationResponse.clientEphemeralKeyPair,
-                                            cookies: attestationResponse.cookies,
-                                            enclaveName: attestationResponse.enclaveConfig.enclaveName,
-                                            mrenclave: attestationResponse.enclaveConfig.mrenclave,
-                                            auth: attestationResponse.auth)
-            }
-
-            let attestation = CDSAttestation(cookies: attestationResponse.cookies,
-                                             auth: attestationResponse.auth,
-                                             enclaveConfig: attestationResponse.enclaveConfig,
-                                             remoteAttestations: attestations)
-            owsAssertDebug(attestation.auth.username.strippedOrNil != nil)
-            owsAssertDebug(attestation.auth.password.strippedOrNil != nil)
-            owsAssertDebug(attestation.enclaveConfig.enclaveName.strippedOrNil != nil)
-            owsAssertDebug(attestation.enclaveConfig.host.strippedOrNil != nil)
-            return attestation
-        }
-    }
-}
-
 // MARK: - CSDI
 
 extension RemoteAttestation {
     static func authForCDSI() -> Promise<Auth> {
-        return Auth.fetch(forService: .cdsi)
+        return Auth.fetch(forService: .cdsi, auth: .implicit())
+    }
+}
+
+// MARK: - SVR2
+
+extension RemoteAttestation {
+    static func authForSVR2(chatServiceAuth: ChatServiceAuth) -> Promise<Auth> {
+        return Auth.fetch(forService: .svr2, auth: chatServiceAuth)
     }
 }
 
@@ -132,7 +108,7 @@ private func attestationError(reason: String) -> RemoteAttestation.Error {
 // MARK: - Auth
 
 public extension RemoteAttestation {
-    struct Auth: Dependencies {
+    struct Auth: Dependencies, Equatable, Codable {
         public let username: String
         public let password: String
 
@@ -149,27 +125,45 @@ public extension RemoteAttestation {
                 throw attestationError(reason: "missing or empty username")
             }
 
-            self.password = password
+            self.init(username: username, password: password)
+        }
+
+        public init(username: String, password: String) {
             self.username = username
+            self.password = password
         }
     }
 }
 
 fileprivate extension RemoteAttestation.Auth {
-    static func fetch(forService service: RemoteAttestation.Service) -> Promise<RemoteAttestation.Auth> {
-        guard tsAccountManager.isRegisteredAndReady else {
-            return Promise(error: OWSGenericError("Not registered."))
-        }
-
+    /// - parameter authUsername: If present (alongside authPassword), used in the request.
+    ///   If either authUsername or authPassword is missing, uses auth information from TSAccountManager.
+    /// - parameter authPassword: If present (alongside authUsername), used in the request.
+    ///   If either authUsername or authPassword is missing, uses auth information from TSAccountManager.
+    static func fetch(
+        forService service: RemoteAttestation.Service,
+        auth: ChatServiceAuth
+    ) -> Promise<RemoteAttestation.Auth> {
         if DebugFlags.internalLogging {
             Logger.info("service: \(service)")
         }
 
         let request = service.authRequest()
 
+        switch auth.credentials {
+        case .implicit:
+            guard tsAccountManager.isRegisteredAndReady else {
+                return Promise(error: OWSGenericError("Not registered."))
+            }
+        case let .explicit(username, password):
+            request.shouldHaveAuthorizationHeaders = true
+            request.authUsername = username
+            request.authPassword = password
+        }
+
         return firstly {
             networkManager.makePromise(request: request)
-        }.map(on: .global()) { response in
+        }.map(on: DispatchQueue.global()) { response in
             if DebugFlags.internalLogging {
                 let statusCode = response.responseStatusCode
                 Logger.info("statusCode: \(statusCode)")
@@ -187,7 +181,7 @@ fileprivate extension RemoteAttestation.Auth {
             }
 
             return try RemoteAttestation.Auth(authParams: json)
-        }.recover(on: .global()) { error -> Promise<RemoteAttestation.Auth> in
+        }.recover(on: DispatchQueue.global()) { error -> Promise<RemoteAttestation.Auth> in
             let statusCode = error.httpStatusCode ?? 0
             Logger.verbose("Remote attestation auth failure: \(statusCode)")
             throw error
@@ -259,15 +253,15 @@ public extension RemoteAttestation {
 
 fileprivate extension RemoteAttestation {
     enum Service {
-        case contactDiscovery
         case keyBackup
         case cdsi
+        case svr2
 
         func authRequest() -> TSRequest {
             switch self {
-            case .contactDiscovery: return OWSRequestFactory.remoteAttestationAuthRequestForContactDiscovery()
             case .keyBackup: return OWSRequestFactory.remoteAttestationAuthRequestForKeyBackup()
             case .cdsi: return OWSRequestFactory.remoteAttestationAuthRequestForCDSI()
+            case .svr2: return OWSRequestFactory.remoteAttestationAuthRequestForSVR2()
             }
         }
     }
@@ -287,15 +281,16 @@ fileprivate extension RemoteAttestation {
     static func performAttestation(
         for service: Service,
         auth: Auth? = nil,
+        chatServiceAuth: ChatServiceAuth = .implicit(),
         config: EnclaveConfig
     ) -> Promise<AttestationResponse> {
-        firstly(on: .global()) { () -> Promise<Auth> in
+        firstly(on: DispatchQueue.global()) { () -> Promise<Auth> in
             if let auth = auth {
                 return Promise.value(auth)
             } else {
-                return Auth.fetch(forService: service)
+                return Auth.fetch(forService: service, auth: chatServiceAuth)
             }
-        }.then(on: .global()) { (auth: Auth) -> Promise<AttestationResponse> in
+        }.then(on: DispatchQueue.global()) { (auth: Auth) -> Promise<AttestationResponse> in
             let clientEphemeralKeyPair = Curve25519.generateKeyPair()
             return firstly { () -> Promise<HTTPResponse> in
                 let request = remoteAttestationRequest(enclaveName: config.enclaveName,
@@ -308,12 +303,11 @@ fileprivate extension RemoteAttestation {
                     censorshipCircumventionPrefix: config.censorshipCircumventionPrefix)
                 guard let requestUrl = request.url else {
                     owsFailDebug("Missing requestUrl.")
-                    let url: URL = urlSession.baseUrl ?? URL(string: config.host) ?? URL(string: TSConstants.mainServiceURL)!
-                    throw OWSHTTPError.missingRequest(requestUrl: url)
+                    throw OWSHTTPError.missingRequest
                 }
                 return firstly {
                     urlSession.promiseForTSRequest(request)
-                }.recover(on: .global()) { error -> Promise<HTTPResponse> in
+                }.recover(on: DispatchQueue.global()) { error -> Promise<HTTPResponse> in
                     // OWSUrlSession should only throw OWSHTTPError or OWSAssertionError.
                     if let httpError = error as? OWSHTTPError {
                         throw httpError
@@ -322,7 +316,7 @@ fileprivate extension RemoteAttestation {
                         throw OWSHTTPError.invalidRequest(requestUrl: requestUrl)
                     }
                 }
-            }.map(on: .global()) { (response: HTTPResponse) in
+            }.map(on: DispatchQueue.global()) { (response: HTTPResponse) in
                 guard let json = response.responseBodyJson else {
                     throw attestationError(reason: "Missing or invalid JSON.")
                 }
@@ -342,25 +336,20 @@ fileprivate extension RemoteAttestation {
         }
     }
 
-    static func remoteAttestationRequest(enclaveName: String,
-                                         authUsername: String,
-                                         authPassword: String,
-                                         service: Service,
-                                         clientEphemeralKeyPair: ECKeyPair) -> TSRequest {
-
-        let path = "v1/attestation/\(enclaveName)"
-        var parameters: [String: Any] = [
-            "clientPublic": clientEphemeralKeyPair.publicKey.base64EncodedString()
-        ]
-
-        // When making requests to CDS, we need to tell the service to use IASv4
-        if case .contactDiscovery = service {
-            parameters["iasVersion"] = 4
-        }
-
-        let request = TSRequest(url: URL(string: path)!,
-                                method: "PUT",
-                                parameters: parameters)
+    static func remoteAttestationRequest(
+        enclaveName: String,
+        authUsername: String,
+        authPassword: String,
+        service: Service,
+        clientEphemeralKeyPair: ECKeyPair
+    ) -> TSRequest {
+        let request = TSRequest(
+            url: URL(string: "v1/attestation/\(enclaveName)")!,
+            method: "PUT",
+            parameters: [
+                "clientPublic": clientEphemeralKeyPair.publicKey.base64EncodedString()
+            ]
+        )
 
         request.authUsername = authUsername
         request.authPassword = authPassword
@@ -395,13 +384,11 @@ fileprivate extension RemoteAttestation {
 
         let quote = try RemoteAttestationQuote.parseQuote(from: quoteData)
 
-        guard let requestId = Cryptography.decryptAESGCM(withInitializationVector: encryptedRequestIv,
-                                                   ciphertext: encryptedRequestId,
-                                                   additionalAuthenticatedData: nil,
-                                                   authTag: encryptedRequestTag,
-                                                   key: keys.serverKey) else {
-                                                    throw attestationError(reason: "failed to decrypt requestId")
-        }
+        let requestId = try Aes256GcmEncryptedData(
+            nonce: encryptedRequestIv,
+            ciphertext: encryptedRequestId,
+            authenticationTag: encryptedRequestTag
+        ).decrypt(key: keys.serverKey.keyData)
 
         try verifyServerQuote(quote, keys: keys, mrenclave: mrenclave)
 
@@ -426,8 +413,13 @@ fileprivate extension RemoteAttestation {
         owsAssertDebug(!signature.isEmpty)
         owsAssertDebug(!quoteData.isEmpty)
 
-        let certificate = try RemoteAttestationSigningCertificate.parseCertificate(fromPem: certificates)
-        guard certificate.verifySignature(ofBody: signatureBody, signature: signature) else {
+        guard let certificatesData = certificates.data(using: .utf8) else {
+            throw attestationError(reason: "certificates isn't utf8.")
+        }
+        guard let signatureBodyData = signatureBody.data(using: .utf8) else {
+            throw attestationError(reason: "signatureBody isn't utf8.")
+        }
+        guard Ias.verify(signature: signature, of: signatureBodyData, withCertificatesPem: certificatesData, at: Date()) else {
             throw attestationError(reason: "could not verify signature.")
         }
 

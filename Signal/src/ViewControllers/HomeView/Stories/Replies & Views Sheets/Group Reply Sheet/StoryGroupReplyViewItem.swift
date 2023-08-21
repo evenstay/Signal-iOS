@@ -9,6 +9,7 @@ import SignalServiceKit
 import UIKit
 
 class StoryGroupReplyViewItem: Dependencies {
+    let interactionIdentifier: InteractionSnapshotIdentifier
     let interactionUniqueId: String
     let displayableText: DisplayableText?
     let reactionEmoji: String?
@@ -31,12 +32,12 @@ class StoryGroupReplyViewItem: Dependencies {
         recipientStatus: MessageReceiptStatus?,
         transaction: SDSAnyReadTransaction
     ) {
+        self.interactionIdentifier = .fromInteraction(message)
         self.interactionUniqueId = message.uniqueId
 
         if !message.wasRemotelyDeleted {
             self.displayableText = DisplayableText.displayableText(
                 withMessageBody: .init(text: message.body ?? "", ranges: message.bodyRanges ?? .empty),
-                mentionStyle: .groupReply,
                 transaction: transaction
             )
         } else {

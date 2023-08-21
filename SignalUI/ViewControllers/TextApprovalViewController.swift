@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalServiceKit
 
 public protocol TextApprovalViewControllerDelegate: AnyObject {
 
@@ -20,15 +20,16 @@ public protocol TextApprovalViewControllerDelegate: AnyObject {
 
 // MARK: -
 
-public class TextApprovalViewController: OWSViewController, MentionTextViewDelegate {
+public class TextApprovalViewController: OWSViewController, BodyRangesTextViewDelegate {
 
     public weak var delegate: TextApprovalViewControllerDelegate?
 
     // MARK: - Properties
 
     private let initialMessageBody: MessageBody
+    private let linkPreviewFetcher: LinkPreviewFetcher
 
-    private let textView = MentionTextView()
+    private let textView = BodyRangesTextView()
     private let footerView = ApprovalFooterView()
     private var bottomConstraint: NSLayoutConstraint?
 
@@ -50,8 +51,14 @@ public class TextApprovalViewController: OWSViewController, MentionTextViewDeleg
 
     required public init(messageBody: MessageBody) {
         self.initialMessageBody = messageBody
+        self.linkPreviewFetcher = LinkPreviewFetcher(
+            linkPreviewManager: Self.linkPreviewManager,
+            schedulers: DependenciesBridge.shared.schedulers
+        )
 
         super.init()
+
+        self.linkPreviewFetcher.onStateChange = { [weak self] in self?.updateLinkPreviewView() }
     }
 
     // MARK: - UIViewController
@@ -83,12 +90,12 @@ public class TextApprovalViewController: OWSViewController, MentionTextViewDeleg
         footerView.delegate = self
 
         // Don't allow interactive dismissal.
-        if #available(iOS 13, *) { isModalInPresentation = true }
+        isModalInPresentation = true
     }
 
     private func updateSendButton() {
         guard
-            !textView.text.isEmpty,
+            !textView.isEmpty,
             let recipientsDescription = delegate?.textApprovalRecipientsDescription(self)
         else {
             footerView.isHidden = true
@@ -102,18 +109,12 @@ public class TextApprovalViewController: OWSViewController, MentionTextViewDeleg
         super.viewDidAppear(animated)
 
         updateSendButton()
-        updateLinkPreviewIfNecessary()
+        updateLinkPreviewText()
 
         textView.becomeFirstResponder()
     }
 
     // MARK: - Link Previews
-
-    private var wasLinkPreviewCancelled = false {
-        didSet {
-            updateLinkPreviewIfNecessary()
-        }
-    }
 
     private lazy var linkPreviewView: LinkPreviewView = {
         let linkPreviewView = LinkPreviewView(draftDelegate: self)
@@ -121,53 +122,21 @@ public class TextApprovalViewController: OWSViewController, MentionTextViewDeleg
         return linkPreviewView
     }()
 
-    private var currentLinkPreviewState: LinkPreviewDraft?
+    private func updateLinkPreviewText() {
+        linkPreviewFetcher.update(textView.messageBodyForSending.text)
+    }
 
-    private var currentPreviewUrl: URL? {
-        didSet {
-            guard currentPreviewUrl != oldValue else { return }
-
-            // Always clear this when the URL changes. If we're setting a new URL,
-            // we'll reassign it after fetching the new preview. If we cleared the URL,
-            // we'll leave it nil.
-            currentLinkPreviewState = nil
-
-            guard let previewUrl = currentPreviewUrl else {
-                linkPreviewView.isHidden = true
-                return
-            }
-
+    private func updateLinkPreviewView() {
+        switch linkPreviewFetcher.currentState {
+        case .none, .failed:
+            linkPreviewView.isHidden = true
+        case .loading:
             linkPreviewView.configureForNonCVC(state: LinkPreviewLoading(linkType: .preview), isDraft: true)
             linkPreviewView.isHidden = false
-
-            linkPreviewManager.fetchLinkPreview(for: previewUrl).done(on: .main) { [weak self] draft in
-                guard let self = self else { return }
-                guard self.currentPreviewUrl == previewUrl else { return }
-                let linkPreviewState = LinkPreviewDraft(linkPreviewDraft: draft)
-                self.linkPreviewView.configureForNonCVC(state: linkPreviewState, isDraft: true)
-                self.currentLinkPreviewState = linkPreviewState
-            }.catch { [weak self] _ in
-                self?.clearLinkPreview()
-            }
+        case .loaded(let linkPreviewDraft):
+            linkPreviewView.configureForNonCVC(state: LinkPreviewDraft(linkPreviewDraft: linkPreviewDraft), isDraft: true)
+            linkPreviewView.isHidden = false
         }
-    }
-
-    private func updateLinkPreviewIfNecessary() {
-        guard !wasLinkPreviewCancelled else { return clearLinkPreview() }
-
-        let trimmedText = textView.text.ows_stripped()
-        guard !trimmedText.isEmpty else { return clearLinkPreview() }
-
-        let isOversizedText = trimmedText.lengthOfBytes(using: .utf8) >= kOversizeTextMessageSizeThreshold
-        guard !isOversizedText else { return clearLinkPreview() }
-
-        guard let previewUrl = linkPreviewManager.findFirstValidUrl(in: trimmedText, bypassSettingsCheck: false) else { return clearLinkPreview() }
-
-        currentPreviewUrl = previewUrl
-    }
-
-    private func clearLinkPreview() {
-        currentPreviewUrl = nil
     }
 
     // MARK: - Create Views
@@ -189,8 +158,8 @@ public class TextApprovalViewController: OWSViewController, MentionTextViewDeleg
         textView.mentionDelegate = self
         textView.backgroundColor = Theme.backgroundColor
         textView.textColor = Theme.primaryTextColor
-        textView.font = UIFont.ows_dynamicTypeBody
-        textView.messageBody = self.initialMessageBody
+        textView.font = UIFont.dynamicTypeBody
+        textView.setMessageBody(self.initialMessageBody, txProvider: DependenciesBridge.shared.db.readTxProvider)
         textView.contentInset = UIEdgeInsets(top: 0.0, left: 0.0, bottom: 0.0, right: 0.0)
         textView.textContainerInset = UIEdgeInsets(top: 10.0, left: 10.0, bottom: 10.0, right: 10.0)
     }
@@ -206,38 +175,47 @@ public class TextApprovalViewController: OWSViewController, MentionTextViewDeleg
 
     public func textViewDidChange(_ textView: UITextView) {
         updateSendButton()
-        updateLinkPreviewIfNecessary()
+        updateLinkPreviewText()
     }
 
-    public func textViewDidBeginTypingMention(_ textView: MentionTextView) {}
+    public func textViewDidBeginTypingMention(_ textView: BodyRangesTextView) {}
 
-    public func textViewDidEndTypingMention(_ textView: MentionTextView) {}
+    public func textViewDidEndTypingMention(_ textView: BodyRangesTextView) {}
 
-    public func textViewMentionPickerParentView(_ textView: MentionTextView) -> UIView? {
+    public func textViewMentionPickerParentView(_ textView: BodyRangesTextView) -> UIView? {
         return nil
     }
 
-    public func textViewMentionPickerReferenceView(_ textView: MentionTextView) -> UIView? {
+    public func textViewMentionPickerReferenceView(_ textView: BodyRangesTextView) -> UIView? {
         return nil
     }
 
-    public func textViewMentionPickerPossibleAddresses(_ textView: MentionTextView) -> [SignalServiceAddress] {
+    public func textViewMentionPickerPossibleAddresses(_ textView: BodyRangesTextView, tx: DBReadTransaction) -> [SignalServiceAddress] {
         return []
     }
 
-    public func textViewMentionStyle(_ textView: MentionTextView) -> Mention.Style {
-        return .composing
+    public func textViewDisplayConfiguration(_ textView: BodyRangesTextView) -> HydratedMessageBody.DisplayConfiguration {
+        return .composing(textViewColor: textView.textColor)
     }
 
-    public func textView(_ textView: MentionTextView, didDeleteMention: Mention) {}
+    public func mentionPickerStyle(_ textView: BodyRangesTextView) -> MentionPickerStyle {
+        return .default
+    }
+
+    // We want to invalidate the cache but reuse it within this same controller.
+    private let mentionCacheInvalidationKey = UUID().uuidString
+
+    public func textViewMentionCacheInvalidationKey(_ textView: BodyRangesTextView) -> String {
+        return mentionCacheInvalidationKey
+    }
 }
 
 // MARK: -
 
 extension TextApprovalViewController: ApprovalFooterDelegate {
     public func approvalFooterDelegateDidRequestProceed(_ approvalFooterView: ApprovalFooterView) {
-        let linkPreviewDraft = currentLinkPreviewState?.linkPreviewDraft
-        delegate?.textApproval(self, didApproveMessage: self.textView.messageBody, linkPreviewDraft: linkPreviewDraft)
+        let linkPreviewDraft = linkPreviewFetcher.linkPreviewDraftIfLoaded
+        delegate?.textApproval(self, didApproveMessage: self.textView.messageBodyForSending, linkPreviewDraft: linkPreviewDraft)
     }
 
     public func approvalMode(_ approvalFooterView: ApprovalFooterView) -> ApprovalMode {
@@ -273,12 +251,14 @@ extension TextApprovalViewController: InputAccessoryViewPlaceholderDelegate {
     func handleKeyboardStateChange(animationDuration: TimeInterval, animationCurve: UIView.AnimationCurve) {
         guard animationDuration > 0 else { return updateFooterViewPosition() }
 
-        UIView.beginAnimations("keyboardStateChange", context: nil)
-        UIView.setAnimationBeginsFromCurrentState(true)
-        UIView.setAnimationCurve(animationCurve)
-        UIView.setAnimationDuration(animationDuration)
-        updateFooterViewPosition()
-        UIView.commitAnimations()
+        UIView.animate(
+            withDuration: animationDuration,
+            delay: 0,
+            options: animationCurve.asAnimationOptions,
+            animations: { [self] in
+                updateFooterViewPosition()
+            }
+        )
     }
 
     func updateFooterViewPosition() {
@@ -293,8 +273,7 @@ extension TextApprovalViewController: InputAccessoryViewPlaceholderDelegate {
 // MARK: -
 
 extension TextApprovalViewController: LinkPreviewViewDraftDelegate {
-
     public func linkPreviewDidCancel() {
-        wasLinkPreviewCancelled = true
+        linkPreviewFetcher.disable()
     }
 }

@@ -24,14 +24,24 @@
 
 @implementation TSMessageStorageTests
 
+- (UntypedServiceIdObjC *)localAci
+{
+    return [[UntypedServiceIdObjC alloc] initWithUuidString:@"00000000-0000-4000-8000-000000000000"];
+}
+
 - (SignalServiceAddress *)localAddress
 {
-    return [[SignalServiceAddress alloc] initWithPhoneNumber:@"+13334445555"];
+    return [[SignalServiceAddress alloc] initWithUntypedServiceIdObjC:[self localAci]];
+}
+
+- (AciObjC *)otherAci
+{
+    return [[AciObjC alloc] initWithAciString:@"00000000-0000-4000-8000-000000000001"];
 }
 
 - (SignalServiceAddress *)otherAddress
 {
-    return [[SignalServiceAddress alloc] initWithPhoneNumber:@"+12223334444"];
+    return [[SignalServiceAddress alloc] initWithServiceIdObjC:[self otherAci]];
 }
 
 - (void)setUp
@@ -62,7 +72,7 @@
         TSIncomingMessageBuilder *incomingMessageBuilder =
             [TSIncomingMessageBuilder incomingMessageBuilderWithThread:self.thread messageBody:body];
         incomingMessageBuilder.timestamp = timestamp;
-        incomingMessageBuilder.authorAddress = self.otherAddress;
+        incomingMessageBuilder.authorAci = [self otherAci];
         incomingMessageBuilder.sourceDeviceId = 1;
         TSIncomingMessage *newMessage = [incomingMessageBuilder build];
 
@@ -89,11 +99,11 @@
 
     [self writeWithBlock:^(SDSAnyWriteTransaction *transaction) {
         NSMutableArray<TSIncomingMessage *> *messages = [NSMutableArray new];
-        for (int i = 0; i < 10; i++) {
+        for (uint64_t i = 0; i < 10; i++) {
             TSIncomingMessageBuilder *incomingMessageBuilder =
                 [TSIncomingMessageBuilder incomingMessageBuilderWithThread:self.thread messageBody:body];
             incomingMessageBuilder.timestamp = i + 1;
-            incomingMessageBuilder.authorAddress = self.otherAddress;
+            incomingMessageBuilder.authorAci = [self otherAci];
             incomingMessageBuilder.sourceDeviceId = 1;
             TSIncomingMessage *newMessage = [incomingMessageBuilder build];
 
@@ -113,7 +123,7 @@
                 fetchedMessage.uniqueThreadId, self.thread.uniqueId, @"Isn't stored in the right thread!");
         }
 
-        [self.thread anyRemoveWithTransaction:transaction];
+        [self.thread softDeleteThreadWithTransaction:transaction];
 
         for (TSIncomingMessage *message in messages) {
             TSIncomingMessage *_Nullable fetchedMessage =
@@ -146,7 +156,7 @@
             TSIncomingMessageBuilder *incomingMessageBuilder =
                 [TSIncomingMessageBuilder incomingMessageBuilderWithThread:thread messageBody:body];
             incomingMessageBuilder.timestamp = i + 1;
-            incomingMessageBuilder.authorAddress = authorAddress;
+            incomingMessageBuilder.authorAci = (AciObjC *)authorAddress.serviceIdObjC;
             incomingMessageBuilder.sourceDeviceId = 1;
             TSIncomingMessage *newMessage = [incomingMessageBuilder build];
             [newMessage anyInsertWithTransaction:transaction];
@@ -164,7 +174,7 @@
             XCTAssertEqualObjects(fetchedMessage.uniqueThreadId, thread.uniqueId, @"Isn't stored in the right thread!");
         }
 
-        [thread anyRemoveWithTransaction:transaction];
+        [thread softDeleteThreadWithTransaction:transaction];
 
         for (TSIncomingMessage *message in messages) {
             TSIncomingMessage *_Nullable fetchedMessage =

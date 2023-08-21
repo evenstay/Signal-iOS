@@ -285,7 +285,7 @@
 			<string>ग्रुप में अधिकतम %1$d सदस्य पूरे हो गए हैं।</string>
 		</dict>
 	</dict>
-	<key>EXPIRATION_WARNING_%d</key>
+	<key>EDIT_MESSAGE_SEND_TOO_MANY_EDITS_ERROR</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
 		<string>%#@text@</string>
@@ -296,9 +296,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>आपका Signal का संस्करण %1$d दिन में समाप्त हो जाएगा। नवीनतम संस्करण में अपडेट करने के लिए टैप करें।</string>
+			<string>इस संदेश को केवल %1$d बार संपादित किया जा सकता है।</string>
 			<key>other</key>
-			<string>आपका Signal का संस्करण %1$d दिनों में समाप्त हो जाएगा। नवीनतम संस्करण में अपडेट करने के लिए टैप करें।</string>
+			<string>इस संदेश को केवल %1$d बार संपादित किया जा सकता है।</string>
 		</dict>
 	</dict>
 	<key>FORWARD_MESSAGE_FIRST_FORWARD_PROCEED_%d</key>
@@ -315,22 +315,6 @@
 			<string>संदेश भेजें</string>
 			<key>other</key>
 			<string>%1$d संदेश भेजें</string>
-		</dict>
-	</dict>
-	<key>GROUPS_LEGACY_GROUP_DROPPED_MEMBERS_BANNER_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>%1$d सदस्य को नए ग्रुप में फिर से नहीं जोड़ा जा सका। क्या आप उसे अभी जोड़ना चाहेंगे?</string>
-			<key>other</key>
-			<string>%1$d सदस्यों को नए ग्रुप में फिर से नहीं जोड़ा जा सका। क्या आप उन्हें अभी जोड़ना चाहेंगे?</string>
 		</dict>
 	</dict>
 	<key>GROUPS_TOO_MANY_MEMBERS_ALERT_MESSAGE_%d</key>
@@ -573,22 +557,6 @@
 			<string>%1$d सदस्य</string>
 		</dict>
 	</dict>
-	<key>GROUP_REMOTE_USER_INVITED_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>%1$d व्यक्ति को ग्रुप में आमंत्रित किया गया था।</string>
-			<key>other</key>
-			<string>%1$d व्यक्तियों को ग्रुप में आमंत्रित किया गया था।</string>
-		</dict>
-	</dict>
 	<key>GROUP_REMOTE_USER_INVITED_BY_REMOTE_USER_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -669,38 +637,6 @@
 			<string>ग्रुप स्टोरी · %1$d व्यूअर</string>
 		</dict>
 	</dict>
-	<key>GROUP_WAS_MIGRATED_USERS_DROPPED_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>एक सदस्य को नए ग्रुप में जोड़ा नहीं जा सका और उसे ग्रुप से हटा दिया गया है।</string>
-			<key>other</key>
-			<string>%1$d सदस्यों को नए ग्रुप में जोड़ा नहीं जा सका और उन्हें ग्रुप से हटा दिया गया है।</string>
-		</dict>
-	</dict>
-	<key>GROUP_WAS_MIGRATED_USERS_INVITED_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>एक सदस्य को नए ग्रुप में नहीं जोड़ा जा सका और उसे शामिल होने के लिए आमंत्रित किया गया है।</string>
-			<key>other</key>
-			<string>%1$d सदस्यों को नए ग्रुप में नहीं जोड़ा जा सका और उन्हें शामिल होने के लिए आमंत्रित किया गया है।</string>
-		</dict>
-	</dict>
 	<key>IMAGE_PICKER_CAN_SELECT_NO_MORE_TOAST_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -733,7 +669,7 @@
 			<string>%1$d साझा ग्रुप</string>
 		</dict>
 	</dict>
-	<key>MEDIA_GALLERY_DELETE_MESSAGES_%d</key>
+	<key>MEDIA_GALLERY_DELETE_MEDIA_TITLE</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
 		<string>%#@text@</string>
@@ -744,9 +680,25 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>%1$d संदेश डिलीट करें</string>
+			<string>%1$d आइटम डिलीट करें?</string>
 			<key>other</key>
-			<string>%1$d संदेश डिलीट करें</string>
+			<string>%1$d आइटम डिलीट करें?</string>
+		</dict>
+	</dict>
+	<key>MEDIA_GALLERY_DELETE_MEDIA_TOAST</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>एक आइटम हटाया गया</string>
+			<key>other</key>
+			<string>%1$d आइटम हटाया गया</string>
 		</dict>
 	</dict>
 	<key>MEDIA_GALLERY_ITEM_IMAGE_COUNT_%d</key>
@@ -779,6 +731,22 @@
 			<string>%1$d आइटम</string>
 			<key>other</key>
 			<string>%1$d आइटम</string>
+		</dict>
+	</dict>
+	<key>MEDIA_PAGE_FORWARD_MEDIA_CONFIRM_TITLE_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d को फ़ॉरवर्ड करें</string>
+			<key>other</key>
+			<string>%1$d को फ़ॉरवर्ड करें</string>
 		</dict>
 	</dict>
 	<key>MESSAGES_VIEW_GROUP_N_MEMBERS_BLOCKED_%d</key>
@@ -941,22 +909,6 @@
 			<string>%1$d व्यूअर</string>
 		</dict>
 	</dict>
-	<key>ONBOARDING_2FA_INVALID_PIN_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@caption@</string>
-		<key>caption</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>गलत पिन| %1$d प्रयास बाकी।</string>
-			<key>other</key>
-			<string>गलत पिन। %1$d प्रयास बाकी।</string>
-		</dict>
-	</dict>
 	<key>PENDING_GROUP_MEMBERS_MEMBER_INVITED_USERS_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -1053,36 +1005,20 @@
 			<string>कस्टम स्टोरी · %1$d व्यूअर</string>
 		</dict>
 	</dict>
-	<key>REGISTER_2FA_INVALID_PIN_ALERT_MESSAGE_%d</key>
+	<key>REREGISTER_INVALID_PIN_ATTEMPT_COUNT_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@caption@</string>
-		<key>caption</key>
+		<string>%#@text@</string>
+		<key>text</key>
 		<dict>
 			<key>NSStringFormatSpecTypeKey</key>
 			<string>NSStringPluralRuleType</string>
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>आपका 1 प्रयास बाकी है। यदि आपके प्रयास समाप्त हो जाएँ तो आप एक नया पिन बना सकते हैं। आप रजिस्टर करके अपना अकाउंट इस्तेमाल कर सकते हैं, लेकिन आपकी कुछ सहेजी हुई सेटिंग्स चली जाएंगी, जैसे कि आपकी प्रोफ़ाइल संबंधी जानकारी।</string>
+			<string>%1$d प्रयास</string>
 			<key>other</key>
-			<string>आपके %1$d प्रयास बाकी हैं। यदि आपके प्रयास समाप्त हो जाएँ तो आप एक नया पिन बना सकते हैं। आप रजिस्टर करके अपना अकाउंट इस्तेमाल कर सकते हैं, लेकिन आपकी कुछ सहेजी हुई सेटिंग्स चली जाएंगी, जैसे कि आपकी प्रोफ़ाइल संबंधी जानकारी।</string>
-		</dict>
-	</dict>
-	<key>REGISTER_2FA_INVALID_PIN_ALERT_MESSAGE_REGLOCK_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@caption@</string>
-		<key>caption</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>आपका 1 प्रयास बाकी है। यदि आपके प्रयास समाप्त हो जाएँ तो आपका अकाउंट लॉक हो जाएगा। 7 दिनों तक निष्क्रीय रहने के बाद आप अपने पिन के बिना फिर से रजिस्टर कर सकते हैं। आपका अकाउंट हटा दिया जाएगा व उसका सारा कंटेंट डिलीट कर दिया जाएगा।</string>
-			<key>other</key>
-			<string>आपके %1$d प्रयास बाकी हैं। यदि आपके प्रयास समाप्त हो जाएँ तो आपका अकाउंट लॉक हो जाएगा। 7 दिनों तक निष्क्रीय रहने के बाद आप अपने पिन के बिना फिर से रजिस्टर कर सकते हैं। आपका अकाउंट हटा दिया जाएगा व उसका सारा कंटेंट डिलीट कर दिया जाएगा।</string>
+			<string>%1$d प्रयास</string>
 		</dict>
 	</dict>
 	<key>STORIES_SHARESHEET_PARTIAL_SEND_SUBTITLE_%d</key>

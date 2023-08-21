@@ -3,7 +3,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalCoreKit
+import SignalServiceKit
+import SignalUI
+import UIKit
 
 protocol AttachmentFormatPickerDelegate: AnyObject {
     func didTapCamera()
@@ -26,10 +29,10 @@ class AttachmentFormatPickerView: UICollectionView {
         }
     }
 
-    private let collectionViewFlowLayout = UICollectionViewFlowLayout()
+    private let collectionViewFlowLayout = RTLEnabledCollectionViewFlowLayout()
 
     private var isGroup: Bool {
-        guard let attachmentFormatPickerDelegate = attachmentFormatPickerDelegate else {
+        guard let attachmentFormatPickerDelegate else {
             owsFailDebug("Missing attachmentFormatPickerDelegate.")
             return false
         }
@@ -146,7 +149,7 @@ extension AttachmentFormatPickerView: UICollectionViewDataSource {
     }
 }
 
-class AttachmentFormatCell: UICollectionViewCell {
+private class AttachmentFormatCell: UICollectionViewCell {
 
     static let reuseIdentifier = "AttachmentFormatCell"
 
@@ -169,7 +172,7 @@ class AttachmentFormatCell: UICollectionViewCell {
         imageView.autoSetDimensions(to: CGSize(square: 32))
         imageView.contentMode = .scaleAspectFit
 
-        label.font = UIFont.ows_dynamicTypeFootnoteClamped.ows_semibold
+        label.font = UIFont.dynamicTypeFootnoteClamped.semibold()
         label.textColor = Theme.attachmentKeyboardItemImageColor
         label.textAlignment = .center
         label.adjustsFontSizeToFitWidth = true
@@ -205,33 +208,28 @@ class AttachmentFormatCell: UICollectionViewCell {
 
         switch type {
         case .camera:
-            text = NSLocalizedString("ATTACHMENT_KEYBOARD_CAMERA", comment: "A button to open the camera from the Attachment Keyboard")
-            imageName = Theme.iconName(.attachmentCamera)
+            text = OWSLocalizedString("ATTACHMENT_KEYBOARD_CAMERA", comment: "A button to open the camera from the Attachment Keyboard")
+            imageName = "camera-28"
         case .contact:
-            text = NSLocalizedString("ATTACHMENT_KEYBOARD_CONTACT", comment: "A button to select a contact from the Attachment Keyboard")
-            imageName = Theme.iconName(.attachmentContact)
+            text = OWSLocalizedString("ATTACHMENT_KEYBOARD_CONTACT", comment: "A button to select a contact from the Attachment Keyboard")
+            imageName = "person-circle-28"
         case .file:
-            text = NSLocalizedString("ATTACHMENT_KEYBOARD_FILE", comment: "A button to select a file from the Attachment Keyboard")
-            imageName = Theme.iconName(.attachmentFile)
+            text = OWSLocalizedString("ATTACHMENT_KEYBOARD_FILE", comment: "A button to select a file from the Attachment Keyboard")
+            imageName = "file-28"
         case .gif:
-            text = NSLocalizedString("ATTACHMENT_KEYBOARD_GIF", comment: "A button to select a GIF from the Attachment Keyboard")
-            imageName = Theme.iconName(.attachmentGif)
+            text = OWSLocalizedString("ATTACHMENT_KEYBOARD_GIF", comment: "A button to select a GIF from the Attachment Keyboard")
+            imageName = "gif-28"
         case .location:
-            text = NSLocalizedString("ATTACHMENT_KEYBOARD_LOCATION", comment: "A button to select a location from the Attachment Keyboard")
-            imageName = Theme.iconName(.attachmentLocation)
+            text = OWSLocalizedString("ATTACHMENT_KEYBOARD_LOCATION", comment: "A button to select a location from the Attachment Keyboard")
+            imageName = "location-28"
         case .payment:
-            text = NSLocalizedString("ATTACHMENT_KEYBOARD_PAYMENT", comment: "A button to select a payment from the Attachment Keyboard")
-            imageName = Theme.iconName(.attachmentPayment)
-        }
-
-        // The light theme images come with a background baked in, so we don't tint them.
-        if Theme.isDarkThemeEnabled {
-            imageView.setTemplateImageName(imageName, tintColor: Theme.attachmentKeyboardItemImageColor)
-        } else {
-            imageView.setImage(imageName: imageName)
+            text = OWSLocalizedString("ATTACHMENT_KEYBOARD_PAYMENT", comment: "A button to select a payment from the Attachment Keyboard")
+            imageName = "payment-28"
         }
 
         label.text = text
+        imageView.image = UIImage(imageLiteralResourceName: imageName)
+        imageView.tintColor = Theme.isDarkThemeEnabled ? Theme.attachmentKeyboardItemImageColor : Theme.primaryIconColor
 
         self.accessibilityIdentifier = UIView.accessibilityIdentifier(in: self, name: "format-\(type.rawValue)")
     }

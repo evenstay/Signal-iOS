@@ -71,7 +71,7 @@ public class CVComponentMessage: CVComponentBase, CVRootComponent {
         buildComponentStates()
     }
 
-    private var sharpCorners: OWSDirectionalRectCorner {
+    var sharpCorners: OWSDirectionalRectCorner {
         var result: OWSDirectionalRectCorner = []
 
         if !itemViewState.isFirstInCluster {
@@ -537,7 +537,7 @@ public class CVComponentMessage: CVComponentBase, CVRootComponent {
             // Send failures are rare, so it's cheaper to only build these views when we need them.
             let sendFailureBadge = CVImageView()
             sendFailureBadge.contentMode = .center
-            sendFailureBadge.setTemplateImageName("error-outline-24", tintColor: badgeConfig.color)
+            sendFailureBadge.setTemplateImageName("error-circle", tintColor: badgeConfig.color)
             if conversationStyle.hasWallpaper {
                 sendFailureBadge.backgroundColor = conversationStyle.bubbleColorIncoming
                 sendFailureBadge.layer.cornerRadius = sendFailureBadgeSize / 2
@@ -583,14 +583,12 @@ public class CVComponentMessage: CVComponentBase, CVRootComponent {
             swipeToReplyIconView.backgroundColor = conversationStyle.bubbleColorIncoming
             swipeToReplyIconView.clipsToBounds = true
             swipeToReplySize = 34
-            swipeToReplyIconView.setTemplateImageName("reply-outline-20",
-                                                      tintColor: .ows_gray45)
+            swipeToReplyIconView.setTemplateImageName("reply-20", tintColor: .ows_gray45)
         } else {
             swipeToReplyIconView.backgroundColor = .clear
             swipeToReplyIconView.clipsToBounds = false
             swipeToReplySize = 24
-            swipeToReplyIconView.setTemplateImageName("reply-outline-24",
-                                                      tintColor: .ows_gray45)
+            swipeToReplyIconView.setTemplateImageName("reply", tintColor: .ows_gray45)
         }
         hInnerStack.addLayoutBlock { _ in
             guard let superview = swipeToReplyView.superview else {
@@ -1147,14 +1145,14 @@ public class CVComponentMessage: CVComponentBase, CVRootComponent {
 
         if isIncoming {
             if let accessibilityAuthorName = itemViewState.accessibilityAuthorName {
-                let format = NSLocalizedString("CONVERSATION_VIEW_CELL_ACCESSIBILITY_SENDER_FORMAT",
+                let format = OWSLocalizedString("CONVERSATION_VIEW_CELL_ACCESSIBILITY_SENDER_FORMAT",
                                                comment: "Format for sender info for accessibility label for message. Embeds {{ the sender name }}.")
                 elements.append(String(format: format, accessibilityAuthorName))
             } else {
                 owsFailDebug("Missing accessibilityAuthorName.")
             }
         } else if isOutgoing {
-            elements.append(NSLocalizedString("CONVERSATION_VIEW_CELL_ACCESSIBILITY_SENDER_LOCAL_USER",
+            elements.append(OWSLocalizedString("CONVERSATION_VIEW_CELL_ACCESSIBILITY_SENDER_LOCAL_USER",
                                               comment: "Format for sender info for outgoing messages."))
         }
 
@@ -1607,8 +1605,7 @@ public class CVComponentMessage: CVComponentBase, CVRootComponent {
             return true
         }
 
-        if let subcomponentAndView = findComponentAndView(sender: sender,
-                                                          componentView: componentView) {
+        for subcomponentAndView in findComponentAndViews(sender: sender, componentView: componentView) {
             let subcomponent = subcomponentAndView.component
             let subcomponentView = subcomponentAndView.componentView
             Logger.verbose("key: \(subcomponentAndView.key)")
@@ -1658,9 +1655,11 @@ public class CVComponentMessage: CVComponentBase, CVRootComponent {
             .quotedReply: .quotedReply
             // TODO: linkPreview?
         ]
+        // Recognize the correct message type when tapping next to the message itself
+        let hotArea = UIEdgeInsets(hMargin: -.greatestFiniteMagnitude, vMargin: 0)
         for (key, gestureLocation) in longPressKeys {
             if let subcomponentView = componentView.subcomponentView(key: key),
-               subcomponentView.rootView.containsGestureLocation(sender) {
+               subcomponentView.rootView.containsGestureLocation(sender, hotAreaInsets: hotArea) {
                 return CVLongPressHandler(delegate: componentDelegate,
                                           renderItem: renderItem,
                                           gestureLocation: gestureLocation)
@@ -1675,16 +1674,18 @@ public class CVComponentMessage: CVComponentBase, CVRootComponent {
     // For a configured & active cell, this will return the list of
     // currently active subcomponents & their corresponding subcomponent
     // views. This can be used for gesture dispatch, etc.
-    private func findComponentAndView(sender: UIGestureRecognizer,
-                                      componentView: CVComponentViewMessage) -> CVComponentAndView? {
-        for subcomponentAndView in activeComponentAndViews(messageView: componentView) {
+    private func findComponentAndViews(
+        sender: UIGestureRecognizer,
+        componentView: CVComponentViewMessage
+    ) -> [CVComponentAndView] {
+        return activeComponentAndViews(messageView: componentView).compactMap { subcomponentAndView in
             let subcomponentView = subcomponentAndView.componentView
             let rootView = subcomponentView.rootView
             if rootView.containsGestureLocation(sender) {
                 return subcomponentAndView
             }
+            return nil
         }
-        return nil
     }
 
     // For a configured & active cell, this will return the list of
@@ -2222,7 +2223,7 @@ public class CVComponentMessage: CVComponentBase, CVRootComponent {
             avatarView.frame = componentView.avatarView.bounds
             let isRTL = CurrentAppContext().isRTL
             let horizontalEdgeAlignment: ContextMenuTargetedPreviewAccessory.AccessoryAlignment.Edge = isRTL ? .trailing : .leading
-            let alignment = ContextMenuTargetedPreviewAccessory.AccessoryAlignment(alignments: [(horizontalEdgeAlignment, .exterior), (.bottom, .interior)], alignmentOffset: CGPoint(x: (isRTL ? 8 : -8), y: 0))
+            let alignment = ContextMenuTargetedPreviewAccessory.AccessoryAlignment(alignments: [(horizontalEdgeAlignment, .exterior), (.bottom, .interior)], alignmentOffset: CGPoint(x: 8, y: 0))
             let avatarViewAccessory = ContextMenuTargetedPreviewAccessory(accessoryView: avatarView, accessoryAlignment: alignment)
             avatarViewAccessory.animateAccessoryPresentationAlongsidePreview = true
             return [avatarViewAccessory]
@@ -2292,11 +2293,11 @@ public class CVComponentMessage: CVComponentBase, CVRootComponent {
         if didChangeActiveDirection {
             switch activeDirection {
             case .right:
-                ImpactHapticFeedback.impactOccured(style: .light)
+                ImpactHapticFeedback.impactOccurred(style: .light)
                 panHandler.percentDrivenTransition?.cancel()
                 panHandler.percentDrivenTransition = nil
             case .left:
-                ImpactHapticFeedback.impactOccured(style: .light)
+                ImpactHapticFeedback.impactOccurred(style: .light)
                 panHandler.percentDrivenTransition = UIPercentDrivenInteractiveTransition()
                 componentDelegate.didTapShowMessageDetail(CVItemViewModelImpl(renderItem: renderItem))
             case .none:

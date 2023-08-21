@@ -3,20 +3,19 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalServiceKit
 
 // MARK: - Enqueue messages
 
-@objc
-public extension ThreadUtil {
+public final class ThreadUtil: Dependencies {
 
-    typealias PersistenceCompletion = () -> Void
+    public typealias PersistenceCompletion = () -> Void
 
     // A serial queue that ensures that messages are sent in the
     // same order in which they are enqueued.
-    static var enqueueSendQueue: DispatchQueue { .sharedUserInitiated }
+    public static var enqueueSendQueue: DispatchQueue { .sharedUserInitiated }
 
-    static func enqueueSendAsyncWrite(_ block: @escaping (SDSAnyWriteTransaction) -> Void) {
+    public static func enqueueSendAsyncWrite(_ block: @escaping (SDSAnyWriteTransaction) -> Void) {
         enqueueSendQueue.async {
             Self.databaseStorage.write { transaction in
                 block(transaction)
@@ -25,24 +24,13 @@ public extension ThreadUtil {
     }
 
     @discardableResult
-    class func enqueueMessage(withContactShare contactShare: OWSContact,
-                              thread: TSThread) -> TSOutgoingMessage {
-        AssertIsOnMainThread()
-        assert(contactShare.ows_isValid())
-
-        let builder = TSOutgoingMessageBuilder(thread: thread)
-        builder.contactShare = contactShare
-
-        return enqueueMessage(outgoingMessageBuilder: builder, thread: thread)
-    }
-
-    @discardableResult
-    class func enqueueMessage(outgoingMessageBuilder builder: TSOutgoingMessageBuilder,
-                              thread: TSThread) -> TSOutgoingMessage {
-
-        let message: TSOutgoingMessage = databaseStorage.read { transaction in
-            builder.expiresInSeconds = thread.disappearingMessagesDuration(with: transaction)
-            return builder.build(transaction: transaction)
+    class func enqueueMessage(
+        outgoingMessageBuilder builder: TSOutgoingMessageBuilder,
+        thread: TSThread
+    ) -> TSOutgoingMessage {
+        let message: TSOutgoingMessage = databaseStorage.read { tx in
+            applyDisappearingMessagesConfiguration(to: builder, tx: tx.asV2Read)
+            return builder.build(transaction: tx)
         }
 
         Self.enqueueSendAsyncWrite { transaction in
@@ -55,23 +43,27 @@ public extension ThreadUtil {
     }
 
     @discardableResult
-    class func enqueueMessage(outgoingMessageBuilder builder: TSOutgoingMessageBuilder,
-                              thread: TSThread,
-                              transaction: SDSAnyWriteTransaction) -> TSOutgoingMessage {
-
-        builder.expiresInSeconds = thread.disappearingMessagesDuration(with: transaction)
-
+    class func enqueueMessage(
+        outgoingMessageBuilder builder: TSOutgoingMessageBuilder,
+        thread: TSThread,
+        transaction: SDSAnyWriteTransaction
+    ) -> TSOutgoingMessage {
+        applyDisappearingMessagesConfiguration(to: builder, tx: transaction.asV2Read)
         let message = builder.build(transaction: transaction)
+
         message.anyInsert(transaction: transaction)
         self.sskJobQueues.messageSenderJobQueue.add(message: message.asPreparer, transaction: transaction)
-
         if message.hasRenderableContent() { thread.donateSendMessageIntent(for: message, transaction: transaction) }
 
         return message
     }
 
-    @nonobjc
-    class func enqueueMessagePromise(
+    private static func applyDisappearingMessagesConfiguration(to builder: TSOutgoingMessageBuilder, tx: DBReadTransaction) {
+        let dmConfigurationStore = DependenciesBridge.shared.disappearingMessagesConfigurationStore
+        builder.expiresInSeconds = dmConfigurationStore.durationSeconds(for: builder.thread, tx: tx)
+    }
+
+    public class func enqueueMessagePromise(
         message: TSOutgoingMessage,
         limitToCurrentProcessLifetime: Bool = false,
         isHighPriority: Bool = false,
@@ -85,11 +77,167 @@ public extension ThreadUtil {
             transaction: transaction
         )
         if message.hasRenderableContent() {
-            message
-                .thread(transaction: transaction)
-                .donateSendMessageIntent(for: message, transaction: transaction)
+            message.thread(tx: transaction)?.donateSendMessageIntent(for: message, transaction: transaction)
         }
         return promise
+    }
+}
+
+// MARK: - Contact Shares
+
+public extension ThreadUtil {
+
+    @discardableResult
+    class func enqueueMessage(withContactShare contactShare: OWSContact, thread: TSThread) -> TSOutgoingMessage {
+        AssertIsOnMainThread()
+        assert(contactShare.ows_isValid())
+
+        let builder = TSOutgoingMessageBuilder(thread: thread)
+        builder.contactShare = contactShare
+
+        return enqueueMessage(outgoingMessageBuilder: builder, thread: thread)
+    }
+}
+
+// MARK: - Stickers
+
+public extension ThreadUtil {
+
+    @discardableResult
+    class func enqueueMessage(withInstalledSticker stickerInfo: StickerInfo, thread: TSThread) -> TSOutgoingMessage {
+        AssertIsOnMainThread()
+
+        let builder = TSOutgoingMessageBuilder.outgoingMessageBuilder(thread: thread)
+        let message = databaseStorage.read { tx in
+            applyDisappearingMessagesConfiguration(to: builder, tx: tx.asV2Read)
+            return builder.build(transaction: tx)
+        }
+
+        DispatchQueue.global().async {
+            guard let stickerMetadata = StickerManager.installedStickerMetadataWithSneakyTransaction(stickerInfo: stickerInfo) else {
+                owsFailDebug("Could not find sticker file.")
+                return
+            }
+
+            guard let stickerData = try? Data(contentsOf: stickerMetadata.stickerDataUrl) else {
+                owsFailDebug("Couldn't load sticker data.")
+                return
+            }
+
+            let stickerDraft = MessageStickerDraft(
+                info: stickerInfo,
+                stickerData: stickerData,
+                stickerType: stickerMetadata.stickerType,
+                emoji: stickerMetadata.firstEmoji
+            )
+            enqueueMessage(message, stickerDraft: stickerDraft, thread: thread)
+        }
+        return message
+    }
+
+    @discardableResult
+    class func enqueueMessage(
+        withUninstalledSticker stickerMetadata: StickerMetadata,
+        stickerData: Data,
+        thread: TSThread
+    ) -> TSOutgoingMessage {
+        AssertIsOnMainThread()
+
+        let builder = TSOutgoingMessageBuilder.outgoingMessageBuilder(thread: thread)
+        let message = databaseStorage.read { tx in
+            applyDisappearingMessagesConfiguration(to: builder, tx: tx.asV2Read)
+            return builder.build(transaction: tx)
+        }
+
+        let stickerDraft = MessageStickerDraft(
+            info: stickerMetadata.stickerInfo,
+            stickerData: stickerData,
+            stickerType: stickerMetadata.stickerType,
+            emoji: stickerMetadata.firstEmoji
+        )
+
+        enqueueMessage(message, stickerDraft: stickerDraft, thread: thread)
+
+        return message
+    }
+
+    private class func enqueueMessage(_ message: TSOutgoingMessage, stickerDraft: MessageStickerDraft, thread: TSThread) {
+        AssertIsOnMainThread()
+        enqueueSendAsyncWrite { tx in
+            let messageSticker: MessageSticker
+            do {
+                messageSticker = try MessageSticker.buildValidatedMessageSticker(fromDraft: stickerDraft, transaction: tx)
+            } catch {
+                return owsFailDebug("Couldn't send sticker: \(error)")
+            }
+
+            message.anyInsert(transaction: tx)
+            message.update(with: messageSticker, transaction: tx)
+
+            self.sskJobQueues.messageSenderJobQueue.add(message: message.asPreparer, transaction: tx)
+
+            thread.donateSendMessageIntent(for: message, transaction: tx)
+        }
+    }
+}
+
+// MARK: - Profile Whitelist
+
+extension ThreadUtil {
+    private static func shouldSetUniversalTimer(for thread: TSThread, tx: SDSAnyReadTransaction) -> Bool {
+        GRDBThreadFinder.shouldSetDefaultDisappearingMessageTimer(thread: thread, transaction: tx.unwrapGrdbRead)
+    }
+
+    private static func setUniversalTimer(for thread: TSThread, tx: SDSAnyWriteTransaction) {
+        let dmConfigurationStore = DependenciesBridge.shared.disappearingMessagesConfigurationStore
+        let dmUniversalToken = dmConfigurationStore.fetchOrBuildDefault(for: .universal, tx: tx.asV2Read).asToken
+        let dmResult = dmConfigurationStore.set(token: dmUniversalToken, for: .thread(thread), tx: tx.asV2Write)
+        OWSDisappearingConfigurationUpdateInfoMessage(
+            thread: thread,
+            configuration: dmResult.newConfiguration,
+            createdByRemoteName: nil,
+            createdInExistingGroup: false
+        ).anyInsert(transaction: tx)
+    }
+
+    private static func shouldAddThreadToProfileWhitelist(_ thread: TSThread, tx: SDSAnyReadTransaction) -> Bool {
+        let hasPendingMessageRequest = thread.hasPendingMessageRequest(transaction: tx.unwrapGrdbRead)
+
+        // If we're creating this thread or we have a pending message request,
+        // any action we trigger should share our profile.
+        return !thread.shouldThreadBeVisible || hasPendingMessageRequest
+    }
+
+    @discardableResult
+    public class func addThreadToProfileWhitelistIfEmptyOrPendingRequestAndSetDefaultTimerWithSneakyTransaction(
+        _ thread: TSThread
+    ) -> Bool {
+        let (shouldSetUniversalTimer, shouldAddToProfileWhitelist) = databaseStorage.read { tx in
+            (Self.shouldSetUniversalTimer(for: thread, tx: tx), shouldAddThreadToProfileWhitelist(thread, tx: tx))
+        }
+        if shouldSetUniversalTimer {
+            databaseStorage.write { tx in setUniversalTimer(for: thread, tx: tx) }
+        }
+        if shouldAddToProfileWhitelist {
+            databaseStorage.write { tx in profileManager.addThread(toProfileWhitelist: thread, transaction: tx) }
+        }
+        return shouldAddToProfileWhitelist
+    }
+
+    @discardableResult
+    public class func addThreadToProfileWhitelistIfEmptyOrPendingRequest(
+        _ thread: TSThread,
+        setDefaultTimerIfNecessary: Bool,
+        tx: SDSAnyWriteTransaction
+    ) -> Bool {
+        if shouldSetUniversalTimer(for: thread, tx: tx) {
+            setUniversalTimer(for: thread, tx: tx)
+        }
+        let shouldAddToProfileWhitelist = shouldAddThreadToProfileWhitelist(thread, tx: tx)
+        if shouldAddToProfileWhitelist {
+            profileManager.addThread(toProfileWhitelist: thread, transaction: tx)
+        }
+        return shouldAddToProfileWhitelist
     }
 }
 
@@ -120,7 +268,6 @@ extension ThreadUtil {
 // MARK: - Sharing Suggestions
 
 import Intents
-import SignalServiceKit
 
 extension TSThread {
 
@@ -128,12 +275,7 @@ extension TSThread {
     /// initiates message sending via the UI. It should *not*
     /// be called for messages we send automatically, like
     /// receipts.
-    @objc(donateSendMessageIntentForOutgoingMessage:transaction:)
     public func donateSendMessageIntent(for outgoingMessage: TSOutgoingMessage, transaction: SDSAnyReadTransaction) {
-        // We never need to do this pre-iOS 13, because sharing
-        // suggestions aren't support in previous iOS versions.
-        guard #available(iOS 13, *) else { return }
-
         // Never donate for story sends or replies, we don't want them as share suggestions
         guard
             !(outgoingMessage is OutgoingStoryMessage),
@@ -161,10 +303,6 @@ extension TSThread {
     }
 
     public func generateSendMessageIntent(context: IntentContext, transaction: SDSAnyReadTransaction) -> INSendMessageIntent? {
-        // We never need to do this pre-iOS 13, because sharing
-        // suggestions aren't support in previous iOS versions.
-        guard #available(iOS 13, *) else { return nil }
-
         guard SSKPreferences.areIntentDonationsEnabled(transaction: transaction) else { return nil }
 
         guard let localAddress = tsAccountManager.localAddress else {
@@ -257,7 +395,6 @@ extension TSThread {
         return sendMessageIntent
     }
 
-    @available(iOS 13, *)
     public func generateIncomingCallIntent(callerAddress: SignalServiceAddress) -> INIntent? {
         databaseStorage.read { transaction in
             guard !self.isGroupThread else {
@@ -311,7 +448,7 @@ extension TSThread {
     // Use the same point size as chat list avatars, so it's likely cached and ready for the NSE.
     // The NSE cannot read the device scale, so we rely on a cached scale to correctly calculate
     // the appropriate pixel size for our avatars.
-    private static let intentAvatarDiameterPixels: CGFloat = 56 * Environment.preferences.cachedDeviceScale
+    private static let intentAvatarDiameterPixels: CGFloat = 56 * preferences.cachedDeviceScale
 
     private func intentRecipientAvatarImage(recipient: SignalServiceAddress, transaction: SDSAnyReadTransaction) -> INImage? {
         // Generate avatar

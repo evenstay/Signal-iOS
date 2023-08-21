@@ -28,7 +28,43 @@
 /* Accessibility label for a voice memo. */
 "ACCESSIBILITY_LABEL_VOICE_MEMO" = "Mesej suara";
 
-/* Label for 'audio call' button in contact view. */
+/* Users can request a report of their account data. Before they get their account export, they are warned to only share account data with trustworthy sources. This is the button on that warning, and tapping it lets users continue. */
+"ACCOUNT_DATA_REPORT_CONFIRM_EXPORT_CONFIRM_BUTTON" = "Eksport laporan";
+
+/* Users can request a report of their account data. Before they get their account export, they are warned to only share account data with trustworthy sources. This is the message on that warning. */
+"ACCOUNT_DATA_REPORT_CONFIRM_EXPORT_MESSAGE" = "Hanya kongsikan data akaun Signal anda dengan orang atau aplikasi yang anda percayai.";
+
+/* Users can request a report of their account data. If this request fails (probably because of a network connection problem), they will see an error sheet. This is the message on that error. */
+"ACCOUNT_DATA_REPORT_ERROR_MESSAGE" = "Periksa sambungan anda dan cuba lagi.";
+
+/* Users can request a report of their account data. If this request fails (probably because of a network connection problem), they will see an error sheet. This is the title on that error. */
+"ACCOUNT_DATA_REPORT_ERROR_TITLE" = "Tidak Dapat Menjana Laporan";
+
+/* Users can request a report of their account data. They can choose to export it as plain text (TXT) or as JSON. This is the subtitle on the button that switches to JSON mode. */
+"ACCOUNT_DATA_REPORT_EXPORT_AS_JSON_SUBTITLE" = "Fail mudah dibaca mesin";
+
+/* Users can request a report of their account data. They can choose to export it as plain text (TXT) or as JSON. This is the title on the button that switches to JSON mode. */
+"ACCOUNT_DATA_REPORT_EXPORT_AS_JSON_TITLE" = "Eksport sebagai JSON";
+
+/* Users can request a report of their account data. They can choose to export it as plain text (TXT) or as JSON. This is the subtitle on the button that switches to plain text mode. */
+"ACCOUNT_DATA_REPORT_EXPORT_AS_TXT_SUBTITLE" = "Fail teks mudah dibaca";
+
+/* Users can request a report of their account data. They can choose to export it as plain text (TXT) or as JSON. This is the title on the button that switches to plain text mode. */
+"ACCOUNT_DATA_REPORT_EXPORT_AS_TXT_TITLE" = "Eksport sebagai TXT";
+
+/* Users can request a report of their account data. Users tap this button to export their data. */
+"ACCOUNT_DATA_REPORT_EXPORT_REPORT_BUTTON" = "Eksport laporan";
+
+/* Users can request a report of their account data. This text appears at the bottom of this screen, offering more information. */
+"ACCOUNT_DATA_REPORT_FOOTER" = "Laporan anda dijana hanya pada masa eksport dan tidak disimpan oleh Signal pada peranti anda.";
+
+/* Users can request a report of their account data. This is the subtitle on the screen where they do this, giving them more information. */
+"ACCOUNT_DATA_REPORT_SUBTITLE" = "Muat turun dan eksport laporan data akaun Signal anda. Laporan ini tidak termasuk sebarang mesej atau media.";
+
+/* Users can request a report of their account data. This is the title on the screen where they do this. */
+"ACCOUNT_DATA_REPORT_TITLE" = "Data akaun anda";
+
+/* Label for 'voice call' button in contact view. */
 "ACTION_AUDIO_CALL" = "Panggilan Signal";
 
 /* Label for 'invite' button in contact view. */
@@ -86,13 +122,13 @@
 "ALERT_ACTION_ACKNOWLEDGE" = "Faham";
 
 /* Format string for delivery issue sheet message. Embeds {{ sender name }}. */
-"ALERT_DELIVERY_ISSUE_MESSAGE_FORMAT" = "Mesej, pelekat, reaksi, resit baca atau media tidak dapat disampaikan kepada anda daripada %1$@ dalam sembang ini.";
+"ALERT_DELIVERY_ISSUE_MESSAGE_FORMAT" = "Mesej, pelekat, reaksi, resit baca atau media tidak dapat dihantar kepada anda daripada %1$@ dalam sembang ini.";
 
 /* Title for delivery issue sheet */
 "ALERT_DELIVERY_ISSUE_TITLE" = "Isu penghantaran";
 
 /* Format string for delivery issue sheet message where the original thread is unknown. Embeds {{ sender name }}. */
-"ALERT_DELIVERY_ISSUE_UNKNOWN_THREAD_MESSAGE_FORMAT" = "Mesej, pelekat, reaksi, resit baca atau media tidak dapat disampaikan kepada anda daripada %1$@. Mereka mungkin telah cuba menghantarnya kepada anda secara langsung, atau dalam kumpulan.";
+"ALERT_DELIVERY_ISSUE_UNKNOWN_THREAD_MESSAGE_FORMAT" = "Mesej, pelekat, reaksi, resit baca atau media tidak dapat dihantar kepada anda daripada %1$@. Mereka mungkin telah cuba menghantarnya kepada anda secara terus, atau dalam kumpulan.";
 
 /* The label for the 'discard' button in alerts and action sheets. */
 "ALERT_DISCARD_BUTTON" = "Buang";
@@ -115,6 +151,39 @@
 /* Label for button to learn more about message requests. */
 "ALERT_UNKNOWN_THREAD_WARNING_LEARN_MORE" = "Mengenai Permintaan Mesej";
 
+/* Audio file type in All Meda file type picker. */
+"ALL_MEDIA_FILE_TYPE_AUDIO" = "Audio";
+
+/* Media (i.e., graphical) file type in All Meda file type picker. */
+"ALL_MEDIA_FILE_TYPE_MEDIA" = "Media";
+
+/* Menu option to limit All Media view to displaying only GIFs */
+"ALL_MEDIA_FILTER_GIFS" = "GIF";
+
+/* Menu option to remove content type restriction in All Media view */
+"ALL_MEDIA_FILTER_NONE" = "Semua Media";
+
+/* Menu option to limit All Media view to displaying only photos */
+"ALL_MEDIA_FILTER_PHOTOS" = "Foto";
+
+/* Menu option to limit All Media view to displaying only videos */
+"ALL_MEDIA_FILTER_VIDEOS" = "Video";
+
+/* Menu option to show All Media items in a grid of square thumbnails */
+"ALL_MEDIA_GRID_MODE" = "Grid";
+
+/* Menu option to show All Media items in a single-column list */
+"ALL_MEDIA_LIST_MODE" = "Senarai";
+
+/* Label shown over thumbnails of GIFs in the All Media view */
+"ALL_MEDIA_THUMBNAIL_LABEL_GIF" = "GIF";
+
+/* Label shown by thumbnails of images in the All Media view */
+"ALL_MEDIA_THUMBNAIL_LABEL_IMAGE" = "Imej";
+
+/* Label shown by thumbnails of videos in the All Media view */
+"ALL_MEDIA_THUMBNAIL_LABEL_VIDEO" = "Video";
+
 /* Title for the view of all your signal connections */
 "ALL_SIGNAL_CONNECTIONS_TITLE" = "Semua Hubungan";
 
@@ -127,11 +196,14 @@
 /* Default message for the 'app launch failed' alert. */
 "APP_LAUNCH_FAILURE_ALERT_MESSAGE" = "Signal tidak boleh dilancarkan. Sila hantar log nyahpepijat ke support@signal.org supaya kami dapat menyelesaikan masalah ini.";
 
-/* Title for the 'app launch failed' alert. */
-"APP_LAUNCH_FAILURE_ALERT_TITLE" = "Ralat";
-
 /* Button to try launching the app even though the last launch failed */
 "APP_LAUNCH_FAILURE_CONTINUE" = "Buka Signal Sahaja";
+
+/* Message for an error indicating that the app couldn't launch because some unexpected error happened with the user's registration status. */
+"APP_LAUNCH_FAILURE_CORRUPT_REGISTRATION_MESSAGE" = "Sila hantar log nyahpepijat ke support@signal.org supaya kami boleh menyelesaikan masalah ini.";
+
+/* Title for an error indicating that the app couldn't launch because some unexpected error happened with the user's registration status. */
+"APP_LAUNCH_FAILURE_CORRUPT_REGISTRATION_TITLE" = "Tidak Boleh Membuka Signal";
 
 /* Error indicating that the app could not launch because the database could not be loaded. */
 "APP_LAUNCH_FAILURE_COULD_NOT_LOAD_DATABASE" = "Tidak Dapat Memuatkan Pangkalan Data";
@@ -183,6 +255,45 @@
 
 /* Name indicating that the system theme is enabled. */
 "APPEARANCE_SETTINGS_SYSTEM_THEME_NAME" = "Sistem";
+
+/* Apple Pay donation error for decline failures where authentication is required. */
+"APPLE_PAY_DONATION_ERROR_AUTHENTICATION_REQUIRED" = "Cuba kaedah pembayaran lain atau hubungi bank anda untuk maklumat lebih lanjut.";
+
+/* Apple Pay donation error for decline failures where the user may need to contact their card or bank. */
+"APPLE_PAY_DONATION_ERROR_CALL_ISSUER" = "Semak untuk melihat jika anda menggunakan kaedah pembayaran terkini dalam Apple Pay. Jika tidak, sila kemas kini dan cuba lagi. Jika anda masih menghadapi isu, hubungi bank anda.";
+
+/* Apple Pay donation error for decline failures where the card is not supported. */
+"APPLE_PAY_DONATION_ERROR_CARD_NOT_SUPPORTED" = "Kad anda tidak menyokong pembelian jenis ini. Cuba kaedah pembayaran lain atau hubungi bank anda untuk maklumat lebih lanjut.";
+
+/* Apple Pay donation error for decline failures where the card has expired. */
+"APPLE_PAY_DONATION_ERROR_EXPIRED_CARD" = "Kad anda telah tamat tempoh. Semak untuk melihat jika anda menggunakan kaedah pembayaran terkini dalam Apple Pay. Jika tidak, sila kemas kini dan cuba lagi.";
+
+/* Apple Pay donation error for decline failures where the card number is incorrect. */
+"APPLE_PAY_DONATION_ERROR_INCORRECT_CARD_NUMBER" = "Nombor kad anda tidak tepat. Semak untuk melihat jika kaedah pembayaran anda dimasukkan dengan betul dalam Apple Pay. Jika tidak, sila kemas kini dan cuba lagi.";
+
+/* Apple Pay donation error for decline failures where the card verification code (often called CVV or CVC) is incorrect. */
+"APPLE_PAY_DONATION_ERROR_INCORRECT_CARD_VERIFICATION_CODE" = "Nombor CVC anda tidak betul. Semak jika nombor CVC anda dimasukkan dengan betul dalam Apple Pay. Jika tidak, kemas kini dan cuba lagi.";
+
+/* Apple Pay donation error for decline failures where the card has insufficient funds. */
+"APPLE_PAY_DONATION_ERROR_INSUFFICIENT_FUNDS" = "Kad anda tidak mempunyai baki yang mencukupi untuk pembelian ini. Cuba kaedah pembayaran lain atau hubungi bank anda untuk maklumat lanjut.";
+
+/* Apple Pay donation error for decline failures where the expiration month on the payment method is incorrect. */
+"APPLE_PAY_DONATION_ERROR_INVALID_EXPIRY_MONTH" = "Bulan tamat tempoh pada kaedah pembayaran anda tidak tepat. Kemas kini dalam Apple Pay dan cuba lagi.";
+
+/* Apple Pay donation error for decline failures where the expiration year on the payment method is incorrect. */
+"APPLE_PAY_DONATION_ERROR_INVALID_EXPIRY_YEAR" = "Tahun tamat tempoh pada kaedah pembayaran anda tidak tepat. Kemas kini dalam Apple Pay dan cuba lagi.";
+
+/* Apple Pay donation error for decline failures where the card number is incorrect. */
+"APPLE_PAY_DONATION_ERROR_INVALID_NUMBER" = "Nombor kad anda tidak betul. Kemas kini dalam Apple Pay dan cuba lagi.";
+
+/* Apple Pay donation error for \"issuer not available\" decline failures. The user should try again or contact their card/bank. */
+"APPLE_PAY_DONATION_ERROR_ISSUER_NOT_AVAILABLE" = "Cuba selesaikan pembayaran lagi atau hubungi bank anda untuk maklumat lebih lanjut.";
+
+/* Apple Pay donation error for unspecified decline failures. */
+"APPLE_PAY_DONATION_ERROR_OTHER" = "Cuba kaedah pembayaran lain atau hubungi bank anda untuk maklumat lebih lanjut.";
+
+/* Apple Pay donation error for decline failures where the payment cannot be authorized. */
+"APPLE_PAY_DONATION_ERROR_PAYMENT_CANNOT_BE_AUTHORIZED" = "Semak untuk lihat jika kaedah pembayaran anda adalah terkini dalam Apple Pay. Jika tidak, kemas kini dan cuba lagi.";
 
 /* Name of application */
 "APPLICATION_NAME" = "Signal";
@@ -274,11 +385,14 @@
 /* A button to select a GIF from the Attachment Keyboard */
 "ATTACHMENT_KEYBOARD_GIF" = "GIF";
 
+/* A message on a button prompting the user to go settings to grant Signal photos access. */
+"ATTACHMENT_KEYBOARD_GIVE_PHOTOS_ACCESS" = "Beri Akses";
+
 /* A button to select a location from the Attachment Keyboard */
 "ATTACHMENT_KEYBOARD_LOCATION" = "Lokasi";
 
 /* A string indicating to the user that they'll be able to send photos from this view once they enable photo access. */
-"ATTACHMENT_KEYBOARD_NO_PHOTO_ACCESS" = "Memberi akses kepada foto anda dalam tetapan untuk menghantarnya ke sini.";
+"ATTACHMENT_KEYBOARD_NO_PHOTO_ACCESS" = "Signal memerlukan kebenaran anda untuk menunjukkan gambar-gambar dan video-video anda.";
 
 /* A string indicating to the user that once they take photos, they'll be able to send them from this view. */
 "ATTACHMENT_KEYBOARD_NO_PHOTOS" = "Sebaik sahaja anda telah mengambil gambar, anda akan dapat menghantar pesanan anda di sini.";
@@ -326,7 +440,7 @@
 "AUDIO_ACTIVITY_PLAYBACK_NAME_AUDIO_MESSAGE" = "Mesej Audio";
 
 /* Accessibility label for placing an audio call */
-"AUDIO_CALL_LABEL" = "Panggilan Audio";
+"AUDIO_CALL_LABEL" = "Panggilan suara";
 
 /* action sheet button title to enable built in speaker during a call */
 "AUDIO_ROUTE_BUILT_IN_SPEAKER" = "Pembesar suara";
@@ -379,125 +493,17 @@
 /* Button text when a badge expires, asking users to donate */
 "BADGE_EXPIRED_DONATE_BUTTON" = "Derma";
 
-/* String explaining to the user that their gift badge has expired. Shown on the badge expiration sheet. */
-"BADGE_EXPIRED_GIFT_BODY" = "Lencana hadiah anda telah tamat tempoh dan tidak lagi tersedia untuk dipaparkan pada profil anda.";
-
-/* Title for gift on the badge expiration sheet. */
-"BADGE_EXPIRED_GIFT_TITLE" = "Lencana Hadiah Anda Telah Tamat Tempoh";
-
 /* Text for the 'learn more' link in the badge expiration sheet, shown when a badge expires due to a charge failure */
 "BADGE_EXPIRED_LEARN_MORE_LINK" = "Ketahui lebih lanjut.";
 
 /* Title for subscription on the badge expiration sheet. */
 "BADGE_EXPIRED_SUBSCRIPTION_TITLE" = "Derma bulanan dibatalkan";
 
-/* Text in the sheet that's shown when you gift someone a badge. Embeds {recipient name}. */
-"BADGE_GIFT_THANKS_BODY" = "Anda telah menghadiahkan lencana kepada %1$@. Apabila mereka menebus, mereka diberi pilihan untuk menunjukkan atau menyembunyikan lencana mereka.";
-
-/* Title for the sheet that's shown when you gift someone a badge */
-"BADGE_GIFT_THANKS_TITLE" = "Terima kasih di atas sokongan anda!";
-
-/* Text telling the user that they can add a message along with their gift badge */
-"BADGE_GIFTING_ADDITIONAL_MESSAGE" = "Hadiah anda akan dihantar dalam mesej 1 ke 1 kepada penerima. Tambah mesej anda di bawah.";
-
-/* Placeholder in the text field where you can add text for a message along with your gift */
-"BADGE_GIFTING_ADDITIONAL_MESSAGE_PLACEHOLDER" = "Tambah mesej";
-
-/* Error message indicating that you can't send the gift badge for some reason. */
-"BADGE_GIFTING_CANNOT_SEND_TO_RECIPIENT_GENERIC_ERROR_BODY" = "Tidak boleh menghantar lencana hadiah. Periksa sambungan anda dan cuba lagi.";
-
-/* Title for error message dialog indicating that you can't send the gift badge for some reason. */
-"BADGE_GIFTING_CANNOT_SEND_TO_RECIPIENT_GENERIC_ERROR_TITLE" = "Tidak Boleh Menghantar Lencana Hadiah";
-
-/* Shown on a gift badge message to indicate that it's already expired and can no longer be redeemed. */
-"BADGE_GIFTING_CHAT_EXPIRED" = "Tamat tempoh";
-
-/* Shown on a gift badge message and when tapping a redeemed gift message to denote the presence of a gift badge. */
-"BADGE_GIFTING_CHAT_TITLE" = "Lencana Hadiah";
-
-/* Short paragraph on the screen where you choose a gift badge */
-"BADGE_GIFTING_CHOOSE_BADGE_DESCRIPTION" = "Hadiahkan seseorang lencana dengan menderma kepada Signal. Mereka akan menerima lencana untuk dipaparkan pada profil mereka.";
-
-/* Title on the screen where you choose a gift badge */
-"BADGE_GIFTING_CHOOSE_BADGE_TITLE" = "Hadiahkan Lencana";
-
-/* Title on the screen where you choose a gift badge's recipient */
-"BADGE_GIFTING_CHOOSE_RECIPIENT_TITLE" = "Pilih Penerima";
-
-/* Title on the screen where you confirm sending of a gift badge, and can write a message */
-"BADGE_GIFTING_CONFIRMATION_TITLE" = "Sahkan Hadiah";
-
-/* Error message indicating that a user can't receive gifts. */
-"BADGE_GIFTING_ERROR_RECIPIENT_CANNOT_RECEIVE_GIFT_BADGES_BODY" = "Pengguna ini tidak boleh menerima hadiah sehingga mereka menaik taraf Signal.";
-
-/* Title for error message dialog indicating that a user can't receive gifts. */
-"BADGE_GIFTING_ERROR_RECIPIENT_CANNOT_RECEIVE_GIFT_BADGES_TITLE" = "Tidak Boleh Menghantar Lencana Hadiah";
-
-/* Error message indicating that the person you're trying to send has been blocked. */
-"BADGE_GIFTING_ERROR_RECIPIENT_IS_BLOCKED_BODY" = "Pengguna ini tidak boleh menerima hadiah anda kerana anda menyekat mereka.";
-
-/* Title for error message dialog indicating that the person you're trying to send to has been blocked. */
-"BADGE_GIFTING_ERROR_RECIPIENT_IS_BLOCKED_TITLE" = "Tidak Boleh Menghantar Lencana Hadiah";
-
-/* When gifting a badge, the subtitle 'Send a Gift Badge' under the badge title */
-"BADGE_GIFTING_GIFT_ROW_SUBTITLE" = "Hantar Hadiah Lencana";
-
-/* Text telling the user that their gift is a one-time donation */
-"BADGE_GIFTING_PAYMENT_DESCRIPTION" = "Derma Sekali";
-
-/* Text in the action sheet when you try to send a gift badge but the payment failed. Tells the user that they have not been charged */
-"BADGE_GIFTING_PAYMENT_FAILED_BODY" = "Pembayaran anda tidak boleh diproses dan tiada caj dikenakan. Sila cuba lagi.";
-
-/* Title for the action sheet when you try to send a gift badge but the payment failed */
-"BADGE_GIFTING_PAYMENT_FAILED_TITLE" = "Pembayaran Gagal";
-
-/* Text in the action sheet when you try to send a gift badge. They were charged but the badge could not be sent. They should contact support. */
-"BADGE_GIFTING_PAYMENT_SUCCEEDED_BUT_GIFTING_FAILED_BODY" = "Pembayaran anda telah diproses tetapi Signal tidak boleh menghantar hadiah lencana anda. Sila hubungi sokongan.";
-
-/* Title for the action sheet when you try to send a gift badge. They were charged but the badge could not be sent. They should contact support. */
-"BADGE_GIFTING_PAYMENT_SUCCEEDED_BUT_GIFTING_FAILED_TITLE" = "Hadiah Lencana Gagal";
-
-/* Shown on the list of chats when the most recent message is a gift you received from someone else. */
-"BADGE_GIFTING_PREVIEW_INCOMING" = "🎁 Anda menerima hadiah";
-
-/* Shown on the list of chats when the most recent message is a gift you sent to someone else. */
-"BADGE_GIFTING_PREVIEW_OUTGOING" = "🎁 Anda menghantar hadiah";
-
-/* Label for a button used to redeem a gift and add the gift's badge to your profile. */
-"BADGE_GIFTING_REDEEM" = "Tebus";
-
-/* Shown as the body of an alert when failing to redeem a gift. */
-"BADGE_GIFTING_REDEEM_ERROR_BODY" = "Hadiah anda tidak boleh ditebus. Periksa sambungan anda dan cuba lagi.";
-
-/* Shown as the title of an alert when failing to redeem a gift. */
-"BADGE_GIFTING_REDEEM_ERROR_TITLE" = "Tidak Boleh Menebus Hadiah";
-
-/* A toast that appears at the bottom of the screen after tapping 'Not Now' when redeeming a gift. */
-"BADGE_GIFTING_REDEEM_LATER" = "Anda boleh menebus lencana anda nanti";
-
-/* Appears as the title when redeeming a gift you received. Embed {contact's short name, such as a first name}. */
-"BADGE_GIFTING_REDEEM_TITLE_FORMAT" = "%1$@ menghantarkan hadiah kepada anda";
-
-/* Label for a button to see details about a gift you've already redeemed. The text is shown next to a checkmark. */
-"BADGE_GIFTING_REDEEMED" = "Ditebus";
-
-/* Shown when you're replying to a gift message to indicate that it contains a gift. */
-"BADGE_GIFTING_REPLY" = "Hadiah";
-
-/* When gifting a badge, shows how long the badge lasts. Embeds {formatted duration}. */
-"BADGE_GIFTING_ROW_DURATION" = "Bertahan selama %1$@";
-
-/* A button shown on a gift message you send to view additional details about the badge. */
-"BADGE_GIFTING_VIEW" = "Lihat";
-
-/* Shown when redeeming a gift you received to explain to the user that they've earned a badge. Embed {contact name}. */
-"BADGE_GIFTING_YOU_RECEIVED_FORMAT" = "Anda menerima lencana hadiah daripada %1$@. Paparkan lencana ini pada profil anda untuk menggalakkan lebih ramai orang menderma kepada Signal.";
-
 /* String explaining to the user that their subscription badge has expired on the badge expiry sheet. Embeds {failure-specific sentence(s)}. */
-"BADGE_SUBSCRIPTION_EXPIRED_BECAUSE_OF_CHARGE_FAILURE_BODY_FORMAT" = "Derma bulanan berulang anda telah dibatalkan. %1$@ Lencana anda tidak lagi kelihatan pada profil anda.\n\nUntuk terus menyokong Signal dan mengaktifkan semula lencana anda, kemas kini butiran pembayaran anda dan derma semula.";
+"BADGE_SUBSCRIPTION_EXPIRED_BECAUSE_OF_CHARGE_FAILURE_BODY_FORMAT" = "Derma bulanan berulang anda telah dibatalkan. %1$@ lencana anda tidak lagi kelihatan pada profil anda.\n\nUntuk terus menyokong Signal dan mengaktifkan semula lencana anda, kemas kini butiran pembayaran anda dan derma semula.";
 
 /* Body of the sheet shown when your subscription is canceled due to inactivity */
-"BADGE_SUBSCRIPTION_EXPIRED_BECAUSE_OF_INACTIVITY_BODY_FORMAT" = "Derma bulanan berulang anda telah dibatalkan secara automatik kerana anda tidak aktif terlalu lama. Lencana %1$@ anda tidak lagi kelihatan pada profil anda.\n\nAnda boleh terus menggunakan Signal, namun untuk menyokong aplikasi dan mengaktifkan semula lencana anda, dermalah sekarang.";
+"BADGE_SUBSCRIPTION_EXPIRED_BECAUSE_OF_INACTIVITY_BODY_FORMAT" = "Derma bulanan berulang anda telah dibatalkan secara automatik kerana anda tidak aktif terlalu lama. Lencana %1$@ anda tidak lagi kelihatan pada profil anda.\n\nAnda boleh terus menggunakan Signal, namun untuk menyokong aplikasi dan mengaktifkan semula lencana anda, sila derma sekarang.";
 
 /* When you make a donation to Signal, you will receive a badge. A thank-you sheet appears when this happens. This is the body text on that sheet. */
 "BADGE_THANKS_BODY" = "Anda telah memperoleh lencana penderma daripada Signal! Paparkan pada profil anda untuk menunjukkan sokongan anda.";
@@ -524,7 +530,7 @@
 "BLOCK_LIST_BLOCK_BUTTON" = "Sekat";
 
 /* A format for the 'block group' action sheet title. Embeds the {{group name}}. */
-"BLOCK_LIST_BLOCK_GROUP_TITLE_FORMAT" = "Sekat dan tinggalkan kumpulan \"%1$@\"?";
+"BLOCK_LIST_BLOCK_GROUP_TITLE_FORMAT" = "Sekat dan Keluar dari Kumpulan \"%1$@\"?";
 
 /* A format for the 'block user' action sheet title. Embeds {{the blocked user's name or phone number}}. */
 "BLOCK_LIST_BLOCK_USER_TITLE_FORMAT" = "Sekat %1$@?";
@@ -572,13 +578,13 @@
 "BLOCK_LIST_VIEW_BLOCKED_GROUP_ALERT_TITLE" = "Kumpulan Disekat";
 
 /* The message of the 'You can't block yourself' alert. */
-"BLOCK_LIST_VIEW_CANT_BLOCK_SELF_ALERT_MESSAGE" = "Anda tidak boleh sekat anda sendiri";
+"BLOCK_LIST_VIEW_CANT_BLOCK_SELF_ALERT_MESSAGE" = "Anda tidak boleh sekat diri sendiri.";
 
 /* The title of the 'You can't block yourself' alert. */
 "BLOCK_LIST_VIEW_CANT_BLOCK_SELF_ALERT_TITLE" = "Ralat";
 
 /* Alert title after unblocking a group or 1:1 chat. Embeds the {{conversation title}}. */
-"BLOCK_LIST_VIEW_UNBLOCKED_ALERT_TITLE_FORMAT" = "%1$@ telah dinyahsekat";
+"BLOCK_LIST_VIEW_UNBLOCKED_ALERT_TITLE_FORMAT" = "%1$@ telah dinyahsekat.";
 
 /* Alert body after unblocking a group. */
 "BLOCK_LIST_VIEW_UNBLOCKED_GROUP_ALERT_BODY" = "Ahli-ahli sedia ada sekarang boleh menambah anda ke dalam kumpulan semula.";
@@ -656,19 +662,19 @@
 "CALL_AGAIN_BUTTON_TITLE" = "Panggil Semula";
 
 /* notification body */
-"CALL_AUDIO_INCOMING_NOTIFICATION_BODY" = "📞 Panggilan audio masuk…";
+"CALL_AUDIO_INCOMING_NOTIFICATION_BODY" = "📞 Panggilan suara masuk…";
 
 /* notification body for a missed call in the last 24 hours. Embeds {{time}}, e.g. '3:30 PM'. */
-"CALL_AUDIO_MISSED_24_HOURS_NOTIFICATION_BODY_FORMAT" = "📞 Panggilan audio terlepas pada pukul %1$@";
+"CALL_AUDIO_MISSED_24_HOURS_NOTIFICATION_BODY_FORMAT" = "📞 Panggilan suara terlepas pada pukul %1$@";
 
 /* notification body for a call that was just missed */
-"CALL_AUDIO_MISSED_NOTIFICATION_BODY" = "📞 Panggilan audio tidak dijawab";
+"CALL_AUDIO_MISSED_NOTIFICATION_BODY" = "📞 Panggilan suara terlepas";
 
 /* notification body for a missed call from more than a week ago. Embeds {{short date}}, e.g. '6/28'. */
-"CALL_AUDIO_MISSED_PAST_NOTIFICATION_BODY_FORMAT" = "📞 Panggilan audio terlepas pada %1$@";
+"CALL_AUDIO_MISSED_PAST_NOTIFICATION_BODY_FORMAT" = "📞 Panggilan suara terlepas pada pukul %1$@";
 
 /* notification body for a missed call from the last week. Embeds {{weekday}}, e.g. 'Monday'. */
-"CALL_AUDIO_MISSED_WEEK_NOTIFICATION_BODY_FORMAT" = "📞 Panggilan audio terlepas pada hari %1$@";
+"CALL_AUDIO_MISSED_WEEK_NOTIFICATION_BODY_FORMAT" = "📞 Panggilan suara terlepas pada pukul %1$@";
 
 /* Alert message when calling and permissions for microphone are missing */
 "CALL_AUDIO_PERMISSION_MESSAGE" = "Anda boleh mendayakan akses mikrofon dalam aplikasi Tetapan iOS untuk membuat panggilan dan merakam mesej suara dalam Signal.";
@@ -743,7 +749,7 @@
 "CALL_VIEW_HANGUP_LABEL" = "Tamat panggilan";
 
 /* Accessibility label for muting the microphone */
-"CALL_VIEW_MUTE_LABEL" = "Bisukan";
+"CALL_VIEW_MUTE_LABEL" = "Redamkan";
 
 /* Error displayed on the 'call' view when the callee needs to grant permission before we can call them. Embeds {callee short name}. */
 "CALL_VIEW_NEED_PERMISSION_ERROR_FORMAT" = "%1$@ akan mendapat permintaan mesej daripada anda. Anda boleh membuat panggilan setelah permintaan mesej anda diterima.";
@@ -752,7 +758,7 @@
 "CALL_VIEW_SWITCH_CAMERA_DIRECTION" = "Tukar Arah Kamera";
 
 /* Accessibility label to switch to audio only */
-"CALL_VIEW_SWITCH_TO_AUDIO_LABEL" = "Tukar ke panggilan audio";
+"CALL_VIEW_SWITCH_TO_AUDIO_LABEL" = "Tukar ke panggilan suara";
 
 /* Accessibility label to switch to video call */
 "CALL_VIEW_SWITCH_TO_VIDEO_LABEL" = "Tukar ke panggilan video";
@@ -841,6 +847,9 @@
 /* Title for alert explaining that a user cannot be verified. */
 "CANT_VERIFY_IDENTITY_ALERT_TITLE" = "Ralat";
 
+/* Alert shown when the user needs to exchange messages to see the safety number. */
+"CANT_VERIFY_IDENTITY_EXCHANGE_MESSAGES" = "Nombor keselamatan akan dicipta dengan orang ini selepas anda mesej dengan mereka.";
+
 /* Users can donate to Signal with a credit or debit card. If their card number is invalid, this generic error message will be shown. Try to use a short string to make space in the UI. */
 "CARD_DONATION_CARD_NUMBER_GENERIC_ERROR" = "Nombor kad tidak sah";
 
@@ -901,9 +910,6 @@
 /* Error indicating that the user's old phone number is not valid. */
 "CHANGE_PHONE_NUMBER_INVALID_PHONE_NUMBER_ALERT_MESSAGE_OLD" = "Nombor telefon lama tidak sah. Sila masukkan nombor telefon yang sah untuk menukar nombor anda.";
 
-/* Title of the 'change phone number PIN' view. */
-"CHANGE_PHONE_NUMBER_PIN_EXPLANATION" = "Masukkan PIN untuk nombor telefon yang baru. Ini adalah lain daripada SMS kod pengesahan anda.";
-
 /* The incoming bubble text when setting a chat color. */
 "CHAT_COLOR_INCOMING_MESSAGE" = "Ini pratonton warna sembang.";
 
@@ -926,7 +932,7 @@
 "CHAT_COLOR_SETTINGS_AUTO" = "automatik";
 
 /* Title for the 'delete chat color confirm alert' in the chat color settings view. */
-"CHAT_COLOR_SETTINGS_DELETE_ALERT_TITLE" = "Padamkan Warna";
+"CHAT_COLOR_SETTINGS_DELETE_ALERT_TITLE" = "Padam Warna";
 
 /* Title for the chat color settings view. */
 "CHAT_COLOR_SETTINGS_TITLE" = "Warna Sembang";
@@ -980,7 +986,7 @@
 "CONFIRM_DELETE_LINKED_DATA_TEXT" = "Ini akan menetapkan semula aplikasi dengan memadam semua mesej anda daripada peranti ini. Anda sentiasa boleh pautkan dengan telefon anda sekali lagi, tetapi itu tidak akan memulihkan mesej yang dipadam. Aplikasi akan ditutup selepas proses ini selesai.";
 
 /* No comment provided by engineer. */
-"CONFIRM_DELETE_LINKED_DATA_TITLE" = "Adakah anda pasti mahu padamkan semua data?";
+"CONFIRM_DELETE_LINKED_DATA_TITLE" = "Adakah anda pasti mahu memadam semua data?";
 
 /* Alert body */
 "CONFIRM_LEAVE_GROUP_DESCRIPTION" = "Anda tidak akan dapat menerima atau menghantar mesej dalam kumpulan ini.";
@@ -1183,6 +1189,9 @@
 /* Context menu button title */
 "CONTEXT_MENU_DETAILS" = "Maklumat";
 
+/* Context menu edit button title */
+"CONTEXT_MENU_EDIT_MESSAGE" = "Edit";
+
 /* Context menu button title */
 "CONTEXT_MENU_FORWARD_MESSAGE" = "Hantar";
 
@@ -1205,10 +1214,10 @@
 "CONVERSATION_DELETE_CONFIRMATION_ALERT_MESSAGE" = "Sembang ini akan dipadamkan daripada peranti ini.";
 
 /* Title for the 'conversation delete confirmation' alert. */
-"CONVERSATION_DELETE_CONFIRMATION_ALERT_TITLE" = "Padamkan Sembang?";
+"CONVERSATION_DELETE_CONFIRMATION_ALERT_TITLE" = "Padam Sembang?";
 
 /* Title for the 'conversation mute confirmation' alert. */
-"CONVERSATION_MUTE_CONFIRMATION_ALERT_TITLE" = "Senyapkan sembang ini untuk…";
+"CONVERSATION_MUTE_CONFIRMATION_ALERT_TITLE" = "Redamkan sembang ini untuk...";
 
 /* 1 day */
 "CONVERSATION_MUTE_CONFIRMATION_OPTION_1D" = "1 hari";
@@ -1325,10 +1334,10 @@
 "CONVERSATION_SETTINGS_MENTION_MODE_AlWAYS" = "Sentiasa Maklumkan";
 
 /* label for 'never' option for mention notifications in conversation settings */
-"CONVERSATION_SETTINGS_MENTION_MODE_NEVER" = "Jangan Maklum Jika Diredamkan";
+"CONVERSATION_SETTINGS_MENTION_MODE_NEVER" = "Jangan Beritahu Jika Diredam";
 
 /* Title of the 'mention notification mode' action sheet. */
-"CONVERSATION_SETTINGS_MENTION_NOTIFICATION_MODE_ACTION_SHEET_TITLE" = "Terima pemberitahuan apabila anda menyebut dalam sembang yang dibisukan?";
+"CONVERSATION_SETTINGS_MENTION_NOTIFICATION_MODE_ACTION_SHEET_TITLE" = "Terima pemberitahuan apabila anda disebut dalam sembang yang diredam?";
 
 /* label for 'mentions' cell in conversation settings */
 "CONVERSATION_SETTINGS_MENTIONS_LABEL" = "Sebutan";
@@ -1343,16 +1352,16 @@
 "CONVERSATION_SETTINGS_MUTE_ALWAYS_ACTION" = "Sentiasa";
 
 /* Button to mute the chat */
-"CONVERSATION_SETTINGS_MUTE_BUTTON" = "redam";
+"CONVERSATION_SETTINGS_MUTE_BUTTON" = "redamkan";
 
 /* Label for button to mute a thread for eight hours. */
 "CONVERSATION_SETTINGS_MUTE_EIGHT_HOUR_ACTION" = "8 jam";
 
 /* label for 'mute thread' cell in conversation settings */
-"CONVERSATION_SETTINGS_MUTE_LABEL" = "Bisukan";
+"CONVERSATION_SETTINGS_MUTE_LABEL" = "Redamkan";
 
 /* Indicates that the current thread is not muted. */
-"CONVERSATION_SETTINGS_MUTE_NOT_MUTED" = "Tidak dibisukan";
+"CONVERSATION_SETTINGS_MUTE_NOT_MUTED" = "Tidak diredam";
 
 /* Label for button to mute a thread for a day. */
 "CONVERSATION_SETTINGS_MUTE_ONE_DAY_ACTION" = "1 hari";
@@ -1370,16 +1379,16 @@
 "CONVERSATION_SETTINGS_MUTED_ALWAYS" = "Sentiasa";
 
 /* Indicates that this thread is muted forever. */
-"CONVERSATION_SETTINGS_MUTED_ALWAYS_UNMUTE" = "Sentiasa diredamkan";
+"CONVERSATION_SETTINGS_MUTED_ALWAYS_UNMUTE" = "Sentiasa diredam";
 
 /* Button to unmute the chat */
-"CONVERSATION_SETTINGS_MUTED_BUTTON" = "diredamkan";
+"CONVERSATION_SETTINGS_MUTED_BUTTON" = "diredam";
 
 /* Indicates that this thread is muted until a given date or time. Embeds {{The date or time which the thread is muted until}}. */
 "CONVERSATION_SETTINGS_MUTED_UNTIL_FORMAT" = "sehingga %1$@";
 
 /* Indicates that this thread is muted until a given date or time. Embeds {{The date or time which the thread is muted until}}. */
-"CONVERSATION_SETTINGS_MUTED_UNTIL_UNMUTE_FORMAT" = "Redamkan sehingga %1$@";
+"CONVERSATION_SETTINGS_MUTED_UNTIL_UNMUTE_FORMAT" = "Diredam sehingga %1$@";
 
 /* Label for 'new contact' button in conversation settings view. */
 "CONVERSATION_SETTINGS_NEW_CONTACT" = "Cipta Kenalan Baru";
@@ -1424,7 +1433,7 @@
 "CONVERSATION_SETTINGS_UNBLOCK_USER" = "Nyahsekat Pengguna";
 
 /* Label for button to unmute a thread. */
-"CONVERSATION_SETTINGS_UNMUTE_ACTION" = "Nyahbisukan";
+"CONVERSATION_SETTINGS_UNMUTE_ACTION" = "Nyahredam";
 
 /* Button to start a video call */
 "CONVERSATION_SETTINGS_VIDEO_CALL_BUTTON" = "video";
@@ -1458,6 +1467,36 @@
 
 /* No comment provided by engineer. */
 "COUNTRYCODE_SELECT_TITLE" = "Pilih Kod Negara";
+
+/* Body text for an interactive in-app prompt to set up a Signal username. */
+"CREATE_USERNAME_MEGAPHONE_BODY" = "Nama pengguna membenarkan orang lain menghantar mesej kepada anda tanpa memerlukan nombor telefon anda.";
+
+/* Title for a button in an interactive in-app prompt to set up a Signal username, which will start a create-username flow. */
+"CREATE_USERNAME_MEGAPHONE_SET_UP_BUTTON_TITLE" = "Tetapkan";
+
+/* Title for an interactive in-app prompt to set up a Signal username. */
+"CREATE_USERNAME_MEGAPHONE_TITLE" = "Tetapkan nama pengguna Signal anda";
+
+/* Credit/debit card donation error for decline failures where the card has expired. */
+"CREDIT_OR_DEBIT_CARD_DONATION_ERROR_EXPIRED_CARD" = "Kad anda telah tamat tempoh. Sahkan butiran kad anda adalah betul dan cuba lagi.";
+
+/* Credit/debit card donation error for decline failures where the card number is incorrect. */
+"CREDIT_OR_DEBIT_CARD_DONATION_ERROR_INCORRECT_CARD_NUMBER" = "Nombor kad anda tidak betul. Sahkan butiran kad anda adalah betul dan cuba lagi.";
+
+/* Credit/debit card donation error for decline failures where the card verification code (often called CVV or CVC) is incorrect. */
+"CREDIT_OR_DEBIT_CARD_DONATION_ERROR_INCORRECT_CARD_VERIFICATION_CODE" = "Nombor CVC kad anda tidak betul. Sahkan butiran kad anda adalah betul dan cuba lagi.";
+
+/* Credit/debit card donation error for decline failures where the expiration month on the payment method is incorrect. */
+"CREDIT_OR_DEBIT_CARD_DONATION_ERROR_INVALID_EXPIRY_MONTH" = "Bulan tamat tempoh kad anda tidak betul. Sahkan butiran kad anda adalah betul dan cuba lagi.";
+
+/* Credit/debit card donation error for decline failures where the expiration year on the payment method is incorrect. */
+"CREDIT_OR_DEBIT_CARD_DONATION_ERROR_INVALID_EXPIRY_YEAR" = "Tahun tamat tempoh kad anda tidak betul. Sahkan butiran kad anda adalah betul dan cuba lagi.";
+
+/* Credit/debit card donation error for unspecified decline failures. */
+"CREDIT_OR_DEBIT_CARD_DONATION_ERROR_OTHER" = "Sahkan butiran kad anda adalah betul dan cuba lagi. Jika masalah masih berterusan, hubungi bank anda.";
+
+/* Credit/debit card donation error for decline failures where the payment cannot be authorized. */
+"CREDIT_OR_DEBIT_CARD_DONATION_ERROR_PAYMENT_CANNOT_BE_AUTHORIZED" = "Sahkan butiran kad anda adalah betul dan cuba lagi.";
 
 /* Title for the 'crop/scale image' dialog. */
 "CROP_SCALE_IMAGE_VIEW_TITLE" = "Pindah dan Skalakan";
@@ -1588,6 +1627,12 @@
 /* Accessibility label for the ? vector asset used to get info about debug logs */
 "DEBUG_LOG_INFO_BUTTON" = "Maklumat mengenai log nyahpepijat";
 
+/* info message text in conversation view */
+"DECLINED_AUDIO_CALL" = "Anda menolak panggilan suara";
+
+/* info message text in conversation view */
+"DECLINED_VIDEO_CALL" = "Anda menolak panggilan video";
+
 /* Title for the action sheet 'delete' action of the 'delete account confirmation' view controller. */
 "DELETE_ACCOUNT_CONFIRMATION_ACTION_SHEEET_ACTION" = "Padam Akaun";
 
@@ -1595,7 +1640,7 @@
 "DELETE_ACCOUNT_CONFIRMATION_ACTION_SHEEET_MESSAGE" = "Tindakan ini akan memadamkan akaun Signal anda dan menetapkan semula aplikasi. Aplikasi akan ditutup setelah proses ini selesai.";
 
 /* Title for the action sheet confirmation title of the 'delete account confirmation' view controller. */
-"DELETE_ACCOUNT_CONFIRMATION_ACTION_SHEEET_TITLE" = "Adakah anda pasti mahu padamkan akaun anda?";
+"DELETE_ACCOUNT_CONFIRMATION_ACTION_SHEEET_TITLE" = "Adakah anda pasti mahu memadam akaun anda?";
 
 /* Title for the 'country code' row of the 'delete account confirmation' view controller. */
 "DELETE_ACCOUNT_CONFIRMATION_COUNTRY_CODE_TITLE" = "Kod Negara";
@@ -1625,16 +1670,22 @@
 "DELETE_ACCOUNT_CONFIRMATION_WRONG_NUMBER" = "Nombor telefon yang anda masukkan tidak sepadan dengan akaun anda.";
 
 /* action sheet body */
-"DELETE_ALL_MESSAGES_IN_CONVERSATION_ALERT_BODY" = "Padamkan semua mesej dalam sembang?";
+"DELETE_ALL_MESSAGES_IN_CONVERSATION_ALERT_BODY" = "Padam semua mesej dalam sembang?";
 
 /* button text */
 "DELETE_ALL_MESSAGES_IN_CONVERSATION_BUTTON" = "Padam Semua Mesej";
+
+/* Notification warning the user that they have been de-registered. */
+"DEREGISTRATION_NOTIFICATION" = "Anda telah dilog keluar daripada Signal pada peranti ini.";
 
 /* Label for button that lets users re-register using the same phone number. */
 "DEREGISTRATION_REREGISTER_WITH_SAME_PHONE_NUMBER" = "Daftar semula nombor telefon ini";
 
 /* Label warning the user that they have been de-registered. */
-"DEREGISTRATION_WARNING" = "Peranti tidak lagi didaftarkan. Nombor telefon anda mungkin didaftarkan dengan Signal pada peranti yang berbeza. Ketik untuk mendaftar semula.";
+"DEREGISTRATION_WARNING" = "Peranti tidak lagi didaftarkan. Ini berkemungkinan kerana anda mendaftarkan nombor telefon anda dengan Signal pada peranti lain.";
+
+/* If the user has been deregistered, they'll see a warning. This is This is the call to action on that warning. */
+"DEREGISTRATION_WARNING_ACTION_TITLE" = "Daftar Semula Peranti";
 
 /* {{Short Date}} when device last communicated with Signal Server. */
 "DEVICE_LAST_ACTIVE_AT_LABEL" = "Kali terakhir aktif %1$@";
@@ -1645,6 +1696,12 @@
 /* Alert title that can occur when viewing device manager. */
 "DEVICE_LIST_UPDATE_FAILED_TITLE" = "Gagal untuk mengemas kini senarai peranti";
 
+/* A label for this device in the device list. */
+"DEVICE_NAME_THIS_DEVICE" = "Peranti Ini";
+
+/* A label for an unnamed device in the device list. */
+"DEVICE_NAME_UNNAMED_DEVICE" = "Peranti Tidak Dinamakan";
+
 /* The stop action of the dialog asking the user if they want to cancel a device transfer */
 "DEVICE_TRANSFER_CANCEL_CONFIRMATION_ACTION" = "Hentikan Pemindahan";
 
@@ -1653,9 +1710,6 @@
 
 /* The title of the dialog asking the user if they want to cancel a device transfer */
 "DEVICE_TRANSFER_CANCEL_CONFIRMATION_TITLE" = "Hentikan Pemindahan?";
-
-/* The explanation for the device transfer 'choice' view */
-"DEVICE_TRANSFER_CHOICE_EXPLANATION" = "Jika anda mempunyai peranti iOS lama anda, anda boleh memindahkan akaun dan mesej anda dengan selaamat kepada peranti ini.";
 
 /* The explanation for the device transfer 'choice' view when linking a device */
 "DEVICE_TRANSFER_CHOICE_LINKED_EXPLANATION" = "Jika anda sebelum ini menggunakan Signal pada iPad yang dipautkan, anda boleh memindahkan akaun dan mesej anda dengan selamat kepada peranti ini.";
@@ -1801,23 +1855,38 @@
 /* When users make donations, they can choose which payment method they want to use. This is the text on the button that lets them choose to pay with credit or debit card. */
 "DONATE_CHOOSE_CREDIT_OR_DEBIT_CARD_AS_PAYMENT_METHOD" = "Kad kredit atau debit";
 
-/* When users make monthly donations, they see a sheet that lets them pick a payment method. It also tells them what they'll be doing when they pay: receive a badge. This is the subtitle on that sheet, as well as a similar sheet that is sometimes shown asking users to confirm their payment. Embeds {{localized badge name}}, such as \"Planet\". */
+/* When users make donations on a friend's behalf, they see a sheet that lets them pick a payment method. This is the subtitle on that sheet. Embeds {{recipient's name}}. */
+"DONATE_CHOOSE_PAYMENT_METHOD_SHEET_SUBTITLE_FOR_DONATION_ON_BEHALF_OF_A_FRIEND" = "Bagi pihak %1$@";
+
+/* When users make monthly donations, they see a sheet that lets them pick a payment method. It also tells them what they'll be doing when they pay: receive a badge. This is the subtitle on that sheet. Embeds {{localized badge name}}, such as \"Planet\". */
 "DONATE_CHOOSE_PAYMENT_METHOD_SHEET_SUBTITLE_FOR_MONTHLY_DONATION" = "Dapatkan lencana %1$@";
 
-/* When users make one-time donations, they see a sheet that lets them pick a payment method. It also tells them what they'll be doing when they pay: receive a badge for a month. This is the subtitle on that sheet, as well as a similar sheet that is sometimes shown asking users to confirm their payment. Embeds {{localized badge name}}, such as \"Boost\". */
+/* When users make one-time donations, they see a sheet that lets them pick a payment method. It also tells them what they'll be doing when they pay: receive a badge for a month. This is the subtitle on that sheet. Embeds {{localized badge name}}, such as \"Boost\". */
 "DONATE_CHOOSE_PAYMENT_METHOD_SHEET_SUBTITLE_FOR_ONE_TIME_DONATION" = "Dapatkan lencana %1$@ selama sebulan";
 
-/* When users make monthly donations, they see a sheet that lets them pick a payment method. This is the title on that sheet, as well as a similar sheet that is sometimes shown asking users to confirm their payment. Embeds {{amount of money per month}}, such as \"$5/month\". */
+/* When users make donations on a friend's behalf, they see a sheet that lets them pick a payment method. This is the title on that sheet. Embeds {{amount of money}}, such as \"$5\". */
+"DONATE_CHOOSE_PAYMENT_METHOD_SHEET_TITLE_FOR_DONATION_ON_BEHALF_OF_A_FRIEND" = "%1$@ Derma kepada Signal";
+
+/* When users make monthly donations, they see a sheet that lets them pick a payment method. This is the title on that sheet. Embeds {{amount of money per month}}, such as \"$5/month\". */
 "DONATE_CHOOSE_PAYMENT_METHOD_SHEET_TITLE_FOR_MONTHLY_DONATION" = "Derma %1$@ kepada Signal";
 
-/* When users make one-time donations, they see a sheet that lets them pick a payment method. This is the title on that sheet, as well as a similar sheet that is sometimes shown asking users to confirm their payment. Embeds {{amount of money}}, such as \"$5\". */
+/* When users make one-time donations, they see a sheet that lets them pick a payment method. This is the title on that sheet. Embeds {{amount of money}}, such as \"$5\". */
 "DONATE_CHOOSE_PAYMENT_METHOD_SHEET_TITLE_FOR_ONE_TIME_DONATION" = "Derma %1$@ kepada Signal";
+
+/* Users can donate on a friend's behalf and can optionally add a message. This is tells users about that optional message. */
+"DONATE_ON_BEHALF_OF_A_FRIEND_ADDITIONAL_MESSAGE_INFO" = "Penerima akan dimaklumkan secara terus melalui mesej tentang derma tersebut. Tambah mesej anda sendiri di bawah.";
+
+/* Users can donate on a friend's behalf and can optionally add a message. This is the placeholder in the text field for that additional message. */
+"DONATE_ON_BEHALF_OF_A_FRIEND_ADDITIONAL_MESSAGE_PLACEHOLDER" = "Tambah mesej";
+
+/* If a donation badge has been sent, indicates that it's expired and can no longer be redeemed. This is shown in the chat. */
+"DONATE_ON_BEHALF_OF_A_FRIEND_CHAT_EXPIRED" = "Tamat tempoh";
 
 /* If the user tries to donate to Signal but no amount is selected, this error message is shown. */
 "DONATE_SCREEN_ERROR_NO_AMOUNT_SELECTED" = "Pilih jumlah untuk diderma.";
 
-/* If the user tries to donate to Signal but they've entered an amount that's too small, this error message is shown. */
-"DONATE_SCREEN_ERROR_SELECT_A_LARGER_AMOUNT" = "Pilih jumlah yang lebih besar untuk diderma.";
+/* If the user tries to donate to Signal but they've entered an amount that's too small, this error message is shown. Embeds {{currency string}}, such as \"$5\". */
+"DONATE_SCREEN_ERROR_SELECT_A_LARGER_AMOUNT_FORMAT" = "Jumlah minimum yang anda boleh dermakan ialah %1$@.";
 
 /* On the donation screen, you can choose between one-time and monthly donations. This is the text on the picker for one-time donations. */
 "DONATE_SCREEN_MONTHLY_CHOICE" = "Bulanan";
@@ -1840,50 +1909,107 @@
 /* On the donation screen, if you already have a subscription, you'll see a button to update your subscription. This is the text on that button. */
 "DONATE_SCREEN_UPDATE_MONTHLY_SUBSCRIPTION_BUTTON" = "Kemas Kini Langganan";
 
-/* Users can donate to Signal. They may be asked to confirm their donation after entering payment information. If the user clicks this button, their payment will be confirmed. */
-"DONATION_CONFIRMATION_BUTTON_CONFIRM" = "Complete Donation";
+/* When donating on behalf of a friend, a badge will be sent. This shows how long the badge lasts. Embeds {{formatted duration}}. */
+"DONATION_FOR_A_FRIEND_ROW_DURATION" = "Bertahan selama %1$@";
 
-/* Users can donate to Signal. They may be asked to confirm their donation after entering payment information. This text will show the payment method, such as PayPal, next to it. */
-"DONATION_CONFIRMATION_PAYMENT_METHOD" = "Payment Method";
+/* Someone donated on your behalf and you got a badge, which expired. A sheet appears to tell you about this. This is the text on that sheet. */
+"DONATION_FROM_A_FRIEND_BADGE_EXPIRED_BODY" = "Lencana anda telah tamat tempoh dan tidak lagi tersedia untuk dipaparkan pada profil anda.";
 
-/* Donation payment error for decline failures where authentication is required. */
-"DONATION_PAYMENT_ERROR_AUTHENTICATION_REQUIRED" = "Cuba kaedah pembayaran lain atau hubungi bank anda untuk maklumat lebih lanjut.";
+/* Someone donated on your behalf and you got a badge, which expired. A sheet appears to tell you about this. This is the title on that sheet. */
+"DONATION_FROM_A_FRIEND_BADGE_EXPIRED_TITLE" = "Derma Anda Telah Tamat Tempoh";
 
-/* Donation payment error for decline failures where the user may need to contact their card or bank. */
-"DONATION_PAYMENT_ERROR_CALL_ISSUER" = "Semak untuk melihat jika anda menggunakan kaedah pembayaran terkini dalam Apple Pay. Jika tidak, sila kemas kini dan cuba lagi. Jika anda masih menghadapi isu, hubungi bank anda.";
+/* Someone donated on your behalf and you got a badge, which expired before you could redeem it. A sheet appears to tell you about this. This is the text on that sheet. Embeds {{contact name}}. */
+"DONATION_FROM_A_FRIEND_BADGE_NOT_REDEEMED_BODY_FORMAT" = "Derma anda daripada %1$@ telah tamat tempoh dan tidak lagi boleh ditebus.";
 
-/* Donation payment error for decline failures where the card is not supported. */
-"DONATION_PAYMENT_ERROR_CARD_NOT_SUPPORTED" = "Kad anda tidak menyokong pembelian jenis ini. Cuba kaedah pembayaran lain atau hubungi bank anda untuk maklumat lebih lanjut.";
+/* Someone donated on your behalf and you got a badge, which expired before you could redeem it. A sheet appears to tell you about this. This is the title on that sheet. */
+"DONATION_FROM_A_FRIEND_BADGE_NOT_REDEEMED_TITLE" = "Derma Anda Telah Tamat Tempoh";
 
-/* Donation payment error for decline failures where the card has expired. */
-"DONATION_PAYMENT_ERROR_EXPIRED_CARD" = "Kad anda telah tamat tempoh. Semak untuk melihat jika anda menggunakan kaedah pembayaran terkini dalam Apple Pay. Jika tidak, sila kemas kini dan cuba lagi.";
+/* Label for a button to see details about a badge you've already redeemed, received as a result of a donation from a friend. This text is shown next to a check mark. */
+"DONATION_ON_BEHALF_OF_A_FRIEND_BADGE_REDEEMED" = "Ditebus";
 
-/* Donation payment error for decline failures where the card number is incorrect. */
-"DONATION_PAYMENT_ERROR_INCORRECT_CARD_NUMBER" = "Nombor kad anda tidak tepat. Semak untuk melihat jika kaedah pembayaran anda dimasukkan dengan betul dalam Apple Pay. Jika tidak, sila kemas kini dan cuba lagi.";
+/* Users can donate on behalf of a friend, and the friend will receive a badge. This is a short paragraph on the screen where users choose the badge their friend will receive. */
+"DONATION_ON_BEHALF_OF_A_FRIEND_CHOOSE_BADGE_DESCRIPTION" = "Sokong Signal dengan membuat derma untuk rakan atau ahli keluarga yang menggunakan Signal. Mereka akan diberi pilihan untuk menunjukkan sokongan mereka pada profil mereka.";
 
-/* Donation payment error for decline failures where the card verification code (often called CVV or CVC) is incorrect. */
-"DONATION_PAYMENT_ERROR_INCORRECT_CARD_VERIFICATION_CODE" = "Nombor CVC anda tidak betul. Semak jika nombor CVC anda dimasukkan dengan betul dalam Apple Pay. Jika tidak, kemas kini dan cuba lagi.";
+/* Users can donate on behalf of a friend, and the friend will receive a badge. This is the title on the screen where users choose the badge their friend will receive. */
+"DONATION_ON_BEHALF_OF_A_FRIEND_CHOOSE_BADGE_TITLE" = "Menderma untuk Rakan";
 
-/* Donation payment error for decline failures where the card has insufficient funds. */
-"DONATION_PAYMENT_ERROR_INSUFFICIENT_FUNDS" = "Kad anda tidak mempunyai baki yang mencukupi untuk pembelian ini. Cuba kaedah pembayaran lain atau hubungi bank anda untuk maklumat lanjut.";
+/* Title on the screen where you choose who you're going to donate on behalf of. */
+"DONATION_ON_BEHALF_OF_A_FRIEND_CHOOSE_RECIPIENT_TITLE" = "Pilih Penerima";
 
-/* Donation payment error for decline failures where the expiration month on the payment method is incorrect. */
-"DONATION_PAYMENT_ERROR_INVALID_EXPIRY_MONTH" = "Bulan tamat tempoh pada kaedah pembayaran anda tidak tepat. Kemas kini dalam Apple Pay dan cuba lagi.";
+/* Users can donate on a friend's behalf. This is the title on the screen where users confirm the donation, and can write a message for the friend. */
+"DONATION_ON_BEHALF_OF_A_FRIEND_CONFIRMATION_SCREEN_TITLE" = "Sahkan derma";
 
-/* Donation payment error for decline failures where the expiration year on the payment method is incorrect. */
-"DONATION_PAYMENT_ERROR_INVALID_EXPIRY_YEAR" = "Tahun tamat tempoh pada kaedah pembayaran anda tidak tepat. Kemas kini dalam Apple Pay dan cuba lagi.";
+/* When users make donations on a friend's behalf, a message is sent. This text tells senders that their message will disappear, if the conversation has disappearing messages enabled. Embeds {{duration}}, such as \"1 week\". */
+"DONATION_ON_BEHALF_OF_A_FRIEND_DISAPPEARING_MESSAGES_NOTICE_FORMAT" = "Mesej yang hilang dihidupkan untuk sembang ini. Mesej derma anda akan hilang dalam %1$@.";
 
-/* Donation payment error for decline failures where the card number is incorrect. */
-"DONATION_PAYMENT_ERROR_INVALID_NUMBER" = "Nombor kad anda tidak betul. Kemas kini dalam Apple Pay dan cuba lagi.";
+/* Users can donate on a friend's behalf. If something goes wrong during this donation, such as a network error, this error message is shown. */
+"DONATION_ON_BEHALF_OF_A_FRIEND_GENERIC_SEND_ERROR_BODY" = "Tidak boleh menderma. Periksa sambungan anda dan cuba lagi.";
 
-/* Donation payment error for \"issuer not available\" decline failures. The user should try again or contact their card/bank. */
-"DONATION_PAYMENT_ERROR_ISSUER_NOT_AVAILABLE" = "Cuba selesaikan pembayaran lagi atau hubungi bank anda untuk maklumat lebih lanjut.";
+/* Users can donate on a friend's behalf. If something goes wrong during this donation, such as a network error, an error dialog is shown. This is the title of that dialog. */
+"DONATION_ON_BEHALF_OF_A_FRIEND_GENERIC_SEND_ERROR_TITLE" = "Tidak Boleh Menderma";
 
-/* Donation payment error for unspecified decline failures. */
-"DONATION_PAYMENT_ERROR_OTHER" = "Cuba kaedah pembayaran lain atau hubungi bank anda untuk maklumat lebih lanjut.";
+/* Users can donate on a friend's behalf. This tells users that this will be a one-time donation. */
+"DONATION_ON_BEHALF_OF_A_FRIEND_PAYMENT_DESCRIPTION" = "Derma Sekali";
 
-/* Donation payment error for decline failures where the payment cannot be authorized. */
-"DONATION_PAYMENT_ERROR_PAYMENT_CANNOT_BE_AUTHORIZED" = "Semak untuk lihat jika kaedah pembayaran anda adalah terkini dalam Apple Pay. Jika tidak, kemas kini dan cuba lagi.";
+/* Users can donate on a friend's behalf. If the payment fails and the user has not been charged, this error message is shown. */
+"DONATION_ON_BEHALF_OF_A_FRIEND_PAYMENT_FAILED_ERROR_BODY" = "Pembayaran anda tidak boleh diproses dan tiada caj dikenakan. Sila cuba lagi.";
+
+/* Users can donate on a friend's behalf. If the payment fails and the user has not been charged, an error dialog will be shown. This is the title of that dialog. */
+"DONATION_ON_BEHALF_OF_A_FRIEND_PAYMENT_FAILED_ERROR_TITLE" = "Pembayaran Gagal";
+
+/* Users can donate on a friend's behalf. If the payment was processed but the donation failed to send, this error message will be shown. */
+"DONATION_ON_BEHALF_OF_A_FRIEND_PAYMENT_SUCCEEDED_BUT_MESSAGE_FAILED_ERROR_BODY" = "Pembayaran anda telah diproses tetapi Signal tidak boleh menghantar mesej derma anda. Sila hubungi pusat bantuan.";
+
+/* Users can donate on a friend's behalf. If the payment was processed but the donation failed to send, an error dialog will be shown. This is the title of that dialog. */
+"DONATION_ON_BEHALF_OF_A_FRIEND_PAYMENT_SUCCEEDED_BUT_MESSAGE_FAILED_ERROR_TITLE" = "Derma Gagal";
+
+/* A friend has donated on your behalf. This text is shown in the list of chats, when the most recent message is one of these donations. Embeds {friend's short display name}. */
+"DONATION_ON_BEHALF_OF_A_FRIEND_PREVIEW_INCOMING" = "✨ %1$@ menderma untuk anda";
+
+/* You have a made a donation on a friend's behalf. This text is shown in the list of chats, when the most recent message is one of these donations. Embeds {friend's short display name}. */
+"DONATION_ON_BEHALF_OF_A_FRIEND_PREVIEW_OUTGOING" = "✨ Anda menderma untuk %1$@";
+
+/* You received a donation from a friend. This is the title of that message in the chat. Embeds {{short contact name}}. */
+"DONATION_ON_BEHALF_OF_A_FRIEND_RECEIVED_TITLE_FORMAT" = "%1$@ menderma kepada Signal bagi pihak anda";
+
+/* Users can donate on a friend's behalf. If the friend cannot receive these donations, this error message will be shown. */
+"DONATION_ON_BEHALF_OF_A_FRIEND_RECIPIENT_CANNOT_RECEIVE_DONATION_ERROR_BODY" = "Anda tidak boleh membuat derma untuk pengguna ini sehingga mereka menaik taraf Signal.";
+
+/* Users can donate on a friend's behalf. If the friend cannot receive these donations, an error dialog will be shown. This is the title of that error dialog. */
+"DONATION_ON_BEHALF_OF_A_FRIEND_RECIPIENT_CANNOT_RECEIVE_DONATION_ERROR_TITLE" = "Tidak Boleh Menderma";
+
+/* Users can donate on a friend's behalf. This is the error message that appears if the try to do this, but the recipient is blocked. */
+"DONATION_ON_BEHALF_OF_A_FRIEND_RECIPIENT_IS_BLOCKED_ERROR_BODY" = "Anda tidak boleh membuat derma untuk pengguna ini kerana anda telah menyekat mereka.";
+
+/* Users can donate on a friend's behalf. This is the title for an error message that appears if the try to do this, but the recipient is blocked. */
+"DONATION_ON_BEHALF_OF_A_FRIEND_RECIPIENT_IS_BLOCKED_ERROR_TITLE" = "Tidak Boleh Menderma";
+
+/* Label for a button used to redeem a badge that was received as a donation on your behalf. */
+"DONATION_ON_BEHALF_OF_A_FRIEND_REDEEM_BADGE" = "Tebus";
+
+/* When you receive a badge as a result of a donation from a friend, a screen is shown. This toast is shown when dismissing that screen if you do not redeem the badge. */
+"DONATION_ON_BEHALF_OF_A_FRIEND_REDEEM_BADGE_LATER" = "Anda boleh menebus derma anda kemudian";
+
+/* A friend has donated on your behalf and you received a badge. A sheet opens for you to redeem this badge. Embeds {{contact's short name, such as a first name}}. */
+"DONATION_ON_BEHALF_OF_A_FRIEND_REDEEM_BADGE_TITLE_FORMAT" = "%1$@ membuat derma untuk anda";
+
+/* Shown when you're replying to a donation message. */
+"DONATION_ON_BEHALF_OF_A_FRIEND_REPLY" = "Derma";
+
+/* You sent a donation to a friend. This is the title of that message in the chat. Embeds {{short contact name}}. */
+"DONATION_ON_BEHALF_OF_A_FRIEND_SENT_TITLE_FORMAT" = "Derma bagi pihak %1$@";
+
+/* When you donate on behalf of a friend, a thank-you sheet will appear. This is the text on that sheet. Embeds {{recipient name}}. */
+"DONATION_ON_BEHALF_OF_A_FRIEND_THANKS_BODY_FORMAT" = "Anda telah membuat derma kepada Signal bagi pihak %1$@. Mereka akan diberi pilihan untuk menunjukkan sokongan mereka pada profil mereka.";
+
+/* When you donate on behalf of a friend, a thank-you sheet will appear. This is the title on that sheet. */
+"DONATION_ON_BEHALF_OF_A_FRIEND_THANKS_TITLE" = "Terima kasih atas sokongan anda!";
+
+/* A button shown on a donation message you send, to view additional details about the badge that was sent. */
+"DONATION_ON_BEHALF_OF_A_FRIEND_VIEW" = "Lihat";
+
+/* A friend has donated on your behalf and you received a badge. This text says that you received a badge, and from whom. Embeds {{contact's short name, such as a first name}}. */
+"DONATION_ON_BEHALF_OF_A_FRIEND_YOU_RECEIVED_A_BADGE_FORMAT" = "%1$@ membuat derma kepada Signal bagi pihak anda! Tunjukkan sokongan anda untuk Signal pada profil anda.";
 
 /* There is a screen where users can read more about their donation to Signal. This is the 1st paragraph of that screen. */
 "DONATION_READ_MORE_SCREEN_PARAGRAPH_1" = "Pemesejan peribadi. Tiada iklan, tiada penjejak, tiada pengawasan.";
@@ -1912,8 +2038,8 @@
 /* Footer text at the bottom of donation receipts */
 "DONATION_RECEIPT_FOOTER" = "Terima kasih kerana menyokong Signal. Sumbangan anda membantu menampung misi membina teknologi privasi sumber terbuka yang melindungi pernyataan bebas dan membolehkan komunikasi global yang selamat untuk berjuta orang di seluruh dunia. Jika anda penduduk Amerika Syarikat, sila simpan resit ini untuk rekod cukai anda. Signal Technology Foundation merupakan organisasi bukan untung yang dikecualikan cukai di Amerika Syarikat di bawah seksyen 501c3 Kod Hasil dalam Negeri. ID Cukai Persekutuan kami ialah 82-4506840.";
 
-/* Title for gift donation receipts */
-"DONATION_RECEIPT_GIFT" = "Hadiah";
+/* Title for receipts for donations given on a friend's behalf */
+"DONATION_RECEIPT_FOR_DONATION_ON_BEHALF_OF_A_FRIEND" = "Derma untuk Rakan";
 
 /* Title for one-time donation receipts */
 "DONATION_RECEIPT_ONE_TIME" = "Sekali";
@@ -1945,11 +2071,11 @@
 /* On donation screens, a small amount of information text is shown. This is the title for that text. */
 "DONATION_SCREENS_HEADER_TITLE" = "Privasi dan bukan keuntungan";
 
+/* Title for the \"donate for a friend\" button on the donation view. */
+"DONATION_VIEW_DONATE_ON_BEHALF_OF_A_FRIEND" = "Menderma untuk Rakan";
+
 /* Text describing to the user that they're going to pay a donation to Signal */
 "DONATION_VIEW_DONATION_TO_SIGNAL" = "Derma kepada Signal";
-
-/* Title for the 'Gift a Badge' link in the donation view */
-"DONATION_VIEW_GIFT" = "Hadiahkan Lencana";
 
 /* Text that's shown when the donation view fails to load data, probably due to network failure */
 "DONATION_VIEW_LOAD_FAILED" = "Ralat rangkaian. Periksa sambungan anda dan cuba lagi.";
@@ -1969,8 +2095,8 @@
 /* Title for the 'my support' section in the donation view */
 "DONATION_VIEW_MY_SUPPORT_TITLE" = "Sokongan Saya";
 
-/* Title for the 'other ways to give' section on the donation view */
-"DONATION_VIEW_OTHER_WAYS_TO_GIVE_TITLE" = "Cara Lain untuk Derma";
+/* Title for the \"other ways to donate\" section on the donation view. */
+"DONATION_VIEW_OTHER_WAYS_TO_DONATE_TITLE" = "Cara Lain untuk Menderma";
 
 /* Title for the 'Subscription FAQ' button on the donation screen */
 "DONATION_VIEW_SUBSCRIPTION_FAQ" = "Soalan Lazim Langganan";
@@ -2005,8 +2131,26 @@
 /* The alert title if user tries to exit update group view without saving changes. */
 "EDIT_GROUP_VIEW_UNSAVED_CHANGES_TITLE" = "Perubahan Yang Tidak Disimpan";
 
+/* Label for Edit History modal */
+"EDIT_HISTORY_LABEL" = "Sejarah edit";
+
 /* Short name for edit menu item to copy contents of media message. */
 "EDIT_ITEM_COPY_ACTION" = "Salin";
+
+/* Edit Send Beta prompt body */
+"EDIT_MESSAGE_SEND_BETA_MESSAGE_BODY" = "Mengedit mesej tersedia untuk pengguna beta Signal sahaja. Jika anda mengedit mesej, ia hanya akan kelihatan kepada orang yang menggunakan versi terkini beta Signal.";
+
+/* Label to confirm sending an edit */
+"EDIT_MESSAGE_SEND_BETA_MESSAGE_CONFIRM" = "Hantar";
+
+/* Edit Send Beta prompt title */
+"EDIT_MESSAGE_SEND_BETA_MESSAGE_TITLE" = "Beta Signal sahaja";
+
+/* Error message to display to user when a messaeg is too old to edit */
+"EDIT_MESSAGE_SEND_MESSAGE_TOO_OLD_ERROR" = "Edit hanya boleh dibuat dalam masa 3 jam dari masa anda menghantar mesej ini.";
+
+/* Edit failed for an unexpected reason */
+"EDIT_MESSAGE_SEND_MESSAGE_UNKNOWN_ERROR" = "EDIT_MESSAGE_SEND_MESSAGE_UNKNOWN_ERROR";
 
 /* body of email sent to contacts when inviting to install Signal. Embeds {{link to install Signal}} and {{link to the Signal home page}} */
 "EMAIL_INVITE_BODY" = "Hei,\n\nBaru-baru ini saya telah menggunakan Signal untuk memastikan privasi perbualan pada iPhone saya. Saya ingin awak memasangnya juga, supaya kita yakin bahawa hanya awak dan saya boleh membaca mesej kita atau mendengar panggilan kita.\n\nSignal tersedia untuk iPhone dan Android. Dapatkannya di sini: %1$@\n\nSignal berfungsi seperti aplikasi pemesejan sedia ada anda. Kita boleh menghantar gambar dan video, membuat panggilan dan memulakan sembang kumpulan. Bahagian yang terbaik ialah, tidak ada orang lain yang dapat melihatnya, termasuk mereka yang mencipta Signal!\n\nAnda boleh membaca lebih lanjut mengenai Open Whisper Systems, orang yang mencipta Signal, di sini: %2$@";
@@ -2035,6 +2179,9 @@
 /* The name for the emoji category 'Objects' */
 "EMOJI_CATEGORY_OBJECTS_NAME" = "Objek";
 
+/* The name for the emoji section for emojis already used on the message */
+"EMOJI_CATEGORY_ON_MESSAGE_NAME" = "Mesej Ini";
+
 /* The name for the emoji category 'Recents' */
 "EMOJI_CATEGORY_RECENTS_NAME" = "Terkini";
 
@@ -2058,9 +2205,6 @@
 
 /* Call setup status label */
 "END_CALL_UNCATEGORIZED_FAILURE" = "Gagal Memanggil";
-
-/* Error indicating that the phone's contacts could not be retrieved. */
-"ERROR_COULD_NOT_FETCH_CONTACTS" = "Tidak dapat mengakses kenalan.";
 
 /* Error indicating that a message could not be forwarded. */
 "ERROR_COULD_NOT_FORWARD_MESSAGES_1" = "Tidak dapat memajukan mesej.";
@@ -2090,7 +2234,7 @@
 "ERROR_DESCRIPTION_LOG_UPLOAD_FAILED" = "Gagal memuat naik log.";
 
 /* Error message indicating that message send failed due to block list */
-"ERROR_DESCRIPTION_MESSAGE_SEND_FAILED_DUE_TO_BLOCK_LIST" = "Gagal menghantar mesej pengguna kerana anda telah menyekat mereka.";
+"ERROR_DESCRIPTION_MESSAGE_SEND_FAILED_DUE_TO_BLOCK_LIST" = "Gagal menghantar mesej kepada pengguna kerana anda telah menyekat mereka.";
 
 /* Error indicating that an outgoing message had no valid recipients. */
 "ERROR_DESCRIPTION_NO_VALID_RECIPIENTS" = "Penghantaran mesej gagal kerana kekurangan penerima yang sah.";
@@ -2179,17 +2323,35 @@
 /* Format string for 'unregistered user' error. Embeds {{the unregistered user's name or signal id}}. */
 "ERROR_UNREGISTERED_USER_FORMAT" = "Pengguna Tidak Berdaftar: %1$@";
 
+/* Button to exit change number, shown in context menu. */
+"EXIT_CHANGE_NUMBER" = "Keluar dari Tukar Nombor";
+
+/* Button to exit re-registration, shown in context menu. */
+"EXIT_REREGISTRATION" = "Keluar dari Pendaftaran";
+
 /* Label notifying the user that the app has expired. */
-"EXPIRATION_ERROR" = "Versi Signal anda telah tamat tempoh! Ketik untuk mengemas kini ke versi terkini.";
+"EXPIRATION_ERROR" = "Versi Signal ini telah tamat tempoh. Kemas kini untuk menghantar dan menerima mesej.";
+
+/* If the user's app is too old, they'll be shown a warning asking them to upgrade. This is the text on the warning, and tapping it will open the App Store page for Signal. */
+"EXPIRATION_WARNING_ACTION_TITLE" = "Kemas Kini Sekarang";
+
+/* Label warning the user that the app will expire soon. Embeds {{date}}. */
+"EXPIRATION_WARNING_SOON" = "Versi Signal ini akan tamat tempoh pada %1$@. Kemas kini untuk terus bermesej.";
 
 /* Label warning the user that the app will expire today. */
-"EXPIRATION_WARNING_TODAY" = "Versi Signal anda akan tamat tempoh pada hari ini. Ketik untuk kemas kini ke versi terkini.";
+"EXPIRATION_WARNING_TODAY" = "Versi Signal ini akan tamat tempoh hari ini. Kemas kini untuk terus bermesej.";
 
 /* action sheet header when re-sending message which failed because of too many attempts */
 "FAILED_SENDING_BECAUSE_RATE_LIMIT" = "Terlalu banyak kegagalan dengan kenalan ini. Sila cuba sebentar lagi.";
 
 /* action sheet header when re-sending message which failed because of untrusted identity keys */
 "FAILED_SENDING_BECAUSE_UNTRUSTED_IDENTITY_KEY" = "Nombor keselamatan anda dengan %1$@ telah berubah baru-baru ini. Anda mungkin ingin mengesahkan sebelum menghantar mesej ini semula.";
+
+/* Shown as the body of an alert when failing to redeem a badge that was received after a friend donated on your behalf. */
+"FAILED_TO_REDEEM_BADGE_RECEIVED_AFTER_DONATION_FROM_A_FRIEND_BODY" = "Derma anda tidak dapat ditebus. Periksa sambungan anda dan cuba lagi.";
+
+/* Shown as the title of an alert when failing to redeem a badge that was received after a friend donated on your behalf. */
+"FAILED_TO_REDEEM_BADGE_RECEIVED_AFTER_DONATION_FROM_A_FRIEND_TITLE" = "Tidak Dapat Menebus Derma";
 
 /* alert title */
 "FAILED_VERIFICATION_TITLE" = "Gagal Mengesahkan Nombor Keselamatan!";
@@ -2232,9 +2394,6 @@
 
 /* Title for the 'forward message(s)' view. */
 "FORWARD_MESSAGE_TITLE" = "Majukan Kepada";
-
-/* Label indicating media gallery is empty */
-"GALLERY_TILES_EMPTY_GALLERY" = "Anda tidak mempunyai sebarang media dalam sembang ini.";
 
 /* Label indicating loading is in progress */
 "GALLERY_TILES_LOADING_MORE_RECENT_LABEL" = "Memuatkan Media Baru…";
@@ -2286,12 +2445,6 @@
 
 /* Placeholder text for the search field in GIF view */
 "GIF_VIEW_SEARCH_PLACEHOLDER_TEXT" = "Masukkan carian anda.";
-
-/* Shown when trying to redeem a gift that's already expired. Embeds {{contact name}}. */
-"GIFT_NOT_REDEEMED_BODY_FORMAT" = "Hadiah anda daripada %1$@ telah tamat tempoh dan tidak lagi boleh ditebus.";
-
-/* Title when trying to redeem a gift that's already expired. */
-"GIFT_NOT_REDEEMED_TITLE" = "Hadiah Anda Telah Tamat Tempoh";
 
 /* Label for the 'go to settings' button */
 "GO_TO_SETTINGS_BUTTON" = "Pergi ke Tetapan";
@@ -2755,6 +2908,9 @@
 /* Message indicating that the local user was removed from the group by an unknown user. */
 "GROUP_LOCAL_USER_REMOVED_BY_UNKNOWN_USER" = "Anda dikeluarkan daripada kumpulan.";
 
+/* Message indicating that the local user's request to join the group was approved. */
+"GROUP_LOCAL_USER_REQUEST_APPROVED" = "Permintaan anda untuk menyertai kumpulan telah diluluskan.";
+
 /* Message indicating that the local user's request to join the group was approved by another user. Embeds {{ %@ the name of the user who approved the request }}. */
 "GROUP_LOCAL_USER_REQUEST_APPROVED_BY_REMOTE_USER_FORMAT" = "%1$@ telah meluluskan permintaan anda untuk menyertai kumpulan.";
 
@@ -2839,9 +2995,6 @@
 /* Message indicating that a remote user's invite was revoked by the local user. Embeds {{remote user name}}. */
 "GROUP_REMOTE_USER_INVITE_REVOKED_BY_LOCAL_USER_FORMAT" = "Jemputan kepada kumpulan telah dibatalkan untuk %1$@.";
 
-/* Message indicating that a single remote user was invited to the group. Embeds {{remote user name}}. */
-"GROUP_REMOTE_USER_INVITED_1_FORMAT" = "%1$@ telah dijemput ke kumpulan.";
-
 /* Message indicating that a remote user was invited to the group by the local user. Embeds {{remote user name}}. */
 "GROUP_REMOTE_USER_INVITED_BY_LOCAL_USER_FORMAT" = "Anda dijemput %1$@ kepada kumpulan.";
 
@@ -2872,7 +3025,7 @@
 /* Message indicating that a remote user's request to join the group was rejected by the local user. Embeds {{requesting user name}}. */
 "GROUP_REMOTE_USER_REQUEST_REJECTED_BY_LOCAL_USER_FORMAT" = "Anda telah menolak permintaan untuk menyertai kumpulan daripada %1$@.";
 
-/* Message indicating that a remote user's request to join the group was rejected by another user. Embeds {{ %1$@ requesting user name, %2$@ approving user name }}. */
+/* Message indicating that a remote user's request to join the group was rejected by another user. Embeds {{ %1$@ requesting user name, %2$@ rejecting user name }}. */
 "GROUP_REMOTE_USER_REQUEST_REJECTED_BY_REMOTE_USER_FORMAT" = "%2$@ telah menolak permintaan untuk menyertai kumpulan daripada %1$@.";
 
 /* Message indicating that a remote user's request to join the group was rejected. Embeds {{requesting user name}}. */
@@ -2980,12 +3133,6 @@
 /* Message indicating that the group was migrated. */
 "GROUP_WAS_MIGRATED" = "Kumpulan ini telah dinaik taraf ke Kumpulan Baharu.";
 
-/* Message indicating that the local user was dropped while migrating the group. */
-"GROUP_WAS_MIGRATED_USERS_DROPPED_LOCAL_USER" = "Anda tidak dapat ditambah ke Kumpulan Baharu dan telah dialih keluar daripada kumpulan.";
-
-/* Message indicating that the local user was invited while migrating the group. */
-"GROUP_WAS_MIGRATED_USERS_INVITED_LOCAL_USER" = "Anda tidak dapat ditambah ke Kumpulan Baharu dan telah dijemput untuk menyertai kumpulan";
-
 /* Message indicating that the local user left the group. */
 "GROUP_YOU_LEFT" = "Anda telah meninggalkan kumpulan.";
 
@@ -3031,128 +3178,8 @@
 /* Label for 'invite friends to group' button. */
 "GROUPS_INVITE_FRIENDS_BUTTON" = "Jemput rakan";
 
-/* Body text for the first section of the 'legacy group' alert view. */
-"GROUPS_LEGACY_GROUP_ALERT_SECTION_1_BODY" = "Kumpulan Legasi merupakan kumpulan yang tidak serasi dengan ciri-ciri Kumpulan Baharu seperti pentadbir dan kemas kini kumpulan yang lebih deskriptif.";
-
-/* Title for the first section of the 'legacy group' alert view. */
-"GROUPS_LEGACY_GROUP_ALERT_SECTION_1_TITLE" = "Apakah itu Kumpulan Legasi?";
-
-/* Body text for the second section of the 'legacy group' alert view. */
-"GROUPS_LEGACY_GROUP_ALERT_SECTION_2_BODY" = "Kumpulan Legasi belum dapat dinaik taraf kepada Kumpulan Baharu, tetapi anda boleh mencipta Kumpulan Baharu dengan ahli yang sama jika mereka menggunakan Signal versi terkini.\n\nSignal akan menawarkan cara untuk menaiktarafkan Kumpulan Legasi pada masa akan datang.";
-
-/* Title for the second section of the 'legacy group' alert view. */
-"GROUPS_LEGACY_GROUP_ALERT_SECTION_2_TITLE" = "Bolehkah saya menaiktarafkan Kumpulan Legasi?";
-
-/* Body text for the third section of the 'legacy group' alert view. */
-"GROUPS_LEGACY_GROUP_ALERT_SECTION_3_BODY" = "Untuk mencipta Kumpulan Baharu, semua ahli harus mengemas kini ke versi Signal terkini.";
-
-/* Title for the 'legacy group' alert view. */
-"GROUPS_LEGACY_GROUP_ALERT_TITLE" = "Kumpulan Legasi lwn Baharu";
-
-/* Format for indicator that a group cannot be used until it is migrated. Embeds {{ a \"learn more\" link. }}. */
-"GROUPS_LEGACY_GROUP_BLOCKING_MIGRATION_FORMAT" = "Naik taraf kumpulan ini untuk mengaktifkan ciri-ciri baharu seperti @sebutan dan pentadbir. Ahli-ahli yang belum kongsikan nama atau foto mereka dalam kumpulan ini akan dijemput untuk menyertai kumpulan. %1$@.";
-
-/* Title for the 'can't upgrade legacy group' alert view. */
-"GROUPS_LEGACY_GROUP_CANT_UPGRADE_ALERT_TITLE" = "Tidak Dapat Naik Taraf ke Kumpulan Baharu";
-
-/* Text indicating that a legacy group can't be upgraded because it has too many members. Embeds {{ The maximum number of members allowed in a group. }}. */
-"GROUPS_LEGACY_GROUP_CANT_UPGRADE_ALERT_TOO_MANY_MEMBERS_FORMAT" = "Kumpulan ini tidak dapat dinaik taraf ke Kumpulan Baharu kerana mempunyai terlalu banyak ahli. Saiz kumpulan maksimum yang boleh dinaik taraf ialah %1$@.";
-
-/* Explanation of group migration for groups that can't yet be migrated in the 'legacy group' alert views. */
-"GROUPS_LEGACY_GROUP_CANT_UPGRADE_YET_1" = "Apabila semua ahli kumpulan semasa menggunakan versi Signal yang dapat menyertai Kumpulan Baharu, kumpulan ini akan dinaik taraf.";
-
-/* Explanation of group migration for groups that can't yet be migrated in the 'legacy group' alert views. */
-"GROUPS_LEGACY_GROUP_CANT_UPGRADE_YET_2" = "Semua sejarah mesej dan media akan disimpan sebelum naik taraf dibuat.";
-
-/* Brief explanation of legacy groups. Embeds {{ a \"learn more\" link. }}. */
-"GROUPS_LEGACY_GROUP_DESCRIPTION_FORMAT" = "Ini Kumpulan Legasi. Ciri-ciri seperti pentadbir kumpulan hanya tersedia untuk Kumpulan Baharu. %1$@";
-
-/* Indicates that a legacy group can't be upgraded because some members can't be migrated. Embeds {{ an \"learn more\" link. }}. */
-"GROUPS_LEGACY_GROUP_DESCRIPTION_MEMBERS_CANT_BE_MIGRATED_FORMAT" = "Kumpulan Legasi ini belum bersedia untuk dinaik taraf ke Kumpulan Baharu. %1$@.";
-
-/* Indicates that a legacy group can't be upgraded because it has too many members. Embeds {{ an \"learn more\" link. }}. */
-"GROUPS_LEGACY_GROUP_DESCRIPTION_TOO_MANY_MEMBERS_FORMAT" = "Kumpulan Legasi ini tidak dapat dinaik taraf ke Kumpulan Baharu kerana terlalu besar. %1$@.";
-
-/* Explanation of legacy groups. Embeds {{ an \"upgrade\" link. }}. */
-"GROUPS_LEGACY_GROUP_DESCRIPTION_WITH_UPGRADE_OFFER_FORMAT" = "Ini Kumpulan Legasi. Untuk mengakses ciri-ciri baharu seperti @sebutan dan pentadbir, %1$@.";
-
 /* Label indicating a legacy group. */
 "GROUPS_LEGACY_GROUP_INDICATOR" = "Kumpulan Legasi";
-
-/* Indicates that the local user needs to accept an invitation to rejoin the group after a group migration. */
-"GROUPS_LEGACY_GROUP_LOCAL_USER_INVITED" = "Anda perlu menerima jemputan untuk menyertai kumpulan ini semula, dan tidak akan mendapat mesej kumpulan sehingga anda menerima jemputan.";
-
-/* Title for the 'migrated group' alert view. */
-"GROUPS_LEGACY_GROUP_MIGRATED_GROUP_ALERT_TITLE" = "Apakah Kumpulan Baru?";
-
-/* Explanation of group migration for a migrated group in the 'legacy group' alert views. */
-"GROUPS_LEGACY_GROUP_MIGRATED_GROUP_DESCRIPTION" = "Semua sejarah mesej dan media telah disimpan sebelum naik taraf dibuat.";
-
-/* Explanation of new groups in the 'legacy group' alert views. */
-"GROUPS_LEGACY_GROUP_NEW_GROUP_DESCRIPTION" = "Kumpulan Baharu mempunyai ciri-ciri seperti @sebutan dan pentadbir kumpulan, dan akan menyokong lebih banyak ciri pada masa akan datang.";
-
-/* Title for the 'new groups' alert view. */
-"GROUPS_LEGACY_GROUP_NEW_GROUPS_ALERT_TITLE" = "Kumpulan Baharu";
-
-/* Label for the 'add members' button in the 're-add dropped group members' alert view. */
-"GROUPS_LEGACY_GROUP_RE_ADD_DROPPED_GROUP_MEMBERS_ADD_MEMBERS_BUTTON" = "Tambah Ahli-ahli";
-
-/* Title for the 're-add dropped group members' alert view. */
-"GROUPS_LEGACY_GROUP_RE_ADD_DROPPED_GROUP_MEMBERS_ALERT_TITLE_1" = "Tambah Ahli?";
-
-/* Title for the 're-add dropped group members' alert view. */
-"GROUPS_LEGACY_GROUP_RE_ADD_DROPPED_GROUP_MEMBERS_ALERT_TITLE_N" = "Tambah Ahli?";
-
-/* Label for the 'add members' button in the 're-add dropped groups members' banner. */
-"GROUPS_LEGACY_GROUP_RE_ADD_DROPPED_GROUP_MEMBERS_BUTTON" = "Tambah Ahli-ahli";
-
-/* Explanation of 're-adding dropped group member' in the 'legacy group' alert views. */
-"GROUPS_LEGACY_GROUP_RE_ADD_DROPPED_GROUP_MEMBERS_DESCRIPTION_1" = "Ahli ini tidak dapat ditambah ke Kumpulan Baharu secara automatik apabila kumpulan dinaik taraf:";
-
-/* Explanation of 're-adding dropped group member' in the 'legacy group' alert views. */
-"GROUPS_LEGACY_GROUP_RE_ADD_DROPPED_GROUP_MEMBERS_DESCRIPTION_N" = "Ahli-ahli ini tidak dapat ditambah ke Kumpulan Baharu secara automatik apabila kumpulan dinaik taraf:";
-
-/* Body text for the second section of the 'upgrade legacy group' alert view. */
-"GROUPS_LEGACY_GROUP_UPGRADE_ALERT_SECTION_2_BODY" = "Semua sejarah mesej dan media telah disimpan sebelum naik taraf dibuat.";
-
-/* Body text for the 'dropped member' section of the 'upgrade legacy group' alert view. */
-"GROUPS_LEGACY_GROUP_UPGRADE_ALERT_SECTION_DROPPED_MEMBERS_1" = "Ahli ini telah dialih keluar daripada kumpulan dan tidak dapat menyertai semula kumpulan sehingga mereka naik taraf:";
-
-/* Body text for the 'dropped members' section of the 'upgrade legacy group' alert view. */
-"GROUPS_LEGACY_GROUP_UPGRADE_ALERT_SECTION_DROPPED_MEMBERS_N" = "Ahli-ahli ini telah dialih keluar daripada kumpulan dan tidak akan dapat menyertai semula kumpulan sehingga mereka naik taraf:";
-
-/* Body text for the 'invites member' section of the 'upgrade legacy group' alert view. */
-"GROUPS_LEGACY_GROUP_UPGRADE_ALERT_SECTION_INVITED_MEMBERS_1" = "Ahli ini perlu menerima jemputan untuk menyertai kumpulan ini sekali lagi, dan tidak akan mendapat mesej kumpulan sehingga mereka menerima jemputan:";
-
-/* Body text for the 'invites members' section of the 'upgrade legacy group' alert view. */
-"GROUPS_LEGACY_GROUP_UPGRADE_ALERT_SECTION_INVITED_MEMBERS_N" = "Ahli-ahli ini perlu menerima jemputan untuk menyertai kumpulan ini semula, dan tidak akan mendapat mesej kumpulan sehingga mereka menerima jemputan:";
-
-/* Body text for the 'possibly dropped member' section of the 'upgrade legacy group' alert view. */
-"GROUPS_LEGACY_GROUP_UPGRADE_ALERT_SECTION_POSSIBLY_DROPPED_MEMBERS_1" = "Ahli ini tidak dapat menyertai Kumpulan Baharu dan akan dialih keluar daripada kumpulan:";
-
-/* Body text for the 'possibly dropped members' section of the 'upgrade legacy group' alert view. */
-"GROUPS_LEGACY_GROUP_UPGRADE_ALERT_SECTION_POSSIBLY_DROPPED_MEMBERS_N" = "Ahli-ahli ini tidak dapat menyertai Kumpulan Baharu dan akan dialih keluar daripada kumpulan:";
-
-/* Title for the 'upgrade legacy group' alert view. */
-"GROUPS_LEGACY_GROUP_UPGRADE_ALERT_TITLE" = "Naik taraf ke Group Baru";
-
-/* Label for the 'upgrade this group' button in the 'upgrade legacy group' alert view. */
-"GROUPS_LEGACY_GROUP_UPGRADE_ALERT_UPGRADE_BUTTON" = "Naik Taraf Kumpulan ini";
-
-/* Message for error alert indicating the group update failed. */
-"GROUPS_LEGACY_GROUP_UPGRADE_ALERT_UPGRADE_FAILED_ERROR_MESSAGE" = "Kumpulan ini tidak dapat dinaik taraf ke Kumpulan Baharu sekarang.";
-
-/* Message for error alert indicating the group update failed due to network connectivity. */
-"GROUPS_LEGACY_GROUP_UPGRADE_ALERT_UPGRADE_FAILED_ERROR_MESSAGE_NETWORK" = "Kumpulan ini tidak dapat dinaik taraf ke Kumpulan Baharu kerana anda tidak disambung ke Internet. Cuba sebentar lagi.";
-
-/* Title for error alert indicating the group update failed. */
-"GROUPS_LEGACY_GROUP_UPGRADE_ALERT_UPGRADE_FAILED_ERROR_TITLE" = "Tidak Dapat Melengkapkan Penaiktarafan";
-
-/* Message indicating the group update succeeded. */
-"GROUPS_LEGACY_GROUP_UPGRADE_ALERT_UPGRADE_SUCCEEDED" = "Dinaik taraf ke Kumpulan Baharu.";
-
-/* An \"upgrade\" link for upgrading legacy groups to new groups. */
-"GROUPS_LEGACY_GROUP_UPGRADE_LINK" = "naik taraf kumpulan ini";
 
 /* Message for the 'replace group admin' alert. */
 "GROUPS_REPLACE_ADMIN_ALERT_MESSAGE" = "Sebelum anda tinggalkan, pilih pentadbir baru untuk kumpulan ini.";
@@ -3180,6 +3207,24 @@
 
 /* Help item that takes the user to the Signal support website */
 "HELP_SUPPORT_CENTER" = "Pusat Sokongan";
+
+/* A format for the 'remove user' action sheet title. Embeds {{the removed user's name or phone number}}. */
+"HIDE_RECIPIENT_ACTION_SHEET_TITLE_FORMAT" = "Remove %1$@?";
+
+/* An explanation of the consequences of removing a user. */
+"HIDE_RECIPIENT_BEHAVIOR_EXPLANATION" = "You won't see this person when searching. You'll get a message request if they message you in the future.";
+
+/* Button label for the 'remove' button */
+"HIDE_RECIPIENT_BUTTON" = "Remove";
+
+/* Toast message confirming the recipient was removed. Embeds {{The name of the user who was removed.}}.. */
+"HIDE_RECIPIENT_CONFIRMATION_TOAST" = "%1$@ has been removed.";
+
+/* An explanation of why a user was not successfully removed and what to do. */
+"HIDE_RECIPIENT_ERROR_ACTION_SHEET_EXPLANATION" = "Check your connection and try again.";
+
+/* Title for an action sheet indicating that the user was not successfully removed. Embeds {{name of user we attempted to hide}}. */
+"HIDE_RECIPIENT_ERROR_ACTION_SHEET_TITLE_FORMAT" = "Unable to remove %1$@";
 
 /* Label for 'archived conversations' button. */
 "HOME_VIEW_ARCHIVED_CONVERSATIONS" = "Sembang Diarkib";
@@ -3266,7 +3311,7 @@
 "IN_CALL_RINGING" = "Berdering…";
 
 /* Call setup status label */
-"IN_CALL_RINGING_AUDIO" = "Panggilan Audio…";
+"IN_CALL_RINGING_AUDIO" = "Panggilan suara…";
 
 /* Call setup status label */
 "IN_CALL_RINGING_VIDEO" = "Panggilan Video…";
@@ -3278,7 +3323,7 @@
 "IN_CALL_TERMINATED" = "Panggilan Tamat.";
 
 /* Label reminding the user that they are in archive mode, and that muted chats remain archived when they receive a new message. */
-"INBOX_VIEW_ARCHIVE_MODE_MUTED_CHATS_REMINDER" = "Sembang yang disenyapkan yang telah diarkibkan akan kekal diarkibkan apabila mesej baru masuk.";
+"INBOX_VIEW_ARCHIVE_MODE_MUTED_CHATS_REMINDER" = "Sembang yang diredam, yang telah diarkibkan akan kekal diarkibkan apabila mesej baru masuk.";
 
 /* Label reminding the user that they are in archive mode, and that chats are unarchived when they receive a new message. */
 "INBOX_VIEW_ARCHIVE_MODE_REMINDER" = "Sembang yang diarkibkan akan berpindah ke Peti Masuk apabila mesej baru masuk.";
@@ -3286,8 +3331,14 @@
 /* Message shown in the conversation list when the inbox is empty. */
 "INBOX_VIEW_EMPTY_INBOX" = "Belum ada sembang.\nMulakan dengan menghantar mesej kepada rakan.";
 
-/* info message text in conversation view. {embeds callee name} */
-"INCOMING_CALL_FORMAT" = "%1$@ telah menelefon anda";
+/* info message text in conversation view */
+"INCOMING_AUDIO_CALL" = "Panggilan suara masuk";
+
+/* info message text in conversation view */
+"INCOMING_VIDEO_CALL" = "Panggilan video masuk";
+
+/* Indicates that the recipient has been removed from the current user's contacts and that messaging them will re-add them. */
+"INFO_MESSAGE_CONTACT_REMOVED" = "Anda telah mengalih keluar orang ini, menghantar mesej kepada mereka sekali lagi akan menambahkan mereka kembali ke senarai anda.";
 
 /* Shown in inbox and conversation after syncing as a placeholder indicating why your message history is missing. */
 "INFO_MESSAGE_SYNCED_THREAD" = "You can send or receive synchronized messages from your phone or iPad.  For your security, chat history isn't transferred to new linked devices.";
@@ -3297,6 +3348,9 @@
 
 /* Shown in inbox and conversation when a user joins Signal, embeds the new user's {{contact name}} */
 "INFO_MESSAGE_USER_JOINED_SIGNAL_BODY_FORMAT" = "%1$@ ada di Signal!";
+
+/* Label at the top of the input text when editing a message */
+"INPUT_TOOLBAR_EDIT_MESSAGE_LABEL" = "Edit mesej";
 
 /* accessibility label for the button which shows the regular keyboard instead of sticker picker */
 "INPUT_TOOLBAR_KEYBOARD_BUTTON_ACCESSIBILITY_LABEL" = "Papan Kekunci";
@@ -3397,6 +3451,21 @@
 /* Error indicating that a group could not be left. */
 "LEAVE_GROUP_FAILED" = "Ralat berlaku semasa meninggalkan kumpulan.";
 
+/* Text in a sheet explaining details about 'Legacy Groups'. */
+"LEGACY_GROUP_UNSUPPORTED_LEARN_MORE_BODY" = "\"Kumpulan Legasi\" ialah kumpulan yang tidak menyokong ciri seperti @sebutan dan pentadbir. Kebanyakan Kumpulan Legasi telah dinaik taraf sama ada secara automatik atau manual ke \"Kumpulan Baharu.\" Disebabkan tempoh tidak aktif yang lama, kumpulan ini tidak boleh dinaik taraf lagi.\n\nUntuk meneruskan sembang ini, anda mesti mencipta kumpulan baharu.";
+
+/* Title for a sheet explaining details about 'Legacy Groups'. */
+"LEGACY_GROUP_UNSUPPORTED_LEARN_MORE_TITLE" = "Kumpulan Legasi";
+
+/* Message explaining that this group can no longer be used because it is unsupported. Embeds a {{ learn more link }}. */
+"LEGACY_GROUP_UNSUPPORTED_MESSAGE" = "Ini ialah Kumpulan Legasi dan tidak lagi disokong. Untuk meneruskan perbualan ini, cipta kumpulan baharu. %1$@";
+
+/* Text in a sheet explaining details about 'New Groups'. */
+"LEGACY_GROUP_WHAT_ARE_NEW_GROUPS_BODY" = "Kumpulan Baharu mempunyai ciri-ciri seperti @sebutan dan pentadbir kumpulan, dan akan menyokong lebih banyak ciri pada masa akan datang.\n\nSemua sejarah mesej dan media telah disimpan sebelum naik taraf dibuat.";
+
+/* Title for a sheet explaining details about 'New Groups'. */
+"LEGACY_GROUP_WHAT_ARE_NEW_GROUPS_TITLE" = "Apakah Kumpulan Baru?";
+
 /* report an invalid linking code */
 "LINK_DEVICE_INVALID_CODE_BODY" = "Kod QR ini tidak sah. Sila pastikan anda mengimbas kod QR yang dipaparkan pada peranti yang ingin anda pautkan.";
 
@@ -3424,8 +3493,26 @@
 /* Label for link previews with an unknown host. */
 "LINK_PREVIEW_UNKNOWN_DOMAIN" = "Pratonton Pautan";
 
+/* Shown in an alert when trying to edit a contact. */
+"LINKED_DEVICE_CONTACTS_NOT_ALLOWED" = "Menguruskan kenalan sistem tidak lagi tersedia pada iPad. Untuk menambah hubungan Signal pada kenalan sistem anda, buka Signal pada telefon anda.";
+
+/* Shown in a banner when you tap the 'New Chat' icon at the top of the list of chats. */
+"LINKED_DEVICE_MANAGE_CONTACTS_BANNER" = "Menguruskan kenalan sistem tidak lagi disokong pada iPad. Peranti ini akan terus menyegerakkan sebarang perubahan kepada senarai kenalan anda daripada Signal pada telefon anda.";
+
+/* A button shown in a banner when you tap the 'New Chat' icon at the top of the list of chats. Tapping it opens a website with more details. */
+"LINKED_DEVICE_MANAGE_CONTACTS_LEARN_MORE" = "Ketahui lebih lanjut";
+
 /* Menu item and navbar title for the device manager */
 "LINKED_DEVICES_TITLE" = "Peranti Dipautkan";
+
+/* Label for the 'give access' button in the 'onboarding permissions' view. */
+"LINKED_ONBOARDING_PERMISSIONS_ENABLE_PERMISSIONS_BUTTON" = "Benarkan Pemberitahuan";
+
+/* Explanation in the 'onboarding permissions' view. */
+"LINKED_ONBOARDING_PERMISSIONS_EXPLANATION" = "Membenarkan pemberitahuan membolehkan anda menerima mesej, panggilan atau kemas kini tentang aktiviti perbualan baru.";
+
+/* Title of the 'onboarding permissions' view. */
+"LINKED_ONBOARDING_PERMISSIONS_TITLE" = "Benarkan Pemberitahuan";
 
 /* Alert Title */
 "LINKING_DEVICE_FAILED_TITLE" = "Gagal Memaut Peranti";
@@ -3487,11 +3574,38 @@
 /* Shown in place of message input text in media editor when 'View Once' is on. */
 "MEDIA_EDITOR_TEXT_FIELD_VIEW_ONCE_MEDIA" = "Media Lihat Sekali";
 
+/* Button to reset media filter. Displayed when filter results in no media visible. */
+"MEDIA_GALLERY_CLEAR_FILTER_BUTTON" = "Kosongkan penapis";
+
+/* Explanatory text displayed when deleting N items in All Media screen. */
+"MEDIA_GALLERY_DELETE_MEDIA_BODY" = "Ini akan memadamkan fail yang dipilih secara kekal. Sebarang teks mesej yang dikaitkan dengan item ini juga akan dipadamkan.";
+
 /* Format for the 'more items' indicator for media galleries. Embeds {{the number of additional items}}. */
 "MEDIA_GALLERY_MORE_ITEMS_FORMAT" = "+ %1$@";
 
+/* Displayed in All Media (Audio) screen when there's no audio files - second line. */
+"MEDIA_GALLERY_NO_AUDIO_SUBTITLE" = "Mesej Suara dan Fail Audio yang anda hantar dan terima akan dipaparkan di sini";
+
+/* Displayed in All Media (Audio) screen when there's no audio files - first line. */
+"MEDIA_GALLERY_NO_AUDIO_TITLE" = "Tiada Audio";
+
+/* Displayed in All Media screen when there's no media - first line. */
+"MEDIA_GALLERY_NO_FILTER_RESULTS" = "Tiada media";
+
+/* Displayed in All Media screen when there's no media - second line. */
+"MEDIA_GALLERY_NO_MEDIA_SUBTITLE" = "Foto, Video dan GIF yang anda hantar dan terima akan dipaparkan di sini";
+
+/* Displayed in All Media screen when there's no media - first line. */
+"MEDIA_GALLERY_NO_MEDIA_TITLE" = "Tiada media";
+
 /* Section header in media gallery collection view */
 "MEDIA_GALLERY_THIS_MONTH_HEADER" = "Bulan Ini";
+
+/* Text explaining that the user will forward all media from a message. */
+"MEDIA_PAGE_FORWARD_MEDIA_CONFIRM_MESSAGE" = "Semua media dalam mesej ini akan dimajukan.";
+
+/* Context menu item in media viewer. Refers to deleting currently displayed photo/video. */
+"MEDIA_VIEWER_DELETE_MEDIA_ACTION" = "Padam";
 
 /* button title to snooze a megaphone */
 "MEGAPHONE_REMIND_LATER" = "Ingatkan Saya Kemudian";
@@ -3506,7 +3620,7 @@
 "MESSAGE_ACTION_DELETE_FOR_EVERYONE" = "Padam untuk Semua Orang";
 
 /* A one-time confirmation that you want to delete for everyone */
-"MESSAGE_ACTION_DELETE_FOR_EVERYONE_CONFIRMATION" = "Mesej ini akan dipadamkan untuk semua orang dalam sembang jika mereka menggunakan Signal versi terkini. Mereka akan dapat lihat bahawa anda telah memadamkan mesej.";
+"MESSAGE_ACTION_DELETE_FOR_EVERYONE_CONFIRMATION" = "Mesej ini akan dipadamkan untuk semua orang dalam sembang jika mereka menggunakan Signal versi terkini. Mereka akan dapat melihat jika anda memadamkan mesej.";
 
 /* The title for the action sheet asking who the user wants to delete the message for. */
 "MESSAGE_ACTION_DELETE_FOR_TITLE" = "Untuk siapa anda mahu memadamkan mesej ini?";
@@ -3523,6 +3637,9 @@
 /* Action sheet button title */
 "MESSAGE_ACTION_DETAILS" = "Maklumat Lanjut";
 
+/* Action sheet edit message accessibility label */
+"MESSAGE_ACTION_EDIT_MESSAGE" = "Edit mesej";
+
 /* Label for button to compose a new email. */
 "MESSAGE_ACTION_EMAIL_NEW_MAIL_MESSAGE" = "Mesej E-mel Baharu";
 
@@ -3534,6 +3651,12 @@
 
 /* Action sheet button title */
 "MESSAGE_ACTION_FORWARD_SELECTED_MESSAGES" = "Majukan mesej yang dipilih";
+
+/* A label for a button that will open an address in Apple Maps. \"Maps\" is a proper noun referring to the Apple Maps app, and should be translated as such. */
+"MESSAGE_ACTION_LINK_OPEN_ADDRESS_APPLE_MAPS" = "Buka dalam Peta";
+
+/* A label for a button that will open an address in Google Maps. \"Google Maps\" is a proper noun referring to the Google Maps app, and should be translated as such. */
+"MESSAGE_ACTION_LINK_OPEN_ADDRESS_GOOGLE_MAPS" = "Buka dalam Google Maps";
 
 /* Label for button to open a group invite. */
 "MESSAGE_ACTION_LINK_OPEN_GROUP_INVITE" = "Buka Jemputan Kumpulan";
@@ -3588,6 +3711,9 @@
 
 /* Toast indicating that the user has copied the sent timestamp. */
 "MESSAGE_DETAIL_VIEW_DID_COPY_SENT_TIMESTAMP" = "Masa dihantar telah disalin";
+
+/* Title for the 'edit history' section on the 'message details' view. */
+"MESSAGE_DETAILS_EDIT_HISTORY_TITLE" = "Lihat sejarah edit";
 
 /* Title for the 'sent from' section on the 'message details' view. */
 "MESSAGE_DETAILS_VIEW_SENT_FROM_TITLE" = "Dihantar daripada";
@@ -3656,7 +3782,7 @@
 "MESSAGE_REQUEST_BLOCK_AND_REPORT_SPAM_ACTION" = "Laporkan Spam dan Sekat";
 
 /* Action sheet message to confirm blocking a conversation via a message request. */
-"MESSAGE_REQUEST_BLOCK_CONVERSATION_MESSAGE" = "Orang disekat tidak dapat menghubungi anda atau menghantar mesej kepada anda.";
+"MESSAGE_REQUEST_BLOCK_CONVERSATION_MESSAGE" = "Orang yang disekat tidak dapat menghubungi anda atau menghantar mesej kepada anda.";
 
 /* Action sheet title to confirm blocking a contact via a message request. Embeds {{contact name or phone number}} */
 "MESSAGE_REQUEST_BLOCK_CONVERSATION_TITLE_FORMAT" = "Sekat %1$@?";
@@ -3665,7 +3791,7 @@
 "MESSAGE_REQUEST_BLOCK_GROUP_MESSAGE" = "Anda akan meninggalkan kumpulan ini dan tidak lagi menerima mesej atau kemas kini.";
 
 /* Action sheet title to confirm blocking a group via a message request. Embeds {{group name}} */
-"MESSAGE_REQUEST_BLOCK_GROUP_TITLE_FORMAT" = "Sekat dan Tinggalkan %1$@?";
+"MESSAGE_REQUEST_BLOCK_GROUP_TITLE_FORMAT" = "Sekat dan Keluar dari %1$@?";
 
 /* Action sheet action to confirm deleting a conversation via a message request. */
 "MESSAGE_REQUEST_DELETE_CONVERSATION_ACTION" = "Padam";
@@ -3674,7 +3800,7 @@
 "MESSAGE_REQUEST_DELETE_CONVERSATION_MESSAGE" = "Sembang ini akan dipadamkan daripada semua peranti anda.";
 
 /* Action sheet title to confirm deleting a conversation via a message request. */
-"MESSAGE_REQUEST_DELETE_CONVERSATION_TITLE" = "Padamkan Sembang?";
+"MESSAGE_REQUEST_DELETE_CONVERSATION_TITLE" = "Padam Sembang?";
 
 /* Action sheet action to confirm deleting a group via a message request. */
 "MESSAGE_REQUEST_LEAVE_AND_DELETE_GROUP_ACTION" = "Padam dan Tinggalkan";
@@ -3745,6 +3871,9 @@
 /* A prompt asking if the user wants to accept a group invite. */
 "MESSAGE_REQUEST_VIEW_NEW_GROUP_PROMPT_V2" = "Sertai kumpulan ini? Mereka tidak akan tahu bahawa anda telah melihat mesej mereka sehingga anda menerimanya.";
 
+/* A prompt asking if the user wants to accept a conversation invite from a person whom they previously removed. Embeds {{contact name}}. */
+"MESSAGE_REQUEST_VIEW_REMOVED_CONTACT_PROMPT_FORMAT" = "Benarkan %1$@ mesej anda dan kongsi nama serta foto anda dengan mereka? Anda telah mengalih keluar orang ini pada masa lalu.";
+
 /* A button used to unlock a blocked conversation. */
 "MESSAGE_REQUEST_VIEW_UNBLOCK_BUTTON" = "Nyahsekat";
 
@@ -3762,6 +3891,9 @@
 
 /* message status while message is downloading. */
 "MESSAGE_STATUS_DOWNLOADING" = "Memuat Turun";
+
+/* status meesage for edited messages */
+"MESSAGE_STATUS_EDITED" = "Diedit";
 
 /* status message for failed messages */
 "MESSAGE_STATUS_FAILED" = "Penghantaran gagal.";
@@ -3812,13 +3944,16 @@
 "MESSAGES_VIEW_UNREAD_INDICATOR" = "Mesej-mesej Baru";
 
 /* info message text in conversation view */
-"MISSED_CALL" = "Panggilan tidak dijawab";
+"MISSED_AUDIO_CALL" = "Panggilan suara terlepas";
 
 /* info message text in conversation view (use Apple's name for 'Do Not Disturb' on iOS 14 and older) */
 "MISSED_CALL_DO_NOT_DISTURB" = "Panggilan terlepas semasa dalam mod Jangan Ganggu";
 
 /* info message text in conversation view (use Apple's name for 'Focus') */
 "MISSED_CALL_FOCUS_MODE" = "Panggilan terlepas semasa menggunakan Focus";
+
+/* info message text in conversation view */
+"MISSED_VIDEO_CALL" = "Panggilan video terlepas";
 
 /* Alert body */
 "MISSING_CAMERA_PERMISSION_MESSAGE" = "Anda boleh mendayakan akses kamera dalam aplikasi Tetapan iOS untuk membuat panggilan video dalam Signal.";
@@ -3838,17 +3973,14 @@
 /* Alert title when user has previously denied media library access */
 "MISSING_MEDIA_LIBRARY_PERMISSION_TITLE" = "Signal memerlukan akses kepada foto anda untuk ciri ini.";
 
-/* Generic indicator that no value is available for display */
-"MISSING_VALUE" = "Tiada";
-
-/* alert title: cannot link - reached max linked devices */
+/* An error shown as the title of an alert when try to link a new device & the user is already at the limit. */
 "MULTIDEVICE_PAIRING_MAX_DESC" = "Anda tidak boleh memautkan sebarang peranti lagi.";
 
-/* alert body: cannot link - reached max linked devices */
-"MULTIDEVICE_PAIRING_MAX_RECOVERY" = "Anda telah mencapai maksimum peranti yang kini anda boleh pautkan dengan akaun anda. Sila alih keluar peranti dan cuba lagi.";
+/* A recovery suggestion shown as the body of an alert when try to link a new device & the user is already at the limit. */
+"MULTIDEVICE_PAIRING_MAX_RECOVERY" = "Anda telah mencapai jumlah maksimum peranti yang boleh dipautkan dengan akaun anda. Sila alih keluar peranti dan cuba lagi.";
 
 /* Badge indicating that the user is muted. */
-"MUTED_BADGE" = "Diredamkan";
+"MUTED_BADGE" = "Diredam";
 
 /* Indicates that there are no sent stories to render */
 "MY_STORIES_NO_STORIES" = "Kemas kini untuk cerita anda akan ditunjukkan di sini.";
@@ -4000,6 +4132,9 @@
 /* Label for 1:1 conversation with yourself. */
 "NOTE_TO_SELF" = "Nota untuk Diri Sendiri";
 
+/* Body for a notification representing a message request. */
+"NOTIFICATION_BODY_INCOMING_MESSAGE_REQUEST" = "Permintaan Mesej";
+
 /* Lock screen notification text presented after user powers on their device without unlocking. Embeds {{device model}} (either 'iPad' or 'iPhone') */
 "NOTIFICATION_BODY_PHONE_LOCKED_FORMAT" = "Anda mungkin menerima mesej semasa %1$@ anda mulakan semula.";
 
@@ -4054,9 +4189,6 @@
 /* Label for the 'ok' button. */
 "OK" = "OK";
 
-/* Label indicating that the 2fa pin is exhausted in the 'onboarding 2fa' view. */
-"ONBOARDING_2FA_ATTEMPTS_EXHAUSTED" = "PIN tidak betul. Percubaan habis digunakan.";
-
 /* Label for the 'create new pin' button when reglock is disabled during onboarding. */
 "ONBOARDING_2FA_CREATE_NEW_PIN" = "Cipta PIN Baru";
 
@@ -4072,6 +4204,9 @@
 /* Label indicating that the 2fa pin is invalid in the 'onboarding 2fa' view. */
 "ONBOARDING_2FA_INVALID_PIN" = "PIN tidak betul";
 
+/* Label indicating that the 2fa pin is invalid in the 'onboarding 2fa' view, and you only have one more attempt */
+"ONBOARDING_2FA_INVALID_PIN_LAST_ATTEMPT" = "PIN tidak betul. 1 lagi percubaan.";
+
 /* Label for the 'skip and create new pin' button when reglock is disabled during onboarding. */
 "ONBOARDING_2FA_SKIP_AND_CREATE_NEW_PIN" = "Langkau dan Cipta Pin Baru";
 
@@ -4080,15 +4215,6 @@
 
 /* Title for the skip pin entry action sheet during onboarding. */
 "ONBOARDING_2FA_SKIP_PIN_ENTRY_TITLE" = "Langkau Kemasukan PIN?";
-
-/* Title of the 'onboarding Captcha' view. */
-"ONBOARDING_CAPTCHA_TITLE" = "Tambahkan sentuhan manusia kepada mesej anda";
-
-/* Explanation on the 'onboarding after dropped YDB' view. */
-"ONBOARDING_DROPPED_YDB_EXPLANATION" = "Disebabkan anda sudah lama tidak aktif, anda mesti mendaftar lagi untuk menggunakan Signal.";
-
-/* Title of the 'onboarding after dropped YDB' view. */
-"ONBOARDING_DROPPED_YDB_TITLE" = "Daftar untuk Signal";
 
 /* button indicating that the user will register their ipad */
 "ONBOARDING_MODE_SWITCH_BUTTON_PROVISIONING" = "Daftar iPad";
@@ -4135,12 +4261,6 @@
 /* Label indicating that registration has been ratelimited. Embeds {{remaining time string}}. */
 "ONBOARDING_PHONE_NUMBER_RATE_LIMIT_WARNING_FORMAT" = "Sila tunggu beberapa minit sebelum mencuba lagi. (%1$@)";
 
-/* Title of the 'onboarding phone number' view. */
-"ONBOARDING_PHONE_NUMBER_TITLE" = "Masukkan nombor telefon anda";
-
-/* Title of the 'onboarding phone number' view when the user is re-registering. */
-"ONBOARDING_PHONE_NUMBER_TITLE_REREGISTERING" = "Nombor Telefon Anda";
-
 /* Label indicating that the phone number is invalid in the 'onboarding phone number' view. */
 "ONBOARDING_PHONE_NUMBER_VALIDATION_WARNING" = "Nombor telefon tidak sah. Sila masukkan nombor telefon yang sah untuk mendaftar.";
 
@@ -4150,32 +4270,11 @@
 /* Label for the 'learn more' link when reglock is disabled in the 'onboarding pin attempts exhausted' view. */
 "ONBOARDING_PIN_ATTEMPTS_EXHAUSTED_LEARN_MORE" = "Ketahui lebih lanjut mengenai PIN";
 
-/* Explanation of the 'onboarding pin attempts exhausted' view when reglock is enabled. */
-"ONBOARDING_PIN_ATTEMPTS_EXHAUSTED_REGLOCK_EXPLANATION" = "Untuk melindungi privasi anda dan keselamatan akaun anda, kami telah menguncinya selama 7 hari.\n\nSelepas 7 hari tidak aktif, anda akan dapat mendaftar semula nombor telefon ini tanpa memerlukan PIN anda. Semua kandungan akan dihapuskan.";
-
-/* Label for the 'learn more' link when reglock is enabled in the 'onboarding pin attempts exhausted' view. */
-"ONBOARDING_PIN_ATTEMPTS_EXHAUSTED_REGLOCK_LEARN_MORE" = "Ketahui lebih lanjut mengenai akaun yang dikunci";
-
-/* Title of the 'onboarding pin attempts exhausted' view when reglock is enabled. */
-"ONBOARDING_PIN_ATTEMPTS_EXHAUSTED_REGLOCK_TITLE" = "Akaun Dikunci";
-
 /* Title of the 'onboarding pin attempts exhausted' view when reglock is disabled. */
 "ONBOARDING_PIN_ATTEMPTS_EXHAUSTED_TITLE" = "PIN tidak betul";
 
-/* Title of the 'onboarding PIN' view. */
-"ONBOARDING_PIN_EXPLANATION" = "Masukkan PIN yang anda buat untuk akaun anda. Ini berbeza dengan kod pengesahan SMS anda.";
-
-/* Title of the 'onboarding PIN' view. */
-"ONBOARDING_PIN_TITLE" = "Masukkan PIN anda";
-
-/* Title label for profile creation step of onboarding */
-"ONBOARDING_PROFILE_CREATION_TITLE" = "Profil anda";
-
-/* Placeholder text for the family name field of the profile creation view. */
-"ONBOARDING_PROFILE_FAMILY_NAME_FIELD" = "Nama Keluarga (Pilihan)";
-
-/* Placeholder text for the given name field of the profile creation view. */
-"ONBOARDING_PROFILE_GIVEN_NAME_FIELD" = "Nama Pertama (Diperlukan)";
+/* Explanation of the 'onboarding pin attempts exhausted' view when it is unknown if reglock is enabled. */
+"ONBOARDING_PIN_ATTEMPTS_EXHAUSTED_WITH_UNKNOWN_REGLOCK_EXPLANATION" = "Anda kehabisan tekaan PIN, tetapi anda masih boleh mengakses akaun Signal anda dengan mengesahkan nombor telefon anda. Untuk privasi dan keselamatan, akaun anda akan dipulihkan tanpa sebarang maklumat atau tetapan profil yang disimpan.";
 
 /* Link to the 'terms and privacy policy' in the 'onboarding splash' view. */
 "ONBOARDING_SPLASH_TERM_AND_PRIVACY_POLICY" = "Terma & Dasar Privasi";
@@ -4195,8 +4294,17 @@
 /* Label for a progress spinner currently validating code */
 "ONBOARDING_VERIFICATION_CODE_VALIDATION_PROGRESS_LABEL" = "Mengesahkan Kod…";
 
-/* Label indicating that the verification code is incorrect in the 'onboarding verification' view. */
-"ONBOARDING_VERIFICATION_INVALID_CODE" = "Kod ini tidak betul";
+/* First bullet point for the explainer sheet for registering via verification code. */
+"ONBOARDING_VERIFICATION_HELP_BULLET_1" = "Pastikan telefon anda mempunyai isyarat selular untuk menerima SMS atau panggilan";
+
+/* Second bullet point for the explainer sheet for registering via verification code. */
+"ONBOARDING_VERIFICATION_HELP_BULLET_2" = "Sahkan anda boleh menerima panggilan telefon kepada nombor";
+
+/* Third bullet point for the explainer sheet for registering via verification code. */
+"ONBOARDING_VERIFICATION_HELP_BULLET_3" = "Periksa bahawa anda telah memasukkan nombor telefon anda dengan betul";
+
+/* Label for a button to get help entering a verification code when registering. */
+"ONBOARDING_VERIFICATION_HELP_LINK" = "Menghadapi masalah mendaftar?";
 
 /* Label for button to resend SMS verification code. */
 "ONBOARDING_VERIFICATION_RESEND_CODE_BUTTON" = "Hantar Semula Kod";
@@ -4213,6 +4321,21 @@
 /* Button text which opens the settings app */
 "OPEN_SETTINGS_BUTTON" = "Tetapan";
 
+/* Signal doesn't support old versions of iOS and shows a warning if you're on unsupported version. Some users can upgrade their device to a newer version of iOS to continue using Signal. If that's the case, they'll be shown this text. */
+"OS_EXPIRED_AND_CAN_UPGRADE_OS" = "Signal tidak lagi berfungsi pada peranti ini. Untuk menggunakan Signal sekali lagi, kemas kini peranti anda kepada versi iOS yang terkini.";
+
+/* Signal doesn't support old devices. If that's the case, they'll be shown this action, and tapping it will open information about Signal's minimum supported operating systems. */
+"OS_EXPIRED_AND_DEVICE_IS_STUCK" = "Signal tidak lagi berfungsi pada peranti ini. Untuk menggunakan Signal sekali lagi, tukar kepada peranti yang lebih baharu.";
+
+/* Signal doesn't support old versions of iOS and shows a warning if you're on an old version. Some users can upgrade their device to a newer version of iOS to continue using Signal. If that's the case, they'll be shown this action, and tapping it will open device update instructions. */
+"OS_SOON_TO_EXPIRE_ACTION_TITLE" = "Kemas Kini Sekarang";
+
+/* Signal doesn't support old versions of iOS and shows a warning if you're an old version that will soon lose support. Some users can upgrade their device to a newer version of iOS to continue using Signal. If that's the case, they'll be shown this text. Embeds {{expiration date}}. */
+"OS_SOON_TO_EXPIRE_AND_CAN_UPGRADE_OS_FORMAT" = "Signal tidak lagi akan menyokong versi iOS peranti anda tidak lama lagi. Untuk terus menggunakan Signal, kemas kini peranti anda kepada versi iOS yang terkini sebelum %1$@.";
+
+/* Signal doesn't support old versions of iOS and shows a warning if you're on an old version that will soon lose support. This is the text on that warning when users can't upgrade iOS without getting a new device. Embeds {{expiration date}}. */
+"OS_SOON_TO_EXPIRE_AND_DEVICE_WILL_BE_STUCK_FORMAT" = "Signal tidak lagi akan menyokong versi iOS peranti anda tidak lama lagi. Untuk terus menggunakan Signal, tukar kepada peranti yang lebih baharu sebelum %1$@.";
+
 /* Info Message when another user disabled disappearing messages. Embeds {{name of other user}}. */
 "OTHER_DISABLED_DISAPPEARING_MESSAGES_CONFIGURATION" = "%1$@ telah menyahdayakan mesej hilang";
 
@@ -4228,8 +4351,17 @@
 /* Label warning the user that they should update Signal to continue using payments. */
 "OUTDATED_PAYMENT_CLIENT_REMINDER_TEXT" = "Kemas kini Signal untuk terus menggunakan pembayaran. Baki anda mungkin tidak dikemas kini.";
 
-/* info message text in conversation view. {embeds callee name} */
-"OUTGOING_CALL_FORMAT" = "Awak telah menelefon %1$@";
+/* info message text in conversation view */
+"OUTGOING_AUDIO_CALL" = "Panggilan suara keluar";
+
+/* info message text in conversation view */
+"OUTGOING_MISSED_AUDIO_CALL" = "Panggilan suara tidak dijawab";
+
+/* info message text in conversation view */
+"OUTGOING_MISSED_VIDEO_CALL" = "Panggilan video tidak dijawab";
+
+/* info message text in conversation view */
+"OUTGOING_VIDEO_CALL" = "Panggilan video keluar";
 
 /* Button used to decline a payment request. */
 "PAYMENTS_ACTION_DECLINE_REQUEST" = "Tolak Permintaan";
@@ -4276,6 +4408,60 @@
 /* Status indicator for outgoing payments which failed to verify. */
 "PAYMENTS_FAILURE_OUTGOING_VALIDATION_FAILED" = "Tidak Sah";
 
+/* Indicates that an unknown error occurred while using Touch ID/Face ID/Phone Passcode. */
+"PAYMENTS_LOCK_AUTHENTICATION_ENABLE_UNKNOWN_ERROR" = "Pengesahan tidak dapat diakses.";
+
+/* Indicates that Touch ID/Face ID/Phone Passcode authentication failed. */
+"PAYMENTS_LOCK_ERROR_LOCAL_AUTHENTICATION_FAILED" = "Pengesahan gagal.";
+
+/* Indicates that Touch ID/Face ID/Phone Passcode is 'locked out' on this device due to authentication failures. */
+"PAYMENTS_LOCK_ERROR_LOCAL_AUTHENTICATION_LOCKOUT" = "Terlalu banyak percubaan pengesahan yang gagal. Sila cuba sebentar lagi.";
+
+/* Indicates that Touch ID/Face ID/Phone Passcode are not available on this device. */
+"PAYMENTS_LOCK_ERROR_LOCAL_AUTHENTICATION_NOT_AVAILABLE" = "Anda mesti mendayakan kod laluan dalam Tetapan iOS anda untuk menggunakan Kunci Pembayaran.";
+
+/* Indicates that Touch ID/Face ID/Phone Passcode is not configured on this device. */
+"PAYMENTS_LOCK_ERROR_LOCAL_AUTHENTICATION_NOT_ENROLLED" = "Anda mesti mendayakan kod laluan dalam Tetapan iOS anda untuk menggunakan Kunci Pembayaran.";
+
+/* Indicates that Touch ID/Face ID/Phone Passcode passcode is not set. */
+"PAYMENTS_LOCK_ERROR_LOCAL_AUTHENTICATION_PASSCODE_NOT_SET" = "Anda mesti mendayakan kod laluan dalam Tetapan iOS anda untuk menggunakan Kunci Pembayaran.";
+
+/* First time payments suggest payments lock message */
+"PAYMENTS_LOCK_FIRST_TIME_ACTION_SHEET_MESSAGE" = "Letak lapisan keselamatan tambahan dan perlukan kod laluan atau ID Sentuhan anda untuk menghantar dana";
+
+/* First time payments suggest payments lock message */
+"PAYMENTS_LOCK_FIRST_TIME_ACTION_SHEET_MESSAGE_FACEID" = "Letak lapisan keselamatan tambahan dan perlukan ID Wajah untuk menghantar dana.";
+
+/* First time payments suggest payments lock message */
+"PAYMENTS_LOCK_FIRST_TIME_ACTION_SHEET_MESSAGE_PASSCODE" = "Letak lapisan keselamatan tambahan dan perlukan kod laluan untuk menghantar dana.";
+
+/* First time payments suggest payments lock message */
+"PAYMENTS_LOCK_FIRST_TIME_ACTION_SHEET_MESSAGE_TOUCHID" = "Letak lapisan keselamatan tambahan dan perlukan ID Sentuhan untuk menghantar dana.";
+
+/* First time payments suggest payments lock title */
+"PAYMENTS_LOCK_FIRST_TIME_ACTION_SHEET_TITLE" = "Hidupkan Kunci Pembayaran untuk Penghantaran Akan Datang?";
+
+/* Affirmative action title to enable payments lock */
+"PAYMENTS_LOCK_FIRST_TIME_AFFIRMATIVE_ACTION" = "Memerlukan Kod Laluan atau ID Sentuhan Anda untuk Hantar";
+
+/* Affirmative action title to enable payments lock */
+"PAYMENTS_LOCK_FIRST_TIME_AFFIRMATIVE_ACTION_FACEID" = "Memerlukan ID Wajah untuk Hantar";
+
+/* Affirmative action title to enable payments lock */
+"PAYMENTS_LOCK_FIRST_TIME_AFFIRMATIVE_ACTION_PASSCODE" = "Memerlukan Kod Laluan Telefon Anda untuk Hantar";
+
+/* Affirmative action title to enable payments lock */
+"PAYMENTS_LOCK_FIRST_TIME_AFFIRMATIVE_ACTION_TOUCHID" = "Memerlukan ID Sentuhan untuk Hantar";
+
+/* Message for action sheet shown when unlocking with biometrics like Face ID or TouchID fails because it is disabled at a system level. */
+"PAYMENTS_LOCK_LOCAL_BIOMETRY_AUTH_DISABLED_MESSAGE" = "Pengesahan tidak berjaya. Pastikan biometrik didayakan pada peranti anda dan kod laluan ditetapkan.";
+
+/* Title for action sheet shown when unlocking with biometrics like Face ID or TouchID fails because it is disabled at a system level. */
+"PAYMENTS_LOCK_LOCAL_BIOMETRY_AUTH_DISABLED_TITLE" = "Pengesahan Biometrik Gagal";
+
+/* Description of how and why Signal iOS uses Touch ID/Face ID/Phone Passcode to unlock 'payments lock'. */
+"PAYMENTS_LOCK_REASON_UNLOCK_PAYMENTS_LOCK" = "Sahkan untuk mengesahkan pembayaran.";
+
 /* Label for the 'add memo' ui in the 'send payment' UI. */
 "PAYMENTS_NEW_PAYMENT_ADD_MEMO" = "Tambah Nota";
 
@@ -4308,6 +4494,12 @@
 
 /* Indicates that an outgoing payment could not be verified in a timely way. */
 "PAYMENTS_NEW_PAYMENT_ERROR_OUTGOING_VERIFICATION_TAKING_TOO_LONG" = "Pembayaran belum disahkan";
+
+/* Indicates that a payment failed because the payments lock attempt was cancelled. */
+"PAYMENTS_NEW_PAYMENT_ERROR_PAYMENTS_LOCK_AUTH_CANCELLED" = "Pengesahan kunci pembayaran dibatalkan.";
+
+/* Indicates that a payment failed because the payments lock failed to authenticate. */
+"PAYMENTS_NEW_PAYMENT_ERROR_PAYMENTS_LOCK_AUTH_FAILURE" = "Kegagalan pengesahan kunci pembayaran.";
 
 /* Indicates that an unknown error occurred while sending a payment or payment request. */
 "PAYMENTS_NEW_PAYMENT_ERROR_UNKNOWN" = "Tidak dapat menyelesaikan pembayaran. Periksa sambungan anda dan cuba lagi.";
@@ -4520,22 +4712,16 @@
 "PHONE_NUMBER_DISCOVERABILITY_EVERYBODY" = "Semua orang";
 
 /* A user friendly description of the 'everybody' phone number discoverability mode. */
-"PHONE_NUMBER_DISCOVERABILITY_EVERYBODY_DESCRIPTION" = "Sesiapa yang mempunyai nombor telefon anda dalam kenalannya akan melihat anda sebagai kenalan di Signal. Orang lain akan dapat menemui anda dalam Carian.";
+"PHONE_NUMBER_DISCOVERABILITY_EVERYBODY_DESCRIPTION" = "Sesiapa sahaja yang mempunyai nombor telefon anda dalam kenalan mereka akan melihat anda sebagai kenalan di Signal. Orang lain akan dapat menghubungi anda dengan nombor telefon anda apabila mereka memulakan sembang atau kumpulan baharu.";
 
 /* A user friendly name for the 'nobody' phone number discoverability mode. */
 "PHONE_NUMBER_DISCOVERABILITY_NOBODY" = "Tiada sesiapa";
 
 /* A user friendly description of the 'nobody' phone number discoverability mode. */
-"PHONE_NUMBER_DISCOVERABILITY_NOBODY_DESCRIPTION" = "Tidak ada sesiapa di Signal yang dapat menemui anda dengan nombor telefon anda. Anda tidak akan dapat dilihat sebagai kenalan bagi orang yang mempunyai nombor telefon anda dalam kenalan mereka dan orang lain tidak akan dapat menemui anda dengan nombor telefon anda dalam carian.";
+"PHONE_NUMBER_DISCOVERABILITY_NOBODY_DESCRIPTION" = "Tiada siapa di Signal boleh mencari anda dengan nombor telefon anda.";
 
 /* A format for a label showing an example phone number. Embeds {{the example phone number}}. */
 "PHONE_NUMBER_EXAMPLE_FORMAT" = "Contoh: %1$@";
-
-/* A user friendly name for the 'contacts only' phone number sharing mode. */
-"PHONE_NUMBER_SHARING_CONTACTS_ONLY" = "Kenalan Saya";
-
-/* A user friendly description of the 'contacts only' phone number sharing mode. */
-"PHONE_NUMBER_SHARING_CONTACTS_ONLY_DESCRIPTION" = "Hanya kenalan anda yang akan nampak nombor telefon anda di Signal.";
 
 /* A user friendly name for the 'everybody' phone number sharing mode. */
 "PHONE_NUMBER_SHARING_EVERYBODY" = "Semua orang";
@@ -4633,17 +4819,17 @@
 /* Title of the 'pin disable' action sheet. */
 "PIN_CREATION_DISABLE_CONFIRMATION_TITLE" = "Amaran";
 
-/* Error body indicating that the attempt to create a PIN failed. */
-"PIN_CREATION_ERROR_MESSAGE" = "PIN anda tidak disimpan. Kami akan meminta anda mencipta PIN kemudian.";
-
-/* Error title indicating that the attempt to create a PIN failed. */
-"PIN_CREATION_ERROR_TITLE" = "Penciptaan PIN Gagal";
-
 /* The explanation in the 'pin creation' view. */
 "PIN_CREATION_EXPLANATION" = "PIN memastikan maklumat yang disimpan dengan Signal disulitkan supaya hanya anda boleh mengaksesnya. Profil, tetapan dan kenalan anda akan dipulihkan semasa anda memasang semula. Anda tidak memerlukan PIN anda untuk membuka aplikasi.";
 
 /* Learn more action on the pin creation view */
-"PIN_CREATION_LEARN_MORE" = "Ketahui Lebih Lanjut Mengenai PIN";
+"PIN_CREATION_LEARN_MORE" = "Lagi Tentang PIN";
+
+/* Users can create PINs to restore their account data later. They can learn more about this on a sheet. This is the text on that sheet. */
+"PIN_CREATION_LEARN_MORE_TEXT" = "PIN memastikan maklumat anda disimpan dengan Signal disulitkan supaya anda sahaja yang boleh mengaksesnya. Profil, tetapan dan kenalan anda akan dipulihkan apabila anda memasang semula.";
+
+/* Users can create PINs to restore their account data later. They can learn more about this on a sheet. This is the title on that sheet. */
+"PIN_CREATION_LEARN_MORE_TITLE" = "Tentang PIN Signal";
 
 /* Label indicating that the attempted PIN does not match the first PIN */
 "PIN_CREATION_MISMATCH_ERROR" = "PIN tidak sepadan. Cuba lagi.";
@@ -4690,11 +4876,17 @@
 /* Label indicating that the attempted PIN is too weak */
 "PIN_CREATION_WEAK_ERROR" = "Pilih PIN yang lebih kuat";
 
+/* If your attempted PIN is too weak, you'll see an error message. This is the text on the error dialog. */
+"PIN_CREATION_WEAK_ERROR_MESSAGE" = "PIN memastikan maklumat anda disimpan dengan Signal disulitkan supaya anda sahaja yang boleh mengaksesnya. Pilih PIN yang lebih kukuh untuk melindungi akaun anda.";
+
 /* Error body indicating that the attempt to disable a PIN failed. */
 "PIN_DISABLE_ERROR_MESSAGE" = "PIN anda tidak dapat dinyahdayakan. Kami akan memaklumkan anda nanti.";
 
 /* Error title indicating that the attempt to disable a PIN failed. */
 "PIN_DISABLE_ERROR_TITLE" = "Gagal Menyahdayakan PIN";
+
+/* If the user is re-registering, they need to enter their PIN to restore all their data. In some cases, they can skip this entry and lose some data. This text is shown on a button that lets them begin to do this. */
+"PIN_ENTER_EXISTING_SKIP" = "Langkau PIN";
 
 /* Error title indicating that the attempt to recreate a PIN failed. */
 "PIN_RECREATION_ERROR_TITLE" = "Penciptaan PIN Gagal";
@@ -4759,14 +4951,8 @@
 /* Accessibility label for button to start media playback */
 "PLAY_BUTTON_ACCESSABILITY_LABEL" = "Mainkan Media";
 
-/* Label indicating that the user is not verified. Embeds {{the user's name or phone number}}. */
-"PRIVACY_IDENTITY_IS_NOT_VERIFIED_FORMAT" = "Anda tidak tandakan %1$@ sebagai disahkan.";
-
 /* Badge indicating that the user is verified. */
 "PRIVACY_IDENTITY_IS_VERIFIED_BADGE" = "Disahkan";
-
-/* Label indicating that the user is verified. Embeds {{the user's name or phone number}}. */
-"PRIVACY_IDENTITY_IS_VERIFIED_FORMAT" = "%1$@ disahkan.";
 
 /* Button that shows the 'scan with camera' view. */
 "PRIVACY_TAP_TO_SCAN" = "Ketik untuk Imbas";
@@ -4794,9 +4980,6 @@
 
 /* alert body */
 "PRIVACY_VERIFICATION_FAILURE_INVALID_QRCODE" = "Kod yang diimbas tidak kelihatan seperti nombor keselamatan. Adakah anda berdua mempunyai versi Signal yang terkini?";
-
-/* Paragraph(s) shown alongside the safety number when verifying privacy with {{contact name}} */
-"PRIVACY_VERIFICATION_INSTRUCTIONS" = "Jika anda ingin mengesahkan keselamatan penyulitan hujung ke hujung dengan %1$@, bandingkan nombor di atas dengan nombor pada peranti mereka.\n\nSebagai alternatif, anda boleh mengimbas kod pada telefon mereka, atau minta mereka mengimbas kod anda.";
 
 /* Navbar title */
 "PRIVACY_VERIFICATION_TITLE" = "Sahkan Nombor Keselamatan";
@@ -4870,7 +5053,28 @@
 /* Placeholder when the user doesn't have a 'name' defined for profile settings screen. */
 "PROFILE_SETTINGS_NAME_PLACEHOLDER" = "Nama";
 
-/* Placeholder when the user doesn't have a 'username' defined for profile settings screen. */
+/* A message explaining that something is wrong with the username, on a sheet allowing the user to resolve the issue. */
+"PROFILE_SETTINGS_USERNAME_CORRUPTED_RESOLUTION_CONFIRMATION_ALERT_MESSAGE" = "Kesilapan telah berlaku dengan nama pengguna anda, ia tidak lagi diberikan kepada akaun anda.";
+
+/* Title for an action sheet button allowing users to create a new username when their current one is corrupted. */
+"PROFILE_SETTINGS_USERNAME_CORRUPTED_RESOLUTION_CREATE_NEW_USERNAME_ACTION_TITLE" = "Cipta Nama Pengguna";
+
+/* Title for an action sheet button allowing users to delete their corrupted username. */
+"PROFILE_SETTINGS_USERNAME_CORRUPTED_RESOLUTION_DELETE_USERNAME_ACTION_TITLE" = "Padam nama pengguna";
+
+/* A message asking the user if they are sure they want to remove their username and explaining what will happen. Embeds {{ the user's current username }}. */
+"PROFILE_SETTINGS_USERNAME_DELETION_CONFIRMATION_ALERT_MESSAGE_FORMAT" = "Ini akan mengalih keluar nama pengguna anda dan melumpuhkan kod QR dan pautan anda. \"%1$@\" akan tersedia untuk dituntut oleh orang lain. Adakah anda pasti?";
+
+/* The title of an action sheet button that will delete a user's username. */
+"PROFILE_SETTINGS_USERNAME_DELETION_USERNAME_ACTION_TITLE" = "Padam nama pengguna";
+
+/* Title for a menu action allowing users to edit their existing username. */
+"PROFILE_SETTINGS_USERNAME_EDIT_USERNAME_ACTION" = "Edit nama pengguna";
+
+/* Title for a table cell that lets the user manage their username link and QR code. */
+"PROFILE_SETTINGS_USERNAME_LINK_CELL_TITLE" = "Kod QR atau Pautan";
+
+/* A placeholder value shown in the profile settings screen on a tappable item leading to a username selection flow, for when the user doesn't have a username. */
 "PROFILE_SETTINGS_USERNAME_PLACEHOLDER" = "Nama Pengguna";
 
 /* Error message shown when user tries to update profile with a family name that is too long. */
@@ -4893,9 +5097,6 @@
 
 /* Description of the user profile. */
 "PROFILE_VIEW_PROFILE_DESCRIPTION" = "Profil anda disulitkan dari hujung ke hujung. Profil anda dan perubahannya akan dapat dilihat oleh kenalan anda dan apabila anda memulakan atau menerima sembang baharu.";
-
-/* Button to save the profile view in the profile view. */
-"PROFILE_VIEW_SAVE_BUTTON" = "Simpan";
 
 /* Title for the profile view. */
 "PROFILE_VIEW_TITLE" = "Profil";
@@ -4940,10 +5141,10 @@
 "QUOTED_REPLY_ORIGINAL_MESSAGE_REMOTELY_SOURCED" = "Mesej asal tidak dijumpai.";
 
 /* Header label that appears above quoted messages when the quoted content was includes a reaction to your own story. */
-"QUOTED_REPLY_REACTION_TO_OWN_STORY" = "Menghantar reaksi kepada cerita anda";
+"QUOTED_REPLY_REACTION_TO_OWN_STORY" = "Memberi reaksi kepada cerita anda";
 
 /* Header label that appears above quoted messages when the quoted content was includes a reaction to a story. Embeds {{ story author name }} */
-"QUOTED_REPLY_REACTION_TO_STORY_FORMAT" = "Menghantar reaksi kepada cerita %1$@";
+"QUOTED_REPLY_REACTION_TO_STORY_FORMAT" = "Memberi reaksi kepada cerita %1$@";
 
 /* Message header when you are quoting a story. Embeds {{ story author name }} */
 "QUOTED_REPLY_STORY_AUTHOR_INDICATOR_FORMAT" = "%1$@ · Cerita";
@@ -5008,6 +5209,12 @@
 /* Pressing this button marks a thread as read */
 "READ_ACTION" = "Baca";
 
+/* The title for a context menu item that blocks a recipient from your recipient picker list. */
+"RECIPIENT_CONTEXT_MENU_BLOCK_TITLE" = "Sekat";
+
+/* The title for a context menu item that removes a recipient from your recipient picker list. */
+"RECIPIENT_CONTEXT_MENU_REMOVE_TITLE" = "Alih keluar";
+
 /* Error message indicating that a user can't be selected. */
 "RECIPIENT_PICKER_ERROR_USER_CANNOT_BE_SELECTED" = "Pengguna tidak boleh dipilih.";
 
@@ -5026,34 +5233,28 @@
 /* Alert title. Shown after selecting a phone number that isn't a Signal user. */
 "RECIPIENT_PICKER_INVITE_TITLE" = "Jemput ke Signal";
 
-/* Label for 'I forgot my PIN' link in the 2FA registration view. */
-"REGISTER_2FA_FORGOT_PIN" = "Saya terlupa PIN saya";
-
 /* Alert title explaining what happens if you forget your 'two-factor auth pin'. */
 "REGISTER_2FA_FORGOT_PIN_ALERT_TITLE" = "Perlukan Bantuan?";
 
 /* Alert body for a forgotten SVR (V2) PIN */
 "REGISTER_2FA_FORGOT_SVR_PIN_ALERT_MESSAGE" = "PIN anda adalah kod angka 4+ digit yang anda cipta sama ada angka  atau abjad angka. Jika anda tidak ingat PIN anda, anda perlu menunggu 7 hari untuk mendaftarkan semula akaun anda.";
 
-/* Alert body for a forgotten SVR (V2) PIN when the user doesn't have reglock */
-"REGISTER_2FA_FORGOT_SVR_PIN_WITHOUT_REGLOCK_ALERT_MESSAGE" = "PIN anda adalah kod 4+ digit yang anda cipta sama ada angka atau abjad angka. Jika anda tidak ingat PIN anda, anda boleh mencipta yang baru. Anda boleh mendaftar dan menggunakan akaun anda tetapi anda akan kehilangan sesetengah tetapan yang disimpan seperti maklumat profil anda.";
+/* Alert body for a forgotten SVR (V2) PIN when the user doesn't have reglock and they cannot necessarily create a new PIN */
+"REGISTER_2FA_FORGOT_SVR_PIN_WITHOUT_REGLOCK_ALERT_MESSAGE" = "PIN anda ialah 4+ kod digit yang anda buat sama ada angka atau abjad angka. Jika anda tidak ingat PIN anda, anda boleh mendaftar dan menggunakan akaun anda tetapi anda akan kehilangan sesetengah tetapan yang disimpan seperti maklumat profil anda.";
 
-/* Alert body for a forgotten V1 PIN */
-"REGISTER_2FA_FORGOT_V1_PIN_ALERT_MESSAGE" = "PIN anda adalah kod angka 4+ digit yang anda cipta. Jika anda tidak ingat PIN anda, anda perlu menunggu 7 hari untuk mendaftarkan semula akaun anda.";
+/* Alert body for a forgotten SVR (V2) PIN when the user doesn't have reglock and they can create a new PIN */
+"REGISTER_2FA_FORGOT_SVR_PIN_WITHOUT_REGLOCK_AND_CAN_CREATE_NEW_PIN_ALERT_MESSAGE" = "PIN anda adalah kod 4+ digit yang anda cipta sama ada angka atau abjad angka. Jika anda tidak ingat PIN anda, anda boleh mencipta yang baru. Anda boleh mendaftar dan menggunakan akaun anda tetapi anda akan kehilangan sesetengah tetapan yang disimpan seperti maklumat profil anda.";
 
 /* Alert title explaining what happens if you forget your 'two-factor auth pin'. */
 "REGISTER_2FA_INVALID_PIN_ALERT_TITLE" = "PIN tidak betul";
 
-/* Indicates the work we are doing while verifying the user's pin */
-"REGISTER_2FA_PIN_PROGRESS" = "Mengesahkan PIN…";
-
-/* Label for 'submit' button in the 2FA registration view. */
-"REGISTER_2FA_SUBMIT_BUTTON" = "Hantar";
-
 /* No comment provided by engineer. */
 "REGISTER_CONTACTS_WELCOME" = "Selamat datang!";
 
-/* action sheet body */
+/* Body of action sheet shown when rate-limited during registration. */
+"REGISTER_RATE_LIMITING_ALERT" = "Anda telah mencuba terlalu kerap. Sila tunggu beberapa minit sebelum mencuba lagi.";
+
+/* No comment provided by engineer. */
 "REGISTER_RATE_LIMITING_BODY" = "Anda telah mencuba terlalu kerap. Sila tunggu sebentar sebelum cuba lagi.";
 
 /* No comment provided by engineer. */
@@ -5062,8 +5263,26 @@
 /* Title of alert shown when push tokens sync job fails. */
 "REGISTRATION_BODY" = "Gagal untuk mendaftar semula pemberitahuan tolak.";
 
+/* During (re)registration, users may need to update their app to continue. They'll be presented with an alert if this is the case, prompting them to update. This is the action button on that alert. */
+"REGISTRATION_CANNOT_CONTINUE_WITHOUT_UPDATING_APP_ACTION" = "Kemas kini";
+
+/* During (re)registration, users may need to update their app to continue. They'll be presented with an alert if this is the case, prompting them to update. This is the description text on that alert. */
+"REGISTRATION_CANNOT_CONTINUE_WITHOUT_UPDATING_APP_DESCRIPTION" = "Untuk meneruskan pendaftaran, sila kemas kini kepada versi terkini Signal.";
+
+/* During (re)registration, users may need to update their app to continue. They'll be presented with an alert if this is the case, prompting them to update. This is the title on that alert. */
+"REGISTRATION_CANNOT_CONTINUE_WITHOUT_UPDATING_APP_TITLE" = "Kemas Kini Diperlukan";
+
+/* During registration, users may be shown a CAPTCHA to verify that they're human. This text is shown above the CAPTCHA. */
+"REGISTRATION_CAPTCHA_TITLE" = "Kami perlu mengesahkan bahawa anda adalah manusia";
+
 /* Label for the country code field */
 "REGISTRATION_DEFAULT_COUNTRY_NAME" = "Kod Negara";
+
+/* If a user is installing Signal on a new phone, they may be asked whether they want to transfer their account from their old device. This is a description on the screen that asks them this question. */
+"REGISTRATION_DEVICE_TRANSFER_CHOICE_EXPLANATION" = "Teruskan akan menyahdayakan Signal pada peranti lain yang pada masa ini berdaftar dengan nombor telefon yang sama.";
+
+/* If a user is installing Signal on a new phone, they may be asked whether they want to transfer their account from their old device. This is the title on the screen that asks them this question. */
+"REGISTRATION_DEVICE_TRANSFER_CHOICE_TITLE" = "Pindah Akaun & Mesej";
 
 /* Placeholder text for the phone number textfield */
 "REGISTRATION_ENTERNUMBER_DEFAULT_TEXT" = "Masukkan Nombor";
@@ -5071,29 +5290,101 @@
 /* No comment provided by engineer. */
 "REGISTRATION_ERROR" = "Ralat Pendaftaran";
 
-/* alert body during registration */
-"REGISTRATION_ERROR_BLANK_VERIFICATION_CODE" = "Kami tidak dapat mengaktifkan akaun anda sehingga anda mengesahkan kod yang kami hantar kepada anda.";
+/* Registration Lock can prevent users from registering in some cases, and they'll have to wait. This is the description on that screen, explaining what's going on. Embeds {{ duration }}, such as \"7 days\". */
+"REGISTRATION_LOCK_TIMEOUT_DESCRIPTION_FORMAT" = "Akaun anda telah dikunci untuk melindungi privasi dan keselamatan anda. Selepas %1$@ hari tidak aktif dalam akaun, anda boleh mendaftar semula nombor telefon ini tanpa memerlukan PIN anda. Semua kandungan akan dipadamkan.";
 
-/* Alert body for network failure during registration */
-"REGISTRATION_ERROR_NETWORK_FAILURE_ALERT_BODY" = "Untuk meneruskan, periksa sambungan Internet telefon anda dan cuba lagi.";
+/* Registration Lock can prevent users from registering in some cases, and they'll have to wait. This button appears on that screen. Tapping it will tell the user more information. */
+"REGISTRATION_LOCK_TIMEOUT_LEARN_MORE_BUTTON" = "Ketahui lebih lanjut mengenai akaun yang dikunci";
 
-/* Alert title for network failure during registration */
-"REGISTRATION_ERROR_NETWORK_FAILURE_ALERT_TITLE" = "Periksa Sambungan";
+/* Registration Lock can prevent users from registering in some cases, and they'll have to wait. This button appears on that screen. Tapping it will bump the user back, earlier in registration, so they can register with a different phone number. */
+"REGISTRATION_LOCK_TIMEOUT_RESET_PHONE_NUMBER_BUTTON" = "Gunakan nombor lain";
 
-/* No comment provided by engineer. */
-"REGISTRATION_NON_VALID_NUMBER" = "Format nombor telefon ini tidak disokong, sila hubungi sokongan.";
+/* Registration Lock can prevent users from registering in some cases, and they'll have to wait. This is the title of that screen. */
+"REGISTRATION_LOCK_TIMEOUT_TITLE" = "Akaun Dikunci";
+
+/* A network error occurred during registration, and an error is shown to the user. This is the body on that error sheet. */
+"REGISTRATION_NETWORK_ERROR_BODY" = "Untuk meneruskan, periksa sambungan Internet telefon anda dan cuba lagi.";
+
+/* A network error occurred during registration, and an error is shown to the user. This is the title on that error sheet. */
+"REGISTRATION_NETWORK_ERROR_TITLE" = "Periksa Sambungan";
+
+/* During registration, users are asked to enter their phone number. This is the subtitle on that screen, which gives users some instructions. */
+"REGISTRATION_PHONE_NUMBER_SUBTITLE" = "Masukkan nombor telefon anda untuk bermula.";
+
+/* During registration, users are asked to enter their phone number. This is the title on that screen. */
+"REGISTRATION_PHONE_NUMBER_TITLE" = "Nombor Telefon Anda";
+
+/* Message for confirmation alert when requesting a voice code during phone number registration. */
+"REGISTRATION_PHONE_NUMBER_VOICE_CODE_ALERT_MESSAGE" = "Anda akan menerima panggilan untuk mengesahkan nombor ini. Adakah nombor telefon di atas betul?";
 
 /* Label for the phone number textfield */
 "REGISTRATION_PHONENUMBER_BUTTON" = "Nombor Telefon";
 
+/* During registration, users are asked to create a PIN code. They'll be taken to a screen to confirm their PIN, much like confirming a password. This is the title on the screen where this happens. */
+"REGISTRATION_PIN_CONFIRM_SUBTITLE" = "Masukkan semula PIN yang anda telah cipta.";
+
+/* During registration, users are asked to create a PIN code. They'll be taken to a screen to confirm their PIN, much like confirming a password. This is the title on the screen where this happens. */
+"REGISTRATION_PIN_CONFIRM_TITLE" = "Sahkan PIN anda";
+
+/* During registration, users are asked to create a PIN code. This is the subtitle on the screen where this happens. A \"learn more\" link will be added to the end of this string. */
+"REGISTRATION_PIN_CREATE_SUBTITLE" = "PIN boleh membantu anda memulihkan akaun anda dan memastikan maklumat anda disulitkan dengan Signal.";
+
+/* During registration, users are asked to create a PIN code. This is the title on the screen where this happens. */
+"REGISTRATION_PIN_CREATE_TITLE" = "Cipta PIN anda";
+
+/* During re-registration, users may be asked to re-enter their PIN code. This is the subtitle on the screen where this happens. A \"learn more\" link will be added to the end of this string. */
+"REGISTRATION_PIN_ENTER_EXISTING_SUBTITLE" = "PIN boleh membantu anda memulihkan akaun anda dan memastikan maklumat anda disulitkan dengan Signal.";
+
+/* During re-registration, users may be asked to re-enter their PIN code. This is the title on the screen where this happens. */
+"REGISTRATION_PIN_ENTER_EXISTING_TITLE" = "Masukkan PIN anda";
+
+/* During registration, users set up their profile. Users input a family name. This is the placeholder for that field. */
+"REGISTRATION_PROFILE_SETUP_FAMILY_NAME_FIELD_PLACEHOLDER" = "Nama Terakhir";
+
+/* During registration, users can choose who can see their phone number. */
+"REGISTRATION_PROFILE_SETUP_FIND_MY_NUMBER_TITLE" = "Siapa yang boleh cari saya melalui nombor?";
+
+/* During registration, users set up their profile. Users input a given name. This is the placeholder for that field. */
+"REGISTRATION_PROFILE_SETUP_GIVEN_NAME_FIELD_PLACEHOLDER" = "Nama Pertama";
+
+/* During registration, users set up their profile. They can learn more about the privacy of their profile by clicking a \"learn more\" button. This is the message on a sheet that appears when they do that. */
+"REGISTRATION_PROFILE_SETUP_MORE_INFO_DETAILS" = "Nama, foto dan perubahan yang dibuat pada profil dapat dilihat oleh kenalan anda dan apabila anda memulakan atau menerima sembang baharu.";
+
+/* During registration, users set up their profile. They can learn more about the privacy of their profile by clicking a \"learn more\" button. This is the title on a sheet that appears when they do that. */
+"REGISTRATION_PROFILE_SETUP_MORE_INFO_TITLE" = "Tentang Privasi Profil";
+
+/* During registration, users set up their profile. This is the subtitle on the screen where this is done. It tells users about the privacy of their profile. A \"learn more\" link will be added to the end of this string. */
+"REGISTRATION_PROFILE_SETUP_SUBTITLE" = "Profil boleh dilihat oleh orang yang anda mesej, kenalan dan kumpulan.";
+
+/* During registration, users set up their profile. This is the title on the screen where this is done. */
+"REGISTRATION_PROFILE_SETUP_TITLE" = "Tetapkan profil anda";
+
+/* Error shown if an SMS/call service provider is permanently unable to send a verification code to the provided number. */
+"REGISTRATION_PROVIDER_FAILURE_MESSAGE_PERMANENT" = "Signal tidak dapat menghantar kod SMS ke nombor anda kerana kegagalan luaran.";
+
+/* Error shown if an SMS/call service provider is temporarily unable to send a verification code to the provided number. */
+"REGISTRATION_PROVIDER_FAILURE_MESSAGE_TRANSIENT" = "Isyarat tidak dapat menghantar kod SMS sekarang kerana kegagalan luaran, sila cuba sebentar lagi.";
+
 /* No comment provided by engineer. */
 "REGISTRATION_RESTRICTED_MESSAGE" = "Anda perlu mendaftar sebelum anda boleh menghantar mesej.";
+
+/* Button when sending a verification code via sms failed, but resending via voice call might succeed. */
+"REGISTRATION_SMS_CODE_FAILED_TRY_VOICE_BUTTON" = "Panggilan suara";
+
+/* Error message when sending a verification code via sms failed, but resending via voice call might succeed. */
+"REGISTRATION_SMS_CODE_FAILED_TRY_VOICE_ERROR" = "Kami tidak dapat menghantar kod pengesahan kepada anda melalui SMS. Cuba terima kod anda melalui panggilan suara.";
+
+/* Alert shown when running out of attempts at submitting a verification code. */
+"REGISTRATION_SUBMIT_CODE_ATTEMPTS_EXHAUSTED_ALERT" = "Anda telah membuat terlalu banyak percubaan untuk memasukkan kod. Sila hantar semula kod dan cuba lagi.";
+
+/* Alert shown when submitting a verification code too many times. Embeds {{ duration }}, such as \"5:00\" */
+"REGISTRATION_SUBMIT_CODE_RATE_LIMIT_ALERT_FORMAT" = "Anda telah membuat terlalu banyak percubaan untuk memasukkan kod. Cuba lagi dalam %1$@";
 
 /* Error message indicating that device transfer from another device might be possible. */
 "REGISTRATION_TRANSFER_AVAILABLE_DESCRIPTION" = "Terdapat akaun yang didaftarkan sebelum ini dengan nombor ini yang tersedia untuk pemindahan.";
 
-/* Alert view title */
-"REGISTRATION_VERIFICATION_FAILED_TITLE" = "Pengesahan Gagal";
+/* During registration and re-registration, users may have to enter a code to verify ownership of their phone number. If they enter an invalid code, they will see this error message. */
+"REGISTRATION_VERIFICATION_ERROR_INVALID_VERIFICATION_CODE" = "Kod yang anda masukkan tidak sah. Sila hantar semula kod dan cuba lagi.";
 
 /* Error message indicating that registration failed due to a missing or incorrect verification code. */
 "REGISTRATION_VERIFICATION_FAILED_WRONG_CODE_DESCRIPTION" = "Nombor yang anda serahkan tidak sepadan dengan apa yang kami hantar. Mahu semak semula?";
@@ -5107,12 +5398,6 @@
 /* Title of alert indicating that users needs to enter a valid phone number to register. */
 "REGISTRATION_VIEW_INVALID_PHONE_NUMBER_ALERT_TITLE" = "Nombor Telefon Tidak Sah";
 
-/* Message of alert indicating that users needs to enter a phone number to register. */
-"REGISTRATION_VIEW_NO_PHONE_NUMBER_ALERT_MESSAGE" = "Masukkan nombor telefon yang sah untuk mendaftar.";
-
-/* Title of alert indicating that users needs to enter a phone number to register. */
-"REGISTRATION_VIEW_NO_PHONE_NUMBER_ALERT_TITLE" = "Tiada Nombor Telefon";
-
 /* Message for confirmation alert during phone number registration. */
 "REGISTRATION_VIEW_PHONE_NUMBER_CONFIRMATION_ALERT_MESSAGE" = "Kod pengesahan akan dihantar ke nombor ini. Adakah nombor telefon anda di atas betul?";
 
@@ -5125,11 +5410,23 @@
 /* Label for the progress spinner shown during phone number registration. Embeds {{phone number}}. */
 "REGISTRATION_VIEW_PHONE_NUMBER_SPINNER_LABEL_FORMAT" = "Mengesahkan %1$@…";
 
+/* Button when sending a verification code via voice call failed, but resending via sms might succeed. */
+"REGISTRATION_VOICE_CODE_FAILED_TRY_SMS_BUTTON" = "Hantar sms";
+
+/* Error message when sending a verification code via voice call failed, but resending via sms might succeed. */
+"REGISTRATION_VOICE_CODE_FAILED_TRY_SMS_ERROR" = "Kami tidak dapat menghantar kod pengesahan kepada anda melalui panggilan suara. Cuba dapatkan kod anda melalui sms.";
+
 /* notification action */
 "REJECT_CALL_BUTTON_TITLE" = "Tolak";
 
 /* No comment provided by engineer. */
 "RELAY_REGISTERED_ERROR_RECOVERY" = "Nombor telefon yang anda cuba daftarkan telah didaftarkan di pelayan lain, sila nyahdaftar dari sana dan cuba lagi.";
+
+/* Label warning the user that something is wrong with their username. */
+"REMINDER_VIEW_USERNAME_CORRUPTED_WARNING" = "Kesilapan telah berlaku dengan nama pengguna anda, ia tidak lagi diberikan kepada akaun anda. Anda boleh mencuba dan menetapkannya semula atau memilih yang baharu.";
+
+/* Label warning the user that something is wrong with their username link. */
+"REMINDER_VIEW_USERNAME_LINK_CORRUPTED_WARNING" = "Kesilapan telah berlaku dengan kod QR dan pautan nama pengguna anda, ia tidak sah lagi. Cipta pautan baharu untuk dikongsi dengan orang lain.";
 
 /* Accessibility label for a button that removes the preview from a drafted message. */
 "REMOVE_PREVIEW" = "Buang pratonton";
@@ -5139,6 +5436,12 @@
 
 /* No comment provided by engineer. */
 "REREGISTER_FOR_PUSH" = "Daftar Semula Pemberitahuan Tolak";
+
+/* If the user is re-registering, they may need to enter their PIN to restore all their data. If they enter the incorrect PIN, they will be shown a warning. In some cases (such as for this string), the user has the option to skip PIN entry and will lose some data. Embeds {{ number of attempts }}, such as \"3 attempts\". */
+"REREGISTER_INVALID_PIN_WARNING_SKIPPABLE_FORMAT" = "Anda mempunyai %1$@ lagi. Jika anda kehabisan percubaan, anda boleh mencipta PIN baharu. Anda boleh mendaftar dan menggunakan akaun anda, tetapi anda akan kehilangan beberapa tetapan yang disimpan seperti maklumat profil anda.";
+
+/* If the user is re-registering, they may need to enter their PIN to restore all their data. If they enter the incorrect PIN, they will be shown a warning. Embeds {{ number of attempts }}, such as \"3 attempts\". */
+"REREGISTER_INVALID_PIN_WARNING_UNSKIPPABLE_FORMAT" = "Anda mempunyai %1$@ lagi. Jika anda kehabisan percubaan, akaun anda akan dikunci selama 7 hari. Selepas 7 hari tidak aktif, anda boleh mendaftar semula tanpa PIN anda. Semua kandungan akan dipadamkan.";
 
 /* Configure reactions reset button text */
 "RESET" = "Tetap semula";
@@ -5167,11 +5470,29 @@
 /* Title for the 'safety number confirmation' view */
 "SAFETY_NUMBER_CONFIRMATION_TITLE" = "Perubahan Nombor Keselamatan";
 
+/* Text explaining that the given contact has had their safety number verified. */
+"SAFETY_NUMBER_CONFIRMATION_VERIFIED" = "Disahkan";
+
 /* View safety number action for the 'safety number confirmation' view */
 "SAFETY_NUMBER_CONFIRMATION_VIEW_ACTION" = "Lihat";
 
 /* Snippet to share {{safety number}} with a friend. sent e.g. via SMS */
 "SAFETY_NUMBER_SHARE_FORMAT" = "Nombor Keselamatan Signal Kami:\n%1$@";
+
+/* Header informing the user about the transition from phone number to user identifier based. */
+"SAFETY_NUMBER_TRANSITION_HEADER_ALERT" = "Nombor keselamatan sedang dikemas kini.";
+
+/* Button text for a sheet informing the user about the transition from phone number to user identifier based. */
+"SAFETY_NUMBER_TRANSITION_SHEET_HELP_TEXT" = "Perlukan bantuan?";
+
+/* Informs the user about the transition from phone number to user identifier based. */
+"SAFETY_NUMBER_TRANSITION_SHEET_PARAGRAPH_1" = "Nombor keselamatan sedang dikemas kini dalam tempoh peralihan untuk mendayakan ciri privasi yang akan datang dalam Signal.";
+
+/* Informs the user about the transition from phone number to user identifier based. */
+"SAFETY_NUMBER_TRANSITION_SHEET_PARAGRAPH_2" = "Untuk mengesahkan nombor keselamatan, padankan kad warna dengan peranti kenalan anda. Jika ini tidak sepadan, leret dan cuba pasangan nombor keselamatan yang lain. Hanya satu pasangan yang perlu dipadankan.";
+
+/* Title for a sheet informing the user about the transition from phone number to user identifier based. */
+"SAFETY_NUMBER_TRANSITION_SHEET_TITLE" = "Perubahan kepada Nombor Keselamatan";
 
 /* Action sheet heading */
 "SAFETY_NUMBERS_ACTIONSHEET_TITLE" = "Nombor keselamatan anda dengan %1$@ telah ditukar. Anda mungkin ingin mengesahkannya.";
@@ -5240,7 +5561,7 @@
 "SECONDARY_LINKING_ERROR_DIFFERENT_ACCOUNT_MESSAGE" = "Untuk memautkan peranti ini ke akaun lain, anda mesti menetapkan semula peranti ini terlebih dahulu. Adakah anda pasti mahu memadam semua sejarah (mesej, lampiran, panggilan dll.)? Tindakan ini tidak boleh diulang.";
 
 /* Label for the 'reset device' action in the 're-linking failed because the account did not match' alert. */
-"SECONDARY_LINKING_ERROR_DIFFERENT_ACCOUNT_RESET_DEVICE" = "Padamkan Semuanya";
+"SECONDARY_LINKING_ERROR_DIFFERENT_ACCOUNT_RESET_DEVICE" = "Padam Semua";
 
 /* Title for error alert indicating that re-linking failed because the account did not match. */
 "SECONDARY_LINKING_ERROR_DIFFERENT_ACCOUNT_TITLE" = "Akaun Tidak Sepadan";
@@ -5353,10 +5674,13 @@
 /* Title for the 'account' link in settings. */
 "SETTINGS_ACCOUNT" = "Akaun";
 
+/* Label for button in settings to get your account data report */
+"SETTINGS_ACCOUNT_DATA_REPORT_BUTTON" = "Data akaun anda";
+
 /* Title for the 'add to block list' view. */
 "SETTINGS_ADD_TO_BLOCK_LIST_TITLE" = "Sekat";
 
-/* Label for the  'manual censorship circumvention' switch. */
+/* Label for the 'manual censorship circumvention' switch. */
 "SETTINGS_ADVANCED_CENSORSHIP_CIRCUMVENTION" = "Pemintasan Penapisan";
 
 /* Label for the 'manual censorship circumvention' country. */
@@ -5437,9 +5761,6 @@
 /* Label for button in settings views to change phone number */
 "SETTINGS_CHANGE_PHONE_NUMBER_BUTTON" = "Tukar Nombor Telefon";
 
-/* Message indicating that 'change phone number' was successful. Embeds: {{ the user's new phone number }} */
-"SETTINGS_CHANGE_PHONE_NUMBER_CHANGE_SUCCESSFUL_FORMAT" = "Nombor telefon anda telah ditukar kepada %1$@";
-
 /* Label for the 'confirm change phone number' button in the 'change phone number' views. */
 "SETTINGS_CHANGE_PHONE_NUMBER_CONFIRM_BUTTON" = "Tukar Nombor";
 
@@ -5461,11 +5782,8 @@
 /* Title for the 'old phone number' section in the 'change phone number' settings. */
 "SETTINGS_CHANGE_PHONE_NUMBER_OLD_PHONE_NUMBER_SECTION_TITLE" = "Nombor Lama Anda";
 
-/* Label for the 'country code' row in the 'change phone number' settings. */
+/* Label for the 'phone number' row in the 'change phone number' settings. */
 "SETTINGS_CHANGE_PHONE_NUMBER_PHONE_NUMBER_FIELD" = "Nombor Telefon";
-
-/* Format for the 'change phone number' progress view. Embeds: {{ the user's new phone number }}. */
-"SETTINGS_CHANGE_PHONE_NUMBER_PROGRESS_FORMAT" = "Mengesahkan %1$@";
 
 /* Description text in the 'change phone number splash' view. */
 "SETTINGS_CHANGE_PHONE_NUMBER_SPLASH_DESCRIPTION" = "Gunakan ini untuk menukar nombor telefon semasa anda kepada nombor telefon yang baru. Anda tidak boleh buat asal penukaran ini.\n\nSebelum meneruskan, pastikan nombor baru anda boleh menerima SMS atau panggilan.";
@@ -5534,13 +5852,13 @@
 "SETTINGS_DELETE_ACCOUNT_PAYMENTS_BALANCE_ALERT_TRANSFER" = "Pindahkan Baki";
 
 /* Label for 'delete data' button. */
-"SETTINGS_DELETE_DATA_BUTTON" = "Padakan Semua Data";
+"SETTINGS_DELETE_DATA_BUTTON" = "Padam Semua Data";
 
 /* Alert message before user confirms clearing history */
 "SETTINGS_DELETE_HISTORYLOG_CONFIRMATION" = "Adakah anda pasti mahu memadam semua sejarah (mesej, lampiran, panggilan, dll)? Tindakan ini tidak boleh diulang.";
 
 /* Confirmation text for button which deletes all message, calling, attachments, etc. */
-"SETTINGS_DELETE_HISTORYLOG_CONFIRMATION_BUTTON" = "Padamkan Semuanya";
+"SETTINGS_DELETE_HISTORYLOG_CONFIRMATION_BUTTON" = "Padam Semua";
 
 /* Label for the 'disappearing messages' privacy settings. */
 "SETTINGS_DISAPPEARING_MESSAGES" = "Mesej Hilang";
@@ -5564,10 +5882,10 @@
 "SETTINGS_ITEM_NOTIFICATION_SOUND" = "Bunyi Mesej";
 
 /* When a chat is archived and receives a new message, it is unarchived. Turning this switch on disables this feature if the chat in question is also muted. This string is a thorough description paired with a labeled switch above, in the Chats settings. */
-"SETTINGS_KEEP_MUTED_ARCHIVED_DESCRIPTION" = "Sembang yang disenyapkan yang telah diarkibkan akan kekal diarkibkan apabila mesej baru masuk.";
+"SETTINGS_KEEP_MUTED_ARCHIVED_DESCRIPTION" = "Sembang yang diredam yang telah diarkibkan akan kekal diarkibkan apabila mesej baru masuk.";
 
 /* When a chat is archived and receives a new message, it is unarchived. Turning this switch on disables this feature if the chat in question is also muted. This string is a brief label for a switch paired with a longer description underneath, in the Chats settings. */
-"SETTINGS_KEEP_MUTED_ARCHIVED_LABEL" = "Kekalkan Sembang yang Disenyapkan Diarkibkan";
+"SETTINGS_KEEP_MUTED_ARCHIVED_LABEL" = "Kekalkan Sembang yang Diredam Diarkibkan";
 
 /* No comment provided by engineer. */
 "SETTINGS_LEGAL_TERMS_CELL" = "Terma & Dasar Privasi";
@@ -5606,7 +5924,7 @@
 "SETTINGS_NAV_BAR_TITLE" = "Tetapan";
 
 /* A setting controlling whether muted conversations are shown in the badge count */
-"SETTINGS_NOTIFICATION_BADGE_COUNT_INCLUDES_MUTED_CONVERSATIONS" = "Sertakan Sembang Redam";
+"SETTINGS_NOTIFICATION_BADGE_COUNT_INCLUDES_MUTED_CONVERSATIONS" = "Sertakan Sembang yang Diredam";
 
 /* table section header */
 "SETTINGS_NOTIFICATION_BADGE_COUNT_TITLE" = "Kiraan Lencana";
@@ -5693,10 +6011,10 @@
 "SETTINGS_PAYMENTS_DEACTIVATE_TITLE" = "Nyahaktifkan Pembayaran";
 
 /* Explanation of the 'deactivate payments with balance' process in the 'deactivate payments' settings. */
-"SETTINGS_PAYMENTS_DEACTIVATE_WITH_BALANCE_EXPLANATION" = "Sebaiknya pindahkan dana anda ke alamat dompet lain sebelum menyahaktifkan pembayaran. Sekiranya anda memilih untuk tidak memindahkan dana anda sekarang, dana anda akan kekal dalam dompet anda yang dipautkan dengan Signal jika anda mengaktifkan semula pembayaran.";
+"SETTINGS_PAYMENTS_DEACTIVATE_WITH_BALANCE_EXPLANATION" = "Sebaiknya pindahkan dana anda ke alamat dompet lain sebelum menyahaktifkan pembayaran. Sekiranya anda memilih untuk tidak memindahkan dana anda sekarang, dana anda akan kekal dalam dompet anda yang dipautkan ke Signal jika anda mengaktifkan semula pembayaran.";
 
 /* Description for the 'deactivate payments confirmation' UI in the payment settings. */
-"SETTINGS_PAYMENTS_DEACTIVATE_WITHOUT_TRANSFER_CONFIRM_DESCRIPTION" = "Baki anda akan kekal dalam dompet anda yang dipautkan dengan Signal jika anda memilih untuk mengaktifkan semula pembayaran.";
+"SETTINGS_PAYMENTS_DEACTIVATE_WITHOUT_TRANSFER_CONFIRM_DESCRIPTION" = "Baki anda akan kekal dalam dompet anda yang dipautkan ke Signal jika anda memilih untuk mengaktifkan semula pembayaran.";
 
 /* Title for the 'deactivate payments confirmation' UI in the payment settings. */
 "SETTINGS_PAYMENTS_DEACTIVATE_WITHOUT_TRANSFER_CONFIRM_TITLE" = "Nyahaktifkan Tanpa Pemindahan?";
@@ -5712,6 +6030,9 @@
 
 /* Label for the 'enable payments' button in the 'payments not enabled' alert. */
 "SETTINGS_PAYMENTS_ENABLE_ACTION" = "Dayakan Pembayaran";
+
+/* Title for the 'enable payments lock' view of the payments activation flow. */
+"SETTINGS_PAYMENTS_ENABLE_PAYMENTS_LOCK_PROMPT" = "Kunci Pembayaran";
 
 /* Description for the 'About MobileCoin' help card in the payments settings. */
 "SETTINGS_PAYMENTS_HELP_CARD_ABOUT_MOBILECOIN_DESCRIPTION" = "MobileCoin merupakan mata wang digital yang tertumpu pada privasi.";
@@ -5731,6 +6052,15 @@
 /* Title for the 'Cashing Out' help card in the payments settings. */
 "SETTINGS_PAYMENTS_HELP_CARD_CASHING_OUT_TITLE" = "Mengeluarkan wang";
 
+/* Label for button in the 'Save Passphrase' help card in the payments settings. */
+"SETTINGS_PAYMENTS_HELP_CARD_SAVE_PASSPHRASE_BUTTON" = "Simpan frasa anda";
+
+/* Description for the 'Save Passphrase' help card in the payments settings. */
+"SETTINGS_PAYMENTS_HELP_CARD_SAVE_PASSPHRASE_DESCRIPTION" = "Frasa pemulihan anda memberikan anda kaedah lain untuk memulihkan baki anda.";
+
+/* Title for the 'Save Passphrase' help card in the payments settings. */
+"SETTINGS_PAYMENTS_HELP_CARD_SAVE_PASSPHRASE_TITLE" = "Simpan frasa anda";
+
 /* Label for button in the 'Update PIN' help card in the payments settings. */
 "SETTINGS_PAYMENTS_HELP_CARD_UPDATE_PIN_BUTTON" = "Kemas kini PIN";
 
@@ -5740,17 +6070,11 @@
 /* Title for the 'Update PIN' help card in the payments settings. */
 "SETTINGS_PAYMENTS_HELP_CARD_UPDATE_PIN_TITLE" = "Kemas kini PIN anda";
 
-/* Label for button in the 'View Passphrase' help card in the payments settings. */
-"SETTINGS_PAYMENTS_HELP_CARD_VIEW_PASSPHRASE_BUTTON" = "Rekodkan Frasa Pemulihan";
-
-/* Description for the 'View Passphrase' help card in the payments settings. */
-"SETTINGS_PAYMENTS_HELP_CARD_VIEW_PASSPHRASE_DESCRIPTION" = "Frasa pemulihan anda memberikan anda kaedah lain untuk memulihkan akaun pembayaran anda.";
-
-/* Title for the 'View Passphrase' help card in the payments settings. */
-"SETTINGS_PAYMENTS_HELP_CARD_VIEW_PASSPHRASE_TITLE" = "Rekodkan frasa pemulihan";
-
 /* Indicator that the payments wallet address is invalid. */
 "SETTINGS_PAYMENTS_INVALID_WALLET_ADDRESS" = "Alamat Dompet Tidak Sah";
+
+/* Label for UISwitch based payments-lock setting that when enabled requires biometric-authentication (or passcode) to transfer funds or view the recovery phrase. */
+"SETTINGS_PAYMENTS_LOCK_SWITCH_LABEL" = "Kunci Pembayaran";
 
 /* Message indicating that there is no payment activity to display in the payment settings. */
 "SETTINGS_PAYMENTS_NO_ACTIVITY_INDICATOR" = "Belum ada aktiviti terkini.";
@@ -5782,8 +6106,23 @@
 /* Title for the 'payments opt-in' view in the app settings. */
 "SETTINGS_PAYMENTS_OPT_IN_TITLE" = "Memperkenalkan Pembayaran (Beta)";
 
+/* Button when discarding recovery phrase. */
+"SETTINGS_PAYMENTS_PASSPHRASE_DISCARD_CONFIRMATION_BUTTON" = "Langkau Frasa Pemulihan";
+
+/* Message of confirmation alert when discarding recovery phrase. */
+"SETTINGS_PAYMENTS_PASSPHRASE_DISCARD_CONFIRMATION_MESSAGE" = "Frasa pemulihan membolehkan anda menyimpan baki anda sekiranya perkara buruk berlaku. Kami amat mencadangkan anda menyimpannya.";
+
+/* Title of confirmation alert when discarding recovery phrase. */
+"SETTINGS_PAYMENTS_PASSPHRASE_DISCARD_CONFIRMATION_TITLE" = "Teruskan Tanpa Menyimpan?";
+
 /* Explanation of the 'payments passphrase' in the 'view payments passphrase' settings. */
 "SETTINGS_PAYMENTS_PASSPHRASE_EXPLANATION" = "Baki anda akan dipulihkan secara automatik apabila anda memasang semula Signal jika anda mengesahkan PIN Signal anda. Anda juga dapat memulihkan baki anda menggunakan frasa pemulihan, yang merupakan frasa 24 perkataan yang unik untuk anda. Catatkannya dan simpan di tempat yang selamat.";
+
+/* Explanation of the 'payments passphrase' when there is a balance. */
+"SETTINGS_PAYMENTS_PASSPHRASE_EXPLANATION_FROM_BALANCE" = "Anda mempunyai baki! Masa untuk menyimpan frasa pemulihan anda—kunci 24 perkataan yang anda boleh gunakan untuk menyimpan baki anda.";
+
+/* Explanation of the 'payments passphrase' when from the help card. */
+"SETTINGS_PAYMENTS_PASSPHRASE_EXPLANATION_FROM_HELP_CARD" = "Masa untuk menyimpan frasa pemulihan anda—kunci 24 perkataan yang anda boleh gunakan untuk menyimpan baki anda.";
 
 /* Label for the 'add money' button in the 'send payment' UI. */
 "SETTINGS_PAYMENTS_PAYMENT_ADD_MONEY" = "Tambah Dana";
@@ -5835,6 +6174,36 @@
 
 /* Message indicating that payments have been disabled in the app settings. */
 "SETTINGS_PAYMENTS_PAYMENTS_DISABLED_TOAST" = "Pembayaran telah dinyahaktifkan.";
+
+/* Description for the 'double reminder' action sheet in the 'payments lock prompt' view in the payment settings. */
+"SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_DOUBLE_REMINDER_MESSAGE" = "Melangkau langkah ini boleh membenarkan sesiapa sahaja yang mempunyai akses fizikal kepada telefon anda untuk memindahkan dana atau melihat frasa pemulihan anda.";
+
+/* Double reminder action sheet title in Payments Lock Prompt view for Face ID. */
+"SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_DOUBLE_REMINDER_TITLE_FACEID" = "Langkau Mendayakan ID Wajah?";
+
+/* Double reminder action sheet title in Payments Lock Prompt view for Passcode. */
+"SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_DOUBLE_REMINDER_TITLE_PASSCODE" = "Langkau Mendayakan Kod Laluan?";
+
+/* Double reminder action sheet title in Payments Lock Prompt view for Touch ID. */
+"SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_DOUBLE_REMINDER_TITLE_TOUCHID" = "Langkau Mendayakan ID Sentuhan?";
+
+/* Enable Button title in Payments Lock Prompt view for Face ID. */
+"SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_ENABLE_BUTTON_FACEID" = "Gunakan ID Wajah";
+
+/* Enable Button title in Payments Lock Prompt view for Passcode. */
+"SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_ENABLE_BUTTON_PASSCODE" = "Gunakan Kod Laluan";
+
+/* Enable Button title in Payments Lock Prompt view for Touch ID. */
+"SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_ENABLE_BUTTON_TOUCHID" = "Gunakan ID Sentuhan";
+
+/* Explanation of 'payments lock' with Face ID in the 'payments lock prompt' view shown after payments activation. */
+"SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_EXPLANATION_FACEID" = "Bantu menghalang seseorang yang memegang telefon anda daripada mengakses dana anda dengan mendayakan ID Wajah. Anda boleh nyahdayakan pilihan ini dalam Tetapan.";
+
+/* Explanation of 'payments lock' with passcode in the 'payments lock prompt' view shown after payments activation. */
+"SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_EXPLANATION_PASSCODE" = "Bantu menghalang seseorang yang memegang telefon anda daripada mengakses dana anda dengan mendayakan kod laluan. Anda boleh nyahdayakan pilihan ini dalam Tetapan.";
+
+/* Explanation of 'payments lock' with Touch ID in the 'payments lock prompt' view shown after payments activation. */
+"SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_EXPLANATION_TOUCHID" = "Bantu menghalang seseorang yang memegang telefon anda daripada mengakses dana anda dengan mendayakan ID Sentuhan. Anda boleh nyahdayakan pilihan ini dalam Tetapan.";
 
 /* Button for payments outdated sheet. */
 "SETTINGS_PAYMENTS_PAYMENTS_OUTDATED_BUTTON" = "Kemas Kini Signal";
@@ -5929,6 +6298,9 @@
 /* Title for the 'enter word' step of the 'restore payments wallet' views. */
 "SETTINGS_PAYMENTS_RESTORE_WALLET_WORD_TITLE" = "Masukkan Frasa Pemulihan";
 
+/* Title for the first step of the 'save payments passphrase' views. */
+"SETTINGS_PAYMENTS_SAVE_PASSPHRASE_START_TITLE" = "Simpan Frasa Pemulihan";
+
 /* Instructions in the 'scan payment address QR code' view in the payment settings. */
 "SETTINGS_PAYMENTS_SCAN_QR_INSTRUCTIONS" = "Imbas Kod QR untuk penerima pemindahan.";
 
@@ -5937,6 +6309,21 @@
 
 /* Label for 'scan payment address QR code' view in the payment settings. */
 "SETTINGS_PAYMENTS_SCAN_QR_TITLE" = "Imbas Kod QR";
+
+/* Caption for footer label beneath the payments lock privacy toggle for a biometry type that is unknown. */
+"SETTINGS_PAYMENTS_SECURITY_DETAIL" = "Memerlukan kod laluan atau ID Sentuhan anda untuk memindahkan dana.";
+
+/* Caption for footer label beneath the payments lock privacy toggle for faceid biometry. */
+"SETTINGS_PAYMENTS_SECURITY_DETAIL_FACEID" = "Memerlukan ID Wajah untuk memindahkan dana.";
+
+/* Caption for footer label beneath the payments lock privacy toggle for a biometry type that is a passcode. */
+"SETTINGS_PAYMENTS_SECURITY_DETAIL_PASSCODE" = "Memerlukan kod laluan telefon anda untuk memindahkan dana.";
+
+/* Caption for footer label beneath the payments lock privacy toggle for touchid biometry */
+"SETTINGS_PAYMENTS_SECURITY_DETAIL_TOUCHID" = "Memerlukan ID Sentuhan untuk memindahkan dana.";
+
+/* Title for the payments section in the app’s privacy settings tableview */
+"SETTINGS_PAYMENTS_SECURITY_TITLE" = "Pembayaran";
 
 /* Label for 'send payment' button in the payment settings. */
 "SETTINGS_PAYMENTS_SEND_PAYMENT" = "Hantar Bayaran";
@@ -6017,7 +6404,10 @@
 "SETTINGS_PAYMENTS_VIEW_PASSPHRASE_WORDS_EXPLANATION" = "Catatkan 24 perkataan yang berikut mengikut urutan. Simpan senarai anda di tempat yang selamat.";
 
 /* Footer text for the 'review payments passphrase words' step in the 'view payments passphrase' settings. */
-"SETTINGS_PAYMENTS_VIEW_PASSPHRASE_WORDS_FOOTER" = "Jangan ambil tangkapan skrin atau hantar melalui e-mel.";
+"SETTINGS_PAYMENTS_VIEW_PASSPHRASE_WORDS_FOOTER_2" = "Jangan kongsi senarai ini";
+
+/* Title for the content section of the  'payments lock prompt' view shown after payemts activation. */
+"SETTINGS_PAYMENTS_VIEW_PAYMENTS_LOCK_PROMPT_TITLE" = "Satu Lagi Lapisan Perlindungan";
 
 /* Label for 'view payments recovery passphrase' button in the app settings. */
 "SETTINGS_PAYMENTS_VIEW_RECOVERY_PASSPHRASE" = "Frasa Pemulihan";
@@ -6028,17 +6418,17 @@
 /* Label for the payments wallet address. */
 "SETTINGS_PAYMENTS_WALLET_ADDRESS_LABEL" = "Alamat Dompet Anda";
 
-/* Label for the 'phone number discoverability' setting. */
-"SETTINGS_PHONE_NUMBER_DISCOVERABILITY" = "Cari Saya dengan Nombor Telefon";
+/* The title for the phone number discoverability setting section. */
+"SETTINGS_PHONE_NUMBER_DISCOVERABILITY_TITLE" = "Siapa Boleh Cari Saya Dengan Nombor";
 
-/* The title for the phone number discoverability settings. */
-"SETTINGS_PHONE_NUMBER_DISCOVERABILITY_TITLE" = "Cari Saya dengan Nombor Telefon";
+/* Description label for Phone Number Privacy */
+"SETTINGS_PHONE_NUMBER_PRIVACY_DESCRIPTION_LABEL" = "Pilih siapa yang boleh melihat nombor telefon anda dan siapa yang boleh menghubungi nombor anda di Signal.";
 
-/* Label for the 'phone number sharing' setting. */
-"SETTINGS_PHONE_NUMBER_SHARING" = "Lihat Nombor Telefon Saya";
+/* The title for phone number privacy settings. */
+"SETTINGS_PHONE_NUMBER_PRIVACY_TITLE" = "Nombor Telefon";
 
-/* The title for the phone number sharing settings. */
-"SETTINGS_PHONE_NUMBER_SHARING_TITLE" = "Lihat Nombor Telefon Saya";
+/* The title for the phone number sharing setting section. */
+"SETTINGS_PHONE_NUMBER_SHARING_TITLE" = "Siapa Boleh Lihat Nombor Saya";
 
 /* The button text for the dialog asking user to confirm their PIN to disable reminders */
 "SETTINGS_PIN_REMINDER_DISABLE_CONFIRMATION_ACTION" = "Matikan Peringatan";
@@ -6223,6 +6613,12 @@
 /* body sent to contacts when inviting to Install Signal */
 "SMS_INVITE_BODY" = "Saya menjemput anda untuk memasang Signal! Berikut adalah pautan:";
 
+/* An error message generically indicating that something went wrong. */
+"SOMETHING_WENT_WRONG_ERROR" = "Ada yang tidak kena.";
+
+/* An error message generically indicating that something went wrong, and that the user should try again later. */
+"SOMETHING_WENT_WRONG_TRY_AGAIN_LATER_ERROR" = "Ada yang tidak kena. Sila cuba lagi nanti.";
+
 /* table cell label in conversation settings */
 "SOUND_AND_NOTIFICATION_SETTINGS" = "Bunyi & Pemberitahuan";
 
@@ -6343,6 +6739,9 @@
 /* Indicates that there are no recent stories to render */
 "STORIES_NO_RECENT_MESSAGES" = "Tiada kemas kini terbaru untuk ditunjukkan.";
 
+/* The subtitle when this story has no replies */
+"STORIES_NO_REPLIES_SUBTITLE" = "Semua ahli kumpulan ini boleh melihat balasan";
+
 /* Indicates that this story has no replies yet */
 "STORIES_NO_REPLIES_YET" = "Tiada balasan lagi";
 
@@ -6350,7 +6749,7 @@
 "STORIES_NO_VIEWS_YET" = "Tiada tontonan lagi";
 
 /* Section footer for the 'replies & reactions' section in stories settings */
-"STORIES_REPLIES_AND_REACTIONS_FOOTER" = "Biar orang yang boleh melihat cerita anda menghantar reaksi dan membalas.";
+"STORIES_REPLIES_AND_REACTIONS_FOOTER" = "Biar orang yang boleh melihat cerita anda memberi reaksi dan membalas.";
 
 /* Section header for the 'replies & reactions' section in stories settings */
 "STORIES_REPLIES_AND_REACTIONS_HEADER" = "Balasan & Reaksi";
@@ -6464,28 +6863,31 @@
 "STORY_PRIVACY_TITLE" = "Privasi Cerita";
 
 /* inbox and notification text for a reaction to a story authored by the local user. Embeds {{reaction emoji}} */
-"STORY_REACTION_LOCAL_AUTHOR_PREVIEW_FORMAT" = "Menghantar reaksi %1$@ kepada cerita anda";
+"STORY_REACTION_LOCAL_AUTHOR_PREVIEW_FORMAT" = "Memberi reaksi %1$@ kepada cerita anda";
 
 /* quote text for a reaction to a story. Embeds {{reaction emoji}} */
-"STORY_REACTION_QUOTE_FORMAT" = "Menghantar reaksi %1$@ kepada cerita";
+"STORY_REACTION_QUOTE_FORMAT" = "Memberi reaksi %1$@ kepada cerita";
 
 /* inbox and notification text for a reaction to a story authored by another user. Embeds {{ %1$@ reaction emoji, %2$@ story author name }} */
-"STORY_REACTION_REMOTE_AUTHOR_PREVIEW_FORMAT" = "Menghantar reaksi %1$@ kepada cerita %2$@";
+"STORY_REACTION_REMOTE_AUTHOR_PREVIEW_FORMAT" = "Memberi reaksi %1$@ kepada cerita %2$@";
 
 /* Button for replying to a story with no existing replies. */
 "STORY_REPLY_BUTTON" = "Balas";
 
 /* Text indicating a story has been reacted to */
-"STORY_REPLY_REACTION" = "Telah menghantar reaksi kepada cerita";
-
-/* header text for replying to private story. Embeds {{author name}} */
-"STORY_REPLY_TEXT_FIELD_HEADER_FORMAT" = "Balas secara peribadi kepada %1$@";
+"STORY_REPLY_REACTION" = "Telah memberi reaksi kepada cerita";
 
 /* placeholder text for replying to a story */
 "STORY_REPLY_TEXT_FIELD_PLACEHOLDER" = "Balas";
 
 /* Button for replying to a group story with no existing replies. */
 "STORY_REPLY_TO_GROUP_BUTTON" = "Balas kepada Kumpulan";
+
+/* placeholder text for replying to a group story */
+"STORY_REPLY_TO_GROUP_TEXT_FIELD_PLACEHOLDER" = "Balas kepada Kumpulan";
+
+/* placeholder text for replying to a private story. Embeds {{author name}} */
+"STORY_REPLY_TO_PRIVATE_TEXT_FIELD_PLACEHOLDER" = "Balas kepada %1$@";
 
 /* Title for the dialog asking user if they wish to resend a failed story message. */
 "STORY_RESEND_FAILED_MESSAGE_ACTION_SHEET" = "Cerita ini tidak boleh dihantar. Periksa sambungan anda dan cuba lagi";
@@ -6706,6 +7108,36 @@
 /* Tap to Replace Emoji string for reaction configuration */
 "TAP_REPLACE_EMOJI" = "Ketik untuk menggantikan emoji";
 
+/* Option in selected text edit menu to make text bold */
+"TEXT_MENU_BOLD" = "Bold";
+
+/* Option in selected text edit menu to clear all text formatting in the selected text range */
+"TEXT_MENU_CLEAR_FORMATTING" = "Kosongkan pemformatan";
+
+/* Option in selected text edit menu to view text formatting options */
+"TEXT_MENU_FORMAT" = "Format";
+
+/* Option in selected text edit menu to make text italic */
+"TEXT_MENU_ITALIC" = "Italic";
+
+/* Option in selected text edit menu to look up word definitions */
+"TEXT_MENU_LOOK_UP" = "Cari";
+
+/* Option in selected text edit menu to make text monospace */
+"TEXT_MENU_MONOSPACE" = "Monospace";
+
+/* Option in selected text edit menu to replace text with suggestions */
+"TEXT_MENU_REPLACE" = "Gantikan";
+
+/* Option in selected text edit menu to share selected text */
+"TEXT_MENU_SHARE" = "Kongsi";
+
+/* Option in selected text edit menu to make text spoiler */
+"TEXT_MENU_SPOILER" = "Bocoran";
+
+/* Option in selected text edit menu to make text strikethrough */
+"TEXT_MENU_STRIKETHROUGH" = "Strikethrough";
+
 /* text indicating the message was remotely deleted */
 "THIS_MESSAGE_WAS_DELETED" = "Mesej ini telah dipadam.";
 
@@ -6779,7 +7211,7 @@
 "UNARCHIVE_ACTION" = "Nyaharkib";
 
 /* Message shown in conversation view that offers to block an unknown user. */
-"UNKNOWN_CONTACT_BLOCK_OFFER" = "Pengguna tidak di dalam kenalan anda. Adakah anda mahu menyekat pengguna tersebut?";
+"UNKNOWN_CONTACT_BLOCK_OFFER" = "Pengguna tiada dalam kenalan anda. Adakah anda mahu menyekat pengguna tersebut?";
 
 /* Displayed if for some reason we can't determine a contacts phone number *or* name */
 "UNKNOWN_CONTACT_NAME" = "Kenalan Tidak Diketahui";
@@ -6827,13 +7259,13 @@
 "UNLINK_CONFIRMATION_ALERT_TITLE" = "Nyahpaut \"%1$@\"?";
 
 /* Label warning the user that they have been unlinked from their primary device. */
-"UNLINKED_WARNING" = "Peranti tidak lagi dipaut. Memautkan semula Signal dengan telefon anda untuk terus menghantar mesej.";
+"UNLINKED_WARNING" = "Peranti ini tidak lagi dipautkan. Pautkan semula Signal dengan telefon anda untuk terus bermesej.";
+
+/* If this device has become unlinked from their primary device, they'll see a warning. This is the call to action on that warning. */
+"UNLINKED_WARNING_ACTION_TITLE" = "Pautkan Semula Peranti";
 
 /* Alert title when unlinking device fails */
 "UNLINKING_FAILED_ALERT_TITLE" = "Signal tidak dapat menyahpautkan peranti anda";
-
-/* Label text in device manager for a device with no name */
-"UNNAMED_DEVICE" = "Peranti Tidak Dinamakan";
 
 /* Pressing this button un-pins a thread */
 "UNPIN_ACTION" = "Nyahpin";
@@ -6871,41 +7303,113 @@
 /* Explanation of when you should use a signal proxy */
 "USE_PROXY_EXPLANATION" = "Hanya gunakan proksi jika anda tidak dapat menyambung ke Signal menggunakan data mudah alih atau Wi-Fi.";
 
-/* An explanation of how usernames work on the username view. */
-"USERNAME_DESCRIPTION" = "Nama pengguna pada Signal adalah pilihan. Sekiranya anda memilih untuk mencipta pengguna nama , pengguna lain di Signal akan dapat mencari nama pengguna ini dan menghubungi anda tanpa mengetahui nombor telefon anda.";
+/* Description of how to update discovery */
+"USERNAME_DISCOVERY_DESCRIPTION" = "Matikan penemuan nombor telefon di bawah Tetapan > Nombor Telefon > Siapa yang boleh mencari nombor saya, untuk menggunakan nama pengguna anda sebagai cara utama orang lain boleh menghubungi anda.";
 
-/* An error indicating that the supplied username contains disallowed characters. */
-"USERNAME_INVALID_CHARACTERS_ERROR" = "Nama pengguna hanya boleh mengandungi a-z, 0-9, dan _";
+/* Description of username discriminator digits */
+"USERNAME_DISCRIMINATOR_DESCRIPTION" = "Nama pengguna dipasangkan dengan set digit dan tidak dikongsi pada profil anda";
+
+/* Title to set up signal username */
+"USERNAME_EDUCATION_TITLE" = "Buat nama pengguna Signal anda";
+
+/* Description of username link */
+"USERNAME_LINK_DESCRIPTION" = "Setiap nama pengguna mempunyai pautan unik yang anda boleh kongsikan dengan rakan untuk memulakan sembang dengan anda";
+
+/* A title for a view that allows you to pick a color for a QR code for your username link. */
+"USERNAME_LINK_QR_CODE_COLOR_PICKER_VIEW_TITLE_COLOR" = "Warna";
+
+/* Title for a button to pick the color of your username link QR code. Lowercase styling is intentional. */
+"USERNAME_LINK_QR_CODE_VIEW_COLOR_BUTTON" = "Warna";
+
+/* Text for a label explaining what the username link and QR code give others access to. */
+"USERNAME_LINK_QR_CODE_VIEW_DISCLAIMER_LABEL" = "Hanya kongsi kod QR dan pautan anda dengan orang yang dipercayai. Apabila dikongsi, orang lain akan dapat melihat nama pengguna anda dan memulakan sembang dengan anda.";
+
+/* Title for a button that allows users to reset their username link and QR code. */
+"USERNAME_LINK_QR_CODE_VIEW_RESET_BUTTON_TITLE" = "Tetap semula";
+
+/* A message explaining what will happen if the user resets their QR code. */
+"USERNAME_LINK_QR_CODE_VIEW_RESET_SHEET_MESSAGE" = "Jika anda menetapkan semula kod QR anda, kod dan pautan QR sedia ada anda tidak akan berfungsi lagi.";
+
+/* A label indicating that the username link is being reset. */
+"USERNAME_LINK_QR_CODE_VIEW_RESETTING_LINK_LABEL" = "Menetapkan semula pautan...";
+
+/* Title for a button to share your username link QR code. Lowercase styling is intentional. */
+"USERNAME_LINK_QR_CODE_VIEW_SHARE_BUTTON" = "Kongsi";
+
+/* A title for a view that allows you to view and interact with a QR code for your username link. */
+"USERNAME_LINK_QR_CODE_VIEW_TITLE_CODE" = "Kod";
+
+/* A title for a view that allows you to scan a username link QR code using the camera. */
+"USERNAME_LINK_QR_CODE_VIEW_TITLE_SCAN" = "Imbas";
+
+/* Text presented in a toast notifying the user that their username was copied to the system clipboard. */
+"USERNAME_LINK_QR_CODE_VIEW_USERNAME_COPIED" = "Nama pengguna disalin";
+
+/* Text providing instructions on how to use the username link QR code scanning. */
+"USERNAME_LINK_SCAN_QR_CODE_INSTRUCTIONS_LABEL" = "Imbas Kod QR pada peranti kenalan anda.";
+
+/* Text for a tappable cell that copies the user's username link when selected. */
+"USERNAME_LINK_SHARE_SHEET_COPY_LINK_ACTION" = "Salin Pautan";
+
+/* Text describing what you can do with a username link, on a sheet for sharing it. */
+"USERNAME_LINK_SHARE_SHEET_HEADER" = "Sesiapa sahaja yang mempunyai pautan ini boleh melihat nama pengguna anda dan memulakan sembang dengan anda. Hanya kongsi dengan orang yang anda percayai.";
+
+/* Subtitle for a tooltip describing ways to share your username. */
+"USERNAME_LINK_TOOLTIP_SUBTITLE" = "Benarkan orang lain memulakan sembang dengan anda dengan berkongsi kod atau pautan QR unik anda.";
+
+/* Title for a tooltip describing ways to share your username. */
+"USERNAME_LINK_TOOLTIP_TITLE" = "Kongsi Nama Pengguna Anda";
 
 /* A message indicating that username lookup failed. */
-"USERNAME_LOOKUP_ERROR" = "Ralat berlaku semasa melihat nama pengguna. SIla cuba lagi kemudian.";
+"USERNAME_LOOKUP_ERROR_MESSAGE" = "Ralat berlaku semasa melihat nama pengguna. Sila cuba lagi kemudian.";
 
-/* A message indicating that the given username is not a registered signal account. Embeds {{username}} */
-"USERNAME_NOT_FOUND_FORMAT" = "%1$@ bukan pengguna Signal. Pastikan anda telah memasukkan nama pengguna lengkap.";
+/* A message indicating that a user-entered username value is not a valid username. Embeds {{ a username }}. */
+"USERNAME_LOOKUP_INVALID_USERNAME_MESSAGE_FORMAT" = "%1$@ bukan nama pengguna yang sah. Pastikan anda telah memasukkan nama pengguna yang lengkap diikuti dengan set digitnya.";
 
-/* A message indicating that the given username was not registered with signal. */
-"USERNAME_NOT_FOUND_TITLE" = "Pengguna Tidak Dijumpai";
+/* Title for an action sheet indicating that a user-entered username value is not a valid username. */
+"USERNAME_LOOKUP_INVALID_USERNAME_TITLE" = "Nama Pengguna Tidak Sah";
 
-/* The placeholder for the username text entry in the username view. */
-"USERNAME_PLACEHOLDER" = "Masukkan nama pengguna";
+/* A message indicating that a username link the user attempted to query is no longer valid. */
+"USERNAME_LOOKUP_LINK_NO_LONGER_VALID_MESSAGE" = "Pautan nama pengguna ini tidak lagi sah.";
 
-/* A prefix appended to all usernames when displayed */
-"USERNAME_PREFIX" = "@";
+/* A message indicating that the given username is not associated with a registered Signal account. Embeds {{ a username }}. */
+"USERNAME_LOOKUP_NOT_FOUND_MESSAGE_FORMAT" = "%1$@ bukan pengguna Signal. Pastikan anda telah memasukkan nama pengguna lengkap.";
 
-/* An error indicating that the supplied username cannot start with a number. */
-"USERNAME_STARTS_WITH_NUMBER_ERROR" = "Nama pengguna tidak boleh dimulakan dengan nombor.";
+/* Title for an action sheet indicating that the given username is not associated with a registered Signal account. */
+"USERNAME_LOOKUP_NOT_FOUND_TITLE" = "Pengguna Tidak Dijumpai";
 
-/* The title for the username view. */
-"USERNAME_TITLE" = "Nama Pengguna";
+/* An error message shown when the user has typed a username that starts with a digit, which is invalid. */
+"USERNAME_SELECTION_CANNOT_START_WITH_DIGIT_ERROR_MESSAGE" = "Nama pengguna tidak boleh bermula dengan nombor.";
 
-/* An error indicating that the supplied username is too short. */
-"USERNAME_TOO_SHORT_ERROR" = "Nama pengguna mesti sekurang-kurangnya mempunyai 4 aksara.";
+/* A message explaining the side effects of changing your username. */
+"USERNAME_SELECTION_CHANGE_USERNAME_CONFIRMATION_MESSAGE" = "Menukar nama pengguna anda akan menetapkan semula kod dan pautan QR anda yang sedia ada. Adakah anda pasti?";
 
-/* An error indicating that the supplied username is in use by another user. Embeds {{requested username}}. */
-"USERNAME_UNAVAIALBE_ERROR_FORMAT" = "%1$@ telah digunakan.";
+/* Footer text below a text field in which users type their desired username, which explains how usernames work. Embeds a {{ \"learn more\" link. }}. */
+"USERNAME_SELECTION_EXPLANATION_FOOTER_FORMAT" = "Nama pengguna membenarkan orang lain menghantar mesej kepada anda tanpa memerlukan nombor telefon anda. Ia dipasangkan dengan set digit untuk membantu mengekalkan privasi alamat anda. %1$@";
 
-/* Error message shown when a username update fails. */
-"USERNAME_VIEW_ERROR_UPDATE_FAILED" = "Kemas kini nama pengguna gagal.";
+/* When the user has entered text into a text field for setting their username, a header displays the username text. This string is shown in the header when the text field is empty. */
+"USERNAME_SELECTION_HEADER_TEXT_FOR_PLACEHOLDER" = "Pilih nama pengguna anda";
+
+/* An error message shown when the user has typed a username that has invalid characters. The character ranges \"a-z\", \"0-9\", \"_\" should not be translated, as they are literal. */
+"USERNAME_SELECTION_INVALID_CHARACTERS_ERROR_MESSAGE" = "Nama pengguna hanya boleh mengandungi a-z, 0-9, dan _.";
+
+/* The message of a sheet that pops up when the user taps \"Learn More\" in text that explains how usernames work. This message help explain that the automatically-generated numeric suffix of their username helps keep their username private, to avoid them being contacted by people by whom they don't want to be contacted. */
+"USERNAME_SELECTION_LEARN_MORE_ACTION_SHEET_MESSAGE" = "Digit ini membantu mengekalkan privasi nama pengguna anda supaya anda boleh mengelakkan mesej yang tidak diingini. Kongsi nama pengguna anda hanya dengan orang dan kumpulan yang anda mahu bersembang. Jika anda menukar nama pengguna, anda akan menerima set digit baru.";
+
+/* The title of a sheet that pops up when the user taps \"Learn More\" in text that explains how usernames work. The sheet will present a more detailed explanation of the username's numeric suffix. */
+"USERNAME_SELECTION_LEARN_MORE_ACTION_SHEET_TITLE" = "Apakah nombor ini?";
+
+/* An error message shown when the user wants to set their username to an unavailable value. */
+"USERNAME_SELECTION_NOT_AVAILABLE_ERROR_MESSAGE" = "Nama pengguna ini tidak tersedia.";
+
+/* The placeholder for a text field into which users can type their desired username. */
+"USERNAME_SELECTION_TEXT_FIELD_PLACEHOLDER" = "Nama Pengguna";
+
+/* The title for the username selection view. */
+"USERNAME_SELECTION_TITLE" = "Nama Pengguna";
+
+/* An error message shown when the user has typed a username that is below the minimum character limit. Embeds {{ %1$@ the minimum character count }}. */
+"USERNAME_SELECTION_TOO_SHORT_ERROR_MESSAGE" = "Nama pengguna mesti bermula dengan sekurang-kurangnya %1$@ aksara.";
 
 /* error label near a field */
 "VALIDATION_ERROR_CANNOT_BE_BLANK" = "Nama peranti tidak boleh kosong";
@@ -6934,6 +7438,9 @@
 /* Label for button or row which allows users to verify the safety numbers of multiple users. */
 "VERIFY_PRIVACY_MULTIPLE" = "Semak Semula Nombor Keselamatan";
 
+/* Instructions for verifying your safety number. Embeds {{contact's name}} */
+"VERIFY_SAFETY_NUMBER_INSTRUCTIONS" = "Untuk mengesahkan penyulitan hujung ke hujung dengan %1$@, padankan kad warna di atas dengan peranti mereka dan bandingkan nombornya. Jika ini tidak sepadan, leret dan cuba pasangan nombor keselamatan yang lain. Hanya satu pasangan yang perlu dipadankan.";
+
 /* Toast alert text shown when tapping on a video that cannot be played. */
 "VIDEO_BROKEN" = "Video  ini tidak boleh dimainkan";
 
@@ -6947,7 +7454,7 @@
 "VIEW_ONCE_MESSAGES_TOOLTIP" = "Ketik di sini untuk menjadikan mesej ini hilang selepas ia dilihat.";
 
 /* Toast alert text shown when tapping on a view-once message that you have sent. */
-"VIEW_ONCE_OUTGOING_TOAST" = "Fail media lihat sekali keluar dikeluarkan secara automatik selepas ia dihantar.";
+"VIEW_ONCE_OUTGOING_TOAST" = "Fail media sekali tontonan dialih keluar secara automatik selepas ia dihantar.";
 
 /* View the photo of a group or user */
 "VIEW_PHOTO" = "Lihat Foto";

@@ -26,21 +26,20 @@ extension DonateViewController {
             completion(result)
         }
 
-        guard
-            let oneTime = state.oneTime,
-            let amount = oneTime.amount,
-            let boostBadge = oneTime.profileBadge
-        else {
-            owsFail("Amount, currency code, or boost badge are missing")
+        guard let oneTime = state.oneTime, let amount = oneTime.amount else {
+            owsFail("Amount or currency code are missing")
         }
 
-        firstly(on: .global()) {
+        let boostBadge = oneTime.profileBadge
+        let badgesSnapshot = BadgeThanksSheet.currentProfileBadgesSnapshot()
+
+        firstly(on: DispatchQueue.global()) {
             Stripe.boost(
                 amount: amount,
                 level: .boostBadge,
                 for: .applePay(payment: payment)
             )
-        }.done(on: .main) { confirmedIntent -> Void in
+        }.done(on: DispatchQueue.main) { confirmedIntent -> Void in
             owsAssert(
                 confirmedIntent.redirectToUrl == nil,
                 "[Donations] There shouldn't be a 3DS redirect for Apple Pay"
@@ -48,8 +47,7 @@ extension DonateViewController {
 
             wrappedCompletion(.init(status: .success, errors: nil))
 
-            SubscriptionManager.terminateTransactionIfPossible = false
-            SubscriptionManager.createAndRedeemBoostReceipt(
+            SubscriptionManagerImpl.createAndRedeemBoostReceipt(
                 for: confirmedIntent.intentId,
                 withPaymentProcessor: .stripe,
                 amount: amount
@@ -58,13 +56,12 @@ extension DonateViewController {
             DonationViewsUtil.wrapPromiseInProgressView(
                 from: self,
                 promise: DonationViewsUtil.waitForSubscriptionJob()
-            ).done(on: .main) {
-                self.didCompleteDonation(badge: boostBadge, thanksSheetType: .boost)
-            }.catch(on: .main) { [weak self] error in
+            ).done(on: DispatchQueue.main) {
+                self.didCompleteDonation(badge: boostBadge, thanksSheetType: .boost, oldBadgesSnapshot: badgesSnapshot)
+            }.catch(on: DispatchQueue.main) { [weak self] error in
                 self?.didFailDonation(error: error, mode: .oneTime, paymentMethod: .applePay)
             }
-        }.catch(on: .main) { error in
-            SubscriptionManager.terminateTransactionIfPossible = false
+        }.catch(on: DispatchQueue.main) { error in
             wrappedCompletion(.init(status: .failure, errors: [error]))
             owsFailDebugUnlessNetworkFailure(error)
         }

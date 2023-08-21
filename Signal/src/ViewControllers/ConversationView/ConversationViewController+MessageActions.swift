@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalServiceKit
 
 extension ConversationViewController {
 
@@ -54,7 +54,7 @@ extension ConversationViewController {
         return self.indexPath(forInteractionUniqueId: messageActionInteractionId) == nil
     }
 
-    public func reloadReactionsDetailSheet(transaction: SDSAnyReadTransaction) {
+    public func reloadReactionsDetailSheetWithSneakyTransaction() {
         AssertIsOnMainThread()
 
         guard let reactionsDetailSheet = self.reactionsDetailSheet else {
@@ -78,7 +78,9 @@ extension ConversationViewController {
 
         // Update the detail sheet with the latest reaction
         // state, in case the reactions have changed.
-        reactionsDetailSheet.setReactionState(reactionState, transaction: transaction)
+        databaseStorage.read { tx in
+            reactionsDetailSheet.setReactionState(reactionState, transaction: tx)
+        }
     }
 
     public func dismissReactionsDetailSheet(animated: Bool) {
@@ -113,6 +115,7 @@ extension ConversationViewController: ContextMenuInteractionDelegate {
                 let actionOrder: [MessageAction.MessageActionType] = [
                     .reply,
                     .forward,
+                    .edit,
                     .copy,
                     .share,
                     .select,
@@ -125,11 +128,14 @@ extension ConversationViewController: ContextMenuInteractionDelegate {
                 for type in actionOrder {
                     let actionWithType = actions.first { $0.actionType == type }
                     if let messageAction = actionWithType {
-                        let contextMenuAction = ContextMenuAction(title: messageAction.contextMenuTitle, image: messageAction.image, attributes: messageAction.contextMenuAttributes, handler: { _ in
-                            messageAction.block(nil)
-                        })
-
-                        contextMenuActions.append(contextMenuAction)
+                        contextMenuActions.append(ContextMenuAction(
+                            title: messageAction.contextMenuTitle,
+                            image: messageAction.contextMenuIcon,
+                            attributes: messageAction.contextMenuAttributes,
+                            handler: { _ in
+                                messageAction.block(nil)
+                            }
+                        ))
                     }
                 }
             }
@@ -171,10 +177,10 @@ extension ConversationViewController: ContextMenuInteractionDelegate {
 
                 self.databaseStorage.asyncWrite { transaction in
                     ReactionManager.localUserReacted(
-                        to: message,
+                        to: message.uniqueId,
                         emoji: reaction,
                         isRemoving: isRemoving,
-                        transaction: transaction
+                        tx: transaction
                     )
                 }
             }

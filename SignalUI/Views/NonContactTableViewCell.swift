@@ -6,9 +6,8 @@
 import Foundation
 import SignalMessaging
 
-@objc
 public final class NonContactTableViewCell: UITableViewCell, ReusableTableViewCell {
-    @objc
+
     public static let reuseIdentifier = "NonContactTableViewCell"
 
     private let iconView: UIImageView = {
@@ -58,6 +57,6 @@ public final class NonContactTableViewCell: UITableViewCell, ReusableTableViewCe
 
     public func configureWithPhoneNumber(_ phoneNumber: String) {
         let formattedPhoneNumber = PhoneNumber.bestEffortFormatPartialUserSpecifiedText(toLookLikeAPhoneNumber: phoneNumber)
-        configureWithTitle(formattedPhoneNumber, imageName: "profile-outline-20")
+        configureWithTitle(formattedPhoneNumber, imageName: "person-20")
     }
 }

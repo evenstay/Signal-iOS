@@ -45,6 +45,10 @@ const NSUInteger TSIncomingMessageSchemaVersion = 1;
         }
     }
 
+    if (_authorUUID != nil) {
+        _authorPhoneNumber = nil;
+    }
+
     _incomingMessageSchemaVersion = TSIncomingMessageSchemaVersion;
 
     return self;
@@ -58,11 +62,9 @@ const NSUInteger TSIncomingMessageSchemaVersion = 1;
         return self;
     }
 
-    _authorPhoneNumber = incomingMessageBuilder.authorAddress.phoneNumber;
-    _authorUUID = incomingMessageBuilder.authorAddress.uuidString;
-
+    _authorUUID = incomingMessageBuilder.authorAci.serviceIdUppercaseString;
     _sourceDeviceId = incomingMessageBuilder.sourceDeviceId;
-    _read = NO;
+    _read = incomingMessageBuilder.read;
     _serverTimestamp = incomingMessageBuilder.serverTimestamp;
     _serverDeliveryTimestamp = incomingMessageBuilder.serverDeliveryTimestamp;
     _serverGuid = incomingMessageBuilder.serverGuid;
@@ -89,6 +91,7 @@ const NSUInteger TSIncomingMessageSchemaVersion = 1;
                             body:(nullable NSString *)body
                       bodyRanges:(nullable MessageBodyRanges *)bodyRanges
                     contactShare:(nullable OWSContact *)contactShare
+                       editState:(TSEditState)editState
                  expireStartedAt:(uint64_t)expireStartedAt
                        expiresAt:(uint64_t)expiresAt
                 expiresInSeconds:(unsigned int)expiresInSeconds
@@ -124,6 +127,7 @@ const NSUInteger TSIncomingMessageSchemaVersion = 1;
                               body:body
                         bodyRanges:bodyRanges
                       contactShare:contactShare
+                         editState:editState
                    expireStartedAt:expireStartedAt
                          expiresAt:expiresAt
                   expiresInSeconds:expiresInSeconds
@@ -144,8 +148,11 @@ const NSUInteger TSIncomingMessageSchemaVersion = 1;
         return self;
     }
 
-    _authorPhoneNumber = authorPhoneNumber;
-    _authorUUID = authorUUID;
+    if (authorUUID != nil) {
+        _authorUUID = authorUUID;
+    } else if (authorPhoneNumber != nil) {
+        _authorPhoneNumber = authorPhoneNumber;
+    }
     _read = read;
     _serverDeliveryTimestamp = serverDeliveryTimestamp;
     _serverGuid = serverGuid;
@@ -193,7 +200,7 @@ const NSUInteger TSIncomingMessageSchemaVersion = 1;
     // We want to do this without triggering sending read receipts, so we pretend it was
     // read on a linked device.
     [self markAsReadAtTimestamp:[NSDate ows_millisecondTimeStamp]
-                          thread:[self threadWithTransaction:transaction]
+                          thread:[self threadWithTx:transaction]
                     circumstance:OWSReceiptCircumstanceOnLinkedDevice
         shouldClearNotifications:YES
                      transaction:transaction];
@@ -222,6 +229,9 @@ const NSUInteger TSIncomingMessageSchemaVersion = 1;
     [self anyUpdateIncomingMessageWithTransaction:transaction
                                             block:^(TSIncomingMessage *message) {
                                                 message.read = YES;
+                                                if (self.editState == TSEditState_LatestRevisionUnread) {
+                                                    message.editState = TSEditState_LatestRevisionRead;
+                                                }
                                             }];
 
     // readTimestamp may be earlier than now, so backdate the expiration if necessary.

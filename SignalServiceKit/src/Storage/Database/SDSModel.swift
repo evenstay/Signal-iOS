@@ -5,6 +5,7 @@
 
 import Foundation
 import GRDB
+import SignalCoreKit
 
 public protocol SDSModel: TSYapDatabaseObject, SDSIndexableModel, SDSIdentifiableModel {
     var sdsTableName: String { get }
@@ -14,8 +15,6 @@ public protocol SDSModel: TSYapDatabaseObject, SDSIndexableModel, SDSIdentifiabl
     var serializer: SDSSerializer { get }
 
     func anyInsert(transaction: SDSAnyWriteTransaction)
-
-    func anyRemove(transaction: SDSAnyWriteTransaction)
 
     static var table: SDSTableMetadata { get }
 }
@@ -51,13 +50,13 @@ public extension SDSModel {
             anyDidInsert(with: transaction)
 
             if type(of: self).ftsIndexMode != .never {
-                FullTextSearchFinder().modelWasInserted(model: self, transaction: transaction)
+                FullTextSearchFinder.modelWasInserted(model: self, transaction: transaction)
             }
         case .update:
             anyDidUpdate(with: transaction)
 
             if type(of: self).ftsIndexMode == .always {
-                FullTextSearchFinder().modelWasUpdated(model: self, transaction: transaction)
+                FullTextSearchFinder.modelWasUpdated(model: self, transaction: transaction)
             }
         }
     }
@@ -79,13 +78,13 @@ public extension SDSModel {
                 FROM \(sdsTableName)
                 WHERE uniqueId == ?
             """
-            grdbTransaction.executeWithCachedStatement(sql: sql, arguments: [uniqueId])
+            grdbTransaction.executeAndCacheStatement(sql: sql, arguments: [uniqueId])
         }
 
         anyDidRemove(with: transaction)
 
         if type(of: self).ftsIndexMode != .never {
-            FullTextSearchFinder().modelWasRemoved(model: self, transaction: transaction)
+            FullTextSearchFinder.modelWasRemoved(model: self, transaction: transaction)
         }
     }
 }
@@ -116,22 +115,22 @@ public extension TableRecord {
 
 public extension SDSModel {
     // If batchSize > 0, the enumeration is performed in autoreleased batches.
-    static func grdbEnumerateUniqueIds(transaction: GRDBReadTransaction,
-                                       sql: String,
-                                       batchSize: UInt,
-                                       block: @escaping (String, UnsafeMutablePointer<ObjCBool>) -> Void) {
+    static func grdbEnumerateUniqueIds(
+        transaction: GRDBReadTransaction,
+        sql: String,
+        batchSize: UInt,
+        block: (String, UnsafeMutablePointer<ObjCBool>) -> Void
+    ) {
         do {
-            let cursor = try String.fetchCursor(transaction.database,
-                                                sql: sql)
-            try Batching.loop(batchSize: batchSize,
-                              loopBlock: { stop in
-                                guard let uniqueId = try cursor.next() else {
-                                    stop.pointee = true
-                                    return
-                                }
-                                block(uniqueId, stop)
+            let cursor = try String.fetchCursor(transaction.database, sql: sql)
+            try Batching.loop(batchSize: batchSize, loopBlock: { stop in
+                guard let uniqueId = try cursor.next() else {
+                    stop.pointee = true
+                    return
+                }
+                block(uniqueId, stop)
             })
-        } catch let error as NSError {
+        } catch let error {
             owsFailDebug("Couldn't fetch uniqueIds: \(error)")
         }
     }

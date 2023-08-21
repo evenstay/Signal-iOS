@@ -11,20 +11,20 @@ import Foundation
 /// PayPal donations are authorized by a user via PayPal's web interface,
 /// presented in an ``ASWebAuthenticationSession``.
 public extension Paypal {
-    /// On iOS 13+, we are required to hold a strong reference to any
+    /// We are required to hold a strong reference to any
     /// in-progress ``ASWebAuthenticationSession``s.
     private static let _runningAuthSession: AtomicOptional<ASWebAuthenticationSession> = AtomicOptional(nil)
 
     /// Creates and presents a new auth session. Only one auth session should
     /// be able to exist at once.
-    ///
-    /// On iOS 13+, a `presentationContext` is required.
-    @available(iOS 13, *)
-    static func present(
+    static func presentExpectingApprovalParams<ApprovalParams: FromApprovedPaypalWebAuthFinalUrlQueryItems>(
         approvalUrl: URL,
         withPresentationContext presentationContext: ASWebAuthenticationPresentationContextProviding
-    ) -> Promise<WebAuthApprovalParams> {
-        let (session, promise) = makeNewAuthSession(approvalUrl: approvalUrl)
+    ) -> Promise<ApprovalParams> {
+        let (session, promise): (AuthSession<ApprovalParams>, Promise<ApprovalParams>) = makeNewAuthSession(
+            approvalUrl: approvalUrl
+        )
+
         session.presentationContextProvider = presentationContext
         owsAssert(
             session.start(),
@@ -34,27 +34,12 @@ public extension Paypal {
         return promise
     }
 
-    /// Creates and presents a new auth session. Only one auth session should
-    /// be able to exist at once.
-    ///
-    /// Only for use on iOS 12.
-    @available(iOS, introduced: 12, obsoleted: 13)
-    static func present(
+    private static func makeNewAuthSession<ApprovalParams: FromApprovedPaypalWebAuthFinalUrlQueryItems>(
         approvalUrl: URL
-    ) -> Promise<WebAuthApprovalParams> {
-        let (session, promise) = makeNewAuthSession(approvalUrl: approvalUrl)
-        owsAssert(
-            session.start(),
-            "[Donations] Failed to start PayPal authentication session. Was it set up correctly?"
-        )
+    ) -> (AuthSession<ApprovalParams>, Promise<ApprovalParams>) {
+        let (promise, future) = Promise<ApprovalParams>.pending()
 
-        return promise
-    }
-
-    private static func makeNewAuthSession(approvalUrl: URL) -> (AuthSession, Promise<WebAuthApprovalParams>) {
-        let (promise, future) = Promise<WebAuthApprovalParams>.pending()
-
-        let newSession = AuthSession(approvalUrl: approvalUrl) { approvalResult in
+        let newSession = AuthSession<ApprovalParams>(approvalUrl: approvalUrl) { approvalResult in
             _runningAuthSession.set(nil)
 
             switch approvalResult {
@@ -112,7 +97,7 @@ extension Paypal {
     ///
     /// This URL is expected to redirect to a custom scheme URL. See
     /// ``paymentRedirectPathComponent`` for more.
-    static let returnUrl: URL = {
+    static let webAuthReturnUrl: URL = {
         var components = URLComponents()
         components.scheme = redirectUrlScheme
         components.host = redirectUrlHost
@@ -126,7 +111,7 @@ extension Paypal {
     ///
     /// This URL is expected to redirect to a custom scheme URL. See
     /// ``paymentRedirectPathComponent`` for more.
-    static let cancelUrl: URL = {
+    static let webAuthCancelUrl: URL = {
         var components = URLComponents()
         components.scheme = redirectUrlScheme
         components.host = redirectUrlHost
@@ -178,11 +163,21 @@ extension Paypal {
 
 // MARK: - Auth results
 
+/// Represents a type that may be constructable from a given set of URL query
+/// items retrieved from the final URL from a successfully-completed PayPal web
+/// auth session.
+public protocol FromApprovedPaypalWebAuthFinalUrlQueryItems {
+    /// Init using the given URL query items, retrieved from the final URL from
+    /// a successfully-completed PayPal web auth session. Returns `nil` if
+    /// initialization is not possible, e.g. a required query item is missing.
+    init?(fromFinalUrlQueryItems queryItems: [URLQueryItem])
+}
+
 public extension Paypal {
     /// Represents parameters returned to us after an approved PayPal
-    /// authentication, which are used to confirm a payment. These fields are
-    /// opaque to us.
-    struct WebAuthApprovalParams {
+    /// authentication for a one-time payment, which are used to confirm
+    /// the payment. These fields are opaque to us.
+    struct OneTimePaymentWebAuthApprovalParams: FromApprovedPaypalWebAuthFinalUrlQueryItems {
         let payerId: String
         let paymentId: String
         let paymentToken: String
@@ -195,7 +190,13 @@ public extension Paypal {
             case paymentToken = "token"
         }
 
-        fileprivate init?(queryItems: [URLQueryItem]) {
+        public init(payerId: String, paymentId: String, paymentToken: String) {
+            self.payerId = payerId
+            self.paymentId = paymentId
+            self.paymentToken = paymentToken
+        }
+
+        public init?(fromFinalUrlQueryItems queryItems: [URLQueryItem]) {
             let queryItemMap: [QueryKey: String] = queryItems.reduce(into: [:]) { partialResult, queryItem in
                 guard let queryKey = QueryKey(rawValue: queryItem.name) else {
                     Logger.warn("[Donations] Unexpected query item: \(queryItem.name)")
@@ -233,6 +234,15 @@ public extension Paypal {
         }
     }
 
+    /// Represents parameters returned to us after an approved PayPal
+    /// authentication for a monthly payment.
+    ///
+    /// In practice, we do not need any data returned from the PayPal
+    /// authentication.
+    struct MonthlyPaymentWebAuthApprovalParams: FromApprovedPaypalWebAuthFinalUrlQueryItems {
+        public init?(fromFinalUrlQueryItems queryItems: [URLQueryItem]) {}
+    }
+
     /// Represents an error returned from web authentication.
     enum AuthError: Error {
         case userCanceled
@@ -242,9 +252,9 @@ public extension Paypal {
 // MARK: - AuthSession
 
 private extension Paypal {
-    private class AuthSession: ASWebAuthenticationSession {
+    private class AuthSession<ApprovalParams: FromApprovedPaypalWebAuthFinalUrlQueryItems>: ASWebAuthenticationSession {
         enum AuthResult {
-            case approved(WebAuthApprovalParams)
+            case approved(ApprovalParams)
             case canceled
             case error(Error)
         }
@@ -303,7 +313,7 @@ private extension Paypal {
                 case Paypal.paymentApprovalPathComponent:
                     if
                         let queryItems = callbackUrlComponents.queryItems,
-                        let approvalParams = Paypal.WebAuthApprovalParams(queryItems: queryItems)
+                        let approvalParams = ApprovalParams(fromFinalUrlQueryItems: queryItems)
                     {
                         Logger.info("[Donations] Received PayPal approval params, moving forward.")
                         return .approved(approvalParams)

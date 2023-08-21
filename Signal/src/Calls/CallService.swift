@@ -3,13 +3,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
-import SignalRingRTC
-import SignalMessaging
 import AVFoundation
+import SignalMessaging
+import SignalRingRTC
+import SignalUI
+import WebRTC
 
 // All Observer methods will be invoked from the main thread.
-@objc(OWSCallServiceObserver)
 protocol CallServiceObserver: AnyObject {
     /**
      * Fired whenever the call changes.
@@ -17,7 +17,6 @@ protocol CallServiceObserver: AnyObject {
     func didUpdateCall(from oldValue: SignalCall?, to newValue: SignalCall?)
 }
 
-@objc
 public final class CallService: LightweightCallManager {
     public typealias CallManagerType = CallManager<SignalCall, CallService>
 
@@ -114,7 +113,6 @@ public final class CallService: LightweightCallManager {
 
     /// True whenever CallService has any call in progress.
     /// The call may not yet be visible to the user if we are still in the middle of signaling.
-    @objc
     public var hasCallInProgress: Bool {
         calls.count > 0
     }
@@ -140,7 +138,6 @@ public final class CallService: LightweightCallManager {
         return didRemove
     }
 
-    @objc
     public static let activeCallsDidChange = Notification.Name("activeCallsDidChange")
 
     private func postActiveCallsDidChange() {
@@ -149,7 +146,10 @@ public final class CallService: LightweightCallManager {
 
     public override init() {
         super.init()
-        callManager = CallManager(httpClient: httpClient)
+        callManager = CallManager(
+            httpClient: httpClient,
+            fieldTrials: RingrtcFieldTrials.trials(with: CurrentAppContext().appUserDefaults())
+        )
         callManager.delegate = self
         SwiftSingletons.register(self)
 
@@ -170,7 +170,7 @@ public final class CallService: LightweightCallManager {
         )
         NotificationCenter.default.addObserver(
             self,
-            selector: #selector(configureBandwidthMode),
+            selector: #selector(configureDataMode),
             name: Self.callServicePreferencesDidChange,
             object: nil)
         NotificationCenter.default.addObserver(
@@ -180,10 +180,10 @@ public final class CallService: LightweightCallManager {
             object: nil)
 
         // Note that we're not using the usual .owsReachabilityChanged
-        // We want to update our bandwidth mode if the app has been backgrounded
+        // We want to update our data mode if the app has been backgrounded
         NotificationCenter.default.addObserver(
             self,
-            selector: #selector(configureBandwidthMode),
+            selector: #selector(configureDataMode),
             name: .reachabilityChanged,
             object: nil)
 
@@ -210,7 +210,6 @@ public final class CallService: LightweightCallManager {
     /**
      * Choose whether to use CallKit or a Notification backed interface for calling.
      */
-    @objc
     public func createCallUIAdapter() {
         AssertIsOnMainThread()
 
@@ -226,12 +225,10 @@ public final class CallService: LightweightCallManager {
 
     private var observers = WeakArray<CallServiceObserver>()
 
-    @objc
     func addObserverAndSyncState(observer: CallServiceObserver) {
         addObserver(observer: observer, syncStateImmediately: true)
     }
 
-    @objc
     func addObserver(observer: CallServiceObserver, syncStateImmediately: Bool) {
         AssertIsOnMainThread()
 
@@ -244,7 +241,6 @@ public final class CallService: LightweightCallManager {
     }
 
     // The observer-related methods should be invoked on the main thread.
-    @objc
     func removeObserver(_ observer: CallServiceObserver) {
         AssertIsOnMainThread()
         observers.removeAll { $0 === observer }
@@ -281,7 +277,7 @@ public final class CallService: LightweightCallManager {
         // in either case we want to show the alert on the callViewWindow.
         guard let frontmostViewController =
                 UIApplication.shared.findFrontmostViewController(ignoringAlerts: true,
-                                                                 window: OWSWindowManager.shared.callViewWindow) else {
+                                                                 window: WindowManager.shared.callViewWindow) else {
             owsFailDebug("could not identify frontmostViewController")
             return
         }
@@ -342,7 +338,7 @@ public final class CallService: LightweightCallManager {
         // in either case we want to show the alert on the callViewWindow.
         guard let frontmostViewController =
                 UIApplication.shared.findFrontmostViewController(ignoringAlerts: true,
-                                                                 window: OWSWindowManager.shared.callViewWindow) else {
+                                                                 window: WindowManager.shared.callViewWindow) else {
             owsFailDebug("could not identify frontmostViewController")
             return
         }
@@ -395,36 +391,36 @@ public final class CallService: LightweightCallManager {
     }
 
     @objc
-    func configureBandwidthMode() {
+    private func configureDataMode() {
         guard AppReadiness.isAppReady else { return }
         guard let currentCall = currentCall else { return }
 
         switch currentCall.mode {
         case let .group(call):
-            let useLowBandwidth = Self.shouldUseLowBandwidthWithSneakyTransaction(for: call.localDeviceState.networkRoute)
-            Logger.info("Configuring call for \(useLowBandwidth ? "low" : "standard") bandwidth")
-            call.updateBandwidthMode(bandwidthMode: useLowBandwidth ? .low : .normal)
+            let useLowData = Self.shouldUseLowDataWithSneakyTransaction(for: call.localDeviceState.networkRoute)
+            Logger.info("Configuring call for \(useLowData ? "low" : "standard") data")
+            call.updateDataMode(dataMode: useLowData ? .low : .normal)
         case let .individual(call) where call.state == .connected:
-            let useLowBandwidth = Self.shouldUseLowBandwidthWithSneakyTransaction(for: call.networkRoute)
-            Logger.info("Configuring call for \(useLowBandwidth ? "low" : "standard") bandwidth")
-            callManager.udpateBandwidthMode(bandwidthMode: useLowBandwidth ? .low : .normal)
+            let useLowData = Self.shouldUseLowDataWithSneakyTransaction(for: call.networkRoute)
+            Logger.info("Configuring call for \(useLowData ? "low" : "standard") data")
+            callManager.updateDataMode(dataMode: useLowData ? .low : .normal)
         default:
-            // Do nothing. We'll reapply the bandwidth mode once connected
+            // Do nothing. We'll reapply the data mode once connected
             break
         }
     }
 
-    static func shouldUseLowBandwidthWithSneakyTransaction(for networkRoute: NetworkRoute) -> Bool {
-        let highBandwidthInterfaces = databaseStorage.read { readTx in
-            Self.highBandwidthNetworkInterfaces(readTx: readTx)
+    static func shouldUseLowDataWithSneakyTransaction(for networkRoute: NetworkRoute) -> Bool {
+        let highDataInterfaces = databaseStorage.read { readTx in
+            Self.highDataNetworkInterfaces(readTx: readTx)
         }
-        if let allowsHighBandwidth = highBandwidthInterfaces.includes(networkRoute.localAdapterType) {
-            return !allowsHighBandwidth
+        if let allowsHighData = highDataInterfaces.includes(networkRoute.localAdapterType) {
+            return !allowsHighData
         }
-        // If we aren't sure whether the current route's high-bandwidth, fall back to checking reachability.
+        // If we aren't sure whether the current route's high-data, fall back to checking reachability.
         // This also handles the situation where WebRTC doesn't know what interface we're on,
         // which is always true on iOS 11.
-        return !Self.reachabilityManager.isReachable(with: highBandwidthInterfaces)
+        return !Self.reachabilityManager.isReachable(with: highDataInterfaces)
     }
 
     // MARK: -
@@ -558,7 +554,7 @@ public final class CallService: LightweightCallManager {
         }
     }
 
-    // MARK: -
+    // MARK: - LightweightCallManager
 
     func buildAndConnectGroupCallIfPossible(thread: TSGroupThread, videoMuted: Bool) -> SignalCall? {
         AssertIsOnMainThread()
@@ -618,9 +614,9 @@ public final class CallService: LightweightCallManager {
     @discardableResult
     @objc
     public func initiateCall(thread: TSThread, isVideo: Bool) -> Bool {
-        guard tsAccountManager.isOnboarded() else {
+        guard tsAccountManager.isOnboarded else {
             Logger.warn("aborting due to user not being onboarded.")
-            OWSActionSheets.showActionSheet(title: NSLocalizedString("YOU_MUST_COMPLETE_ONBOARDING_BEFORE_PROCEEDING",
+            OWSActionSheets.showActionSheet(title: OWSLocalizedString("YOU_MUST_COMPLETE_ONBOARDING_BEFORE_PROCEEDING",
                                                                      comment: "alert body shown when trying to use features in the app before completing registration-related setup."))
             return false
         }
@@ -715,13 +711,13 @@ public final class CallService: LightweightCallManager {
     // MARK: - Notifications
 
     @objc
-    func didEnterBackground() {
+    private func didEnterBackground() {
         AssertIsOnMainThread()
         self.updateIsVideoEnabled()
     }
 
     @objc
-    func didBecomeActive() {
+    private func didBecomeActive() {
         AssertIsOnMainThread()
         self.updateIsVideoEnabled()
     }
@@ -816,27 +812,52 @@ public final class CallService: LightweightCallManager {
         }
     }
 
-    // MARK: - Bandwidth
+    // MARK: - Data Modes
 
     static let callServicePreferencesDidChange = Notification.Name("CallServicePreferencesDidChange")
     private static let keyValueStore = SDSKeyValueStore(collection: "CallService")
-    private static let highBandwidthPreferenceKey = "HighBandwidthPreferenceKey"
+    // This used to be called "high bandwidth", but "data" is more accurate.
+    private static let highDataPreferenceKey = "HighBandwidthPreferenceKey"
 
-    static func setHighBandwidthInterfaces(_ interfaceSet: NetworkInterfaceSet, writeTx: SDSAnyWriteTransaction) {
-        Logger.info("Updating preferred low bandwidth interfaces: \(interfaceSet.rawValue)")
+    static func setHighDataInterfaces(_ interfaceSet: NetworkInterfaceSet, writeTx: SDSAnyWriteTransaction) {
+        Logger.info("Updating preferred low data interfaces: \(interfaceSet.rawValue)")
 
-        keyValueStore.setUInt(interfaceSet.rawValue, key: highBandwidthPreferenceKey, transaction: writeTx)
+        keyValueStore.setUInt(interfaceSet.rawValue, key: highDataPreferenceKey, transaction: writeTx)
         writeTx.addSyncCompletion {
             NotificationCenter.default.postNotificationNameAsync(callServicePreferencesDidChange, object: nil)
         }
     }
 
-    static func highBandwidthNetworkInterfaces(readTx: SDSAnyReadTransaction) -> NetworkInterfaceSet {
-        guard let highBandwidthPreference = keyValueStore.getUInt(
-                highBandwidthPreferenceKey,
+    static func highDataNetworkInterfaces(readTx: SDSAnyReadTransaction) -> NetworkInterfaceSet {
+        guard let highDataPreference = keyValueStore.getUInt(
+                highDataPreferenceKey,
                 transaction: readTx) else { return .wifiAndCellular }
 
-        return NetworkInterfaceSet(rawValue: highBandwidthPreference)
+        return NetworkInterfaceSet(rawValue: highDataPreference)
+    }
+
+    // MARK: -
+
+    override public func peekCallAndUpdateThread(_ thread: TSGroupThread,
+                                                 expectedEraId: String? = nil,
+                                                 triggerEventTimestamp: UInt64 = NSDate.ows_millisecondTimeStamp(),
+                                                 completion: (() -> Void)? = nil) {
+        // If the currentCall is for the provided thread, we don't need to perform an explicit
+        // peek. Connected calls will receive automatic updates from RingRTC
+        guard currentCall?.thread != thread else {
+            Logger.info("Ignoring peek request for the current call")
+            return
+        }
+        super.peekCallAndUpdateThread(thread, expectedEraId: expectedEraId, triggerEventTimestamp: triggerEventTimestamp, completion: completion)
+    }
+
+    override public func postUserNotificationIfNecessary(groupCallMessage: OWSGroupCallMessage, transaction: SDSAnyWriteTransaction) {
+        AssertNotOnMainThread()
+
+        // The message can't be for the current call
+        guard self.currentCall?.thread.uniqueId != groupCallMessage.uniqueThreadId else { return }
+
+        super.postUserNotificationIfNecessary(groupCallMessage: groupCallMessage, transaction: transaction)
     }
 }
 
@@ -844,7 +865,7 @@ extension CallService: CallObserver {
     public func individualCallStateDidChange(_ call: SignalCall, state: CallState) {
         AssertIsOnMainThread()
         updateIsVideoEnabled()
-        configureBandwidthMode()
+        configureDataMode()
     }
 
     public func individualCallLocalVideoMuteDidChange(_ call: SignalCall, isVideoMuted: Bool) {
@@ -858,7 +879,7 @@ extension CallService: CallObserver {
         AssertIsOnMainThread()
         updateIsVideoEnabled()
         updateGroupMembersForCurrentCallIfNecessary()
-        configureBandwidthMode()
+        configureDataMode()
 
         if case .shouldRing = call.groupCallRingState,
            call.ringRestrictions.isEmpty,
@@ -905,9 +926,9 @@ extension CallService: CallObserver {
 
         firstly {
             fetchGroupMembershipProof(for: groupThread)
-        }.done(on: .main) { proof in
+        }.done(on: DispatchQueue.main) { proof in
             call.groupCall.updateMembershipProof(proof: proof)
-        }.catch(on: .main) { error in
+        }.catch(on: DispatchQueue.main) { error in
             if error.isNetworkFailureOrTimeout {
                 Logger.warn("Failed to fetch group call credentials \(error)")
             } else {
@@ -927,32 +948,6 @@ extension CallService: CallObserver {
 }
 
 // MARK: - Group call participant updates
-
-extension CallService {
-    @objc
-    override public func peekCallAndUpdateThread(_ thread: TSGroupThread,
-                                                 expectedEraId: String? = nil,
-                                                 triggerEventTimestamp: UInt64 = NSDate.ows_millisecondTimeStamp(),
-                                                 completion: (() -> Void)? = nil) {
-        // If the currentCall is for the provided thread, we don't need to perform an explicit
-        // peek. Connected calls will receive automatic updates from RingRTC
-        guard currentCall?.thread != thread else {
-            Logger.info("Ignoring peek request for the current call")
-            return
-        }
-        super.peekCallAndUpdateThread(thread, expectedEraId: expectedEraId, triggerEventTimestamp: triggerEventTimestamp, completion: completion)
-    }
-
-    @objc
-    override public func postUserNotificationIfNecessary(groupCallMessage: OWSGroupCallMessage, transaction: SDSAnyWriteTransaction) {
-        AssertNotOnMainThread()
-
-        // The message can't be for the current call
-        guard self.currentCall?.thread.uniqueId != groupCallMessage.uniqueThreadId else { return }
-
-        super.postUserNotificationIfNecessary(groupCallMessage: groupCallMessage, transaction: transaction)
-    }
-}
 
 extension CallService: DatabaseChangeDelegate {
 
@@ -1013,7 +1008,7 @@ extension CallService: CallManagerDelegate {
                 withContactAddress: SignalServiceAddress(uuid: recipientUuid),
                 transaction: transaction
             )
-        }.then(on: .global()) { thread throws -> Promise<Void> in
+        }.then(on: DispatchQueue.global()) { thread throws -> Promise<Void> in
             let opaqueBuilder = SSKProtoCallMessageOpaque.builder()
             opaqueBuilder.setData(message)
             opaqueBuilder.setUrgency(urgency.protobufValue)
@@ -1032,9 +1027,9 @@ extension CallService: CallManagerDelegate {
                     transaction: transaction
                 )
             }
-        }.done(on: .main) { _ in
+        }.done(on: DispatchQueue.main) { _ in
             // TODO: Tell RingRTC we succeeded in sending the message. API TBD
-        }.catch(on: .main) { error in
+        }.catch(on: DispatchQueue.main) { error in
             if error.isNetworkFailureOrTimeout {
                 Logger.warn("Failed to send opaque message \(error)")
             } else if error is UntrustedIdentityError {
@@ -1065,7 +1060,7 @@ extension CallService: CallManagerDelegate {
                 throw OWSAssertionError("tried to send call message to unknown group")
             }
             return thread
-        }.then(on: .global()) { thread throws -> Promise<Void> in
+        }.then(on: DispatchQueue.global()) { thread throws -> Promise<Void> in
             let opaqueBuilder = SSKProtoCallMessageOpaque.builder()
             opaqueBuilder.setData(message)
             opaqueBuilder.setUrgency(urgency.protobufValue)
@@ -1084,9 +1079,9 @@ extension CallService: CallManagerDelegate {
                     transaction: transaction
                 )
             }
-        }.done(on: .main) { _ in
+        }.done(on: DispatchQueue.main) { _ in
             // TODO: Tell RingRTC we succeeded in sending the message. API TBD
-        }.catch(on: .main) { error in
+        }.catch(on: DispatchQueue.main) { error in
             if error.isNetworkFailureOrTimeout {
                 Logger.warn("Failed to send opaque message \(error)")
             } else {
@@ -1171,7 +1166,7 @@ extension CallService: CallManagerDelegate {
     ) {
         Logger.info("Network route changed for call: \(call): \(networkRoute.localAdapterType.rawValue)")
         call.individualCall.networkRoute = networkRoute
-        configureBandwidthMode()
+        configureDataMode()
     }
 
     public func callManager(
@@ -1352,6 +1347,7 @@ extension CallService: CallManagerDelegate {
                 }
 
                 self.terminate(call: currentCall)
+                currentCall.groupCallRingState = .incomingRingCancelled
             }
 
             databaseStorage.asyncWrite { transaction in

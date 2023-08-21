@@ -4,6 +4,8 @@
 //
 
 import Foundation
+import LibSignalClient
+import SignalCoreKit
 
 @objc
 public class AnySignalRecipientFinder: NSObject {
@@ -41,17 +43,6 @@ extension AnySignalRecipientFinder {
             return grdbAdapter.signalRecipients(for: addresses, transaction: transaction)
         }
     }
-
-    /// Fetches and returns all registered SignalRecipients that do not have a UUID
-    /// Note: The registered device set is currently represented in an archive blob. So the schema doesn't currently
-    /// allow us to filter on registered recipients. So the underlying query fetches *all* recipients without a UUID,
-    /// then filters where devices.count > 0.
-    public func registeredRecipientsWithoutUUID(transaction: SDSAnyReadTransaction) -> [SignalRecipient] {
-        switch transaction.readTransaction {
-        case .grdbRead(let transaction):
-            return grdbAdapter.registeredRecipientsWithoutUUID(transaction: transaction)
-        }
-    }
 }
 
 @objc
@@ -68,55 +59,33 @@ class GRDBSignalRecipientFinder: NSObject {
 
     fileprivate func signalRecipientForUUID(_ uuid: UUID?, transaction: GRDBReadTransaction) -> SignalRecipient? {
         guard let uuidString = uuid?.uuidString else { return nil }
-        let sql = "SELECT * FROM \(SignalRecipientRecord.databaseTableName) WHERE \(signalRecipientColumn: .recipientUUID) = ?"
-        return SignalRecipient.grdbFetchOne(sql: sql, arguments: [uuidString], transaction: transaction)
+        let sql = "SELECT * FROM \(SignalRecipient.databaseTableName) WHERE \(signalRecipientColumn: .aciString) = ?"
+        return SignalRecipient.anyFetch(sql: sql, arguments: [uuidString], transaction: transaction.asAnyRead)
     }
 
     fileprivate func signalRecipientForPhoneNumber(_ phoneNumber: String?, transaction: GRDBReadTransaction) -> SignalRecipient? {
         guard let phoneNumber = phoneNumber else { return nil }
-        let sql = "SELECT * FROM \(SignalRecipientRecord.databaseTableName) WHERE \(signalRecipientColumn: .recipientPhoneNumber) = ?"
-        return SignalRecipient.grdbFetchOne(sql: sql, arguments: [phoneNumber], transaction: transaction)
+        let sql = "SELECT * FROM \(SignalRecipient.databaseTableName) WHERE \(signalRecipientColumn: .phoneNumber) = ?"
+        return SignalRecipient.anyFetch(sql: sql, arguments: [phoneNumber], transaction: transaction.asAnyRead)
     }
 
-    func signalRecipients(for addresses: [SignalServiceAddress], transaction: GRDBReadTransaction) -> [SignalRecipient] {
+    func signalRecipients(for addresses: [SignalServiceAddress], transaction tx: GRDBReadTransaction) -> [SignalRecipient] {
         guard !addresses.isEmpty else { return [] }
 
+        // PNI TODO: Support PNIs.
         let phoneNumbersToLookup = addresses.compactMap { $0.phoneNumber }.map { "'\($0)'" }.joined(separator: ",")
         let uuidsToLookup = addresses.compactMap { $0.uuidString }.map { "'\($0)'" }.joined(separator: ",")
 
         let sql = """
-            SELECT * FROM \(SignalRecipientRecord.databaseTableName)
-            WHERE \(signalRecipientColumn: .recipientPhoneNumber) IN (\(phoneNumbersToLookup))
-            OR \(signalRecipientColumn: .recipientUUID) IN (\(uuidsToLookup))
+            SELECT * FROM \(SignalRecipient.databaseTableName)
+            WHERE \(signalRecipientColumn: .phoneNumber) IN (\(phoneNumbersToLookup))
+            OR \(signalRecipientColumn: .aciString) IN (\(uuidsToLookup))
         """
 
-        let cursor = SignalRecipient.grdbFetchCursor(sql: sql, transaction: transaction)
-
-        var recipients = Set<SignalRecipient>()
-        do {
-            while let recipient = try cursor.next() {
-                recipients.insert(recipient)
-            }
-        } catch {
-            owsFailDebug("unexpected error \(error)")
+        var result = [SignalRecipient]()
+        SignalRecipient.anyEnumerate(transaction: tx.asAnyRead, sql: sql, arguments: []) { signalRecipient, _ in
+            result.append(signalRecipient)
         }
-
-        return Array(recipients)
-    }
-
-    fileprivate func registeredRecipientsWithoutUUID(transaction: GRDBReadTransaction) -> [SignalRecipient] {
-        let sql = """
-        SELECT * FROM \(SignalRecipientRecord.databaseTableName)
-        WHERE (
-            \(signalRecipientColumn: .recipientUUID) IS NULL OR
-            \(signalRecipientColumn: .recipientUUID) IS ""
-        ) AND (
-            \(signalRecipientColumn: .recipientPhoneNumber) IS NOT NULL
-        )
-        """
-        let cursor = SignalRecipient.grdbFetchCursor(sql: sql, transaction: transaction)
-
-        let allLegacyRecipients = try! cursor.all()
-        return allLegacyRecipients.filter { $0.devices.count > 0 }
+        return result
     }
 }

@@ -8,6 +8,15 @@ import SignalServiceKit
 import SignalMessaging
 
 class NSEEnvironment: Dependencies {
+    let appContext: NSEContext
+
+    init() {
+        self.appContext = NSEContext()
+        SetCurrentAppContext(self.appContext, false)
+    }
+
+    // MARK: -
+
     var processingMessageCounter = AtomicUInt(0)
     var isProcessingMessages: Bool {
         processingMessageCounter.get() > 0
@@ -95,92 +104,64 @@ class NSEEnvironment: Dependencies {
         })
     }
 
-    // MARK: - Global state
-
-    private let globalStateLock = UnfairLock()
-    private var isGlobalStateConfigured = false
-
-    /// Ensures we have all required global state configured, such as an app
-    /// context and logging.
-    func ensureGlobalState() {
-        globalStateLock.withLock {
-            if isGlobalStateConfigured {
-                return
-            }
-
-            SetCurrentAppContext(NSEContext(), false)
-
-            DebugLogger.shared().enableTTYLogging()
-            if OWSPreferences.isLoggingEnabled() || _isDebugAssertConfiguration() {
-                DebugLogger.shared().enableFileLogging()
-            }
-
-            NSELogger.uncorrelated.info("Logging is now configured and available!", flushImmediately: true)
-
-            isGlobalStateConfigured = true
-        }
-    }
-
     // MARK: - Setup
 
-    private var isSetup = AtomicBool(false)
-
-    func setupIfNecessary(logger: NSELogger) -> UNNotificationContent? {
-        guard isSetup.tryToSetFlag() else { return nil }
-        logger.info("Running NSEEnvironment setup!", flushImmediately: true)
-        return DispatchQueue.main.sync { setup(logger: logger) }
-    }
-
-    private var areVersionMigrationsComplete = false
-    private func setup(logger: NSELogger) -> UNNotificationContent? {
+    /// Called for each notification the NSE receives.
+    ///
+    /// Will be invoked multiple times in the same NSE process.
+    func setUpBeforeCheckingForFirstDeviceUnlock(logger: NSELogger) {
         AssertIsOnMainThread()
 
-        logger.info("NSEEnvironment setup()", flushImmediately: true)
+        let debugLogger = DebugLogger.shared()
+        debugLogger.enableTTYLoggingIfNeeded()
+        debugLogger.setUpFileLoggingIfNeeded(appContext: appContext, canLaunchInBackground: true)
+    }
 
-        _ = AppVersion.shared()
+    private var didStartAppSetup = false
+
+    /// Called for each notification the NSE receives.
+    ///
+    /// Will be invoked multiple times in the same NSE process.
+    func setUpAfterCheckingForFirstDeviceUnlock(logger: NSELogger) {
+        logger.info("", flushImmediately: true)
+
+        if didStartAppSetup {
+            return
+        }
+        didStartAppSetup = true
 
         Cryptography.seedRandom()
 
-        if let errorContent = Self.verifyDBKeysAvailable(logger: logger) {
-            return errorContent
-        }
-
-        AppSetup.setupEnvironment(
+        let databaseContinuation = AppSetup().start(
+            appContext: CurrentAppContext(),
+            appVersion: AppVersionImpl.shared,
             paymentsEvents: PaymentsEventsAppExtension(),
             mobileCoinHelper: MobileCoinHelperMinimal(),
             webSocketFactory: WebSocketFactoryNative(),
-            appSpecificSingletonBlock: {
-                SSKEnvironment.shared.callMessageHandlerRef = NSECallMessageHandler()
-                SSKEnvironment.shared.notificationsManagerRef = NotificationPresenter()
-                Environment.shared.lightweightCallManagerRef = LightweightCallManager()
-            },
-            migrationCompletion: { [weak self] error in
-                if let error = error {
-                    // TODO: Maybe notify that you should open the main app.
-                    owsFailDebug("Error \(error)")
-                    return
-                }
-                self?.versionMigrationsDidComplete(logger: logger)
-            }
+            callMessageHandler: NSECallMessageHandler(),
+            notificationPresenter: NotificationPresenter()
         )
 
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(storageIsReady),
-            name: .StorageIsReady,
-            object: nil
-        )
+        SMEnvironment.shared.lightweightCallManagerRef = LightweightCallManager()
+
+        databaseContinuation.prepareDatabase().done(on: DispatchQueue.main) { finalSetupContinuation in
+            switch finalSetupContinuation.finish(willResumeInProgressRegistration: false) {
+            case .corruptRegistrationState:
+                // TODO: Maybe notify that you should open the main app.
+                return owsFailDebug("Couldn't launch because of corrupted registration state.")
+            case nil:
+                self.setAppIsReady()
+            }
+        }
 
         logger.info("completed.")
 
         OWSAnalytics.appLaunchDidBegin()
 
         listenForMainAppLaunch(logger: logger)
-
-        return nil
     }
 
-    public static func verifyDBKeysAvailable(logger: NSELogger) -> UNNotificationContent? {
+    func verifyDBKeysAvailable(logger: NSELogger) -> UNNotificationContent? {
         guard !StorageCoordinator.hasGrdbFile || !GRDBDatabaseStorageAdapter.isKeyAccessible else { return nil }
 
         logger.info("Database password is not accessible, posting generic notification.")
@@ -194,38 +175,13 @@ class NSEEnvironment: Dependencies {
         return content
     }
 
-    private func versionMigrationsDidComplete(logger: NSELogger) {
+    private func setAppIsReady() {
         AssertIsOnMainThread()
-
-        logger.debug("")
-
-        areVersionMigrationsComplete = true
-
-        checkIsAppReady()
-    }
-
-    @objc
-    private func storageIsReady() {
-        AssertIsOnMainThread()
-
-        NSELogger.uncorrelated.debug("")
-
-        checkIsAppReady()
-    }
-
-    @objc
-    private func checkIsAppReady() {
-        AssertIsOnMainThread()
-
-        // Only mark the app as ready once.
-        guard !AppReadiness.isAppReady else { return }
-
-        // App isn't ready until storage is ready AND all version migrations are complete.
-        guard storageCoordinator.isStorageReady && areVersionMigrationsComplete else { return }
+        owsAssert(!AppReadiness.isAppReady)
 
         // Note that this does much more than set a flag; it will also run all deferred blocks.
         AppReadiness.setAppIsReady()
 
-        AppVersion.shared().nseLaunchDidComplete()
+        AppVersionImpl.shared.nseLaunchDidComplete()
     }
 }

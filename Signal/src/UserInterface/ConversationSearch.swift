@@ -3,44 +3,36 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalServiceKit
+import SignalUI
 
-@objc
 public protocol ConversationSearchControllerDelegate: UISearchControllerDelegate {
 
-    @objc
     func conversationSearchController(_ conversationSearchController: ConversationSearchController,
                                       didUpdateSearchResults resultSet: ConversationScreenSearchResultSet?)
 
-    @objc
     func conversationSearchController(_ conversationSearchController: ConversationSearchController,
                                       didSelectMessageId: String)
 }
 
 // MARK: -
 
-@objc
 public class ConversationSearchController: NSObject {
 
-    @objc
     public static let kMinimumSearchTextLength: UInt = 2
 
-    @objc
     public let uiSearchController =  UISearchController(searchResultsController: nil)
 
-    @objc
     public weak var delegate: ConversationSearchControllerDelegate?
 
     let thread: TSThread
 
-    @objc
     public let resultsBar: SearchResultsBar = SearchResultsBar(frame: .zero)
 
     private var lastSearchText: String?
 
     // MARK: Initializer
 
-    @objc
     required public init(thread: TSThread) {
         self.thread = thread
         super.init()
@@ -49,14 +41,7 @@ public class ConversationSearchController: NSObject {
         uiSearchController.delegate = self
         uiSearchController.searchResultsUpdater = self
 
-        if #available(iOS 13, *) {
-            uiSearchController.hidesNavigationBarDuringPresentation = true
-        } else {
-            // In iOS12, if the search controller is presented and hiding the nav bar, when you
-            // push another VC, that VC will *also* not show it's navigation bar, so we just
-            // don't toggle nav bar visibility on legacy platforms.
-            uiSearchController.hidesNavigationBarDuringPresentation = false
-        }
+        uiSearchController.hidesNavigationBarDuringPresentation = true
         uiSearchController.obscuresBackgroundDuringPresentation = false
 
         applyTheme()
@@ -209,13 +194,11 @@ public class SearchResultsBar: UIView {
             leftInteriorChevronMargin = 8
         }
 
-        let upChevron = #imageLiteral(resourceName: "ic_chevron_up").withRenderingMode(.alwaysTemplate)
-        showLessRecentButton = UIBarButtonItem(image: upChevron, style: .plain, target: self, action: #selector(didTapShowLessRecent))
+        showLessRecentButton = UIBarButtonItem(image: Theme.iconImage(.chevronUp), style: .plain, target: self, action: #selector(didTapShowLessRecent))
         showLessRecentButton.imageInsets = UIEdgeInsets(top: 2, left: leftExteriorChevronMargin, bottom: 2, right: leftInteriorChevronMargin)
         showLessRecentButton.tintColor = Theme.accentBlueColor
 
-        let downChevron = #imageLiteral(resourceName: "ic_chevron_down").withRenderingMode(.alwaysTemplate)
-        showMoreRecentButton = UIBarButtonItem(image: downChevron, style: .plain, target: self, action: #selector(didTapShowMoreRecent))
+        showMoreRecentButton = UIBarButtonItem(image: Theme.iconImage(.chevronDown), style: .plain, target: self, action: #selector(didTapShowMoreRecent))
         showMoreRecentButton.imageInsets = UIEdgeInsets(top: 2, left: leftInteriorChevronMargin, bottom: 2, right: leftExteriorChevronMargin)
         showMoreRecentButton.tintColor = Theme.accentBlueColor
 
@@ -235,7 +218,7 @@ public class SearchResultsBar: UIView {
     }
 
     @objc
-    public func didTapShowLessRecent() {
+    private func didTapShowLessRecent() {
         Logger.debug("")
         guard let resultSet = resultSet else {
             owsFailDebug("resultSet was unexpectedly nil")
@@ -259,7 +242,7 @@ public class SearchResultsBar: UIView {
     }
 
     @objc
-    public func didTapShowMoreRecent() {
+    private func didTapShowMoreRecent() {
         Logger.debug("")
         guard let resultSet = resultSet else {
             owsFailDebug("resultSet was unexpectedly nil")
@@ -314,9 +297,9 @@ public class SearchResultsBar: UIView {
         }
 
         if resultSet.messages.count == 0 {
-            labelItem.title = NSLocalizedString("CONVERSATION_SEARCH_NO_RESULTS", comment: "keyboard toolbar label when no messages match the search string")
+            labelItem.title = OWSLocalizedString("CONVERSATION_SEARCH_NO_RESULTS", comment: "keyboard toolbar label when no messages match the search string")
         } else {
-            let format = NSLocalizedString("CONVERSATION_SEARCH_RESULTS_%d_%d", tableName: "PluralAware",
+            let format = OWSLocalizedString("CONVERSATION_SEARCH_RESULTS_%d_%d", tableName: "PluralAware",
                                            comment: "keyboard toolbar label when more than one or more messages matches the search string. Embeds {{number/position of the 'currently viewed' result}} and the {{total number of results}}")
 
             guard let currentIndex = currentIndex else {

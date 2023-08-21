@@ -3,18 +3,16 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalServiceKit
+import SignalUI
 
 public class CVComponentQuotedReply: CVComponentBase, CVComponent {
 
     public var componentKey: CVComponentKey { .quotedReply }
 
     private let quotedReply: CVComponentState.QuotedReply
-    private var quotedReplyModel: OWSQuotedReplyModel {
+    private var quotedReplyModel: QuotedReplyModel {
         quotedReply.quotedReplyModel
-    }
-    private var displayableQuotedText: DisplayableText? {
-        quotedReply.displayableQuotedText
     }
     private let sharpCornersForQuotedMessage: OWSDirectionalRectCorner
 
@@ -99,7 +97,9 @@ public class CVComponentQuotedReply: CVComponentBase, CVComponent {
             quotedMessageView
         }
 
-        public func setIsCellVisible(_ isCellVisible: Bool) {}
+        public func setIsCellVisible(_ isCellVisible: Bool) {
+            quotedMessageView.setIsCellVisible(isCellVisible)
+        }
 
         public func reset() {
             quotedMessageView.reset()
@@ -118,7 +118,7 @@ private class QuotedMessageViewAdapter: QuotedMessageViewDelegate, Dependencies 
         self.interactionUniqueId = interactionUniqueId
     }
 
-    func didTapQuotedReply(_ quotedReply: OWSQuotedReplyModel,
+    func didTapQuotedReply(_ quotedReply: QuotedReplyModel,
                            failedThumbnailDownloadAttachmentPointer attachmentPointer: TSAttachmentPointer) {
         Self.attachmentDownloads.enqueueDownloadOfAttachments(forMessageId: interactionUniqueId,
                                                               attachmentGroup: .allAttachmentsOfAnyKind,

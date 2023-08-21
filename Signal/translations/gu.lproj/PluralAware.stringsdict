@@ -93,9 +93,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>આ કસ્ટમ કલરનો ઉપયોગ %1$d ચેટમાં થાય છે. શું તમે તેને બધી ચેટ માટે ડિલીટ કરવા માંગો છો?</string>
+			<string>આ કસ્ટમ કલરનો ઉપયોગ %1$d ચેટમાં થયો છે. શું તમે તેને બધી ચેટ માટે ડિલીટ કરવા માગો છો?</string>
 			<key>other</key>
-			<string>આ કસ્ટમ કલરનો %1$d ચેટમાં ઉપયોગ થયો છે. શું તમે તેને બધી ચેટ માટે ડિલીટ કરવા માંગો છો?</string>
+			<string>આ કસ્ટમ કલરનો ઉપયોગ %1$d ચેટમાં થયો છે. શું તમે તેને બધી ચેટ માટે ડિલીટ કરવા માગો છો?</string>
 		</dict>
 	</dict>
 	<key>CHAT_COLOR_SETTINGS_UPDATE_ALERT_MESSAGE_%d</key>
@@ -109,9 +109,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>આ કલરનો ઉપયોગ %1$d ચેટમાં થાય છે. શું તમે બધી ચેટ માટે ફેરફારોને સાચવવા માંગો છો?</string>
+			<string>આ કલરનો ઉપયોગ %1$d ચેટમાં થયો છે. શું તમે બધી ચેટ માટે ફેરફારોને સેવ કરવા માગો છો?</string>
 			<key>other</key>
-			<string>આ કલરનો ઉપયોગ %1$d ચેટમાં થયો છે. શું તમારે બધી ચેટ માટે ફેરફારો સેવ કરવા છે?</string>
+			<string>આ કલરનો ઉપયોગ %1$d ચેટમાં થયો છે. શું તમે બધી ચેટ માટે ફેરફારોને સેવ કરવા માગો છો?</string>
 		</dict>
 	</dict>
 	<key>CONVERSATION_DELETE_CONFIRMATIONS_ALERT_TITLE_%d</key>
@@ -141,9 +141,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>આ ચેટ આ ડિવાઇસમાંથી ડિલીટ થઈ જશે.</string>
+			<string>આ ચેટને આ ડિવાઇસમાંથી ડિલીટ કરવામાં આવશે.</string>
 			<key>other</key>
-			<string>આ બધી ચેટ આ ડિવાઇસમાંથી ડિલીટ થઈ જશે.</string>
+			<string>આ બધી ચેટને આ ડિવાઇસમાંથી ડિલીટ કરવામાં આવશે.</string>
 		</dict>
 	</dict>
 	<key>CONVERSATION_PICKER_CAN_SELECT_NO_MORE_CONVERSATIONS_%d</key>
@@ -157,9 +157,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>તમે %1$d થી વધુ ચેટ પસંદ નથી કરી શકતા.</string>
+			<string>તમે %1$d થી વધુ ચેટ પસંદ કરી શકતા નથી.</string>
 			<key>other</key>
-			<string>તમે %1$d થી વધુ ચેટ પસંદ નથી કરી શકતા.</string>
+			<string>તમે %1$d થી વધુ ચેટ પસંદ કરી શકતા નથી.</string>
 		</dict>
 	</dict>
 	<key>CONVERSATION_SEARCH_RESULTS_%d_%d</key>
@@ -285,7 +285,7 @@
 			<string>%1$d સભ્યોની મહત્તમ ગ્રુપ સાઇઝ થઈ ગઈ.</string>
 		</dict>
 	</dict>
-	<key>EXPIRATION_WARNING_%d</key>
+	<key>EDIT_MESSAGE_SEND_TOO_MANY_EDITS_ERROR</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
 		<string>%#@text@</string>
@@ -296,9 +296,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Signalનું આ વર્ઝન %1$d દિવસમાં સમાપ્ત થઈ જશે. નવીનતમ વર્ઝન પર અપડેટ કરવા માટે ટૅપ કરો.</string>
+			<string>આ મેસેજ પર માત્ર %1$d ફેરફાર જ કરી શકાય છે.</string>
 			<key>other</key>
-			<string>Signalનું આ વર્ઝન %1$d દિવસોમાં સમાપ્ત થઈ જશે. નવીનતમ વર્ઝન પર અપડેટ કરવા માટે ટૅપ કરો.</string>
+			<string>આ મેસેજ પર માત્ર %1$d ફેરફારો જ કરી શકાય છે.</string>
 		</dict>
 	</dict>
 	<key>FORWARD_MESSAGE_FIRST_FORWARD_PROCEED_%d</key>
@@ -315,22 +315,6 @@
 			<string>મેસેજ મોકલો</string>
 			<key>other</key>
 			<string>%1$d મેસેજ મોકલો</string>
-		</dict>
-	</dict>
-	<key>GROUPS_LEGACY_GROUP_DROPPED_MEMBERS_BANNER_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>%1$d સભ્યને નવા ગ્રુપમાં ફરીથી ઉમેરી શકાયા નથી. શું તમે તેમને અત્યારે ઉમેરવા માંગો છો?</string>
-			<key>other</key>
-			<string>%1$d સભ્યોને નવા ગ્રુપમાં ફરીથી ઉમેરી શકાયા નથી. શું તમે તેમને અત્યારે ઉમેરવા માંગો છો?</string>
 		</dict>
 	</dict>
 	<key>GROUPS_TOO_MANY_MEMBERS_ALERT_MESSAGE_%d</key>
@@ -573,22 +557,6 @@
 			<string>%1$d સભ્યો</string>
 		</dict>
 	</dict>
-	<key>GROUP_REMOTE_USER_INVITED_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>%1$d વ્યક્તિને ગ્રુપમાં આમંત્રિત કરવામાં આવી હતી.</string>
-			<key>other</key>
-			<string>%1$d લોકોને ગ્રુપમાં આમંત્રિત કરવામાં આવ્યા હતા.</string>
-		</dict>
-	</dict>
 	<key>GROUP_REMOTE_USER_INVITED_BY_REMOTE_USER_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -669,38 +637,6 @@
 			<string>ગ્રુપ સ્ટોરી · %1$d દર્શકો</string>
 		</dict>
 	</dict>
-	<key>GROUP_WAS_MIGRATED_USERS_DROPPED_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>એક સભ્યને નવા ગ્રુપમાં ઉમેરી ન શકાયા અને ગ્રુપમાંથી દૂર કરવામાં આવ્યા છે.</string>
-			<key>other</key>
-			<string>%1$d સભ્યોને નવા ગ્રુપમાં ઉમેરી ન શકાયા અને ગ્રુપમાંથી દૂર કરવામાં આવ્યા છે.</string>
-		</dict>
-	</dict>
-	<key>GROUP_WAS_MIGRATED_USERS_INVITED_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>એક સભ્યને નવા ગ્રુપમાં ઉમેરી શકાયા નથી અને તેમને જોડાવા માટે આમંત્રણ આપવામાં આવ્યું છે.</string>
-			<key>other</key>
-			<string>%1$d સભ્યો નવા ગ્રુપમાં ઉમેરી શકાયા નથી અને તેમને જોડાવા માટે આમંત્રણ આપવામાં આવ્યું છે.</string>
-		</dict>
-	</dict>
 	<key>IMAGE_PICKER_CAN_SELECT_NO_MORE_TOAST_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -733,7 +669,7 @@
 			<string>%1$d ગ્રુપ સમાન છે</string>
 		</dict>
 	</dict>
-	<key>MEDIA_GALLERY_DELETE_MESSAGES_%d</key>
+	<key>MEDIA_GALLERY_DELETE_MEDIA_TITLE</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
 		<string>%#@text@</string>
@@ -744,9 +680,25 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>%1$d મેસેજ ડિલીટ કરો</string>
+			<string>%1$d આઇટમ ડિલીટ કરવી છે?</string>
 			<key>other</key>
-			<string>%1$d મેસેજ ડિલીટ કરો</string>
+			<string>%1$d આઇટમ ડિલીટ કરવી છે?</string>
+		</dict>
+	</dict>
+	<key>MEDIA_GALLERY_DELETE_MEDIA_TOAST</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>એક આઇટમ ડિલીટ કરી</string>
+			<key>other</key>
+			<string>%1$d આઇટમ ડિલીટ કરી</string>
 		</dict>
 	</dict>
 	<key>MEDIA_GALLERY_ITEM_IMAGE_COUNT_%d</key>
@@ -781,6 +733,22 @@
 			<string>%1$d આઇટમ</string>
 		</dict>
 	</dict>
+	<key>MEDIA_PAGE_FORWARD_MEDIA_CONFIRM_TITLE_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d ફોરવર્ડ કરો</string>
+			<key>other</key>
+			<string>%1$d ફોરવર્ડ કરો</string>
+		</dict>
+	</dict>
 	<key>MESSAGES_VIEW_GROUP_N_MEMBERS_BLOCKED_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -792,9 +760,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>તમે આ ગ્રુપના %1$d સભ્યને બ્લૉક કર્યા</string>
+			<string>તમે આ ગ્રૂપના %1$d સભ્યને બ્લૉક કર્યા</string>
 			<key>other</key>
-			<string>તમે આ ગ્રુપના %1$d સભ્યોને બ્લૉક કર્યા</string>
+			<string>તમે આ ગ્રૂપના %1$d સભ્યોને બ્લૉક કર્યા</string>
 		</dict>
 	</dict>
 	<key>MESSAGE_ACTIONS_TOOLBAR_CAPTION_%d</key>
@@ -941,22 +909,6 @@
 			<string>%1$d દર્શકો</string>
 		</dict>
 	</dict>
-	<key>ONBOARDING_2FA_INVALID_PIN_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@caption@</string>
-		<key>caption</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>ખોટો પિન. %1$d પ્રયાસ બાકી છે.</string>
-			<key>other</key>
-			<string>ખોટો પિન. %1$d પ્રયાસો બાકી છે.</string>
-		</dict>
-	</dict>
 	<key>PENDING_GROUP_MEMBERS_MEMBER_INVITED_USERS_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -1053,36 +1005,20 @@
 			<string>કસ્ટમ સ્ટોરી · %1$d દર્શકો</string>
 		</dict>
 	</dict>
-	<key>REGISTER_2FA_INVALID_PIN_ALERT_MESSAGE_%d</key>
+	<key>REREGISTER_INVALID_PIN_ATTEMPT_COUNT_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@caption@</string>
-		<key>caption</key>
+		<string>%#@text@</string>
+		<key>text</key>
 		<dict>
 			<key>NSStringFormatSpecTypeKey</key>
 			<string>NSStringPluralRuleType</string>
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>તમારી પાસે %1$d પ્રયાસ બાકી છે. જો તમારા પ્રયાસો પૂરા થઈ જાય તો તમે નવો પિન બનાવી શકો છો. તમે રજીસ્ટર કરી અને તમારું એકાઉન્ટ વાપરી શકો છો પરંતુ તમે તમારી પ્રોફાઇલ માહિતી જેવા કેટલાક સાચવેલા સેટિંગ્સ ગુમાવશો.</string>
+			<string>%1$d પ્રયાસ</string>
 			<key>other</key>
-			<string>તમારી પાસે %1$d પ્રયાસો બાકી છે. જો તમારા પ્રયાસો પૂરા થઈ જાય તો તમે નવો પિન બનાવી શકો છો. તમે રજીસ્ટર કરી અને તમારું એકાઉન્ટ વાપરી શકો છો પરંતુ તમે તમારી પ્રોફાઇલ માહિતી જેવા કેટલાક સાચવેલા સેટિંગ્સ ગુમાવશો.</string>
-		</dict>
-	</dict>
-	<key>REGISTER_2FA_INVALID_PIN_ALERT_MESSAGE_REGLOCK_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@caption@</string>
-		<key>caption</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>તમારી પાસે %1$d પ્રયાસ બાકી છે. જો તમારા પ્રયાસો પૂરા થઈ જાય તો તમારું એકાઉન્ટ લૉક થઈ જશે. 7 દિવસની નિષ્ક્રિયતા પછી, તમે તમારા પિન વગર ફરીથી રજીસ્ટર કરી શકો છો. તમારું એકાઉન્ટ સાફ થઈ જશે અને તમામ સામગ્રી ડિલીટ થઈ જશે.</string>
-			<key>other</key>
-			<string>તમારી પાસે %1$d પ્રયાસો બાકી છે. જો તમારા પ્રયાસો પૂરા થઈ જાય તો તમારું એકાઉન્ટ લૉક થઈ જશે. 7 દિવસની નિષ્ક્રિયતા પછી, તમે તમારા પિન વગર ફરીથી રજીસ્ટર કરી શકો છો. તમારું એકાઉન્ટ સાફ થઈ જશે અને તમામ સામગ્રી ડિલીટ થઈ જશે.</string>
+			<string>%1$d પ્રયાસો</string>
 		</dict>
 	</dict>
 	<key>STORIES_SHARESHEET_PARTIAL_SEND_SUBTITLE_%d</key>

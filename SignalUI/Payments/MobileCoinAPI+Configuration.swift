@@ -5,6 +5,7 @@
 
 import Foundation
 import MobileCoin
+import LibMobileCoin
 import SignalServiceKit
 
 extension MobileCoinAPI {
@@ -48,50 +49,56 @@ extension MobileCoinAPI {
     // MARK: - MobileCoinNetworkConfig
 
     struct MobileCoinNetworkConfig {
-        let consensusUrl: String
+        let consensusUrls: [String]
         let fogUrl: String
         let fogReportUrl: String
 
         static var signalMainNet: MobileCoinNetworkConfig {
-            let consensusUrl = "mc://node1.prod.mobilecoinww.com"
+            let consensusUrls = [
+                "mc://node1.consensus.mob.production.namda.net",
+                "mc://node2.consensus.mob.production.namda.net"
+            ]
             let fogUrl = "fog://service.fog.mob.production.namda.net"
             let fogReportUrl = "fog://fog-rpt-prd.namda.net"
-            return MobileCoinNetworkConfig(consensusUrl: consensusUrl, fogUrl: fogUrl, fogReportUrl: fogReportUrl)
+            return MobileCoinNetworkConfig(consensusUrls: consensusUrls, fogUrl: fogUrl, fogReportUrl: fogReportUrl)
         }
 
         static var mobileCoinMainNet: MobileCoinNetworkConfig {
-            let consensusUrl = "mc://node1.prod.mobilecoinww.com"
+            let consensusUrls = ["mc://node1.prod.mobilecoinww.com"]
             let fogUrl = "fog://fog.prod.mobilecoinww.com"
             let fogReportUrl = fogUrl
-            return MobileCoinNetworkConfig(consensusUrl: consensusUrl, fogUrl: fogUrl, fogReportUrl: fogReportUrl)
+            return MobileCoinNetworkConfig(consensusUrls: consensusUrls, fogUrl: fogUrl, fogReportUrl: fogReportUrl)
         }
 
         static var signalTestNet: MobileCoinNetworkConfig {
-            let consensusUrl = "mc://node1.test.mobilecoin.com"
+            let consensusUrls = [
+                "mc://node1.consensus.mob.staging.namda.net",
+                "mc://node2.consensus.mob.staging.namda.net"
+            ]
             let fogUrl = "fog://service.fog.mob.staging.namda.net"
             let fogReportUrl = "fog://fog-rpt-stg.namda.net"
-            return MobileCoinNetworkConfig(consensusUrl: consensusUrl, fogUrl: fogUrl, fogReportUrl: fogReportUrl)
+            return MobileCoinNetworkConfig(consensusUrls: consensusUrls, fogUrl: fogUrl, fogReportUrl: fogReportUrl)
         }
 
         static var mobileCoinTestNet: MobileCoinNetworkConfig {
-            let consensusUrl = "mc://node1.test.mobilecoin.com"
+            let consensusUrls = ["mc://node1.test.mobilecoin.com"]
             let fogUrl = "fog://fog.test.mobilecoin.com"
             let fogReportUrl = fogUrl
-            return MobileCoinNetworkConfig(consensusUrl: consensusUrl, fogUrl: fogUrl, fogReportUrl: fogReportUrl)
+            return MobileCoinNetworkConfig(consensusUrls: consensusUrls, fogUrl: fogUrl, fogReportUrl: fogReportUrl)
         }
 
         static var mobileCoinAlphaNet: MobileCoinNetworkConfig {
-            let consensusUrl = "mc://consensus.alpha.mobilecoin.com"
-            let fogUrl = "fog://fog.alpha.mobilecoin.com"
+            let consensusUrls = ["mc://node1.alpha.development.mobilecoin.com"]
+            let fogUrl = "fog://fog.alpha.development.mobilecoin.com"
             let fogReportUrl = fogUrl
-            return MobileCoinNetworkConfig(consensusUrl: consensusUrl, fogUrl: fogUrl, fogReportUrl: fogReportUrl)
+            return MobileCoinNetworkConfig(consensusUrls: consensusUrls, fogUrl: fogUrl, fogReportUrl: fogReportUrl)
         }
 
         static var mobileCoinMobileDev: MobileCoinNetworkConfig {
-            let consensusUrl = "mc://consensus.mobiledev.mobilecoin.com"
+            let consensusUrls = ["mc://consensus.mobiledev.mobilecoin.com"]
             let fogUrl = "fog://fog.mobiledev.mobilecoin.com"
             let fogReportUrl = fogUrl
-            return MobileCoinNetworkConfig(consensusUrl: consensusUrl, fogUrl: fogUrl, fogReportUrl: fogReportUrl)
+            return MobileCoinNetworkConfig(consensusUrls: consensusUrls, fogUrl: fogUrl, fogReportUrl: fogReportUrl)
         }
 
         static func networkConfig(environment: Environment) -> MobileCoinNetworkConfig {
@@ -377,7 +384,11 @@ extension MobileCoinAPI {
                 // ~August 10th, 2022
                 .of(Data.data(fromHex: "d6e54e43c368f0fa2c5f13361afd303ee8f890424e99bd6c367f6164b5fff1b5")!, ["INTEL-SA-00334", "INTEL-SA-00615"]),
                 // ~November 2nd, 2022
-                .of(Data.data(fromHex: "207c9705bf640fdb960034595433ee1ff914f9154fbe4bc7fc8a97e912961e5c")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"])
+                .of(Data.data(fromHex: "207c9705bf640fdb960034595433ee1ff914f9154fbe4bc7fc8a97e912961e5c")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"]),
+                // ~December 15th, 2022
+                .of(Data.data(fromHex: "e35bc15ee92775029a60a715dca05d310ad40993f56ad43bca7e649ccc9021b5")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"]),
+                // ~May 30th, 2023
+                .of(Data.data(fromHex: "cd86d300c78f74ec23558cdaf734f90dd3e1bcdf8ae43fc827c6b4734ccb8862")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"])
             ]
 
             let mrEnclaveFogView: [AttestationRawInfo] = [
@@ -388,7 +399,11 @@ extension MobileCoinAPI {
                 // ~August 10th, 2022
                 .of(Data.data(fromHex: "3d6e528ee0574ae3299915ea608b71ddd17cbe855d4f5e1c46df9b0d22b04cdb")!, ["INTEL-SA-00334", "INTEL-SA-00615"]),
                 // ~November 2nd, 2022
-                .of(Data.data(fromHex: "fd4c1c82cca13fa007be15a4c90e2b506c093b21c2e7021a055cbb34aa232f3f")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"])
+                .of(Data.data(fromHex: "fd4c1c82cca13fa007be15a4c90e2b506c093b21c2e7021a055cbb34aa232f3f")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"]),
+                // ~December 15th, 2022
+                .of(Data.data(fromHex: "da209f4b24e8f4471bd6440c4e9f1b3100f1da09e2836d236e285b274901ed3b")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"]),
+                // ~May 30th, 2023
+                .of(Data.data(fromHex: "e94f6e6557b3fb85b27d804e2d005ee14a564cc50fc477797f2e5f9984b0bd79")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"])
             ]
 
             // Report aka Ingest.
@@ -400,7 +415,11 @@ extension MobileCoinAPI {
                 // ~August 10th, 2022
                 .of(Data.data(fromHex: "3e9bf61f3191add7b054f0e591b62f832854606f6594fd63faef1e2aedec4021")!, ["INTEL-SA-00334", "INTEL-SA-00615"]),
                 // ~November 2nd, 2022
-                .of(Data.data(fromHex: "3370f131b41e5a49ed97c4188f7a976461ac6127f8d222a37929ac46b46d560e")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"])
+                .of(Data.data(fromHex: "3370f131b41e5a49ed97c4188f7a976461ac6127f8d222a37929ac46b46d560e")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"]),
+                // ~December 15th, 2022
+                .of(Data.data(fromHex: "a8af815564569aae3558d8e4e4be14d1bcec896623166a10494b4eaea3e1c48c")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"]),
+                // ~May 30th, 2023
+                .of(Data.data(fromHex: "7d10f5e72cacc87a6027b2be42ed4a74a6370a03c3476be754933eb18c404b0b")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"])
             ]
 
             let mrEnclaveFogLedger: [AttestationRawInfo] = [
@@ -411,7 +430,11 @@ extension MobileCoinAPI {
                 // ~August 10th, 2022
                 .of(Data.data(fromHex: "92fb35d0f603ceb5eaf2988b24a41d4a4a83f8fb9cd72e67c3bc37960d864ad6")!, ["INTEL-SA-00334", "INTEL-SA-00615"]),
                 // ~November 2nd, 2022
-                .of(Data.data(fromHex: "dca7521ce4564cc2e54e1637e533ea9d1901c2adcbab0e7a41055e719fb0ff9d")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"])
+                .of(Data.data(fromHex: "dca7521ce4564cc2e54e1637e533ea9d1901c2adcbab0e7a41055e719fb0ff9d")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"]),
+                // ~December 15th, 2022
+                .of(Data.data(fromHex: "8c80a2b95a549fa8d928dd0f0771be4f3d774408c0f98bf670b1a2c390706bf3")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"]),
+                // ~May 30th, 2023
+                .of(Data.data(fromHex: "1dee8e2e98b7dc684506991d62856b2e572a0c23f5a7d698086e62f08fb997cc")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"])
             ]
 
             return buildAttestationConfig(consensus: mrEnclaveConsensus,
@@ -433,7 +456,13 @@ extension MobileCoinAPI {
                 // ~July 13, 2022
                 .of(Data.data(fromHex: "4f134dcfd9c0885956f2f9af0f05c2050d8bdee2dc63b468a640670d7adeb7f8")!, ["INTEL-SA-00334"]),
                 // ~Aug 16, 2022
-                .of(Data.data(fromHex: "01746f4dd25f8623d603534425ed45833687eca2b3ba25bdd87180b9471dac28")!, ["INTEL-SA-00334", "INTEL-SA-00615"])
+                .of(Data.data(fromHex: "01746f4dd25f8623d603534425ed45833687eca2b3ba25bdd87180b9471dac28")!, ["INTEL-SA-00334", "INTEL-SA-00615"]),
+                // ~Nov 8, 2022
+                .of(Data.data(fromHex: "5fe2b72fe5f01c269de0a3678728e7e97d823a953b053e43fbf934f439d290e6")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"]),
+                // ~Feb 2, 2023
+                .of(Data.data(fromHex: "4f3879bfffb7b9f86a33086202b6120a32da0ca159615fbbd6fbac6aa37bbf02")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"]),
+                // ~May 30, 2023
+                .of(Data.data(fromHex: "5341c6702a3312243c0f049f87259352ff32aa80f0f6426351c3dd063d817d7a")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"])
             ]
             let mrEnclaveFogView: [AttestationRawInfo] = [
                 // ~June 2, 2021
@@ -441,7 +470,13 @@ extension MobileCoinAPI {
                 // ~July 13, 2022
                 .of(Data.data(fromHex: "719ca43abbe02f507bb91ea11ff8bc900aa86363a7d7e77b8130426fc53d8684")!, ["INTEL-SA-00334"]),
                 // ~Aug 16, 2022
-                .of(Data.data(fromHex: "3d6e528ee0574ae3299915ea608b71ddd17cbe855d4f5e1c46df9b0d22b04cdb")!, ["INTEL-SA-00334", "INTEL-SA-00615"])
+                .of(Data.data(fromHex: "3d6e528ee0574ae3299915ea608b71ddd17cbe855d4f5e1c46df9b0d22b04cdb")!, ["INTEL-SA-00334", "INTEL-SA-00615"]),
+                // ~Nov 8, 2022
+                .of(Data.data(fromHex: "be1d711887530929fbc06ef8b77b618db15e9cd1dd0265559ea45f60a532ee52")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"]),
+                // ~Feb 2, 2023
+                .of(Data.data(fromHex: "f52b3dc018195eae42f543e64e976c818c06672b5489746e2bf74438d488181b")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"]),
+                // ~May 30, 2023
+                .of(Data.data(fromHex: "ac292a1ad27c0338a5159d5fab2bed3917ea144536cb13b5c1226d09a2fbc648")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"])
             ]
             // Report aka Ingest.
             let mrEnclaveFogReport: [AttestationRawInfo]  = [
@@ -450,7 +485,13 @@ extension MobileCoinAPI {
                 // ~July 13, 2022
                 .of(Data.data(fromHex: "8f2f3bf81f24bf493fa6d76e29e0f081815022592b1e854f95bda750aece7452")!, ["INTEL-SA-00334"]),
                 // ~Aug 16, 2022
-                .of(Data.data(fromHex: "3e9bf61f3191add7b054f0e591b62f832854606f6594fd63faef1e2aedec4021")!, ["INTEL-SA-00334", "INTEL-SA-00615"])
+                .of(Data.data(fromHex: "3e9bf61f3191add7b054f0e591b62f832854606f6594fd63faef1e2aedec4021")!, ["INTEL-SA-00334", "INTEL-SA-00615"]),
+                // ~Nov 8, 2022
+                .of(Data.data(fromHex: "d901b5c4960f49871a848fd157c7c0b03351253d65bb839698ddd5df138ad7b6")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"]),
+                // ~Feb 2, 2023
+                .of(Data.data(fromHex: "16d73984c2d2712156135ab69987ca78aca67a2cf4f0f2287ea584556f9d223a")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"]),
+                // ~May 30, 2023
+                .of(Data.data(fromHex: "248356aa0d3431abc45da1773cfd6191a4f2989a4a99da31f450bd7c461e312b")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"])
             ]
             let mrEnclaveFogLedger: [AttestationRawInfo]  = [
                 // ~June 2, 2021
@@ -458,7 +499,13 @@ extension MobileCoinAPI {
                 // ~July 13, 2022
                 .of(Data.data(fromHex: "685481b33f2846585f33506ab65649c98a4a6d1244989651fd0fcde904ebd82f")!, ["INTEL-SA-00334"]),
                 // ~Aug 16, 2022
-                .of(Data.data(fromHex: "92fb35d0f603ceb5eaf2988b24a41d4a4a83f8fb9cd72e67c3bc37960d864ad6")!, ["INTEL-SA-00334", "INTEL-SA-00615"])
+                .of(Data.data(fromHex: "92fb35d0f603ceb5eaf2988b24a41d4a4a83f8fb9cd72e67c3bc37960d864ad6")!, ["INTEL-SA-00334", "INTEL-SA-00615"]),
+                // ~Nov 8, 2022
+                .of(Data.data(fromHex: "d5159ba907066384fae65842b5311f853b028c5ee4594f3b38dfc02acddf6fe3")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"]),
+                // ~Feb 2, 2023
+                .of(Data.data(fromHex: "23ececb2482e3b1d9e284502e2beb65ae76492f2791f3bfef50852ee64b883c3")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"]),
+                // ~Feb 2, 2023
+                .of(Data.data(fromHex: "b61188a6c946557f32e612eff5615908abd1b72ec11d8b7070595a92d4abbbf1")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"])
             ]
 
             return buildAttestationConfig(consensus: mrEnclaveConsensus,
@@ -531,7 +578,6 @@ extension MobileCoinAPI {
 
     // MARK: - Certificates
 
-    @objc
     private class Certificates: NSObject {
 
         enum CertificateBundle {
@@ -575,7 +621,6 @@ extension MobileCoinAPI {
 
     // MARK: - TrustRootCerts
 
-    @objc
     private class TrustRootCerts: NSObject {
 
         static func anchorCertificates_mobileCoin() -> [Data] {
@@ -619,9 +664,9 @@ extension MobileCoinAPI {
             let networkConfig = MobileCoinNetworkConfig.networkConfig(environment: environment)
             let authorization = self.authorization(signalAuthorization: signalAuthorization)
             let attestationConfig = OWSAttestationConfig.attestationConfig(environment: environment)
-            let configResult = MobileCoinClient.Config.make(consensusUrl: networkConfig.consensusUrl,
+            let configResult = MobileCoinClient.Config.make(consensusUrls: networkConfig.consensusUrls,
                                                             consensusAttestation: attestationConfig.consensus,
-                                                            fogUrl: networkConfig.fogUrl,
+                                                            fogUrls: [networkConfig.fogUrl],
                                                             fogViewAttestation: attestationConfig.fogView,
                                                             fogKeyImageAttestation: attestationConfig.fogKeyImage,
                                                             fogMerkleProofAttestation: attestationConfig.fogMerkleProof,
@@ -756,10 +801,10 @@ final class MobileCoinHttpRequester: NSObject, HttpRequester {
 
     func request(
         url: URL,
-        method: MobileCoin.HTTPMethod,
+        method: LibMobileCoin.HTTPMethod,
         headers: [String: String]?,
         body: Data?,
-        completion: @escaping (Result<MobileCoin.HTTPResponse, Error>) -> Void
+        completion: @escaping (Result<LibMobileCoin.HTTPResponse, Error>) -> Void
     ) {
         var request = URLRequest(url: url.absoluteURL)
         request.httpMethod = method.rawValue
@@ -768,18 +813,19 @@ final class MobileCoinHttpRequester: NSObject, HttpRequester {
 
         let owsUrlSession = OWSURLSession(securityPolicy: securityPolicy, configuration: Self.defaultConfiguration)
 
-        firstly(on: .sharedUtility) {
+        let promise = firstly(on: DispatchQueue.sharedUtility) {
             owsUrlSession.dataTaskPromise(url.absoluteString, method: method.sskHTTPMethod, headers: headers, body: body)
-        }.done { response in
+        }
+        promise.done { response in
             let headerFields = response.responseHeaders
             let statusCode = response.responseStatusCode
             let responseData = response.responseBodyData
             let url = response.requestUrl
-            let httpResponse = MobileCoin.HTTPResponse(statusCode: statusCode, url: url, allHeaderFields: headerFields, responseData: responseData)
+            let httpResponse = LibMobileCoin.HTTPResponse(statusCode: statusCode, url: url, allHeaderFields: headerFields, responseData: responseData)
             completion(.success(httpResponse))
         }.catch { error in
             if let statusCode = error.httpStatusCode {
-                completion(.success(MobileCoin.HTTPResponse(statusCode: statusCode, url: nil, allHeaderFields: [:], responseData: nil)))
+                completion(.success(LibMobileCoin.HTTPResponse(statusCode: statusCode, url: nil, allHeaderFields: [:], responseData: nil)))
             } else {
                 Logger.warn("MobileCoin http request failed \(error)")
                 completion(.failure(ConnectionError.invalidServerResponse("No Response")))
@@ -788,7 +834,7 @@ final class MobileCoinHttpRequester: NSObject, HttpRequester {
     }
 }
 
-extension MobileCoin.HTTPMethod {
+extension LibMobileCoin.HTTPMethod {
     var sskHTTPMethod: SignalServiceKit.HTTPMethod {
         switch self {
         case .GET:

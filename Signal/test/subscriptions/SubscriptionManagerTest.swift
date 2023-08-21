@@ -43,7 +43,8 @@ class SubscriptionTest: XCTestCase {
             "billingCycleAnchor": billingCycleAnchorRawValue,
             "active": true,
             "cancelAtPeriodEnd": false,
-            "status": "active"
+            "status": "active",
+            "processor": "STRIPE"
         ]
     }()
 
@@ -121,7 +122,7 @@ class BadgeIdsTest: XCTestCase {
 
 class SubscriptionManagerDonationConfigurationTest: XCTestCase {
     private typealias JSON = [String: Any]
-    private typealias DonationConfiguration = SubscriptionManager.DonationConfiguration
+    private typealias DonationConfiguration = SubscriptionManagerImpl.DonationConfiguration
 
     private enum CurrencyFixtures {
         static let minimumAmount: Int = 5

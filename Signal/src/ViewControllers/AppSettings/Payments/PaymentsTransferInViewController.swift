@@ -3,23 +3,20 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalMessaging
+import SignalUI
 
-@objc
 class PaymentsTransferInViewController: OWSTableViewController2 {
 
-    @objc
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        title = NSLocalizedString("SETTINGS_PAYMENTS_ADD_MONEY",
+        title = OWSLocalizedString("SETTINGS_PAYMENTS_ADD_MONEY",
                                   comment: "Label for 'add money' view in the payment settings.")
 
         navigationItem.leftBarButtonItem = UIBarButtonItem(barButtonSystemItem: .done, target: self, action: #selector(didTapDone))
 
-        navigationItem.rightBarButtonItem = UIBarButtonItem(image: UIImage(named: "share-outline-24"),
-                                                            landscapeImagePhone: nil,
+        navigationItem.rightBarButtonItem = UIBarButtonItem(image: Theme.iconImage(.buttonShare),
                                                             style: .plain,
                                                             target: self,
                                                             action: #selector(didTapShare))
@@ -58,7 +55,7 @@ class PaymentsTransferInViewController: OWSTableViewController2 {
             return cell
         },
         actionBlock: nil))
-        contents.addSection(addressSection)
+        contents.add(addressSection)
 
         let infoSection = OWSTableSection()
         infoSection.hasBackground = false
@@ -67,9 +64,9 @@ class PaymentsTransferInViewController: OWSTableViewController2 {
             let cell = OWSTableItem.newCell()
 
             let label = PaymentsViewUtils.buildTextWithLearnMoreLinkTextView(
-                text: NSLocalizedString("SETTINGS_PAYMENTS_ADD_MONEY_DESCRIPTION",
+                text: OWSLocalizedString("SETTINGS_PAYMENTS_ADD_MONEY_DESCRIPTION",
                                         comment: "Explanation of the process for adding money in the 'add money' settings view."),
-                font: .ows_dynamicTypeBody2Clamped,
+                font: .dynamicTypeBody2Clamped,
                 learnMoreUrl: "https://support.signal.org/hc/en-us/articles/360057625692#payments_transfer_from_exchange")
             label.textAlignment = .center
             cell.contentView.addSubview(label)
@@ -79,7 +76,7 @@ class PaymentsTransferInViewController: OWSTableViewController2 {
         },
         actionBlock: nil))
 
-        contents.addSection(infoSection)
+        contents.add(infoSection)
 
         self.contents = contents
     }
@@ -111,10 +108,10 @@ class PaymentsTransferInViewController: OWSTableViewController2 {
 
         func configureForError() {
             let label = UILabel()
-            label.text = NSLocalizedString("SETTINGS_PAYMENTS_INVALID_WALLET_ADDRESS",
+            label.text = OWSLocalizedString("SETTINGS_PAYMENTS_INVALID_WALLET_ADDRESS",
                                            comment: "Indicator that the payments wallet address is invalid.")
             label.textColor = Theme.primaryTextColor
-            label.font = UIFont.ows_dynamicTypeBody2Clamped.ows_semibold
+            label.font = UIFont.dynamicTypeBody2Clamped.semibold()
 
             configureWithSubviews(subviews: [label])
         }
@@ -124,12 +121,11 @@ class PaymentsTransferInViewController: OWSTableViewController2 {
             configureForError()
             return
         }
-        let qrImage: UIImage
-        do {
-            qrImage = try QRCodeView.buildQRImage(data: walletAddressBase58Data,
-                                                  forExport: true)
-        } catch {
-            owsFailDebug("Error: \(error)")
+
+        guard let qrImage = ExportableQRCodeGenerator().generateQRCode(
+            data: walletAddressBase58Data
+        ) else {
+            owsFailDebug("Failed to generate QR code image!")
             configureForError()
             return
         }
@@ -145,23 +141,23 @@ class PaymentsTransferInViewController: OWSTableViewController2 {
         qrCodeView.layer.masksToBounds = true
 
         let titleLabel = UILabel()
-        titleLabel.text = NSLocalizedString("SETTINGS_PAYMENTS_WALLET_ADDRESS_LABEL",
+        titleLabel.text = OWSLocalizedString("SETTINGS_PAYMENTS_WALLET_ADDRESS_LABEL",
                                             comment: "Label for the payments wallet address.")
         titleLabel.textColor = Theme.primaryTextColor
-        titleLabel.font = UIFont.ows_dynamicTypeBody2Clamped.ows_semibold
+        titleLabel.font = UIFont.dynamicTypeBody2Clamped.semibold()
         titleLabel.textAlignment = .center
 
         let walletAddressLabel = UILabel()
         walletAddressLabel.text = walletAddressBase58
         walletAddressLabel.textColor = Theme.secondaryTextAndIconColor
-        walletAddressLabel.font = UIFont.ows_monospacedDigitFont(withSize: UIFont.ows_dynamicTypeBody2Clamped.pointSize)
+        walletAddressLabel.font = UIFont.monospacedDigitFont(ofSize: UIFont.dynamicTypeBody2Clamped.pointSize)
         walletAddressLabel.lineBreakMode = .byTruncatingMiddle
         walletAddressLabel.textAlignment = .center
 
         let copyLabel = UILabel()
         copyLabel.text = CommonStrings.copyButton
         copyLabel.textColor = Theme.accentBlueColor
-        copyLabel.font = UIFont.ows_dynamicTypeSubheadlineClamped.ows_semibold
+        copyLabel.font = UIFont.dynamicTypeSubheadlineClamped.semibold()
 
         let copyStack = UIStackView(arrangedSubviews: [copyLabel])
         copyStack.axis = .vertical
@@ -191,21 +187,21 @@ class PaymentsTransferInViewController: OWSTableViewController2 {
         }
         UIPasteboard.general.string = walletAddressBase58
 
-        presentToast(text: NSLocalizedString("SETTINGS_PAYMENTS_ADD_MONEY_WALLET_ADDRESS_COPIED",
+        presentToast(text: OWSLocalizedString("SETTINGS_PAYMENTS_ADD_MONEY_WALLET_ADDRESS_COPIED",
                                              comment: "Indicator that the payments wallet address has been copied to the pasteboard."))
     }
 
     @objc
-    func didTapDone() {
+    private func didTapDone() {
         dismiss(animated: true, completion: nil)
     }
 
     @objc
-    func didTapShare() {
+    private func didTapShare() {
         guard let walletAddressBase58 = payments.walletAddressBase58() else {
             owsFailDebug("Missing walletAddressBase58.")
             return
         }
-        AttachmentSharing.showShareUI(forText: walletAddressBase58, sender: self)
+        AttachmentSharing.showShareUI(for: walletAddressBase58, sender: self)
     }
 }

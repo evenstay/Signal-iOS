@@ -53,9 +53,11 @@ public class IdentityStore: IdentityKeyStore {
     public func saveIdentity(_ identity: LibSignalClient.IdentityKey,
                              for address: ProtocolAddress,
                              context: StoreContext) throws -> Bool {
-        identityManager.saveRemoteIdentity(identity.serializeAsData(),
-                                           address: SignalServiceAddress(from: address),
-                                           transaction: context.asTransaction)
+        identityManager.saveRemoteIdentity(
+            identity.serializeAsData(),
+            address: SignalServiceAddress(from: address),
+            transaction: context.asTransaction
+        )
     }
 
     public func isTrustedIdentity(_ identity: LibSignalClient.IdentityKey,
@@ -92,98 +94,283 @@ extension OWSIdentityManager {
         return IdentityStore(identityManager: self, identityKeyPair: identityKeyPair.identityKeyPair)
     }
 
-    @objc
-    public func groupContainsUnverifiedMember(_ groupUniqueID: String,
-                                              transaction: SDSAnyReadTransaction) -> Bool {
+    public func groupContainsUnverifiedMember(_ groupUniqueID: String, transaction: SDSAnyReadTransaction) -> Bool {
         return OWSRecipientIdentity.groupContainsUnverifiedMember(groupUniqueID, transaction: transaction)
     }
+}
 
+// MARK: - ObjC shim
+
+extension OWSIdentityManager {
     @objc
-    public func processIncomingPniIdentityProto(_ pniIdentity: SSKProtoSyncMessagePniIdentity,
-                                                transaction: SDSAnyWriteTransaction) {
-        do {
-            guard let publicKeyData = pniIdentity.publicKey, let privateKeyData = pniIdentity.privateKey else {
-                throw OWSAssertionError("missing key data in PniIdentity message")
-            }
-            let publicKey = try PublicKey(publicKeyData)
+    func archiveSessionsForAccountId(_ accountId: String, transaction: SDSAnyWriteTransaction) {
+        // PNI TODO: this should end the PNI session if it was sent to our PNI.
+        let sessionStore = DependenciesBridge.shared.signalProtocolStoreManager.signalProtocolStore(for: .aci).sessionStore
+        sessionStore.archiveAllSessions(forAccountId: accountId, tx: transaction.asV2Write)
+    }
+}
 
-            let previousKeyPair = identityKeyPair(for: .pni, transaction: transaction)
-            guard previousKeyPair?.identityKeyPair.publicKey != publicKey else {
-                // The identity key didn't change; we don't need to do anything.
+// MARK: - Verified
+
+extension OWSIdentityManager {
+    @objc
+    public func processIncomingVerifiedProto(_ verified: SSKProtoVerified, transaction: SDSAnyWriteTransaction) throws {
+        guard let aci = Aci.parseFrom(aciString: verified.destinationAci) else {
+            return owsFailDebug("Verification state sync message missing destination.")
+        }
+        Logger.info("Received verification state message for \(aci)")
+        guard let rawIdentityKey = verified.identityKey, rawIdentityKey.count == kIdentityKeyLength else {
+            return owsFailDebug("Verification state sync message for \(aci) with malformed identityKey")
+        }
+        let identityKey = try rawIdentityKey.removeKeyType()
+
+        switch verified.state {
+        case .default:
+            applyVerificationState(
+                .default,
+                serviceId: aci.untypedServiceId,
+                identityKey: identityKey,
+                overwriteOnConflict: false,
+                transaction: transaction
+            )
+        case .verified:
+            applyVerificationState(
+                .verified,
+                serviceId: aci.untypedServiceId,
+                identityKey: identityKey,
+                overwriteOnConflict: true,
+                transaction: transaction
+            )
+        case .unverified:
+            return owsFailDebug("Verification state sync message for \(aci) has unverified state")
+        case .none:
+            return owsFailDebug("Verification state sync message for \(aci) has no state")
+        }
+    }
+
+    private func applyVerificationState(
+        _ verificationState: OWSVerificationState,
+        serviceId: UntypedServiceId,
+        identityKey: Data,
+        overwriteOnConflict: Bool,
+        transaction: SDSAnyWriteTransaction
+    ) {
+        let recipientFetcher = DependenciesBridge.shared.recipientFetcher
+        let recipientId = recipientFetcher.fetchOrCreate(serviceId: serviceId, tx: transaction.asV2Write).uniqueId
+        var recipientIdentity = OWSRecipientIdentity.anyFetch(uniqueId: recipientId, transaction: transaction)
+
+        let shouldSaveIdentityKey: Bool
+        let shouldInsertChangeMessages: Bool
+
+        if let recipientIdentity {
+            if recipientIdentity.accountId != recipientId {
+                return owsFailDebug("Unexpected recipientId for \(serviceId)")
+            }
+            let didChangeIdentityKey = recipientIdentity.identityKey != identityKey
+            if didChangeIdentityKey, !overwriteOnConflict {
+                // The conflict case where we receive a verification sync message whose
+                // identity key disagrees with the local identity key for this recipient.
+                Logger.warn("Non-matching identityKey for \(serviceId)")
                 return
             }
+            shouldSaveIdentityKey = didChangeIdentityKey
+            shouldInsertChangeMessages = true
+        } else {
+            if verificationState == .default {
+                // There's no point in creating a new recipient identity just to set its
+                // verification state to default.
+                return
+            }
+            shouldSaveIdentityKey = true
+            shouldInsertChangeMessages = false
+        }
 
-            let privateKey = try PrivateKey(privateKeyData)
-            let keyPair = ECKeyPair(IdentityKeyPair(publicKey: publicKey, privateKey: privateKey))
-            storeIdentityKeyPair(keyPair, for: .pni, transaction: transaction)
-            TSPreKeyManager.createPreKeys(for: .pni, success: {}, failure: { error in
-                owsFailDebug("Failed to create PNI pre-keys after receiving PniIdentity sync message: \(error)")
-            })
-        } catch {
-            owsFailDebug("Invalid PNI identity data: \(error)")
+        if shouldSaveIdentityKey {
+            // Ensure a remote identity exists for this key. We may be learning about
+            // it for the first time.
+            saveRemoteIdentity(identityKey, address: SignalServiceAddress(serviceId), transaction: transaction)
+            recipientIdentity = OWSRecipientIdentity.anyFetch(uniqueId: recipientId, transaction: transaction)
+        }
+
+        guard let recipientIdentity else {
+            return owsFailDebug("Missing expected identity for \(serviceId)")
+        }
+        guard recipientIdentity.accountId == recipientId else {
+            return owsFailDebug("Unexpected recipientId for \(serviceId)")
+        }
+        guard recipientIdentity.identityKey == identityKey else {
+            return owsFailDebug("Unexpected identityKey for \(serviceId)")
+        }
+
+        if recipientIdentity.verificationState == verificationState {
+            return
+        }
+
+        let oldVerificationState = OWSVerificationStateToString(recipientIdentity.verificationState)
+        let newVerificationState = OWSVerificationStateToString(verificationState)
+        Logger.info("for \(serviceId): \(oldVerificationState) -> \(newVerificationState)")
+
+        recipientIdentity.update(with: verificationState, transaction: transaction)
+
+        if shouldInsertChangeMessages {
+            saveChangeMessages(
+                address: SignalServiceAddress(serviceId),
+                verificationState: verificationState,
+                isLocalChange: false,
+                transaction: transaction
+            )
         }
     }
 
     @objc
-    public func checkForPniIdentity() {
-        // This entire operation is about old devices coming into a PNI-capable world.
-        // Once everybody has a PNI identity key (that won't be reset), this won't be necessary any longer.
-        guard tsAccountManager.isRegistered, let pni = tsAccountManager.localPni else {
+    func saveChangeMessages(
+        address: SignalServiceAddress,
+        verificationState: OWSVerificationState,
+        isLocalChange: Bool,
+        transaction: SDSAnyWriteTransaction
+    ) {
+        owsAssertDebug(address.isValid)
+
+        var relevantThreads = [TSThread]()
+        relevantThreads.append(TSContactThread.getOrCreateThread(withContactAddress: address, transaction: transaction))
+        relevantThreads.append(contentsOf: TSGroupThread.groupThreads(with: address, transaction: transaction))
+
+        for thread in relevantThreads {
+            OWSVerificationStateChangeMessage(
+                thread: thread,
+                recipientAddress: address,
+                verificationState: verificationState,
+                isLocalChange: isLocalChange
+            ).anyInsert(transaction: transaction)
+        }
+    }
+}
+
+// MARK: - PNIs
+
+extension OWSIdentityManager {
+
+    private struct PniChangePhoneNumberData {
+        let identityKeyPair: ECKeyPair
+        let signedPreKey: SignalServiceKit.SignedPreKeyRecord
+        // TODO (PQXDH): 8/14/2023 - This should me made non-optional after 90 days
+        let lastResortKyberPreKey: SignalServiceKit.KyberPreKeyRecord?
+        let registrationId: UInt32
+        let e164: E164
+    }
+
+    @objc
+    public func processIncomingPniChangePhoneNumber(
+        proto: SSKProtoSyncMessagePniChangeNumber,
+        updatedPni updatedPniString: String?,
+        transaction: SDSAnyWriteTransaction
+    ) {
+        guard
+            let updatedPniString,
+            let updatedPni = UUID(uuidString: updatedPniString)
+        else {
+            owsFailDebug("Missing or invalid updated PNI string while processing incoming PNI change-number sync message!")
             return
         }
 
-        guard tsAccountManager.isPrimaryDevice else {
-            // Linked devices can ask the primary for the PNI identity key pair if they don't have it.
-            if identityKeyPair(for: .pni) == nil {
-                syncManager.sendPniIdentitySyncRequestMessage()
-            }
+        guard let localAci = tsAccountManager.localIdentifiers(transaction: transaction)?.aci else {
+            owsFailDebug("Missing ACI while processing incoming PNI change-number sync message!")
             return
         }
 
-        firstly(on: .global()) { () -> Promise<Bool> in
-            // If we haven't generated an identity key yet, we should do so now.
-            guard let currentPniIdentityKey = self.identityKeyPair(for: .pni) else {
-                Logger.info("Creating PNI identity keys for the first time")
-                return .value(true)
+        guard let pniChangeData = deserializeIncomingPniChangePhoneNumber(proto: proto) else {
+            return
+        }
+
+        let pniProtocolStore = DependenciesBridge.shared.signalProtocolStoreManager.signalProtocolStore(for: .pni)
+
+        // Store in the right places
+
+        // attempt this first and return before writing any other information
+        do {
+            if let lastResortKey = pniChangeData.lastResortKyberPreKey {
+                try pniProtocolStore.kyberPreKeyStore.storeLastResortPreKeyAndMarkAsCurrent(
+                    record: lastResortKey,
+                    tx: transaction.asV2Write
+                )
             }
-            // If we have, we still check it against the server, in case the initial upload got interrupted.
-            // (But only in the main app.)
-            let fetchedProfilePromise = ProfileFetcherJob.fetchProfilePromise(address: SignalServiceAddress(uuid: pni),
-                                                                              mainAppOnly: true,
-                                                                              ignoreThrottling: true,
-                                                                              shouldUpdateStore: false,
-                                                                              fetchType: .unversioned)
-            return fetchedProfilePromise.map { fetchedProfile in
-                // Check that the key is actually up to date.
-                if fetchedProfile.profile.identityKey == currentPniIdentityKey.publicKey {
-                    Logger.debug("PNI identity key is up to date on the server")
-                    return false
-                }
-                Logger.info("PNI identity key is out of date on the server; re-uploading")
-                return true
-            }.recover { error -> Promise<Bool> in
-                switch error {
-                case ParamParser.ParseError.missingField("identityKey"):
-                    // The server does not have an identity key for us at all.
-                    Logger.info("Server does not have our PNI identity key; uploading now")
-                    return .value(true)
-                case ProfileFetchError.notMainApp:
-                    return .value(false)
-                default:
-                    throw error
-                }
+        } catch {
+            owsFailDebug("Failed to store last resort Kyber prekey")
+            return
+        }
+
+        storeIdentityKeyPair(
+            pniChangeData.identityKeyPair,
+            for: .pni,
+            transaction: transaction
+        )
+
+        pniChangeData.signedPreKey.markAsAcceptedByService()
+        pniProtocolStore.signedPreKeyStore.storeSignedPreKeyAsAcceptedAndCurrent(
+            signedPreKeyId: pniChangeData.signedPreKey.id,
+            signedPreKeyRecord: pniChangeData.signedPreKey,
+            tx: transaction.asV2Write
+        )
+
+        tsAccountManager.setPniRegistrationId(
+            newRegistrationId: pniChangeData.registrationId,
+            transaction: transaction
+        )
+
+        tsAccountManager.updateLocalPhoneNumber(
+            E164ObjC(pniChangeData.e164),
+            aci: AciObjC(localAci),
+            pni: PniObjC(Pni(fromUUID: updatedPni)),
+            transaction: transaction
+        )
+
+        // Clean up thereafter
+
+        // We need to refresh our one-time pre-keys, and should also refresh
+        // our signed pre-key so we use the one generated on the primary for as
+        // little time as possible.
+        DependenciesBridge.shared.preKeyManager.refreshOneTimePreKeys(
+            forIdentity: .pni,
+            alsoRefreshSignedPreKey: true
+        )
+    }
+
+    private func deserializeIncomingPniChangePhoneNumber(
+        proto: SSKProtoSyncMessagePniChangeNumber
+    ) -> PniChangePhoneNumberData? {
+        guard
+            let pniIdentityKeyPairData = proto.identityKeyPair,
+            let pniSignedPreKeyData = proto.signedPreKey,
+            proto.hasRegistrationID, proto.registrationID > 0,
+            let newE164 = E164(proto.newE164)
+        else {
+            owsFailDebug("Invalid PNI change number proto, missing fields!")
+            return nil
+        }
+
+        do {
+            let pniIdentityKeyPair = ECKeyPair(try IdentityKeyPair(bytes: pniIdentityKeyPairData))
+            let pniSignedPreKey = try LibSignalClient.SignedPreKeyRecord(bytes: pniSignedPreKeyData).asSSKRecord()
+
+            var pniLastResortKyberPreKey: KyberPreKeyRecord?
+            if let pniLastResortKyberKeyData = proto.lastResortKyberPreKey {
+                pniLastResortKyberPreKey = try LibSignalClient.KyberPreKeyRecord(
+                    bytes: pniLastResortKyberKeyData
+                ).asSSKLastResortRecord()
             }
-        }.done(on: .global()) { (needsUpdate: Bool) in
-            guard needsUpdate else {
-                return
-            }
-            TSPreKeyManager.createPreKeys(for: .pni, success: {
-                self.syncManager.sendPniIdentitySyncMessage()
-            }, failure: { error in
-                owsFailDebug("failed to create PNI identity and pre-keys: \(error)")
-            })
-        }.catch(on: .global()) { error in
-            Logger.warn("failed to check PNI identity key: \(error)")
+
+            let pniRegistrationId = proto.registrationID
+
+            return PniChangePhoneNumberData(
+                identityKeyPair: pniIdentityKeyPair,
+                signedPreKey: pniSignedPreKey,
+                lastResortKyberPreKey: pniLastResortKyberPreKey,
+                registrationId: pniRegistrationId,
+                e164: newE164
+            )
+        } catch let error {
+            owsFailDebug("Error while deserializing PNI change-number proto: \(error)")
+            return nil
         }
     }
 
@@ -195,10 +382,15 @@ extension OWSIdentityManager {
 
     @objc(shouldSharePhoneNumberWithAddress:transaction:)
     func shouldSharePhoneNumber(with recipient: SignalServiceAddress, transaction: SDSAnyReadTransaction) -> Bool {
-        guard let recipientUuid = recipient.uuidString else {
+        guard let serviceId = recipient.untypedServiceId else {
             return false
         }
-        return shareMyPhoneNumberStore.getBool(recipientUuid, defaultValue: false, transaction: transaction)
+        return shouldSharePhoneNumber(with: serviceId, transaction: transaction)
+    }
+
+    func shouldSharePhoneNumber(with serviceId: UntypedServiceId, transaction: SDSAnyReadTransaction) -> Bool {
+        let uuidString = serviceId.uuidValue.uuidString
+        return shareMyPhoneNumberStore.getBool(uuidString, defaultValue: false, transaction: transaction)
     }
 
     func setShouldSharePhoneNumber(with recipient: SignalServiceAddress, transaction: SDSAnyWriteTransaction) {
@@ -221,8 +413,11 @@ extension OWSIdentityManager {
     public func clearShouldSharePhoneNumberForEveryone(transaction: SDSAnyWriteTransaction) {
         shareMyPhoneNumberStore.removeAll(transaction: transaction)
     }
+}
 
-    // MARK: - Batch Identity Lookup
+// MARK: - Batch Identity Lookup
+
+extension OWSIdentityManager {
 
     @discardableResult
     public func batchUpdateIdentityKeys(addresses: [SignalServiceAddress]) -> Promise<Void> {
@@ -232,7 +427,7 @@ extension OWSIdentityManager {
         let batchAddresses = addresses.prefix(OWSRequestFactory.batchIdentityCheckElementsLimit)
         let remainingAddresses = Array(addresses.subtracting(batchAddresses))
 
-        return firstly(on: .global()) { () -> Promise<HTTPResponse> in
+        return firstly(on: DispatchQueue.global()) { () -> Promise<HTTPResponse> in
             Logger.info("Performing batch identity key lookup for \(batchAddresses.count) addresses. \(remainingAddresses.count) remaining.")
 
             let elements = self.databaseStorage.read { transaction in
@@ -253,7 +448,7 @@ extension OWSIdentityManager {
             let request = OWSRequestFactory.batchIdentityCheckRequest(elements: elements)
 
             return self.networkManager.makePromise(request: request)
-        }.done(on: .global()) { response in
+        }.done(on: DispatchQueue.global()) { response in
             guard response.responseStatusCode == 200 else {
                 throw OWSAssertionError("Unexpected response from batch identity request \(response.responseStatusCode)")
             }
@@ -293,7 +488,11 @@ extension OWSIdentityManager {
                     let address = SignalServiceAddress(uuid: uuid)
                     Logger.info("Identity key changed via batch request for address \(address)")
 
-                    self.saveRemoteIdentity(identityKey, address: address, transaction: transaction)
+                    self.saveRemoteIdentity(
+                        identityKey,
+                        address: address,
+                        transaction: transaction
+                    )
                 }
             }
         }.then { () -> Promise<Void> in

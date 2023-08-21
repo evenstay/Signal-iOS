@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalServiceKit
 
 enum CVLoadType: Equatable, CustomStringConvertible {
     case loadInitialMapping(focusMessageIdOnOpen: String?,
@@ -83,25 +83,6 @@ struct CVLoadRequest {
     let canReuseInteractionModels: Bool
     let canReuseComponentStates: Bool
     let didReset: Bool
-    let shouldClearOldestUnreadInteraction: Bool
-
-    private let loadStartDate = Date()
-    public var loadStartDateFormatted: String {
-        loadStartDate.formatIntervalSinceNow
-    }
-    private let loadScheduleDelayInterval: TimeInterval
-    public var loadScheduleDelayIntervalFormatted: String {
-        String(format: "%0.3f", abs(loadScheduleDelayInterval))
-    }
-    public func logLoadEvent(_ label: String,
-                             file: String = #file,
-                             function: String = #function,
-                             line: Int = #line) {
-        if CVLoader.verboseLogging {
-            let logString = "\(label)[\(requestId)]. duration: \(loadStartDateFormatted), schedule delay: \(loadScheduleDelayIntervalFormatted)"
-            Logger.info(logString, file: file, function: function, line: line)
-        }
-    }
 
     var isInitialLoad: Bool {
         switch loadType {
@@ -132,34 +113,7 @@ struct CVLoadRequest {
         let requestId = Self.requestIdCounter.increment()
 
         // Has any load been requested?
-        private var shouldLoad = false {
-            didSet {
-                if !oldValue, shouldLoad {
-                    if CVLoader.verboseLogging {
-                        Logger.info("Load Scheduled")
-                    }
-                    loadScheduleDate = Date()
-                }
-            }
-        }
-
-        private var loadScheduleDate: Date?
-        public var loadScheduleDateFormatted: String? {
-            guard let loadScheduleDate = loadScheduleDate else {
-                return nil
-            }
-            return loadScheduleDate.formatIntervalSinceNow
-        }
-
-        public func loadBegun() {
-            if CVLoader.verboseLogging {
-                guard let loadScheduleDateFormatted = self.loadScheduleDateFormatted else {
-                    owsFailDebug("Missing loadScheduleDateFormatted.")
-                    return
-                }
-                Logger.info("Load Scheduled -> Begun: \(loadScheduleDateFormatted)")
-            }
-        }
+        private var shouldLoad = false
 
         private var updatedInteractionIds = Set<String>()
         private var deletedInteractionIds = Set<String>()
@@ -187,8 +141,6 @@ struct CVLoadRequest {
         private var canReuseInteractionModels = true
         private var canReuseComponentStates = true
         private var didReset = false
-
-        private var shouldClearOldestUnreadInteraction = false
 
         mutating func reload(updatedInteractionIds: Set<String>,
                              deletedInteractionIds: Set<String>) {
@@ -249,13 +201,6 @@ struct CVLoadRequest {
             shouldLoad = true
         }
 
-        mutating func clearOldestUnreadInteraction() {
-            AssertIsOnMainThread()
-
-            self.shouldClearOldestUnreadInteraction = true
-            shouldLoad = true
-        }
-
         mutating func reload(scrollAction: CVScrollAction?) {
             AssertIsOnMainThread()
 
@@ -288,16 +233,15 @@ struct CVLoadRequest {
                 return nil
             }
 
-            let loadScheduleDelayInterval: TimeInterval = abs(loadScheduleDate?.timeIntervalSinceNow ?? 0)
-            return CVLoadRequest(requestId: requestId,
-                                 loadType: loadType,
-                                 updatedInteractionIds: updatedInteractionIds,
-                                 deletedInteractionIds: deletedInteractionIds,
-                                 canReuseInteractionModels: canReuseInteractionModels,
-                                 canReuseComponentStates: canReuseComponentStates,
-                                 didReset: didReset,
-                                 shouldClearOldestUnreadInteraction: shouldClearOldestUnreadInteraction,
-                                 loadScheduleDelayInterval: loadScheduleDelayInterval)
+            return CVLoadRequest(
+                requestId: requestId,
+                loadType: loadType,
+                updatedInteractionIds: updatedInteractionIds,
+                deletedInteractionIds: deletedInteractionIds,
+                canReuseInteractionModels: canReuseInteractionModels,
+                canReuseComponentStates: canReuseComponentStates,
+                didReset: didReset
+            )
         }
     }
 }

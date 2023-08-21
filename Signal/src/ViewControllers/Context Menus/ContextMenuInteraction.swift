@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalMessaging
+import UIKit
 
 /// UIContextMenuInteractionDelegate analog
 public protocol ContextMenuInteractionDelegate: AnyObject {
@@ -163,7 +163,7 @@ public class ContextMenuInteraction: NSObject, UIInteraction {
         self.contextMenuController = contextMenuController
 
         delegate?.contextMenuInteraction(self, willDisplayMenuForConfiguration: contextMenuConfiguration)
-        ImpactHapticFeedback.impactOccured(style: .medium, intensity: 0.8)
+        ImpactHapticFeedback.impactOccurred(style: .medium, intensity: 0.8)
 
         window.addSubview(contextMenuController.view)
         contextMenuController.view.frame = window.bounds
@@ -179,9 +179,9 @@ public class ContextMenuInteraction: NSObject, UIInteraction {
 
         switch targetedPreview.alignment {
         case .left:
-            alignments.append((CurrentAppContext().isRTL ? .trailing : .leading, .interior))
+            alignments.append((.leading, .interior))
         case .right:
-            alignments.append((CurrentAppContext().isRTL ? .leading : .trailing, .interior))
+            alignments.append((.trailing, .interior))
         case .center:
             break
         }
@@ -202,18 +202,18 @@ public class ContextMenuInteraction: NSObject, UIInteraction {
 
         if animated {
             contextMenuController?.animateOut({
-                completion()
                 self.delegate?.contextMenuInteraction(self, didEndForConfiguration: configuration)
                 self.contextMenuController?.view.removeFromSuperview()
                 self.contextMenuController = nil
+                completion()
             })
         } else {
             targetedPreview?.view.isHidden = false
             targetedPreview?.auxiliaryView?.isHidden = false
             delegate?.contextMenuInteraction(self, didEndForConfiguration: configuration)
-            completion()
             self.contextMenuController?.view.removeFromSuperview()
             self.contextMenuController = nil
+            completion()
         }
     }
 
@@ -250,15 +250,12 @@ extension ContextMenuInteraction: ContextMenuControllerDelegate, ContextMenuTarg
         dismissMenu(animated: true, completion: { })
     }
 
-    func contextMenuControllerAccessoryFrameOffset(_ contextMenuController: ContextMenuController) -> CGPoint? {
-        nil
-    }
-
     func contextMenuTargetedPreviewAccessoryRequestsEmojiPicker(
-        _ accessory: ContextMenuTargetedPreviewAccessory,
+        for message: TSMessage,
+        accessory: ContextMenuTargetedPreviewAccessory,
         completion: @escaping (String) -> Void
     ) {
-        contextMenuController?.showEmojiSheet(completion: { emojiString in
+        contextMenuController?.showEmojiSheet(message: message, completion: { emojiString in
             self.contextMenuController?.dismissEmojiSheet(animated: true, completion: {
                 completion(emojiString)
             })
@@ -341,7 +338,7 @@ public class ChatHistoryContextMenuInteraction: ContextMenuInteraction {
         let horizontalEdgeAlignment: ContextMenuTargetedPreviewAccessory.AccessoryAlignment.Edge = isIncomingMessage ? (isRTL ? .trailing : .leading) : (isRTL ? .leading : .trailing)
         let alignment = ContextMenuTargetedPreviewAccessory.AccessoryAlignment(alignments: [(.bottom, .exterior), (horizontalEdgeAlignment, .interior)], alignmentOffset: CGPoint(x: 0, y: 12))
         let accessory = ContextMenuActionsAccessory(menu: menu, accessoryAlignment: alignment)
-        let landscapeAlignmentOffset = isMessageType ? CGPoint(x: isIncomingMessage ? (isRTL ? -12 : 12) : (isRTL ? 12 : -12), y: 0) : alignment.alignmentOffset
+        let landscapeAlignmentOffset = isMessageType ? CGPoint(x: 12, y: 0) : alignment.alignmentOffset
         let horizontalLandscapeEdgeAlignment: ContextMenuTargetedPreviewAccessory.AccessoryAlignment.Edge = isIncomingMessage ? (isRTL ? .leading : .trailing) : (isRTL ? .trailing : .leading)
         accessory.landscapeAccessoryAlignment = ContextMenuTargetedPreviewAccessory.AccessoryAlignment(alignments: [isMessageType ? (.top, .interior) : (.bottom, .exterior), (horizontalLandscapeEdgeAlignment, .exterior)], alignmentOffset: landscapeAlignmentOffset)
         accessory.delegate = self

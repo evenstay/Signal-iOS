@@ -92,7 +92,7 @@ public class TextViewWithPlaceholder: UIView {
         textView.isScrollEnabled = false
         textView.backgroundColor = .clear
 
-        textView.font = UIFont.ows_dynamicTypeBody
+        textView.font = UIFont.dynamicTypeBody
         textView.adjustsFontForContentSizeCategory = true
         textView.textContainer.lineFragmentPadding = 0
 
@@ -129,7 +129,7 @@ public class TextViewWithPlaceholder: UIView {
             subview.setCompressionResistanceHigh()
         }
 
-        NotificationCenter.default.addObserver(self, selector: #selector(applyTheme), name: .ThemeDidChange, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(applyTheme), name: .themeDidChange, object: nil)
     }
 
     required init?(coder: NSCoder) {

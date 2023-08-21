@@ -3,8 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
-import UIKit
+import SignalServiceKit
 import SignalUI
 
 protocol StoryPageViewControllerDataSource: AnyObject {
@@ -18,10 +17,16 @@ class StoryPageViewController: UIPageViewController {
 
     // MARK: - State
 
+    private let spoilerState: SpoilerRenderState
+
     var currentContext: StoryContext {
         get { currentContextViewController.context }
         set {
-            setViewControllers([StoryContextViewController(context: newValue, delegate: self)], direction: .forward, animated: false)
+            setViewControllers(
+                [StoryContextViewController(context: newValue, spoilerState: spoilerState, delegate: self)],
+                direction: .forward,
+                animated: false
+            )
         }
     }
     let onlyRenderMyStories: Bool
@@ -58,12 +63,14 @@ class StoryPageViewController: UIPageViewController {
 
     required init(
         context: StoryContext,
+        spoilerState: SpoilerRenderState,
         viewableContexts: [StoryContext]? = nil,
         hiddenStoryFilter: Bool? = nil, /* If true only hidden stories, if false only unhidden. */
         loadMessage: StoryMessage? = nil,
         action: StoryContextViewController.Action = .none,
         onlyRenderMyStories: Bool = false
     ) {
+        self.spoilerState = spoilerState
         self.onlyRenderMyStories = onlyRenderMyStories
         self.viewableContexts = viewableContexts ?? [context]
         self.hiddenStoryFilter = hiddenStoryFilter
@@ -154,7 +161,7 @@ class StoryPageViewController: UIPageViewController {
         // didFinishTransitioning delegate callbacks, calling the former and not the latter.
         // This happens rarely, and only when swiping rapidly between pages and cancelling a swipe.
         // Since the displaylink is firing off anyway, detect this (if we have pending controllers
-        // and an ongoing paging drag transition but the scrollview isnt dragging) and resolve it
+        // and an ongoing paging drag transition but the scrollview isn't dragging) and resolve it
         // by closing the transition out ourselves.
         if
             pendingTransitionViewControllers.isEmpty.negated,
@@ -341,12 +348,12 @@ extension StoryPageViewController: UIPageViewControllerDelegate {
 extension StoryPageViewController: UIPageViewControllerDataSource {
     func pageViewController(_ pageViewController: UIPageViewController, viewControllerBefore viewController: UIViewController) -> UIViewController? {
         guard let contextBefore = previousStoryContext else { return nil }
-        return StoryContextViewController(context: contextBefore, delegate: self)
+        return StoryContextViewController(context: contextBefore, spoilerState: spoilerState, delegate: self)
     }
 
     func pageViewController(_ pageViewController: UIPageViewController, viewControllerAfter viewController: UIViewController) -> UIViewController? {
         guard let contextAfter = nextStoryContext else { return nil }
-        return StoryContextViewController(context: contextAfter, delegate: self)
+        return StoryContextViewController(context: contextAfter, spoilerState: spoilerState, delegate: self)
     }
 }
 
@@ -388,7 +395,12 @@ extension StoryPageViewController: StoryContextViewControllerDelegate {
             dismiss(animated: true)
             return
         }
-        let newControllers = [StoryContextViewController(context: nextContext, loadPositionIfRead: loadPositionIfRead, delegate: self)]
+        let newControllers = [StoryContextViewController(
+            context: nextContext,
+            loadPositionIfRead: loadPositionIfRead,
+            spoilerState: spoilerState,
+            delegate: self
+        )]
         self.willTransition(to: newControllers, fromDrag: false)
         setViewControllers(
             newControllers,
@@ -407,7 +419,12 @@ extension StoryPageViewController: StoryContextViewControllerDelegate {
             storyContextViewController.resetForPresentation()
             return
         }
-        let newControllers = [StoryContextViewController(context: previousContext, loadPositionIfRead: loadPositionIfRead, delegate: self)]
+        let newControllers = [StoryContextViewController(
+            context: previousContext,
+            loadPositionIfRead: loadPositionIfRead,
+            spoilerState: spoilerState,
+            delegate: self
+        )]
         self.willTransition(to: newControllers, fromDrag: false)
         setViewControllers(
             newControllers,
@@ -541,8 +558,8 @@ extension StoryPageViewController: UIViewControllerTransitioningDelegate {
 
     private func storyThumbnailSize(for presentingMessage: StoryMessage) throws -> CGSize? {
         switch presentingMessage.attachment {
-        case .file(let attachmentId):
-            guard let attachment = databaseStorage.read(block: { TSAttachment.anyFetch(uniqueId: attachmentId, transaction: $0) }) else {
+        case .file(let file):
+            guard let attachment = databaseStorage.read(block: { TSAttachment.anyFetch(uniqueId: file.attachmentId, transaction: $0) }) else {
                 throw OWSAssertionError("Unexpectedly missing attachment for story message")
             }
 
@@ -559,8 +576,8 @@ extension StoryPageViewController: UIViewControllerTransitioningDelegate {
     private func storyView(for presentingMessage: StoryMessage) -> UIView? {
         let storyView: UIView
         switch presentingMessage.attachment {
-        case .file(let attachmentId):
-            guard let attachment = databaseStorage.read(block: { TSAttachment.anyFetch(uniqueId: attachmentId, transaction: $0) }) else {
+        case .file(let file):
+            guard let attachment = databaseStorage.read(block: { TSAttachment.anyFetch(uniqueId: file.attachmentId, transaction: $0) }) else {
                 // Can happen if the story was deleted by the sender while in the viewer.
                 return nil
             }
@@ -593,7 +610,11 @@ extension StoryPageViewController: UIViewControllerTransitioningDelegate {
                 blurHashImageView.autoPinEdgesToSuperviewEdges()
             }
         case .text(let attachment):
-            storyView = TextAttachmentView(attachment: attachment).asThumbnailView()
+            storyView = TextAttachmentView(
+                attachment: attachment,
+                interactionIdentifier: .fromStoryMessage(presentingMessage),
+                spoilerState: spoilerState
+            ).asThumbnailView()
         }
 
         storyView.clipsToBounds = true

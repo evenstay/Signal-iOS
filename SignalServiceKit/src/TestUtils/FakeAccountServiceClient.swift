@@ -4,6 +4,9 @@
 //
 
 import Foundation
+import LibSignalClient
+
+#if TESTABLE_BUILD
 
 @objc
 public class FakeAccountServiceClient: AccountServiceClient {
@@ -12,23 +15,23 @@ public class FakeAccountServiceClient: AccountServiceClient {
 
     // MARK: - Public
 
-    public override func requestPreauthChallenge(e164: String, pushToken: String, isVoipToken: Bool) -> Promise<Void> {
-        return Promise { $0.resolve() }
+    public override func getPreKeysCount(for identity: OWSIdentity) -> Promise<(ecCount: Int, pqCount: Int)> {
+        return Promise { $0.resolve((ecCount: 0, pqCount: 0)) }
     }
 
-    public override func requestVerificationCode(e164: String, preauthChallenge: String?, captchaToken: String?, transport: TSVerificationTransport) -> Promise<Void> {
-        return Promise { $0.resolve() }
+    public override func setPreKeys(
+        for identity: OWSIdentity,
+        identityKey: IdentityKey,
+        signedPreKeyRecord: SignalServiceKit.SignedPreKeyRecord?,
+        preKeyRecords: [SignalServiceKit.PreKeyRecord]?,
+        pqLastResortPreKeyRecord: KyberPreKeyRecord?,
+        pqPreKeyRecords: [KyberPreKeyRecord]?,
+        auth: ChatServiceAuth
+    ) -> Promise<Void> {
+        return .value(())
     }
 
-    public override func getPreKeysCount(for identity: OWSIdentity) -> Promise<Int> {
-        return Promise { $0.resolve(0) }
-    }
-
-    public override func setPreKeys(for identity: OWSIdentity, identityKey: IdentityKey, signedPreKeyRecord: SignedPreKeyRecord, preKeyRecords: [PreKeyRecord]) -> Promise<Void> {
-        return Promise { $0.resolve() }
-    }
-
-    public override func setSignedPreKey(_ signedPreKey: SignedPreKeyRecord, for identity: OWSIdentity) -> Promise<Void> {
+    public override func setSignedPreKey(_ signedPreKey: SignalServiceKit.SignedPreKeyRecord, for identity: OWSIdentity) -> Promise<Void> {
         return Promise { $0.resolve() }
     }
 
@@ -36,7 +39,16 @@ public class FakeAccountServiceClient: AccountServiceClient {
         return Promise { $0.resolve() }
     }
 
-    public override func getAccountWhoAmI() -> Promise<WhoAmIResponse> {
-        return Promise { $0.resolve(WhoAmIResponse(aci: UUID(), pni: UUID(), e164: nil)) }
+    public override func getAccountWhoAmI() -> Promise<WhoAmIRequestFactory.Responses.WhoAmI> {
+        return Promise {
+            $0.resolve(WhoAmIRequestFactory.Responses.WhoAmI(
+                aci: FutureAci.randomForTesting().uuidValue,
+                pni: FuturePni.randomForTesting().uuidValue,
+                e164: E164("+17735550199")!,
+                usernameHash: nil
+            ))
+        }
     }
 }
+
+#endif

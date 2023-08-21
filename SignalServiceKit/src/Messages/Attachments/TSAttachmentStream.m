@@ -145,6 +145,7 @@ NSString *NSStringForAttachmentThumbnailQuality(AttachmentThumbnailQuality value
                         serverId:(unsigned long long)serverId
                   sourceFilename:(nullable NSString *)sourceFilename
                  uploadTimestamp:(unsigned long long)uploadTimestamp
+                   videoDuration:(nullable NSNumber *)videoDuration
       cachedAudioDurationSeconds:(nullable NSNumber *)cachedAudioDurationSeconds
                cachedImageHeight:(nullable NSNumber *)cachedImageHeight
                 cachedImageWidth:(nullable NSNumber *)cachedImageWidth
@@ -170,7 +171,8 @@ NSString *NSStringForAttachmentThumbnailQuality(AttachmentThumbnailQuality value
                      encryptionKey:encryptionKey
                           serverId:serverId
                     sourceFilename:sourceFilename
-                   uploadTimestamp:uploadTimestamp];
+                   uploadTimestamp:uploadTimestamp
+                     videoDuration:videoDuration];
 
     if (!self) {
         return self;
@@ -404,28 +406,19 @@ NSString *NSStringForAttachmentThumbnailQuality(AttachmentThumbnailQuality value
 
 - (void)removeFile
 {
-    NSString *thumbnailsDirPath = self.thumbnailsDirPath;
-    if ([[NSFileManager defaultManager] fileExistsAtPath:thumbnailsDirPath]) {
-        NSError *error;
-        BOOL success = [[NSFileManager defaultManager] removeItemAtPath:thumbnailsDirPath error:&error];
-        if (error || !success) {
-            OWSLogError(@"remove thumbnails dir failed with: %@", error);
-        }
+    NSString *_Nullable thumbnailsDirPath = self.thumbnailsDirPath;
+    if (thumbnailsDirPath && ![OWSFileSystem deleteFileIfExists:thumbnailsDirPath]) {
+        OWSLogError(@"remove thumbnails dir failed.");
     }
 
     NSString *_Nullable legacyThumbnailPath = self.legacyThumbnailPath;
-    if (legacyThumbnailPath) {
-        if (![OWSFileSystem deleteFileIfExists:legacyThumbnailPath]) {
-            OWSLogError(@"remove legacy thumbnail failed.");
-        }
+    if (legacyThumbnailPath && ![OWSFileSystem deleteFileIfExists:legacyThumbnailPath]) {
+        OWSLogError(@"remove legacy thumbnail failed.");
     }
 
     NSString *_Nullable filePath = self.originalFilePath;
-    if (!filePath) {
-        OWSFailDebug(@"Missing path for attachment.");
-        return;
-    }
-    if (![OWSFileSystem deleteFileIfExists:filePath]) {
+    OWSAssertDebug(filePath);
+    if (filePath && ![OWSFileSystem deleteFileIfExists:filePath]) {
         OWSLogError(@"remove file failed");
     }
 
@@ -537,6 +530,11 @@ NSString *NSStringForAttachmentThumbnailQuality(AttachmentThumbnailQuality value
 
 - (BOOL)isAnimated
 {
+    return [self isAnimatedWithGenerator:^BOOL { return [self hasAnimatedImageContent]; }];
+}
+
+- (BOOL)isAnimatedWithGenerator:(BOOL (^)(void))generator
+{
     BOOL result;
     BOOL didUpdateCache = NO;
     @synchronized(self) {
@@ -544,7 +542,7 @@ NSString *NSStringForAttachmentThumbnailQuality(AttachmentThumbnailQuality value
             if (!SSKDebugFlags.reduceLogChatter) {
                 OWSLogVerbose(@"Updating isAnimatedCached.");
             }
-            self.isAnimatedCached = @([self hasAnimatedImageContent]);
+            self.isAnimatedCached = @(generator());
             didUpdateCache = YES;
         }
         result = self.isAnimatedCached.boolValue;
@@ -569,23 +567,7 @@ NSString *NSStringForAttachmentThumbnailQuality(AttachmentThumbnailQuality value
 
 - (BOOL)hasAnimatedImageContent
 {
-    if ([self.contentType isEqualToString:OWSMimeTypeImageGif]) {
-        return YES;
-    }
-    if (![self.contentType isEqualToString:OWSMimeTypeImageWebp]
-        && ![self.contentType isEqualToString:OWSMimeTypeImagePng]) {
-        return NO;
-    }
-    NSString *_Nullable filePath = self.originalFilePath;
-    if (filePath == nil) {
-        OWSFailDebug(@"Missing filePath.");
-        return NO;
-    }
-    ImageMetadata *imageMetadata = [NSData imageMetadataWithPath:filePath mimeType:self.contentType];
-    if (!imageMetadata.isValid) {
-        return NO;
-    }
-    return imageMetadata.isAnimated;
+    return [OWSVideoAttachmentDetection.sharedInstance attachmentStreamIsAnimated:self];
 }
 
 #pragma mark -
@@ -595,19 +577,22 @@ NSString *NSStringForAttachmentThumbnailQuality(AttachmentThumbnailQuality value
     if ([self isVideo]) {
         return [self videoStillImage];
     } else if ([self isImage] || [self isAnimated]) {
-        NSURL *_Nullable mediaUrl = self.originalMediaURL;
-        if (!mediaUrl) {
+        NSString *_Nullable originalFilePath = self.originalFilePath;
+        if (!originalFilePath) {
             return nil;
         }
         if (![self isValidImage]) {
             return nil;
         }
-
-        Class imageClass = self.isWebpImage ? [YYImage class] : [UIImage class];
-        UIImage *_Nullable image = [[imageClass alloc] initWithContentsOfFile:self.originalFilePath];
+        UIImage *_Nullable image;
+        if (self.isWebpImage) {
+            image = [[YYImage alloc] initWithContentsOfFile:originalFilePath];
+        } else {
+            image = [[UIImage alloc] initWithContentsOfFile:originalFilePath];
+        }
         if (image == nil) {
             OWSFailDebug(
-                @"Couldn't load original image: %d.", [OWSFileSystem fileOrFolderExistsAtPath:self.originalFilePath]);
+                @"Couldn't load original image: %d.", [OWSFileSystem fileOrFolderExistsAtPath:originalFilePath]);
         }
         return image;
     } else {
@@ -828,7 +813,12 @@ NSString *NSStringForAttachmentThumbnailQuality(AttachmentThumbnailQuality value
 
 - (nullable AudioWaveform *)audioWaveform
 {
-    return [AudioWaveformManager audioWaveformForAttachment:self];
+    return [AudioWaveformManager audioWaveformForAttachment:self highPriority:NO];
+}
+
+- (nullable AudioWaveform *)highPriorityAudioWaveform
+{
+    return [AudioWaveformManager audioWaveformForAttachment:self highPriority:YES];
 }
 
 #pragma mark - Thumbnails
@@ -881,7 +871,7 @@ NSString *NSStringForAttachmentThumbnailQuality(AttachmentThumbnailQuality value
             }
 
             CGSize originalSizePoints = self.imageSizePoints;
-            if (originalSizePoints.width < 1 || originalSizePoints.height < 1) {
+            if (self.imageSizePixels.width < 1 || self.imageSizePixels.height < 1) {
                 failure();
                 return;
             }
@@ -932,7 +922,7 @@ NSString *NSStringForAttachmentThumbnailQuality(AttachmentThumbnailQuality value
     static NSOperationQueue *operationQueue;
     dispatch_once(&onceToken, ^{
         operationQueue = [NSOperationQueue new];
-        operationQueue.name = @"thumbnailLoadingOperationQueue";
+        operationQueue.name = @"ThumbnailLoading";
         operationQueue.maxConcurrentOperationCount = 4;
     });
     return operationQueue;
@@ -1004,11 +994,6 @@ NSString *NSStringForAttachmentThumbnailQuality(AttachmentThumbnailQuality value
                 [result addObject:filePath];
             }
         }
-    }
-
-    NSString *_Nullable legacyThumbnailPath = self.legacyThumbnailPath;
-    if (legacyThumbnailPath != nil && [[NSFileManager defaultManager] fileExistsAtPath:legacyThumbnailPath]) {
-        [result addObject:legacyThumbnailPath];
     }
 
     NSString *_Nullable audioWaveformPath = self.audioWaveformPath;

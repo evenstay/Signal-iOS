@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-#import <Foundation/Foundation.h>
+#import "AFQueryString.h"
 
 /**
  Returns a percent-escaped string following RFC 3986 for a query string key or value.
@@ -95,7 +95,7 @@ NSArray *AFQueryStringPairsFromKeyAndValue(NSString *key, id value)
 
     NSSortDescriptor *sortDescriptor = [NSSortDescriptor sortDescriptorWithKey:@"description"
                                                                      ascending:YES
-                                                                      selector:@selector(compare:)];
+                                                                      selector:@selector((compare:))];
 
     if ([value isKindOfClass:[NSDictionary class]]) {
         NSDictionary *dictionary = value;

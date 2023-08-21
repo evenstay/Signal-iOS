@@ -65,6 +65,7 @@ NS_ASSUME_NONNULL_BEGIN
                             body:(nullable NSString *)body
                       bodyRanges:(nullable MessageBodyRanges *)bodyRanges
                     contactShare:(nullable OWSContact *)contactShare
+                       editState:(TSEditState)editState
                  expireStartedAt:(uint64_t)expireStartedAt
                        expiresAt:(uint64_t)expiresAt
                 expiresInSeconds:(unsigned int)expiresInSeconds
@@ -100,6 +101,7 @@ NS_ASSUME_NONNULL_BEGIN
                               body:body
                         bodyRanges:bodyRanges
                       contactShare:contactShare
+                         editState:editState
                    expireStartedAt:expireStartedAt
                          expiresAt:expiresAt
                   expiresInSeconds:expiresInSeconds
@@ -152,7 +154,7 @@ NS_ASSUME_NONNULL_BEGIN
     return NO;
 }
 
-- (NSString *)previewTextWithTransaction:(SDSAnyReadTransaction *)transaction
+- (NSString *)infoMessagePreviewTextWithTransaction:(SDSAnyReadTransaction *)transaction
 {
     DisappearingMessageToken *newToken =
         [[DisappearingMessageToken alloc] initWithIsEnabled:self.configurationIsEnabled

@@ -3,21 +3,21 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalMessaging
-import UIKit
+import SignalUI
 
 class CustomColorViewController: OWSTableViewController2 {
 
     private let thread: TSThread?
+    private var wallpaperViewBuilder: WallpaperViewBuilder?
 
     public enum ValueMode {
         case createNew
-        case editExisting(value: ChatColor)
+        case editExisting(key: CustomChatColor.Key, value: CustomChatColor)
     }
     private let valueMode: ValueMode
 
-    private let completion: (ChatColor) -> Void
+    private let completion: (CustomChatColor) -> Void
 
     private let modeControl = UISegmentedControl()
 
@@ -59,9 +59,11 @@ class CustomColorViewController: OWSTableViewController2 {
     private var saturationSpectrum: HSLSpectrum
     private let saturationSlider: SpectrumSlider
 
-    public init(thread: TSThread? = nil,
-                valueMode: ValueMode,
-                completion: @escaping (ChatColor) -> Void) {
+    public init(
+        thread: TSThread? = nil,
+        valueMode: ValueMode,
+        completion: @escaping (CustomChatColor) -> Void
+    ) {
         self.thread = thread
         self.valueMode = valueMode
         self.completion = completion
@@ -69,8 +71,8 @@ class CustomColorViewController: OWSTableViewController2 {
         switch valueMode {
         case .createNew:
             editMode = .solidColor
-        case .editExisting(let value):
-            switch value.setting {
+        case .editExisting(_, let value):
+            switch value.colorSetting {
             case .solidColor(let color):
                 editMode = .solidColor
                 self.solidOrGradientColor2Setting = color.asColorSetting
@@ -94,13 +96,12 @@ class CustomColorViewController: OWSTableViewController2 {
 
         super.init()
 
-        topHeader = OWSTableViewController2.buildTopHeader(forView: modeControl,
-                                                           vMargin: 10)
+        topHeader = OWSTableViewController2.buildTopHeader(forView: modeControl, vMargin: 10)
 
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(updateTableContents),
-            name: .ThemeDidChange,
+            name: .themeDidChange,
             object: nil
         )
     }
@@ -108,7 +109,7 @@ class CustomColorViewController: OWSTableViewController2 {
     public override func viewDidLoad() {
         super.viewDidLoad()
 
-        title = NSLocalizedString("CUSTOM_CHAT_COLOR_SETTINGS_TITLE",
+        title = OWSLocalizedString("CUSTOM_CHAT_COLOR_SETTINGS_TITLE",
                                   comment: "Title for the custom chat color settings view.")
 
         navigationItem.rightBarButtonItem = .init(title: CommonStrings.setButton,
@@ -120,15 +121,17 @@ class CustomColorViewController: OWSTableViewController2 {
 
         updateNavigation()
 
+        wallpaperViewBuilder = databaseStorage.read { tx in Wallpaper.viewBuilder(for: thread, tx: tx) }
+
         updateTableContents()
     }
 
     private func createSubviews() {
-        modeControl.insertSegment(withTitle: NSLocalizedString("CUSTOM_CHAT_COLOR_SETTINGS_SOLID_COLOR",
+        modeControl.insertSegment(withTitle: OWSLocalizedString("CUSTOM_CHAT_COLOR_SETTINGS_SOLID_COLOR",
                                                                comment: "Label for the 'solid color' mode in the custom chat color settings view."),
                                   at: EditMode.solidColor.rawValue,
                                   animated: false)
-        modeControl.insertSegment(withTitle: NSLocalizedString("CUSTOM_CHAT_COLOR_SETTINGS_GRADIENT",
+        modeControl.insertSegment(withTitle: OWSLocalizedString("CUSTOM_CHAT_COLOR_SETTINGS_GRADIENT",
                                                                comment: "Label for the 'gradient' mode in the custom chat color settings view."),
                                   at: EditMode.gradientColor1.rawValue,
                                   animated: false)
@@ -147,8 +150,8 @@ class CustomColorViewController: OWSTableViewController2 {
         switch valueMode {
         case .createNew:
             return true
-        case .editExisting(let value):
-            return currentColorOrGradientSetting() != value.setting
+        case .editExisting(_, let value):
+            return currentColorOrGradientSetting() != value.colorSetting
         }
     }
 
@@ -200,7 +203,7 @@ class CustomColorViewController: OWSTableViewController2 {
     func updateTableContents() {
         let contents = OWSTableContents()
 
-        let previewView = CustomColorPreviewView(thread: self.thread, delegate: self)
+        let previewView = CustomColorPreviewView(wallpaperViewBuilder: wallpaperViewBuilder, delegate: self)
         self.previewView = previewView
 
         let previewSection = OWSTableSection()
@@ -219,7 +222,7 @@ class CustomColorViewController: OWSTableViewController2 {
 
             return cell
         } actionBlock: {})
-        contents.addSection(previewSection)
+        contents.add(previewSection)
 
         // Sliders
 
@@ -234,12 +237,12 @@ class CustomColorViewController: OWSTableViewController2 {
         hueSection.customHeaderHeight = 1
         hueSection.add(self.sliderItem(
             sliderView: hueSlider,
-            headerText: NSLocalizedString(
+            headerText: OWSLocalizedString(
                 "CUSTOM_CHAT_COLOR_SETTINGS_HUE",
                 comment: "Title for the 'hue' section in the chat color settings view."
             )
         ))
-        contents.addSection(hueSection)
+        contents.add(hueSection)
 
         saturationSlider.delegate = self
         let saturationSection = OWSTableSection()
@@ -247,12 +250,12 @@ class CustomColorViewController: OWSTableViewController2 {
         saturationSection.customHeaderHeight = 1
         saturationSection.add(self.sliderItem(
             sliderView: saturationSlider,
-            headerText: NSLocalizedString(
+            headerText: OWSLocalizedString(
                 "CUSTOM_CHAT_COLOR_SETTINGS_SATURATION",
                 comment: "Title for the 'Saturation' section in the chat color settings view."
             )
         ))
-        contents.addSection(saturationSection)
+        contents.add(saturationSection)
 
         self.contents = contents
     }
@@ -263,7 +266,7 @@ class CustomColorViewController: OWSTableViewController2 {
             cell.selectionStyle = .none
 
             let headerLabel = UILabel()
-            headerLabel.font = UIFont.ows_dynamicTypeSubheadline.ows_semibold
+            headerLabel.font = UIFont.dynamicTypeSubheadline.semibold()
             headerLabel.textColor = Theme.isDarkThemeEnabled ? UIColor.ows_gray15 : UIColor.ows_gray60
             headerLabel.text = headerText
             cell.contentView.addSubview(headerLabel)
@@ -389,7 +392,7 @@ class CustomColorViewController: OWSTableViewController2 {
         solidOrGradientColor2Setting.asOWSColor(hueSpectrum: hueSpectrum)
     }
 
-    private func currentColorOrGradientSetting() -> ColorOrGradientSetting {
+    fileprivate func currentColorOrGradientSetting() -> ColorOrGradientSetting {
         switch editMode {
         case .solidColor:
             let solidColor = self.solidOrGradientColor2Setting.asOWSColor(hueSpectrum: hueSpectrum)
@@ -401,51 +404,51 @@ class CustomColorViewController: OWSTableViewController2 {
         }
     }
 
-    fileprivate var currentChatColor: ChatColor {
-        let setting = self.currentColorOrGradientSetting()
+    fileprivate func currentCustomChatColor() -> CustomChatColor {
+        let colorSetting = self.currentColorOrGradientSetting()
         switch valueMode {
         case .createNew:
-            return ChatColor(id: ChatColor.randomId, setting: setting)
-        case .editExisting(let oldValue):
-            // Preserve the old id and creationTimestamp.
-            return ChatColor(id: oldValue.id,
-                             setting: setting,
-                             creationTimestamp: oldValue.creationTimestamp)
+            return CustomChatColor(colorSetting: colorSetting, creationTimestamp: NSDate.ows_millisecondTimeStamp())
+        case .editExisting(_, let oldValue):
+            return CustomChatColor(colorSetting: colorSetting, creationTimestamp: oldValue.creationTimestamp)
         }
     }
 
-    fileprivate func hasWallpaper(transaction: SDSAnyReadTransaction) -> Bool {
-        nil != Wallpaper.wallpaperForRendering(for: self.thread, transaction: transaction)
-    }
-
     private func showSaveUI() {
-        let newValue = self.currentChatColor
-
+        let usageCountToConfirm: Int
         switch valueMode {
         case .createNew:
+            // It's brand new, so there can't be other chats that use this color.
             saveAndDismiss()
             return
-        case .editExisting(let oldValue):
-            guard oldValue != newValue else {
+        case .editExisting(let colorKey, let oldValue):
+            let newValue = self.currentCustomChatColor()
+            // If the color wasn't actually changed, we don't need to confirm the
+            // change with the user. However, we still save the update and notify the
+            // delegate to ensure we select this custom value for the current scope.
+            guard oldValue.colorSetting != newValue.colorSetting else {
+                saveAndDismiss()
+                return
+            }
+            // Don't show a confirmation unless the color is used in multiple places.
+            usageCountToConfirm = databaseStorage.read { tx in ChatColors.usageCount(of: colorKey, tx: tx) }
+            guard usageCountToConfirm > 1 else {
                 saveAndDismiss()
                 return
             }
         }
 
-        let usageCount = databaseStorage.read { transaction in
-            ChatColors.usageCount(forValue: newValue, transaction: transaction)
-        }
-        guard usageCount > 1 else {
-            saveAndDismiss()
-            return
-        }
-
-        let messageFormat = NSLocalizedString("CHAT_COLOR_SETTINGS_UPDATE_ALERT_MESSAGE_%d", tableName: "PluralAware",
-                                              comment: "Message for the 'edit chat color confirm alert' in the chat color settings view. Embeds: {{ the number of conversations that use this chat color }}.")
-        let message = String.localizedStringWithFormat(messageFormat, usageCount)
+        let messageFormat = OWSLocalizedString(
+            "CHAT_COLOR_SETTINGS_UPDATE_ALERT_MESSAGE_%d",
+            tableName: "PluralAware",
+            comment: "Message for the 'edit chat color confirm alert' in the chat color settings view. Embeds: {{ the number of conversations that use this chat color }}."
+        )
+        let message = String.localizedStringWithFormat(messageFormat, usageCountToConfirm)
         let actionSheet = ActionSheetController(
-            title: NSLocalizedString("CHAT_COLOR_SETTINGS_UPDATE_ALERT_ALERT_TITLE",
-                                     comment: "Title for the 'edit chat color confirm alert' in the chat color settings view."),
+            title: OWSLocalizedString(
+                "CHAT_COLOR_SETTINGS_UPDATE_ALERT_ALERT_TITLE",
+                comment: "Title for the 'edit chat color confirm alert' in the chat color settings view."
+            ),
             message: message
         )
 
@@ -458,9 +461,9 @@ class CustomColorViewController: OWSTableViewController2 {
         actionSheet.addAction(OWSActionSheets.cancelAction)
         presentActionSheet(actionSheet)
     }
+
     private func saveAndDismiss() {
-        let newValue = self.currentChatColor
-        completion(newValue)
+        completion(self.currentCustomChatColor())
         self.navigationController?.popViewController(animated: true)
     }
 
@@ -469,12 +472,12 @@ class CustomColorViewController: OWSTableViewController2 {
     }
 
     @objc
-    func didTapSet() {
+    private func didTapSet() {
         showSaveUI()
     }
 
     @objc
-    func didTapCancel() {
+    private func didTapCancel() {
         guard hasUnsavedChanges else {
             dismissWithoutSaving()
             return
@@ -486,7 +489,7 @@ class CustomColorViewController: OWSTableViewController2 {
     }
 
     @objc
-    func didTapDone() {
+    private func didTapDone() {
         showSaveUI()
     }
 }
@@ -916,8 +919,7 @@ private protocol CustomColorPreviewDelegate: AnyObject {
     var gradientColor1: OWSColor { get }
     var gradientColor2: OWSColor { get }
 
-    var currentChatColor: ChatColor { get }
-    func hasWallpaper(transaction: SDSAnyReadTransaction) -> Bool
+    func currentColorOrGradientSetting() -> ColorOrGradientSetting
 
     func switchToEditMode(_ value: CustomColorViewController.EditMode)
 
@@ -951,26 +953,23 @@ private class CustomColorPreviewView: UIView {
         updateKnobLayout()
     }
 
-    init(thread: TSThread?, delegate: CustomColorPreviewDelegate) {
-
-        let (mockConversationView, wallpaperPreviewView) = Self.databaseStorage.read { transaction -> (MockConversationView, UIView) in
-            let mockConversationView =
-                MockConversationView(
-                    model: CustomColorPreviewView.buildMockConversationModel(),
-                    hasWallpaper: delegate.hasWallpaper(transaction: transaction),
-                    customChatColor: delegate.currentChatColor
-                )
-
-            let wallpaperPreviewView: UIView
-            if let wallpaperView = Wallpaper.view(for: thread, transaction: transaction) {
-                wallpaperPreviewView = wallpaperView.asPreviewView()
-            } else {
-                wallpaperPreviewView = UIView()
-                wallpaperPreviewView.backgroundColor = Theme.backgroundColor
-            }
-
-            return (mockConversationView, wallpaperPreviewView)
+    init(wallpaperViewBuilder: WallpaperViewBuilder?, delegate: CustomColorPreviewDelegate) {
+        let wallpaperPreviewView: UIView
+        let hasWallpaper: Bool
+        if let wallpaperViewBuilder {
+            wallpaperPreviewView = wallpaperViewBuilder.build().asPreviewView()
+            hasWallpaper = true
+        } else {
+            wallpaperPreviewView = UIView()
+            wallpaperPreviewView.backgroundColor = Theme.backgroundColor
+            hasWallpaper = false
         }
+
+        let mockConversationView = MockConversationView(
+            model: CustomColorPreviewView.buildMockConversationModel(),
+            hasWallpaper: hasWallpaper,
+            customChatColor: delegate.currentColorOrGradientSetting()
+        )
 
         self.mockConversationView = mockConversationView
 
@@ -1020,15 +1019,13 @@ private class CustomColorPreviewView: UIView {
     private func _updateMockConversation() {
         guard let delegate = delegate else { return }
 
-        mockConversationView.customChatColor = delegate.currentChatColor
+        mockConversationView.customChatColor = delegate.currentColorOrGradientSetting()
 
         if let knobView1 = self.knobView1 {
-            knobView1.setChatColor(ChatColor(id: "knob1",
-                                             setting: .solidColor(color: delegate.gradientColor1)))
+            knobView1.setColorSetting(.solidColor(color: delegate.gradientColor1))
         }
         if let knobView2 = self.knobView2 {
-            knobView2.setChatColor(ChatColor(id: "knob2",
-                                             setting: .solidColor(color: delegate.gradientColor2)))
+            knobView2.setColorSetting(.solidColor(color: delegate.gradientColor2))
         }
     }
 
@@ -1045,8 +1042,8 @@ private class CustomColorPreviewView: UIView {
             }
         }
 
-        func setChatColor(_ value: ChatColor) {
-            swatchView.setting = value.setting
+        func setColorSetting(_ colorSetting: ColorOrGradientSetting) {
+            swatchView.setting = colorSetting
         }
 
         private let selectedBorder = OWSLayerView.circleView()
@@ -1054,9 +1051,9 @@ private class CustomColorPreviewView: UIView {
 
         private let swatchView: ColorOrGradientSwatchView
 
-        init(isSelected: Bool, chatColor: ChatColor, name: String? = nil) {
+        init(isSelected: Bool, colorSetting: ColorOrGradientSetting) {
             self.isSelected = isSelected
-            self.swatchView = ColorOrGradientSwatchView(setting: chatColor.setting, shapeMode: .circle)
+            self.swatchView = ColorOrGradientSwatchView(setting: colorSetting, shapeMode: .circle)
 
             super.init(frame: .zero)
 
@@ -1087,19 +1084,8 @@ private class CustomColorPreviewView: UIView {
             self.addSubview(unselectedBorder)
             unselectedBorder.autoCenterInSuperview()
 
-            if Self.showKnobLabels, let name = name {
-                let label = UILabel()
-                label.text = name
-                label.font = .ows_dynamicTypeCaption1
-                label.textColor = .ows_white
-                self.addSubview(label)
-                label.autoCenterInSuperview()
-            }
-
             updateSelection()
         }
-
-        private static let showKnobLabels = false
 
         required init?(coder: NSCoder) {
             fatalError("init(coder:) has not been implemented")
@@ -1140,14 +1126,14 @@ private class CustomColorPreviewView: UIView {
         self.axisShapeLayer = axisShapeLayer
         axisShapeView.layer.addSublayer(axisShapeLayer)
 
-        let knobView1 = KnobView(isSelected: delegate.editMode == .gradientColor1,
-                                 chatColor: ChatColor(id: "knob1",
-                                                      setting: .solidColor(color: delegate.gradientColor1)),
-                                 name: "1")
-        let knobView2 = KnobView(isSelected: delegate.editMode == .gradientColor2,
-                                 chatColor: ChatColor(id: "knob2",
-                                                      setting: .solidColor(color: delegate.gradientColor2)),
-                                 name: "2")
+        let knobView1 = KnobView(
+            isSelected: delegate.editMode == .gradientColor1,
+            colorSetting: .solidColor(color: delegate.gradientColor1)
+        )
+        let knobView2 = KnobView(
+            isSelected: delegate.editMode == .gradientColor2,
+            colorSetting: .solidColor(color: delegate.gradientColor2)
+        )
         self.knobView1 = knobView1
         self.knobView2 = knobView2
 
@@ -1359,19 +1345,19 @@ private class CustomColorPreviewView: UIView {
     private static func buildMockConversationModel() -> MockConversationView.MockModel {
         MockConversationView.MockModel(items: [
             .date,
-            .incoming(text: NSLocalizedString(
+            .incoming(text: OWSLocalizedString(
                 "CHAT_COLOR_INCOMING_MESSAGE_1",
                 comment: "The first incoming bubble text when setting a chat color."
             )),
-            .outgoing(text: NSLocalizedString(
+            .outgoing(text: OWSLocalizedString(
                 "CHAT_COLOR_OUTGOING_MESSAGE_1",
                 comment: "The first outgoing bubble text when setting a chat color."
             )),
-            .incoming(text: NSLocalizedString(
+            .incoming(text: OWSLocalizedString(
                 "CHAT_COLOR_INCOMING_MESSAGE_2",
                 comment: "The second incoming bubble text when setting a chat color."
             )),
-            .outgoing(text: NSLocalizedString(
+            .outgoing(text: OWSLocalizedString(
                 "CHAT_COLOR_OUTGOING_MESSAGE_2",
                 comment: "The second outgoing bubble text when setting a chat color."
             ))
@@ -1430,22 +1416,18 @@ private class CustomColorPreviewView: UIView {
 class CustomColorGestureRecognizer: UIGestureRecognizer {
     private var isActive = false
 
-    @objc
     public override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
         handle(event: event)
     }
 
-    @objc
     public override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent) {
         handle(event: event)
     }
 
-    @objc
     public override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent) {
         handle(event: event)
     }
 
-    @objc
     public override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent) {
         handle(event: event)
     }
@@ -1515,7 +1497,6 @@ private class CustomColorTooltip: TooltipView {
         fatalError("init(coder:) has not been implemented")
     }
 
-    @objc
     public class func present(fromView: UIView,
                               widthReferenceView: UIView,
                               tailReferenceView: UIView,
@@ -1528,9 +1509,9 @@ private class CustomColorTooltip: TooltipView {
 
     public override func bubbleContentView() -> UIView {
         let label = UILabel()
-        label.text = NSLocalizedString("CUSTOM_CHAT_COLOR_SETTINGS_TOOLTIP",
+        label.text = OWSLocalizedString("CUSTOM_CHAT_COLOR_SETTINGS_TOOLTIP",
                                        comment: "Tooltip highlighting the custom chat color controls.")
-        label.font = .ows_dynamicTypeSubheadline
+        label.font = .dynamicTypeSubheadline
         label.textColor = .ows_white
         label.numberOfLines = 0
         label.lineBreakMode = .byWordWrapping

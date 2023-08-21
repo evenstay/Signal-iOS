@@ -3,11 +3,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalServiceKit
+import SignalUI
 
 protocol ContextMenuControllerDelegate: AnyObject {
     func contextMenuControllerRequestsDismissal(_ contextMenuController: ContextMenuController)
-    func contextMenuControllerAccessoryFrameOffset(_ contextMenuController: ContextMenuController) -> CGPoint?
 }
 
 private protocol ContextMenuViewDelegate: AnyObject {
@@ -15,7 +15,6 @@ private protocol ContextMenuViewDelegate: AnyObject {
     func contextMenuViewAuxPreviewSourceFrame(_ contextMenuView: ContextMenuHostView) -> CGRect
     func contextMenuViewAnimationState(_ contextMenuView: ContextMenuHostView) -> ContextMenuAnimationState
     func contextMenuViewPreviewFrameForAccessoryLayout(_ contextMenuView: ContextMenuHostView) -> CGRect
-    func contextMenuViewAccessoryFrameOffset(_ contextMenuView: ContextMenuHostView) -> CGPoint?
 }
 
 private enum ContextMenuAnimationState {
@@ -256,41 +255,48 @@ private class ContextMenuHostView: UIView {
         accessoryFrame.size = accessory.accessoryView.frame.size
 
         let isLandscape = UIDevice.current.isIPad ? false : bounds.size.width > bounds.size.height
+
         let defaultAlignments = accessory.accessoryAlignment.alignments
         let alignments = isLandscape ? accessory.landscapeAccessoryAlignment?.alignments ?? defaultAlignments : defaultAlignments
+
+        let defaultOffset = accessory.accessoryAlignment.alignmentOffset
+        let offset = isLandscape ? accessory.landscapeAccessoryAlignment?.alignmentOffset ?? defaultOffset : defaultOffset
+
+        let offsetPreviewFrame: CGRect = {
+            let offsetFrame = previewFrame.insetBy(dx: -offset.x, dy: -offset.y)
+
+            guard !offsetFrame.isNull else {
+                owsFailBeta("Had null offset preview frame! Would insetting the preview frame by the offset produce a rectangle with negative size? \(previewFrame), \(offset)")
+                return previewFrame
+            }
+
+            return offsetFrame
+        }()
 
         for (edgeAlignment, originAlignment) in alignments {
             switch (edgeAlignment, originAlignment) {
             case (.top, .exterior):
-                accessoryFrame.y = previewFrame.y - accessoryFrame.height
+                accessoryFrame.y = offsetPreviewFrame.y - accessoryFrame.height
             case (.top, .interior):
-                accessoryFrame.y = previewFrame.y
+                accessoryFrame.y = offsetPreviewFrame.y
             case (.trailing, .exterior):
-                accessoryFrame.x = previewFrame.maxX
+                accessoryFrame.x = offsetPreviewFrame.maxX
             case (.trailing, .interior):
-                accessoryFrame.x = previewFrame.maxX - accessoryFrame.width
+                accessoryFrame.x = offsetPreviewFrame.maxX - accessoryFrame.width
             case (.leading, .exterior):
-                accessoryFrame.x = previewFrame.x - accessoryFrame.width
+                accessoryFrame.x = offsetPreviewFrame.x - accessoryFrame.width
             case (.leading, .interior):
-                accessoryFrame.x = previewFrame.x
+                accessoryFrame.x = offsetPreviewFrame.x
             case (.bottom, .exterior):
-                accessoryFrame.y = previewFrame.maxY
+                accessoryFrame.y = offsetPreviewFrame.maxY
                 accessoryFrame.y += auxVerticalOffset
             case (.bottom, .interior):
-                accessoryFrame.y = previewFrame.maxY - accessoryFrame.height
+                accessoryFrame.y = offsetPreviewFrame.maxY - accessoryFrame.height
             }
         }
 
         if previewViewAlignment == .center {
-            accessoryFrame.x = previewFrame.midX - (accessoryFrame.width / 2)
-        }
-
-        let defaultOffset = accessory.accessoryAlignment.alignmentOffset
-        let offset = isLandscape ? accessory.landscapeAccessoryAlignment?.alignmentOffset ?? defaultOffset : defaultOffset
-        accessoryFrame.origin = CGPointAdd(accessoryFrame.origin, offset)
-
-        if let accessoryFrameOffset = delegate?.contextMenuViewAccessoryFrameOffset(self) {
-            accessoryFrame.origin = CGPointAdd(accessoryFrame.origin, accessoryFrameOffset)
+            accessoryFrame.x = offsetPreviewFrame.midX - (accessoryFrame.width / 2)
         }
 
         return accessoryFrame
@@ -319,7 +325,11 @@ private class ContextMenuHostView: UIView {
 
     private func layoutAccessoryView(_ accessory: ContextMenuTargetedPreviewAccessory, auxVerticalOffset: CGFloat) {
         let previewFrame = delegate?.contextMenuViewPreviewFrameForAccessoryLayout(self) ?? CGRect.zero
-        accessory.accessoryView.frame = adjustAccessoryFrameForContentRect(accessoryFrame(accessory, previewFrame: previewFrame, auxVerticalOffset: auxVerticalOffset))
+
+        let accessoryFrame = accessoryFrame(accessory, previewFrame: previewFrame, auxVerticalOffset: auxVerticalOffset)
+        let adjustedAccessoryFrame = adjustAccessoryFrameForContentRect(accessoryFrame)
+
+        accessory.accessoryView.frame = adjustedAccessoryFrame
     }
 }
 
@@ -407,7 +417,7 @@ class ContextMenuController: OWSViewController, ContextMenuViewDelegate, UIGestu
         self.renderBackgroundBlur = renderBackgroundBlur
         self.previewRenderMode = previewRenderMode
         super.init()
-        if #available(iOS 13, *), configuration.forceDarkTheme { overrideUserInterfaceStyle = .dark }
+        if configuration.forceDarkTheme { overrideUserInterfaceStyle = .dark }
     }
 
     // MARK: UIViewController
@@ -422,13 +432,13 @@ class ContextMenuController: OWSViewController, ContextMenuViewDelegate, UIGestu
         view.accessibilityViewIsModal = true
 
         dismissButton.isAccessibilityElement = true
-        dismissButton.accessibilityLabel = NSLocalizedString("DISMISS_CONTEXT_MENU", comment: "Dismiss context menu accessibility label")
+        dismissButton.accessibilityLabel = OWSLocalizedString("DISMISS_CONTEXT_MENU", comment: "Dismiss context menu accessibility label")
         dismissButton.addTarget(self, action: #selector(dismissButtonTapped(sender:)), for: .touchUpInside)
         contextMenuView.blurView = blurView
         contextMenuView.dismissButton = dismissButton
         contextMenuView.previewView = contextMenuPreview.previewView
         contextMenuView.previewView?.isAccessibilityElement = true
-        contextMenuView.previewView?.accessibilityLabel = NSLocalizedString("MESSAGE_PREVIEW", comment: "Context menu message preview accessibility label")
+        contextMenuView.previewView?.accessibilityLabel = OWSLocalizedString("MESSAGE_PREVIEW", comment: "Context menu message preview accessibility label")
         contextMenuView.auxiliaryPreviewView = contextMenuPreview.auxiliarySnapshot
         contextMenuView.auxiliaryPreviewView?.isAccessibilityElement = false
         contextMenuView.accessoryViews = accessoryViews
@@ -724,8 +734,8 @@ class ContextMenuController: OWSViewController, ContextMenuViewDelegate, UIGestu
     }
 
     // MARK: Emoji Sheet
-    public func showEmojiSheet(completion: @escaping (String) -> Void) {
-        let picker = EmojiPickerSheet { [weak self] emoji in
+    public func showEmojiSheet(message: TSMessage, completion: @escaping (String) -> Void) {
+        let picker = EmojiPickerSheet(message: message) { [weak self] emoji in
             guard let self = self else { return }
 
             guard let emojiString = emoji?.rawValue else {
@@ -764,10 +774,6 @@ class ContextMenuController: OWSViewController, ContextMenuViewDelegate, UIGestu
         }
 
         return previewView?.frame ?? CGRect.zero
-    }
-
-    fileprivate func contextMenuViewAccessoryFrameOffset(_ contextMenuView: ContextMenuHostView) -> CGPoint? {
-        delegate?.contextMenuControllerAccessoryFrameOffset(self)
     }
 
     // MARK: Private

@@ -3,7 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalServiceKit
+import SignalUI
 
 public class CVMediaView: ManualLayoutViewWithLayer {
 
@@ -244,11 +245,9 @@ public class CVMediaView: ManualLayoutViewWithLayer {
 
         let playVideoIconView = CVImageView()
         if isBroken {
-            playVideoIconView.setTemplateImageName("video-error",
-                                                   tintColor: UIColor.ows_white)
+            playVideoIconView.setTemplateImageName("play-slash-fill", tintColor: UIColor.ows_white)
         } else {
-            playVideoIconView.setTemplateImageName("play-solid-32",
-                                                   tintColor: UIColor.ows_white)
+            playVideoIconView.setTemplateImageName("play-fill-32", tintColor: UIColor.ows_white)
         }
         playVideoIconView.isUserInteractionEnabled = false
         addSubviewToCenterOnSuperview(playVideoIconView,
@@ -264,7 +263,7 @@ public class CVMediaView: ManualLayoutViewWithLayer {
         let icon: UIImage
         switch error {
         case .invalid:
-            guard let asset = UIImage(named: "media_invalid") else {
+            guard let asset = UIImage(named: "photo-slash-36") else {
                 owsFailDebug("Missing image")
                 return
             }
@@ -272,7 +271,7 @@ public class CVMediaView: ManualLayoutViewWithLayer {
         case .missing:
             return
         }
-        let iconView = CVImageView(image: icon.withRenderingMode(.alwaysTemplate))
+        let iconView = CVImageView(image: icon)
         iconView.tintColor = Theme.primaryTextColor.withAlphaComponent(0.6)
         addSubviewToCenterOnSuperview(iconView, size: icon.size)
     }

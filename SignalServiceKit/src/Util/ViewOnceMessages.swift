@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import LibSignalClient
 import SignalCoreKit
 
 @objc
@@ -165,15 +166,19 @@ public class ViewOnceMessages: NSObject {
     }
 
     @objc
-    public class func processIncomingSyncMessage(_ message: SSKProtoSyncMessageViewOnceOpen,
-                                                 envelope: SSKProtoEnvelope,
-                                                 transaction: SDSAnyWriteTransaction) -> ViewOnceSyncMessageProcessingResult {
-        let messageSenderAddress = message.senderAddress
+    public class func processIncomingSyncMessage(
+        _ message: SSKProtoSyncMessageViewOnceOpen,
+        envelope: SSKProtoEnvelope,
+        transaction: SDSAnyWriteTransaction
+    ) -> ViewOnceSyncMessageProcessingResult {
+        guard let messageSender = Aci.parseFrom(aciString: message.senderAci) else {
+            owsFailDebug("Invalid messageSender.")
+            return .invalidSyncMessage
+        }
         let messageIdTimestamp: UInt64 = message.timestamp
-        guard messageIdTimestamp > 0,
-            SDS.fitsInInt64(messageIdTimestamp) else {
-                owsFailDebug("Invalid messageIdTimestamp.")
-                return .invalidSyncMessage
+        guard messageIdTimestamp > 0, SDS.fitsInInt64(messageIdTimestamp) else {
+            owsFailDebug("Invalid messageIdTimestamp.")
+            return .invalidSyncMessage
         }
 
         let filter = { (interaction: TSInteraction) -> Bool in
@@ -188,7 +193,7 @@ public class ViewOnceMessages: NSObject {
                 owsFailDebug("Could not process sync message; no local number.")
                 return false
             }
-            guard senderAddress == messageSenderAddress else {
+            guard senderAddress.serviceId == messageSender else {
                 return false
             }
             guard message.isViewOnceMessage else {

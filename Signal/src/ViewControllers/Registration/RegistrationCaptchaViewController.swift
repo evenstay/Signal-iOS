@@ -1,110 +1,93 @@
 //
-// Copyright 2021 Signal Messenger, LLC
+// Copyright 2023 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
-import UIKit
+import SignalCoreKit
+import SignalUI
 
-@objc
-protocol RegistrationCaptchaViewController: AnyObject {
+// MARK: - RegistrationCaptchaPresenter
 
-    var viewModel: RegistrationCaptchaViewModel { get }
-    var primaryView: UIView { get }
-
-    func requestCaptchaVerification(captchaToken: String)
+protocol RegistrationCaptchaPresenter: AnyObject {
+    func submitCaptcha(_ token: String)
 }
 
-// MARK: -
+// MARK: - RegistrationCaptchaViewController
 
-@objc
-class RegistrationCaptchaViewModel: NSObject {
-    weak var viewController: RegistrationCaptchaViewController?
+class RegistrationCaptchaViewController: OWSViewController {
+    private weak var presenter: RegistrationCaptchaPresenter?
 
-    let captchaView = CaptchaView(context: .registration)
+    public init(presenter: RegistrationCaptchaPresenter) {
+        self.presenter = presenter
 
-    // MARK: - Methods
+        super.init()
+    }
 
-    func createViews(vc: RegistrationBaseViewController) {
-        AssertIsOnMainThread()
+    @available(*, unavailable)
+    public override init() {
+        owsFail("This should not be called")
+    }
 
-        let primaryView = vc.primaryView
-        primaryView.backgroundColor = Theme.backgroundColor
+    // MARK: - Rendering
 
-        let titleLabel = vc.createTitleLabel(text: NSLocalizedString("ONBOARDING_CAPTCHA_TITLE",
-                                                                     comment: "Title of the 'onboarding Captcha' view."))
-        titleLabel.accessibilityIdentifier = "captcha." + "titleLabel"
+    private lazy var titleLabel: UILabel = {
+        let result = UILabel.titleLabelForRegistration(text: OWSLocalizedString(
+            "REGISTRATION_CAPTCHA_TITLE",
+            comment: "During registration, users may be shown a CAPTCHA to verify that they're human. This text is shown above the CAPTCHA."
+        ))
+        result.accessibilityIdentifier = "registration.captcha.titleLabel"
+        return result
+    }()
 
-        let titleRow = UIStackView(arrangedSubviews: [
-            titleLabel
-            ])
-        titleRow.axis = .vertical
-        titleRow.alignment = .fill
-        titleRow.layoutMargins = UIEdgeInsets(top: 10, left: 0, bottom: 0, right: 0)
-        titleRow.isLayoutMarginsRelativeArrangement = true
+    private lazy var captchaView: CaptchaView = {
+        let result = CaptchaView(context: .registration)
+        result.delegate = self
+        return result
+    }()
 
-        captchaView.delegate = self
+    public override func viewDidLoad() {
+        super.viewDidLoad()
 
-        let stackView = UIStackView(arrangedSubviews: [
-            titleRow,
-            captchaView
-            ])
+        navigationItem.setHidesBackButton(true, animated: false)
+
+        initialRender()
+    }
+
+    public override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        captchaView.loadCaptcha()
+    }
+
+    public override func themeDidChange() {
+        super.themeDidChange()
+        render()
+    }
+
+    private func initialRender() {
+        let stackView = UIStackView(arrangedSubviews: [titleLabel, captchaView])
         stackView.axis = .vertical
-        stackView.alignment = .fill
-        primaryView.addSubview(stackView)
-        stackView.autoPinEdgesToSuperviewSafeArea()
+        stackView.distribution = .fill
+        stackView.spacing = 12
+
+        titleLabel.setContentHuggingHigh()
+
+        view.addSubview(stackView)
+        stackView.autoPinEdgesToSuperviewMargins()
+
+        render()
     }
 
-    // MARK: -
-
-    private func requestCaptchaVerification(captchaToken: String) {
-        Logger.info("")
-
-        guard let viewController = self.viewController else {
-            owsFailDebug("Missing viewController.")
-            return
-        }
-        viewController.requestCaptchaVerification(captchaToken: captchaToken)
-    }
-
-    func addProgressView() -> AnimatedProgressView? {
-        AssertIsOnMainThread()
-
-        guard let viewController = self.viewController else {
-            owsFailDebug("Missing viewController.")
-            return nil
-        }
-        let primaryView = viewController.primaryView
-
-        let progressView = AnimatedProgressView()
-        primaryView.addSubview(progressView)
-        progressView.autoCenterInSuperview()
-        progressView.startAnimating()
-        return progressView
-    }
-
-    func removeProgressView(_ progressView: AnimatedProgressView?) {
-        AssertIsOnMainThread()
-
-        guard let progressView = progressView else {
-            owsFailDebug("Missing progressView.")
-            return
-        }
-
-        UIView.animate(withDuration: 0.15) {
-            progressView.alpha = 0
-        } completion: { _ in
-            progressView.removeFromSuperview()
-        }
+    private func render() {
+        view.backgroundColor = Theme.backgroundColor
+        titleLabel.textColor = .colorForRegistrationTitleLabel
     }
 }
 
-// MARK: -
+// MARK: - CaptchaViewDelegate
 
-extension RegistrationCaptchaViewModel: CaptchaViewDelegate {
-
+extension RegistrationCaptchaViewController: CaptchaViewDelegate {
     public func captchaView(_: CaptchaView, didCompleteCaptchaWithToken token: String) {
-        requestCaptchaVerification(captchaToken: token)
+        presenter?.submitCaptcha(token)
     }
 
     public func captchaViewDidFailToCompleteCaptcha(_ captchaView: CaptchaView) {

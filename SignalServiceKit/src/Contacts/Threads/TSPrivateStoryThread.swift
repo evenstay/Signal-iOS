@@ -43,12 +43,12 @@ public extension TSPrivateStoryThread {
     private static let deletedAtTimestampKVS = SDSKeyValueStore(collection: "TSPrivateStoryThread+DeletedAtTimestamp")
     private static let deletedAtTimestampThreshold = kMonthInterval
 
-    static func deletedAtTimestamp(forDistributionListIdentifer identifier: Data, transaction: SDSAnyReadTransaction) -> UInt64? {
+    static func deletedAtTimestamp(forDistributionListIdentifier identifier: Data, transaction: SDSAnyReadTransaction) -> UInt64? {
         guard let uniqueId = UUID(data: identifier)?.uuidString else { return nil }
         return deletedAtTimestampKVS.getUInt64(uniqueId, transaction: transaction)
     }
 
-    static func recordDeletedAtTimestamp(_ timestamp: UInt64, forDistributionListIdentifer identifier: Data, transaction: SDSAnyWriteTransaction) {
+    static func recordDeletedAtTimestamp(_ timestamp: UInt64, forDistributionListIdentifier identifier: Data, transaction: SDSAnyWriteTransaction) {
         guard Date().timeIntervalSince(Date(millisecondsSince1970: timestamp)) < deletedAtTimestampThreshold else {
             Logger.warn("Ignorning stale deleted at timestamp")
             return
@@ -62,29 +62,25 @@ public extension TSPrivateStoryThread {
         deletedAtTimestampKVS.allKeys(transaction: transaction).compactMap { UUID(uuidString: $0)?.data }
     }
 
-    static func cleanupDeletedTimestamps(transaction: SDSAnyWriteTransaction) {
+    static func cleanupDeletedTimestamps(transaction tx: SDSAnyWriteTransaction) {
         var deletedIdentifiers = [Data]()
-        for identifier in deletedAtTimestampKVS.allKeys(transaction: transaction) {
+        for identifier in deletedAtTimestampKVS.allKeys(transaction: tx) {
             guard let timestamp = deletedAtTimestampKVS.getUInt64(
                 identifier,
-                transaction: transaction
+                transaction: tx
             ) else { continue }
             guard Date().timeIntervalSince(Date(millisecondsSince1970: timestamp)) > deletedAtTimestampThreshold else { continue }
-            deletedAtTimestampKVS.removeValue(forKey: identifier, transaction: transaction)
+            deletedAtTimestampKVS.removeValue(forKey: identifier, transaction: tx)
 
             // If we still have a private story thread for this deleted timestamp, it's
             // now safe to purge it from the database.
-            TSPrivateStoryThread.anyFetchPrivateStoryThread(
-                uniqueId: identifier,
-                transaction: transaction
-            )?.anyRemove(transaction: transaction)
+            if let thread = TSPrivateStoryThread.anyFetchPrivateStoryThread(uniqueId: identifier, transaction: tx) {
+                DependenciesBridge.shared.threadRemover.remove(thread, tx: tx.asV2Write)
+            }
 
             UUID(uuidString: identifier).map { deletedIdentifiers.append($0.data) }
         }
-
-        if !deletedIdentifiers.isEmpty {
-            Self.storageServiceManager.recordPendingDeletions(deletedStoryDistributionListIds: deletedIdentifiers)
-        }
+        Self.storageServiceManager.recordPendingUpdates(updatedStoryDistributionListIds: deletedIdentifiers)
     }
 
     override func updateWithShouldThreadBeVisible(_ shouldThreadBeVisible: Bool, transaction: SDSAnyWriteTransaction) {

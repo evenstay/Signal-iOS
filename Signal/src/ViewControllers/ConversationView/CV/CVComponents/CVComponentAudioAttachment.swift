@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalMessaging
+import SignalUI
 
 public class CVComponentAudioAttachment: CVComponentBase, CVComponent {
 
@@ -64,13 +64,14 @@ public class CVComponentAudioAttachment: CVComponentBase, CVComponent {
         }
 
         owsAssertDebug(attachment.isAudio)
-        // TODO: We might want to convert AudioMessageView into a form that can be reused.
-        let audioMessageView = AudioMessageView(
-            threadUniqueId: itemModel.thread.uniqueId,
-            audioAttachment: audioAttachment,
-            audioPlaybackRate: itemModel.itemViewState.audioPlaybackRate,
+        let presentation = AudioMessagePresenter(
             isIncoming: isIncoming,
-            componentDelegate: componentDelegate,
+            audioAttachment: audioAttachment,
+            threadUniqueId: itemModel.thread.uniqueId,
+            playbackRate: AudioPlaybackRate(rawValue: itemModel.itemViewState.audioPlaybackRate))
+        let audioMessageView = AudioMessageView(
+            presentation: presentation,
+            audioMessageViewDelegate: componentDelegate,
             mediaCache: mediaCache
         )
         if let incomingMessage = interaction as? TSIncomingMessage {
@@ -115,13 +116,15 @@ public class CVComponentAudioAttachment: CVComponentBase, CVComponent {
             measurementBuilder.setSize(key: Self.measurementKey_footerSize, size: footerSize)
         }
 
+        let presentation = AudioMessagePresenter(
+            isIncoming: false,
+            audioAttachment: audioAttachment,
+            threadUniqueId: itemModel.thread.uniqueId,
+            playbackRate: AudioPlaybackRate(rawValue: itemModel.itemViewState.audioPlaybackRate))
         let audioSize = AudioMessageView.measure(
             maxWidth: maxWidth,
-            audioAttachment: audioAttachment,
-            isIncoming: isIncoming,
-            conversationStyle: conversationStyle,
-            measurementBuilder: measurementBuilder
-        ).ceil
+            measurementBuilder: measurementBuilder,
+            presentation: presentation).ceil
         let audioInfo = audioSize.asManualSubviewInfo
         let stackMeasurement = ManualStackView.measure(config: stackViewConfig,
                                                        measurementBuilder: measurementBuilder,
@@ -290,7 +293,7 @@ extension CVComponentAudioAttachment: CVAudioPlayerListener {
 
     func audioPlayerDidFinish(attachmentId: String) {
         guard attachmentId == audioAttachment.attachment.uniqueId else { return }
-        cvAudioPlayer.autoplayNextAudioAttachment(nextAudioAttachment)
+        cvAudioPlayer.autoplayNextAudioAttachmentIfNeeded(nextAudioAttachment)
     }
 
     func audioPlayerDidMarkViewed(attachmentId: String) {}
@@ -303,16 +306,16 @@ extension CVComponentAudioAttachment: CVAccessibilityComponent {
         if attachment.isVoiceMessage {
             if let attachmentStream = attachmentStream,
                attachmentStream.audioDurationSeconds() > 0 {
-                let format = NSLocalizedString("ACCESSIBILITY_LABEL_VOICE_MEMO_%d", tableName: "PluralAware",
+                let format = OWSLocalizedString("ACCESSIBILITY_LABEL_VOICE_MEMO_%d", tableName: "PluralAware",
                                                comment: "Accessibility label for a voice memo. Embeds: {{ the duration of the voice message }}.")
                 return String.localizedStringWithFormat(format, Int(attachmentStream.audioDurationSeconds()))
             } else {
-                return NSLocalizedString("ACCESSIBILITY_LABEL_VOICE_MEMO",
+                return OWSLocalizedString("ACCESSIBILITY_LABEL_VOICE_MEMO",
                                          comment: "Accessibility label for a voice memo.")
             }
         } else {
             // TODO: We could include information about the attachment format.
-            return NSLocalizedString("ACCESSIBILITY_LABEL_AUDIO",
+            return OWSLocalizedString("ACCESSIBILITY_LABEL_AUDIO",
                                      comment: "Accessibility label for audio.")
         }
     }

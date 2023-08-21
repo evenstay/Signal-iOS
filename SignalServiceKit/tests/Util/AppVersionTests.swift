@@ -5,11 +5,9 @@
 
 import Foundation
 import XCTest
-
 @testable import SignalServiceKit
 
-class AppVersionTests: SSKBaseTestSwift {
-
+final class AppVersionTests: XCTestCase {
     func testVersionComparisons() {
         let testCases: [(String, String, ComparisonResult)] = [
             ("0", "0", .orderedSame),
@@ -37,20 +35,21 @@ class AppVersionTests: SSKBaseTestSwift {
             ("junk", "otherjunk", .orderedSame),
             ("0.foo.0", "0.0.0", .orderedSame),
             ("1.foo.0", "2.bar.0", .orderedAscending),
-            ("1.1", "1.foo", .orderedDescending)
+            ("1.1", "1.foo", .orderedDescending),
+            ("1.0", "1.-2", .orderedSame)
         ]
 
         testCases.forEach { (lhs, rhs, expected) in
-            let lCompR = AppVersion.compare(lhs, with: rhs)
+            let lCompR = AppVersionImpl.shared.compare(lhs, with: rhs)
             XCTAssertEqual(lCompR, expected, "\(lhs) compared with \(rhs)")
 
-            let rCompL = AppVersion.compare(rhs, with: lhs)
+            let rCompL = AppVersionImpl.shared.compare(rhs, with: lhs)
             XCTAssertEqual(rCompL, expected.inverted, "\(rhs) compared with \(lhs)")
         }
     }
 }
 
-extension ComparisonResult {
+private extension ComparisonResult {
     var inverted: ComparisonResult {
         switch self {
         case .orderedAscending: return .orderedDescending

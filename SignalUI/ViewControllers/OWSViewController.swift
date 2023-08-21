@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalServiceKit
 
 public enum ViewControllerLifecycle: Equatable {
     /// `viewDidLoad` hasn't happened yet.
@@ -31,12 +31,11 @@ public enum ViewControllerLifecycle: Equatable {
     }
 }
 
-@objc
 open class OWSViewController: UIViewController {
 
     /// Current state of the view lifecycle.
     /// Note changes are triggered by the lifecycle methods `viewDidLoad` `viewWillAppear` `viewDidAppear`
-    /// `viewWillDisappear` `viewDidDisappear`; those can be overriden to get state change hooks as per normal.
+    /// `viewWillDisappear` `viewDidDisappear`; those can be overridden to get state change hooks as per normal.
     public private(set) final var lifecycle = ViewControllerLifecycle.notLoaded {
         didSet {
             achievedLifecycleStates.insert(lifecycle)
@@ -83,15 +82,20 @@ open class OWSViewController: UIViewController {
     /// When the keyboard is collapsed, the bottom of this view is the bottom of the root view respecting safe area.
     public final var keyboardLayoutGuideViewSafeArea: SpacerView { getOrCreateKeyboardLayoutView(safeArea: true) }
 
-    // MARK: - Themeing
+    // MARK: - Themeing and content size categories
 
-    /// Subclasses can override to respond to theme changes.
-    /// NOTE: overrides _must_ call the superclass version of this method, similarly to other view lifecycle methods.
+    /// An overridable method for subclasses to hook into theme changes, to
+    /// adjust their contents.
     @objc
     open func themeDidChange() {
         AssertIsOnMainThread()
+    }
 
-        // Do nothing; just serves as a hook for subclasses.
+    /// An overridable method for subclasses to hook into content size category
+    /// changes, to ensure their content adapts.
+    @objc
+    open func contentSizeCategoryDidChange() {
+        AssertIsOnMainThread()
     }
 
     // MARK: - Init
@@ -150,7 +154,7 @@ open class OWSViewController: UIViewController {
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(themeDidChange),
-            name: .ThemeDidChange,
+            name: .themeDidChange,
             object: nil
         )
     }
@@ -259,6 +263,12 @@ open class OWSViewController: UIViewController {
             self,
             selector: #selector(appDidEnterBackground),
             name: UIApplication.didEnterBackgroundNotification,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(contentSizeCategoryDidChange),
+            name: UIContentSizeCategory.didChangeNotification,
             object: nil
         )
     }

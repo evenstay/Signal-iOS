@@ -3,27 +3,38 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalMessaging
 import SignalServiceKit
+import SignalUI
 
 class BadgeGiftingChooseRecipientViewController: RecipientPickerContainerViewController {
+    typealias PaymentMethodsConfiguration = SubscriptionManagerImpl.DonationConfiguration.PaymentMethodsConfiguration
+
     private let badge: ProfileBadge
     private let price: FiatMoney
+    private let paymentMethodsConfiguration: PaymentMethodsConfiguration
 
-    public init(badge: ProfileBadge, price: FiatMoney) {
+    public init(
+        badge: ProfileBadge,
+        price: FiatMoney,
+        paymentMethodsConfiguration: PaymentMethodsConfiguration
+    ) {
         self.badge = badge
         self.price = price
+        self.paymentMethodsConfiguration = paymentMethodsConfiguration
     }
 
     public override func viewDidLoad() {
         super.viewDidLoad()
 
-        title = NSLocalizedString("BADGE_GIFTING_CHOOSE_RECIPIENT_TITLE",
-                                  comment: "Title on the screen where you choose a gift badge's recipient")
+        title = OWSLocalizedString(
+            "DONATION_ON_BEHALF_OF_A_FRIEND_CHOOSE_RECIPIENT_TITLE",
+            comment: "Title on the screen where you choose who you're going to donate on behalf of."
+        )
 
         recipientPicker.allowsAddByPhoneNumber = false
         recipientPicker.shouldHideLocalRecipient = true
-        recipientPicker.groupsToShow = .showNoGroups
+        recipientPicker.groupsToShow = .noGroups
         recipientPicker.delegate = self
         addChild(recipientPicker)
         view.addSubview(recipientPicker.view)
@@ -46,9 +57,10 @@ class BadgeGiftingChooseRecipientViewController: RecipientPickerContainerViewCon
 }
 
 extension BadgeGiftingChooseRecipientViewController: RecipientPickerDelegate {
+
     private static func getRecipientAddress(_ recipient: PickedRecipient) -> SignalServiceAddress? {
         guard let address = recipient.address, address.isValid, !address.isLocalAddress else {
-            owsFailDebug("Invalid recipient. Did a group make its way in?")
+            owsFailBeta("Invalid recipient. Did a group make its way in?")
             return nil
         }
         return address
@@ -69,7 +81,12 @@ extension BadgeGiftingChooseRecipientViewController: RecipientPickerDelegate {
             owsFail("Recipient is missing address, but we expected one")
         }
         let thread = databaseStorage.write { TSContactThread.getOrCreateThread(withContactAddress: address, transaction: $0) }
-        let vc = BadgeGiftingConfirmationViewController(badge: badge, price: price, thread: thread)
+        let vc = BadgeGiftingConfirmationViewController(
+            badge: badge,
+            price: price,
+            paymentMethodsConfiguration: paymentMethodsConfiguration,
+            thread: thread
+        )
         self.navigationController?.pushViewController(vc, animated: true)
     }
 
@@ -81,6 +98,12 @@ extension BadgeGiftingChooseRecipientViewController: RecipientPickerDelegate {
     func recipientPicker(_ recipientPickerViewController: RecipientPickerViewController,
                          accessoryMessageForRecipient recipient: PickedRecipient,
                          transaction: SDSAnyReadTransaction) -> String? { nil }
+
+    func recipientPicker(
+        _ recipientPickerViewController: RecipientPickerViewController,
+        accessoryViewForRecipient recipient: PickedRecipient,
+        transaction: SDSAnyReadTransaction
+    ) -> ContactCellAccessoryView? { nil }
 
     func recipientPicker(_ recipientPickerViewController: RecipientPickerViewController,
                          attributedSubtitleForRecipient recipient: PickedRecipient,

@@ -3,13 +3,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalServiceKit
+import SignalUI
 
 protocol GroupNameViewControllerDelegate: AnyObject {
     func groupNameViewControllerDidComplete(groupName: String?)
 }
 
-@objc
 class GroupNameViewController: OWSTableViewController2 {
     private let helper: GroupAttributesEditorHelper
 
@@ -54,7 +54,7 @@ class GroupNameViewController: OWSTableViewController2 {
     }
 
     private func updateNavigation() {
-        title = NSLocalizedString(
+        title = OWSLocalizedString(
             "GROUP_NAME_VIEW_TITLE",
             comment: "Title for the group name view."
         )
@@ -98,7 +98,7 @@ class GroupNameViewController: OWSTableViewController2 {
 
                 cell.selectionStyle = .none
 
-                nameTextField.font = .ows_dynamicTypeBodyClamped
+                nameTextField.font = .dynamicTypeBodyClamped
                 nameTextField.textColor = Theme.primaryTextColor
 
                 cell.contentView.addSubview(nameTextField)
@@ -111,13 +111,13 @@ class GroupNameViewController: OWSTableViewController2 {
             }
         ))
 
-        contents.addSection(section)
+        contents.add(section)
 
         self.contents = contents
     }
 
     @objc
-    func didTapCancel() {
+    private func didTapCancel() {
         guard helper.hasUnsavedChanges else {
             dismiss(animated: true)
             return
@@ -129,7 +129,7 @@ class GroupNameViewController: OWSTableViewController2 {
     }
 
     @objc
-    func didTapDone() {
+    private func didTapDone() {
         helper.nameTextField.acceptAutocorrectSuggestion()
         nameDelegate?.groupNameViewControllerDidComplete(groupName: helper.groupNameCurrent)
         dismiss(animated: true)

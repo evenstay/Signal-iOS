@@ -4,6 +4,9 @@
 //
 
 import Foundation
+import LibSignalClient
+import SignalCoreKit
+import SignalServiceKit
 
 public class CallMessagePushPayload: CustomStringConvertible {
     private static let identifierKey = "CallMessageRelayPayload"
@@ -27,8 +30,7 @@ public class CallMessagePushPayload: CustomStringConvertible {
     }
 }
 
-@objc
-public class CallMessageRelay: NSObject {
+public class CallMessageRelay: Dependencies {
     private static let pendingCallMessageStore = SDSKeyValueStore(collection: "PendingCallMessageStore")
 
     public static func handleVoipPayload(_ payload: CallMessagePushPayload) {
@@ -46,6 +48,11 @@ public class CallMessageRelay: NSObject {
                 }
             } catch {
                 owsFailDebug("Failed to read pending call messages \(error)")
+                return
+            }
+
+            guard let localIdentifiers = tsAccountManager.localIdentifiers(transaction: transaction) else {
+                owsFailDebug("Can't process VoIP payload when not registered.")
                 return
             }
 
@@ -67,7 +74,8 @@ public class CallMessageRelay: NSObject {
                     wasReceivedByUD: payload.wasReceivedByUD,
                     serverDeliveryTimestamp: adjustedDeliveryTimestamp,
                     shouldDiscardVisibleMessages: false,
-                    transaction: transaction
+                    localIdentifiers: localIdentifiers,
+                    tx: transaction
                 )
             }
         }

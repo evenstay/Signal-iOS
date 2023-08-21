@@ -1,1 +1,1 @@
-• When you start a group call for small groups (up to 16 people), you can choose to send a ringing notification. Group members will hear a ring if their Signal app is up to date.
+• Every search result should feel like a highlight, but a bug was preventing the yellow highlight markers from being displayed for matches in individual chats unless the search result appeared in a message that also included a spoiler effect. Spoiler: That bug dies at the end of this update.

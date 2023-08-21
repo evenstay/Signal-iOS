@@ -6,7 +6,6 @@
 import SignalMessaging
 import SignalUI
 
-@objc
 public protocol SendMessageDelegate: AnyObject {
     func sendMessageFlowDidComplete(threads: [TSThread])
     func sendMessageFlowDidCancel()
@@ -138,8 +137,7 @@ enum SendMessageApprovedContent {
 
 // MARK: -
 
-@objc
-class SendMessageFlow: NSObject {
+class SendMessageFlow: Dependencies {
 
     private let flowType: SendMessageFlowType
 
@@ -166,8 +164,6 @@ class SendMessageFlow: NSObject {
         self.useConversationComposeForSingleRecipient = useConversationComposeForSingleRecipient
         self.navigationController = navigationController
         self.delegate = delegate
-
-        super.init()
 
         let conversationPicker = ConversationPickerViewController(selection: selection)
         conversationPicker.pickerDelegate = self
@@ -203,7 +199,7 @@ class SendMessageFlow: NSObject {
         }
 
         owsAssertDebug(groupThread != nil)
-        if let groupThread = groupThread, Mention.threadAllowsMentionSend(groupThread) {
+        if let groupThread = groupThread, groupThread.allowsMentionSend {
             mentionCandidates = groupThread.recipientAddressesWithSneakyTransaction
         } else {
             mentionCandidates = []
@@ -251,7 +247,7 @@ extension SendMessageFlow {
 
         firstly { () -> Promise<[TSThread]> in
             self.threads(for: conversations)
-        }.map(on: .global()) { (threads: [TSThread]) -> TSThread in
+        }.map(on: DispatchQueue.global()) { (threads: [TSThread]) -> TSThread in
             guard threads.count == 1,
                 let thread = threads.first else {
                     throw OWSAssertionError("Unexpected thread state.")
@@ -259,15 +255,14 @@ extension SendMessageFlow {
             return self.databaseStorage.write { transaction -> TSThread in
                 thread.update(withDraft: messageBody,
                               replyInfo: nil,
+                              editTargetTimestamp: nil,
                               transaction: transaction)
                 return thread
             }
         }.done { (thread: TSThread) in
             Logger.info("Transitioning to single thread.")
-            SignalApp.shared().dismissAllModals(animated: true) {
-                SignalApp.shared().presentConversation(for: thread,
-                                                       action: .updateDraft,
-                                                       animated: true)
+            SignalApp.shared.dismissAllModals(animated: true) {
+                SignalApp.shared.presentConversationForThread(thread, action: .updateDraft, animated: true)
             }
         }.catch { error in
             owsFailDebug("Error: \(error)")
@@ -298,7 +293,7 @@ extension SendMessageFlow {
             let approvalViewController = AttachmentApprovalViewController(options: options, attachmentApprovalItems: attachmentApprovalItems)
             approvalViewController.approvalDelegate = self
             approvalViewController.approvalDataSource = self
-            approvalViewController.messageBody = messageBody
+            approvalViewController.setMessageBody(messageBody, txProvider: DependenciesBridge.shared.db.readTxProvider)
 
             pushViewController(approvalViewController, animated: true)
         default:
@@ -332,7 +327,7 @@ extension SendMessageFlow {
             return
         }
 
-        let message = NSLocalizedString("ERROR_DESCRIPTION_CLIENT_SENDING_FAILURE",
+        let message = OWSLocalizedString("ERROR_DESCRIPTION_CLIENT_SENDING_FAILURE",
                                         comment: "Generic notice when message failed to send.")
         let actionSheet = ActionSheetController(title: CommonStrings.errorAlertTitle,
                                                 message: message)
@@ -423,7 +418,7 @@ extension SendMessageFlow {
                 try enqueueBlock(thread)
 
                 // We're sending a message to this thread, approve any pending message request
-                ThreadUtil.addThreadToProfileWhitelistIfEmptyOrPendingRequestAndSetDefaultTimerWithSneakyTransaction(thread: thread)
+                ThreadUtil.addThreadToProfileWhitelistIfEmptyOrPendingRequestAndSetDefaultTimerWithSneakyTransaction(thread)
             }
             return threads
         }
@@ -502,9 +497,9 @@ extension SendMessageFlow: TextApprovalViewControllerDelegate {
     func textApprovalCustomTitle(_ textApproval: TextApprovalViewController) -> String? {
         switch flowType {
         case .`default`:
-            return NSLocalizedString("MESSAGE_APPROVAL_DIALOG_TITLE", comment: "Title for the 'message approval' dialog.")
+            return OWSLocalizedString("MESSAGE_APPROVAL_DIALOG_TITLE", comment: "Title for the 'message approval' dialog.")
         case .forward:
-            return NSLocalizedString("FORWARD_MESSAGE", comment: "Label and title for 'message forwarding' views.")
+            return OWSLocalizedString("FORWARD_MESSAGE", comment: "Label and title for 'message forwarding' views.")
         }
     }
 
@@ -540,7 +535,7 @@ extension SendMessageFlow: ContactShareApprovalViewControllerDelegate {
         case .`default`:
             return nil
         case .forward:
-            return NSLocalizedString("FORWARD_CONTACT", comment: "Label and title for 'contact forwarding' views.")
+            return OWSLocalizedString("FORWARD_CONTACT", comment: "Label and title for 'contact forwarding' views.")
         }
     }
 
@@ -601,8 +596,12 @@ extension SendMessageFlow: AttachmentApprovalViewControllerDataSource {
         []
     }
 
-    var attachmentApprovalMentionableAddresses: [SignalServiceAddress] {
+    func attachmentApprovalMentionableAddresses(tx: DBReadTransaction) -> [SignalServiceAddress] {
         mentionCandidates
+    }
+
+    func attachmentApprovalMentionCacheInvalidationKey() -> String {
+        return "\(mentionCandidates.hashValue)"
     }
 }
 
@@ -629,7 +628,7 @@ public class SendMessageController: SendMessageDelegate {
 
         if threads.count == 1,
            let thread = threads.first {
-            SignalApp.shared().presentConversation(for: thread, animated: true)
+            SignalApp.shared.presentConversationForThread(thread, animated: true)
         } else {
             fromViewController.navigationController?.popToViewController(fromViewController, animated: true)
         }

@@ -3,7 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalCoreKit
+import SignalUI
 
 // MARK: -
 
@@ -125,7 +126,7 @@ class EmojiCountCell: UICollectionViewCell {
 
         emoji.font = .systemFont(ofSize: 22)
 
-        count.font = UIFont.ows_dynamicTypeSubheadlineClamped.ows_monospaced.ows_semibold
+        count.font = UIFont.dynamicTypeSubheadlineClamped.monospaced().semibold()
         count.textColor = Theme.primaryTextColor
     }
 
@@ -141,7 +142,7 @@ class EmojiCountCell: UICollectionViewCell {
             count.text = item.count.abbreviatedString
         } else {
             count.text = String(
-                format: NSLocalizedString("REACTION_DETAIL_ALL_FORMAT",
+                format: OWSLocalizedString("REACTION_DETAIL_ALL_FORMAT",
                                           comment: "The header used to indicate All reactions to a given message. Embeds {{number of reactions}}"),
                 item.count.abbreviatedString
             )

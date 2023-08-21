@@ -3,16 +3,40 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalMessaging
+import SignalUI
 
 class ProxySettingsViewController: OWSTableViewController2 {
     private var useProxy = SignalProxy.useProxy
 
+    /// How we check that the proxy settings worked once they are enabled.
+    public enum ValidationMethod {
+        /// Wait for a succesful websocket connection.
+        case websocket
+        /// Wait for a succesful unauthenticated REST request to get a bogus registration session.
+        ///
+        /// What we _want_ is an way to check that we get a response from the server. Because
+        /// this is used during registration, we don't have auth credentials yet so we need to do this
+        /// in an unauthenticated way.
+        /// In an ideal future, we could do this by establishing an unauthenticated websocket that
+        /// we use for registration purposes. We don't use websockets during reg right now.
+        /// Instead, we use a REST endpoint to get registration session metadata, which we feed a
+        /// bogus session id and expect to get a 4xx response. Getting a 4xx means we connected; that's
+        /// all we care about. (A 2xx too, is fine, though would be quite unusual)
+        case restGetRegistrationSession
+    }
+
+    private let validationMethod: ValidationMethod
+
+    public init(validationMethod: ValidationMethod = .websocket) {
+        self.validationMethod = validationMethod
+        super.init()
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        title = NSLocalizedString(
+        title = OWSLocalizedString(
             "PROXY_SETTINGS_TITLE",
             comment: "Title for the signal proxy settings"
         )
@@ -50,7 +74,7 @@ class ProxySettingsViewController: OWSTableViewController2 {
         let textField = UITextField()
 
         textField.text = SignalProxy.host
-        textField.font = .ows_dynamicTypeBody
+        textField.font = .dynamicTypeBody
         textField.backgroundColor = .clear
         textField.placeholder = OWSLocalizedString(
             "PROXY_PLACEHOLDER",
@@ -72,8 +96,7 @@ class ProxySettingsViewController: OWSTableViewController2 {
         updateTableContents()
     }
 
-    @objc
-    func updateTableContents() {
+    private func updateTableContents() {
         let contents = OWSTableContents()
         defer { self.contents = contents }
 
@@ -81,27 +104,27 @@ class ProxySettingsViewController: OWSTableViewController2 {
 
         let useProxySection = OWSTableSection()
         useProxySection.footerAttributedTitle = .composed(of: [
-            NSLocalizedString("USE_PROXY_EXPLANATION", comment: "Explanation of when you should use a signal proxy"),
+            OWSLocalizedString("USE_PROXY_EXPLANATION", comment: "Explanation of when you should use a signal proxy"),
             " ",
             CommonStrings.learnMore.styled(with: .link(URL(string: "https://support.signal.org/hc/en-us/articles/360056052052-Proxy-Support")!))
         ]).styled(
-            with: .font(.ows_dynamicTypeCaption1Clamped),
+            with: .font(.dynamicTypeCaption1Clamped),
             .color(Theme.secondaryTextAndIconColor)
         )
         useProxySection.add(.switch(
-            withText: NSLocalizedString("USE_PROXY_BUTTON", comment: "Button to activate the signal proxy"),
+            withText: OWSLocalizedString("USE_PROXY_BUTTON", comment: "Button to activate the signal proxy"),
             isOn: { [weak self] in
                 self?.useProxy ?? false
             },
             target: self,
             selector: #selector(didToggleUseProxy)
         ))
-        contents.addSection(useProxySection)
+        contents.add(useProxySection)
 
         let proxyAddressSection = OWSTableSection()
-        proxyAddressSection.headerAttributedTitle = NSLocalizedString("PROXY_ADDRESS", comment: "The title for the address of the signal proxy").styled(
+        proxyAddressSection.headerAttributedTitle = OWSLocalizedString("PROXY_ADDRESS", comment: "The title for the address of the signal proxy").styled(
             with: .color((Theme.isDarkThemeEnabled ? UIColor.ows_gray05 : UIColor.ows_gray90).withAlphaComponent(useProxy ? 1 : 0.25)),
-            .font(UIFont.ows_dynamicTypeBodyClamped.ows_semibold)
+            .font(UIFont.dynamicTypeBodyClamped.semibold())
         )
         proxyAddressSection.add(.init(
             customCellBlock: { [weak self] in
@@ -121,12 +144,12 @@ class ProxySettingsViewController: OWSTableViewController2 {
             },
             actionBlock: {}
         ))
-        contents.addSection(proxyAddressSection)
+        contents.add(proxyAddressSection)
 
         let shareSection = OWSTableSection()
         shareSection.add(.init(
             customCellBlock: {
-                let cell = OWSTableItem.buildImageNameCell(image: Theme.iconImage(.messageActionShare24), itemName: CommonStrings.shareButton)
+                let cell = OWSTableItem.buildImageCell(image: Theme.iconImage(.buttonShare), itemName: CommonStrings.shareButton)
                 cell.selectionStyle = .none
 
                 if !useProxy {
@@ -142,7 +165,7 @@ class ProxySettingsViewController: OWSTableViewController2 {
                 AttachmentSharing.showShareUI(for: URL(string: "https://signal.tube/#\(self.host ?? "")")!, sender: self.view)
             }
         ))
-        contents.addSection(shareSection)
+        contents.add(shareSection)
     }
 
     @objc
@@ -163,7 +186,7 @@ class ProxySettingsViewController: OWSTableViewController2 {
         // allow saving an empty host when the proxy is off
         if !useProxy && host == nil { return false }
 
-        presentToast(text: NSLocalizedString("INVALID_PROXY_HOST_ERROR", comment: "The provided proxy host address is not valid"))
+        presentToast(text: OWSLocalizedString("INVALID_PROXY_HOST_ERROR", comment: "The provided proxy host address is not valid"))
 
         return true
     }
@@ -187,19 +210,21 @@ class ProxySettingsViewController: OWSTableViewController2 {
             return
         }
 
-        ModalActivityIndicatorViewController.present(fromViewController: self, canCancel: false) { modal in
-            ProxyConnectionChecker.checkConnectionAndNotify { connected in
-                modal.dismiss {
+        ModalActivityIndicatorViewController.present(fromViewController: self, canCancel: false) { [weak self] modal in
+            guard let self else { return }
+            self.checkConnection().done { [weak self] connected in
+                modal.dismiss { [weak self] in
+                    guard let self else { return }
                     if connected {
                         if self.navigationController?.viewControllers.count == 1 {
-                            self.presentingViewController?.presentToast(text: NSLocalizedString("PROXY_CONNECTED_SUCCESSFULLY", comment: "The provided proxy connected successfully"))
+                            self.presentingViewController?.presentToast(text: OWSLocalizedString("PROXY_CONNECTED_SUCCESSFULLY", comment: "The provided proxy connected successfully"))
                             self.dismiss(animated: true)
                         } else {
-                            self.presentToast(text: NSLocalizedString("PROXY_CONNECTED_SUCCESSFULLY", comment: "The provided proxy connected successfully"))
+                            self.presentToast(text: OWSLocalizedString("PROXY_CONNECTED_SUCCESSFULLY", comment: "The provided proxy connected successfully"))
                             self.updateNavigationBar()
                         }
                     } else {
-                        self.presentToast(text: NSLocalizedString("PROXY_FAILED_TO_CONNECT", comment: "The provided proxy couldn't connect"))
+                        self.presentToast(text: OWSLocalizedString("PROXY_FAILED_TO_CONNECT", comment: "The provided proxy couldn't connect"))
                         Self.databaseStorage.write { transaction in
                             SignalProxy.setProxyHost(host: self.host, useProxy: false, transaction: transaction)
                         }
@@ -207,6 +232,42 @@ class ProxySettingsViewController: OWSTableViewController2 {
                     }
                 }
             }
+        }
+    }
+
+    private func checkConnection() -> Guarantee<Bool> {
+        switch validationMethod {
+        case .websocket:
+            let (guarantee, future) = Guarantee<Bool>.pending()
+            ProxyConnectionChecker.checkConnectionAndNotify { connected in
+                future.resolve(connected)
+            }
+            return guarantee
+        case .restGetRegistrationSession:
+            let request = RegistrationRequestFactory.checkProxyConnectionRequest()
+
+            func isConnected(_ statusCode: Int) -> Bool {
+                switch RegistrationServiceResponses.CheckProxyConnectionResponseCodes(rawValue: statusCode) {
+                case .connected:
+                    return true
+                case .failure:
+                    return false
+                }
+            }
+
+            return networkManager.makePromise(request: request)
+                .map { (response: HTTPResponse) -> Bool in
+                    return isConnected(response.responseStatusCode)
+                }
+                .recover { (error: Error) -> Guarantee<Bool> in
+                    guard
+                        !error.isNetworkFailureOrTimeout,
+                        let error = error as? OWSHTTPError
+                    else {
+                        return .value(false)
+                    }
+                    return .value(isConnected(error.responseStatusCode))
+                }
         }
     }
 

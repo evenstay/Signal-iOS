@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalMessaging
 import SignalServiceKit
+import SignalUI
 
 public enum ConversationUIMode: UInt {
     case normal
@@ -23,9 +23,21 @@ public enum ConversationUIMode: UInt {
     }
 }
 
+public enum ConversationViewAction {
+    case none
+    case compose
+    case audioCall
+    case videoCall
+    case groupCallLobby
+    case newGroupActionSheet
+    case updateDraft
+}
+
 // MARK: -
 
-public class ConversationViewController: OWSViewController {
+public final class ConversationViewController: OWSViewController {
+
+    internal let context: ViewControllerContext
 
     public let viewState: CVViewState
     public let loadCoordinator: CVLoadCoordinator
@@ -50,22 +62,80 @@ public class ConversationViewController: OWSViewController {
 
     // MARK: -
 
-    @objc
-    public required init(threadViewModel: ThreadViewModel,
-                         action: ConversationViewAction = .none,
-                         focusMessageId: String? = nil) {
+    public static func load(
+        threadViewModel: ThreadViewModel,
+        action: ConversationViewAction = .none,
+        focusMessageId: String? = nil,
+        tx: SDSAnyReadTransaction
+    ) -> ConversationViewController {
+        let thread = threadViewModel.threadRecord
+
+        // We always need to find where the unread divider should be placed, even
+        // if we opened the chat by tapping on a search result.
+        let interactionFinder = InteractionFinder(threadUniqueId: thread.uniqueId)
+        let oldestUnreadMessage = try? interactionFinder.oldestUnreadInteraction(transaction: tx.unwrapGrdbRead)
+
+        let loadAroundMessageId: String?
+        let scrollToMessageId: String?
+
+        if let focusMessageId {
+            loadAroundMessageId = focusMessageId
+            scrollToMessageId = focusMessageId
+        } else if let oldestUnreadMessage {
+            loadAroundMessageId = oldestUnreadMessage.uniqueId
+            // Set this to `nil` so that we scroll to the unread divider.
+            scrollToMessageId = nil
+        } else {
+            // If we're not scrolling to a specific message AND we don't have any
+            // unread messages, try to focus on the last visible interaction.
+            let lastVisibleMessageId = Self.lastVisibleInteractionId(for: threadViewModel.threadRecord, tx: tx)
+            loadAroundMessageId = lastVisibleMessageId
+            scrollToMessageId = lastVisibleMessageId
+        }
+
+        let conversationStyle = ConversationViewController.buildInitialConversationStyle(for: thread, tx: tx)
+        let conversationViewModel = ConversationViewModel.load(for: thread, tx: tx)
+        let didAlreadyShowGroupCallTooltipEnoughTimes = preferences.wasGroupCallTooltipShown(withTransaction: tx)
+
+        return ConversationViewController(
+            threadViewModel: threadViewModel,
+            conversationViewModel: conversationViewModel,
+            action: action,
+            conversationStyle: conversationStyle,
+            didAlreadyShowGroupCallTooltipEnoughTimes: didAlreadyShowGroupCallTooltipEnoughTimes,
+            loadAroundMessageId: loadAroundMessageId,
+            scrollToMessageId: scrollToMessageId,
+            oldestUnreadMessage: oldestUnreadMessage
+        )
+    }
+
+    private init(
+        threadViewModel: ThreadViewModel,
+        conversationViewModel: ConversationViewModel,
+        action: ConversationViewAction,
+        conversationStyle: ConversationStyle,
+        didAlreadyShowGroupCallTooltipEnoughTimes: Bool,
+        loadAroundMessageId: String?,
+        scrollToMessageId: String?,
+        oldestUnreadMessage: TSInteraction?
+    ) {
         AssertIsOnMainThread()
 
-        Logger.verbose("")
+        self.context = ViewControllerContext.shared
 
-        let conversationStyle = ConversationViewController.buildInitialConversationStyle(threadViewModel: threadViewModel)
-        self.viewState = CVViewState(threadViewModel: threadViewModel,
-                                     conversationStyle: conversationStyle)
-        self.loadCoordinator = CVLoadCoordinator(viewState: viewState)
+        self.viewState = CVViewState(
+            threadUniqueId: threadViewModel.threadRecord.uniqueId,
+            conversationStyle: conversationStyle,
+            didAlreadyShowGroupCallTooltipEnoughTimes: didAlreadyShowGroupCallTooltipEnoughTimes
+        )
+        self.loadCoordinator = CVLoadCoordinator(
+            viewState: viewState,
+            threadViewModel: threadViewModel,
+            conversationViewModel: conversationViewModel,
+            oldestUnreadMessageSortId: oldestUnreadMessage?.sortId
+        )
         self.layout = ConversationViewLayout(conversationStyle: conversationStyle)
-        self.collectionView = ConversationCollectionView(frame: .zero,
-                                                         collectionViewLayout: self.layout)
-
+        self.collectionView = ConversationCollectionView(frame: .zero, collectionViewLayout: self.layout)
         self.searchController = ConversationSearchController(thread: threadViewModel.threadRecord)
 
         super.init()
@@ -74,29 +144,20 @@ public class ConversationViewController: OWSViewController {
         self.viewState.selectionState.delegate = self
         self.hidesBottomBarWhenPushed = true
 
-        #if TESTABLE_BUILD
-        self.initialLoadBenchSteps.step("Init CVC")
-        #endif
-
         self.inputAccessoryPlaceholder.delegate = self
-
-        // If we're not scrolling to a specific message AND we don't have
-        // any unread messages, try to focus on the last visible interaction.
-        var focusMessageId = focusMessageId
-        if focusMessageId == nil, !threadViewModel.hasUnreadMessages {
-            focusMessageId = self.lastVisibleInteractionIdWithSneakyTransaction(threadViewModel)
-        }
 
         contactsViewHelper.addObserver(self)
         contactShareViewHelper.delegate = self
 
         self.actionOnOpen = action
 
-        self.recordInitialScrollState(focusMessageId)
+        self.recordInitialScrollState(scrollToMessageId)
 
-        loadCoordinator.configure(delegate: self,
-                                  componentDelegate: self,
-                                  focusMessageIdOnOpen: focusMessageId)
+        loadCoordinator.configure(
+            delegate: self,
+            componentDelegate: self,
+            focusMessageIdOnOpen: loadAroundMessageId
+        )
 
         searchController.delegate = self
 
@@ -104,13 +165,14 @@ public class ConversationViewController: OWSViewController {
         // chain, and thus won't inherit our inputAccessoryView, so we manually set it here.
         searchController.uiSearchController.searchBar.inputAccessoryView = self.inputAccessoryPlaceholder
 
-        self.otherUsersProfileDidChangeEvent = DebouncedEvents.build(mode: .firstLast,
-                                                                     maxFrequencySeconds: 1.0,
-                                                                     onQueue: .asyncOnQueue(queue: .main)) { [weak self] in
+        self.otherUsersProfileDidChangeEvent = DebouncedEvents.build(
+            mode: .firstLast,
+            maxFrequencySeconds: 1.0,
+            onQueue: .asyncOnQueue(queue: .main)
+        ) { [weak self] in
             // Reload all cells if this is a group conversation,
             // since we may need to update the sender names on the messages.
-            self?.loadCoordinator.enqueueReload(canReuseInteractionModels: true,
-                                                canReuseComponentStates: false)
+            self?.loadCoordinator.enqueueReload(canReuseInteractionModels: true, canReuseComponentStates: false)
         }
     }
 
@@ -127,10 +189,6 @@ public class ConversationViewController: OWSViewController {
         // We won't have a navigation controller if we're presented in a preview
         owsAssertDebug(self.navigationController != nil || self.isInPreviewPlatter)
 
-        #if TESTABLE_BUILD
-        initialLoadBenchSteps.step("viewDidLoad.1")
-        #endif
-
         super.viewDidLoad()
 
         createContents()
@@ -140,10 +198,6 @@ public class ConversationViewController: OWSViewController {
         loadCoordinator.viewDidLoad()
 
         self.startReloadTimer()
-
-        #if TESTABLE_BUILD
-        initialLoadBenchSteps.step("viewDidLoad.2")
-        #endif
     }
 
     private func createContents() {
@@ -187,7 +241,7 @@ public class ConversationViewController: OWSViewController {
         backgroundContainer.delegate = self
         self.view.addSubview(backgroundContainer)
         backgroundContainer.autoPinEdgesToSuperviewEdges()
-        setupWallpaper()
+        setUpWallpaper()
 
         self.view.addSubview(bottomBar)
         self.bottomBarBottomConstraint = bottomBar.autoPinEdge(toSuperviewEdge: .bottom)
@@ -257,12 +311,6 @@ public class ConversationViewController: OWSViewController {
     public override func viewWillAppear(_ animated: Bool) {
         self.viewWillAppearDidBegin()
 
-        #if TESTABLE_BUILD
-        initialLoadBenchSteps.step("viewWillAppear.1")
-        #endif
-
-        Logger.verbose("viewWillAppear")
-
         super.viewWillAppear(animated)
 
         if let groupThread = thread as? TSGroupThread {
@@ -301,9 +349,6 @@ public class ConversationViewController: OWSViewController {
 
         self.showMessageRequestDialogIfRequired()
         self.viewWillAppearDidComplete()
-        #if TESTABLE_BUILD
-        initialLoadBenchSteps.step("viewWillAppear.2")
-        #endif
     }
 
     private func acquireCacheLeases(_ groupThread: TSGroupThread) {
@@ -322,11 +367,6 @@ public class ConversationViewController: OWSViewController {
         self.viewDidAppearDidBegin()
 
         InstrumentsMonitor.trackEvent(name: "ConversationViewController.viewDidAppear")
-
-        #if TESTABLE_BUILD
-        initialLoadBenchSteps.step("viewDidAppear.1")
-        #endif
-        Logger.verbose("viewDidAppear")
 
         super.viewDidAppear(animated)
 
@@ -394,18 +434,7 @@ public class ConversationViewController: OWSViewController {
         self.configureScrollDownButtons()
         inputToolbar?.viewDidAppear()
 
-        if !self.viewState.hasTriedToMigrateGroup {
-            self.viewState.hasTriedToMigrateGroup = true
-
-            if !DebugFlags.reduceLogChatter {
-                GroupsV2Migration.autoMigrateThreadIfNecessary(thread: thread)
-            }
-        }
-
         self.viewDidAppearDidComplete()
-        #if TESTABLE_BUILD
-        initialLoadBenchSteps.step("viewDidAppear.2")
-        #endif
     }
 
     // `viewWillDisappear` is called whenever the view *starts* to disappear,
@@ -413,8 +442,6 @@ public class ConversationViewController: OWSViewController {
     // this can be canceled. As such, we shouldn't tear down anything expensive
     // until `viewDidDisappear`.
     public override func viewWillDisappear(_ animated: Bool) {
-        Logger.verbose("")
-
         super.viewWillDisappear(animated)
 
         self.isViewCompletelyAppeared = false
@@ -426,8 +453,6 @@ public class ConversationViewController: OWSViewController {
     }
 
     public override func viewDidDisappear(_ animated: Bool) {
-        Logger.verbose("")
-
         super.viewDidDisappear(animated)
 
         InstrumentsMonitor.trackEvent(name: "ConversationViewController.viewDidDisappear")
@@ -475,12 +500,29 @@ public class ConversationViewController: OWSViewController {
 
     public override var shouldAutorotate: Bool {
         // Don't allow orientation changes while recording voice messages.
-        if let currentVoiceMessageModel = viewState.currentVoiceMessageModel,
-           currentVoiceMessageModel.isRecording {
+        if viewState.inProgressVoiceMessage?.isRecording == true {
             return false
         }
 
         return super.shouldAutorotate
+    }
+
+    public override func contentSizeCategoryDidChange() {
+        super.contentSizeCategoryDidChange()
+
+        Logger.info("didChangePreferredContentSize")
+
+        resetForSizeOrOrientationChange()
+
+        guard hasViewWillAppearEverBegun else {
+            return
+        }
+        guard let inputToolbar = inputToolbar else {
+            owsFailDebug("Missing inputToolbar.")
+            return
+        }
+
+        inputToolbar.updateFontSizes()
     }
 
     public override func themeDidChange() {
@@ -623,8 +665,6 @@ extension ConversationViewController: ContactsViewHelperObserver {
     public func contactsViewHelperDidUpdateContacts() {
         AssertIsOnMainThread()
 
-        self.updateNavigationTitle()
-        loadCoordinator.enqueueReload(canReuseInteractionModels: true,
-                                      canReuseComponentStates: false)
+        loadCoordinator.enqueueReload(canReuseInteractionModels: true, canReuseComponentStates: false)
     }
 }

@@ -5,13 +5,11 @@
 
 import Foundation
 
+#if TESTABLE_BUILD
+
 @objc(OWSFakeStorageServiceManager)
-public class FakeStorageServiceManager: NSObject, StorageServiceManagerProtocol {
-    public func recordPendingDeletions(deletedAccountIds: [AccountId]) {}
-    public func recordPendingDeletions(deletedAddresses: [SignalServiceAddress]) {}
+public class FakeStorageServiceManager: NSObject, StorageServiceManager {
     public func recordPendingDeletions(deletedGroupV1Ids: [Data]) {}
-    public func recordPendingDeletions(deletedGroupV2MasterKeys: [Data]) {}
-    public func recordPendingDeletions(deletedStoryDistributionListIds: [Data]) {}
 
     public func recordPendingUpdates(updatedAccountIds: [AccountId]) {}
     public func recordPendingUpdates(updatedAddresses: [SignalServiceAddress]) {}
@@ -21,8 +19,16 @@ public class FakeStorageServiceManager: NSObject, StorageServiceManagerProtocol 
     public func recordPendingUpdates(groupModel: TSGroupModel) {}
     public func recordPendingLocalAccountUpdates() {}
 
-    public func backupPendingChanges() {}
-    public func restoreOrCreateManifestIfNecessary() -> AnyPromise { AnyPromise(Promise.value(())) }
+    public func setLocalIdentifiers(_ localIdentifiers: LocalIdentifiersObjC) {}
 
-    public func resetLocalData(transaction: SDSAnyWriteTransaction) {}
+    public func backupPendingChanges(authedAccount: AuthedAccount) {}
+    public func restoreOrCreateManifestIfNecessary(authedAccount: AuthedAccount) -> AnyPromise {
+        AnyPromise(Promise.value(()))
+    }
+
+    public func waitForPendingRestores() -> AnyPromise { AnyPromise(Promise.value(())) }
+
+    public func resetLocalData(transaction: DBWriteTransaction) {}
 }
+
+#endif

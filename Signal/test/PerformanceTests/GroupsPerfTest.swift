@@ -4,14 +4,17 @@
 //
 
 import Foundation
-import XCTest
+import LibSignalClient
 import SignalServiceKit
+import XCTest
 
 class GroupsPerfTest: PerformanceBaseTest {
 
     private let iterationCount: UInt64 = DebugFlags.fastPerfTests ? 5 : 5 * 1000
 
     func testMembershipSerialization() {
+        setUpIteration()
+
         let membership = Self.buildMembership()
 
         measureMetrics(XCTestCase.defaultPerformanceMetrics, automaticallyStartMeasuring: true) {
@@ -28,26 +31,25 @@ class GroupsPerfTest: PerformanceBaseTest {
 
         var builder = GroupMembership.Builder()
         for _ in 0..<memberCount {
-            builder.addFullMember(UUID(), role: .`normal`)
+            builder.addFullMember(Aci.randomForTesting(), role: .`normal`)
         }
         for _ in 0..<memberCount {
-            builder.addInvitedMember(UUID(), role: .`normal`, addedByUuid: UUID())
+            builder.addInvitedMember(Aci.randomForTesting(), role: .`normal`, addedByAci: Aci.randomForTesting())
         }
         for _ in 0..<memberCount {
-            builder.addRequestingMember(UUID())
+            builder.addRequestingMember(Aci.randomForTesting())
         }
         for i in 0..<memberCount {
-            builder.addBannedMember(UUID(), bannedAtTimestamp: UInt64(i))
+            builder.addBannedMember(Aci.randomForTesting(), bannedAtTimestamp: UInt64(i))
         }
         return builder.build()
     }
 
     static func serialize(membership: GroupMembership) throws -> Data {
-        try! NSKeyedArchiver.archivedData(withRootObject: membership,
-                                                 requiringSecureCoding: false)
+        try NSKeyedArchiver.archivedData(withRootObject: membership, requiringSecureCoding: false)
     }
 
     static func deserialize(data: Data) throws -> GroupMembership {
-        try! NSKeyedUnarchiver.unarchiveTopLevelObjectWithData(data) as! GroupMembership
+        try NSKeyedUnarchiver.unarchivedObject(ofClass: GroupMembership.self, from: data, requiringSecureCoding: false)!
     }
 }

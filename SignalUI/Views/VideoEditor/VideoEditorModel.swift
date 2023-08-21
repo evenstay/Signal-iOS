@@ -4,7 +4,7 @@
 //
 
 import AVFoundation
-import UIKit
+import SignalServiceKit
 
 private enum VideoEditorError: Error {
     case cancelled
@@ -268,7 +268,7 @@ extension VideoEditorModel {
                 return .value(Result(path: srcVideoPath, owned: false))
             }
 
-            return firstly(on: .sharedUserInitiated) { () -> Promise<Result> in
+            return firstly(on: DispatchQueue.sharedUserInitiated) { () -> Promise<Result> in
                 let asset = AVURLAsset(url: URL(fileURLWithPath: self.srcVideoPath))
                 let dstFilePath = OWSFileSystem.temporaryFilePath(fileExtension: "mp4")
 

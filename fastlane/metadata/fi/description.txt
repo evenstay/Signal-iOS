@@ -1,26 +1,19 @@
-Miljoonat ihmiset käyttävät Signalia päivittäin ilmaiseen ja välittömään viestintään kaikkialla maailmassa. Voit lähettää ja vastaanottaa huolellisesti salattuja viestejä, osallistua HD-tasoisiin ääni- ja videopuheluihin sekä hyödyntää jatkuvasti kehitettäviä uusia toimintoja, jotka auttavat pitämään yhteyttä tuttavien kanssa. Signalin korkealaatuinen yksityisyyttä suojaava teknologia on aina käytössä, joten voit keskittyä tärkeiden hetkien jakamiseen tärkeiden henkilöiden kanssa.
+Signal on viestisovellus, joka keskittyy yksityisyyteen. Se on ilmainen ja helppokäyttöinen sovellus, jonka vahva päästä päähän -salaus pitää viestintäsi täysin yksityisenä.
 
-• Sano mitä haluat – Alan parhaimmistoon kuuluva päästä-päähän-salaus (pohjautuu avoimen lähdekoodin Signal Protocoliin) pitää keskustelusi turvallisina. Yksityisyys ei ole valinnaista, vaan Signalin toimintaperiaate. Kaikki viestit ja kaikki puhelut salataan joka hetki.
+• Lähetä tekstiä, ääniviestejä, kuvia, videoita, GIF-tiedostoja ja muita tiedostoja ilmaiseksi. Signal käyttää puhelimesi verkkoyhteyttä, joten vältät tekstiviesti- ja multimediamaksut.
 
-• Ole nopea – Viestit toimitetaan nopeasti ja luotettavasti jopa heikkotasoisella yhteydellä. Signal on optimoitu toimimaan myös haastavimmissa tilanteissa.
+• Soita ystävillesi kristallinkirkkaita, salattuja ääni- ja videopuheluita. Sovellus tukee jopa 40 henkilön ryhmäpuheluita.
 
-• Säästää rahaa – Signal on täysin itsenäinen 501c3-voittoa tavoittelematon järjestö. Kehitystyötämme tukevan sinun kaltaisesi käyttäjät. Ei mainoksia tai seurantaevästeitä. Lainkaan.
+• Pidä yhteyttä osallistumalla jopa 1 000 henkilön ryhmäkeskusteluihin. Hallinnoi julkaisuoikeuksia ja ryhmän jäsenyyksiä järjestelmänvalvojan käyttöoikeuksien asetuksilla.
 
-• Ole oma itsesi – Nykyinen puhelinnumerosi ja yhteystietoluettelosi riittävät, kun viestit turvallisesti ystäviesi kanssa.
+• Jaa kuva-, teksti- ja videotarinoita, jotka katoavat 24 tunnin kuluttua. Voit määrittää jokaisen tarinan katseluoikeudet yksityisyysasetusten avulla.
 
-• Keskustele luontevasti – Asuvatpa ystäväsi ja sukulaisesti toisella puolella kaupunkia tai valtamerta, Signalin parannettu äänen- ja kuvanlaatu tuovat heidät lähemmäs.
+• Signal on luotu yksityisyyttäsi varten. Emme tiedä mitään sinusta tai keskustelukumppaneistasi. Avoimen lähdekoodin Signal-protokolla varmistaa, että me emme voi lukea viestejäsi tai kuunnella puheluitasi. Eikä voi kukaan muukaan. Ei takaportteja, ei tiedonkeruuta, ei kompromisseja. 
 
-• Kuiskaile varjoissa – Jollet halua nähdä valoa, vaihda tummaan teemaan.
+• Signal on riippumaton ja voittoa tavoittelematon taho, joka tarjoaa erilaista teknologiaa erilaiselta organisaatiolta. Voittoa tavoittelemattomana, 501c3-luokiteltuna organisaationa toimintaamme tuetaan käyttäjien lahjoituksilla – emme saa tukea mainostajilta tai sijoittajilta. 
 
-• Kuulostele tuttuja – Voit valita jokaiselle yhteystiedolle omat hälytysäänet tai poistaa ne kokonaan käytöstä. Simon & Garfunkel tekivät vuonna 1964 hittibiisin, jonka suomennoksen esittivät Matti ja Teppo, ja nyt sinäkin voit kokea äänet hiljaisuuden valitsemalla ilmoitusääniksi Ei mitään.
+• Tukea, ohjeita ja lisätietoja on saatavilla osoitteessa https://support.signal.org/
 
-• Kuvita kaikki – Sisäänrakennetun kuvankäsittelyn avulla voit luonnostella, rajata ja kääntää lähetettäviä kuvia. Tekstityökalulla voit jopa lisätä asiaa jo tuhat sanaa kertovaan kuvaasi.
+Jos haluat tietoja lähdekoodistamme, siirry osoitteeseen https://github.com/signalapp 
 
-
-Ohjeita ja lisätietoja sovelluksen käyttöön sekä yhteystiedot:
-https://support.signal.org
-
-Lähdekoodi:
-https://github.com/signalapp
-
-Seuraa meitä Twitterissä (@signalapp) ja Instagramissa (@signal_app), niin saat tietoa uusista päivityksistä ja ilmoitusasioista.
+Seuraa meitä Twitterissä @signalapp ja Instagramissa @signal_app

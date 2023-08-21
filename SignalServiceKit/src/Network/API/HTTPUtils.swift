@@ -42,8 +42,10 @@ extension HTTPUtils {
             Self.outageDetection.reportConnectionFailure()
         }
 
-        if httpError.responseStatusCode == AppExpiry.appExpiredStatusCode {
-            appExpiry.setHasAppExpiredAtCurrentVersion()
+        if httpError.responseStatusCode == AppExpiryImpl.appExpiredStatusCode {
+            let appExpiry = DependenciesBridge.shared.appExpiry
+            let db = DependenciesBridge.shared.db
+            appExpiry.setHasAppExpiredAtCurrentVersion(db: db)
         }
     }
 
@@ -81,30 +83,18 @@ extension HTTPUtils {
             return buildServiceResponseError()
         case 401:
             Logger.warn("The server returned an error about the authorization header: \(errorDescription)")
-            deregisterAfterAuthErrorIfNecessary(request: request,
-                                                requestUrl: requestUrl,
-                                                statusCode: responseStatus)
             return buildServiceResponseError()
         case 402:
             return buildServiceResponseError()
         case 403:
             Logger.warn("The server returned an authentication failure: \(errorDescription)")
-            deregisterAfterAuthErrorIfNecessary(request: request,
-                                                requestUrl: requestUrl,
-                                                statusCode: responseStatus)
             return buildServiceResponseError()
         case 404:
             Logger.warn("The requested resource could not be found: \(errorDescription)")
             return buildServiceResponseError()
         case 411:
-            Logger.info("Multi-device pairing: \(responseStatus), \(errorDescription)")
-            let description = OWSLocalizedString("MULTIDEVICE_PAIRING_MAX_DESC",
-                                                comment: "alert title: cannot link - reached max linked devices")
-            let recoverySuggestion = OWSLocalizedString("MULTIDEVICE_PAIRING_MAX_RECOVERY",
-                                                       comment: "alert body: cannot link - reached max linked devices")
-            let error = buildServiceResponseError(description: description,
-                                                  recoverySuggestion: recoverySuggestion)
-            return error
+            Logger.info("Device limit exceeded: \(errorDescription)")
+            return buildServiceResponseError()
         case 413, 429:
             Logger.warn("Rate limit exceeded: \(request.httpMethod) \(requestUrl.absoluteString)")
             let description = OWSLocalizedString("REGISTER_RATE_LIMITING_ERROR", comment: "")
@@ -126,39 +116,6 @@ extension HTTPUtils {
         default:
             Logger.warn("Unknown error: \(responseStatus), \(errorDescription)")
             return buildServiceResponseError()
-        }
-    }
-
-    private static func deregisterAfterAuthErrorIfNecessary(request: TSRequest,
-                                                            requestUrl: URL,
-                                                            statusCode: Int) {
-        let requestHeaders: [String: String] = request.allHTTPHeaderFields ?? [:]
-        Logger.verbose("Invalid auth: \(requestHeaders)")
-
-        // We only want to de-register for:
-        //
-        // * Auth errors...
-        // * ...received from Signal service...
-        // * ...that used standard authorization.
-        //
-        // * We don't want want to deregister for:
-        //
-        // * CDS requests.
-        // * Requests using UD auth.
-        // * etc.
-        //
-        // TODO: Will this work with censorship circumvention?
-        if requestUrl.absoluteString.hasPrefix(TSConstants.mainServiceURL),
-           request.shouldHaveAuthorizationHeaders {
-            DispatchQueue.main.async {
-                if Self.tsAccountManager.isRegisteredAndReady {
-                    Self.tsAccountManager.setIsDeregistered(true)
-                } else {
-                    Logger.warn("Ignoring auth failure not registered and ready: \(request.httpMethod) \(requestUrl.absoluteString).")
-                }
-            }
-        } else {
-            Logger.warn("Ignoring \(statusCode) for URL: \(request.httpMethod) \(requestUrl.absoluteString)")
         }
     }
 }
@@ -205,8 +162,8 @@ public extension Error {
         }
     }
 
-    var isNetworkConnectivityFailure: Bool {
-        HTTPUtils.isNetworkConnectivityFailure(forError: self)
+    var isNetworkFailureOrTimeout: Bool {
+        HTTPUtils.isNetworkFailureOrTimeout(forError: self)
     }
 
     func hasFatalHttpStatusCode() -> Bool {
@@ -236,8 +193,8 @@ public extension NSError {
 
     @objc
     @available(swift, obsoleted: 1.0)
-    var isNetworkConnectivityFailure: Bool {
-        HTTPUtils.isNetworkConnectivityFailure(forError: self)
+    var isNetworkFailureOrTimeout: Bool {
+        HTTPUtils.isNetworkFailureOrTimeout(forError: self)
     }
 }
 
@@ -288,7 +245,7 @@ fileprivate extension HTTPUtils {
         return statusCode
     }
 
-    static func isNetworkConnectivityFailure(forError error: Error?) -> Bool {
+    static func isNetworkFailureOrTimeout(forError error: Error?) -> Bool {
         guard let error = error else {
             return false
         }
@@ -305,7 +262,8 @@ fileprivate extension HTTPUtils {
                     .cfurlErrorNotConnectedToInternet,
                     .cfurlErrorSecureConnectionFailed,
                     .cfurlErrorCannotLoadFromNetwork,
-                    .cfurlErrorCannotFindHost:
+                    .cfurlErrorCannotFindHost,
+                    .cfurlErrorBadURL:
                 return true
             default:
                 return false
@@ -322,8 +280,6 @@ fileprivate extension HTTPUtils {
             return httpError.isNetworkConnectivityError
         case GroupsV2Error.timeout:
             return true
-        case let contactDiscoveryError as ContactDiscoveryError:
-            return contactDiscoveryError.kind == .timeout
         case PaymentsError.timeout:
             return true
         default:
@@ -339,11 +295,26 @@ public func owsFailDebugUnlessNetworkFailure(_ error: Error,
                                              file: String = #file,
                                              function: String = #function,
                                              line: Int = #line) {
-    if error.isNetworkConnectivityFailure {
+    if error.isNetworkFailureOrTimeout {
         // Log but otherwise ignore network failures.
         Logger.warn("Error: \(error)", file: file, function: function, line: line)
     } else {
         owsFailDebug("Error: \(error)", file: file, function: function, line: line)
+    }
+}
+
+@inlinable
+public func owsFailBetaUnlessNetworkFailure(
+    _ error: Error,
+    file: String = #file,
+    function: String = #function,
+    line: Int = #line
+) {
+    if error.isNetworkFailureOrTimeout {
+        // Log but otherwise ignore network failures.
+        Logger.warn("Error: \(error)", file: file, function: function, line: line)
+    } else {
+        owsFailBeta("Error: \(error)", file: file, function: function, line: line)
     }
 }
 
@@ -392,8 +363,7 @@ extension OWSHttpHeaders {
             // because the NSNumber method returns 0.0 on a parse failure. NSScanner lets us detect
             // a parse failure.
             let scanner = Scanner(string: value)
-            var delay: TimeInterval = 0
-            guard scanner.scanDouble(&delay),
+            guard let delay = scanner.scanDouble(),
                   scanner.isAtEnd else {
                       // Only return the delay if we've made it to the end.
                       // Helps to prevent things like: 8/11/1994 being interpreted as delay: 8.

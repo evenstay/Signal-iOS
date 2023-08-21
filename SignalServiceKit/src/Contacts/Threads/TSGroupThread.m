@@ -34,9 +34,10 @@ NSString *const TSGroupThread_NotificationKey_UniqueId = @"TSGroupThread_Notific
                       uniqueId:(NSString *)uniqueId
    conversationColorNameObsolete:(NSString *)conversationColorNameObsolete
                     creationDate:(nullable NSDate *)creationDate
+             editTargetTimestamp:(nullable NSNumber *)editTargetTimestamp
               isArchivedObsolete:(BOOL)isArchivedObsolete
           isMarkedUnreadObsolete:(BOOL)isMarkedUnreadObsolete
-            lastInteractionRowId:(int64_t)lastInteractionRowId
+            lastInteractionRowId:(uint64_t)lastInteractionRowId
           lastSentStoryTimestamp:(nullable NSNumber *)lastSentStoryTimestamp
        lastVisibleSortIdObsolete:(uint64_t)lastVisibleSortIdObsolete
 lastVisibleSortIdOnScreenPercentageObsolete:(double)lastVisibleSortIdOnScreenPercentageObsolete
@@ -53,6 +54,7 @@ lastVisibleSortIdOnScreenPercentageObsolete:(double)lastVisibleSortIdOnScreenPer
                         uniqueId:uniqueId
      conversationColorNameObsolete:conversationColorNameObsolete
                       creationDate:creationDate
+               editTargetTimestamp:editTargetTimestamp
                 isArchivedObsolete:isArchivedObsolete
             isMarkedUnreadObsolete:isMarkedUnreadObsolete
               lastInteractionRowId:lastInteractionRowId
@@ -194,22 +196,13 @@ lastVisibleSortIdOnScreenPercentageObsolete:lastVisibleSortIdOnScreenPercentageO
                                                       userInfo:userInfo];
 }
 
-- (void)anyWillRemoveWithTransaction:(SDSAnyWriteTransaction *)transaction
-{
-    if (self.isGroupV2Thread) {
-        OWSFailDebug(@"In normal usage we should only soft delete v2 groups.");
-    }
-    [super anyWillRemoveWithTransaction:transaction];
-    [self updateGroupMemberRecordsWithTransaction:transaction];
-}
-
 #pragma mark -
 
 - (void)anyWillInsertWithTransaction:(SDSAnyWriteTransaction *)transaction
 {
     [super anyWillInsertWithTransaction:transaction];
 
-    [self protectV2Migration:transaction];
+    [TSGroupThread ensureGroupIdMappingForGroupId:self.groupModel.groupId transaction:transaction];
     [self updateGroupMemberRecordsWithTransaction:transaction];
 }
 
@@ -217,28 +210,10 @@ lastVisibleSortIdOnScreenPercentageObsolete:lastVisibleSortIdOnScreenPercentageO
 {
     [super anyWillUpdateWithTransaction:transaction];
 
-    [self protectV2Migration:transaction];
-    // We used to update the group member records here, but there are many updates that don't touch membership.
-    // Now it's done explicitly where we update the group model, and not for other updates.
-}
-
-- (void)protectV2Migration:(SDSAnyWriteTransaction *)transaction
-{
-    if (self.groupModel.groupsVersion != GroupsVersionV1) {
-        return;
-    }
-
     [TSGroupThread ensureGroupIdMappingForGroupId:self.groupModel.groupId transaction:transaction];
 
-    TSGroupThread *_Nullable databaseCopy = [TSGroupThread anyFetchGroupThreadWithUniqueId:self.uniqueId
-                                                                               transaction:transaction];
-    if (databaseCopy == nil) {
-        return;
-    }
-
-    if (databaseCopy.groupModel.groupsVersion == GroupsVersionV2) {
-        OWSFail(@"v1-to-v2 group migration can not be reversed.");
-    }
+    // We used to update the group member records here, but there are many updates that don't touch membership.
+    // Now it's done explicitly where we update the group model, and not for other updates.
 }
 
 - (void)updateWithInsertedMessage:(TSInteraction *)message transaction:(SDSAnyWriteTransaction *)transaction

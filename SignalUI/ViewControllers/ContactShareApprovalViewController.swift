@@ -161,7 +161,7 @@ class ContactShareFieldView: UIStackView {
 
     let previewViewBlock: (() -> UIView)
 
-    private var checkbox: UIButton!
+    private lazy var checkbox = UIButton(type: .custom)
 
     // MARK: - Initializers
 
@@ -193,22 +193,17 @@ class ContactShareFieldView: UIStackView {
         self.layoutMargins = UIEdgeInsets(top: 0, left: hMargin, bottom: 0, right: hMargin)
         self.isLayoutMarginsRelativeArrangement = true
 
-        let checkbox = UIButton(type: .custom)
-        self.checkbox = checkbox
-
-        let checkedIcon = #imageLiteral(resourceName: "contact_checkbox_checked")
-        let uncheckedIcon = #imageLiteral(resourceName: "contact_checkbox_unchecked")
-        checkbox.setImage(uncheckedIcon, for: .normal)
-        checkbox.setImage(checkedIcon, for: .selected)
+        checkbox.setImage(Theme.iconImage(.circle), for: .normal)
+        checkbox.setImage(Theme.iconImage(.checkCircleFill), for: .selected)
         checkbox.isSelected = field.isIncluded()
         // Disable the checkbox; the entire row is hot.
         checkbox.isUserInteractionEnabled = false
-        self.addArrangedSubview(checkbox)
+        addArrangedSubview(checkbox)
         checkbox.setCompressionResistanceHigh()
         checkbox.setContentHuggingHigh()
 
         let previewView = previewViewBlock()
-        self.addArrangedSubview(previewView)
+        addArrangedSubview(previewView)
     }
 
     @objc
@@ -453,14 +448,14 @@ public class ContactShareApprovalViewController: OWSViewController, EditContactS
         let nameLabel = UILabel()
         self.nameLabel = nameLabel
         nameLabel.text = contactShare.name.displayName
-        nameLabel.font = UIFont.ows_dynamicTypeBody.ows_semibold
+        nameLabel.font = UIFont.dynamicTypeBody.semibold()
         nameLabel.textColor = Theme.primaryTextColor
         nameLabel.lineBreakMode = .byTruncatingTail
         stackView.addArrangedSubview(nameLabel)
 
         let editNameLabel = UILabel()
         editNameLabel.text = OWSLocalizedString("CONTACT_EDIT_NAME_BUTTON", comment: "Label for the 'edit name' button in the contact share approval view.")
-        editNameLabel.font = UIFont.ows_dynamicTypeBody
+        editNameLabel.font = UIFont.dynamicTypeBody
         editNameLabel.textColor = Theme.accentBlueColor
         stackView.addArrangedSubview(editNameLabel)
         editNameLabel.setContentHuggingHigh()

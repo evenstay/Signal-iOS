@@ -20,9 +20,9 @@ extension DonateViewController {
 
         // MARK: Typealiases
 
-        typealias PaymentMethodsConfiguration = SubscriptionManager.DonationConfiguration.PaymentMethodsConfiguration
-        typealias OneTimeConfiguration = SubscriptionManager.DonationConfiguration.BoostConfiguration
-        typealias MonthlyConfiguration = SubscriptionManager.DonationConfiguration.SubscriptionConfiguration
+        typealias PaymentMethodsConfiguration = SubscriptionManagerImpl.DonationConfiguration.PaymentMethodsConfiguration
+        typealias OneTimeConfiguration = SubscriptionManagerImpl.DonationConfiguration.BoostConfiguration
+        typealias MonthlyConfiguration = SubscriptionManagerImpl.DonationConfiguration.SubscriptionConfiguration
 
         // MARK: - One-time state
 
@@ -40,7 +40,7 @@ extension DonateViewController {
             }
 
             public let selectedAmount: SelectedAmount
-            public let profileBadge: ProfileBadge?
+            public let profileBadge: ProfileBadge
 
             fileprivate let presets: [Currency.Code: DonationUtilities.Preset]
             fileprivate let minimumAmounts: [Currency.Code: FiatMoney]
@@ -177,6 +177,7 @@ extension DonateViewController {
             public let currentSubscription: Subscription?
             public let subscriberID: Data?
             public let lastReceiptRedemptionFailure: SubscriptionRedemptionFailureReason
+            public let previousMonthlySubscriptionPaymentMethod: DonationPaymentMethod?
 
             fileprivate let paymentMethodConfiguration: PaymentMethodsConfiguration
             fileprivate let localNumber: String?
@@ -250,6 +251,7 @@ extension DonateViewController {
                     currentSubscription: currentSubscription,
                     subscriberID: subscriberID,
                     lastReceiptRedemptionFailure: lastReceiptRedemptionFailure,
+                    previousMonthlySubscriptionPaymentMethod: previousMonthlySubscriptionPaymentMethod,
                     paymentMethodConfiguration: paymentMethodConfiguration,
                     localNumber: localNumber
                 )
@@ -264,6 +266,7 @@ extension DonateViewController {
                     currentSubscription: currentSubscription,
                     subscriberID: subscriberID,
                     lastReceiptRedemptionFailure: lastReceiptRedemptionFailure,
+                    previousMonthlySubscriptionPaymentMethod: previousMonthlySubscriptionPaymentMethod,
                     paymentMethodConfiguration: paymentMethodConfiguration,
                     localNumber: localNumber
                 )
@@ -407,6 +410,7 @@ extension DonateViewController {
             subscriberID: Data?,
             lastReceiptRedemptionFailure: SubscriptionRedemptionFailureReason,
             previousMonthlySubscriptionCurrencyCode: Currency.Code?,
+            previousMonthlySubscriptionPaymentMethod: DonationPaymentMethod?,
             locale: Locale,
             localNumber: String?
         ) -> State {
@@ -484,6 +488,7 @@ extension DonateViewController {
                     currentSubscription: currentMonthlySubscription,
                     subscriberID: subscriberID,
                     lastReceiptRedemptionFailure: lastReceiptRedemptionFailure,
+                    previousMonthlySubscriptionPaymentMethod: previousMonthlySubscriptionPaymentMethod,
                     paymentMethodConfiguration: paymentMethodsConfig,
                     localNumber: localNumber
                 )

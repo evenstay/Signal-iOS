@@ -85,12 +85,6 @@ public class StickerManager: NSObject {
 
         // Resume sticker and sticker pack downloads when app is ready.
         AppReadiness.runNowOrWhenMainAppDidBecomeReadyAsync {
-            guard !CurrentAppContext().isRunningTests else {
-                return
-            }
-
-            StickerManager.cleanupOrphans()
-
             if TSAccountManager.shared.isRegisteredAndReady {
                 StickerManager.refreshContents()
             }
@@ -280,7 +274,7 @@ public class StickerManager: NSObject {
 
     private let packOperationQueue: OperationQueue = {
         let operationQueue = OperationQueue()
-        operationQueue.name = "org.signal.StickerManager.packs"
+        operationQueue.name = "StickerManager-Pack"
         operationQueue.maxConcurrentOperationCount = 3
         return operationQueue
     }()
@@ -584,11 +578,10 @@ public class StickerManager: NSObject {
     }
 
     @objc
-    public class func filepathsForAllInstalledStickers(transaction: SDSAnyReadTransaction) -> [String] {
-
+    public class func filePathsForAllInstalledStickers(transaction: SDSAnyReadTransaction) -> [String] {
         var filePaths = [String]()
         InstalledSticker.anyEnumerate(transaction: transaction) { (installedSticker, _) in
-            if let stickerDataUrl = stickerDataUrl(forInstalledSticker: installedSticker, verifyExists: true) {
+            if let stickerDataUrl = stickerDataUrl(forInstalledSticker: installedSticker, verifyExists: false) {
                 filePaths.append(stickerDataUrl.path)
             }
         }
@@ -752,7 +745,7 @@ public class StickerManager: NSObject {
 
         return firstly {
             tryToDownloadSticker(stickerPack: stickerPack, stickerInfo: stickerInfo)
-        }.map(on: .global()) { stickerUrl in
+        }.map(on: DispatchQueue.global()) { stickerUrl in
             self.installSticker(stickerInfo: stickerInfo,
                                 stickerUrl: stickerUrl,
                                 contentType: item.contentType,
@@ -770,12 +763,12 @@ public class StickerManager: NSObject {
             self.future = future
         }
     }
-    private let stickerDownloadQueue = DispatchQueue(label: "stickerManager.stickerDownloadQueue")
+    private let stickerDownloadQueue = DispatchQueue(label: "org.signal.sticker-manager.download")
     // This property should only be accessed on stickerDownloadQueue.
     private var stickerDownloadMap = [String: StickerDownload]()
     private let stickerOperationQueue: OperationQueue = {
         let operationQueue = OperationQueue()
-        operationQueue.name = "org.signal.StickerManager.stickers"
+        operationQueue.name = "StickerManager"
         operationQueue.maxConcurrentOperationCount = 4
         return operationQueue
     }()
@@ -872,7 +865,7 @@ public class StickerManager: NSObject {
         shared.clearSuggestedStickersCache()
     }
 
-    private static let cacheQueue = DispatchQueue(label: "stickerManager.cacheQueue")
+    private static let cacheQueue = DispatchQueue(label: "org.signal.sticker-manager.cache")
     // This cache should only be accessed on cacheQueue.
     private var suggestedStickersCache = LRUCache<String, [InstalledSticker]>(maxSize: 5)
 
@@ -1126,53 +1119,61 @@ public class StickerManager: NSObject {
         return installStickerPackContents(stickerPack: stickerPack, transaction: transaction, onlyInstallCover: onlyInstallCover)
     }
 
-    private class func cleanupOrphans() {
-        guard !DebugFlags.suppressBackgroundActivity else {
-            // Don't clean up.
-            return
+    @objc
+    static func hasOrphanedData(tx: SDSAnyReadTransaction) -> Bool {
+        let (packsToRemove, stickersToRemove) = fetchOrphanedPacksAndStickers(tx: tx)
+        return !packsToRemove.isEmpty || !stickersToRemove.isEmpty
+    }
+
+    @objc
+    static func cleanUpOrphanedData(tx: SDSAnyWriteTransaction) {
+        // We re-compute the orphaned packs within the write transaction. It's
+        // possible that a new pack was being saved during the read transaction,
+        // and it's possible that an orphaned pack is no longer orphaned. Most of
+        // the time we don't expect to have any orphans, so the 2x performance
+        // overhead shouldn't matter. If we don't have any orphans by the time we
+        // reach this point, the code will do the correct thing (which is nothing).
+        let (packsToRemove, stickersToRemove) = fetchOrphanedPacksAndStickers(tx: tx)
+
+        for stickerPack in packsToRemove {
+            owsFailDebug("Removing orphan pack")
+            stickerPack.anyRemove(transaction: tx)
         }
-        DispatchQueue.global().async {
-            databaseStorage.write { (transaction) in
-                var stickerPackMap = [String: StickerPack]()
-                for stickerPack in StickerPack.anyFetchAll(transaction: transaction) {
-                    stickerPackMap[stickerPack.info.asKey] = stickerPack
-                }
 
-                // Cull any orphan packs.
-                let savedStickerPacks = Array(stickerPackMap.values)
-                for stickerPack in savedStickerPacks {
-                    let isDefaultStickerPack = self.isDefaultStickerPack(packId: stickerPack.info.packId)
-                    let isInstalled = stickerPack.isInstalled
-                    if !isDefaultStickerPack && !isInstalled {
-                        owsFailDebug("Removing orphan pack")
-                        stickerPack.anyRemove(transaction: transaction)
-                        stickerPackMap.removeValue(forKey: stickerPack.info.asKey)
-                    }
-                }
+        if !stickersToRemove.isEmpty {
+            Logger.warn("Removing \(stickersToRemove.count) orphan stickers.")
+        }
+        for sticker in stickersToRemove {
+            self.uninstallSticker(stickerInfo: sticker.info, transaction: tx)
+        }
+    }
 
-                var stickersToUninstall = [InstalledSticker]()
-                InstalledSticker.anyEnumerate(transaction: transaction) { (sticker, _) in
-                    guard let pack = stickerPackMap[sticker.info.packInfo.asKey] else {
-                        stickersToUninstall.append(sticker)
-                        return
-                    }
-                    if pack.isInstalled {
-                        return
-                    }
-                    if pack.coverInfo == sticker.info {
-                        return
-                    }
-                    stickersToUninstall.append(sticker)
-                    return
-                }
-                if stickersToUninstall.count > 0 {
-                    Logger.warn("Removing \(stickersToUninstall.count) orphan stickers.")
-                }
-                for sticker in stickersToUninstall {
-                    self.uninstallSticker(stickerInfo: sticker.info, transaction: transaction)
-                }
+    private static func fetchOrphanedPacksAndStickers(tx: SDSAnyReadTransaction) -> ([StickerPack], [InstalledSticker]) {
+        var stickerPacks = [String: StickerPack]()
+        var packsToRemove = [StickerPack]()
+
+        for stickerPack in StickerPack.anyFetchAll(transaction: tx) {
+            if stickerPack.isInstalled || self.isDefaultStickerPack(packId: stickerPack.info.packId) {
+                stickerPacks[stickerPack.info.asKey] = stickerPack
+            } else {
+                packsToRemove.append(stickerPack)
             }
         }
+
+        var stickersToRemove = [InstalledSticker]()
+        InstalledSticker.anyEnumerate(transaction: tx) { (sticker, _) in
+            let shouldKeepSticker: Bool = {
+                guard let stickerPack = stickerPacks[sticker.info.packInfo.asKey] else {
+                    return false
+                }
+                return stickerPack.isInstalled || stickerPack.coverInfo == sticker.info
+            }()
+            if !shouldKeepSticker {
+                stickersToRemove.append(sticker)
+            }
+        }
+
+        return (packsToRemove, stickersToRemove)
     }
 
     // MARK: - Sync Messages

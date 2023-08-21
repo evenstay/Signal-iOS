@@ -88,7 +88,6 @@ class ParsedClass:
 
             # TODO: We should handle all properties?
             if property.should_ignore_property():
-                print('Ignoring property:', property.name)
                 continue
 
             self.property_map[property.name] = property
@@ -107,7 +106,6 @@ class ParsedClass:
         subclass_property_map = {}
         root_property_names = set()
 
-        # print 'properties from:', clazz.name
         for property in self.properties():
             all_property_map[property.name] = property
             root_property_names.add(property.name)
@@ -116,12 +114,10 @@ class ParsedClass:
             if should_ignore_class(subclass):
                 continue
 
-            # print 'properties from subclass:', subclass.name
             for property in subclass.properties():
 
                 duplicate_property = all_property_map.get(property.name)
                 if duplicate_property is not None:
-                    # print '\t', 'duplicate', property.name
                     if property.swift_type_safe() != duplicate_property.swift_type_safe():
                         print('property:', property.class_name, property.name, property.swift_type_safe(), property.is_optional)
                         print('duplicate_property:', duplicate_property.class_name, duplicate_property.name, duplicate_property.swift_type_safe(), duplicate_property.is_optional)
@@ -139,7 +135,6 @@ class ParsedClass:
                     else:
                         continue
 
-                # print 'adding', property.name
                 all_property_map[property.name] = property
                 subclass_property_map[property.name] = property
 
@@ -156,21 +151,15 @@ class ParsedClass:
 
     def is_sds_model(self):
         if self.super_class_name is None:
-            # print 'is_sds_model (1):', self.name, self.super_class_name
             return False
         if not self.super_class_name in global_class_map:
-            # print 'is_sds_model (2):', self.name, self.super_class_name
             return False
         if self.super_class_name in (OLD_BASE_MODEL_CLASS_NAME, NEW_BASE_MODEL_CLASS_NAME, ):
-            # print 'is_sds_model (3):', self.name, self.super_class_name
             return True
         super_class = global_class_map[self.super_class_name]
-        # print 'is_sds_model (4):', self.name, self.super_class_name
         return super_class.is_sds_model()
 
     def has_sds_superclass(self):
-        # print 'has_sds_superclass'
-        # print 'self.super_class_name:', self.super_class_name, self.super_class_name in global_class_map, self.super_class_name != BASE_MODEL_CLASS_NAME
         return (self.super_class_name and
                self.super_class_name in global_class_map
                and self.super_class_name != OLD_BASE_MODEL_CLASS_NAME
@@ -201,23 +190,18 @@ class ParsedClass:
 
     def should_generate_extensions(self):
        if self.name in (OLD_BASE_MODEL_CLASS_NAME, NEW_BASE_MODEL_CLASS_NAME, ):
-           print('Ignoring class (1):', self.name)
            return False
        if should_ignore_class(self):
-           print('Ignoring class (2):', self.name)
            return False
 
        if not self.is_sds_model():
            # Only write serialization extensions for SDS models.
-           print('Ignoring class (3):', self.name)
            return False
 
         # The migration should not be persisted in the data store.
        if self.name in ('OWSDatabaseMigration', 'YDBDatabaseMigration', 'OWSResaveCollectionDBMigration', ):
-           print('Ignoring class (4):', self.name)
            return False
        if self.super_class_name in ('OWSDatabaseMigration', 'YDBDatabaseMigration', 'OWSResaveCollectionDBMigration', ):
-           print('Ignoring class (5):', self.name)
            return False
 
        return True
@@ -306,7 +290,6 @@ class TypeInfo:
     #
     # TODO:
     def database_column_type(self, value_name):
-        # print 'self._swift_type', self._swift_type, self._objc_type
         if self.field_override_column_type is not None:
             return self.field_override_column_type
         elif self.should_use_blob or self.is_codable:
@@ -619,7 +602,6 @@ class ParsedProperty:
         if swift_primitive is not None:
             return TypeInfo(swift_primitive, objc_type)
 
-        # print 'objc_type', objc_type
         if objc_type in ('struct CGSize', 'struct CGRect', 'struct CGPoint', ):
             objc_type = objc_type[len('struct '):]
             swift_type = objc_type
@@ -628,9 +610,7 @@ class ParsedProperty:
         swift_type = self.convert_objc_class_to_swift(self.objc_type)
         if swift_type is not None:
             if self.is_objc_type_codable(objc_type):
-                # print '----- is_objc_type_codable true:', objc_type
                 return TypeInfo(swift_type, objc_type, should_use_blob=True, is_codable=False)
-            # print '----- is_objc_type_codable false:', objc_type
             return TypeInfo(swift_type, objc_type, should_use_blob=True, is_codable=False)
 
         fail('Unknown type(3):', self.class_name, self.objc_type, self.name)
@@ -857,32 +837,21 @@ def properties_and_inherited_properties(clazz):
         super_class = global_class_map[clazz.super_class_name]
         result.extend(properties_and_inherited_properties(super_class))
     result.extend(clazz.properties())
-    # for property in result:
-    #     print '----', clazz.name, '----', property.name
     return result
 
 
 def generate_swift_extensions_for_model(clazz):
-    print('\t', 'processing', clazz.__dict__)
-
     if not clazz.should_generate_extensions():
         return
 
     has_sds_superclass = clazz.has_sds_superclass()
-
-    print('\t', '\t', 'clazz.name', clazz.name, type(clazz.name))
-    print('\t', '\t', 'clazz.super_class_name', clazz.super_class_name)
-    print('\t', '\t', 'filepath', clazz.filepath)
-    print('\t', '\t', 'table_superclass', clazz.table_superclass().name)
-    print('\t', '\t', 'has_sds_superclass', has_sds_superclass)
+    has_remove_methods = clazz.name not in ("TSThread",)
 
     swift_filename = os.path.basename(clazz.filepath)
     swift_filename = swift_filename[:swift_filename.find('.')] + '+SDS.swift'
     swift_filepath = os.path.join(os.path.dirname(clazz.filepath), swift_filename)
-    print('\t', '\t', 'swift_filepath', swift_filepath)
 
     record_type = get_record_type(clazz)
-    print('\t', '\t', 'record_type', record_type)
 
     # TODO: We'll need to import SignalServiceKit for non-SSK models.
 
@@ -936,7 +905,6 @@ public struct %s: SDSRecord {
         def write_record_property(property, force_optional=False):
             column_name = property.swift_identifier()
 
-            # print 'property', property.swift_type_safe()
             record_field_type = property.record_field_type()
 
             is_optional = property.is_optional or force_optional
@@ -1039,10 +1007,10 @@ public extension String.StringInterpolation {
 ''' % { 'record_identifier': record_identifier(clazz.name), 'record_name': record_name }
 
 
+        # TODO: Rework metadata to not include, for example, columns, column indices.
         swift_body += '''
 // MARK: - Deserialization
 
-// TODO: Rework metadata to not include, for example, columns, column indices.
 extension %s {
     // This method defines how to deserialize a model, given a
     // database row.  The recordType column is used to determine
@@ -1089,7 +1057,6 @@ extension %s {
                 if property.name not in ( 'uniqueId', ):
                     did_force_optional = (property.name not in base_property_names) and (not property.is_optional)
                     for statement in property.deserialize_record_invocation(value_name, did_force_optional):
-                        # print 'statement', statement, type(statement)
                         swift_body += '            %s\n' % ( str(statement), )
 
                 initializer_params.append('%s: %s' % ( str(property.name), value_name, ) )
@@ -1109,6 +1076,8 @@ extension %s {
                         objc_initializer_assigns.append('_%s = %s ? [%s mutableCopy] : [NSMutableArray new];' % ( str(property.name), str(property.name), str(property.name), ) )
                     elif str(property.objc_type_safe()).startswith('NSMutableDictionary'):
                         objc_initializer_assigns.append('_%s = %s ? [%s mutableCopy] : [NSMutableDictionary new];' % ( str(property.name), str(property.name), str(property.name), ) )
+                    elif deserialize_class.name == "TSIncomingMessage" and property.name in ("authorUUID", "authorPhoneNumber"):
+                        pass
                     else:
                         objc_initializer_assigns.append('_%s = %s;' % ( str(property.name), str(property.name), ) )
 
@@ -1162,6 +1131,16 @@ extension %s {
     }
 
 '''
+
+            if deserialize_class.name == "TSIncomingMessage":
+                m_snippet += '''
+    if (authorUUID != nil) {
+        _authorUUID = authorUUID;
+    } else if (authorPhoneNumber != nil) {
+        _authorPhoneNumber = authorPhoneNumber;
+    }
+'''
+
             for objc_initializer_assign in objc_initializer_assigns:
                 m_snippet += (' ' * 4) + objc_initializer_assign + '\n'
 
@@ -1268,7 +1247,7 @@ extension %s: SDSModel {
 
     public class func anyEnumerateIndexable(
         transaction: SDSAnyReadTransaction,
-        block: @escaping (SDSIndexableModel) -> Void
+        block: (SDSIndexableModel) -> Void
     ) {
         anyEnumerate(transaction: transaction, batched: false) { model, _ in
             block(model)
@@ -1372,7 +1351,6 @@ extension %sSerializer {
             is_unique = column_name == str('uniqueId')
             is_unique_split = ', isUnique: true' if is_unique else ''
 
-            # print 'property', property.swift_type_safe()
             database_column_type = property.database_column_type()
             if property.name == 'id':
                 database_column_type = '.primaryKey'
@@ -1391,8 +1369,6 @@ extension %sSerializer {
 
         database_table_name = 'model_%s' % str(clazz.name)
         swift_body += '''
-    // TODO: We should decide on a naming convention for
-    //       tables that store models.
     public static var table: SDSTableMetadata {
         SDSTableMetadata(collection: %s.collection(),
                          tableName: "%s",
@@ -1489,11 +1465,16 @@ public extension %(class_name)s {
     func anyOverwritingUpdate(transaction: SDSAnyWriteTransaction) {
         sdsSave(saveMode: .update, transaction: transaction)
     }
+''' % { "class_name": str(clazz.name) }
 
+        if has_remove_methods:
+            swift_body += '''
     func anyRemove(transaction: SDSAnyWriteTransaction) {
         sdsRemove(transaction: transaction)
     }
+'''
 
+        swift_body += '''
     func anyReload(transaction: SDSAnyReadTransaction) {
         anyReload(transaction: transaction, ignoreMissing: false)
     }
@@ -1510,8 +1491,7 @@ public extension %(class_name)s {
     }
 }
 
-''' % { "class_name": str(clazz.name) }
-
+'''
 
         # ---- Cursor ----
 
@@ -1567,14 +1547,6 @@ public class %sCursor: NSObject, SDSCursor {
         swift_body += '''
 // MARK: - Obj-C Fetch
 
-// TODO: We may eventually want to define some combination of:
-//
-// * fetchCursor, fetchOne, fetchAll, etc. (ala GRDB)
-// * Optional "where clause" parameters for filtering.
-// * Async flavors with completions.
-//
-// TODO: I've defined flavors that take a read transaction.
-//       Or we might take a "connection" if we end up having that class.
 @objc
 public extension %(class_name)s {
     class func grdbFetchCursor(transaction: GRDBReadTransaction) -> %(class_name)sCursor {
@@ -1583,6 +1555,10 @@ public extension %(class_name)s {
             let cursor = try %(record_name)s.fetchCursor(database)
             return %(class_name)sCursor(transaction: transaction, cursor: cursor)
         } catch {
+            DatabaseCorruptionState.flagDatabaseReadCorruptionIfNecessary(
+                userDefaults: CurrentAppContext().appUserDefaults(),
+                error: error
+            )
             owsFailDebug("Read failed: \(error)")
             return %(class_name)sCursor(transaction: transaction, cursor: nil)
         }
@@ -1626,16 +1602,20 @@ public extension %(class_name)s {
         swift_body += '''
     // Traverses all records.
     // Records are not visited in any particular order.
-    class func anyEnumerate(transaction: SDSAnyReadTransaction,
-                            block: @escaping (%s, UnsafeMutablePointer<ObjCBool>) -> Void) {
+    class func anyEnumerate(
+        transaction: SDSAnyReadTransaction,
+        block: (%s, UnsafeMutablePointer<ObjCBool>) -> Void
+    ) {
         anyEnumerate(transaction: transaction, batched: false, block: block)
     }
 
     // Traverses all records.
     // Records are not visited in any particular order.
-    class func anyEnumerate(transaction: SDSAnyReadTransaction,
-                            batched: Bool = false,
-                            block: @escaping (%s, UnsafeMutablePointer<ObjCBool>) -> Void) {
+    class func anyEnumerate(
+        transaction: SDSAnyReadTransaction,
+        batched: Bool = false,
+        block: (%s, UnsafeMutablePointer<ObjCBool>) -> Void
+    ) {
         let batchSize = batched ? Batching.kDefaultBatchSize : 0
         anyEnumerate(transaction: transaction, batchSize: batchSize, block: block)
     }
@@ -1644,9 +1624,11 @@ public extension %(class_name)s {
     // Records are not visited in any particular order.
     //
     // If batchSize > 0, the enumeration is performed in autoreleased batches.
-    class func anyEnumerate(transaction: SDSAnyReadTransaction,
-                            batchSize: UInt,
-                            block: @escaping (%s, UnsafeMutablePointer<ObjCBool>) -> Void) {
+    class func anyEnumerate(
+        transaction: SDSAnyReadTransaction,
+        batchSize: UInt,
+        block: (%s, UnsafeMutablePointer<ObjCBool>) -> Void
+    ) {
         switch transaction.readTransaction {
         case .grdbRead(let grdbTransaction):
             let cursor = %s.grdbFetchCursor(transaction: grdbTransaction)
@@ -1669,16 +1651,20 @@ public extension %(class_name)s {
         swift_body += '''
     // Traverses all records' unique ids.
     // Records are not visited in any particular order.
-    class func anyEnumerateUniqueIds(transaction: SDSAnyReadTransaction,
-                                     block: @escaping (String, UnsafeMutablePointer<ObjCBool>) -> Void) {
+    class func anyEnumerateUniqueIds(
+        transaction: SDSAnyReadTransaction,
+        block: (String, UnsafeMutablePointer<ObjCBool>) -> Void
+    ) {
         anyEnumerateUniqueIds(transaction: transaction, batched: false, block: block)
     }
 
     // Traverses all records' unique ids.
     // Records are not visited in any particular order.
-    class func anyEnumerateUniqueIds(transaction: SDSAnyReadTransaction,
-                                     batched: Bool = false,
-                                     block: @escaping (String, UnsafeMutablePointer<ObjCBool>) -> Void) {
+    class func anyEnumerateUniqueIds(
+        transaction: SDSAnyReadTransaction,
+        batched: Bool = false,
+        block: (String, UnsafeMutablePointer<ObjCBool>) -> Void
+    ) {
         let batchSize = batched ? Batching.kDefaultBatchSize : 0
         anyEnumerateUniqueIds(transaction: transaction, batchSize: batchSize, block: block)
     }
@@ -1687,9 +1673,11 @@ public extension %(class_name)s {
     // Records are not visited in any particular order.
     //
     // If batchSize > 0, the enumeration is performed in autoreleased batches.
-    class func anyEnumerateUniqueIds(transaction: SDSAnyReadTransaction,
-                                     batchSize: UInt,
-                                     block: @escaping (String, UnsafeMutablePointer<ObjCBool>) -> Void) {
+    class func anyEnumerateUniqueIds(
+        transaction: SDSAnyReadTransaction,
+        batchSize: UInt,
+        block: (String, UnsafeMutablePointer<ObjCBool>) -> Void
+    ) {
         switch transaction.readTransaction {
         case .grdbRead(let grdbTransaction):
             grdbEnumerateUniqueIds(transaction: grdbTransaction,
@@ -1736,50 +1724,32 @@ public extension %(class_name)s {
 
         # ---- Remove All ----
 
-        swift_body += '''
-    // WARNING: Do not use this method for any models which do cleanup
-    //          in their anyWillRemove(), anyDidRemove() methods.
-    class func anyRemoveAllWithoutInstantation(transaction: SDSAnyWriteTransaction) {
-        switch transaction.writeTransaction {
-        case .grdbWrite(let grdbTransaction):
-            do {
-                try %s.deleteAll(grdbTransaction.database)
-            } catch {
-                owsFailDebug("deleteAll() failed: \(error)")
-            }
-        }
-
-        if ftsIndexMode != .never {
-            FullTextSearchFinder.allModelsWereRemoved(collection: collection(), transaction: transaction)
-        }
-    }
-
+        if has_remove_methods:
+            swift_body += '''
     class func anyRemoveAllWithInstantation(transaction: SDSAnyWriteTransaction) {
-        // To avoid mutationDuringEnumerationException, we need
-        // to remove the instances outside the enumeration.
+        // To avoid mutationDuringEnumerationException, we need to remove the
+        // instances outside the enumeration.
         let uniqueIds = anyAllUniqueIds(transaction: transaction)
 
-        var index: Int = 0
-        Batching.loop(batchSize: Batching.kDefaultBatchSize,
-                      loopBlock: { stop in
-            guard index < uniqueIds.count else {
-                stop.pointee = true
-                return
+        for uniqueId in uniqueIds {
+            autoreleasepool {
+                guard let instance = anyFetch(uniqueId: uniqueId, transaction: transaction) else {
+                    owsFailDebug("Missing instance.")
+                    return
+                }
+                instance.anyRemove(transaction: transaction)
             }
-            let uniqueId = uniqueIds[index]
-            index += 1
-            guard let instance = anyFetch(uniqueId: uniqueId, transaction: transaction) else {
-                owsFailDebug("Missing instance.")
-                return
-            }
-            instance.anyRemove(transaction: transaction)
-        })
+        }
 
         if ftsIndexMode != .never {
             FullTextSearchFinder.allModelsWereRemoved(collection: collection(), transaction: transaction)
         }
     }
+'''
 
+        # ---- Exists ----
+
+        swift_body += '''
     class func anyExists(
         uniqueId: String,
         transaction: SDSAnyReadTransaction
@@ -1790,11 +1760,19 @@ public extension %(class_name)s {
         case .grdbRead(let grdbTransaction):
             let sql = "SELECT EXISTS ( SELECT 1 FROM \(%s.databaseTableName) WHERE \(%sColumn: .uniqueId) = ? )"
             let arguments: StatementArguments = [uniqueId]
-            return try! Bool.fetchOne(grdbTransaction.database, sql: sql, arguments: arguments) ?? false
+            do {
+                return try Bool.fetchOne(grdbTransaction.database, sql: sql, arguments: arguments) ?? false
+            } catch {
+                DatabaseCorruptionState.flagDatabaseReadCorruptionIfNecessary(
+                    userDefaults: CurrentAppContext().appUserDefaults(),
+                    error: error
+                )
+                owsFail("Missing instance.")
+            }
         }
     }
 }
-''' % ( record_name, record_name, record_identifier(clazz.name), )
+''' % ( record_name, record_identifier(clazz.name), )
 
         # ---- Fetch ----
 
@@ -1810,6 +1788,10 @@ public extension %(class_name)s {
             let cursor = try %(record_name)s.fetchCursor(transaction.database, sqlRequest)
             return %(class_name)sCursor(transaction: transaction, cursor: cursor)
         } catch {
+            DatabaseCorruptionState.flagDatabaseReadCorruptionIfNecessary(
+                userDefaults: CurrentAppContext().appUserDefaults(),
+                error: error
+            )
             Logger.verbose("sql: \(sql)")
             owsFailDebug("Read failed: \(error)")
             return %(class_name)sCursor(transaction: transaction, cursor: nil)
@@ -1957,7 +1939,6 @@ class %sSerializer: SDSSerializer {
         else:
             optional_value = ' = nil'
 
-        # print 'property', property.swift_type_safe()
         record_field_type = property.record_field_type()
 
         is_optional = property.is_optional or force_optional
@@ -2007,8 +1988,7 @@ public extension %(model_name)s {
 ''' % { "model_name": str(clazz.name), "record_name": clazz.record_name(), }
 
 
-    # print 'swift_body', swift_body
-    print('Writing:', swift_filepath)
+    print(f"Writing {swift_filename}")
 
     swift_body = sds_common.clean_up_generated_swift(swift_body)
 
@@ -2019,7 +1999,6 @@ public extension %(model_name)s {
 
 
 def process_class_map(class_map):
-    print('processing', class_map)
     for clazz in class_map.values():
         generate_swift_extensions_for_model(clazz)
 
@@ -2031,8 +2010,6 @@ record_type_map = {}
 # It's critical that our "record type" values are consistent, even if we add/remove/rename model classes.
 # Therefore we persist the mapping of known classes in a JSON file that is under source control.
 def update_record_type_map(record_type_swift_path, record_type_json_path):
-    print('update_record_type_map')
-
     record_type_map_filepath = record_type_json_path
 
     if os.path.exists(record_type_map_filepath):
@@ -2093,13 +2070,11 @@ public enum SDSRecordType: UInt, CaseIterable {
         
     record_type_pairs.sort(key=lambda value: value[1])
     for (enum_name, record_type_id) in record_type_pairs:
-        # print 'enum_name', enum_name
         swift_body += '''    case %s = %s
 ''' % ( enum_name, str(record_type_id), )
 
     swift_body += '''}
 '''
-    # print 'swift_body', swift_body
 
     swift_body = sds_common.clean_up_generated_swift(swift_body)
 
@@ -2174,18 +2149,14 @@ def parse_sds_json(file_path):
     with open(file_path, 'rt') as f:
         json_str = f.read()
     json_data = json.loads(json_str)
-    # print 'json_data:', json_data
 
     classes = json_data['classes']
     class_map = {}
     for class_dict in classes:
-        # print 'class_dict:', class_dict
         clazz = ParsedClass(class_dict)
         class_map[clazz.name] = clazz
 
     enums = json_data['enums']
-    # print '---- enums', file_path
-    # print '---- enums', enums
     enum_type_map.update(enums)
 
     return class_map
@@ -2193,18 +2164,14 @@ def parse_sds_json(file_path):
 
 def try_to_parse_file(file_path):
     filename = os.path.basename(file_path)
-    # print 'filename', filename
     _, file_extension = os.path.splitext(filename)
     if filename.endswith(sds_common.SDS_JSON_FILE_EXTENSION):
-        # print 'filename:', filename
-        print('\t', 'found', file_path)
         return parse_sds_json(file_path)
     else:
         return {}
 
 
 def find_sds_intermediary_files_in_path(path):
-    print('find_sds_intermediary_files_in_path', path)
     class_map = {}
     if os.path.isfile(path):
         class_map.update(try_to_parse_file(path))
@@ -2227,8 +2194,6 @@ def update_subclass_map():
 def all_descendents_of_class(clazz):
     result = []
 
-    # print 'descendents of:', clazz.name
-    # print '\t', global_subclass_map.get(clazz.name, [])
     subclasses = global_subclass_map.get(clazz.name, [])
     subclasses.sort(key=lambda value: value.name)
     for subclass in subclasses:
@@ -2247,8 +2212,6 @@ def is_swift_class_name(swift_type):
 configuration_json = {}
 
 def parse_config_json(config_json_path):
-    print('config_json_path', config_json_path)
-
     with open(config_json_path, 'rt') as f:
         json_str = f.read()
 
@@ -2319,7 +2282,6 @@ def accessor_name_for_property(property):
     if custom_accessors is None:
         fail('Configuration JSON is missing list of custom property accessors.')
     key = property.class_name + '.' + property.name
-    # print '--?--', key, custom_accessors.get(key, property.name)
     return custom_accessors.get(key, property.name)
 
 
@@ -2329,7 +2291,6 @@ def custom_column_name_for_property(property):
     if custom_column_names is None:
         fail('Configuration JSON is missing list of custom column names.')
     key = property.class_name + '.' + property.name
-    # print '--?--', key, custom_accessors.get(key, property.name)
     return custom_column_names.get(key)
 
 def aliased_column_name_for_property(property):
@@ -2345,7 +2306,6 @@ def was_property_renamed_for_property(property):
     if renamed_column_names is None:
         fail('Configuration JSON is missing list of renamed column names.')
     key = property.class_name + '.' + property.name
-    # print '--?--', key, custom_accessors.get(key, property.name)
     return renamed_column_names.get(key) is not None
 
 
@@ -2354,8 +2314,6 @@ def was_property_renamed_for_property(property):
 property_order_json = {}
 
 def parse_property_order_json(property_order_json_path):
-    print('property_order_json_path', property_order_json_path)
-
     with open(property_order_json_path, 'rt') as f:
         json_str = f.read()
 
@@ -2406,12 +2364,7 @@ if __name__ == "__main__":
     property_order_json_path = os.path.abspath(args.property_order_json_path)
 
     # We control the code generation process using a JSON config file.
-    print()
-    print('Parsing Config')
     parse_config_json(config_json_path)
-
-    print()
-    print('Parsing Config')
     parse_property_order_json(property_order_json_path)
 
     # The code generation needs to understand the class hierarchy so that
@@ -2421,19 +2374,9 @@ if __name__ == "__main__":
     #   the model class hierarchies.
     # * Generate deserialization methods that handle all subclasses.
     # * etc.
-    print()
-    print('Parsing Global Class Map')
     global_class_map.update(find_sds_intermediary_files_in_path(search_path))
-    print('global_class_map', global_class_map)
-
     update_subclass_map()
-
-    print()
-    print('Parsing Record Type Map')
     update_record_type_map(record_type_swift_path, record_type_json_path)
-
-    print()
-    print('Processing')
     process_class_map(find_sds_intermediary_files_in_path(src_path))
 
     # Persist updated property order

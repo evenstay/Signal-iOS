@@ -6,6 +6,7 @@
 import Foundation
 import GRDB
 import SignalServiceKit
+import SignalUI
 
 protocol StoryListDataSourceDelegate: AnyObject {
 
@@ -17,7 +18,7 @@ protocol StoryListDataSourceDelegate: AnyObject {
 
 class StoryListDataSource: NSObject, Dependencies {
 
-    private let loadingQueue = DispatchQueue(label: "StoryListDataSource.loadingQueue", qos: .userInitiated)
+    private let loadingQueue = DispatchQueue(label: "org.signal.story-list.loading", qos: .userInitiated)
 
     private lazy var syncingModels = SyncingStoryListViewModel(loadingQueue: loadingQueue)
 
@@ -27,8 +28,11 @@ class StoryListDataSource: NSObject, Dependencies {
 
     private weak var delegate: StoryListDataSourceDelegate?
 
-    init(delegate: StoryListDataSourceDelegate) {
+    private let spoilerState: SpoilerRenderState
+
+    init(delegate: StoryListDataSourceDelegate, spoilerState: SpoilerRenderState) {
         self.delegate = delegate
+        self.spoilerState = spoilerState
         super.init()
     }
 
@@ -256,15 +260,15 @@ class StoryListDataSource: NSObject, Dependencies {
     private func observeAssociatedDataChangesForAvailableModels() {
         let models = self.syncingModels.exposedModel.stories
         var associatedDataContexts = Set<StoryContextAssociatedData.SourceContext>()
-        var contactUuids = Set<String>()
+        var contactAciStrings = Set<String>()
         var groupIds = Set<Data>()
         models.forEach {
             guard let associatedDataContext = $0.context.asAssociatedDataContext else { return }
             owsAssertDebug(!associatedDataContexts.contains(associatedDataContext), "Have two story models on the same context!")
             associatedDataContexts.insert(associatedDataContext)
             switch associatedDataContext {
-            case .contact(let contactUuid):
-                contactUuids.insert(contactUuid.uuidString)
+            case .contact(let contactAci):
+                contactAciStrings.insert(contactAci.serviceIdUppercaseString)
             case .group(let groupId):
                 groupIds.insert(groupId)
             }
@@ -279,7 +283,7 @@ class StoryListDataSource: NSObject, Dependencies {
         let observation = ValueObservation.tracking { db in
             try StoryContextAssociatedData
                 .filter(
-                    contactUuids.contains(Column(StoryContextAssociatedData.columnName(.contactUuid)))
+                    contactAciStrings.contains(Column(StoryContextAssociatedData.columnName(.contactAci)))
                     || groupIds.contains(Column(StoryContextAssociatedData.columnName(.groupId)))
                 )
                 .fetchAll(db)
@@ -682,7 +686,7 @@ class StoryListDataSource: NSObject, Dependencies {
                     guard let model = models[safe: newIndex] else {
                         return owsFailDebug("Missing model for story")
                     }
-                    visibleCell.configure(with: model)
+                    visibleCell.configure(with: model, spoilerState: spoilerState)
                 } else {
                     tableView.reloadRows(at: [path], with: .none)
                 }

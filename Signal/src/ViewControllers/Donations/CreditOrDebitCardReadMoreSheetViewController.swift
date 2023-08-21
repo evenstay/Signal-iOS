@@ -3,7 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalCoreKit
+import SignalUI
 
 public class CreditOrDebitCardReadMoreSheetViewController: OWSTableSheetViewController {
     override public func updateTableContents(shouldReload: Bool = true) {
@@ -15,18 +16,18 @@ public class CreditOrDebitCardReadMoreSheetViewController: OWSTableSheetViewCont
 
         section.add(.init(customCellBlock: {
             let headerLabel = UILabel()
-            headerLabel.font = .ows_dynamicTypeTitle2.ows_semibold
+            headerLabel.font = .dynamicTypeTitle2.semibold()
             headerLabel.textAlignment = .center
             headerLabel.numberOfLines = 0
-            headerLabel.text = NSLocalizedString(
+            headerLabel.text = OWSLocalizedString(
                 "CARD_DONATION_READ_MORE_SHEET_TITLE",
                 comment: "Users can choose to learn more about their credit/debit card donations, which will open a sheet with additional information. This is the title of that sheet."
             )
 
             let descriptionLabel = UILabel()
-            descriptionLabel.font = .ows_dynamicTypeBody
+            descriptionLabel.font = .dynamicTypeBody
             descriptionLabel.numberOfLines = 0
-            descriptionLabel.text = NSLocalizedString(
+            descriptionLabel.text = OWSLocalizedString(
                 "CARD_DONATION_READ_MORE_SHEET_BODY",
                 comment: "Users can choose to learn more about their credit/debit card donations, which will open a sheet with additional information. This is the body text of that sheet."
             )
@@ -43,6 +44,6 @@ public class CreditOrDebitCardReadMoreSheetViewController: OWSTableSheetViewCont
             return cell
         }))
 
-        contents.addSection(section)
+        contents.add(section)
     }
 }

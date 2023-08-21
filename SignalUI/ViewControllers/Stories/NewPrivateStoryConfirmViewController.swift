@@ -8,7 +8,6 @@ import SafariServices
 import SignalMessaging
 import SignalServiceKit
 
-@objc
 public class NewPrivateStoryConfirmViewController: OWSTableViewController2 {
 
     let recipientSet: OrderedSet<PickedRecipient>
@@ -26,7 +25,6 @@ public class NewPrivateStoryConfirmViewController: OWSTableViewController2 {
 
     // MARK: - View Lifecycle
 
-    @objc
     public override func viewDidLoad() {
         super.viewDidLoad()
 
@@ -70,7 +68,7 @@ public class NewPrivateStoryConfirmViewController: OWSTableViewController2 {
     private lazy var nameTextField: UITextField = {
         let textField = UITextField()
 
-        textField.font = .ows_dynamicTypeBody
+        textField.font = .dynamicTypeBody
         textField.backgroundColor = .clear
         textField.placeholder = OWSLocalizedString(
             "NEW_PRIVATE_STORY_NAME_PLACEHOLDER",
@@ -107,12 +105,12 @@ public class NewPrivateStoryConfirmViewController: OWSTableViewController2 {
             },
             actionBlock: {}
         ))
-        contents.addSection(nameAndAvatarSection)
+        contents.add(nameAndAvatarSection)
 
         let repliesSection = OWSTableSection()
         repliesSection.headerTitle = StoryStrings.repliesAndReactionsHeader
         repliesSection.footerTitle = StoryStrings.repliesAndReactionsFooter
-        contents.addSection(repliesSection)
+        contents.add(repliesSection)
 
         repliesSection.add(.switch(
             withText: StoryStrings.repliesAndReactionsToggle,
@@ -152,7 +150,7 @@ public class NewPrivateStoryConfirmViewController: OWSTableViewController2 {
                     return cell
                 }))
         }
-        contents.addSection(viewersSection)
+        contents.add(viewersSection)
 
         self.contents = contents
     }
@@ -160,10 +158,10 @@ public class NewPrivateStoryConfirmViewController: OWSTableViewController2 {
     // MARK: - Actions
 
     @objc
-    func didTapCreate() {
+    private func didTapCreate() {
         AssertIsOnMainThread()
 
-        guard let name = nameTextField.text?.filterForDisplay?.nilIfEmpty else {
+        guard let name = nameTextField.text?.filterForDisplay.nilIfEmpty else {
             return showMissingNameAlert()
         }
 
@@ -187,14 +185,15 @@ public class NewPrivateStoryConfirmViewController: OWSTableViewController2 {
                     backingItem: .privateStory(.init(
                         storyThreadId: newStory.uniqueId,
                         isMyStory: false
-                    ))
+                    )),
+                    storyState: nil
                 )]
             )
         }
     }
 
     @objc
-    func didToggleReplies() {
+    private func didToggleReplies() {
         allowsReplies = !allowsReplies
     }
 

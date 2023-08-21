@@ -4,6 +4,8 @@
 //
 
 import Foundation
+import LibSignalClient
+import SignalCoreKit
 
 public class OutgoingStorySentMessageTranscript: OWSOutgoingSyncMessage {
     // Exposed to ObjC and made optional for MTLModel serialization
@@ -17,11 +19,11 @@ public class OutgoingStorySentMessageTranscript: OWSOutgoingSyncMessage {
     @objc
     private var isRecipientUpdate: NSNumber!
 
-    public init(localThread: TSThread, timestamp: UInt64, recipientStates: [UUID: StoryRecipientState], transaction: SDSAnyReadTransaction) {
+    public init(localThread: TSThread, timestamp: UInt64, recipientStates: [ServiceId: StoryRecipientState], transaction: SDSAnyReadTransaction) {
         // We need to store the encoded data rather than just the uniqueId
         // of the story message as the story message will have been deleted
         // by the time we're sending this transcript.
-        self.storyEncodedRecipientStates = try? JSONEncoder().encode(recipientStates)
+        self.storyEncodedRecipientStates = Self.encodeRecipientStates(recipientStates)
         self.isRecipientUpdate = NSNumber(value: true)
         super.init(timestamp: timestamp, thread: localThread, transaction: transaction)
     }
@@ -30,6 +32,19 @@ public class OutgoingStorySentMessageTranscript: OWSOutgoingSyncMessage {
         self.storyMessageUniqueId = storyMessage.uniqueId
         self.isRecipientUpdate = NSNumber(value: false)
         super.init(timestamp: storyMessage.timestamp, thread: localThread, transaction: transaction)
+    }
+
+    private static func encodeRecipientStates(_ recipientStates: [ServiceId: StoryRecipientState]) -> Data? {
+        return try? JSONEncoder().encode(recipientStates.mapKeys(injectiveTransform: { $0.codableUppercaseString }))
+    }
+
+    private static func decodeRecipientStates(_ encodedRecipientStates: Data?) -> [ServiceId: StoryRecipientState]? {
+        guard let encodedRecipientStates else {
+            return nil
+        }
+        return (try? JSONDecoder().decode(
+            [ServiceIdUppercaseString: StoryRecipientState].self, from: encodedRecipientStates
+        ))?.mapKeys(injectiveTransform: { $0.wrappedValue })
     }
 
     public override var isUrgent: Bool { false }
@@ -58,13 +73,9 @@ public class OutgoingStorySentMessageTranscript: OWSOutgoingSyncMessage {
                 return nil
             }
 
-            guard applyRecipientStates(recipientStates, sentBuilder: sentBuilder) else { return nil }
-        } else if let storyEncodedRecipientStates = storyEncodedRecipientStates,
-                  let recipientStates = try? JSONDecoder().decode(
-                    [UUID: StoryRecipientState].self,
-                    from: storyEncodedRecipientStates
-                  ) {
-            guard applyRecipientStates(recipientStates, sentBuilder: sentBuilder) else { return nil }
+            applyRecipientStates(recipientStates, sentBuilder: sentBuilder)
+        } else if let recipientStates = Self.decodeRecipientStates(storyEncodedRecipientStates) {
+            applyRecipientStates(recipientStates, sentBuilder: sentBuilder)
         } else {
             owsFailDebug("Missing recipient states")
             return nil
@@ -82,35 +93,32 @@ public class OutgoingStorySentMessageTranscript: OWSOutgoingSyncMessage {
         }
     }
 
-    private func applyRecipientStates(_ recipientStates: [UUID: StoryRecipientState], sentBuilder: SSKProtoSyncMessageSentBuilder) -> Bool {
-        for (uuid, state) in recipientStates {
+    private func applyRecipientStates(_ recipientStates: [ServiceId: StoryRecipientState], sentBuilder: SSKProtoSyncMessageSentBuilder) {
+        for (serviceId, state) in recipientStates {
             let builder = SSKProtoSyncMessageSentStoryMessageRecipient.builder()
-            builder.setDestinationUuid(uuid.uuidString)
+            builder.setDestinationServiceID(serviceId.serviceIdString)
             builder.setDistributionListIds(state.contexts.map { $0.uuidString })
             builder.setIsAllowedToReply(state.allowsReplies)
-            do {
-                sentBuilder.addStoryMessageRecipients(try builder.build())
-            } catch {
-                owsFailDebug("Failed to prepare proto for story recipient \(uuid.uuidString) \(error)")
-                return false
-            }
+            sentBuilder.addStoryMessageRecipients(builder.buildInfallibly())
         }
-
-        return true
     }
 
     private func storyMessageProto(for storyMessage: StoryMessage, transaction: SDSAnyReadTransaction) -> SSKProtoStoryMessage? {
         let builder = SSKProtoStoryMessage.builder()
 
         switch storyMessage.attachment {
-        case .file(let attachmentId):
-            guard let attachmentProto = TSAttachmentStream.buildProto(forAttachmentId: attachmentId, transaction: transaction) else {
+        case .file(let file):
+            guard let attachmentProto = TSAttachmentStream.buildProto(forAttachmentId: file.attachmentId, transaction: transaction) else {
                 owsFailDebug("Missing attachment for outgoing story message")
                 return nil
             }
             builder.setFileAttachment(attachmentProto)
+            builder.setBodyRanges(file.captionProtoBodyRanges())
         case .text(let attachment):
-            guard let attachmentProto = try? attachment.buildProto(transaction: transaction) else {
+            guard let attachmentProto = try? attachment.buildProto(
+                bodyRangeHandler: builder.setBodyRanges(_:),
+                transaction: transaction
+            ) else {
                 owsFailDebug("Missing attachment for outgoing story message")
                 return nil
             }

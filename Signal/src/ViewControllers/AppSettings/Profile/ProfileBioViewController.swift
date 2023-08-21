@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
-import UIKit
+import SignalServiceKit
+import SignalUI
 
 protocol ProfileBioViewControllerDelegate: AnyObject {
     func profileBioViewDidComplete(bio: String?,
@@ -13,7 +13,6 @@ protocol ProfileBioViewControllerDelegate: AnyObject {
 
 // MARK: -
 
-@objc
 class ProfileBioViewController: OWSTableViewController2 {
 
     private weak var profileDelegate: ProfileBioViewControllerDelegate?
@@ -90,11 +89,11 @@ class ProfileBioViewController: OWSTableViewController2 {
            let normalizedProfileBio = self.normalizedProfileBio,
            !normalizedProfileBio.isEmpty {
             let remainingGlyphCount = max(0, OWSUserProfile.kMaxBioLengthGlyphs - normalizedProfileBio.glyphCount)
-            let titleFormat = NSLocalizedString("PROFILE_BIO_VIEW_TITLE_FORMAT",
+            let titleFormat = OWSLocalizedString("PROFILE_BIO_VIEW_TITLE_FORMAT",
                                                 comment: "Title for the profile bio view. Embeds {{ the number of characters that can be added to the profile bio without hitting the length limit }}.")
             title = String(format: titleFormat, OWSFormat.formatInt(remainingGlyphCount))
         } else {
-            title = NSLocalizedString("PROFILE_BIO_VIEW_TITLE", comment: "Title for the profile bio view.")
+            title = OWSLocalizedString("PROFILE_BIO_VIEW_TITLE", comment: "Title for the profile bio view.")
         }
 
         navigationItem.leftBarButtonItem = UIBarButtonItem(
@@ -160,8 +159,7 @@ class ProfileBioViewController: OWSTableViewController2 {
         emojiButton.block = { [weak self] in
             self?.didTapEmojiButton()
         }
-        addEmojiImageView.setTemplateImageName("add-emoji-outline-24",
-                                               tintColor: Theme.secondaryTextAndIconColor)
+        addEmojiImageView.setTemplateImageName("emoji-plus", tintColor: Theme.secondaryTextAndIconColor)
         addEmojiImageView.autoSetDimensions(to: .square(Self.bioButtonHeight))
         emojiButton.addSubview(bioEmojiLabel)
         emojiButton.addSubview(addEmojiImageView)
@@ -173,7 +171,7 @@ class ProfileBioViewController: OWSTableViewController2 {
         updateEmojiViews()
 
         bioTextField.returnKeyType = .done
-        bioTextField.placeholder = NSLocalizedString("PROFILE_BIO_VIEW_BIO_PLACEHOLDER",
+        bioTextField.placeholder = OWSLocalizedString("PROFILE_BIO_VIEW_BIO_PLACEHOLDER",
                                                             comment: "Placeholder text for the bio field of the profile bio view.")
         bioTextField.delegate = self
         bioTextField.accessibilityIdentifier = "bio_textfield"
@@ -182,7 +180,7 @@ class ProfileBioViewController: OWSTableViewController2 {
         bioTextField.addTarget(self, action: #selector(textFieldDidChange), for: .editingDidEnd)
 
         let cancelColor = Theme.isDarkThemeEnabled ? UIColor.ows_gray45 : UIColor.ows_gray25
-        let cancelIcon = UIImageView.withTemplateImageName("x-circle-solid-16", tintColor: cancelColor)
+        let cancelIcon = UIImageView.withTemplateImageName("x-circle-fill-compact", tintColor: cancelColor)
 
         cancelIcon.autoSetDimensions(to: .square(16))
         cancelButton.autoSetDimensions(to: .square(Self.bioButtonHeight))
@@ -204,12 +202,12 @@ class ProfileBioViewController: OWSTableViewController2 {
         bioSection.add(OWSTableItem(customCellBlock: {
             let cell = OWSTableItem.newCell()
 
-            bioEmojiLabel.font = .ows_dynamicTypeBodyClamped
+            bioEmojiLabel.font = .dynamicTypeBodyClamped
             bioEmojiLabel.textColor = Theme.primaryTextColor
             bioEmojiLabel.setContentHuggingHorizontalHigh()
             bioEmojiLabel.setCompressionResistanceHorizontalHigh()
 
-            bioTextField.font = .ows_dynamicTypeBodyClamped
+            bioTextField.font = .dynamicTypeBodyClamped
             bioTextField.textColor = Theme.primaryTextColor
             bioTextField.setContentHuggingHorizontalLow()
             bioTextField.setCompressionResistanceHorizontalLow()
@@ -224,7 +222,7 @@ class ProfileBioViewController: OWSTableViewController2 {
             return cell
         },
         actionBlock: nil))
-        contents.addSection(bioSection)
+        contents.add(bioSection)
 
         let defaultBiosSection = OWSTableSection()
         for defaultBio in DefaultBio.values {
@@ -233,12 +231,12 @@ class ProfileBioViewController: OWSTableViewController2 {
 
                 let emojiLabel = UILabel()
                 emojiLabel.text = defaultBio.emoji
-                emojiLabel.font = .ows_dynamicTypeBodyClamped
+                emojiLabel.font = .dynamicTypeBodyClamped
                 emojiLabel.textColor = Theme.primaryTextColor
 
                 let bioLabel = UILabel()
                 bioLabel.text = defaultBio.bio
-                bioLabel.font = .ows_dynamicTypeBodyClamped
+                bioLabel.font = .dynamicTypeBodyClamped
                 bioLabel.textColor = Theme.primaryTextColor
 
                 emojiLabel.setContentHuggingHorizontalHigh()
@@ -260,7 +258,7 @@ class ProfileBioViewController: OWSTableViewController2 {
                 self?.didTapDefaultBio(defaultBio)
             }))
         }
-        contents.addSection(defaultBiosSection)
+        contents.add(defaultBiosSection)
 
         self.contents = contents
     }
@@ -271,31 +269,31 @@ class ProfileBioViewController: OWSTableViewController2 {
 
         static let values = [
             DefaultBio(emoji: "👋",
-                       bio: NSLocalizedString("PROFILE_BIO_VIEW_DEFAULT_BIO_SPEAK_FREELY",
+                       bio: OWSLocalizedString("PROFILE_BIO_VIEW_DEFAULT_BIO_SPEAK_FREELY",
                                               comment: "The 'Speak Freely' default bio in the profile bio view.")),
             DefaultBio(emoji: "🤐",
-                       bio: NSLocalizedString("PROFILE_BIO_VIEW_DEFAULT_BIO_ENCRYPTED",
+                       bio: OWSLocalizedString("PROFILE_BIO_VIEW_DEFAULT_BIO_ENCRYPTED",
                                               comment: "The 'Encrypted' default bio in the profile bio view.")),
             DefaultBio(emoji: "👍",
-                       bio: NSLocalizedString("PROFILE_BIO_VIEW_DEFAULT_BIO_FREE_TO_CHAT",
+                       bio: OWSLocalizedString("PROFILE_BIO_VIEW_DEFAULT_BIO_FREE_TO_CHAT",
                                               comment: "The 'free to chat' default bio in the profile bio view.")),
             DefaultBio(emoji: "☕",
-                       bio: NSLocalizedString("PROFILE_BIO_VIEW_DEFAULT_BIO_COFFEE_LOVER",
+                       bio: OWSLocalizedString("PROFILE_BIO_VIEW_DEFAULT_BIO_COFFEE_LOVER",
                                               comment: "The 'Coffee lover' default bio in the profile bio view.")),
             DefaultBio(emoji: "📵",
-                       bio: NSLocalizedString("PROFILE_BIO_VIEW_DEFAULT_BIO_TAKING_A_BREAK",
+                       bio: OWSLocalizedString("PROFILE_BIO_VIEW_DEFAULT_BIO_TAKING_A_BREAK",
                                               comment: "The 'Taking a break' default bio in the profile bio view.")),
             DefaultBio(emoji: "🙏",
-                       bio: NSLocalizedString("PROFILE_BIO_VIEW_DEFAULT_BIO_BE_KIND",
+                       bio: OWSLocalizedString("PROFILE_BIO_VIEW_DEFAULT_BIO_BE_KIND",
                                               comment: "The 'Be kind' default bio in the profile bio view.")),
             DefaultBio(emoji: "🚀",
-                       bio: NSLocalizedString("PROFILE_BIO_VIEW_DEFAULT_BIO_WORKING_ON_SOMETHING_NEW",
+                       bio: OWSLocalizedString("PROFILE_BIO_VIEW_DEFAULT_BIO_WORKING_ON_SOMETHING_NEW",
                                               comment: "The 'Working on something new' default bio in the profile bio view."))
         ]
     }
 
     @objc
-    func didTapCancel() {
+    private func didTapCancel() {
         guard hasUnsavedChanges else {
             dismiss(animated: true)
             return
@@ -307,7 +305,7 @@ class ProfileBioViewController: OWSTableViewController2 {
     }
 
     @objc
-    func didTapDone() {
+    private func didTapDone() {
         profileDelegate?.profileBioViewDidComplete(bio: normalizedProfileBio,
                                                    bioEmoji: normalizedProfileBioEmoji)
 
@@ -321,7 +319,7 @@ class ProfileBioViewController: OWSTableViewController2 {
     private var anyReactionPicker: EmojiPickerSheet?
 
     private func showAnyEmojiPicker() {
-        let picker = EmojiPickerSheet(allowReactionConfiguration: false) { [weak self] emoji in
+        let picker = EmojiPickerSheet(message: nil, allowReactionConfiguration: false) { [weak self] emoji in
             guard let emoji = emoji else {
                 return
             }

@@ -3,10 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalServiceKit
+import SignalUI
 
-@objc
 public class StickerPackViewController: OWSViewController {
 
     // MARK: Properties
@@ -19,7 +18,6 @@ public class StickerPackViewController: OWSViewController {
 
     // MARK: Initializers
 
-    @objc
     public required init(stickerPackInfo: StickerPackInfo) {
         self.stickerPackInfo = stickerPackInfo
         self.dataSource = TransientStickerPackDataSource(stickerPackInfo: stickerPackInfo,
@@ -31,7 +29,6 @@ public class StickerPackViewController: OWSViewController {
         stickerCollectionView.show(dataSource: dataSource)
         dataSource.add(delegate: self)
 
-        NotificationCenter.default.addObserver(self, selector: #selector(didChangeStatusBarFrame), name: UIApplication.didChangeStatusBarFrameNotification, object: nil)
         NotificationCenter.default.addObserver(self,
                                                selector: #selector(stickersOrPacksDidChange),
                                                name: StickerManager.stickersOrPacksDidChange,
@@ -44,28 +41,10 @@ public class StickerPackViewController: OWSViewController {
         return true
     }
 
-    @objc
-    public func present(from fromViewController: UIViewController,
-                        animated: Bool) {
+    public func present(from fromViewController: UIViewController, animated: Bool) {
         AssertIsOnMainThread()
 
-        if #available(iOS 13, *) {
-            // iOS 13 on the iOS 13 SDK handles the modal blur correctly.
-            fromViewController.presentFormSheet(self, animated: animated) {
-                // ensure any presented keyboard is dismissed, this seems to be
-                // an issue only when opening signal from a universal link in
-                // an external app
-                self.becomeFirstResponder()
-            }
-            return
-        }
-
-        // Pre-iOS 13, or without the iOS 13 SDK, we need to manually setup the
-        // form sheet in order to allow it to blur and show through the background.
-
-        modalPresentationStyle = .custom
-        transitioningDelegate = self
-        fromViewController.present(self, animated: animated) {
+        fromViewController.presentFormSheet(self, animated: animated) {
             // ensure any presented keyboard is dismissed, this seems to be
             // an issue only when opening signal from a universal link in
             // an external app
@@ -92,7 +71,7 @@ public class StickerPackViewController: OWSViewController {
 
         let hMargin: CGFloat = 16
 
-        dismissButton.setTemplateImageName("x-24", tintColor: Theme.darkThemePrimaryColor)
+        dismissButton.setTemplateImage(Theme.iconImage(.buttonX), tintColor: Theme.darkThemePrimaryColor)
         dismissButton.addTarget(self, action: #selector(dismissButtonPressed(sender:)), for: .touchUpInside)
         dismissButton.contentEdgeInsets = UIEdgeInsets(top: 20, leading: hMargin, bottom: 20, trailing: hMargin)
         dismissButton.accessibilityIdentifier = UIView.accessibilityIdentifier(in: self, name: "dismissButton")
@@ -104,14 +83,14 @@ public class StickerPackViewController: OWSViewController {
         titleLabel.textColor = Theme.darkThemePrimaryColor
         titleLabel.numberOfLines = 2
         titleLabel.lineBreakMode = .byWordWrapping
-        titleLabel.font = UIFont.ows_dynamicTypeTitle1.ows_semibold
+        titleLabel.font = UIFont.dynamicTypeTitle1.semibold()
 
-        authorLabel.font = UIFont.ows_dynamicTypeBody
+        authorLabel.font = UIFont.dynamicTypeBody
 
-        defaultPackIconView.setTemplateImageName("check-circle-filled-16", tintColor: Theme.accentBlueColor)
+        defaultPackIconView.setTemplateImageName("check-circle-fill-compact", tintColor: Theme.accentBlueColor)
         defaultPackIconView.isHidden = true
 
-        shareButton.setTemplateImageName("forward-solid-24", tintColor: Theme.darkThemePrimaryColor)
+        shareButton.setTemplateImageName("forward-fill", tintColor: Theme.darkThemePrimaryColor)
         shareButton.addTarget(self, action: #selector(shareButtonPressed(sender:)), for: .touchUpInside)
         shareButton.accessibilityIdentifier = UIView.accessibilityIdentifier(in: self, name: "shareButton")
 
@@ -148,16 +127,16 @@ public class StickerPackViewController: OWSViewController {
         stickerCollectionView.autoPinWidthToSuperview()
         stickerCollectionView.autoPinEdge(.top, to: .bottom, of: headerStack)
 
-        let installButton = OWSFlatButton.button(title: NSLocalizedString("STICKERS_INSTALL_BUTTON", comment: "Label for the 'install sticker pack' button."),
-                                             font: UIFont.ows_dynamicTypeBody.ows_semibold,
+        let installButton = OWSFlatButton.button(title: OWSLocalizedString("STICKERS_INSTALL_BUTTON", comment: "Label for the 'install sticker pack' button."),
+                                             font: UIFont.dynamicTypeBody.semibold(),
                                              titleColor: Theme.accentBlueColor,
                                              backgroundColor: UIColor.white,
                                              target: self,
                                              selector: #selector(didTapInstall))
         self.installButton = installButton
         installButton.accessibilityIdentifier = UIView.accessibilityIdentifier(in: self, name: "installButton")
-        let uninstallButton = OWSFlatButton.button(title: NSLocalizedString("STICKERS_UNINSTALL_BUTTON", comment: "Label for the 'uninstall sticker pack' button."),
-                                             font: UIFont.ows_dynamicTypeBody.ows_semibold,
+        let uninstallButton = OWSFlatButton.button(title: OWSLocalizedString("STICKERS_UNINSTALL_BUTTON", comment: "Label for the 'uninstall sticker pack' button."),
+                                             font: UIFont.dynamicTypeBody.semibold(),
                                              titleColor: Theme.accentBlueColor,
                                              backgroundColor: UIColor.white,
                                              target: self,
@@ -175,9 +154,9 @@ public class StickerPackViewController: OWSViewController {
         view.addSubview(loadingIndicator)
         loadingIndicator.autoCenterInSuperview()
 
-        loadFailedLabel.text = NSLocalizedString("STICKERS_PACK_VIEW_FAILED_TO_LOAD",
+        loadFailedLabel.text = OWSLocalizedString("STICKERS_PACK_VIEW_FAILED_TO_LOAD",
                                                  comment: "Label indicating that the sticker pack failed to load.")
-        loadFailedLabel.font = UIFont.ows_dynamicTypeBody
+        loadFailedLabel.font = UIFont.dynamicTypeBody
         loadFailedLabel.textColor = Theme.darkThemePrimaryColor
         loadFailedLabel.textAlignment = .center
         loadFailedLabel.numberOfLines = 0
@@ -199,6 +178,11 @@ public class StickerPackViewController: OWSViewController {
         }
     }
 
+    override public func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
+        super.viewWillTransition(to: size, with: coordinator)
+        didChangeStatusBarFrame()
+    }
+
     private let dismissButton = UIButton()
     private let coverView = StickerReusableView()
     private let titleLabel = UILabel()
@@ -207,7 +191,7 @@ public class StickerPackViewController: OWSViewController {
     private let shareButton = UIButton()
     private var installButton: OWSFlatButton?
     private var uninstallButton: OWSFlatButton?
-    private var loadingIndicator = UIActivityIndicatorView(style: .whiteLarge)
+    private var loadingIndicator = UIActivityIndicatorView(style: .large)
     private var loadFailedLabel = UILabel()
     // We use this timer to ensure that we don't show the
     // loading indicator for N seconds, to prevent a "flash"
@@ -242,7 +226,7 @@ public class StickerPackViewController: OWSViewController {
             return
         }
 
-        let defaultTitle = NSLocalizedString("STICKERS_PACK_VIEW_DEFAULT_TITLE", comment: "The default title for the 'sticker pack' view.")
+        let defaultTitle = OWSLocalizedString("STICKERS_PACK_VIEW_DEFAULT_TITLE", comment: "The default title for the 'sticker pack' view.")
         if let title = stickerPack.title?.ows_stripped(), !title.isEmpty {
             titleLabel.text = title.filterForDisplay
         } else {

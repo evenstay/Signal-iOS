@@ -11,7 +11,10 @@ NS_ASSUME_NONNULL_BEGIN
 extern NSNotificationName const OWSContactsManagerSignalAccountsDidChangeNotification;
 extern NSNotificationName const OWSContactsManagerContactsDidChangeNotification;
 
+@class AnyLRUCache;
 @class AnyPromise;
+@class AuthedAccount;
+@class OWSContactsManagerSwiftValues;
 @class SDSAnyReadTransaction;
 @class SDSKeyValueStore;
 @class SignalAccount;
@@ -20,14 +23,41 @@ extern NSNotificationName const OWSContactsManagerContactsDidChangeNotification;
 
 @protocol ContactsManagerCache;
 
+typedef NS_CLOSED_ENUM(NSUInteger, RawContactAuthorizationStatus) {
+    RawContactAuthorizationStatusNotDetermined,
+    RawContactAuthorizationStatusDenied,
+    RawContactAuthorizationStatusRestricted,
+    RawContactAuthorizationStatusAuthorized,
+};
+
+typedef NS_CLOSED_ENUM(NSUInteger, ContactAuthorizationForEditing) {
+    ContactAuthorizationForEditingNotAllowed,
+    ContactAuthorizationForEditingDenied,
+    ContactAuthorizationForEditingRestricted,
+    ContactAuthorizationForEditingAuthorized,
+};
+
+typedef NS_CLOSED_ENUM(NSUInteger, ContactAuthorizationForSharing) {
+    ContactAuthorizationForSharingNotDetermined,
+    ContactAuthorizationForSharingDenied,
+    ContactAuthorizationForSharingAuthorized,
+};
+
 /**
  * Get latest Signal contacts, and be notified when they change.
  */
 @interface OWSContactsManager : NSObject <ContactsManagerProtocol>
 
+- (id)new NS_UNAVAILABLE;
+
+- (id)init NS_UNAVAILABLE;
+
+- (id)initWithSwiftValues:(OWSContactsManagerSwiftValues *)swiftValues;
+
 @property (nonatomic, readonly) BOOL shouldSortByGivenName;
 
-@property (nonatomic, readonly) id<ContactsManagerCache> contactsManagerCache;
+@property (nonatomic, readonly) OWSContactsManagerSwiftValues *swiftValues;
+@property (nonatomic, readonly) AnyLRUCache *cnContactCache;
 
 #pragma mark - Accessors
 
@@ -42,23 +72,25 @@ extern NSNotificationName const OWSContactsManagerContactsDidChangeNotification;
 - (nullable NSString *)nameFromSystemContactsForAddress:(SignalServiceAddress *)address
                                             transaction:(SDSAnyReadTransaction *)transaction;
 
-// This will always return an instance of SignalAccount.
-- (SignalAccount *)fetchOrBuildSignalAccountForAddress:(SignalServiceAddress *)address;
-
 #pragma mark - System Contact Fetching
 
-// Must call `requestSystemContactsOnce` before accessing this method
-@property (nonatomic, readonly) BOOL isSystemContactsAuthorized;
-@property (nonatomic, readonly) BOOL isSystemContactsDenied;
-@property (nonatomic, readonly) BOOL systemContactsHaveBeenRequestedAtLeastOnce;
+@property (nonatomic, readonly) BOOL isEditingAllowed;
 
-@property (nonatomic, readonly) BOOL supportsContactEditing;
+// Must call `requestSystemContactsOnce` before accessing this method
+@property (nonatomic, readonly) ContactAuthorizationForEditing editingAuthorization;
+
+@property (nonatomic, readonly) ContactAuthorizationForSharing sharingAuthorization;
 
 @property (atomic, readonly) BOOL isSetup;
 
-// Not set until a contact fetch has completed.
-// Set even if no contacts are found.
-@property (nonatomic, readonly) BOOL hasLoadedSystemContacts;
+/// Whether or not we've fetched system contacts on this launch.
+///
+/// This property is set to true even if the user doesn't have any system
+/// contacts.
+///
+/// This property is only valid if the user has granted contacts access.
+/// Otherwise, it's value is undefined.
+@property (nonatomic) BOOL hasLoadedSystemContacts;
 
 // Request systems contacts and start syncing changes. The user will see an alert
 // if they haven't previously.
@@ -76,6 +108,8 @@ extern NSNotificationName const OWSContactsManagerContactsDidChangeNotification;
 
 #pragma mark - Util
 
+- (NSString *)comparableNameForContact:(Contact *)contact;
+
 /**
  * Used for sorting, respects system contacts name sort order preference.
  */
@@ -87,10 +121,6 @@ extern NSNotificationName const OWSContactsManagerContactsDidChangeNotification;
 
 - (nullable NSString *)phoneNumberForAddress:(SignalServiceAddress *)address
                                  transaction:(SDSAnyReadTransaction *)transaction;
-
-- (BOOL)isKnownRegisteredUserWithSneakyTransaction:(SignalServiceAddress *)address
-    NS_SWIFT_NAME(isKnownRegisteredUserWithSneakyTransaction(address:));
-- (BOOL)isKnownRegisteredUser:(SignalServiceAddress *)address transaction:(SDSAnyReadTransaction *)transaction;
 
 @end
 

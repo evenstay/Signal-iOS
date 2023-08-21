@@ -5,9 +5,8 @@
 
 import SignalCoreKit
 import SignalMessaging
-import UIKit
+import SignalUI
 
-@objc
 class MemberRequestView: UIStackView {
 
     private let thread: TSThread
@@ -47,18 +46,18 @@ class MemberRequestView: UIStackView {
         backgroundView.autoPinEdgesToSuperviewEdges()
 
         let label = UILabel()
-        label.font = .ows_dynamicTypeSubheadlineClamped
+        label.font = .dynamicTypeSubheadlineClamped
         label.textColor = Theme.secondaryTextAndIconColor
-        label.text = NSLocalizedString("MESSAGE_REQUESTS_CONVERSATION_REQUEST_INDICATOR",
+        label.text = OWSLocalizedString("MESSAGE_REQUESTS_CONVERSATION_REQUEST_INDICATOR",
                                        comment: "Indicator that you have requested to join this group.")
         label.numberOfLines = 0
         label.lineBreakMode = .byWordWrapping
         addArrangedSubview(label)
 
-        let cancelTitle = NSLocalizedString("MESSAGE_REQUESTS_CANCEL_REQUEST_BUTTON",
+        let cancelTitle = OWSLocalizedString("MESSAGE_REQUESTS_CANCEL_REQUEST_BUTTON",
                                             comment: "Label for button to cancel your request to join the group.")
         let cancelButton = OWSFlatButton.button(title: cancelTitle,
-                                                 font: UIFont.ows_dynamicTypeBody.ows_semibold,
+                                                 font: UIFont.dynamicTypeBody.semibold(),
                                                  titleColor: Theme.secondaryTextAndIconColor,
                                                  backgroundColor: Theme.washColor,
                                                  target: self,
@@ -78,7 +77,7 @@ class MemberRequestView: UIStackView {
     // MARK: -
 
     @objc
-    func didTapCancelButton(_ sender: UIButton) {
+    private func didTapCancelButton(_ sender: UIButton) {
         showCancelRequestUI()
     }
 
@@ -88,7 +87,7 @@ class MemberRequestView: UIStackView {
             return
         }
 
-        let title = NSLocalizedString("MESSAGE_REQUESTS_CANCEL_REQUEST_CONFIRM_TITLE",
+        let title = OWSLocalizedString("MESSAGE_REQUESTS_CANCEL_REQUEST_CONFIRM_TITLE",
                                             comment: "Title for the confirmation alert when cancelling your request to join the group.")
         let actionSheet = ActionSheetController(title: title)
 

@@ -86,6 +86,7 @@ public struct TestProtocolRunner {
                                     identityStore: recipientClient.identityKeyStore,
                                     preKeyStore: recipientClient.preKeyStore,
                                     signedPreKeyStore: recipientClient.signedPreKeyStore,
+                                    kyberPreKeyStore: recipientClient.kyberPreKeyStore,
                                     context: transaction)
 
         // Finally, Bob sends a message back to acknowledge the pre-key.
@@ -144,6 +145,7 @@ public protocol TestSignalClient {
     var sessionStore: SessionStore { get }
     var preKeyStore: PreKeyStore { get }
     var signedPreKeyStore: SignedPreKeyStore { get }
+    var kyberPreKeyStore: KyberPreKeyStore { get }
     var identityKeyStore: IdentityKeyStore { get }
 }
 
@@ -177,6 +179,7 @@ public struct FakeSignalClient: TestSignalClient {
     public var preKeyStore: PreKeyStore { return protocolStore }
     public var signedPreKeyStore: SignedPreKeyStore { return protocolStore }
     public var identityKeyStore: IdentityKeyStore { return protocolStore }
+    public var kyberPreKeyStore: KyberPreKeyStore { return protocolStore }
 
     public let e164Identifier: SignalE164Identifier?
     public let uuid: UUID
@@ -211,9 +214,14 @@ public struct FakeSignalClient: TestSignalClient {
 /// used in the app.
 public struct LocalSignalClient: TestSignalClient {
     public let identity: OWSIdentity
+    public let protocolStore: SignalProtocolStore
 
     public init(identity: OWSIdentity = .aci) {
         self.identity = identity
+        self.protocolStore = SignalProtocolStoreImpl(
+            for: identity,
+            keyValueStoreFactory: InMemoryKeyValueStoreFactory()
+        )
     }
 
     public var identityKeyPair: ECKeyPair {
@@ -234,15 +242,19 @@ public struct LocalSignalClient: TestSignalClient {
     public let deviceId: UInt32 = 1
 
     public var sessionStore: SessionStore {
-        return SSKEnvironment.shared.signalProtocolStore(for: identity).sessionStore
+        return protocolStore.sessionStore
     }
 
     public var preKeyStore: PreKeyStore {
-        return SSKEnvironment.shared.signalProtocolStore(for: identity).preKeyStore
+        return protocolStore.preKeyStore
     }
 
     public var signedPreKeyStore: SignedPreKeyStore {
-        return SSKEnvironment.shared.signalProtocolStore(for: identity).signedPreKeyStore
+        return protocolStore.signedPreKeyStore
+    }
+
+    public var kyberPreKeyStore: LibSignalClient.KyberPreKeyStore {
+        return protocolStore.kyberPreKeyStore
     }
 
     public var identityKeyStore: IdentityKeyStore {
@@ -390,7 +402,7 @@ public struct FakeService: Dependencies {
     public func buildSyncSentMessage(bodyText: String,
                                      recipient: SignalServiceAddress,
                                      timestamp: UInt64) throws -> Data {
-        guard let destinationUuid = recipient.uuidString else {
+        guard let destinationServiceId = recipient.serviceId else {
             owsFail("Cannot build sync message without a recipient UUID. Test is not set up correctly")
         }
 
@@ -401,7 +413,7 @@ public struct FakeService: Dependencies {
         let sentBuilder = SSKProtoSyncMessageSent.builder()
         sentBuilder.setMessage(try dataMessageBuilder.build())
         sentBuilder.setTimestamp(timestamp)
-        sentBuilder.setDestinationUuid(destinationUuid)
+        sentBuilder.setDestinationServiceID(destinationServiceId.serviceIdString)
         let syncMessageBuilder = SSKProtoSyncMessage.builder()
         syncMessageBuilder.setSent(try sentBuilder.build())
 

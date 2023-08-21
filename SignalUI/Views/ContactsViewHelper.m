@@ -4,16 +4,14 @@
 //
 
 #import "ContactsViewHelper.h"
-#import "UIUtil.h"
 #import <ContactsUI/ContactsUI.h>
 #import <SignalCoreKit/NSString+OWS.h>
-#import <SignalMessaging/Environment.h>
+#import <SignalMessaging/OWSContactsManager.h>
 #import <SignalMessaging/OWSProfileManager.h>
 #import <SignalMessaging/SignalMessaging-Swift.h>
 #import <SignalServiceKit/AppContext.h>
 #import <SignalServiceKit/Contact.h>
 #import <SignalServiceKit/PhoneNumber.h>
-#import <SignalServiceKit/SignalAccount.h>
 #import <SignalServiceKit/TSAccountManager.h>
 #import <SignalUI/SignalUI-Swift.h>
 
@@ -22,9 +20,6 @@ NS_ASSUME_NONNULL_BEGIN
 @interface ContactsViewHelper ()
 
 @property (nonatomic) NSHashTable<id<ContactsViewHelperObserver>> *observers;
-
-// This property is a cached value that is lazy-populated.
-@property (nonatomic, nullable) NSArray<Contact *> *nonSignalContacts;
 
 @property (nonatomic) NSDictionary<NSString *, SignalAccount *> *phoneNumberSignalAccountMap;
 @property (nonatomic) NSDictionary<NSUUID *, SignalAccount *> *uuidSignalAccountMap;
@@ -155,15 +150,6 @@ NS_ASSUME_NONNULL_BEGIN
     return signalAccount;
 }
 
-- (SignalAccount *)fetchOrBuildSignalAccountForAddress:(SignalServiceAddress *)address
-{
-    OWSAssertDebug(address);
-    OWSAssertDebug(!CurrentAppContext().isNSE);
-
-    SignalAccount *_Nullable signalAccount = [self fetchSignalAccountForAddress:address];
-    return (signalAccount ?: [[SignalAccount alloc] initWithSignalServiceAddress:address]);
-}
-
 - (NSArray<SignalAccount *> *)allSignalAccounts
 {
     OWSAssertDebug(!CurrentAppContext().isNSE);
@@ -193,31 +179,35 @@ NS_ASSUME_NONNULL_BEGIN
     NSMutableDictionary<NSString *, SignalAccount *> *phoneNumberSignalAccountMap = [NSMutableDictionary new];
     NSMutableDictionary<NSUUID *, SignalAccount *> *uuidSignalAccountMap = [NSMutableDictionary new];
 
-    __block NSArray<SignalAccount *> *allSignalAccounts;
-    __block NSArray<SignalServiceAddress *> *whitelistedAddresses;
-    __block ContactsMaps *contactsMaps;
-    
-    [self.databaseStorage readWithBlock:^(SDSAnyReadTransaction *transaction) {
-        allSignalAccounts = [self.contactsManagerImpl unsortedSignalAccountsWithTransaction:transaction];
-        whitelistedAddresses = [self.profileManagerImpl allWhitelistedRegisteredAddressesWithTransaction:transaction];
-        contactsMaps = [self.contactsManagerImpl contactsMapsWithTransaction:transaction];
-    } file:__FILE__ function:__FUNCTION__ line:__LINE__];
+    __block NSArray<SignalAccount *> *systemContactSignalAccounts;
+    __block NSArray<SignalServiceAddress *> *signalConnectionAddresses;
 
-    NSMutableArray<SignalAccount *> *accountsToProcess = [allSignalAccounts mutableCopy];
-    for (SignalServiceAddress *address in whitelistedAddresses) {
-        if ([contactsMaps isSystemContactWithAddress:address]) {
-            continue;
+    [self.databaseStorage
+        readWithBlock:^(SDSAnyReadTransaction *transaction) {
+            // All "System Contact"s that we believe are registered.
+            systemContactSignalAccounts = [self.contactsManagerImpl unsortedSignalAccountsWithTransaction:transaction];
+
+            // All Signal Connections that we believe are registered. In theory, this
+            // should include your system contacts and the people you chat with.
+            signalConnectionAddresses =
+                [self.profileManagerImpl allWhitelistedRegisteredAddressesWithTransaction:transaction];
         }
-        [accountsToProcess addObject:[[SignalAccount alloc] initWithSignalServiceAddress:address]];
+                 file:__FILE__
+             function:__FUNCTION__
+                 line:__LINE__];
+
+    NSMutableArray<SignalAccount *> *accountsToProcess = [systemContactSignalAccounts mutableCopy];
+    for (SignalServiceAddress *address in signalConnectionAddresses) {
+        [accountsToProcess addObject:[[SignalAccount alloc] initWithAddress:address]];
     }
 
-    NSMutableSet<SignalServiceAddress *> *addressSet = [NSMutableSet new];
     NSMutableArray<SignalAccount *> *signalAccounts = [NSMutableArray new];
+    NSMutableSet<SignalServiceAddress *> *addressSet = [NSMutableSet new];
     for (SignalAccount *signalAccount in accountsToProcess) {
         if ([addressSet containsObject:signalAccount.recipientAddress]) {
             OWSLogVerbose(@"Ignoring duplicate: %@", signalAccount.recipientAddress);
-            // We prefer the copy from contactsManager which will appear first
-            // in accountsToProcess; don't overwrite it.
+            // We prefer the copy from contactsManager which will appear first in
+            // accountsToProcess; don't overwrite it.
             continue;
         }
         [addressSet addObject:signalAccount.recipientAddress];
@@ -233,21 +223,8 @@ NS_ASSUME_NONNULL_BEGIN
     self.phoneNumberSignalAccountMap = [phoneNumberSignalAccountMap copy];
     self.uuidSignalAccountMap = [uuidSignalAccountMap copy];
     self.signalAccounts = [self.contactsManagerImpl sortSignalAccountsWithSneakyTransaction:signalAccounts];
-    self.nonSignalContacts = nil;
 
     [self fireDidUpdateContacts];
-}
-
-- (NSArray<NSString *> *)searchTermsForSearchString:(NSString *)searchText
-{
-    OWSAssertDebug(!CurrentAppContext().isNSE);
-
-    return [[[searchText ows_stripped]
-        componentsSeparatedByCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]]
-        filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(NSString *_Nullable searchTerm,
-                                        NSDictionary<NSString *, id> *_Nullable bindings) {
-            return searchTerm.length > 0;
-        }]];
 }
 
 - (NSArray<SignalAccount *> *)signalAccountsMatchingSearchString:(NSString *)searchText
@@ -257,156 +234,17 @@ NS_ASSUME_NONNULL_BEGIN
 
     // Check for matches against "Note to Self".
     NSMutableArray<SignalAccount *> *signalAccountsToSearch = [self.signalAccounts mutableCopy];
-    SignalAccount *selfAccount = [[SignalAccount alloc] initWithSignalServiceAddress:self.localAddress];
+    SignalAccount *selfAccount = [[SignalAccount alloc] initWithAddress:self.localAddress];
     [signalAccountsToSearch addObject:selfAccount];
     return [self.fullTextSearcher filterSignalAccounts:signalAccountsToSearch
                                         withSearchText:searchText
                                            transaction:transaction];
 }
 
-- (BOOL)doesContact:(Contact *)contact matchSearchTerm:(NSString *)searchTerm
-{
-    OWSAssertDebug(contact);
-    OWSAssertDebug(searchTerm.length > 0);
-    OWSAssertDebug(!CurrentAppContext().isNSE);
-
-    if ([contact.fullName.lowercaseString containsString:searchTerm.lowercaseString]) {
-        return YES;
-    }
-
-    NSString *asPhoneNumber = [searchTerm filterAsE164];
-    if (asPhoneNumber.length > 0) {
-        for (PhoneNumber *phoneNumber in contact.parsedPhoneNumbers) {
-            if ([phoneNumber.toE164 containsString:asPhoneNumber]) {
-                return YES;
-            }
-        }
-    }
-
-    return NO;
-}
-
-- (BOOL)doesContact:(Contact *)contact matchSearchTerms:(NSArray<NSString *> *)searchTerms
-{
-    OWSAssertDebug(contact);
-    OWSAssertDebug(searchTerms.count > 0);
-    OWSAssertDebug(!CurrentAppContext().isNSE);
-
-    for (NSString *searchTerm in searchTerms) {
-        if (![self doesContact:contact matchSearchTerm:searchTerm]) {
-            return NO;
-        }
-    }
-
-    return YES;
-}
-
-- (NSArray<Contact *> *)nonSignalContactsMatchingSearchString:(NSString *)searchText
-{
-    OWSAssertDebug(!CurrentAppContext().isNSE);
-
-    NSArray<NSString *> *searchTerms = [self searchTermsForSearchString:searchText];
-
-    if (searchTerms.count < 1) {
-        return [NSArray new];
-    }
-
-    return [self.nonSignalContacts filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(Contact *contact,
-                                                                   NSDictionary<NSString *, id> *_Nullable bindings) {
-        return [self doesContact:contact matchSearchTerms:searchTerms];
-    }]];
-}
-
-- (void)warmNonSignalContactsCacheAsync
-{
-    OWSAssertIsOnMainThread();
-    OWSAssertDebug(!CurrentAppContext().isNSE);
-
-    if (self.nonSignalContacts != nil) {
-        return;
-    }
-
-    NSMutableSet<Contact *> *nonSignalContactSet = [NSMutableSet new];
-    __block NSArray<Contact *> *nonSignalContacts;
-
-    [self.databaseStorage asyncReadWithBlock:^(SDSAnyReadTransaction *transaction) {
-        NSArray<Contact *> *contacts = [self.contactsManagerImpl allSortedContactsWithTransaction:transaction];
-        for (Contact *contact in contacts) {
-            NSArray<SignalRecipient *> *signalRecipients = [contact signalRecipientsWithTransaction:transaction];
-            if (signalRecipients.count < 1) {
-                [nonSignalContactSet addObject:contact];
-            }
-        }
-        nonSignalContacts = [nonSignalContactSet.allObjects sortedArrayUsingComparator:^NSComparisonResult(
-                                                                                                           Contact *_Nonnull left, Contact *_Nonnull right) { return [left.fullName compare:right.fullName]; }];
-    }
-                                  completion:^{ self.nonSignalContacts = nonSignalContacts; }];
-}
-
-- (nullable NSArray<Contact *> *)nonSignalContacts
-{
-    OWSAssertIsOnMainThread();
-    OWSAssertDebug(!CurrentAppContext().isNSE);
-
-    if (!_nonSignalContacts) {
-        NSMutableSet<Contact *> *nonSignalContacts = [NSMutableSet new];
-        [self.databaseStorage readWithBlock:^(SDSAnyReadTransaction *transaction) {
-            NSArray<Contact *> *contacts = [self.contactsManagerImpl allSortedContactsWithTransaction:transaction];
-            for (Contact *contact in contacts) {
-                NSArray<SignalRecipient *> *signalRecipients = [contact signalRecipientsWithTransaction:transaction];
-                if (signalRecipients.count < 1) {
-                    [nonSignalContacts addObject:contact];
-                }
-            }
-        }];
-        _nonSignalContacts = [nonSignalContacts.allObjects sortedArrayUsingComparator:^NSComparisonResult(
-            Contact *_Nonnull left, Contact *_Nonnull right) { return [left.fullName compare:right.fullName]; }];
-    }
-
-    return _nonSignalContacts;
-}
-
 #pragma mark - Editing
 
-- (void)presentMissingContactAccessAlertControllerFromViewController:(UIViewController *)viewController
-{
-    OWSAssertDebug(!CurrentAppContext().isNSE);
-
-    [ContactsViewHelper presentMissingContactAccessAlertControllerFromViewController:viewController];
-}
-
-+ (void)presentMissingContactAccessAlertControllerFromViewController:(UIViewController *)viewController
-{
-    OWSAssertDebug(!CurrentAppContext().isNSE);
-
-    ActionSheetController *alert = [[ActionSheetController alloc]
-        initWithTitle:OWSLocalizedString(@"EDIT_CONTACT_WITHOUT_CONTACTS_PERMISSION_ALERT_TITLE", comment
-                                        : @"Alert title for when the user has just tried to edit a "
-                                          @"contacts after declining to give Signal contacts "
-                                          @"permissions")
-              message:OWSLocalizedString(@"EDIT_CONTACT_WITHOUT_CONTACTS_PERMISSION_ALERT_BODY", comment
-                                        : @"Alert body for when the user has just tried to edit a "
-                                          @"contacts after declining to give Signal contacts "
-                                          @"permissions")];
-
-    [alert addAction:[[ActionSheetAction alloc]
-                                   initWithTitle:OWSLocalizedString(@"AB_PERMISSION_MISSING_ACTION_NOT_NOW",
-                                                     @"Button text to dismiss missing contacts permission alert")
-                         accessibilityIdentifier:ACCESSIBILITY_IDENTIFIER_WITH_NAME(self, @"not_now")
-                                           style:ActionSheetActionStyleCancel
-                                         handler:nil]];
-
-    ActionSheetAction *_Nullable openSystemSettingsAction =
-        [AppContextUtils openSystemSettingsActionWithCompletion:nil];
-    if (openSystemSettingsAction) {
-        [alert addAction:openSystemSettingsAction];
-    }
-
-    [viewController presentActionSheet:alert];
-}
-
-- (nullable CNContactViewController *)contactViewControllerForAddress:(SignalServiceAddress *)address
-                                                      editImmediately:(BOOL)shouldEditImmediately
+- (CNContactViewController *)contactViewControllerForAddress:(SignalServiceAddress *)address
+                                             editImmediately:(BOOL)shouldEditImmediately
 {
     OWSAssertDebug(!CurrentAppContext().isNSE);
 
@@ -416,27 +254,16 @@ NS_ASSUME_NONNULL_BEGIN
                            updatedNameComponents:nil];
 }
 
-- (nullable CNContactViewController *)contactViewControllerForAddress:(SignalServiceAddress *)address
-                                                      editImmediately:(BOOL)shouldEditImmediately
-                                               addToExistingCnContact:(nullable CNContact *)existingContact
-                                                updatedNameComponents:
-                                                    (nullable NSPersonNameComponents *)updatedNameComponents
+- (CNContactViewController *)contactViewControllerForAddress:(SignalServiceAddress *)address
+                                             editImmediately:(BOOL)shouldEditImmediately
+                                      addToExistingCnContact:(nullable CNContact *)existingContact
+                                       updatedNameComponents:(nullable NSPersonNameComponents *)updatedNameComponents
 {
     OWSAssertIsOnMainThread();
     OWSAssertDebug(!CurrentAppContext().isNSE);
+    OWSAssertDebug(self.contactsManagerImpl.editingAuthorization == ContactAuthorizationForEditingAuthorized);
 
     SignalAccount *signalAccount = [self fetchSignalAccountForAddress:address];
-
-    if (!self.contactsManagerImpl.supportsContactEditing) {
-        // Should not expose UI that lets the user get here.
-        OWSFailDebug(@"Contact editing not supported.");
-        return nil;
-    }
-
-    if (!self.contactsManagerImpl.isSystemContactsAuthorized) {
-        [self presentMissingContactAccessAlertControllerFromViewController:CurrentAppContext().frontmostViewController];
-        return nil;
-    }
 
     CNContactViewController *_Nullable contactViewController;
     CNContact *_Nullable cnContact = nil;
@@ -511,6 +338,7 @@ NS_ASSUME_NONNULL_BEGIN
             newContact.imageData
                 = UIImagePNGRepresentation([self.profileManagerImpl profileAvatarForAddress:address
                                                                           downloadIfMissing:YES
+                                                                              authedAccount:AuthedAccount.implicit
                                                                                 transaction:transaction]);
         }];
 

@@ -3,9 +3,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import XCTest
-@testable import SignalServiceKit
 import GRDB
+import LibSignalClient
+import XCTest
+
+@testable import SignalServiceKit
 
 final class DatabaseRecoveryTest: SSKBaseTestSwift {
     // MARK: - Setup
@@ -13,6 +15,33 @@ final class DatabaseRecoveryTest: SSKBaseTestSwift {
     override func setUp() {
         super.setUp()
         tsAccountManager.registerForTests(withLocalNumber: "+12225550101", uuid: UUID(), pni: UUID())
+    }
+
+    // MARK: - Rebuild existing database
+
+    func testRebuildExistingDatabase() throws {
+        let (databaseStorage, url) = database()
+        try GRDBSchemaMigrator.migrateDatabase(databaseStorage: databaseStorage, isMainDatabase: false)
+        try XCTUnwrap(databaseStorage.grdbStorage.pool.close())
+
+        DatabaseRecovery.rebuildExistingDatabase(at: url)
+
+        // As a smoke test, ensure that the database is still empty.
+        let finishedDatabaseStorage = SDSDatabaseStorage(
+            databaseFileUrl: url,
+            delegate: DatabaseTestHelpers.TestSDSDatabaseStorageDelegate()
+        )
+        finishedDatabaseStorage.read { transaction in
+            let database = transaction.unwrapGrdbRead.database
+            for tableName in allNormalTableNames(transaction: transaction) {
+                let sql = "SELECT EXISTS (SELECT 1 FROM \(tableName))"
+                guard let anyRowExists = try? XCTUnwrap(Bool.fetchOne(database, sql: sql)) else {
+                    XCTFail("Could not fetch boolean from test query")
+                    return
+                }
+                XCTAssertFalse(anyRowExists, "\(tableName) had at least one row, unexpectedly")
+            }
+        }
     }
 
     // MARK: - Dump and restore
@@ -85,10 +114,9 @@ final class DatabaseRecoveryTest: SSKBaseTestSwift {
         let (databaseStorage, url) = database()
         try GRDBSchemaMigrator.migrateDatabase(databaseStorage: databaseStorage, isMainDatabase: false)
 
-        let contactUuid = UUID()
-        let contactAddress = SignalServiceAddress(uuid: contactUuid)
+        let contactAci = Aci.randomForTesting()
 
-        guard let localAddress = tsAccountManager.localAddress else {
+        guard let localAci = tsAccountManager.localIdentifiers?.aci else {
             XCTFail("No local address. Test is not set up correctly")
             return
         }
@@ -96,7 +124,7 @@ final class DatabaseRecoveryTest: SSKBaseTestSwift {
         try! databaseStorage.write { transaction in
             // Threads
             let contactThread = insertContactThread(
-                contactAddress: contactAddress,
+                contactAddress: SignalServiceAddress(contactAci),
                 transaction: transaction
             )
             guard let contactThreadId = contactThread.grdbId?.int64Value else {
@@ -110,7 +138,7 @@ final class DatabaseRecoveryTest: SSKBaseTestSwift {
                 messageBody: "test outgoing message"
             )
             messageBuilder.timestamp = 1234
-            messageBuilder.authorAddress = contactAddress
+            messageBuilder.authorAci = AciObjC(contactAci)
             let message = messageBuilder.build()
             message.anyInsert(transaction: transaction)
 
@@ -118,7 +146,7 @@ final class DatabaseRecoveryTest: SSKBaseTestSwift {
             let reaction = OWSReaction(
                 uniqueMessageId: message.uniqueId,
                 emoji: "💽",
-                reactor: localAddress,
+                reactor: localAci,
                 sentAtTimestamp: 1234,
                 receivedAtTimestamp: 1234
             )
@@ -130,7 +158,7 @@ final class DatabaseRecoveryTest: SSKBaseTestSwift {
                 messageTimestamp: Int64(message.timestamp),
                 messageUniqueId: message.uniqueId,
                 authorPhoneNumber: nil,
-                authorUuid: contactUuid.uuidString
+                authorUuid: contactAci.serviceIdUppercaseString
             )
             try pendingReadReceipt.insert(transaction.unwrapGrdbWrite.database)
         }
@@ -147,7 +175,7 @@ final class DatabaseRecoveryTest: SSKBaseTestSwift {
         finishedDatabaseStorage.read { transaction in
             // Thread
             let thread = TSContactThread.getWithContactAddress(
-                contactAddress,
+                SignalServiceAddress(contactAci),
                 transaction: transaction
             )
             guard let thread = thread else {
@@ -249,10 +277,10 @@ final class DatabaseRecoveryTest: SSKBaseTestSwift {
         try GRDBSchemaMigrator.migrateDatabase(databaseStorage: databaseStorage, isMainDatabase: false)
 
         databaseStorage.write { transaction in
-            let contactAddress = SignalServiceAddress(uuid: UUID())
+            let contactAci = Aci.randomForTesting()
 
             let contactThread = insertContactThread(
-                contactAddress: contactAddress,
+                contactAddress: SignalServiceAddress(contactAci),
                 transaction: transaction
             )
 
@@ -261,7 +289,7 @@ final class DatabaseRecoveryTest: SSKBaseTestSwift {
                 messageBody: "foo bar"
             )
             messageBuilder.timestamp = 1234
-            messageBuilder.authorAddress = contactAddress
+            messageBuilder.authorAci = AciObjC(contactAci)
             let message = messageBuilder.build()
             message.anyInsert(transaction: transaction)
         }
@@ -282,7 +310,7 @@ final class DatabaseRecoveryTest: SSKBaseTestSwift {
         finishedDatabaseStorage.read { transaction in
             func searchMessages(for searchText: String) -> [TSMessage] {
                 var result = [TSMessage]()
-                    FullTextSearchFinder().enumerateObjects(
+                    FullTextSearchFinder.enumerateObjects(
                     searchText: searchText,
                     collections: [TSMessage.collection()],
                     maxResults: 99,

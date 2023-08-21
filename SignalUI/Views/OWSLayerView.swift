@@ -3,24 +3,20 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalCoreKit
 
-@objc
 open class OWSLayerView: UIView {
-    @objc
+
     public var shouldAnimate = true
 
-    @objc
     public var layoutCallback: (UIView) -> Void
 
-    @objc
     public init() {
         self.layoutCallback = { (_) in
         }
         super.init(frame: .zero)
     }
 
-    @objc
     public init(frame: CGRect, layoutCallback: @escaping (UIView) -> Void) {
         self.layoutCallback = layoutCallback
         super.init(frame: frame)
@@ -32,7 +28,6 @@ open class OWSLayerView: UIView {
         super.init(coder: aDecoder)
     }
 
-    @objc
     public static func circleView() -> OWSLayerView {
         circleView(size: nil)
     }
@@ -47,7 +42,6 @@ open class OWSLayerView: UIView {
         return result
     }
 
-    @objc
     public static func pillView() -> OWSLayerView {
         pillView(height: nil)
     }

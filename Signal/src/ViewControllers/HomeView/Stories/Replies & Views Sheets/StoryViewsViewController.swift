@@ -84,9 +84,9 @@ class StoryViewsViewController: OWSViewController {
                 .compactMap {
                     guard let viewedTimestamp = $0.value.viewedTimestamp else { return nil }
                     return Viewer(
-                        address: .init(uuid: $0.key),
-                        displayName: Self.contactsManager.displayName(for: .init(uuid: $0.key), transaction: transaction),
-                        comparableName: Self.contactsManager.comparableName(for: .init(uuid: $0.key), transaction: transaction),
+                        address: SignalServiceAddress($0.key),
+                        displayName: Self.contactsManager.displayName(for: SignalServiceAddress($0.key), transaction: transaction),
+                        comparableName: Self.contactsManager.comparableName(for: SignalServiceAddress($0.key), transaction: transaction),
                         viewedTimestamp: viewedTimestamp
                     )
                 }.sorted { lhs, rhs in
@@ -106,9 +106,9 @@ class StoryViewsViewController: OWSViewController {
         label.textAlignment = .center
 
         if StoryManager.areViewReceiptsEnabled {
-            label.font = .ows_dynamicTypeBody
+            label.font = .dynamicTypeHeadline
             label.textColor = .ows_gray45
-            label.text = NSLocalizedString(
+            label.text = OWSLocalizedString(
                 "STORIES_NO_VIEWS_YET",
                 comment: "Indicates that this story has no views yet"
             )
@@ -117,9 +117,9 @@ class StoryViewsViewController: OWSViewController {
             emptyStateView.addSubview(label)
             label.autoPinEdgesToSuperviewEdges()
         } else {
-            label.font = .ows_dynamicTypeCallout
+            label.font = .dynamicTypeCallout
             label.textColor = .ows_gray25
-            label.text = NSLocalizedString(
+            label.text = OWSLocalizedString(
                 "STORIES_VIEWS_OFF_DESCRIPTION",
                 comment: "Text explaining that you will not see any views for your story because you have view receipts turned off"
             )
@@ -136,7 +136,7 @@ class StoryViewsViewController: OWSViewController {
                 })
             }
             settingsButton.setTitle(CommonStrings.goToSettingsButton, for: .normal)
-            settingsButton.titleLabel?.font = UIFont.ows_dynamicTypeCaption1.ows_semibold
+            settingsButton.titleLabel?.font = UIFont.dynamicTypeCaption1.semibold()
             settingsButton.setTitleColor(.ows_gray25, for: .normal)
             settingsButton.contentEdgeInsets = UIEdgeInsets(hMargin: 14, vMargin: 6)
             settingsButton.layer.borderWidth = 1.5
@@ -218,14 +218,14 @@ private class StoryViewCell: UITableViewCell {
 
     lazy var nameLabel: UILabel = {
         let label = UILabel()
-        label.font = .ows_dynamicTypeBodyClamped
+        label.font = .dynamicTypeBodyClamped
         label.textColor = Theme.darkThemePrimaryColor
         return label
     }()
 
     lazy var timestampLabel: UILabel = {
         let label = UILabel()
-        label.font = .ows_dynamicTypeFootnoteClamped
+        label.font = .dynamicTypeFootnoteClamped
         label.textColor = Theme.darkThemeSecondaryTextAndIconColor
         return label
     }()

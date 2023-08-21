@@ -8,25 +8,25 @@ import Foundation
 extension DispatchQueue {
 
     public static let sharedUserInteractive: DispatchQueue = {
-        return DispatchQueue(label: OWSDispatch.createLabel("sharedUserInteractive"),
+        return DispatchQueue(label: "org.signal.serial-user-interactive",
                              qos: .userInteractive,
                              autoreleaseFrequency: .workItem)
     }()
 
     public static let sharedUserInitiated: DispatchQueue = {
-        return DispatchQueue(label: OWSDispatch.createLabel("sharedUserInitiated"),
+        return DispatchQueue(label: "org.signal.serial-user-initiated",
                              qos: .userInitiated,
                              autoreleaseFrequency: .workItem)
     }()
 
     public static let sharedUtility: DispatchQueue = {
-        return DispatchQueue(label: OWSDispatch.createLabel("sharedUtility"),
+        return DispatchQueue(label: "org.signal.serial-utility",
                              qos: .utility,
                              autoreleaseFrequency: .workItem)
     }()
 
     public static let sharedBackground: DispatchQueue = {
-        return DispatchQueue(label: OWSDispatch.createLabel("sharedBackground"),
+        return DispatchQueue(label: "org.signal.serial-background",
                              qos: .background,
                              autoreleaseFrequency: .workItem)
     }()
@@ -77,23 +77,5 @@ internal extension DispatchQoS.QoSClass {
             owsFailDebug("Invalid qos_class: \(rawQoS.rawValue). Defaulting background QoS.")
             self = .background
         }
-    }
-}
-
-@objc
-extension OWSDispatch {
-    /// Returns the shared serial queue appropriate for the provided QoS
-    public static func sharedQueue(at rawQoS: qos_class_t) -> DispatchQueue {
-        let qosClass = DispatchQoS.QoSClass(flooring: rawQoS)
-        let qos = DispatchQoS(qosClass: qosClass, relativePriority: 0)
-        return DispatchQueue.sharedQueue(at: qos)
-    }
-
-    /// Returns a reverse-DNS queue label namespaced by appending the `suffix` to the current executable's bundleId
-    public static func createLabel(_ suffix: String) -> String {
-        guard let prefix = Bundle.main.bundleIdentifier else {
-            owsFail("Missing bundleID")
-        }
-        return "\(prefix).\(suffix)"
     }
 }

@@ -3,7 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalServiceKit
+import SignalUI
 
 extension ConversationViewController {
 
@@ -50,10 +51,6 @@ extension ConversationViewController {
 
     public var currentRenderStateDebugDescription: String {
         renderState.debugDescription
-    }
-
-    public var isLayoutApplyingUpdate: Bool {
-        layout.isPerformBatchUpdatesOrReloadDataBeingAppliedOrSettling
     }
 
     public var areCellsAnimating: Bool {
@@ -118,14 +115,11 @@ extension ConversationViewController: CVLoadCoordinatorDelegate {
             // if called for the first time.
 
             Logger.info("View is not yet loaded.")
-            loadDidLand(renderState: update.renderState)
+            loadDidLand()
             return
         }
 
-        let benchSteps = BenchSteps(title: "updateWithNewRenderState")
-
         let renderState = update.renderState
-        let isFirstLoad = renderState.isFirstLoad
 
         layout.update(conversationStyle: renderState.conversationStyle)
 
@@ -141,8 +135,6 @@ extension ConversationViewController: CVLoadCoordinatorDelegate {
         // This will be nil for non-group threads.
         let oldGroupModel = renderState.prevThreadViewModel?.threadRecord.groupModelIfGroupThread
 
-        benchSteps.step("1")
-
         updateNavigationBarSubtitleLabel()
         updateBarButtonItems()
 
@@ -157,29 +149,13 @@ extension ConversationViewController: CVLoadCoordinatorDelegate {
 
         showMessageRequestDialogIfRequiredAsync()
 
-        if thread.isGroupThread {
-            updateNavigationTitle()
-        }
-
-        Logger.verbose("Landing load: \(update.type.debugName), load: \(update.loadType), isFirstLoad: \(isFirstLoad), renderItems: \(update.prevRenderState.items.count) -> \(renderItems.count), scrollAction: \(scrollAction.description)")
-
-        benchSteps.step("2")
+        updateNavigationTitle()
 
         updateShouldHideCollectionViewContent(reloadIfClearingFlag: false)
 
-        benchSteps.step("3")
-
         if loadCoordinator.shouldHideCollectionViewContent {
-
-            Logger.verbose("Not applying load.")
-
             updateViewToReflectLoad(loadedRenderState: self.renderState)
-
-            benchSteps.step("4a")
-
-            loadDidLand(renderState: update.renderState)
-
-            benchSteps.step("5a")
+            loadDidLand()
         } else {
             if !viewState.hasAppliedFirstLoad {
                 // Ignore scrollAction; we need to scroll to .initialPosition.
@@ -190,61 +166,46 @@ extension ConversationViewController: CVLoadCoordinatorDelegate {
                     updateForMinorUpdate(update: update, scrollAction: scrollAction)
                 case .reloadAll:
                     updateReloadingAll(renderState: renderState, scrollAction: scrollAction)
-                case .diff(let items, let threadInteractionCount, let shouldAnimateUpdate):
-                    updateWithDiff(update: update,
-                                   items: items,
-                                   shouldAnimateUpdate: shouldAnimateUpdate,
-                                   scrollAction: scrollAction,
-                                   threadInteractionCount: threadInteractionCount,
-                                   updateToken: updateToken)
+                case .diff(let items, let shouldAnimateUpdate):
+                    updateWithDiff(
+                        update: update,
+                        items: items,
+                        shouldAnimateUpdate: shouldAnimateUpdate,
+                        scrollAction: scrollAction,
+                        updateToken: updateToken
+                    )
                 }
             }
 
-            benchSteps.step("4b")
-
             setHasAppliedFirstLoadIfNecessary()
-
-            benchSteps.step("5b")
         }
-
-        benchSteps.logAll()
     }
 
     // The more work we put into this method, the greater our
     // confidence we have that CVC view state is always up-to-date.
     // But that can make "minor update" updates more expensive.
     private func updateViewToReflectLoad(loadedRenderState: CVRenderState) {
-
         // We can skip some of this work
         guard self.hasViewWillAppearEverBegun else {
             return
         }
-
-        let benchSteps = BenchSteps()
 
         self.updateLastKnownDistanceFromBottom()
         self.updateInputToolbarLayout()
         self.showMessageRequestDialogIfRequired()
         self.configureScrollDownButtons()
 
-        benchSteps.step("loadCompletion.1")
-
         let hasViewDidAppearEverCompleted = self.hasViewDidAppearEverCompleted
 
         DispatchQueue.main.async {
-            let benchSteps = BenchSteps()
-            Self.databaseStorage.read { transaction in
-                self.reloadReactionsDetailSheet(transaction: transaction)
-                self.updateUnreadMessageFlag(transaction: transaction)
-            }
+            self.reloadReactionsDetailSheetWithSneakyTransaction()
             if hasViewDidAppearEverCompleted {
                 _ = self.autoLoadMoreIfNecessary()
             }
-            benchSteps.step("loadCompletion.2")
         }
     }
 
-    private func loadDidLand(renderState: CVRenderState) {
+    private func loadDidLand() {
         switch viewState.selectionAnimationState {
         case .willAnimate:
             viewState.selectionAnimationState = .animating
@@ -252,8 +213,6 @@ extension ConversationViewController: CVLoadCoordinatorDelegate {
             viewState.selectionAnimationState = .idle
             ensureBottomViewType()
         }
-
-        self.loadCoordinator.loadDidLandInView(renderState: renderState)
     }
 
     // The view's first appearance and the first load can race.
@@ -351,8 +310,6 @@ extension ConversationViewController: CVLoadCoordinatorDelegate {
     }
 
     private func updateForMinorUpdate(update: CVUpdate, scrollAction: CVScrollAction) {
-        Logger.verbose("")
-
         // If the scroll action is not animated, perform it _before_
         // updateViewToReflectLoad().
         if !scrollAction.isAnimated {
@@ -361,7 +318,7 @@ extension ConversationViewController: CVLoadCoordinatorDelegate {
 
         updateViewToReflectLoad(loadedRenderState: self.renderState)
 
-        loadDidLand(renderState: update.renderState)
+        loadDidLand()
 
         if scrollAction.isAnimated {
             self.perform(scrollAction: scrollAction)
@@ -369,46 +326,17 @@ extension ConversationViewController: CVLoadCoordinatorDelegate {
     }
 
     private func updateWithFirstLoad(update: CVUpdate) {
-
-        let benchSteps = BenchSteps(title: "updateWithFirstLoad")
-
-        #if TESTABLE_BUILD
-        initialLoadBenchSteps.step("updateWithFirstLoad.1")
-        #endif
-
-        Logger.verbose("")
-
-        benchSteps.step("1")
-
         reloadCollectionViewImmediately()
-
-        benchSteps.step("2")
 
         scrollToInitialPosition(animated: false)
         if self.hasViewDidAppearEverCompleted {
             clearInitialScrollState()
         }
-
-        benchSteps.step("3")
-
         updateViewToReflectLoad(loadedRenderState: self.renderState)
-
-        benchSteps.step("4")
-
-        loadDidLand(renderState: update.renderState)
-
-        benchSteps.step("5")
-
-        benchSteps.logAll()
-
-        #if TESTABLE_BUILD
-        initialLoadBenchSteps.step("updateWithFirstLoad.2")
-        initialLoadBenchSteps.logAll()
-        #endif
+        loadDidLand()
     }
 
     private func setHasAppliedFirstLoadIfNecessary() {
-
         guard !viewState.hasAppliedFirstLoad else {
             return
         }
@@ -418,11 +346,7 @@ extension ConversationViewController: CVLoadCoordinatorDelegate {
         }
     }
 
-    private func updateReloadingAll(renderState: CVRenderState,
-                                    scrollAction: CVScrollAction) {
-
-        Logger.verbose("")
-
+    private func updateReloadingAll(renderState: CVRenderState, scrollAction: CVScrollAction) {
         reloadCollectionViewImmediately()
 
         DispatchQueue.main.async { [weak self] in
@@ -434,7 +358,7 @@ extension ConversationViewController: CVLoadCoordinatorDelegate {
                 self.perform(scrollAction: scrollAction)
             }
             self.updateViewToReflectLoad(loadedRenderState: renderState)
-            self.loadDidLand(renderState: renderState)
+            self.loadDidLand()
             if scrollAction.isAnimated {
                 self.perform(scrollAction: scrollAction)
             }
@@ -442,24 +366,21 @@ extension ConversationViewController: CVLoadCoordinatorDelegate {
     }
 
     private func resetViewStateAfterError() {
-        Logger.verbose("")
-
         reloadCollectionViewForReset()
 
         // Try to update the lastKnownDistanceFromBottom; the content size may have changed.
         updateLastKnownDistanceFromBottom()
     }
 
-    private func updateWithDiff(update: CVUpdate,
-                                items: [CVUpdate.Item],
-                                shouldAnimateUpdate: Bool,
-                                scrollAction scrollActionParam: CVScrollAction,
-                                threadInteractionCount: UInt,
-                                updateToken: CVUpdateToken) {
+    private func updateWithDiff(
+        update: CVUpdate,
+        items: [CVUpdate.Item],
+        shouldAnimateUpdate: Bool,
+        scrollAction scrollActionParam: CVScrollAction,
+        updateToken: CVUpdateToken
+    ) {
         AssertIsOnMainThread()
         owsAssertDebug(!items.isEmpty)
-
-        Logger.verbose("")
 
         let renderState = update.renderState
         let isScrolledToBottom = updateToken.isScrolledToBottom
@@ -575,10 +496,6 @@ extension ConversationViewController: CVLoadCoordinatorDelegate {
 
             let section = Self.messageSection
             for item in items {
-                if !DebugFlags.reduceLogChatter {
-                    Logger.verbose("\(item.logSafeDescription)")
-                }
-
                 switch item.updateType {
                 case .delete(let oldIndex):
                     let indexPath = IndexPath(row: oldIndex, section: section)
@@ -613,7 +530,7 @@ extension ConversationViewController: CVLoadCoordinatorDelegate {
             self.updateViewToReflectLoad(loadedRenderState: renderState)
 
             if shouldAnimateUpdate {
-                self.loadDidLand(renderState: update.renderState)
+                self.loadDidLand()
             }
 
             if scrollAction.isAnimated {
@@ -623,13 +540,6 @@ extension ConversationViewController: CVLoadCoordinatorDelegate {
             viewState.scrollActionForUpdate = nil
 
             if !finished {
-                Logger.verbose("performBatchUpdates did not finish")
-                if DebugFlags.internalLogging {
-                    Logger.warn("Layout: \(self.layout.debugDescription)")
-                    Logger.warn("prevRenderState: \(update.prevRenderState.debugDescription)")
-                    Logger.warn("renderState: \(update.renderState.debugDescription)")
-                }
-
                 // If animations were interrupted, reset to get back to a known good state.
                 DispatchQueue.main.async { [weak self] in
                     self?.resetViewStateAfterError()
@@ -646,7 +556,7 @@ extension ConversationViewController: CVLoadCoordinatorDelegate {
                                                     cvc: self)
 
         if !shouldAnimateUpdate {
-            self.loadDidLand(renderState: update.renderState)
+            self.loadDidLand()
         }
     }
 
@@ -674,56 +584,63 @@ extension ConversationViewController: CVLoadCoordinatorDelegate {
                                 withReuseIdentifier: LoadMoreMessagesView.reuseIdentifier)
     }
 
-    public static func buildInitialConversationStyle(threadViewModel: ThreadViewModel) -> ConversationStyle {
-        ConversationStyle(type: .initial,
-                          thread: threadViewModel.threadRecord,
-                          viewWidth: 0,
-                          hasWallpaper: threadViewModel.hasWallpaper,
-                          isWallpaperPhoto: threadViewModel.isWallpaperPhoto,
-                          chatColor: .placeholderValue)
+    public static func buildInitialConversationStyle(for thread: TSThread, tx: SDSAnyReadTransaction) -> ConversationStyle {
+        buildConversationStyle(
+            type: .initial,
+            thread: thread,
+            viewWidth: 0,
+            tx: tx
+        )
     }
 
-    @objc
-    public static func buildDefaultConversationStyle(thread: TSThread) -> ConversationStyle {
-        ConversationStyle(type: .default,
-                          thread: thread,
-                          viewWidth: 0,
-                          hasWallpaper: false,
-                          isWallpaperPhoto: false,
-                          chatColor: .placeholderValue)
+    private static func buildConversationStyle(
+        type: ConversationStyle.`Type`,
+        thread: TSThread,
+        viewWidth: CGFloat,
+        tx: SDSAnyReadTransaction
+    ) -> ConversationStyle {
+        let hasWallpaper: Bool
+        let isWallpaperPhoto: Bool
+        switch Wallpaper.wallpaperForRendering(for: thread, transaction: tx) {
+        case .photo:
+            hasWallpaper = true
+            isWallpaperPhoto = true
+        case .some:
+            hasWallpaper = true
+            isWallpaperPhoto = false
+        case .none:
+            hasWallpaper = false
+            isWallpaperPhoto = false
+        }
+        return ConversationStyle(
+            type: type,
+            thread: thread,
+            viewWidth: viewWidth,
+            hasWallpaper: hasWallpaper,
+            isWallpaperPhoto: isWallpaperPhoto,
+            chatColor: ChatColors.resolvedChatColor(for: thread, tx: tx)
+        )
     }
 
     private func buildConversationStyle() -> ConversationStyle {
         AssertIsOnMainThread()
 
-        var hasWallpaper: Bool = false
-        var isWallpaperPhoto: Bool = false
-        var chatColor: ChatColor = .placeholderValue
-        databaseStorage.read { transaction in
-            if let wallpaper = Wallpaper.wallpaperForRendering(for: self.thread, transaction: transaction) {
-                hasWallpaper = true
-                if case .photo = wallpaper {
-                    isWallpaperPhoto = true
-                } else {
-                    isWallpaperPhoto = false
-                }
-            } else {
-                hasWallpaper = false
-                isWallpaperPhoto = false
+        func buildConversationStyle(type: ConversationStyle.`Type`, viewWidth: CGFloat) -> ConversationStyle {
+            databaseStorage.read { tx in
+                Self.buildConversationStyle(
+                    type: type,
+                    thread: thread,
+                    viewWidth: viewWidth,
+                    tx: tx
+                )
             }
-            chatColor = ChatColors.chatColorForRendering(thread: self.thread, transaction: transaction)
         }
 
-        func buildDefaultConversationStyle(type: ConversationStyleType) -> ConversationStyle {
+        func buildDefaultConversationStyle(type: ConversationStyle.`Type`) -> ConversationStyle {
             // Treat all styles as "initial" (not to be trusted) until
             // we have a view config.
             let viewWidth = floor(collectionView.width)
-            return ConversationStyle(type: type,
-                                     thread: thread,
-                                     viewWidth: viewWidth,
-                                     hasWallpaper: hasWallpaper,
-                                     isWallpaperPhoto: isWallpaperPhoto,
-                                     chatColor: chatColor)
+            return buildConversationStyle(type: type, viewWidth: viewWidth)
         }
 
         guard self.conversationStyle.type != .`default` else {
@@ -773,12 +690,7 @@ extension ConversationViewController: CVLoadCoordinatorDelegate {
             // We can derive a style that reflects what the correct style will be,
             // using values from the navigationController.
             let viewWidth = floor(navigationViewWidth)
-            return ConversationStyle(type: .placeholder,
-                                     thread: thread,
-                                     viewWidth: viewWidth,
-                                     hasWallpaper: hasWallpaper,
-                                     isWallpaperPhoto: isWallpaperPhoto,
-                                     chatColor: chatColor)
+            return buildConversationStyle(type: .placeholder, viewWidth: viewWidth)
         }
     }
 

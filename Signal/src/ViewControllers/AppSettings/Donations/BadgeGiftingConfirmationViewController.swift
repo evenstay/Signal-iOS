@@ -3,34 +3,35 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
-import PassKit
 import SignalMessaging
 import SignalServiceKit
-import UIKit
+import SignalUI
 
 class BadgeGiftingConfirmationViewController: OWSTableViewController2 {
+    typealias PaymentMethodsConfiguration = SubscriptionManagerImpl.DonationConfiguration.PaymentMethodsConfiguration
+
     // MARK: - View state
 
-    private let badge: ProfileBadge
-    private let price: FiatMoney
-    private let thread: TSContactThread
+    let badge: ProfileBadge
+    let price: FiatMoney
+    private let paymentMethodsConfiguration: PaymentMethodsConfiguration
+    let thread: TSContactThread
+
+    private var previouslyRenderedDisappearingMessagesDuration: UInt32?
+
+    public override var preferredNavigationBarStyle: OWSNavigationBarStyle { .solid }
+    public override var navbarBackgroundColorOverride: UIColor? { .clear }
 
     public init(
         badge: ProfileBadge,
         price: FiatMoney,
+        paymentMethodsConfiguration: PaymentMethodsConfiguration,
         thread: TSContactThread
     ) {
         self.badge = badge
         self.price = price
+        self.paymentMethodsConfiguration = paymentMethodsConfiguration
         self.thread = thread
-    }
-
-    private class func showRecipientIsBlockedError() {
-        OWSActionSheets.showActionSheet(title: NSLocalizedString("BADGE_GIFTING_ERROR_RECIPIENT_IS_BLOCKED_TITLE",
-                                                                 comment: "Title for error message dialog indicating that the person you're trying to send to has been blocked."),
-                                        message: NSLocalizedString("BADGE_GIFTING_ERROR_RECIPIENT_IS_BLOCKED_BODY",
-                                                                   comment: "Error message indicating that the person you're trying to send has been blocked."))
     }
 
     // MARK: - Callbacks
@@ -42,10 +43,12 @@ class BadgeGiftingConfirmationViewController: OWSTableViewController2 {
 
         databaseStorage.appendDatabaseChangeDelegate(self)
 
-        title = NSLocalizedString("BADGE_GIFTING_CONFIRMATION_TITLE",
-                                  comment: "Title on the screen where you confirm sending of a gift badge, and can write a message")
+        title = OWSLocalizedString(
+            "DONATION_ON_BEHALF_OF_A_FRIEND_CONFIRMATION_SCREEN_TITLE",
+            comment: "Users can donate on a friend's behalf. This is the title on the screen where users confirm the donation, and can write a message for the friend."
+        )
 
-        setUpTableContents()
+        updateTableContents()
         setUpBottomFooter()
 
         tableView.keyboardDismissMode = .onDrag
@@ -56,12 +59,14 @@ class BadgeGiftingConfirmationViewController: OWSTableViewController2 {
         setUpBottomFooter()
     }
 
-    private func isRecipientBlocked(transaction: SDSAnyReadTransaction) -> Bool {
-        self.blockingManager.isAddressBlocked(self.thread.contactAddress, transaction: transaction)
-    }
-
-    private func isRecipientBlockedWithSneakyTransaction() -> Bool {
-        databaseStorage.read { self.isRecipientBlocked(transaction: $0) }
+    func didCompleteDonation() {
+        SignalApp.shared.presentConversationForThread(thread, action: .none, animated: false)
+        dismiss(animated: true) {
+            SignalApp.shared.conversationSplitViewController?.present(
+                BadgeGiftingThanksSheet(thread: self.thread, badge: self.badge),
+                animated: true
+            )
+        }
     }
 
     /// Queries the database to see if the recipient can receive gift badges.
@@ -102,9 +107,9 @@ class BadgeGiftingConfirmationViewController: OWSTableViewController2 {
                                                      presentationDelay: 0.5) { modal in
             firstly {
                 self.canReceiveGiftBadgesViaProfileFetch()
-            }.done(on: .main) { canReceiveGiftBadges in
+            }.done(on: DispatchQueue.main) { canReceiveGiftBadges in
                 modal.dismiss { resultFuture.resolve(canReceiveGiftBadges) }
-            }.catch(on: .main) { error in
+            }.catch(on: DispatchQueue.main) { error in
                 modal.dismiss { resultFuture.reject(error) }
             }
         }
@@ -112,94 +117,81 @@ class BadgeGiftingConfirmationViewController: OWSTableViewController2 {
         return resultPromise
     }
 
-    private enum SafetyNumberConfirmationResult {
-        case userDidNotConfirmSafetyNumberChange
-        case userConfirmedSafetyNumberChangeOrNoChangeWasNeeded
-    }
-
-    private func showSafetyNumberConfirmationIfNecessary() -> (needsUserInteraction: Bool, promise: Promise<SafetyNumberConfirmationResult>) {
-        let (promise, future) = Promise<SafetyNumberConfirmationResult>.pending()
-
-        let needsUserInteraction = SafetyNumberConfirmationSheet.presentIfNecessary(address: thread.contactAddress,
-                                                                                    confirmationText: SafetyNumberStrings.confirmSendButton) { didConfirm in
-            future.resolve(didConfirm ? .userConfirmedSafetyNumberChangeOrNoChangeWasNeeded : .userDidNotConfirmSafetyNumberChange)
-        }
-        if needsUserInteraction {
-            Logger.info("[Gifting] Showing safety number confirmation sheet")
-        } else {
-            Logger.info("[Gifting] Not showing safety number confirmation sheet; it was not needed")
-            future.resolve(.userConfirmedSafetyNumberChangeOrNoChangeWasNeeded)
-        }
-
-        return (needsUserInteraction: needsUserInteraction, promise: promise)
-    }
-
-    @objc
-    private func checkRecipientAndRequestApplePay() {
+    private func checkRecipientAndPresentChoosePaymentMethodSheet() {
         // We want to resign this SOMETIME before this VC dismisses and switches to the chat.
         // In addition to offering slightly better UX, resigning first responder status prevents it
         // from eating events after the VC is dismissed.
         messageTextView.resignFirstResponder()
 
-        guard !isRecipientBlockedWithSneakyTransaction() else {
-            Logger.warn("[Gifting] Not requesting Apple Pay because recipient is blocked")
-            Self.showRecipientIsBlockedError()
-            return
-        }
-
-        firstly(on: .main) { [weak self] () -> Promise<Bool> in
+        firstly(on: DispatchQueue.main) { [weak self] () -> Promise<Bool> in
             guard let self = self else {
-                throw SendGiftBadgeError.userCanceledBeforeChargeCompleted
+                throw DonationViewsUtil.Gifts.SendGiftError.userCanceledBeforeChargeCompleted
             }
             return self.canReceiveGiftBadgesWithUi()
-        }.then(on: .main) { [weak self] canReceiveGiftBadges -> Promise<SafetyNumberConfirmationResult> in
+        }.then(on: DispatchQueue.main) { [weak self] canReceiveGiftBadges -> Promise<DonationViewsUtil.Gifts.SafetyNumberConfirmationResult> in
             guard let self = self else {
-                throw SendGiftBadgeError.userCanceledBeforeChargeCompleted
+                throw DonationViewsUtil.Gifts.SendGiftError.userCanceledBeforeChargeCompleted
             }
             guard canReceiveGiftBadges else {
-                throw SendGiftBadgeError.cannotReceiveGiftBadges
+                throw DonationViewsUtil.Gifts.SendGiftError.cannotReceiveGiftBadges
             }
-            return self.showSafetyNumberConfirmationIfNecessary().promise
-        }.done(on: .main) { [weak self] safetyNumberConfirmationResult in
+            return DonationViewsUtil.Gifts.showSafetyNumberConfirmationIfNecessary(for: self.thread).promise
+        }.done(on: DispatchQueue.main) { [weak self] safetyNumberConfirmationResult in
             guard let self = self else {
-                throw SendGiftBadgeError.userCanceledBeforeChargeCompleted
+                throw DonationViewsUtil.Gifts.SendGiftError.userCanceledBeforeChargeCompleted
             }
 
             switch safetyNumberConfirmationResult {
             case .userDidNotConfirmSafetyNumberChange:
-                throw SendGiftBadgeError.userCanceledBeforeChargeCompleted
+                throw DonationViewsUtil.Gifts.SendGiftError.userCanceledBeforeChargeCompleted
             case .userConfirmedSafetyNumberChangeOrNoChangeWasNeeded:
                 break
             }
 
-            Logger.info("[Gifting] Requesting Apple Pay...")
+            let recipientFullName = self.databaseStorage.read { transaction in
+                self.contactsManager.displayName(for: self.thread, transaction: transaction)
+            }
 
-            let request = DonationUtilities.newPaymentRequest(for: self.price, isRecurring: false)
-
-            let paymentController = PKPaymentAuthorizationController(paymentRequest: request)
-            paymentController.delegate = self
-            paymentController.present { presented in
-                if !presented {
-                    // This can happen under normal conditions if the user double-taps the button,
-                    // but may also indicate a problem.
-                    Logger.warn("[Gifting] Failed to present payment controller")
+            let sheet = DonateChoosePaymentMethodSheet(
+                amount: self.price,
+                badge: self.badge,
+                donationMode: .gift(recipientFullName: recipientFullName),
+                supportedPaymentMethods: DonationUtilities.supportedDonationPaymentMethods(
+                    forDonationMode: .gift,
+                    usingCurrency: self.price.currencyCode,
+                    withConfiguration: self.paymentMethodsConfiguration,
+                    localNumber: Self.tsAccountManager.localNumber
+                )
+            ) { [weak self] (sheet, paymentMethod) in
+                sheet.dismiss(animated: true) { [weak self] in
+                    guard let self else { return }
+                    switch paymentMethod {
+                    case .applePay:
+                        self.startApplePay()
+                    case .creditOrDebitCard:
+                        self.startCreditOrDebitCard()
+                    case .paypal:
+                        self.startPaypal()
+                    }
                 }
             }
+
+            self.present(sheet, animated: true)
         }.catch { error in
-            if let error = error as? SendGiftBadgeError {
+            if let error = error as? DonationViewsUtil.Gifts.SendGiftError {
                 Logger.warn("[Gifting] Error \(error)")
                 switch error {
                 case .userCanceledBeforeChargeCompleted:
                     return
                 case .cannotReceiveGiftBadges:
                     OWSActionSheets.showActionSheet(
-                        title: NSLocalizedString(
-                            "BADGE_GIFTING_ERROR_RECIPIENT_CANNOT_RECEIVE_GIFT_BADGES_TITLE",
-                            comment: "Title for error message dialog indicating that a user can't receive gifts."
+                        title: OWSLocalizedString(
+                            "DONATION_ON_BEHALF_OF_A_FRIEND_RECIPIENT_CANNOT_RECEIVE_DONATION_ERROR_TITLE",
+                            comment: "Users can donate on a friend's behalf. If the friend cannot receive these donations, an error dialog will be shown. This is the title of that error dialog."
                         ),
-                        message: NSLocalizedString(
-                            "BADGE_GIFTING_ERROR_RECIPIENT_CANNOT_RECEIVE_GIFT_BADGES_BODY",
-                            comment: "Error message indicating that a user can't receive gifts."
+                        message: OWSLocalizedString(
+                            "DONATION_ON_BEHALF_OF_A_FRIEND_RECIPIENT_CANNOT_RECEIVE_DONATION_ERROR_BODY",
+                            comment: "Users can donate on a friend's behalf. If the friend cannot receive these donations, this error message will be shown."
                         )
                     )
                     return
@@ -209,10 +201,16 @@ class BadgeGiftingConfirmationViewController: OWSTableViewController2 {
             }
 
             owsFailDebugUnlessNetworkFailure(error)
-            OWSActionSheets.showActionSheet(title: NSLocalizedString("BADGE_GIFTING_CANNOT_SEND_TO_RECIPIENT_GENERIC_ERROR_TITLE",
-                                                                     comment: "Title for error message dialog indicating that you can't send the gift badge for some reason."),
-                                            message: NSLocalizedString("BADGE_GIFTING_CANNOT_SEND_TO_RECIPIENT_GENERIC_ERROR_BODY",
-                                                                       comment: "Error message indicating that you can't send the gift badge for some reason."))
+            OWSActionSheets.showActionSheet(
+                title: OWSLocalizedString(
+                    "DONATION_ON_BEHALF_OF_A_FRIEND_GENERIC_SEND_ERROR_TITLE",
+                    comment: "Users can donate on a friend's behalf. If something goes wrong during this donation, such as a network error, an error dialog is shown. This is the title of that dialog."
+                ),
+                message: OWSLocalizedString(
+                    "DONATION_ON_BEHALF_OF_A_FRIEND_GENERIC_SEND_ERROR_BODY",
+                    comment: "Users can donate on a friend's behalf. If something goes wrong during this donation, such as a network error, this error message is shown."
+                )
+            )
         }
     }
 
@@ -220,48 +218,44 @@ class BadgeGiftingConfirmationViewController: OWSTableViewController2 {
 
     private lazy var avatarViewDataSource: ConversationAvatarDataSource = .thread(self.thread)
 
-    private lazy var contactCellView: UIStackView = {
-        let view = UIStackView()
-        view.distribution = .equalSpacing
-        return view
-    }()
-
-    private lazy var disappearingMessagesTimerLabelView: UILabel = {
-        let labelView = UILabel()
-        labelView.font = .ows_dynamicTypeBody2
-        labelView.textAlignment = .center
-        labelView.minimumScaleFactor = 0.8
-        return labelView
-    }()
-
-    private lazy var disappearingMessagesTimerView: UIView = {
-        let iconView = UIImageView(image: Theme.iconImage(.settingsTimer))
-        iconView.contentMode = .scaleAspectFit
-
-        let view = UIStackView(arrangedSubviews: [iconView, disappearingMessagesTimerLabelView])
-        view.spacing = 4
-        return view
-    }()
-
-    private lazy var messageTextView: TextViewWithPlaceholder = {
+    lazy var messageTextView: TextViewWithPlaceholder = {
         let view = TextViewWithPlaceholder()
-        view.placeholderText = NSLocalizedString("BADGE_GIFTING_ADDITIONAL_MESSAGE_PLACEHOLDER",
-                                                 comment: "Placeholder in the text field where you can add text for a message along with your gift")
+        view.placeholderText = OWSLocalizedString(
+            "DONATE_ON_BEHALF_OF_A_FRIEND_ADDITIONAL_MESSAGE_PLACEHOLDER",
+            comment: "Users can donate on a friend's behalf and can optionally add a message. This is the placeholder in the text field for that additional message."
+        )
         view.returnKeyType = .done
         view.delegate = self
         return view
     }()
 
-    private var messageText: String {
+    var messageText: String {
         (messageTextView.text ?? "").ows_stripped()
     }
 
-    private func setUpTableContents() {
+    private func updateTableContents() {
         let badge = badge
         let price = price
         let avatarViewDataSource = avatarViewDataSource
         let thread = thread
         let messageTextView = messageTextView
+
+        let avatarView = ConversationAvatarView(
+            sizeClass: .thirtySix,
+            localUserDisplayMode: .asUser,
+            badged: true
+        )
+
+        let (recipientName, disappearingMessagesDuration) = databaseStorage.read { transaction -> (String, UInt32) in
+            avatarView.update(transaction) { config in
+                config.dataSource = avatarViewDataSource
+            }
+
+            let recipientName = self.contactsManager.displayName(for: thread, transaction: transaction)
+            let dmConfigurationStore = DependenciesBridge.shared.disappearingMessagesConfigurationStore
+            let disappearingMessagesDuration = dmConfigurationStore.durationSeconds(for: thread, tx: transaction.asV2Read)
+            return (recipientName, disappearingMessagesDuration)
+        }
 
         let badgeSection = OWSTableSection()
         badgeSection.add(.init(customCellBlock: { [weak self] in
@@ -280,33 +274,42 @@ class BadgeGiftingConfirmationViewController: OWSTableViewController2 {
             guard let self = self else { return UITableViewCell() }
             let cell = AppSettingsViewsUtil.newCell(cellOuterInsets: self.cellOuterInsets)
 
-            let avatarView = ConversationAvatarView(sizeClass: .thirtySix,
-                                                    localUserDisplayMode: .asUser,
-                                                    badged: true)
-            let (recipientName, disappearingMessagesDuration) = self.databaseStorage.read { transaction -> (String, UInt32) in
-                avatarView.update(transaction) { config in
-                    config.dataSource = avatarViewDataSource
-                }
-
-                let recipientName = self.contactsManager.displayName(for: thread, transaction: transaction)
-                let disappearingMessagesDuration = thread.disappearingMessagesDuration(with: transaction)
-
-                return (recipientName, disappearingMessagesDuration)
-            }
-
             let nameLabel = UILabel()
             nameLabel.text = recipientName
-            nameLabel.font = .ows_dynamicTypeBody
+            nameLabel.font = .dynamicTypeBody
             nameLabel.numberOfLines = 0
             nameLabel.minimumScaleFactor = 0.5
 
             let avatarAndNameView = UIStackView(arrangedSubviews: [avatarView, nameLabel])
             avatarAndNameView.spacing = ContactCellView.avatarTextHSpacing
 
-            let contactCellView = self.contactCellView
-            contactCellView.removeAllSubviews()
+            let contactCellView = UIStackView()
+            contactCellView.distribution = .equalSpacing
+
             contactCellView.addArrangedSubview(avatarAndNameView)
-            self.updateDisappearingMessagesTimerView(durationSeconds: disappearingMessagesDuration)
+
+            if disappearingMessagesDuration != 0 {
+                let iconView = UIImageView(image: UIImage(imageLiteralResourceName: "timer"))
+                iconView.contentMode = .scaleAspectFit
+
+                let disappearingMessagesTimerLabelView = UILabel()
+                disappearingMessagesTimerLabelView.text = DateUtil.formatDuration(
+                    seconds: disappearingMessagesDuration,
+                    useShortFormat: true
+                )
+                disappearingMessagesTimerLabelView.font = .dynamicTypeBody2
+                disappearingMessagesTimerLabelView.textAlignment = .center
+                disappearingMessagesTimerLabelView.minimumScaleFactor = 0.8
+
+                let disappearingMessagesTimerView = UIStackView(arrangedSubviews: [
+                    iconView,
+                    disappearingMessagesTimerLabelView
+                ])
+                disappearingMessagesTimerView.spacing = 4
+
+                contactCellView.addArrangedSubview(disappearingMessagesTimerView)
+            }
+
             cell.contentView.addSubview(contactCellView)
             contactCellView.autoPinEdgesToSuperviewMargins()
 
@@ -320,9 +323,11 @@ class BadgeGiftingConfirmationViewController: OWSTableViewController2 {
             let cell = AppSettingsViewsUtil.newCell(cellOuterInsets: self.cellOuterInsets)
 
             let messageInfoLabel = UILabel()
-            messageInfoLabel.text = NSLocalizedString("BADGE_GIFTING_ADDITIONAL_MESSAGE",
-                                                      comment: "Text telling the user that they can add a message along with their gift badge")
-            messageInfoLabel.font = .ows_dynamicTypeBody2
+            messageInfoLabel.text = OWSLocalizedString(
+                "DONATE_ON_BEHALF_OF_A_FRIEND_ADDITIONAL_MESSAGE_INFO",
+                comment: "Users can donate on a friend's behalf and can optionally add a message. This is tells users about that optional message."
+            )
+            messageInfoLabel.font = .dynamicTypeBody2
             messageInfoLabel.textColor = Theme.primaryTextColor
             messageInfoLabel.numberOfLines = 0
             cell.contentView.addSubview(messageInfoLabel)
@@ -343,23 +348,46 @@ class BadgeGiftingConfirmationViewController: OWSTableViewController2 {
             return cell
         }))
 
-        contents = OWSTableContents(sections: [badgeSection,
-                                               recipientSection,
-                                               messageInfoSection,
-                                               messageTextSection])
-    }
+        var sections: [OWSTableSection] = [
+            badgeSection,
+            recipientSection,
+            messageInfoSection,
+            messageTextSection
+        ]
 
-    private func updateDisappearingMessagesTimerLabelView(durationSeconds: UInt32) {
-        disappearingMessagesTimerLabelView.text = NSString.formatDurationSeconds(durationSeconds, useShortFormat: true)
-    }
+        if disappearingMessagesDuration != 0 {
+            let disappearingMessagesInfoSection = OWSTableSection()
+            disappearingMessagesInfoSection.hasBackground = false
+            disappearingMessagesInfoSection.add(.init(customCellBlock: { [weak self] in
+                guard let self else { return UITableViewCell() }
+                let cell = AppSettingsViewsUtil.newCell(cellOuterInsets: self.cellOuterInsets)
 
-    private func updateDisappearingMessagesTimerView(durationSeconds: UInt32) {
-        updateDisappearingMessagesTimerLabelView(durationSeconds: durationSeconds)
+                let disappearingMessagesInfoLabel = UILabel()
+                disappearingMessagesInfoLabel.font = .dynamicTypeBody2
+                disappearingMessagesInfoLabel.textColor = Theme.secondaryTextAndIconColor
+                disappearingMessagesInfoLabel.numberOfLines = 0
 
-        disappearingMessagesTimerView.removeFromSuperview()
-        if durationSeconds != 0 {
-            contactCellView.addArrangedSubview(disappearingMessagesTimerView)
+                let format = OWSLocalizedString(
+                    "DONATION_ON_BEHALF_OF_A_FRIEND_DISAPPEARING_MESSAGES_NOTICE_FORMAT",
+                    comment: "When users make donations on a friend's behalf, a message is sent. This text tells senders that their message will disappear, if the conversation has disappearing messages enabled. Embeds {{duration}}, such as \"1 week\"."
+                )
+                let durationString = String.formatDurationLossless(
+                    durationSeconds: disappearingMessagesDuration
+                )
+                disappearingMessagesInfoLabel.text = String(format: format, durationString)
+
+                cell.contentView.addSubview(disappearingMessagesInfoLabel)
+                disappearingMessagesInfoLabel.autoPinEdgesToSuperviewMargins()
+
+                return cell
+            }))
+
+            sections.append(disappearingMessagesInfoSection)
         }
+
+        contents = OWSTableContents(sections: sections)
+
+        previouslyRenderedDisappearingMessagesDuration = disappearingMessagesDuration
     }
 
     // MARK: - Footer
@@ -383,14 +411,16 @@ class BadgeGiftingConfirmationViewController: OWSTableViewController2 {
 
         let amountView: UIStackView = {
             let descriptionLabel = UILabel()
-            descriptionLabel.text = NSLocalizedString("BADGE_GIFTING_PAYMENT_DESCRIPTION",
-                                                      comment: "Text telling the user that their gift is a one-time donation")
-            descriptionLabel.font = .ows_dynamicTypeBody
+            descriptionLabel.text = OWSLocalizedString(
+                "DONATION_ON_BEHALF_OF_A_FRIEND_PAYMENT_DESCRIPTION",
+                comment: "Users can donate on a friend's behalf. This tells users that this will be a one-time donation."
+            )
+            descriptionLabel.font = .dynamicTypeBody
             descriptionLabel.numberOfLines = 0
 
             let priceLabel = UILabel()
             priceLabel.text = DonationUtilities.format(money: price)
-            priceLabel.font = .ows_dynamicTypeBody.ows_semibold
+            priceLabel.font = .dynamicTypeBody.semibold()
             priceLabel.numberOfLines = 0
 
             let view = UIStackView(arrangedSubviews: [descriptionLabel, priceLabel])
@@ -402,11 +432,15 @@ class BadgeGiftingConfirmationViewController: OWSTableViewController2 {
             return view
         }()
 
-        let applePayButton = ApplePayButton { [weak self] in
-            self?.checkRecipientAndRequestApplePay()
+        let continueButton = OWSButton(title: CommonStrings.continueButton) { [weak self] in
+            self?.checkRecipientAndPresentChoosePaymentMethodSheet()
         }
+        continueButton.dimsWhenHighlighted = true
+        continueButton.layer.cornerRadius = 8
+        continueButton.backgroundColor = .ows_accentBlue
+        continueButton.titleLabel?.font = UIFont.dynamicTypeBody.semibold()
 
-        for view in [amountView, applePayButton] {
+        for view in [amountView, continueButton] {
             bottomFooterStackView.addArrangedSubview(view)
             view.autoSetDimension(.height, toSize: 48, relation: .greaterThanOrEqual)
             view.autoPinWidthToSuperview(withMargin: 23)
@@ -418,8 +452,13 @@ class BadgeGiftingConfirmationViewController: OWSTableViewController2 {
 
 extension BadgeGiftingConfirmationViewController: DatabaseChangeDelegate {
     private func updateDisappearingMessagesTimerWithSneakyTransaction() {
-        let durationSeconds = databaseStorage.read { self.thread.disappearingMessagesDuration(with: $0) }
-        updateDisappearingMessagesTimerView(durationSeconds: durationSeconds)
+        let dmConfigurationStore = DependenciesBridge.shared.disappearingMessagesConfigurationStore
+        let dmSeconds = databaseStorage.read { tx in
+            dmConfigurationStore.durationSeconds(for: thread, tx: tx.asV2Read)
+        }
+        if previouslyRenderedDisappearingMessagesDuration != dmSeconds {
+            updateTableContents()
+        }
     }
 
     func databaseChangesDidUpdate(databaseChanges: DatabaseChanges) {
@@ -463,250 +502,5 @@ extension BadgeGiftingConfirmationViewController: TextViewWithPlaceholderDelegat
             uiTextView.resignFirstResponder()
         }
         return true
-    }
-}
-
-// MARK: - Apple Pay delegate
-
-extension BadgeGiftingConfirmationViewController: PKPaymentAuthorizationControllerDelegate {
-    private struct PreparedPayment {
-        let paymentIntent: Stripe.PaymentIntent
-        let paymentMethodId: String
-    }
-
-    enum SendGiftBadgeError: Error {
-        case recipientIsBlocked
-        case failedAndUserNotCharged
-        case failedAndUserMaybeCharged
-        case cannotReceiveGiftBadges
-        case userCanceledBeforeChargeCompleted
-    }
-
-    private func prepareToPay(authorizedPayment: PKPayment) -> Promise<PreparedPayment> {
-        firstly {
-            Stripe.createBoostPaymentIntent(
-                for: self.price,
-                level: .giftBadge(.signalGift)
-            )
-        }.then { paymentIntent in
-            Stripe.createPaymentMethod(with: .applePay(payment: authorizedPayment)).map { paymentMethodId in
-                PreparedPayment(paymentIntent: paymentIntent, paymentMethodId: paymentMethodId)
-            }
-        }
-    }
-
-    func paymentAuthorizationController(
-        _ controller: PKPaymentAuthorizationController,
-        didAuthorizePayment payment: PKPayment,
-        handler completion: @escaping (PKPaymentAuthorizationResult) -> Void
-    ) {
-        var hasCalledCompletion = false
-        func wrappedCompletion(_ result: PKPaymentAuthorizationResult) {
-            guard !hasCalledCompletion else { return }
-            hasCalledCompletion = true
-            completion(result)
-        }
-
-        firstly(on: .global()) { () -> Promise<PreparedPayment> in
-            // Bail if the user is already sending a gift to this person. This unusual case can happen if:
-            //
-            // 1. The user enqueues a "send gift badge" job for this recipient
-            // 2. The app is terminated (e.g., due to a crash)
-            // 3. Before the job finishes, the user restarts the app and tries to gift another badge to the same person
-            //
-            // This *could* happen without a Signal developer making a mistake, if the app is terminated at the right time.
-            let isAlreadyGifting = self.databaseStorage.read {
-                DonationUtilities.sendGiftBadgeJobQueue.alreadyHasJob(for: self.thread, transaction: $0)
-            }
-            guard !isAlreadyGifting else {
-                Logger.warn("Already sending a gift to this recipient")
-                throw SendGiftBadgeError.failedAndUserNotCharged
-            }
-
-            // Prepare to pay. We haven't charged the user yet, so we don't need to do anything durably,
-            // e.g. a job.
-            return firstly { () -> Promise<PreparedPayment> in
-                self.prepareToPay(authorizedPayment: payment)
-            }.timeout(seconds: 30) {
-                Logger.warn("Timed out after preparing gift badge payment")
-                return SendGiftBadgeError.failedAndUserNotCharged
-            }.recover(on: .global()) { error -> Promise<PreparedPayment> in
-                if !(error is SendGiftBadgeError) { owsFailDebugUnlessNetworkFailure(error) }
-                throw SendGiftBadgeError.failedAndUserNotCharged
-            }
-        }.then { [weak self] preparedPayment -> Promise<PreparedPayment> in
-            guard let self = self else { throw SendGiftBadgeError.userCanceledBeforeChargeCompleted }
-
-            let safetyNumberConfirmationResult = self.showSafetyNumberConfirmationIfNecessary()
-            if safetyNumberConfirmationResult.needsUserInteraction {
-                wrappedCompletion(.init(status: .success, errors: nil))
-            }
-
-            return safetyNumberConfirmationResult.promise.map { safetyNumberConfirmationResult in
-                switch safetyNumberConfirmationResult {
-                case .userDidNotConfirmSafetyNumberChange:
-                    throw SendGiftBadgeError.userCanceledBeforeChargeCompleted
-                case .userConfirmedSafetyNumberChangeOrNoChangeWasNeeded:
-                    return preparedPayment
-                }
-            }
-        }.then { [weak self] preparedPayment -> Promise<Void> in
-            guard let self = self else { throw SendGiftBadgeError.userCanceledBeforeChargeCompleted }
-
-            // We know our payment processor here is Stripe, since we are in an
-            // Apple Pay flow.
-            let paymentProcessor: PaymentProcessor = .stripe
-
-            // Durably enqueue a job to (1) do the charge (2) redeem the receipt credential (3) enqueue
-            // a gift badge message (and optionally a text message) to the recipient. We also want to
-            // update the UI partway through the job's execution, and when it completes.
-            let jobRecord = SendGiftBadgeJobQueue.createJob(
-                paymentProcessor: paymentProcessor,
-                receiptRequest: SubscriptionManager.generateReceiptRequest(),
-                amount: self.price,
-                paymentIntent: preparedPayment.paymentIntent,
-                paymentMethodId: preparedPayment.paymentMethodId,
-                thread: self.thread,
-                messageText: self.messageText
-            )
-            let jobId = jobRecord.uniqueId
-
-            let (promise, future) = Promise<Void>.pending()
-
-            var modalActivityIndicatorViewController: ModalActivityIndicatorViewController?
-            var shouldDismissActivityIndicator = false
-            func presentModalActivityIndicatorIfNotAlreadyPresented() {
-                guard modalActivityIndicatorViewController == nil else { return }
-                ModalActivityIndicatorViewController.present(fromViewController: self, canCancel: false) { modal in
-                    DispatchQueue.main.async {
-                        modalActivityIndicatorViewController = modal
-                        // Depending on how things are dispatched, we could need the modal closed immediately.
-                        if shouldDismissActivityIndicator {
-                            modal.dismiss {}
-                        }
-                    }
-                }
-            }
-
-            // This is unusual, but can happen if the Apple Pay sheet was dismissed earlier in the process,
-            // which can happen if the user needed to confirm a safety number change.
-            if hasCalledCompletion {
-                presentModalActivityIndicatorIfNotAlreadyPresented()
-            }
-
-            var hasCharged = false
-
-            // The happy path is two steps: payment method is charged (showing a spinner), then job finishes (opening the chat).
-            //
-            // The valid sad paths are:
-            // 1. We started charging the card but we don't know whether it succeeded before the job failed
-            // 2. The card is "definitively" charged, but then the job fails
-            //
-            // There are some invalid sad paths that we try to handle, but those indicate Signal bugs.
-            let observer = NotificationCenter.default.addObserver(forName: SendGiftBadgeJobQueue.JobEventNotification,
-                                                                  object: nil,
-                                                                  queue: .main) { notification in
-                guard let userInfo = notification.userInfo,
-                      let notificationJobId = userInfo["jobId"] as? String,
-                      let rawJobEvent = userInfo["jobEvent"] as? Int,
-                      let jobEvent = SendGiftBadgeJobQueue.JobEvent(rawValue: rawJobEvent) else {
-                    owsFail("Received a gift badge job event with invalid user data")
-                }
-                guard notificationJobId == jobId else {
-                    // This can happen if:
-                    //
-                    // 1. The user enqueues a "send gift badge" job
-                    // 2. The app terminates before it can complete (e.g., due to a crash)
-                    // 3. Before the job finishes, the user restarts the app and tries to gift another badge
-                    //
-                    // This is unusual and may indicate a bug, so we log, but we don't error/crash because it can happen under "normal" circumstances.
-                    Logger.warn("Received an event for a different badge gifting job.")
-                    return
-                }
-
-                switch jobEvent {
-                case .jobFailed:
-                    future.reject(SendGiftBadgeError.failedAndUserMaybeCharged)
-                case .chargeSucceeded:
-                    guard !hasCharged else {
-                        // This job event can be emitted twice if the job fails (e.g., due to network) after the payment method is charged, and then it's restarted.
-                        // That's unusual, but isn't necessarily a bug.
-                        Logger.warn("Received a \"charge succeeded\" event more than once")
-                        break
-                    }
-                    hasCharged = true
-                    wrappedCompletion(.init(status: .success, errors: nil))
-                    controller.dismiss()
-                    presentModalActivityIndicatorIfNotAlreadyPresented()
-                case .jobSucceeded:
-                    future.resolve(())
-                }
-            }
-
-            try self.databaseStorage.write { transaction in
-                // We should already have checked this earlier, but it's possible that the state has changed on another device.
-                // We'll also check this inside the job before running it.
-                guard !self.isRecipientBlocked(transaction: transaction) else {
-                    throw SendGiftBadgeError.recipientIsBlocked
-                }
-
-                DonationUtilities.sendGiftBadgeJobQueue.addJob(jobRecord, transaction: transaction)
-            }
-
-            func finish() {
-                NotificationCenter.default.removeObserver(observer)
-                if let modalActivityIndicatorViewController = modalActivityIndicatorViewController {
-                    modalActivityIndicatorViewController.dismiss {}
-                } else {
-                    shouldDismissActivityIndicator = true
-                }
-            }
-
-            return promise.done(on: .main) {
-                owsAssertDebug(hasCharged, "Expected \"charge succeeded\" event")
-                finish()
-            }.recover(on: .main) { error in
-                finish()
-                throw error
-            }
-        }.done { [weak self] in
-            // We shouldn't need to dismiss the Apple Pay sheet here, but if the `chargeSucceeded` event was missed, we do our best.
-            wrappedCompletion(.init(status: .success, errors: nil))
-            guard let self = self else { return }
-            SignalApp.shared().presentConversation(for: self.thread, action: .none, animated: false)
-            self.dismiss(animated: true) {
-                SignalApp.shared().conversationSplitViewControllerForSwift?.present(
-                    BadgeGiftingThanksSheet(thread: self.thread, badge: self.badge),
-                    animated: true
-                )
-            }
-        }.catch { error in
-            guard let error = error as? SendGiftBadgeError else {
-                owsFail("\(error)")
-            }
-
-            wrappedCompletion(.init(status: .failure, errors: [error]))
-
-            switch error {
-            case .userCanceledBeforeChargeCompleted:
-                break
-            case .recipientIsBlocked:
-                Self.showRecipientIsBlockedError()
-            case .failedAndUserNotCharged, .cannotReceiveGiftBadges:
-                OWSActionSheets.showActionSheet(title: NSLocalizedString("BADGE_GIFTING_PAYMENT_FAILED_TITLE",
-                                                                         comment: "Title for the action sheet when you try to send a gift badge but the payment failed"),
-                                                message: NSLocalizedString("BADGE_GIFTING_PAYMENT_FAILED_BODY",
-                                                                           comment: "Text in the action sheet when you try to send a gift badge but the payment failed. Tells the user that they have not been charged"))
-            case .failedAndUserMaybeCharged:
-                OWSActionSheets.showActionSheet(title: NSLocalizedString("BADGE_GIFTING_PAYMENT_SUCCEEDED_BUT_GIFTING_FAILED_TITLE",
-                                                                         comment: "Title for the action sheet when you try to send a gift badge. They were charged but the badge could not be sent. They should contact support."),
-                                                message: NSLocalizedString("BADGE_GIFTING_PAYMENT_SUCCEEDED_BUT_GIFTING_FAILED_BODY",
-                                                                           comment: "Text in the action sheet when you try to send a gift badge. They were charged but the badge could not be sent. They should contact support."))
-            }
-        }
-    }
-
-    func paymentAuthorizationControllerDidFinish(_ controller: PKPaymentAuthorizationController) {
-        controller.dismiss()
     }
 }

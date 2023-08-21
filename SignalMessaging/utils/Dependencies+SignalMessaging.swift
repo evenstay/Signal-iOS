@@ -9,28 +9,13 @@ import Foundation
 
 @objc
 public extension NSObject {
-    final var launchJobs: LaunchJobs {
-        Environment.shared.launchJobsRef
+
+    final var preferences: Preferences {
+        SMEnvironment.shared.preferencesRef
     }
 
-    static var launchJobs: LaunchJobs {
-        Environment.shared.launchJobsRef
-    }
-
-    final var preferences: OWSPreferences {
-        Environment.shared.preferencesRef
-    }
-
-    static var preferences: OWSPreferences {
-        Environment.shared.preferencesRef
-    }
-
-    final var proximityMonitoringManager: OWSProximityMonitoringManager {
-        Environment.shared.proximityMonitoringManagerRef
-    }
-
-    static var proximityMonitoringManager: OWSProximityMonitoringManager {
-        Environment.shared.proximityMonitoringManagerRef
+    static var preferences: Preferences {
+        SMEnvironment.shared.preferencesRef
     }
 
     final var profileManagerImpl: OWSProfileManager {
@@ -49,88 +34,41 @@ public extension NSObject {
         contactsManager as! OWSContactsManager
     }
 
-    final var groupsV2Impl: GroupsV2Impl {
-        groupsV2 as! GroupsV2Impl
-    }
-
-    static var groupsV2Impl: GroupsV2Impl {
-        groupsV2 as! GroupsV2Impl
-    }
-
-    final var groupV2UpdatesImpl: GroupV2UpdatesImpl {
-        groupV2Updates as! GroupV2UpdatesImpl
-    }
-
-    static var groupV2UpdatesImpl: GroupV2UpdatesImpl {
-        groupV2Updates as! GroupV2UpdatesImpl
-    }
-
-    final var sounds: OWSSounds {
-        Environment.shared.soundsRef
-    }
-
-    static var sounds: OWSSounds {
-        Environment.shared.soundsRef
-    }
-
-    final var orphanDataCleaner: OWSOrphanDataCleaner {
-        Environment.shared.orphanDataCleanerRef
-    }
-
-    static var orphanDataCleaner: OWSOrphanDataCleaner {
-        Environment.shared.orphanDataCleanerRef
-    }
-
     var avatarBuilder: AvatarBuilder {
-        Environment.shared.avatarBuilderRef
+        SMEnvironment.shared.avatarBuilderRef
     }
 
     static var avatarBuilder: AvatarBuilder {
-        Environment.shared.avatarBuilderRef
+        SMEnvironment.shared.avatarBuilderRef
     }
 
     var lightweightCallManager: LightweightCallManager? {
-        Environment.shared.lightweightCallManagerRef
+        SMEnvironment.shared.lightweightCallManagerRef
     }
 
     static var lightweightCallManager: LightweightCallManager? {
-        Environment.shared.lightweightCallManagerRef
+        SMEnvironment.shared.lightweightCallManagerRef
     }
 
     var smJobQueues: SignalMessagingJobQueues {
-        Environment.shared.signalMessagingJobQueuesRef
+        SMEnvironment.shared.smJobQueuesRef
     }
 
     static var smJobQueues: SignalMessagingJobQueues {
-        Environment.shared.signalMessagingJobQueuesRef
+        SMEnvironment.shared.smJobQueuesRef
     }
 }
 
 // MARK: - Obj-C Dependencies
 
 public extension Dependencies {
-    var launchJobs: LaunchJobs {
-        Environment.shared.launchJobsRef
+
+    var preferences: Preferences {
+        SMEnvironment.shared.preferencesRef
     }
 
-    static var launchJobs: LaunchJobs {
-        Environment.shared.launchJobsRef
-    }
-
-    var preferences: OWSPreferences {
-        Environment.shared.preferencesRef
-    }
-
-    static var preferences: OWSPreferences {
-        Environment.shared.preferencesRef
-    }
-
-    var proximityMonitoringManager: OWSProximityMonitoringManager {
-        Environment.shared.proximityMonitoringManagerRef
-    }
-
-    static var proximityMonitoringManager: OWSProximityMonitoringManager {
-        Environment.shared.proximityMonitoringManagerRef
+    static var preferences: Preferences {
+        SMEnvironment.shared.preferencesRef
     }
 
     var profileManagerImpl: OWSProfileManager {
@@ -165,60 +103,20 @@ public extension Dependencies {
         groupV2Updates as! GroupV2UpdatesImpl
     }
 
-    var sounds: OWSSounds {
-        Environment.shared.soundsRef
-    }
-
-    static var sounds: OWSSounds {
-        Environment.shared.soundsRef
-    }
-
-    var orphanDataCleaner: OWSOrphanDataCleaner {
-        Environment.shared.orphanDataCleanerRef
-    }
-
-    static var orphanDataCleaner: OWSOrphanDataCleaner {
-        Environment.shared.orphanDataCleanerRef
-    }
-
     var avatarBuilder: AvatarBuilder {
-        Environment.shared.avatarBuilderRef
+        SMEnvironment.shared.avatarBuilderRef
     }
 
     static var avatarBuilder: AvatarBuilder {
-        Environment.shared.avatarBuilderRef
+        SMEnvironment.shared.avatarBuilderRef
     }
 
     var smJobQueues: SignalMessagingJobQueues {
-        Environment.shared.signalMessagingJobQueuesRef
+        SMEnvironment.shared.smJobQueuesRef
     }
 
     static var smJobQueues: SignalMessagingJobQueues {
-        Environment.shared.signalMessagingJobQueuesRef
-    }
-}
-
-// MARK: - Swift-only Dependencies
-
-public extension NSObject {
-    var versionedProfilesSwift: VersionedProfilesSwift {
-        versionedProfiles as! VersionedProfilesSwift
-    }
-
-    static var versionedProfilesSwift: VersionedProfilesSwift {
-        versionedProfiles as! VersionedProfilesSwift
-    }
-}
-
-// MARK: - Swift-only Dependencies
-
-public extension Dependencies {
-    var versionedProfilesSwift: VersionedProfilesSwift {
-        versionedProfiles as! VersionedProfilesSwift
-    }
-
-    static var versionedProfilesSwift: VersionedProfilesSwift {
-        versionedProfiles as! VersionedProfilesSwift
+        SMEnvironment.shared.smJobQueuesRef
     }
 }
 
@@ -233,16 +131,6 @@ public extension OWSProfileManager {
 
 // MARK: -
 
-@objc
-public extension OWSSounds {
-    static var shared: OWSSounds {
-        Environment.shared.soundsRef
-    }
-}
-
-// MARK: -
-
-@objc
 public extension OWSSyncManager {
     static var shared: SyncManagerProtocol {
         SSKEnvironment.shared.syncManagerRef

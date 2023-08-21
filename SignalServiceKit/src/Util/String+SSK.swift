@@ -198,6 +198,17 @@ public enum ImageAttachmentHeightReference: Int {
 // MARK: -
 
 public extension NSMutableAttributedString {
+
+    /// Set a default value for the given attribute.  Preserves any existing ranges where the attribute
+    /// is already defined.
+    func addDefaultAttributeToEntireString(_ name: NSAttributedString.Key, value: Any) {
+        enumerateAttribute(name, in: entireRange) { existing, subrange, stop in
+            if existing == nil {
+                addAttribute(name, value: value, range: subrange)
+            }
+        }
+    }
+
     func addAttributeToEntireString(_ name: NSAttributedString.Key, value: Any) {
         addAttribute(name, value: value, range: entireRange)
     }
@@ -275,17 +286,6 @@ public extension NSMutableAttributedString {
 
     @objc(appendImage:font:attributes:heightReference:)
     func appendImage(_ image: UIImage, font: UIFont, attributes: [NSAttributedString.Key: Any]?, heightReference: ImageAttachmentHeightReference) {
-        // Tinting of templated images doesn't work correctly at the start
-        // of a string on iOS 11+12, so we need to append a character before
-        // the icon. We use a thin space. Zero-width space doesn't work.
-        if
-            #unavailable(iOS 13),
-            image.renderingMode == .alwaysTemplate,
-            length == 0
-        {
-            append("\u{200a}", attributes: attributes ?? [:])
-        }
-
         append(.with(image: image, font: font, attributes: attributes, heightReference: heightReference))
     }
 
@@ -621,16 +621,8 @@ public extension String {
         }
     }
 
-    var utf8ByteCount: Int {
-        guard let data = data(using: .utf8) else {
-            owsFailDebug("Could not convert to utf-8.")
-            return 0
-        }
-        return data.count
-    }
-
     func trimToUtf8ByteCount(_ maxByteCount: Int) -> String {
-        guard utf8ByteCount > maxByteCount else {
+        guard utf8.count > maxByteCount else {
             return self
         }
         // Binary search for longest substring with valid UTF-8 count.
@@ -642,11 +634,11 @@ public extension String {
                   mid != left,
                   mid != right else {
                 let result = substring(to: left)
-                owsAssertDebug(result.utf8ByteCount <= maxByteCount)
+                owsAssertDebug(result.utf8.count <= maxByteCount)
                 return result
             }
             let segment = substring(to: mid)
-            if segment.utf8ByteCount <= maxByteCount {
+            if segment.utf8.count <= maxByteCount {
                 left = mid
             } else {
                 right = mid
@@ -779,4 +771,25 @@ public extension String {
     var isPermissibleAsFilename: Bool {
         Self.permissibleFilenameCharRegex.hasMatch(input: self)
     }
+}
+
+// MARK: - Phone Numbers
+
+public extension String {
+    /// A pattern for quickly deciding if a string looks like an e164. It makes
+    /// no attempt at determining whether or not a particular sequence of digits
+    /// could ever be a dialable phone number.
+    private static let validE164StructureRegex = try! NSRegularExpression(
+        pattern: #"^\+[1-9][0-9]{0,18}$"#,
+        options: []
+    )
+
+    /// Checks if the value starts with a "+" and has [1, 19] digits.
+    var isStructurallyValidE164: Bool { Self.validE164StructureRegex.hasMatch(input: self) }
+}
+
+public extension NSString {
+    /// Checks if the value starts with a "+" and has [1, 19] digits.
+    @objc
+    var isStructurallyValidE164: Bool { (self as String).isStructurallyValidE164 }
 }

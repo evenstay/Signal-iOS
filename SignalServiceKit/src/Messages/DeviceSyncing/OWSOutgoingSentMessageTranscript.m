@@ -92,7 +92,7 @@ NS_ASSUME_NONNULL_BEGIN
     SSKProtoSyncMessageSentBuilder *sentBuilder = [SSKProtoSyncMessageSent builder];
     [sentBuilder setTimestamp:self.timestamp];
     [sentBuilder setDestinationE164:self.sentRecipientAddress.phoneNumber];
-    [sentBuilder setDestinationUuid:self.sentRecipientAddress.uuidString];
+    [sentBuilder setDestinationServiceID:self.sentRecipientAddress.serviceIdString];
     [sentBuilder setIsRecipientUpdate:self.isRecipientUpdate];
 
     if (![self prepareDataSyncMessageContentWithSentBuilder:sentBuilder transaction:transaction]) {
@@ -114,8 +114,7 @@ NS_ASSUME_NONNULL_BEGIN
         NSError *error;
         SSKProtoSyncMessageSentUnidentifiedDeliveryStatusBuilder *statusBuilder =
             [SSKProtoSyncMessageSentUnidentifiedDeliveryStatus builder];
-        [statusBuilder setDestinationE164:recipientAddress.phoneNumber];
-        [statusBuilder setDestinationUuid:recipientAddress.uuidString];
+        [statusBuilder setDestinationServiceID:recipientAddress.serviceIdString];
         [statusBuilder setUnidentified:recipientState.wasSentByUD];
         SSKProtoSyncMessageSentUnidentifiedDeliveryStatus *_Nullable status =
             [statusBuilder buildAndReturnError:&error];
@@ -155,17 +154,8 @@ NS_ASSUME_NONNULL_BEGIN
 
             switch (groupThread.groupModel.groupsVersion) {
                 case GroupsVersionV1: {
-                    SSKProtoGroupContextBuilder *groupBuilder =
-                        [SSKProtoGroupContext builderWithId:groupThread.groupModel.groupId];
-                    [groupBuilder setType:SSKProtoGroupContextTypeDeliver];
-                    NSError *error;
-                    SSKProtoGroupContext *_Nullable groupContextProto = [groupBuilder buildAndReturnError:&error];
-                    if (error || !groupContextProto) {
-                        OWSFailDebug(@"could not build protobuf: %@.", error);
-                        return NO;
-                    }
-                    [dataBuilder setGroup:groupContextProto];
-                    break;
+                    OWSLogError(@"[GV1] Failed to build sync message contents for V1 groups message!");
+                    return NO;
                 }
                 case GroupsVersionV2: {
                     if (![groupThread.groupModel isKindOfClass:[TSGroupModelV2 class]]) {

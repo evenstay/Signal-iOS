@@ -15,7 +15,6 @@ NS_ASSUME_NONNULL_BEGIN
 @class LabeledPhoneNumber;
 @class PhoneNumber;
 @class SDSAnyReadTransaction;
-@class SignalRecipient;
 @class SignalServiceAddress;
 @class UIImage;
 
@@ -59,12 +58,8 @@ NS_ASSUME_NONNULL_BEGIN
 + (nullable Contact *)contactWithVCardData:(NSData *)data;
 + (nullable CNContact *)cnContactWithVCardData:(NSData *)data;
 
-- (NSString *)nameForAddress:(SignalServiceAddress *)address
-         registeredAddresses:(NSArray<SignalServiceAddress *> *)registeredAddresses;
-
 #endif // TARGET_OS_IOS
 
-+ (NSComparator)comparatorSortingNamesByFirstThenLast:(BOOL)firstNameOrdering;
 + (NSString *)formattedFullNameWithCNContact:(CNContact *)cnContact NS_SWIFT_NAME(formattedFullName(cnContact:));
 + (nullable NSString *)localizedStringForCNLabel:(nullable NSString *)cnLabel;
 

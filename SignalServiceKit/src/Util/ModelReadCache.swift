@@ -41,7 +41,7 @@ struct ModelReadCacheStats {
 
 // MARK: -
 
-class ModelCacheValueBox<ValueType: BaseModel> {
+class ModelCacheValueBox<ValueType> {
     let value: ValueType?
 
     init(value: ValueType?) {
@@ -57,7 +57,7 @@ struct ModelCacheKey<KeyType: Hashable & Equatable> {
 
 // MARK: -
 
-class ModelCacheAdapter<KeyType: Hashable & Equatable, ValueType: BaseModel> {
+class ModelCacheAdapter<KeyType: Hashable & Equatable, ValueType> {
     func read(key: KeyType, transaction: SDSAnyReadTransaction) -> ValueType? {
         fatalError("Unimplemented")
     }
@@ -98,7 +98,7 @@ class ModelCacheAdapter<KeyType: Hashable & Equatable, ValueType: BaseModel> {
 
 // MARK: -
 
-class ModelReadCache<KeyType: Hashable & Equatable, ValueType: BaseModel>: Dependencies, CacheSizeLeasing {
+class ModelReadCache<KeyType: Hashable & Equatable, ValueType>: Dependencies, CacheSizeLeasing {
 
     enum Mode {
         // * .read caches can be accessed from any thread.
@@ -154,32 +154,45 @@ class ModelReadCache<KeyType: Hashable & Equatable, ValueType: BaseModel>: Depen
 
         switch mode {
         case .read:
-            NotificationCenter.default.addObserver(self,
-                                                   selector: #selector(didReceiveCrossProcessNotification),
-                                                   name: SDSDatabaseStorage.didReceiveCrossProcessNotificationAlwaysSync,
-                                                   object: nil)
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(didReceiveCrossProcessNotification),
+                name: SDSDatabaseStorage.didReceiveCrossProcessNotificationAlwaysSync,
+                object: nil
+            )
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(didReceiveEvacuateCacheNotification),
+                name: ModelReadCaches.evacuateAllModelCaches,
+                object: nil
+            )
         }
     }
 
-    fileprivate func evacuateCache() {
-        // This may execute on background threads. For now, this is OK
-        // because LRUCache is thread safe, but if we ever do more work
-        // here we should re-evaluate.
+    private func evacuateCache() {
+        // Right now, we call `cache.removeAllObjects()` on background threads. For
+        // now, this is OK because LRUCache is thread safe, but if we ever do more
+        // work here we should re-evaluate.
+
         cache.removeAllObjects()
-    }
-
-    @objc
-    func didReceiveCrossProcessNotification(_ notification: Notification) {
-        AssertIsOnMainThread()
-        assert(mode == .read)
-
-        evacuateCache()
 
         DispatchQueue.global().async {
             self.performSync {
-                self.evacuateCache()
+                self.cache.removeAllObjects()
             }
         }
+    }
+
+    @objc
+    private func didReceiveEvacuateCacheNotification(_ notification: Notification) {
+        evacuateCache()
+    }
+
+    @objc
+    private func didReceiveCrossProcessNotification(_ notification: Notification) {
+        AssertIsOnMainThread()
+        assert(mode == .read)
+        evacuateCache()
     }
 
     // This method should only be called within performSync().
@@ -267,12 +280,7 @@ class ModelReadCache<KeyType: Hashable & Equatable, ValueType: BaseModel>: Depen
             guard !returnNilOnCacheMiss else {
                 return
             }
-            let databaseValue = self.readValue(for: cacheKey, transaction: transaction)
-            if cachedValue != databaseValue {
-                Logger.verbose("cachedValue: \(cachedValue?.description() ?? "nil")")
-                Logger.verbose("databaseValue: \(databaseValue?.description() ?? "nil")")
-                owsFailDebug("cachedValue != databaseValue")
-            }
+            _ = self.readValue(for: cacheKey, transaction: transaction)
         }
         #endif
 
@@ -903,13 +911,8 @@ public class InteractionReadCache: NSObject {
         return cache.getValue(for: cacheKey, transaction: transaction)
     }
 
-    @objc(getInteractionsIfInCacheForUniqueIds:transaction:)
-    public func getInteractionsIfInCache(forUniqueIds uniqueIds: [String], transaction: SDSAnyReadTransaction) -> [String: TSInteraction] {
-        let keys: [String] = uniqueIds.map { $0 }
-        let result: [String: TSInteraction] = cache.getValuesIfInCache(for: keys, transaction: transaction)
-        return Dictionary(uniqueKeysWithValues: result.map({ (key, value) in
-            return (key, value)
-        }))
+    public func getInteractionsIfInCache(for uniqueIds: [String], transaction: SDSAnyReadTransaction) -> [String: TSInteraction] {
+        return cache.getValuesIfInCache(for: uniqueIds, transaction: transaction)
     }
 
     @objc(didRemoveInteraction:transaction:)
@@ -1134,7 +1137,7 @@ public class ModelReadCaches: NSObject {
     }
 }
 
-class TestableModelReadCache<KeyType: Hashable & Equatable, ValueType: BaseModel>: ModelReadCache<KeyType, ValueType> {
+class TestableModelReadCache<KeyType: Hashable & Equatable, ValueType>: ModelReadCache<KeyType, ValueType> {
     override var isAppReady: Bool {
         return true
     }
@@ -1142,16 +1145,20 @@ class TestableModelReadCache<KeyType: Hashable & Equatable, ValueType: BaseModel
 
 @objc
 public class ModelReadCacheFactory: NSObject {
-    func create<KeyType: Hashable & Equatable, ValueType: BaseModel>(mode: ModelReadCache<KeyType, ValueType>.Mode,
-                                                                     adapter: ModelCacheAdapter<KeyType, ValueType>) -> ModelReadCache<KeyType, ValueType> {
+    func create<KeyType: Hashable & Equatable, ValueType>(
+        mode: ModelReadCache<KeyType, ValueType>.Mode,
+        adapter: ModelCacheAdapter<KeyType, ValueType>
+    ) -> ModelReadCache<KeyType, ValueType> {
         return ModelReadCache(mode: mode, adapter: adapter)
     }
 }
 
 @objc
 class TestableModelReadCacheFactory: ModelReadCacheFactory {
-    override func create<KeyType: Hashable & Equatable, ValueType: BaseModel>(mode: ModelReadCache<KeyType, ValueType>.Mode,
-                                                                              adapter: ModelCacheAdapter<KeyType, ValueType>) -> ModelReadCache<KeyType, ValueType> {
+    override func create<KeyType: Hashable & Equatable, ValueType>(
+        mode: ModelReadCache<KeyType, ValueType>.Mode,
+        adapter: ModelCacheAdapter<KeyType, ValueType>
+    ) -> ModelReadCache<KeyType, ValueType> {
         return TestableModelReadCache(mode: mode, adapter: adapter)
     }
 }

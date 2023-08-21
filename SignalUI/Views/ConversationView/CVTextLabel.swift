@@ -3,62 +3,18 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
-import UIKit
+import SignalServiceKit
 
-@objc
 public class CVTextLabel: NSObject {
-
-    public struct DataItem: Equatable {
-        public enum DataType: UInt, Equatable, CustomStringConvertible {
-            case link
-            case address
-            case phoneNumber
-            case date
-            case transitInformation
-            case emailAddress
-
-            // MARK: - CustomStringConvertible
-
-            public var description: String {
-                switch self {
-                case .link:
-                    return ".link"
-                case .address:
-                    return ".address"
-                case .phoneNumber:
-                    return ".phoneNumber"
-                case .date:
-                    return ".date"
-                case .transitInformation:
-                    return ".transitInformation"
-                case .emailAddress:
-                    return ".emailAddress"
-                }
-            }
-        }
-
-        public let dataType: DataType
-        public let range: NSRange
-        public let snippet: String
-        public let url: URL
-
-        public init(dataType: DataType, range: NSRange, snippet: String, url: URL) {
-            self.dataType = dataType
-            self.range = range
-            self.snippet = snippet
-            self.url = url
-        }
-    }
 
     // MARK: -
 
     public struct MentionItem: Equatable {
-        public let mention: Mention
+        public let mentionUUID: UUID
         public let range: NSRange
 
-        public init(mention: Mention, range: NSRange) {
-            self.mention = mention
+        public init(mentionUUID: UUID, range: NSRange) {
+            self.mentionUUID = mentionUUID
             self.range = range
         }
     }
@@ -77,10 +33,32 @@ public class CVTextLabel: NSObject {
 
     // MARK: -
 
+    public struct UnrevealedSpoilerItem: Equatable {
+        public let spoilerId: Int
+        public let interactionUniqueId: String
+        public let interactionIdentifier: InteractionSnapshotIdentifier
+        public let range: NSRange
+
+        public init(
+            spoilerId: Int,
+            interactionUniqueId: String,
+            interactionIdentifier: InteractionSnapshotIdentifier,
+            range: NSRange
+        ) {
+            self.spoilerId = spoilerId
+            self.interactionUniqueId = interactionUniqueId
+            self.interactionIdentifier = interactionIdentifier
+            self.range = range
+        }
+    }
+
+    // MARK: -
+
     public enum Item: Equatable, CustomStringConvertible {
-        case dataItem(dataItem: DataItem)
+        case dataItem(dataItem: TextCheckingDataItem)
         case mention(mentionItem: MentionItem)
         case referencedUser(referencedUserItem: ReferencedUserItem)
+        case unrevealedSpoiler(UnrevealedSpoilerItem)
 
         public var range: NSRange {
             switch self {
@@ -90,6 +68,8 @@ public class CVTextLabel: NSObject {
                 return mentionItem.range
             case .referencedUser(let referencedUserItem):
                 return referencedUserItem.range
+            case .unrevealedSpoiler(let item):
+                return item.range
             }
         }
 
@@ -101,14 +81,22 @@ public class CVTextLabel: NSObject {
                 return ".mention"
             case .referencedUser:
                 return ".referencedUser"
+            case .unrevealedSpoiler:
+                return ".unrevealedSpoiler"
             }
         }
+    }
+
+    public enum LinkifyStyle {
+        case linkAttribute
+        case underlined(bodyTextColor: UIColor)
     }
 
     // MARK: -
 
     public struct Config {
-        public let attributedString: NSAttributedString
+        public let text: CVTextValue
+        public let displayConfig: HydratedMessageBody.DisplayConfiguration
         public let font: UIFont
         public let textColor: UIColor
         public let selectionStyling: [NSAttributedString.Key: Any]
@@ -117,17 +105,23 @@ public class CVTextLabel: NSObject {
         public let numberOfLines: Int
         public let cacheKey: String
         public let items: [Item]
+        public let linkifyStyle: CVTextLabel.LinkifyStyle
 
-        public init(attributedString: NSAttributedString,
-                    font: UIFont,
-                    textColor: UIColor,
-                    selectionStyling: [NSAttributedString.Key: Any],
-                    textAlignment: NSTextAlignment,
-                    lineBreakMode: NSLineBreakMode,
-                    numberOfLines: Int = 0,
-                    cacheKey: String? = nil,
-                    items: [Item]) {
-            self.attributedString = attributedString
+        public init(
+            text: CVTextValue,
+            displayConfig: HydratedMessageBody.DisplayConfiguration,
+            font: UIFont,
+            textColor: UIColor,
+            selectionStyling: [NSAttributedString.Key: Any],
+            textAlignment: NSTextAlignment,
+            lineBreakMode: NSLineBreakMode,
+            numberOfLines: Int = 0,
+            cacheKey: String? = nil,
+            items: [Item],
+            linkifyStyle: CVTextLabel.LinkifyStyle
+        ) {
+            self.text = text
+            self.displayConfig = displayConfig
             self.font = font
             self.textColor = textColor
             self.selectionStyling = selectionStyling
@@ -138,10 +132,11 @@ public class CVTextLabel: NSObject {
             if let cacheKey = cacheKey {
                 self.cacheKey = cacheKey
             } else {
-                self.cacheKey = "\(attributedString.string),\(font.fontName),\(font.pointSize),\(numberOfLines),\(lineBreakMode.rawValue),\(textAlignment.rawValue)"
+                self.cacheKey = "\(text.cacheKey),\(displayConfig.sizingCacheKey),\(font.fontName),\(font.pointSize),\(numberOfLines),\(lineBreakMode.rawValue),\(textAlignment.rawValue)"
             }
 
             self.items = items
+            self.linkifyStyle = linkifyStyle
         }
     }
 
@@ -158,9 +153,15 @@ public class CVTextLabel: NSObject {
         super.init()
     }
 
-    public func configureForRendering(config: Config) {
+    public func configureForRendering(config: Config, spoilerAnimationManager: SpoilerAnimationManager) {
         AssertIsOnMainThread()
         label.config = config
+        label.spoilerAnimationManager = spoilerAnimationManager
+        spoilerAnimationManager.prepareViewForRendering(view)
+    }
+
+    public func setIsCellVisible(_ isCellVisible: Bool) {
+        label.setIsCellVisible(isCellVisible)
     }
 
     public func reset() {
@@ -187,7 +188,7 @@ public class CVTextLabel: NSObject {
     }
 
     public static func measureSize(config: Config, maxWidth: CGFloat) -> Measurement {
-        guard config.attributedString.length > 0 else {
+        guard config.text.isEmpty.negated else {
             return .empty
         }
         let attributedString = Label.formatAttributedString(config: config)
@@ -232,8 +233,49 @@ public class CVTextLabel: NSObject {
 
     // MARK: - Gestures
 
-    public func itemForGesture(sender: UIGestureRecognizer, animated: Bool = true) -> Item? {
-        label.itemForGesture(sender: sender, animated: animated)
+    public func itemForGesture(sender: UIGestureRecognizer) -> Item? {
+        label.itemForGesture(sender: sender)
+    }
+
+    public func animate(selectedItem: Item) {
+        label.animate(selectedItem: selectedItem)
+    }
+
+    // MARK: - Linkification
+
+    public static func linkifyData(
+        attributedText: NSMutableAttributedString,
+        linkifyStyle: LinkifyStyle,
+        items: [CVTextLabel.Item]
+    ) {
+
+        // Sort so that we can detect overlap.
+        let items = items.sorted {
+            $0.range.location < $1.range.location
+        }
+
+        for item in items {
+            let range = item.range
+
+            switch item {
+            case .mention, .referencedUser, .unrevealedSpoiler:
+                // Do nothing; these are already styled.
+                continue
+            case .dataItem(let dataItem):
+                guard let link = dataItem.url.absoluteString.nilIfEmpty else {
+                    owsFailDebug("Could not build data link.")
+                    continue
+                }
+
+                switch linkifyStyle {
+                case .linkAttribute:
+                    attributedText.addAttribute(.link, value: link, range: range)
+                case .underlined(let bodyTextColor):
+                    attributedText.addAttribute(.underlineStyle, value: NSUnderlineStyle.single.rawValue, range: range)
+                    attributedText.addAttribute(.underlineColor, value: bodyTextColor, range: range)
+                }
+            }
+        }
     }
 
     // MARK: -
@@ -244,6 +286,17 @@ public class CVTextLabel: NSObject {
             didSet {
                 reset()
                 apply(config: config)
+            }
+        }
+
+        fileprivate var spoilerAnimationManager: SpoilerAnimationManager? {
+            didSet {
+                if spoilerAnimationManager == nil, let oldValue, self.isAnimatingSpoilers {
+                    self.isAnimatingSpoilers = false
+                    oldValue.removeViewAnimator(self)
+                } else {
+                    updateSpoilerAnimationState()
+                }
             }
         }
 
@@ -273,11 +326,31 @@ public class CVTextLabel: NSObject {
             super.init(coder: aDecoder)
         }
 
+        override var frame: CGRect {
+            didSet {
+                // Ensure the text container size is kept in sync;
+                // this is used to compute spoiler positions.
+                textContainer.size = bounds.size
+
+                if oldValue != frame, isAnimatingSpoilers, let spoilerAnimationManager {
+                    spoilerAnimationManager.didUpdateAnimationState(for: self)
+                }
+            }
+        }
+
+        private var isCellVisible = false
+
+        fileprivate func setIsCellVisible(_ isCellVisible: Bool) {
+            self.isCellVisible = isCellVisible
+            updateSpoilerAnimationState()
+        }
+
         fileprivate func reset() {
             AssertIsOnMainThread()
 
             animationTimer?.invalidate()
             animationTimer = nil
+            updateSpoilerAnimationState()
         }
 
         private func apply(config: Config?) {
@@ -309,7 +382,7 @@ public class CVTextLabel: NSObject {
             textContainer.maximumNumberOfLines = config.numberOfLines
             textContainer.size = bounds.size
 
-            guard config.attributedString.length > 0 else {
+            guard config.text.isEmpty.negated else {
                 reset()
                 textStorage.setAttributedString(NSAttributedString())
                 setNeedsDisplay()
@@ -319,19 +392,47 @@ public class CVTextLabel: NSObject {
             let attributedString = Self.formatAttributedString(config: config)
             textStorage.setAttributedString(attributedString)
             setNeedsDisplay()
+
+            updateSpoilerAnimationState()
         }
 
         fileprivate static func formatAttributedString(config: Config) -> NSMutableAttributedString {
-            let attributedString = NSMutableAttributedString(attributedString: config.attributedString)
+            let attributedString: NSMutableAttributedString
+            switch config.text {
+            case .text(let text):
+                attributedString = NSMutableAttributedString(string: text)
+                config.displayConfig.searchRanges?.apply(
+                    attributedString,
+                    isDarkThemeEnabled: Theme.isDarkThemeEnabled
+                )
+            case .attributedText(let attributedText):
+                attributedString = NSMutableAttributedString(attributedString: attributedText)
+                config.displayConfig.searchRanges?.apply(
+                    attributedString,
+                    isDarkThemeEnabled: Theme.isDarkThemeEnabled
+                )
+            case .messageBody(let messageBody):
+                // This will internally apply search ranges, no need to handle separately.
+                let attributedText = messageBody.asAttributedStringForDisplay(
+                    config: config.displayConfig,
+                    isDarkThemeEnabled: Theme.isDarkThemeEnabled
+                )
+                attributedString = (attributedText as? NSMutableAttributedString) ?? NSMutableAttributedString(attributedString: attributedText)
+            }
 
-            // The original attributed string may not have an overall font
-            // assigned. Without it, measurement will not be correct. We
-            // assign a font here with "add" which will not override any
-            // ranges that already have a different font assigned.
-            attributedString.addAttributeToEntireString(.font, value: config.font)
+            // The original attributed string may not have an overall font assigned.
+            // Without it, measurement will not be correct. We assign the default font
+            // to any ranges that don't currently have a font assigned.
+            attributedString.addDefaultAttributeToEntireString(.font, value: config.font)
 
-            // Color needs to be set on the string.
-            attributedString.addAttributeToEntireString(.foregroundColor, value: config.textColor)
+            // Set a default text color based on the passed in config
+            attributedString.addDefaultAttributeToEntireString(.foregroundColor, value: config.textColor)
+
+            CVTextLabel.linkifyData(
+                attributedText: attributedString,
+                linkifyStyle: config.linkifyStyle,
+                items: config.items
+            )
 
             var range = NSRange(location: 0, length: 0)
             var attributes = attributedString.attributes(at: 0, effectiveRange: &range)
@@ -356,7 +457,13 @@ public class CVTextLabel: NSObject {
                 return
             }
 
-            textStorage.addAttributes(config.selectionStyling, range: selectedItem.range)
+            switch selectedItem {
+            case .mention, .referencedUser, .dataItem:
+                textStorage.addAttributes(config.selectionStyling, range: selectedItem.range)
+            case .unrevealedSpoiler:
+                // Don't apply anything for spoilers.
+                return
+            }
 
             setNeedsDisplay()
         }
@@ -371,14 +478,13 @@ public class CVTextLabel: NSObject {
                 return nil
             }
 
-            let glyphRange = layoutManager.glyphRange(for: textContainer)
-            let boundingRect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
-            guard boundingRect.contains(location) else {
+            guard let characterIndex = textContainer.characterIndex(
+                of: location,
+                textStorage: textStorage,
+                layoutManager: layoutManager
+            ) else {
                 return nil
             }
-
-            let glyphIndex = layoutManager.glyphIndex(for: location, in: textContainer)
-            let characterIndex = layoutManager.characterIndexForGlyph(at: glyphIndex)
 
             for item in config.items {
                 if item.range.contains(characterIndex) {
@@ -401,18 +507,48 @@ public class CVTextLabel: NSObject {
             }
         }
 
+        // MARK: Spoiler
+
+        private var isAnimatingSpoilers = false
+
+        private func updateSpoilerAnimationState() {
+            let wantsToAnimate: Bool
+            if isCellVisible, let config {
+                switch config.text {
+                case .text, .attributedText:
+                    wantsToAnimate = false
+                case .messageBody(let body):
+                    wantsToAnimate = body.hasSpoilerRangesToAnimate
+                }
+            } else {
+                wantsToAnimate = false
+            }
+
+            guard let spoilerAnimationManager else {
+                return
+            }
+            guard isAnimatingSpoilers != wantsToAnimate else {
+                if isAnimatingSpoilers {
+                    spoilerAnimationManager.didUpdateAnimationState(for: self)
+                }
+                return
+            }
+            if wantsToAnimate {
+                spoilerAnimationManager.addViewAnimator(self)
+            } else {
+                spoilerAnimationManager.removeViewAnimator(self)
+            }
+            self.isAnimatingSpoilers = wantsToAnimate
+        }
+
         // MARK: - Gestures
 
-        public func itemForGesture(sender: UIGestureRecognizer, animated: Bool) -> Item? {
+        public func itemForGesture(sender: UIGestureRecognizer) -> Item? {
             AssertIsOnMainThread()
 
             let location = sender.location(in: self)
             guard let selectedItem = item(at: location) else {
                 return nil
-            }
-
-            if animated {
-                animate(selectedItem: selectedItem)
             }
 
             return selectedItem
@@ -425,6 +561,68 @@ public class CVTextLabel: NSObject {
 
             deactivateAllConstraints()
         }
+    }
+}
+
+// MARK: -
+
+extension CVTextLabel.Label: SpoilerableViewAnimator {
+
+    var spoilerableView: UIView? {
+        return self
+    }
+
+    func spoilerFrames() -> [SpoilerFrame] {
+        guard let config else { return [] }
+        switch config.text {
+        case .text, .attributedText:
+            return []
+        case .messageBody(let messageBody):
+            return Self.spoilerFrames(
+                messageBody: messageBody,
+                displayConfig: config.displayConfig,
+                textContainer: textContainer,
+                textStorage: textStorage,
+                layoutManager: layoutManager,
+                bounds: self.bounds.size
+            )
+        }
+    }
+
+    var spoilerFramesCacheKey: Int {
+        var hasher = Hasher()
+        hasher.combine("CVTextLabel.Label")
+        hasher.combine(config?.text)
+        config?.displayConfig.hashForSpoilerFrames(into: &hasher)
+        // Order matters. 100x10 is not the same hash value as 10x100.
+        hasher.combine(textContainer.size.width)
+        hasher.combine(textContainer.size.height)
+        return hasher.finalize()
+    }
+
+    // Every input here should be represented in the cache key above.
+    private static func spoilerFrames(
+        messageBody: HydratedMessageBody,
+        displayConfig: HydratedMessageBody.DisplayConfiguration,
+        textContainer: NSTextContainer,
+        textStorage: NSTextStorage,
+        layoutManager: NSLayoutManager,
+        bounds: CGSize
+    ) -> [SpoilerFrame] {
+        let spoilerRanges = messageBody.spoilerRangesForAnimation(config: displayConfig)
+        return textContainer.boundingRects(
+            ofCharacterRanges: spoilerRanges,
+            rangeMap: \.range,
+            textStorage: textStorage,
+            layoutManager: layoutManager,
+            transform: { rect, spoilerRange in
+                return .init(
+                    frame: rect,
+                    color: spoilerRange.color,
+                    style: spoilerRange.isSearchResult ? .highlight : .standard
+                )
+            }
+        )
     }
 }
 
@@ -448,6 +646,9 @@ extension CVTextLabel.Label: UIDragInteractionDelegate {
             return []
         case .referencedUser:
             // Dragging is not applicable to referenced users
+            return []
+        case .unrevealedSpoiler:
+            // Dragging is not applicable for spoilers.
             return []
         case .dataItem(let dataItem):
             animate(selectedItem: selectedItem)

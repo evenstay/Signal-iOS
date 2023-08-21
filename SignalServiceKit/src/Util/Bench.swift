@@ -24,10 +24,10 @@ private func BenchAsync(title: String, logInProduction: Bool = false, block: (@e
     InstrumentsMonitor.measure(category: "runtime", parent: "BenchAsync", name: title) {
         let startTime = CACurrentMediaTime()
         block {
-            let timeElapsed = CACurrentMediaTime() - startTime
-            let formattedTime = String(format: "%0.2fms", timeElapsed * 1000)
-            let logMessage = "[Bench] title: \(title), duration: \(formattedTime)"
             if !DebugFlags.reduceLogChatter {
+                let timeElapsed = CACurrentMediaTime() - startTime
+                let formattedTime = String(format: "%0.2fms", timeElapsed * 1000)
+                let logMessage = "[Bench] title: \(title), duration: \(formattedTime)"
                 if logInProduction {
                     Logger.info(logMessage)
                 } else {
@@ -59,9 +59,9 @@ public func Bench<T>(title: String, logIfLongerThan intervalLimit: TimeInterval 
         let timeElapsed = CACurrentMediaTime() - startTime
 
         if timeElapsed > intervalLimit {
-            let formattedTime = String(format: "%0.2fms", timeElapsed * 1000)
-            let logMessage = "[Bench] title: \(title), duration: \(formattedTime)"
             if !DebugFlags.reduceLogChatter {
+                let formattedTime = String(format: "%0.2fms", timeElapsed * 1000)
+                let logMessage = "[Bench] title: \(title), duration: \(formattedTime)"
                 if logInProduction {
                     Logger.info(logMessage)
                 } else {
@@ -315,63 +315,5 @@ public extension Bool {
     @inlinable
     static func trueWithProbability(ratio: Float) -> Bool {
         return (0..<ratio).contains(Float.random(in: 0..<1.0))
-    }
-}
-
-// MARK: -
-
-@objc
-public class BenchSteps: NSObject {
-    private var title: String?
-
-    private let startTime: TimeInterval
-    private var lastTime: TimeInterval
-
-    private struct Step {
-        let stepName: String
-        let fromStartInterval: TimeInterval
-        let fromLastInterval: TimeInterval
-
-        func log() {
-            if !DebugFlags.reduceLogChatter {
-                Logger.debug("[Bench] \(stepName), duration: \(format(fromLastInterval)) (\(format(fromStartInterval)))")
-            }
-        }
-
-        func format(_ interval: TimeInterval) -> String {
-            return String(format: "%0.2fms", interval * 1000)
-        }
-    }
-    private var steps = [Step]()
-
-    @objc
-    public required init(title: String? = nil) {
-        self.title = title
-
-        startTime = CACurrentMediaTime()
-        lastTime = startTime
-    }
-
-    @objc
-    public func step(_ name: String) {
-        let stepName: String
-        if let title = title {
-            stepName = "\(title).\(name)"
-        } else {
-            stepName = name
-        }
-
-        let now = CACurrentMediaTime()
-        let step = Step(stepName: stepName, fromStartInterval: now - startTime, fromLastInterval: now - lastTime)
-        step.log()
-        steps.append(step)
-        lastTime = now
-    }
-
-    @objc
-    public func logAll() {
-        for step in steps {
-            step.log()
-        }
     }
 }

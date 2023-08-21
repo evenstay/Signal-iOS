@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalCoreKit
 
 public class MyStorySettingsLearnMoreSheetViewController: InteractiveSheetViewController {
 
@@ -52,9 +52,9 @@ public class MyStorySettingsLearnMoreSheetViewController: InteractiveSheetViewCo
 
     let connectionsImageView: UIImageView = {
         let view = UIImageView()
-        view.image = UIImage(named: "signal_connections")?.withRenderingMode(.alwaysTemplate)
+        view.image = UIImage(named: "signal_connections")
         view.tintColor = .ows_accentBlue
-        view.contentMode = .center
+        view.contentMode = .scaleAspectFit
         view.autoSetDimension(.height, toSize: 88)
         return view
     }()
@@ -65,8 +65,8 @@ public class MyStorySettingsLearnMoreSheetViewController: InteractiveSheetViewCo
             "STORY_SETTINGS_LEARN_MORE_SHEET_HEADER_FORMAT",
             comment: "Header for the explainer sheet for signal connections"
         ).styled(
-            with: .font(.ows_dynamicTypeBodyClamped),
-            .xmlRules([.style("bold", .init(.font(UIFont.ows_dynamicTypeBodyClamped.ows_semibold)))])
+            with: .font(.dynamicTypeBodyClamped),
+            .xmlRules([.style("bold", .init(.font(UIFont.dynamicTypeBodyClamped.semibold())))])
         )
         label.textColor = Theme.primaryTextColor
         label.numberOfLines = 0
@@ -100,7 +100,7 @@ public class MyStorySettingsLearnMoreSheetViewController: InteractiveSheetViewCo
             comment: "Footer for the explainer sheet for signal connections"
         )
         label.textColor = Theme.primaryTextColor
-        label.font = .ows_dynamicTypeBodyClamped
+        label.font = .dynamicTypeBodyClamped
         label.numberOfLines = 0
         label.setCompressionResistanceHigh()
         return label
@@ -119,7 +119,7 @@ public class MyStorySettingsLearnMoreSheetViewController: InteractiveSheetViewCo
             label.text = text
             label.numberOfLines = 0
             label.textColor = Theme.primaryTextColor
-            label.font = .ows_dynamicTypeBodyClamped
+            label.font = .dynamicTypeBodyClamped
 
             let bulletPoint = UIView()
             bulletPoint.backgroundColor = UIColor(rgbHex: 0xC4C4C4)

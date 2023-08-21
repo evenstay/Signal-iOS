@@ -29,10 +29,10 @@ public class NewStorySheet: OWSTableSheetViewController {
         let headerSection = OWSTableSection()
         headerSection.customHeaderHeight = 2
         headerSection.hasBackground = false
-        contents.addSection(headerSection)
+        contents.add(headerSection)
         headerSection.add(.init(customCellBlock: {
             let label = UILabel()
-            label.font = UIFont.ows_dynamicTypeHeadlineClamped
+            label.font = UIFont.dynamicTypeHeadlineClamped
             label.textColor = Theme.primaryTextColor
             label.text = OWSLocalizedString("NEW_STORY_SHEET_TITLE", comment: "Title for the new story sheet")
             label.textAlignment = .center
@@ -46,9 +46,9 @@ public class NewStorySheet: OWSTableSheetViewController {
 
         let optionsSection = OWSTableSection()
         optionsSection.customHeaderHeight = 28
-        contents.addSection(optionsSection)
+        contents.add(optionsSection)
         optionsSection.add(buildOptionItem(
-            icon: .settingsStories,
+            icon: .genericStories,
             title: OWSLocalizedString("NEW_STORY_SHEET_CUSTOM_STORY_TITLE",
                                      comment: "Title for create custom story row on the 'new story sheet'"),
             subtitle: OWSLocalizedString("NEW_STORY_SHEET_CUSTOM_STORY_SUBTITLE",
@@ -63,7 +63,7 @@ public class NewStorySheet: OWSTableSheetViewController {
             }))
 
         optionsSection.add(buildOptionItem(
-            icon: .settingsShowGroup,
+            icon: .genericGroup,
             title: OWSLocalizedString("NEW_STORY_SHEET_GROUP_STORY_TITLE",
                                      comment: "Title for create group story row on the 'new story sheet'"),
             subtitle: OWSLocalizedString("NEW_STORY_SHEET_GROUP_STORY_SUBTITLE",
@@ -94,13 +94,13 @@ public class NewStorySheet: OWSTableSheetViewController {
             let rowTitleLabel = UILabel()
             rowTitleLabel.text = title
             rowTitleLabel.textColor = Theme.primaryTextColor
-            rowTitleLabel.font = .ows_dynamicTypeBodyClamped
+            rowTitleLabel.font = .dynamicTypeBodyClamped
             rowTitleLabel.numberOfLines = 0
 
             let rowSubtitleLabel = UILabel()
             rowSubtitleLabel.text = subtitle
             rowSubtitleLabel.textColor = Theme.secondaryTextAndIconColor
-            rowSubtitleLabel.font = .ows_dynamicTypeSubheadlineClamped
+            rowSubtitleLabel.font = .dynamicTypeSubheadlineClamped
             rowSubtitleLabel.numberOfLines = 0
 
             let titleStack = UIStackView(arrangedSubviews: [ rowTitleLabel, rowSubtitleLabel ])

@@ -23,6 +23,8 @@ public class TSMessageBuilder: NSObject {
     @objc
     public var attachmentIds = [String]()
     @objc
+    public var editState: TSEditState = .none
+    @objc
     public var expiresInSeconds: UInt32 = 0
     @objc
     public var expireStartedAt: UInt64 = 0
@@ -36,6 +38,8 @@ public class TSMessageBuilder: NSObject {
     public var messageSticker: MessageSticker?
     @objc
     public var isViewOnceMessage = false
+    @objc
+    public var read = false
     @objc
     public var storyAuthorAddress: SignalServiceAddress?
     @objc
@@ -54,6 +58,7 @@ public class TSMessageBuilder: NSObject {
          messageBody: String? = nil,
          bodyRanges: MessageBodyRanges? = nil,
          attachmentIds: [String]? = nil,
+         editState: TSEditState = .none,
          expiresInSeconds: UInt32 = 0,
          expireStartedAt: UInt64 = 0,
          quotedMessage: TSQuotedMessage? = nil,
@@ -61,6 +66,7 @@ public class TSMessageBuilder: NSObject {
          linkPreview: OWSLinkPreview? = nil,
          messageSticker: MessageSticker? = nil,
          isViewOnceMessage: Bool = false,
+         read: Bool = false,
          storyAuthorAddress: SignalServiceAddress? = nil,
          storyTimestamp: UInt64? = nil,
          storyReactionEmoji: String? = nil,
@@ -75,6 +81,7 @@ public class TSMessageBuilder: NSObject {
         if let attachmentIds = attachmentIds {
             self.attachmentIds = attachmentIds
         }
+        self.editState = editState
         self.expiresInSeconds = expiresInSeconds
         self.expireStartedAt = expireStartedAt
         self.quotedMessage = quotedMessage
@@ -82,6 +89,7 @@ public class TSMessageBuilder: NSObject {
         self.linkPreview = linkPreview
         self.messageSticker = messageSticker
         self.isViewOnceMessage = isViewOnceMessage
+        self.read = read
         self.storyAuthorAddress = storyAuthorAddress
         self.storyTimestamp = storyTimestamp.map { NSNumber(value: $0) }
         self.storyReactionEmoji = storyReactionEmoji
@@ -107,13 +115,6 @@ public class TSMessageBuilder: NSObject {
         return TSMessageBuilder(thread: thread,
                                 timestamp: timestamp,
                                 messageBody: messageBody)
-    }
-
-    @objc(applyDisappearingMessagesConfiguration:)
-    public func apply(configuration: OWSDisappearingMessagesConfiguration) {
-        expiresInSeconds = (configuration.isEnabled
-            ? configuration.durationSeconds
-            : 0)
     }
 
     #if TESTABLE_BUILD

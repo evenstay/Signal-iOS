@@ -5,16 +5,14 @@
 
 import Lottie
 import SignalMessaging
-import UIKit
+import SignalUI
 
-@objc
-public protocol SendPaymentViewDelegate {
-    func didSendPayment()
+public protocol SendPaymentViewDelegate: AnyObject {
+    func didSendPayment(success: Bool)
 }
 
 // MARK: -
 
-@objc
 public enum SendPaymentMode: UInt {
     case fromConversationView
     case fromPaymentSettings
@@ -33,14 +31,12 @@ public enum SendPaymentMode: UInt {
 
 // MARK: -
 
-@objc
 public class SendPaymentViewController: OWSViewController {
 
     private let mode: SendPaymentMode
 
     fileprivate typealias PaymentInfo = SendPaymentInfo
 
-    @objc
     public weak var delegate: SendPaymentViewDelegate?
 
     private let recipient: SendPaymentRecipient
@@ -75,6 +71,46 @@ public class SendPaymentViewController: OWSViewController {
 
     private var isIdentifiedPayment: Bool {
         recipient.isIdentifiedPayment
+    }
+
+    public var isUsingPresentedStyle: Bool {
+        return presentingViewController != nil
+    }
+
+    open var tableBackgroundColor: UIColor {
+        AssertIsOnMainThread()
+
+        return Self.tableBackgroundColor(isUsingPresentedStyle: isUsingPresentedStyle)
+    }
+
+    public static func tableBackgroundColor(isUsingPresentedStyle: Bool) -> UIColor {
+        AssertIsOnMainThread()
+
+        if isUsingPresentedStyle {
+            return Theme.tableView2PresentedBackgroundColor
+        } else {
+            return Theme.tableView2BackgroundColor
+        }
+    }
+
+    public var cellBackgroundColor: UIColor {
+        Self.cellBackgroundColor(isUsingPresentedStyle: isUsingPresentedStyle)
+    }
+
+    public static func cellBackgroundColor(isUsingPresentedStyle: Bool) -> UIColor {
+        if isUsingPresentedStyle {
+            return Theme.tableCell2PresentedBackgroundColor
+        } else {
+            return Theme.tableCell2BackgroundColor
+        }
+    }
+
+    public var cellSelectedBackgroundColor: UIColor {
+        if isUsingPresentedStyle {
+            return Theme.tableCell2PresentedSelectedBackgroundColor
+        } else {
+            return Theme.tableCell2SelectedBackgroundColor
+        }
     }
 
     public required init(recipient: SendPaymentRecipient,
@@ -174,12 +210,12 @@ public class SendPaymentViewController: OWSViewController {
             hasSentMessagesToRecipient = 0 < interactionFinder.outgoingMessageCount(transaction: transaction)
         }
         guard hasProfileKeyForRecipient else {
-            let title = NSLocalizedString("PAYMENTS_RECIPIENT_MISSING_PROFILE_KEY_TITLE",
+            let title = OWSLocalizedString("PAYMENTS_RECIPIENT_MISSING_PROFILE_KEY_TITLE",
                                           comment: "Title for error alert indicating that a given user cannot receive payments because of a pending message request.")
             let message = (hasSentMessagesToRecipient
-                            ? NSLocalizedString("PAYMENTS_RECIPIENT_MISSING_PROFILE_KEY_MESSAGE_W_MESSAGES",
+                            ? OWSLocalizedString("PAYMENTS_RECIPIENT_MISSING_PROFILE_KEY_MESSAGE_W_MESSAGES",
                             comment: "Message for error alert indicating that a given user cannot receive payments because of a pending message request for a recipient that they have sent messages to.")
-                            : NSLocalizedString("PAYMENTS_RECIPIENT_MISSING_PROFILE_KEY_MESSAGE_WO_MESSAGES",
+                            : OWSLocalizedString("PAYMENTS_RECIPIENT_MISSING_PROFILE_KEY_MESSAGE_WO_MESSAGES",
                             comment: "Message for error alert indicating that a given user cannot receive payments because of a pending message request for a recipient that they have not sent message to."))
 
             let actionSheet = ActionSheetController(title: title, message: message)
@@ -203,7 +239,7 @@ public class SendPaymentViewController: OWSViewController {
                             let rootViewController = fromViewController.presentingViewController?.presentingViewController
                             owsAssertDebug(rootViewController != nil)
                             rootViewController?.dismiss(animated: true) {
-                                SignalApp.shared().presentConversation(for: recipientAddress, action: .compose, animated: true)
+                                SignalApp.shared.presentConversationForAddress(recipientAddress, action: .compose, animated: true)
                             }
                         }
                     ))
@@ -231,7 +267,7 @@ public class SendPaymentViewController: OWSViewController {
         } else {
             // Check whether recipient can receive payments.
             ModalActivityIndicatorViewController.presentAsInvisible(fromViewController: fromViewController) { modalActivityIndicator in
-                firstly(on: .global()) {
+                firstly(on: DispatchQueue.global()) {
                     ProfileFetcherJob.fetchProfilePromise(address: recipientAddress, ignoreThrottling: true)
                 }.done { (_) in
                     AssertIsOnMainThread()
@@ -292,13 +328,12 @@ public class SendPaymentViewController: OWSViewController {
     }
 
     private static func showRecipientNotEnabledAlert() {
-        OWSActionSheets.showActionSheet(title: NSLocalizedString("PAYMENTS_RECIPIENT_PAYMENTS_NOT_ENABLED_TITLE",
+        OWSActionSheets.showActionSheet(title: OWSLocalizedString("PAYMENTS_RECIPIENT_PAYMENTS_NOT_ENABLED_TITLE",
                                                                  comment: "Title for error alert indicating that a given user cannot receive payments because they have not enabled payments."),
-                                        message: NSLocalizedString("PAYMENTS_RECIPIENT_PAYMENTS_NOT_ENABLED_MESSAGE",
+                                        message: OWSLocalizedString("PAYMENTS_RECIPIENT_PAYMENTS_NOT_ENABLED_MESSAGE",
                                                                    comment: "Message for error alert indicating that a given user cannot receive payments because they have not enabled payments."))
     }
 
-    @objc
     public static func presentFromConversationView(_ fromViewController: UIViewController,
                                                    delegate: SendPaymentViewDelegate,
                                                    recipientAddress: SignalServiceAddress,
@@ -315,7 +350,6 @@ public class SendPaymentViewController: OWSViewController {
                 mode: .fromConversationView)
     }
 
-    @objc
     public static func present(inNavigationController navigationController: UINavigationController,
                                delegate: SendPaymentViewDelegate,
                                recipientAddress: SignalServiceAddress,
@@ -336,14 +370,17 @@ public class SendPaymentViewController: OWSViewController {
     open override func viewDidLoad() {
         super.viewDidLoad()
 
-        view.backgroundColor = Theme.backgroundColor
+        view.backgroundColor = tableBackgroundColor
 
         addListeners()
 
         createSubviews()
 
         updateContents()
+    }
 
+    public override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
         helper?.refreshObservedValues()
     }
 
@@ -354,8 +391,6 @@ public class SendPaymentViewController: OWSViewController {
         if !UIDevice.current.isIPad && CurrentAppContext().interfaceOrientation != .portrait {
             UIDevice.current.ows_setOrientation(.portrait)
         }
-
-        helper?.refreshObservedValues()
     }
 
     public override func themeDidChange() {
@@ -376,7 +411,9 @@ public class SendPaymentViewController: OWSViewController {
     @objc
     private func isPaymentsVersionOutdatedDidChange() {
         guard UIApplication.shared.frontmostViewController == self else { return }
-        OWSActionSheets.showPaymentsOutdatedClientSheetIfNeeded(title: .updateRequired)
+        if paymentsHelper.isPaymentsVersionOutdated {
+            OWSActionSheets.showPaymentsOutdatedClientSheet(title: .updateRequired)
+        }
     }
 
     public override var supportedInterfaceOrientations: UIInterfaceOrientationMask {
@@ -392,7 +429,7 @@ public class SendPaymentViewController: OWSViewController {
     private func updateContents() {
         AssertIsOnMainThread()
 
-        view.backgroundColor = Theme.backgroundColor
+        view.backgroundColor = tableBackgroundColor
         navigationItem.title = nil
         if mode.isModalRootView {
             navigationItem.leftBarButtonItem = UIBarButtonItem(barButtonSystemItem: .done,
@@ -412,8 +449,7 @@ public class SendPaymentViewController: OWSViewController {
         let bigAmountLeft = UIView.container()
         let bigAmountRight: UIView
         if nil != currentCurrencyConversion {
-            bigAmountRight = UIImageView.withTemplateImageName("payments-toggle-24",
-                                                               tintColor: .ows_gray45)
+            bigAmountRight = UIImageView.withTemplateImageName("transfer", tintColor: .ows_gray45)
             bigAmountRight.autoPinToSquareAspectRatio()
             bigAmountRight.isUserInteractionEnabled = true
             bigAmountRight.addGestureRecognizer(UITapGestureRecognizer(target: self,
@@ -433,9 +469,9 @@ public class SendPaymentViewController: OWSViewController {
             memoView = hasMemoView
         } else {
             let addMemoLabel = UILabel()
-            addMemoLabel.text = NSLocalizedString("PAYMENTS_NEW_PAYMENT_ADD_MEMO",
+            addMemoLabel.text = OWSLocalizedString("PAYMENTS_NEW_PAYMENT_ADD_MEMO",
                                                   comment: "Label for the 'add memo' ui in the 'send payment' UI.")
-            addMemoLabel.font = .ows_dynamicTypeBodyClamped
+            addMemoLabel.font = .dynamicTypeBodyClamped
             addMemoLabel.textColor = Theme.accentBlueColor
             memoView = addMemoLabel
         }
@@ -489,15 +525,21 @@ public class SendPaymentViewController: OWSViewController {
         rootStack.removeAllSubviews()
         rootStack.addArrangedSubviews([
             spacerFactory.buildVSpacer(),
-            bigAmountRow,
             spacerFactory.buildVSpacer(),
+            spacerFactory.buildVSpacer(),
+            bigAmountRow,
             smallAmountRow,
             spacerFactory.buildVSpacer(),
+            spacerFactory.buildVSpacer(),
             memoStack,
+            spacerFactory.buildVSpacer(),
+            spacerFactory.buildVSpacer(),
             spacerFactory.buildVSpacer()
         ] +
         keyboardViews.allRows
         + [
+            spacerFactory.buildVSpacer(),
+            spacerFactory.buildVSpacer(),
             spacerFactory.buildVSpacer(),
             amountButtons,
             spacerFactory.buildVSpacer(),
@@ -516,8 +558,8 @@ public class SendPaymentViewController: OWSViewController {
 
     private func buildKeyboard(spacerFactory: SpacerFactory) -> KeyboardViews {
 
-        let keyboardHSpacing: CGFloat = 25
-        let buttonFont = UIFont.ows_dynamicTypeTitle1Clamped
+        let keyboardHSpacing: CGFloat = 32
+        let buttonFont = UIFont.dynamicTypeTitle1Clamped
         func buildAmountKeyboardButton(title: String, block: @escaping () -> Void) -> OWSButton {
             let button = OWSButton(block: block)
 
@@ -526,6 +568,7 @@ public class SendPaymentViewController: OWSViewController {
             label.font = buttonFont
             label.textColor = Theme.primaryTextColor
             button.addSubview(label)
+            button.backgroundColor = cellBackgroundColor
             label.autoCenterInSuperview()
 
             return button
@@ -534,14 +577,14 @@ public class SendPaymentViewController: OWSViewController {
             let button = OWSButton(imageName: imageName,
                                    tintColor: Theme.primaryTextColor,
                                    block: block)
+            button.backgroundColor = cellBackgroundColor
             return button
         }
         var keyboardRows = [UIView]()
         let buildAmountKeyboardRow = { (buttons: [OWSButton]) -> UIView in
 
             let buttons = buttons.map { (button) -> UIView in
-                button.autoPinToAspectRatio(with: CGSize(width: 1, height: 1))
-                let buttonSize = buttonFont.lineHeight * 2.0
+                let buttonSize = buttonFont.lineHeight * 1.7
                 button.autoSetDimension(.height, toSize: buttonSize)
 
                 let downStateColor = (Theme.isDarkThemeEnabled
@@ -563,8 +606,8 @@ public class SendPaymentViewController: OWSViewController {
                 buttonClipView.autoPinEdge(toSuperviewEdge: .top)
                 buttonClipView.autoPinEdge(toSuperviewEdge: .bottom)
                 buttonClipView.autoHCenterInSuperview()
-                buttonClipView.autoPinEdge(toSuperviewMargin: .leading, relation: .greaterThanOrEqual)
-                buttonClipView.autoPinEdge(toSuperviewMargin: .trailing, relation: .greaterThanOrEqual)
+                buttonClipView.autoPinEdge(toSuperviewEdge: .leading)
+                buttonClipView.autoPinEdge(toSuperviewEdge: .trailing)
 
                 return buttonWrapper
             }
@@ -638,7 +681,7 @@ public class SendPaymentViewController: OWSViewController {
                 buildAmountKeyboardButton(title: "0") { [weak self] in
                     self?.keyboardPressedNumeral("0")
                 },
-                buildAmountKeyboardButton(imageName: "delete-32") { [weak self] in
+                buildAmountKeyboardButton(imageName: "backspace-32") { [weak self] in
                     self?.keyboardPressedBackspace()
                 }
             ])
@@ -648,11 +691,11 @@ public class SendPaymentViewController: OWSViewController {
     }
 
     private func buildAmountButtons() -> UIView {
-        let requestButton = buildBottomButton(title: NSLocalizedString("PAYMENTS_NEW_PAYMENT_REQUEST_BUTTON",
+        let requestButton = buildBottomButton(title: OWSLocalizedString("PAYMENTS_NEW_PAYMENT_REQUEST_BUTTON",
                                                                        comment: "Label for the 'new payment request' button."),
                                               target: self,
                                               selector: #selector(didTapRequestButton))
-        let payButton = buildBottomButton(title: NSLocalizedString("PAYMENTS_NEW_PAYMENT_PAY_BUTTON",
+        let payButton = buildBottomButton(title: OWSLocalizedString("PAYMENTS_NEW_PAYMENT_PAY_BUTTON",
                                                                    comment: "Label for the 'new payment' button."),
                                           target: self,
                                           selector: #selector(didTapPayButton))
@@ -668,29 +711,28 @@ public class SendPaymentViewController: OWSViewController {
 
         rootStack.axis = .vertical
         rootStack.alignment = .fill
-        rootStack.layoutMargins = UIEdgeInsets(top: 0, leading: 0, bottom: 16, trailing: 0)
+        rootStack.layoutMargins = UIEdgeInsets(top: 0, leading: 0, bottom: 24, trailing: 0)
         rootStack.isLayoutMarginsRelativeArrangement = true
         view.addSubview(rootStack)
-        rootStack.autoPinEdge(toSuperviewMargin: .leading)
-        rootStack.autoPinEdge(toSuperviewMargin: .trailing)
+        rootStack.autoPinEdge(toSuperviewMargin: .leading, withInset: 20)
+        rootStack.autoPinEdge(toSuperviewMargin: .trailing, withInset: 20)
         rootStack.autoPin(toTopLayoutGuideOf: self, withInset: 0)
         rootStack.autoPinEdge(.bottom, to: .bottom, of: keyboardLayoutGuideViewSafeArea)
 
-        bigAmountLabel.font = UIFont.ows_dynamicTypeLargeTitle1Clamped.withSize(60)
+        bigAmountLabel.font = UIFont.regularFont(ofSize: 60)
         bigAmountLabel.textAlignment = .center
         bigAmountLabel.adjustsFontSizeToFitWidth = true
         bigAmountLabel.minimumScaleFactor = 0.25
         bigAmountLabel.setContentHuggingVerticalHigh()
         bigAmountLabel.setCompressionResistanceVerticalHigh()
 
-        smallAmountLabel.font = UIFont.ows_dynamicTypeBody2
+        smallAmountLabel.font = UIFont.dynamicTypeBody2
         smallAmountLabel.textColor = Theme.secondaryTextAndIconColor
         smallAmountLabel.textAlignment = .center
         smallAmountLabel.setContentHuggingVerticalHigh()
         smallAmountLabel.setCompressionResistanceVerticalHigh()
 
-        currencyConversionInfoView.setTemplateImageName("info-outline-24",
-                                                        tintColor: Theme.secondaryTextAndIconColor)
+        currencyConversionInfoView.setTemplateImageName("info-compact", tintColor: Theme.secondaryTextAndIconColor)
         currencyConversionInfoView.autoSetDimensions(to: .square(16))
         currencyConversionInfoView.setCompressionResistanceHigh()
     }
@@ -702,7 +744,7 @@ public class SendPaymentViewController: OWSViewController {
         func hideConversionLabelOrShowWarning() {
             let shouldHaveValidValue = (!isZero && currentCurrencyConversion != nil)
             smallAmountLabel.text = (shouldHaveValidValue
-                                        ? NSLocalizedString("PAYMENTS_NEW_PAYMENT_INVALID_AMOUNT",
+                                        ? OWSLocalizedString("PAYMENTS_NEW_PAYMENT_INVALID_AMOUNT",
                                                             comment: "Label for the 'invalid amount' button.")
                                         : " ")
             smallAmountLabel.textColor = UIColor.ows_accentRed
@@ -761,7 +803,7 @@ public class SendPaymentViewController: OWSViewController {
             return formattedAmount
         }
         let formattedFreshness = DateUtil.formatDateAsTime(currencyConversion.conversionDate)
-        let conversionFormat = NSLocalizedString("PAYMENTS_CURRENCY_CONVERSION_FRESHNESS_FORMAT",
+        let conversionFormat = OWSLocalizedString("PAYMENTS_CURRENCY_CONVERSION_FRESHNESS_FORMAT",
                                                  comment: "Format for indicator of a payment amount converted to fiat currency with the freshness of the conversion rate. Embeds: {{ %1$@ the payment amount, %2$@ the freshness of the currency conversion rate }}.")
         return String(format: conversionFormat, formattedAmount, formattedFreshness)
     }
@@ -775,7 +817,7 @@ public class SendPaymentViewController: OWSViewController {
     }
 
     private func showInvalidAmountAlert() {
-        let errorMessage = NSLocalizedString("PAYMENTS_NEW_PAYMENT_INVALID_AMOUNT",
+        let errorMessage = OWSLocalizedString("PAYMENTS_NEW_PAYMENT_INVALID_AMOUNT",
                                              comment: "Label for the 'invalid amount' button.")
         OWSActionSheets.showErrorAlert(message: errorMessage)
     }
@@ -783,12 +825,12 @@ public class SendPaymentViewController: OWSViewController {
     // MARK: - Events
 
     @objc
-    func didTapDismiss() {
+    private func didTapDismiss() {
         dismiss(animated: true, completion: nil)
     }
 
     @objc
-    func didTapAddMemo() {
+    private func didTapAddMemo() {
         let view = SendPaymentMemoViewController(memoMessage: self.memoMessage)
         view.delegate = self
         navigationController?.pushViewController(view, animated: true)
@@ -807,7 +849,7 @@ public class SendPaymentViewController: OWSViewController {
     }
 
     @objc
-    func didTapSwapCurrency() {
+    private func didTapSwapCurrency() {
         // If users repeatedly swap input currency, we don't want the
         // values to drift due to rounding errors.  So we keep around
         // the "other" currency amount and use it to swap if no changes
@@ -847,7 +889,7 @@ public class SendPaymentViewController: OWSViewController {
     }
 
     @objc
-    func didTapRequestButton(_ sender: UIButton) {
+    private func didTapRequestButton(_ sender: UIButton) {
         // TODO: Add support for requests.
         //        guard let parsedAmount = parsedAmount,
         //              parsedAmount > 0 else {
@@ -885,7 +927,7 @@ public class SendPaymentViewController: OWSViewController {
     private var actionSheet: SendPaymentCompletionActionSheet?
 
     @objc
-    func didTapPayButton(_ sender: UIButton) {
+    private func didTapPayButton(_ sender: UIButton) {
         let paymentAmount = parsedPaymentAmount
         guard paymentAmount.picoMob > 0 else {
             showInvalidAmountAlert()
@@ -937,7 +979,7 @@ public class SendPaymentViewController: OWSViewController {
         }
         let totalAmount = paymentAmount.plus(estimatedFeeAmount)
         guard let paymentBalance = paymentsSwift.currentPaymentBalance else {
-            OWSActionSheets.showErrorAlert(message: NSLocalizedString("SETTINGS_PAYMENTS_CANNOT_SEND_PAYMENT_NO_BALANCE",
+            OWSActionSheets.showErrorAlert(message: OWSLocalizedString("SETTINGS_PAYMENTS_CANNOT_SEND_PAYMENT_NO_BALANCE",
                                                                       comment: "Error message indicating that a payment could not be sent because the current balance is unavailable."))
             return
         }
@@ -951,21 +993,21 @@ public class SendPaymentViewController: OWSViewController {
     }
 
     private func showInsufficientBalanceUI(paymentBalance: PaymentBalance) {
-        let messageFormat = NSLocalizedString("SETTINGS_PAYMENTS_PAYMENT_INSUFFICIENT_BALANCE_ALERT_MESSAGE_FORMAT",
+        let messageFormat = OWSLocalizedString("SETTINGS_PAYMENTS_PAYMENT_INSUFFICIENT_BALANCE_ALERT_MESSAGE_FORMAT",
                                               comment: "Message for the 'insufficient balance for payment' alert. Embeds: {{ The current payments balance }}.")
         let message = String(format: messageFormat, PaymentsFormat.format(paymentAmount: paymentBalance.amount,
                                                                           isShortForm: false,
                                                                           withCurrencyCode: true,
                                                                           withSpace: true))
 
-        let actionSheet = ActionSheetController(title: NSLocalizedString("SETTINGS_PAYMENTS_PAYMENT_INSUFFICIENT_BALANCE_ALERT_TITLE",
+        let actionSheet = ActionSheetController(title: OWSLocalizedString("SETTINGS_PAYMENTS_PAYMENT_INSUFFICIENT_BALANCE_ALERT_TITLE",
                                                                          comment: "Title for the 'insufficient balance for payment' alert."),
                                                 message: message)
 
         // There's no point doing a "transfer in" transaction in order to
         // enable a "transfer out".
         if mode != .fromTransferOutFlow {
-            actionSheet.addAction(ActionSheetAction(title: NSLocalizedString("SETTINGS_PAYMENTS_PAYMENT_ADD_MONEY",
+            actionSheet.addAction(ActionSheetAction(title: OWSLocalizedString("SETTINGS_PAYMENTS_PAYMENT_ADD_MONEY",
                                                                              comment: "Label for the 'add money' button in the 'send payment' UI."),
                                                     accessibilityIdentifier: "payments.settings.add_money",
                                                     style: .default) { [weak self] _ in
@@ -987,7 +1029,7 @@ public class SendPaymentViewController: OWSViewController {
                     return
                 }
                 frontmostViewController.navigationController?.popToRootViewController(animated: true)
-                SignalApp.shared().showAppSettings(mode: .paymentsTransferIn)
+                SignalApp.shared.showAppSettings(mode: .paymentsTransferIn)
             }
         case .fromPaymentSettings:
             let paymentsTransferIn = PaymentsTransferInViewController()
@@ -1036,14 +1078,14 @@ public class SendPaymentViewController: OWSViewController {
             owsFailDebug("could not identify frontmostViewController")
             return
         }
-        let title = NSLocalizedString("SETTINGS_PAYMENTS_NOT_ENABLED_ALERT_TITLE",
+        let title = OWSLocalizedString("SETTINGS_PAYMENTS_NOT_ENABLED_ALERT_TITLE",
                                       comment: "Title for the 'payments not enabled' alert.")
-        let message = NSLocalizedString("SETTINGS_PAYMENTS_NOT_ENABLED_ALERT_MESSAGE",
+        let message = OWSLocalizedString("SETTINGS_PAYMENTS_NOT_ENABLED_ALERT_MESSAGE",
                                         comment: "Message for the 'payments not enabled' alert.")
         let actionSheet = ActionSheetController(title: title,
                                                 message: message)
 
-        actionSheet.addAction(ActionSheetAction(title: NSLocalizedString("SETTINGS_PAYMENTS_ENABLE_ACTION",
+        actionSheet.addAction(ActionSheetAction(title: OWSLocalizedString("SETTINGS_PAYMENTS_ENABLE_ACTION",
                                                                          comment: "Label for the 'enable payments' button in the 'payments not enabled' alert."),
                                                 accessibilityIdentifier: "payments.send.enable",
                                                 style: .default) { _ in
@@ -1060,9 +1102,9 @@ public class SendPaymentViewController: OWSViewController {
             owsFailDebug("could not identify frontmostViewController")
             return
         }
-        let title = NSLocalizedString("SETTINGS_PAYMENTS_NOT_REGISTERED_ALERT_TITLE",
+        let title = OWSLocalizedString("SETTINGS_PAYMENTS_NOT_REGISTERED_ALERT_TITLE",
                                       comment: "Title for the 'payments not registered' alert.")
-        let message = NSLocalizedString("SETTINGS_PAYMENTS_NOT_REGISTERED_ALERT_MESSAGE",
+        let message = OWSLocalizedString("SETTINGS_PAYMENTS_NOT_REGISTERED_ALERT_MESSAGE",
                                         comment: "Message for the 'payments not registered' alert.")
         let actionSheet = ActionSheetController(title: title, message: message)
 
@@ -1077,7 +1119,7 @@ public class SendPaymentViewController: OWSViewController {
             return
         }
         frontmostViewController.navigationController?.popToRootViewController(animated: true)
-        SignalApp.shared().showAppSettings(mode: .payments)
+        SignalApp.shared.showAppSettings(mode: .payments)
     }
 
     @objc
@@ -1146,12 +1188,11 @@ fileprivate extension SendPaymentViewController {
 // MARK: -
 
 extension SendPaymentViewController: SendPaymentHelperDelegate {
-    @objc
+
     public func balanceDidChange() {
         updateBalanceLabel()
     }
 
-    @objc
     public func currencyConversionDidChange() {
         guard isViewLoaded else {
             return
@@ -1178,10 +1219,10 @@ extension SendPaymentViewController: SendPaymentHelperDelegate {
 // MARK: -
 
 extension SendPaymentViewController: SendPaymentCompletionDelegate {
-    public func didSendPayment() {
+    public func didSendPayment(success: Bool) {
         let delegate = self.delegate
         self.dismiss(animated: true) {
-            delegate?.didSendPayment()
+            delegate?.didSendPayment(success: success)
         }
     }
 }

@@ -42,9 +42,9 @@ public class MessageFetcherJob: NSObject {
                 // launching from the background, without this, we end up waiting some extra
                 // seconds before receiving an actionable push notification.
                 if Self.tsAccountManager.isRegistered {
-                    firstly(on: .global()) {
+                    firstly(on: DispatchQueue.global()) {
                         self.run()
-                    }.catch(on: .global()) { error in
+                    }.catch(on: DispatchQueue.global()) { error in
                         owsFailDebugUnlessNetworkFailure(error)
                     }
                 }
@@ -58,18 +58,14 @@ public class MessageFetcherJob: NSObject {
     // running at a given time.
     private let fetchOperationQueue: OperationQueue = {
         let operationQueue = OperationQueue()
-        operationQueue.name = "MessageFetcherJob.fetchOperationQueue"
+        operationQueue.name = "MessageFetcherJob-Fetch"
         operationQueue.maxConcurrentOperationCount = 1
         return operationQueue
     }()
 
-    fileprivate var activeOperationCount: Int {
-        return fetchOperationQueue.operationCount
-    }
-
     private let unfairLock = UnfairLock()
 
-    private let completionQueue = DispatchQueue(label: "org.signal.messageFetcherJob.completionQueue")
+    private let completionQueue = DispatchQueue(label: "org.signal.message-fetcher.completion")
 
     // This property should only be accessed with unfairLock acquired.
     private var activeFetchCycles = Set<UUID>()
@@ -155,15 +151,8 @@ public class MessageFetcherJob: NSObject {
         }
     }
 
-    public class var shouldUseWebSocket: Bool {
-        if signalService.isCensorshipCircumventionActive {
-            return false
-        }
-        if FeatureFlags.deprecateREST {
-            return true
-        } else {
-            return CurrentAppContext().isMainApp
-        }
+    private class var shouldUseWebSocket: Bool {
+        OWSWebSocket.canAppUseSocketsToMakeRequests
     }
 
     @objc
@@ -186,40 +175,27 @@ public class MessageFetcherJob: NSObject {
 
     public func fetchingCompletePromise() -> Promise<Void> {
         guard CurrentAppContext().shouldProcessIncomingMessages else {
-            if DebugFlags.isMessageProcessingVerbose {
-                Logger.verbose("!shouldProcessIncomingMessages")
-            }
             return Promise.value(())
         }
 
         if Self.shouldUseWebSocket {
             guard !hasCompletedInitialFetch else {
-                if DebugFlags.isMessageProcessingVerbose {
-                    Logger.verbose("hasCompletedInitialFetch")
-                }
                 return Promise.value(())
             }
 
-            if DebugFlags.isMessageProcessingVerbose {
-                Logger.verbose("!hasCompletedInitialFetch")
-            }
-
-            return NotificationCenter.default.observe(once: OWSWebSocket.webSocketStateDidChange).then { _ in
+            return NotificationCenter.default.observe(
+                once: OWSWebSocket.webSocketStateDidChange
+            ).then { _ in
                 self.fetchingCompletePromise()
             }.asVoid()
         } else {
             guard !areAllFetchCyclesComplete || !hasCompletedInitialFetch else {
-                if DebugFlags.isMessageProcessingVerbose {
-                    Logger.verbose("areAllFetchCyclesComplete && hasCompletedInitialFetch")
-                }
                 return Promise.value(())
             }
 
-            if DebugFlags.isMessageProcessingVerbose {
-                Logger.verbose("!areAllFetchCyclesComplete || !hasCompletedInitialFetch")
-            }
-
-            return NotificationCenter.default.observe(once: Self.didChangeStateNotificationName).then { _ in
+            return NotificationCenter.default.observe(
+                once: Self.didChangeStateNotificationName
+            ).then { _ in
                 self.fetchingCompletePromise()
             }.asVoid()
         }
@@ -230,6 +206,10 @@ public class MessageFetcherJob: NSObject {
     fileprivate class func fetchMessages(future: Future<Void>) {
         Logger.info("")
 
+        guard CurrentAppContext().shouldProcessIncomingMessages else {
+            return future.reject(OWSAssertionError("This extension should not fetch messages."))
+        }
+
         guard tsAccountManager.isRegisteredAndReady else {
             assert(AppReadiness.isAppReady)
             Logger.warn("Not registered.")
@@ -237,26 +217,13 @@ public class MessageFetcherJob: NSObject {
         }
 
         if shouldUseWebSocket {
-            Logger.info("delegating message fetching to SocketManager since we're using normal transport.")
+            Logger.info("Fetching messages via Web Socket.")
             socketManager.didReceivePush()
             // Should we wait to resolve the future until we know the WebSocket is open? Wait until it empties?
             return future.resolve()
-        } else if CurrentAppContext().shouldProcessIncomingMessages {
-            // Main app should use REST if censorship circumvention is active.
-            // Notification extension that should always use REST.
         } else {
-            return future.reject(OWSAssertionError("App extensions should not fetch messages."))
-        }
-
-        Logger.info("Fetching messages via REST.")
-
-        firstly {
-            fetchMessagesViaRestWhenReady()
-        }.done {
-            future.resolve()
-        }.catch { error in
-            Logger.error("Error: \(error).")
-            future.reject(error)
+            Logger.info("Fetching messages via REST.")
+            future.resolve(with: fetchMessagesViaRestWhenReady())
         }
     }
 
@@ -265,7 +232,7 @@ public class MessageFetcherJob: NSObject {
     // We want to have multiple ACKs in flight at a time.
     private let ackOperationQueue: OperationQueue = {
         let operationQueue = OperationQueue()
-        operationQueue.name = "MessageFetcherJob.ackOperationQueue"
+        operationQueue.name = "MessageFetcherJob-ACKs"
         operationQueue.maxConcurrentOperationCount = 5
         return operationQueue
     }()
@@ -296,15 +263,9 @@ public class MessageFetcherJob: NSObject {
     }
 
     private class func fetchMessagesViaRest() -> Promise<Void> {
-        if DebugFlags.internalLogging {
-            Logger.info("")
-        } else {
-            Logger.debug("")
-        }
-
-        return firstly(on: .global()) {
+        return firstly(on: DispatchQueue.global()) {
             fetchBatchViaRest()
-        }.map(on: .global()) { (batch: RESTBatch) -> ([EnvelopeJob], UInt64, Bool) in
+        }.map(on: DispatchQueue.global()) { (batch: RESTBatch) -> ([EnvelopeJob], UInt64, Bool) in
             if DebugFlags.internalLogging {
                 Logger.info("REST fetched envelopes: \(batch.envelopes.count)")
             }
@@ -324,19 +285,14 @@ public class MessageFetcherJob: NSObject {
             return (envelopeJobs: envelopeJobs,
                     serverDeliveryTimestamp: batch.serverDeliveryTimestamp,
                     hasMore: batch.hasMore)
-        }.then(on: .global()) { (envelopeJobs: [EnvelopeJob], serverDeliveryTimestamp: UInt64, hasMore: Bool) -> Promise<Void> in
-            let queuedContentCountOld = Self.messageProcessor.queuedContentCount
+        }.then(on: DispatchQueue.global()) { (envelopeJobs: [EnvelopeJob], serverDeliveryTimestamp: UInt64, hasMore: Bool) -> Promise<Void> in
             for job in envelopeJobs {
-                Self.messageProcessor.processEncryptedEnvelope(
+                Self.messageProcessor.processReceivedEnvelope(
                     job.encryptedEnvelope,
                     serverDeliveryTimestamp: serverDeliveryTimestamp,
                     envelopeSource: .rest,
-                    completion: job.completion)
-            }
-            let queuedContentCountNew = Self.messageProcessor.queuedContentCount
-
-            if DebugFlags.internalLogging {
-                Logger.info("messageProcessor.queuedContentCount: \(queuedContentCountOld) + \(envelopeJobs.count) -> \(queuedContentCountNew)")
+                    completion: job.completion
+                )
             }
 
             if hasMore {
@@ -466,21 +422,14 @@ public class MessageFetcherJob: NSObject {
 
             let builder = SSKProtoEnvelope.builder(timestamp: timestamp)
             builder.setType(type)
-
             if let sourceUuid: String = try params.optional(key: "sourceUuid") {
-                builder.setSourceUuid(sourceUuid)
+                builder.setSourceServiceID(sourceUuid)
             }
-
             if let sourceDevice: UInt32 = try params.optional(key: "sourceDevice") {
                 builder.setSourceDevice(sourceDevice)
             }
-
             if let destinationUuid: String = try params.optional(key: "destinationUuid") {
-                builder.setDestinationUuid(destinationUuid)
-            }
-
-            if let legacyMessage = try params.optionalBase64EncodedData(key: "message") {
-                builder.setLegacyMessage(legacyMessage)
+                builder.setDestinationServiceID(destinationUuid)
             }
             if let content = try params.optionalBase64EncodedData(key: "content") {
                 builder.setContent(content)
@@ -490,6 +439,12 @@ public class MessageFetcherJob: NSObject {
             }
             if let serverGuid: String = try params.optional(key: "guid") {
                 builder.setServerGuid(serverGuid)
+            }
+            if let story: Bool = try params.optional(key: "story") {
+                builder.setStory(story)
+            }
+            if let token = try params.optionalBase64EncodedData(key: "reportSpamToken") {
+                builder.setSpamReportingToken(token)
             }
 
             return try builder.build()
@@ -506,10 +461,10 @@ public class MessageFetcherJob: NSObject {
     }
 
     private class func fetchBatchViaRest() -> Promise<RESTBatch> {
-        firstly(on: .global()) { () -> Promise<HTTPResponse> in
+        firstly(on: DispatchQueue.global()) { () -> Promise<HTTPResponse> in
             let request = OWSRequestFactory.getMessagesRequest()
             return self.networkManager.makePromise(request: request)
-        }.map(on: .global()) { response in
+        }.map(on: DispatchQueue.global()) { response in
             guard let json = response.responseBodyJson else {
                 throw OWSAssertionError("Missing or invalid JSON")
             }
@@ -658,8 +613,6 @@ private class MessageAckOperation: OWSOperation {
         let request: TSRequest
         if let serverGuid = envelopeInfo.serverGuid, !serverGuid.isEmpty {
             request = OWSRequestFactory.acknowledgeMessageDeliveryRequest(withServerGuid: serverGuid)
-        } else if let sourceAddress = envelopeInfo.sourceAddress, sourceAddress.isValid, envelopeInfo.timestamp > 0 {
-            request = OWSRequestFactory.acknowledgeMessageDeliveryRequest(with: sourceAddress, timestamp: envelopeInfo.timestamp)
         } else {
             let error = OWSAssertionError("Cannot ACK message which has neither source, nor server GUID and timestamp.")
             reportError(error)
@@ -668,9 +621,9 @@ private class MessageAckOperation: OWSOperation {
 
         let envelopeInfo = self.envelopeInfo
         let inFlightAckId = self.inFlightAckId
-        firstly(on: .global()) {
+        firstly(on: DispatchQueue.global()) {
             self.networkManager.makePromise(request: request)
-        }.done(on: .global()) { _ in
+        }.done(on: DispatchQueue.global()) { _ in
             Self.didAck(inFlightAckId: inFlightAckId)
 
             if DebugFlags.internalLogging {
@@ -679,11 +632,11 @@ private class MessageAckOperation: OWSOperation {
                 Logger.debug("acknowledged delivery for message at timestamp: \(envelopeInfo.timestamp), serviceTimestamp: \(envelopeInfo.serviceTimestamp)")
             }
             self.reportSuccess()
-        }.catch(on: .global()) { error in
+        }.catch(on: DispatchQueue.global()) { error in
             if DebugFlags.internalLogging {
-                Logger.info("acknowledging delivery for message at timestamp: \(envelopeInfo.timestamp), serviceTimestamp: \(envelopeInfo.serviceTimestamp) " + " failed with error: \(error)")
+                Logger.info("acknowledging delivery for message at timestamp: \(envelopeInfo.timestamp), serviceTimestamp: \(envelopeInfo.serviceTimestamp) failed with error: \(error)")
             } else {
-                Logger.debug("acknowledging delivery for message at timestamp: \(envelopeInfo.timestamp), serviceTimestamp: \(envelopeInfo.serviceTimestamp) " + " failed with error: \(error)")
+                Logger.debug("acknowledging delivery for message at timestamp: \(envelopeInfo.timestamp), serviceTimestamp: \(envelopeInfo.serviceTimestamp) failed with error: \(error)")
             }
             self.reportError(error)
         }

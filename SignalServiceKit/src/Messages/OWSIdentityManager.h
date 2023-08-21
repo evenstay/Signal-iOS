@@ -36,6 +36,7 @@ typedef NS_CLOSED_ENUM(uint8_t, OWSIdentity) {
     OWSIdentityPNI NS_SWIFT_NAME(pni)
 };
 
+@class AuthedAccount;
 @class ECKeyPair;
 @class OWSRecipientIdentity;
 @class SDSAnyReadTransaction;
@@ -51,7 +52,7 @@ typedef NS_CLOSED_ENUM(uint8_t, OWSIdentity) {
 - (instancetype)init NS_UNAVAILABLE;
 - (instancetype)initWithDatabaseStorage:(SDSDatabaseStorage *)databaseStorage;
 
-- (ECKeyPair *)generateNewIdentityKeyForIdentity:(OWSIdentity)identity;
+- (ECKeyPair *)generateNewIdentityKeyPair;
 - (void)storeIdentityKeyPair:(nullable ECKeyPair *)keyPair
                  forIdentity:(OWSIdentity)identity
                  transaction:(SDSAnyWriteTransaction *)transaction;
@@ -68,7 +69,6 @@ typedef NS_CLOSED_ENUM(uint8_t, OWSIdentity) {
                  transaction:(SDSAnyWriteTransaction *)transaction;
 
 - (OWSVerificationState)verificationStateForAddress:(SignalServiceAddress *)address;
-- (BOOL)groupContainsUnverifiedMember:(NSString *)threadUniqueID;
 - (OWSVerificationState)verificationStateForAddress:(SignalServiceAddress *)address
                                         transaction:(SDSAnyReadTransaction *)transaction;
 
@@ -97,15 +97,6 @@ typedef NS_CLOSED_ENUM(uint8_t, OWSIdentity) {
                                                      untrustedThreshold:(NSTimeInterval)untrustedThreshold
                                                             transaction:(SDSAnyReadTransaction *)transaction;
 
-// This method can be called from any thread.
-- (void)throws_processIncomingVerifiedProto:(SSKProtoVerified *)verified
-                                transaction:(SDSAnyWriteTransaction *)transaction
-    NS_SWIFT_UNAVAILABLE("throws objc exceptions");
-
-- (BOOL)processIncomingVerifiedProto:(SSKProtoVerified *)verified
-                         transaction:(SDSAnyWriteTransaction *)transaction
-                               error:(NSError **)error;
-
 - (void)fireIdentityStateChangeNotificationAfterTransaction:(SDSAnyWriteTransaction *)transaction;
 
 - (BOOL)saveRemoteIdentity:(NSData *)identityKey address:(SignalServiceAddress *)address;
@@ -130,9 +121,15 @@ typedef NS_CLOSED_ENUM(uint8_t, OWSIdentity) {
 - (nullable NSData *)identityKeyForAddress:(SignalServiceAddress *)address
                                transaction:(SDSAnyReadTransaction *)transaction;
 
+#pragma mark - Tests
+
+#if TESTABLE_BUILD
+- (ECKeyPair *)generateAndPersistNewIdentityKeyForIdentity:(OWSIdentity)identity;
+#endif
+
 #pragma mark - Debug
 
-#if DEBUG
+#if USE_DEBUG_UI
 // Clears everything except the local identity key.
 - (void)clearIdentityState:(SDSAnyWriteTransaction *)transaction;
 #endif

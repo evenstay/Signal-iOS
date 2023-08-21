@@ -4,9 +4,8 @@
 //
 
 import SignalMessaging
-import UIKit
+import SignalUI
 
-@objc
 extension ChatListViewController {
 
     // MARK: - multi select mode
@@ -26,7 +25,12 @@ extension ChatListViewController {
         searchBar.delegate?.searchBarCancelButtonClicked?(searchBar)
         viewState.multiSelectState.title = title
         if chatListMode == .inbox {
-            let doneButton = UIBarButtonItem(title: CommonStrings.cancelButton, style: .plain, target: self, action: #selector(done), accessibilityIdentifier: CommonStrings.cancelButton)
+            let doneButton = UIBarButtonItem(
+                barButtonSystemItem: .cancel,
+                target: self,
+                action: #selector(done),
+                accessibilityIdentifier: CommonStrings.cancelButton
+            )
             navigationItem.setLeftBarButton(doneButton, animated: true)
             navigationItem.setRightBarButtonItems(nil, animated: true)
         } else {
@@ -98,6 +102,7 @@ extension ChatListViewController {
         updateCaptions()
     }
 
+    @objc
     func switchMultiSelectState(_ sender: UIBarButtonItem) {
         AssertIsOnMainThread()
 
@@ -116,6 +121,7 @@ extension ChatListViewController {
 
     // MARK: private helper
 
+    @objc
     private func done() {
         leaveMultiselectMode()
         updateBarButtonItems()
@@ -143,7 +149,15 @@ extension ChatListViewController {
                 }
             }
         } else {
-            readButton = UIBarButtonItem(title: NSLocalizedString("HOME_VIEW_TOOLBAR_READ_ALL", comment: "Title 'Read All' button in the toolbar of the ChatList if multi-section is active."), style: .plain, target: self, action: #selector(performReadAll))
+            readButton = UIBarButtonItem(
+                title: OWSLocalizedString(
+                    "HOME_VIEW_TOOLBAR_READ_ALL",
+                    comment: "Title 'Read All' button in the toolbar of the ChatList if multi-section is active."
+                ),
+                style: .plain,
+                target: self,
+                action: #selector(performReadAll)
+            )
             readButton.isEnabled = hasUnreadEntry(threads: Array(renderState.pinnedThreads.orderedValues)) || hasUnreadEntry(threads: Array(renderState.unpinnedThreads))
         }
 
@@ -199,7 +213,7 @@ extension ChatListViewController {
         if count == 0 {
             title = viewState.multiSelectState.title
         } else {
-            let format = NSLocalizedString("MESSAGE_ACTIONS_TOOLBAR_CAPTION_%d", tableName: "PluralAware",
+            let format = OWSLocalizedString("MESSAGE_ACTIONS_TOOLBAR_CAPTION_%d", tableName: "PluralAware",
                                            comment: "Label for the toolbar used in the multi-select mode. The number of selected items (1 or more) is passed.")
             title = String.localizedStringWithFormat(format, count)
         }
@@ -208,6 +222,7 @@ extension ChatListViewController {
 
     // MARK: toolbar button actions
 
+    @objc
     func performArchive() {
         performOnAllSelectedEntries { thread in
             archiveThread(threadViewModel: thread, closeConversationBlock: nil)
@@ -215,6 +230,7 @@ extension ChatListViewController {
         done()
     }
 
+    @objc
     func performUnarchive() {
         performOnAllSelectedEntries { thread in
             archiveThread(threadViewModel: thread, closeConversationBlock: nil)
@@ -222,6 +238,7 @@ extension ChatListViewController {
         done()
     }
 
+    @objc
     func performRead() {
         performOnAllSelectedEntries { thread in
             markThreadAsRead(threadViewModel: thread)
@@ -229,6 +246,7 @@ extension ChatListViewController {
         done()
     }
 
+    @objc
     func performReadAll() {
         var entries: [ThreadViewModel] = []
         var threads = Array(renderState.pinnedThreads.orderedValues)
@@ -246,6 +264,7 @@ extension ChatListViewController {
         done()
     }
 
+    @objc
     func performDelete() {
         AssertIsOnMainThread()
 
@@ -256,10 +275,10 @@ extension ChatListViewController {
         let title: String
         let message: String
         let count = tableView.indexPathsForSelectedRows?.count ?? 0
-        let labelFormat = NSLocalizedString("CONVERSATION_DELETE_CONFIRMATIONS_ALERT_TITLE_%d", tableName: "PluralAware",
+        let labelFormat = OWSLocalizedString("CONVERSATION_DELETE_CONFIRMATIONS_ALERT_TITLE_%d", tableName: "PluralAware",
                                             comment: "Title for the 'conversations delete confirmation' alert for multiple messages. Embeds: {{ %@ the number of currently selected items }}.")
         title = String.localizedStringWithFormat(labelFormat, count)
-        let messageFormat = NSLocalizedString("CONVERSATION_DELETE_CONFIRMATION_ALERT_MESSAGES_%d", tableName: "PluralAware",
+        let messageFormat = OWSLocalizedString("CONVERSATION_DELETE_CONFIRMATION_ALERT_MESSAGES_%d", tableName: "PluralAware",
                                               comment: "Message for the 'conversations delete confirmation' alert for multiple messages.")
         message = String.localizedStringWithFormat(messageFormat, count)
 
@@ -296,10 +315,10 @@ extension ChatListViewController {
 }
 
 // MARK: - object encapsulating the complete state of the MultiSelect process
-@objc
-public class MultiSelectState: NSObject {
-    @objc
-    public static let multiSelectionModeDidChange = Notification.Name("multiSelectionModeDidChange")
+
+public class MultiSelectState {
+
+    static let multiSelectionModeDidChange = Notification.Name("multiSelectionModeDidChange")
 
     fileprivate var title: String?
     fileprivate var toolbar: BlurredToolbarContainer?
@@ -307,7 +326,6 @@ public class MultiSelectState: NSObject {
     var actionPerformed = false
     var locked = false
 
-    @objc
     var isActive: Bool { return _isActive }
 
     fileprivate func setIsActive(_ active: Bool, tableView: UITableView? = nil, cancelCurrentEditAction: Bool = true) {

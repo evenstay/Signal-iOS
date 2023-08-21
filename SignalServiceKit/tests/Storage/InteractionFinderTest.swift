@@ -42,8 +42,8 @@ class InteractionFinderTest: SSKBaseTestSwift {
         let finder1 = InteractionFinder(threadUniqueId: contactThread1.uniqueId)
         let finder2 = InteractionFinder(threadUniqueId: contactThread2.uniqueId)
         self.read { transaction in
-            XCTAssertEqual(0, finder1.count(transaction: transaction))
-            XCTAssertEqual(0, finder2.count(transaction: transaction))
+            XCTAssertEqual(0, try! finder1.fetchUniqueIds(filter: .newest, excludingPlaceholders: true, limit: 100, tx: transaction).count)
+            XCTAssertEqual(0, try! finder2.fetchUniqueIds(filter: .newest, excludingPlaceholders: true, limit: 100, tx: transaction).count)
         }
 
         self.write { transaction in
@@ -64,8 +64,8 @@ class InteractionFinderTest: SSKBaseTestSwift {
         }
 
         self.read { transaction in
-            XCTAssertEqual(4, finder1.count(transaction: transaction))
-            XCTAssertEqual(2, finder2.count(transaction: transaction))
+            XCTAssertEqual(4, try! finder1.fetchUniqueIds(filter: .newest, excludingPlaceholders: true, limit: 100, tx: transaction).count)
+            XCTAssertEqual(2, try! finder2.fetchUniqueIds(filter: .newest, excludingPlaceholders: true, limit: 100, tx: transaction).count)
         }
     }
 
@@ -100,5 +100,33 @@ class InteractionFinderTest: SSKBaseTestSwift {
             let unreadCount = InteractionFinder.unreadCountInAllThreads(transaction: transaction.unwrapGrdbRead)
             XCTAssertEqual(unarchivedCount, unreadCount)
         }
+    }
+
+    func testEnumerateMessagesWithAttachments() throws {
+        // Create some messages with attachments.
+        let threads = ContactThreadFactory().create(count: 2)
+        let threadMessages = threads.map { thread in
+            let messageFactory = IncomingMessageFactory()
+            messageFactory.threadCreator = { _ in thread }
+            var n = 0
+            messageFactory.attachmentIdsBuilder = {
+                defer { n += 1 }
+                return (0..<n).map { _ in UUID().uuidString }
+            }
+            return messageFactory.create(count: 3)
+        }
+
+        // Query for the attachments in one specific thread.
+        var actualUniqueIds = Set<String>()
+        let finder = GRDBInteractionFinder(threadUniqueId: threads[0].uniqueId)
+        read { transaction in
+            try! finder.enumerateMessagesWithAttachments(transaction: transaction.unwrapGrdbRead) { message, _ in
+                actualUniqueIds.insert(message.uniqueId)
+            }
+        }
+
+        // Make sure we got back the right messages from the right thread.
+        let expectedUniqueIds = Set(threadMessages[0].dropFirst().lazy.map { $0.uniqueId })
+        XCTAssertEqual(actualUniqueIds, expectedUniqueIds)
     }
 }

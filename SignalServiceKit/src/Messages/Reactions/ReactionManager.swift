@@ -4,6 +4,8 @@
 //
 
 import Foundation
+import LibSignalClient
+import SignalCoreKit
 
 @objc(OWSReactionManager)
 public class ReactionManager: NSObject {
@@ -27,15 +29,15 @@ public class ReactionManager: NSObject {
 
     @discardableResult
     public class func localUserReacted(
-        to message: TSMessage,
+        to messageUniqueId: String,
         emoji: String,
         isRemoving: Bool,
         isHighPriority: Bool = false,
-        transaction: SDSAnyWriteTransaction
+        tx: SDSAnyWriteTransaction
     ) -> Promise<Void> {
         let outgoingMessage: TSOutgoingMessage
         do {
-            outgoingMessage = try _localUserReacted(to: message, emoji: emoji, isRemoving: isRemoving, transaction: transaction)
+            outgoingMessage = try _localUserReacted(to: messageUniqueId, emoji: emoji, isRemoving: isRemoving, tx: tx)
         } catch {
             owsFailDebug("Error: \(error)")
             return Promise(error: error)
@@ -46,70 +48,63 @@ public class ReactionManager: NSObject {
             .promise,
             message: messagePreparer,
             isHighPriority: isHighPriority,
-            transaction: transaction
+            transaction: tx
         )
     }
 
     // This helper method DRYs up the logic shared by the above methods.
-    private class func _localUserReacted(to message: TSMessage,
-                                         emoji: String,
-                                         isRemoving: Bool,
-                                         transaction: SDSAnyWriteTransaction) throws -> OWSOutgoingReactionMessage {
+    private class func _localUserReacted(
+        to messageUniqueId: String,
+        emoji: String,
+        isRemoving: Bool,
+        tx: SDSAnyWriteTransaction
+    ) throws -> OWSOutgoingReactionMessage {
         assert(emoji.isSingleEmoji)
 
-        let thread = message.thread(transaction: transaction)
-        guard thread.canSendReactionToThread else {
-            throw OWSAssertionError("Cannot send to thread.")
+        guard let message = TSMessage.anyFetchMessage(uniqueId: messageUniqueId, transaction: tx) else {
+            throw OWSAssertionError("Can't find message for reaction.")
         }
 
-        if DebugFlags.internalLogging {
-            Logger.info("Sending reaction: \(emoji) isRemoving: \(isRemoving), message.timestamp: \(message.timestamp)")
-        } else {
-            Logger.info("Sending reaction, isRemoving: \(isRemoving)")
+        guard let thread = message.thread(tx: tx), thread.canSendReactionToThread else {
+            throw OWSAssertionError("Can't send reaction to thread.")
         }
 
-        guard let localAddress = tsAccountManager.localAddress else {
+        Logger.info("Sending reaction, isRemoving: \(isRemoving)")
+
+        guard let localAci = tsAccountManager.localIdentifiers(transaction: tx)?.aci else {
             throw OWSAssertionError("missing local address")
         }
 
-        // Though we generally don't parse the expiration timer from
-        // reaction messages, older desktop instances will read it
-        // from the "unsupported" message resulting in the timer
-        // clearing. So we populate it to ensure that does not happen.
-        let expiresInSeconds: UInt32
-        if let configuration = OWSDisappearingMessagesConfiguration.anyFetch(
-            uniqueId: message.uniqueThreadId,
-            transaction: transaction
-        ), configuration.isEnabled {
-            expiresInSeconds = configuration.durationSeconds
-        } else {
-            expiresInSeconds = 0
-        }
+        let dmConfigurationStore = DependenciesBridge.shared.disappearingMessagesConfigurationStore
 
         let outgoingMessage = OWSOutgoingReactionMessage(
-            thread: message.thread(transaction: transaction),
+            thread: thread,
             message: message,
             emoji: emoji,
             isRemoving: isRemoving,
-            expiresInSeconds: expiresInSeconds,
-            transaction: transaction
+            // Though we generally don't parse the expiration timer from reaction
+            // messages, older desktop instances will read it from the "unsupported"
+            // message resulting in the timer clearing. So we populate it to ensure
+            // that does not happen.
+            expiresInSeconds: dmConfigurationStore.durationSeconds(for: thread, tx: tx.asV2Read),
+            transaction: tx
         )
 
-        outgoingMessage.previousReaction = message.reaction(for: localAddress, transaction: transaction)
+        outgoingMessage.previousReaction = message.reaction(for: localAci, tx: tx)
 
         if isRemoving {
-            message.removeReaction(for: localAddress, transaction: transaction)
+            message.removeReaction(for: localAci, tx: tx)
         } else {
             outgoingMessage.createdReaction = message.recordReaction(
-                for: localAddress,
+                for: localAci,
                 emoji: emoji,
                 sentAtTimestamp: outgoingMessage.timestamp,
                 receivedAtTimestamp: outgoingMessage.timestamp,
-                transaction: transaction
+                tx: tx
             )
 
             // Always immediately mark outgoing reactions as read.
-            outgoingMessage.createdReaction?.markAsRead(transaction: transaction)
+            outgoingMessage.createdReaction?.markAsRead(transaction: tx)
         }
 
         return outgoingMessage
@@ -126,13 +121,15 @@ public class ReactionManager: NSObject {
     public class func processIncomingReaction(
         _ reaction: SSKProtoDataMessageReaction,
         thread: TSThread,
-        reactor: SignalServiceAddress,
+        reactor: AciObjC,
         timestamp: UInt64,
         serverTimestamp: UInt64,
         expiresInSeconds: UInt32,
         sentTranscript: OWSIncomingSentMessageTranscript?,
         transaction: SDSAnyWriteTransaction
     ) -> ReactionProcessingResult {
+        let reactor = reactor.wrappedAciValue
+
         guard let emoji = reaction.emoji.strippedOrNil else {
             owsFailDebug("Received invalid emoji")
             return .invalidReaction
@@ -141,18 +138,30 @@ public class ReactionManager: NSObject {
             owsFailDebug("Received invalid emoji")
             return .invalidReaction
         }
-
-        guard let messageAuthor = reaction.authorAddress else {
-            owsFailDebug("reaction missing author address")
+        guard let messageAuthor = Aci.parseFrom(aciString: reaction.targetAuthorAci) else {
+            owsFailDebug("reaction missing message author")
             return .invalidReaction
         }
 
-        if let message = InteractionFinder.findMessage(
+        if var message = InteractionFinder.findMessage(
             withTimestamp: reaction.timestamp,
             threadId: thread.uniqueId,
-            author: messageAuthor,
+            author: SignalServiceAddress(messageAuthor),
             transaction: transaction
         ) {
+            if message.editState == .pastRevision {
+                // Reaction targeted an old edit revision, fetch the latest
+                // version to ensure the reaction shows up properly.
+                if let latestEdit = EditMessageFinder.findMessage(
+                    fromEdit: message,
+                    transaction: transaction) {
+                    message = latestEdit
+                } else {
+                    Logger.info("Ignoring reaction for missing edit target.")
+                    return .invalidReaction
+                }
+            }
+
             guard !message.wasRemotelyDeleted else {
                 Logger.info("Ignoring reaction for a message that was remotely deleted")
                 return .invalidReaction
@@ -161,22 +170,25 @@ public class ReactionManager: NSObject {
             // If this is a reaction removal, we want to remove *any* reaction from this author
             // on this message, regardless of the specified emoji.
             if reaction.hasRemove, reaction.remove {
-                message.removeReaction(for: reactor, transaction: transaction)
+                message.removeReaction(for: reactor, tx: transaction)
             } else {
                 let reaction = message.recordReaction(
                     for: reactor,
                     emoji: emoji,
                     sentAtTimestamp: timestamp,
                     receivedAtTimestamp: NSDate.ows_millisecondTimeStamp(),
-                    transaction: transaction
+                    tx: transaction
                 )
 
                 // If this is a reaction to a message we sent, notify the user.
-                if let reaction = reaction, let message = message as? TSOutgoingMessage, !reactor.isLocalAddress {
-                    self.notificationsManager?.notifyUser(forReaction: reaction,
-                                                          onOutgoingMessage: message,
-                                                          thread: thread,
-                                                          transaction: transaction)
+                let localAci = tsAccountManager.localIdentifiers(transaction: transaction)?.aci
+                if let reaction, let message = message as? TSOutgoingMessage, reactor != localAci {
+                    self.notificationsManager.notifyUser(
+                        forReaction: reaction,
+                        onOutgoingMessage: message,
+                        thread: thread,
+                        transaction: transaction
+                    )
                 }
             }
 
@@ -208,13 +220,14 @@ public class ReactionManager: NSObject {
 
             let message: TSMessage
 
-            if reactor.isLocalAddress {
+            let localAci = tsAccountManager.localIdentifiers(transaction: transaction)?.aci
+            if reactor == localAci {
                 let builder = TSOutgoingMessageBuilder(thread: thread)
                 populateStoryContext(on: builder)
                 message = builder.build(transaction: transaction)
             } else {
                 let builder = TSIncomingMessageBuilder(thread: thread)
-                builder.authorAddress = reactor
+                builder.authorAci = AciObjC(reactor)
                 builder.serverTimestamp = NSNumber(value: serverTimestamp)
                 populateStoryContext(on: builder)
                 message = builder.build()
@@ -223,11 +236,11 @@ public class ReactionManager: NSObject {
             message.anyInsert(transaction: transaction)
 
             if let incomingMessage = message as? TSIncomingMessage {
-                notificationsManager?.notifyUser(forIncomingMessage: incomingMessage, thread: thread, transaction: transaction)
+                notificationsManager.notifyUser(forIncomingMessage: incomingMessage, thread: thread, transaction: transaction)
             } else if let outgoingMessage = message as? TSOutgoingMessage {
                 outgoingMessage.updateWithWasSentFromLinkedDevice(
-                    withUDRecipientAddresses: sentTranscript?.udRecipientAddresses,
-                    nonUdRecipientAddresses: sentTranscript?.nonUdRecipientAddresses,
+                    withUDRecipients: sentTranscript?.udRecipients,
+                    nonUdRecipients: sentTranscript?.nonUdRecipients,
                     isSentUpdate: false,
                     transaction: transaction
                 )

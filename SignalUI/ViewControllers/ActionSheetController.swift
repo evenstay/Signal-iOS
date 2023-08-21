@@ -3,31 +3,35 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import UIKit
+import BonMot
+import SafariServices
+import SignalServiceKit
 
 @objc
 open class ActionSheetController: OWSViewController {
+    private enum Message {
+        case text(String)
+        case attributedText(NSAttributedString)
+    }
 
     private let contentView = UIView()
     private let stackView = UIStackView()
     private let scrollView = UIScrollView()
     private var hasCompletedFirstLayout = false
 
-    @objc
     private(set) public var actions = [ActionSheetAction]() {
         didSet {
             isCancelable = firstCancelAction != nil
         }
     }
 
-    @objc
     public var contentAlignment: ContentAlignment = .center {
         didSet {
             guard oldValue != contentAlignment else { return }
             actions.forEach { $0.button.contentAlignment = contentAlignment }
         }
     }
-    @objc(ActionSheetContentAlignment)
+
     public enum ContentAlignment: Int {
         case center
         case leading
@@ -37,7 +41,6 @@ open class ActionSheetController: OWSViewController {
     /// Adds a header view to the top of the action sheet stack
     /// Note: It's the caller's responsibility to ensure the header view matches the style of the action sheet
     /// See: theme.backgroundColor, theme.headerTitleColor, etc.
-    @objc
     public var customHeader: UIView? {
         didSet {
             oldValue?.removeFromSuperview()
@@ -46,7 +49,6 @@ open class ActionSheetController: OWSViewController {
         }
     }
 
-    @objc
     public var isCancelable = false
 
     // Currently the theme must be set during initialization to take effect
@@ -62,6 +64,12 @@ open class ActionSheetController: OWSViewController {
         return stackView.height + view.safeAreaInsets.bottom
     }
 
+    public static var messageLabelFont: UIFont { .dynamicTypeSubheadlineClamped }
+
+    public static var messageBaseStyle: BonMot.StringStyle {
+        return BonMot.StringStyle(.font(messageLabelFont), .alignment(.center))
+    }
+
     public init(theme: Theme.ActionSheet = .default) {
         self.theme = theme
         super.init()
@@ -69,7 +77,6 @@ open class ActionSheetController: OWSViewController {
         transitioningDelegate = self
     }
 
-    @objc
     public override convenience init() {
         self.init(theme: .default)
     }
@@ -81,7 +88,19 @@ open class ActionSheetController: OWSViewController {
 
     public convenience init(title: String? = nil, message: String? = nil, theme: Theme.ActionSheet = .default) {
         self.init(theme: theme)
-        createHeader(title: title, message: message)
+        createHeader(title: title, message: {
+            guard let message else { return nil }
+            return .text(message)
+        }())
+    }
+
+    public convenience init(
+        title: String? = nil,
+        message: NSAttributedString,
+        theme: Theme.ActionSheet = .default
+    ) {
+        self.init(theme: theme)
+        createHeader(title: title, message: .attributedText(message))
     }
 
     var firstCancelAction: ActionSheetAction? {
@@ -219,7 +238,7 @@ open class ActionSheetController: OWSViewController {
     }
 
     @objc
-    func didTapBackdrop(_ sender: UITapGestureRecognizer) {
+    private func didTapBackdrop(_ sender: UITapGestureRecognizer) {
         guard isCancelable else { return }
         // If we have a cancel action, treat tapping the background
         // as tapping the cancel button.
@@ -233,7 +252,7 @@ open class ActionSheetController: OWSViewController {
         }
     }
 
-    func createHeader(title: String? = nil, message: String? = nil) {
+    private func createHeader(title: String? = nil, message: Message? = nil) {
         guard title != nil || message != nil else { return }
 
         let headerStack = UIStackView()
@@ -255,7 +274,7 @@ open class ActionSheetController: OWSViewController {
         if let title = title {
             let titleLabel = UILabel()
             titleLabel.textColor = theme.headerTitleColor
-            titleLabel.font = UIFont.ows_dynamicTypeSubheadlineClamped.ows_semibold
+            titleLabel.font = UIFont.dynamicTypeSubheadlineClamped.semibold()
             titleLabel.numberOfLines = 0
             titleLabel.lineBreakMode = .byWordWrapping
             titleLabel.textAlignment = .center
@@ -267,16 +286,32 @@ open class ActionSheetController: OWSViewController {
 
         // Message
         if let message = message {
-            let messageLabel = UILabel()
-            messageLabel.numberOfLines = 0
-            messageLabel.textAlignment = .center
-            messageLabel.lineBreakMode = .byWordWrapping
-            messageLabel.textColor = theme.headerMessageColor
-            messageLabel.font = .ows_dynamicTypeSubheadlineClamped
-            messageLabel.text = message
-            messageLabel.setCompressionResistanceVerticalHigh()
+            let messageView: UIView = {
+                switch message {
+                case let .text(text):
+                    let result = UILabel()
+                    result.numberOfLines = 0
+                    result.lineBreakMode = .byWordWrapping
+                    result.textAlignment = .center
+                    result.textColor = theme.headerMessageColor
+                    result.font = Self.messageLabelFont
+                    result.text = text
+                    return result
+                case let .attributedText(attributedText):
+                    let result = LinkingTextView()
+                    result.textContainer.lineBreakMode = .byWordWrapping
+                    result.textColor = theme.headerMessageColor
+                    result.font = Self.messageLabelFont
+                    result.attributedText = attributedText
+                    result.textAlignment = .center
+                    result.delegate = self
+                    return result
+                }
+            }()
 
-            headerStack.addArrangedSubview(messageLabel)
+            messageView.setCompressionResistanceVerticalHigh()
+
+            headerStack.addArrangedSubview(messageView)
         }
 
         let bottomSpacer = UIView.vStretchingSpacer()
@@ -289,17 +324,17 @@ open class ActionSheetController: OWSViewController {
 
 @objc
 public class ActionSheetAction: NSObject {
-    @objc
+
     public let title: String
-    @objc
+
     public var accessibilityIdentifier: String? {
         didSet {
             button.accessibilityIdentifier = accessibilityIdentifier
         }
     }
 
-    @objc
     public let style: Style
+
     @objc(ActionSheetActionStyle)
     public enum Style: Int {
         case `default`
@@ -310,18 +345,6 @@ public class ActionSheetAction: NSObject {
     fileprivate let handler: Handler?
     public typealias Handler = (ActionSheetAction) -> Void
 
-    @objc
-    @available(swift, obsoleted: 1.0)
-    public func setTrailingIcon(_ icon: ThemeIcon) {
-        trailingIcon = icon
-    }
-
-    @objc
-    @available(swift, obsoleted: 1.0)
-    public func clearTrailingIcon() {
-        trailingIcon = nil
-    }
-
     public var trailingIcon: ThemeIcon? {
         get {
             return button.trailingIcon
@@ -329,18 +352,6 @@ public class ActionSheetAction: NSObject {
         set {
             button.trailingIcon = newValue
         }
-    }
-
-    @objc
-    @available(swift, obsoleted: 1.0)
-    public func setLeadingIcon(_ icon: ThemeIcon) {
-        leadingIcon = icon
-    }
-
-    @objc
-    @available(swift, obsoleted: 1.0)
-    public func clearLeadingIcon() {
-        leadingIcon = nil
     }
 
     public var leadingIcon: ThemeIcon? {
@@ -359,7 +370,6 @@ public class ActionSheetAction: NSObject {
         self.init(title: title, accessibilityIdentifier: nil, style: style, handler: handler)
     }
 
-    @objc
     public init(title: String, accessibilityIdentifier: String?, style: Style = .default, handler: Handler? = nil) {
         self.title = title
         self.accessibilityIdentifier = accessibilityIdentifier
@@ -442,13 +452,13 @@ public class ActionSheetAction: NSObject {
 
             switch action.style {
             case .default:
-                titleLabel?.font = .ows_dynamicTypeBodyClamped
+                titleLabel?.font = .dynamicTypeBodyClamped
                 setTitleColor(Theme.ActionSheet.default.buttonTextColor, for: .init())
             case .cancel:
-                titleLabel?.font = UIFont.ows_dynamicTypeBodyClamped.ows_semibold
+                titleLabel?.font = UIFont.dynamicTypeBodyClamped.semibold()
                 setTitleColor(Theme.ActionSheet.default.buttonTextColor, for: .init())
             case .destructive:
-                titleLabel?.font = .ows_dynamicTypeBodyClamped
+                titleLabel?.font = .dynamicTypeBodyClamped
                 setTitleColor(Theme.ActionSheet.default.destructiveButtonTextColor, for: .init())
             }
 
@@ -487,7 +497,7 @@ public class ActionSheetAction: NSObject {
         }
 
         @objc
-        func didTouchUpInside() {
+        private func didTouchUpInside() {
             releaseAction?()
         }
     }
@@ -548,5 +558,38 @@ private class ActionSheetPresentationController: UIPresentationController {
 extension ActionSheetController: UIViewControllerTransitioningDelegate {
     public func presentationController(forPresented presented: UIViewController, presenting: UIViewController?, source: UIViewController) -> UIPresentationController? {
         return ActionSheetPresentationController(presentedViewController: presented, presenting: presenting)
+    }
+}
+
+extension ActionSheetController: UITextViewDelegate {
+    public func textView(
+        _ textView: UITextView,
+        shouldInteractWith url: URL,
+        in characterRange: NSRange,
+        interaction: UITextItemInteraction
+    ) -> Bool {
+        // Because of our modal presentation style, we can't present another controller over this
+        // one. We must dismiss it first.
+        dismiss(animated: true) {
+            let vc = SFSafariViewController(url: url)
+            CurrentAppContext().frontmostViewController()?.present(vc, animated: true)
+        }
+        return false
+    }
+}
+
+extension String {
+
+    func formattedForActionSheetTitle() -> String {
+        String.formattedDisplayName(self, maxLength: 20)
+    }
+
+    func formattedForActionSheetMessage() -> String {
+        String.formattedDisplayName(self, maxLength: 127)
+    }
+
+    private static func formattedDisplayName(_ displayName: String, maxLength: Int) -> String {
+        guard displayName.count > maxLength else { return displayName }
+        return displayName.substring(to: maxLength).appending("…")
     }
 }

@@ -28,8 +28,9 @@ extension SSKWebSocketState: CustomStringConvertible {
 
 // MARK: -
 
-@objc
 public protocol SSKWebSocket: AnyObject {
+
+    init?(request: WebSocketRequest, signalService: OWSSignalServiceProtocol, callbackScheduler: Scheduler)
 
     var delegate: SSKWebSocketDelegate? { get set }
 
@@ -38,7 +39,10 @@ public protocol SSKWebSocket: AnyObject {
     var state: SSKWebSocketState { get }
 
     func connect()
-    func disconnect()
+    /// Disconnect with a provided closure code.
+    /// If no code is provided, no code will be sent (equivalent to 1005 "noStatusReceived").
+    /// For a normal closure, use `URLSessionWebSocketTask.CloseCode.normalClosure`
+    func disconnect(code: URLSessionWebSocketTask.CloseCode?)
 
     func write(data: Data)
 
@@ -78,7 +82,6 @@ public extension SSKWebSocket {
 
 // MARK: -
 
-@objc
 public protocol SSKWebSocketDelegate: AnyObject {
     func websocketDidConnect(socket: SSKWebSocket)
 
@@ -89,80 +92,112 @@ public protocol SSKWebSocketDelegate: AnyObject {
 
 // MARK: -
 
-@objc
-public protocol WebSocketFactory: AnyObject {
+public struct WebSocketRequest {
+    /// The Signal service associated with this request.
+    public let signalService: SignalServiceType
 
+    public let urlPath: String
+    public let urlQueryItems: [URLQueryItem]?
+
+    /// Extra headers that should be sent along with the request.
+    public let extraHeaders: [String: String]
+
+    public func build(for endpoint: OWSURLSessionEndpoint) -> URLRequest? {
+        var urlComponents = URLComponents()
+        urlComponents.path = urlPath
+        urlComponents.queryItems = urlQueryItems
+        guard let urlString = urlComponents.string else {
+            owsFailBeta("Couldn't build URL for web socket: \(urlPath)")
+            return nil
+        }
+        do {
+            return try endpoint.buildRequest(
+                urlString,
+                overrideUrlScheme: "wss",
+                method: .get,
+                headers: extraHeaders
+            )
+        } catch {
+            Logger.warn("Couldn't build web socket request: \(error)")
+            return nil
+        }
+    }
+}
+
+public protocol WebSocketFactory {
     var canBuildWebSocket: Bool { get }
 
-    func buildSocket(request: URLRequest,
-                     callbackQueue: DispatchQueue) -> SSKWebSocket?
+    func buildSocket(request: WebSocketRequest, callbackScheduler: Scheduler) -> SSKWebSocket?
 }
 
 // MARK: -
+
+#if TESTABLE_BUILD
 
 @objc
 public class WebSocketFactoryMock: NSObject, WebSocketFactory {
 
     public var canBuildWebSocket: Bool { false }
 
-    public func buildSocket(request: URLRequest,
-                            callbackQueue: DispatchQueue) -> SSKWebSocket? {
+    public func buildSocket(request: WebSocketRequest, callbackScheduler: Scheduler) -> SSKWebSocket? {
         owsFailDebug("Cannot build websocket.")
         return nil
     }
 }
 
+#endif
+
 // MARK: -
 
 @objc
 public class WebSocketFactoryNative: NSObject, WebSocketFactory {
-
     public var canBuildWebSocket: Bool {
-        if FeatureFlags.canUseNativeWebsocket,
-           #available(iOS 13, *) {
-            return true
-        } else {
-            return false
-        }
+        return true
     }
 
-    public func buildSocket(request: URLRequest,
-                            callbackQueue: DispatchQueue) -> SSKWebSocket? {
-        guard FeatureFlags.canUseNativeWebsocket,
-              #available(iOS 13, *) else {
-                  return nil
-              }
-        return SSKWebSocketNative(request: request, callbackQueue: callbackQueue)
+    public func buildSocket(request: WebSocketRequest, callbackScheduler: Scheduler) -> SSKWebSocket? {
+        return SSKWebSocketNative(request: request, signalService: signalService, callbackScheduler: callbackScheduler)
     }
 }
 
 // MARK: -
 
-@available(iOS 13, *)
 public class SSKWebSocketNative: SSKWebSocket {
 
     private static let idCounter = AtomicUInt()
     public let id = SSKWebSocketNative.idCounter.increment()
 
     private let requestUrl: URL
-    private let callbackQueue: DispatchQueue
-    private let session: OWSURLSession
+    private let callbackScheduler: Scheduler
+    private let urlSession: OWSURLSessionProtocol
 
-    public init(request: URLRequest, callbackQueue: DispatchQueue) {
+    public required init?(
+        request: WebSocketRequest,
+        signalService: OWSSignalServiceProtocol,
+        callbackScheduler: Scheduler
+    ) {
+        let signalServiceInfo = request.signalService.signalServiceInfo()
+
+        let endpoint = signalService.buildUrlEndpoint(for: signalServiceInfo)
+
+        guard let urlRequest = request.build(for: endpoint) else {
+            return nil
+        }
+
         let configuration = OWSURLSession.defaultConfigurationWithoutCaching
 
         // For some reason, `URLSessionWebSocketTask` will only respect the proxy
         // configuration if started with a URL and not a URLRequest. As a temporary
         // workaround, port header information from the request to the session.
-        configuration.httpAdditionalHeaders = request.allHTTPHeaderFields
+        configuration.httpAdditionalHeaders = urlRequest.allHTTPHeaderFields
 
-        self.session = OWSURLSession(
-            securityPolicy: OWSURLSession.signalServiceSecurityPolicy,
-            configuration: configuration,
-            canUseSignalProxy: true
+        self.urlSession = signalService.buildUrlSession(
+            for: signalServiceInfo,
+            endpoint: endpoint,
+            configuration: configuration
         )
-        self.requestUrl = request.url!
-        self.callbackQueue = callbackQueue
+        self.requestUrl = urlRequest.url!
+        self.callbackScheduler = callbackScheduler
     }
 
     // MARK: - SSKWebSocket
@@ -197,7 +232,7 @@ public class SSKWebSocketNative: SSKWebSocket {
             guard webSocketTask == nil else {
                 return
             }
-            webSocketTask = session.webSocketTask(
+            webSocketTask = urlSession.webSocketTask(
                 requestUrl: requestUrl,
                 didOpenBlock: { [weak self] _ in self?.didOpen() },
                 didCloseBlock: { [weak self] error in self?.didClose(error: error) }
@@ -212,7 +247,7 @@ public class SSKWebSocketNative: SSKWebSocket {
             isConnected = true
             hasEverConnected = true
 
-            callbackQueue.async {
+            callbackScheduler.async {
                 self.delegate?.websocketDidConnect(socket: self)
             }
         }
@@ -240,7 +275,7 @@ public class SSKWebSocketNative: SSKWebSocket {
         case .success(let message):
             switch message {
             case .data(let data):
-                callbackQueue.async {
+                callbackScheduler.async {
                     self.delegate?.websocket(self, didReceiveData: data)
                 }
             case .string:
@@ -296,7 +331,7 @@ public class SSKWebSocketNative: SSKWebSocket {
         }
     }
 
-    public func disconnect() {
+    public func disconnect(code: URLSessionWebSocketTask.CloseCode?) {
         var taskToCancel: URLSessionWebSocketTask?
         lock.withLock {
             // The user requested a cancellation, so don't report an error
@@ -304,7 +339,11 @@ public class SSKWebSocketNative: SSKWebSocket {
             taskToCancel = webSocketTask
             webSocketTask = nil
         }
-        taskToCancel?.cancel()
+        if let code {
+            taskToCancel?.cancel(with: code, reason: nil)
+        } else {
+            taskToCancel?.cancel()
+        }
     }
 
     public func write(data: Data) {
@@ -368,7 +407,7 @@ public class SSKWebSocketNative: SSKWebSocket {
         }
         shouldReportError = false
 
-        callbackQueue.async {
+        callbackScheduler.async {
             Logger.warn("[\(self.id), context: \(context)] Socket error: \(error)")
             self.delegate?.websocketDidDisconnectOrFail(socket: self, error: error)
         }

@@ -3,9 +3,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalServiceKit
+import SignalUI
 
-@objc
+#if USE_DEBUG_UI
+
 class DebugUIReportsViewController: OWSTableViewController2 {
 
     public override func viewDidLoad() {
@@ -27,7 +29,7 @@ class DebugUIReportsViewController: OWSTableViewController2 {
     public func updateTableContents() {
         let contents = OWSTableContents()
 
-        contents.addSection(
+        contents.add(
             OWSTableSection(title: "Print Reports", items: [
                 OWSTableItem.init(title: "Signal Recipients") { [weak self] in
                     guard let self = self else { return }
@@ -51,9 +53,9 @@ class DebugUIReportsViewController: OWSTableViewController2 {
 
                     return cell
                 })
-            item.customRowHeight = NSNumber(value: 400)
+            item.customRowHeight = 400
 
-            contents.addSection(
+            contents.add(
                 OWSTableSection(title: "Report: \(report.title)", items: [ item ])
             )
         }
@@ -104,3 +106,5 @@ class DebugUIReportsViewController: OWSTableViewController2 {
         return reportText
     }
 }
+
+#endif

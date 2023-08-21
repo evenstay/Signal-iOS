@@ -51,7 +51,6 @@ extension ConversationViewController {
         }
     }
 
-    @objc(canCallThreadViewModel:)
     public static func canCall(threadViewModel: ThreadViewModel) -> Bool {
         let thread = threadViewModel.threadRecord
         guard thread.isLocalUserFullMemberOfThread else {
@@ -61,7 +60,7 @@ extension ConversationViewController {
             return false
         }
         guard let contactThread = thread as? TSContactThread else {
-            return RemoteConfig.groupCalling && thread.isGroupV2Thread
+            return thread.isGroupV2Thread
         }
         guard !contactThread.isNoteToSelf else {
             return false
@@ -78,7 +77,6 @@ extension ConversationViewController {
         updateContentInsetsEvent.requestNotify()
     }
 
-    @objc(updateContentInsets)
     internal func updateContentInsets() {
         AssertIsOnMainThread()
 
@@ -162,13 +160,13 @@ extension ConversationViewController {
     public func showUnknownThreadWarningAlert() {
         // TODO: Finalize this copy.
         let message = (thread.isGroupThread
-                        ? NSLocalizedString("ALERT_UNKNOWN_THREAD_WARNING_GROUP_MESSAGE",
+                        ? OWSLocalizedString("ALERT_UNKNOWN_THREAD_WARNING_GROUP_MESSAGE",
                                             comment: "Message for UI warning about an unknown group thread.")
-                        : NSLocalizedString("ALERT_UNKNOWN_THREAD_WARNING_CONTACT_MESSAGE",
+                        : OWSLocalizedString("ALERT_UNKNOWN_THREAD_WARNING_CONTACT_MESSAGE",
                                             comment: "Message for UI  warning about an unknown contact thread."))
         let actionSheet = ActionSheetController(message: message)
         actionSheet.addAction(ActionSheetAction(
-            title: NSLocalizedString("ALERT_UNKNOWN_THREAD_WARNING_LEARN_MORE",
+            title: OWSLocalizedString("ALERT_UNKNOWN_THREAD_WARNING_LEARN_MORE",
                                      comment: "Label for button to learn more about message requests."),
             style: .default,
             handler: { _ in
@@ -186,12 +184,12 @@ extension ConversationViewController {
         let senderName = databaseStorage.read { transaction in
             Self.contactsManager.displayName(for: senderAddress, transaction: transaction)
         }
-        let alertTitle = NSLocalizedString("ALERT_DELIVERY_ISSUE_TITLE", comment: "Title for delivery issue sheet")
+        let alertTitle = OWSLocalizedString("ALERT_DELIVERY_ISSUE_TITLE", comment: "Title for delivery issue sheet")
         let alertMessageFormat: String
         if isKnownThread {
-            alertMessageFormat = NSLocalizedString("ALERT_DELIVERY_ISSUE_MESSAGE_FORMAT", comment: "Format string for delivery issue sheet message. Embeds {{ sender name }}.")
+            alertMessageFormat = OWSLocalizedString("ALERT_DELIVERY_ISSUE_MESSAGE_FORMAT", comment: "Format string for delivery issue sheet message. Embeds {{ sender name }}.")
         } else {
-            alertMessageFormat = NSLocalizedString("ALERT_DELIVERY_ISSUE_UNKNOWN_THREAD_MESSAGE_FORMAT", comment: "Format string for delivery issue sheet message where the original thread is unknown. Embeds {{ sender name }}.")
+            alertMessageFormat = OWSLocalizedString("ALERT_DELIVERY_ISSUE_UNKNOWN_THREAD_MESSAGE_FORMAT", comment: "Format string for delivery issue sheet message where the original thread is unknown. Embeds {{ sender name }}.")
         }
 
         let alertMessage = String(format: alertMessageFormat, senderName)
@@ -281,13 +279,11 @@ extension ConversationViewController: GroupViewHelperDelegate {
 extension ConversationViewController {
     func uiModeDidChange(oldValue: ConversationUIMode) {
         if oldValue == .search {
-            if #available(iOS 13.0, *) {
-                navigationItem.searchController = nil
-                // HACK: For some reason at this point the OWSNavbar retains the extra space it
-                // used to house the search bar. This only seems to occur when dismissing
-                // the search UI when scrolled to the very top of the conversation.
-                navigationController?.navigationBar.sizeToFit()
-            }
+            navigationItem.searchController = nil
+            // HACK: For some reason at this point the OWSNavbar retains the extra space it
+            // used to house the search bar. This only seems to occur when dismissing
+            // the search UI when scrolled to the very top of the conversation.
+            navigationController?.navigationBar.sizeToFit()
         }
 
         switch uiMode {
@@ -296,13 +292,7 @@ extension ConversationViewController {
                 navigationItem.titleView = headerView
             }
         case .search:
-            if #available(iOS 13.0, *) {
-                navigationItem.searchController = searchController.uiSearchController
-            } else {
-                // Note: setting a searchBar as the titleView causes UIKit to render the navBar
-                // *slightly* taller (44pt -> 56pt)
-                navigationItem.titleView = searchController.uiSearchController.searchBar
-            }
+            navigationItem.searchController = searchController.uiSearchController
         case .selection:
             navigationItem.titleView = nil
         }
@@ -353,10 +343,64 @@ extension ConversationViewController: MediaPresentationContextProvider {
 
         let presentationFrame = coordinateSpace.convert(mediaView.frame, from: mediaSuperview)
 
-        // TODO exactly match corner radius for collapsed cells - maybe requires passing a masking view?
-        return MediaPresentationContext(mediaView: mediaView,
-                                        presentationFrame: presentationFrame,
-                                        cornerRadius: CVComponentMessage.bubbleSharpCornerRadius * 2)
+        var roundedCorners = RoundedCorners.all(CVComponentMessage.bubbleWideCornerRadius)
+        let mediaViewFrame = mediaView.convert(mediaView.bounds, to: messageCell)
+        var sharpBubbleCorners: UIRectCorner = []
+        if let componentMessage = messageCell.rootComponent as? CVComponentMessage {
+            sharpBubbleCorners = UIView.uiRectCorner(forOWSDirectionalRectCorner: componentMessage.sharpCorners)
+        }
+        if mediaViewFrame.minY > messageCell.bounds.minY {
+            // Media isn't aligned to cell's top edge - both top corners are square.
+            roundedCorners.topLeft = 0
+            roundedCorners.topRight = 0
+        } else {
+            // If media isn't pinned to cell's left edge it's left corners would be square.
+            if mediaView.frame.minX > mediaSuperview.bounds.minX {
+                roundedCorners.topLeft = 0
+            } else if sharpBubbleCorners.contains(.topLeft) {
+                roundedCorners.topLeft = CVComponentMessage.bubbleSharpCornerRadius
+            }
+            // If media isn't pinned to cell's right edge it's right corners would be square.
+            if mediaView.frame.maxX < mediaSuperview.bounds.maxX {
+                roundedCorners.topRight = 0
+            } else if sharpBubbleCorners.contains(.topRight) {
+                roundedCorners.topRight = CVComponentMessage.bubbleSharpCornerRadius
+            }
+        }
+        if mediaViewFrame.maxY < messageCell.bounds.maxY {
+            // Media isn't aligned to cell's bottom edge - both bottom corners are square.
+            roundedCorners.bottomLeft = 0
+            roundedCorners.bottomRight = 0
+        } else {
+            // If media isn't pinned to cell's left edge it's left corners would be square.
+            if mediaView.frame.minX > mediaSuperview.bounds.minX {
+                roundedCorners.bottomLeft = 0
+            } else if sharpBubbleCorners.contains(.bottomLeft) {
+                roundedCorners.bottomLeft = CVComponentMessage.bubbleSharpCornerRadius
+            }
+            // If media isn't pinned to cell's right edge it's right corners would be square.
+            if mediaView.frame.maxX < mediaSuperview.bounds.maxX {
+                roundedCorners.bottomRight = 0
+            } else if sharpBubbleCorners.contains(.bottomRight) {
+                roundedCorners.bottomRight = CVComponentMessage.bubbleSharpCornerRadius
+            }
+        }
+
+        // Avoid using `variableRoundedCorners` as much as possible because that doesn't work well
+        // with spring animations.
+        let mediaViewShape: MediaViewShape
+        if roundedCorners.isAllCornerRadiiEqual {
+            mediaViewShape = .rectangle(roundedCorners.topLeft)
+        } else {
+            mediaViewShape = .variableRoundedCorners(roundedCorners)
+        }
+
+        return MediaPresentationContext(
+            mediaView: mediaView,
+            presentationFrame: presentationFrame,
+            mediaViewShape: mediaViewShape,
+            clippingAreaInsets: collectionView.adjustedContentInset
+        )
     }
 
     func snapshotOverlayView(in coordinateSpace: UICoordinateSpace) -> (UIView, CGRect)? {
@@ -415,6 +459,14 @@ extension ConversationViewController: MessageDetailViewDelegate {
     }
 }
 
+// MARK: - MessageEditHistoryViewDelegate
+
+extension ConversationViewController: MessageEditHistoryViewDelegate {
+    func editHistoryMessageWasDeleted() {
+        self.dismiss(animated: true)
+    }
+}
+
 // MARK: -
 
 extension ConversationViewController: LongTextViewDelegate {
@@ -437,7 +489,11 @@ extension ConversationViewController: LongTextViewDelegate {
             self.loadCoordinator.enqueueReload(updatedInteractionIds: [itemViewModel.interaction.uniqueId],
                                                deletedInteractionIds: [])
         } else {
-            let viewController = LongTextViewController(itemViewModel: itemViewModel)
+            let viewController = LongTextViewController(
+                itemViewModel: itemViewModel,
+                threadViewModel: self.threadViewModel,
+                spoilerState: self.viewState.spoilerState
+            )
             viewController.delegate = self
             navigationController?.pushViewController(viewController, animated: true)
         }
@@ -447,9 +503,23 @@ extension ConversationViewController: LongTextViewDelegate {
 // MARK: -
 
 extension ConversationViewController: SendPaymentViewDelegate {
-    public func didSendPayment() {
-        let paymentSettingsView = PaymentsSettingsViewController(mode: .standalone)
-        let navigationController = OWSNavigationController(rootViewController: paymentSettingsView)
-        presentFormSheet(navigationController, animated: true)
+    public func didSendPayment(success: Bool) {
+
+        func paymentSettingsNavigationController() -> OWSNavigationController {
+            let paymentSettingsView = PaymentsSettingsViewController(mode: .standalone)
+            return OWSNavigationController(rootViewController: paymentSettingsView)
+        }
+
+        // only prompt users to enable payments lock when successful.
+        guard success else {
+            // TODO - Remove when in-chat payment bubble implemented.
+            self.presentFormSheet(paymentSettingsNavigationController(), animated: true)
+            return
+        }
+
+        PaymentOnboarding.presentBiometricLockPromptIfNeeded { [weak self] in
+            // TODO - Remove when in-chat payment bubble implemented.
+            self?.presentFormSheet(paymentSettingsNavigationController(), animated: true)
+        }
     }
 }

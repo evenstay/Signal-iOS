@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import MediaPlayer
+import SignalServiceKit
 
 protocol VolumeButtonObserver: AnyObject {
     func didPressVolumeButton(with identifier: VolumeButtons.Identifier)
@@ -278,22 +278,22 @@ class VolumeButtons {
     }
 
     @objc
-    func didPressVolumeUp(_ notification: Notification) {
+    private func didPressVolumeUp(_ notification: Notification) {
         didPressButton(with: .up)
     }
 
     @objc
-    func didReleaseVolumeUp(_ notification: Notification) {
+    private func didReleaseVolumeUp(_ notification: Notification) {
         didReleaseButton(with: .up)
     }
 
     @objc
-    func didPressVolumeDown(_ notification: Notification) {
+    private func didPressVolumeDown(_ notification: Notification) {
         didPressButton(with: .down)
     }
 
     @objc
-    func didReleaseVolumeDown(_ notification: Notification) {
+    private func didReleaseVolumeDown(_ notification: Notification) {
         didReleaseButton(with: .down)
     }
 }

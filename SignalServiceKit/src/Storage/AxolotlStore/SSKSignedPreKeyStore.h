@@ -7,6 +7,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+@class ECKeyPair;
 @class SDSAnyReadTransaction;
 @class SDSAnyWriteTransaction;
 @class SignedPreKeyRecord;
@@ -36,11 +37,17 @@ typedef NS_ENUM(uint8_t, OWSIdentity);
 
 #pragma mark -
 
++ (SignedPreKeyRecord *)generateSignedPreKeySignedWithIdentityKey:(ECKeyPair *)identityKeyPair
+    NS_SWIFT_NAME(generateSignedPreKey(signedBy:));
 - (SignedPreKeyRecord *)generateRandomSignedRecord;
+
+- (nullable SignedPreKeyRecord *)currentSignedPreKey;
+- (nullable SignedPreKeyRecord *)currentSignedPreKeyWithTransaction:(SDSAnyReadTransaction *)transaction;
 
 // Returns nil if no current signed prekey id is found.
 - (nullable NSNumber *)currentSignedPrekeyId;
-- (nullable SignedPreKeyRecord *)currentSignedPreKey;
+- (nullable NSNumber *)currentSignedPrekeyIdWithTransaction:(SDSAnyReadTransaction *)transaction;
+
 - (void)setCurrentSignedPrekeyId:(int)value transaction:(SDSAnyWriteTransaction *)transaction;
 
 #pragma mark - Prekey update failures
@@ -53,6 +60,11 @@ typedef NS_ENUM(uint8_t, OWSIdentity);
     NS_SWIFT_NAME(incrementPrekeyUpdateFailureCount(transaction:));
 - (void)clearPrekeyUpdateFailureCountWithTransaction:(SDSAnyWriteTransaction *)transaction
     NS_SWIFT_NAME(clearPrekeyUpdateFailureCount(transaction:));
+
+#pragma mark - Prekey rotation tracking
+- (void)setLastSuccessfulPreKeyRotationDate:(NSDate *)date transaction:(SDSAnyWriteTransaction *)transaction;
+- (nullable NSDate *)getLastSuccessfulPreKeyRotationDateWithTransaction:(SDSAnyReadTransaction *)transaction
+    NS_SWIFT_NAME(getLastSuccessfulPreKeyRotationDate(transaction:));
 
 #pragma mark - Debugging
 

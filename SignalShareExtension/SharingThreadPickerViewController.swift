@@ -7,7 +7,6 @@ import UIKit
 import Foundation
 import SignalUI
 
-@objc
 class SharingThreadPickerViewController: ConversationPickerViewController {
 
     weak var shareViewDelegate: ShareViewDelegate?
@@ -59,13 +58,12 @@ class SharingThreadPickerViewController: ConversationPickerViewController {
     var approvalMessageBody: MessageBody?
     var approvalLinkPreviewDraft: OWSLinkPreviewDraft?
 
-    var outgoingMessages = [TSOutgoingMessage]()
+    var outgoingMessages = AtomicArray<TSOutgoingMessage>(lock: .init())
 
     var mentionCandidates: [SignalServiceAddress] = []
 
     var selectedConversations: [ConversationItem] { selection.conversations }
 
-    @objc
     public init(shareViewDelegate: ShareViewDelegate) {
         self.shareViewDelegate = shareViewDelegate
 
@@ -97,7 +95,7 @@ class SharingThreadPickerViewController: ConversationPickerViewController {
         }
 
         owsAssertDebug(groupThread != nil)
-        if let groupThread = groupThread, Mention.threadAllowsMentionSend(groupThread) {
+        if let groupThread = groupThread, groupThread.allowsMentionSend {
             mentionCandidates = groupThread.recipientAddressesWithSneakyTransaction
         } else {
             mentionCandidates = []
@@ -226,48 +224,51 @@ extension SharingThreadPickerViewController {
 
             let linkPreviewDraft = approvalLinkPreviewDraft
 
-            let outgoingMessageConversations = selectedConversations.filter { $0.outgoingMessageClass == TSOutgoingMessage.self }
-            let outgoingMessageSendPromise: Promise<Void>
-            if !outgoingMessageConversations.isEmpty {
-                outgoingMessageSendPromise = sendToOutgoingMessageThreads { thread in
-                    return firstly(on: .global()) { () -> Promise<Void> in
-                        return self.databaseStorage.write { transaction in
-                            let preparer = OutgoingMessagePreparer(
-                                messageBody: body,
-                                thread: thread,
-                                transaction: transaction
-                            )
-                            preparer.insertMessage(linkPreviewDraft: linkPreviewDraft, transaction: transaction)
-                            self.outgoingMessages.append(preparer.unpreparedMessage)
-                            return ThreadUtil.enqueueMessagePromise(
-                                message: preparer.unpreparedMessage,
-                                isHighPriority: true,
-                                transaction: transaction
-                            )
-                        }
+            let nonStorySendPromise = sendToOutgoingMessageThreads { thread in
+                return firstly(on: DispatchQueue.global()) { () -> Promise<Void> in
+                    return self.databaseStorage.write { transaction in
+                        let preparer = OutgoingMessagePreparer(
+                            messageBody: body,
+                            thread: thread,
+                            editTarget: nil,
+                            transaction: transaction
+                        )
+                        preparer.insertMessage(linkPreviewDraft: linkPreviewDraft, transaction: transaction)
+                        self.outgoingMessages.append(preparer.unpreparedMessage)
+                        return ThreadUtil.enqueueMessagePromise(
+                            message: preparer.unpreparedMessage,
+                            isHighPriority: true,
+                            transaction: transaction
+                        )
                     }
                 }
-            } else {
-                outgoingMessageSendPromise = Promise.value(())
             }
 
             // Send the text message to any selected story recipients
             // as a text story with default styling.
             let storyConversations = selectedConversations.filter { $0.outgoingMessageClass == OutgoingStoryMessage.self }
-            let storySendPromise = StorySharing.sendTextStory(with: body, linkPreviewDraft: linkPreviewDraft, to: storyConversations)
+            let storySendPromise = StorySharing.sendTextStoryFromShareExtension(
+                with: body,
+                linkPreviewDraft: linkPreviewDraft,
+                to: storyConversations,
+                messagesReadyToSend: { messages in
+                    self.outgoingMessages.append(contentsOf: messages)
+                }
+            )
 
-            return Promise<Void>.when(fulfilled: [outgoingMessageSendPromise, storySendPromise])
+            return Promise<Void>.when(fulfilled: [nonStorySendPromise, storySendPromise])
         } else if isContactShare {
             guard let contactShare = approvedContactShare else {
                 return Promise(error: OWSAssertionError("Missing contactShare."))
             }
 
             return sendToOutgoingMessageThreads { thread in
-                return firstly(on: .global()) { () -> Promise<Void> in
+                return firstly(on: DispatchQueue.global()) { () -> Promise<Void> in
                     return self.databaseStorage.write { transaction in
                         let builder = TSOutgoingMessageBuilder(thread: thread)
                         builder.contactShare = contactShare.dbRecord
-                        builder.expiresInSeconds = thread.disappearingMessagesDuration(with: transaction)
+                        let dmConfigurationStore = DependenciesBridge.shared.disappearingMessagesConfigurationStore
+                        builder.expiresInSeconds = dmConfigurationStore.durationSeconds(for: thread, tx: transaction.asV2Read)
                         let message = builder.build(transaction: transaction)
                         message.anyInsert(transaction: transaction)
                         self.outgoingMessages.append(message)
@@ -290,7 +291,7 @@ extension SharingThreadPickerViewController {
                     approvalMessageBody: self.approvalMessageBody,
                     approvedAttachments: approvedAttachments,
                     messagesReadyToSend: { messages in
-                        DispatchQueue.main.async { self.outgoingMessages = messages }
+                        self.outgoingMessages.append(contentsOf: messages)
                     }
                 )
             }
@@ -310,7 +311,7 @@ extension SharingThreadPickerViewController {
         progressLabel.textAlignment = .center
         progressLabel.numberOfLines = 0
         progressLabel.lineBreakMode = .byWordWrapping
-        progressLabel.font = UIFont.ows_dynamicTypeSubheadlineClamped.ows_semibold
+        progressLabel.font = UIFont.dynamicTypeSubheadlineClamped.semibold()
         progressLabel.textColor = Theme.primaryTextColor
         progressLabel.text = OWSLocalizedString("SHARE_EXTENSION_SENDING_IN_PROGRESS_TITLE", comment: "Alert title")
 
@@ -396,7 +397,7 @@ extension SharingThreadPickerViewController {
         }.done { threads in
             for thread in threads {
                 // We're sending a message to this thread, approve any pending message request
-                ThreadUtil.addThreadToProfileWhitelistIfEmptyOrPendingRequestAndSetDefaultTimerWithSneakyTransaction(thread: thread)
+                ThreadUtil.addThreadToProfileWhitelistIfEmptyOrPendingRequestAndSetDefaultTimerWithSneakyTransaction(thread)
             }
         }
     }
@@ -413,27 +414,24 @@ extension SharingThreadPickerViewController {
                 sendPromises.append(enqueueBlock(thread))
 
                 // We're sending a message to this thread, approve any pending message request
-                ThreadUtil.addThreadToProfileWhitelistIfEmptyOrPendingRequestAndSetDefaultTimerWithSneakyTransaction(thread: thread)
+                ThreadUtil.addThreadToProfileWhitelistIfEmptyOrPendingRequestAndSetDefaultTimerWithSneakyTransaction(thread)
             }
             return Promise.when(fulfilled: sendPromises)
         }
     }
 
     func threads(for conversationItems: [ConversationItem]) -> Promise<[TSThread]> {
-        return firstly(on: .sharedUserInteractive) {
-            guard conversationItems.count > 0 else {
-                throw OWSAssertionError("No recipients.")
-            }
-
+        return firstly(on: DispatchQueue.sharedUserInteractive) {
             var threads: [TSThread] = []
-
-            self.databaseStorage.write { transaction in
-                for conversation in conversationItems {
-                    guard let thread = conversation.getOrCreateThread(transaction: transaction) else {
-                        owsFailDebug("Missing thread for conversation")
-                        continue
+            if !conversationItems.isEmpty {
+                self.databaseStorage.write { transaction in
+                    for conversation in conversationItems {
+                        guard let thread = conversation.getOrCreateThread(transaction: transaction) else {
+                            owsFailDebug("Missing thread for conversation")
+                            continue
+                        }
+                        threads.append(thread)
                     }
-                    threads.append(thread)
                 }
             }
             return threads
@@ -451,7 +449,7 @@ extension SharingThreadPickerViewController {
         ) { [weak self] _ in
             guard let self = self else { return }
             self.databaseStorage.write { transaction in
-                for message in self.outgoingMessages {
+                for message in self.outgoingMessages.get() {
                     // If we sent the message to anyone, mark it as failed
                     message.updateWithAllSendingRecipientsMarkedAsFailed(with: transaction)
                 }
@@ -531,11 +529,11 @@ extension SharingThreadPickerViewController {
 
     func resendMessages() {
         AssertIsOnMainThread()
-        owsAssertDebug(!outgoingMessages.isEmpty)
+        owsAssertDebug(outgoingMessages.count > 0)
 
         var promises = [Promise<Void>]()
         databaseStorage.write { transaction in
-            for message in outgoingMessages {
+            for message in outgoingMessages.get() {
                 promises.append(sskJobQueues.messageSenderJobQueue.add(
                     .promise,
                     message: message.asPreparer,
@@ -722,7 +720,11 @@ extension SharingThreadPickerViewController: AttachmentApprovalViewControllerDat
         selectedConversations.map { $0.titleWithSneakyTransaction }
     }
 
-    var attachmentApprovalMentionableAddresses: [SignalServiceAddress] {
+    func attachmentApprovalMentionableAddresses(tx: DBReadTransaction) -> [SignalServiceAddress] {
         mentionCandidates
+    }
+
+    func attachmentApprovalMentionCacheInvalidationKey() -> String {
+        return "\(mentionCandidates.hashValue)"
     }
 }

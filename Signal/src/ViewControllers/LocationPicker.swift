@@ -13,16 +13,14 @@ import CoreLocation
 import CoreServices
 import MapKit
 import SignalMessaging
-import UIKit
+import SignalUI
 
-@objc
-public protocol LocationPickerDelegate {
+public protocol LocationPickerDelegate: AnyObject {
     func didPickLocation(_ locationPicker: LocationPicker, location: Location)
 }
 
-@objc
 public class LocationPicker: UIViewController {
-    @objc
+
     public weak var delegate: LocationPickerDelegate?
     public var location: Location? { didSet { updateAnnotation() } }
 
@@ -47,7 +45,7 @@ public class LocationPicker: UIViewController {
 
     private lazy var searchBar: UISearchBar = {
         let searchBar = self.searchController.searchBar
-        searchBar.placeholder = NSLocalizedString("LOCATION_PICKER_SEARCH_PLACEHOLDER",
+        searchBar.placeholder = OWSLocalizedString("LOCATION_PICKER_SEARCH_PLACEHOLDER",
                                                   comment: "A string indicating that the user can search for a location")
         return searchBar
     }()
@@ -80,7 +78,7 @@ public class LocationPicker: UIViewController {
         currentLocationButton.layer.cornerRadius = 24
 
         // This icon doesn't look right when it's actually centered due to its odd shape.
-        currentLocationButton.setTemplateImageName("current-location-outline-24", tintColor: .white)
+        currentLocationButton.setTemplateImageName("location", tintColor: .white)
         currentLocationButton.contentEdgeInsets = UIEdgeInsets(top: 2, left: 0, bottom: 0, right: 2)
 
         view.addSubview(currentLocationButton)
@@ -94,10 +92,10 @@ public class LocationPicker: UIViewController {
     open override func viewDidLoad() {
         super.viewDidLoad()
 
-        title = NSLocalizedString("LOCATION_PICKER_TITLE", comment: "The title for the location picker view")
+        title = OWSLocalizedString("LOCATION_PICKER_TITLE", comment: "The title for the location picker view")
 
         navigationItem.leftBarButtonItem = UIBarButtonItem(
-            image: UIImage(named: "x-24")?.withRenderingMode(.alwaysTemplate),
+            image: Theme.iconImage(.buttonX),
             style: .plain,
             target: self,
             action: #selector(cancelButtonPressed)
@@ -145,7 +143,7 @@ public class LocationPicker: UIViewController {
     }
 
     @objc
-    func cancelButtonPressed(_ sender: UIButton) {
+    private func cancelButtonPressed(_ sender: UIButton) {
         if let navigation = navigationController, navigation.viewControllers.count > 1 {
             navigation.popViewController(animated: true)
         } else {
@@ -154,7 +152,7 @@ public class LocationPicker: UIViewController {
     }
 
     @objc
-    func didPressCurrentLocation() {
+    private func didPressCurrentLocation() {
         showCurrentLocation()
     }
 
@@ -173,9 +171,9 @@ public class LocationPicker: UIViewController {
         case .denied, .restricted:
             // The user previous explicitly denied access. Point them to settings to re-enable.
             let alert = ActionSheetController(
-                title: NSLocalizedString("MISSING_LOCATION_PERMISSION_TITLE",
+                title: OWSLocalizedString("MISSING_LOCATION_PERMISSION_TITLE",
                                          comment: "Alert title indicating the user has denied location permissions"),
-                message: NSLocalizedString("MISSING_LOCATION_PERMISSION_MESSAGE",
+                message: OWSLocalizedString("MISSING_LOCATION_PERMISSION_MESSAGE",
                                            comment: "Alert body indicating the user has denied location permissions")
             )
             let openSettingsAction = ActionSheetAction(
@@ -266,22 +264,24 @@ extension LocationPicker: UISearchResultsUpdating {
         // clear old results
         showItemsForSearchResult(nil)
 
+        searchTimer?.invalidate()
+        searchTimer = nil
+
         let searchTerm = term.trimmingCharacters(in: CharacterSet.whitespaces)
         if !searchTerm.isEmpty {
             // Search after a slight delay to debounce while the user is typing.
-            searchTimer = Timer.weakScheduledTimer(withTimeInterval: 0.1,
-                                                   target: self,
-                                                   selector: #selector(searchFromTimer),
-                                                   userInfo: [LocationPicker.SearchTermKey: searchTerm],
-                                                   repeats: false)
-        } else {
-            searchTimer?.invalidate()
-            searchTimer = nil
+            searchTimer = Timer.weakScheduledTimer(
+                withTimeInterval: 0.1,
+                target: self,
+                selector: #selector(searchFromTimer),
+                userInfo: [LocationPicker.SearchTermKey: searchTerm],
+                repeats: false
+            )
         }
     }
 
     @objc
-    func searchFromTimer(_ timer: Timer) {
+    private func searchFromTimer(_ timer: Timer) {
         guard let userInfo = timer.userInfo as? [String: AnyObject],
             let term = userInfo[LocationPicker.SearchTermKey] as? String else {
                 return owsFailDebug("Unexpectedly attempted to search with no term")
@@ -328,7 +328,7 @@ extension LocationPicker: UISearchResultsUpdating {
 
 extension LocationPicker {
     @objc
-    func addLocation(_ gestureRecognizer: UIGestureRecognizer) {
+    private func addLocation(_ gestureRecognizer: UIGestureRecognizer) {
         if gestureRecognizer.state == .began {
             let point = gestureRecognizer.location(in: mapView)
             let coordinates = mapView.convert(point, toCoordinateFrom: mapView)
@@ -413,7 +413,6 @@ class LocationSearchResults: UITableViewController {
     }
 }
 
-@objc
 public class Location: NSObject {
     public let name: String?
 
@@ -436,9 +435,6 @@ public class Location: NSObject {
             return nil
         }
         let addressLines = formattedAddress.components(separatedBy: .newlines)
-        guard #available(iOS 13, *) else {
-            return addressLines.joined(separator: ", ")
-        }
         return ListFormatter.localizedString(byJoining: addressLines)
     }
 
@@ -514,13 +510,8 @@ public class Location: NSObject {
         self.placemark = placemark
     }
 
-    @objc
-    public func prepareAttachmentObjc() -> AnyPromise {
-        return AnyPromise(prepareAttachment())
-    }
-
     public func prepareAttachment() -> Promise<SignalAttachment> {
-        return generateSnapshot().map(on: .global()) { image in
+        return generateSnapshot().map(on: DispatchQueue.global()) { image in
             guard let jpegData = image.jpegData(compressionQuality: 1.0) else {
                 throw LocationError.assertion
             }
@@ -530,7 +521,6 @@ public class Location: NSObject {
         }
     }
 
-    @objc
     public var messageText: String {
         // The message body will look something like:
         //
@@ -547,7 +537,7 @@ public class Location: NSObject {
 }
 
 extension Location: MKAnnotation {
-    @objc
+
     public var coordinate: CLLocationCoordinate2D {
         return location.coordinate
     }

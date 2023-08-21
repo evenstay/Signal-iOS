@@ -16,8 +16,11 @@ class SessionMigrationPerfTest: PerformanceBaseTest {
     }()
 
     static func makeNewlyInitializedSessionState() -> LegacySessionState {
-        let result = try! NSKeyedUnarchiver.unarchiveTopLevelObjectWithData(Self.newlyInitializedSessionStateData)
-        return result as! LegacySessionState
+        try! NSKeyedUnarchiver.unarchivedObject(
+            ofClass: LegacySessionState.self,
+            from: newlyInitializedSessionStateData,
+            requiringSecureCoding: false
+        )!
     }
 
     func makeDeepSession(depth: Int = 2000) -> LegacySessionRecord {
@@ -43,6 +46,11 @@ class SessionMigrationPerfTest: PerformanceBaseTest {
         }
 
         return session
+    }
+
+    override func setUp() {
+        super.setUp()
+        setUpIteration()
     }
 
     func testSerializeDeepSession() {

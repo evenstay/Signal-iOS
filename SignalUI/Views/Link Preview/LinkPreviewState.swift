@@ -99,9 +99,9 @@ public class LinkPreviewLoading: LinkPreviewState {
     public var activityIndicatorStyle: UIActivityIndicatorView.Style {
         switch linkType {
         case .incomingMessageGroupInviteLink:
-            return .gray
+            return .medium
         case .outgoingMessageGroupInviteLink:
-            return .white
+            return .medium
         default:
             return LinkPreviewView.defaultActivityIndicatorStyle
         }
@@ -237,7 +237,7 @@ public class LinkPreviewSent: LinkPreviewState {
         return displayDomain
     }
 
-    public var title: String? { linkPreview.title?.filterForDisplay?.nilIfEmpty }
+    public var title: String? { linkPreview.title?.filterForDisplay.nilIfEmpty }
 
     public var imageState: LinkPreviewImageState {
         guard linkPreview.imageAttachmentId != nil else {

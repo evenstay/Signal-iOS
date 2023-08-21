@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import UIKit
+import SignalCoreKit
 
 public protocol ColorPickerBarViewDelegate: AnyObject {
     func colorPickerBarView(_ pickerView: ColorPickerBarView, didSelectColor color: ColorPickerBarColor)
@@ -237,7 +237,7 @@ public class ColorPickerBarView: UIView {
         imageViewBorder.layer.borderWidth = borderWidth
         imageViewBorder.layer.borderColor = UIColor.white.cgColor
         addSubview(imageViewBorder)
-        imageViewBorder.autoPin(toEdgesOf: imageView, with: UIEdgeInsets(margin: -borderWidth))
+        imageViewBorder.autoPinEdges(toEdgesOf: imageView, with: UIEdgeInsets(margin: -borderWidth))
 
         imageWrapper.layoutCallback = { [weak self] (_) in
             guard let strongSelf = self else {
@@ -246,7 +246,7 @@ public class ColorPickerBarView: UIView {
             strongSelf.updateState()
         }
         addSubview(imageWrapper)
-        imageWrapper.autoPin(toEdgesOf: imageView)
+        imageWrapper.autoPinEdges(toEdgesOf: imageView)
 
         imageWrapper.addSubview(selectionView)
         selectionView.autoVCenterInSuperview()

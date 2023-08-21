@@ -5,6 +5,7 @@
 
 import Foundation
 import GRDB
+import SignalCoreKit
 
 // MARK: -
 
@@ -16,7 +17,6 @@ public class MentionFinder: NSObject {
         address: SignalServiceAddress,
         in thread: TSThread? = nil,
         includeReadMessages: Bool = true,
-        includeGroupStoryReplies: Bool = false,
         transaction: GRDBReadTransaction
     ) -> [TSMessage] {
         guard let uuidString = address.uuidString else { return [] }
@@ -43,9 +43,8 @@ public class MentionFinder: NSObject {
             next = "AND"
         }
 
-        if !includeGroupStoryReplies {
-            sql += " \(next) interaction.\(interactionColumn: .isGroupStoryReply) IS 0"
-        }
+        sql += " \(next) interaction.\(interactionColumn: .isGroupStoryReply) IS 0"
+        next = "AND"
 
         sql += " ORDER BY \(interactionColumn: .id)"
 
@@ -70,7 +69,7 @@ public class MentionFinder: NSObject {
             DELETE FROM \(TSMention.databaseTableName)
             WHERE \(TSMention.columnName(.uniqueMessageId)) = ?
         """
-        transaction.executeUpdate(sql: sql, arguments: [message.uniqueId])
+        transaction.execute(sql: sql, arguments: [message.uniqueId])
     }
 
     @objc

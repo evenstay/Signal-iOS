@@ -3,11 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalServiceKit
 import SignalMessaging
 
-@objc
 public class AppEnvironment: NSObject {
 
     private static var _shared: AppEnvironment = AppEnvironment()
@@ -27,41 +25,41 @@ public class AppEnvironment: NSObject {
         }
     }
 
-    @objc
+    // A temporary hack until `.shared` goes away and this can be provided to `init`.
+    static let sharedCallMessageHandler = WebRTCCallMessageHandler()
+
     public var callMessageHandlerRef: WebRTCCallMessageHandler
 
-    @objc
     public var callServiceRef: CallService
 
-    @objc
     public var accountManagerRef: AccountManager
 
-    @objc
+    // A temporary hack until `.shared` goes away and this can be provided to `init`.
+    static let sharedNotificationPresenter = NotificationPresenter()
+
     public var notificationPresenterRef: NotificationPresenter
 
-    @objc
     public var pushRegistrationManagerRef: PushRegistrationManager
 
-    @objc
     let deviceTransferServiceRef = DeviceTransferService()
 
-    @objc
     let avatarHistorManagerRef = AvatarHistoryManager()
 
-    @objc
     let cvAudioPlayerRef = CVAudioPlayer()
 
-    @objc
     let speechManagerRef = SpeechManager()
 
-    @objc
-    public var windowManagerRef: OWSWindowManager = OWSWindowManager()
+    let windowManagerRef = WindowManager()
+
+    private(set) var appIconBadgeUpdater: AppIconBadgeUpdater!
+    private(set) var badgeManager: BadgeManager!
+    private var usernameValidationObserverRef: UsernameValidationObserver?
 
     private override init() {
-        self.callMessageHandlerRef = WebRTCCallMessageHandler()
+        self.callMessageHandlerRef = Self.sharedCallMessageHandler
         self.callServiceRef = CallService()
         self.accountManagerRef = AccountManager()
-        self.notificationPresenterRef = NotificationPresenter()
+        self.notificationPresenterRef = Self.sharedNotificationPresenter
         self.pushRegistrationManagerRef = PushRegistrationManager()
 
         super.init()
@@ -69,13 +67,41 @@ public class AppEnvironment: NSObject {
         SwiftSingletons.register(self)
     }
 
-    @objc
-    public func setup() {
+    func setup() {
         callService.createCallUIAdapter()
 
-        // Hang certain singletons on SSKEnvironment too.
-        SSKEnvironment.shared.notificationsManagerRef = notificationPresenterRef
-        SSKEnvironment.shared.callMessageHandlerRef = callMessageHandlerRef
-        Environment.shared.lightweightCallManagerRef = callServiceRef
+        self.badgeManager = BadgeManager(
+            databaseStorage: databaseStorage,
+            mainScheduler: DispatchQueue.main,
+            serialScheduler: DispatchQueue.sharedUtility
+        )
+        self.appIconBadgeUpdater = AppIconBadgeUpdater(badgeManager: badgeManager)
+        self.usernameValidationObserverRef = UsernameValidationObserver(
+            manager: DependenciesBridge.shared.usernameValidationManager,
+            database: DependenciesBridge.shared.db
+        )
+
+        AppReadiness.runNowOrWhenAppWillBecomeReady {
+            self.badgeManager.startObservingChanges(in: self.databaseStorage)
+            self.appIconBadgeUpdater.startObserving()
+        }
+
+        AppReadiness.runNowOrWhenAppDidBecomeReadyAsync {
+            let db = DependenciesBridge.shared.db
+            let learnMyOwnPniManager = DependenciesBridge.shared.learnMyOwnPniManager
+            let pniHelloWorldManager = DependenciesBridge.shared.pniHelloWorldManager
+            let schedulers = DependenciesBridge.shared.schedulers
+
+            learnMyOwnPniManager.learnMyOwnPniIfNecessary()
+                .done(on: schedulers.global()) { () -> Void in
+                    db.write { tx in
+                        pniHelloWorldManager.sayHelloWorldIfNecessary(tx: tx)
+                    }
+                }
+                .cauterize()
+        }
+
+        // Hang certain singletons on SMEnvironment too.
+        SMEnvironment.shared.lightweightCallManagerRef = callServiceRef
     }
 }

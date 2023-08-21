@@ -7,7 +7,7 @@ import XCTest
 @testable import Signal
 @testable import SignalMessaging
 
-class DisplayableTextTest: SignalBaseTest {
+class DisplayableTextTest: XCTestCase {
     func testDisplayableText() {
         // show plain text
         let boringText = "boring text"
@@ -108,19 +108,19 @@ class DisplayableTextTest: SignalBaseTest {
             ("Noise", 0)
         ]
         for (textValue, expectedCount) in testCases {
-            let displayableText: DisplayableText = .displayableTextForTests(textValue)
+            let displayableText: DisplayableText = .testOnlyInit(fullContent: .text(textValue), truncatedContent: nil)
             XCTAssertEqual(displayableText.jumbomojiCount, expectedCount, "textValue: \(textValue)")
         }
     }
 
     func test_shouldAllowLinkification() {
         func assertLinkifies(_ text: String, file: StaticString = #file, line: UInt = #line) {
-            let displayableText = DisplayableText.displayableTextForTests(text)
+            let displayableText = DisplayableText.testOnlyInit(fullContent: .text(text), truncatedContent: nil)
             XCTAssert(displayableText.shouldAllowLinkification, "was not linkifiable text: \(text)", file: file, line: line)
         }
 
         func assertNotLinkifies(_ text: String, file: StaticString = #file, line: UInt = #line) {
-            let displayableText = DisplayableText.displayableTextForTests(text)
+            let displayableText = DisplayableText.testOnlyInit(fullContent: .text(text), truncatedContent: nil)
             XCTAssertFalse(displayableText.shouldAllowLinkification, "was linkifiable text: \(text)", file: file, line: line)
         }
 

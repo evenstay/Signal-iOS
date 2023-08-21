@@ -60,15 +60,21 @@ typedef NS_ENUM(NSInteger, TSGroupMetaMessage) {
     TSGroupMetaMessageRequestInfo,
 };
 
+typedef NS_ENUM(NSInteger, EncryptionStyle) {
+    EncryptionStyleWhisper,
+    EncryptionStylePlaintext
+};
+
 @protocol DeliveryReceiptContext;
 
 @class SDSAnyWriteTransaction;
 @class SSKProtoAttachmentPointer;
 @class SSKProtoContentBuilder;
 @class SSKProtoDataMessageBuilder;
-@class SignalRecipient;
+@class ServiceIdObjC;
 @class SignalServiceAddress;
 @class TSOutgoingMessageBuilder;
+@class UntypedServiceIdObjC;
 
 @interface TSOutgoingMessageRecipientState : MTLModel
 
@@ -102,6 +108,7 @@ typedef NS_ENUM(NSInteger, TSGroupMetaMessage) {
                             body:(nullable NSString *)body
                       bodyRanges:(nullable MessageBodyRanges *)bodyRanges
                     contactShare:(nullable OWSContact *)contactShare
+                            edit:(unsigned int)edit
                  expireStartedAt:(uint64_t)expireStartedAt
                        expiresAt:(uint64_t)expiresAt
                 expiresInSeconds:(unsigned int)expiresInSeconds
@@ -140,6 +147,7 @@ typedef NS_ENUM(NSInteger, TSGroupMetaMessage) {
                             body:(nullable NSString *)body
                       bodyRanges:(nullable MessageBodyRanges *)bodyRanges
                     contactShare:(nullable OWSContact *)contactShare
+                       editState:(TSEditState)editState
                  expireStartedAt:(uint64_t)expireStartedAt
                        expiresAt:(uint64_t)expiresAt
                 expiresInSeconds:(unsigned int)expiresInSeconds
@@ -166,7 +174,7 @@ typedef NS_ENUM(NSInteger, TSGroupMetaMessage) {
            mostRecentFailureText:(nullable NSString *)mostRecentFailureText
           recipientAddressStates:(nullable NSDictionary<SignalServiceAddress *,TSOutgoingMessageRecipientState *> *)recipientAddressStates
               storedMessageState:(TSOutgoingMessageState)storedMessageState
-NS_DESIGNATED_INITIALIZER NS_SWIFT_NAME(init(grdbId:uniqueId:receivedAtTimestamp:sortId:timestamp:uniqueThreadId:attachmentIds:body:bodyRanges:contactShare:expireStartedAt:expiresAt:expiresInSeconds:giftBadge:isGroupStoryReply:isViewOnceComplete:isViewOnceMessage:linkPreview:messageSticker:quotedMessage:storedShouldStartExpireTimer:storyAuthorUuidString:storyReactionEmoji:storyTimestamp:wasRemotelyDeleted:customMessage:groupMetaMessage:hasLegacyMessageState:hasSyncedTranscript:isFromLinkedDevice:isVoiceMessage:legacyMessageState:legacyWasDelivered:mostRecentFailureText:recipientAddressStates:storedMessageState:));
+NS_DESIGNATED_INITIALIZER NS_SWIFT_NAME(init(grdbId:uniqueId:receivedAtTimestamp:sortId:timestamp:uniqueThreadId:attachmentIds:body:bodyRanges:contactShare:editState:expireStartedAt:expiresAt:expiresInSeconds:giftBadge:isGroupStoryReply:isViewOnceComplete:isViewOnceMessage:linkPreview:messageSticker:quotedMessage:storedShouldStartExpireTimer:storyAuthorUuidString:storyReactionEmoji:storyTimestamp:wasRemotelyDeleted:customMessage:groupMetaMessage:hasLegacyMessageState:hasSyncedTranscript:isFromLinkedDevice:isVoiceMessage:legacyMessageState:legacyWasDelivered:mostRecentFailureText:recipientAddressStates:storedMessageState:));
 
 // clang-format on
 
@@ -276,7 +284,7 @@ NS_DESIGNATED_INITIALIZER NS_SWIFT_NAME(init(grdbId:uniqueId:receivedAtTimestamp
 #pragma mark - Update With... Methods
 
 // This method is used to record a successful send to one recipient.
-- (void)updateWithSentRecipient:(SignalServiceAddress *)recipientAddress
+- (void)updateWithSentRecipient:(UntypedServiceIdObjC *)serviceId
                     wasSentByUD:(BOOL)wasSentByUD
                     transaction:(SDSAnyWriteTransaction *)transaction;
 
@@ -319,18 +327,10 @@ NS_DESIGNATED_INITIALIZER NS_SWIFT_NAME(init(grdbId:uniqueId:receivedAtTimestamp
                              context:(id<DeliveryReceiptContext>)deliveryReceiptContext
                          transaction:(SDSAnyWriteTransaction *)transaction;
 
-- (void)updateWithWasSentFromLinkedDeviceWithUDRecipientAddresses:
-            (nullable NSArray<SignalServiceAddress *> *)udRecipientAddresses
-                                          nonUdRecipientAddresses:
-                                              (nullable NSArray<SignalServiceAddress *> *)nonUdRecipientAddresses
-                                                     isSentUpdate:(BOOL)isSentUpdate
-                                                      transaction:(SDSAnyWriteTransaction *)transaction;
-
-// This method is used to rewrite the recipient list with a single recipient.
-// It is used to reply to a "group info request", which should only be
-// delivered to the requestor.
-- (void)updateWithSendingToSingleGroupRecipient:(SignalServiceAddress *)singleGroupRecipient
-                                    transaction:(SDSAnyWriteTransaction *)transaction;
+- (void)updateWithWasSentFromLinkedDeviceWithUDRecipients:(nullable NSArray<ServiceIdObjC *> *)udRecipients
+                                          nonUdRecipients:(nullable NSArray<ServiceIdObjC *> *)nonUdRecipients
+                                             isSentUpdate:(BOOL)isSentUpdate
+                                              transaction:(SDSAnyWriteTransaction *)transaction;
 
 // This method is used to record a successful "read" by one recipient.
 - (void)updateWithReadRecipient:(SignalServiceAddress *)recipientAddress

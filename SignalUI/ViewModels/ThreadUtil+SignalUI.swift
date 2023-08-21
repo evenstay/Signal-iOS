@@ -6,25 +6,31 @@
 import Foundation
 import SignalMessaging
 
-@objc
 public extension ThreadUtil {
     // MARK: - Durable Message Enqueue
 
     @discardableResult
-    class func enqueueMessage(body messageBody: MessageBody?,
-                              mediaAttachments: [SignalAttachment] = [],
-                              thread: TSThread,
-                              quotedReplyModel: OWSQuotedReplyModel? = nil,
-                              linkPreviewDraft: OWSLinkPreviewDraft? = nil,
-                              persistenceCompletionHandler persistenceCompletion: PersistenceCompletion? = nil,
-                              transaction readTransaction: SDSAnyReadTransaction) -> TSOutgoingMessage {
+    class func enqueueMessage(
+        body messageBody: MessageBody?,
+        mediaAttachments: [SignalAttachment] = [],
+        thread: TSThread,
+        quotedReplyModel: QuotedReplyModel? = nil,
+        linkPreviewDraft: OWSLinkPreviewDraft? = nil,
+        editTarget: TSOutgoingMessage? = nil,
+        persistenceCompletionHandler persistenceCompletion: PersistenceCompletion? = nil,
+        transaction readTransaction: SDSAnyReadTransaction
+    ) -> TSOutgoingMessage {
         AssertIsOnMainThread()
 
-        let outgoingMessagePreparer = OutgoingMessagePreparer(messageBody: messageBody,
-                                                              mediaAttachments: mediaAttachments,
-                                                              thread: thread,
-                                                              quotedReplyModel: quotedReplyModel,
-                                                              transaction: readTransaction)
+        let outgoingMessagePreparer = OutgoingMessagePreparer(
+            messageBody: messageBody,
+            mediaAttachments: mediaAttachments,
+            thread: thread,
+            quotedReplyModel: quotedReplyModel,
+            editTarget: editTarget,
+            transaction: readTransaction
+        )
+
         let message: TSOutgoingMessage = outgoingMessagePreparer.unpreparedMessage
 
         BenchManager.startEvent(
@@ -43,7 +49,7 @@ public extension ThreadUtil {
             logInProduction: true
         )
         BenchManager.benchAsync(title: "Send Message Milestone: Enqueue \(message.timestamp)") { benchmarkCompletion in
-            Self.enqueueSendAsyncWrite { writeTransaction in
+            enqueueSendAsyncWrite { writeTransaction in
                 outgoingMessagePreparer.insertMessage(linkPreviewDraft: linkPreviewDraft,
                                                       transaction: writeTransaction)
                 Self.sskJobQueues.messageSenderJobQueue.add(
@@ -70,7 +76,7 @@ public extension ThreadUtil {
     class func createUnsentMessage(body messageBody: MessageBody?,
                                    mediaAttachments: [SignalAttachment],
                                    thread: TSThread,
-                                   quotedReplyModel: OWSQuotedReplyModel? = nil,
+                                   quotedReplyModel: QuotedReplyModel? = nil,
                                    linkPreviewDraft: OWSLinkPreviewDraft? = nil,
                                    transaction: SDSAnyWriteTransaction) throws -> TSOutgoingMessage {
 
@@ -78,6 +84,7 @@ public extension ThreadUtil {
                                                mediaAttachments: mediaAttachments,
                                                thread: thread,
                                                quotedReplyModel: quotedReplyModel,
+                                               editTarget: nil,
                                                transaction: transaction)
         preparer.insertMessage(linkPreviewDraft: linkPreviewDraft, transaction: transaction)
         return try preparer.prepareMessage(transaction: transaction)
@@ -87,12 +94,15 @@ public extension ThreadUtil {
 // MARK: -
 
 extension OutgoingMessagePreparer {
-    @objc
-    public convenience init(messageBody: MessageBody?,
-                            mediaAttachments: [SignalAttachment] = [],
-                            thread: TSThread,
-                            quotedReplyModel: OWSQuotedReplyModel? = nil,
-                            transaction: SDSAnyReadTransaction) {
+
+    public convenience init(
+        messageBody: MessageBody?,
+        mediaAttachments: [SignalAttachment] = [],
+        thread: TSThread,
+        quotedReplyModel: QuotedReplyModel? = nil,
+        editTarget: TSOutgoingMessage?,
+        transaction: SDSAnyReadTransaction
+    ) {
 
         var attachments = mediaAttachments
         let truncatedText: String?
@@ -119,7 +129,8 @@ extension OutgoingMessagePreparer {
             bodyRanges = nil
         }
 
-        let expiresInSeconds = thread.disappearingMessagesDuration(with: transaction)
+        let dmConfigurationStore = DependenciesBridge.shared.disappearingMessagesConfigurationStore
+        let expiresInSeconds = dmConfigurationStore.durationSeconds(for: thread, tx: transaction.asV2Read)
 
         assert(attachments.allSatisfy { !$0.hasError && !$0.mimeType.isEmpty })
 
@@ -144,15 +155,30 @@ extension OutgoingMessagePreparer {
                                                ? nil
                                                : quotedReplyModel?.buildQuotedMessageForSending())
 
-        let message = TSOutgoingMessageBuilder(
-            thread: thread,
-            messageBody: truncatedText,
-            bodyRanges: bodyRanges,
-            expiresInSeconds: expiresInSeconds,
-            isVoiceMessage: isVoiceMessage,
-            quotedMessage: quotedMessage,
-            isViewOnceMessage: isViewOnceMessage
-        ).build(transaction: transaction)
+        let message: TSOutgoingMessage
+        if let editTarget {
+            message = DependenciesBridge.shared.editManager.createOutgoingEditMessage(
+                targetMessage: editTarget,
+                thread: thread,
+                tx: transaction.asV2Read) { builder in
+                    builder.messageBody = truncatedText
+                    builder.bodyRanges = bodyRanges
+                    builder.expiresInSeconds = expiresInSeconds
+                    builder.quotedMessage = quotedMessage
+                }
+        } else {
+            let messageBuilder = TSOutgoingMessageBuilder(thread: thread)
+
+            messageBuilder.messageBody = truncatedText
+            messageBuilder.bodyRanges = bodyRanges
+
+            messageBuilder.expiresInSeconds = expiresInSeconds
+            messageBuilder.isVoiceMessage = isVoiceMessage
+            messageBuilder.quotedMessage = quotedMessage
+            messageBuilder.isViewOnceMessage = isViewOnceMessage
+
+            message = messageBuilder.build(transaction: transaction)
+        }
 
         let attachmentInfos = attachments.map { $0.buildOutgoingAttachmentInfo(message: message) }
 

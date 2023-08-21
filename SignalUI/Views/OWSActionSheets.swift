@@ -3,14 +3,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalMessaging
 
-@objc
-public class OWSActionSheets: NSObject {
-
-    @objc
-    public class func showActionSheet(_ actionSheet: ActionSheetController, fromViewController: UIViewController? = nil) {
+public enum OWSActionSheets {
+    public static func showActionSheet(
+        _ actionSheet: ActionSheetController,
+        fromViewController: UIViewController? = nil
+    ) {
         guard let fromViewController = fromViewController ?? CurrentAppContext().frontmostViewController() else {
             owsFailDebug("frontmostViewController was unexpectedly nil")
             return
@@ -18,40 +17,38 @@ public class OWSActionSheets: NSObject {
         fromViewController.present(actionSheet, animated: true, completion: nil)
     }
 
-    @objc
-    public class func showActionSheet(title: String) {
-        self.showActionSheet(title: title, message: nil, buttonTitle: nil)
-    }
-
-    @objc
-    public class func showActionSheet(title: String?, message: String) {
-        self.showActionSheet(title: title, message: message, buttonTitle: nil)
-    }
-
-    @objc
-    public class func showActionSheet(title: String? = nil, message: String? = nil, buttonTitle: String? = nil, buttonAction: ActionSheetAction.Handler? = nil) {
-        guard let fromViewController = CurrentAppContext().frontmostViewController() else {
-            return
-        }
-        showActionSheet(title: title, message: message, buttonTitle: buttonTitle, buttonAction: buttonAction,
-                  fromViewController: fromViewController)
-    }
-
-    @objc
-    public class func showActionSheet(title: String? = nil, message: String? = nil, buttonTitle: String? = nil, buttonAction: ActionSheetAction.Handler? = nil, fromViewController: UIViewController?) {
-
+    public static func showActionSheet(
+        title: String? = nil,
+        message: String? = nil,
+        buttonTitle: String? = nil,
+        buttonAction: ActionSheetAction.Handler? = nil,
+        fromViewController: UIViewController? = nil
+    ) {
         let actionSheet = ActionSheetController(title: title, message: message)
-
-        let actionTitle = buttonTitle ?? CommonStrings.okButton
-        let okAction = ActionSheetAction(title: actionTitle, style: .default, handler: buttonAction)
-        okAction.accessibilityIdentifier = "OWSActionSheets.\("ok")"
-        actionSheet.addAction(okAction)
-        fromViewController?.presentActionSheet(actionSheet)
+        actionSheet.addOkayAction(title: buttonTitle, action: buttonAction)
+        showActionSheet(actionSheet, fromViewController: fromViewController)
     }
 
-    @objc
-    public class func showConfirmationAlert(title: String, message: String? = nil, proceedTitle: String? = nil, proceedStyle: ActionSheetAction.Style = .default, proceedAction: @escaping ActionSheetAction.Handler) {
-        assert(!title.isEmpty)
+    public static func showActionSheet(
+        title: String? = nil,
+        message: NSAttributedString,
+        buttonTitle: String? = nil,
+        buttonAction: ActionSheetAction.Handler? = nil,
+        fromViewController: UIViewController? = nil
+    ) {
+        let actionSheet = ActionSheetController(title: title, message: message)
+        actionSheet.addOkayAction(title: buttonTitle, action: buttonAction)
+        showActionSheet(actionSheet, fromViewController: fromViewController)
+    }
+
+    public static func showConfirmationAlert(
+        title: String? = nil,
+        message: String? = nil,
+        proceedTitle: String? = nil,
+        proceedStyle: ActionSheetAction.Style = .default,
+        proceedAction: @escaping ActionSheetAction.Handler
+    ) {
+        assert(!title.isEmptyOrNil || !message.isEmptyOrNil)
 
         let actionSheet = ActionSheetController(title: title, message: message)
         actionSheet.addAction(self.cancelAction)
@@ -68,9 +65,14 @@ public class OWSActionSheets: NSObject {
         CurrentAppContext().frontmostViewController()?.present(actionSheet, animated: true)
     }
 
-    @objc
-    public class func showConfirmationWithNotNowAlert(title: String, message: String? = nil, proceedTitle: String? = nil, proceedStyle: ActionSheetAction.Style = .default, proceedAction: @escaping ActionSheetAction.Handler) {
-        assert(!title.isEmpty)
+    public static func showConfirmationWithNotNowAlert(
+        title: String? = nil,
+        message: String? = nil,
+        proceedTitle: String? = nil,
+        proceedStyle: ActionSheetAction.Style = .default,
+        proceedAction: @escaping ActionSheetAction.Handler
+    ) {
+        assert(!title.isEmptyOrNil || message.isEmptyOrNil)
 
         let actionSheet = ActionSheetController(title: title, message: message)
         actionSheet.addAction(self.notNowAction)
@@ -87,13 +89,18 @@ public class OWSActionSheets: NSObject {
         CurrentAppContext().frontmostViewController()?.present(actionSheet, animated: true)
     }
 
-    @objc
-    public class func showErrorAlert(message: String) {
-        self.showActionSheet(title: CommonStrings.errorAlertTitle, message: message, buttonTitle: nil)
+    public static func showErrorAlert(
+        message: String,
+        fromViewController: UIViewController? = nil
+    ) {
+        showActionSheet(
+            title: CommonStrings.errorAlertTitle,
+            message: message,
+            fromViewController: fromViewController
+        )
     }
 
-    @objc
-    public class var okayAction: ActionSheetAction {
+    public static var okayAction: ActionSheetAction {
         let action = ActionSheetAction(
             title: CommonStrings.okButton,
             accessibilityIdentifier: "OWSActionSheets.okay",
@@ -105,8 +112,7 @@ public class OWSActionSheets: NSObject {
         return action
     }
 
-    @objc
-    public class var cancelAction: ActionSheetAction {
+    public static var cancelAction: ActionSheetAction {
         let action = ActionSheetAction(
             title: CommonStrings.cancelButton,
             accessibilityIdentifier: "OWSActionSheets.cancel",
@@ -118,8 +124,7 @@ public class OWSActionSheets: NSObject {
         return action
     }
 
-    @objc
-    public class var notNowAction: ActionSheetAction {
+    public static var notNowAction: ActionSheetAction {
         let action = ActionSheetAction(
             title: CommonStrings.notNowButton,
             accessibilityIdentifier: "OWSActionSheets.notNow",
@@ -131,8 +136,7 @@ public class OWSActionSheets: NSObject {
         return action
     }
 
-    @objc
-    public class var dismissAction: ActionSheetAction {
+    public static var dismissAction: ActionSheetAction {
         let action = ActionSheetAction(
             title: CommonStrings.dismissButton,
             accessibilityIdentifier: "OWSActionSheets.dismiss",
@@ -144,8 +148,7 @@ public class OWSActionSheets: NSObject {
         return action
     }
 
-    @objc
-    public class func showPendingChangesActionSheet(discardAction: @escaping () -> Void) {
+    public static func showPendingChangesActionSheet(discardAction: @escaping () -> Void) {
         let actionSheet = ActionSheetController(
             title: OWSLocalizedString("PENDING_CHANGES_ACTION_SHEET_TITLE",
                                       comment: "The alert title if user tries to exit a task without saving changes."),
@@ -163,5 +166,14 @@ public class OWSActionSheets: NSObject {
         actionSheet.addAction(OWSActionSheets.cancelAction)
 
         OWSActionSheets.showActionSheet(actionSheet)
+    }
+}
+
+fileprivate extension ActionSheetController {
+    func addOkayAction(title: String? = nil, action: ActionSheetAction.Handler? = nil) {
+        let actionTitle = title ?? CommonStrings.okButton
+        let okAction = ActionSheetAction(title: actionTitle, style: .default, handler: action)
+        okAction.accessibilityIdentifier = "OWSActionSheets.\("ok")"
+        addAction(okAction)
     }
 }

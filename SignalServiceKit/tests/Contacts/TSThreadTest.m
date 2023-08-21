@@ -4,7 +4,6 @@
 //
 
 #import "MIMETypeUtil.h"
-#import "OWSDevice.h"
 #import "SSKBaseTestObjC.h"
 #import "TSAttachmentStream.h"
 #import "TSContactThread.h"
@@ -21,21 +20,32 @@
 
 @implementation TSThreadTest
 
+- (NSUInteger)numberOfInteractionsInThread:(TSThread *)thread transaction:(SDSAnyReadTransaction *)transaction
+{
+    InteractionFinder *finder = [[InteractionFinder alloc] initWithThreadUniqueId:thread.uniqueId];
+    __block NSUInteger result = 0;
+    [finder enumerateInteractionIdsWithTransaction:transaction
+                                             error:NULL
+                                             block:^(NSString *uniqueId, BOOL *stop) { result += 1; }];
+    return result;
+}
+
 - (void)testDeletingThreadDeletesInteractions
 {
-    TSContactThread *thread = [[TSContactThread alloc]
-        initWithContactAddress:[[SignalServiceAddress alloc] initWithPhoneNumber:@"+13334445555"]];
+    AciObjC *aci = [[AciObjC alloc] initWithAciString:@"00000000-0000-4000-8000-000000000000"];
+    TSContactThread *thread =
+        [[TSContactThread alloc] initWithContactAddress:[[SignalServiceAddress alloc] initWithServiceIdObjC:aci]];
     [self writeWithBlock:^(SDSAnyWriteTransaction *transaction) {
         [thread anyInsertWithTransaction:transaction];
     }];
 
     [self readWithBlock:^(SDSAnyReadTransaction *transaction) {
-        XCTAssertEqual(0, [thread numberOfInteractionsWithTransaction:transaction]);
+        XCTAssertEqual(0, [self numberOfInteractionsInThread:thread transaction:transaction]);
     }];
 
     TSIncomingMessageBuilder *incomingMessageBuilder =
         [TSIncomingMessageBuilder incomingMessageBuilderWithThread:thread messageBody:@"Incoming message body"];
-    incomingMessageBuilder.authorAddress = [[SignalServiceAddress alloc] initWithPhoneNumber:@"+12223334444"];
+    incomingMessageBuilder.authorAci = aci;
     incomingMessageBuilder.timestamp = 10000;
     TSIncomingMessage *incomingMessage = [incomingMessageBuilder build];
     [self writeWithBlock:^(SDSAnyWriteTransaction *transaction) {
@@ -51,29 +61,29 @@
     }];
 
     [self readWithBlock:^(SDSAnyReadTransaction *transaction) {
-        XCTAssertEqual(2, [thread numberOfInteractionsWithTransaction:transaction]);
+        XCTAssertEqual(2, [self numberOfInteractionsInThread:thread transaction:transaction]);
     }];
 
-    [self writeWithBlock:^(SDSAnyWriteTransaction *transaction) {
-        [thread anyRemoveWithTransaction:transaction];
-    }];
+    [self writeWithBlock:^(
+        SDSAnyWriteTransaction *transaction) { [thread softDeleteThreadWithTransaction:transaction]; }];
     [self readWithBlock:^(SDSAnyReadTransaction *transaction) {
-        XCTAssertEqual(0, [thread numberOfInteractionsWithTransaction:transaction]);
+        XCTAssertEqual(0, [self numberOfInteractionsInThread:thread transaction:transaction]);
         XCTAssertEqual(0, [TSInteraction anyCountWithTransaction:transaction]);
     }];
 }
 
 - (void)testDeletingThreadDeletesAttachmentFiles
 {
-    TSContactThread *thread = [[TSContactThread alloc]
-        initWithContactAddress:[[SignalServiceAddress alloc] initWithPhoneNumber:@"+13334445555"]];
+    AciObjC *aci = [[AciObjC alloc] initWithAciString:@"00000000-0000-4000-8000-000000000000"];
+    TSContactThread *thread =
+        [[TSContactThread alloc] initWithContactAddress:[[SignalServiceAddress alloc] initWithServiceIdObjC:aci]];
     [self writeWithBlock:^(SDSAnyWriteTransaction *transaction) {
         [thread anyInsertWithTransaction:transaction];
     }];
 
     // Sanity check
     [self readWithBlock:^(SDSAnyReadTransaction *transaction) {
-        XCTAssertEqual(0, [thread numberOfInteractionsWithTransaction:transaction]);
+        XCTAssertEqual(0, [self numberOfInteractionsInThread:thread transaction:transaction]);
     }];
 
     __block TSAttachmentStream *incomingAttachment;
@@ -90,7 +100,7 @@
 
     TSIncomingMessageBuilder *incomingMessageBuilder =
         [TSIncomingMessageBuilder incomingMessageBuilderWithThread:thread messageBody:@"Incoming message body"];
-    incomingMessageBuilder.authorAddress = [[SignalServiceAddress alloc] initWithPhoneNumber:@"+12223334444"];
+    incomingMessageBuilder.authorAci = aci;
     incomingMessageBuilder.timestamp = 10000;
     incomingMessageBuilder.attachmentIds = [@[ incomingAttachment.uniqueId ] mutableCopy];
     TSIncomingMessage *incomingMessage = [incomingMessageBuilder build];
@@ -121,16 +131,15 @@
 
     // Sanity check
     [self readWithBlock:^(SDSAnyReadTransaction *transaction) {
-        XCTAssertEqual(2, [thread numberOfInteractionsWithTransaction:transaction]);
+        XCTAssertEqual(2, [self numberOfInteractionsInThread:thread transaction:transaction]);
     }];
 
     // Actual Test Follows
-    [self writeWithBlock:^(SDSAnyWriteTransaction *transaction) {
-        [thread anyRemoveWithTransaction:transaction];
-    }];
+    [self writeWithBlock:^(
+        SDSAnyWriteTransaction *transaction) { [thread softDeleteThreadWithTransaction:transaction]; }];
 
     [self readWithBlock:^(SDSAnyReadTransaction *transaction) {
-        XCTAssertEqual(0, [thread numberOfInteractionsWithTransaction:transaction]);
+        XCTAssertEqual(0, [self numberOfInteractionsInThread:thread transaction:transaction]);
     }];
 
     BOOL incomingFileStillExists =

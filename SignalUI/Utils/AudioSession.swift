@@ -3,8 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import AVFoundation
+import Foundation
+import SignalMessaging
 
 public class AudioActivity: NSObject {
     let audioDescription: String
@@ -153,15 +154,15 @@ public class AudioSession: NSObject {
     }
 
     @objc
-    func proximitySensorStateDidChange(notification: Notification) {
+    private func proximitySensorStateDidChange(notification: Notification) {
         ensureAudioState()
     }
 
     private func reconcileAudioCategory() throws {
         if aggregateBehaviors.contains(.audioMessagePlayback) {
-            self.proximityMonitoringManager.add(lifetime: self)
+            SMEnvironment.shared.proximityMonitoringManagerRef.add(lifetime: self)
         } else {
-            self.proximityMonitoringManager.remove(lifetime: self)
+            SMEnvironment.shared.proximityMonitoringManagerRef.remove(lifetime: self)
         }
 
         if aggregateBehaviors.contains(.call) {
@@ -178,9 +179,7 @@ public class AudioSession: NSObject {
                     .defaultToSpeaker
                 ]
             )
-            if #available(iOS 13, *) {
-                try avAudioSession.setAllowHapticsAndSystemSoundsDuringRecording(true)
-            }
+            try avAudioSession.setAllowHapticsAndSystemSoundsDuringRecording(true)
         } else if aggregateBehaviors.contains(.audioMessagePlayback) {
             if self.device.proximityState {
                 Logger.debug("proximityState: true")

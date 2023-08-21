@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import MediaPlayer
 import SignalMessaging
+import SignalUI
 
 // This kind of view is tricky.  I've tried to organize things in the 
 // simplest possible way.
@@ -26,7 +26,7 @@ import SignalMessaging
 //   region b) the rectangle at which the src image should be rendered
 //   given a dst view or output context that will yield the 
 //   appropriate cropping.
-@objc
+
 class CropScaleImageViewController: OWSViewController {
 
     // MARK: Properties
@@ -75,7 +75,6 @@ class CropScaleImageViewController: OWSViewController {
 
     // MARK: Initializers
 
-    @objc
     required init(srcImage: UIImage, successCompletion: @escaping (UIImage) -> Void) {
         // normalized() can be slightly expensive but in practice this is fine.
         self.srcImage = srcImage.normalized()
@@ -187,12 +186,12 @@ class CropScaleImageViewController: OWSViewController {
         let titleLabel = UILabel()
         titleLabel.textColor = UIColor.white
         titleLabel.textAlignment = .center
-        titleLabel.font = UIFont.ows_semiboldFont(withSize: ScaleFromIPhone5(16))
-        titleLabel.text = NSLocalizedString("CROP_SCALE_IMAGE_VIEW_TITLE",
+        titleLabel.font = UIFont.semiboldFont(ofSize: .scaleFromIPhone5(16))
+        titleLabel.text = OWSLocalizedString("CROP_SCALE_IMAGE_VIEW_TITLE",
                                             comment: "Title for the 'crop/scale image' dialog.")
         contentView.addSubview(titleLabel)
         titleLabel.autoPinWidthToSuperview()
-        let titleLabelMargin = ScaleFromIPhone5(16)
+        let titleLabelMargin = CGFloat.scaleFromIPhone5(16)
         titleLabel.autoPin(toTopLayoutGuideOf: self, withInset: titleLabelMargin)
 
         createButtonRow(contentView: contentView)
@@ -335,7 +334,7 @@ class CropScaleImageViewController: OWSViewController {
     var lastPinchScale: CGFloat = 1.0
 
     @objc
-    func handlePinch(sender: UIPinchGestureRecognizer) {
+    private func handlePinch(sender: UIPinchGestureRecognizer) {
         switch sender.state {
         case .possible:
             break
@@ -394,7 +393,7 @@ class CropScaleImageViewController: OWSViewController {
     var srcTranslationAtPanStart: CGPoint = CGPoint.zero
 
     @objc
-    func handlePan(sender: UIPanGestureRecognizer) {
+    private func handlePan(sender: UIPanGestureRecognizer) {
         switch sender.state {
         case .possible:
             break
@@ -426,8 +425,8 @@ class CropScaleImageViewController: OWSViewController {
     }
 
     private func createButtonRow(contentView: UIView) {
-        let buttonTopMargin = ScaleFromIPhone5To7Plus(30, 40)
-        let buttonBottomMargin = ScaleFromIPhone5To7Plus(25, 40)
+        let buttonTopMargin = CGFloat.scaleFromIPhone5To7Plus(30, 40)
+        let buttonBottomMargin = CGFloat.scaleFromIPhone5To7Plus(25, 40)
 
         let buttonRow = UIView()
         self.view.addSubview(buttonRow)
@@ -451,9 +450,9 @@ class CropScaleImageViewController: OWSViewController {
     }
 
     private func createButton(title: String, action: Selector) -> UIButton {
-        let buttonFont = UIFont.ows_semiboldFont(withSize: ScaleFromIPhone5To7Plus(18, 22))
-        let buttonWidth = ScaleFromIPhone5To7Plus(110, 140)
-        let buttonHeight = ScaleFromIPhone5To7Plus(35, 45)
+        let buttonFont = UIFont.semiboldFont(ofSize: .scaleFromIPhone5To7Plus(18, 22))
+        let buttonWidth = CGFloat.scaleFromIPhone5To7Plus(110, 140)
+        let buttonHeight = CGFloat.scaleFromIPhone5To7Plus(35, 45)
 
         let button = UIButton()
         button.setTitle(title, for: .normal)
@@ -468,12 +467,12 @@ class CropScaleImageViewController: OWSViewController {
     // MARK: - Event Handlers
 
     @objc
-    func cancelPressed(sender: UIButton) {
+    private func cancelPressed(sender: UIButton) {
         dismiss(animated: true, completion: nil)
     }
 
     @objc
-    func donePressed(sender: UIButton) {
+    private func donePressed(sender: UIButton) {
         let successCompletion = self.successCompletion
         dismiss(animated: true, completion: {
             guard let dstImage = self.generateDstImage() else {

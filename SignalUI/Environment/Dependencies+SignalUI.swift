@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalServiceKit
 
 // MARK: - NSObject
 
@@ -28,14 +28,6 @@ public extension NSObject {
     final var fullTextSearcher: FullTextSearcher { .shared }
 
     static var fullTextSearcher: FullTextSearcher { .shared }
-
-    var chatColors: ChatColors {
-        SUIEnvironment.shared.chatColorsRef
-    }
-
-    static var chatColors: ChatColors {
-        SUIEnvironment.shared.chatColorsRef
-    }
 
     var payments: Payments {
         SUIEnvironment.shared.paymentsRef

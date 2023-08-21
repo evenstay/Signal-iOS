@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalServiceKit
 
 class NewGroupStoryViewController: ConversationPickerViewController {
     var selectItemsInParent: (([StoryConversationItem]) -> Void)?
@@ -41,7 +41,11 @@ extension NewGroupStoryViewController: ConversationPickerDelegate {
             }
         } completion: {
             self.dismiss(animated: true)
-            self.selectItemsInParent?(selectedConversations.map { StoryConversationItem(backingItem: .groupStory($0)) })
+            self.selectItemsInParent?(selectedConversations.map {
+                // Story selection is handled using `messageRecipient`,
+                // so story state is not needed here.
+                StoryConversationItem(backingItem: .groupStory($0), storyState: nil)
+            })
         }
     }
 

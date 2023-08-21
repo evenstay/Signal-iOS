@@ -3,10 +3,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import XCTest
+
 @testable import Signal
 
-class ConverstationViewControllerTest: SignalBaseTest {
+class ConversationViewControllerTest: SignalBaseTest {
 
     func testCVCBottomViewType() {
         XCTAssertEqual(CVCBottomViewType.none, CVCBottomViewType.none)
@@ -17,38 +18,47 @@ class ConverstationViewControllerTest: SignalBaseTest {
                           CVCBottomViewType.messageRequestView(messageRequestType: MessageRequestType(isGroupV1Thread: true,
                                                                                                       isGroupV2Thread: true,
                                                                                                       isThreadBlocked: true,
-                                                                                                      hasSentMessages: true)))
+                                                                                                      hasSentMessages: true,
+                                                                                                      isThreadFromHiddenRecipient: false)))
         XCTAssertEqual(CVCBottomViewType.messageRequestView(messageRequestType: MessageRequestType(isGroupV1Thread: true,
                                                                                                       isGroupV2Thread: true,
                                                                                                       isThreadBlocked: true,
-                                                                                                      hasSentMessages: true)),
+                                                                                                      hasSentMessages: true,
+                                                                                                      isThreadFromHiddenRecipient: false)),
                           CVCBottomViewType.messageRequestView(messageRequestType: MessageRequestType(isGroupV1Thread: true,
                                                                                                       isGroupV2Thread: true,
                                                                                                       isThreadBlocked: true,
-                                                                                                      hasSentMessages: true)))
+                                                                                                      hasSentMessages: true,
+                                                                                                      isThreadFromHiddenRecipient: false)))
         XCTAssertNotEqual(CVCBottomViewType.messageRequestView(messageRequestType: MessageRequestType(isGroupV1Thread: true,
                                                                                                       isGroupV2Thread: true,
                                                                                                       isThreadBlocked: true,
-                                                                                                      hasSentMessages: true)),
+                                                                                                      hasSentMessages: true,
+                                                                                                      isThreadFromHiddenRecipient: false)),
                           CVCBottomViewType.messageRequestView(messageRequestType: MessageRequestType(isGroupV1Thread: true,
                                                                                                       isGroupV2Thread: false,
                                                                                                       isThreadBlocked: true,
-                                                                                                      hasSentMessages: true)))
+                                                                                                      hasSentMessages: true,
+                                                                                                      isThreadFromHiddenRecipient: false)))
         XCTAssertEqual(CVCBottomViewType.messageRequestView(messageRequestType: MessageRequestType(isGroupV1Thread: true,
                                                                                                    isGroupV2Thread: false,
                                                                                                    isThreadBlocked: true,
-                                                                                                   hasSentMessages: true)),
+                                                                                                   hasSentMessages: true,
+                                                                                                   isThreadFromHiddenRecipient: false)),
                        CVCBottomViewType.messageRequestView(messageRequestType: MessageRequestType(isGroupV1Thread: true,
                                                                                                    isGroupV2Thread: false,
                                                                                                    isThreadBlocked: true,
-                                                                                                   hasSentMessages: true)))
+                                                                                                   hasSentMessages: true,
+                                                                                                   isThreadFromHiddenRecipient: false)))
         XCTAssertNotEqual(CVCBottomViewType.messageRequestView(messageRequestType: MessageRequestType(isGroupV1Thread: true,
                                                                                                       isGroupV2Thread: true,
                                                                                                       isThreadBlocked: true,
-                                                                                                      hasSentMessages: false)),
+                                                                                                      hasSentMessages: false,
+                                                                                                      isThreadFromHiddenRecipient: false)),
                           CVCBottomViewType.messageRequestView(messageRequestType: MessageRequestType(isGroupV1Thread: true,
                                                                                                       isGroupV2Thread: false,
                                                                                                       isThreadBlocked: true,
-                                                                                                      hasSentMessages: true)))
+                                                                                                      hasSentMessages: true,
+                                                                                                      isThreadFromHiddenRecipient: false)))
     }
 }

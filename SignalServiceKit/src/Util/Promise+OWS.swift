@@ -10,11 +10,11 @@ public class Promises {
     public static func performWithImmediateRetry<T>(promiseBlock: @escaping () -> Promise<T>,
                                                     remainingRetries: UInt = 3) -> Promise<T> {
 
-        return firstly(on: .global()) { () -> Promise<T> in
+        return firstly(on: DispatchQueue.global()) { () -> Promise<T> in
             return promiseBlock()
-        }.recover(on: .global()) { (error: Error) -> Promise<T> in
+        }.recover(on: DispatchQueue.global()) { (error: Error) -> Promise<T> in
             guard remainingRetries > 0,
-                error.isNetworkConnectivityFailure else {
+                error.isNetworkFailureOrTimeout else {
                     throw error
             }
 

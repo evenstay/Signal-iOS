@@ -3,11 +3,20 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import UIKit
+import SignalServiceKit
 
 class EditorTextLayer: CATextLayer {
 
+    // Margins between text and edges of the colored background.
+    private enum Constants {
+        static let horizontalMargin: CGFloat = 6
+        static let verticalMargin: CGFloat = 2
+        static let cornerRadius: CGFloat = 8
+    }
+
     let itemId: String
+
+    private var contentLayer: EditorTextLayer?
 
     init(itemId: String) {
         self.itemId = itemId
@@ -17,6 +26,49 @@ class EditorTextLayer: CATextLayer {
     @available(*, unavailable, message: "use other init() instead.")
     required init?(coder aDecoder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+
+    // Creates a new layer that is larger than `self` by amount specified in `Margins`.
+    // The resulting layer has background color and rounded corners set.
+    // `self` is added as a sublayer and is centered vertically and horizontally.
+    fileprivate func withRoundedRectBackground(_ backgroundColor: CGColor) -> EditorTextLayer {
+        guard backgroundColor.alpha > 0 else { return self }
+
+        let rootLayer = EditorTextLayer(itemId: itemId)
+        rootLayer.frame = frame.inset(by: UIEdgeInsets(hMargin: -Constants.horizontalMargin,
+                                                       vMargin: -Constants.verticalMargin))
+        rootLayer.backgroundColor = backgroundColor
+        rootLayer.cornerRadius = Constants.cornerRadius
+        rootLayer.addSublayer(self)
+        rootLayer.contentLayer = self
+        position = rootLayer.bounds.center
+        return rootLayer
+    }
+
+    override var contentsScale: CGFloat {
+        get { super.contentsScale }
+        set {
+            super.contentsScale = newValue
+            if let contentLayer {
+                contentLayer.contentsScale = newValue
+            }
+        }
+    }
+
+    fileprivate func prepareForRendering() {
+        guard let contentLayer, backgroundColor != nil, cornerRadius > 0 else { return }
+
+        let scale = UIScreen.main.scale
+
+        cornerRadius = Constants.cornerRadius * scale
+
+        let position = position
+        bounds.size = CGSize(
+            width: contentLayer.bounds.width + 2 * scale * Constants.horizontalMargin,
+            height: contentLayer.bounds.height + 2 * scale * Constants.verticalMargin
+        )
+        self.position = position
+        contentLayer.position = bounds.center
     }
 }
 
@@ -68,7 +120,7 @@ private class TextFrameLayer: CAShapeLayer {
 
     private func commonInit() {
         fillColor = UIColor.clear.cgColor
-        lineWidth = 3 * CGHairlineWidth()
+        lineWidth = .hairlineWidthFraction(3)
         strokeColor = UIColor.white.cgColor
 
         addSublayer(leftCircleLayer)
@@ -90,7 +142,7 @@ private class TextFrameLayer: CAShapeLayer {
 // MARK: -
 
 // A view for previewing an image editor model.
-class ImageEditorCanvasView: AttachmentPrepContentView {
+class ImageEditorCanvasView: UIView {
 
     private let model: ImageEditorModel
 
@@ -116,14 +168,6 @@ class ImageEditorCanvasView: AttachmentPrepContentView {
     var selectedTextItemId: String? {
         didSet {
             updateSelectedTextFrame()
-        }
-    }
-
-    override var contentLayoutMargins: UIEdgeInsets {
-        didSet {
-            if oldValue != contentLayoutMargins {
-                updateLayout()
-            }
         }
     }
 
@@ -222,30 +266,26 @@ class ImageEditorCanvasView: AttachmentPrepContentView {
     private func updateLayout() {
         NSLayoutConstraint.deactivate(contentViewConstraints)
         contentViewConstraints = ImageEditorCanvasView.updateContentLayout(transform: model.currentTransform(),
-                                                                           contentView: clipView,
-                                                                           layoutMargins: contentLayoutMargins)
+                                                                           contentView: clipView)
     }
 
     class func updateContentLayout(transform: ImageEditorTransform,
-                                   contentView: UIView,
-                                   layoutMargins: UIEdgeInsets = .zero) -> [NSLayoutConstraint] {
+                                   contentView: UIView) -> [NSLayoutConstraint] {
         guard let superview = contentView.superview else {
             owsFailDebug("Content view has no superview.")
             return []
         }
 
         let aspectRatio = transform.outputSizePixels
-        let centerOffset = CGPoint(x: 0.5 * (layoutMargins.leading - layoutMargins.trailing),
-                                   y: 0.5 * (layoutMargins.top - layoutMargins.bottom))
 
         // This emulates the behavior of contentMode = .scaleAspectFit using iOS auto layout constraints.
         var constraints = [NSLayoutConstraint]()
         NSLayoutConstraint.autoSetPriority(.defaultHigh + 100) {
-            constraints.append(contentView.autoAlignAxis(.vertical, toSameAxisOf: superview, withOffset: centerOffset.x))
-            constraints.append(contentView.autoAlignAxis(.horizontal, toSameAxisOf: superview, withOffset: centerOffset.y))
+            constraints.append(contentView.autoAlignAxis(.vertical, toSameAxisOf: superview))
+            constraints.append(contentView.autoAlignAxis(.horizontal, toSameAxisOf: superview))
         }
-        constraints.append(contentView.autoPinEdge(.top, to: .top, of: superview, withOffset: layoutMargins.top, relation: .greaterThanOrEqual))
-        constraints.append(contentView.autoPinEdge(.bottom, to: .bottom, of: superview, withOffset: -layoutMargins.bottom, relation: .lessThanOrEqual))
+        constraints.append(contentView.autoPinEdge(.top, to: .top, of: superview, withOffset: 0, relation: .greaterThanOrEqual))
+        constraints.append(contentView.autoPinEdge(.bottom, to: .bottom, of: superview, withOffset: 0, relation: .lessThanOrEqual))
         constraints.append(contentView.autoPin(toAspectRatio: aspectRatio.width / aspectRatio.height))
         constraints.append(contentView.autoMatch(.width, to: .width, of: superview, withMultiplier: 1.0, relation: .lessThanOrEqual))
         constraints.append(contentView.autoMatch(.height, to: .height, of: superview, withMultiplier: 1.0, relation: .lessThanOrEqual))
@@ -756,7 +796,7 @@ class ImageEditorCanvasView: AttachmentPrepContentView {
         let fontSize = item.fontSize * imageFrame.size.width / item.fontReferenceImageWidth
         let font = MediaTextView.font(for: item.textStyle, withPointSize: fontSize)
 
-        let text = item.text.filterForDisplay ?? ""
+        let text = item.text.filterForDisplay
         let textStorage = NSTextStorage(
             string: text,
             attributes: [ .font: font, .foregroundColor: item.textForegroundColor ]
@@ -809,12 +849,7 @@ class ImageEditorCanvasView: AttachmentPrepContentView {
         // Enlarge the layer slightly when setting the background color to add some horizontal padding around the text.
         let layer: EditorTextLayer
         if let textBackgroundColor = item.textBackgroundColor {
-            layer = EditorTextLayer(itemId: item.itemId)
-            layer.frame = textLayer.frame.inset(by: UIEdgeInsets(hMargin: -6, vMargin: -2))
-            layer.backgroundColor = textBackgroundColor.cgColor
-            layer.cornerRadius = 8
-            layer.addSublayer(textLayer)
-            textLayer.position = layer.bounds.center
+            layer = textLayer.withRoundedRectBackground(textBackgroundColor.cgColor)
         } else {
             layer = textLayer
         }
@@ -869,7 +904,7 @@ class ImageEditorCanvasView: AttachmentPrepContentView {
         srcImage.cgImageWithGaussianBlurPromise(
             radius: 25,
             resizeToMaxPixelDimension: 300
-        ).done(on: .main) { [weak self] blurredImage in
+        ).done(on: DispatchQueue.main) { [weak self] blurredImage in
             guard let self = self else { return }
             self.model.blurredSourceImage = blurredImage
 
@@ -968,6 +1003,9 @@ class ImageEditorCanvasView: AttachmentPrepContentView {
                                             continue
             }
             layer.contentsScale = dstScale * transform.scaling * item.outputScale()
+            if let editorTextLayer = layer as? EditorTextLayer {
+                editorTextLayer.prepareForRendering()
+            }
             layers.append(layer)
         }
         // UIView.renderAsImage() doesn't honor zPosition of layers,

@@ -3,7 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalCoreKit
+import SignalUI
 
 public protocol CVBackgroundContainerDelegate: AnyObject {
     func updateScrollingContent()
@@ -74,7 +75,6 @@ public class CVBackgroundContainer: ManualLayoutViewWithLayer {
 
 // MARK: -
 
-@objc
 extension CVBackgroundContainer: WallpaperBlurProvider {
     public var wallpaperBlurState: WallpaperBlurState? {
         wallpaperView?.blurProvider?.wallpaperBlurState

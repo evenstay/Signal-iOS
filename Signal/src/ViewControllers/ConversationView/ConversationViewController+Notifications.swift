@@ -3,7 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalCoreKit
+import SignalServiceKit
 
 extension ConversationViewController {
     func addNotificationListeners() {
@@ -20,10 +21,6 @@ extension ConversationViewController {
         NotificationCenter.default.addObserver(self,
                                                selector: #selector(identityStateDidChange),
                                                name: .identityStateDidChange,
-                                               object: nil)
-        NotificationCenter.default.addObserver(self,
-                                               selector: #selector(didChangePreferredContentSize),
-                                               name: UIContentSizeCategory.didChangeNotification,
                                                object: nil)
         NotificationCenter.default.addObserver(self,
                                                selector: #selector(applicationWillEnterForeground),
@@ -56,20 +53,24 @@ extension ConversationViewController {
     private func otherUsersProfileDidChange(_ notification: NSNotification) {
         AssertIsOnMainThread()
 
-        if let address = notification.userInfo?[kNSNotificationKey_ProfileAddress] as? SignalServiceAddress,
-           address.isValid,
-           thread.recipientAddressesWithSneakyTransaction.contains(address) {
-            if thread is TSContactThread {
-                // update title with profile name
-                updateNavigationTitle()
-            }
+        guard
+            let address = notification.userInfo?[kNSNotificationKey_ProfileAddress] as? SignalServiceAddress,
+            address.isValid,
+            thread.recipientAddressesWithSneakyTransaction.contains(address)
+        else {
+            return
+        }
 
-            // Reload all cells if this is a group conversation,
-            // since we may need to update the sender names on the messages.
-            // Use a DebounceEvent to de-bounce.
-            if isGroupConversation {
-                otherUsersProfileDidChangeEvent?.requestNotify()
-            }
+        if thread is TSContactThread {
+            // update title with profile name
+            enqueueReload()
+        }
+
+        // Reload all cells if this is a group conversation,
+        // since we may need to update the sender names on the messages.
+        // Use a DebounceEvent to de-bounce.
+        if isGroupConversation {
+            otherUsersProfileDidChangeEvent?.requestNotify()
         }
     }
 
@@ -103,7 +104,7 @@ extension ConversationViewController {
     private func identityStateDidChange(_ notification: NSNotification) {
         AssertIsOnMainThread()
 
-        updateNavigationBarSubtitleLabel()
+        enqueueReload()
         ensureBannerState()
     }
 
@@ -112,30 +113,6 @@ extension ConversationViewController {
         AssertIsOnMainThread()
 
         updateBarButtonItems()
-    }
-
-    /**
-     Called whenever the user manually changes the dynamic type options inside Settings.
-     
-     @param notification NSNotification with the dynamic type change information.
-     */
-    @objc
-    private func didChangePreferredContentSize(_ notification: NSNotification) {
-        AssertIsOnMainThread()
-
-        Logger.info("didChangePreferredContentSize")
-
-        resetForSizeOrOrientationChange()
-
-        guard hasViewWillAppearEverBegun else {
-            return
-        }
-        guard let inputToolbar = inputToolbar else {
-            owsFailDebug("Missing inputToolbar.")
-            return
-        }
-
-        inputToolbar.updateFontSizes()
     }
 
     @objc

@@ -3,8 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import LibSignalClient
 import SignalServiceKit
+import SignalUI
 
 protocol MockConversationDelegate: AnyObject {
     var mockConversationViewWidth: CGFloat { get }
@@ -33,13 +34,13 @@ class MockConversationView: UIView {
         }
     }
 
-    public var customChatColor: ChatColor? {
+    public var customChatColor: ColorOrGradientSetting? {
         didSet {
             update()
         }
     }
 
-    init(model: MockModel, hasWallpaper: Bool, customChatColor: ChatColor?) {
+    init(model: MockModel, hasWallpaper: Bool, customChatColor: ColorOrGradientSetting?) {
         self.model = model
         self.hasWallpaper = hasWallpaper
         self.customChatColor = customChatColor
@@ -53,7 +54,6 @@ class MockConversationView: UIView {
         fatalError("init(coder:) has not been implemented")
     }
 
-    @objc
     public override func didMoveToSuperview() {
         super.didMoveToSuperview()
 
@@ -75,7 +75,10 @@ class MockConversationView: UIView {
         return stackView
     }()
 
-    private let thread = MockThread(contactAddress: SignalServiceAddress(phoneNumber: "+fake-id"))
+    private let thread = MockThread(
+        // Use a v5 UUID that's in a separate namespace from ACIs/PNIs.
+        contactAddress: SignalServiceAddress(UntypedServiceId(uuidString: "00000000-0000-5000-8000-000000000000")!)
+    )
 
     override var frame: CGRect {
         didSet {
@@ -119,8 +122,7 @@ class MockConversationView: UIView {
 
         var renderItems = [CVRenderItem]()
         databaseStorage.read { transaction in
-            let chatColor = self.customChatColor ?? ChatColors.chatColorForRendering(thread: thread,
-                                                                                     transaction: transaction)
+            let chatColor = self.customChatColor ?? ChatColors.resolvedChatColor(for: thread, tx: transaction)
             let conversationStyle = ConversationStyle(
                 type: .`default`,
                 thread: self.thread,
@@ -146,6 +148,7 @@ class MockConversationView: UIView {
                     thread: self.thread,
                     threadAssociatedData: threadAssociatedData,
                     conversationStyle: conversationStyle,
+                    spoilerState: SpoilerRenderState(),
                     transaction: transaction
                 ) else {
                     owsFailDebug("Could not build renderItem.")
@@ -178,7 +181,6 @@ class MockConversationView: UIView {
 
 // MARK: - Mock Classes
 
-@objc
 private class MockThread: TSContactThread {
     public override var shouldBeSaved: Bool {
         return false
@@ -195,11 +197,13 @@ private class MockThread: TSContactThread {
 // MARK: -
 
 private class MockIncomingMessage: TSIncomingMessage {
-    init(messageBody: String, thread: TSThread) {
-        let builder = TSIncomingMessageBuilder(thread: thread,
-                                               authorAddress: SignalServiceAddress(phoneNumber: "+fake-id"),
-                                               sourceDeviceId: 1,
-                                               messageBody: messageBody)
+    init(messageBody: String, thread: MockThread) {
+        let builder = TSIncomingMessageBuilder(
+            thread: thread,
+            authorAci: thread.contactAddress.aci!,
+            sourceDeviceId: 1,
+            messageBody: messageBody
+        )
         super.init(incomingMessageWithBuilder: builder)
     }
 
@@ -322,6 +326,8 @@ extension MockConversationView: CVComponentDelegate {
 
     func didTapTruncatedTextMessage(_ itemViewModel: CVItemViewModelImpl) {}
 
+    func didTapShowEditHistory(_ itemViewModel: CVItemViewModelImpl) {}
+
     var hasPendingMessageRequest: Bool { false }
 
     func didTapFailedOrPendingDownloads(_ message: TSMessage) {}
@@ -336,7 +342,7 @@ extension MockConversationView: CVComponentDelegate {
 
     func didTapGenericAttachment(_ attachment: CVComponentGenericAttachment) -> CVAttachmentTapAction { .default }
 
-    func didTapQuotedReply(_ quotedReply: OWSQuotedReplyModel) {}
+    func didTapQuotedReply(_ quotedReply: QuotedReplyModel) {}
 
     func didTapLinkPreview(_ linkPreview: OWSLinkPreview) {}
 
@@ -377,6 +383,8 @@ extension MockConversationView: CVComponentDelegate {
 
     var wallpaperBlurProvider: WallpaperBlurProvider? { nil }
 
+    var spoilerState: SpoilerRenderState { return SpoilerRenderState() }
+
     // MARK: - Selection
 
     public var selectionState: CVSelectionState { CVSelectionState() }
@@ -405,9 +413,7 @@ extension MockConversationView: CVComponentDelegate {
 
     func didTapFailedOutgoingMessage(_ message: TSOutgoingMessage) {}
 
-    func didTapShowGroupMigrationLearnMoreActionSheet(infoMessage: TSInfoMessage,
-                                                      oldGroupModel: TSGroupModel,
-                                                      newGroupModel: TSGroupModel) {}
+    func didTapGroupMigrationLearnMore() {}
 
     func didTapGroupInviteLinkPromotion(groupModel: TSGroupModel) {}
 
@@ -420,7 +426,7 @@ extension MockConversationView: CVComponentDelegate {
     func didTapBlockRequest(
         groupModel: TSGroupModelV2,
         requesterName: String,
-        requesterUuid: UUID
+        requesterAci: Aci
     ) {}
 
     func didTapShowUpgradeAppUI() {}

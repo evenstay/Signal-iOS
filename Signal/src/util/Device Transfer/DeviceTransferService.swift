@@ -64,7 +64,6 @@ protocol DeviceTransferServiceObserver: AnyObject {
 ///          iv. Move all the received files into place, set the new database key, etc.
 ///          v. Hot-swap the new database into place and present the conversation list
 ///
-@objc
 class DeviceTransferService: NSObject {
 
     static let appSharedDataDirectory = URL(fileURLWithPath: OWSFileSystem.appSharedDataDirectoryPath())
@@ -81,7 +80,7 @@ class DeviceTransferService: NSObject {
     // This must also be updated in the info.plist
     private static let newDeviceServiceIdentifier = "sgnl-new-device"
 
-    private let serialQueue = DispatchQueue(label: "DeviceTransferService")
+    private let serialQueue = DispatchQueue(label: "org.signal.device-transfer")
     private var _transferState: TransferState = .idle
     var transferState: TransferState {
         get { serialQueue.sync { _transferState } }
@@ -278,7 +277,7 @@ class DeviceTransferService: NSObject {
     // MARK: -
 
     @objc
-    func didEnterBackground() {
+    private func didEnterBackground() {
         switch transferState {
         case .idle:
             break

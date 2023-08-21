@@ -6,10 +6,8 @@
 import UIKit
 import SignalMessaging
 
-@objc
-public class OWSButton: UIButton {
+open class OWSButton: UIButton {
 
-    @objc
     public var block: () -> Void = { }
 
     public var dimsWhenHighlighted = false {
@@ -30,7 +28,6 @@ public class OWSButton: UIButton {
 
     // MARK: -
 
-    @objc
     public init(block: @escaping () -> Void = { }) {
         super.init(frame: .zero)
 
@@ -38,7 +35,6 @@ public class OWSButton: UIButton {
         addTarget(self, action: #selector(didTap), for: .touchUpInside)
     }
 
-    @objc
     public init(title: String, block: @escaping () -> Void = { }) {
         super.init(frame: .zero)
 
@@ -47,7 +43,6 @@ public class OWSButton: UIButton {
         setTitle(title, for: .normal)
     }
 
-    @objc
     public init(
         imageName: String,
         tintColor: UIColor?,
@@ -62,7 +57,6 @@ public class OWSButton: UIButton {
         self.tintColor = tintColor
     }
 
-    @objc
     public func setImage(imageName: String?) {
         guard let imageName = imageName else {
             setImage(nil, for: .normal)
@@ -75,13 +69,27 @@ public class OWSButton: UIButton {
         }
     }
 
+    /// Configure the button for a potentially multiline label.
+    ///
+    /// UIButton's intrinsic content size won't respect a multiline label, and
+    /// consequently the label might grow outside the bounds of the button.
+    ///
+    /// Note that this method uses autolayout.
+    public func configureForMultilineTitle(lineBreakMode: NSLineBreakMode = .byCharWrapping) {
+        titleLabel!.numberOfLines = 0
+        titleLabel!.lineBreakMode = lineBreakMode
+
+        // Without this, the label may grow taller than the button, which won't
+        // grow its intrinsic content size to compensate for a multiline label.
+        autoPinHeight(toHeightOf: titleLabel!, relation: .greaterThanOrEqual)
+    }
+
     public required init?(coder aDecoder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
 
     // MARK: - Common Style Reuse
 
-    @objc
     public class func sendButton(imageName: String, block: @escaping () -> Void) -> OWSButton {
         let button = OWSButton(imageName: imageName, tintColor: .white, block: block)
 
@@ -95,7 +103,6 @@ public class OWSButton: UIButton {
     }
 
     /// Mimics a UIBarButtonItem of type .cancel, but with a shadow.
-    @objc
     public class func shadowedCancelButton(block: @escaping () -> Void) -> OWSButton {
         let cancelButton = OWSButton(title: CommonStrings.cancelButton, block: block)
         cancelButton.setTitleColor(.white, for: .normal)
@@ -110,7 +117,6 @@ public class OWSButton: UIButton {
         return cancelButton
     }
 
-    @objc
     public class func navigationBarButton(imageName: String, block: @escaping () -> Void) -> OWSButton {
         let button = OWSButton(imageName: imageName, tintColor: .white, block: block)
         button.layer.shadowColor = UIColor.black.cgColor
@@ -133,5 +139,13 @@ public class OWSButton: UIButton {
             (dimsWhenDisabled && !isEnabled)
         )
         alpha = isDimmed ? 0.4 : 1
+    }
+}
+
+/// A button whose leading and trailing edges are round.
+open class OWSRoundedButton: OWSButton {
+    override open func layoutSubviews() {
+        super.layoutSubviews()
+        layer.cornerRadius = height / 2
     }
 }

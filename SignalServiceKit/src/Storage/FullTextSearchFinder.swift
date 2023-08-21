@@ -6,25 +6,24 @@
 import Foundation
 import GRDB
 
-@objc
-public class FullTextSearchFinder: NSObject {
+public enum FullTextSearchFinder {
     public static let matchTag = "match"
 
-    public func enumerateObjects(searchText: String, collections: [String], maxResults: UInt, transaction: SDSAnyReadTransaction, block: @escaping (Any, String, UnsafeMutablePointer<ObjCBool>) -> Void) {
+    public static func enumerateObjects(searchText: String, collections: [String], maxResults: UInt, transaction: SDSAnyReadTransaction, block: (Any, String, inout Bool) -> Void) {
         switch transaction.readTransaction {
         case .grdbRead(let grdbRead):
             GRDBFullTextSearchFinder.enumerateObjects(searchText: searchText, collections: collections, maxResults: maxResults, transaction: grdbRead, block: block)
         }
     }
 
-    public func enumerateObjects<T: SDSIndexableModel>(searchText: String, maxResults: UInt, transaction: SDSAnyReadTransaction, block: @escaping (T, String, UnsafeMutablePointer<ObjCBool>) -> Void) {
+    public static func enumerateObjects<T: SDSIndexableModel>(searchText: String, maxResults: UInt, transaction: SDSAnyReadTransaction, block: (T, String, inout Bool) -> Void) {
         switch transaction.readTransaction {
         case .grdbRead(let grdbRead):
             GRDBFullTextSearchFinder.enumerateObjects(searchText: searchText, maxResults: maxResults, transaction: grdbRead, block: block)
         }
     }
 
-    public func modelWasInserted(model: SDSIndexableModel, transaction: SDSAnyWriteTransaction) {
+    public static func modelWasInserted(model: SDSIndexableModel, transaction: SDSAnyWriteTransaction) {
         assert(type(of: model).ftsIndexMode != .never)
 
         switch transaction.writeTransaction {
@@ -33,16 +32,7 @@ public class FullTextSearchFinder: NSObject {
         }
     }
 
-    @objc
-    public func modelWasUpdatedObjc(model: AnyObject, transaction: SDSAnyWriteTransaction) {
-        guard let model = model as? SDSIndexableModel else {
-            owsFailDebug("Invalid model.")
-            return
-        }
-        modelWasUpdated(model: model, transaction: transaction)
-    }
-
-    public func modelWasUpdated(model: SDSIndexableModel, transaction: SDSAnyWriteTransaction) {
+    public static func modelWasUpdated(model: SDSIndexableModel, transaction: SDSAnyWriteTransaction) {
         assert(type(of: model).ftsIndexMode != .never)
 
         switch transaction.writeTransaction {
@@ -51,7 +41,7 @@ public class FullTextSearchFinder: NSObject {
         }
     }
 
-    public func modelWasInsertedOrUpdated(model: SDSIndexableModel, transaction: SDSAnyWriteTransaction) {
+    public static func modelWasInsertedOrUpdated(model: SDSIndexableModel, transaction: SDSAnyWriteTransaction) {
         assert(type(of: model).ftsIndexMode != .never)
 
         switch transaction.writeTransaction {
@@ -60,7 +50,7 @@ public class FullTextSearchFinder: NSObject {
         }
     }
 
-    public func modelWasRemoved(model: SDSIndexableModel, transaction: SDSAnyWriteTransaction) {
+    public static func modelWasRemoved(model: SDSIndexableModel, transaction: SDSAnyWriteTransaction) {
         assert(type(of: model).ftsIndexMode != .never)
 
         switch transaction.writeTransaction {
@@ -69,7 +59,7 @@ public class FullTextSearchFinder: NSObject {
         }
     }
 
-    public class func allModelsWereRemoved(collection: String, transaction: SDSAnyWriteTransaction) {
+    public static func allModelsWereRemoved(collection: String, transaction: SDSAnyWriteTransaction) {
         switch transaction.writeTransaction {
         case .grdbWrite(let grdbWrite):
             GRDBFullTextSearchFinder.allModelsWereRemoved(collection: collection, transaction: grdbWrite)
@@ -106,8 +96,7 @@ extension FullTextSearchFinder {
     // This is a hot method, especially while running large migrations.
     // Changes to it should go through a profiler to make sure large migrations
     // aren't adversely affected.
-    @objc
-    public class func normalize(text: String) -> String {
+    public static func normalize(text: String) -> String {
         // 1. Filter out invalid characters.
         let filtered = text.removeCharacters(characterSet: charactersToRemove)
 
@@ -150,7 +139,7 @@ extension FullTextSearchFinder {
 
     // We want to match by prefix for "search as you type" functionality.
     // SQLite does not support suffix or contains matches.
-    public class func query(searchText: String) -> String {
+    public static func query(searchText: String) -> String {
         // 1. Normalize the search text.
         //
         // TODO: We could arguably convert to lowercase since the search
@@ -205,8 +194,7 @@ extension FullTextSearchFinder {
 
 // See: http://groue.github.io/GRDB.swift/docs/4.1/index.html#full-text-search
 // See: https://www.sqlite.org/fts5.html
-@objc
-class GRDBFullTextSearchFinder: NSObject {
+enum GRDBFullTextSearchFinder {
 
     static let contentTableName = "indexable_text"
     static let ftsTableName = "indexable_text_fts"
@@ -223,7 +211,7 @@ class GRDBFullTextSearchFinder: NSObject {
         SignalRecipient.self
     ]
 
-    private class func collection(forModel model: SDSIndexableModel) -> String {
+    private static func collection(forModel model: SDSIndexableModel) -> String {
         // Note that allModelsWereRemoved(collection: ) makes the same
         // assumption that the FTS collection matches the
         // TSYapDatabaseObject.collection.
@@ -234,12 +222,12 @@ class GRDBFullTextSearchFinder: NSObject {
     // This should only be accessed on serialQueue.
     private static let ftsCache = LRUCache<String, String>(maxSize: 128, nseMaxSize: 16)
 
-    private class func cacheKey(collection: String, uniqueId: String) -> String {
+    private static func cacheKey(collection: String, uniqueId: String) -> String {
         return "\(collection).\(uniqueId)"
     }
 
     #if TESTABLE_BUILD
-    private class func `is`(_ value: Any, ofType type: Any.Type) -> Bool {
+    private static func `is`(_ value: Any, ofType type: Any.Type) -> Bool {
         var currentMirror: Mirror? = Mirror(reflecting: value)
         while let mirror = currentMirror {
             if mirror.subjectType == type { return true }
@@ -249,7 +237,7 @@ class GRDBFullTextSearchFinder: NSObject {
     }
     #endif
 
-    fileprivate class func shouldIndexModel(_ model: SDSIndexableModel) -> Bool {
+    fileprivate static func shouldIndexModel(_ model: SDSIndexableModel) -> Bool {
         #if TESTABLE_BUILD
         let isIndexable = indexableModelTypes.contains { Self.is(model, ofType: $0) }
         owsAssert(isIndexable)
@@ -277,13 +265,16 @@ class GRDBFullTextSearchFinder: NSObject {
             // different address.
             return false
         }
-        if let message = model as? TSMessage, message.isGroupStoryReply {
+        if
+            let message = model as? TSMessage,
+            (message.isGroupStoryReply || message.editState == .pastRevision)
+        {
             return false
         }
         return true
     }
 
-    public class func modelWasInserted(model: SDSIndexableModel, transaction: GRDBWriteTransaction) {
+    public static func modelWasInserted(model: SDSIndexableModel, transaction: GRDBWriteTransaction) {
         guard shouldIndexModel(model) else {
             Logger.verbose("Not indexing model: \(type(of: (model)))")
             removeModelFromIndex(model, transaction: transaction)
@@ -309,7 +300,7 @@ class GRDBFullTextSearchFinder: NSObject {
             transaction: transaction)
     }
 
-    public class func modelWasUpdated(model: SDSIndexableModel, transaction: GRDBWriteTransaction) {
+    public static func modelWasUpdated(model: SDSIndexableModel, transaction: GRDBWriteTransaction) {
         guard shouldIndexModel(model) else {
             Logger.verbose("Not indexing model: \(type(of: (model)))")
             removeModelFromIndex(model, transaction: transaction)
@@ -349,7 +340,7 @@ class GRDBFullTextSearchFinder: NSObject {
             transaction: transaction)
     }
 
-    public class func modelWasInsertedOrUpdated(model: SDSIndexableModel, transaction: GRDBWriteTransaction) {
+    public static func modelWasInsertedOrUpdated(model: SDSIndexableModel, transaction: GRDBWriteTransaction) {
         guard shouldIndexModel(model) else {
             Logger.verbose("Not indexing model: \(type(of: (model)))")
             removeModelFromIndex(model, transaction: transaction)
@@ -396,11 +387,11 @@ class GRDBFullTextSearchFinder: NSObject {
             transaction: transaction)
     }
 
-    public class func modelWasRemoved(model: SDSIndexableModel, transaction: GRDBWriteTransaction) {
+    public static func modelWasRemoved(model: SDSIndexableModel, transaction: GRDBWriteTransaction) {
         removeModelFromIndex(model, transaction: transaction)
     }
 
-    private class func removeModelFromIndex(_ model: SDSIndexableModel, transaction: GRDBWriteTransaction) {
+    private static func removeModelFromIndex(_ model: SDSIndexableModel, transaction: GRDBWriteTransaction) {
         let uniqueId = model.uniqueId
         let collection = self.collection(forModel: model)
 
@@ -419,7 +410,7 @@ class GRDBFullTextSearchFinder: NSObject {
             transaction: transaction)
     }
 
-    public class func allModelsWereRemoved(collection: String, transaction: GRDBWriteTransaction) {
+    public static func allModelsWereRemoved(collection: String, transaction: GRDBWriteTransaction) {
 
         serialQueue.sync {
             ftsCache.removeAllObjects()
@@ -436,20 +427,26 @@ class GRDBFullTextSearchFinder: NSObject {
 
     private static let disableFTS = false
 
-    private class func executeUpdate(sql: String,
-                                     arguments: StatementArguments,
-                                     transaction: GRDBWriteTransaction) {
+    private static func executeUpdate(
+        sql: String,
+        arguments: StatementArguments,
+        transaction: GRDBWriteTransaction
+    ) {
         guard !disableFTS else {
             return
         }
 
-        transaction.executeWithCachedStatement(sql: sql,
-                                               arguments: arguments)
+        transaction.executeAndCacheStatement(
+            sql: sql,
+            arguments: arguments
+        )
     }
 
-    private class func modelForFTSMatch(collection: String,
-                                        uniqueId: String,
-                                        transaction: GRDBReadTransaction) -> SDSIndexableModel? {
+    private static func modelForFTSMatch(
+        collection: String,
+        uniqueId: String,
+        transaction: GRDBReadTransaction
+    ) -> SDSIndexableModel? {
         switch collection {
         case SignalAccount.collection():
             guard let model = SignalAccount.anyFetch(uniqueId: uniqueId,
@@ -493,7 +490,12 @@ class GRDBFullTextSearchFinder: NSObject {
 
     // MARK: - Querying
 
-    public class func enumerateObjects<T: SDSIndexableModel>(searchText: String, maxResults: UInt, transaction: GRDBReadTransaction, block: @escaping (T, String, UnsafeMutablePointer<ObjCBool>) -> Void) {
+    public static func enumerateObjects<T: SDSIndexableModel>(
+        searchText: String,
+        maxResults: UInt,
+        transaction: GRDBReadTransaction,
+        block: (T, String, inout Bool) -> Void
+    ) {
         enumerateObjects(
             searchText: searchText,
             collections: [T.collection()],
@@ -506,12 +508,17 @@ class GRDBFullTextSearchFinder: NSObject {
             guard let object = object as? T else {
                 return owsFailDebug("Unexpected object type")
             }
-            block(object, snippet, stop)
+            block(object, snippet, &stop)
         }
     }
 
-    public class func enumerateObjects(searchText: String, collections: [String], maxResults: UInt, transaction: GRDBReadTransaction, block: @escaping (Any, String, UnsafeMutablePointer<ObjCBool>) -> Void) {
-
+    public static func enumerateObjects(
+        searchText: String,
+        collections: [String],
+        maxResults: UInt,
+        transaction: GRDBReadTransaction,
+        block: (Any, String, inout Bool) -> Void
+    ) {
         let query = FullTextSearchFinder.query(searchText: searchText)
 
         if query.isEmpty {
@@ -523,7 +530,7 @@ class GRDBFullTextSearchFinder: NSObject {
 
         // Search with the query interface or SQL
         do {
-            var stop: ObjCBool = false
+            var stop = false
 
             // GRDB TODO: We could use bm25() instead of rank to order results.
             let indexOfContentColumnInFTSTable = 0
@@ -560,7 +567,7 @@ class GRDBFullTextSearchFinder: NSObject {
                 }
 
                 block(model, snippet, &stop)
-                guard !stop.boolValue else {
+                if stop {
                     break
                 }
             }
@@ -607,7 +614,10 @@ class AnySearchIndexer: Dependencies {
     }
 
     private static let groupMemberIndexer: SearchIndexer<TSGroupMember> = SearchIndexer { (groupMember: TSGroupMember, transaction: SDSAnyReadTransaction) in
-        return recipientIndexer.index(groupMember.address, transaction: transaction)
+        return recipientIndexer.index(
+            SignalServiceAddress(uuid: groupMember.serviceId?.uuidValue, phoneNumber: groupMember.phoneNumber),
+            transaction: transaction
+        )
     }
 
     private static let contactThreadIndexer: SearchIndexer<TSContactThread> = SearchIndexer { (contactThread: TSContactThread, transaction: SDSAnyReadTransaction) in
@@ -622,7 +632,28 @@ class AnySearchIndexer: Dependencies {
         return result
     }
 
-    private static let recipientIndexer: SearchIndexer<SignalServiceAddress> = SearchIndexer { recipientAddress, transaction in
+    private static let accountIndexer: SearchIndexer<SignalAccount> = SearchIndexer { account, tx in
+        var nameStrings = Set<String>()
+        let insert: (String?) -> Void = { if let s = $0 { nameStrings.insert(s) } }
+
+        // In the UI, we give preference to the system contact name
+        // (as opposed to the contact's self-selected profile name),
+        // so our first choice is to index by system contact names.
+        insert(account.contactPreferredDisplayName())
+        if let nameComponents = account.contactPersonNameComponents() {
+            insert(nameComponents.givenName)
+            insert(nameComponents.familyName)
+            insert(nameComponents.nickname)
+        }
+        if nameStrings.isEmpty {
+            // If the system contact has no names, fall back to
+            // the user's self-selected profile name.
+            insert(profileManager.fullName(for: account.recipientAddress, transaction: tx))
+        }
+        return contactIndexStrings(nameStrings: nameStrings, recipientAddress: account.recipientAddress, transaction: tx)
+    }
+
+    private static let recipientIndexer: SearchIndexer<SignalServiceAddress> = SearchIndexer { recipientAddress, tx in
         // A contact should always be searchable by their display name, as well
         // as by name components from system contacts if available. Note that
         // not all name components are available, as we only store
@@ -631,14 +662,21 @@ class AnySearchIndexer: Dependencies {
         // We may likely end up with duplicate text in the index since the
         // display name will likely include some or all of the name components,
         // but that's fine.
-        var nameStrings: Set<String> = [contactsManager.displayName(for: recipientAddress, transaction: transaction)]
-        if let nameComponents = contactsManager.nameComponents(for: recipientAddress, transaction: transaction) {
+
+        // TODO: `displayName` is a performance bottleneck. Its slowness is ultimately
+        // due to fetching SignalAccounts from the SignalAccountReadCache. The role of
+        // read caches in the app is being revisited and may solve this problem.
+        var nameStrings: Set<String> = [contactsManager.displayName(for: recipientAddress, transaction: tx)]
+        if let nameComponents = contactsManager.nameComponents(for: recipientAddress, transaction: tx) {
             let insert: (String?) -> Void = { if let s = $0 { nameStrings.insert(s) } }
             insert(nameComponents.givenName)
             insert(nameComponents.familyName)
             insert(nameComponents.nickname)
         }
+        return contactIndexStrings(nameStrings: nameStrings, recipientAddress: recipientAddress, transaction: tx)
+    }
 
+    private static func contactIndexStrings(nameStrings: Set<String>, recipientAddress: SignalServiceAddress, transaction: SDSAnyReadTransaction) -> String {
         let nationalNumber: String? = { (recipientId: String?) -> String? in
             guard let recipientId = recipientId else { return nil }
 
@@ -651,7 +689,7 @@ class AnySearchIndexer: Dependencies {
                 return ""
             }
 
-            guard let digitScalars = phoneNumber.nationalNumber?.unicodeScalars.filter({ CharacterSet.decimalDigits.contains($0) }) else {
+            guard let digitScalars = phoneNumber.nationalNumberFormatted?.unicodeScalars.filter({ CharacterSet.decimalDigits.contains($0) }) else {
                 owsFailDebug("unexpected unparsable recipientId: \(recipientId)")
                 return ""
             }
@@ -693,7 +731,7 @@ class AnySearchIndexer: Dependencies {
             }
             return self.messageIndexer.index(message, transaction: transaction)
         } else if let signalAccount = object as? SignalAccount {
-            return self.recipientIndexer.index(signalAccount.recipientAddress, transaction: transaction)
+            return self.accountIndexer.index(signalAccount, transaction: transaction)
         } else if let signalRecipient = object as? SignalRecipient {
             return self.recipientIndexer.index(signalRecipient.address, transaction: transaction)
         } else {

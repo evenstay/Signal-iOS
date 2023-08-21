@@ -3,11 +3,28 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import LibSignalClient
 import SignalCoreKit
+import SignalServiceKit
 
-@objc
-public class PaymentsHelperImpl: NSObject, PaymentsHelperSwift, PaymentsHelper {
+public class PaymentsHelperImpl: Dependencies, PaymentsHelperSwift, PaymentsHelper {
+
+    public required init() {
+        self.observeNotifications()
+    }
+
+    private func observeNotifications() {
+        NotificationCenter.default.addObserver(self,
+                                               selector: #selector(registrationStateDidChange),
+                                               name: .registrationStateDidChange,
+                                               object: nil)
+    }
+
+    @objc
+    private func registrationStateDidChange() {
+        // Caches should be re-warmed after a registration state change.
+        warmCaches()
+    }
 
     public var isKillSwitchActive: Bool {
         RemoteConfig.paymentsResetKillSwitch || !hasValidPhoneNumberForPayments
@@ -102,8 +119,10 @@ public class PaymentsHelperImpl: NSObject, PaymentsHelperSwift, PaymentsHelper {
     }
 
     public func enablePayments(transaction: SDSAnyWriteTransaction) {
-        // We must preserve any existing paymentsEntropy.
-        let paymentsEntropy = self.paymentsEntropy ?? Self.generateRandomPaymentsEntropy()
+        // We must preserve any existing paymentsEntropy, and then prefer "old" entropy, then last resort generate new entropy.
+        let existingPaymentsEntropy = self.paymentsEntropy
+        let oldPaymentsEntropy = Self.loadPaymentsState(transaction: transaction).paymentsEntropy
+        let paymentsEntropy = existingPaymentsEntropy ?? oldPaymentsEntropy ?? Self.generateRandomPaymentsEntropy()
         _ = enablePayments(withPaymentsEntropy: paymentsEntropy, transaction: transaction)
     }
 
@@ -189,7 +208,7 @@ public class PaymentsHelperImpl: NSObject, PaymentsHelperSwift, PaymentsHelper {
                 // We only need to re-upload the profile if the change originated
                 // locally.
                 Logger.info("Re-uploading local profile due to payments state change.")
-                Self.profileManager.reuploadLocalProfile()
+                Self.profileManager.reuploadLocalProfile(authedAccount: .implicit())
 
                 Self.storageServiceManager.recordPendingLocalAccountUpdates()
             }
@@ -197,19 +216,10 @@ public class PaymentsHelperImpl: NSObject, PaymentsHelperSwift, PaymentsHelper {
     }
 
     private static func loadPaymentsState(transaction: SDSAnyReadTransaction) -> PaymentsState {
-        func loadPaymentsEntropy() -> Data? {
-            guard storageCoordinator.isStorageReady else {
-                owsFailDebug("Storage is not ready.")
-                return nil
-            }
-            guard tsAccountManager.isRegisteredAndReady else {
-                return nil
-            }
-            return keyValueStore.getData(paymentsEntropyKey, transaction: transaction)
-        }
-        guard let paymentsEntropy = loadPaymentsEntropy() else {
+        guard tsAccountManager.isRegisteredAndReady(transaction: transaction) else {
             return .disabled
         }
+        let paymentsEntropy = keyValueStore.getData(paymentsEntropyKey, transaction: transaction)
         let arePaymentsEnabled = keyValueStore.getBool(Self.arePaymentsEnabledKey,
                                                        defaultValue: false,
                                                        transaction: transaction)
@@ -390,12 +400,15 @@ public class PaymentsHelperImpl: NSObject, PaymentsHelperSwift, PaymentsHelper {
             guard let mobileCoinProto = paymentProto.mobileCoin else {
                 throw OWSAssertionError("Invalid payment sync message: Missing mobileCoinProto.")
             }
-            var recipientUuid: UUID?
-            if let recipientUuidString = paymentProto.recipientUuid {
-                guard let uuid = UUID(uuidString: recipientUuidString) else {
-                    throw OWSAssertionError("Invalid payment sync message: Missing recipientUuid.")
+            var recipientServiceId: ServiceId?
+            if let recipientServiceIdString = paymentProto.recipientServiceID {
+                guard let serviceId = try? ServiceId.parseFrom(serviceIdString: recipientServiceIdString) else {
+                    throw OWSAssertionError("Invalid payment sync message: Missing recipientServiceId.")
                 }
-                recipientUuid = uuid
+                if !FeatureFlags.phoneNumberIdentifiers, serviceId is Pni {
+                    throw OWSAssertionError("Invalid payment sync message: Unexpected Pni.")
+                }
+                recipientServiceId = serviceId
             }
             let paymentAmount = TSPaymentAmount(currency: .mobileCoin, picoMob: mobileCoinProto.amountPicoMob)
             guard paymentAmount.isValidAmount(canBeEmpty: true) else {
@@ -436,7 +449,7 @@ public class PaymentsHelperImpl: NSObject, PaymentsHelperSwift, PaymentsHelper {
             let paymentType: TSPaymentType
             if recipientPublicAddressData == nil {
                 // Possible defragmentation.
-                guard recipientUuid == nil else {
+                guard recipientServiceId == nil else {
                     throw OWSAssertionError("Invalid payment sync message: unexpected recipientUuid.")
                 }
                 guard recipientPublicAddressData == nil else {
@@ -452,7 +465,7 @@ public class PaymentsHelperImpl: NSObject, PaymentsHelperSwift, PaymentsHelper {
                 paymentType = .outgoingDefragmentationFromLinkedDevice
             } else {
                 // Possible outgoing payment.
-                guard recipientUuid != nil else {
+                guard recipientServiceId != nil else {
                     throw OWSAssertionError("Invalid payment sync message: missing recipientUuid.")
                 }
                 guard paymentAmount.isValidAmount(canBeEmpty: false) else {
@@ -474,7 +487,7 @@ public class PaymentsHelperImpl: NSObject, PaymentsHelperSwift, PaymentsHelper {
                                               paymentState: paymentState,
                                               paymentAmount: paymentAmount,
                                               createdDate: NSDate.ows_date(withMillisecondsSince1970: messageTimestamp),
-                                              addressUuidString: recipientUuid?.uuidString,
+                                              addressUuidString: recipientServiceId?.serviceIdUppercaseString,
                                               memoMessage: memoMessage,
                                               requestUuidString: requestUuidString,
                                               isUnread: false,

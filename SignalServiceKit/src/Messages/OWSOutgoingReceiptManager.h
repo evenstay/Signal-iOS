@@ -5,6 +5,8 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+@protocol RecipientHidingManager;
+
 @class PendingTasks;
 @class SDSAnyWriteTransaction;
 @class SDSKeyValueStore;

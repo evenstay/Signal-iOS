@@ -59,7 +59,13 @@ extension OWS2FAManager {
 
     public func enableRegistrationLockV2() -> Promise<Void> {
         return DispatchQueue.global().async(.promise) { () -> String in
-            guard let token = KeyBackupService.deriveRegistrationLockToken() else {
+            let token = Self.databaseStorage.read { tx in
+                return DependenciesBridge.shared.svr.data(
+                    for: .registrationLock,
+                    transaction: tx.asV2Read
+                )?.canonicalStringRepresentation
+            }
+            guard let token else {
                 throw OWSAssertionError("Cannot enable registration lock without an existing PIN")
             }
             return token
@@ -157,12 +163,12 @@ extension OWS2FAManager {
         let request = OWSRequestFactory.enable2FARequest(withPin: pin.ensureArabicNumerals)
         firstly {
             Self.networkManager.makePromise(request: request)
-        }.done(on: .main) { _ in
+        }.done(on: DispatchQueue.main) { _ in
             Self.databaseStorage.write { transaction in
                 self.markEnabled(pin: pin, transaction: transaction)
             }
             success?()
-        }.catch(on: .main) { error in
+        }.catch(on: DispatchQueue.main) { error in
             owsFailDebugUnlessNetworkFailure(error)
             failure?(error)
         }
@@ -174,14 +180,75 @@ extension OWS2FAManager {
         let request = OWSRequestFactory.disable2FARequest()
         firstly {
             Self.networkManager.makePromise(request: request)
-        }.done(on: .main) { _ in
+        }.done(on: DispatchQueue.main) { _ in
             Self.databaseStorage.write { transaction in
                 self.markDisabled(transaction: transaction)
             }
             success?()
-        }.catch(on: .main) { error in
+        }.catch(on: DispatchQueue.main) { error in
             owsFailDebugUnlessNetworkFailure(error)
             failure?(error)
         }
+    }
+
+    public static func isWeakPin(_ pin: String) -> Bool {
+        let normalizedPin = SVRUtil.normalizePin(pin)
+
+        guard pin.count >= kMin2FAv2PinLength else { return true }
+
+        // We only check numeric pins for weakness
+        guard normalizedPin.digitsOnly() == normalizedPin else { return false }
+
+        var allTheSame = true
+        var forwardSequential = true
+        var reverseSequential = true
+
+        var previousWholeNumberValue: Int?
+        for character in normalizedPin {
+            guard let current = character.wholeNumberValue else {
+                owsFailDebug("numeric pin unexpectedly contatined non-numeric characters")
+                break
+            }
+
+            defer { previousWholeNumberValue = current }
+            guard let previous = previousWholeNumberValue else { continue }
+
+            if previous != current { allTheSame = false }
+            if previous + 1 != current { forwardSequential = false }
+            if previous - 1 != current { reverseSequential = false }
+
+            if !allTheSame && !forwardSequential && !reverseSequential { break }
+        }
+
+        return allTheSame || forwardSequential || reverseSequential
+    }
+
+    @objc
+    public func clearLocalPinCode(transaction: SDSAnyWriteTransaction) {
+        Self.keyValueStore().removeValue(forKey: kOWS2FAManager_PinCode, transaction: transaction)
+    }
+
+    // MARK: - KeyBackupService Wrappers/Helpers
+
+    @objc
+    public func hasBackedUpMasterKey(transaction: SDSAnyReadTransaction) -> Bool {
+        return DependenciesBridge.shared.svr.hasBackedUpMasterKey(transaction: transaction.asV2Read)
+    }
+
+    @objc(generateAndBackupKeysWithPin:rotateMasterKey:)
+    @available(swift, obsoleted: 1.0)
+    public func generateAndBackupKeys(with pin: String, rotateMasterKey: Bool) -> AnyPromise {
+        let promise = DependenciesBridge.shared.svr.generateAndBackupKeys(pin: pin, authMethod: .implicit, rotateMasterKey: rotateMasterKey)
+        return AnyPromise(promise)
+    }
+
+    @objc
+    public func verifyKBSPin(_ pin: String, resultHandler: @escaping (Bool) -> Void) {
+        DependenciesBridge.shared.svr.verifyPin(pin, resultHandler: resultHandler)
+    }
+
+    @objc(deleteKeys)
+    public func deleteKBSKeys() -> AnyPromise {
+        return AnyPromise(DependenciesBridge.shared.svr.deleteKeys())
     }
 }

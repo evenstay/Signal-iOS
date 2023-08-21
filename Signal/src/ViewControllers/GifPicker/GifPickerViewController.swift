@@ -20,10 +20,6 @@ class GifPickerNavigationViewController: OWSNavigationController {
         return gifPickerViewController
     }()
 
-    required init(nibName nibNameOrNil: String?, bundle nibBundleOrNil: Bundle?) {
-        super.init(nibName: nibNameOrNil, bundle: nibBundleOrNil)
-    }
-
     required init(initialMessageBody: MessageBody?) {
         self.initialMessageBody = initialMessageBody
         super.init()
@@ -37,7 +33,7 @@ extension GifPickerNavigationViewController: GifPickerViewControllerDelegate {
 
         let attachmentApprovalItem = AttachmentApprovalItem(attachment: attachment, canSave: false)
         let attachmentApproval = AttachmentApprovalViewController(options: [], attachmentApprovalItems: [attachmentApprovalItem])
-        attachmentApproval.messageBody = initialMessageBody
+        attachmentApproval.setMessageBody(initialMessageBody, txProvider: DependenciesBridge.shared.db.readTxProvider)
         attachmentApproval.approvalDelegate = self
         attachmentApproval.approvalDataSource = self
         pushViewController(attachmentApproval, animated: true) {
@@ -85,8 +81,12 @@ extension GifPickerNavigationViewController: AttachmentApprovalViewControllerDat
         approvalDataSource?.attachmentApprovalRecipientNames ?? []
     }
 
-    public var attachmentApprovalMentionableAddresses: [SignalServiceAddress] {
-        return approvalDataSource?.attachmentApprovalMentionableAddresses ?? []
+    public func attachmentApprovalMentionableAddresses(tx: DBReadTransaction) -> [SignalServiceAddress] {
+        return approvalDataSource?.attachmentApprovalMentionableAddresses(tx: tx) ?? []
+    }
+
+    public func attachmentApprovalMentionCacheInvalidationKey() -> String {
+        return approvalDataSource?.attachmentApprovalMentionCacheInvalidationKey() ?? UUID().uuidString
     }
 }
 
@@ -135,7 +135,6 @@ class GifPickerViewController: OWSViewController, UISearchBarDelegate, UICollect
 
     // MARK: Initializers
 
-    @objc
     required override init() {
         self.searchBar = OWSSearchBar()
         self.layout = GifPickerLayout()
@@ -154,7 +153,7 @@ class GifPickerViewController: OWSViewController, UISearchBarDelegate, UICollect
 
     // MARK: -
     @objc
-    func didBecomeActive() {
+    private func didBecomeActive() {
         AssertIsOnMainThread()
 
         Logger.info("")
@@ -164,7 +163,7 @@ class GifPickerViewController: OWSViewController, UISearchBarDelegate, UICollect
     }
 
     @objc
-    func reachabilityChanged() {
+    private func reachabilityChanged() {
         AssertIsOnMainThread()
 
         Logger.info("")
@@ -191,7 +190,7 @@ class GifPickerViewController: OWSViewController, UISearchBarDelegate, UICollect
         self.navigationItem.leftBarButtonItem = UIBarButtonItem(barButtonSystemItem: .cancel,
                                                                 target: self,
                                                                 action: #selector(didPressCancel))
-        self.navigationItem.title = NSLocalizedString("GIF_PICKER_VIEW_TITLE",
+        self.navigationItem.title = OWSLocalizedString("GIF_PICKER_VIEW_TITLE",
                                                       comment: "Title for the 'GIF picker' dialog.")
 
         createViews()
@@ -278,7 +277,7 @@ class GifPickerViewController: OWSViewController, UISearchBarDelegate, UICollect
 
         // Search
         searchBar.delegate = self
-        searchBar.placeholder = NSLocalizedString("GIF_VIEW_SEARCH_PLACEHOLDER_TEXT",
+        searchBar.placeholder = OWSLocalizedString("GIF_VIEW_SEARCH_PLACEHOLDER_TEXT",
                                                   comment: "Placeholder text for the search field in GIF view")
         view.addSubview(searchBar)
         searchBar.autoPinWidthToSuperview()
@@ -307,14 +306,14 @@ class GifPickerViewController: OWSViewController, UISearchBarDelegate, UICollect
         logoImageView.autoPinHeightToSuperview(withMargin: 3)
         logoImageView.autoHCenterInSuperview()
 
-        let noResultsView = createErrorLabel(text: NSLocalizedString("GIF_VIEW_SEARCH_NO_RESULTS",
+        let noResultsView = createErrorLabel(text: OWSLocalizedString("GIF_VIEW_SEARCH_NO_RESULTS",
                                                                     comment: "Indicates that the user's search had no results."))
         self.noResultsView = noResultsView
         self.view.addSubview(noResultsView)
         noResultsView.autoPinWidthToSuperview(withMargin: 20)
         noResultsView.autoAlignAxis(.horizontal, toSameAxisOf: self.collectionView)
 
-        let searchErrorView = createErrorLabel(text: NSLocalizedString("GIF_VIEW_SEARCH_ERROR",
+        let searchErrorView = createErrorLabel(text: OWSLocalizedString("GIF_VIEW_SEARCH_ERROR",
                                                                       comment: "Indicates that an error occurred while searching."))
         self.searchErrorView = searchErrorView
         self.view.addSubview(searchErrorView)
@@ -324,7 +323,7 @@ class GifPickerViewController: OWSViewController, UISearchBarDelegate, UICollect
         searchErrorView.isUserInteractionEnabled = true
         searchErrorView.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(retryTapped)))
 
-        let activityIndicator = UIActivityIndicatorView(style: .gray)
+        let activityIndicator = UIActivityIndicatorView(style: .medium)
         self.activityIndicator = activityIndicator
         self.view.addSubview(activityIndicator)
         activityIndicator.autoHCenterInSuperview()
@@ -337,7 +336,7 @@ class GifPickerViewController: OWSViewController, UISearchBarDelegate, UICollect
         let label = UILabel()
         label.text = text
         label.textColor = Theme.primaryTextColor
-        label.font = UIFont.ows_semiboldFont(withSize: 20)
+        label.font = UIFont.semiboldFont(ofSize: 20)
         label.textAlignment = .center
         label.numberOfLines = 0
         label.lineBreakMode = .byWordWrapping
@@ -481,7 +480,7 @@ class GifPickerViewController: OWSViewController, UISearchBarDelegate, UICollect
 
         firstly {
             cell.requestRenditionForSending()
-        }.map(on: .global()) { [weak self] (asset: ProxiedContentAsset) -> SignalAttachment in
+        }.map(on: DispatchQueue.global()) { [weak self] (asset: ProxiedContentAsset) -> SignalAttachment in
             // This check is just an optimization. The important check is below.
             guard self != nil else { throw GetFileError.noLongerRelevant }
 
@@ -514,7 +513,7 @@ class GifPickerViewController: OWSViewController, UISearchBarDelegate, UICollect
                 return
             }
 
-            let alert = ActionSheetController(title: NSLocalizedString("GIF_PICKER_FAILURE_ALERT_TITLE", comment: "Shown when selected GIF couldn't be fetched"),
+            let alert = ActionSheetController(title: OWSLocalizedString("GIF_PICKER_FAILURE_ALERT_TITLE", comment: "Shown when selected GIF couldn't be fetched"),
                                           message: error.userErrorDescription)
             alert.addAction(ActionSheetAction(title: CommonStrings.retryButton, style: .default) { _ in
                 self.getFileForCell(cell)
@@ -547,7 +546,7 @@ class GifPickerViewController: OWSViewController, UISearchBarDelegate, UICollect
     // MARK: - Event Handlers
 
     @objc
-    func didPressCancel(sender: UIButton) {
+    private func didPressCancel(sender: UIButton) {
         delegate?.gifPickerDidCancel()
     }
 
@@ -583,7 +582,7 @@ class GifPickerViewController: OWSViewController, UISearchBarDelegate, UICollect
         progressiveSearchTimer = nil
 
         guard let text = searchBar.text else {
-            OWSActionSheets.showErrorAlert(message: NSLocalizedString("GIF_PICKER_VIEW_MISSING_QUERY",
+            OWSActionSheets.showErrorAlert(message: OWSLocalizedString("GIF_PICKER_VIEW_MISSING_QUERY",
                                                            comment: "Alert message shown when user tries to search for GIFs without entering any search terms."))
             return
         }
@@ -604,7 +603,7 @@ class GifPickerViewController: OWSViewController, UISearchBarDelegate, UICollect
 
         firstly {
             GiphyAPI.trending()
-        }.done(on: .main) { [weak self] imageInfos in
+        }.done(on: DispatchQueue.main) { [weak self] imageInfos in
             guard let self = self else { return }
 
             guard self.lastQuery == nil else {
@@ -619,7 +618,7 @@ class GifPickerViewController: OWSViewController, UISearchBarDelegate, UICollect
             } else {
                 owsFailDebug("trending results was unexpectedly empty")
             }
-        }.catch(on: .main) { error in
+        }.catch(on: DispatchQueue.main) { error in
             // Don't both showing error UI feedback for default "trending" results.
             Logger.error("error: \(error)")
         }
@@ -633,7 +632,7 @@ class GifPickerViewController: OWSViewController, UISearchBarDelegate, UICollect
 
         firstly {
             GiphyAPI.search(query: query)
-        }.done(on: .main) { [weak self] imageInfos in
+        }.done(on: DispatchQueue.main) { [weak self] imageInfos in
             guard let strongSelf = self else { return }
             Logger.info("search complete")
             strongSelf.imageInfos = imageInfos
@@ -642,7 +641,7 @@ class GifPickerViewController: OWSViewController, UISearchBarDelegate, UICollect
             } else {
                 strongSelf.viewMode = .noResults
             }
-        }.catch(on: .main) { [weak self] error in
+        }.catch(on: DispatchQueue.main) { [weak self] error in
             owsFailDebugUnlessNetworkFailure(error)
 
             guard let strongSelf = self else { return }
@@ -661,7 +660,7 @@ class GifPickerViewController: OWSViewController, UISearchBarDelegate, UICollect
     // MARK: - Event Handlers
 
     @objc
-    func retryTapped(sender: UIGestureRecognizer) {
+    private func retryTapped(sender: UIGestureRecognizer) {
         guard sender.state == .recognized else {
             return
         }

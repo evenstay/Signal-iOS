@@ -37,7 +37,6 @@ public struct UserProfileRecord: SDSRecord {
     public let profileName: String?
     public let recipientPhoneNumber: String?
     public let recipientUUID: String?
-    public let username: String?
     public let familyName: String?
     public let lastFetchDate: Double?
     public let lastMessagingDate: Double?
@@ -46,6 +45,7 @@ public struct UserProfileRecord: SDSRecord {
     public let profileBadgeInfo: Data?
     public let isStoriesCapable: Bool
     public let canReceiveGiftBadges: Bool
+    public let isPniCapable: Bool
 
     public enum CodingKeys: String, CodingKey, ColumnExpression, CaseIterable {
         case id
@@ -57,7 +57,6 @@ public struct UserProfileRecord: SDSRecord {
         case profileName
         case recipientPhoneNumber
         case recipientUUID
-        case username
         case familyName
         case lastFetchDate
         case lastMessagingDate
@@ -66,6 +65,7 @@ public struct UserProfileRecord: SDSRecord {
         case profileBadgeInfo
         case isStoriesCapable
         case canReceiveGiftBadges
+        case isPniCapable
     }
 
     public static func columnName(_ column: UserProfileRecord.CodingKeys, fullyQualified: Bool = false) -> String {
@@ -98,15 +98,15 @@ public extension UserProfileRecord {
         profileName = row[6]
         recipientPhoneNumber = row[7]
         recipientUUID = row[8]
-        username = row[9]
-        familyName = row[10]
-        lastFetchDate = row[11]
-        lastMessagingDate = row[12]
-        bio = row[13]
-        bioEmoji = row[14]
-        profileBadgeInfo = row[15]
-        isStoriesCapable = row[16]
-        canReceiveGiftBadges = row[17]
+        familyName = row[9]
+        lastFetchDate = row[10]
+        lastMessagingDate = row[11]
+        bio = row[12]
+        bioEmoji = row[13]
+        profileBadgeInfo = row[14]
+        isStoriesCapable = row[15]
+        canReceiveGiftBadges = row[16]
+        isPniCapable = row[17]
     }
 }
 
@@ -123,7 +123,6 @@ public extension String.StringInterpolation {
 
 // MARK: - Deserialization
 
-// TODO: Rework metadata to not include, for example, columns, column indices.
 extension OWSUserProfile {
     // This method defines how to deserialize a model, given a
     // database row.  The recordType column is used to determine
@@ -144,6 +143,7 @@ extension OWSUserProfile {
             let bioEmoji: String? = record.bioEmoji
             let canReceiveGiftBadges: Bool = record.canReceiveGiftBadges
             let familyName: String? = record.familyName
+            let isPniCapable: Bool = record.isPniCapable
             let isStoriesCapable: Bool = record.isStoriesCapable
             let lastFetchDateInterval: Double? = record.lastFetchDate
             let lastFetchDate: Date? = SDSDeserialization.optionalDoubleAsDate(lastFetchDateInterval, name: "lastFetchDate")
@@ -156,7 +156,6 @@ extension OWSUserProfile {
             let profileName: String? = record.profileName
             let recipientPhoneNumber: String? = record.recipientPhoneNumber
             let recipientUUID: String? = record.recipientUUID
-            let username: String? = record.username
 
             return OWSUserProfile(grdbId: recordId,
                                   uniqueId: uniqueId,
@@ -166,6 +165,7 @@ extension OWSUserProfile {
                                   bioEmoji: bioEmoji,
                                   canReceiveGiftBadges: canReceiveGiftBadges,
                                   familyName: familyName,
+                                  isPniCapable: isPniCapable,
                                   isStoriesCapable: isStoriesCapable,
                                   lastFetchDate: lastFetchDate,
                                   lastMessagingDate: lastMessagingDate,
@@ -173,8 +173,7 @@ extension OWSUserProfile {
                                   profileKey: profileKey,
                                   profileName: profileName,
                                   recipientPhoneNumber: recipientPhoneNumber,
-                                  recipientUUID: recipientUUID,
-                                  username: username)
+                                  recipientUUID: recipientUUID)
 
         default:
             owsFailDebug("Unexpected record type: \(record.recordType)")
@@ -210,7 +209,7 @@ extension OWSUserProfile: SDSModel {
 
     public class func anyEnumerateIndexable(
         transaction: SDSAnyReadTransaction,
-        block: @escaping (SDSIndexableModel) -> Void
+        block: (SDSIndexableModel) -> Void
     ) {
         anyEnumerate(transaction: transaction, batched: false) { model, _ in
             block(model)
@@ -240,6 +239,7 @@ extension OWSUserProfile: DeepCopyable {
             let bioEmoji: String? = modelToCopy.bioEmoji
             let canReceiveGiftBadges: Bool = modelToCopy.canReceiveGiftBadges
             let familyName: String? = modelToCopy.familyName
+            let isPniCapable: Bool = modelToCopy.isPniCapable
             let isStoriesCapable: Bool = modelToCopy.isStoriesCapable
             let lastFetchDate: Date? = modelToCopy.lastFetchDate
             let lastMessagingDate: Date? = modelToCopy.lastMessagingDate
@@ -272,7 +272,6 @@ extension OWSUserProfile: DeepCopyable {
             let profileName: String? = modelToCopy.profileName
             let recipientPhoneNumber: String? = modelToCopy.recipientPhoneNumber
             let recipientUUID: String? = modelToCopy.recipientUUID
-            let username: String? = modelToCopy.username
 
             return OWSUserProfile(grdbId: id,
                                   uniqueId: uniqueId,
@@ -282,6 +281,7 @@ extension OWSUserProfile: DeepCopyable {
                                   bioEmoji: bioEmoji,
                                   canReceiveGiftBadges: canReceiveGiftBadges,
                                   familyName: familyName,
+                                  isPniCapable: isPniCapable,
                                   isStoriesCapable: isStoriesCapable,
                                   lastFetchDate: lastFetchDate,
                                   lastMessagingDate: lastMessagingDate,
@@ -289,8 +289,7 @@ extension OWSUserProfile: DeepCopyable {
                                   profileKey: profileKey,
                                   profileName: profileName,
                                   recipientPhoneNumber: recipientPhoneNumber,
-                                  recipientUUID: recipientUUID,
-                                  username: username)
+                                  recipientUUID: recipientUUID)
         }
 
     }
@@ -312,7 +311,6 @@ extension OWSUserProfileSerializer {
     static var profileNameColumn: SDSColumnMetadata { SDSColumnMetadata(columnName: "profileName", columnType: .unicodeString, isOptional: true) }
     static var recipientPhoneNumberColumn: SDSColumnMetadata { SDSColumnMetadata(columnName: "recipientPhoneNumber", columnType: .unicodeString, isOptional: true) }
     static var recipientUUIDColumn: SDSColumnMetadata { SDSColumnMetadata(columnName: "recipientUUID", columnType: .unicodeString, isOptional: true) }
-    static var usernameColumn: SDSColumnMetadata { SDSColumnMetadata(columnName: "username", columnType: .unicodeString, isOptional: true) }
     static var familyNameColumn: SDSColumnMetadata { SDSColumnMetadata(columnName: "familyName", columnType: .unicodeString, isOptional: true) }
     static var lastFetchDateColumn: SDSColumnMetadata { SDSColumnMetadata(columnName: "lastFetchDate", columnType: .double, isOptional: true) }
     static var lastMessagingDateColumn: SDSColumnMetadata { SDSColumnMetadata(columnName: "lastMessagingDate", columnType: .double, isOptional: true) }
@@ -321,9 +319,8 @@ extension OWSUserProfileSerializer {
     static var profileBadgeInfoColumn: SDSColumnMetadata { SDSColumnMetadata(columnName: "profileBadgeInfo", columnType: .blob, isOptional: true) }
     static var isStoriesCapableColumn: SDSColumnMetadata { SDSColumnMetadata(columnName: "isStoriesCapable", columnType: .int) }
     static var canReceiveGiftBadgesColumn: SDSColumnMetadata { SDSColumnMetadata(columnName: "canReceiveGiftBadges", columnType: .int) }
+    static var isPniCapableColumn: SDSColumnMetadata { SDSColumnMetadata(columnName: "isPniCapable", columnType: .int) }
 
-    // TODO: We should decide on a naming convention for
-    //       tables that store models.
     public static var table: SDSTableMetadata {
         SDSTableMetadata(collection: OWSUserProfile.collection(),
                          tableName: "model_OWSUserProfile",
@@ -337,7 +334,6 @@ extension OWSUserProfileSerializer {
         profileNameColumn,
         recipientPhoneNumberColumn,
         recipientUUIDColumn,
-        usernameColumn,
         familyNameColumn,
         lastFetchDateColumn,
         lastMessagingDateColumn,
@@ -345,7 +341,8 @@ extension OWSUserProfileSerializer {
         bioEmojiColumn,
         profileBadgeInfoColumn,
         isStoriesCapableColumn,
-        canReceiveGiftBadgesColumn
+        canReceiveGiftBadgesColumn,
+        isPniCapableColumn
         ])
     }
 }
@@ -490,14 +487,6 @@ public class OWSUserProfileCursor: NSObject, SDSCursor {
 
 // MARK: - Obj-C Fetch
 
-// TODO: We may eventually want to define some combination of:
-//
-// * fetchCursor, fetchOne, fetchAll, etc. (ala GRDB)
-// * Optional "where clause" parameters for filtering.
-// * Async flavors with completions.
-//
-// TODO: I've defined flavors that take a read transaction.
-//       Or we might take a "connection" if we end up having that class.
 @objc
 public extension OWSUserProfile {
     class func grdbFetchCursor(transaction: GRDBReadTransaction) -> OWSUserProfileCursor {
@@ -506,6 +495,10 @@ public extension OWSUserProfile {
             let cursor = try UserProfileRecord.fetchCursor(database)
             return OWSUserProfileCursor(transaction: transaction, cursor: cursor)
         } catch {
+            DatabaseCorruptionState.flagDatabaseReadCorruptionIfNecessary(
+                userDefaults: CurrentAppContext().appUserDefaults(),
+                error: error
+            )
             owsFailDebug("Read failed: \(error)")
             return OWSUserProfileCursor(transaction: transaction, cursor: nil)
         }
@@ -525,16 +518,20 @@ public extension OWSUserProfile {
 
     // Traverses all records.
     // Records are not visited in any particular order.
-    class func anyEnumerate(transaction: SDSAnyReadTransaction,
-                            block: @escaping (OWSUserProfile, UnsafeMutablePointer<ObjCBool>) -> Void) {
+    class func anyEnumerate(
+        transaction: SDSAnyReadTransaction,
+        block: (OWSUserProfile, UnsafeMutablePointer<ObjCBool>) -> Void
+    ) {
         anyEnumerate(transaction: transaction, batched: false, block: block)
     }
 
     // Traverses all records.
     // Records are not visited in any particular order.
-    class func anyEnumerate(transaction: SDSAnyReadTransaction,
-                            batched: Bool = false,
-                            block: @escaping (OWSUserProfile, UnsafeMutablePointer<ObjCBool>) -> Void) {
+    class func anyEnumerate(
+        transaction: SDSAnyReadTransaction,
+        batched: Bool = false,
+        block: (OWSUserProfile, UnsafeMutablePointer<ObjCBool>) -> Void
+    ) {
         let batchSize = batched ? Batching.kDefaultBatchSize : 0
         anyEnumerate(transaction: transaction, batchSize: batchSize, block: block)
     }
@@ -543,9 +540,11 @@ public extension OWSUserProfile {
     // Records are not visited in any particular order.
     //
     // If batchSize > 0, the enumeration is performed in autoreleased batches.
-    class func anyEnumerate(transaction: SDSAnyReadTransaction,
-                            batchSize: UInt,
-                            block: @escaping (OWSUserProfile, UnsafeMutablePointer<ObjCBool>) -> Void) {
+    class func anyEnumerate(
+        transaction: SDSAnyReadTransaction,
+        batchSize: UInt,
+        block: (OWSUserProfile, UnsafeMutablePointer<ObjCBool>) -> Void
+    ) {
         switch transaction.readTransaction {
         case .grdbRead(let grdbTransaction):
             let cursor = OWSUserProfile.grdbFetchCursor(transaction: grdbTransaction)
@@ -566,16 +565,20 @@ public extension OWSUserProfile {
 
     // Traverses all records' unique ids.
     // Records are not visited in any particular order.
-    class func anyEnumerateUniqueIds(transaction: SDSAnyReadTransaction,
-                                     block: @escaping (String, UnsafeMutablePointer<ObjCBool>) -> Void) {
+    class func anyEnumerateUniqueIds(
+        transaction: SDSAnyReadTransaction,
+        block: (String, UnsafeMutablePointer<ObjCBool>) -> Void
+    ) {
         anyEnumerateUniqueIds(transaction: transaction, batched: false, block: block)
     }
 
     // Traverses all records' unique ids.
     // Records are not visited in any particular order.
-    class func anyEnumerateUniqueIds(transaction: SDSAnyReadTransaction,
-                                     batched: Bool = false,
-                                     block: @escaping (String, UnsafeMutablePointer<ObjCBool>) -> Void) {
+    class func anyEnumerateUniqueIds(
+        transaction: SDSAnyReadTransaction,
+        batched: Bool = false,
+        block: (String, UnsafeMutablePointer<ObjCBool>) -> Void
+    ) {
         let batchSize = batched ? Batching.kDefaultBatchSize : 0
         anyEnumerateUniqueIds(transaction: transaction, batchSize: batchSize, block: block)
     }
@@ -584,9 +587,11 @@ public extension OWSUserProfile {
     // Records are not visited in any particular order.
     //
     // If batchSize > 0, the enumeration is performed in autoreleased batches.
-    class func anyEnumerateUniqueIds(transaction: SDSAnyReadTransaction,
-                                     batchSize: UInt,
-                                     block: @escaping (String, UnsafeMutablePointer<ObjCBool>) -> Void) {
+    class func anyEnumerateUniqueIds(
+        transaction: SDSAnyReadTransaction,
+        batchSize: UInt,
+        block: (String, UnsafeMutablePointer<ObjCBool>) -> Void
+    ) {
         switch transaction.readTransaction {
         case .grdbRead(let grdbTransaction):
             grdbEnumerateUniqueIds(transaction: grdbTransaction,
@@ -624,43 +629,20 @@ public extension OWSUserProfile {
         }
     }
 
-    // WARNING: Do not use this method for any models which do cleanup
-    //          in their anyWillRemove(), anyDidRemove() methods.
-    class func anyRemoveAllWithoutInstantation(transaction: SDSAnyWriteTransaction) {
-        switch transaction.writeTransaction {
-        case .grdbWrite(let grdbTransaction):
-            do {
-                try UserProfileRecord.deleteAll(grdbTransaction.database)
-            } catch {
-                owsFailDebug("deleteAll() failed: \(error)")
-            }
-        }
-
-        if ftsIndexMode != .never {
-            FullTextSearchFinder.allModelsWereRemoved(collection: collection(), transaction: transaction)
-        }
-    }
-
     class func anyRemoveAllWithInstantation(transaction: SDSAnyWriteTransaction) {
-        // To avoid mutationDuringEnumerationException, we need
-        // to remove the instances outside the enumeration.
+        // To avoid mutationDuringEnumerationException, we need to remove the
+        // instances outside the enumeration.
         let uniqueIds = anyAllUniqueIds(transaction: transaction)
 
-        var index: Int = 0
-        Batching.loop(batchSize: Batching.kDefaultBatchSize,
-                      loopBlock: { stop in
-            guard index < uniqueIds.count else {
-                stop.pointee = true
-                return
+        for uniqueId in uniqueIds {
+            autoreleasepool {
+                guard let instance = anyFetch(uniqueId: uniqueId, transaction: transaction) else {
+                    owsFailDebug("Missing instance.")
+                    return
+                }
+                instance.anyRemove(transaction: transaction)
             }
-            let uniqueId = uniqueIds[index]
-            index += 1
-            guard let instance = anyFetch(uniqueId: uniqueId, transaction: transaction) else {
-                owsFailDebug("Missing instance.")
-                return
-            }
-            instance.anyRemove(transaction: transaction)
-        })
+        }
 
         if ftsIndexMode != .never {
             FullTextSearchFinder.allModelsWereRemoved(collection: collection(), transaction: transaction)
@@ -677,7 +659,15 @@ public extension OWSUserProfile {
         case .grdbRead(let grdbTransaction):
             let sql = "SELECT EXISTS ( SELECT 1 FROM \(UserProfileRecord.databaseTableName) WHERE \(userProfileColumn: .uniqueId) = ? )"
             let arguments: StatementArguments = [uniqueId]
-            return try! Bool.fetchOne(grdbTransaction.database, sql: sql, arguments: arguments) ?? false
+            do {
+                return try Bool.fetchOne(grdbTransaction.database, sql: sql, arguments: arguments) ?? false
+            } catch {
+                DatabaseCorruptionState.flagDatabaseReadCorruptionIfNecessary(
+                    userDefaults: CurrentAppContext().appUserDefaults(),
+                    error: error
+                )
+                owsFail("Missing instance.")
+            }
         }
     }
 }
@@ -693,6 +683,10 @@ public extension OWSUserProfile {
             let cursor = try UserProfileRecord.fetchCursor(transaction.database, sqlRequest)
             return OWSUserProfileCursor(transaction: transaction, cursor: cursor)
         } catch {
+            DatabaseCorruptionState.flagDatabaseReadCorruptionIfNecessary(
+                userDefaults: CurrentAppContext().appUserDefaults(),
+                error: error
+            )
             Logger.verbose("sql: \(sql)")
             owsFailDebug("Read failed: \(error)")
             return OWSUserProfileCursor(transaction: transaction, cursor: nil)
@@ -746,7 +740,6 @@ class OWSUserProfileSerializer: SDSSerializer {
         let profileName: String? = model.profileName
         let recipientPhoneNumber: String? = model.recipientPhoneNumber
         let recipientUUID: String? = model.recipientUUID
-        let username: String? = model.username
         let familyName: String? = model.familyName
         let lastFetchDate: Double? = archiveOptionalDate(model.lastFetchDate)
         let lastMessagingDate: Double? = archiveOptionalDate(model.lastMessagingDate)
@@ -755,8 +748,9 @@ class OWSUserProfileSerializer: SDSSerializer {
         let profileBadgeInfo: Data? = optionalArchive(model.profileBadgeInfo)
         let isStoriesCapable: Bool = model.isStoriesCapable
         let canReceiveGiftBadges: Bool = model.canReceiveGiftBadges
+        let isPniCapable: Bool = model.isPniCapable
 
-        return UserProfileRecord(delegate: model, id: id, recordType: recordType, uniqueId: uniqueId, avatarFileName: avatarFileName, avatarUrlPath: avatarUrlPath, profileKey: profileKey, profileName: profileName, recipientPhoneNumber: recipientPhoneNumber, recipientUUID: recipientUUID, username: username, familyName: familyName, lastFetchDate: lastFetchDate, lastMessagingDate: lastMessagingDate, bio: bio, bioEmoji: bioEmoji, profileBadgeInfo: profileBadgeInfo, isStoriesCapable: isStoriesCapable, canReceiveGiftBadges: canReceiveGiftBadges)
+        return UserProfileRecord(delegate: model, id: id, recordType: recordType, uniqueId: uniqueId, avatarFileName: avatarFileName, avatarUrlPath: avatarUrlPath, profileKey: profileKey, profileName: profileName, recipientPhoneNumber: recipientPhoneNumber, recipientUUID: recipientUUID, familyName: familyName, lastFetchDate: lastFetchDate, lastMessagingDate: lastMessagingDate, bio: bio, bioEmoji: bioEmoji, profileBadgeInfo: profileBadgeInfo, isStoriesCapable: isStoriesCapable, canReceiveGiftBadges: canReceiveGiftBadges, isPniCapable: isPniCapable)
     }
 }
 

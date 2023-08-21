@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalMessaging
+import SignalUI
 
 public enum ScrollContinuity: CustomStringConvertible {
     // Do not try to maintain scroll continuity.
@@ -48,7 +48,6 @@ public enum ScrollContinuity: CustomStringConvertible {
 
 // MARK: -
 
-@objc
 public protocol ConversationViewLayoutItem {
 
     var interactionUniqueId: String { get }
@@ -740,21 +739,11 @@ public class ConversationViewLayout: UICollectionViewLayout {
     }
     private var delegateScrollContinuityMode: DelegateScrollContinuityMode = .disabled
 
-    // Returns true during performBatchUpdates() or reloadData().
-    // Unlike isPerformBatchUpdatesOrReloadDataBeingAppliedOrSettling, this
-    // returns true after performBatchUpdates() returns, before
-    // its completion is called.
+    // Returns true during performBatchUpdates() or reloadData(). This returns
+    // true after performBatchUpdates() returns, before its completion is
+    // called.
     public var isPerformBatchUpdatesOrReloadDataBeingApplied: Bool {
         isPerformingBatchUpdates || isReloadingData
-    }
-
-    private let updateCompletionCounter = AtomicUInt(0)
-
-    // Returns true during performBatchUpdates() or reloadData().
-    // Unlike isPerformBatchUpdatesOrReloadDataBeingApplied, this
-    // returns true until the completion of performBatchUpdates().
-    public var isPerformBatchUpdatesOrReloadDataBeingAppliedOrSettling: Bool {
-        updateCompletionCounter.get() > 0
     }
 
     public func willPerformBatchUpdates(scrollContinuity: ScrollContinuity,
@@ -765,25 +754,16 @@ public class ConversationViewLayout: UICollectionViewLayout {
         owsAssertDebug(delegateScrollContinuityMode == .disabled)
 
         isPerformingBatchUpdates = true
-        updateCompletionCounter.increment()
         delegateScrollContinuityMode = .disabled
 
         switch scrollContinuity {
         case .none:
             break
         case .contentRelativeToViewport(let token, let isRelativeToTop):
-        if #available(iOS 13, *) {
             if !applyContentOffsetAdjustmentIfNecessary(scrollContinuityToken: token,
                                                         isRelativeToTop: isRelativeToTop) {
                 delegateScrollContinuityMode = .enabled(lastKnownDistanceFromBottom: lastKnownDistanceFromBottom)
             }
-        } else {
-            // On iOS 12, we can't safely invalidate the context before performBatchUpdates()
-            // begins, so we use a special .delegateScrollContinuity mode.
-            delegateScrollContinuityMode = .enabledIOS12(token: token,
-                                                         isRelativeToTop: isRelativeToTop,
-                                                         lastKnownDistanceFromBottom: lastKnownDistanceFromBottom)
-        }
         case .delegateScrollContinuity:
             delegateScrollContinuityMode = .enabled(lastKnownDistanceFromBottom: lastKnownDistanceFromBottom)
         }
@@ -888,18 +868,6 @@ public class ConversationViewLayout: UICollectionViewLayout {
 
         isPerformingBatchUpdates = false
         delegateScrollContinuityMode = .disabled
-
-        if #unavailable(iOS 13) {
-            // On iOS 12, we invalidate the layout immediately after performBatchUpdates()
-            // to ensure that targetContentOffset(forProposedContentOffset:) is applied in a timely way.
-            invalidateLayout()
-        }
-    }
-
-    public func didCompleteBatchUpdates() {
-        AssertIsOnMainThread()
-
-        updateCompletionCounter.decrementOrZero()
     }
 
     public func willReloadData() {
@@ -909,7 +877,6 @@ public class ConversationViewLayout: UICollectionViewLayout {
         owsAssertDebug(delegateScrollContinuityMode == .disabled)
 
         isReloadingData = true
-        updateCompletionCounter.increment()
         // TODO: We _could_ use the invalidation context for scroll
         // continuity here.
         let lastKnownDistanceFromBottom = delegate?.conversationViewController?.lastKnownDistanceFromBottom ?? 0
@@ -922,7 +889,6 @@ public class ConversationViewLayout: UICollectionViewLayout {
         owsAssertDebug(!isPerformingBatchUpdates)
 
         isReloadingData = false
-        updateCompletionCounter.decrementOrZero()
         delegateScrollContinuityMode = .disabled
     }
 
@@ -1004,8 +970,7 @@ public class ConversationViewLayout: UICollectionViewLayout {
         "isUserScrolling: \(isUserScrolling), hasScrollingAnimation: \(hasScrollingAnimation), " +
             "isPerformingBatchUpdates: \(isPerformingBatchUpdates), " +
             "isReloadingData: \(isReloadingData), " +
-            "isPerformBatchUpdatesOrReloadDataBeingApplied: \(isPerformBatchUpdatesOrReloadDataBeingApplied), " +
-            "isPerformBatchUpdatesOrReloadDataBeingAppliedOrSettling: \(isPerformBatchUpdatesOrReloadDataBeingAppliedOrSettling), "
+            "isPerformBatchUpdatesOrReloadDataBeingApplied: \(isPerformBatchUpdatesOrReloadDataBeingApplied), "
     }
 
     // MARK: -
@@ -1145,7 +1110,6 @@ public class CVScrollContinuityToken: NSObject {
 
 // MARK: -
 
-@objc
 public class CVCollectionViewLayoutAttributes: UICollectionViewLayoutAttributes {
     public var isStickyHeader: Bool = false
 

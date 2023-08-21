@@ -23,7 +23,7 @@ public class ConversationScrollButton: UIButton {
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(themeDidChange(notification:)),
-            name: .ThemeDidChange,
+            name: .themeDidChange,
             object: nil)
     }
 
@@ -31,7 +31,7 @@ public class ConversationScrollButton: UIButton {
         fatalError("init(coder:) has not been implemented")
     }
 
-    private class var circleSize: CGFloat { ScaleFromIPhone5To7Plus(35, 40) }
+    private class var circleSize: CGFloat { .scaleFromIPhone5To7Plus(35, 40) }
 
     class var buttonSize: CGFloat { circleSize + 2 * 15 }
 
@@ -80,6 +80,7 @@ public class ConversationScrollButton: UIButton {
     private func createContents() {
         circleView.addSubview(iconView)
         iconView.autoCenterInSuperview()
+        iconView.autoSetDimensions(to: CGSize(square: 20))
         addSubview(shadowView)
         addSubview(circleView)
         circleView.autoHCenterInSuperview()

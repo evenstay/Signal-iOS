@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalServiceKit
 
 public class ContextMenuRectionBarAccessory: ContextMenuTargetedPreviewAccessory, MessageReactionPickerDelegate {
     public let thread: TSThread
@@ -24,9 +24,9 @@ public class ContextMenuRectionBarAccessory: ContextMenuTargetedPreviewAccessory
         reactionPicker = MessageReactionPicker(selectedEmoji: itemViewModel?.reactionState?.localUserEmoji, delegate: nil)
         let isRTL = CurrentAppContext().isRTL
         let isIncomingMessage = itemViewModel?.interaction.interactionType == .incomingMessage
-        let alignmnetOffset = isIncomingMessage && thread.isGroupThread ? (isRTL ? 22 : -22) : 0
+        let alignmentOffset = isIncomingMessage && thread.isGroupThread ? 22 : 0
         let horizontalEdgeAlignment: ContextMenuTargetedPreviewAccessory.AccessoryAlignment.Edge = isIncomingMessage ? (isRTL ? .trailing : .leading) : (isRTL ? .leading : .trailing)
-        let alignment = ContextMenuTargetedPreviewAccessory.AccessoryAlignment(alignments: [(.top, .exterior), (horizontalEdgeAlignment, .interior)], alignmentOffset: CGPoint(x: alignmnetOffset, y: -12))
+        let alignment = ContextMenuTargetedPreviewAccessory.AccessoryAlignment(alignments: [(.top, .exterior), (horizontalEdgeAlignment, .interior)], alignmentOffset: CGPoint(x: alignmentOffset, y: 12))
         super.init(accessoryView: reactionPicker, accessoryAlignment: alignment)
         reactionPicker.delegate = self
         reactionPicker.isHidden = true
@@ -71,12 +71,12 @@ public class ContextMenuRectionBarAccessory: ContextMenuTargetedPreviewAccessory
     }
 
     @objc
-    func hoverGestureRecognized(sender: UIGestureRecognizer) {
+    private func hoverGestureRecognized(sender: UIGestureRecognizer) {
         reactionPicker.updateFocusPosition(sender.location(in: reactionPicker), animated: true)
     }
 
     @objc
-    func hoverClickGestureRecognized(sender: UIGestureRecognizer) {
+    private func hoverClickGestureRecognized(sender: UIGestureRecognizer) {
         touchLocationInViewDidEnd(locationInView: sender.location(in: reactionPicker))
     }
 
@@ -128,7 +128,7 @@ public class ContextMenuRectionBarAccessory: ContextMenuTargetedPreviewAccessory
 
         reactionPicker.playDismissalAnimation(duration: 0.2) { }
 
-        self.delegate?.contextMenuTargetedPreviewAccessoryRequestsEmojiPicker(self) { emojiString in
+        self.delegate?.contextMenuTargetedPreviewAccessoryRequestsEmojiPicker(for: message, accessory: self) { emojiString in
             let isRemoving = emojiString == self.itemViewModel?.reactionState?.localUserEmoji
             self.didSelectReactionHandler?(message, emojiString, isRemoving)
             self.delegate?.contextMenuTargetedPreviewAccessoryRequestsDismissal(self, completion: { })

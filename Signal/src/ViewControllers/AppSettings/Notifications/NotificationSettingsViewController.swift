@@ -3,15 +3,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalMessaging
+import SignalUI
 
-@objc
 class NotificationSettingsViewController: OWSTableViewController2 {
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        title = NSLocalizedString("SETTINGS_NOTIFICATIONS", comment: "The title for the notification settings.")
+        title = OWSLocalizedString("SETTINGS_NOTIFICATIONS", comment: "The title for the notification settings.")
 
         updateTableContents()
     }
@@ -26,58 +25,58 @@ class NotificationSettingsViewController: OWSTableViewController2 {
         let contents = OWSTableContents()
 
         let soundsSection = OWSTableSection()
-        soundsSection.headerTitle = NSLocalizedString(
+        soundsSection.headerTitle = OWSLocalizedString(
             "SETTINGS_SECTION_SOUNDS",
             comment: "Header Label for the sounds section of settings views."
         )
         soundsSection.add(.disclosureItem(
-            withText: NSLocalizedString(
+            withText: OWSLocalizedString(
                 "SETTINGS_ITEM_NOTIFICATION_SOUND",
                 comment: "Label for settings view that allows user to change the notification sound."
             ),
-            detailText: OWSSounds.displayName(forSound: OWSSounds.globalNotificationSound()),
+            detailText: Sounds.globalNotificationSound.displayName,
             actionBlock: { [weak self] in
                 let vc = NotificationSettingsSoundViewController { self?.updateTableContents() }
                 self?.present(OWSNavigationController(rootViewController: vc), animated: true)
             }
         ))
         soundsSection.add(.switch(
-            withText: NSLocalizedString(
+            withText: OWSLocalizedString(
                 "NOTIFICATIONS_SECTION_INAPP",
                 comment: "Table cell switch label. When disabled, Signal will not play notification sounds while the app is in the foreground."
             ),
-            isOn: { Self.preferences.soundInForeground() },
+            isOn: { Self.preferences.soundInForeground },
             target: self,
             selector: #selector(didToggleSoundNotificationsSwitch)
         ))
-        contents.addSection(soundsSection)
+        contents.add(soundsSection)
 
         let notificationContentSection = OWSTableSection()
-        notificationContentSection.headerTitle = NSLocalizedString(
+        notificationContentSection.headerTitle = OWSLocalizedString(
             "SETTINGS_NOTIFICATION_CONTENT_TITLE",
             comment: "table section header"
         )
-        notificationContentSection.footerTitle = NSLocalizedString(
+        notificationContentSection.footerTitle = OWSLocalizedString(
             "SETTINGS_NOTIFICATION_CONTENT_DESCRIPTION",
             comment: "table section footer"
         )
         notificationContentSection.add(.disclosureItem(
-            withText: NSLocalizedString("NOTIFICATIONS_SHOW", comment: ""),
-            detailText: preferences.name(forNotificationPreviewType: preferences.notificationPreviewType()),
+            withText: OWSLocalizedString("NOTIFICATIONS_SHOW", comment: ""),
+            detailText: preferences.notificationPreviewType.displayName,
             actionBlock: { [weak self] in
                 let vc = NotificationSettingsContentViewController()
                 self?.navigationController?.pushViewController(vc, animated: true)
             }
         ))
-        contents.addSection(notificationContentSection)
+        contents.add(notificationContentSection)
 
         let badgeCountSection = OWSTableSection()
-        badgeCountSection.headerTitle = NSLocalizedString(
+        badgeCountSection.headerTitle = OWSLocalizedString(
             "SETTINGS_NOTIFICATION_BADGE_COUNT_TITLE",
             comment: "table section header"
         )
         badgeCountSection.add(.switch(
-            withText: NSLocalizedString(
+            withText: OWSLocalizedString(
                 "SETTINGS_NOTIFICATION_BADGE_COUNT_INCLUDES_MUTED_CONVERSATIONS",
                 comment: "A setting controlling whether muted conversations are shown in the badge count"
             ),
@@ -87,15 +86,15 @@ class NotificationSettingsViewController: OWSTableViewController2 {
             target: self,
             selector: #selector(didToggleIncludesMutedConversationsInBadgeCountSwitch)
         ))
-        contents.addSection(badgeCountSection)
+        contents.add(badgeCountSection)
 
         let notifyWhenSection = OWSTableSection()
-        notifyWhenSection.headerTitle = NSLocalizedString(
+        notifyWhenSection.headerTitle = OWSLocalizedString(
             "SETTINGS_NOTIFICATION_NOTIFY_WHEN_TITLE",
             comment: "table section header"
         )
         notifyWhenSection.add(.switch(
-            withText: NSLocalizedString(
+            withText: OWSLocalizedString(
                 "SETTINGS_NOTIFICATION_EVENTS_CONTACT_JOINED_SIGNAL",
                 comment: "When the local device discovers a contact has recently installed signal, the app can generates a message encouraging the local user to say hello. Turning this switch off disables that feature."
             ),
@@ -105,49 +104,47 @@ class NotificationSettingsViewController: OWSTableViewController2 {
             target: self,
             selector: #selector(didToggleshouldNotifyOfNewAccountsSwitch)
         ))
-        contents.addSection(notifyWhenSection)
+        contents.add(notifyWhenSection)
 
         let reregisterPushSection = OWSTableSection()
         reregisterPushSection.add(.actionItem(
-            withText: NSLocalizedString("REREGISTER_FOR_PUSH", comment: ""),
+            withText: OWSLocalizedString("REREGISTER_FOR_PUSH", comment: ""),
             actionBlock: { [weak self] in
                 self?.syncPushTokens()
             }
         ))
-        contents.addSection(reregisterPushSection)
+        contents.add(reregisterPushSection)
 
         self.contents = contents
     }
 
     @objc
-    func didToggleSoundNotificationsSwitch(_ sender: UISwitch) {
+    private func didToggleSoundNotificationsSwitch(_ sender: UISwitch) {
         preferences.setSoundInForeground(sender.isOn)
     }
 
     @objc
-    func didToggleIncludesMutedConversationsInBadgeCountSwitch(_ sender: UISwitch) {
-        let currentValue = databaseStorage.read { SSKPreferences.includeMutedThreadsInBadgeCount(transaction: $0) }
-        guard currentValue != sender.isOn else { return }
-        databaseStorage.write { SSKPreferences.setIncludeMutedThreadsInBadgeCount(sender.isOn, transaction: $0) }
-        messageManager.updateApplicationBadgeCount()
+    private func didToggleIncludesMutedConversationsInBadgeCountSwitch(_ sender: UISwitch) {
+        databaseStorage.write { tx in SSKPreferences.setIncludeMutedThreadsInBadgeCount(sender.isOn, transaction: tx) }
+        AppEnvironment.shared.badgeManager.invalidateBadgeValue()
     }
 
     @objc
-    func didToggleshouldNotifyOfNewAccountsSwitch(_ sender: UISwitch) {
+    private func didToggleshouldNotifyOfNewAccountsSwitch(_ sender: UISwitch) {
         let currentValue = databaseStorage.read { Self.preferences.shouldNotifyOfNewAccounts(transaction: $0) }
         guard currentValue != sender.isOn else { return }
-        databaseStorage.write { Self.preferences.shouldNotifyOfNewAccounts(sender.isOn, transaction: $0) }
+        databaseStorage.write { Self.preferences.setShouldNotifyOfNewAccounts(sender.isOn, transaction: $0) }
     }
 
     private func syncPushTokens() {
         let job = SyncPushTokensJob(mode: .forceRotation)
         job.run().done {
-            OWSActionSheets.showActionSheet(title: NSLocalizedString(
+            OWSActionSheets.showActionSheet(title: OWSLocalizedString(
                 "PUSH_REGISTER_SUCCESS",
                 comment: "Title of alert shown when push tokens sync job succeeds."
             ))
         }.catch { _ in
-            OWSActionSheets.showActionSheet(title: NSLocalizedString(
+            OWSActionSheets.showActionSheet(title: OWSLocalizedString(
                 "REGISTRATION_BODY",
                 comment: "Title of alert shown when push tokens sync job fails."
             ))

@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalMessaging
+import SignalUI
 
 public class CVMediaAlbumView: ManualStackViewWithLayer {
     private var items = [CVMediaAlbumItem]()
@@ -127,7 +127,7 @@ public class CVMediaAlbumView: ManualStackViewWithLayer {
 
                 let moreCount = max(1, items.count - CVMediaAlbumView.kMaxItems)
                 let moreCountText = OWSFormat.formatInt(moreCount)
-                let moreText = String(format: NSLocalizedString("MEDIA_GALLERY_MORE_ITEMS_FORMAT",
+                let moreText = String(format: OWSLocalizedString("MEDIA_GALLERY_MORE_ITEMS_FORMAT",
                                                                 comment: "Format for the 'more items' indicator for media galleries. Embeds {{the number of additional items}}."),
                                       moreCountText)
                 let moreLabel = CVLabel()
@@ -168,10 +168,7 @@ public class CVMediaAlbumView: ManualStackViewWithLayer {
                 continue
             }
             let item = items[index]
-            guard let caption = item.caption else {
-                continue
-            }
-            if caption.isEmpty {
+            guard item.hasCaption else {
                 continue
             }
             guard let icon = UIImage(named: "media_album_caption") else {
@@ -572,7 +569,7 @@ public struct CVMediaAlbumItem: Equatable {
     // This property will only be set if the attachment is downloaded and valid.
     public let attachmentStream: TSAttachmentStream?
 
-    public let caption: String?
+    public let hasCaption: Bool
 
     // This property will be non-zero if the attachment is valid.
     //

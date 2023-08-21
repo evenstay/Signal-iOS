@@ -3,11 +3,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalServiceKit
+import SignalUI
 
 // The initial presentation is intended to be indistinguishable from the Launch Screen.
 // After a delay we present some "loading" UI so the user doesn't think the app is frozen.
-@objc
 public class LoadingViewController: UIViewController {
 
     var logoView: UIImageView!
@@ -19,7 +19,7 @@ public class LoadingViewController: UIViewController {
 
     override public func loadView() {
         self.view = UIView()
-        view.backgroundColor = Theme.launchScreenBackground
+        view.backgroundColor = Theme.launchScreenBackgroundColor
 
         self.logoView = UIImageView(image: #imageLiteral(resourceName: "signal-logo-128-launch-screen"))
         view.addSubview(logoView)
@@ -29,14 +29,14 @@ public class LoadingViewController: UIViewController {
 
         self.topLabel = buildLabel()
         topLabel.alpha = 0
-        topLabel.font = UIFont.ows_dynamicTypeTitle2
-        topLabel.text = NSLocalizedString("DATABASE_VIEW_OVERLAY_TITLE", comment: "Title shown while the app is updating its database.")
+        topLabel.font = UIFont.dynamicTypeTitle2
+        topLabel.text = OWSLocalizedString("DATABASE_VIEW_OVERLAY_TITLE", comment: "Title shown while the app is updating its database.")
         labelStack.addArrangedSubview(topLabel)
 
         self.bottomLabel = buildLabel()
         bottomLabel.alpha = 0
-        bottomLabel.font = UIFont.ows_dynamicTypeBody
-        bottomLabel.text = NSLocalizedString("DATABASE_VIEW_OVERLAY_SUBTITLE", comment: "Subtitle shown while the app is updating its database.")
+        bottomLabel.font = UIFont.dynamicTypeBody
+        bottomLabel.text = OWSLocalizedString("DATABASE_VIEW_OVERLAY_SUBTITLE", comment: "Subtitle shown while the app is updating its database.")
         labelStack.addArrangedSubview(bottomLabel)
 
         labelStack.axis = .vertical
@@ -60,7 +60,7 @@ public class LoadingViewController: UIViewController {
                                                object: nil)
         NotificationCenter.default.addObserver(self,
                                                selector: #selector(themeDidChange),
-                                               name: .ThemeDidChange,
+                                               name: .themeDidChange,
                                                object: nil)
     }
 
@@ -112,7 +112,7 @@ public class LoadingViewController: UIViewController {
     // MARK: -
 
     @objc
-    func didBecomeActive() {
+    private func didBecomeActive() {
         AssertIsOnMainThread()
 
         Logger.info("")
@@ -138,7 +138,7 @@ public class LoadingViewController: UIViewController {
     private var viewHasEnteredBackground = false
 
     @objc
-    func didEnterBackground() {
+    private func didEnterBackground() {
         AssertIsOnMainThread()
 
         Logger.info("")
@@ -147,8 +147,8 @@ public class LoadingViewController: UIViewController {
     }
 
     @objc
-    func themeDidChange() {
-        view.backgroundColor = Theme.launchScreenBackground
+    private func themeDidChange() {
+        view.backgroundColor = Theme.launchScreenBackgroundColor
     }
 
     // MARK: Orientation

@@ -39,7 +39,7 @@ class GroupCallErrorView: UIView {
 
     private let label: UILabel = {
         let label = UILabel()
-        label.font = UIFont.ows_dynamicTypeSubheadline
+        label.font = UIFont.dynamicTypeSubheadline
         label.adjustsFontForContentSizeCategory = true
         label.textAlignment = .center
         label.textColor = .ows_white
@@ -48,7 +48,7 @@ class GroupCallErrorView: UIView {
     }()
 
     private lazy var button: UIButton = {
-        let buttonLabel = NSLocalizedString(
+        let buttonLabel = OWSLocalizedString(
             "GROUP_CALL_ERROR_DETAILS",
             comment: "A button to receive more info about not seeing a participant in group call grid")
 
@@ -60,7 +60,7 @@ class GroupCallErrorView: UIView {
         button.clipsToBounds = true
 
         button.titleLabel?.textAlignment = .center
-        button.titleLabel?.font = UIFont.ows_dynamicTypeSubheadline.ows_semibold
+        button.titleLabel?.font = UIFont.dynamicTypeSubheadline.semibold()
         button.setTitle(buttonLabel, for: .normal)
 
         button.addTarget(self, action: #selector(didTapButton), for: .touchUpInside)

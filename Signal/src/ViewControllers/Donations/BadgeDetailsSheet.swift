@@ -77,7 +77,7 @@ class BadgeDetailsSheet: OWSTableSheetViewController {
 
         let focusedBadgeSection = OWSTableSection()
         focusedBadgeSection.hasBackground = false
-        contents.addSection(focusedBadgeSection)
+        contents.add(focusedBadgeSection)
 
         focusedBadgeSection.add(.init(customCellBlock: { [weak self] in
             let cell = OWSTableItem.newCell()
@@ -98,13 +98,13 @@ class BadgeDetailsSheet: OWSTableSheetViewController {
             stackView.setCustomSpacing(14, after: badgeImageView)
 
             let badgeLabel = UILabel()
-            badgeLabel.font = .ows_dynamicTypeTitle3.ows_semibold
+            badgeLabel.font = .dynamicTypeTitle3.semibold()
             badgeLabel.textColor = Theme.primaryTextColor
             badgeLabel.textAlignment = .center
             badgeLabel.numberOfLines = 0
             badgeLabel.text = {
                 if let remoteSupporterName = self.remoteSupporterName {
-                    let format = NSLocalizedString(
+                    let format = OWSLocalizedString(
                         "BADGE_DETAILS_TITLE_FOR_SUPPORTER",
                         comment: "When viewing someone else's donor badge, you'll see a sheet. This is the title on that sheet. Embeds {badge owner's short name}"
                     )
@@ -117,7 +117,7 @@ class BadgeDetailsSheet: OWSTableSheetViewController {
             stackView.setCustomSpacing(36, after: badgeLabel)
 
             let badgeDescription = UILabel()
-            badgeDescription.font = .ows_dynamicTypeBody
+            badgeDescription.font = .dynamicTypeBody
             badgeDescription.textColor = Theme.primaryTextColor
             badgeDescription.textAlignment = .center
             badgeDescription.numberOfLines = 0
@@ -137,11 +137,11 @@ class BadgeDetailsSheet: OWSTableSheetViewController {
 
                 guard let self = self else { return cell }
                 let button = OWSFlatButton.button(
-                    title: NSLocalizedString(
+                    title: OWSLocalizedString(
                         "BADGE_DETAILS_DONATE_TO_SIGNAL",
                         comment: "When viewing someone else's badge, you'll see a sheet. If they got the badge by donating, a \"Donate to Signal\" button will be shown. This is the text in that button."
                     ),
-                    font: UIFont.ows_dynamicTypeBody.ows_semibold,
+                    font: UIFont.dynamicTypeBody.semibold(),
                     titleColor: .white,
                     backgroundColor: .ows_accentBlue,
                     target: self,
@@ -155,7 +155,7 @@ class BadgeDetailsSheet: OWSTableSheetViewController {
                 return cell
             })])
             buttonSection.hasBackground = false
-            contents.addSection(buttonSection)
+            contents.add(buttonSection)
         }
 
     }

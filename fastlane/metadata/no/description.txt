@@ -1,26 +1,19 @@
-Millioner av mennesker bruker Signal gratis hver eneste dag, og kommuniserer uavhengig av hvor de befinner seg i verden. Send og motta høyoppløselige meldinger, delta i HD-lyd og videosamtaler, og utforsk et økende antall new egenskaper som vil hjelpe deg forbli tilkoblet omverden. Signal's avanserte personvern bevarende teknologi er alltid skrudd på, så du kan fokusere på å dele øyeblikkene som betyr noe med de som betyr noe for deg.
+Signal er en meldingsapp som setter personvern i fokus. Den er helt gratis å bruke og har sterk ende-til-ende-kryptering som holder samtalene dine private.
 
-• Si hva som helst - Toppmoderne kryptering (drevet av åpen kildekode-prosjektet Signal Protocol™) holder samtalene dine sikre. Personvern er ikke en alternativ modus  — Det er bare sånn Signal fungerer. Hver melding, hver samtale, hver gang.
+• Send tekst- og talemeldinger, bilder, videoer, GIF-er og filer gratis. Signal bruker telefonens datanettverk, slik at du unngår SMS- og MMS-avgifter.
 
-• Gå fort – Meldinger er levert raskt og pålitelig, til og med på trege internettlinjer. Signal er optimalisert for å fungere i de mest begrensede omgivelser tenkelig.
+• Ring vennene dine med krystallklar lyd og bilde i krypterte samtaler. Gruppesamtaler med plass til opptil 40 personer.
 
-• Føl deg fri – Signal er en uavhengig 501c3 nonprofit-organisasjon. Utviklingen er støttet av brukere som deg. Ingen reklame. Ingen sporing. Ingen spøk.  
+• Hold kontakten, med gruppechatter med plass til opptil 1000 personer. Velg hvem som kan legge ut innlegg og styre medlemslisten via innstillingene for administratortillatelser.
 
-• Vær deg selv – Du kan bruke eksisterende telefonnummer og kontaktliste til å sikkert kommunisere med vennene dine.
+• Del storyer med bilder, tekst og videoer som forsvinner automatisk etter 24 timer. Personverninnstillingene lar deg bestemme nøyaktig hvem som kan se hver story.
 
-• Snakk ut – Enten de bor på andre siden av byen, eller på andre siden av havet, Signal's forbedrede lyd og bildekvalitet vil gi deg følelsen av at familie og venner føles nærmere.
+• Signal er utviklet for å beskytte personvernet ditt. Vi vet ingenting om deg eller hvem du snakker med. Signal-protokollen vår sørger for at vi ikke kan lese meldingene dine eller lytte til samtalene dine. Det kan ingen andre heller. Ingen bakdører, ingen datainnsamling, ingen kompromiss. 
 
-• Hvisk i skyggene  – Bytt til mørkt tema om du nekter å se lyset.
+• Signal er uavhengig og ikke er utviklet for å tjene penger – helt spesiell teknologi fra en helt spesiell organisasjon. Som en amerikansk ideell organisasjon av typen 501c3, støttes vi av pengegaver, ikke av annonsører og investorer. 
 
-• Høres kjent ut – Velg mellom forskjellige varsler for hver kontakt, eller skru av støy helt. Simon & Garfunkel skrev en sang om det i 1964, og du kan få oppleve lyden av stillhet når du vil ved å velge «Ingen» som din varslingslyd. 
+• For brukerstøtte, spørsmål eller mer informasjon kan du gå til https://support.signal.org/
 
-• Se for deg dette – Bruk de innebygde bilderedigerings-funksjonene til å tegne, beskjære eller flippe bildene du sender. Det er til og med et tekstverktøy der du kan legge flere ord til bildene dine som allerede er verdt 1000 ord fra før.
+Besøk https://github.com/signalapp for å se kildekoden vår 
 
-
-For brukerstøtte, spørsmål eller mer informasjon, vennligst besøk:
-https://support.signal.org
-
-Kildekode:
-https://github.com/signalapp
-
-Følg oss på Twitter (@signalapp) og Instagram (@signal_app) for de siste oppdateringene og kunngjøringene.
+Følg oss på Twitter (@signalapp) og Instagram (@signal_app)

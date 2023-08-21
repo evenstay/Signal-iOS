@@ -3,7 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import AVFoundation
+import SignalServiceKit
+import WebRTC
 
 class LocalVideoView: UIView {
     private let localVideoCapturePreview = RTCCameraPreviewView()
@@ -43,7 +45,7 @@ class LocalVideoView: UIView {
     }
 
     @objc
-    func updateLocalVideoOrientation() {
+    private func updateLocalVideoOrientation() {
         defer { localVideoCapturePreview.frame = bounds }
 
         // iPad supports rotating this view controller directly,

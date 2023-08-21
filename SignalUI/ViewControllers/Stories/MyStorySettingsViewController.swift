@@ -86,7 +86,7 @@ private class MyStorySettingsDataSource: NSObject, Dependencies {
         }
 
         let visibilitySection = OWSTableSection()
-        visibilitySection.separatorInsetLeading = NSNumber(value: OWSTableViewController2.cellHInnerMargin + 32)
+        visibilitySection.separatorInsetLeading = OWSTableViewController2.cellHInnerMargin + 32
         switch style {
         case .sheet:
             let headerView = SheetHeaderView(frame: .zero, dataSource: self)
@@ -100,10 +100,10 @@ private class MyStorySettingsDataSource: NSObject, Dependencies {
             let footerTextView = makeWhoCanViewThisTextView(for: style)
             let footerContainer = UIView()
             footerContainer.addSubview(footerTextView)
-            footerTextView.autoPinEdgesToSuperviewEdges(withInsets: .init(hMargin: 32, vMargin: 16))
+            footerTextView.autoPinEdgesToSuperviewEdges(with: .init(hMargin: 32, vMargin: 16))
             visibilitySection.customFooterView = footerContainer
         }
-        contents.addSection(visibilitySection)
+        contents.add(visibilitySection)
 
         let storyViewMode: TSThreadStoryViewMode?
         if hasSetMyStoriesPrivacy {
@@ -209,7 +209,7 @@ private class MyStorySettingsDataSource: NSObject, Dependencies {
             let repliesSection = OWSTableSection()
             repliesSection.headerTitle = StoryStrings.repliesAndReactionsHeader
             repliesSection.footerTitle = StoryStrings.repliesAndReactionsFooter
-            contents.addSection(repliesSection)
+            contents.add(repliesSection)
 
             repliesSection.add(.switch(
                 withText: StoryStrings.repliesAndReactionsToggle,
@@ -223,7 +223,7 @@ private class MyStorySettingsDataSource: NSObject, Dependencies {
     }
 
     @objc
-    func didToggleReplies(_ toggle: UISwitch) {
+    private func didToggleReplies(_ toggle: UISwitch) {
         let myStoryThread: TSPrivateStoryThread! = databaseStorage.read { TSPrivateStoryThread.getMyStory(transaction: $0) }
         guard myStoryThread.allowsReplies != toggle.isOn else { return }
         databaseStorage.write { transaction in
@@ -259,10 +259,10 @@ private class MyStorySettingsDataSource: NSObject, Dependencies {
             imageView.contentMode = .center
             imageView.autoSetDimension(.width, toSize: 24)
             if isSelected {
-                imageView.image = #imageLiteral(resourceName: "check-circle-solid-new-24").withRenderingMode(.alwaysTemplate)
+                imageView.image = Theme.iconImage(.checkCircleFill)
                 imageView.tintColor = Theme.accentBlueColor
             } else {
-                imageView.image = #imageLiteral(resourceName: "empty-circle-outline-24").withRenderingMode(.alwaysTemplate)
+                imageView.image = Theme.iconImage(.circle)
                 imageView.tintColor = .ows_gray25
             }
             hStack.addArrangedSubview(imageView)
@@ -274,7 +274,7 @@ private class MyStorySettingsDataSource: NSObject, Dependencies {
             let titleLabel = UILabel()
             titleLabel.text = title
             titleLabel.numberOfLines = 0
-            titleLabel.font = .ows_dynamicTypeBodyClamped
+            titleLabel.font = .dynamicTypeBodyClamped
             titleLabel.textColor = Theme.primaryTextColor
             vStack.addArrangedSubview(titleLabel)
 
@@ -282,7 +282,7 @@ private class MyStorySettingsDataSource: NSObject, Dependencies {
                 let detailLabel = UILabel()
                 detailLabel.text = detailText
                 detailLabel.numberOfLines = 0
-                detailLabel.font = .ows_dynamicTypeCaption1Clamped
+                detailLabel.font = .dynamicTypeCaption1Clamped
                 detailLabel.textColor = Theme.secondaryTextAndIconColor
                 vStack.addArrangedSubview(detailLabel)
             }
@@ -295,7 +295,7 @@ private class MyStorySettingsDataSource: NSObject, Dependencies {
                 button.setTitle(title, for: .normal)
                 button.setTitleColor(Theme.primaryTextColor, for: .normal)
                 button.setTitleColor(Theme.primaryTextColor.withAlphaComponent(0.6), for: .highlighted)
-                button.titleLabel?.font = .ows_dynamicTypeSubheadlineClamped.ows_semibold
+                button.titleLabel?.font = .dynamicTypeSubheadlineClamped.semibold()
                 button.sizeToFit()
                 cell.accessoryView = button
             case .disclosure:
@@ -322,14 +322,14 @@ private class MyStorySettingsDataSource: NSObject, Dependencies {
                 comment: "Title for the my story settings sheet"
             )
             titleLabel.textAlignment = .center
-            titleLabel.font = .ows_dynamicTypeHeadline.ows_semibold
+            titleLabel.font = .dynamicTypeHeadline.semibold()
             titleLabel.textColor = Theme.primaryTextColor
             addSubview(titleLabel)
 
             addSubview(subtitleView)
 
             doneButton.setTitle(CommonStrings.doneButton, for: .normal)
-            doneButton.titleLabel?.font = .ows_dynamicTypeHeadline.ows_semibold
+            doneButton.titleLabel?.font = .dynamicTypeHeadline.semibold()
             doneButton.setTitleColor(Theme.primaryTextColor, for: .normal)
             doneButton.setTitleColor(Theme.primaryTextColor.withAlphaComponent(0.5), for: .disabled)
             doneButton.addTarget(dataSource, action: #selector(didTapDoneButton), for: .touchUpInside)
@@ -382,7 +382,7 @@ private class MyStorySettingsDataSource: NSObject, Dependencies {
             "\n",
             learnMoreString
         ]).styled(
-            with: .font(.ows_dynamicTypeCaption1Clamped),
+            with: .font(.dynamicTypeCaption1Clamped),
             .color(Theme.secondaryTextAndIconColor),
             .alignment(textAlignment)
         )

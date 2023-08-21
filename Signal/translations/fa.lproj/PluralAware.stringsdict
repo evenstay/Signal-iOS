@@ -93,9 +93,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>این رنگ سفارشی در %1$d چت استفاده شده است. آن را از همه چت‌ها حذف می‌کنید؟</string>
+			<string>این رنگ سفارشی در %1$d گفتگو استفاده شده است. می‌خواهید پاکش کنید؟</string>
 			<key>other</key>
-			<string>این رنگ سفارشی در %1$d چت استفاده شده است. آن را از همه چت‌ها حذف می‌کنید؟</string>
+			<string>این رنگ سفارشی در %1$d گفتگو استفاده شده است. می‌خواهید آن را از همۀ گفتگو‌ها پاک کنید؟</string>
 		</dict>
 	</dict>
 	<key>CHAT_COLOR_SETTINGS_UPDATE_ALERT_MESSAGE_%d</key>
@@ -109,9 +109,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>این رنگ در %1$d چت استفاده شده است. تغییرات را برای همه چت‌ها ذخیره می‌کنید؟</string>
+			<string>این رنگ در %1$d گفتگو استفاده شده است. می‌خواهید تغییرات را برای همۀ گفتگو‌ها ذخیره کنید؟</string>
 			<key>other</key>
-			<string>این رنگ در %1$d چت استفاده شده است. تغییرات را برای تمام چت‌ها ذخیره می‌کنید؟</string>
+			<string>این رنگ در %1$d گفتگو استفاده شده است. می‌خواهید تغییرات را برای همۀ گفتگو‌ها ذخیره کنید؟</string>
 		</dict>
 	</dict>
 	<key>CONVERSATION_DELETE_CONFIRMATIONS_ALERT_TITLE_%d</key>
@@ -125,9 +125,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>چت حذف شود؟</string>
+			<string>گفتگو پاک شود؟</string>
 			<key>other</key>
-			<string>%1$d چت حذف شود؟</string>
+			<string>%1$d گفتگو پاک شود؟</string>
 		</dict>
 	</dict>
 	<key>CONVERSATION_DELETE_CONFIRMATION_ALERT_MESSAGES_%d</key>
@@ -143,7 +143,7 @@
 			<key>one</key>
 			<string>این گفتگو از این دستگاه پاک خواهد شد.</string>
 			<key>other</key>
-			<string>این گفتگوها از این دستگاه پاک خواهد شد.</string>
+			<string>این گفتگوها از این دستگاه پاک خواهند شد.</string>
 		</dict>
 	</dict>
 	<key>CONVERSATION_PICKER_CAN_SELECT_NO_MORE_CONVERSATIONS_%d</key>
@@ -157,9 +157,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>بیشتر از ۱ چت نمی‌توانید انتخاب کنید.</string>
+			<string>نمی‌توانید بیشتر از %1$d گفتگو انتخاب کنید.</string>
 			<key>other</key>
-			<string>بیشتر از %1$d چت نمی‌توانید انتخاب کنید.</string>
+			<string>نمی‌توانید بیشتر از %1$d گفتگو انتخاب کنید.</string>
 		</dict>
 	</dict>
 	<key>CONVERSATION_SEARCH_RESULTS_%d_%d</key>
@@ -264,9 +264,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>پیام حذف شود؟</string>
+			<string>پیام پاک شود؟</string>
 			<key>other</key>
-			<string>%1$d پیام حذف شود؟</string>
+			<string>%1$d پیام پاک شود؟</string>
 		</dict>
 	</dict>
 	<key>EDIT_GROUP_ERROR_CANNOT_ADD_MEMBER_GROUP_FULL_%d</key>
@@ -285,7 +285,7 @@
 			<string>گروه به حداکثر تعداد %1$d عضو رسید.</string>
 		</dict>
 	</dict>
-	<key>EXPIRATION_WARNING_%d</key>
+	<key>EDIT_MESSAGE_SEND_TOO_MANY_EDITS_ERROR</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
 		<string>%#@text@</string>
@@ -296,9 +296,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>نسخه سیگنال شما طی %1$d روز منقضی خواهد شد. برای به‌روزرسانی به آخرین نسخه ضربه بزنید.</string>
+			<string>فقط %1$d ویرایش قابل اعمال به این پیام است.</string>
 			<key>other</key>
-			<string>نسخه سیگنال شما ظرف %1$d روز منقضی خواهد شد. برای به‌روزرسانی به آخرین نسخه ضربه بزنید.</string>
+			<string>فقط %1$d ویرایش قابل اعمال به این پیام است.</string>
 		</dict>
 	</dict>
 	<key>FORWARD_MESSAGE_FIRST_FORWARD_PROCEED_%d</key>
@@ -315,22 +315,6 @@
 			<string>ارسال پیام</string>
 			<key>other</key>
 			<string>ارسال %1$d پیام</string>
-		</dict>
-	</dict>
-	<key>GROUPS_LEGACY_GROUP_DROPPED_MEMBERS_BANNER_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>اضافه کردن دوباره %1$d عضو به گروه جدید ممکن نبود. اکنون می‌خواهید او را اضافه کنید؟</string>
-			<key>other</key>
-			<string>اضافه کردن دوباره %1$d عضو به گروه جدید ممکن نبود. اکنون می‌خواهید آن‌ها را اضافه کنید؟</string>
 		</dict>
 	</dict>
 	<key>GROUPS_TOO_MANY_MEMBERS_ALERT_MESSAGE_%d</key>
@@ -573,22 +557,6 @@
 			<string>%1$d عضو</string>
 		</dict>
 	</dict>
-	<key>GROUP_REMOTE_USER_INVITED_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>%1$d نفر به گروه دعوت شد.</string>
-			<key>other</key>
-			<string>%1$d نفر به گروه دعوت شدند.</string>
-		</dict>
-	</dict>
 	<key>GROUP_REMOTE_USER_INVITED_BY_REMOTE_USER_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -669,38 +637,6 @@
 			<string>استوری گروهی · %1$d بازدیدکننده</string>
 		</dict>
 	</dict>
-	<key>GROUP_WAS_MIGRATED_USERS_DROPPED_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>عضو به گروه جدید اضافه نشد و از گروه حذف شد.</string>
-			<key>other</key>
-			<string>%1$d عضو به گروه جدید اضافه نشدند و از گروه حذف شدند.</string>
-		</dict>
-	</dict>
-	<key>GROUP_WAS_MIGRATED_USERS_INVITED_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>عضو به گروه جدید اضافه نشد و برای پیوستن دعوت شد.</string>
-			<key>other</key>
-			<string>%1$d عضو به گروه جدید اضافه نشدند و برای پیوستن دعوت شدند.</string>
-		</dict>
-	</dict>
 	<key>IMAGE_PICKER_CAN_SELECT_NO_MORE_TOAST_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -733,7 +669,7 @@
 			<string>%1$d گروه مشترک</string>
 		</dict>
 	</dict>
-	<key>MEDIA_GALLERY_DELETE_MESSAGES_%d</key>
+	<key>MEDIA_GALLERY_DELETE_MEDIA_TITLE</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
 		<string>%#@text@</string>
@@ -744,9 +680,25 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>حذف %1$d پیام</string>
+			<string>%1$d مورد پاک شود؟</string>
 			<key>other</key>
-			<string>حذف %1$d پیام</string>
+			<string>%1$d مورد پاک شود؟</string>
+		</dict>
+	</dict>
+	<key>MEDIA_GALLERY_DELETE_MEDIA_TOAST</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>یک مورد پاک شد</string>
+			<key>other</key>
+			<string>%1$d مورد پاک شد</string>
 		</dict>
 	</dict>
 	<key>MEDIA_GALLERY_ITEM_IMAGE_COUNT_%d</key>
@@ -779,6 +731,22 @@
 			<string>%1$d مورد</string>
 			<key>other</key>
 			<string>%1$d مورد</string>
+		</dict>
+	</dict>
+	<key>MEDIA_PAGE_FORWARD_MEDIA_CONFIRM_TITLE_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>بازارسال %1$d</string>
+			<key>other</key>
+			<string>بازارسال %1$d</string>
 		</dict>
 	</dict>
 	<key>MESSAGES_VIEW_GROUP_N_MEMBERS_BLOCKED_%d</key>
@@ -941,22 +909,6 @@
 			<string>%1$d بازدیدکننده</string>
 		</dict>
 	</dict>
-	<key>ONBOARDING_2FA_INVALID_PIN_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@caption@</string>
-		<key>caption</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>پین نادرست است. %1$d تلاش دیگر باقی مانده است.</string>
-			<key>other</key>
-			<string>پین نادرست است. %1$d تلاش دیگر باقی مانده است.</string>
-		</dict>
-	</dict>
 	<key>PENDING_GROUP_MEMBERS_MEMBER_INVITED_USERS_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -1053,36 +1005,20 @@
 			<string>استوری سفارشی · %1$d بازدیدکننده</string>
 		</dict>
 	</dict>
-	<key>REGISTER_2FA_INVALID_PIN_ALERT_MESSAGE_%d</key>
+	<key>REREGISTER_INVALID_PIN_ATTEMPT_COUNT_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@caption@</string>
-		<key>caption</key>
+		<string>%#@text@</string>
+		<key>text</key>
 		<dict>
 			<key>NSStringFormatSpecTypeKey</key>
 			<string>NSStringPluralRuleType</string>
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>%1$d تلاش باقیمانده دارید. اگر فرصت‌هایتان تمام شد، می‌توانید پین جدید ایجاد کنید. می‌توانید ثبت‌نام کنید و از حساب کاربری خود استفاده کنید اما برخی تنظیمات ذخیره‌شده مانند اطلاعات نمایه‌تان را از دست می‌دهید.</string>
+			<string>%1$d تلاش</string>
 			<key>other</key>
-			<string>%1$d تلاش باقیمانده دارید. اگر فرصت‌هایتان تمام شد، می‌توانید پین جدید ایجاد کنید. می‌توانید ثبت‌نام کنید و از حساب کاربری خود استفاده کنید اما برخی تنظیمات ذخیره‌شده مانند اطلاعات نمایه‌تان را از دست می‌دهید.</string>
-		</dict>
-	</dict>
-	<key>REGISTER_2FA_INVALID_PIN_ALERT_MESSAGE_REGLOCK_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@caption@</string>
-		<key>caption</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>%1$d تلاش باقیمانده دارید. اگر فرصت‌هایتان تمام شود، حسابتان قفل خواهد شد. پس از ۷ روز عدم فعالیت، می‌توانید بدون پین دوباره ثبت‌نام کنید. حساب شما پاک خواهد شد و کلیه محتوا حذف می‌شود.</string>
-			<key>other</key>
-			<string>%1$d تلاش باقیمانده دارید. اگر فرصت‌هایتان تمام شود، حسابتان قفل خواهد شد. پس از ۷ روز عدم فعالیت، می‌توانید بدون پین دوباره ثبت‌نام کنید. حساب شما پاک خواهد شد و کلیه محتوا حذف می‌شود.</string>
+			<string>%1$d تلاش</string>
 		</dict>
 	</dict>
 	<key>STORIES_SHARESHEET_PARTIAL_SEND_SUBTITLE_%d</key>

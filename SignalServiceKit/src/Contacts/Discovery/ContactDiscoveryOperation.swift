@@ -6,14 +6,14 @@
 import Foundation
 
 struct DiscoveredContactInfo: Hashable {
-    let e164: String
+    let e164: E164
     let uuid: UUID
 }
 
 /// An item that fetches contact info from the ContactDiscoveryService
 /// Intended to be used by ContactDiscoveryTaskQueue. You probably don't want to use this directly.
 protocol ContactDiscoveryOperation {
-    init(e164sToLookup: Set<String>, mode: ContactDiscoveryMode)
+    init(e164sToLookup: Set<E164>, mode: ContactDiscoveryMode, websocketFactory: WebSocketFactory)
     func perform(on queue: DispatchQueue) -> Promise<Set<DiscoveredContactInfo>>
 }
 
@@ -78,15 +78,8 @@ public class ContactDiscoveryError: NSError, UserErrorDescriptionProvider {
         case generic = 1
         case assertion
 
-        /// An error indicating that the current user has an expired auth token
-        case unauthorized
-        /// An error indicating that a hardcoded resource is unavailable. Best recourse is to update the app.
-        case unexpectedResponse
-        /// An error indicating response timeout.
-        case timeout
         /// An error indicating that the failure was because of a rate limit
         case rateLimit
-
         /// Any generic 4xx error that doesn't fit in the above categories
         case genericClientError
         /// Any generic 5xx error that doesn't fit in the above categories
@@ -106,29 +99,18 @@ extension ContactDiscoveryError: IsRetryableProvider {
     }
 }
 
-struct ContactDiscoveryE164Collection<T: Collection> where T.Element == String {
+struct ContactDiscoveryE164Collection<T: Collection> where T.Element == E164 {
     let values: T
     let encodedValues: Data
 
-    init(_ e164s: T) throws {
+    init(_ e164s: T) {
         self.values = e164s
-        self.encodedValues = try Self.buildEncodedValues(for: e164s)
+        self.encodedValues = Self.buildEncodedValues(for: e164s)
     }
 
-    private static func buildEncodedValues(for e164s: T) throws -> Data {
+    private static func buildEncodedValues(for e164s: T) -> Data {
         var result = Data()
         result.reserveCapacity(MemoryLayout<UInt64>.size * e164s.count)
-        return try e164s.reduce(into: result) { partialResult, e164 in
-            guard e164.first == "+" else {
-                throw ContactDiscoveryError.assertionError(description: "e164 is missing prefix")
-            }
-            guard let numericPortion = UInt64(e164.dropFirst()) else {
-                throw ContactDiscoveryError.assertionError(description: "e164 isn't a number")
-            }
-            guard numericPortion > 99 else {
-                throw ContactDiscoveryError.assertionError(description: "e164 is too short")
-            }
-            partialResult.append(numericPortion.bigEndianData)
-        }
+        return e164s.reduce(into: result) { $0.append($1.uint64Value.bigEndianData) }
     }
 }

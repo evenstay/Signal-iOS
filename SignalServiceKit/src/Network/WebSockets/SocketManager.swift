@@ -7,14 +7,23 @@ import Foundation
 
 @objc
 public class SocketManager: NSObject {
-
-    private let websocketIdentified = OWSWebSocket(webSocketType: .identified)
-    private let websocketUnidentified = OWSWebSocket(webSocketType: .unidentified)
+    private let websocketIdentified: OWSWebSocket
+    private let websocketUnidentified: OWSWebSocket
     private var websockets: [OWSWebSocket] { [ websocketIdentified, websocketUnidentified ]}
 
-    @objc
-    public required override init() {
+    public required init(appExpiry: AppExpiry, db: DB) {
         AssertIsOnMainThread()
+
+        websocketIdentified = OWSWebSocket(
+            webSocketType: .identified,
+            appExpiry: appExpiry,
+            db: db
+        )
+        websocketUnidentified = OWSWebSocket(
+            webSocketType: .unidentified,
+            appExpiry: appExpiry,
+            db: db
+        )
 
         super.init()
 
@@ -56,7 +65,7 @@ public class SocketManager: NSObject {
         assertOnQueue(OWSWebSocket.serialQueue)
 
         let webSocket = self.webSocket(ofType: webSocketType)
-       if webSocket.canMakeRequests {
+        if webSocket.canMakeRequests {
             // The socket is open; proceed.
             return Promise.value(())
         }

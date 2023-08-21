@@ -3,24 +3,21 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalServiceKit
+import UIKit
 
 let CompareSafetyNumbersActivityType = "org.whispersystems.signal.activity.CompareSafetyNumbers"
 
-@objc(OWSCompareSafetyNumbersActivityDelegate)
-public protocol CompareSafetyNumbersActivityDelegate {
+public protocol CompareSafetyNumbersActivityDelegate: AnyObject {
     func compareSafetyNumbersActivitySucceeded(activity: CompareSafetyNumbersActivity)
     func compareSafetyNumbersActivity(_ activity: CompareSafetyNumbersActivity, failedWithError error: Error)
 }
 
-@objc(OWSCompareSafetyNumbersActivity)
 public class CompareSafetyNumbersActivity: UIActivity {
 
     var mySafetyNumbers: String?
     weak var delegate: CompareSafetyNumbersActivityDelegate?
 
-    @objc
     required init(delegate: CompareSafetyNumbersActivityDelegate) {
         self.delegate = delegate
         super.init()
@@ -35,10 +32,10 @@ public class CompareSafetyNumbersActivity: UIActivity {
     }
 
     public override var activityTitle: String? {
-        NSLocalizedString("COMPARE_SAFETY_NUMBER_ACTION", comment: "Activity Sheet label")
+        OWSLocalizedString("COMPARE_SAFETY_NUMBER_ACTION", comment: "Activity Sheet label")
     }
 
-    public override var activityImage: UIImage? { #imageLiteral(resourceName: "ic_lock_outline") }
+    public override var activityImage: UIImage? { UIImage(imageLiteralResourceName: "lock") }
 
     public override func canPerform(withActivityItems activityItems: [Any]) -> Bool {
         return stringsFrom(activityItems: activityItems).count > 0
@@ -62,7 +59,7 @@ public class CompareSafetyNumbersActivity: UIActivity {
               pasteboardString.count == 60 else {
             Logger.warn("no valid safety numbers found in pasteboard: \(String(describing: pasteboardNumerics))")
             let error = OWSError(error: .userError,
-                                 description: NSLocalizedString("PRIVACY_VERIFICATION_FAILED_NO_SAFETY_NUMBERS_IN_CLIPBOARD", comment: "Alert body for user error"),
+                                 description: OWSLocalizedString("PRIVACY_VERIFICATION_FAILED_NO_SAFETY_NUMBERS_IN_CLIPBOARD", comment: "Alert body for user error"),
                                  isRetryable: false)
 
             delegate.compareSafetyNumbersActivity(self, failedWithError: error)
@@ -77,7 +74,7 @@ public class CompareSafetyNumbersActivity: UIActivity {
         } else {
             Logger.warn("local numbers: \(String(describing: mySafetyNumbers)) didn't match pasteboard:\(pasteboardSafetyNumbers)")
             let error = OWSError(error: .privacyVerificationFailure,
-                                 description: NSLocalizedString("PRIVACY_VERIFICATION_FAILED_MISMATCHED_SAFETY_NUMBERS_IN_CLIPBOARD", comment: "Alert body"),
+                                 description: OWSLocalizedString("PRIVACY_VERIFICATION_FAILED_MISMATCHED_SAFETY_NUMBERS_IN_CLIPBOARD", comment: "Alert body"),
                                  isRetryable: false)
             delegate.compareSafetyNumbersActivity(self, failedWithError: error)
         }

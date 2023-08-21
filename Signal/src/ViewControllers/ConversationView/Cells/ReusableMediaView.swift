@@ -3,7 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalCoreKit
+import SignalServiceKit
+import SignalUI
 import YYImage
 
 // MARK: -
@@ -124,7 +126,7 @@ public class ReusableMediaView: NSObject {
     }
 
     // TODO: It would be preferable to figure out some way to use ReverseDispatchQueue.
-    private static let serialQueue = DispatchQueue(label: "org.signal.reusableMediaView")
+    private static let serialQueue = DispatchQueue(label: "org.signal.reusable-media-view")
 
     private func tryToLoadMedia() {
         AssertIsOnMainThread()
@@ -189,11 +191,11 @@ public class ReusableMediaView: NSObject {
                 throw ReusableMediaError.redundantLoad
             }
             return mediaViewAdapter.loadMedia()
-        }.done(on: .main) { (media: AnyObject) in
+        }.done(on: DispatchQueue.main) { (media: AnyObject) in
             mediaCache.setMedia(media, forKey: cacheKey, isAnimated: mediaViewAdapter.shouldBeRenderedByYY)
 
             loadCompletion(media)
-        }.catch(on: .main) { (error: Error) in
+        }.catch(on: DispatchQueue.main) { (error: Error) in
             switch error {
             case ReusableMediaError.redundantLoad,
                  ReusableMediaError.invalidMedia:

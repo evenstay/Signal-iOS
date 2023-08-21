@@ -10,6 +10,8 @@ NS_ASSUME_NONNULL_BEGIN
 extern const NSUInteger kOWSProfileManager_MaxAvatarDiameterPixels;
 extern NSString *const kNSNotificationKey_UserProfileWriter;
 
+@protocol RecipientHidingManager;
+
 @class MessageSender;
 @class OWSAES256Key;
 @class OWSUserProfile;
@@ -29,7 +31,6 @@ typedef void (^ProfileManagerFailureBlock)(NSError *error);
 @property (nonatomic, readonly, nullable) NSString *fullName;
 @property (nonatomic, readonly, nullable) NSString *bio;
 @property (nonatomic, readonly, nullable) NSString *bioEmoji;
-@property (nonatomic, readonly, nullable) NSString *username;
 
 @property (nonatomic, readonly, nullable) NSData *avatarData;
 @property (nonatomic, readonly, nullable) NSArray<OWSUserProfileBadgeInfo *> *profileBadgeInfo;
@@ -69,7 +70,6 @@ typedef void (^ProfileManagerFailureBlock)(NSError *error);
 - (nullable NSString *)localGivenName;
 - (nullable NSString *)localFamilyName;
 - (nullable NSString *)localFullName;
-- (nullable NSString *)localUsername;
 - (nullable UIImage *)localProfileAvatarImage;
 - (nullable NSData *)localProfileAvatarData;
 - (nullable NSArray<OWSUserProfileBadgeInfo *> *)localProfileBadgeInfo;
@@ -77,21 +77,11 @@ typedef void (^ProfileManagerFailureBlock)(NSError *error);
 - (OWSProfileSnapshot *)localProfileSnapshotWithShouldIncludeAvatar:(BOOL)shouldIncludeAvatar
     NS_SWIFT_NAME(localProfileSnapshot(shouldIncludeAvatar:));
 
-- (void)updateLocalUsername:(nullable NSString *)username
-          userProfileWriter:(UserProfileWriter)userProfileWriter
-                transaction:(SDSAnyWriteTransaction *)transaction;
-
 - (BOOL)isProfileNameTooLong:(nullable NSString *)profileName;
 
 + (NSData *)avatarDataForAvatarImage:(UIImage *)image;
 
-- (void)fetchLocalUsersProfile;
-
-// The completions are invoked on the main thread.
-- (void)fetchProfileForUsername:(NSString *)username
-                        success:(void (^)(SignalServiceAddress *))successHandler
-                       notFound:(void (^)(void))notFoundHandler
-                        failure:(void (^)(NSError *))failureHandler;
+- (void)fetchLocalUsersProfileWithAuthedAccount:(AuthedAccount *)authedAccount;
 
 #pragma mark - Local Profile Updates
 
@@ -113,9 +103,8 @@ typedef void (^ProfileManagerFailureBlock)(NSError *error);
 - (void)debug_regenerateLocalProfileWithSneakyTransaction;
 - (void)setLocalProfileKey:(OWSAES256Key *)key
          userProfileWriter:(UserProfileWriter)userProfileWriter
+             authedAccount:(AuthedAccount *)authedAccount
                transaction:(SDSAnyWriteTransaction *)transaction;
-
-- (void)setContactAddresses:(NSArray<SignalServiceAddress *> *)contactAddresses;
 
 #pragma mark - Other User's Profiles
 
@@ -136,10 +125,8 @@ typedef void (^ProfileManagerFailureBlock)(NSError *error);
 
 - (nullable UIImage *)profileAvatarForAddress:(SignalServiceAddress *)address
                             downloadIfMissing:(BOOL)downloadIfMissing
+                                authedAccount:(AuthedAccount *)authedAccount
                                   transaction:(SDSAnyReadTransaction *)transaction;
-
-- (nullable NSString *)usernameForAddress:(SignalServiceAddress *)address
-                              transaction:(SDSAnyReadTransaction *)transaction;
 
 - (nullable NSString *)profileBioForDisplayForAddress:(SignalServiceAddress *)address
                                           transaction:(SDSAnyReadTransaction *)transaction;
@@ -155,7 +142,7 @@ typedef void (^ProfileManagerFailureBlock)(NSError *error);
 
 - (NSString *)groupKeyForGroupId:(NSData *)groupId;
 
-#ifdef DEBUG
+#ifdef USE_DEBUG_UI
 + (void)discardAllProfileKeysWithTransaction:(SDSAnyWriteTransaction *)transaction;
 
 - (void)logLocalProfile;

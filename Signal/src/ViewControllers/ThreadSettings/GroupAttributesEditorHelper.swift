@@ -3,9 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalMessaging
-import UIKit
+import SignalUI
 
 protocol GroupAttributesEditorHelperDelegate: AnyObject {
     func groupAttributesEditorContentsDidChange()
@@ -139,17 +138,17 @@ class GroupAttributesEditorHelper: NSObject {
         cameraCornerButton.autoPinEdge(toSuperviewEdge: .bottom)
 
         nameTextField.text = groupNameOriginal
-        nameTextField.font = .ows_dynamicTypeBody
+        nameTextField.font = .dynamicTypeBody
         nameTextField.backgroundColor = .clear
         nameTextField.textColor = Theme.primaryTextColor
         nameTextField.delegate = self
         nameTextField.addTarget(self, action: #selector(textFieldDidChange), for: .editingChanged)
-        nameTextField.placeholder = NSLocalizedString("GROUP_NAME_PLACEHOLDER",
+        nameTextField.placeholder = OWSLocalizedString("GROUP_NAME_PLACEHOLDER",
                                                       comment: "Placeholder text for 'group name' field.")
 
         descriptionTextView.text = groupDescriptionOriginal
         descriptionTextView.delegate = self
-        descriptionTextView.placeholderText = NSLocalizedString("GROUP_DESCRIPTION_PLACEHOLDER",
+        descriptionTextView.placeholderText = OWSLocalizedString("GROUP_DESCRIPTION_PLACEHOLDER",
                                                                 comment: "Placeholder text for 'group description' field.")
     }
 
@@ -173,7 +172,8 @@ class GroupAttributesEditorHelper: NSObject {
         cameraImageContainer.addSubview(secondaryShadowView)
         secondaryShadowView.autoPinEdgesToSuperviewEdges()
 
-        let cameraImageView = UIImageView.withTemplateImageName("camera-outline-32", tintColor: Theme.isDarkThemeEnabled ? .ows_gray80 : .ows_black)
+        let cameraImageView = UIImageView(image: Theme.iconImage(.buttonCamera))
+        cameraImageView.tintColor = Theme.isDarkThemeEnabled ? .ows_gray80 : .ows_black
         cameraImageView.autoSetDimensions(to: CGSize.square(20))
         cameraImageView.contentMode = .scaleAspectFit
 
@@ -185,7 +185,7 @@ class GroupAttributesEditorHelper: NSObject {
 
     public static func buildCameraButtonForCenter() -> UIView {
         let cameraImageView = UIImageView()
-        cameraImageView.setTemplateImageName("camera-outline-24", tintColor: Theme.primaryIconColor)
+        cameraImageView.setTemplateImageName("camera", tintColor: Theme.primaryIconColor)
         let iconSize: CGFloat = 32
         cameraImageView.autoSetDimensions(to: CGSize(square: iconSize))
         return cameraImageView
@@ -219,7 +219,7 @@ class GroupAttributesEditorHelper: NSObject {
                 return nil
             }
             guard let groupAvatar = GroupAvatar.build(image: image) else {
-                OWSActionSheets.showErrorAlert(message: NSLocalizedString("EDIT_GROUP_ERROR_INVALID_AVATAR",
+                OWSActionSheets.showErrorAlert(message: OWSLocalizedString("EDIT_GROUP_ERROR_INVALID_AVATAR",
                                                                           comment: "Error message indicating that an avatar image is invalid and cannot be used."))
                 owsFailDebug("Invalid image.")
                 return nil
@@ -235,7 +235,7 @@ class GroupAttributesEditorHelper: NSObject {
     // MARK: - Events
 
     @objc
-    func textFieldDidChange(_ textField: UITextField) {
+    private func textFieldDidChange(_ textField: UITextField) {
         delegate?.groupAttributesEditorContentsDidChange()
     }
 

@@ -51,7 +51,7 @@ public class LinkPreviewGroupLink: LinkPreviewState {
     }
 
     public var title: String? {
-        groupInviteLinkPreview?.title.filterForDisplay?.nilIfEmpty
+        groupInviteLinkPreview?.title.filterForDisplay.nilIfEmpty
     }
 
     public var imageState: LinkPreviewImageState {
@@ -123,9 +123,9 @@ public class LinkPreviewGroupLink: LinkPreviewState {
     public var activityIndicatorStyle: UIActivityIndicatorView.Style {
         switch linkType {
         case .incomingMessageGroupInviteLink:
-            return .gray
+            return .medium
         case .outgoingMessageGroupInviteLink:
-            return .white
+            return .medium
         default:
             return LinkPreviewView.defaultActivityIndicatorStyle
         }

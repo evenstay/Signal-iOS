@@ -3,10 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalMessaging
 import SignalServiceKit
-import UIKit
+import SignalUI
 
 protocol StoryGroupReplyDelegate: AnyObject {
     func storyGroupReplyViewControllerDidBeginEditing(_ storyGroupReplyViewController: StoryGroupReplyViewController)
@@ -17,8 +16,10 @@ class StoryGroupReplyViewController: OWSViewController, StoryReplySheet {
 
     private(set) lazy var tableView = UITableView()
 
+    private let spoilerState: SpoilerRenderState
+
     let bottomBar = UIView()
-    private(set) lazy var inputToolbar = StoryReplyInputToolbar()
+    private(set) lazy var inputToolbar = StoryReplyInputToolbar(isGroupStory: true, spoilerState: spoilerState)
     private lazy var bottomBarBottomConstraint = bottomBar.autoPinEdge(toSuperviewEdge: .bottom)
     private lazy var contextMenu = ContextMenuInteraction(delegate: self)
 
@@ -38,10 +39,18 @@ class StoryGroupReplyViewController: OWSViewController, StoryReplySheet {
 
     private lazy var emptyStateView: UIView = {
         let label = UILabel()
-        label.font = .ows_dynamicTypeBody
         label.textColor = .ows_gray45
         label.textAlignment = .center
-        label.text = NSLocalizedString("STORIES_NO_REPLIES_YET", comment: "Indicates that this story has no replies yet")
+        label.numberOfLines = 2
+        label.attributedText = NSAttributedString(
+            string: OWSLocalizedString("STORIES_NO_REPLIES_YET", comment: "Indicates that this story has no replies yet"),
+            attributes: [NSAttributedString.Key.font: UIFont.dynamicTypeHeadline]
+        ).stringByAppendingString(
+            "\n"
+        ).stringByAppendingString(
+            OWSLocalizedString("STORIES_NO_REPLIES_SUBTITLE", comment: "The subtitle when this story has no replies"),
+            attributes: [NSAttributedString.Key.font: UIFont.dynamicTypeSubheadline]
+        )
         label.isHidden = true
         label.isUserInteractionEnabled = false
         return label
@@ -53,8 +62,9 @@ class StoryGroupReplyViewController: OWSViewController, StoryReplySheet {
     var reactionPickerBackdrop: UIView?
     var reactionPicker: MessageReactionPicker?
 
-    init(storyMessage: StoryMessage) {
+    init(storyMessage: StoryMessage, spoilerState: SpoilerRenderState) {
         self.storyMessage = storyMessage
+        self.spoilerState = spoilerState
 
         super.init()
 
@@ -109,7 +119,7 @@ class StoryGroupReplyViewController: OWSViewController, StoryReplySheet {
 
     func didSendMessage() {
         replyLoader?.reload()
-        inputToolbar.messageBody = nil
+        inputToolbar.setMessageBody(nil, txProvider: DependenciesBridge.shared.db.readTxProvider)
     }
 }
 
@@ -141,84 +151,35 @@ extension StoryGroupReplyViewController: UITableViewDelegate {
 
         guard case .failed = item.recipientStatus else { return }
 
-        do {
-            try askToResendMessage(for: item)
-        } catch {
-            owsFailDebug("Failed to resend story reply \(error)")
-        }
+        askToResendMessage(for: item)
     }
 
-    private func askToResendMessage(for item: StoryGroupReplyViewItem) throws {
-        let (failedMessage, messageToSend) = try databaseStorage.read { transaction -> (TSOutgoingMessage, TSOutgoingMessage) in
-            guard let message = TSOutgoingMessage.anyFetchOutgoingMessage(
-                uniqueId: item.interactionUniqueId,
-                transaction: transaction
-            ) else {
-                throw OWSAssertionError("Missing original message")
-            }
-
-            // If the message was remotely deleted, resend a *delete* message rather than the message itself.
-            if message.wasRemotelyDeleted {
-                guard let thread = thread else {
-                    throw OWSAssertionError("Missing thread")
-                }
-
-                return (message, TSOutgoingDeleteMessage(thread: thread, message: message, transaction: transaction))
-            } else {
-                return (message, message)
-            }
+    private func askToResendMessage(for item: StoryGroupReplyViewItem) {
+        let message = databaseStorage.read { tx in
+            TSOutgoingMessage.anyFetchOutgoingMessage(uniqueId: item.interactionUniqueId, transaction: tx)
         }
-
-        guard !askToConfirmSafetyNumberChangesIfNecessary(for: failedMessage, messageToSend: messageToSend) else { return }
-
-        let actionSheet = ActionSheetController(
-            message: failedMessage.mostRecentFailureText
+        guard let message else {
+            return
+        }
+        let promptBuilder = ResendMessagePromptBuilder(
+            databaseStorage: databaseStorage,
+            messageSenderJobQueue: sskJobQueues.messageSenderJobQueue
         )
-        actionSheet.addAction(OWSActionSheets.cancelAction)
-
-        actionSheet.addAction(ActionSheetAction(
-            title: CommonStrings.deleteForMeButton,
-            style: .destructive
-        ) { _ in
-            Self.databaseStorage.write { transaction in
-                failedMessage.anyRemove(transaction: transaction)
-            }
-        })
-
-        actionSheet.addAction(ActionSheetAction(
-            title: NSLocalizedString("SEND_AGAIN_BUTTON", comment: ""),
-            style: .default
-        ) { _ in
-            Self.databaseStorage.write { transaction in
-                Self.sskJobQueues.messageSenderJobQueue.add(
-                    message: messageToSend.asPreparer,
-                    transaction: transaction
-                )
-            }
-        })
-
-        self.presentActionSheet(actionSheet)
+        self.present(promptBuilder.build(for: message), animated: true)
     }
 
-    private func askToConfirmSafetyNumberChangesIfNecessary(for failedMessage: TSOutgoingMessage, messageToSend: TSOutgoingMessage) -> Bool {
-        let recipientsWithChangedSafetyNumber = failedMessage.failedRecipientAddresses(errorCode: UntrustedIdentityError.errorCode)
-        guard !recipientsWithChangedSafetyNumber.isEmpty else { return false }
-
-        let sheet = SafetyNumberConfirmationSheet(
-            addressesToConfirm: recipientsWithChangedSafetyNumber,
-            confirmationText: MessageStrings.sendButton
-        ) { confirmedSafetyNumberChange in
-            guard confirmedSafetyNumberChange else { return }
-            Self.databaseStorage.write { transaction in
-                Self.sskJobQueues.messageSenderJobQueue.add(
-                    message: messageToSend.asPreparer,
-                    transaction: transaction
-                )
-            }
+    func tableView(_ tableView: UITableView, willDisplay cell: UITableViewCell, forRowAt indexPath: IndexPath) {
+        guard let cell = cell as? StoryGroupReplyCell else {
+            return
         }
-        self.present(sheet, animated: true, completion: nil)
+        cell.setIsCellVisible(true)
+    }
 
-        return true
+    func tableView(_ tableView: UITableView, didEndDisplaying cell: UITableViewCell, forRowAt indexPath: IndexPath) {
+        guard let cell = cell as? StoryGroupReplyCell else {
+            return
+        }
+        cell.setIsCellVisible(false)
     }
 }
 
@@ -230,7 +191,7 @@ extension StoryGroupReplyViewController: UITableViewDataSource {
         }
 
         let cell = tableView.dequeueReusableCell(withIdentifier: item.cellType.rawValue, for: indexPath) as! StoryGroupReplyCell
-        cell.configure(with: item)
+        cell.configure(with: item, spoilerState: spoilerState)
 
         return cell
     }
@@ -276,13 +237,15 @@ extension StoryGroupReplyViewController: InputAccessoryViewPlaceholderDelegate {
             return
         }
 
-        UIView.beginAnimations("keyboardStateChange", context: nil)
-        UIView.setAnimationBeginsFromCurrentState(true)
-        UIView.setAnimationCurve(animationCurve)
-        UIView.setAnimationDuration(animationDuration)
-        updateBottomBarPosition()
-        updateContentInsets(animated: true)
-        UIView.commitAnimations()
+        UIView.animate(
+            withDuration: animationDuration,
+            delay: 0,
+            options: animationCurve.asAnimationOptions,
+            animations: { [self] in
+                self.updateBottomBarPosition()
+                self.updateContentInsets(animated: true)
+            }
+        )
     }
 
     func updateBottomBarPosition() {
@@ -343,8 +306,8 @@ extension StoryGroupReplyViewController: InputAccessoryViewPlaceholderDelegate {
                 bottomBar.removeAllSubviews()
 
                 let label = UILabel()
-                label.font = .ows_dynamicTypeSubheadline
-                label.text = NSLocalizedString(
+                label.font = .dynamicTypeSubheadline
+                label.text = OWSLocalizedString(
                     "STORIES_GROUP_REPLY_NOT_A_MEMBER",
                     comment: "Text indicating you can't reply to a group story because you're not a member of the group"
                 )
@@ -396,21 +359,21 @@ extension StoryGroupReplyViewController: ContextMenuInteractionDelegate {
 
             if !item.cellType.isReaction {
                 actions.append(.init(
-                    title: NSLocalizedString(
+                    title: OWSLocalizedString(
                         "STORIES_COPY_REPLY_ACTION",
                         comment: "Context menu action to copy the selected story reply"),
-                    image: Theme.iconImage(.messageActionCopy, isDarkThemeEnabled: true),
+                    image: Theme.iconImage(.contextMenuCopy, isDarkThemeEnabled: true),
                     handler: { _ in
                         guard let displayableText = item.displayableText else { return }
-                        MentionTextView.copyAttributedStringToPasteboard(displayableText.fullAttributedText)
+                        BodyRangesTextView.copyToPasteboard(displayableText.fullTextValue)
                     }))
             }
 
             actions.append(.init(
-                title: NSLocalizedString(
+                title: OWSLocalizedString(
                     "STORIES_DELETE_REPLY_ACTION",
                     comment: "Context menu action to delete the selected story reply"),
-                image: Theme.iconImage(.messageActionDelete, isDarkThemeEnabled: true),
+                image: Theme.iconImage(.contextMenuDelete, isDarkThemeEnabled: true),
                 attributes: .destructive,
                 handler: { [weak self] _ in
                     guard let self = self else { return }
@@ -431,10 +394,10 @@ extension StoryGroupReplyViewController: ContextMenuInteractionDelegate {
 
         let targetedPreview = ContextMenuTargetedPreview(
             view: cell,
-            alignment: .leading,
+            alignment: CurrentAppContext().isRTL ? .right : .left,
             accessoryViews: nil
         )
-        targetedPreview?.alignmentOffset = CGPoint(x: 52, y: 12)
+        targetedPreview?.alignmentOffset = CGPoint(x: -52, y: 12)
 
         return targetedPreview
     }

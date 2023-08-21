@@ -3,14 +3,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalServiceKit
+import SignalUI
 
-@objc
 class DataSettingsTableViewController: OWSTableViewController2 {
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        title = NSLocalizedString("SETTINGS_DATA_TITLE", comment: "The title for the data settings.")
+        title = OWSLocalizedString("SETTINGS_DATA_TITLE", comment: "The title for the data settings.")
 
         updateTableContents()
 
@@ -33,11 +33,11 @@ class DataSettingsTableViewController: OWSTableViewController2 {
         defer { self.contents = contents }
 
         let autoDownloadSection = OWSTableSection()
-        autoDownloadSection.headerTitle = NSLocalizedString(
+        autoDownloadSection.headerTitle = OWSLocalizedString(
             "SETTINGS_DATA_MEDIA_AUTO_DOWNLOAD_HEADER",
             comment: "Header for the 'media auto-download' section in the data settings."
         )
-        autoDownloadSection.footerTitle = NSLocalizedString(
+        autoDownloadSection.footerTitle = OWSLocalizedString(
             "SETTINGS_DATA_MEDIA_AUTO_DOWNLOAD_FOOTER",
             comment: "Footer for the 'media auto-download' section in the data settings."
         )
@@ -69,7 +69,7 @@ class DataSettingsTableViewController: OWSTableViewController2 {
             })
         }
 
-        let resetCopy = NSLocalizedString(
+        let resetCopy = OWSLocalizedString(
             "SETTINGS_DATA_MEDIA_AUTO_DOWNLOAD_RESET",
             comment: "Label for for the 'reset media auto-download settings' button in the data settings."
         )
@@ -91,19 +91,19 @@ class DataSettingsTableViewController: OWSTableViewController2 {
                 accessibilityIdentifier: resetAccessibilityIdentifier
             ))
         }
-        contents.addSection(autoDownloadSection)
+        contents.add(autoDownloadSection)
 
         let sentMediaSection = OWSTableSection()
-        sentMediaSection.headerTitle = NSLocalizedString(
+        sentMediaSection.headerTitle = OWSLocalizedString(
             "SETTINGS_DATA_SENT_MEDIA_SECTION_HEADER",
             comment: "Section header for the sent media section in data settings"
         )
-        sentMediaSection.footerTitle = NSLocalizedString(
+        sentMediaSection.footerTitle = OWSLocalizedString(
             "SETTINGS_DATA_SENT_MEDIA_SECTION_FOOTER",
             comment: "Section footer for the sent media section in data settings"
         )
         sentMediaSection.add(.disclosureItem(
-            withText: NSLocalizedString(
+            withText: OWSLocalizedString(
                 "SETTINGS_DATA_SENT_MEDIA_QUALITY_ITEM_TITLE",
                 comment: "Item title for the sent media quality setting"
             ),
@@ -112,56 +112,56 @@ class DataSettingsTableViewController: OWSTableViewController2 {
                 self?.showSentMediaQualityPreferences()
             }
         ))
-        contents.addSection(sentMediaSection)
+        contents.add(sentMediaSection)
 
         let callsSection = OWSTableSection()
-        callsSection.headerTitle = NSLocalizedString(
+        callsSection.headerTitle = OWSLocalizedString(
             "SETTINGS_DATA_CALL_SECTION_HEADER",
             comment: "Section header for the call section in data settings"
         )
-        callsSection.footerTitle = NSLocalizedString(
+        callsSection.footerTitle = OWSLocalizedString(
             "SETTINGS_DATA_CALL_SECTION_FOOTER",
             comment: "Section footer for the call section in data settings"
         )
 
-        let currentCallBandwidthPreference = databaseStorage.read { transaction in
-            CallService.highBandwidthNetworkInterfaces(readTx: transaction).inverted
+        let currentCallDataPreference = databaseStorage.read { transaction in
+            CallService.highDataNetworkInterfaces(readTx: transaction).inverted
         }
-        let currentCallBandwidthPreferenceString = NetworkInterfacePreferenceViewController.name(
-            forInterfaceSet: currentCallBandwidthPreference
+        let currentCallDataPreferenceString = NetworkInterfacePreferenceViewController.name(
+            forInterfaceSet: currentCallDataPreference
         )
 
         callsSection.add(.disclosureItem(
-            withText: NSLocalizedString(
+            withText: OWSLocalizedString(
                 "SETTINGS_DATA_CALL_LOW_BANDWIDTH_ITEM_TITLE",
                 comment: "Item title for the low bandwidth call setting"),
-            detailText: currentCallBandwidthPreferenceString ?? "",
+            detailText: currentCallDataPreferenceString ?? "",
             actionBlock: { [weak self] in
-                self?.showCallBandwidthPreferences()
+                self?.showCallDataPreferences()
             }
         ))
 
-        contents.addSection(callsSection)
+        contents.add(callsSection)
     }
 
     // MARK: - Events
 
-    private func showCallBandwidthPreferences() {
-        let currentLowBandwidthPreference = databaseStorage.read { readTx in
-            CallService.highBandwidthNetworkInterfaces(readTx: readTx).inverted
+    private func showCallDataPreferences() {
+        let currentLowDataPreference = databaseStorage.read { readTx in
+            CallService.highDataNetworkInterfaces(readTx: readTx).inverted
         }
 
         let vc = NetworkInterfacePreferenceViewController(
-            selectedOption: currentLowBandwidthPreference,
+            selectedOption: currentLowDataPreference,
             availableOptions: [.none, .cellular, .wifiAndCellular],
-            updateHandler: { [weak self] newLowBandwidthPref in
+            updateHandler: { [weak self] newLowDataPref in
                 self?.databaseStorage.write { writeTx in
-                    let newHighBandwidthPref = newLowBandwidthPref.inverted
-                    CallService.setHighBandwidthInterfaces(newHighBandwidthPref, writeTx: writeTx)
+                    let newHighDataPref = newLowDataPref.inverted
+                    CallService.setHighDataInterfaces(newHighDataPref, writeTx: writeTx)
                 }
             })
 
-        vc.title = NSLocalizedString(
+        vc.title = OWSLocalizedString(
             "SETTINGS_DATA_CALL_LOW_BANDWIDTH_ITEM_TITLE",
             comment: "Item title for the low bandwidth call setting")
         navigationController?.pushViewController(vc, animated: true)
@@ -183,7 +183,7 @@ class DataSettingsTableViewController: OWSTableViewController2 {
     }
 
     @objc
-    func preferencesDidChange() {
+    private func preferencesDidChange() {
         AssertIsOnMainThread()
 
         updateTableContents()

@@ -1,26 +1,19 @@
-Milliók használják napi szinten a Signal alkalmazást azonnali, ingyenes kommunikációra szerte a világon. Küldj és fogadj nagy felbontású üzeneteket, vegyél részt HD hang/videó hívásokban, fedezd fel az új szolgáltatásokat, amelyek a kapcsolattartást segítik. A Signal fejlett adatvédelmi technológiája mindig aktív, így arra fókuszálhatsz hogy a számodra fontos pillanatokat megoszthasd a számodra fontos emberekkel.
+A Signal egy olyan üzenetküldő alkalmazás, amelynek középpontjában az adatvédelem áll. Ingyenes és könnyen használható, erős végpontok közötti titkosítással, amely gondoskodik róla, hogy a kommunikáció teljesen privát legyen.
 
-• Mondj bármit – A csúcstechnológiájú végponttól végpontig terjedő titkosítás (a nyílt forrású Signal Protocol™ segítségével) óvja beszélgetéseid biztonságát. Az adatvédelem többé nem csak egy opció, hanem a mód, ahogy a Signal működik. Minden üzenetnél, minden hívásnál, minden esetben.
+• Ingyenesen küldhetsz szöveges üzeneteket, hangüzeneteket, fotókat, videókat, GIF-eket és fájlokat. A Signal a telefon adatkapcsolatát használja, így elkerülheted az SMS- és MMS-díjakat.
 
-• Gyorsulj fel – Az üzenetek gyorsan és megbízhatóan kézbesülnek, még lassú hálózatokon is. A Signal korlátozott környezetben működésre optimalizált.
+• Hívd barátaidat kristálytiszta, titkosított hang- és videohívásokkal. Csoportos hívások, akár 40 főig.
 
-• Légy szabad – A Signal egy 501c3 besorolású, teljesen független, nonprofit szervezet. A fejlesztést hozzád hasonló felhasználók támogatják. Nincs reklám. Nincs követés. Nincs trükk.
+• Kapcsolódj akár 1000 fős csoportos csevegésekkel. Adminisztrátori jogosultságokkal szabályozhatod, hogy kik posztolhatnak és kezelhetik a csoporttagokat.
 
-• Légy önmagad –  Használd meglévő telefonszámod és címjegyzéked, hogy biztonságosan kommunikálj barátaiddal.
+• Ossz meg a képeket, szöveges üzeneteket és videós Történeteket, amelyek 24 óra elteltével eltűnnek. Az adatvédelmi beállításoknak hála te határozhatod meg, hogy pontosan ki láthatja az egyes Történeteket.
 
-• Beszélj tisztán – Mindegy, hogy a város túlsó végén vagy az óceánon túl, a Signal fejlett audió és videó minősége közelebb hozza a barátokat és a családot.
+• A Signal az adataid védelmére épült. Semmit sem tudunk rólad, vagy arról, hogy kivel beszélsz. Nyílt forráskódú Signal Protokolllunk azt jelenti, hogy nem tudjuk elolvasni az üzeneteid, és nem tudjuk meghallgatni a hívásaidat. Más sem tudja. Nincsenek kiskapuk, nincs adatgyűjtés, nincsenek kompromisszumok. 
 
-• Suttogj a sötétben – Kapcsolj a sötét témára, ha zavar a fény.
+• A Signal független és nem a nyereség a célja; másfajta technológia egy másfajta szervezettől. 501c3-mas nonprofit szervezetként az adományaid, nem pedig a hirdetők vagy a befektetők támogatnak minket. 
 
-• Ismerősen hangzik - Válassz egyedi értesítéseket minden kapcsolatodhoz vagy kapcsold ki a hangokat teljesen. Simon & Garfunkel írt egy slágert a csend hangjairól 1964-ben, amit te is megtapasztalhatsz, ha az értesítési hangot "Nincs" állásba kapcsolod.
+• Támogatásért, kérdésekkel vagy további információért látogass el a https://support.signal.org/ oldalra.
 
-• Képzeld el - A beépített képszerkesztő lehetővé teszi a küldött fotók nyújtását, vágását, forgatását. Szöveg eszköztár is található benne, így saját szavaidat is hozzáadhatod a meglévő 1000 mellé, amivel a kép többet mond a szónál.
+Forráskódunk megtekintéséhez látogass el a https://github.com/signalapp oldalra 
 
-
-Támogatásért, kérdéseivel és további információkért látogasson el ide:
-https://support.signal.org
-
-Forráskód:
-https://github.com/signalapp
-
-Kövessen minket Twitter-en (@signalapp) és Instagram-on (@signal_app) a legújabb frissítésekért és bejelentésekért.
+Kövess minket Twitteren (@signalapp) és Instagramon (@signal_app)

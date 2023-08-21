@@ -3,21 +3,17 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalServiceKit
 import SignalMessaging
+import SignalUI
 
-#if DEBUG
+#if USE_DEBUG_UI
 
-class DebugUIProfile: DebugUIPage {
+class DebugUIProfile: DebugUIPage, Dependencies {
 
-    // MARK: - Overrides
+    let name = "Profile"
 
-    override func name() -> String {
-        return "Profile"
-    }
-
-    override func section(thread aThread: TSThread?) -> OWSTableSection? {
+    func section(thread aThread: TSThread?) -> OWSTableSection? {
         let sectionItems = [
             OWSTableItem(title: "Clear Profile Whitelist") {
                 Self.profileManagerImpl.clearProfileWhitelist()
@@ -61,7 +57,7 @@ class DebugUIProfile: DebugUIPage {
                 }
             },
             OWSTableItem(title: "Re-upload Profile") {
-                Self.profileManagerImpl.reuploadLocalProfile()
+                Self.profileManagerImpl.reuploadLocalProfile(authedAccount: .implicit())
             },
             OWSTableItem(title: "Log Local Profile") {
                 Self.profileManagerImpl.logLocalProfile()

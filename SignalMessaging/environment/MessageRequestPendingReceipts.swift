@@ -3,14 +3,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalServiceKit
 
-@objc
-public class MessageRequestPendingReceipts: NSObject, PendingReceiptRecorder {
+public class MessageRequestPendingReceipts: Dependencies, PendingReceiptRecorder {
 
-    @objc
-    public override init() {
-        super.init()
+    public init() {
         AppReadiness.runNowOrWhenAppDidBecomeReadyAsync {
             NotificationCenter.default.addObserver(self,
                                                    selector: #selector(self.profileWhitelistDidChange(notification:)),
@@ -189,11 +186,13 @@ public class PendingReceiptFinder {
             throw OWSAssertionError("threadId was unexpectedly nil")
         }
 
-        let record = PendingReadReceiptRecord(threadId: threadId,
-                                              messageTimestamp: Int64(message.timestamp),
-                                              messageUniqueId: message.uniqueId,
-                                              authorPhoneNumber: message.authorPhoneNumber,
-                                              authorUuid: message.authorUUID)
+        let record = PendingReadReceiptRecord(
+            threadId: threadId,
+            messageTimestamp: Int64(message.timestamp),
+            messageUniqueId: message.uniqueId,
+            authorPhoneNumber: message.authorPhoneNumber,
+            authorUuid: message.authorUUID
+        )
 
         Logger.debug("pending read receipt: \(record)")
         try record.insert(transaction.database)

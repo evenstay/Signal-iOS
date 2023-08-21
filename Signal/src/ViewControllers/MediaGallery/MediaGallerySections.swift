@@ -6,6 +6,32 @@
 import Foundation
 import SignalServiceKit
 
+struct MediaGalleryIndexPath: Comparable {
+    var indexPath: IndexPath
+
+    var item: Int {
+        get { indexPath.item }
+        set { indexPath.item = newValue }
+    }
+    var section: Int {
+        get { indexPath.section }
+        set { indexPath.section = newValue }
+    }
+    var count: Int { indexPath.count }
+
+    init(item: Int, section: Int) {
+        indexPath = IndexPath(item: item, section: section)
+    }
+
+    init(_ indexPath: IndexPath) {
+        self.indexPath = indexPath
+    }
+
+    static func < (lhs: MediaGalleryIndexPath, rhs: MediaGalleryIndexPath) -> Bool {
+        return lhs.indexPath < rhs.indexPath
+    }
+}
+
 /// The minimal requirements needed for items loaded and managed by MediaGallerySections.
 internal protocol MediaGallerySectionItem {
     var uniqueId: String { get }
@@ -19,10 +45,10 @@ internal protocol MediaGallerySectionLoader {
     /// Should return the row IDs of items in the section represented by `date`.
     ///
     /// In practice this should be the items within the date's `interval`.
-    func rowIdsOfItemsInSection(for date: GalleryDate,
-                                offset: Int,
-                                ascending: Bool,
-                                transaction: SDSAnyReadTransaction) -> [Int64]
+    func rowIdsAndDatesOfItemsInSection(for date: GalleryDate,
+                                        offset: Int,
+                                        ascending: Bool,
+                                        transaction: SDSAnyReadTransaction) -> [RowIdAndDate]
 
     /// Should call `block` once for every item (loaded or unloaded) before `date`, up to `count` times.
     func enumerateTimestamps(before date: Date,
@@ -59,10 +85,12 @@ internal struct MediaGallerySections<Loader: MediaGallerySectionLoader, UpdateUs
     struct MediaGallerySlot {
         /// row ID in the table `media_gallery_items`. This is a stable and unique identifier for an item.
         var rowid: Int64
+        /// This comes from `TSInteraction.receivedAtTimestamp`.
+        var receivedAt: Date
         var item: Item?
     }
 
-    private struct State {
+    struct State {
         /// All sections we know about.
         ///
         /// Each section contains an array of possibly-fetched items.
@@ -71,7 +99,7 @@ internal struct MediaGallerySections<Loader: MediaGallerySectionLoader, UpdateUs
         var itemsBySection: JournalingOrderedDictionary<GalleryDate, [MediaGallerySlot], ItemChange> = JournalingOrderedDictionary()
         var hasFetchedOldest = false
         var hasFetchedMostRecent = false
-        var loader: Loader
+        private(set) var loader: Loader
 
         /// Loads at least one section before the oldest section, though not any of the items in it.
         ///
@@ -91,7 +119,8 @@ internal struct MediaGallerySections<Loader: MediaGallerySectionLoader, UpdateUs
                                                     count: batchSize,
                                                     transaction: transaction) { timestamp, rowid in
                 let galleryDate = GalleryDate(date: timestamp)
-                newSlotsByDate[galleryDate, default: []].append(MediaGallerySlot(rowid: rowid))
+                let newSlot = MediaGallerySlot(rowid: rowid, receivedAt: timestamp)
+                newSlotsByDate[galleryDate, default: []].append(newSlot)
                 owsAssertDebug(newEarliestDate == nil || galleryDate <= newEarliestDate!,
                                "expects timestamps to be fetched in descending order")
                 newEarliestDate = galleryDate
@@ -103,12 +132,12 @@ internal struct MediaGallerySections<Loader: MediaGallerySectionLoader, UpdateUs
                 // Make sure we have the full count for the earliest loaded section.
                 var temp = newSlotsByDate[newEarliestDate!]!
                 newSlotsByDate[newEarliestDate!] = []
-                let unloadedRowIds = loader.rowIdsOfItemsInSection(for: newEarliestDate!,
-                                                                   offset: temp.count,
-                                                                   ascending: false,
-                                                                   transaction: transaction)
-                let slotsForUnloadedItems = unloadedRowIds.lazy.map {
-                    MediaGallerySlot(rowid: $0)
+                let unloadedRowIdsAndDates = loader.rowIdsAndDatesOfItemsInSection(for: newEarliestDate!,
+                                                                                   offset: temp.count,
+                                                                                   ascending: false,
+                                                                                   transaction: transaction)
+                let slotsForUnloadedItems = unloadedRowIdsAndDates.lazy.map {
+                    MediaGallerySlot(rowid: $0.rowid, receivedAt: $0.date)
                 }
                 temp.append(contentsOf: slotsForUnloadedItems)
                 newSlotsByDate[newEarliestDate!] = temp
@@ -148,7 +177,8 @@ internal struct MediaGallerySections<Loader: MediaGallerySectionLoader, UpdateUs
                                                     count: batchSize,
                                                     transaction: transaction) { timestamp, rowid in
                 let galleryDate = GalleryDate(date: timestamp)
-                newSlotsByDate[galleryDate, default: []].append(MediaGallerySlot(rowid: rowid))
+                newSlotsByDate[galleryDate, default: []].append(MediaGallerySlot(rowid: rowid,
+                                                                                 receivedAt: timestamp))
                 owsAssertDebug(newLatestDate == nil || newLatestDate! <= galleryDate,
                                "expects timestamps to be fetched in ascending order")
                 newLatestDate = galleryDate
@@ -160,11 +190,14 @@ internal struct MediaGallerySections<Loader: MediaGallerySectionLoader, UpdateUs
                 // Make sure we have the full count for the latest loaded section.
                 var temp = newSlotsByDate[newLatestDate!]!
                 newSlotsByDate[newLatestDate!] = []
-                let unloadedRowIds = loader.rowIdsOfItemsInSection(for: newLatestDate!,
-                                                                   offset: temp.count,
-                                                                   ascending: true,
-                                                                   transaction: transaction)
-                let slotsForUnloadedItems = unloadedRowIds.map { MediaGallerySlot(rowid: $0) }
+                let unloadedRowIds = loader.rowIdsAndDatesOfItemsInSection(for: newLatestDate!,
+                                                                           offset: temp.count,
+                                                                           ascending: true,
+                                                                           transaction: transaction)
+                let slotsForUnloadedItems = unloadedRowIds.map {
+                    MediaGallerySlot(rowid: $0.rowid,
+                                     receivedAt: $0.date)
+                }
                 temp.append(contentsOf: slotsForUnloadedItems)
                 newSlotsByDate[newLatestDate!] = temp
 
@@ -185,23 +218,25 @@ internal struct MediaGallerySections<Loader: MediaGallerySectionLoader, UpdateUs
 
         internal mutating func loadInitialSection(for date: GalleryDate, transaction: SDSAnyReadTransaction) {
             owsAssert(itemsBySection.isEmpty, "already has sections, use loadEarlierSections or loadLaterSections")
-            let rowids = loader.rowIdsOfItemsInSection(for: date,
-                                                       offset: 0,
-                                                       ascending: true,
-                                                       transaction: transaction)
-            let slots = rowids.map { MediaGallerySlot(rowid: $0) }
+            let rowids = loader.rowIdsAndDatesOfItemsInSection(for: date,
+                                                               offset: 0,
+                                                               ascending: true,
+                                                               transaction: transaction)
+            let slots = rowids.map {
+                MediaGallerySlot(rowid: $0.rowid, receivedAt: $0.date)
+            }
             itemsBySection.append(key: date, value: slots)
         }
 
         /// Returns the number of items in the section after reloading (which may be 0).
         @discardableResult
         internal mutating func reloadSection(for date: GalleryDate, transaction: SDSAnyReadTransaction) -> Int {
-            let rowids = loader.rowIdsOfItemsInSection(for: date,
-                                                       offset: 0,
-                                                       ascending: true,
-                                                       transaction: transaction)
+            let rowids = loader.rowIdsAndDatesOfItemsInSection(for: date,
+                                                               offset: 0,
+                                                               ascending: true,
+                                                               transaction: transaction)
             itemsBySection.replace(key: date) {
-                return (rowids.map { MediaGallerySlot(rowid: $0) },
+                return (rowids.map { MediaGallerySlot(rowid: $0.rowid, receivedAt: $0.date) },
                         [.reloadSection])
             }
             return rowids.count
@@ -233,10 +268,10 @@ internal struct MediaGallerySections<Loader: MediaGallerySectionLoader, UpdateUs
                 return
             }
 
-            let rowids = loader.rowIdsOfItemsInSection(for: oldestLoadedSection,
-                                                       offset: 0,
-                                                       ascending: true,
-                                                       transaction: transaction)
+            let rowids = loader.rowIdsAndDatesOfItemsInSection(for: oldestLoadedSection,
+                                                               offset: 0,
+                                                               ascending: true,
+                                                               transaction: transaction)
             guard !rowids.isEmpty else {
                 // The previous oldest section is gone, so we just have to guess what to load.
                 // Try the newest section(s).
@@ -245,7 +280,7 @@ internal struct MediaGallerySections<Loader: MediaGallerySectionLoader, UpdateUs
                 return
             }
 
-            let slots = rowids.map { MediaGallerySlot(rowid: $0) }
+            let slots = rowids.map { MediaGallerySlot(rowid: $0.rowid, receivedAt: $0.date ) }
             itemsBySection.append(key: oldestLoadedSection, value: slots)
 
             guard oldestLoadedSection != newestLoadedSection else {
@@ -260,11 +295,81 @@ internal struct MediaGallerySections<Loader: MediaGallerySectionLoader, UpdateUs
             }
         }
 
+        internal mutating func replaceLoader(loader: Loader,
+                                             batchSize: Int,
+                                             loadUntil: GalleryDate,
+                                             transaction: SDSAnyReadTransaction) {
+            self = .init(loader: loader)
+
+            // Ensure there is a journal.
+            itemsBySection.removeAll()
+
+            // Load sections until `loadUntil` is all loaded.
+            // TODO: Load it all at once rather than in batches.
+            while !hasFetchedOldest && (itemsBySection.orderedKeys.first ?? GalleryDate(date: .distantFuture)) > loadUntil {
+                _ = loadEarlierSections(batchSize: batchSize, transaction: transaction)
+            }
+        }
+
+        /// Finds an index path "in the neighborhood" of the given date.
+        /// First, try to find an exact match by rowid.
+        /// If that fails, try to find the first item with a date on or after itemDate.
+        /// If that fails, return the last item.
+        /// If the collection is empty, this returns nil.
+        internal func indexPathAtApproximateLocation(sectionDate: GalleryDate,
+                                                     itemDate: Date,
+                                                     rowid: Int64) -> MediaGalleryIndexPath? {
+            let si = itemsBySection.orderedKeys.firstIndex { key in
+                key >= sectionDate
+            }
+            guard let si else {
+                // Note that this might have a date earlier than `itemDate`.
+                return lastIndexPath
+            }
+            let slots = itemsBySection[si].value
+
+            // First try to find by rowid because that's more precise.
+            if let i = slots.firstIndex(where: { slot in slot.rowid == rowid }) {
+                return MediaGalleryIndexPath(item: i, section: si)
+            }
+
+            // No luck? Find the first item with a later date.
+            if let i = slots.firstIndex(where: { slot in slot.receivedAt >= itemDate }) {
+                return MediaGalleryIndexPath(item: i, section: si)
+            }
+            if si + 1 < itemsBySection.orderedKeys.count {
+                // Everything in the section of `indexPath` was before the desired date, so return
+                // the first item in the subsequent section.
+                return MediaGalleryIndexPath(item: 0, section: si + 1)
+            }
+            // Return the latest item if one exists.
+            return lastIndexPath
+        }
+
+        private var lastIndexPath: MediaGalleryIndexPath? {
+            guard let entry = itemsBySection.last else {
+                return nil
+            }
+            return MediaGalleryIndexPath(item: entry.value.count - 1, section: itemsBySection.orderedKeys.count - 1)
+        }
+
+        internal mutating func resolveNaiveStartIndex(request: LoadItemsRequest,
+                                                      batchSize: Int,
+                                                      transaction: SDSAnyReadTransaction?) -> (path: MediaGalleryIndexPath?, numberOfSectionsLoaded: Int) {
+            guard let naiveRange = resolveLoadItemsRequest(request) else {
+                return (path: nil, numberOfSectionsLoaded: 0)
+            }
+            return resolveNaiveStartIndex(naiveRange.range.lowerBound,
+                                          relativeToSection: naiveRange.sectionIndex,
+                                          batchSize: batchSize,
+                                          transaction: transaction)
+        }
+
         /// Given `naiveIndex` that refers to an item in or before `initialSectionIndex`, find the actual item and section
         /// index.
         ///
         /// For example, if section 1 has 5 items, `resolveNaiveStartIndex(-2, relativeToSection: 2)` will return
-        /// `IndexPath(item: 3, section: 1)`.
+        /// `MediaGalleryIndexPath(item: 3, section: 1)`.
         ///
         /// If the search reaches the first section, `maybeLoadEarlierSections` will be invoked. It should return the
         /// number of sections that have been loaded, which will adjust all section indexes. The default value always
@@ -281,11 +386,11 @@ internal struct MediaGallerySections<Loader: MediaGallerySectionLoader, UpdateUs
             relativeToSection initialSectionIndex: Int,
             batchSize: Int,
             transaction: SDSAnyReadTransaction?
-        ) -> (path: IndexPath?, numberOfSectionsLoaded: Int) {
+        ) -> (path: MediaGalleryIndexPath?, numberOfSectionsLoaded: Int) {
             guard naiveIndex < 0 else {
                 let items = itemsBySection[initialSectionIndex].value
                 owsAssertDebug(naiveIndex <= items.count, "should not be used for indexes after the current section")
-                return (IndexPath(item: naiveIndex, section: initialSectionIndex), 0)
+                return (MediaGalleryIndexPath(item: naiveIndex, section: initialSectionIndex), 0)
             }
 
             var currentSectionIndex = initialSectionIndex
@@ -317,11 +422,11 @@ internal struct MediaGallerySections<Loader: MediaGallerySectionLoader, UpdateUs
                 offsetInCurrentSection += items.count
             }
 
-            return (IndexPath(item: offsetInCurrentSection, section: currentSectionIndex), totalLoadCount)
+            return (MediaGalleryIndexPath(item: offsetInCurrentSection, section: currentSectionIndex), totalLoadCount)
         }
 
         /// Equivalant to calling the three-argument `resolveNaiveStartIndex` without a transaction.
-        internal func resolveNaiveStartIndex(_ naiveIndex: Int, relativeToSection initialSectionIndex: Int) -> IndexPath? {
+        internal func resolveNaiveStartIndex(_ naiveIndex: Int, relativeToSection initialSectionIndex: Int) -> MediaGalleryIndexPath? {
             // The five-argument form is `mutating`, but only so it can load more sections.
             // Thanks to Swift's copy-on-write data types, this will only do a few retains even in non-optimized builds.
             var mutableSelf = self
@@ -335,15 +440,15 @@ internal struct MediaGallerySections<Loader: MediaGallerySectionLoader, UpdateUs
         /// section index.
         ///
         /// For example, if section 1 has 5 items and section 2 has 3, `resolveNaiveStartIndex(7, relativeToSection: 1)`
-        /// will return `IndexPath(item: 2, section: 2)`. `resolveNaiveStartIndex(5, relativeToSection: 1)` will return
-        /// `IndexPath(item: 5, section: 1)` rather than `IndexPath(item: 0, section: 2)`.
+        /// will return `MediaGalleryIndexPath(item: 2, section: 2)`. `resolveNaiveStartIndex(5, relativeToSection: 1)` will return
+        /// `MediaGalleryIndexPath(item: 5, section: 1)` rather than `MediaGalleryIndexPath(item: 0, section: 2)`.
         ///
-        /// If the search reaches the true last section, this will clamp the result to the IndexPath representing the
+        /// If the search reaches the true last section, this will clamp the result to the MediaGalleryIndexPath representing the
         /// end index of the final section (note: not a valid item index!).
         /// If it reaches the last *loaded* section but there might be more sections, it returns nil.
         ///
         /// This is essentially a more powerful version of `indexPath(after:)`.
-        internal func resolveNaiveEndIndex(_ naiveIndex: Int, relativeToSection initialSectionIndex: Int) -> IndexPath? {
+        internal func resolveNaiveEndIndex(_ naiveIndex: Int, relativeToSection initialSectionIndex: Int) -> MediaGalleryIndexPath? {
             owsAssert(naiveIndex >= 0, "should not be used for indexes before the current section")
 
             var currentSectionIndex = initialSectionIndex
@@ -369,7 +474,7 @@ internal struct MediaGallerySections<Loader: MediaGallerySectionLoader, UpdateUs
                 }
             }
 
-            return IndexPath(item: limitInCurrentSection, section: currentSectionIndex)
+            return MediaGalleryIndexPath(item: limitInCurrentSection, section: currentSectionIndex)
         }
 
         /// Trims indexes from the start of `naiveRange` if they refer to loaded items.
@@ -499,7 +604,7 @@ internal struct MediaGallerySections<Loader: MediaGallerySectionLoader, UpdateUs
         /// always be before and/or after the existing sections, never interleaving.
         internal mutating func ensureItemsLoaded(request: LoadItemsRequest,
                                                  transaction: SDSAnyReadTransaction) -> IndexSet {
-            return Bench(title: "fetching gallery items") {
+            return Bench(title: "ensureItemsLoaded") {
                 guard let naiveRange = resolveLoadItemsRequest(request) else {
                     return IndexSet()
                 }
@@ -613,7 +718,7 @@ internal struct MediaGallerySections<Loader: MediaGallerySectionLoader, UpdateUs
         ///
         /// If any sections are reduced to zero items, they are removed from the model. The indexes of all such removed
         /// sections are returned.
-        internal mutating func removeLoadedItems(atIndexPaths paths: [IndexPath]) -> IndexSet {
+        internal mutating func removeLoadedItems(atIndexPaths paths: [MediaGalleryIndexPath]) -> IndexSet {
             var removedSections = IndexSet()
 
             // Iterate in reverse so the index paths don't get disrupted as we remove items.
@@ -702,26 +807,37 @@ internal struct MediaGallerySections<Loader: MediaGallerySectionLoader, UpdateUs
         }
     }
 
-    private class SnapshotManager: Dependencies {
-        let queue: DispatchQueue
+    class SnapshotManager: Dependencies {
         private var mutableState: State
         private var snapshot: State
         private(set) var pendingUpdate = AtomicValue(Update.noop, lock: AtomicLock())
+        private var highPriorityStack: AtomicArray<() -> Void> = AtomicArray()
+        private var lowPriorityStack: AtomicArray<() -> Void> = AtomicArray()
+        // We tried to use an OperationQueue for this. It was a good fit because it can prioritize
+        // synchronous operations ahead of async ones. We ended up getting weird crashes in the Swift
+        // runtime. The best theory was that OperationQueue is missing a memory barrier, but that isn't
+        // much more than speculation. This queue is essentially a background thread that performs async
+        // operations and all mutations are guarded by `lock` to do synchronization.
+        private let queue = DispatchQueue(label: "org.signal.mgs-snapshot")
+        // It's important that this lock be fair so that synchronous mutations run as soon as possible.
+        private let lock = NSLock()
 
         var state: State {
             dispatchPrecondition(condition: .onQueue(.main))
             return snapshot
         }
 
-        init(_ queue: DispatchQueue, state: State) {
-            self.queue = queue
+        init(state: State) {
             self.mutableState = state
             self.snapshot = state
         }
 
+        // Runs on the mutation queue.
         private func _mutate<T>(userData: UpdateUserData?, _ block: (inout State) -> (T)) -> T {
-            dispatchPrecondition(condition: .onQueue(queue))
-
+            self.lock.lock()
+            defer {
+                self.lock.unlock()
+            }
             let result = block(&mutableState)
             let updatedState = mutableState
             let changes = mutableState.itemsBySection.takeJournal()
@@ -735,10 +851,14 @@ internal struct MediaGallerySections<Loader: MediaGallerySectionLoader, UpdateUs
             return result
         }
 
+        private var depthReport: String {
+            return "H=\(highPriorityStack.count) L=\(lowPriorityStack.count)"
+        }
+
         func mutate<T>(userData: UpdateUserData?, _ block: (inout State) -> (T)) -> T {
             dispatchPrecondition(condition: .onQueue(.main))
-            return queue.sync {
-                return _mutate(userData: userData, block)
+            return Bench(title: "Sync mutation [\(depthReport)]", logInProduction: true) {
+                return self._mutate(userData: userData, block)
             }
         }
 
@@ -750,27 +870,48 @@ internal struct MediaGallerySections<Loader: MediaGallerySectionLoader, UpdateUs
             }
         }
 
+        func cancelAsyncJobs() {
+            highPriorityStack.removeAll()
+            lowPriorityStack.removeAll()
+        }
+
         /// Runs `block` on the mutation queue and then runs `completion` on the main queue, but the main queue is not
         /// blocked while waiting for `block` to complete.
+        ///
+        /// Note that mutations go on a stack rather than a queue. The last call to `mutateAsync` will be the first one to run after any current operation completes.
+        ///
+        /// All `highPriority` mutations will occur before any low-priority mutation. Clients are advised to treat user-initiated updates as high-priority.
         func mutateAsync<T>(userData: UpdateUserData?,
+                            highPriority: Bool,
+                            title: String?,
                             _ block: @escaping (inout State) -> (T),
                             completion: @escaping (T) -> Void) {
             dispatchPrecondition(condition: .onQueue(.main))
-            queue.async { [weak self] in
+            let closure = { [weak self] in
                 guard let self else {
                     return
                 }
-                let result = self._mutate(userData: userData, block)
-                DispatchQueue.main.async {
-                    completion(result)
+                dispatchPrecondition(condition: .onQueue(self.queue))
+                Bench(title: "Async mutation of \(title ?? "untitled") [\(self.depthReport)]", logInProduction: true) {
+                    let result = self._mutate(userData: userData, block)
+                    DispatchQueue.main.async {
+                        completion(result)
+                    }
                 }
+            }
+            (highPriority ? highPriorityStack : lowPriorityStack).pushTail(closure)
+            queue.async { [weak self] in
+                let closure = self?.highPriorityStack.popTail() ?? self?.lowPriorityStack.popTail()
+                closure?()
             }
         }
 
         func mutateAsync<T>(userData: UpdateUserData?,
+                            highPriority: Bool,
+                            title: String? = nil,
                             _ block: @escaping (inout State, SDSAnyReadTransaction) -> (T),
                             completion: @escaping (T) -> Void) {
-            mutateAsync(userData: userData) { mutableState in
+            mutateAsync(userData: userData, highPriority: highPriority, title: title) { mutableState in
                 return Self.databaseStorage.read { transaction in
                     block(&mutableState, transaction)
                 }
@@ -782,10 +923,12 @@ internal struct MediaGallerySections<Loader: MediaGallerySectionLoader, UpdateUs
 
     private var snapshotManager: SnapshotManager
     private var state: State { snapshotManager.state }
-    private let mutationQueue = DispatchQueue(label: "org.signal.media-gallery-sections-mutation")
+
+    var stateForTesting: State { state }
+    var snapshotManagerForTesting: SnapshotManager { snapshotManager }
 
     internal init(loader: Loader) {
-        snapshotManager = SnapshotManager(mutationQueue, state: State(loader: loader))
+        snapshotManager = SnapshotManager(state: State(loader: loader))
     }
 
     /// Executes `closure` with exclusive access to the pending update. It must not escape the
@@ -810,18 +953,54 @@ internal struct MediaGallerySections<Loader: MediaGallerySectionLoader, UpdateUs
         }
     }
 
+    // Warning: the completion block may not be called if the loader is replaced before the job begins.
+    internal mutating func asyncLoadEarlierSections(batchSize: Int,
+                                                    highPriority: Bool,
+                                                    userData: UpdateUserData? = nil,
+                                                    completion: ((Int) -> Void)?) {
+        snapshotManager.mutateAsync(userData: userData, highPriority: highPriority, title: "load earlier section") { state, transaction in
+            return state.loadEarlierSections(batchSize: batchSize, transaction: transaction)
+        } completion: { numberOfSectionsLoaded in
+            completion?(numberOfSectionsLoaded)
+        }
+    }
+
     internal mutating func loadLaterSections(batchSize: Int, userData: UpdateUserData? = nil) -> Int {
         return snapshotManager.mutate(userData: userData) { state, transaction in
             return state.loadLaterSections(batchSize: batchSize, transaction: transaction)
         }
     }
 
-    internal mutating func loadInitialSection(for date: GalleryDate, userData: UpdateUserData? = nil) {
-        return snapshotManager.mutate(userData: userData) { state, transaction in
-            return state.loadInitialSection(for: date, transaction: transaction)
+    // Warning: the completion block may not be called if the loader is replaced before the job begins.
+    internal mutating func asyncLoadLaterSections(batchSize: Int,
+                                                  userData: UpdateUserData? = nil,
+                                                  completion: ((Int) -> Void)?) {
+        snapshotManager.mutateAsync(userData: userData, highPriority: true, title: "load later sections") { state, transaction in
+            return state.loadLaterSections(batchSize: batchSize, transaction: transaction)
+        } completion: { numberOfSectionsLoaded in
+            completion?(numberOfSectionsLoaded)
+        }
+
+    }
+
+    /// If `replacement` is specified then this acts as an atomic
+    /// `loadInitialSection` followed by `getOrReplace`, provided the `rowid` is
+    /// valid.
+    internal mutating func loadInitialSection(for date: GalleryDate,
+                                              replacement: (item: Item, rowid: Int64)? = nil,
+                                              userData: UpdateUserData? = nil,
+                                              transaction: SDSAnyReadTransaction) -> Item? {
+        return snapshotManager.mutate(userData: userData) { state in
+            state.loadInitialSection(for: date, transaction: transaction)
+            if let (item, rowid) = replacement,
+                let offset = state.itemsBySection[date]?.firstIndex(where: { $0.rowid == rowid }) {
+                return state.getOrReplaceItem(item, offsetInSection: offset)
+            }
+            return nil
         }
     }
 
+    @discardableResult
     internal mutating func reloadSections(for dates: Set<GalleryDate>,
                                           userData: UpdateUserData? = nil) -> (update: IndexSet, delete: IndexSet) {
         return snapshotManager.mutate(userData: userData) { state, transaction in
@@ -842,6 +1021,7 @@ internal struct MediaGallerySections<Loader: MediaGallerySectionLoader, UpdateUs
                     sectionsToDelete.insert(sectionIndex)
                 }
             }
+            state.removeEmptySections(atIndexes: sectionsToDelete)
             return (update: sectionIndexesNeedingUpdate, delete: sectionsToDelete)
         }
     }
@@ -854,13 +1034,6 @@ internal struct MediaGallerySections<Loader: MediaGallerySectionLoader, UpdateUs
         }
     }
 
-    internal mutating func removeEmptySections(atIndexes indexesToDelete: IndexSet,
-                                               userData: UpdateUserData? = nil) {
-        return snapshotManager.mutate(userData: userData) { state in
-            state.removeEmptySections(atIndexes: indexesToDelete)
-        }
-    }
-
     internal mutating func resetHasFetchedMostRecent(userData: UpdateUserData? = nil) {
         return snapshotManager.mutate(userData: userData) { state in
             state.resetHasFetchedMostRecent()
@@ -870,6 +1043,38 @@ internal struct MediaGallerySections<Loader: MediaGallerySectionLoader, UpdateUs
     internal mutating func reset(userData: UpdateUserData? = nil) {
         return snapshotManager.mutate(userData: userData) { state, transaction in
             state.reset(transaction: transaction)
+        }
+    }
+
+    /// Erase all state and reload.
+    ///
+    /// This method has the side effect of canceling all unstarted asynchronous jobs. Their
+    /// completion blocks will never be called.
+    ///
+    /// - Parameters:
+    ///   - batchSize: The number of items to load at once.
+    ///   - loadUntil: Items will be loaded from latest until the GalleryDate containing this date is completely loaded.
+    ///   - indexPath: A valid index path.
+    ///   - userData: user data
+    ///   - first: Called on the mutation queue just before reloading occurs. If you need to update the loader's state, this is a safe place to do it.
+    /// - Returns: An index path as close as possible to `indexPath`.
+    internal mutating func replaceLoader(loader: Loader,
+                                         batchSize: Int,
+                                         loadUntil: GalleryDate,
+                                         searchFor indexPath: MediaGalleryIndexPath?,
+                                         userData: UpdateUserData? = nil) -> MediaGalleryIndexPath? {
+        snapshotManager.cancelAsyncJobs()
+
+        let sectionDate = indexPath.map { sectionDates[$0.section] }
+        let itemDate = indexPath.map { itemsBySection[$0.section].value[$0.item].receivedAt }
+        let rowid = indexPath.map { itemsBySection[$0.section].value[$0.item].rowid }
+
+        return snapshotManager.mutate(userData: nil) { state, transaction -> MediaGalleryIndexPath? in
+            state.replaceLoader(loader: loader, batchSize: batchSize, loadUntil: loadUntil, transaction: transaction)
+            if let sectionDate, let itemDate, let rowid {
+                return state.indexPathAtApproximateLocation(sectionDate: sectionDate, itemDate: itemDate, rowid: rowid)
+            }
+            return nil
         }
     }
 
@@ -927,7 +1132,7 @@ internal struct MediaGallerySections<Loader: MediaGallerySectionLoader, UpdateUs
     /// Returns the item at `path`, which will be `nil` if not yet loaded.
     ///
     /// `path` must be a valid path for the items currently loaded.
-    internal func loadedItem(at path: IndexPath) -> Item? {
+    internal func loadedItem(at path: MediaGalleryIndexPath) -> Item? {
         owsAssert(path.count == 2)
         guard let slot = state.itemsBySection[safe: path.section]?.value[safe: path.item] else {
             owsFailDebug("invalid path \(path)")
@@ -940,7 +1145,7 @@ internal struct MediaGallerySections<Loader: MediaGallerySectionLoader, UpdateUs
     /// Searches the appropriate section for this item by its `galleryDate` and `uniqueId`.
     ///
     /// Will return nil if the item is not in `state.itemsBySection` (say, if it was loaded externally).
-    internal func indexPath(for item: Item) -> IndexPath? {
+    internal func indexPath(for item: Item) -> MediaGalleryIndexPath? {
         // Search backwards because people view recent items.
         // Note: we could use binary search because orderedKeys is sorted.
         guard let sectionIndex = state.itemsBySection.orderedKeys.lastIndex(of: item.galleryDate),
@@ -950,13 +1155,13 @@ internal struct MediaGallerySections<Loader: MediaGallerySectionLoader, UpdateUs
             return nil
         }
 
-        return IndexPath(item: itemIndex, section: sectionIndex)
+        return MediaGalleryIndexPath(item: itemIndex, section: sectionIndex)
     }
 
     /// Returns the path to the next item after `path`, which may cross a section boundary.
     ///
     /// If `path` refers to the last item in the loaded sections, returns `nil`.
-    internal func indexPath(after path: IndexPath) -> IndexPath? {
+    internal func indexPath(after path: MediaGalleryIndexPath) -> MediaGalleryIndexPath? {
         owsAssert(path.count == 2)
         var result = path
 
@@ -981,7 +1186,7 @@ internal struct MediaGallerySections<Loader: MediaGallerySectionLoader, UpdateUs
     /// Returns the path to the item just before `path`, which may cross a section boundary.
     ///
     /// If `path` refers to the first item in the loaded sections, returns `nil`.
-    internal func indexPath(before path: IndexPath) -> IndexPath? {
+    internal func indexPath(before path: MediaGalleryIndexPath) -> MediaGalleryIndexPath? {
         owsAssert(path.count == 2)
         var result = path
 
@@ -1003,30 +1208,6 @@ internal struct MediaGallerySections<Loader: MediaGallerySectionLoader, UpdateUs
         return nil
     }
 
-    internal func resolveNaiveStartIndex(_ naiveIndex: Int,
-                                         relativeToSection initialSectionIndex: Int) -> IndexPath? {
-        return state.resolveNaiveStartIndex(naiveIndex, relativeToSection: initialSectionIndex)
-    }
-
-    internal mutating func resolveNaiveStartIndex(
-        _ naiveIndex: Int,
-        relativeToSection initialSectionIndex: Int,
-        batchSize: Int,
-        userData: UpdateUserData? = nil
-    ) -> (path: IndexPath?, numberOfSectionsLoaded: Int) {
-        return snapshotManager.mutate(userData: userData) { state, transaction in
-            return state.resolveNaiveStartIndex(naiveIndex,
-                                                relativeToSection: initialSectionIndex,
-                                                batchSize: batchSize,
-                                                transaction: transaction)
-        }
-    }
-
-    internal func resolveNaiveEndIndex(_ naiveIndex: Int,
-                                       relativeToSection initialSectionIndex: Int) -> IndexPath? {
-        return state.resolveNaiveEndIndex(naiveIndex, relativeToSection: initialSectionIndex)
-    }
-
     internal func trimLoadedItemsAtStart(from naiveRange: inout Range<Int>,
                                          relativeToSection sectionIndex: Int) {
         state.trimLoadedItemsAtStart(from: &naiveRange,
@@ -1041,10 +1222,10 @@ internal struct MediaGallerySections<Loader: MediaGallerySectionLoader, UpdateUs
     internal mutating func ensureItemsLoaded(in naiveRange: Range<Int>,
                                              relativeToSection sectionIndex: Int,
                                              userData: UpdateUserData? = nil) -> IndexSet {
+        guard let request = state.loadItemsRequest(in: State.NaiveRange(sectionIndex: sectionIndex, range: naiveRange)) else {
+            return IndexSet()
+        }
         return snapshotManager.mutate(userData: userData) { state in
-            guard let request = state.loadItemsRequest(in: State.NaiveRange(sectionIndex: sectionIndex, range: naiveRange)) else {
-                return IndexSet()
-            }
             return Self.databaseStorage.read { transaction in
                 return state.ensureItemsLoaded(request: request,
                                                transaction: transaction)
@@ -1052,6 +1233,7 @@ internal struct MediaGallerySections<Loader: MediaGallerySectionLoader, UpdateUs
         }
     }
 
+    // Warning: the completion block may not be called if the loader is replaced before the job begins.
     internal mutating func asyncEnsureItemsLoaded(in naiveRange: Range<Int>,
                                                   relativeToSection sectionIndex: Int,
                                                   userData: UpdateUserData? = nil,
@@ -1062,7 +1244,7 @@ internal struct MediaGallerySections<Loader: MediaGallerySectionLoader, UpdateUs
             }
             return
         }
-        snapshotManager.mutateAsync(userData: userData) { state, transaction in
+        snapshotManager.mutateAsync(userData: userData, highPriority: true, title: "ensure \(naiveRange.count) items loaded") { state, transaction in
             return state.ensureItemsLoaded(request: request,
                                            transaction: transaction)
         } completion: { newlyLoadedSectionIndexes in
@@ -1072,17 +1254,44 @@ internal struct MediaGallerySections<Loader: MediaGallerySectionLoader, UpdateUs
     }
 
     internal mutating func getOrReplaceItem(_ newItem: Item,
-                                            offsetInSection: Int,
+                                            rowid: Int64,
                                             userData: UpdateUserData? = nil) -> Item? {
-        return snapshotManager.mutate(userData: userData) { state  in
-            return state.getOrReplaceItem(newItem, offsetInSection: offsetInSection)
+        return snapshotManager.mutate(userData: userData) { state in
+            guard let i = state.itemsBySection[newItem.galleryDate]?.firstIndex(where: { $0.rowid == rowid}) else {
+                return nil
+            }
+            return state.getOrReplaceItem(newItem, offsetInSection: i)
         }
     }
 
-    internal mutating func removeLoadedItems(atIndexPaths paths: [IndexPath],
+    private struct Location {
+        var date: GalleryDate
+        var rowid: Int64
+    }
+
+    internal mutating func removeLoadedItems(atIndexPaths paths: [MediaGalleryIndexPath],
                                              userData: UpdateUserData? = nil) -> IndexSet {
-        return snapshotManager.mutate(userData: userData) { state in
-            state.removeLoadedItems(atIndexPaths: paths)
+        let locations = paths.map {
+            let entry = state.itemsBySection[$0.section]
+            return Location(date: entry.key, rowid: entry.value[$0.item].rowid)
+        }
+        return snapshotManager.mutate(userData: userData) { state -> IndexSet in
+            // [date: [rowid, …]]
+            let sectionIndexToRowIDs = Dictionary(grouping: locations) {
+                $0.date
+            }.mapValues {
+                Set($0.lazy.map { $0.rowid })
+            }
+            let paths = sectionIndexToRowIDs.flatMap { keyAndValue -> [MediaGalleryIndexPath] in
+                let (date, desiredRowIDs) = keyAndValue
+                guard let sectionIndex = state.itemsBySection.orderedKeys.firstIndex(of: date) else {
+                    return []
+                }
+                let slots = state.itemsBySection[sectionIndex].value
+                let itemIndexes = slots.indices.lazy.filter { desiredRowIDs.contains(slots[$0].rowid) }
+                return itemIndexes.lazy.map { MediaGalleryIndexPath(item: $0, section: sectionIndex )}
+            }
+            return state.removeLoadedItems(atIndexPaths: Array(paths))
         }
     }
 

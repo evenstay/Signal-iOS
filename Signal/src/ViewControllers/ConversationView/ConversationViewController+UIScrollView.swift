@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import SignalServiceKit
 
 extension ConversationViewController {
 
@@ -61,7 +62,7 @@ extension ConversationViewController {
         let scrollToNextMentionWasHidden = isHidingScrollToNextMentionButton || scrollToNextMentionButton.isHidden
         var scrollToNextMentionIsHidden = scrollToNextMentionWasHidden
 
-        if viewState.currentVoiceMessageModel?.isRecording == true {
+        if viewState.inProgressVoiceMessage?.isRecording == true {
             scrollDownIsHidden = true
             scrollToNextMentionIsHidden = true
         } else if isInPreviewPlatter {
@@ -71,12 +72,12 @@ extension ConversationViewController {
             let shouldScrollDownAppear = isScrolledUpOnePage || hasLaterMessageOffscreen
             scrollDownIsHidden = !shouldScrollDownAppear
 
-            let shouldScrollToMentionAppear = shouldScrollDownAppear && unreadMentionMessages.count > 0
+            let shouldScrollToMentionAppear = shouldScrollDownAppear && !conversationViewModel.unreadMentionMessageIds.isEmpty
             scrollToNextMentionIsHidden = !shouldScrollToMentionAppear
         }
 
-        self.scrollDownButton.unreadCount = self.unreadMessageCount
-        self.scrollToNextMentionButton.unreadCount = UInt(self.unreadMentionMessages.count)
+        self.scrollDownButton.unreadCount = threadViewModel.unreadCount
+        self.scrollToNextMentionButton.unreadCount = UInt(conversationViewModel.unreadMentionMessageIds.count)
 
         let scrollDownVisibilityDidChange = scrollDownIsHidden != scrollDownWasHidden
         let scrollToNextMentionVisibilityDidChange = scrollToNextMentionIsHidden != scrollToNextMentionWasHidden
@@ -159,15 +160,16 @@ extension ConversationViewController: UIScrollViewDelegate {
         }
 
         Logger.verbose("")
-        self.scrollUpdateTimer?.invalidate()
 
         // We need to manually schedule this timer using NSRunLoopCommonModes
         // or it won't fire during scrolling.
-        let scrollUpdateTimer = Timer.weakTimer(withTimeInterval: 0.1,
-                                                target: self,
-                                                selector: #selector(scrollUpdateTimerDidFire),
-                                                userInfo: nil,
-                                                repeats: false)
+        let scrollUpdateTimer = Timer.weakTimer(
+            withTimeInterval: 0.1,
+            target: self,
+            selector: #selector(scrollUpdateTimerDidFire),
+            userInfo: nil,
+            repeats: false
+        )
         self.scrollUpdateTimer = scrollUpdateTimer
         RunLoop.main.add(scrollUpdateTimer, forMode: .common)
     }
@@ -183,7 +185,7 @@ extension ConversationViewController: UIScrollViewDelegate {
         AssertIsOnMainThread()
 
         scrollUpdateTimer?.invalidate()
-        self.scrollUpdateTimer = nil
+        scrollUpdateTimer = nil
 
         guard viewHasEverAppeared else {
             return
@@ -191,7 +193,7 @@ extension ConversationViewController: UIScrollViewDelegate {
 
         _ = autoLoadMoreIfNecessary()
 
-        if !isUserScrolling {
+        if !isUserScrolling, !isWaitingForDeceleration {
             saveLastVisibleSortIdAndOnScreenPercentage()
         }
     }

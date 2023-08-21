@@ -285,7 +285,7 @@
 			<string>La taille de groupe maximale de %1$d membres est atteinte.</string>
 		</dict>
 	</dict>
-	<key>EXPIRATION_WARNING_%d</key>
+	<key>EDIT_MESSAGE_SEND_TOO_MANY_EDITS_ERROR</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
 		<string>%#@text@</string>
@@ -296,9 +296,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Votre version de Signal expirera dans %1$d jour. Touchez pour passer à la version la plus récente.</string>
+			<string>%1$d modification peut-être appliquée à ce message.</string>
 			<key>other</key>
-			<string>Votre version de Signal expirera dans %1$d jours. Cliquez ici pour passer à la version la plus récente.</string>
+			<string>%1$d modifications seulement peuvent être appliquées à ce message.</string>
 		</dict>
 	</dict>
 	<key>FORWARD_MESSAGE_FIRST_FORWARD_PROCEED_%d</key>
@@ -315,22 +315,6 @@
 			<string>Envoyer le message</string>
 			<key>other</key>
 			<string>Envoyer %1$d messages</string>
-		</dict>
-	</dict>
-	<key>GROUPS_LEGACY_GROUP_DROPPED_MEMBERS_BANNER_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>%1$d membre n&apos;a pas pu être ajouté au nouveau groupe. Voulez-vous l&apos;ajouter maintenant ?</string>
-			<key>other</key>
-			<string>%1$d membres n’ont pas pu être rajoutés au Nouveau groupe. Voulez-vous les ajouter maintenant ?</string>
 		</dict>
 	</dict>
 	<key>GROUPS_TOO_MANY_MEMBERS_ALERT_MESSAGE_%d</key>
@@ -573,22 +557,6 @@
 			<string>%1$d membres</string>
 		</dict>
 	</dict>
-	<key>GROUP_REMOTE_USER_INVITED_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>%1$d personne a été invitée au groupe.</string>
-			<key>other</key>
-			<string>%1$d personnes ont été invitées au groupe.</string>
-		</dict>
-	</dict>
 	<key>GROUP_REMOTE_USER_INVITED_BY_REMOTE_USER_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -669,38 +637,6 @@
 			<string>Story de groupe · %1$d spectateurs</string>
 		</dict>
 	</dict>
-	<key>GROUP_WAS_MIGRATED_USERS_DROPPED_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>Un membre n’a pas pu être ajouté au nouveau groupe et a été retiré du groupe.</string>
-			<key>other</key>
-			<string>%1$d membres n’ont pas pu être ajoutés au nouveau groupe et ont été retirés du groupe.</string>
-		</dict>
-	</dict>
-	<key>GROUP_WAS_MIGRATED_USERS_INVITED_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>Un membre n’a pas pu être ajouté au nouveau groupe et a été invité à le rejoindre.</string>
-			<key>other</key>
-			<string>%1$d membres n’ont pas pu être ajoutés au nouveau groupe et ont été invités à le rejoindre.</string>
-		</dict>
-	</dict>
 	<key>IMAGE_PICKER_CAN_SELECT_NO_MORE_TOAST_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -733,7 +669,7 @@
 			<string>%1$d groupes en commun</string>
 		</dict>
 	</dict>
-	<key>MEDIA_GALLERY_DELETE_MESSAGES_%d</key>
+	<key>MEDIA_GALLERY_DELETE_MEDIA_TITLE</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
 		<string>%#@text@</string>
@@ -744,9 +680,25 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Supprimer %1$d message</string>
+			<string>Supprimer %1$d élément ?</string>
 			<key>other</key>
-			<string>Supprimer %1$d messages</string>
+			<string>Supprimer %1$d éléments ?</string>
+		</dict>
+	</dict>
+	<key>MEDIA_GALLERY_DELETE_MEDIA_TOAST</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Un élément supprimé</string>
+			<key>other</key>
+			<string>%1$d éléments supprimés</string>
 		</dict>
 	</dict>
 	<key>MEDIA_GALLERY_ITEM_IMAGE_COUNT_%d</key>
@@ -781,6 +733,22 @@
 			<string>%1$d éléments</string>
 		</dict>
 	</dict>
+	<key>MEDIA_PAGE_FORWARD_MEDIA_CONFIRM_TITLE_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Transférer %1$d</string>
+			<key>other</key>
+			<string>Transférer %1$d</string>
+		</dict>
+	</dict>
 	<key>MESSAGES_VIEW_GROUP_N_MEMBERS_BLOCKED_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -792,9 +760,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Vous avez bloqué %1$d membre de ce groupe</string>
+			<string>Vous avez bloqué %1$d membre de ce groupe</string>
 			<key>other</key>
-			<string>Vous avez bloqué %1$d membres de ce groupe</string>
+			<string>Vous avez bloqué %1$d membres de ce groupe</string>
 		</dict>
 	</dict>
 	<key>MESSAGE_ACTIONS_TOOLBAR_CAPTION_%d</key>
@@ -941,22 +909,6 @@
 			<string>%1$d spectateurs</string>
 		</dict>
 	</dict>
-	<key>ONBOARDING_2FA_INVALID_PIN_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@caption@</string>
-		<key>caption</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>Le PIN est erroné. Il reste %1$d essai.</string>
-			<key>other</key>
-			<string>Le PIN est erroné. Il reste %1$d essais.</string>
-		</dict>
-	</dict>
 	<key>PENDING_GROUP_MEMBERS_MEMBER_INVITED_USERS_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -1053,36 +1005,20 @@
 			<string>Story personnalisée · %1$d spectateurs</string>
 		</dict>
 	</dict>
-	<key>REGISTER_2FA_INVALID_PIN_ALERT_MESSAGE_%d</key>
+	<key>REREGISTER_INVALID_PIN_ATTEMPT_COUNT_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@caption@</string>
-		<key>caption</key>
+		<string>%#@text@</string>
+		<key>text</key>
 		<dict>
 			<key>NSStringFormatSpecTypeKey</key>
 			<string>NSStringPluralRuleType</string>
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Il vous reste %1$d tentative. Si vous n&apos;avez plus de tentatives, vous pouvez créer un nouveau code PIN. Vous pouvez vous inscrire et utiliser votre compte mais vous perdrez certains paramètres enregistrés comme les informations de votre profil.</string>
+			<string>%1$d tentative</string>
 			<key>other</key>
-			<string>Il vous reste %1$d tentatives. Si vous n&apos;avez plus de tentatives, vous pouvez créer un nouveau code PIN. Vous pouvez vous inscrire et utiliser votre compte mais vous perdrez certains paramètres enregistrés comme les informations de votre profil.</string>
-		</dict>
-	</dict>
-	<key>REGISTER_2FA_INVALID_PIN_ALERT_MESSAGE_REGLOCK_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@caption@</string>
-		<key>caption</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>Il vous reste %1$d tentative. Si vous n&apos;avez plus de tentatives, votre compte sera verrouillé. Après 7 jours d&apos;inactivité, vous pouvez vous réinscrire sans votre code PIN. Votre compte sera effacé et tout le contenu supprimé.</string>
-			<key>other</key>
-			<string>Il vous reste %1$d tentatives. Si vous n&apos;avez plus de tentatives, votre compte sera verrouillé. Après 7 jours d&apos;inactivité, vous pouvez vous réinscrire sans votre code PIN. Votre compte sera effacé et tout le contenu supprimé.</string>
+			<string>%1$d tentatives</string>
 		</dict>
 	</dict>
 	<key>STORIES_SHARESHEET_PARTIAL_SEND_SUBTITLE_%d</key>
@@ -1098,7 +1034,7 @@
 			<key>one</key>
 			<string>L&apos;un des contenus n&apos;a pas pu être ajouté à la story choisie car le type de fichier sélectionné n&apos;est pas pris en charge.</string>
 			<key>other</key>
-			<string>Tous les contenus n’ont pas pu être ajoutés aux stories choisies car certains types de fichiers sélectionnés ne sont pas pris en charge.</string>
+			<string>Tous les contenus n’ont pas pu être ajoutés aux Stories choisies car certains types de fichiers sélectionnés ne sont pas pris en charge.</string>
 		</dict>
 	</dict>
 	<key>STORY_REPLIES_COUNT_%d</key>

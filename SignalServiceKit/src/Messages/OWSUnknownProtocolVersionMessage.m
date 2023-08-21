@@ -4,7 +4,6 @@
 //
 
 #import "OWSUnknownProtocolVersionMessage.h"
-#import "SSKEnvironment.h"
 #import <SignalServiceKit/SignalServiceKit-Swift.h>
 
 NS_ASSUME_NONNULL_BEGIN
@@ -76,6 +75,7 @@ NSUInteger const OWSUnknownProtocolVersionMessageSchemaVersion = 1;
                             body:(nullable NSString *)body
                       bodyRanges:(nullable MessageBodyRanges *)bodyRanges
                     contactShare:(nullable OWSContact *)contactShare
+                       editState:(TSEditState)editState
                  expireStartedAt:(uint64_t)expireStartedAt
                        expiresAt:(uint64_t)expiresAt
                 expiresInSeconds:(unsigned int)expiresInSeconds
@@ -109,6 +109,7 @@ NSUInteger const OWSUnknownProtocolVersionMessageSchemaVersion = 1;
                               body:body
                         bodyRanges:bodyRanges
                       contactShare:contactShare
+                         editState:editState
                    expireStartedAt:expireStartedAt
                          expiresAt:expiresAt
                   expiresInSeconds:expiresInSeconds
@@ -144,7 +145,7 @@ NSUInteger const OWSUnknownProtocolVersionMessageSchemaVersion = 1;
 
 // --- CODE GENERATION MARKER
 
-- (NSString *)previewTextWithTransaction:(SDSAnyReadTransaction *)transaction
+- (NSString *)infoMessagePreviewTextWithTransaction:(SDSAnyReadTransaction *)transaction
 {
     return [self messageTextWithTransaction:transaction];
 }

@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalMessaging
+import SignalUI
 
 class AvatarEditViewController: OWSTableViewController2 {
     private let originalModel: AvatarModel
@@ -48,7 +48,7 @@ class AvatarEditViewController: OWSTableViewController2 {
     }
 
     @objc
-    func didTapCancel() {
+    private func didTapCancel() {
         guard model != originalModel else { return dismiss(animated: true) }
         OWSActionSheets.showPendingChangesActionSheet(discardAction: { [weak self] in
             self?.dismiss(animated: true)
@@ -56,7 +56,7 @@ class AvatarEditViewController: OWSTableViewController2 {
     }
 
     @objc
-    func didTapDone() {
+    private func didTapDone() {
         defer { dismiss(animated: true) }
 
         guard model != originalModel else {
@@ -106,7 +106,7 @@ class AvatarEditViewController: OWSTableViewController2 {
         let control = UISegmentedControl()
 
         control.insertSegment(
-            withTitle: NSLocalizedString(
+            withTitle: OWSLocalizedString(
                 "AVATAR_EDIT_VIEW_TEXT_SEGMENT",
                 comment: "Segment indicating the user can edit the text of the avatar"
             ),
@@ -114,7 +114,7 @@ class AvatarEditViewController: OWSTableViewController2 {
             animated: false
         )
         control.insertSegment(
-            withTitle: NSLocalizedString(
+            withTitle: OWSLocalizedString(
                 "AVATAR_EDIT_VIEW_COLOR_SEGMENT",
                 comment: "Segment indicating the user can edit the color of the avatar"
             ),
@@ -134,7 +134,7 @@ class AvatarEditViewController: OWSTableViewController2 {
     }()
 
     @objc
-    func segmentedControlDidChange() {
+    private func segmentedControlDidChange() {
         guard let selectedSegment = Segments(rawValue: segmentedControl.selectedSegmentIndex) else { return }
         switch selectedSegment {
         case .color:
@@ -278,12 +278,12 @@ class AvatarEditViewController: OWSTableViewController2 {
         themeHeaderContainer.removeAllSubviews()
 
         let label = UILabel()
-        label.text = NSLocalizedString(
+        label.text = OWSLocalizedString(
             "AVATAR_EDIT_VIEW_CHOOSE_A_COLOR",
             comment: "Text prompting the user to choose a color when editing their avatar"
         )
         label.textColor = Theme.isDarkThemeEnabled ? .ows_gray05 : .ows_gray90
-        label.font = UIFont.ows_dynamicTypeBodyClamped.ows_semibold
+        label.font = UIFont.dynamicTypeBodyClamped.semibold()
         themeHeaderContainer.addSubview(label)
         label.autoPinEdgesToSuperviewEdges(with: UIEdgeInsets(hMargin: Self.cellHInnerMargin * 0.5, vMargin: 0))
     }
@@ -402,7 +402,7 @@ private class OptionView: UIView {
     }
 
     @objc
-    func handleTap() {
+    private func handleTap() {
         guard let theme = theme else {
             return owsFailDebug("Unexpectedly missing theme in OptionView")
         }
@@ -416,7 +416,7 @@ private class OptionView: UIView {
     func updateSelectionState() {
         colorViewInsetConstraints?.forEach { $0.isActive = false }
         colorViewInsetConstraints = colorView.autoPinEdgesToSuperviewEdges(
-            withInsets: isSelected ? UIEdgeInsets(margin: 4) : .zero
+            with: isSelected ? UIEdgeInsets(margin: 4) : .zero
         )
 
         if isSelected {

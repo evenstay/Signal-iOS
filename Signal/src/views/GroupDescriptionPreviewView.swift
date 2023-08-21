@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import BonMot
+import SignalServiceKit
 import SignalUI
 
 class GroupDescriptionPreviewView: ManualLayoutView {
@@ -38,7 +38,14 @@ class GroupDescriptionPreviewView: ManualLayoutView {
         textColor = config.textColor
         numberOfLines = config.numberOfLines
         textAlignment = config.textAlignment ?? .natural
-        descriptionText = config.stringValue
+        switch config.text {
+        case .text(let text):
+            descriptionText = text
+        case .attributedText(let text):
+            descriptionText = text.string
+        case .messageBody(let messageBody):
+            descriptionText = messageBody.asPlaintext()
+        }
     }
 
     init(shouldDeactivateConstraints: Bool = false) {
@@ -56,7 +63,6 @@ class GroupDescriptionPreviewView: ManualLayoutView {
         textView.autoPinEdgesToSuperviewEdges()
     }
 
-    @objc
     required init(name: String) {
         fatalError("init(name:) has not been implemented")
     }
@@ -66,7 +72,7 @@ class GroupDescriptionPreviewView: ManualLayoutView {
     }
 
     private static let moreTextPrefix = "… "
-    private static let moreText = NSLocalizedString(
+    private static let moreText = OWSLocalizedString(
         "GROUP_DESCRIPTION_MORE",
         comment: "Text indication the user can tap to view the full group description"
     )
@@ -75,11 +81,7 @@ class GroupDescriptionPreviewView: ManualLayoutView {
     private let textThatFitsCache = LRUCache<String, String>(maxSize: 128)
 
     func truncateVisibleTextIfNecessary() {
-        // When using autolayout, we need to initially set the text
-        // to the full text otherwise the view will never get any width.
-        if !shouldDeactivateConstraints {
-            textView.text = descriptionText
-        }
+        textView.text = descriptionText
 
         guard width > 0 else { return }
 
@@ -160,7 +162,7 @@ class GroupDescriptionPreviewView: ManualLayoutView {
                     with: .link(Self.viewFullDescriptionURL)
                 )
             ]).styled(
-                with: .font(font ?? .ows_dynamicTypeBody),
+                with: .font(font ?? .dynamicTypeBody),
                 .color(textColor ?? Theme.secondaryTextAndIconColor),
                 .alignment(textAlignment)
             )
@@ -192,16 +194,74 @@ extension GroupDescriptionPreviewView: UITextViewDelegate {
 
 private extension UITextView {
     var visibleTextRange: NSRange {
-        guard let start = closestPosition(to: contentOffset),
-              let end = characterRange(
+        if #available(iOS 16, *) {
+            engageTextKit1Fallback()
+        }
+
+        guard
+            let start = closestPosition(to: contentOffset),
+            let end = characterRange(
                 at: CGPoint(
                     x: contentOffset.x + bounds.maxX,
                     y: contentOffset.y + bounds.maxY
                 )
-              )?.end else { return NSRange(location: 0, length: 0) }
+            )?.end
+        else {
+            return NSRange(location: 0, length: 0)
+        }
+
         return NSRange(
             location: offset(from: beginningOfDocument, to: start),
             length: offset(from: start, to: end)
         )
+    }
+
+    /// Force this ``UITextView`` to fall back to TextKit 1 instead of using
+    /// TextKit 2.
+    ///
+    /// With iOS 16, ``UITextView`` by default uses TextKit 2 to manage text
+    /// layout under the hood, while older iOS versions use TextKit 1. However,
+    /// accessing the `layoutManager` property on a ``UITextView`` will
+    /// cause it to dynamically fall back to TextKit 1 for layout.
+    ///
+    /// TextKit 2 appears to come with some behavior differences (possibly
+    /// bugs). Use this method to work around any issues by forcing TextKit 1.
+    ///
+    /// Notably, calling `closestPosition(to:)` and `characterRange(at:)` in
+    /// the method above produced different (and potentially buggy) values on
+    /// iOS 16 than on iOS 15. Specifically, on iOS 16 both methods seem to
+    /// always return the end of the text, regardless of the points passed,
+    /// which produced a bug in which long group descriptions were not being
+    /// correctly detected and the "Read More" suffix was not being inserted.
+    /// If you are reading this with the goal of doing away with this workaround
+    /// (and potentially moving to using TextKit 2), please ensure that long
+    /// group descriptions are correctly detected and handled on all iOS
+    /// versions 16+!
+    ///
+    /// Some sources:
+    ///
+    /// - https://developer.apple.com/forums/thread/707410
+    /// - From the doc comment on ``UITextView#layoutManager``:
+    ///     > "To ensure compatibility with older code, accessing the
+    ///     > .layoutManager of a UITextView - or its .textContainer's
+    ///     > .layoutManager - will cause a UITextView that's using TextKit 2 to
+    ///     > 'fall back' to TextKit 1, and return a newly created
+    ///     > NSLayoutManager. After this happens, .textLayoutManager will return
+    ///     > nil - and _any TextKit 2 objects you may have cached will cease
+    ///     > functioning_. Be careful about this if you are intending to be using
+    ///     > TextKit 2!"
+    /// - From the doc comment on ``UITextView.textView(usingTextLayoutManager:)``:
+    ///     > "From iOS 16 onwards, UITextViews are, by default, created with a
+    ///     > TextKit 2 NSTextLayoutManager managing text layout (see the
+    ///     > .textLayoutManager property). They will dynamically 'fall back' to
+    ///     > a TextKit 1 NSLayoutManager if TextKit 1 features are used
+    ///     > (notably, if the .layoutManager property is accessed). This
+    ///     > convenience initializer can be used to specify TextKit 1 by
+    ///     > default if you know code in your app relies on that. This avoids
+    ///     > inefficiencies associated with the needless creation of a
+    ///     > NSTextLayoutManager and the subsequent fallback."
+    @available(iOS 16, *)
+    private func engageTextKit1Fallback() {
+        _ = layoutManager
     }
 }

@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalServiceKit
 import SignalMessaging
+import SignalUI
 import YYImage
 
 class GifPickerCell: UICollectionViewCell {
@@ -13,7 +13,7 @@ class GifPickerCell: UICollectionViewCell {
     private let imageView = YYAnimatedImageView()
     private let mp4View = LoopingVideoView()
     private let activityIndicator: UIActivityIndicatorView = {
-        let view = UIActivityIndicatorView(style: .gray)
+        let view = UIActivityIndicatorView(style: .medium)
         view.backgroundColor = UIColor.white.withAlphaComponent(0.3)
         view.autoSetDimension(.width, toSize: 30)
         view.autoSetDimension(.height, toSize: 30)
@@ -49,7 +49,7 @@ class GifPickerCell: UICollectionViewCell {
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(applyTheme),
-            name: .ThemeDidChange,
+            name: .themeDidChange,
             object: nil)
 
         applyTheme()

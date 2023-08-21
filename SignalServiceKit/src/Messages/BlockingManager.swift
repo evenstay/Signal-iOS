@@ -6,7 +6,6 @@
 import Foundation
 import SignalCoreKit
 
-@objc
 public enum BlockMode: UInt {
     case remote
     case localShouldLeaveGroups
@@ -30,7 +29,6 @@ public class BlockingManager: NSObject {
     private let lock = UnfairLock()
     private var state = State()
 
-    @objc
     public required override init() {
         super.init()
         SwiftSingletons.register(self)
@@ -39,7 +37,6 @@ public class BlockingManager: NSObject {
         }
     }
 
-    @objc
     public func warmCaches() {
         owsAssertDebug(GRDBSchemaMigrator.areMigrationsComplete)
         loadStateOnLaunch()
@@ -141,7 +138,6 @@ extension BlockingManager {
         }
     }
 
-    @objc
     public func blockedGroupModels(transaction: SDSAnyReadTransaction) -> [TSGroupModel] {
         withCurrentState(transaction: transaction) { state in
             Array(state.blockedGroupMap.values)
@@ -150,7 +146,6 @@ extension BlockingManager {
 
     // MARK: Writers
 
-    @objc
     public func addBlockedAddress(_ address: SignalServiceAddress, blockMode: BlockMode, transaction: SDSAnyWriteTransaction) {
         guard address.isValid else {
             owsFailDebug("Invalid address: \(address).")
@@ -168,7 +163,6 @@ extension BlockingManager {
         }
     }
 
-    @objc
     public func removeBlockedAddress(_ address: SignalServiceAddress, wasLocallyInitiated: Bool, transaction: SDSAnyWriteTransaction) {
         guard address.isValid else {
             owsFailDebug("Invalid address: \(address).")
@@ -186,7 +180,6 @@ extension BlockingManager {
         }
     }
 
-    @objc
     public func addBlockedGroup(groupModel: TSGroupModel, blockMode: BlockMode, transaction: SDSAnyWriteTransaction) {
         let groupId = groupModel.groupId
         guard GroupManager.isValidGroupIdOfAnyKind(groupId) else {
@@ -217,7 +210,6 @@ extension BlockingManager {
         }
     }
 
-    @objc
     public func removeBlockedGroup(groupId: Data, wasLocallyInitiated: Bool, transaction: SDSAnyWriteTransaction) {
         guard GroupManager.isValidGroupIdOfAnyKind(groupId) else {
             owsFailDebug("Invalid group: \(groupId)")
@@ -243,19 +235,19 @@ extension BlockingManager {
 
     // MARK: Other convenience access
 
-    @objc
     public func isThreadBlocked(_ thread: TSThread, transaction: SDSAnyReadTransaction) -> Bool {
         if let contactThread = thread as? TSContactThread {
             return isAddressBlocked(contactThread.contactAddress, transaction: transaction)
         } else if let groupThread = thread as? TSGroupThread {
             return isGroupIdBlocked(groupThread.groupModel.groupId, transaction: transaction)
+        } else if thread is TSPrivateStoryThread {
+            return false
         } else {
             owsFailDebug("Invalid thread: \(type(of: thread))")
             return false
         }
     }
 
-    @objc
     public func addBlockedThread(_ thread: TSThread,
                                  blockMode: BlockMode,
                                  transaction: SDSAnyWriteTransaction) {
@@ -268,7 +260,6 @@ extension BlockingManager {
         }
     }
 
-    @objc
     public func removeBlockedThread(_ thread: TSThread,
                                     wasLocallyInitiated: Bool,
                                     transaction: SDSAnyWriteTransaction) {
@@ -285,7 +276,6 @@ extension BlockingManager {
         }
     }
 
-    @objc
     public func addBlockedGroup(groupId: Data, blockMode: BlockMode, transaction: SDSAnyWriteTransaction) {
         // Since we're in a write transaction, current state shouldn't have updated between this read
         // and the following write. I'm just using the `withCurrentState` method here to avoid reenterancy
@@ -311,7 +301,7 @@ extension BlockingManager {
 
 extension BlockingManager {
     @objc
-    public func processIncomingSync(blockedPhoneNumbers: Set<String>, blockedUUIDs: Set<UUID>, blockedGroupIds: Set<Data>, transaction: SDSAnyWriteTransaction) {
+    public func processIncomingSync(blockedPhoneNumbers: Set<String>, blockedAcis: Set<AciObjC>, blockedGroupIds: Set<Data>, transaction: SDSAnyWriteTransaction) {
         Logger.info("")
         transaction.addAsyncCompletionOnMain {
             NotificationCenter.default.post(name: Self.blockedSyncDidComplete, object: nil)
@@ -325,11 +315,8 @@ extension BlockingManager {
                     newBlockedAddresses.insert(blockedAddress)
                 }
             }
-            blockedUUIDs.forEach { uuid in
-                let blockedAddress = SignalServiceAddress(uuid: uuid)
-                if blockedAddress.isValid, blockedAddress.uuidString != nil {
-                    newBlockedAddresses.insert(blockedAddress)
-                }
+            blockedAcis.forEach { aci in
+                newBlockedAddresses.insert(SignalServiceAddress(aci.wrappedAciValue))
             }
 
             // We store the list of blocked groups as GroupModels (not group ids)
@@ -390,8 +377,10 @@ extension BlockingManager {
                 let message = OWSBlockedPhoneNumbersMessage(
                     thread: thread,
                     phoneNumbers: Array(state.blockedPhoneNumbers),
-                    uuids: Array(state.blockedUUIDStrings),
-                    groupIds: Array(state.blockedGroupMap.keys), transaction: transaction)
+                    aciStrings: Array(state.blockedUUIDStrings),
+                    groupIds: Array(state.blockedGroupMap.keys),
+                    transaction: transaction
+                )
 
                 if TestingFlags.optimisticallyCommitSyncToken {
                     // Tests can opt in to setting this token early. This won't be executed in production.
@@ -402,7 +391,7 @@ extension BlockingManager {
                     .promise,
                     message: message.asPreparer,
                     transaction: transaction
-                ).done(on: .global()) {
+                ).done(on: DispatchQueue.global()) {
                     Logger.info("Successfully sent blocked phone numbers sync message")
 
                     // Record the last block list which we successfully synced..
@@ -454,6 +443,7 @@ extension BlockingManager {
         private(set) var isDirty: Bool
         private(set) var changeToken: UInt64
         private(set) var blockedPhoneNumbers: Set<String>
+        // ACI TODO: Rename this to `blockedAciStrings`.
         private(set) var blockedUUIDStrings: Set<String>
         private(set) var blockedGroupMap: [Data: TSGroupModel]   // GroupId -> GroupModel
 
@@ -512,7 +502,6 @@ extension BlockingManager {
                 }
             }
 
-            isDirty = false
             isDirty = isDirty || (oldBlockedNumbers != blockedPhoneNumbers)
             isDirty = isDirty || (oldBlockedUUIDStrings != blockedUUIDStrings)
             isDirty = isDirty || (oldBlockedGroupMap != blockedGroupMap)

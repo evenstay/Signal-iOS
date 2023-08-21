@@ -23,7 +23,7 @@ public extension ConversationViewController {
     @objc
     func showGroupLobbyOrActiveCall() {
         if isCurrentCallForThread {
-            OWSWindowManager.shared.returnToCallView()
+            WindowManager.shared.returnToCallView()
             return
         }
 
@@ -39,9 +39,9 @@ public extension ConversationViewController {
 
         if thread.isBlockedByAnnouncementOnly {
             OWSActionSheets.showActionSheet(
-                title: NSLocalizedString("GROUP_CALL_BLOCKED_BY_ANNOUNCEMENT_ONLY_TITLE",
+                title: OWSLocalizedString("GROUP_CALL_BLOCKED_BY_ANNOUNCEMENT_ONLY_TITLE",
                                            comment: "Title for error alert indicating that only group administrators can start calls in announcement-only groups."),
-                message: NSLocalizedString("GROUP_CALL_BLOCKED_BY_ANNOUNCEMENT_ONLY_MESSAGE",
+                message: OWSLocalizedString("GROUP_CALL_BLOCKED_BY_ANNOUNCEMENT_ONLY_MESSAGE",
                                          comment: "Message for error alert indicating that only group administrators can start calls in announcement-only groups.")
             )
             return
@@ -50,7 +50,7 @@ public extension ConversationViewController {
         removeGroupCallTooltip()
 
         // We initiated a call, so if there was a pending message request we should accept it.
-        ThreadUtil.addThreadToProfileWhitelistIfEmptyOrPendingRequestAndSetDefaultTimerWithSneakyTransaction(thread: thread)
+        ThreadUtil.addThreadToProfileWhitelistIfEmptyOrPendingRequestAndSetDefaultTimerWithSneakyTransaction(thread)
 
         GroupCallViewController.presentLobby(thread: groupThread)
     }
@@ -86,20 +86,10 @@ public extension ConversationViewController {
             return
         }
 
-        let didShowSNAlert = self.showSafetyNumberConfirmationIfNecessary(confirmationText: CallStrings.confirmAndCallButtonTitle,
-                                                                          completion: { [weak self] didConfirmIdentity in
-                                                                            if didConfirmIdentity {
-                                                                                self?.startIndividualCall(withVideo: withVideo)
-                                                                            }
-                                                                          })
-        if didShowSNAlert {
-            return
-        }
-
         // We initiated a call, so if there was a pending message request we should accept it.
-        ThreadUtil.addThreadToProfileWhitelistIfEmptyOrPendingRequestAndSetDefaultTimerWithSneakyTransaction(thread: thread)
-
+        ThreadUtil.addThreadToProfileWhitelistIfEmptyOrPendingRequestAndSetDefaultTimerWithSneakyTransaction(thread)
         callService.initiateCall(thread: contactThread, isVideo: withVideo)
+
         NotificationCenter.default.post(name: ChatListViewController.clearSearch, object: nil)
     }
 
@@ -117,7 +107,7 @@ public extension ConversationViewController {
         guard canCall, isGroupConversation else {
             return
         }
-        if preferences.wasGroupCallTooltipShown() {
+        if viewState.didAlreadyShowGroupCallTooltipEnoughTimes {
             return
         }
 
@@ -126,10 +116,13 @@ public extension ConversationViewController {
         // as the navbar items change.
         if !hasIncrementedGroupCallTooltipShownCount {
             preferences.incrementGroupCallTooltipShownCount()
-            self.hasIncrementedGroupCallTooltipShownCount = true
+            viewState.didAlreadyShowGroupCallTooltipEnoughTimes = databaseStorage.read { tx in
+                preferences.wasGroupCallTooltipShown(withTransaction: tx)
+            }
+            hasIncrementedGroupCallTooltipShownCount = true
         }
 
-        if threadViewModel.groupCallInProgress {
+        if conversationViewModel.groupCallInProgress {
             return
         }
 

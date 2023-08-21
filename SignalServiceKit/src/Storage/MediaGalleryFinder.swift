@@ -5,6 +5,21 @@
 
 import Foundation
 import GRDB
+import SignalCoreKit
+
+public struct RowIdAndDate: Codable, FetchableRecord {
+    public var rowid: Int64
+    public var receivedAtTimestamp: UInt64 // timestamp in milliseconds
+
+    public var date: Date {
+        return Date(millisecondsSince1970: receivedAtTimestamp)
+    }
+
+    public init(rowid: Int64, receivedAtTimestamp: UInt64) {
+        self.rowid = rowid
+        self.receivedAtTimestamp = receivedAtTimestamp
+    }
+}
 
 @objc
 public final class MediaGalleryManager: NSObject {
@@ -42,8 +57,10 @@ public final class MediaGalleryManager: NSObject {
         _ = try insertGalleryRecordPrivate(attachmentStream: attachmentStream, transaction: transaction)
     }
 
-    private class func insertGalleryRecordPrivate(attachmentStream: TSAttachmentStream,
-                                                  transaction: GRDBWriteTransaction) throws -> MediaGalleryRecord? {
+    private class func insertGalleryRecordPrivate(
+        attachmentStream: TSAttachmentStream,
+        transaction: GRDBWriteTransaction
+    ) throws -> MediaGalleryRecord? {
         guard let attachmentRowId = attachmentStream.grdbId else {
             throw OWSAssertionError("attachmentRowId was unexpectedly nil")
         }
@@ -59,13 +76,16 @@ public final class MediaGalleryManager: NSObject {
         }
 
         guard let messageRowId = message.grdbId else {
-            owsFailDebug("message was unexpectedly nil")
+            owsFailDebug("message rowId was unexpectedly nil")
             return nil
         }
 
-        let thread = message.thread(transaction: transaction.asAnyRead)
+        guard let thread = message.thread(tx: transaction.asAnyRead) else {
+            owsFailDebug("thread was unexpectedly nil")
+            return nil
+        }
         guard let threadId = thread.grdbId else {
-            owsFailDebug("threadId was unexpectedly nil")
+            owsFailDebug("thread rowId was unexpectedly nil")
             return nil
         }
 
@@ -241,12 +261,43 @@ public final class MediaGalleryManager: NSObject {
 
 // MARK: - MediaGalleryFinder (GRDB only)
 
+public enum AllMediaFileType: Int, CaseIterable {
+    case photoVideo = 0
+    case audio = 1
+}
+
 public struct MediaGalleryFinder {
 
     public let thread: TSThread
-    public init(thread: TSThread) {
+
+    public enum MediaType {
+        case gifs
+        case videos
+        case photos
+        case graphicMedia
+
+        case voiceMessages
+        case audioFiles
+        case undownloadedAudio
+        case audio
+
+        public static func defaultMediaType(for fileType: AllMediaFileType) -> MediaType {
+            switch fileType {
+            case .photoVideo:
+                return .graphicMedia
+            case .audio:
+                return .audio
+            }
+        }
+    }
+
+    /// If non-nil, media will be restricted to this type. Otherwise there is no filtering.
+    public var allowedMediaType: MediaType
+
+    public init(thread: TSThread, allowedMediaType: MediaType) {
         owsAssertDebug(thread.grdbId != 0, "only supports GRDB")
         self.thread = thread
+        self.allowedMediaType = allowedMediaType
     }
 
     // MARK: - 
@@ -293,15 +344,49 @@ extension MediaGalleryFinder {
              excluding deletedAttachmentIds: Set<String>,
              order: Order = .ascending,
              limit: Int? = nil,
-             offset: Int? = nil) {
+             offset: Int? = nil,
+             allowedMediaType: MediaGalleryFinder.MediaType?) {
 
+            let contentTypeClause: String
+            switch allowedMediaType {
+            case .gifs, .photos, .videos, .graphicMedia:
+                contentTypeClause = "AND IsVisualMediaContentType(\(attachmentColumn: .contentType)) IS TRUE"
+            case .voiceMessages, .audio, .undownloadedAudio, .audioFiles:
+                contentTypeClause = "AND (\(attachmentColumn: .contentType) like 'audio/%')"
+            case .none:
+                contentTypeClause = ""
+            }
             let whereCondition: String = dateInterval.map {
                 let startMillis = $0.start.ows_millisecondsSince1970
                 // Both DateInterval and SQL BETWEEN are closed ranges, but rounding to millisecond precision loses range
                 // at the boundaries, leading to the first millisecond of a month being considered part of the previous
                 // month as well. Subtract 1ms from the end timestamp to avoid this.
                 let endMillis = $0.end.ows_millisecondsSince1970 - 1
-                return "AND \(interactionColumn: .receivedAtTimestamp) BETWEEN \(startMillis) AND \(endMillis)"
+                var clauses = ["AND \(interactionColumn: .receivedAtTimestamp) BETWEEN \(startMillis) AND \(endMillis)"]
+                switch allowedMediaType {
+                case .gifs:
+                    // Note that this isn't quite the same as -[TSAttachmentStream
+                    // hasAnimatedImageContent], which is used to label thumbnails as "GIF", because
+                    // we don't try to test if the attachment is an animated sticker. Stickers are
+                    // not supported. If we are unfortunate then image/webp and image/png are also
+                    // *possibly* animated GIFs but you need to open the file to check.
+                    // This code assumes that check is only needed for stickers.
+                    clauses.append("AND (" + VideoAttachmentDetection.shared.attachmentStreamIsGIFOrLoopingVideoSQL + ") ")
+                case .photos:
+                    clauses.append("AND (" + VideoAttachmentDetection.shared.attachmentIsNonGIFImageSQL + ") ")
+                case .videos:
+                    clauses.append("AND (" + VideoAttachmentDetection.shared.attachmentIsNonLoopingVideoSQL + ") ")
+                case .graphicMedia:
+                    break
+                case .audio:
+                    break
+                case .undownloadedAudio, .audioFiles, .voiceMessages:
+                    break  // TODO(george): Filter content even more. Audio files are all downloaded audio except voice messages. Voice messages have attachmentType of .voicemessage. I have a truly marvelous demonstration of undownloaded audio which this margin is too narrow to contain.
+                case .none:
+                    // All media types.
+                    break
+                }
+                return clauses.joined(separator: " ")
             } ?? ""
 
             let deletedAttachmentIdList = "(\"\(deletedAttachmentIds.joined(separator: "\",\""))\")"
@@ -313,7 +398,7 @@ extension MediaGalleryFinder {
                 FROM "media_gallery_items"
                 INNER JOIN \(AttachmentRecord.databaseTableName)
                     ON media_gallery_items.attachmentId = \(attachmentColumnFullyQualified: .id)
-                    AND IsVisualMediaContentType(\(attachmentColumn: .contentType)) IS TRUE
+                    \(contentTypeClause)
                 INNER JOIN \(InteractionRecord.databaseTableName)
                     ON media_gallery_items.albumMessageId = \(interactionColumnFullyQualified: .id)
                     AND \(interactionColumn: .isViewOnceMessage) = FALSE
@@ -354,12 +439,14 @@ extension MediaGalleryFinder {
                                    excluding deletedAttachmentIds: Set<String> = Set(),
                                    order: Order = .ascending,
                                    limit: Int? = nil,
-                                   offset: Int? = nil) -> String {
+                                   offset: Int? = nil,
+                                   allowedMediaType: MediaGalleryFinder.MediaType?) -> String {
         let queryParts = QueryParts(in: dateInterval,
                                     excluding: deletedAttachmentIds,
                                     order: order,
                                     limit: limit,
-                                    offset: offset)
+                                    offset: offset,
+                                    allowedMediaType: allowedMediaType)
         return queryParts.select(result)
     }
 
@@ -374,12 +461,45 @@ extension MediaGalleryFinder {
                                   in: interval,
                                   excluding: deletedAttachmentIds,
                                   order: ascending ? .ascending : .descending,
-                                  offset: offset)
-        return try! Int64.fetchAll(transaction.database, sql: sql, arguments: [threadId])
+                                  offset: offset,
+                                  allowedMediaType: allowedMediaType)
+        do {
+            return try Int64.fetchAll(transaction.database, sql: sql, arguments: [threadId])
+        } catch {
+            DatabaseCorruptionState.flagDatabaseReadCorruptionIfNecessary(
+                userDefaults: CurrentAppContext().appUserDefaults(),
+                error: error
+            )
+            owsFail("Failed to fetch row ids")
+        }
+    }
+
+    public func rowIdsAndDates(in givenInterval: DateInterval? = nil,
+                               excluding deletedAttachmentIds: Set<String>,
+                               offset: Int,
+                               ascending: Bool,
+                               transaction: GRDBReadTransaction) -> [RowIdAndDate] {
+        let interval = givenInterval ?? DateInterval.init(start: Date(timeIntervalSince1970: 0),
+                                                          end: .distantFutureForMillisecondTimestamp)
+        let sql = Self.itemsQuery(result: "media_gallery_items.rowid, \(interactionColumnFullyQualified: .receivedAtTimestamp)",
+                                  in: interval,
+                                  excluding: deletedAttachmentIds,
+                                  order: ascending ? .ascending : .descending,
+                                  offset: offset,
+                                  allowedMediaType: allowedMediaType)
+        do {
+            return try RowIdAndDate.fetchAll(transaction.database, sql: sql, arguments: [threadId])
+        } catch {
+            DatabaseCorruptionState.flagDatabaseReadCorruptionIfNecessary(
+                userDefaults: CurrentAppContext().appUserDefaults(),
+                error: error
+            )
+            owsFail("Missing instance.")
+        }
     }
 
     public func recentMediaAttachments(limit: Int, transaction: GRDBReadTransaction) -> [TSAttachment] {
-        let sql = Self.itemsQuery(order: .descending, limit: limit)
+        let sql = Self.itemsQuery(order: .descending, limit: limit, allowedMediaType: allowedMediaType)
         let cursor = TSAttachment.grdbFetchCursor(sql: sql, arguments: [threadId], transaction: transaction)
         var attachments = [TSAttachment]()
         while let next = try! cursor.next() {
@@ -396,7 +516,8 @@ extension MediaGalleryFinder {
         let sql = Self.itemsQuery(in: dateInterval,
                                   excluding: deletedAttachmentIds,
                                   limit: range.length,
-                                  offset: range.lowerBound)
+                                  offset: range.lowerBound,
+                                  allowedMediaType: allowedMediaType)
 
         let cursor = TSAttachment.grdbFetchCursor(sql: sql, arguments: [threadId], transaction: transaction)
         var index = range.lowerBound
@@ -417,7 +538,8 @@ extension MediaGalleryFinder {
                                   in: interval,
                                   excluding: deletedAttachmentIds,
                                   order: order,
-                                  limit: count)
+                                  limit: count,
+                                  allowedMediaType: allowedMediaType)
 
         struct RowIDAndTimestamp: FetchableRecord {
             var rowid: Int64
@@ -427,11 +549,20 @@ extension MediaGalleryFinder {
                 timestamp = row[1]
             }
         }
-        let cursor = try! RowIDAndTimestamp.fetchCursor(transaction.database, sql: sql, arguments: [threadId])
+
         var actualCount = 0
-        while let next = try! cursor.next() {
-            actualCount += 1
-            block(Date(millisecondsSince1970: next.timestamp), next.rowid)
+        do {
+            let cursor = try RowIDAndTimestamp.fetchCursor(transaction.database, sql: sql, arguments: [threadId])
+            while let next = try cursor.next() {
+                actualCount += 1
+                block(Date(millisecondsSince1970: next.timestamp), next.rowid)
+            }
+        } catch {
+            DatabaseCorruptionState.flagDatabaseReadCorruptionIfNecessary(
+                userDefaults: CurrentAppContext().appUserDefaults(),
+                error: error
+            )
+            owsFail("Failed to enumerate timestamps")
         }
         if actualCount < count {
             return .reachedEnd
@@ -467,31 +598,38 @@ extension MediaGalleryFinder {
                                    block: block)
     }
 
-    public func mediaIndex(of attachment: TSAttachmentStream,
-                           in interval: DateInterval,
-                           excluding deletedAttachmentIds: Set<String>,
-                           transaction: GRDBReadTransaction) -> Int? {
+    // Disregards allowedMediaType.
+    public func rowid(of attachment: TSAttachmentStream,
+                      in interval: DateInterval,
+                      excluding deletedAttachmentIds: Set<String>,
+                      transaction: GRDBReadTransaction) -> Int64? {
         guard let attachmentRowId = attachment.grdbId else {
             owsFailDebug("attachment.grdbId was unexpectedly nil")
             return nil
         }
 
-        let queryParts = QueryParts(in: interval, excluding: deletedAttachmentIds)
+        let queryParts = QueryParts(in: interval,
+                                    excluding: deletedAttachmentIds,
+                                    allowedMediaType: nil)
         let sql = """
-        SELECT mediaIndex
-        FROM (
             SELECT
-                ROW_NUMBER() OVER (\(queryParts.orderClauses)) - 1 as mediaIndex,
-                media_gallery_items.attachmentId
+                media_gallery_items.rowid
             \(queryParts.fromTableClauses)
-        )
-        WHERE attachmentId = ?
+                AND media_gallery_items.attachmentId = ?
         """
 
-        return try! Int.fetchOne(transaction.database, sql: sql, arguments: [threadId, attachmentRowId])
+        do {
+            return try Int64.fetchOne(transaction.database, sql: sql, arguments: [threadId, attachmentRowId])
+        } catch {
+            DatabaseCorruptionState.flagDatabaseReadCorruptionIfNecessary(
+                userDefaults: CurrentAppContext().appUserDefaults(),
+                error: error
+            )
+            owsFail("Failed to get row ID")
+        }
     }
 
-    /// Returns the number of attachments attached to `interaction`, whether or not they are media attachments.
+    /// Returns the number of attachments attached to `interaction`, whether or not they are media attachments. Disregards allowedMediaType.
     public func countAllAttachments(of interaction: TSInteraction, transaction: GRDBReadTransaction) throws -> UInt {
         let sql = """
             SELECT COUNT(*)

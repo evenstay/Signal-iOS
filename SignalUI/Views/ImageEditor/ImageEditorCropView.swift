@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import UIKit
+import SignalCoreKit
 
 enum CropRegion {
     // The sides of the crop region.
@@ -358,5 +358,19 @@ class CropView: UIView {
         self.cornerSize = CGSize(width: min(cropFrameView.width * 0.5, CropView.desiredCornerSize),
                                  height: min(cropFrameView.height * 0.5, CropView.desiredCornerSize))
         cropCornerViews.forEach { $0.size = cornerSize }
+    }
+}
+
+private extension UIBezierPath {
+    func addRegion(withPoints points: [CGPoint]) {
+        guard let first = points.first else {
+            owsFailDebug("No points.")
+            return
+        }
+        move(to: first)
+        for point in points.dropFirst() {
+            addLine(to: point)
+        }
+        addLine(to: first)
     }
 }

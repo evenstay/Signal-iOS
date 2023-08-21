@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
-import UIKit
+import SignalServiceKit
+import SignalUI
 
 class HiddenStoryHeaderCell: UITableViewCell {
 
@@ -23,11 +23,11 @@ class HiddenStoryHeaderCell: UITableViewCell {
         contentView.addSubview(label)
         contentView.addSubview(iconView)
 
-        label.text = NSLocalizedString(
+        label.text = OWSLocalizedString(
             "STORIES_HIDDEN_SECTION_HEADER",
             comment: "Header for the hidden stories section of the stories list"
         )
-        label.font = UIFont.ows_dynamicTypeHeadline
+        label.font = UIFont.dynamicTypeHeadline
         label.autoPinEdge(toSuperviewMargin: .leading)
         label.autoVCenterInSuperview()
 
@@ -49,19 +49,11 @@ class HiddenStoryHeaderCell: UITableViewCell {
         label.textColor = Theme.primaryTextColor
         iconView.tintColor = Theme.primaryIconColor
 
-        let iconName: String
-        let expandedRotationAngle: CGFloat
-        if CurrentAppContext().isRTL {
-            iconName = "chevron-left-20"
-            expandedRotationAngle = -90 * .pi / 180
-        } else {
-            iconName = "chevron-right-20"
-            expandedRotationAngle = 90 * .pi / 180
-        }
-        iconView.image = .init(named: iconName)?.withRenderingMode(.alwaysTemplate)
+        iconView.image = UIImage(imageLiteralResourceName: "chevron-right-20")
 
         // Rotate the chevron down when not collapsed
         let applyIconRotation = {
+            let expandedRotationAngle: CGFloat = CurrentAppContext().isRTL ? -.pi/2 : .pi/2
             self.iconView.transform = CGAffineTransform.init(
                 rotationAngle: isCollapsed ? 0 : expandedRotationAngle
             )

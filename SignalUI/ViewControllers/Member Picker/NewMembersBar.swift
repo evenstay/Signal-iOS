@@ -3,7 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalCoreKit
+import SignalServiceKit
 
 public struct NewMember {
     public let recipient: PickedRecipient
@@ -20,7 +21,6 @@ public protocol NewMembersBarDelegate: NewMemberCellDelegate {
 
 // MARK: -
 
-@objc
 public class NewMembersBar: UIView {
 
     weak var delegate: NewMembersBarDelegate?
@@ -38,7 +38,6 @@ public class NewMembersBar: UIView {
 
     private var heightConstraint: NSLayoutConstraint?
 
-    @objc
     public required init() {
         self.collectionView = UICollectionView(frame: .zero, collectionViewLayout: collectionViewLayout)
 
@@ -48,7 +47,6 @@ public class NewMembersBar: UIView {
     }
 
     @available(*, unavailable, message: "use other constructor instead.")
-    @objc
     required init?(coder aDecoder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
@@ -172,10 +170,8 @@ private class NewMemberCell: UICollectionViewCell {
     static let vMargin: CGFloat = 6
     static let removeButtonXSize: CGFloat = 12
     static let removeButtonInset: CGFloat = 5
-    static var nameFont: UIFont {
-        // Don't use dynamic type in these cells.
-        return UIFont.ows_dynamicTypeBody2.withSize(15)
-    }
+    // Don't use dynamic type in these cells.
+    static var nameFont = UIFont.regularFont(ofSize: 15)
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -190,7 +186,7 @@ private class NewMemberCell: UICollectionViewCell {
         textLabel.lineBreakMode = .byTruncatingTail
 
         let removeButton = UIButton(type: .custom)
-        removeButton.setTemplateImageName("x-24", tintColor: Theme.primaryTextColor)
+        removeButton.setTemplateImage(Theme.iconImage(.buttonX), tintColor: Theme.primaryTextColor)
         // Extend the hot area of the remove button.
         removeButton.imageEdgeInsets = UIEdgeInsets(top: Self.removeButtonInset,
                                                     left: Self.removeButtonInset,
@@ -227,7 +223,6 @@ private class NewMemberCell: UICollectionViewCell {
     }
 
     @available(*, unavailable, message: "use other constructor instead.")
-    @objc
     required init?(coder aDecoder: NSCoder) {
         super.init(coder: aDecoder)
     }
@@ -250,7 +245,7 @@ private class NewMemberCell: UICollectionViewCell {
     }
 
     @objc
-    func removeButtonWasPressed() {
+    private func removeButtonWasPressed() {
         guard let recipient = member?.recipient else {
             owsFailDebug("Missing recipient.")
             return

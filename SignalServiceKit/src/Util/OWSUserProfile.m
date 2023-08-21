@@ -7,7 +7,6 @@
 #import "AppContext.h"
 #import "OWSFileSystem.h"
 #import "ProfileManagerProtocol.h"
-#import "SSKEnvironment.h"
 #import "TSAccountManager.h"
 #import <SignalCoreKit/Cryptography.h>
 #import <SignalCoreKit/NSData+OWS.h>
@@ -119,16 +118,15 @@ NSString *NSStringForUserProfileWriter(UserProfileWriter userProfileWriter)
 @property (atomic, nullable) NSString *familyName;
 @property (atomic, nullable) NSString *bio;
 @property (atomic, nullable) NSString *bioEmoji;
-@property (atomic, nullable) NSString *username;
-@property (atomic) BOOL isStoriesCapable;
 @property (atomic, nullable) NSArray<OWSUserProfileBadgeInfo *> *profileBadgeInfo;
-@property (atomic) BOOL canReceiveGiftBadges;
 @property (atomic, nullable) NSDate *lastFetchDate;
 @property (atomic, nullable) NSDate *lastMessagingDate;
 
+@property (atomic) BOOL isStoriesCapable;
+@property (atomic) BOOL canReceiveGiftBadges;
+@property (atomic) BOOL isPniCapable;
+
 @property (atomic, readonly) NSUInteger userProfileSchemaVersion;
-@property (atomic, nullable, readonly) NSString *recipientPhoneNumber;
-@property (atomic, nullable, readonly) NSString *recipientUUID;
 
 @end
 
@@ -155,6 +153,7 @@ NSString *NSStringForUserProfileWriter(UserProfileWriter userProfileWriter)
                         bioEmoji:(nullable NSString *)bioEmoji
             canReceiveGiftBadges:(BOOL)canReceiveGiftBadges
                       familyName:(nullable NSString *)familyName
+                    isPniCapable:(BOOL)isPniCapable
                 isStoriesCapable:(BOOL)isStoriesCapable
                    lastFetchDate:(nullable NSDate *)lastFetchDate
                lastMessagingDate:(nullable NSDate *)lastMessagingDate
@@ -163,7 +162,6 @@ NSString *NSStringForUserProfileWriter(UserProfileWriter userProfileWriter)
                      profileName:(nullable NSString *)profileName
             recipientPhoneNumber:(nullable NSString *)recipientPhoneNumber
                    recipientUUID:(nullable NSString *)recipientUUID
-                        username:(nullable NSString *)username
 {
     self = [super initWithGrdbId:grdbId
                         uniqueId:uniqueId];
@@ -178,6 +176,7 @@ NSString *NSStringForUserProfileWriter(UserProfileWriter userProfileWriter)
     _bioEmoji = bioEmoji;
     _canReceiveGiftBadges = canReceiveGiftBadges;
     _familyName = familyName;
+    _isPniCapable = isPniCapable;
     _isStoriesCapable = isStoriesCapable;
     _lastFetchDate = lastFetchDate;
     _lastMessagingDate = lastMessagingDate;
@@ -186,7 +185,6 @@ NSString *NSStringForUserProfileWriter(UserProfileWriter userProfileWriter)
     _profileName = profileName;
     _recipientPhoneNumber = recipientPhoneNumber;
     _recipientUUID = recipientUUID;
-    _username = username;
 
     return self;
 }
@@ -216,7 +214,6 @@ NSString *NSStringForUserProfileWriter(UserProfileWriter userProfileWriter)
     if ([address.phoneNumber isEqualToString:kLocalProfileInvariantPhoneNumber]) {
         return YES;
     } else {
-        OWSAssertDebug(self.tsAccountManager.localAddress);
         return address.isLocalAddress;
     }
 }
@@ -253,6 +250,7 @@ NSString *NSStringForUserProfileWriter(UserProfileWriter userProfileWriter)
 }
 
 + (OWSUserProfile *)getOrBuildUserProfileForAddress:(SignalServiceAddress *)addressParam
+                                      authedAccount:(AuthedAccount *)authedAccount
                                         transaction:(SDSAnyWriteTransaction *)transaction
 {
     SignalServiceAddress *address = [self resolveUserProfileAddress:addressParam];
@@ -266,6 +264,7 @@ NSString *NSStringForUserProfileWriter(UserProfileWriter userProfileWriter)
         if ([address.phoneNumber isEqualToString:kLocalProfileInvariantPhoneNumber]) {
             [userProfile updateWithProfileKey:[OWSAES256Key generateRandomKey]
                             userProfileWriter:UserProfileWriter_LocalUser
+                                authedAccount:authedAccount
                                   transaction:transaction
                                    completion:nil];
         }
@@ -274,14 +273,6 @@ NSString *NSStringForUserProfileWriter(UserProfileWriter userProfileWriter)
     OWSAssertDebug(userProfile);
 
     return userProfile;
-}
-
-+ (nullable OWSUserProfile *)userProfileForUsername:(NSString *)username
-                                        transaction:(SDSAnyReadTransaction *)transaction
-{
-    OWSAssertDebug(username.length > 0);
-
-    return [self.userProfileFinder userProfileForUsername:username transaction:transaction];
 }
 
 + (BOOL)localUserProfileExistsWithTransaction:(SDSAnyReadTransaction *)transaction
@@ -321,7 +312,7 @@ NSString *NSStringForUserProfileWriter(UserProfileWriter userProfileWriter)
     OWSAssertDebug(address.isValid);
     OWSAssertDebug(!address.isLocalAddress);
     _recipientPhoneNumber = address.phoneNumber;
-    _recipientUUID = address.uuidString;
+    _recipientUUID = address.serviceIdUppercaseString;
     _userProfileSchemaVersion = kUserProfileSchemaVersion;
 
     return self;
@@ -331,7 +322,8 @@ NSString *NSStringForUserProfileWriter(UserProfileWriter userProfileWriter)
 
 - (SignalServiceAddress *)address
 {
-    return [[SignalServiceAddress alloc] initWithUuidString:self.recipientUUID phoneNumber:self.recipientPhoneNumber];
+    return [[SignalServiceAddress alloc] initWithServiceIdString:self.recipientUUID
+                                                     phoneNumber:self.recipientPhoneNumber];
 }
 
 // When possible, update the avatar properties in lockstep.
@@ -554,17 +546,18 @@ NSString *NSStringForUserProfileWriter(UserProfileWriter userProfileWriter)
     if (changes.bioEmoji != nil) {
         profile.bioEmoji = changes.bioEmoji.value;
     }
-    if (changes.username != nil) {
-        profile.username = changes.username.value;
+    if (changes.badges != nil) {
+        profile.profileBadgeInfo = changes.badges;
     }
+
     if (changes.isStoriesCapable != nil) {
         profile.isStoriesCapable = changes.isStoriesCapable.value;
     }
     if (changes.canReceiveGiftBadges != nil) {
         profile.canReceiveGiftBadges = changes.canReceiveGiftBadges.value;
     }
-    if (changes.badges != nil) {
-        profile.profileBadgeInfo = changes.badges;
+    if (changes.isPniCapable != nil) {
+        profile.isPniCapable = changes.isPniCapable.value;
     }
 
     BOOL canUpdateAvatarUrlPath
@@ -625,14 +618,17 @@ NSString *NSStringForUserProfileWriter(UserProfileWriter userProfileWriter)
 // * We fire "did change" notifications.
 - (void)applyChanges:(UserProfileChanges *)changes
     userProfileWriter:(UserProfileWriter)userProfileWriter
+        authedAccount:(AuthedAccount *)authedAccount
           transaction:(SDSAnyWriteTransaction *)transaction
            completion:(nullable OWSUserProfileCompletion)completion
 {
     OWSAssertDebug(transaction);
     BOOL isLocalUserProfile = [OWSUserProfile isLocalProfileAddress:self.address];
-    // We should never be writing to or updating the "local address" profile;
-    // we should be using the "kLocalProfileInvariantPhoneNumber" profile instead.
-    OWSAssertDebug(!self.address.isLocalAddress);
+    if (isLocalUserProfile) {
+        // We should never be writing to or updating the "local address" profile;
+        // we should be using the "kLocalProfileInvariantPhoneNumber" profile instead.
+        OWSAssertDebug([self.address.phoneNumber isEqualToString:kLocalProfileInvariantPhoneNumber]);
+    }
 
     // This should be set to true if:
     //
@@ -753,7 +749,7 @@ NSString *NSStringForUserProfileWriter(UserProfileWriter userProfileWriter)
                     } else {
                         OWSLogInfo(@"Re-uploading local profile to update profile credential.");
                         [transaction addAsyncCompletionOffMain:^{
-                            [self.profileManager reuploadLocalProfile];
+                            [self.profileManager reuploadLocalProfileWithAuthedAccount:authedAccount];
                         }];
                     }
                 }
@@ -837,7 +833,7 @@ NSString *NSStringForUserProfileWriter(UserProfileWriter userProfileWriter)
 
     if (shouldReindex) {
         OWSLogInfo(@"Reindexing because of profile change.");
-        [self reindexAssociatedModels:transaction];
+        [self reindexAssociatedModelsWithTransaction:transaction];
     }
 
     // Insert a profile change update in conversations, if necessary
@@ -858,9 +854,18 @@ NSString *NSStringForUserProfileWriter(UserProfileWriter userProfileWriter)
     if (self.tsAccountManager.isRegisteredAndReady && shouldUpdateStorageService
         && (!onlyAvatarChanged || isLocalUserProfile)) {
         [transaction addAsyncCompletionOffMain:^{
-            [self.storageServiceManager
-                recordPendingUpdatesWithUpdatedAddresses:@[ isLocalUserProfile ? self.tsAccountManager.localAddress
-                                                                               : self.address ]];
+            if (isLocalUserProfile) {
+                // If isLocalUserProfile is true, the address we have is actually a placeholder
+                // (its not even our real local address!)
+                // Replace it with the real deal, from either auth or tsAccountManager.
+                SignalServiceAddress *localAddress = [authedAccount localUserAddress];
+                if (localAddress == nil) {
+                    localAddress = self.tsAccountManager.localAddress;
+                }
+                [self.storageServiceManagerObjc recordPendingUpdatesWithUpdatedAddresses:@[ localAddress ]];
+            } else {
+                [self.storageServiceManagerObjc recordPendingUpdatesWithUpdatedAddresses:@[ self.address ]];
+            }
         }];
     }
 
@@ -902,15 +907,7 @@ NSString *NSStringForUserProfileWriter(UserProfileWriter userProfileWriter)
 // This should only be used in verbose, developer-only logs.
 - (NSString *)debugDescription
 {
-    return [NSString stringWithFormat:@"%@ %p %@ %lu %@ %@ %@ %@",
-                     self.logTag,
-                     self,
-                     self.address,
-                     (unsigned long)self.profileKey.keyData.length,
-                     self.givenName,
-                     self.familyName,
-                     self.avatarUrlPath,
-                     self.avatarFileName];
+    return [NSString stringWithFormat:@"%@ %p %@ %@", self.logTag, self, self.recipientUUID, self.recipientPhoneNumber];
 }
 
 - (nullable NSString *)unfilteredProfileName
@@ -1057,7 +1054,7 @@ NSString *NSStringForUserProfileWriter(UserProfileWriter userProfileWriter)
 {
     [super anyDidInsertWithTransaction:transaction];
 
-    [self reindexAssociatedModels:transaction];
+    [self reindexAssociatedModelsWithTransaction:transaction];
 
     [self.modelReadCaches.userProfileReadCache didInsertOrUpdateUserProfile:self transaction:transaction];
 }
@@ -1074,69 +1071,6 @@ NSString *NSStringForUserProfileWriter(UserProfileWriter userProfileWriter)
     [super anyDidRemoveWithTransaction:transaction];
 
     [self.modelReadCaches.userProfileReadCache didRemoveUserProfile:self transaction:transaction];
-}
-
-- (void)reindexAssociatedModels:(SDSAnyWriteTransaction *)transaction
-{
-    // The profile can affect how accounts, recipients, contact threads, and group threads are indexed, so we
-    // need to re-index them whenever the profile changes.
-    FullTextSearchFinder *fullTextSearchFinder = [FullTextSearchFinder new];
-
-    AnySignalAccountFinder *accountFinder = [AnySignalAccountFinder new];
-    SignalAccount *_Nullable signalAccount = [accountFinder signalAccountForAddress:self.address
-                                                                        transaction:transaction];
-    if (signalAccount != nil) {
-        [fullTextSearchFinder modelWasUpdatedObjcWithModel:signalAccount transaction:transaction];
-    }
-
-    AnySignalRecipientFinder *signalRecipientFinder = [AnySignalRecipientFinder new];
-    SignalRecipient *_Nullable signalRecipient = [signalRecipientFinder signalRecipientForAddress:self.address
-                                                                                      transaction:transaction];
-    if (signalRecipient != nil) {
-        [fullTextSearchFinder modelWasUpdatedObjcWithModel:signalRecipient transaction:transaction];
-    }
-
-    TSContactThread *_Nullable contactThread = [TSContactThread getThreadWithContactAddress:self.address
-                                                                                transaction:transaction];
-    if (contactThread != nil) {
-        [fullTextSearchFinder modelWasUpdatedObjcWithModel:contactThread transaction:transaction];
-    }
-
-    [TSGroupMember enumerateGroupMembersForAddress:self.address
-                                   withTransaction:transaction
-                                             block:^(TSGroupMember *groupMember, BOOL *stop) {
-                                                 [fullTextSearchFinder modelWasUpdatedObjcWithModel:groupMember
-                                                                                        transaction:transaction];
-                                             }];
-}
-
-+ (void)mergeUserProfilesIfNecessaryForAddress:(SignalServiceAddress *)address
-                                   transaction:(SDSAnyWriteTransaction *)transaction
-{
-    if ([self isLocalProfileAddress:address]) {
-        return;
-    }
-    if (address.uuid == nil || address.phoneNumber == nil) {
-        OWSFailDebug(@"Address missing UUID or phone number.");
-        return;
-    }
-
-    OWSUserProfile *_Nullable userProfileForUuid = [self.userProfileFinder userProfileForUUID:address.uuid
-                                                                                  transaction:transaction];
-    OWSUserProfile *_Nullable userProfileForPhoneNumber =
-        [self.userProfileFinder userProfileForPhoneNumber:address.phoneNumber transaction:transaction];
-
-    // AnyUserProfileFinder prefers UUID profiles, so we try to fill in
-    // missing profile keys on UUID profiles from phone number profiles.
-    if (userProfileForUuid != nil && userProfileForUuid.profileKey == nil
-        && userProfileForPhoneNumber.profileKey != nil) {
-        OWSLogInfo(@"Merging user profiles for: %@, %@.", address.uuid, address.phoneNumber);
-
-        [userProfileForUuid updateWithProfileKey:userProfileForPhoneNumber.profileKey
-                               userProfileWriter:UserProfileWriter_LocalUser
-                                     transaction:transaction
-                                      completion:^{ [self.profileManager fetchProfileForAddress:address]; }];
-    }
 }
 
 - (OWSUserProfile *)shallowCopy

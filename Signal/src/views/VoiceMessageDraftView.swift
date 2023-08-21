@@ -4,20 +4,23 @@
 //
 
 import Lottie
+import SignalServiceKit
 import SignalUI
 
 class VoiceMessageDraftView: UIStackView {
     private let playbackTimeLabel = UILabel()
     private let waveformView: AudioWaveformProgressView
-    private let voiceMessageModel: VoiceMessageModel
+    private let voiceMessageInterruptedDraft: VoiceMessageInterruptedDraft
     private let playPauseButton = LottieToggleButton()
 
     var audioPlaybackState: AudioPlaybackState = .stopped
 
-    init(voiceMessageModel: VoiceMessageModel,
-         mediaCache: CVMediaCache,
-         didDeleteCallback: @escaping () -> Void) {
-        self.voiceMessageModel = voiceMessageModel
+    init(
+        voiceMessageInterruptedDraft: VoiceMessageInterruptedDraft,
+        mediaCache: CVMediaCache,
+        deleteAction: @escaping () -> Void
+    ) {
+        self.voiceMessageInterruptedDraft = voiceMessageInterruptedDraft
 
         self.waveformView = AudioWaveformProgressView(mediaCache: mediaCache)
 
@@ -30,14 +33,10 @@ class VoiceMessageDraftView: UIStackView {
         layoutMargins = UIEdgeInsets(hMargin: 16, vMargin: 0)
 
         let trashButton = OWSButton {
-            voiceMessageModel.audioPlayer.stop()
-            Self.databaseStorage.asyncWrite {
-                voiceMessageModel.clearDraft(transaction: $0)
-            } completion: {
-                didDeleteCallback()
-            }
+            voiceMessageInterruptedDraft.audioPlayer.stop()
+            deleteAction()
         }
-        trashButton.setTemplateImageName("trash-solid-24", tintColor: .ows_accentRed)
+        trashButton.setTemplateImageName("trash-fill", tintColor: .ows_accentRed)
         trashButton.autoSetDimensions(to: CGSize(square: 24))
         addArrangedSubview(trashButton)
 
@@ -59,7 +58,7 @@ class VoiceMessageDraftView: UIStackView {
         waveformView.thumbColor = playedColor
         waveformView.playedColor = playedColor
         waveformView.unplayedColor = Theme.isDarkThemeEnabled ? .ows_gray60 : .ows_gray25
-        waveformView.audioWaveform = voiceMessageModel.audioWaveform
+        waveformView.audioWaveform = voiceMessageInterruptedDraft.audioWaveform
         waveformView.autoSetDimension(.height, toSize: 22)
 
         addArrangedSubview(waveformView)
@@ -67,16 +66,16 @@ class VoiceMessageDraftView: UIStackView {
         let panGestureRecognizer = UIPanGestureRecognizer(target: self, action: #selector(handlePan))
         addGestureRecognizer(panGestureRecognizer)
 
-        playbackTimeLabel.font = UIFont.ows_dynamicTypeSubheadlineClamped.ows_monospaced
+        playbackTimeLabel.font = UIFont.dynamicTypeSubheadlineClamped.monospaced()
         playbackTimeLabel.textColor = Theme.ternaryTextColor
         updateAudioProgress(currentTime: 0)
         addArrangedSubview(playbackTimeLabel)
 
-        voiceMessageModel.audioPlayer.delegate = self
+        voiceMessageInterruptedDraft.audioPlayer.delegate = self
     }
 
     deinit {
-        voiceMessageModel.audioPlayer.stop()
+        voiceMessageInterruptedDraft.audioPlayer.stop()
     }
 
     required init(coder: NSCoder) {
@@ -95,7 +94,7 @@ class VoiceMessageDraftView: UIStackView {
             progress = 1 - progress
         }
 
-        guard let duration = voiceMessageModel.duration else {
+        guard let duration = voiceMessageInterruptedDraft.duration else {
             return owsFailDebug("Missing duration")
         }
 
@@ -109,7 +108,7 @@ class VoiceMessageDraftView: UIStackView {
             updateAudioProgress(currentTime: currentTime)
         case .ended:
             isScrubbing = false
-            voiceMessageModel.audioPlayer.setCurrentTime(currentTime)
+            voiceMessageInterruptedDraft.audioPlayer.setCurrentTime(currentTime)
         case .cancelled, .failed, .possible:
             isScrubbing = false
         @unknown default:
@@ -118,7 +117,7 @@ class VoiceMessageDraftView: UIStackView {
     }
 
     func updateAudioProgress(currentTime: TimeInterval) {
-        guard let duration = voiceMessageModel.duration else { return }
+        guard let duration = voiceMessageInterruptedDraft.duration else { return }
         waveformView.value = CGFloatClamp01(CGFloat(currentTime / duration))
         playbackTimeLabel.text = OWSFormat.localizedDurationString(from: duration - currentTime)
     }
@@ -127,7 +126,7 @@ class VoiceMessageDraftView: UIStackView {
     private func didTogglePlayPause() {
         cvAudioPlayer.stopAll()
         playPauseButton.setSelected(!playPauseButton.isSelected, animated: true)
-        voiceMessageModel.audioPlayer.togglePlayState()
+        voiceMessageInterruptedDraft.audioPlayer.togglePlayState()
     }
 }
 

@@ -3,9 +3,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import LibSignalClient
 import SignalMessaging
 import SignalServiceKit
+import SignalUI
 
 extension ConversationViewController {
     public func updateNavigationTitle() {
@@ -13,50 +14,29 @@ extension ConversationViewController {
 
         self.title = nil
 
-        var name: String?
-        var attributedName: NSAttributedString?
-        var icon: UIImage?
-        if let contactThread = thread as? TSContactThread {
-            if thread.isNoteToSelf {
-                name = MessageStrings.noteToSelf
-            } else {
-                name = contactsManager.displayName(for: contactThread.contactAddress)
-            }
+        // If the user is in the system contacts, show a badge
+        headerView.titleIcon = (
+            conversationViewModel.isSystemContact
+            ? UIImage(imageLiteralResourceName: "person-circle-compact")
+            : nil
+        )
 
-            // If the user is in the system contacts, show a badge
-            let isSystemContact = databaseStorage.read { transaction in
-                contactsManagerImpl.isSystemContact(address: contactThread.contactAddress, transaction: transaction)
-            }
-            if isSystemContact {
-                icon = UIImage(named: "contact-outline-16")?.withRenderingMode(.alwaysTemplate)
-            }
-        } else if let groupThread = thread as? TSGroupThread {
-            name = groupThread.groupNameOrDefault
-        } else {
-            owsFailDebug("Invalid thread.")
+        let attributedName = NSAttributedString(
+            string: threadViewModel.name,
+            attributes: [
+                .foregroundColor: Theme.primaryTextColor
+            ]
+        )
+        if headerView.attributedTitle != attributedName {
+            headerView.attributedTitle = attributedName
         }
-
-        self.headerView.titleIcon = icon
-
-        if nil == attributedName,
-           let unattributedName = name {
-            attributedName = NSAttributedString(string: unattributedName,
-                                                attributes: [
-                                                    .foregroundColor: Theme.primaryTextColor
-                                                ])
-        }
-
-        if attributedName == headerView.attributedTitle {
-            return
-        }
-        headerView.attributedTitle = attributedName
     }
 
     public func createHeaderViews() {
         AssertIsOnMainThread()
 
         headerView.configure(threadViewModel: threadViewModel)
-        headerView.accessibilityLabel = NSLocalizedString("CONVERSATION_SETTINGS",
+        headerView.accessibilityLabel = OWSLocalizedString("CONVERSATION_SETTINGS",
                                                           comment: "title for conversation settings screen")
         headerView.accessibilityIdentifier = "headerView"
         headerView.delegate = self
@@ -77,7 +57,7 @@ extension ConversationViewController {
         AssertIsOnMainThread()
 
         if gestureRecognizer.state == .began {
-            showDebugUI(thread, self)
+            showDebugUIForThread(thread, fromViewController: self)
         }
     }
 
@@ -102,13 +82,7 @@ extension ConversationViewController {
                 navigationItem.rightBarButtonItems = []
                 return
             }
-            if #available(iOS 13, *) {
-                owsAssertDebug(navigationItem.searchController != nil)
-            } else {
-                navigationItem.rightBarButtonItems = []
-                navigationItem.leftBarButtonItem = nil
-                navigationItem.hidesBackButton = true
-            }
+            owsAssertDebug(navigationItem.searchController != nil)
             return
         case .selection:
             navigationItem.rightBarButtonItems = [ self.cancelSelectionBarButtonItem ]
@@ -125,49 +99,49 @@ extension ConversationViewController {
                 if self.isGroupConversation {
                     let videoCallButton = UIBarButtonItem()
 
-                    if threadViewModel.groupCallInProgress {
+                    if conversationViewModel.groupCallInProgress {
                         let pill = JoinGroupCallPill()
                         pill.addTarget(self,
                                        action: #selector(showGroupLobbyOrActiveCall),
                                        for: .touchUpInside)
-                        let returnString = NSLocalizedString("RETURN_CALL_PILL_BUTTON",
+                        let returnString = OWSLocalizedString("RETURN_CALL_PILL_BUTTON",
                                                              comment: "Button to return to current group call")
-                        let joinString = NSLocalizedString("JOIN_CALL_PILL_BUTTON",
+                        let joinString = OWSLocalizedString("JOIN_CALL_PILL_BUTTON",
                                                            comment: "Button to join an active group call")
                         pill.buttonText = self.isCurrentCallForThread ? returnString : joinString
                         videoCallButton.customView = pill
                     } else {
-                        videoCallButton.image = Theme.iconImage(.videoCall)
+                        videoCallButton.image = Theme.iconImage(.buttonVideoCall)
                         videoCallButton.target = self
                         videoCallButton.action = #selector(showGroupLobbyOrActiveCall)
                     }
 
                     videoCallButton.isEnabled = (self.callService.currentCall == nil
                                                     || self.isCurrentCallForThread)
-                    videoCallButton.accessibilityLabel = NSLocalizedString("VIDEO_CALL_LABEL",
+                    videoCallButton.accessibilityLabel = OWSLocalizedString("VIDEO_CALL_LABEL",
                                                                            comment: "Accessibility label for placing a video call")
                     self.groupCallBarButtonItem = videoCallButton
                     barButtons.append(videoCallButton)
                 } else {
                     let audioCallButton = UIBarButtonItem(
-                        image: Theme.iconImage(.audioCall),
+                        image: Theme.iconImage(.buttonVoiceCall),
                         style: .plain,
                         target: self,
                         action: #selector(startIndividualAudioCall)
                     )
                     audioCallButton.isEnabled = !CurrentAppContext().hasActiveCall
-                    audioCallButton.accessibilityLabel = NSLocalizedString("AUDIO_CALL_LABEL",
+                    audioCallButton.accessibilityLabel = OWSLocalizedString("AUDIO_CALL_LABEL",
                                                                            comment: "Accessibility label for placing an audio call")
                     barButtons.append(audioCallButton)
 
                     let videoCallButton = UIBarButtonItem(
-                        image: Theme.iconImage(.videoCall),
+                        image: Theme.iconImage(.buttonVideoCall),
                         style: .plain,
                         target: self,
                         action: #selector(startIndividualVideoCall)
                     )
                     videoCallButton.isEnabled = !CurrentAppContext().hasActiveCall
-                    videoCallButton.accessibilityLabel = NSLocalizedString("VIDEO_CALL_LABEL",
+                    videoCallButton.accessibilityLabel = OWSLocalizedString("VIDEO_CALL_LABEL",
                                                                            comment: "Accessibility label for placing a video call")
                     barButtons.append(videoCallButton)
                 }
@@ -176,23 +150,6 @@ extension ConversationViewController {
             navigationItem.rightBarButtonItems = barButtons
             showGroupCallTooltipIfNecessary()
             return
-        }
-    }
-
-    private func shouldShowVerifiedBadge(for thread: TSThread) -> Bool {
-        switch thread {
-        case let groupThread as TSGroupThread:
-            if groupThread.groupModel.groupMembers.isEmpty {
-                return false
-            }
-            return !Self.identityManager.groupContainsUnverifiedMember(groupThread.uniqueId)
-
-        case let contactThread as TSContactThread:
-            return Self.identityManager.verificationState(for: contactThread.contactAddress) == .verified
-
-        default:
-            owsFailDebug("Showing conversation for unexpected thread type.")
-            return false
         }
     }
 
@@ -218,13 +175,13 @@ extension ConversationViewController {
 
         let isMuted = threadViewModel.isMuted
         let hasTimer = disappearingMessagesConfiguration.isEnabled
-        let isVerified = shouldShowVerifiedBadge(for: thread)
+        let isVerified = conversationViewModel.shouldShowVerifiedBadge
 
         if isMuted {
-            subtitleText.appendTemplatedImage(named: "bell-disabled-outline-24", font: subtitleFont)
+            subtitleText.appendTemplatedImage(named: "bell-slash-compact", font: subtitleFont)
             if !isVerified {
                 subtitleText.append(iconSpacer, attributes: attributes)
-                subtitleText.append(NSLocalizedString("MUTED_BADGE",
+                subtitleText.append(OWSLocalizedString("MUTED_BADGE",
                                                       comment: "Badge indicating that the user is muted."),
                                     attributes: attributes)
             }
@@ -235,10 +192,10 @@ extension ConversationViewController {
                 subtitleText.append(betweenItemSpacer, attributes: attributes)
             }
 
-            subtitleText.appendTemplatedImage(named: "timer-outline-16", font: subtitleFont)
+            subtitleText.appendTemplatedImage(named: Theme.iconName(.timer16), font: subtitleFont)
             subtitleText.append(iconSpacer, attributes: attributes)
-            subtitleText.append(NSString.formatDurationSeconds(
-                disappearingMessagesConfiguration.durationSeconds,
+            subtitleText.append(DateUtil.formatDuration(
+                seconds: disappearingMessagesConfiguration.durationSeconds,
                 useShortFormat: true
             ),
             attributes: attributes)
@@ -249,9 +206,9 @@ extension ConversationViewController {
                 subtitleText.append(betweenItemSpacer, attributes: attributes)
             }
 
-            subtitleText.appendTemplatedImage(named: "check-12", font: subtitleFont)
+            subtitleText.appendTemplatedImage(named: "check-extra-small", font: subtitleFont)
             subtitleText.append(iconSpacer, attributes: attributes)
-            subtitleText.append(NSLocalizedString("PRIVACY_IDENTITY_IS_VERIFIED_BADGE",
+            subtitleText.append(OWSLocalizedString("PRIVACY_IDENTITY_IS_VERIFIED_BADGE",
                                                   comment: "Badge indicating that the user is verified."),
                                 attributes: attributes)
         }
@@ -268,27 +225,34 @@ extension ConversationViewController {
         collectionView.collectionViewLayout.collectionViewContentSize.height
     }
 
-    public func buildInputToolbar(conversationStyle: ConversationStyle,
-                                  messageDraft: MessageBody?,
-                                  draftReply: ThreadReplyInfo?,
-                                  voiceMemoDraft: VoiceMessageModel?) -> ConversationInputToolbar {
+    func buildInputToolbar(
+        conversationStyle: ConversationStyle,
+        messageDraft: MessageBody?,
+        draftReply: ThreadReplyInfo?,
+        voiceMemoDraft: VoiceMessageInterruptedDraft?,
+        editTarget: TSOutgoingMessage?
+    ) -> ConversationInputToolbar {
         AssertIsOnMainThread()
         owsAssertDebug(hasViewWillAppearEverBegun)
 
-        let quotedReply: OWSQuotedReplyModel?
+        let quotedReply: QuotedReplyModel?
         if let draftReply = draftReply {
             quotedReply = buildQuotedReply(draftReply)
         } else {
             quotedReply = nil
         }
 
-        let inputToolbar = ConversationInputToolbar(conversationStyle: conversationStyle,
-                                                    mediaCache: mediaCache,
-                                                    messageDraft: messageDraft,
-                                                    quotedReply: quotedReply,
-                                                    inputToolbarDelegate: self,
-                                                    inputTextViewDelegate: self,
-                                                    mentionDelegate: self)
+        let inputToolbar = ConversationInputToolbar(
+            conversationStyle: conversationStyle,
+            spoilerState: viewState.spoilerState,
+            mediaCache: mediaCache,
+            messageDraft: messageDraft,
+            quotedReply: quotedReply,
+            editTarget: editTarget,
+            inputToolbarDelegate: self,
+            inputTextViewDelegate: self,
+            mentionDelegate: self
+        )
         inputToolbar.accessibilityIdentifier = "inputToolbar"
         if let voiceMemoDraft = voiceMemoDraft {
             inputToolbar.showVoiceMemoDraft(voiceMemoDraft)
@@ -297,23 +261,23 @@ extension ConversationViewController {
         return inputToolbar
     }
 
-    // When responding to a message and quoting it, the input toolbar needs an OWSQuotedReplyModel.
+    // When responding to a message and quoting it, the input toolbar needs an QuotedReplyModel.
     // Building this is a little tricky because we're putting a square peg in a round hole, and this method helps.
     // Historically, a quoted reply comes from an already-rendered message that's available at the moment that you
     // choose to reply to a message via the UI. For saved drafts, that UI component may not exist.
     // This method re-creates the steps that the app goes through when constructing a quoted reply from a message
     // by making a temporary `CVComponentState`. The ThreadReplyInfo identifies the message being responded to.
     // Since timestamps aren't unique, this is nondeterministic when things go wrong.
-    func buildQuotedReply(_ draftReply: ThreadReplyInfo) -> OWSQuotedReplyModel? {
+    func buildQuotedReply(_ draftReply: ThreadReplyInfo) -> QuotedReplyModel? {
         return Self.databaseStorage.read { transaction in
             guard let interaction = try? InteractionFinder.interactions(
                 withTimestamp: draftReply.timestamp,
                 filter: { candidate in
                     if let incoming = candidate as? TSIncomingMessage {
-                        return incoming.authorAddress == draftReply.author
+                        return incoming.authorAddress.untypedServiceId == draftReply.author
                     }
                     if candidate is TSOutgoingMessage {
-                        return draftReply.author.isLocalAddress
+                        return tsAccountManager.localIdentifiers(transaction: transaction)?.aci.untypedServiceId == draftReply.author
                     }
                     return false
                 },
@@ -321,15 +285,17 @@ extension ConversationViewController {
             ).first else {
                 return nil
             }
-            guard let componentState = CVLoader.buildStandaloneComponentState(interaction: interaction,
-                                                                              transaction: transaction) else {
+            guard let componentState = CVLoader.buildStandaloneComponentState(
+                interaction: interaction,
+                spoilerState: self.viewState.spoilerState,
+                transaction: transaction
+            ) else {
                 owsFailDebug("Failed to create component state.")
                 return nil
             }
             let wrapper = CVComponentStateWrapper(interaction: interaction,
                                                   componentState: componentState)
-            return OWSQuotedReplyModel.quotedReplyForSending(withItem: wrapper,
-                                                             transaction: transaction)
+            return QuotedReplyModel.forSending(item: wrapper, transaction: transaction)
 
         }
     }

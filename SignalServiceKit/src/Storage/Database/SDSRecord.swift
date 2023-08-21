@@ -58,6 +58,10 @@ public extension SDSRecord {
             recordCopy.id = grdbId
             try recordCopy.update(transaction.database)
         } catch {
+            DatabaseCorruptionState.flagDatabaseCorruptionIfNecessary(
+                userDefaults: CurrentAppContext().appUserDefaults(),
+                error: error
+            )
             owsFail("Update failed: \(error.grdbErrorForLogging)")
         }
     }
@@ -66,6 +70,10 @@ public extension SDSRecord {
         do {
             try self.insert(transaction.database)
         } catch {
+            DatabaseCorruptionState.flagDatabaseCorruptionIfNecessary(
+                userDefaults: CurrentAppContext().appUserDefaults(),
+                error: error
+            )
             owsFail("Insert failed: \(error.grdbErrorForLogging)")
         }
     }
@@ -77,11 +85,7 @@ public extension SDSRecord {
             let sql: String = "DELETE FROM \(tableName.quotedDatabaseIdentifier) WHERE \(whereSQL)"
 
             let statement = try transaction.database.cachedStatement(sql: sql)
-            guard let arguments = StatementArguments([uniqueIdColumnValue]) else {
-                owsFail("Could not convert values.")
-            }
-            // TODO: We could use setArgumentsWithValidation for more safety.
-            statement.setUncheckedArguments(arguments)
+            try statement.setArguments([uniqueIdColumnValue])
             try statement.execute()
         } catch {
             DatabaseCorruptionState.flagDatabaseCorruptionIfNecessary(
@@ -120,6 +124,10 @@ extension BaseModel {
             }
             return value
         } catch {
+            DatabaseCorruptionState.flagDatabaseReadCorruptionIfNecessary(
+                userDefaults: CurrentAppContext().appUserDefaults(),
+                error: error
+            )
             owsFailDebug("Could not find grdb id: \(error)")
             return nil
         }

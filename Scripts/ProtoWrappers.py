@@ -359,6 +359,13 @@ class BaseContext(object):
                 return True
         return False
 
+    def is_field_a_proto_whose_init_throws(self, field):
+        matching_context = self.context_for_proto_type(field)
+        if matching_context is not None:
+            if type(matching_context) is MessageContext:
+                return matching_context.can_init_throw()
+        return False
+
     def can_field_be_optional_objc(self, field):
         return self.can_field_be_optional(field) and not self.is_field_primitive(field) and not self.is_field_an_enum(field)
 
@@ -437,7 +444,7 @@ public enum %s: Error {
 
 
 class MessageField:
-    def __init__(self, name, index, rules, proto_type, default_value, sort_index, is_required, is_trusted_mapping):
+    def __init__(self, name, index, rules, proto_type, default_value, sort_index, is_required):
         self.name = name
         self.index = index
         self.rules = rules
@@ -445,7 +452,6 @@ class MessageField:
         self.default_value = default_value
         self.sort_index = sort_index
         self.is_required = is_required
-        self.is_trusted_mapping = is_trusted_mapping
 
     def has_accessor_name(self):
         name = 'has' + self.name_swift[0].upper() + self.name_swift[1:]
@@ -488,6 +494,14 @@ class MessageContext(BaseContext):
     def children(self):
         return self.enums + self.messages + self.oneofs
 
+    def can_init_throw(self):
+        for field in self.fields():
+            if self.is_field_a_proto_whose_init_throws(field):
+                return True
+            if field.is_required and proto_syntax == "proto2":
+                return True
+        return False
+
     def prepare(self):
         self.swift_name = self.derive_swift_name()
         self.swift_builder_name = "%sBuilder" % self.swift_name
@@ -522,8 +536,6 @@ class MessageContext(BaseContext):
         # Prepare fields
         explict_fields = []
         implict_fields = []
-        uuid_field = None
-        e164_field = None
         for field in self.fields():
             field.type_swift = self.swift_type_for_field(field)
             field.type_swift_not_optional = self.swift_type_for_field(field, suppress_optional=True)
@@ -538,12 +550,6 @@ class MessageContext(BaseContext):
                 explict_fields.append(field)
             else:
                 implict_fields.append(field)
-
-            # See if we need to add SignalServiceAddress helpers
-            if field.name.endswith('Uuid') and field.proto_type == 'string':
-                uuid_field = field
-            elif field.name.endswith('E164') and field.proto_type == 'string':
-                e164_field = field
 
             # Ensure that no enum are required.
             if proto_syntax == 'proto2' and self.is_field_an_enum(field) and field.is_required:
@@ -650,6 +656,7 @@ class MessageContext(BaseContext):
                     else:
                         is_uuid_or_e164 = field.name.endswith('Uuid') or field.name.endswith('E164')
                         if is_uuid_or_e164:
+                            print("BLAH!")
                             writer.add('return proto.%s && !proto.%s.isEmpty' % ( field.has_accessor_name(), field.name_swift, ) ) 
                         else:
                             writer.add('return proto.%s' % field.has_accessor_name() ) 
@@ -679,25 +686,6 @@ class MessageContext(BaseContext):
                     writer.pop_indent()
                     writer.add('}')
                     writer.newline()
-
-        address_accessor = ''
-        if uuid_field is not None:
-            accessor_prefix = uuid_field.name.replace('Uuid', '')
-            address_accessor = accessor_prefix + 'Address'
-            address_has_accessor = 'hasValid' + accessor_prefix[0].upper() + accessor_prefix[1:]
-
-            # hasValidAddress
-            writer.add_objc()
-            writer.add('public var %s: Bool {' % address_has_accessor)
-            writer.push_indent()
-            writer.add('return %s != nil' % address_accessor)
-            writer.pop_indent()
-            writer.add('}')
-
-            # address accessor
-            writer.add_objc()
-            writer.add('public let %s: SignalServiceAddress?' % address_accessor)
-            writer.newline()
 
         # Unknown fields
         writer.add('public var hasUnknownFields: Bool {')
@@ -730,85 +718,6 @@ class MessageContext(BaseContext):
         for field in explict_fields:
             writer.add('self.%s = %s' % (field.name_swift, field.name_swift))
 
-        if uuid_field:
-            writer.newline()
-
-            if proto_syntax == 'proto3':
-                writer.add('let %s = !proto.%s.isEmpty' % (uuid_field.has_accessor_name(), uuid_field.name_swift))
-                if e164_field:
-                    writer.add('let %s = !proto.%s.isEmpty' % (e164_field.has_accessor_name(), e164_field.name_swift))
-            else:
-                writer.add('let %s = proto.%s && !proto.%s.isEmpty' % (uuid_field.has_accessor_name(), uuid_field.has_accessor_name(), uuid_field.name_swift))
-                if e164_field:
-                    writer.add('let %s = proto.%s && !proto.%s.isEmpty' % (e164_field.has_accessor_name(), e164_field.has_accessor_name(), e164_field.name_swift))
-
-            writer.add('let %s: String? = proto.%s' % (uuid_field.name_swift, uuid_field.name_swift))
-            if e164_field:
-                writer.add('let %s: String? = proto.%s' % (e164_field.name_swift, e164_field.name_swift))
-
-            writer.add('self.%s = {' % address_accessor)
-            writer.push_indent()
-
-            if e164_field:
-                writer.add(f"guard {uuid_field.has_accessor_name()} || {e164_field.has_accessor_name()} else {{ return nil }}")
-            else:
-                writer.add(f"guard {uuid_field.has_accessor_name()} else {{ return nil }}")
-            writer.newline()
-
-            writer.add('let uuidString: String? = {')
-            writer.push_indent()
-            writer.add('guard %s else { return nil }' % uuid_field.has_accessor_name())
-            writer.newline()
-            writer.add('guard let %s = %s else {' % (uuid_field.name_swift, uuid_field.name_swift))
-            writer.push_indent()
-            writer.add('owsFailDebug("%s was unexpectedly nil")' % uuid_field.name_swift)
-            writer.add('return nil')
-            writer.pop_indent()
-            writer.add('}')
-            writer.newline()
-            writer.add('return %s' % uuid_field.name_swift)
-            writer.pop_indent()
-            writer.add('}()')
-            writer.newline()
-
-            if e164_field:
-                writer.add('let phoneNumber: String? = {')
-                writer.push_indent()
-                writer.add('guard %s else {' % e164_field.has_accessor_name())
-                writer.push_indent()
-                writer.add('return nil')
-                writer.pop_indent()
-                writer.add('}')
-                writer.newline()
-                writer.add('return ProtoUtils.parseProtoE164(%s, name: "%s.%s")' % (e164_field.name_swift, wrapped_swift_name, e164_field.name_swift))
-                writer.pop_indent()
-                writer.add('}()')
-                writer.newline()
-
-                writer.add("let address = SignalServiceAddress(")
-                writer.push_indent()
-                writer.add("uuidString: uuidString,")
-                writer.add("phoneNumber: phoneNumber,")
-                writer.add(f"trustLevel: .{'high' if uuid_field.is_trusted_mapping else 'low'}")
-                writer.pop_indent()
-                writer.add(")")
-            else:
-                writer.add("guard let uuidString = uuidString else { return nil }")
-                writer.newline()
-
-                writer.add("let address = SignalServiceAddress(uuidString: uuidString)")
-
-            writer.add("guard address.isValid else {")
-            writer.push_indent()
-            writer.add('owsFailDebug("address was unexpectedly invalid")')
-            writer.add("return nil")
-            writer.pop_indent()
-            writer.add("}")
-            writer.newline()
-            writer.add('return address')
-            writer.pop_indent()
-            writer.add('}()')
-
         writer.pop_indent()
         writer.add('}')
         writer.newline()
@@ -830,16 +739,23 @@ public func serializedData() throws -> Data {
             writer.add('public init(serializedData: Data) throws {')
         writer.push_indent()
         writer.add('let proto = try %s(serializedData: serializedData)' % ( wrapped_swift_name, ) )
-        writer.add('try self.init(proto)')
+        if self.can_init_throw():
+            writer.add('try self.init(proto)')
+        else:
+            writer.add('self.init(proto)')
         writer.pop_indent()
         writer.add('}')
         writer.newline()
 
         # init(proto:) func
+        chunks = ["fileprivate"]
         if writer.needs_objc():
-            writer.add('fileprivate convenience init(_ proto: %s) throws {' % ( wrapped_swift_name, ) )
-        else:
-            writer.add('fileprivate init(_ proto: %s) throws {' % ( wrapped_swift_name, ) )
+            chunks.append("convenience")
+        chunks.append(f"init(_ proto: {wrapped_swift_name})")
+        if self.can_init_throw():
+            chunks.append("throws")
+        chunks.append("{")
+        writer.add(" ".join(chunks))
         writer.push_indent()
 
         for field in explict_fields:
@@ -856,8 +772,10 @@ public func serializedData() throws -> Data {
                     # TODO: Assert that rules is empty.
                     enum_context = self.context_for_proto_type(field)
                     writer.add('let %s = %s(proto.%s)' % ( field.name_swift, enum_context.wrap_func_name(), field.name_swift, ) )
-                elif self.is_field_a_proto(field):
+                elif self.is_field_a_proto_whose_init_throws(field):
                     writer.add('let %s = try %s(proto.%s)' % (field.name_swift, self.base_swift_type_for_field(field), field.name_swift)),
+                elif self.is_field_a_proto(field):
+                    writer.add('let %s = %s(proto.%s)' % (field.name_swift, self.base_swift_type_for_field(field), field.name_swift)),
                 else:
                     writer.add('let %s = proto.%s' % ( field.name_swift, field.name_swift, ) )
                 writer.newline()
@@ -873,8 +791,10 @@ public func serializedData() throws -> Data {
                 if self.is_field_an_enum(field):
                     enum_context = self.context_for_proto_type(field)
                     writer.add('%s = proto.%s.map { %s($0) }' % ( field.name_swift, field.name_swift, enum_context.wrap_func_name(), ) )
-                elif self.is_field_a_proto(field):
+                elif self.is_field_a_proto_whose_init_throws(field):
                     writer.add('%s = try proto.%s.map { try %s($0) }' % ( field.name_swift, field.name_swift, self.base_swift_type_for_field(field), ) )
+                elif self.is_field_a_proto(field):
+                    writer.add('%s = proto.%s.map { %s($0) }' % ( field.name_swift, field.name_swift, self.base_swift_type_for_field(field), ) )
                 else:
                     writer.add('%s = proto.%s' % ( field.name_swift, field.name_swift, ) )
             else:
@@ -885,27 +805,16 @@ public func serializedData() throws -> Data {
                     # TODO: Assert that rules is empty.
                     enum_context = self.context_for_proto_type(field)
                     writer.add('%s = %s(proto.%s)' % ( field.name_swift, enum_context.wrap_func_name(), field.name_swift, ) )
-                elif self.is_field_a_proto(field):
+                elif self.is_field_a_proto_whose_init_throws(field):
                     writer.add('%s = try %s(proto.%s)' % (field.name_swift, self.base_swift_type_for_field(field), field.name_swift)),
+                elif self.is_field_a_proto(field):
+                    writer.add('%s = %s(proto.%s)' % (field.name_swift, self.base_swift_type_for_field(field), field.name_swift)),
                 else:
                     writer.add('%s = proto.%s' % ( field.name_swift, field.name_swift, ) )
 
                 writer.pop_indent()
                 writer.add('}')
             writer.newline()
-
-        writer.add('// MARK: - Begin Validation Logic for %s -' % self.swift_name)
-        writer.newline()
-
-        # Preserve existing validation logic.
-        if self.swift_name in args.validation_map:
-            validation_block = args.validation_map[self.swift_name]
-            if validation_block:
-                writer.add_raw(validation_block)
-                writer.newline()
-
-        writer.add('// MARK: - End Validation Logic for %s -' % self.swift_name)
-        writer.newline()
 
         initializer_prefix = 'self.init('
         initializer_arguments = []
@@ -1011,7 +920,10 @@ public func serializedData() throws -> Data {
         with writer.braced('extension %s' % self.swift_builder_name ) as writer:
             writer.add_objc()
             with writer.braced('public func buildIgnoringErrors() -> %s?' % self.swift_name) as writer:
-                writer.add('return try! self.build()')
+                if self.can_init_throw():
+                    writer.add('return try! self.build()')
+                else:
+                    writer.add('return self.buildInfallibly()')
 
         writer.newline()
         writer.add('#endif')
@@ -1198,7 +1110,7 @@ public func serializedData() throws -> Data {
                         if field.name.endswith('E164') and field.proto_type == 'string':
                             writer.add('if let valueParam = valueParam.nilIfEmpty {')
                             writer.push_indent()
-                            writer.add('owsAssertDebug(PhoneNumber.resemblesE164(valueParam))')
+                            writer.add('owsAssertDebug(valueParam.isStructurallyValidE164)')
                             writer.pop_indent()
                             writer.add('}')
                             writer.newline()
@@ -1230,7 +1142,7 @@ public func serializedData() throws -> Data {
                     if field.name.endswith('E164') and field.proto_type == 'string':
                         writer.add('if let valueParam = valueParam.nilIfEmpty {')
                         writer.push_indent()
-                        writer.add('owsAssertDebug(PhoneNumber.resemblesE164(valueParam))')
+                        writer.add('owsAssertDebug(valueParam.isStructurallyValidE164)')
                         writer.pop_indent()
                         writer.add('}')
                         writer.newline()
@@ -1255,10 +1167,22 @@ public func serializedData() throws -> Data {
         writer.add_objc()
         writer.add('public func build() throws -> %s {' % self.swift_name)
         writer.push_indent()
-        writer.add('return try %s(proto)' % self.swift_name)
+        if self.can_init_throw():
+            writer.add('return try %s(proto)' % self.swift_name)
+        else:
+            writer.add('return %s(proto)' % self.swift_name)
         writer.pop_indent()
         writer.add('}')
         writer.newline()
+
+        if not self.can_init_throw():
+            writer.add_objc()
+            writer.add('public func buildInfallibly() -> %s {' % self.swift_name)
+            writer.push_indent()
+            writer.add('return %s(proto)' % self.swift_name)
+            writer.pop_indent()
+            writer.add('}')
+            writer.newline()
 
         # buildSerializedData() func
         writer.add_objc()
@@ -1501,7 +1425,7 @@ class OneOfContext(BaseContext):
 
         return None
 
-    def case_pairs(self):
+    def case_tuples(self):
         result = []
         for index in self.sorted_item_indices():
             index_str = str(index)
@@ -1509,9 +1433,11 @@ class OneOfContext(BaseContext):
             item_type = self.item_type_map[item_name]
             case_name = lower_camel_case(item_name)
             case_type = swift_type_for_proto_primitive_type(item_type)
+            case_throws = False
             if case_type is None:
                 case_type = self.context_for_proto_type(item_type).swift_name
-            result.append( (case_name, case_type,) )
+                case_throws = self.is_field_a_proto_whose_init_throws(item_type)
+            result.append( (case_name, case_type, case_throws) )
         return result
 
     def generate(self, writer):
@@ -1525,7 +1451,7 @@ class OneOfContext(BaseContext):
 
         writer.push_context(self.proto_name, self.swift_name)
 
-        for case_name, case_type in self.case_pairs():
+        for case_name, case_type, _ in self.case_tuples():
             writer.add('case %s(%s)' % ( case_name, case_type, ) )
 
 
@@ -1534,16 +1460,19 @@ class OneOfContext(BaseContext):
         writer.rstrip()
         writer.add('}')
         writer.newline()
-            
+
         wrapped_swift_name = self.derive_wrapped_swift_name()
+        # TODO: Only mark this throws if one of the cases throws.
         writer.add('private func %sWrap(_ value: %s) throws -> %s {' % ( self.swift_name, wrapped_swift_name, self.swift_name, ) )
         writer.push_indent()
         writer.add('switch value {')
-        for case_name, case_type in self.case_pairs():
+        for case_name, case_type, case_throws in self.case_tuples():
             if is_swift_primitive_type(case_type):
                 writer.add('case .%s(let value): return .%s(value)' % (case_name, case_name, ) )
-            else:
+            elif case_throws:
                 writer.add('case .%s(let value): return .%s(try %s(value))' % (case_name, case_name, case_type, ) )
+            else:
+                writer.add('case .%s(let value): return .%s(%s(value))' % (case_name, case_name, case_type, ) )
             
         writer.add('}')
         writer.pop_indent()
@@ -1553,7 +1482,7 @@ class OneOfContext(BaseContext):
         writer.add('private func %sUnwrap(_ value: %s) -> %s {' % ( self.swift_name, self.swift_name, wrapped_swift_name, ) )
         writer.push_indent()
         writer.add('switch value {')
-        for case_name, case_type in self.case_pairs():
+        for case_name, case_type, case_throws in self.case_tuples():
             if is_swift_primitive_type(case_type):
                 writer.add('case .%s(let value): return .%s(value)' % (case_name, case_name,))
             else:
@@ -1746,7 +1675,7 @@ def parse_message(args, proto_file_path, parser, parent_context, message_name):
                 oneof_context = parse_oneof(args, proto_file_path, parser, context, oneof_name)
                 oneof_index = oneof_context.last_index()
                 oneof_type = oneof_context.derive_swift_name()
-                context.field_map[oneof_index] = MessageField(oneof_name, oneof_index, 'optional', oneof_type, None, sort_index, False, False)
+                context.field_map[oneof_index] = MessageField(oneof_name, oneof_index, 'optional', oneof_type, None, sort_index, False)
                 sort_index = sort_index + 1
                 continue
 
@@ -1809,52 +1738,13 @@ def parse_message(args, proto_file_path, parser, parent_context, message_name):
             #     print 'is_required:', item_name
             # print 'item_name:', item_name, 'item_type:', item_type
 
-            is_trusted_mapping = '@trustedMapping' in field_comments
-
-            context.field_map[item_index] = MessageField(item_name, item_index, item_rules, item_type, item_default, sort_index, is_required, is_trusted_mapping)
+            context.field_map[item_index] = MessageField(item_name, item_index, item_rules, item_type, item_default, sort_index, is_required)
 
             sort_index = sort_index + 1
 
             continue
 
         raise Exception('Invalid message syntax[%s]: %s' % (proto_file_path, line))
-
-
-def preserve_validation_logic(args, proto_file_path, dst_file_path):
-    args.validation_map = {}
-    if os.path.exists(dst_file_path):
-        with open(dst_file_path, 'rt') as f:
-            old_text = f.read()
-        for match in validation_start_regex.finditer(old_text):
-            # print 'match'
-            name = match.group(1)
-            # print '\t name:', name
-            start = match.end(0)
-            # print '\t start:', start
-            end_marker = '// MARK: - End Validation Logic for %s -' % name
-            end = old_text.find(end_marker)
-            # print '\t end:', end
-            if end < start:
-                raise Exception('Malformed validation: %s, %s' % ( proto_file_path, name, ) )
-            validation_block = old_text[start:end]
-            # print '\t validation_block:', validation_block
-
-            # Strip trailing whitespace.
-            validation_lines = validation_block.split('\n')
-            validation_lines = [line.rstrip() for line in validation_lines]
-            # Strip leading empty lines.
-            while len(validation_lines) > 0 and validation_lines[0] == '':
-                validation_lines = validation_lines[1:]
-            # Strip trailing empty lines.
-            while len(validation_lines) > 0 and validation_lines[-1] == '':
-                validation_lines = validation_lines[:-1]
-            validation_block = '\n'.join(validation_lines)
-
-            if len(validation_block) > 0:
-                if args.verbose:
-                    print('Preserving validation logic for:', name)
-
-            args.validation_map[name] = validation_block
 
 
 def process_proto_file(args, proto_file_path, dst_file_path):
@@ -1911,8 +1801,6 @@ def process_proto_file(args, proto_file_path, dst_file_path):
             continue
 
         raise Exception('Invalid syntax[%s]: %s' % (proto_file_path, line))
-
-    preserve_validation_logic(args, proto_file_path, dst_file_path)
 
     writer = LineWriter(args)
     context.prepare()

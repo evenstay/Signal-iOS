@@ -98,35 +98,35 @@ extension ConversationViewController {
             return sheet
         }
         if isRedeemed {
-            let fullName = self.databaseStorage.read { transaction -> String in
+            let shortName = self.databaseStorage.read { transaction -> String in
                 let authorAddress = incomingMessage.authorAddress
-                return self.contactsManager.displayName(for: authorAddress, transaction: transaction)
+                return self.contactsManager.shortDisplayName(for: authorAddress, transaction: transaction)
             }
-            return BadgeGiftingAlreadyRedeemedSheet(badge: profileBadge, fullName: fullName)
+            return BadgeGiftingAlreadyRedeemedSheet(badge: profileBadge, shortName: shortName)
         }
         return self.giftRedemptionSheet(incomingMessage: incomingMessage, profileBadge: profileBadge)
     }
 
     private func giftRedemptionSheet(incomingMessage: TSIncomingMessage, profileBadge: ProfileBadge) -> UIViewController {
-        let (shortName, fullName) = self.databaseStorage.read { transaction -> (String, String) in
-            let authorAddress = incomingMessage.authorAddress
-            return (
-                self.contactsManager.shortDisplayName(for: authorAddress, transaction: transaction),
-                self.contactsManager.displayName(for: authorAddress, transaction: transaction)
-            )
+        let authorAddress = incomingMessage.authorAddress
+        let shortName = self.databaseStorage.read { transaction in
+            self.contactsManager.shortDisplayName(for: authorAddress, transaction: transaction)
         }
-        return BadgeThanksSheet(badge: profileBadge, type: .gift(
-            shortName: shortName,
-            fullName: fullName,
-            notNowAction: { [weak self] in self?.showRedeemBadgeLaterText() },
-            incomingMessage: incomingMessage
-        ))
+        return BadgeThanksSheet(
+            newBadge: profileBadge,
+            newBadgeType: .gift(
+                shortName: shortName,
+                notNowAction: { [weak self] in self?.showRedeemBadgeLaterText() },
+                incomingMessage: incomingMessage
+            ),
+            oldBadgesSnapshot: BadgeThanksSheet.currentProfileBadgesSnapshot()
+        )
     }
 
     private func showRedeemBadgeLaterText() {
-        let text = NSLocalizedString(
-            "BADGE_GIFTING_REDEEM_LATER",
-            comment: "A toast that appears at the bottom of the screen after tapping 'Not Now' when redeeming a gift."
+        let text = OWSLocalizedString(
+            "DONATION_ON_BEHALF_OF_A_FRIEND_REDEEM_BADGE_LATER",
+            comment: "When you receive a badge as a result of a donation from a friend, a screen is shown. This toast is shown when dismissing that screen if you do not redeem the badge."
         )
         self.presentToastCVC(text)
     }

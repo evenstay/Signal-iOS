@@ -3,24 +3,26 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
-import UIKit
 import SignalServiceKit
+import SignalUI
 
-@objc
 class EmojiPickerSheet: InteractiveSheetViewController {
     override var interactiveScrollViews: [UIScrollView] { [collectionView] }
 
+    override var dismissesWithHighVelocitySwipe: Bool { false }
+
+    override var shrinksWithHighVelocitySwipe: Bool { false }
+
     let completionHandler: (EmojiWithSkinTones?) -> Void
 
-    let collectionView = EmojiPickerCollectionView()
+    let collectionView: EmojiPickerCollectionView
     lazy var sectionToolbar = EmojiPickerSectionToolbar(delegate: self)
 
     let allowReactionConfiguration: Bool
 
     lazy var searchBar: UISearchBar = {
         let searchBar = UISearchBar()
-        searchBar.placeholder = NSLocalizedString("HOME_VIEW_CONVERSATION_SEARCHBAR_PLACEHOLDER", comment: "Placeholder text for search bar which filters conversations.")
+        searchBar.placeholder = OWSLocalizedString("HOME_VIEW_CONVERSATION_SEARCHBAR_PLACEHOLDER", comment: "Placeholder text for search bar which filters conversations.")
         searchBar.delegate = self
         searchBar.searchBarStyle = .minimal
         return searchBar
@@ -40,9 +42,14 @@ class EmojiPickerSheet: InteractiveSheetViewController {
         Theme.isDarkThemeEnabled ? .ows_gray80 : .ows_white
     }
 
-    init(allowReactionConfiguration: Bool = true, completionHandler: @escaping (EmojiWithSkinTones?) -> Void) {
+    init(
+        message: TSMessage?,
+        allowReactionConfiguration: Bool = true,
+        completionHandler: @escaping (EmojiWithSkinTones?) -> Void
+    ) {
         self.allowReactionConfiguration = allowReactionConfiguration
         self.completionHandler = completionHandler
+        self.collectionView = EmojiPickerCollectionView(message: message)
         super.init()
 
         if !allowReactionConfiguration {
@@ -80,13 +87,11 @@ class EmojiPickerSheet: InteractiveSheetViewController {
 
         contentView.addSubview(topStackView)
 
-        topStackView.autoPinWidthToSuperview()
-        topStackView.autoPinEdge(toSuperviewEdge: .top)
+        topStackView.autoPinEdgesToSuperviewEdges(with: .zero, excludingEdge: .bottom)
 
         contentView.addSubview(collectionView)
         collectionView.autoPinEdge(.top, to: .bottom, of: searchBar)
-        collectionView.autoPinEdge(.bottom, to: .bottom, of: contentView)
-        collectionView.autoPinWidthToSuperview()
+        collectionView.autoPinEdgesToSuperviewEdges(with: .zero, excludingEdge: .top)
         collectionView.pickerDelegate = self
         collectionView.alwaysBounceVertical = true
 
@@ -95,7 +100,8 @@ class EmojiPickerSheet: InteractiveSheetViewController {
         // cancels those animations and makes it pop into place which looks bad.
         // might be worth ripping apart at some point.
         keyboardLayoutGuideView.addSubview(sectionToolbar)
-        sectionToolbar.autoPinWidth(toWidthOf: contentView)
+        sectionToolbar.autoPinEdge(.leading, to: .leading, of: contentView)
+        sectionToolbar.autoPinEdge(.trailing, to: .trailing, of: contentView)
         sectionToolbar.autoPinEdge(.bottom, to: .bottom, of: keyboardLayoutGuideView)
     }
 
@@ -132,6 +138,12 @@ class EmojiPickerSheet: InteractiveSheetViewController {
 
 extension EmojiPickerSheet: EmojiPickerSectionToolbarDelegate {
     func emojiPickerSectionToolbar(_ sectionToolbar: EmojiPickerSectionToolbar, didSelectSection section: Int) {
+        let finalSection: EmojiPickerSection
+        if section == 0, collectionView.hasRecentEmoji {
+            finalSection = .recentEmoji
+        } else {
+            finalSection = .emojiCategory(categoryIndex: section - (collectionView.hasRecentEmoji ? 1 : 0))
+        }
         if let searchText = collectionView.searchText, !searchText.isEmpty {
             searchBar.text = nil
             collectionView.searchText = nil
@@ -139,10 +151,10 @@ extension EmojiPickerSheet: EmojiPickerSectionToolbarDelegate {
             // Collection view needs a moment to reload.
             // Do empty batch of updates to postpone scroll until collection view has updated.
             collectionView.performBatchUpdates(nil) { _ in
-                self.collectionView.scrollToSectionHeader(section, animated: false)
+                self.collectionView.scrollToSectionHeader(finalSection, animated: false)
             }
         } else {
-            collectionView.scrollToSectionHeader(section, animated: false)
+            collectionView.scrollToSectionHeader(finalSection, animated: false)
         }
 
         maximizeHeight()
@@ -163,8 +175,16 @@ extension EmojiPickerSheet: EmojiPickerCollectionViewDelegate {
         dismiss(animated: true)
     }
 
-    func emojiPicker(_ emojiPicker: EmojiPickerCollectionView, didScrollToSection section: Int) {
-        sectionToolbar.setSelectedSection(section)
+    func emojiPicker(_ emojiPicker: EmojiPickerCollectionView, didScrollToSection section: EmojiPickerSection) {
+        switch section {
+        case .messageEmoji:
+            // No section for message emoji; just select the recent emoji.
+            sectionToolbar.setSelectedSection(0)
+        case .recentEmoji:
+            sectionToolbar.setSelectedSection(0)
+        case .emojiCategory(let categoryIndex):
+            sectionToolbar.setSelectedSection(categoryIndex + (emojiPicker.hasRecentEmoji ? 1 : 0))
+        }
     }
 }
 

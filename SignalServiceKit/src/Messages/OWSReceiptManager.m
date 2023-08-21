@@ -10,7 +10,6 @@
 #import "OWSOutgoingReceiptManager.h"
 #import "OWSReadReceiptsForLinkedDevicesMessage.h"
 #import "OWSReceiptsForSenderMessage.h"
-#import "SSKEnvironment.h"
 #import "TSAccountManager.h"
 #import "TSContactThread.h"
 #import "TSIncomingMessage.h"
@@ -186,7 +185,7 @@ NSString *const OWSReceiptManagerAreReadReceiptsEnabled = @"areReadReceiptsEnabl
             // nothing further to do
             break;
         case OWSReceiptCircumstanceOnLinkedDeviceWhilePendingMessageRequest:
-            OWSFailDebug(@"Unexectedly had story receipt blocked by message request.");
+            OWSFailDebug(@"Unexpectedly had story receipt blocked by message request.");
             break;
         case OWSReceiptCircumstanceOnThisDevice: {
             // We only send read receipts to linked devices, not to the author.
@@ -195,7 +194,7 @@ NSString *const OWSReceiptManagerAreReadReceiptsEnabled = @"areReadReceiptsEnabl
             break;
         }
         case OWSReceiptCircumstanceOnThisDeviceWhilePendingMessageRequest:
-            OWSFailDebug(@"Unexectedly had story receipt blocked by message request.");
+            OWSFailDebug(@"Unexpectedly had story receipt blocked by message request.");
             break;
     }
 }
@@ -209,7 +208,7 @@ NSString *const OWSReceiptManagerAreReadReceiptsEnabled = @"areReadReceiptsEnabl
             // nothing further to do
             break;
         case OWSReceiptCircumstanceOnLinkedDeviceWhilePendingMessageRequest:
-            OWSFailDebug(@"Unexectedly had story receipt blocked by message request.");
+            OWSFailDebug(@"Unexpectedly had story receipt blocked by message request.");
             break;
         case OWSReceiptCircumstanceOnThisDevice: {
             [self enqueueLinkedDeviceViewedReceiptForStoryMessage:storyMessage transaction:transaction];
@@ -222,7 +221,7 @@ NSString *const OWSReceiptManagerAreReadReceiptsEnabled = @"areReadReceiptsEnabl
             break;
         }
         case OWSReceiptCircumstanceOnThisDeviceWhilePendingMessageRequest:
-            OWSFailDebug(@"Unexectedly had story receipt blocked by message request.");
+            OWSFailDebug(@"Unexpectedly had story receipt blocked by message request.");
             break;
     }
 }
@@ -237,303 +236,6 @@ NSString *const OWSReceiptManagerAreReadReceiptsEnabled = @"areReadReceiptsEnabl
 {
     [self enqueueLinkedDeviceViewedReceiptForOutgoingMessage:outgoingMessage transaction:transaction];
     [transaction addAsyncCompletionOffMain:^{ [self scheduleProcessing]; }];
-}
-
-#pragma mark - Read Receipts From Recipient
-
-- (NSArray<NSNumber *> *)processReadReceiptsFromRecipient:(SignalServiceAddress *)address
-                                        recipientDeviceId:(uint32_t)deviceId
-                                           sentTimestamps:(NSArray<NSNumber *> *)sentTimestamps
-                                            readTimestamp:(uint64_t)readTimestamp
-                                              transaction:(SDSAnyWriteTransaction *)transaction
-{
-    OWSAssertDebug(address.isValid);
-    OWSAssertDebug(sentTimestamps);
-
-    NSMutableArray<NSNumber *> *sentTimestampsMissingMessage = [NSMutableArray new];
-
-    if (![self areReadReceiptsEnabled]) {
-        OWSLogInfo(@"Ignoring incoming receipt message as read receipts are disabled.");
-        return @[];
-    }
-
-    for (NSNumber *nsSentTimestamp in sentTimestamps) {
-        UInt64 sentTimestamp = [nsSentTimestamp unsignedLongLongValue];
-
-        NSError *error;
-        NSArray<TSOutgoingMessage *> *messages = (NSArray<TSOutgoingMessage *> *)[InteractionFinder
-            interactionsWithTimestamp:sentTimestamp
-                               filter:^(TSInteraction *interaction) {
-                                   return [interaction isKindOfClass:[TSOutgoingMessage class]];
-                               }
-                          transaction:transaction
-                                error:&error];
-        if (error != nil) {
-            OWSFailDebug(@"Error loading interactions: %@", error);
-        }
-
-        if (messages.count > 1) {
-            OWSLogError(@"More than one matching message with timestamp: %llu.", sentTimestamp);
-        }
-
-        if (messages.count > 0) {
-            // TODO: We might also need to "mark as read by recipient" any older messages
-            // from us in that thread.  Or maybe this state should hang on the thread?
-            for (TSOutgoingMessage *message in messages) {
-                [message updateWithReadRecipient:address
-                               recipientDeviceId:deviceId
-                                   readTimestamp:readTimestamp
-                                     transaction:transaction];
-            }
-        } else {
-            [sentTimestampsMissingMessage addObject:@(sentTimestamp)];
-        }
-    }
-
-    return [sentTimestampsMissingMessage copy];
-}
-
-- (NSArray<NSNumber *> *)processViewedReceiptsFromRecipient:(SignalServiceAddress *)address
-                                          recipientDeviceId:(uint32_t)deviceId
-                                             sentTimestamps:(NSArray<NSNumber *> *)sentTimestamps
-                                            viewedTimestamp:(uint64_t)viewedTimestamp
-                                                transaction:(SDSAnyWriteTransaction *)transaction
-{
-    OWSAssertDebug(address.isValid);
-    OWSAssertDebug(sentTimestamps);
-
-    NSMutableArray<NSNumber *> *sentTimestampsMissingMessage = [NSMutableArray new];
-
-    for (NSNumber *nsSentTimestamp in sentTimestamps) {
-        UInt64 sentTimestamp = [nsSentTimestamp unsignedLongLongValue];
-
-        NSError *error;
-        NSArray<TSOutgoingMessage *> *messages = (NSArray<TSOutgoingMessage *> *)[InteractionFinder
-            interactionsWithTimestamp:sentTimestamp
-                               filter:^(TSInteraction *interaction) {
-                                   return [interaction isKindOfClass:[TSOutgoingMessage class]];
-                               }
-                          transaction:transaction
-                                error:&error];
-        if (error != nil) {
-            OWSFailDebug(@"Error loading interactions: %@", error);
-        }
-
-        if (messages.count > 1) {
-            OWSLogError(@"More than one matching message with timestamp: %llu.", sentTimestamp);
-        }
-
-        if (messages.count > 0) {
-            if (![self areReadReceiptsEnabled]) {
-                OWSLogInfo(@"Ignoring incoming receipt message as read receipts are disabled.");
-                return @[];
-            }
-
-            for (TSOutgoingMessage *message in messages) {
-                [message updateWithViewedRecipient:address
-                                 recipientDeviceId:deviceId
-                                   viewedTimestamp:viewedTimestamp
-                                       transaction:transaction];
-            }
-        } else {
-            StoryMessage *_Nullable storyMessage = [StoryFinder storyWithTimestamp:sentTimestamp
-                                                                            author:TSAccountManager.localAddress
-                                                                       transaction:transaction];
-            if (storyMessage) {
-                if (!StoryManager.areViewReceiptsEnabled) {
-                    OWSLogInfo(@"Ignoring incoming story receipt message as view receipts are disabled.");
-                    return @[];
-                }
-
-                [storyMessage markAsViewedAt:viewedTimestamp by:address transaction:transaction];
-            } else {
-                [sentTimestampsMissingMessage addObject:@(sentTimestamp)];
-            }
-        }
-    }
-
-    return [sentTimestampsMissingMessage copy];
-}
-
-#pragma mark - Linked Device Read Receipts
-
-- (NSArray<SSKProtoSyncMessageRead *> *)processReadReceiptsFromLinkedDevice:
-                                            (NSArray<SSKProtoSyncMessageRead *> *)readReceiptProtos
-                                                              readTimestamp:(uint64_t)readTimestamp
-                                                                transaction:(SDSAnyWriteTransaction *)transaction
-{
-    OWSAssertDebug(readReceiptProtos);
-    OWSAssertDebug(transaction);
-
-    NSMutableArray<SSKProtoSyncMessageRead *> *receiptsMissingMessage = [NSMutableArray new];
-
-    for (SSKProtoSyncMessageRead *readReceiptProto in readReceiptProtos) {
-        SignalServiceAddress *_Nullable senderAddress = readReceiptProto.senderAddress;
-        uint64_t messageIdTimestamp = readReceiptProto.timestamp;
-
-        OWSAssertDebug(senderAddress.isValid);
-
-        if (messageIdTimestamp == 0) {
-            OWSFailDebug(@"messageIdTimestamp was unexpectedly 0");
-            continue;
-        }
-        if (![SDS fitsInInt64:messageIdTimestamp]) {
-            OWSFailDebug(@"Invalid messageIdTimestamp.");
-            continue;
-        }
-
-        NSError *error;
-        NSArray<TSMessage *> *messages = (NSArray<TSMessage *> *)[InteractionFinder
-            interactionsWithTimestamp:messageIdTimestamp
-                               filter:^(
-                                   TSInteraction *interaction) { return [interaction isKindOfClass:[TSMessage class]]; }
-                          transaction:transaction
-                                error:&error];
-        if (error != nil) {
-            OWSFailDebug(@"Error loading interactions: %@", error);
-        }
-
-        OWSLogInfo(@"Marking %lu messages as read on linked device. Timestamp: %llu",
-            (unsigned long)messages.count,
-            messageIdTimestamp);
-
-        if (messages.count > 0) {
-            for (TSMessage *message in messages) {
-                TSThread *_Nullable thread = [message threadWithTransaction:transaction];
-                if (thread == nil) {
-                    OWSFailDebug(@"thread was unexpectedly nil");
-                    continue;
-                }
-                NSTimeInterval secondsSinceRead = [NSDate new].timeIntervalSince1970 - readTimestamp / 1000;
-                OWSAssertDebug([message isKindOfClass:[TSMessage class]]);
-                OWSLogDebug(@"read on linked device %f seconds ago", secondsSinceRead);
-                [self markAsReadOnLinkedDevice:message
-                                        thread:thread
-                                 readTimestamp:readTimestamp
-                                   transaction:transaction];
-            }
-        } else {
-            StoryMessage *_Nullable storyMessage = [StoryFinder storyWithTimestamp:messageIdTimestamp
-                                                                            author:senderAddress
-                                                                       transaction:transaction];
-            if (storyMessage) {
-                [storyMessage markAsReadAt:readTimestamp
-                              circumstance:OWSReceiptCircumstanceOnLinkedDevice
-                               transaction:transaction];
-            } else {
-                [receiptsMissingMessage addObject:readReceiptProto];
-            }
-        }
-    }
-
-    return [receiptsMissingMessage copy];
-}
-
-- (NSArray<SSKProtoSyncMessageViewed *> *)processViewedReceiptsFromLinkedDevice:
-                                              (NSArray<SSKProtoSyncMessageViewed *> *)viewedReceiptProtos
-                                                                viewedTimestamp:(uint64_t)viewedTimestamp
-                                                                    transaction:(SDSAnyWriteTransaction *)transaction
-{
-    OWSAssertDebug(viewedReceiptProtos);
-    OWSAssertDebug(transaction);
-
-    NSMutableArray<SSKProtoSyncMessageViewed *> *receiptsMissingMessage = [NSMutableArray new];
-
-    for (SSKProtoSyncMessageViewed *viewedReceiptProto in viewedReceiptProtos) {
-        SignalServiceAddress *_Nullable senderAddress = viewedReceiptProto.senderAddress;
-        uint64_t messageIdTimestamp = viewedReceiptProto.timestamp;
-
-        if (messageIdTimestamp == 0) {
-            OWSFailDebug(@"messageIdTimestamp was unexpectedly 0");
-            continue;
-        }
-        if (![SDS fitsInInt64:messageIdTimestamp]) {
-            OWSFailDebug(@"Invalid messageIdTimestamp.");
-            continue;
-        }
-        if (!senderAddress.isValid) {
-            OWSFailDebug(@"senderAddress was unexpectedly %@", senderAddress != nil ? @"invalid" : @"nil");
-            continue;
-        }
-
-        NSError *error;
-        NSArray<TSMessage *> *messages = (NSArray<TSMessage *> *)[InteractionFinder
-            interactionsWithTimestamp:messageIdTimestamp
-                               filter:^(
-                                   TSInteraction *interaction) { return [interaction isKindOfClass:[TSMessage class]]; }
-                          transaction:transaction
-                                error:&error];
-        if (error != nil) {
-            OWSFailDebug(@"Error loading interactions: %@", error);
-        }
-
-        if (messages.count > 0) {
-            for (TSMessage *message in messages) {
-                TSThread *_Nullable thread = [message threadWithTransaction:transaction];
-                if (thread == nil) {
-                    OWSFailDebug(@"thread was unexpectedly nil");
-                    continue;
-                }
-                NSTimeInterval secondsSinceViewed = [NSDate new].timeIntervalSince1970 - viewedTimestamp / 1000;
-                OWSAssertDebug([message isKindOfClass:[TSMessage class]]);
-                OWSLogDebug(@"viewed on linked device %f seconds ago", secondsSinceViewed);
-                [self markAsViewedOnLinkedDevice:message
-                                          thread:thread
-                                 viewedTimestamp:viewedTimestamp
-                                     transaction:transaction];
-            }
-        } else {
-            StoryMessage *_Nullable storyMessage = [StoryFinder storyWithTimestamp:messageIdTimestamp
-                                                                            author:senderAddress
-                                                                       transaction:transaction];
-            if (storyMessage) {
-                [storyMessage markAsViewedAt:viewedTimestamp
-                                circumstance:OWSReceiptCircumstanceOnLinkedDevice
-                                 transaction:transaction];
-            } else {
-                [receiptsMissingMessage addObject:viewedReceiptProto];
-            }
-        }
-    }
-
-    return [receiptsMissingMessage copy];
-}
-
-- (void)markAsViewedOnLinkedDevice:(TSMessage *)message
-                            thread:(TSThread *)thread
-                   viewedTimestamp:(uint64_t)viewedTimestamp
-                       transaction:(SDSAnyWriteTransaction *)transaction
-{
-    OWSAssertDebug(message);
-    OWSAssertDebug(thread);
-    OWSAssertDebug(transaction);
-
-    if (message.giftBadge != nil) {
-        [message anyUpdateMessageWithTransaction:transaction
-                                           block:^(TSMessage *_Nonnull obj) {
-                                               if ([obj isKindOfClass:[TSIncomingMessage class]]) {
-                                                   obj.giftBadge.redemptionState = OWSGiftBadgeRedemptionStateRedeemed;
-                                               } else if ([obj isKindOfClass:[TSOutgoingMessage class]]) {
-                                                   obj.giftBadge.redemptionState = OWSGiftBadgeRedemptionStateOpened;
-                                               } else {
-                                                   OWSFailDebug(@"Unexpected giftBadge message");
-                                               }
-                                           }];
-        return;
-    }
-
-    if ([message isKindOfClass:[TSIncomingMessage class]]) {
-        TSIncomingMessage *incomingMessage = (TSIncomingMessage *)message;
-        BOOL hasPendingMessageRequest = [thread hasPendingMessageRequestWithTransaction:transaction.unwrapGrdbRead];
-        OWSReceiptCircumstance circumstance = hasPendingMessageRequest
-            ? OWSReceiptCircumstanceOnLinkedDeviceWhilePendingMessageRequest
-            : OWSReceiptCircumstanceOnLinkedDevice;
-
-        [incomingMessage markAsViewedAtTimestamp:viewedTimestamp
-                                          thread:thread
-                                    circumstance:circumstance
-                                     transaction:transaction];
-    }
 }
 
 #pragma mark - Settings
@@ -578,7 +280,7 @@ NSString *const OWSReceiptManagerAreReadReceiptsEnabled = @"areReadReceiptsEnabl
         ^(SDSAnyWriteTransaction *transaction) { [self setAreReadReceiptsEnabled:value transaction:transaction]; });
 
     [SSKEnvironment.shared.syncManager sendConfigurationSyncMessage];
-    [SSKEnvironment.shared.storageServiceManager recordPendingLocalAccountUpdates];
+    [SSKEnvironment.shared.storageServiceManagerObjc recordPendingLocalAccountUpdates];
 }
 
 

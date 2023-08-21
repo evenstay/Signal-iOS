@@ -29,64 +29,81 @@ public protocol VersionedProfileRequest: AnyObject {
 
 @objc
 public protocol VersionedProfiles: AnyObject {
-    @objc(clearProfileKeyCredentialForAddress:transaction:)
-    func clearProfileKeyCredential(for address: SignalServiceAddress,
-                                   transaction: SDSAnyWriteTransaction)
+    @objc(clearProfileKeyCredentialForServiceId:transaction:)
+    func clearProfileKeyCredential(
+        for aci: AciObjC,
+        transaction: SDSAnyWriteTransaction
+    )
 
     func clearProfileKeyCredentials(transaction: SDSAnyWriteTransaction)
-
-    func versionedProfileRequest(address: SignalServiceAddress,
-                                 udAccessKey: SMKUDAccessKey?) throws -> VersionedProfileRequest
-
-    func didFetchProfile(profile: SignalServiceProfile,
-                         profileRequest: VersionedProfileRequest)
 }
 
 // MARK: -
 
 public protocol VersionedProfilesSwift: VersionedProfiles {
-    func updateProfilePromise(profileGivenName: String?,
-                              profileFamilyName: String?,
-                              profileBio: String?,
-                              profileBioEmoji: String?,
-                              profileAvatarData: Data?,
-                              visibleBadgeIds: [String],
-                              unsavedRotatedProfileKey: OWSAES256Key?) -> Promise<VersionedProfileUpdate>
+
+    func updateProfilePromise(
+        profileGivenName: String?,
+        profileFamilyName: String?,
+        profileBio: String?,
+        profileBioEmoji: String?,
+        profileAvatarData: Data?,
+        visibleBadgeIds: [String],
+        unsavedRotatedProfileKey: OWSAES256Key?,
+        authedAccount: AuthedAccount
+    ) -> Promise<VersionedProfileUpdate>
+
+    func versionedProfileRequest(
+        for aci: Aci,
+        udAccessKey: SMKUDAccessKey?,
+        auth: ChatServiceAuth
+    ) throws -> VersionedProfileRequest
 
     func validProfileKeyCredential(
-        for address: SignalServiceAddress,
+        for aci: Aci,
         transaction: SDSAnyReadTransaction
     ) throws -> ExpiringProfileKeyCredential?
+
+    func didFetchProfile(
+        profile: SignalServiceProfile,
+        profileRequest: VersionedProfileRequest
+    )
 }
 
 // MARK: -
 
 @objc
 public class MockVersionedProfiles: NSObject, VersionedProfilesSwift, VersionedProfiles {
-    public func clearProfileKeyCredential(for address: SignalServiceAddress,
+    public func clearProfileKeyCredential(for aci: AciObjC,
                                           transaction: SDSAnyWriteTransaction) {}
 
     public func clearProfileKeyCredentials(transaction: SDSAnyWriteTransaction) {}
 
-    public func versionedProfileRequest(address: SignalServiceAddress,
-                                        udAccessKey: SMKUDAccessKey?) throws -> VersionedProfileRequest {
+    public func versionedProfileRequest(
+        for aci: Aci,
+        udAccessKey: SMKUDAccessKey?,
+        auth: ChatServiceAuth
+    ) throws -> VersionedProfileRequest {
         owsFail("Not implemented.")
     }
 
     public func didFetchProfile(profile: SignalServiceProfile,
                                 profileRequest: VersionedProfileRequest) {}
 
-    public func updateProfilePromise(profileGivenName: String?,
-                                     profileFamilyName: String?,
-                                     profileBio: String?,
-                                     profileBioEmoji: String?,
-                                     profileAvatarData: Data?,
-                                     visibleBadgeIds: [String],
-                                     unsavedRotatedProfileKey: OWSAES256Key?) -> Promise<VersionedProfileUpdate> {
+    public func updateProfilePromise(
+        profileGivenName: String?,
+        profileFamilyName: String?,
+        profileBio: String?,
+        profileBioEmoji: String?,
+        profileAvatarData: Data?,
+        visibleBadgeIds: [String],
+        unsavedRotatedProfileKey: OWSAES256Key?,
+        authedAccount: AuthedAccount
+    ) -> Promise<VersionedProfileUpdate> {
         owsFail("Not implemented.")
     }
 
-    public func validProfileKeyCredential(for address: SignalServiceAddress,
+    public func validProfileKeyCredential(for aci: Aci,
                                           transaction: SDSAnyReadTransaction) throws -> ExpiringProfileKeyCredential? {
         owsFail("Not implemented")
     }

@@ -15,7 +15,7 @@ enum CVCBottomViewType: Equatable {
     case messageRequestView(messageRequestType: MessageRequestType)
     case search
     case selection
-    case blockingGroupMigration
+    case blockingLegacyGroup
     case announcementOnlyGroup
 }
 
@@ -63,8 +63,8 @@ public extension ConversationViewController {
                 return .messageRequestView(messageRequestType: messageRequestType)
             } else if isLocalUserRequestingMember {
                 return .memberRequestView
-            } else if hasBlockingGroupMigration {
-                return .blockingGroupMigration
+            } else if hasBlockingLegacyGroup {
+                return .blockingLegacyGroup
             } else if isBlockedFromSendingByAnnouncementOnlyGroup {
                 return .announcementOnlyGroup
             } else {
@@ -118,11 +118,10 @@ public extension ConversationViewController {
             bottomView = selectionToolbar
         case .inputToolbar:
             bottomView = inputToolbar
-        case .blockingGroupMigration:
-            let migrationView = BlockingGroupMigrationView(threadViewModel: threadViewModel,
-                                                           fromViewController: self)
-            requestView = migrationView
-            bottomView = migrationView
+        case .blockingLegacyGroup:
+            let legacyGroupView = BlockingLegacyGroupView(fromViewController: self)
+            requestView = legacyGroupView
+            bottomView = legacyGroupView
         case .announcementOnlyGroup:
             let announcementOnlyView = BlockingAnnouncementOnlyView(threadViewModel: threadViewModel,
                                                                     fromViewController: self)
@@ -130,18 +129,16 @@ public extension ConversationViewController {
             bottomView = announcementOnlyView
         }
 
-        for subView in bottomBar.subviews {
-            subView.removeFromSuperview()
-        }
+        bottomBar.removeAllSubviews()
 
-        if let newBottomView = bottomView {
-            bottomBar.addSubview(newBottomView)
-
-            // The request views expect to extend into the safe area.
-            if requestView != nil {
-                newBottomView.autoPinEdgesToSuperviewEdges()
+        if let bottomView {
+            bottomBar.addSubview(bottomView)
+            bottomView.autoPinEdgesToSuperviewEdges(with: .zero, excludingEdge: .bottom)
+            if bottomView is UIToolbar {
+                // UIToolbar will extend its background to cover bottom safe area. 
+                bottomView.autoPinEdge(toSuperviewSafeArea: .bottom)
             } else {
-                newBottomView.autoPinEdgesToSuperviewMargins()
+                bottomView.autoPinEdge(toSuperviewEdge: .bottom)
             }
         }
 
@@ -163,28 +160,32 @@ public extension ConversationViewController {
 
         var messageDraft: MessageBody?
         var replyDraft: ThreadReplyInfo?
-        var voiceMemoDraft: VoiceMessageModel?
+        var voiceMemoDraft: VoiceMessageInterruptedDraft?
+        var editTarget: TSOutgoingMessage?
         if let oldInputToolbar = self.inputToolbar {
             // Maintain draft continuity.
-            messageDraft = oldInputToolbar.messageBody
+            messageDraft = oldInputToolbar.messageBodyForSending
             replyDraft = oldInputToolbar.draftReply
+            editTarget = oldInputToolbar.editTarget
             voiceMemoDraft = oldInputToolbar.voiceMemoDraft
         } else {
             Self.databaseStorage.read { transaction in
                 messageDraft = self.thread.currentDraft(transaction: transaction)
-                if VoiceMessageModels.hasDraft(for: self.thread, transaction: transaction) {
-                    voiceMemoDraft = VoiceMessageModel(thread: self.thread)
-                }
+                voiceMemoDraft = VoiceMessageInterruptedDraft.currentDraft(for: self.thread, transaction: transaction)
                 if messageDraft != nil || voiceMemoDraft != nil {
-                    replyDraft = ThreadReplyInfo(threadUniqueID: self.thread.uniqueId, transaction: transaction)
+                    replyDraft = DependenciesBridge.shared.threadReplyInfoStore.fetch(for: self.thread.uniqueId, tx: transaction.asV2Read)
                 }
+                editTarget = self.thread.editTarget(transaction: transaction)
             }
         }
 
-        let newInputToolbar = buildInputToolbar(conversationStyle: conversationStyle,
-                                                messageDraft: messageDraft,
-                                                draftReply: replyDraft,
-                                                voiceMemoDraft: voiceMemoDraft)
+        let newInputToolbar = buildInputToolbar(
+            conversationStyle: conversationStyle,
+            messageDraft: messageDraft,
+            draftReply: replyDraft,
+            voiceMemoDraft: voiceMemoDraft,
+            editTarget: editTarget
+        )
 
         let hadFocus = self.inputToolbar?.isInputViewFirstResponder ?? false
         self.inputToolbar = newInputToolbar
@@ -197,7 +198,6 @@ public extension ConversationViewController {
         updateBottomBar()
     }
 
-    @objc
     func reloadDraft() {
         AssertIsOnMainThread()
 
@@ -300,7 +300,6 @@ public extension ConversationViewController {
         }
     }
 
-    @objc
     func popKeyBoard() {
         AssertIsOnMainThread()
 
@@ -340,29 +339,27 @@ public extension ConversationViewController {
     private func dismissRequestView() {
         AssertIsOnMainThread()
 
-        guard let requestView = self.requestView else {
+        guard let requestView else {
             return
         }
 
-        // Slide the request view off the bottom of the screen.
-        let bottomInset: CGFloat = view.safeAreaInsets.bottom
-
-        let dismissingView = requestView
         self.requestView = nil
 
+        // Slide the request view off the bottom of the screen.
         // Add the view on top of the new bottom bar (if there is one),
         // and then slide it off screen to reveal the new input view.
-        view.addSubview(dismissingView)
-        dismissingView.autoPinWidthToSuperview()
-        dismissingView.autoPinEdge(toSuperviewEdge: .bottom)
+        view.addSubview(requestView)
+        requestView.autoPinWidthToSuperview()
+        requestView.autoPinEdge(toSuperviewEdge: .bottom)
 
-        var endFrame = dismissingView.bounds
+        let bottomInset: CGFloat = view.safeAreaInsets.bottom
+        var endFrame = requestView.bounds
         endFrame.origin.y -= endFrame.size.height + bottomInset
 
         UIView.animate(withDuration: 0.2, delay: 0, options: []) {
-            dismissingView.bounds = endFrame
+            requestView.bounds = endFrame
         } completion: { (_) in
-            dismissingView.removeFromSuperview()
+            requestView.removeFromSuperview()
         }
     }
 
@@ -380,8 +377,8 @@ public extension ConversationViewController {
         return !groupThread.isLocalUserFullMember
     }
 
-    private var hasBlockingGroupMigration: Bool {
-        thread.isBlockedByMigration
+    private var hasBlockingLegacyGroup: Bool {
+        thread.isGroupV1Thread
     }
 
     private var isBlockedFromSendingByAnnouncementOnlyGroup: Bool {

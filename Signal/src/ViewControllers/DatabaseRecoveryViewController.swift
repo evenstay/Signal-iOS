@@ -3,17 +3,17 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalMessaging
 import SignalServiceKit
+import SignalUI
 
-class DatabaseRecoveryViewController: OWSViewController {
-    private let setupSskEnvironment: () -> Promise<Void>
-    private let launchApp: () -> Void
+class DatabaseRecoveryViewController<SetupResult>: OWSViewController {
+    private let setupSskEnvironment: () -> Guarantee<SetupResult>
+    private let launchApp: (SetupResult) -> Void
 
     public init(
-        setupSskEnvironment: @escaping () -> Promise<Void>,
-        launchApp: @escaping () -> Void
+        setupSskEnvironment: @escaping () -> Guarantee<SetupResult>,
+        launchApp: @escaping (SetupResult) -> Void
     ) {
         self.setupSskEnvironment = setupSskEnvironment
         self.launchApp = launchApp
@@ -22,12 +22,12 @@ class DatabaseRecoveryViewController: OWSViewController {
 
     // MARK: - State
 
-    enum State: Equatable {
+    enum State {
         case awaitingUserConfirmation
         case showingDeviceSpaceWarning
         case recovering(fractionCompleted: Double)
         case recoveryFailed
-        case recoverySucceeded
+        case recoverySucceeded(SetupResult)
     }
 
     private var state: State = .awaitingUserConfirmation {
@@ -58,7 +58,7 @@ class DatabaseRecoveryViewController: OWSViewController {
 
     private let headlineLabel: UILabel = {
         let label = UILabel()
-        label.font = .ows_dynamicTypeTitle2.ows_semibold
+        label.font = .dynamicTypeTitle2.semibold()
         label.textColor = Theme.primaryTextColor
         label.textAlignment = .center
         label.numberOfLines = 0
@@ -67,7 +67,7 @@ class DatabaseRecoveryViewController: OWSViewController {
 
     private let descriptionLabel: UILabel = {
         let label = UILabel()
-        label.font = .ows_dynamicTypeBody2
+        label.font = .dynamicTypeBody2
         label.textColor = Theme.secondaryTextAndIconColor
         label.textAlignment = .center
         label.numberOfLines = 0
@@ -106,7 +106,7 @@ class DatabaseRecoveryViewController: OWSViewController {
 
     private lazy var progressLabel: UILabel = {
         let label = UILabel()
-        label.font = .ows_dynamicTypeBody2
+        label.font = .dynamicTypeBody2
         label.textAlignment = .center
         label.numberOfLines = 0
         return label
@@ -125,6 +125,17 @@ class DatabaseRecoveryViewController: OWSViewController {
 
         view.addSubview(stackView)
         stackView.autoPinEdgesToSuperviewEdges()
+
+        // Users can submit logs if an error occurs during recovery. Unfortunately, some users
+        // experience crashes and never get to this stage. This lightweight solution lets users
+        // submit debug logs in those situations. (We do something similar during onboarding.)
+        let submitLogsGesture = UITapGestureRecognizer(
+            target: self,
+            action: #selector(didRequestToSubmitDebugLogs)
+        )
+        submitLogsGesture.numberOfTapsRequired = 8
+        submitLogsGesture.delaysTouchesEnded = false
+        stackView.addGestureRecognizer(submitLogsGesture)
 
         render()
     }
@@ -146,6 +157,12 @@ class DatabaseRecoveryViewController: OWSViewController {
     }
 
     @objc
+    private func didTapToExportDatabase() {
+        owsAssert(DebugFlags.internalSettings, "Only internal users can export databases")
+        SignalApp.showExportDatabaseUI(from: self)
+    }
+
+    @objc
     private func didTapContinueToBypassStorageWarning() {
         switch state {
         case .showingDeviceSpaceWarning:
@@ -158,15 +175,15 @@ class DatabaseRecoveryViewController: OWSViewController {
     @objc
     private func didTapToResetSignal() {
         OWSActionSheets.showConfirmationAlert(
-            title: NSLocalizedString(
+            title: OWSLocalizedString(
                 "DATABASE_RECOVERY_RECOVERY_FAILED_RESET_APP_CONFIRMATION_TITLE",
                 comment: "The user has tried to recover their data after it was lost due to corruption. (They have not been hacked.) If they want to delete the app and restart, they will be presented with a confirmation dialog. This is the title of that dialog."
             ),
-            message: NSLocalizedString(
+            message: OWSLocalizedString(
                 "DATABASE_RECOVERY_RECOVERY_FAILED_RESET_APP_CONFIRMATION_DESCRIPTION",
                 comment: "The user has tried to recover their data after it was lost due to corruption. (They have not been hacked.) If they want to delete the app and restart, they will be presented with a confirmation dialog. This is the description text in that dialog."
             ),
-            proceedTitle: NSLocalizedString(
+            proceedTitle: OWSLocalizedString(
                 "DATABASE_RECOVERY_RECOVERY_FAILED_RESET_APP_CONFIRMATION_CONFIRM",
                 comment: "The user has tried to recover their data after it was lost due to corruption. (They have not been hacked.) If they want to delete the app and restart, they will be presented with a confirmation dialog. This is the final button they will press before their data is reset."
             ),
@@ -177,10 +194,9 @@ class DatabaseRecoveryViewController: OWSViewController {
     }
 
     @objc
-    private func didTapToSubmitDebugLogs() {
+    private func didRequestToSubmitDebugLogs() {
         self.dismiss(animated: true) {
-            let supportTag = String(describing: LaunchFailure.databaseCorruptedAndMightBeRecoverable)
-            Pastelog.submitLogs(withSupportTag: supportTag)
+            DebugLogs.submitLogsWithSupportTag(LaunchPreflightError.databaseCorruptedAndMightBeRecoverable.supportTag)
         }
     }
 
@@ -195,54 +211,96 @@ class DatabaseRecoveryViewController: OWSViewController {
 
         state = .recovering(fractionCompleted: 0)
 
-        let progress = Progress(totalUnitCount: 2)
-        let needsDumpAndRestore: Bool
-
-        switch DatabaseCorruptionState(userDefaults: userDefaults).status {
-        case .notCorrupted:
-            owsFailDebug("Database was not corrupted! Why are we on this screen?")
-            state = .recoverySucceeded
-            return
-        case .corrupted:
-            needsDumpAndRestore = true
-        case .corruptedButAlreadyDumpedAndRestored:
-            needsDumpAndRestore = false
-        }
+        // We might not run all the steps (see comment below). We could use that to adjust the
+        // progress's unit count but that makes the code more complicated, so we just set it to 4
+        // for simplicity.
+        let progress = Progress(totalUnitCount: 4)
 
         let progressObserver = progress.observe(\.fractionCompleted, options: [.new]) { [weak self] _, _ in
             self?.didFractionCompletedChange(fractionCompleted: progress.fractionCompleted)
         }
 
-        firstly(on: .sharedUserInitiated) {
-            if needsDumpAndRestore {
-                let dumpAndRestore = DatabaseRecovery.DumpAndRestore(databaseFileUrl: self.databaseFileUrl)
-                progress.addChild(dumpAndRestore.progress, withPendingUnitCount: 1)
-                do {
-                    try dumpAndRestore.run()
-                } catch {
-                    return Promise<Void>(error: error)
+        // This code is complicated because of (1) progress observation (2) promises. In practice,
+        // we're basically doing this:
+        //
+        // If we previously did a dump-and-restore and were interrupted (unusual but possible):
+        //
+        // 1. Set up the environment.
+        // 2. Do a manual recreate.
+        // 3. Mark the database as recovered.
+        //
+        // Otherwise...
+        //
+        // 1. Try to rebuild the existing database. If that clears corruption, skip steps 2 and 4.
+        // 2. Dump and restore.
+        // 3. Set up the environment.
+        // 4. Do a manual recreate.
+        // 5. Mark the database as recovered.
+        let promise: Promise<SetupResult>
+        switch DatabaseCorruptionState(userDefaults: userDefaults).status {
+        case .notCorrupted:
+            owsFail("Database was not corrupted! Why are we on this screen?")
+        case .corrupted, .readCorrupted:
+            promise = firstly(on: DispatchQueue.sharedUserInitiated) { () -> Promise<Bool> in
+                progress.performAsCurrent(withPendingUnitCount: 1) {
+                    DatabaseRecovery.rebuildExistingDatabase(at: self.databaseFileUrl)
                 }
-                DatabaseCorruptionState.flagCorruptedDatabaseAsDumpedAndRestored(userDefaults: self.userDefaults)
-            } else {
-                progress.completedUnitCount += 1
+                let integrity = progress.performAsCurrent(withPendingUnitCount: 1) {
+                    return DatabaseRecovery.integrityCheck(databaseFileUrl: self.databaseFileUrl)
+                }
+
+                let shouldDumpAndRecreate: Bool
+                switch integrity {
+                case .ok: shouldDumpAndRecreate = false
+                case .notOk: shouldDumpAndRecreate = true
+                }
+
+                if shouldDumpAndRecreate {
+                    let dumpAndRestore = DatabaseRecovery.DumpAndRestore(databaseFileUrl: self.databaseFileUrl)
+                    progress.addChild(dumpAndRestore.progress, withPendingUnitCount: 1)
+                    do {
+                        try dumpAndRestore.run()
+                    } catch {
+                        return Promise<Bool>(error: error)
+                    }
+                    DatabaseCorruptionState.flagCorruptedDatabaseAsDumpedAndRestored(userDefaults: self.userDefaults)
+                } else {
+                    progress.completedUnitCount += 1
+                }
+
+                return .value(shouldDumpAndRecreate)
+            }.then(on: DispatchQueue.sharedUserInitiated) { shouldDumpAndRecreate in
+                self.setupSskEnvironment().map(on: DispatchQueue.sharedUserInitiated) { setupResult in
+                    if shouldDumpAndRecreate {
+                        let manualRecreation = DatabaseRecovery.ManualRecreation(databaseStorage: SDSDatabaseStorage.shared)
+                        progress.addChild(manualRecreation.progress, withPendingUnitCount: 1)
+                        manualRecreation.run()
+                    } else {
+                        progress.completedUnitCount += 1
+                    }
+                    return setupResult
+                }
             }
-            return Promise.value(())
-        }.then(on: .sharedUserInitiated) {
-            self.setupSskEnvironment()
-        }.then(on: .sharedUserInitiated) {
-            let manualRecreation = DatabaseRecovery.ManualRecreation(databaseStorage: SDSDatabaseStorage.shared)
-            progress.addChild(manualRecreation.progress, withPendingUnitCount: 1)
-            manualRecreation.run()
+        case .corruptedButAlreadyDumpedAndRestored:
+            promise = firstly(on: DispatchQueue.sharedUserInitiated) {
+                self.setupSskEnvironment()
+            }.map(on: DispatchQueue.sharedUserInitiated) { setupResult in
+                let manualRecreation = DatabaseRecovery.ManualRecreation(databaseStorage: SDSDatabaseStorage.shared)
+                progress.addChild(
+                    manualRecreation.progress,
+                    withPendingUnitCount: progress.remainingUnitCount
+                )
+                manualRecreation.run()
+                return setupResult
+            }
+        }
 
+        promise.done(on: DispatchQueue.main) { setupResult in
             DatabaseCorruptionState.flagDatabaseAsRecoveredFromCorruption(userDefaults: self.userDefaults)
-
-            return Promise.value(())
-        }.done(on: .main) { [weak self] in
-            guard let self = self else { return }
-            self.state = .recoverySucceeded
+            self.state = .recoverySucceeded(setupResult)
         }.ensure {
             progressObserver.invalidate()
-        }.catch(on: .main) { [weak self] error in
+        }.catch(on: DispatchQueue.main) { [weak self] error in
             self?.didRecoveryFail(with: error)
         }
     }
@@ -282,9 +340,9 @@ class DatabaseRecoveryViewController: OWSViewController {
     @objc
     private func didTapLaunchApp() {
         switch state {
-        case .recoverySucceeded:
+        case .recoverySucceeded(let setupResult):
             dismiss(animated: true) {
-                self.launchApp()
+                self.launchApp(setupResult)
             }
         default:
             owsFailDebug("Button was tapped on the wrong screen")
@@ -313,46 +371,53 @@ class DatabaseRecoveryViewController: OWSViewController {
     }
 
     private func renderAwaitingUserConfirmation() {
-        guard previouslyRenderedState != .awaitingUserConfirmation else { return }
+        if case .awaitingUserConfirmation = previouslyRenderedState { return }
 
-        headlineLabel.text = NSLocalizedString(
+        stackView.removeAllSubviews()
+
+        headlineLabel.text = OWSLocalizedString(
             "DATABASE_RECOVERY_AWAITING_USER_CONFIRMATION_TITLE",
             comment: "In some cases, the user's message history can become corrupted, and a recovery interface is shown. The user has not been hacked and may be confused by this interface, so try to avoid using terms like \"database\" or \"corrupted\"—terms like \"message history\" are better. This is the title on the first screen of this interface, which gives them some information and asks them to continue."
         )
+        stackView.addArrangedSubview(headlineLabel)
 
-        descriptionLabel.text = NSLocalizedString(
+        descriptionLabel.text = OWSLocalizedString(
             "DATABASE_RECOVERY_AWAITING_USER_CONFIRMATION_DESCRIPTION",
             comment: "In some cases, the user's message history can become corrupted, and a recovery interface is shown. The user has not been hacked and may be confused by this interface, so keep that in mind. This is the description on the first screen of this interface, which gives them some information and asks them to continue."
         )
+        stackView.addArrangedSubview(descriptionLabel)
+
+        stackView.addArrangedSubview(databaseCorruptedImage)
+
+        if DebugFlags.internalSettings {
+            let exportDatabaseButton = button(
+                title: "Export Database (internal)",
+                selector: #selector(didTapToExportDatabase)
+            )
+            stackView.addArrangedSubview(exportDatabaseButton)
+            exportDatabaseButton.autoPinWidthToSuperviewMargins()
+        }
 
         let continueButton = button(
             title: CommonStrings.continueButton,
             selector: #selector(didTapContinueToStartRecovery)
         )
-
-        stackView.removeAllSubviews()
-        stackView.addArrangedSubviews([
-            headlineLabel,
-            descriptionLabel,
-            databaseCorruptedImage,
-            continueButton
-        ])
-
+        stackView.addArrangedSubview(continueButton)
         continueButton.autoPinWidthToSuperviewMargins()
 
         UIApplication.shared.isIdleTimerDisabled = false
     }
 
     private func renderDeviceSpaceWarning() {
-        guard previouslyRenderedState != .showingDeviceSpaceWarning else { return }
+        if case .showingDeviceSpaceWarning = previouslyRenderedState { return }
 
-        headlineLabel.text = NSLocalizedString(
+        headlineLabel.text = OWSLocalizedString(
             "DATABASE_RECOVERY_MORE_STORAGE_SPACE_NEEDED_TITLE",
             comment: "On the database recovery screen, if the user's device storage is nearly full, Signal will not be able to recover the database. A warning screen, which can be bypassed if the user wishes, will be shown. This is the title of that screen."
         )
 
         descriptionLabel.text = {
-            let labelFormat = NSLocalizedString(
+            let labelFormat = OWSLocalizedString(
                 "DATABASE_RECOVERY_MORE_STORAGE_SPACE_NEEDED_DESCRIPTION",
                 comment: "On the database recovery screen, if the user's device storage is nearly full, Signal will not be able to recover the database. A warning screen, which can be bypassed if the user wishes, will be shown. This is the line of text on that screen. Embeds an amount like \"2GB\"."
             )
@@ -364,7 +429,7 @@ class DatabaseRecoveryViewController: OWSViewController {
         }()
 
         let continueButton = button(
-            title: NSLocalizedString(
+            title: OWSLocalizedString(
                 "DATABASE_RECOVERY_MORE_STORAGE_SPACE_NEEDED_CONTINUE_ANYWAY",
                 comment: "On the database recovery screen, if the user's device storage is nearly full, Signal will not be able to recover the database. A warning screen, which can be bypassed if the user wishes, will be shown. This is the text on the button to bypass the warning."
             ),
@@ -388,12 +453,12 @@ class DatabaseRecoveryViewController: OWSViewController {
         case .recovering:
             break
         default:
-            headlineLabel.text = NSLocalizedString(
+            headlineLabel.text = OWSLocalizedString(
                 "DATABASE_RECOVERY_RECOVERY_IN_PROGRESS_TITLE",
                 comment: "On the database recovery screen, this is the title shown as the user's data is being recovered."
             )
 
-            descriptionLabel.text = NSLocalizedString(
+            descriptionLabel.text = OWSLocalizedString(
                 "DATABASE_RECOVERY_RECOVERY_IN_PROGRESS_DESCRIPTION",
                 comment: "On the database recovery screen, this is the description text shown as the user's data is being recovered."
             )
@@ -419,20 +484,20 @@ class DatabaseRecoveryViewController: OWSViewController {
     }
 
     private func renderRecoveryFailed() {
-        guard previouslyRenderedState != .recoveryFailed else { return }
+        if case .recoveryFailed = previouslyRenderedState { return }
 
-        headlineLabel.text = NSLocalizedString(
+        headlineLabel.text = OWSLocalizedString(
             "DATABASE_RECOVERY_RECOVERY_FAILED_TITLE",
             comment: "The user has tried to recover their data after it was lost due to corruption. (They have not been hacked.) This is the title on the screen where we show an error message."
         )
 
-        descriptionLabel.text = NSLocalizedString(
+        descriptionLabel.text = OWSLocalizedString(
             "DATABASE_RECOVERY_RECOVERY_FAILED_DESCRIPTION",
             comment: "The user has tried to recover their data after it was lost due to corruption. (They have not been hacked.) This is the description on the screen where we show an error message."
         )
 
         let resetSignalButton = self.button(
-            title: NSLocalizedString(
+            title: OWSLocalizedString(
                 "DATABASE_RECOVERY_RECOVERY_FAILED_RESET_APP_BUTTON",
                 comment: "The user has tried to recover their data after it was lost due to corruption. (They have not been hacked.) This button lets them delete all of their data."
             ),
@@ -441,11 +506,11 @@ class DatabaseRecoveryViewController: OWSViewController {
         )
 
         let submitDebugLogsButton = self.button(
-            title: NSLocalizedString(
+            title: OWSLocalizedString(
                 "DATABASE_RECOVERY_RECOVERY_FAILED_SUBMIT_DEBUG_LOG_BUTTON",
                 comment: "The user has tried to recover their data after it was lost due to corruption. (They have not been hacked.) They were asked to submit a debug log. This is the button that submits this log."
             ),
-            selector: #selector(didTapToSubmitDebugLogs)
+            selector: #selector(didRequestToSubmitDebugLogs)
         )
 
         stackView.removeAllSubviews()
@@ -464,14 +529,14 @@ class DatabaseRecoveryViewController: OWSViewController {
     }
 
     private func renderRecoverySucceeded() {
-        guard previouslyRenderedState != .recoverySucceeded else { return }
+        if case .recoverySucceeded = previouslyRenderedState { return }
 
-        headlineLabel.text = NSLocalizedString(
+        headlineLabel.text = OWSLocalizedString(
             "DATABASE_RECOVERY_RECOVERY_SUCCEEDED_TITLE",
             comment: "The user has successfully recovered their database after it was lost due to corruption. (They have not been hacked.) This is the title on the screen that tells them things worked."
         )
 
-        descriptionLabel.text = NSLocalizedString(
+        descriptionLabel.text = OWSLocalizedString(
             "DATABASE_RECOVERY_RECOVERY_SUCCEEDED_DESCRIPTION",
             comment: "The user has successfully recovered their database after it was lost due to corruption. (They have not been hacked.) This is the description on the screen that tells them things worked."
         )
@@ -516,7 +581,7 @@ class DatabaseRecoveryViewController: OWSViewController {
     private func button(title: String, selector: Selector, backgroundColor: UIColor = .ows_accentBlue) -> UIView {
         let button = OWSFlatButton.button(
             title: title,
-            font: UIFont.ows_dynamicTypeBody.ows_semibold,
+            font: UIFont.dynamicTypeBody.semibold(),
             titleColor: .white,
             backgroundColor: backgroundColor,
             target: self,

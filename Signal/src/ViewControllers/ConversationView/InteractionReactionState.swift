@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalServiceKit
 
 public class InteractionReactionState: NSObject {
     var hasReactions: Bool { return !emojiCounts.isEmpty }
@@ -29,13 +29,13 @@ public class InteractionReactionState: NSObject {
 
         let finder = ReactionFinder(uniqueMessageId: message.uniqueId)
         let allReactions = finder.allReactions(transaction: transaction.unwrapGrdbRead)
-        let localUserReaction = finder.reaction(for: localAddress, transaction: transaction.unwrapGrdbRead)
+        let localUserReaction = allReactions.first(where: { $0.reactor == localAddress })
 
         reactionsByEmoji = allReactions.reduce(
             into: [Emoji: [OWSReaction]]()
         ) { result, reaction in
             guard let emoji = Emoji(reaction.emoji) else {
-                return owsFailDebug("Skipping reaction with unknown emoji \(reaction.emoji)")
+                return owsFailDebug("Skipping reaction with [unknown emoji]")
             }
 
             var reactions = result[emoji] ?? []

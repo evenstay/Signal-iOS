@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
+import SignalServiceKit
 import SignalUI
-import UIKit
 
 protocol BadgeCollectionDataSource: AnyObject {
     var availableBadges: [OWSUserProfileBadgeInfo] { get }
@@ -196,7 +196,7 @@ class BadgeCollectionViewCell: UICollectionViewCell {
 
         imageView.contentMode = .scaleAspectFit
         imageView.autoSetDimensions(to: imageViewSize)
-        imageView.setTemplateImageName("check-circle-solid-new-24", tintColor: .ows_accentBlue)
+        imageView.setTemplateImage(Theme.iconImage(.checkCircleFill), tintColor: .ows_accentBlue)
         imageView.isHidden = true
 
         imageView.backgroundColor = .ows_gray02
@@ -207,7 +207,7 @@ class BadgeCollectionViewCell: UICollectionViewCell {
 
     let badgeSubtitleView: UILabel = {
         let subtitle = UILabel()
-        subtitle.font = .ows_dynamicTypeCaption1Clamped
+        subtitle.font = .dynamicTypeCaption1Clamped
         subtitle.numberOfLines = 3
         return subtitle
     }()

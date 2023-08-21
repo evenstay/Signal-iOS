@@ -6,18 +6,18 @@
 import XCTest
 import SignalServiceKit
 
-final class OWSFingerprintTest: SSKBaseTestSwift {
+final class OWSFingerprintTest: XCTestCase {
+
     func testDisplayableTextInsertsSpaces() {
-        let aliceStableAddress = SignalServiceAddress(uuid: UUID(), phoneNumber: "+19995550101")
-        let bobStableAddress = SignalServiceAddress(uuid: UUID(), phoneNumber: "+18885550102")
+        let aliceE164 = E164("+19995550101")!
+        let bobE164 = E164("+18885550102")!
 
         let aliceIdentityKey = Curve25519.generateKeyPair().publicKey
         let bobIdentityKey = Curve25519.generateKeyPair().publicKey
 
         let aliceToBobFingerprint = OWSFingerprint(
-            myStableAddress: aliceStableAddress,
+            source: .e164(myE164: aliceE164, theirE164: bobE164),
             myIdentityKey: aliceIdentityKey,
-            theirStableAddress: bobStableAddress,
             theirIdentityKey: bobIdentityKey,
             theirName: "Bob",
             hashIterations: 2
@@ -40,26 +40,24 @@ final class OWSFingerprintTest: SSKBaseTestSwift {
     }
 
     func testTextMatchesReciprocally() {
-        let aliceStableAddress = SignalServiceAddress(uuid: UUID(), phoneNumber: "+19995550101")
-        let bobStableAddress = SignalServiceAddress(uuid: UUID(), phoneNumber: "+18885550102")
-        let charlieStableAddress = SignalServiceAddress(uuid: UUID(), phoneNumber: "+17775550103")
+        let aliceE164 = E164("+19995550101")!
+        let bobE164 = E164("+18885550102")!
+        let charlieE164 = E164("+17775550103")!
 
         let aliceIdentityKey = Curve25519.generateKeyPair().publicKey
         let bobIdentityKey = Curve25519.generateKeyPair().publicKey
         let charlieIdentityKey = Curve25519.generateKeyPair().publicKey
 
         let aliceToBobFingerprint = OWSFingerprint(
-            myStableAddress: aliceStableAddress,
+            source: .e164(myE164: aliceE164, theirE164: bobE164),
             myIdentityKey: aliceIdentityKey,
-            theirStableAddress: bobStableAddress,
             theirIdentityKey: bobIdentityKey,
             theirName: "Bob",
             hashIterations: 2
         )
         let bobToAliceFingerprint = OWSFingerprint(
-            myStableAddress: bobStableAddress,
+            source: .e164(myE164: bobE164, theirE164: aliceE164),
             myIdentityKey: bobIdentityKey,
-            theirStableAddress: aliceStableAddress,
             theirIdentityKey: aliceIdentityKey,
             theirName: "Alice",
             hashIterations: 2
@@ -70,9 +68,8 @@ final class OWSFingerprintTest: SSKBaseTestSwift {
         )
 
         let charlieToAliceFingerprint = OWSFingerprint(
-            myStableAddress: charlieStableAddress,
+            source: .e164(myE164: charlieE164, theirE164: aliceE164),
             myIdentityKey: charlieIdentityKey,
-            theirStableAddress: aliceStableAddress,
             theirIdentityKey: aliceIdentityKey,
             theirName: "Alice",
             hashIterations: 2

@@ -7,15 +7,8 @@ import XCTest
 @testable import SignalServiceKit
 
 class DatabaseCorruptionStateTest: XCTestCase {
-    private func userDefaults() -> UserDefaults {
-        let suiteName = UUID().uuidString
-        let userDefaults = UserDefaults(suiteName: suiteName)!
-        userDefaults.removePersistentDomain(forName: suiteName)
-        return userDefaults
-    }
-
     func testCorruptionChanges() throws {
-        let defaults = userDefaults()
+        let defaults = TestUtils.userDefaults()
         func fetch() -> DatabaseCorruptionState {
             DatabaseCorruptionState(userDefaults: defaults)
         }
@@ -28,6 +21,10 @@ class DatabaseCorruptionStateTest: XCTestCase {
 
         // Initial state
         XCTAssertEqual(fetch(), expected(.notCorrupted, count: 0))
+
+        // After flagging as read corrupted
+        DatabaseCorruptionState.flagDatabaseAsReadCorrupted(userDefaults: defaults)
+        XCTAssertEqual(fetch(), expected(.readCorrupted, count: 0))
 
         // After flagging as corrupted
         DatabaseCorruptionState.flagDatabaseAsCorrupted(userDefaults: defaults)
@@ -44,10 +41,14 @@ class DatabaseCorruptionStateTest: XCTestCase {
         // After another corruption
         DatabaseCorruptionState.flagDatabaseAsCorrupted(userDefaults: defaults)
         XCTAssertEqual(fetch(), expected(.corrupted, count: 2))
+
+        // Read corruption shouldn't change state after a corruption
+        DatabaseCorruptionState.flagDatabaseAsReadCorrupted(userDefaults: defaults)
+        XCTAssertEqual(fetch(), expected(.corrupted, count: 2))
     }
 
     func testLegacyFalseValueWithoutCount() throws {
-        let defaults = userDefaults()
+        let defaults = TestUtils.userDefaults()
         defaults.set(false, forKey: DatabaseCorruptionState.databaseCorruptionStatusKey)
 
         let expected = DatabaseCorruptionState(status: .notCorrupted, count: 0)
@@ -56,7 +57,7 @@ class DatabaseCorruptionStateTest: XCTestCase {
     }
 
     func testLegacyTrueValueWithoutCount() throws {
-        let defaults = userDefaults()
+        let defaults = TestUtils.userDefaults()
         defaults.set(true, forKey: DatabaseCorruptionState.databaseCorruptionStatusKey)
 
         let expected = DatabaseCorruptionState(status: .corrupted, count: 1)
@@ -65,7 +66,7 @@ class DatabaseCorruptionStateTest: XCTestCase {
     }
 
     func testInvalidData() throws {
-        let defaults = userDefaults()
+        let defaults = TestUtils.userDefaults()
         defaults.set("garbage", forKey: DatabaseCorruptionState.databaseCorruptionStatusKey)
         defaults.set("garbage", forKey: DatabaseCorruptionState.databaseCorruptionCountKey)
 

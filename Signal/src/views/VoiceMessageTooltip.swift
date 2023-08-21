@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
+import SignalCoreKit
 import SignalUI
 
 class VoiceMessageTooltip: TooltipView {
@@ -16,11 +17,11 @@ class VoiceMessageTooltip: TooltipView {
 
     override func bubbleContentView() -> UIView {
         let label = UILabel()
-        label.text = NSLocalizedString(
+        label.text = OWSLocalizedString(
             "VOICE_MESSAGE_TOO_SHORT_TOOLTIP",
             comment: "Message for the tooltip indicating the 'voice message' needs to be held to be held down to record."
         )
-        label.font = UIFont.ows_dynamicTypeBodyClamped
+        label.font = UIFont.dynamicTypeBodyClamped
         label.textColor = Theme.primaryTextColor
 
         return horizontalStack(forSubviews: [label])

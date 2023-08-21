@@ -4,37 +4,39 @@
 //
 
 import Foundation
+import LibSignalClient
 
 extension TSInfoMessage {
+    public enum UpdateMessage: Codable, CustomStringConvertible {
+        enum CodingKeys: String, CodingKey {
+            case sequenceOfInviteLinkRequestAndCancels
+            case invitedPniPromotedToFullMemberAci
+            case inviteRemoved
+        }
+
+        case sequenceOfInviteLinkRequestAndCancels(count: UInt, isTail: Bool)
+        case invitedPniPromotedToFullMemberAci(pni: PniUuid, aci: AciUuid)
+        case inviteRemoved(invitee: ServiceIdUppercaseString, wasLocalUser: Bool)
+
+        public var description: String {
+            switch self {
+            case let .sequenceOfInviteLinkRequestAndCancels(count, isTail):
+                return "sequenceOfInviteLinkRequestAndCancels: { count: \(count), isTail: \(isTail) }"
+            case let .invitedPniPromotedToFullMemberAci(pni, aci):
+                return "invitedPniPromotedToFullMemberAci: { pni: \(pni.wrappedValue), aci: \(aci.wrappedValue) }"
+            case let .inviteRemoved(invitee, wasLocalUser):
+                return "inviteRemoved: { invitee: \(invitee.wrappedValue), wasLocalUser: \(wasLocalUser) }"
+            }
+        }
+    }
+
     @objc(TSInfoMessageUpdateMessages)
-    public class UpdateMessages: NSObject, NSCopying, NSSecureCoding {
-        public enum Message: Codable, CustomStringConvertible {
-            case sequenceOfInviteLinkRequestAndCancels(count: UInt, isTail: Bool)
+    public class UpdateMessagesWrapper: NSObject, NSCopying, NSSecureCoding {
 
-            public var description: String {
-                switch self {
-                case .sequenceOfInviteLinkRequestAndCancels(let count, let isTail):
-                    return "sequenceOfInviteLinkRequestAndCancels: { count: \(count), isTail: \(isTail) }"
-                }
-            }
-        }
+        public let updateMessages: [UpdateMessage]
 
-        public let messages: [Message]
-
-        public convenience init(_ message: Message) {
-            self.init([message])
-        }
-
-        public init(_ messages: [Message]) {
-            self.messages = messages
-        }
-
-        public var asSingleMessage: Message? {
-            guard messages.count == 1 else {
-                return nil
-            }
-
-            return messages.first
+        public init(_ updateMessages: [UpdateMessage]) {
+            self.updateMessages = updateMessages
         }
 
         // MARK: - NSCopying
@@ -52,25 +54,25 @@ extension TSInfoMessage {
         public func encode(with aCoder: NSCoder) {
             let jsonEncoder = JSONEncoder()
             do {
-                let messagesData = try jsonEncoder.encode(messages)
+                let messagesData = try jsonEncoder.encode(updateMessages)
                 aCoder.encode(messagesData, forKey: Self.messagesKey)
             } catch let error {
-                owsFailDebug("Failed to encode messages data: \(error)")
+                owsFailDebug("Failed to encode updateMessages data: \(error)")
                 return
             }
         }
 
         public required init?(coder aDecoder: NSCoder) {
             guard let messagesData = aDecoder.decodeObject(forKey: Self.messagesKey) as? Data else {
-                owsFailDebug("Failed to decode messages data")
+                owsFailDebug("Failed to decode updateMessages data")
                 return nil
             }
 
             let jsonDecoder = JSONDecoder()
             do {
-                messages = try jsonDecoder.decode([Message].self, from: messagesData)
+                updateMessages = try jsonDecoder.decode([UpdateMessage].self, from: messagesData)
             } catch let error {
-                owsFailDebug("Failed to decode messages data: \(error)")
+                owsFailDebug("Failed to decode updateMessages data: \(error)")
                 return nil
             }
 
@@ -80,7 +82,7 @@ extension TSInfoMessage {
         // MARK: Debug description
 
         public override var debugDescription: String {
-            "{ messages: \(messages) }"
+            "{ updateMessages: \(updateMessages) }"
         }
     }
 }

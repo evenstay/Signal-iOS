@@ -3,79 +3,87 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalCoreKit
-import UIKit
+import SignalServiceKit
+import SignalUI
 
-@objc
-public extension RegistrationUtils {
+public class RegistrationUtils: Dependencies {
 
-    static func reregister(fromViewController: UIViewController) {
+    private init() {}
+
+    class func reregister(fromViewController: UIViewController) {
         AssertIsOnMainThread()
 
-        guard tsAccountManager.resetForReregistration(),
-              let phoneNumber = Self.tsAccountManager.reregistrationPhoneNumber()?.nilIfEmpty else {
+        // If this is not the primary device, jump directly to the re-linking flow.
+        guard tsAccountManager.isPrimaryDevice else {
+            showRelinkingUI()
+            return
+        }
+
+        guard
+            let localAddress = tsAccountManager.localAddress,
+            let e164 = localAddress.e164,
+            let aci = localAddress.uuid
+        else {
+            owsFailDebug("could not get local address for re-registration.")
+            return
+        }
+
+        Logger.info("phoneNumber: \(e164)")
+
+        preferences.unsetRecordedAPNSTokens()
+
+        showReRegistration(e164: e164, aci: aci)
+    }
+
+    class func showReregistrationUI(fromViewController viewController: UIViewController) {
+        // If this is not the primary device, jump directly to the re-linking flow.
+        guard tsAccountManager.isPrimaryDevice else {
+            showRelinkingUI()
+            return
+        }
+
+        let actionSheet = ActionSheetController()
+        actionSheet.addAction(ActionSheetAction(
+            title: NSLocalizedString(
+                "DEREGISTRATION_REREGISTER_WITH_SAME_PHONE_NUMBER",
+                comment: "Label for button that lets users re-register using the same phone number."
+            ),
+            style: .destructive,
+            handler: { _ in
+                Logger.info("Reregistering from banner")
+                RegistrationUtils.reregister(fromViewController: viewController)
+            }
+        ))
+        actionSheet.addAction(OWSActionSheets.cancelAction)
+        viewController.presentActionSheet(actionSheet)
+    }
+
+    private class func showRelinkingUI() {
+        Logger.info("showRelinkingUI")
+
+        guard tsAccountManager.resetForReregistration() else {
             owsFailDebug("could not reset for re-registration.")
             return
         }
 
-        Logger.info("phoneNumber: \(phoneNumber)")
+        preferences.unsetRecordedAPNSTokens()
+        ProvisioningController.presentRelinkingFlow()
+    }
 
-        Self.preferences.unsetRecordedAPNSTokens()
-
-        ModalActivityIndicatorViewController.present(
-            fromViewController: fromViewController,
-            canCancel: false) { modalActivityIndicator in
-
-                firstly {
-                    Self.accountManager.requestRegistrationVerification(e164: phoneNumber,
-                                                                        captchaToken: nil,
-                                                                        isSMS: true)
-                }.done(on: .main) { _ in
-
-                    Logger.info("re-registering: send verification code succeeded.")
-
-                    modalActivityIndicator.dismiss {
-                        AssertIsOnMainThread()
-
-                        let onboardingController = OnboardingController()
-                        let registrationPhoneNumber = RegistrationPhoneNumber(e164: phoneNumber, userInput: phoneNumber)
-                        onboardingController.update(phoneNumber: registrationPhoneNumber)
-
-                        let viewController = OnboardingVerificationViewController(onboardingController: onboardingController)
-                        viewController.hideBackLink()
-                        let navigationController = OnboardingNavigationController(onboardingController: onboardingController)
-                        navigationController.setViewControllers([ viewController ], animated: false)
-                        navigationController.isNavigationBarHidden = true
-                        let window: UIWindow = CurrentAppContext().mainWindow!
-                        window.rootViewController = navigationController
-                    }
-                }.catch(on: .main) { error in
-                    AssertIsOnMainThread()
-
-                    Logger.warn("Re-registration failure: \(error).")
-
-                    modalActivityIndicator.dismiss {
-                        AssertIsOnMainThread()
-
-                        // TODO: Handle AccountServiceClientError.captchaRequired.
-                        if error.httpStatusCode == 400 {
-                            OWSActionSheets.showActionSheet(
-                                title: NSLocalizedString("REGISTRATION_ERROR", comment: ""),
-                                message: NSLocalizedString("REGISTRATION_NON_VALID_NUMBER", comment: "")
-                                )
-                        } else if let error = error as? UserErrorDescriptionProvider {
-                            OWSActionSheets.showActionSheet(
-                                title: NSLocalizedString("REGISTRATION_ERROR", comment: ""),
-                                message: error.localizedDescription
-                                )
-                        } else {
-                            OWSActionSheets.showActionSheet(
-                                title: NSLocalizedString("REGISTRATION_ERROR", comment: "")
-                                )
-                        }
-                    }
-                }
-            }
+    private class func showReRegistration(e164: E164, aci: UUID) {
+        Logger.info("Attempting to start re-registration")
+        let dependencies = RegistrationCoordinatorDependencies.from(NSObject())
+        let desiredMode = RegistrationMode.reRegistering(.init(e164: e164, aci: aci))
+        let loader = RegistrationCoordinatorLoaderImpl(dependencies: dependencies)
+        let coordinator = databaseStorage.write {
+            return loader.coordinator(
+                forDesiredMode: desiredMode,
+                transaction: $0.asV2Write
+            )
+        }
+        let navController = RegistrationNavigationController.withCoordinator(coordinator)
+        let window: UIWindow = CurrentAppContext().mainWindow!
+        window.rootViewController = navController
     }
 }

@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
-import UIKit
 import ContactsUI
+import SignalServiceKit
+import SignalUI
 
 class AddContactShareToExistingContactViewController: ContactsPicker, ContactsPickerDelegate, CNContactViewControllerDelegate {
 
@@ -29,23 +29,11 @@ class AddContactShareToExistingContactViewController: ContactsPicker, ContactsPi
         fatalError("init(coder:) has not been implemented")
     }
 
-    @objc
     required public init(allowsMultipleSelection: Bool, subtitleCellType: SubtitleCellValue) {
         fatalError("init(allowsMultipleSelection:subtitleCellType:) has not been implemented")
     }
 
     // MARK: - ContactsPickerDelegate
-
-    func contactsPicker(_: ContactsPicker, contactFetchDidFail error: NSError) {
-        owsFailDebug("with error: \(error)")
-
-        guard let navigationController = self.navigationController else {
-            owsFailDebug("navigationController was unexpectedly nil")
-            return
-        }
-
-        navigationController.popViewController(animated: true)
-    }
 
     func contactsPickerDidCancel(_: ContactsPicker) {
         Logger.debug("")

@@ -3,31 +3,31 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import BonMot
+import Foundation
+import SignalServiceKit
+import SignalUI
 
 /* From BonMot 6.0.0: If you're targeting iOS 15 or higher, you may want to check out [AttributedString](https://developer.apple.com/documentation/foundation/attributedstring) instead.
  If you're an existing user of BonMot using Xcode 13, you may want to add the following `typealias` somewhere in your project to avoid a conflict with `Foundation.StringStyle`: */
 typealias StringStyle = BonMot.StringStyle
 
-@objc
 public protocol ConversationSearchViewDelegate: AnyObject {
     func conversationSearchViewWillBeginDragging()
 }
 
-@objc
-public class ConversationSearchViewController: UITableViewController, ThreadSwipeHandler {
+public class ConversationSearchViewController: UITableViewController {
 
     // MARK: -
 
-    @objc
     public weak var delegate: ConversationSearchViewDelegate?
 
     private var hasEverAppeared = false
     private var lastReloadDate: Date?
     private let cellContentCache = LRUCache<String, CLVCellContentToken>(maxSize: 256)
 
-    @objc
+    private lazy var spoilerAnimationManager = SpoilerAnimationManager()
+
     public var searchText = "" {
         didSet {
             AssertIsOnMainThread()
@@ -64,7 +64,7 @@ public class ConversationSearchViewController: UITableViewController, ThreadSwip
         StringStyle(
             .color(Theme.secondaryTextAndIconColor),
             .xmlRules([
-                .style(FullTextSearchFinder.matchTag, StringStyle(.font(UIFont.ows_dynamicTypeBody2.ows_semibold)))
+                .style(FullTextSearchFinder.matchTag, StringStyle(.font(UIFont.dynamicTypeBody2.semibold())))
             ])
         )
     }
@@ -96,7 +96,7 @@ public class ConversationSearchViewController: UITableViewController, ThreadSwip
 
         NotificationCenter.default.addObserver(self,
                                                selector: #selector(themeDidChange),
-                                               name: .ThemeDidChange,
+                                               name: .themeDidChange,
                                                object: nil)
         NotificationCenter.default.addObserver(self,
                                                selector: #selector(blockListDidChange),
@@ -193,7 +193,7 @@ public class ConversationSearchViewController: UITableViewController, ThreadSwip
             }
 
             let thread = searchResult.thread
-            SignalApp.shared().presentConversation(for: thread.threadRecord, action: .compose, animated: true)
+            SignalApp.shared.presentConversationForThread(thread.threadRecord, action: .compose, animated: true)
         case .groupThreads:
             let sectionResults = searchResultSet.groupThreads
             guard let searchResult = sectionResults[safe: indexPath.row] else {
@@ -202,7 +202,7 @@ public class ConversationSearchViewController: UITableViewController, ThreadSwip
             }
 
             let thread = searchResult.thread
-            SignalApp.shared().presentConversation(for: thread.threadRecord, action: .compose, animated: true)
+            SignalApp.shared.presentConversationForThread(thread.threadRecord, action: .compose, animated: true)
         case .contacts:
             let sectionResults = searchResultSet.contacts
             guard let searchResult = sectionResults[safe: indexPath.row] else {
@@ -210,7 +210,7 @@ public class ConversationSearchViewController: UITableViewController, ThreadSwip
                 return
             }
 
-            SignalApp.shared().presentConversation(for: searchResult.recipientAddress, action: .compose, animated: true)
+            SignalApp.shared.presentConversationForAddress(searchResult.recipientAddress, action: .compose, animated: true)
 
         case .messages:
             let sectionResults = searchResultSet.messages
@@ -220,11 +220,36 @@ public class ConversationSearchViewController: UITableViewController, ThreadSwip
             }
 
             let thread = searchResult.thread
-            SignalApp.shared().presentConversation(for: thread.threadRecord,
-                                                   action: .none,
-                                                   focusMessageId: searchResult.messageId,
-                                                   animated: true)
+            SignalApp.shared.presentConversationForThread(thread.threadRecord,
+                                                            focusMessageId: searchResult.messageId,
+                                                            animated: true)
         }
+    }
+
+    public override func tableView(
+        _ tableView: UITableView,
+        willDisplay cell: UITableViewCell,
+        forRowAt indexPath: IndexPath
+    ) {
+        AssertIsOnMainThread()
+
+        guard let cell = cell as? ChatListCell else {
+            return
+        }
+        cell.isCellVisible = true
+    }
+
+    public override func tableView(
+        _ tableView: UITableView,
+        didEndDisplaying cell: UITableViewCell,
+        forRowAt indexPath: IndexPath
+    ) {
+        AssertIsOnMainThread()
+
+        guard let cell = cell as? ChatListCell else {
+            return
+        }
+        cell.isCellVisible = false
     }
 
     // MARK: UITableViewDataSource
@@ -275,7 +300,7 @@ public class ConversationSearchViewController: UITableViewController, ThreadSwip
 
         // If we have an existing CLVCellContentToken, use it.
         // Cell measurement/arrangement is expensive.
-        let cacheKey = "\(configuration.thread.threadRecord.uniqueId).\(configuration.overrideSnippet?.string ?? "")"
+        let cacheKey = "\(configuration.thread.threadRecord.uniqueId).\(configuration.overrideSnippet?.text.hashValue ?? 0)"
         if useCache {
             if let cellContentToken = cellContentCache.get(key: cacheKey) {
                 return cellContentToken
@@ -333,7 +358,7 @@ public class ConversationSearchViewController: UITableViewController, ThreadSwip
                 return UITableViewCell()
             }
             let cellContentToken = cellContentToken(forConfiguration: configuration)
-            cell.configure(cellContentToken: cellContentToken)
+            cell.configure(cellContentToken: cellContentToken, spoilerAnimationManager: spoilerAnimationManager)
             return cell
         }
     }
@@ -367,11 +392,17 @@ public class ConversationSearchViewController: UITableViewController, ThreadSwip
                 owsFailDebug("searchResult was unexpectedly nil")
                 return nil
             }
+            let overrideSnippet: ChatListCell.Configuration.OverrideSnippet?
+            if let snippet = searchResult.matchedMembersSnippet?.styled(with: Self.matchSnippetStyle) {
+                overrideSnippet = .init(text: .attributedText(snippet), config: .conversationListSearchResultSnippet())
+            } else {
+                overrideSnippet = nil
+            }
             return ChatListCell.Configuration(
                 thread: searchResult.thread,
                 lastReloadDate: lastReloadDate,
                 isBlocked: isBlocked(thread: searchResult.thread),
-                overrideSnippet: searchResult.matchedMembersSnippet?.styled(with: Self.matchSnippetStyle),
+                overrideSnippet: overrideSnippet,
                 overrideDate: nil
             )
         case .contacts:
@@ -382,7 +413,6 @@ public class ConversationSearchViewController: UITableViewController, ThreadSwip
                 owsFailDebug("searchResult was unexpectedly nil")
                 return nil
             }
-            var overrideSnippet = NSAttributedString()
             var overrideDate: Date?
             if searchResult.messageId != nil {
                 if let messageDate = searchResult.messageDate {
@@ -390,16 +420,12 @@ public class ConversationSearchViewController: UITableViewController, ThreadSwip
                 } else {
                     owsFailDebug("message search result is missing message timestamp")
                 }
-
-                // Note that we only use the snippet for message results,
-                // not conversation results. CoversationListCell will generate
-                // a snippet for conversations that reflects the latest
-                // contents.
-                if let messageSnippet = searchResult.snippet {
-                    overrideSnippet = messageSnippet.styled(with: Self.matchSnippetStyle)
-                } else {
-                    owsFailDebug("message search result is missing message snippet")
-                }
+            }
+            let overrideSnippet: ChatListCell.Configuration.OverrideSnippet?
+            if let snippet = searchResult.snippet {
+                overrideSnippet = .init(text: snippet, config: .conversationListSearchResultSnippet())
+            } else {
+                overrideSnippet = nil
             }
             return ChatListCell.Configuration(
                 thread: searchResult.thread,
@@ -437,7 +463,7 @@ public class ConversationSearchViewController: UITableViewController, ThreadSwip
 
         let textView = LinkingTextView()
         textView.textColor = Theme.isDarkThemeEnabled ? UIColor.ows_gray05 : UIColor.ows_gray90
-        textView.font = UIFont.ows_dynamicTypeBodyClamped.ows_semibold
+        textView.font = UIFont.dynamicTypeBodyClamped.semibold()
         textView.text = title
 
         var textContainerInset = UIEdgeInsets(
@@ -464,25 +490,25 @@ public class ConversationSearchViewController: UITableViewController, ThreadSwip
             return nil
         case .contactThreads:
             if searchResultSet.contactThreads.count > 0 {
-                return NSLocalizedString("SEARCH_SECTION_CONVERSATIONS", comment: "section header for search results that match existing 1:1 chats")
+                return OWSLocalizedString("SEARCH_SECTION_CONVERSATIONS", comment: "section header for search results that match existing 1:1 chats")
             } else {
                 return nil
             }
         case .groupThreads:
             if searchResultSet.groupThreads.count > 0 {
-                return NSLocalizedString("SEARCH_SECTION_GROUPS", comment: "section header for search results that match existing groups")
+                return OWSLocalizedString("SEARCH_SECTION_GROUPS", comment: "section header for search results that match existing groups")
             } else {
                 return nil
             }
         case .contacts:
             if searchResultSet.contacts.count > 0 {
-                return NSLocalizedString("SEARCH_SECTION_CONTACTS", comment: "section header for search results that match a contact who doesn't have an existing conversation")
+                return OWSLocalizedString("SEARCH_SECTION_CONTACTS", comment: "section header for search results that match a contact who doesn't have an existing conversation")
             } else {
                 return nil
             }
         case .messages:
             if searchResultSet.messages.count > 0 {
-                return NSLocalizedString("SEARCH_SECTION_MESSAGES", comment: "section header for search results that match a message in a conversation")
+                return OWSLocalizedString("SEARCH_SECTION_MESSAGES", comment: "section header for search results that match a message in a conversation")
             } else {
                 return nil
             }
@@ -532,50 +558,55 @@ public class ConversationSearchViewController: UITableViewController, ThreadSwip
         }
     }
 
-    private func updateSearchResults(searchText rawSearchText: String) {
+    private let currentSearchCounter = AtomicUInt(0, lock: AtomicLock())
 
-        let searchText = rawSearchText.stripped
-        if searchText.isEmpty {
-            searchResultSet = HomeScreenSearchResultSet.empty
-            lastSearchText = nil
-            reloadTableData()
+    private func updateSearchResults(searchText: String) {
+        let searchText = searchText.stripped
+        let lastSearchText = self.lastSearchText
+        self.lastSearchText = searchText
+
+        if searchText != lastSearchText {
+            // The query has changed; perform a search.
+        } else if tableView.visibleCells.contains(where: { $0 is ChatListCell }) {
+            // The database may have been updated, and that'll lead to a duplicate
+            // query for the same search text. In that case, perform a search if
+            // there's a cell that needs to be updated.
+        } else {
+            // Nothing has changed, so don't perform a search.
             return
         }
 
-        // a database change will lead to a search with the searchText=lastSearchText
-        // in this case we only want to update the visible cells
-        var updateCellCandidates: [ChatListCell]?
-        if lastSearchText == searchText {
-            updateCellCandidates = tableView.visibleCells.filter {$0 as? ChatListCell != nil} as? [ChatListCell]
-        }
-        guard updateCellCandidates == nil || updateCellCandidates!.count > 0 else {
-            // Ignoring redundant search.
-            return
-        }
+        currentSearchCounter.increment()
+        let searchCounter = currentSearchCounter.get()
 
-        lastSearchText = searchText
+        let isCanceled: () -> Bool = { [weak currentSearchCounter] in currentSearchCounter?.get() != searchCounter }
 
-        var searchResults: HomeScreenSearchResultSet?
-        self.databaseStorage.asyncRead(block: {[weak self] transaction in
-            guard let strongSelf = self else { return }
-            searchResults = strongSelf.searcher.searchForHomeScreen(searchText: searchText, transaction: transaction)
-        },
-        completion: { [weak self] in
-            AssertIsOnMainThread()
-            guard let self = self else { return }
-
-            guard let results = searchResults else {
-                owsFailDebug("searchResults was unexpectedly nil")
+        fetchSearchResults(
+            searchText: searchText,
+            isCanceled: isCanceled
+        ).done(on: DispatchQueue.main) { [weak self] searchResultSet in
+            guard let self, let searchResultSet, !isCanceled() else {
                 return
             }
-            guard self.lastSearchText == searchText else {
-                // Discard results from stale search.
-                return
-            }
-
-            self.searchResultSet = results
+            self.searchResultSet = searchResultSet
             self.reloadTableData()
-        })
+        }
+    }
+
+    private func fetchSearchResults(searchText: String, isCanceled: @escaping () -> Bool) -> Guarantee<HomeScreenSearchResultSet?> {
+        if searchText.isEmpty {
+            return .value(.empty)
+        }
+
+        let (result, future) = Guarantee<HomeScreenSearchResultSet?>.pending()
+        databaseStorage.asyncRead { [weak self] transaction in
+            future.resolve(self?.searcher.searchForHomeScreen(
+                searchText: searchText,
+                isCanceled: isCanceled,
+                transaction: transaction
+            ))
+        }
+        return result
     }
 
     // MARK: -
@@ -608,7 +639,7 @@ class EmptySearchResultCell: UITableViewCell {
     static let reuseIdentifier = "EmptySearchResultCell"
 
     let messageLabel: UILabel
-    let activityIndicator = UIActivityIndicatorView(style: .whiteLarge)
+    let activityIndicator = UIActivityIndicatorView(style: .large)
     override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
         self.messageLabel = UILabel()
         super.init(style: style, reuseIdentifier: reuseIdentifier)
@@ -653,14 +684,14 @@ class EmptySearchResultCell: UITableViewCell {
             activityIndicator.isHidden = true
             messageLabel.isHidden = false
 
-            let format = NSLocalizedString(
+            let format = OWSLocalizedString(
                 "HOME_VIEW_SEARCH_NO_RESULTS_FORMAT",
                 comment: "Format string when search returns no results. Embeds {{search term}}"
             )
             messageLabel.text = String(format: format, searchText)
 
             messageLabel.textColor = Theme.primaryTextColor
-            messageLabel.font = UIFont.ows_dynamicTypeBody
+            messageLabel.font = UIFont.dynamicTypeBody
         }
     }
 }
@@ -690,4 +721,11 @@ extension ConversationSearchViewController: DatabaseChangeDelegate {
 
         refreshSearchResults()
     }
+}
+
+// MARK: -
+
+extension ConversationSearchViewController: ThreadSwipeHandler {
+
+    func updateUIAfterSwipeAction() { }
 }

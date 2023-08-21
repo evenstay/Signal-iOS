@@ -3,18 +3,23 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
-import UIKit
 import SignalCoreKit
+import SignalServiceKit
 
 /// This class exists to be a drop-in replacement for the Context-menu related APIs available on UIButton
 /// in iOS 14 and above.
 /// When we drop iOS 13, we can remove this class and replace all usages with a vanilla UIButton.
 /// As such, its exposed API should remain identical to what UIButton exposes in iOS 14.
 public class ContextMenuButton: UIButton, ContextMenuInteractionDelegate {
+    override public var intrinsicContentSize: CGSize { .zero }
+
     public var contextMenu: ContextMenu? {
         didSet { updateHandlers() }
     }
+
+    /// The preferred position of the context menu, when presented.
+    public let preferredContextMenuPosition: ContextMenuPosition?
+
     /// When defined as `true` the context menu will present immediately on touch down.
     /// Otherwise, the context menu is presented after a long press. If you are trying to handle
     /// another action as a primary action, keep in mind that when the long press is triggered
@@ -23,10 +28,16 @@ public class ContextMenuButton: UIButton, ContextMenuInteractionDelegate {
     public var showsContextMenuAsPrimaryAction = false {
         didSet { updateHandlers() }
     }
+
     public var forceDarkTheme = false
 
-    public init(contextMenu: ContextMenu? = nil) {
+    public init(
+        contextMenu: ContextMenu? = nil,
+        preferredContextMenuPosition: ContextMenuPosition? = nil
+    ) {
         self.contextMenu = contextMenu
+        self.preferredContextMenuPosition = preferredContextMenuPosition
+
         super.init(frame: .zero)
     }
 
@@ -55,12 +66,11 @@ public class ContextMenuButton: UIButton, ContextMenuInteractionDelegate {
             return
         }
 
-        let menuPosition = ContextMenuPosition(
-            rect: window.bounds,
-            locationInRect: window.convert(frame, from: superview)
-        )
+        let menuPosition = menuPosition(window: window)
 
-        guard let preview = contextMenuTargetedPreview(menuPosition: menuPosition) else { return }
+        guard let preview = contextMenuTargetedPreview(menuPosition: menuPosition) else {
+            return
+        }
 
         let menuAccessory = contextMenuActionsAccessory(
             menuPosition: menuPosition,
@@ -111,15 +121,24 @@ public class ContextMenuButton: UIButton, ContextMenuInteractionDelegate {
         }
     }
 
-    private lazy var longPressGestureRecognizer = UILongPressGestureRecognizer(target: self, action: #selector(longPressRecognized(_:)))
+    // MARK: - Taps and gestures
+
+    private lazy var longPressGestureRecognizer: UILongPressGestureRecognizer = {
+        let gestureRecognizer = UILongPressGestureRecognizer(
+            target: self,
+            action: #selector(longPressRecognized(_:))
+        )
+        gestureRecognizer.minimumPressDuration = showsContextMenuAsPrimaryAction ? 0 : 0.5
+        return gestureRecognizer
+    }()
+
     private func updateHandlers() {
         if contextMenu == nil {
             removeGestureRecognizer(longPressGestureRecognizer)
-        } else {
-            addGestureRecognizer(longPressGestureRecognizer)
+            return
         }
 
-        longPressGestureRecognizer.minimumPressDuration = showsContextMenuAsPrimaryAction ? 0 : 0.5
+        addGestureRecognizer(longPressGestureRecognizer)
     }
 
     @objc
@@ -139,16 +158,16 @@ public class ContextMenuButton: UIButton, ContextMenuInteractionDelegate {
         }
     }
 
-    /// A RTL agnostic representation of the context menus relative presentation origin
-    /// within the viewport. In general, buttons on the right of the screen will present a
-    /// menu on the right of the screen, buttons on the left of the screen will present a
-    /// menu on the left, etc.
-    private struct ContextMenuPosition {
-        enum VerticalEdge {
+    // MARK: - 
+
+    /// A representation of the context menu's relative presentation origin
+    /// relative to the button's frame in the window.
+    public struct ContextMenuPosition {
+        public enum VerticalEdge {
             case top
             case bottom
 
-            var accessoryAlignment: ContextMenuTargetedPreviewAccessory.AccessoryAlignment.Edge {
+            fileprivate var accessoryAlignment: ContextMenuTargetedPreviewAccessory.AccessoryAlignment.Edge {
                 switch self {
                 case .top: return .top
                 case .bottom: return .bottom
@@ -156,7 +175,7 @@ public class ContextMenuButton: UIButton, ContextMenuInteractionDelegate {
             }
         }
 
-        enum HorizontalEdge {
+        public enum HorizontalEdge {
             case left
             case right
 
@@ -169,42 +188,77 @@ public class ContextMenuButton: UIButton, ContextMenuInteractionDelegate {
 
             var accessoryAlignment: ContextMenuTargetedPreviewAccessory.AccessoryAlignment.Edge {
                 switch self {
-                case .left: return CurrentAppContext().isRTL ? .trailing : .leading
-                case .right: return CurrentAppContext().isRTL ? .leading : .trailing
+                case .left: return .leading
+                case .right: return .trailing
                 }
             }
         }
 
-        let verticalPinnedEdge: VerticalEdge
-        let horizontalPinnedEdge: HorizontalEdge
+        public let verticalPinnedEdge: VerticalEdge
+        public let horizontalPinnedEdge: HorizontalEdge
+        public let alignmentOffset: CGPoint
 
-        var alignmentOffset: CGPoint {
-            switch verticalPinnedEdge {
-            case .top:
-                return CGPoint(x: 0, y: -16)
-            case .bottom:
-                return CGPoint(x: 0, y: 16)
-            }
+        /// Construct a context menu position with origin at the given edges,
+        /// adjusted by the given offset.
+        /// - SeeAlso
+        /// ``ContextMenuTargetedPreviewAccessory.AccessoryAlignment.alignmentOffset``
+        public init(
+            verticalPinnedEdge: VerticalEdge,
+            horizontalPinnedEdge: HorizontalEdge,
+            alignmentOffset: CGPoint
+        ) {
+            self.verticalPinnedEdge = verticalPinnedEdge
+            self.horizontalPinnedEdge = horizontalPinnedEdge
+            self.alignmentOffset = alignmentOffset
         }
 
-        init(rect: CGRect, locationInRect: CGRect) {
+        fileprivate init(
+            rect: CGRect,
+            locationInRect: CGRect,
+            alignmentOffset: CGPoint
+        ) {
             let isCloserToTheBottom = (rect.maxY - locationInRect.maxY) <= locationInRect.minY
             let isCloserToTheRight = (rect.maxX - locationInRect.maxX) <= locationInRect.minX
 
-            verticalPinnedEdge = isCloserToTheBottom ? .top : .bottom
-            horizontalPinnedEdge = isCloserToTheRight ? .right : .left
+            let verticalPinnedEdge: VerticalEdge = isCloserToTheBottom ? .top : .bottom
+            let horizontalPinnedEdge: HorizontalEdge = isCloserToTheRight ? .right : .left
+
+            self.init(
+                verticalPinnedEdge: verticalPinnedEdge,
+                horizontalPinnedEdge: horizontalPinnedEdge,
+                alignmentOffset: alignmentOffset
+            )
         }
     }
 
+    private func menuPosition(window: UIWindow) -> ContextMenuPosition {
+        if let preferredContextMenuPosition {
+            return preferredContextMenuPosition
+        }
+
+        return ContextMenuPosition(
+            rect: window.bounds,
+            locationInRect: window.convert(frame, from: superview),
+            alignmentOffset: CGPoint(x: 8, y: 16)
+        )
+    }
+
     private func contextMenuTargetedPreview(menuPosition: ContextMenuPosition) -> ContextMenuTargetedPreview? {
-        .init(view: self, alignment: menuPosition.horizontalPinnedEdge.targetedPreviewAlignment, accessoryViews: nil)
+        ContextMenuTargetedPreview(
+            view: self,
+            alignment: menuPosition.horizontalPinnedEdge.targetedPreviewAlignment,
+            accessoryViews: nil
+        )
     }
 
     private func contextMenuActionsAccessory(menuPosition: ContextMenuPosition, menu: ContextMenu) -> ContextMenuActionsAccessory {
         let accessory = ContextMenuActionsAccessory(
             menu: menu,
-            accessoryAlignment: .init(
-                alignments: [(menuPosition.verticalPinnedEdge.accessoryAlignment, .exterior), (menuPosition.horizontalPinnedEdge.accessoryAlignment, .interior)],
+            accessoryAlignment: ContextMenuActionsAccessory.AccessoryAlignment(
+                alignments: [
+                    (menuPosition.verticalPinnedEdge.accessoryAlignment, .exterior),
+                    (menuPosition.horizontalPinnedEdge.accessoryAlignment, .interior)
+                ],
                 alignmentOffset: menuPosition.alignmentOffset
             ),
             forceDarkTheme: forceDarkTheme
@@ -216,7 +270,7 @@ public class ContextMenuButton: UIButton, ContextMenuInteractionDelegate {
     /// Note: If you override this method on UIButton on iOS 14 or later, whatever is returned is used for the
     /// context menu that is ultimately displayed.
     /// This class is meant to be a perfect replacement for UIButton to get context menu functionality prior to
-    /// iOS 14, so we mimic that behavior and use this method as the source of truth, allowing it to be overriden.
+    /// iOS 14, so we mimic that behavior and use this method as the source of truth, allowing it to be overridden.
     public func contextMenuInteraction(
         _ interaction: ContextMenuInteraction,
         configurationForMenuAtLocation location: CGPoint
@@ -252,27 +306,6 @@ extension ContextMenuButton: ContextMenuControllerDelegate {
     func contextMenuControllerRequestsDismissal(_ contextMenuController: ContextMenuController) {
         dismissContextMenu(animated: true)
     }
-
-    func contextMenuControllerAccessoryFrameOffset(_ contextMenuController: ContextMenuController) -> CGPoint? {
-        guard let splitVC = signalApp.conversationSplitViewControllerForSwift, splitVC.isCollapsed else { return nil }
-
-        guard let window = window else { return nil }
-
-        let menuPosition = ContextMenuPosition(
-            rect: window.bounds,
-            locationInRect: window.convert(frame, from: superview)
-        )
-
-        let accessoryFrame = window.convert(frame, from: superview)
-        let desiredEdgeInset: CGFloat = 8
-
-        switch menuPosition.horizontalPinnedEdge {
-        case .left:
-            return .init(x: -(accessoryFrame.x - desiredEdgeInset), y: 0)
-        case .right:
-            return .init(x: -(accessoryFrame.x - window.width + desiredEdgeInset), y: 0)
-        }
-    }
 }
 
 extension ContextMenuButton: ContextMenuTargetedPreviewAccessoryInteractionDelegate {
@@ -284,7 +317,11 @@ extension ContextMenuButton: ContextMenuTargetedPreviewAccessoryInteractionDeleg
         dismissContextMenu(animated: true, completion: completion)
     }
 
-    func contextMenuTargetedPreviewAccessoryRequestsEmojiPicker(_ accessory: ContextMenuTargetedPreviewAccessory, completion: @escaping (String) -> Void) {
+    func contextMenuTargetedPreviewAccessoryRequestsEmojiPicker(
+        for message: TSMessage,
+        accessory: ContextMenuTargetedPreviewAccessory,
+        completion: @escaping (String) -> Void
+    ) {
         owsFailDebug("Emoji picker not supported from ContextMenuButton")
     }
 }

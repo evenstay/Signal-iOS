@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
+import SignalCoreKit
 import SignalUI
-import UIKit
 
 public protocol ConversationCollectionViewDelegate: AnyObject {
 
@@ -156,8 +156,6 @@ public class ConversationCollectionView: UICollectionView {
                                            lastKnownDistanceFromBottom: lastKnownDistanceFromBottom)
             super.performBatchUpdates(batchUpdates) { (finished: Bool) in
                 AssertIsOnMainThread()
-
-                layout.didCompleteBatchUpdates()
                 completion(finished)
             }
             layout.didPerformBatchUpdates()

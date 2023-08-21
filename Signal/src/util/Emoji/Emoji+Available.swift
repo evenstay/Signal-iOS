@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalServiceKit
 
 extension Emoji {
     private static let availableCache = AtomicDictionary<Emoji, Bool>()
@@ -21,7 +21,7 @@ extension Emoji {
         var availableCache = [Emoji: Bool]()
         var uncachedEmoji = [Emoji]()
 
-        let iosVersion = AppVersion.iOSVersionString
+        let iosVersion = AppVersionImpl.shared.iosVersionString
 
         // Use an NSMutableDictionary for built-in plist serialization and heterogeneous values.
         var availableMap = NSMutableDictionary()

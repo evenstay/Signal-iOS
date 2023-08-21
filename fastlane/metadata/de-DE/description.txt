@@ -1,26 +1,19 @@
-Millionen von Menschen auf der Welt nutzen Signal täglich für kostenlose und schnelle Kommunikation. Versende und empfange Nachrichten, nimm an Sprach- und Videoanrufen in bester Qualität teil und freue dich auf eine wachsende Anzahl von neuen Features, die dir helfen, mit deinen Freunden verbunden zu bleiben. Signals fortschrittliche Technologie wahrt deine Privatssphäre und ist immer aktiviert. So kannst du dich darauf konzentrieren, bedeutende Momente zu teilen mit Menschen, die dir etwas bedeuten.
+• Signal ist eine Messaging-App, bei der Datenschutz und Privatsphäre im Mittelpunkt stehen. Sie ist kostenlos und einfach zu benutzen, mit einer starken Ende-zu-Ende-Verschlüsselung, die deine Kommunikation absolut vertraulich macht.
 
-• Sag, was immer du willst – Fortschrittlichste Ende-zu-Ende-Verschlüsselung (auf Basis des quelloffenen Signal Protocol™) macht deine Unterhaltungen sicher. Vertraulichkeit ist kein optionaler Modus — sie ist ausnahmslos in alle Funktionen von Signal integriert. Für jede Nachricht, jeden Anruf, jederzeit.
+• Versende kostenlos Text- und Sprachnachrichten, Fotos, Videos, GIFs und sonstige Dateien. Signal verwendet die Internetverbindung deines Mobiltelefons, sodass du Gebühren für SMS und MMS vermeiden kannst.
 
-• Sei schnell – Nachrichten werden auch bei langsamer Verbindung schnell und zuverlässig zugestellt. Signal ist darauf optimiert, selbst in den eingeschränktesten Umgebungen zu funktionieren.
+• Rufe deine Freunde mit glasklaren, verschlüsselten Sprach- und Videoanrufen an. Gruppenanrufe für bis zu 40 Personen.
 
-• Fühl dich frei – Signal ist eine vollständig unabhängige, gemeinnützige Organisation. Die Entwicklung wird von Nutzern wie dir unterstützt. Keine Werbung. Kein Tracking. Kein Scherz.
+• Bleibe in Verbindung durch Gruppen-Chats mit bis zu 1.000 Personen. Lege fest, wer posten darf, und verwalte die Gruppenmitglieder mit Admin-Berechtigungseinstellungen.
 
-• Sei du selbst – Du kannst deine bestehende Rufnummer und dein Adressbuch verwenden, um sicher mit deinen Freunden zu kommunizieren.
+• Teile Bild-, Text- und Videostorys, die nach 24 Stunden wieder verschwinden. Mit den Datenschutz-Einstellungen kannst du genau festlegen, wer jede Story sehen kann.
 
-• Lass von dir hören – Ob am anderen Ende der Stadt oder auf der anderen Seite der Welt: Mit Signals verbesserter Ton- und Videoqualität wirst du dich deinen Freunden und deiner Familie näher fühlen.
+• Signal ist für deine Privatsphäre gemacht. Wir wissen nichts über dich oder mit wem du sprichst. Unser Open Source-Signal Protocol bedeutet, dass wir deine Nachrichten nicht lesen und deine Anrufe nicht mithören können. Ebenso wenig wie jede*r andere. Keine Hintertüren, keine Datensammlung, keine Kompromisse. 
 
-• Flüster im Dunkeln – Wechsle zum Dunkelmodus, falls du das Licht scheust.
+• Signal ist unabhängig und nicht auf Gewinn ausgerichtet – eine andere Art von Technologie von einer anderen Art von Organisation. Als 501c3 Non-Profit-Organisation werden wir durch deine Spenden unterstützt, nicht durch Werbekunden oder Investoren. 
 
-• Kling vertraut – Wähle individuelle Benachrichtigungstöne für jeden Kontakt oder verzichte auf jegliche Geräusche. Simon & Garfunkel schrieben 1964 darüber einen Hit: Erlebe den »Sound of Silence« wann immer du willst, indem du Benachrichtigungstöne einfach abschaltest.
+• Für Support, Fragen oder weitere Informationen besuche bitte https://support.signal.org/
 
-• Mach dir ein Bild – Verwende die eingebaute Bildbearbeitung, um deine ausgehenden Fotos zu bearbeiten, zuzuschneiden und zu drehen. Es gibt auch ein Textwerkzeug, damit du zu jenen 1000 Worten, die dein Bild bereits wert ist, noch weitere hinzufügen kannst.
+Um unseren Quellcode zu sehen, besuche https://github.com/signalapp 
 
-
-Für Hilfe, Fragen oder weitere Informationen besuche bitte:
-https://support.signal.org
-
-Quellcode:
-https://github.com/signalapp
-
-Folge uns auf Twitter (@signalapp) und Instagram (@signal_app) für Neuigkeiten und Ankündigungen.
+Folge uns auf Twitter @signalapp und Instagram @signal_app

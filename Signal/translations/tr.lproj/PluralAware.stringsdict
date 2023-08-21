@@ -93,9 +93,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Bu özel renk %1$d konuşmada kullanılıyor. Silmek istiyor musun?</string>
+			<string>Bu özel renk %1$d sohbette kullanılıyor. Silmek istiyor musun?</string>
 			<key>other</key>
-			<string>Bu özel renk %1$d konuşmada kullanılıyor. Tüm konuşmalar için silmek istiyor musun?</string>
+			<string>Bu özel renk %1$d sohbette kullanılıyor. Tüm sohbetler için silmek istiyor musun?</string>
 		</dict>
 	</dict>
 	<key>CHAT_COLOR_SETTINGS_UPDATE_ALERT_MESSAGE_%d</key>
@@ -109,7 +109,7 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Bu renk %1$d sohbetinde kullanılıyor. Değişiklikleri kaydetmek istiyor musun?</string>
+			<string>Bu renk %1$d sohbetinde kullanılıyor. Tüm sohbetler için değişiklikleri kaydetmek istiyor musun?</string>
 			<key>other</key>
 			<string>Bu renk %1$d sohbetinde kullanılıyor. Tüm sohbetler için değişiklikleri kaydetmek istiyor musun?</string>
 		</dict>
@@ -141,9 +141,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Bu sohbet bu cihazdan silinecek.</string>
+			<string>Bu sohbet bu cihazdan silinecektir.</string>
 			<key>other</key>
-			<string>Bu sohbetler bu cihazdan silinecek.</string>
+			<string>Bu sohbetler bu cihazdan silinecektir.</string>
 		</dict>
 	</dict>
 	<key>CONVERSATION_PICKER_CAN_SELECT_NO_MORE_CONVERSATIONS_%d</key>
@@ -285,7 +285,7 @@
 			<string>%1$d üyelik maksimum grup kapasitesine ulaşıldı.</string>
 		</dict>
 	</dict>
-	<key>EXPIRATION_WARNING_%d</key>
+	<key>EDIT_MESSAGE_SEND_TOO_MANY_EDITS_ERROR</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
 		<string>%#@text@</string>
@@ -296,9 +296,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Signal sürümün %1$d gün içinde kullanım dışı kalacak. En yeni sürüme güncellemek için dokun.</string>
+			<string>Bu mesaja yalnızca %1$d düzenleme uygulanabilir.</string>
 			<key>other</key>
-			<string>Signal sürümün %1$d gün içinde kullanım dışı kalacak. En yeni sürüme güncellemek için dokun.</string>
+			<string>Bu mesaja yalnızca %1$d düzenleme uygulanabilir.</string>
 		</dict>
 	</dict>
 	<key>FORWARD_MESSAGE_FIRST_FORWARD_PROCEED_%d</key>
@@ -315,22 +315,6 @@
 			<string>Mesaj gönder</string>
 			<key>other</key>
 			<string>%1$d mesaj gönder</string>
-		</dict>
-	</dict>
-	<key>GROUPS_LEGACY_GROUP_DROPPED_MEMBERS_BANNER_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>%1$d üye Yeni Gruba yeniden eklenemedi. Şimdi eklemek ister misin?</string>
-			<key>other</key>
-			<string>%1$d üye Yeni Gruba yeniden eklenemedi. Şimdi eklemek ister misin?</string>
 		</dict>
 	</dict>
 	<key>GROUPS_TOO_MANY_MEMBERS_ALERT_MESSAGE_%d</key>
@@ -573,22 +557,6 @@
 			<string>%1$d Üye</string>
 		</dict>
 	</dict>
-	<key>GROUP_REMOTE_USER_INVITED_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>%1$d kişi gruba davet edildi.</string>
-			<key>other</key>
-			<string>%1$d kişi gruba davet edildi.</string>
-		</dict>
-	</dict>
 	<key>GROUP_REMOTE_USER_INVITED_BY_REMOTE_USER_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -669,38 +637,6 @@
 			<string>Grup Hikayesi · %1$d Görüntüleyen</string>
 		</dict>
 	</dict>
-	<key>GROUP_WAS_MIGRATED_USERS_DROPPED_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>Bir üye Yeni Gruba eklenemedi ve gruptan çıkarıldı.</string>
-			<key>other</key>
-			<string>%1$d üye Yeni Gruba eklenemedi ve gruptan çıkarıldı.</string>
-		</dict>
-	</dict>
-	<key>GROUP_WAS_MIGRATED_USERS_INVITED_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>Bir üye Yeni Gruba eklenemedi ve katılma daveti gönderildi.</string>
-			<key>other</key>
-			<string>%1$d üye Yeni Gruba eklenemedi ve onlara katılma daveti gönderildi.</string>
-		</dict>
-	</dict>
 	<key>IMAGE_PICKER_CAN_SELECT_NO_MORE_TOAST_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -733,7 +669,7 @@
 			<string>%1$d ortak grup</string>
 		</dict>
 	</dict>
-	<key>MEDIA_GALLERY_DELETE_MESSAGES_%d</key>
+	<key>MEDIA_GALLERY_DELETE_MEDIA_TITLE</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
 		<string>%#@text@</string>
@@ -744,9 +680,25 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>%1$d İletiyi sil</string>
+			<string>%1$d öğe silinsin mi?</string>
 			<key>other</key>
-			<string>%1$d İletiyi sil</string>
+			<string>%1$d öğe silinsin mi?</string>
+		</dict>
+	</dict>
+	<key>MEDIA_GALLERY_DELETE_MEDIA_TOAST</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Bir öğe silindi</string>
+			<key>other</key>
+			<string>%1$d öğe silindi</string>
 		</dict>
 	</dict>
 	<key>MEDIA_GALLERY_ITEM_IMAGE_COUNT_%d</key>
@@ -779,6 +731,22 @@
 			<string>%1$d Öğe</string>
 			<key>other</key>
 			<string>%1$d Öge</string>
+		</dict>
+	</dict>
+	<key>MEDIA_PAGE_FORWARD_MEDIA_CONFIRM_TITLE_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>İlet: %1$d</string>
+			<key>other</key>
+			<string>İlet: %1$d</string>
 		</dict>
 	</dict>
 	<key>MESSAGES_VIEW_GROUP_N_MEMBERS_BLOCKED_%d</key>
@@ -941,22 +909,6 @@
 			<string>%1$d Görüntüleyen</string>
 		</dict>
 	</dict>
-	<key>ONBOARDING_2FA_INVALID_PIN_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@caption@</string>
-		<key>caption</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>Yanlış PIN. %1$d deneme hakkın kaldı.</string>
-			<key>other</key>
-			<string>Yanlış PIN. %1$d deneme hakkın kaldı.</string>
-		</dict>
-	</dict>
 	<key>PENDING_GROUP_MEMBERS_MEMBER_INVITED_USERS_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -1053,36 +1005,20 @@
 			<string>Özel hikaye · %1$d Görüntüleyen</string>
 		</dict>
 	</dict>
-	<key>REGISTER_2FA_INVALID_PIN_ALERT_MESSAGE_%d</key>
+	<key>REREGISTER_INVALID_PIN_ATTEMPT_COUNT_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@caption@</string>
-		<key>caption</key>
+		<string>%#@text@</string>
+		<key>text</key>
 		<dict>
 			<key>NSStringFormatSpecTypeKey</key>
 			<string>NSStringPluralRuleType</string>
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>%1$d deneme hakkın kaldı. Eğer hakkın biterse, yeni bir PIN oluşturabilirsin. Hesabını kaydedebilir ve kullanabilirsin ancak profil bilgilerin gibi kaydedilmiş bazı ayarları kaybedersin.</string>
+			<string>%1$d deneme</string>
 			<key>other</key>
-			<string>%1$d deneme hakkın kaldı. Eğer hakkın biterse, yeni bir PIN oluşturabilirsin. Hesabını kaydedebilir ve kullanabilirsin ancak profil bilgilerin gibi kaydedilmiş bazı ayarları kaybedersin.</string>
-		</dict>
-	</dict>
-	<key>REGISTER_2FA_INVALID_PIN_ALERT_MESSAGE_REGLOCK_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@caption@</string>
-		<key>caption</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>%1$d deneme hakkın kaldı. Hakkın biterse hesabın kilitlenecektir. 7 gün eylemsizlikten sonra, PIN olmadan tekrar kaydolabilirsin. Hesabın ve tüm içeriğin silinecektir.</string>
-			<key>other</key>
-			<string>%1$d deneme hakkın kaldı. Hakkın biterse hesabın kilitlenecektir. 7 gün eylemsizlikten sonra, PIN olmadan tekrar kaydolabilirsin. Hesabın ve tüm içeriğin silinecektir.</string>
+			<string>%1$d deneme</string>
 		</dict>
 	</dict>
 	<key>STORIES_SHARESHEET_PARTIAL_SEND_SUBTITLE_%d</key>

@@ -27,11 +27,9 @@ class MyStoryCell: UITableViewCell {
     override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
         super.init(style: style, reuseIdentifier: reuseIdentifier)
 
-        titleLabel.text = NSLocalizedString("MY_STORIES_TITLE", comment: "Title for the 'My Stories' view")
+        titleLabel.text = OWSLocalizedString("MY_STORIES_TITLE", comment: "Title for the 'My Stories' view")
 
-        let chevronImage = CurrentAppContext().isRTL ? UIImage(named: "chevron-left-20")! : UIImage(named: "chevron-right-20")!
-
-        titleChevron.image = chevronImage.withRenderingMode(.alwaysTemplate)
+        titleChevron.image = UIImage(imageLiteralResourceName: "chevron-right-20")
 
         let titleStack = UIStackView(arrangedSubviews: [titleLabel, titleChevron])
         titleStack.axis = .horizontal
@@ -79,15 +77,17 @@ class MyStoryCell: UITableViewCell {
 
     private var attachmentThumbnailDividerView: UIView?
 
+    private var latestMessageRevealedSpoilerIds: Set<StyleIdType>?
     private var latestMessageAttachment: StoryThumbnailView.Attachment?
+    private var secondLatestMessageRevealedSpoilerIds: Set<StyleIdType>?
     private var secondLatestMessageAttachment: StoryThumbnailView.Attachment?
 
-    func configure(with model: MyStoryViewModel, addStoryAction: @escaping () -> Void) {
+    func configure(with model: MyStoryViewModel, spoilerState: SpoilerRenderState, addStoryAction: @escaping () -> Void) {
         configureSubtitle(with: model)
 
         self.backgroundColor = .clear
 
-        titleLabel.font = .ows_dynamicTypeHeadline
+        titleLabel.font = .dynamicTypeHeadline
         titleLabel.textColor = Theme.primaryTextColor
 
         titleChevron.tintColor = Theme.primaryTextColor
@@ -102,25 +102,47 @@ class MyStoryCell: UITableViewCell {
             config.usePlaceholderImages()
         }
 
+        let latestMessageRevealedSpoilerIds: Set<StyleIdType> = model.latestMessageIdentifier.map(
+            spoilerState.revealState.revealedSpoilerIds(interactionIdentifier:)
+        ) ?? Set()
+        let secondLatestMessageRevealedSpoilerIds: Set<StyleIdType> = model.secondLatestMessageIdentifier.map(
+            spoilerState.revealState.revealedSpoilerIds(interactionIdentifier:)
+        ) ?? Set()
+
         if self.latestMessageAttachment != model.latestMessageAttachment ||
-            self.secondLatestMessageAttachment != model.secondLatestMessageAttachment {
+            self.secondLatestMessageAttachment != model.secondLatestMessageAttachment ||
+            self.latestMessageRevealedSpoilerIds != latestMessageRevealedSpoilerIds ||
+            self.secondLatestMessageRevealedSpoilerIds != secondLatestMessageRevealedSpoilerIds {
             self.latestMessageAttachment = model.latestMessageAttachment
             self.secondLatestMessageAttachment = model.secondLatestMessageAttachment
+            self.latestMessageRevealedSpoilerIds = latestMessageRevealedSpoilerIds
+            self.secondLatestMessageRevealedSpoilerIds = secondLatestMessageRevealedSpoilerIds
 
             attachmentThumbnail.removeAllSubviews()
             attachmentThumbnailDividerView = nil
 
-            if let latestMessageAttachment = model.latestMessageAttachment {
+            if let latestMessageAttachment = model.latestMessageAttachment, let latestMessageIdentifier = model.latestMessageIdentifier {
                 attachmentThumbnail.isHiddenInStackView = false
 
-                let latestThumbnailView = StoryThumbnailView(attachment: latestMessageAttachment)
+                let latestThumbnailView = StoryThumbnailView(
+                    attachment: latestMessageAttachment,
+                    interactionIdentifier: latestMessageIdentifier,
+                    spoilerState: spoilerState
+                )
                 attachmentThumbnail.addSubview(latestThumbnailView)
                 latestThumbnailView.autoPinHeightToSuperview()
                 latestThumbnailView.autoSetDimensions(to: CGSize(width: 56, height: 84))
                 latestThumbnailView.autoPinEdge(toSuperviewEdge: .trailing)
 
-                if let secondLatestMessageAttachment = model.secondLatestMessageAttachment {
-                    let secondLatestThumbnailView = StoryThumbnailView(attachment: secondLatestMessageAttachment)
+                if
+                    let secondLatestMessageAttachment = model.secondLatestMessageAttachment,
+                    let secondLatestMessageIdentifier = model.secondLatestMessageIdentifier
+                {
+                    let secondLatestThumbnailView = StoryThumbnailView(
+                        attachment: secondLatestMessageAttachment,
+                        interactionIdentifier: secondLatestMessageIdentifier,
+                        spoilerState: spoilerState
+                    )
                     secondLatestThumbnailView.layer.cornerRadius = 6
                     secondLatestThumbnailView.transform = .init(rotationAngle: (CurrentAppContext().isRTL ? 1 : -1) * 0.18168878)
                     attachmentThumbnail.insertSubview(secondLatestThumbnailView, belowSubview: latestThumbnailView)
@@ -150,20 +172,20 @@ class MyStoryCell: UITableViewCell {
     }
 
     func configureSubtitle(with model: MyStoryViewModel) {
-        subtitleLabel.font = .ows_dynamicTypeSubheadline
+        subtitleLabel.font = .dynamicTypeSubheadline
         subtitleLabel.textColor = Theme.isDarkThemeEnabled ? Theme.secondaryTextAndIconColor : .ows_gray45
         failedIconView.image = Theme.iconImage(.error16)
 
         if model.sendingCount > 0 {
-            let format = NSLocalizedString("STORY_SENDING_%d", tableName: "PluralAware", comment: "Indicates that N stories are currently sending")
+            let format = OWSLocalizedString("STORY_SENDING_%d", tableName: "PluralAware", comment: "Indicates that N stories are currently sending")
             subtitleLabel.text = .localizedStringWithFormat(format, model.sendingCount)
             failedIconView.isHiddenInStackView = model.failureState == .none
         } else if model.failureState != .none {
             switch model.failureState {
             case .complete:
-                subtitleLabel.text = NSLocalizedString("STORY_SEND_FAILED", comment: "Text indicating that the story send has failed")
+                subtitleLabel.text = OWSLocalizedString("STORY_SEND_FAILED", comment: "Text indicating that the story send has failed")
             case .partial:
-                subtitleLabel.text = NSLocalizedString("STORY_SEND_PARTIALLY_FAILED", comment: "Text indicating that the story send has partially failed")
+                subtitleLabel.text = OWSLocalizedString("STORY_SEND_PARTIALLY_FAILED", comment: "Text indicating that the story send has partially failed")
             case .none:
                 owsFailDebug("Unexpected")
             }
@@ -172,7 +194,7 @@ class MyStoryCell: UITableViewCell {
             subtitleLabel.text = DateUtil.formatTimestampRelatively(latestMessageTimestamp)
             failedIconView.isHiddenInStackView = true
         } else {
-            subtitleLabel.text = NSLocalizedString("MY_STORY_TAP_TO_ADD", comment: "Prompt to add to your story")
+            subtitleLabel.text = OWSLocalizedString("MY_STORY_TAP_TO_ADD", comment: "Prompt to add to your story")
             failedIconView.isHiddenInStackView = true
         }
 
@@ -243,7 +265,7 @@ class MyStoryCell: UITableViewCell {
             addSubview(outerCircle)
             addSubview(iconView)
 
-            iconView.image = #imageLiteral(resourceName: "plus-my-story").withRenderingMode(.alwaysTemplate)
+            iconView.image = UIImage(imageLiteralResourceName: "plus-20")
             iconView.tintColor = .white
             iconView.contentMode = .center
             iconView.autoSetDimensions(to: .square(20))

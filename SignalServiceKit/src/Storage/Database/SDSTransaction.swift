@@ -68,7 +68,7 @@ public class GRDBWriteTransaction: GRDBReadTransaction {
     public typealias CompletionBlock = () -> Void
     internal var syncCompletions: [CompletionBlock] = []
     public struct AsyncCompletion {
-        let queue: DispatchQueue
+        let scheduler: Scheduler
         let block: CompletionBlock
     }
     internal var asyncCompletions: [AsyncCompletion] = []
@@ -80,7 +80,11 @@ public class GRDBWriteTransaction: GRDBReadTransaction {
 
     @objc
     public func addAsyncCompletion(queue: DispatchQueue, block: @escaping CompletionBlock) {
-        asyncCompletions.append(AsyncCompletion(queue: queue, block: block))
+        addAsyncCompletion(on: queue, block: block)
+    }
+
+    public func addAsyncCompletion(on scheduler: Scheduler, block: @escaping CompletionBlock) {
+        asyncCompletions.append(AsyncCompletion(scheduler: scheduler, block: block))
     }
 
     fileprivate typealias TransactionFinalizationBlock = (_ transaction: GRDBWriteTransaction) -> Void
@@ -207,6 +211,13 @@ public class SDSAnyWriteTransaction: SDSAnyReadTransaction, StoreContext {
         }
     }
 
+    public func addAsyncCompletion(on scheduler: Scheduler, block: @escaping () -> Void) {
+        switch writeTransaction {
+        case .grdbWrite(let grdbWrite):
+            grdbWrite.addAsyncCompletion(on: scheduler, block: block)
+        }
+    }
+
     private var threadUniqueIdsToIgnoreInteractionUpdates = Set<String>()
 
     @objc
@@ -252,25 +263,25 @@ public extension StoreContext {
 // MARK: - Convenience Methods
 
 public extension GRDBWriteTransaction {
-    func executeUpdate(sql: String, arguments: StatementArguments = StatementArguments()) {
+    /// Execute some SQL.
+    func execute(sql: String, arguments: StatementArguments = .init()) {
         do {
             let statement = try database.makeStatement(sql: sql)
-            // TODO: We could use setArgumentsWithValidation for more safety.
-            statement.setUncheckedArguments(arguments)
+            try statement.setArguments(arguments)
             try statement.execute()
         } catch {
             handleFatalDatabaseError(error)
         }
     }
 
-    // This has significant perf benefits over database.execute()
-    // for queries that we perform repeatedly.
-    func executeWithCachedStatement(sql: String,
-                                    arguments: StatementArguments = StatementArguments()) {
+    /// Execute some SQL and cache the statement.
+    ///
+    /// Caching the statement has significant performance benefits over ``execute`` for queries
+    /// that are performed repeatedly.
+    func executeAndCacheStatement(sql: String, arguments: StatementArguments = .init()) {
         do {
             let statement = try database.cachedStatement(sql: sql)
-            // TODO: We could use setArgumentsWithValidation for more safety.
-            statement.setUncheckedArguments(arguments)
+            try statement.setArguments(arguments)
             try statement.execute()
         } catch {
             handleFatalDatabaseError(error)

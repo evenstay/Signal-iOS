@@ -3,7 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import XCTest
+
 @testable import Signal
 
 private enum StringChange: CustomDebugStringConvertible, Equatable {
@@ -20,7 +21,7 @@ enum Letter: Hashable {
     case b
 }
 
-class JournalingOrderedDictionaryTest: SignalBaseTest {
+class JournalingOrderedDictionaryTest: XCTestCase {
     func testPrepend() {
         var sut = JournalingOrderedDictionary<Letter, String, StringChange>()
         sut.prepend(key: .a, value: "a")

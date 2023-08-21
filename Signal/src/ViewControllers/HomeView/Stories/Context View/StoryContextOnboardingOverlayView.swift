@@ -3,10 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import Lottie
 import SignalServiceKit
-import UIKit
+import SignalUI
 
 protocol StoryContextOnboardingOverlayViewDelegate: AnyObject {
 
@@ -156,7 +155,7 @@ class StoryContextOnboardingOverlayView: UIView, Dependencies {
 
             let label = UILabel()
             label.textColor = .ows_gray05
-            label.font = .ows_dynamicTypeBodyClamped
+            label.font = .dynamicTypeBodyClamped
             label.text = asset.text
             label.numberOfLines = 0
             label.textAlignment = .center
@@ -181,13 +180,13 @@ class StoryContextOnboardingOverlayView: UIView, Dependencies {
         let confirmButton = OWSButton()
         confirmButton.translatesAutoresizingMaskIntoConstraints = false
         confirmButton.setTitle(
-            NSLocalizedString(
+            OWSLocalizedString(
                 "STORY_VIEWER_ONBOARDING_CONFIRMATION",
                 comment: "Confirmation text shown the first time the user opens the story viewer to dismiss instructions."
             ),
             for: .normal
         )
-        confirmButton.titleLabel?.font = .ows_dynamicTypeSubheadlineClamped.ows_semibold
+        confirmButton.titleLabel?.font = .dynamicTypeSubheadlineClamped.semibold()
         confirmButton.backgroundColor = .ows_white
         confirmButton.setTitleColor(.ows_black, for: .normal)
         confirmButton.contentEdgeInsets = UIEdgeInsets(hMargin: 23, vMargin: 8)
@@ -201,12 +200,7 @@ class StoryContextOnboardingOverlayView: UIView, Dependencies {
         confirmButton.autoPinEdges(toEdgesOf: confirmButtonContainer)
 
         let closeButton = OWSButton()
-        closeButton.setImage(
-            UIImage(named: "x-24")?
-                .withRenderingMode(.alwaysTemplate)
-                .asTintedImage(color: .ows_white),
-            for: .normal
-        )
+        closeButton.setImage(Theme.iconImage(.buttonX).asTintedImage(color: .ows_white), for: .normal)
         closeButton.contentMode = .center
         closeButton.block = { [weak self] in
             guard let self = self else { return }
@@ -266,21 +260,21 @@ class StoryContextOnboardingOverlayView: UIView, Dependencies {
         [
             Asset(
                 lottieName: "story_viewer_onboarding_1",
-                text: NSLocalizedString(
+                text: OWSLocalizedString(
                     "STORY_VIEWER_ONBOARDING_1",
                     comment: "Text shown the first time the user opens the story viewer instructing them how to use it."
                 )
             ),
             Asset(
                 lottieName: "story_viewer_onboarding_2",
-                text: NSLocalizedString(
+                text: OWSLocalizedString(
                     "STORY_VIEWER_ONBOARDING_2",
                     comment: "Text shown the first time the user opens the story viewer instructing them how to use it."
                 )
             ),
             Asset(
                 lottieName: "story_viewer_onboarding_3",
-                text: NSLocalizedString(
+                text: OWSLocalizedString(
                     "STORY_VIEWER_ONBOARDING_3",
                     comment: "Text shown the first time the user opens the story viewer instructing them how to use it."
                 )

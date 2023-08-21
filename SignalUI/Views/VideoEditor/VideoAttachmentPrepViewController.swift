@@ -4,7 +4,7 @@
 //
 
 import AVFoundation
-import UIKit
+import SignalServiceKit
 
 protocol VideoPlaybackState {
     var isPlaying: Bool { get }
@@ -48,7 +48,7 @@ class VideoAttachmentPrepViewController: AttachmentPrepViewController {
         model.add(observer: self)
     }
 
-    override var contentView: AttachmentPrepContentView {
+    override var contentView: UIView {
         editorView
     }
 
@@ -134,7 +134,7 @@ extension VideoAttachmentPrepViewController: VideoTimelineViewDataSource {
                                                          aspectRatio: videoAspectRatio,
                                                          thumbnailHeight: VideoTimelineView.preferredHeight,
                                                          untrimmedDurationSeconds: untrimmedDurationSeconds)
-        }.done(on: .main) { [weak self] (thumbnails: [UIImage]) -> Void in
+        }.done(on: DispatchQueue.main) { [weak self] (thumbnails: [UIImage]) -> Void in
             guard let self = self else {
                 return
             }

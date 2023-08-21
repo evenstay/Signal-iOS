@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalServiceKit
 
 public protocol NewStoryHeaderDelegate: AnyObject, OWSTableViewController2 {
     func newStoryHeaderView(_ newStoryHeaderView: NewStoryHeaderView, didCreateNewStoryItems items: [StoryConversationItem])
@@ -35,7 +35,7 @@ public class NewStoryHeaderView: UIStackView {
 
         let textView = LinkingTextView()
         textView.textColor = Theme.isDarkThemeEnabled ? UIColor.ows_gray05 : UIColor.ows_gray90
-        textView.font = UIFont.ows_dynamicTypeBodyClamped.ows_semibold
+        textView.font = UIFont.dynamicTypeBodyClamped.semibold()
         textView.text = title
 
         addArrangedSubview(textView)
@@ -47,13 +47,13 @@ public class NewStoryHeaderView: UIStackView {
                 "NEW_STORY_HEADER_VIEW_ADD_NEW_STORY_BUTTON",
                 comment: "table section header button to add a new story"
             ),
-            font: UIFont.ows_dynamicTypeFootnoteClamped.ows_semibold,
+            font: UIFont.dynamicTypeFootnoteClamped.semibold(),
             titleColor: Theme.isDarkThemeEnabled ? UIColor.ows_gray05 : UIColor.ows_gray90,
             backgroundColor: delegate.cellBackgroundColor,
             target: self,
             selector: #selector(didTapNewStory)
         )
-        newStoryButton.setImage(#imageLiteral(resourceName: "plus-12").withRenderingMode(.alwaysTemplate))
+        newStoryButton.setImage(UIImage(imageLiteralResourceName: "plus-extra-small"))
         newStoryButton.contentEdgeInsets = UIEdgeInsets(top: 5, leading: 12, bottom: 5, trailing: 18)
         newStoryButton.titleEdgeInsets = UIEdgeInsets(top: 0, leading: 6, bottom: 0, trailing: -6)
         newStoryButton.tintColor = Theme.primaryIconColor
@@ -76,7 +76,7 @@ public class NewStoryHeaderView: UIStackView {
     }
 
     @objc
-    func didTapNewStory() {
+    private func didTapNewStory() {
         let vc = NewStorySheet { [weak self] items in
             guard let self = self else { return }
             self.delegate.newStoryHeaderView(self, didCreateNewStoryItems: items)

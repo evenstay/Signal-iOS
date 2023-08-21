@@ -1,26 +1,19 @@
-Jutaan orang menggunakan Signal setiap hari untuk berkomunikasi secara instan, bebas, dan gratis di seluruh dunia. Kirim dan terima pesan tanpa terdistorsi, berpartisipasi dalam panggilan suara/video dengan resolusi tinggi (HD), serta jelajahi serangkaian fitur baru yang terus bertambah dan dapat membantu Anda tetap terhubung. Teknologi penjagaan-privasi Signal yang canggih selalu aktif, jadi Anda dapat fokus untuk berbagi momen-momen penting dengan orang-orang yang berharga bagi Anda.
+Signal adalah aplikasi perpesanan yang mengutamakan privasi. Aplikasi ini gratis dan mudah digunakan, dengan enkripsi end-to-end yang kuat sehingga memastikan komunikasi Anda benar-benar privat.
 
-• Katakan apapun – Enkripsi antar pengguna yang canggih (dipersembahkan oleh Signal Protocol™ yang bersumber terbuka) menjaga percakapan Anda tetap aman. Privasi bukanlah sebuah pilihan — itulah cara Signal bekerja. Setiap pesan, setiap panggilan, setiap saat.
+• Kirim teks, pesan suara, foto, video, GIF, dan file secara gratis. Signal menggunakan koneksi data ponsel, sehingga Anda terhindar dari biaya SMS dan MMS.
 
-• Cepat – Pesan-pesan disampaikan secara cepat dan andal, bahkan pada jaringan yang lambat. Signal dioptimalkan untuk beroperasi di lingkungan yang paling terbatas sekalipun.
+• Panggil teman Anda dengan panggilan suara dan video terenkripsi yang memiliki kualitas sangat jernih. Panggilan grup didukung untuk maksimal 40 orang.
 
-• Lebih bebas – Signal adalah sebuah organisasi nirlaba independen 501c3. Pengembangannya didukung oleh pengguna seperti Anda. Tidak ada iklan. Tidak ada pelacak. Beneran.
+• Tetap terhubung dengan obrolan grup yang maksimal beranggotakan 1.000 orang. Kontrol siapa yang dapat memposting dan mengelola anggota grup dengan pengaturan izin admin.
 
-• Jadi diri sendiri – Anda dapat menggunakan nomor telepon dan buku alamat Anda yang ada untuk berkomunikasi secara aman dengan teman-teman Anda.
+• Bagikan Cerita gambar, teks, dan video yang otomatis hilang setelah 24 jam. Pengaturan privasi memungkinkan Anda mengontrol siapa saja yang bisa melihat setiap Cerita.
 
-• Bicaralah – Walaupun mereka tinggal di kota seberang atau di seberang lautan, kualitas audio dan video Signal yang telah ditingkatkan akan membuat teman serta keluarga Anda terasa lebih dekat.
+• Signal dikembangkan untuk privasi Anda. Kami tidak tahu apa pun tentang Anda atau dengan siapa Anda berbicara. Protokol Signal sumber terbuka kami berarti bahwa kami tidak dapat membaca pesan atau mendengarkan panggilan Anda. Begitu pun orang lain. Tidak ada penyadapan tersembunyi, tidak ada pengumpulan data, tidak ada kompromi. 
 
-• Redupkan – Beralih ke tema gelap jika Anda tidak terlalu nyaman dengan cahaya.
+• Signal bersifat independen dan tidak mencari profit; jenis teknologi yang berbeda dari jenis organisasi yang unik. Sebagai organisasi nirlaba 501c3, kami didukung oleh donasi Anda, bukan oleh pengiklan atau investor. 
 
-• Terdengar tidak asing – Pilih peringatan khusus untuk setiap kontak, atau matikan suaranya secara keseluruhan. Simon & Garfunkel menulis sebuah lagu hit tentang hal tersebut pada 1964, dan Anda dapat mengalami suara dari kesunyian kapanpun Anda inginkan dengan memilih "Mati" sebagai nada dering notifikasi Anda.
+• Untuk dukungan, pertanyaan, atau informasi lebih lanjut, silakan kunjungi https://support.signal.org/
 
-• Gambarkan ini – Gunakan fitur pengeditan gambar bawaan untuk membuat sketsa, memotong, dan membalikkan foto yang akan Anda kirimkan. Bahkan ada alat teks sehingga Anda dapat menambahkan lebih banyak kata ke dalam foto Anda yang sudah bernilai 1,000 kata.
+Untuk memeriksa kode sumber kami, kunjungi https://github.com/signalapp 
 
-
-Untuk bantuan, pertanyaan, atau informasi lebih lanjut, mohon kunjungi:
-https://support.signal.org
-
-Sumber kode:
-https://github.com/signalapp
-
-Ikuti kami di Twitter (@signalapp) dan Instagram (@signal_app) untuk semua pembaruan dan pengumuman terkini.
+Ikuti kami di Twitter @signalapp dan Instagram @signal_app

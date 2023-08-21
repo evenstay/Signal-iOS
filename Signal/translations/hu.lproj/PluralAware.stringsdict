@@ -93,9 +93,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Ezt az egyedi színt %1$d beszélgetésben használod. Biztosan törölni szeretnéd?</string>
+			<string>Ezt az egyedi színt %1$d csevegésben használod. Biztosan törölni szeretnéd?</string>
 			<key>other</key>
-			<string>Ezt az egyedi színt %1$d beszélgetésben használod. Biztosan törölni szeretnéd az összes beszélgetésre vonatkozóan?</string>
+			<string>Ezt az egyedi színt %1$d csevegésben használod. Biztosan törölni szeretnéd az összes csevegésre vonatkozóan?</string>
 		</dict>
 	</dict>
 	<key>CHAT_COLOR_SETTINGS_UPDATE_ALERT_MESSAGE_%d</key>
@@ -109,9 +109,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Ezt a színt %1$d beszélgetésben használod. Biztosan menteni szeretnéd az összes beszélgetésre vonatkozóan?</string>
+			<string>Ezt a színt %1$d csevegésben használod. Biztosan menteni szeretnéd az összes csevegésre vonatkozóan?</string>
 			<key>other</key>
-			<string>Ezt a színt %1$d beszélgetésben használod. Biztosan menteni szeretnéd az összes beszélgetésre vonatkozóan?</string>
+			<string>Ezt a színt %1$d csevegésben használod. Biztosan menteni szeretnéd az összes csevegésre vonatkozóan?</string>
 		</dict>
 	</dict>
 	<key>CONVERSATION_DELETE_CONFIRMATIONS_ALERT_TITLE_%d</key>
@@ -125,9 +125,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Törölsz %1$d beszélgetést?</string>
+			<string>Törölsz %1$d csevegést?</string>
 			<key>other</key>
-			<string>Törölsz %1$d beszélgetést?</string>
+			<string>Törölsz %1$d csevegést?</string>
 		</dict>
 	</dict>
 	<key>CONVERSATION_DELETE_CONFIRMATION_ALERT_MESSAGES_%d</key>
@@ -141,9 +141,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>A beszélgetés ezen az eszközön törlésre kerül.</string>
+			<string>A csevegés ezen az eszközön törlésre kerül.</string>
 			<key>other</key>
-			<string>Ezek a beszélgetések ezen az eszközön törlésre kerülnek.</string>
+			<string>Ezek a csevegések ezen az eszközön törlésre kerülnek.</string>
 		</dict>
 	</dict>
 	<key>CONVERSATION_PICKER_CAN_SELECT_NO_MORE_CONVERSATIONS_%d</key>
@@ -157,9 +157,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Maximálisan %1$d beszélgetést jelölhetsz ki.</string>
+			<string>Maximálisan %1$d csevegést jelölhetsz ki.</string>
 			<key>other</key>
-			<string>Maximálisan %1$d beszélgetést jelölhetsz ki.</string>
+			<string>Maximálisan %1$d csevegést jelölhetsz ki.</string>
 		</dict>
 	</dict>
 	<key>CONVERSATION_SEARCH_RESULTS_%d_%d</key>
@@ -285,7 +285,7 @@
 			<string>A csoport elérte a maximális, %1$d fős taglétszámot.</string>
 		</dict>
 	</dict>
-	<key>EXPIRATION_WARNING_%d</key>
+	<key>EDIT_MESSAGE_SEND_TOO_MANY_EDITS_ERROR</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
 		<string>%#@text@</string>
@@ -296,9 +296,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Signal verziód %1$d napon belül lejár. Koppints a legújabb verzióra frissítéshez.</string>
+			<string>Csak %1$d szerkesztés alkalmazható erre az üzenetre.</string>
 			<key>other</key>
-			<string>Signal verziód %1$d napon belül lejár. Koppints a legújabb verzióra frissítéshez.</string>
+			<string>Csak %1$d szerkesztés alkalmazható erre az üzenetre.</string>
 		</dict>
 	</dict>
 	<key>FORWARD_MESSAGE_FIRST_FORWARD_PROCEED_%d</key>
@@ -315,22 +315,6 @@
 			<string>%1$d üzenet küldése</string>
 			<key>other</key>
 			<string>%1$d üzenet küldése</string>
-		</dict>
-	</dict>
-	<key>GROUPS_LEGACY_GROUP_DROPPED_MEMBERS_BANNER_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>%1$d tagot nem sikerült az új típusú csoporthoz újra hozzáadni. Hozzá akarod őket adni most?</string>
-			<key>other</key>
-			<string>%1$d tagot nem sikerült az új típusú csoporthoz újra hozzáadni. Hozzá akarod őket adni most?</string>
 		</dict>
 	</dict>
 	<key>GROUPS_TOO_MANY_MEMBERS_ALERT_MESSAGE_%d</key>
@@ -573,22 +557,6 @@
 			<string>%1$d tag</string>
 		</dict>
 	</dict>
-	<key>GROUP_REMOTE_USER_INVITED_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>%1$d személyt meghívtak a csoportba.</string>
-			<key>other</key>
-			<string>%1$d személyt meghívtak a csoportba.</string>
-		</dict>
-	</dict>
 	<key>GROUP_REMOTE_USER_INVITED_BY_REMOTE_USER_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -669,38 +637,6 @@
 			<string>Csoport történet · %1$d néző</string>
 		</dict>
 	</dict>
-	<key>GROUP_WAS_MIGRATED_USERS_DROPPED_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>%1$d tagot nem lehetett közvetlenül az új csoporthoz adni, és így el lett távolítva.</string>
-			<key>other</key>
-			<string>%1$d tagot nem lehetett közvetlenül az új csoporthoz adni, és így el lettek távolítva.</string>
-		</dict>
-	</dict>
-	<key>GROUP_WAS_MIGRATED_USERS_INVITED_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>%1$d tagot nem lehetett közvetlenül az új csoporthoz adni, ezért ehelyett meg lett hívva.</string>
-			<key>other</key>
-			<string>%1$d tagot nem lehetett közvetlenül az új csoporthoz adni, ezért ehelyett meg lettek hívva.</string>
-		</dict>
-	</dict>
 	<key>IMAGE_PICKER_CAN_SELECT_NO_MORE_TOAST_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -733,7 +669,7 @@
 			<string>%1$d közös csoport</string>
 		</dict>
 	</dict>
-	<key>MEDIA_GALLERY_DELETE_MESSAGES_%d</key>
+	<key>MEDIA_GALLERY_DELETE_MEDIA_TITLE</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
 		<string>%#@text@</string>
@@ -744,9 +680,25 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>%1$d üzenet törlése</string>
+			<string>%1$d elem törlése?</string>
 			<key>other</key>
-			<string>%1$d üzenet törlése</string>
+			<string>%1$d elem törlése?</string>
+		</dict>
+	</dict>
+	<key>MEDIA_GALLERY_DELETE_MEDIA_TOAST</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Egy elem törölve</string>
+			<key>other</key>
+			<string>%1$d elem törölve</string>
 		</dict>
 	</dict>
 	<key>MEDIA_GALLERY_ITEM_IMAGE_COUNT_%d</key>
@@ -779,6 +731,22 @@
 			<string>%1$d elem</string>
 			<key>other</key>
 			<string>%1$d elem</string>
+		</dict>
+	</dict>
+	<key>MEDIA_PAGE_FORWARD_MEDIA_CONFIRM_TITLE_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d továbbítása</string>
+			<key>other</key>
+			<string>%1$d továbbítása</string>
 		</dict>
 	</dict>
 	<key>MESSAGES_VIEW_GROUP_N_MEMBERS_BLOCKED_%d</key>
@@ -941,22 +909,6 @@
 			<string>%1$d néző</string>
 		</dict>
 	</dict>
-	<key>ONBOARDING_2FA_INVALID_PIN_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@caption@</string>
-		<key>caption</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>Hibás PIN kód. Még %1$d alkalommal próbálkozhatsz.</string>
-			<key>other</key>
-			<string>Hibás PIN kód. Még %1$d alkalommal próbálkozhatsz.</string>
-		</dict>
-	</dict>
 	<key>PENDING_GROUP_MEMBERS_MEMBER_INVITED_USERS_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -1053,36 +1005,20 @@
 			<string>Egyéni Történet · %1$d néző</string>
 		</dict>
 	</dict>
-	<key>REGISTER_2FA_INVALID_PIN_ALERT_MESSAGE_%d</key>
+	<key>REREGISTER_INVALID_PIN_ATTEMPT_COUNT_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@caption@</string>
-		<key>caption</key>
+		<string>%#@text@</string>
+		<key>text</key>
 		<dict>
 			<key>NSStringFormatSpecTypeKey</key>
 			<string>NSStringPluralRuleType</string>
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Még %1$d próbálkozásod maradt. Ha kifogysz belőlük, lehetőséged lesz új PIN létrehozására. Regisztrálhatsz újra, majd használatba veheted a fiókodat, de mentett beállításaid egy része, mint például a profiladataid elvesznek.</string>
+			<string>%1$d próbálkozás</string>
 			<key>other</key>
-			<string>Még %1$d próbálkozásod maradt. Ha kifogysz belőlük, lehetőséged lesz új PIN létrehozására. Regisztrálhatsz újra, majd használatba veheted a fiókodat, de mentett beállításaid egy része, mint például a profiladataid elvesznek.</string>
-		</dict>
-	</dict>
-	<key>REGISTER_2FA_INVALID_PIN_ALERT_MESSAGE_REGLOCK_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@caption@</string>
-		<key>caption</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>%1$d próbálkozásod maradt. Ha mindet elrontod, a fiókod zárolásra kerül, majd 7 inaktív nap után a fiókod mindenestül törlésre kerül, ami után már újraregisztrálhatsz - immár PIN-kód nélkül.</string>
-			<key>other</key>
-			<string>%1$d próbálkozásod maradt. Ha mindet elrontod, a fiókod zárolásra kerül, majd 7 inaktív nap után a fiókod mindenestül törlésre kerül, ami után már újraregisztrálhatsz - immár PIN-kód nélkül.</string>
+			<string>%1$d próbálkozás</string>
 		</dict>
 	</dict>
 	<key>STORIES_SHARESHEET_PARTIAL_SEND_SUBTITLE_%d</key>

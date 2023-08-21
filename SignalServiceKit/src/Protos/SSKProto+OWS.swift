@@ -4,24 +4,26 @@
 //
 
 import Foundation
-
-@objc
-public extension SSKProtoGroupDetails {
-    var memberAddresses: [SignalServiceAddress] {
-        return membersE164.map { SignalServiceAddress(phoneNumber: $0) }
-    }
-}
-
-@objc
-public extension SSKProtoGroupContext {
-    var memberAddresses: [SignalServiceAddress] {
-        return membersE164.map { SignalServiceAddress(phoneNumber: $0) }
-    }
-}
+import LibSignalClient
 
 @objc
 public extension SSKProtoSyncMessageSent {
     var isStoryTranscript: Bool {
         storyMessage != nil || !storyMessageRecipients.isEmpty
+    }
+}
+
+public extension SSKProtoEnvelope {
+    @objc
+    var sourceAddress: SignalServiceAddress? {
+        return sourceServiceID.flatMap { (serviceIdString) -> SignalServiceAddress? in
+            guard let serviceId = try? ServiceId.parseFrom(serviceIdString: serviceIdString) else {
+                return nil
+            }
+            if !FeatureFlags.phoneNumberIdentifiers, serviceId is Pni {
+                return nil
+            }
+            return SignalServiceAddress(serviceId)
+        }
     }
 }

@@ -3,9 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalMessaging
-import UIKit
+import SignalUI
 
 class CustomActionSheet: ActionSheetController {
     public override func viewWillDisappear(_ animated: Bool) {
@@ -13,7 +12,6 @@ class CustomActionSheet: ActionSheetController {
     }
 }
 
-@objc
 public class GroupLinkPromotionActionSheet: UIView {
 
     private weak var conversationViewController: ConversationViewController?
@@ -38,7 +36,6 @@ public class GroupLinkPromotionActionSheet: UIView {
         fatalError("init(coder:) has not been implemented")
     }
 
-    @objc
     public func present(fromViewController: UIViewController) {
         let actionSheetController = CustomActionSheet()
         actionSheetController.customHeader = self
@@ -47,7 +44,6 @@ public class GroupLinkPromotionActionSheet: UIView {
         self.actionSheetController = actionSheetController
     }
 
-    @objc
     public func configure() {
         let subviews = buildContents()
 
@@ -82,12 +78,12 @@ public class GroupLinkPromotionActionSheet: UIView {
     private func buildContents() -> [UIView] {
         let builder = ActionSheetContentBuilder()
 
-        builder.add(builder.buildTitleLabel(text: NSLocalizedString("GROUP_LINK_PROMOTION_ALERT_TITLE",
+        builder.add(builder.buildTitleLabel(text: OWSLocalizedString("GROUP_LINK_PROMOTION_ALERT_TITLE",
                                                                     comment: "Title for the 'group link promotion' alert view.")))
 
         builder.addVerticalSpacer(height: 2)
 
-        builder.add(builder.buildLabel(text: NSLocalizedString("GROUP_LINK_PROMOTION_ALERT_SUBTITLE",
+        builder.add(builder.buildLabel(text: OWSLocalizedString("GROUP_LINK_PROMOTION_ALERT_SUBTITLE",
                                                                comment: "Subtitle for the 'group link promotion' alert view."),
                                        textAlignment: .center))
 
@@ -96,7 +92,7 @@ public class GroupLinkPromotionActionSheet: UIView {
         if isGroupLinkEnabled {
             builder.addVerticalSpacer(height: 88)
 
-            builder.addBottomButton(title: NSLocalizedString("GROUP_LINK_PROMOTION_ALERT_SHARE_LINK",
+            builder.addBottomButton(title: OWSLocalizedString("GROUP_LINK_PROMOTION_ALERT_SHARE_LINK",
                                                              comment: "Label for the 'share link' button in the 'group link promotion' alert view."),
                                     titleColor: .white,
                                     backgroundColor: .ows_accentBlue,
@@ -114,7 +110,7 @@ public class GroupLinkPromotionActionSheet: UIView {
 
             memberApprovalStack.addBackgroundView(withBackgroundColor: Theme.isDarkThemeEnabled ? .ows_gray65 : .ows_gray02, cornerRadius: 8)
 
-            let switchLabel = builder.buildLabel(text: NSLocalizedString("GROUP_LINK_PROMOTION_ALERT_APPROVE_NEW_MEMBERS_SWITCH",
+            let switchLabel = builder.buildLabel(text: OWSLocalizedString("GROUP_LINK_PROMOTION_ALERT_APPROVE_NEW_MEMBERS_SWITCH",
                                                                          comment: "Label for the 'approve new group members' switch."))
             memberApprovalStack.addArrangedSubview(switchLabel)
             switchLabel.setCompressionResistanceHorizontalHigh()
@@ -128,10 +124,10 @@ public class GroupLinkPromotionActionSheet: UIView {
 
             builder.addVerticalSpacer(height: 8)
 
-            let captionLabel = builder.buildLabel(text: NSLocalizedString("GROUP_LINK_PROMOTION_ALERT_APPROVE_NEW_MEMBERS_EXPLANATION",
+            let captionLabel = builder.buildLabel(text: OWSLocalizedString("GROUP_LINK_PROMOTION_ALERT_APPROVE_NEW_MEMBERS_EXPLANATION",
                                                                      comment: "Explanation of the 'approve new group members' switch."),
                                              textColor: Theme.secondaryTextAndIconColor,
-                                             font: .ows_dynamicTypeCaption1)
+                                             font: .dynamicTypeCaption1)
 
             let captionContainer = UIView()
             captionContainer.layoutMargins = UIEdgeInsets(hMargin: 8, vMargin: 0)
@@ -142,7 +138,7 @@ public class GroupLinkPromotionActionSheet: UIView {
 
             builder.addVerticalSpacer(height: 44)
 
-            builder.addBottomButton(title: NSLocalizedString("GROUP_LINK_PROMOTION_ALERT_ENABLE_AND_SHARE_LINK",
+            builder.addBottomButton(title: OWSLocalizedString("GROUP_LINK_PROMOTION_ALERT_ENABLE_AND_SHARE_LINK",
                                                              comment: "Label for the 'enable and share link' button in the 'group link promotion' alert view."),
                                     titleColor: .white,
                                     backgroundColor: .ows_accentBlue,
@@ -163,7 +159,7 @@ public class GroupLinkPromotionActionSheet: UIView {
     // MARK: - Events
 
     @objc
-    func dismissAlert() {
+    private func dismissAlert() {
         actionSheetController?.dismiss(animated: true)
     }
 }

@@ -3,12 +3,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import LibSignalClient
 import SignalServiceKit
 
-@objc(OWSSubscriptionReceiptCredentialJobQueue)
-public class SubscriptionReceiptCredentialJobQueue: NSObject, JobQueue {
+public class SubscriptionReceiptCredentialJobQueue: JobQueue {
 
     // Add optional paymentIntentID / isBoost
 
@@ -16,23 +14,23 @@ public class SubscriptionReceiptCredentialJobQueue: NSObject, JobQueue {
         amount: FiatMoney,
         paymentProcessor: PaymentProcessor,
         receiptCredentialRequestContext: Data,
-        receiptCredentailRequest: Data,
+        receiptCredentialRequest: Data,
         boostPaymentIntentID: String,
         transaction: SDSAnyWriteTransaction
     ) {
         Logger.info("[Donations] Adding a boost job")
-        let jobRecord = OWSReceiptCredentialRedemptionJobRecord(
+        let jobRecord = ReceiptCredentialRedemptionJobRecord(
             paymentProcessor: paymentProcessor.rawValue,
             receiptCredentialRequestContext: receiptCredentialRequestContext,
-            receiptCredentailRequest: receiptCredentailRequest,
+            receiptCredentialRequest: receiptCredentialRequest,
             subscriberID: Data(),
             targetSubscriptionLevel: 0,
             priorSubscriptionLevel: 0,
             isBoost: true,
-            amount: amount.value as NSDecimalNumber,
+            amount: amount.value,
             currencyCode: amount.currencyCode,
             boostPaymentIntentID: boostPaymentIntentID,
-            label: self.jobRecordLabel
+            label: jobRecordLabel
         )
         self.add(jobRecord: jobRecord, transaction: transaction)
     }
@@ -40,7 +38,7 @@ public class SubscriptionReceiptCredentialJobQueue: NSObject, JobQueue {
     public func addSubscriptionJob(
         paymentProcessor: PaymentProcessor,
         receiptCredentialRequestContext: Data,
-        receiptCredentailRequest: Data,
+        receiptCredentialRequest: Data,
         subscriberID: Data,
         targetSubscriptionLevel: UInt,
         priorSubscriptionLevel: UInt?,
@@ -48,10 +46,10 @@ public class SubscriptionReceiptCredentialJobQueue: NSObject, JobQueue {
         transaction: SDSAnyWriteTransaction
     ) {
         Logger.info("[Donations] Adding a subscription job")
-        let jobRecord = OWSReceiptCredentialRedemptionJobRecord(
+        let jobRecord = ReceiptCredentialRedemptionJobRecord(
             paymentProcessor: paymentProcessor.rawValue,
             receiptCredentialRequestContext: receiptCredentialRequestContext,
-            receiptCredentailRequest: receiptCredentailRequest,
+            receiptCredentialRequest: receiptCredentialRequest,
             subscriberID: subscriberID,
             targetSubscriptionLevel: targetSubscriptionLevel,
             priorSubscriptionLevel: priorSubscriptionLevel ?? 0,
@@ -65,7 +63,6 @@ public class SubscriptionReceiptCredentialJobQueue: NSObject, JobQueue {
     }
 
     public typealias DurableOperationType = SubscriptionReceiptCredentailRedemptionOperation
-    @objc
     public static let jobRecordLabel: String = "SubscriptionReceiptCredentailRedemption"
     public var jobRecordLabel: String {
         return type(of: self).jobRecordLabel
@@ -77,16 +74,12 @@ public class SubscriptionReceiptCredentialJobQueue: NSObject, JobQueue {
     public var isEnabled: Bool { CurrentAppContext().isMainApp }
     public var runningOperations = AtomicArray<SubscriptionReceiptCredentailRedemptionOperation>()
 
-    @objc
-    public override init() {
-        super.init()
-
+    public init() {
         AppReadiness.runNowOrWhenAppDidBecomeReadySync {
             self.setup()
         }
     }
 
-    @objc
     public func setup() {
         defaultSetup()
     }
@@ -99,15 +92,15 @@ public class SubscriptionReceiptCredentialJobQueue: NSObject, JobQueue {
 
     let operationQueue: OperationQueue = {
         let operationQueue = OperationQueue()
-        operationQueue.name = "SubscriptionReceiptCredential.OperationQueue"
+        operationQueue.name = "SubscriptionReceiptCredentialJobQueue"
         return operationQueue
     }()
 
-    public func operationQueue(jobRecord: OWSReceiptCredentialRedemptionJobRecord) -> OperationQueue {
+    public func operationQueue(jobRecord: ReceiptCredentialRedemptionJobRecord) -> OperationQueue {
         return self.operationQueue
     }
 
-    public func buildOperation(jobRecord: OWSReceiptCredentialRedemptionJobRecord, transaction: SDSAnyReadTransaction) throws -> SubscriptionReceiptCredentailRedemptionOperation {
+    public func buildOperation(jobRecord: ReceiptCredentialRedemptionJobRecord, transaction: SDSAnyReadTransaction) throws -> SubscriptionReceiptCredentailRedemptionOperation {
         return try SubscriptionReceiptCredentailRedemptionOperation(jobRecord)
     }
 }
@@ -116,7 +109,7 @@ public class SubscriptionReceiptCredentailRedemptionOperation: OWSOperation, Dur
 
     // MARK: DurableOperation
 
-    public let jobRecord: OWSReceiptCredentialRedemptionJobRecord
+    public let jobRecord: ReceiptCredentialRedemptionJobRecord
 
     weak public var durableOperationDelegate: SubscriptionReceiptCredentialJobQueue?
 
@@ -138,8 +131,7 @@ public class SubscriptionReceiptCredentailRedemptionOperation: OWSOperation, Dur
     // For subscriptions, these will be absent until the job runs, which should populate them.
     var amount: FiatMoney?
 
-    @objc
-    public required init(_ jobRecord: OWSReceiptCredentialRedemptionJobRecord) throws {
+    public required init(_ jobRecord: ReceiptCredentialRedemptionJobRecord) throws {
         self.jobRecord = jobRecord
         self.paymentProcessor = {
             guard let paymentProcessor = PaymentProcessor(rawValue: jobRecord.paymentProcessor) else {
@@ -164,9 +156,9 @@ public class SubscriptionReceiptCredentailRedemptionOperation: OWSOperation, Dur
         self.priorSubscriptionLevel = jobRecord.priorSubscriptionLevel
         self.boostPaymentIntentID = jobRecord.boostPaymentIntentID
         self.receiptCredentialRequestContext = try ReceiptCredentialRequestContext(
-            contents: [UInt8](jobRecord.receiptCredentailRequestContext))
+            contents: [UInt8](jobRecord.receiptCredentialRequestContext))
         self.receiptCredentialRequest = try ReceiptCredentialRequest(
-            contents: [UInt8](jobRecord.receiptCredentailRequest))
+            contents: [UInt8](jobRecord.receiptCredentialRequest))
         if let receiptCredentialPresentation = jobRecord.receiptCredentialPresentation {
             self.receiptCredentialPresentation = try ReceiptCredentialPresentation(
                 contents: [UInt8](receiptCredentialPresentation))
@@ -182,7 +174,7 @@ public class SubscriptionReceiptCredentailRedemptionOperation: OWSOperation, Dur
         if isBoost {
             getMoneyPromise = Promise.value(())
         } else {
-            getMoneyPromise = SubscriptionManager.getCurrentSubscriptionStatus(for: subscriberID).done { subscription in
+            getMoneyPromise = SubscriptionManagerImpl.getCurrentSubscriptionStatus(for: subscriberID).done { subscription in
                 guard let subscription = subscription else {
                     throw OWSAssertionError("Missing subscription")
                 }
@@ -193,7 +185,7 @@ public class SubscriptionReceiptCredentailRedemptionOperation: OWSOperation, Dur
             }
         }
 
-        let getReceiptCredentialPresentationPromise: Promise<ReceiptCredentialPresentation> = firstly(on: .global()) { () -> Promise<ReceiptCredentialPresentation> in
+        let getReceiptCredentialPresentationPromise: Promise<ReceiptCredentialPresentation> = firstly(on: DispatchQueue.global()) { () -> Promise<ReceiptCredentialPresentation> in
             // We already have a receiptCredentialPresentation, lets use it
             if let receiptCredentialPresentation = self.receiptCredentialPresentation {
                 Logger.info("[Donations] Using persisted receipt credential presentation")
@@ -203,10 +195,10 @@ public class SubscriptionReceiptCredentailRedemptionOperation: OWSOperation, Dur
             Logger.info("[Donations] Creating new receipt credential presentation")
 
             // Create a new receipt credential presentation
-            return firstly(on: .global()) { () -> Promise<ReceiptCredentialPresentation> in
+            return firstly(on: DispatchQueue.global()) { () -> Promise<ReceiptCredentialPresentation> in
                 if self.isBoost {
                     Logger.info("[Donations] Durable job requesting receipt for boost")
-                    return try SubscriptionManager.requestBoostReceiptCredentialPresentation(
+                    return try SubscriptionManagerImpl.requestBoostReceiptCredentialPresentation(
                         for: self.boostPaymentIntentID,
                         context: self.receiptCredentialRequestContext,
                         request: self.receiptCredentialRequest,
@@ -215,7 +207,7 @@ public class SubscriptionReceiptCredentailRedemptionOperation: OWSOperation, Dur
                     )
                 } else {
                     Logger.info("[Donations] Durable job requesting receipt for subscription")
-                    return try SubscriptionManager.requestReceiptCredentialPresentation(
+                    return try SubscriptionManagerImpl.requestReceiptCredentialPresentation(
                         for: self.subscriberID,
                            context: self.receiptCredentialRequestContext,
                            request: self.receiptCredentialRequest,
@@ -223,7 +215,7 @@ public class SubscriptionReceiptCredentailRedemptionOperation: OWSOperation, Dur
                            priorSubscriptionLevel: self.priorSubscriptionLevel
                     )
                 }
-            }.then(on: .global()) { newReceiptCredentialPresentation -> Promise<ReceiptCredentialPresentation> in
+            }.then(on: DispatchQueue.global()) { newReceiptCredentialPresentation -> Promise<ReceiptCredentialPresentation> in
                 Logger.info("[Donations] Storing receipt credential presentation in case the job fails")
                 return self.databaseStorage.writePromise { transaction in
                     self.jobRecord.update(
@@ -234,14 +226,14 @@ public class SubscriptionReceiptCredentailRedemptionOperation: OWSOperation, Dur
             }
         }
 
-        getMoneyPromise.then(on: .global()) {
-            getReceiptCredentialPresentationPromise.then(on: .global()) {
-                SubscriptionManager.redeemReceiptCredentialPresentation(receiptCredentialPresentation: $0)
+        getMoneyPromise.then(on: DispatchQueue.global()) {
+            getReceiptCredentialPresentationPromise.then(on: DispatchQueue.global()) {
+                SubscriptionManagerImpl.redeemReceiptCredentialPresentation(receiptCredentialPresentation: $0)
             }
-        }.done(on: .global()) {
+        }.done(on: DispatchQueue.global()) {
             Logger.info("[Donations] Successfully redeemed receipt credential presentation")
             self.didSucceed()
-        }.catch(on: .global()) { error in
+        }.catch(on: DispatchQueue.global()) { error in
             self.reportError(error)
         }
     }
@@ -250,7 +242,7 @@ public class SubscriptionReceiptCredentailRedemptionOperation: OWSOperation, Dur
         Logger.info("[Donations] Redemption job succeeded")
         self.databaseStorage.write { transaction in
             if !self.isBoost {
-                SubscriptionManager.setLastReceiptRedemptionFailed(failureReason: .none, transaction: transaction)
+                SubscriptionManagerImpl.setLastReceiptRedemptionFailed(failureReason: .none, transaction: transaction)
             }
 
             if let amount = amount {
@@ -266,7 +258,7 @@ public class SubscriptionReceiptCredentailRedemptionOperation: OWSOperation, Dur
             self.durableOperationDelegate?.durableOperationDidSucceed(self, transaction: transaction)
 
             NotificationCenter.default.postNotificationNameAsync(
-                SubscriptionManager.SubscriptionJobQueueDidFinishJobNotification,
+                SubscriptionManagerImpl.SubscriptionJobQueueDidFinishJobNotification,
                 object: nil
             )
         }
@@ -289,7 +281,7 @@ public class SubscriptionReceiptCredentailRedemptionOperation: OWSOperation, Dur
         Logger.error("[Donations] failed to redeem receipt credential with error: \(error.userErrorDescription)")
         self.databaseStorage.write { transaction in
             NotificationCenter.default.postNotificationNameAsync(
-                SubscriptionManager.SubscriptionJobQueueDidFailJobNotification,
+                SubscriptionManagerImpl.SubscriptionJobQueueDidFailJobNotification,
                 object: nil
             )
             self.durableOperationDelegate?.durableOperation(self, didFailWithError: error, transaction: transaction)

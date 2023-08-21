@@ -58,15 +58,9 @@ class SAELoadViewController: UIViewController {
     override func loadView() {
         super.loadView()
 
-        // You can't swipe to cancel on iOS 12-.
-        if #unavailable(iOS 13) {
-            self.navigationItem.leftBarButtonItem = UIBarButtonItem(barButtonSystemItem: .cancel,
-                                                                    target: self,
-                                                                    action: #selector(cancelPressed))
-        }
         self.view.backgroundColor = Theme.backgroundColor
 
-        let activityIndicator = UIActivityIndicatorView(style: .whiteLarge)
+        let activityIndicator = UIActivityIndicatorView(style: .large)
         activityIndicator.color = Theme.primaryIconColor
         self.activityIndicator = activityIndicator
         self.view.addSubview(activityIndicator)
@@ -77,7 +71,7 @@ class SAELoadViewController: UIViewController {
 
         self.view.addSubview(progressView)
         progressView.autoVCenterInSuperview()
-        progressView.autoPinWidthToSuperview(withMargin: ScaleFromIPhone5(30))
+        progressView.autoPinWidthToSuperview(withMargin: .scaleFromIPhone5(30))
         progressView.progressTintColor = Theme.accentBlueColor
 
         updateProgressViewVisability()
@@ -106,7 +100,7 @@ class SAELoadViewController: UIViewController {
     // MARK: - Event Handlers
 
     @objc
-    func cancelPressed(sender: UIButton) {
+    private func cancelPressed(sender: UIButton) {
         guard let delegate = delegate else {
             owsFailDebug("missing delegate")
             return

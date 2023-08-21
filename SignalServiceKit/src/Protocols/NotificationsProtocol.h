@@ -11,6 +11,7 @@ NS_ASSUME_NONNULL_BEGIN
 @class TSErrorMessage;
 @class TSIncomingMessage;
 @class TSInteraction;
+@class TSMessage;
 @class TSOutgoingMessage;
 @class TSThread;
 @class ThreadlessErrorMessage;
@@ -25,6 +26,12 @@ NS_ASSUME_NONNULL_BEGIN
                          transaction:(SDSAnyReadTransaction *)transaction
     NS_SWIFT_NAME(notifyUser(forIncomingMessage:thread:transaction:));
 
+- (void)notifyUserForIncomingMessage:(TSIncomingMessage *)incomingMessage
+                          editTarget:(TSIncomingMessage *)editTarget
+                              thread:(TSThread *)thread
+                         transaction:(SDSAnyReadTransaction *)transaction
+    NS_SWIFT_NAME(notifyUser(forIncomingMessage:editTarget:thread:transaction:));
+
 - (void)notifyUserForReaction:(OWSReaction *)reaction
             onOutgoingMessage:(TSOutgoingMessage *)message
                        thread:(TSThread *)thread
@@ -35,6 +42,12 @@ NS_ASSUME_NONNULL_BEGIN
                            thread:(TSThread *)thread
                       transaction:(SDSAnyWriteTransaction *)transaction
     NS_SWIFT_NAME(notifyUser(forErrorMessage:thread:transaction:));
+
+- (void)notifyUserForTSMessage:(TSMessage *)message
+                        thread:(TSThread *)thread
+                    wantsSound:(BOOL)wantsSound
+                   transaction:(SDSAnyWriteTransaction *)transaction
+    NS_SWIFT_NAME(notifyUser(forTSMessage:thread:wantsSound:transaction:));
 
 - (void)notifyUserForPreviewableInteraction:(TSInteraction<OWSPreviewText> *)previewableInteraction
                                      thread:(TSThread *)thread
@@ -48,12 +61,18 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (void)notifyTestPopulationOfErrorMessage:(NSString *)errorString;
 
+/// Notify user of an auth error that has caused their device to be logged out (e.g. a 403 from the chat server).
+- (void)notifyUserOfDeregistration:(SDSAnyWriteTransaction *)transaction
+    NS_SWIFT_NAME(notifyUserOfDeregistration(transaction:));
+
 - (void)clearAllNotifications;
 
 - (void)cancelNotificationsForThreadId:(NSString *)uniqueMessageId NS_SWIFT_NAME(cancelNotifications(threadId:));
 - (void)cancelNotificationsForMessageIds:(NSArray<NSString *> *)uniqueMessageIds
     NS_SWIFT_NAME(cancelNotifications(messageIds:));
 - (void)cancelNotificationsForReactionId:(NSString *)uniqueReactionId NS_SWIFT_NAME(cancelNotifications(reactionId:));
+- (void)cancelNotificationsForMissedCallsInThreadWithUniqueId:(NSString *)threadUniqueId
+    NS_SWIFT_NAME(cancelNotificationsForMissedCalls(threadUniqueId:));
 
 @end
 

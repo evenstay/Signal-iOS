@@ -5,6 +5,7 @@
 
 import Foundation
 import GRDB
+import SignalCoreKit
 
 @objc
 public class ThreadAssociatedData: NSObject, Codable, FetchableRecord, PersistableRecord {
@@ -69,14 +70,11 @@ public class ThreadAssociatedData: NSObject, Codable, FetchableRecord, Persistab
         ignoreMissing: Bool,
         transaction: SDSAnyReadTransaction
     ) -> ThreadAssociatedData {
-        guard let associatedData = fetch(for: threadUniqueId, transaction: transaction) else {
-            if !ignoreMissing, !CurrentAppContext().isRunningTests, threadUniqueId != "MockThread" {
-                owsFailDebug("Unexpectedly missing associated data for thread")
-            }
-            return .init(threadUniqueId: threadUniqueId)
-        }
-
-        return associatedData
+        DependenciesBridge.shared.threadAssociatedDataStore.fetchOrDefault(
+            for: threadUniqueId,
+            ignoreMissing: ignoreMissing || CurrentAppContext().isRunningTests || threadUniqueId == "MockThread",
+            tx: transaction.asV2Read
+        )
     }
 
     @objc(fetchForThreadUniqueId:transaction:)
@@ -92,21 +90,15 @@ public class ThreadAssociatedData: NSObject, Codable, FetchableRecord, Persistab
         }
     }
 
-    @objc(removeForThreadUniqueId:transaction:)
-    public static func remove(for threadUniqueId: String, transaction: SDSAnyWriteTransaction) {
-        do {
-            try Self.filter(Column("threadUniqueId") == threadUniqueId).deleteAll(transaction.unwrapGrdbWrite.database)
-        } catch {
-            owsFailDebug("Failed to remove associated data \(error)")
+    @objc
+    public static func create(for threadUniqueId: String, warnIfPresent: Bool, transaction: SDSAnyWriteTransaction) {
+        let threadAssociatedDataStore = DependenciesBridge.shared.threadAssociatedDataStore
+        guard threadAssociatedDataStore.fetch(for: threadUniqueId, tx: transaction.asV2Write) == nil else {
+            if warnIfPresent {
+                owsFailDebug("Unexpectedly tried to create for a thread that already exists.")
+            }
+            return
         }
-    }
-
-    @objc(createIfMissingForThreadUniqueId:transaction:)
-    public static func createIfMissing(for threadUniqueId: String, transaction: SDSAnyWriteTransaction) {
-        guard fetch(for: threadUniqueId, transaction: transaction) == nil else {
-            return Logger.warn("Unexpectedly tried to create for a thread that already exists.")
-        }
-
         do {
             try ThreadAssociatedData(threadUniqueId: threadUniqueId).insert(transaction.unwrapGrdbWrite.database)
         } catch {
@@ -114,7 +106,7 @@ public class ThreadAssociatedData: NSObject, Codable, FetchableRecord, Persistab
         }
     }
 
-    private init(threadUniqueId: String) {
+    init(threadUniqueId: String) {
         self.threadUniqueId = threadUniqueId
         super.init()
     }
@@ -218,9 +210,14 @@ public class ThreadAssociatedData: NSObject, Codable, FetchableRecord, Persistab
     private func updateWith(updateStorageService: Bool, transaction: SDSAnyWriteTransaction, block: (ThreadAssociatedData) -> Void) {
         block(self)
 
-        if let storedCopy = Self.fetch(for: threadUniqueId, transaction: transaction), storedCopy !== self {
-            block(storedCopy)
+        let threadAssociatedDataStore = DependenciesBridge.shared.threadAssociatedDataStore
+        let storedCopy = threadAssociatedDataStore.fetch(for: threadUniqueId, tx: transaction.asV2Read)
 
+        if let storedCopy, storedCopy !== self {
+            block(storedCopy)
+        }
+
+        if let storedCopy {
             do {
                 try storedCopy.update(transaction.unwrapGrdbWrite.database)
             } catch {

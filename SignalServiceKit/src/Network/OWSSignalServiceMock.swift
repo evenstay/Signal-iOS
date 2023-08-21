@@ -5,16 +5,10 @@
 
 import Foundation
 
-@objc
-public class OWSSignalServiceMock: NSObject, OWSSignalServiceProtocol {
+#if TESTABLE_BUILD
 
-    public override init() {
-        super.init()
-    }
-
+public class OWSSignalServiceMock: OWSSignalServiceProtocol, Dependencies {
     public func warmCaches() {}
-
-    public var keyValueStore = SDSKeyValueStore(collection: "")
 
     public var isCensorshipCircumventionActive: Bool = false
 
@@ -26,22 +20,30 @@ public class OWSSignalServiceMock: NSObject, OWSSignalServiceProtocol {
 
     public var manualCensorshipCircumventionCountryCode: String?
 
-    public var domainFrontBaseURL: URL = OWSCensorshipConfiguration.default().domainFrontBaseURL
+    public var urlEndpointBuilder: ((SignalServiceInfo) -> OWSURLSessionEndpoint)?
 
-    public func buildCensorshipConfiguration() -> OWSCensorshipConfiguration {
-        return .default()
-    }
-
-    public var mockUrlSessionBuilder: ((SignalServiceType) -> OWSURLSessionMock)?
-
-    public func typeUnsafe_buildUrlSession(for signalServiceType: Any) -> Any {
-        let signalServiceType = signalServiceType as! SignalServiceType
-        return mockUrlSessionBuilder?(signalServiceType) ?? OWSURLSessionMock(
-            baseUrl: signalServiceType.signalServiceInfo().baseUrl,
+    public func buildUrlEndpoint(for signalServiceInfo: SignalServiceInfo) -> OWSURLSessionEndpoint {
+        return urlEndpointBuilder?(signalServiceInfo) ?? OWSURLSessionEndpoint(
+            baseUrl: signalServiceInfo.baseUrl,
             frontingInfo: nil,
             securityPolicy: .systemDefault(),
+            extraHeaders: [:]
+        )
+    }
+
+    public var mockUrlSessionBuilder: ((SignalServiceInfo, OWSURLSessionEndpoint, URLSessionConfiguration?) -> BaseOWSURLSessionMock)?
+
+    public func buildUrlSession(
+        for signalServiceInfo: SignalServiceInfo,
+        endpoint: OWSURLSessionEndpoint,
+        configuration: URLSessionConfiguration?
+    ) -> OWSURLSessionProtocol {
+        return mockUrlSessionBuilder?(signalServiceInfo, endpoint, configuration) ?? BaseOWSURLSessionMock(
+            endpoint: endpoint,
             configuration: .default,
-            extraHeaders: [:], maxResponseSize: nil
+            maxResponseSize: nil
         )
     }
 }
+
+#endif

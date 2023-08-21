@@ -3,11 +3,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalCoreKit
+import SignalUI
 
-@objc
 public class GroupCallTooltip: TooltipView {
-    @objc
+
     public class func present(fromView: UIView,
                               widthReferenceView: UIView,
                               tailReferenceView: UIView,
@@ -17,11 +17,11 @@ public class GroupCallTooltip: TooltipView {
 
     public override func bubbleContentView() -> UIView {
         let label = UILabel()
-        label.text = NSLocalizedString(
+        label.text = OWSLocalizedString(
             "GROUP_CALL_START_TOOLTIP",
             comment: "Tooltip highlighting group calls."
         )
-        label.font = UIFont.ows_dynamicTypeSubheadline
+        label.font = UIFont.dynamicTypeSubheadline
         label.textColor = UIColor.ows_white
 
         return horizontalStack(forSubviews: [label])

@@ -3,7 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalCoreKit
+import SignalUI
 
 public class MessageSelectionView: ManualLayoutView {
 
@@ -38,7 +39,7 @@ public class MessageSelectionView: ManualLayoutView {
 
     private let selectedView: CVImageView = {
         let checkmarkView = CVImageView()
-        checkmarkView.setTemplateImageName("check-circle-solid-new-24", tintColor: .white)
+        checkmarkView.setTemplateImage(Theme.iconImage(.checkCircleFill), tintColor: .white)
         return checkmarkView
     }()
 

@@ -3,10 +3,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
+import Foundation
+import LibSignalClient
+
 @objc
 public class BulkProfileFetch: NSObject {
 
-    private static let serialQueue = DispatchQueue(label: "BulkProfileFetch")
+    private static let serialQueue = DispatchQueue(label: "org.signal.profile-fetch.bulk")
     private var serialQueue: DispatchQueue { Self.serialQueue }
 
     // This property should only be accessed on serialQueue.
@@ -207,15 +210,15 @@ public class BulkProfileFetch: NSObject {
             } else {
                 return Guarantee.value(())
             }
-        }.then(on: .global()) {
-            ProfileFetcherJob.fetchProfilePromise(address: SignalServiceAddress(uuid: uuid)).asVoid()
-        }.done(on: .global()) {
+        }.then(on: DispatchQueue.global()) {
+            ProfileFetcherJob.fetchProfilePromise(serviceId: Aci(fromUUID: uuid)).asVoid()
+        }.done(on: DispatchQueue.global()) {
             self.serialQueue.asyncAfter(deadline: DispatchTime.now() + updateDelaySeconds) {
                 self.isUpdateInFlight = false
                 self.lastOutcomeMap[uuid] = UpdateOutcome(.success)
                 self.process()
             }
-        }.catch(on: .global()) { error in
+        }.catch(on: DispatchQueue.global()) { error in
             self.serialQueue.asyncAfter(deadline: DispatchTime.now() + updateDelaySeconds) {
                 self.isUpdateInFlight = false
                 switch error {
@@ -236,7 +239,7 @@ public class BulkProfileFetch: NSObject {
                     }
                     self.lastOutcomeMap[uuid] = UpdateOutcome(.invalid)
                 default:
-                    if error.isNetworkConnectivityFailure {
+                    if error.isNetworkFailureOrTimeout {
                         Logger.warn("Error: \(error)")
                         self.lastOutcomeMap[uuid] = UpdateOutcome(.networkFailure)
                     } else if error.httpStatusCode == 413 || error.httpStatusCode == 429 {
@@ -331,7 +334,7 @@ public class BulkProfileFetch: NSObject {
                 userProfiles.append(userProfile)
             }
             return userProfiles
-        }.map(on: .global()) { (userProfiles: [OWSUserProfile]) -> Void in
+        }.map(on: DispatchQueue.global()) { (userProfiles: [OWSUserProfile]) -> Void in
             var addresses: [SignalServiceAddress] = userProfiles.map { $0.publicAddress }
 
             // Limit how many profiles we try to update on launch.
@@ -347,7 +350,7 @@ public class BulkProfileFetch: NSObject {
             }
 
             Logger.verbose("Complete.")
-        }.catch(on: .global()) { (error: Error) -> Void in
+        }.catch(on: DispatchQueue.global()) { (error: Error) -> Void in
             owsFailDebug("Error: \(error)")
         }
     }

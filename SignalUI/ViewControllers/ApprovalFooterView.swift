@@ -83,7 +83,7 @@ public class ApprovalFooterView: UIView {
 
         addSubview(topStrokeView)
         topStrokeView.autoPinEdgesToSuperviewEdges(with: .zero, excludingEdge: .bottom)
-        topStrokeView.autoSetDimension(.height, toSize: CGHairlineWidth())
+        topStrokeView.autoSetDimension(.height, toSize: .hairlineWidth)
 
         hStackView.addArrangedSubviews([labelScrollView, proceedButton])
         hStackView.axis = .horizontal
@@ -103,7 +103,7 @@ public class ApprovalFooterView: UIView {
         textfieldBackgroundView.layer.cornerRadius = 10
         self.textfieldBackgroundView = textfieldBackgroundView
 
-        NotificationCenter.default.addObserver(self, selector: #selector(applyTheme), name: .ThemeDidChange, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(applyTheme), name: .themeDidChange, object: nil)
         applyTheme()
     }
 
@@ -165,7 +165,7 @@ public class ApprovalFooterView: UIView {
 
     lazy var namesLabel: UILabel = {
         let label = UILabel()
-        label.font = UIFont.ows_dynamicTypeBody
+        label.font = UIFont.dynamicTypeBody
 
         label.setContentHuggingLow()
 
@@ -175,7 +175,7 @@ public class ApprovalFooterView: UIView {
     lazy var textfield: TextFieldWithPlaceholder = {
         let textfield = TextFieldWithPlaceholder()
         textfield.delegate = self
-        textfield.font = UIFont.ows_dynamicTypeBody
+        textfield.font = UIFont.dynamicTypeBody
         return textfield
     }()
 
@@ -188,10 +188,10 @@ public class ApprovalFooterView: UIView {
         return textfieldStack
     }()
 
-    var proceedLoadingIndicator = UIActivityIndicatorView(style: .white)
+    var proceedLoadingIndicator = UIActivityIndicatorView(style: .medium)
     lazy var proceedButton: OWSButton = {
 		let button = OWSButton.sendButton(
-			imageName: self.approvalMode.proceedButtonImageName ?? "arrow-right-24"
+            imageName: self.approvalMode.proceedButtonImageName ?? Theme.iconName(.arrowRight)
 		) { [weak self] in
             guard let self = self else { return }
             self.delegate?.approvalFooterDelegateDidRequestProceed(self)
@@ -241,9 +241,9 @@ fileprivate extension ApprovalMode {
 
     var proceedButtonImageName: String? {
         switch self {
-        case .next: return "arrow-right-24"
-        case .send: return "arrow-up-24"
-        case .select: return "check-24"
+        case .next: return Theme.iconName(.arrowRight)
+        case .send: return Theme.iconName(.arrowUp)
+        case .select: return Theme.iconName(.checkmark)
         case .loading: return nil
         }
     }

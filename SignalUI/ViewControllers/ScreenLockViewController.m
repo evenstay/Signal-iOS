@@ -4,7 +4,6 @@
 //
 
 #import "ScreenLockViewController.h"
-#import "UIFont+OWS.h"
 #import "UIView+SignalUI.h"
 #import <SignalUI/SignalUI-Swift.h>
 
@@ -76,7 +75,7 @@ NSString *NSStringForScreenLockUIState(ScreenLockUIState value)
 
     [NSNotificationCenter.defaultCenter addObserver:self
                                            selector:@selector(themeDidChange)
-                                               name:ThemeDidChangeNotification
+                                               name:NSNotification.ThemeDidChange
                                              object:nil];
 }
 

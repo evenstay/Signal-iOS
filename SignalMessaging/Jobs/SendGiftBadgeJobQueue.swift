@@ -3,17 +3,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import GRDB
-import SignalServiceKit
 import LibSignalClient
+import SignalServiceKit
 
 // MARK: - Job queue
 
-public class SendGiftBadgeJobQueue: NSObject, JobQueue {
+public class SendGiftBadgeJobQueue: JobQueue {
     public typealias DurableOperationType = SendGiftBadgeOperation
 
-    @objc
     public static let jobRecordLabel: String = "SendGiftBadge"
     public var jobRecordLabel: String { Self.jobRecordLabel }
 
@@ -31,16 +29,12 @@ public class SendGiftBadgeJobQueue: NSObject, JobQueue {
 
     public static let JobEventNotification = NSNotification.Name("SendGiftBadgeJobQueueJobEventNotification")
 
-    @objc
-    public override init() {
-        super.init()
-
+    public init() {
         AppReadiness.runNowOrWhenAppDidBecomeReadySync {
             self.setup()
         }
     }
 
-    @objc
     public func setup() {
         defaultSetup()
     }
@@ -51,43 +45,59 @@ public class SendGiftBadgeJobQueue: NSObject, JobQueue {
 
     let operationQueue: OperationQueue = {
         let operationQueue = OperationQueue()
-        operationQueue.name = "SendGiftBadge.OperationQueue"
+        operationQueue.name = "SendGiftBadgeJobQueue"
         return operationQueue
     }()
 
-    public func operationQueue(jobRecord: OWSSendGiftBadgeJobRecord) -> OperationQueue {
+    public func operationQueue(jobRecord: SendGiftBadgeJobRecord) -> OperationQueue {
         return self.operationQueue
     }
 
-    public func buildOperation(jobRecord: OWSSendGiftBadgeJobRecord, transaction: SDSAnyReadTransaction) throws -> SendGiftBadgeOperation {
+    public func buildOperation(jobRecord: SendGiftBadgeJobRecord, transaction: SDSAnyReadTransaction) throws -> SendGiftBadgeOperation {
         return try SendGiftBadgeOperation(jobRecord)
     }
 
     public static func createJob(
-        paymentProcessor: PaymentProcessor,
+        preparedPayment: PreparedGiftPayment,
         receiptRequest: (context: ReceiptCredentialRequestContext, request: ReceiptCredentialRequest),
         amount: FiatMoney,
-        paymentIntent: Stripe.PaymentIntent,
-        paymentMethodId: String,
         thread: TSContactThread,
         messageText: String
-    ) -> OWSSendGiftBadgeJobRecord {
-        OWSSendGiftBadgeJobRecord(
+    ) -> SendGiftBadgeJobRecord {
+        let paymentProcessor: PaymentProcessor
+        var stripePaymentIntent: Stripe.PaymentIntent?
+        var stripePaymentMethodId: String?
+        var paypalApprovalParams: Paypal.OneTimePaymentWebAuthApprovalParams?
+
+        switch preparedPayment {
+        case let .forStripe(paymentIntent, paymentMethodId):
+            paymentProcessor = .stripe
+            stripePaymentIntent = paymentIntent
+            stripePaymentMethodId = paymentMethodId
+        case let .forPaypal(approvalParams):
+            paymentProcessor = .braintree
+            paypalApprovalParams = approvalParams
+        }
+
+        return SendGiftBadgeJobRecord(
             paymentProcessor: paymentProcessor.rawValue,
             receiptCredentialRequestContext: receiptRequest.context.serialize().asData,
             receiptCredentialRequest: receiptRequest.request.serialize().asData,
-            amount: amount.value as NSDecimalNumber,
+            amount: amount.value,
             currencyCode: amount.currencyCode,
-            paymentIntentClientSecret: paymentIntent.clientSecret,
-            paymentIntentId: paymentIntent.id,
-            paymentMethodId: paymentMethodId,
+            paymentIntentClientSecret: stripePaymentIntent?.clientSecret,
+            paymentIntentId: stripePaymentIntent?.id,
+            paymentMethodId: stripePaymentMethodId,
+            paypalPayerId: paypalApprovalParams?.payerId,
+            paypalPaymentId: paypalApprovalParams?.paymentId,
+            paypalPaymentToken: paypalApprovalParams?.paymentToken,
             threadId: thread.uniqueId,
             messageText: messageText,
             label: self.jobRecordLabel
         )
     }
 
-    public func addJob(_ jobRecord: OWSSendGiftBadgeJobRecord, transaction: SDSAnyWriteTransaction) {
+    public func addJob(_ jobRecord: SendGiftBadgeJobRecord, transaction: SDSAnyWriteTransaction) {
         Logger.info("[Gifting] Adding a \"send gift badge\" job")
         self.add(jobRecord: jobRecord, transaction: transaction)
     }
@@ -107,19 +117,27 @@ private class SendGiftBadgeJobFinder {
         case .grdbRead(let grdbTransaction):
             let sql = """
                 SELECT EXISTS (
-                    SELECT 1 FROM \(JobRecordRecord.databaseTableName)
-                    WHERE \(jobRecordColumn: .threadId) IS ?
-                    AND \(jobRecordColumn: .recordType) IS ?
-                    AND \(jobRecordColumn: .status) NOT IN (?, ?)
+                    SELECT 1 FROM \(SendGiftBadgeJobRecord.databaseTableName)
+                    WHERE \(SendGiftBadgeJobRecord.columnName(.threadId)) IS ?
+                    AND \(SendGiftBadgeJobRecord.columnName(.recordType)) IS ?
+                    AND \(SendGiftBadgeJobRecord.columnName(.status)) NOT IN (?, ?)
                 )
             """
             let arguments: StatementArguments = [
                 threadId,
                 SDSRecordType.sendGiftBadgeJobRecord.rawValue,
-                SSKJobRecordStatus.permanentlyFailed,
-                SSKJobRecordStatus.obsolete
+                SendGiftBadgeJobRecord.Status.permanentlyFailed.rawValue,
+                SendGiftBadgeJobRecord.Status.obsolete.rawValue
             ]
-            return try! Bool.fetchOne(grdbTransaction.database, sql: sql, arguments: arguments) ?? false
+            do {
+                return try Bool.fetchOne(grdbTransaction.database, sql: sql, arguments: arguments) ?? false
+            } catch {
+                DatabaseCorruptionState.flagDatabaseReadCorruptionIfNecessary(
+                    userDefaults: CurrentAppContext().appUserDefaults(),
+                    error: error
+                )
+                owsFail("Unable to find job")
+            }
         }
     }
 }
@@ -127,9 +145,25 @@ private class SendGiftBadgeJobFinder {
 // MARK: - Operation
 
 public final class SendGiftBadgeOperation: OWSOperation, DurableOperation {
-    public var jobRecord: OWSSendGiftBadgeJobRecord
+    private enum Payment {
+        case forStripe(
+            paymentIntentClientSecret: String,
+            paymentIntentId: String,
+            paymentMethodId: String
+        )
+        case forBraintree(paypalApprovalParams: Paypal.OneTimePaymentWebAuthApprovalParams)
 
-    public typealias JobRecordType = OWSSendGiftBadgeJobRecord
+        var processor: PaymentProcessor {
+            switch self {
+            case .forStripe: return .stripe
+            case .forBraintree: return .braintree
+            }
+        }
+    }
+
+    public var jobRecord: SendGiftBadgeJobRecord
+
+    public typealias JobRecordType = SendGiftBadgeJobRecord
 
     public typealias DurableOperationDelegateType = SendGiftBadgeJobQueue
 
@@ -137,36 +171,56 @@ public final class SendGiftBadgeOperation: OWSOperation, DurableOperation {
 
     public var operation: OWSOperation { self }
 
-    private let paymentProcessor: PaymentProcessor
+    private let payment: Payment
     private let receiptCredentialRequestContext: ReceiptCredentialRequestContext
     private let receiptCredentialRequest: ReceiptCredentialRequest
     private let amount: FiatMoney
-    private let paymentIntentClientSecret: String
-    private let paymentIntentId: String
-    private let paymentMethodId: String
     private let threadId: String
     private let messageText: String
 
-    @objc
-    public required init(_ jobRecord: OWSSendGiftBadgeJobRecord) throws {
+    public required init(_ jobRecord: SendGiftBadgeJobRecord) throws {
         self.jobRecord = jobRecord
-        paymentProcessor = {
-            guard let paymentProcessor = PaymentProcessor(rawValue: jobRecord.paymentProcessor) else {
-                owsFailDebug("Failed to deserialize payment processor from record with value: \(jobRecord.paymentProcessor)")
-                return .stripe
-            }
 
-            return paymentProcessor
+        payment = try {
+            switch PaymentProcessor(rawValue: jobRecord.paymentProcessor) {
+            case nil:
+                owsFailDebug("Failed to deserialize payment processor from record with value: \(jobRecord.paymentProcessor)")
+                fallthrough
+            case .stripe:
+                guard
+                    let paymentIntentClientSecret = jobRecord.paymentIntentClientSecret,
+                    let paymentIntentId = jobRecord.paymentIntentId,
+                    let paymentMethodId = jobRecord.paymentMethodId
+                else {
+                    throw JobError.permanentFailure(description: "Tried to use Stripe as payment processor but data was missing")
+                }
+                return Payment.forStripe(
+                    paymentIntentClientSecret: paymentIntentClientSecret,
+                    paymentIntentId: paymentIntentId,
+                    paymentMethodId: paymentMethodId
+                )
+            case .braintree:
+                guard
+                    let paypalPayerId = jobRecord.paypalPayerId,
+                    let paypalPaymentId = jobRecord.paypalPaymentId,
+                    let paypalPaymentToken = jobRecord.paypalPaymentToken
+                else {
+                    throw JobError.permanentFailure(description: "Tried to use Braintree as payment processor but data was missing")
+                }
+                return Payment.forBraintree(paypalApprovalParams: .init(
+                    payerId: paypalPayerId,
+                    paymentId: paypalPaymentId,
+                    paymentToken: paypalPaymentToken
+                ))
+            }
         }()
-        receiptCredentialRequestContext = try ReceiptCredentialRequestContext(contents: [UInt8](jobRecord.receiptCredentailRequestContext))
-        receiptCredentialRequest = try ReceiptCredentialRequest(contents: [UInt8](jobRecord.receiptCredentailRequest))
+
+        receiptCredentialRequestContext = try ReceiptCredentialRequestContext(contents: [UInt8](jobRecord.receiptCredentialRequestContext))
+        receiptCredentialRequest = try ReceiptCredentialRequest(contents: [UInt8](jobRecord.receiptCredentialRequest))
         amount = FiatMoney(
             currencyCode: jobRecord.currencyCode,
             value: jobRecord.amount as Decimal
         )
-        paymentIntentClientSecret = jobRecord.paymentIntentClientSecret
-        paymentIntentId = jobRecord.boostPaymentIntentID
-        paymentMethodId = jobRecord.paymentMethodId
         threadId = jobRecord.threadId
         messageText = jobRecord.messageText
     }
@@ -193,20 +247,34 @@ public final class SendGiftBadgeOperation: OWSOperation, DurableOperation {
         )
     }
 
-    private func confirmPaymentIntent() throws -> Promise<Void> {
-        try Stripe.confirmPaymentIntent(paymentIntentClientSecret: self.paymentIntentClientSecret,
-                                        paymentIntentId: self.paymentIntentId,
-                                        paymentMethodId: self.paymentMethodId,
-                                        idempotencyKey: self.jobRecord.uniqueId).asVoid()
+    /// Confirm the payment. Return the payment intent ID.
+    private func confirmPayment() -> Promise<String> {
+        switch payment {
+        case let .forStripe(paymentIntentClientSecret, paymentIntentId, paymentMethodId):
+            return Stripe.confirmPaymentIntent(
+                paymentIntentClientSecret: paymentIntentClientSecret,
+                paymentIntentId: paymentIntentId,
+                paymentMethodId: paymentMethodId,
+                idempotencyKey: jobRecord.uniqueId
+            ).map { _ in paymentIntentId }
+        case let .forBraintree(paypalApprovalParams):
+            return Paypal.confirmOneTimePayment(
+                amount: amount,
+                level: .giftBadge(.signalGift),
+                approvalParams: paypalApprovalParams
+            )
+        }
     }
 
-    private func getReceiptCredentialPresentation() throws -> Promise<ReceiptCredentialPresentation> {
-        try SubscriptionManager.requestBoostReceiptCredentialPresentation(
+    private func getReceiptCredentialPresentation(
+        paymentIntentId: String
+    ) throws -> Promise<ReceiptCredentialPresentation> {
+        try SubscriptionManagerImpl.requestBoostReceiptCredentialPresentation(
             for: paymentIntentId,
             context: receiptCredentialRequestContext,
             request: receiptCredentialRequest,
             expectedBadgeLevel: .giftBadge(.signalGift),
-            paymentProcessor: paymentProcessor
+            paymentProcessor: payment.processor
         )
     }
 
@@ -237,27 +305,27 @@ public final class SendGiftBadgeOperation: OWSOperation, DurableOperation {
     override public func run() {
         assert(self.durableOperationDelegate != nil)
 
-        firstly(on: .global()) { () -> Promise<Void> in
+        firstly(on: DispatchQueue.global()) { () -> Promise<Void> in
             Logger.info("[Gifting] Ensuring we can still message recipient...")
             // We also do this check right before sending the message, but we might be able to prevent
             // charging the payment method (and some extra work) if we check now.
             try self.databaseStorage.read { try self.ensureThatWeCanStillMessageRecipient(transaction: $0) }
             return Promise.value(())
-        }.then { () -> Promise<Void> in
-            Logger.info("[Gifting] Confirming payment intent...")
-            return try self.confirmPaymentIntent()
-        }.then { () -> Promise<ReceiptCredentialPresentation> in
+        }.then { () -> Promise<String> in
+            Logger.info("[Gifting] Confirming payment...")
+            return self.confirmPayment()
+        }.then { (paymentIntentId: String) -> Promise<ReceiptCredentialPresentation> in
             self.postJobEventNotification(.chargeSucceeded)
             Logger.info("[Gifting] Charge succeeded! Getting receipt credential...")
-            return try self.getReceiptCredentialPresentation()
-        }.done(on: .global()) { receiptCredentialPresentation in
+            return try self.getReceiptCredentialPresentation(paymentIntentId: paymentIntentId)
+        }.done(on: DispatchQueue.global()) { receiptCredentialPresentation in
             Logger.info("[Gifting] Enqueueing messages...")
             try self.databaseStorage.write { transaction in
                 try self.enqueueMessages(receiptCredentialPresentation: receiptCredentialPresentation,
                                          transaction: transaction)
             }
             self.didSucceed()
-        }.catch(on: .global()) { error in
+        }.catch(on: DispatchQueue.global()) { error in
             self.reportError(error)
         }
     }
@@ -291,29 +359,35 @@ public final class SendGiftBadgeOperation: OWSOperation, DurableOperation {
 // MARK: - Outgoing message preparer
 
 extension OutgoingMessagePreparer {
-    fileprivate convenience init(giftBadgeReceiptCredentialPresentation: ReceiptCredentialPresentation,
-                                 thread: TSThread,
-                                 transaction: SDSAnyReadTransaction) {
+    fileprivate convenience init(
+        giftBadgeReceiptCredentialPresentation: ReceiptCredentialPresentation,
+        thread: TSThread,
+        transaction tx: SDSAnyReadTransaction
+    ) {
+        let dmConfigurationStore = DependenciesBridge.shared.disappearingMessagesConfigurationStore
         self.init(
             builder: TSOutgoingMessageBuilder(
                 thread: thread,
-                expiresInSeconds: thread.disappearingMessagesDuration(with: transaction),
+                expiresInSeconds: dmConfigurationStore.durationSeconds(for: thread, tx: tx.asV2Read),
                 giftBadge: OWSGiftBadge(redemptionCredential: Data(giftBadgeReceiptCredentialPresentation.serialize()))
             ),
-            transaction: transaction
+            transaction: tx
         )
     }
 
-    fileprivate convenience init(messageBody: String,
-                                 thread: TSThread,
-                                 transaction: SDSAnyReadTransaction) {
+    fileprivate convenience init(
+        messageBody: String,
+        thread: TSThread,
+        transaction tx: SDSAnyReadTransaction
+    ) {
+        let dmConfigurationStore = DependenciesBridge.shared.disappearingMessagesConfigurationStore
         self.init(
             builder: TSOutgoingMessageBuilder(
                 thread: thread,
                 messageBody: messageBody,
-                expiresInSeconds: thread.disappearingMessagesDuration(with: transaction)
+                expiresInSeconds: dmConfigurationStore.durationSeconds(for: thread, tx: tx.asV2Read)
             ),
-            transaction: transaction
+            transaction: tx
         )
     }
 

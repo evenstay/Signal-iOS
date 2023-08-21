@@ -70,7 +70,8 @@ extension TSInteraction {
             switch infoMessage.messageType {
             case .verificationStateChange,
                  .profileUpdate,
-                 .phoneNumberChange:
+                 .phoneNumberChange,
+                 .contactHidden:
                 return false
             case .typeGroupUpdate:
                 guard let updates = infoMessage.groupUpdateItems(transaction: transaction) else {
@@ -81,7 +82,8 @@ extension TSInteraction {
                 return true
             }
         case let message as TSMessage:
-            return !message.isGroupStoryReply
+            // skip considering this message if it's a group story reply, or a past edit revision
+            return !message.isGroupStoryReply && !EditManager.isPastEditRevision(message: message)
         default:
             return true
         }

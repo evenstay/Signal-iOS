@@ -49,7 +49,9 @@ private let languageMap: [String: [String]] = [
     // "gu-IN": [],
     // "mr-IN": [],
     // "sr-YR": [],
+    // "ug": [],
     // "ur": [],
+    // "yue": [],
     // "zh-TW": [],
 ]
 

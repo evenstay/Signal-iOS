@@ -3,7 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
+import LibSignalClient
 import XCTest
+
 @testable import SignalServiceKit
 
 class UserProfileTest: SignalBaseTest {
@@ -16,25 +18,45 @@ class UserProfileTest: SignalBaseTest {
                                           uuid: localAddress.uuid!)
     }
 
-    func testUserProfileForUUID() {
-        let uuid = UUID()
-        let address = SignalServiceAddress(uuid: uuid)
+    func testUserProfileForAci() {
+        let aci = Aci.randomForTesting()
+        let address = SignalServiceAddress(aci)
         write { transaction in
             OWSUserProfile(address: address).anyInsert(transaction: transaction)
         }
         read { transaction in
             let actual = OWSUserProfile.getFor(address, transaction: transaction)
-            XCTAssertEqual(actual?.recipientUUID, uuid.uuidString)
+            XCTAssertEqual(actual?.recipientUUID, aci.serviceIdUppercaseString)
         }
         read { transaction in
-            let actual = OWSUserProfile.getFor(SignalServiceAddress(uuid: UUID()), transaction: transaction)
+            let actual = OWSUserProfile.getFor(SignalServiceAddress.randomForTesting(), transaction: transaction)
             XCTAssertNil(actual)
         }
     }
 
-    func testUserProfilesForUUIDs() {
-        let addresses = [SignalServiceAddress(uuid: UUID()),
-                         SignalServiceAddress(uuid: UUID())]
+    func testUserProfileForPni() throws {
+        guard FeatureFlags.phoneNumberIdentifiers else {
+            throw XCTSkip("Can't run this test until `SignalServiceAddress`es can be constructed by default with a PNI.")
+        }
+
+        let pni = Pni.randomForTesting()
+        let address = SignalServiceAddress(pni)
+        write { transaction in
+            OWSUserProfile(address: address).anyInsert(transaction: transaction)
+        }
+        read { transaction in
+            let actual = OWSUserProfile.getFor(address, transaction: transaction)
+            XCTAssertEqual(actual?.recipientUUID, pni.serviceIdUppercaseString)
+        }
+        read { transaction in
+            let actual = OWSUserProfile.getFor(SignalServiceAddress.randomForTesting(), transaction: transaction)
+            XCTAssertNil(actual)
+        }
+    }
+
+    func testUserProfilesForServiceIds() {
+        let addresses = [SignalServiceAddress.randomForTesting(),
+                         SignalServiceAddress.randomForTesting()]
         let profiles = addresses.map { OWSUserProfile(address: $0) }
         write { transaction in
             for profile in profiles {
@@ -42,7 +64,7 @@ class UserProfileTest: SignalBaseTest {
             }
         }
         read { transaction in
-            let bogusAddresses = [SignalServiceAddress(uuid: UUID())]
+            let bogusAddresses = [SignalServiceAddress.randomForTesting()]
             let actual = SignalServiceKit.OWSUserProfile.getFor(keys: addresses + bogusAddresses,
                                                                 transaction: transaction)
             let expected = profiles + [nil]

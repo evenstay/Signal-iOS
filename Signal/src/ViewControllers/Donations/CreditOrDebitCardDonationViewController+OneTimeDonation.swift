@@ -18,14 +18,13 @@ extension CreditOrDebitCardDonationViewController {
 
         DonationViewsUtil.wrapPromiseInProgressView(
             from: self,
-            promise: firstly(on: .sharedUserInitiated) {
+            promise: firstly(on: DispatchQueue.sharedUserInitiated) {
                 Stripe.boost(
                     amount: amount,
                     level: .boostBadge,
                     for: .creditOrDebitCard(creditOrDebitCard: creditOrDebitCard)
                 )
-            }.then(on: .main) { [weak self] confirmedIntent in
-                guard let self else { throw DonationJobError.assertion }
+            }.then(on: DispatchQueue.main) { confirmedIntent in
                 if let redirectUrl = confirmedIntent.redirectToUrl {
                     Logger.info("[Donations] One-time card donation needed 3DS. Presenting...")
                     return self.show3DS(for: redirectUrl)
@@ -33,20 +32,19 @@ extension CreditOrDebitCardDonationViewController {
                     Logger.info("[Donations] One-time card donation did not need 3DS. Continuing")
                     return Promise.value(confirmedIntent.intentId)
                 }
-            }.then(on: .sharedUserInitiated) { intentId in
+            }.then(on: DispatchQueue.sharedUserInitiated) { intentId in
                 Logger.info("[Donations] Creating and redeeming one-time boost receipt for card donation")
-                SubscriptionManager.terminateTransactionIfPossible = false
-                SubscriptionManager.createAndRedeemBoostReceipt(
+                SubscriptionManagerImpl.createAndRedeemBoostReceipt(
                     for: intentId,
                     withPaymentProcessor: .stripe,
                     amount: amount
                 )
                 return DonationViewsUtil.waitForSubscriptionJob()
             }
-        ).done(on: .main) { [weak self] in
+        ).done(on: DispatchQueue.main) { [weak self] in
             Logger.info("[Donations] One-time card donation finished")
             self?.onFinished()
-        }.catch(on: .main) { [weak self] error in
+        }.catch(on: DispatchQueue.main) { [weak self] error in
             Logger.warn("[Donations] One-time card donation failed")
             self?.didFailDonation(error: error)
         }

@@ -3,14 +3,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalMessaging
+import SignalUI
 
 protocol GroupDescriptionViewControllerDelegate: AnyObject {
     func groupDescriptionViewControllerDidComplete(groupDescription: String?)
 }
 
-@objc
 class GroupDescriptionViewController: OWSTableViewController2 {
     private let helper: GroupAttributesEditorHelper
 
@@ -26,7 +25,6 @@ class GroupDescriptionViewController: OWSTableViewController2 {
 
     var isEditable: Bool { options.contains(.editable) }
 
-    @objc
     convenience init(groupModel: TSGroupModel) {
         self.init(groupModel: groupModel, options: [])
     }
@@ -102,13 +100,13 @@ class GroupDescriptionViewController: OWSTableViewController2 {
         if !isEditable, let groupName = helper.groupNameCurrent {
             title = groupName
         } else if isEditable, remainingGlyphCount <= 100 {
-            let titleFormat = NSLocalizedString(
+            let titleFormat = OWSLocalizedString(
                 "GROUP_DESCRIPTION_VIEW_TITLE_FORMAT",
                 comment: "Title for the group description view. Embeds {{ the number of characters that can be added to the description without hitting the length limit }}."
             )
             title = String(format: titleFormat, OWSFormat.formatInt(remainingGlyphCount))
         } else {
-            title = NSLocalizedString(
+            title = OWSLocalizedString(
                 "GROUP_DESCRIPTION_VIEW_TITLE",
                 comment: "Title for the group description view."
             )
@@ -198,19 +196,19 @@ class GroupDescriptionViewController: OWSTableViewController2 {
         ))
 
         if isEditable {
-            section.footerTitle = NSLocalizedString(
+            section.footerTitle = OWSLocalizedString(
                 "GROUP_DESCRIPTION_VIEW_EDIT_FOOTER",
                 comment: "Footer text when editing the group description"
             )
         }
 
-        contents.addSection(section)
+        contents.add(section)
 
         self.contents = contents
     }
 
     @objc
-    func didTapCancel() {
+    private func didTapCancel() {
         guard helper.hasUnsavedChanges else {
             dismiss(animated: true)
             return
@@ -222,14 +220,14 @@ class GroupDescriptionViewController: OWSTableViewController2 {
     }
 
     @objc
-    func didTapDone() {
+    private func didTapDone() {
         helper.descriptionTextView.acceptAutocorrectSuggestion()
         descriptionDelegate?.groupDescriptionViewControllerDidComplete(groupDescription: helper.groupDescriptionCurrent)
         dismiss(animated: true)
     }
 
     @objc
-    func didTapSet() {
+    private func didTapSet() {
         guard isEditable, helper.hasUnsavedChanges else {
             return owsFailDebug("Unexpectedly trying to set")
         }

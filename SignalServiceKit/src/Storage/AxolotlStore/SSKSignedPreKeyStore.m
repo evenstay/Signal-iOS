@@ -63,6 +63,7 @@ NS_ASSUME_NONNULL_BEGIN
 NSString *const kPrekeyUpdateFailureCountKey = @"prekeyUpdateFailureCount";
 NSString *const kFirstPrekeyUpdateFailureDateKey = @"firstPrekeyUpdateFailureDate";
 NSString *const kPrekeyCurrentSignedPrekeyIdKey = @"currentSignedPrekeyId";
+NSString *const kLastPreKeyRotationDate = @"lastKeyRotationDate";
 
 @interface SSKSignedPreKeyStore ()
 
@@ -102,14 +103,14 @@ NSString *const kPrekeyCurrentSignedPrekeyIdKey = @"currentSignedPrekeyId";
 
 #pragma mark -
 
-- (SignedPreKeyRecord *)generateRandomSignedRecord
++ (SignedPreKeyRecord *)generateSignedPreKeySignedWithIdentityKey:(ECKeyPair *)identityKeyPair
 {
+    OWSAssert(identityKeyPair);
+
     ECKeyPair *keyPair = [Curve25519 generateKeyPair];
 
     // Signed prekey ids must be > 0.
     int preKeyId = 1 + (int)arc4random_uniform(INT32_MAX - 1);
-    ECKeyPair *_Nullable identityKeyPair = [[OWSIdentityManager shared] identityKeyPairForIdentity:_identity];
-    OWSAssert(identityKeyPair);
 
     @try {
         NSData *signature = [Ed25519 throws_sign:keyPair.publicKey.prependKeyType withKeyPair:identityKeyPair];
@@ -123,6 +124,14 @@ NSString *const kPrekeyCurrentSignedPrekeyIdKey = @"currentSignedPrekeyId";
         OWSFail(@"exception: %@", exception);
         return nil;
     }
+}
+
+- (SignedPreKeyRecord *)generateRandomSignedRecord
+{
+    ECKeyPair *_Nullable identityKeyPair = [[OWSIdentityManager shared] identityKeyPairForIdentity:_identity];
+    OWSAssert(identityKeyPair);
+
+    return [SSKSignedPreKeyStore generateSignedPreKeySignedWithIdentityKey:identityKeyPair];
 }
 
 - (nullable SignedPreKeyRecord *)loadSignedPreKey:(int)signedPreKeyId transaction:(SDSAnyReadTransaction *)transaction
@@ -166,10 +175,18 @@ NSString *const kPrekeyCurrentSignedPrekeyIdKey = @"currentSignedPrekeyId";
 - (nullable NSNumber *)currentSignedPrekeyId
 {
     __block NSNumber *_Nullable result;
-    [self.databaseStorage readWithBlock:^(SDSAnyReadTransaction *transaction) {
-        result = [self.metadataStore getObjectForKey:kPrekeyCurrentSignedPrekeyIdKey transaction:transaction];
-    } file:__FILE__ function:__FUNCTION__ line:__LINE__];
+    [self.databaseStorage
+        readWithBlock:^(
+            SDSAnyReadTransaction *transaction) { result = [self currentSignedPrekeyIdWithTransaction:transaction]; }
+                 file:__FILE__
+             function:__FUNCTION__
+                 line:__LINE__];
     return result;
+}
+
+- (nullable NSNumber *)currentSignedPrekeyIdWithTransaction:(SDSAnyReadTransaction *)transaction
+{
+    return [self.metadataStore getObjectForKey:kPrekeyCurrentSignedPrekeyIdKey transaction:transaction];
 }
 
 - (void)setCurrentSignedPrekeyId:(int)value transaction:(SDSAnyWriteTransaction *)transaction
@@ -229,16 +246,8 @@ NSString *const kPrekeyCurrentSignedPrekeyIdKey = @"currentSignedPrekeyId";
         SignedPreKeyRecord *left, SignedPreKeyRecord *right) { return [left.generatedAt compare:right.generatedAt]; }];
 
     unsigned oldSignedPreKeyCount = (unsigned)[oldSignedPrekeys count];
-    unsigned oldAcceptedSignedPreKeyCount = 0;
-    for (SignedPreKeyRecord *signedPrekey in oldSignedPrekeys) {
-        if (signedPrekey.wasAcceptedByService) {
-            oldAcceptedSignedPreKeyCount++;
-        }
-    }
 
-    OWSLogInfo(@"oldSignedPreKeyCount: %u, oldAcceptedSignedPreKeyCount: %u",
-        oldSignedPreKeyCount,
-        oldAcceptedSignedPreKeyCount);
+    OWSLogInfo(@"oldSignedPreKeyCount: %u", oldSignedPreKeyCount);
 
     // Iterate the signed prekeys in ascending order so that we try to delete older keys first.
     for (SignedPreKeyRecord *signedPrekey in oldSignedPrekeys) {
@@ -258,15 +267,7 @@ NSString *const kPrekeyCurrentSignedPrekeyIdKey = @"currentSignedPrekeyId";
             break;
         }
 
-        // We try to keep a minimum of 3 "old, accepted" signed prekeys.
-        if (signedPrekey.wasAcceptedByService) {
-            if (oldAcceptedSignedPreKeyCount <= 3) {
-                continue;
-            } else {
-                oldAcceptedSignedPreKeyCount--;
-            }
-        }
-
+        // TODO: (PreKey Cleanup)
         if (signedPrekey.wasAcceptedByService) {
             OWSProdInfo([OWSAnalyticsEvents prekeysDeletedOldAcceptedSignedPrekey]);
         } else {
@@ -322,6 +323,28 @@ NSString *const kPrekeyCurrentSignedPrekeyIdKey = @"currentSignedPrekeyId";
     return [self.metadataStore getDate:kFirstPrekeyUpdateFailureDateKey transaction:transaction];
 }
 
+
+- (void)setLastSuccessfulPreKeyRotationDate:(NSDate *)date transaction:(SDSAnyWriteTransaction *)transaction
+{
+    [self.metadataStore setDate:date key:kLastPreKeyRotationDate transaction:transaction];
+}
+
+- (nullable NSDate *)getLastSuccessfulPreKeyRotationDateWithTransaction:(SDSAnyReadTransaction *)transaction
+{
+    NSDate *lastSuccess = [self.metadataStore getDate:kLastPreKeyRotationDate transaction:transaction];
+
+    // For compatibility with existing signed prekeys, fall back to the last
+    if (lastSuccess == nil) {
+        SignedPreKeyRecord *currentSignedPreKey = [self currentSignedPreKeyWithTransaction:transaction];
+        if (currentSignedPreKey.wasAcceptedByService) {
+            // Return the date the last key was signed at as an approximation of last rotation date.
+            return currentSignedPreKey.generatedAt;
+        }
+        return nil;
+    }
+
+    return lastSuccess;
+}
 
 #pragma mark - Debugging
 

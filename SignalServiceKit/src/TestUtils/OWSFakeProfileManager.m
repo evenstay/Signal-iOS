@@ -24,9 +24,9 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, nullable) NSString *localGivenName;
 @property (nonatomic, nullable) NSString *localFamilyName;
 @property (nonatomic, nullable) NSString *localFullName;
-@property (nonatomic, nullable) NSString *localUsername;
 @property (nonatomic, nullable) NSData *localProfileAvatarData;
 @property (nonatomic, nullable) NSArray<OWSUserProfileBadgeInfo *> *localProfileBadgeInfo;
+@property (nonatomic) BOOL localProfileIsPniCapable;
 
 @end
 
@@ -77,6 +77,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)setProfileKeyData:(NSData *)profileKey
                forAddress:(SignalServiceAddress *)address
         userProfileWriter:(UserProfileWriter)userProfileWriter
+            authedAccount:(nonnull AuthedAccount *)authedAccount
               transaction:(SDSAnyWriteTransaction *)transaction
 {
     OWSAES256Key *_Nullable key = [OWSAES256Key keyWithData:profileKey];
@@ -86,6 +87,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (void)fillInMissingProfileKeys:(NSDictionary<SignalServiceAddress *, NSData *> *)profileKeys
                userProfileWriter:(UserProfileWriter)userProfileWriter
+                   authedAccount:(nonnull AuthedAccount *)authedAccount
 {
     for (SignalServiceAddress *address in profileKeys) {
         if (self.profileKeys[address] != nil) {
@@ -102,6 +104,7 @@ NS_ASSUME_NONNULL_BEGIN
                  familyName:(nullable NSString *)familyName
                  forAddress:(SignalServiceAddress *)address
           userProfileWriter:(UserProfileWriter)userProfileWriter
+              authedAccount:(nonnull AuthedAccount *)authedAccount
                 transaction:(SDSAnyWriteTransaction *)transaction
 {
     // Do nothing.
@@ -112,6 +115,7 @@ NS_ASSUME_NONNULL_BEGIN
               avatarUrlPath:(nullable NSString *)avatarUrlPath
                  forAddress:(nonnull SignalServiceAddress *)address
           userProfileWriter:(UserProfileWriter)userProfileWriter
+              authedAccount:(nonnull AuthedAccount *)authedAccount
                 transaction:(nonnull SDSAnyWriteTransaction *)transaction
 {
     // Do nothing.
@@ -154,21 +158,11 @@ NS_ASSUME_NONNULL_BEGIN
     return [self.threadWhitelist containsObject:thread.uniqueId];
 }
 
-- (void)addUserToProfileWhitelist:(SignalServiceAddress *)address
-{
-    [self.recipientWhitelist addObject:address];
-}
-
 - (void)addUserToProfileWhitelist:(nonnull SignalServiceAddress *)address
                 userProfileWriter:(UserProfileWriter)userProfileWriter
                       transaction:(nonnull SDSAnyWriteTransaction *)transaction
 {
     [self.recipientWhitelist addObject:address];
-}
-
-- (void)addUsersToProfileWhitelist:(NSArray<SignalServiceAddress *> *)addresses
-{
-    [self.recipientWhitelist addObjectsFromArray:addresses];
 }
 
 - (void)addUsersToProfileWhitelist:(NSArray<SignalServiceAddress *> *)addresses
@@ -195,11 +189,6 @@ NS_ASSUME_NONNULL_BEGIN
     return [self.threadWhitelist containsObject:groupId.hexadecimalString];
 }
 
-- (void)addGroupIdToProfileWhitelist:(NSData *)groupId
-{
-    [self.threadWhitelist addObject:groupId.hexadecimalString];
-}
-
 - (void)addGroupIdToProfileWhitelist:(nonnull NSData *)groupId
                    userProfileWriter:(UserProfileWriter)userProfileWriter
                          transaction:(nonnull SDSAnyWriteTransaction *)transaction
@@ -219,40 +208,34 @@ NS_ASSUME_NONNULL_BEGIN
     [self.threadWhitelist removeObject:groupId.hexadecimalString];
 }
 
-- (void)addThreadToProfileWhitelist:(TSThread *)thread
-{
-    if (thread.isGroupThread) {
-        TSGroupThread *groupThread = (TSGroupThread *)thread;
-        [self addGroupIdToProfileWhitelist:groupThread.groupModel.groupId];
-    } else {
-        TSContactThread *contactThread = (TSContactThread *)thread;
-        [self addUserToProfileWhitelist:contactThread.contactAddress];
-    }
-}
-
 - (void)addThreadToProfileWhitelist:(TSThread *)thread transaction:(SDSAnyWriteTransaction *)transaction
 {
     if (thread.isGroupThread) {
         TSGroupThread *groupThread = (TSGroupThread *)thread;
-        [self addGroupIdToProfileWhitelist:groupThread.groupModel.groupId];
+        [self addGroupIdToProfileWhitelist:groupThread.groupModel.groupId
+                         userProfileWriter:UserProfileWriter_LocalUser
+                               transaction:transaction];
     } else {
         TSContactThread *contactThread = (TSContactThread *)thread;
-        [self addUserToProfileWhitelist:contactThread.contactAddress];
+        [self addUserToProfileWhitelist:contactThread.contactAddress
+                      userProfileWriter:UserProfileWriter_LocalUser
+                            transaction:transaction];
     }
 }
 
-- (void)fetchLocalUsersProfile
+- (void)fetchLocalUsersProfileWithAuthedAccount:(AuthedAccount *)authedAccount
 {
     // Do nothing.
 }
 
-- (AnyPromise *)fetchLocalUsersProfilePromise
+- (AnyPromise *)fetchLocalUsersProfilePromiseWithAuthedAccount:(AuthedAccount *)authedAccount
 {
     // Do nothing.
     return [AnyPromise promiseWithValue:@(1)];
 }
 
 - (void)fetchProfileForAddress:(nonnull SignalServiceAddress *)address
+                 authedAccount:(nonnull AuthedAccount *)authedAccount
 {
     // Do nothing.
 }
@@ -303,14 +286,15 @@ NS_ASSUME_NONNULL_BEGIN
                      familyName:(nullable NSString *)familyName
                             bio:(nullable NSString *)bio
                        bioEmoji:(nullable NSString *)bioEmoji
-                       username:(nullable NSString *)username
-               isStoriesCapable:(BOOL)isStoriesCapable
                   avatarUrlPath:(nullable NSString *)avatarUrlPath
           optionalAvatarFileUrl:(nullable NSURL *)optionalAvatarFileUrl
                   profileBadges:(nullable NSArray<OWSUserProfileBadgeInfo *> *)profileBadges
-           canReceiveGiftBadges:(BOOL)canReceiveGiftBadges
                   lastFetchDate:(NSDate *)lastFetchDate
+               isStoriesCapable:(BOOL)isStoriesCapable
+           canReceiveGiftBadges:(BOOL)canReceiveGiftBadges
+                   isPniCapable:(BOOL)isPniCapable
               userProfileWriter:(UserProfileWriter)userProfileWriter
+                  authedAccount:(nonnull AuthedAccount *)authedAccount
                     transaction:(SDSAnyWriteTransaction *)writeTx
 {
     // Do nothing.
@@ -345,18 +329,20 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (nullable NSString *)profileAvatarURLPathForAddress:(SignalServiceAddress *)address
                                     downloadIfMissing:(BOOL)downloadIfMissing
+                                        authedAccount:(nonnull AuthedAccount *)authedAccount
                                           transaction:(SDSAnyReadTransaction *)transaction
 {
     return nil;
 }
 
 - (void)didSendOrReceiveMessageFromAddress:(SignalServiceAddress *)address
+                             authedAccount:(nonnull AuthedAccount *)authedAccount
                                transaction:(SDSAnyWriteTransaction *)transaction
 {
     // Do nothing.
 }
 
-- (void)reuploadLocalProfile
+- (void)reuploadLocalProfileWithAuthedAccount:(AuthedAccount *)authedAccount
 {
     // Do nothing.
 }
@@ -384,18 +370,6 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)migrateWhitelistedGroupsWithTransaction:(SDSAnyWriteTransaction *)transaction
 {
     // Do nothing.
-}
-
-- (nullable NSString *)usernameForAddress:(SignalServiceAddress *)address
-                              transaction:(SDSAnyReadTransaction *)transaction
-{
-    return self.fakeUsernames[address];
-}
-
-- (nonnull NSArray<id<SSKMaybeString>> *)usernamesForAddresses:(nonnull NSArray<SignalServiceAddress *> *)addresses
-                                                   transaction:(nonnull SDSAnyReadTransaction *)transaction
-{
-    return [addresses map:^(SignalServiceAddress *address) { return self.fakeUsernames[address] ?: [NSNull null]; }];
 }
 
 - (NSArray<SignalServiceAddress *> *)allWhitelistedRegisteredAddressesWithTransaction:

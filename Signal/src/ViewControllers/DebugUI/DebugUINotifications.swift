@@ -3,21 +3,17 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalServiceKit
 import SignalMessaging
+import SignalUI
 
-#if DEBUG
+#if USE_DEBUG_UI
 
-class DebugUINotifications: DebugUIPage {
+class DebugUINotifications: DebugUIPage, Dependencies {
 
-    // MARK: Overrides
+    let name = "Notifications"
 
-    override func name() -> String {
-        return "Notifications"
-    }
-
-    override func section(thread: TSThread?) -> OWSTableSection? {
+    func section(thread: TSThread?) -> OWSTableSection? {
         guard let thread = thread else {
             owsFailDebug("Notifications must specify thread.")
             return nil
@@ -56,12 +52,7 @@ class DebugUINotifications: DebugUIPage {
 
             OWSTableItem(title: "Notify For Threadless Error Message") { [weak self] in
                 self?.notifyUserForThreadlessErrorMessage()
-            },
-
-            OWSTableItem(title: "Notify of New Signal Users") { [weak self] in
-                self?.notifyOfNewUsers()
             }
-
         ]
 
         return OWSTableSection(title: "Notifications have delay: \(kNotificationDelay)s", items: sectionItems)
@@ -121,8 +112,6 @@ class DebugUINotifications: DebugUIPage {
             self.notifyForErrorMessage(thread: contactThread)
         }.then {
             self.notifyUserForThreadlessErrorMessage()
-        }.then {
-            self.notifyOfNewUsers()
         }.done {
             UIApplication.shared.endBackgroundTask(taskIdentifier)
         }
@@ -196,30 +185,6 @@ class DebugUINotifications: DebugUIPage {
                 self.notificationPresenter.notifyUser(forThreadlessErrorMessage: errorMessage,
                                                       transaction: transaction)
             }
-        }
-    }
-
-    @discardableResult
-    func notifyOfNewUsers() -> Guarantee<Void> {
-        return delayedNotificationDispatch {
-            let recipients: Set<SignalRecipient> = self.databaseStorage.read { transaction in
-                let allRecipients = SignalRecipient.anyFetchAll(transaction: transaction)
-                let activeRecipients = allRecipients.filter { recipient in
-                    guard recipient.devices.count > 0 else {
-                        return false
-                    }
-
-                    guard !recipient.address.isLocalAddress else {
-                        return false
-                    }
-
-                    return true
-                }
-
-                return Set(activeRecipients)
-            }
-
-            NewAccountDiscovery.shared.discovered(newRecipients: recipients, forNewThreadsOnly: false)
         }
     }
 }

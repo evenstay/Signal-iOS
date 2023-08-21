@@ -5,9 +5,9 @@
 
 import Foundation
 
-@objc
 public extension TSInfoMessage {
 
+    @objc
     func groupUpdateDescription(transaction: SDSAnyReadTransaction) -> NSAttributedString {
         // for legacy group updates we persisted a pre-rendered string, rather than the details
         // to generate that string
@@ -15,32 +15,50 @@ public extension TSInfoMessage {
             return NSAttributedString(string: customMessage)
         }
 
-        guard let newGroupModel = self.newGroupModel else {
-            // Legacy info message before we began embedding user info.
-            return GroupUpdateCopy.defaultGroupUpdateDescription(groupUpdateSourceAddress: groupUpdateSourceAddress,
-                                                                 transaction: transaction)
+        guard
+            let newGroupModel,
+            let localIdentifiers = tsAccountManager.localIdentifiers(transaction: transaction)
+        else {
+            return GroupUpdateItemBuilderImpl(
+                contactsManager: GroupUpdateItemBuilderImpl.Wrappers.ContactsManager(contactsManager)
+            ).defaultGroupUpdateItem(
+                groupUpdateSourceAddress: groupUpdateSourceAddress,
+                localIdentifiers: nil,
+                tx: transaction.asV2Read
+            ).localizedText
         }
 
-        return groupUpdateDescription(oldGroupModel: self.oldGroupModel,
-                                      newGroupModel: newGroupModel,
-                                      transaction: transaction)
+        return groupUpdateDescription(
+            newGroupModel: newGroupModel,
+            localIdentifiers: localIdentifiers,
+            transaction: transaction
+        )
     }
 
-    func groupUpdateItems(transaction: SDSAnyReadTransaction) -> [GroupUpdateCopyItem]? {
-        // for legacy group updates we persisted a pre-rendered string, rather than the details
-        // to generate that string
-        guard customMessage == nil else { return nil }
-
-        guard let newGroupModel = self.newGroupModel else {
-            // Legacy info message before we began embedding user info.
+    func groupUpdateItems(transaction: SDSAnyReadTransaction) -> [GroupUpdateItem]? {
+        guard
+            customMessage == nil,
+            let newGroupModel
+        else {
+            // Legacy group updates persisted a pre-rendered string.
             return nil
         }
 
-        return groupUpdateItems(oldGroupModel: self.oldGroupModel,
-                                newGroupModel: newGroupModel,
-                                transaction: transaction)
+        guard let localIdentifiers = tsAccountManager.localIdentifiers(
+            transaction: transaction
+        ) else {
+            owsFailDebug("Missing local identifiers!")
+            return nil
+        }
+
+        return buildGroupUpdateItems(
+            newGroupModel: newGroupModel,
+            localIdentifiers: localIdentifiers,
+            transaction: transaction
+        )
     }
 
+    @objc
     func profileChangeDescription(transaction: SDSAnyReadTransaction) -> String {
         guard let profileChanges = profileChanges,
             let updateDescription = profileChanges.descriptionForUpdate(transaction: transaction) else {
@@ -68,84 +86,47 @@ public extension TSInfoMessage {
 
 extension TSInfoMessage {
     private func groupUpdateDescription(
-        oldGroupModel: TSGroupModel?,
         newGroupModel: TSGroupModel,
+        localIdentifiers: LocalIdentifiers,
         transaction: SDSAnyReadTransaction
     ) -> NSAttributedString {
-        guard let groupUpdate = makeGroupUpdate(
-            oldGroupModel: oldGroupModel,
+        let updateItems = buildGroupUpdateItems(
             newGroupModel: newGroupModel,
+            localIdentifiers: localIdentifiers,
             transaction: transaction
-        ) else {
-            return GroupUpdateCopy.defaultGroupUpdateDescription(
-                groupUpdateSourceAddress: groupUpdateSourceAddress,
-                transaction: transaction
-            )
+        )
+
+        guard let firstUpdateItem = updateItems.first else {
+            owsFailBeta("Should never have an empty update items list!")
+            return NSAttributedString()
         }
 
-        return groupUpdate.updateDescription
+        let initialString = NSMutableAttributedString(attributedString: firstUpdateItem.localizedText)
+
+        return updateItems.dropFirst().reduce(initialString) { partialResult, updateItem in
+            partialResult.append("\n")
+            partialResult.append(updateItem.localizedText)
+            return partialResult
+        }
     }
 
-    private func groupUpdateItems(
-        oldGroupModel: TSGroupModel?,
+    private func buildGroupUpdateItems(
         newGroupModel: TSGroupModel,
+        localIdentifiers: LocalIdentifiers,
         transaction: SDSAnyReadTransaction
-    ) -> [GroupUpdateCopyItem]? {
-        makeGroupUpdate(
+    ) -> [GroupUpdateItem] {
+        return GroupUpdateItemBuilderImpl(
+            contactsManager: GroupUpdateItemBuilderImpl.Wrappers.ContactsManager(contactsManager)
+        ).buildUpdateItems(
             oldGroupModel: oldGroupModel,
             newGroupModel: newGroupModel,
-            transaction: transaction
-        )?.itemList
-    }
-
-    func isEmptyGroupUpdate(transaction: SDSAnyReadTransaction) -> Bool {
-        // for legacy group updates we persisted a pre-rendered string, rather than the details
-        // to generate that string
-        guard customMessage == nil else {
-            owsFailDebug("Unexpected customMessage.")
-            return false
-        }
-        guard let newGroupModel = self.newGroupModel as? TSGroupModelV2 else {
-            // Legacy info message before we began embedding user info.
-            return false
-        }
-
-        return isEmptyGroupUpdate(oldGroupModel: self.oldGroupModel,
-                                  newGroupModel: newGroupModel,
-                                  transaction: transaction)
-    }
-
-    private func isEmptyGroupUpdate(
-        oldGroupModel: TSGroupModel?,
-        newGroupModel: TSGroupModel,
-        transaction: SDSAnyReadTransaction
-    ) -> Bool {
-        makeGroupUpdate(
-            oldGroupModel: oldGroupModel,
-            newGroupModel: newGroupModel,
-            transaction: transaction
-        )?.isEmptyUpdate ?? false
-    }
-
-    private func makeGroupUpdate(
-        oldGroupModel: TSGroupModel?,
-        newGroupModel: TSGroupModel,
-        transaction: SDSAnyReadTransaction
-    ) -> GroupUpdateCopy? {
-        guard let localAddress = tsAccountManager.localAddress else {
-            owsFailDebug("missing local address")
-            return nil
-        }
-
-        return GroupUpdateCopy(
-            newGroupModel: newGroupModel,
-            oldGroupModel: oldGroupModel,
             oldDisappearingMessageToken: oldDisappearingMessageToken,
             newDisappearingMessageToken: newDisappearingMessageToken,
-            localAddress: localAddress,
+            localIdentifiers: localIdentifiers,
             groupUpdateSourceAddress: groupUpdateSourceAddress,
+            updaterKnownToBeLocalUser: updaterWasLocalUser,
             updateMessages: updateMessages,
-            transaction: transaction
+            tx: transaction.asV2Read
         )
     }
 
@@ -203,7 +184,7 @@ extension TSInfoMessage {
         return groupModel
     }
 
-    public var updateMessages: UpdateMessages? {
+    public var updateMessages: UpdateMessagesWrapper? {
         return infoMessageValue(forKey: .updateMessages)
     }
 
@@ -223,8 +204,19 @@ extension TSInfoMessage {
         return infoMessageValue(forKey: .newDisappearingMessageToken)
     }
 
+    /// The address of the user to whom this update should be attributed, if
+    /// known.
     public var groupUpdateSourceAddress: SignalServiceAddress? {
         return infoMessageValue(forKey: .groupUpdateSourceAddress)
+    }
+
+    /// Whether we determined, at the time we created this info message, that
+    /// the updater was the local user.
+    /// - Returns
+    /// `true` if we knew conclusively that the updater was the local user, and
+    /// `false` otherwise.
+    public var updaterWasLocalUser: Bool {
+        return infoMessageValue(forKey: .updaterKnownToBeLocalUser) ?? false
     }
 
     fileprivate var profileChanges: ProfileChanges? {
@@ -241,8 +233,8 @@ extension TSInfoMessage {
         }
     }
 
-    public func setUpdateMessages(_ messages: UpdateMessages) {
-        setInfoMessageValue(messages, forKey: .updateMessages)
+    public func setUpdateMessages(_ updateMessages: UpdateMessagesWrapper) {
+        setInfoMessageValue(updateMessages, forKey: .updateMessages)
     }
 
     public func setNewGroupModel(_ newGroupModel: TSGroupModel) {

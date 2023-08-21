@@ -26,13 +26,20 @@ class StoryItemMediaView: UIView {
     weak var delegate: StoryItemMediaViewDelegate?
     public private(set) var item: StoryItem
 
+    private let spoilerState: SpoilerRenderState
+
     private lazy var gradientProtectionView = GradientView(colors: [])
     private var gradientProtectionViewHeightConstraint: NSLayoutConstraint?
 
     private let bottomContentVStack = UIStackView()
 
-    init(item: StoryItem, delegate: StoryItemMediaViewDelegate) {
+    init(
+        item: StoryItem,
+        spoilerState: SpoilerRenderState,
+        delegate: StoryItemMediaViewDelegate
+    ) {
         self.item = item
+        self.spoilerState = spoilerState
         self.delegate = delegate
 
         super.init(frame: .zero)
@@ -78,7 +85,7 @@ class StoryItemMediaView: UIView {
         fatalError("init(coder:) has not been implemented")
     }
 
-    func reset() {
+    func resetPlayback() {
         videoPlayerLoopCount = 0
         videoPlayer?.seek(to: .zero)
         videoPlayer?.play()
@@ -114,6 +121,7 @@ class StoryItemMediaView: UIView {
 
     func willHandleTapGesture(_ gesture: UITapGestureRecognizer) -> Bool {
         if startAttachmentDownloadIfNecessary(gesture) { return true }
+        if revealSpoilerIfNecessary(gesture) { return true }
         if toggleCaptionExpansionIfNecessary(gesture) { return true }
 
         if let textAttachmentView = mediaView as? TextAttachmentView {
@@ -143,6 +151,18 @@ class StoryItemMediaView: UIView {
         }
 
         return false
+    }
+
+    // MARK: - Appearance
+
+    private var isViewVisible = false {
+        didSet {
+            captionLabel.isViewVisible = isViewVisible
+        }
+    }
+
+    func setIsViewVisible(_ isVisible: Bool) {
+        self.isViewVisible = isVisible
     }
 
     // MARK: - Playback
@@ -182,7 +202,7 @@ class StoryItemMediaView: UIView {
         case .pointer:
             owsFailDebug("Undownloaded attachments should not progress.")
             return 0
-        case .stream(let stream):
+        case .stream(let stream, _):
             glyphCount = stream.caption?.glyphCount
 
             if let asset = videoPlayer?.avPlayer.currentItem?.asset {
@@ -215,7 +235,14 @@ class StoryItemMediaView: UIView {
                 }
             }
         case .text(let attachment):
-            glyphCount = attachment.text?.glyphCount
+            switch attachment.textContent {
+            case .empty:
+                glyphCount = nil
+            case .styled(let text, _):
+                glyphCount = text.glyphCount
+            case .styledRanges(let body):
+                glyphCount = body.text.glyphCount
+            }
 
             // As a base, all text attachments play for at least 5s,
             // even if they have no text.
@@ -269,7 +296,7 @@ class StoryItemMediaView: UIView {
         let nameTrailingView: UIView
         let nameTrailingSpacing: CGFloat
         if item.message.authorAddress.isSystemStoryAddress {
-            let icon = UIImageView(image: UIImage(named: "official-checkmark-20"))
+            let icon = UIImageView(image: Theme.iconImage(.official))
             icon.contentMode = .center
             nameTrailingView = icon
             nameTrailingSpacing = 3
@@ -297,12 +324,12 @@ class StoryItemMediaView: UIView {
             // For private stories, other than "My Story", render the name of the story
 
             let contextIcon = UIImageView()
-            contextIcon.setTemplateImageName("stories-16", tintColor: Theme.darkThemePrimaryColor)
+            contextIcon.setTemplateImageName("stories-fill-compact", tintColor: Theme.darkThemePrimaryColor)
             contextIcon.autoSetDimensions(to: .square(16))
 
             let contextNameLabel = UILabel()
             contextNameLabel.textColor = Theme.darkThemePrimaryColor
-            contextNameLabel.font = .ows_dynamicTypeFootnote
+            contextNameLabel.font = .dynamicTypeFootnote
             contextNameLabel.text = privateStoryThread.name
 
             let contextHStack = UIStackView(arrangedSubviews: [
@@ -341,7 +368,7 @@ class StoryItemMediaView: UIView {
 
         timestampLabel.setCompressionResistanceHorizontalHigh()
         timestampLabel.setContentHuggingHorizontalHigh()
-        timestampLabel.font = .ows_dynamicTypeFootnote
+        timestampLabel.font = .dynamicTypeFootnote
         timestampLabel.textColor = Theme.darkThemePrimaryColor
         timestampLabel.alpha = 0.8
         updateTimestampText()
@@ -397,7 +424,7 @@ class StoryItemMediaView: UIView {
             groupAvatarView.autoPinEdge(.leading, to: .trailing, of: authorAvatarView, withOffset: -4)
 
             return avatarContainer
-        case .authorUuid, .privateStory, .none:
+        case .authorAci, .privateStory, .none:
             return authorAvatarView
         }
     }
@@ -405,7 +432,7 @@ class StoryItemMediaView: UIView {
     private func buildNameLabel(transaction: SDSAnyReadTransaction) -> UIView {
         let label = UILabel()
         label.textColor = Theme.darkThemePrimaryColor
-        label.font = UIFont.ows_dynamicTypeSubheadline.ows_semibold
+        label.font = UIFont.dynamicTypeSubheadline.semibold()
         label.text = StoryUtil.authorDisplayName(
             for: item.message,
             contactsManager: contactsManager,
@@ -422,7 +449,7 @@ class StoryItemMediaView: UIView {
         let contextButton = DelegatingContextMenuButton(delegate: delegate)
         contextButton.showsContextMenuAsPrimaryAction = true
         contextButton.tintColor = Theme.darkThemePrimaryColor
-        contextButton.setImage(Theme.iconImage(.more24), for: .normal)
+        contextButton.setImage(Theme.iconImage(.buttonMore), for: .normal)
         contextButton.contentMode = .center
 
         contextButton.autoSetDimensions(to: .square(Self.contextButtonSize))
@@ -432,45 +459,201 @@ class StoryItemMediaView: UIView {
 
     // MARK: - Caption
 
-    private lazy var captionLabel: UILabel = {
-        let label = UILabel()
-        label.font = .systemFont(ofSize: 17)
-        label.adjustsFontSizeToFitWidth = true
-        label.minimumScaleFactor = 15/17
-        label.textColor = Theme.darkThemePrimaryColor
+    private class CaptionLabel: UILabel {
 
-        label.layer.shadowRadius = 48
-        label.layer.shadowOpacity = 0.8
-        label.layer.shadowColor = UIColor.black.cgColor
-        label.layer.shadowOffset = .zero
+        static let desiredFont = UIFont.systemFont(ofSize: 17)
+        static let minimumScaleFactor: CGFloat = 15/17
 
-        return label
-    }()
+        static var minimumScaleFont: UIFont { desiredFont.withSize(desiredFont.pointSize * minimumScaleFactor) }
 
-    private var fullCaptionText: String?
-    private var truncatedCaptionText: NSAttributedString?
-    private var isCaptionTruncated: Bool { truncatedCaptionText != nil }
-    private var hasCaption: Bool { fullCaptionText != nil }
+        static let maxCollapsedLines = 5
 
-    private var maxCaptionLines = 5
-    private func updateCaption() {
-        let captionText: String? = {
-            switch item.attachment {
-            case .stream(let attachment): return attachment.caption?.nilIfEmpty
-            case .pointer(let attachment): return attachment.caption?.nilIfEmpty
-            case .text: return nil
+        public var interactionIdentifier: InteractionSnapshotIdentifier
+        private let spoilerState: SpoilerRenderState
+
+        init(
+            interactionIdentifier: InteractionSnapshotIdentifier,
+            spoilerState: SpoilerRenderState
+        ) {
+            self.interactionIdentifier = interactionIdentifier
+            self.spoilerState = spoilerState
+            self.spoilerConfig = .init(isViewVisible: false)
+            super.init(frame: .zero)
+            spoilerConfig.animationManager = spoilerState.animationManager
+
+            super.textColor = Theme.darkThemePrimaryColor
+
+            super.layer.shadowRadius = 48
+            super.layer.shadowOpacity = 0.8
+            super.layer.shadowColor = UIColor.black.cgColor
+            super.layer.shadowOffset = .zero
+        }
+
+        required init?(coder: NSCoder) {
+            fatalError("init(coder:) has not been implemented")
+        }
+
+        private var spoilerConfig: SpoilerableTextConfig.Builder {
+            didSet {
+                spoilerAnimator.updateAnimationState(spoilerConfig)
             }
-        }()
+        }
 
-        fullCaptionText = captionText
-        captionLabel.text = captionText
-        updateCaptionTruncation()
+        private lazy var spoilerAnimator = SpoilerableLabelAnimator(label: self)
+
+        var isViewVisible: Bool = false {
+            didSet {
+                spoilerConfig.isViewVisible = isViewVisible
+            }
+        }
+
+        func stopAnimatingSpoiler() {
+            spoilerConfig.isViewVisible = false
+        }
+
+        func resumeAnimatingSpoiler() {
+            spoilerConfig.isViewVisible = isViewVisible
+        }
+
+        @available(*, unavailable)
+        override var text: String? {
+            get { return super.text }
+            set { super.text = newValue }
+        }
+
+        @available(*, unavailable)
+        override var attributedText: NSAttributedString? {
+            get { return super.attributedText }
+            set { super.attributedText = newValue }
+        }
+
+        @available(*, unavailable)
+        override var font: UIFont! {
+            get { return super.font }
+            set { super.font = newValue }
+        }
+
+        var isTruncated: Bool = false
+
+        var tappableItems = [HydratedMessageBody.TappableItem]()
+
+        public func setBody(_ body: StyleOnlyMessageBody?, isTruncated: Bool) {
+            guard let body else {
+                super.attributedText = nil
+                spoilerConfig.text = nil
+                spoilerConfig.displayConfig = nil
+                return
+            }
+
+            let actualFont: UIFont
+            if isTruncated {
+                actualFont = Self.minimumScaleFont
+                super.numberOfLines = Self.maxCollapsedLines
+            } else {
+                let actualFontSize = self.actualFontSize(body: body)
+                actualFont = Self.desiredFont.withSize(actualFontSize)
+                super.numberOfLines = 0
+            }
+            super.font = actualFont
+
+            let hydratedBody = body.asHydratedMessageBody()
+            spoilerConfig.text = .messageBody(hydratedBody)
+
+            let revealedSpoilerIds = self.spoilerState.revealState.revealedSpoilerIds(
+                interactionIdentifier: interactionIdentifier
+            )
+            let config = HydratedMessageBody.DisplayConfiguration.storyCaption(
+                font: actualFont,
+                revealedSpoilerIds: revealedSpoilerIds
+            )
+            self.tappableItems = hydratedBody.tappableItems(
+                revealedSpoilerIds: revealedSpoilerIds,
+                dataDetector: nil
+            )
+            spoilerConfig.text = .messageBody(hydratedBody)
+            spoilerConfig.displayConfig = config
+            super.attributedText = body.asAttributedStringForDisplay(
+                config: config.style,
+                baseFont: config.baseFont,
+                baseTextColor: config.baseTextColor.forCurrentTheme,
+                isDarkThemeEnabled: Theme.isDarkThemeEnabled
+            )
+
+        }
+
+        private func actualFontSize(body: StyleOnlyMessageBody) -> CGFloat {
+            let drawingContext = NSStringDrawingContext()
+            drawingContext.minimumScaleFactor = Self.minimumScaleFactor
+            let attributedTextForSizing = body.asAttributedStringForDisplay(
+                config: HydratedMessageBody.DisplayConfiguration.storyCaption(
+                    font: Self.desiredFont,
+                    revealedSpoilerIds: Set() // irrelevant for sizing.
+                ).style,
+                isDarkThemeEnabled: false // irrelevant for sizing.
+            )
+            attributedTextForSizing.boundingRect(
+                with: bounds.size,
+                options: [.usesLineFragmentOrigin, .usesFontLeading],
+                context: drawingContext
+            )
+            return Self.desiredFont.pointSize * drawingContext.actualScaleFactor
+        }
+    }
+
+    private lazy var captionLabel = CaptionLabel(
+        interactionIdentifier: .fromStoryMessage(item.message),
+        spoilerState: spoilerState
+    )
+
+    private var truncatedCaptionText: StyleOnlyMessageBody?
+    private var isTruncationRequired: Bool { truncatedCaptionText != nil }
+    private var hasCaption: Bool { item.caption != nil }
+
+    private func updateCaption() {
+        captionLabel.interactionIdentifier = .fromStoryMessage(item.message)
+        recomputeCaptionTruncation()
+        if !isCaptionExpanded, let truncatedCaptionText {
+            captionLabel.setBody(truncatedCaptionText, isTruncated: true)
+        } else {
+            captionLabel.setBody(item.caption, isTruncated: false)
+        }
+    }
+
+    private func revealSpoilerIfNecessary(_ gesture: UIGestureRecognizer) -> Bool {
+        let labelLocation = gesture.location(in: captionLabel)
+        guard
+            captionLabel.bounds.contains(labelLocation),
+            let tapIndex = captionLabel.characterIndex(of: labelLocation)
+        else {
+            return false
+        }
+        let spoilerItem = captionLabel.tappableItems.lazy
+            .compactMap {
+                switch $0 {
+                case .unrevealedSpoiler(let unrevealedSpoiler):
+                    return unrevealedSpoiler
+                case .data, .mention:
+                    return nil
+                }
+            }
+            .first(where: {
+                $0.range.contains(tapIndex)
+            })
+        if let spoilerItem {
+            spoilerState.revealState.setSpoilerRevealed(
+                withID: spoilerItem.id,
+                interactionIdentifier: .fromStoryMessage(item.message)
+            )
+            updateCaption()
+            return true
+        }
+        return false
     }
 
     private var isCaptionExpanded = false
     private var captionBackdrop: UIView?
     private func toggleCaptionExpansionIfNecessary(_ gesture: UIGestureRecognizer) -> Bool {
-        guard hasCaption, isCaptionTruncated else { return false }
+        guard hasCaption, isTruncationRequired else { return false }
 
         if !isCaptionExpanded {
             guard captionLabel.bounds.contains(gesture.location(in: captionLabel)) else { return false }
@@ -492,16 +675,15 @@ class StoryItemMediaView: UIView {
             insertSubview(captionBackdrop, belowSubview: bottomContentVStack)
             captionBackdrop.autoPinEdgesToSuperviewEdges()
 
-            captionLabel.numberOfLines = 0
-            captionLabel.text = fullCaptionText
             delegate?.storyItemMediaViewWantsToPause(self)
         } else {
-            captionLabel.numberOfLines = maxCaptionLines
-            captionLabel.attributedText = truncatedCaptionText
             delegate?.storyItemMediaViewWantsToPlay(self)
-            updateCaptionTruncation()
         }
 
+        updateCaption()
+
+        // Hide spoilers for the animation's duration.
+        captionLabel.stopAnimatingSpoiler()
         UIView.animate(withDuration: 0.2) {
             self.captionBackdrop?.alpha = isExpanding ? 1 : 0
             self.captionLabel.layoutIfNeeded()
@@ -510,89 +692,105 @@ class StoryItemMediaView: UIView {
                 self.captionBackdrop?.removeFromSuperview()
                 self.captionBackdrop = nil
             }
+            self.captionLabel.resumeAnimatingSpoiler()
         }
 
         return true
     }
 
     private var lastTruncationWidth: CGFloat?
-    private func updateCaptionTruncation() {
-        guard let fullCaptionText = fullCaptionText, !isCaptionExpanded else { return }
 
+    private func recomputeCaptionTruncation() {
+        guard let body = item.caption else {
+            lastTruncationWidth = nil
+            truncatedCaptionText = nil
+            return
+        }
         // Only update truncation if the view's width has changed.
         guard width != lastTruncationWidth else { return }
         lastTruncationWidth = width
 
-        captionLabel.numberOfLines = maxCaptionLines
-        captionLabel.text = fullCaptionText
         bottomContentVStack.layoutIfNeeded()
 
-        let labelMinimumScaledFont = captionLabel.font
-            .withSize(captionLabel.font.pointSize * captionLabel.minimumScaleFactor)
+        self.truncatedCaptionText = Self.truncatedCaptionText(
+            fullCaptionBody: body,
+            labelSize: CGSize(width: captionLabel.bounds.width, height: .infinity)
+        )
+    }
+
+    /// Nil means no truncation is necessary.
+    private static func truncatedCaptionText(
+        fullCaptionBody: StyleOnlyMessageBody,
+        labelSize: CGSize
+    ) -> StyleOnlyMessageBody? {
+        let labelMinimumScaledFont = CaptionLabel.minimumScaleFont
 
         let layoutManager = NSLayoutManager()
-        let textContainer = NSTextContainer(size: captionLabel.bounds.size)
+        let textContainer = NSTextContainer(size: labelSize)
         let textStorage = NSTextStorage()
 
         layoutManager.addTextContainer(textContainer)
         textStorage.addLayoutManager(layoutManager)
-        textStorage.setAttributedString(fullCaptionText.styled(with: .font(labelMinimumScaledFont)))
+        let displayConfigForSizing = HydratedMessageBody.DisplayConfiguration.storyCaption(
+            font: labelMinimumScaledFont,
+            revealedSpoilerIds: Set() // irrelevant for sizing
+        )
+        let fullCaptionText = fullCaptionBody.asAttributedStringForDisplay(
+            config: displayConfigForSizing.style,
+            isDarkThemeEnabled: false // irrelevant for sizing
+        )
+        textStorage.setAttributedString(fullCaptionText)
 
         textContainer.lineFragmentPadding = 0
         textContainer.lineBreakMode = .byWordWrapping
-        textContainer.maximumNumberOfLines = 5
+        textContainer.maximumNumberOfLines = CaptionLabel.maxCollapsedLines
 
         func visibleCaptionRange() -> NSRange {
-            layoutManager.glyphRange(for: textContainer)
+            layoutManager.characterRange(forGlyphRange: layoutManager.glyphRange(for: textContainer), actualGlyphRange: nil)
         }
 
         var visibleCharacterRangeUpperBound = visibleCaptionRange().upperBound
 
         // Check if we're displaying less than the full length of the caption text.
-        guard visibleCharacterRangeUpperBound < fullCaptionText.utf16.count else {
-            truncatedCaptionText = nil
-            return
+        guard visibleCharacterRangeUpperBound < (fullCaptionText.string as NSString).length else {
+            return nil
         }
 
-        let readMoreText = NSLocalizedString(
+        let readMoreString = OWSLocalizedString(
             "STORIES_CAPTION_READ_MORE",
             comment: "Text indication a story caption can be tapped to read more."
-        ).styled(with: .font(labelMinimumScaledFont.ows_semibold))
+        )
+        let readMoreBody = StyleOnlyMessageBody(text: readMoreString, style: .bold)
+        let suffix = StyleOnlyMessageBody(plaintext: "… ").addingSuffix(readMoreBody)
 
-        var potentialTruncatedCaptionText = fullCaptionText
+        var potentialTruncatedCaptionBody = fullCaptionBody
         func truncatePotentialCaptionText(to index: Int) {
-            potentialTruncatedCaptionText = (potentialTruncatedCaptionText as NSString).substring(to: index)
-            textStorage.setAttributedString(buildTruncatedCaptionText().styled(with: .font(labelMinimumScaledFont)))
+            potentialTruncatedCaptionBody = potentialTruncatedCaptionBody.stripAndDropLast(
+                potentialTruncatedCaptionBody.length - index
+            )
         }
 
-        func buildTruncatedCaptionText() -> NSAttributedString {
-            .composed(of: [
-                potentialTruncatedCaptionText.stripped, "…", " ", readMoreText
-            ])
-        }
-
-        defer {
-            truncatedCaptionText = buildTruncatedCaptionText()
-            captionLabel.attributedText = truncatedCaptionText
+        func buildTruncatedCaptionText() -> StyleOnlyMessageBody {
+            return potentialTruncatedCaptionBody.stripAndDropLast(0).addingSuffix(suffix)
         }
 
         // We might fit without further truncation, for example if the caption
         // contains new line characters, so set the possible new text immediately.
         truncatePotentialCaptionText(to: visibleCharacterRangeUpperBound)
 
-        visibleCharacterRangeUpperBound = visibleCaptionRange().upperBound - readMoreText.string.utf16.count - 2
+        visibleCharacterRangeUpperBound = visibleCaptionRange().upperBound - suffix.length
 
         // If we're still truncated, trim down the visible text until
         // we have space to fit the read more text without truncation.
         // This should only take a few iterations.
         var iterationCount = 0
-        while visibleCharacterRangeUpperBound < potentialTruncatedCaptionText.utf16.count {
+        while visibleCharacterRangeUpperBound < potentialTruncatedCaptionBody.length {
             let truncateToIndex = max(0, visibleCharacterRangeUpperBound)
             guard truncateToIndex > 0 else { break }
 
             truncatePotentialCaptionText(to: truncateToIndex)
 
-            visibleCharacterRangeUpperBound = visibleCaptionRange().upperBound - readMoreText.string.utf16.count - 2
+            visibleCharacterRangeUpperBound = visibleCaptionRange().upperBound - suffix.length
 
             iterationCount += 1
             if iterationCount >= 5 {
@@ -600,6 +798,8 @@ class StoryItemMediaView: UIView {
                 break
             }
         }
+
+        return buildTruncatedCaptionText()
     }
 
     private func updateGradientProtection() {
@@ -622,7 +822,7 @@ class StoryItemMediaView: UIView {
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        updateCaptionTruncation()
+        updateCaption()
     }
 
     // MARK: - Media
@@ -642,7 +842,7 @@ class StoryItemMediaView: UIView {
 
     private func buildMediaView() -> UIView {
         switch item.attachment {
-        case .stream(let stream):
+        case .stream(let stream, _):
             let container = UIView()
 
             guard let originalMediaUrl = stream.originalMediaURL else {
@@ -677,7 +877,7 @@ class StoryItemMediaView: UIView {
             }
 
             return container
-        case .pointer(let pointer):
+        case .pointer(let pointer, _):
             let container = UIView()
 
             if let blurHashImageView = buildBlurHashImageViewIfAvailable(pointer: pointer) {
@@ -691,7 +891,11 @@ class StoryItemMediaView: UIView {
 
             return container
         case .text(let text):
-            return TextAttachmentView(attachment: text)
+            return TextAttachmentView(
+                attachment: text,
+                interactionIdentifier: .fromStoryMessage(item.message),
+                spoilerState: spoilerState
+            )
         }
     }
 
@@ -700,9 +904,9 @@ class StoryItemMediaView: UIView {
     }
 
     private var videoPlayerLoopCount = 0
-    private var videoPlayer: OWSVideoPlayer?
+    private var videoPlayer: VideoPlayer?
     private func buildVideoView(originalMediaUrl: URL, shouldLoop: Bool) -> UIView {
-        let player = OWSVideoPlayer(url: originalMediaUrl, shouldLoop: shouldLoop, shouldMixAudioWithOthers: true)
+        let player = VideoPlayer(url: originalMediaUrl, shouldLoop: shouldLoop, shouldMixAudioWithOthers: true)
         player.delegate = self
         self.videoPlayer = player
         updateMuteState()
@@ -810,18 +1014,35 @@ class StoryItemMediaView: UIView {
 
 class StoryItem: NSObject {
     let message: StoryMessage
-    let numberOfReplies: UInt
+    let numberOfReplies: UInt64
     enum Attachment: Equatable {
-        case pointer(TSAttachmentPointer)
-        case stream(TSAttachmentStream)
+        case pointer(TSAttachmentPointer, captionStyles: [NSRangedValue<MessageBodyRanges.CollapsedStyle>])
+        case stream(TSAttachmentStream, captionStyles: [NSRangedValue<MessageBodyRanges.CollapsedStyle>])
         case text(TextAttachment)
     }
     var attachment: Attachment
 
-    init(message: StoryMessage, numberOfReplies: UInt, attachment: Attachment) {
+    init(message: StoryMessage, numberOfReplies: UInt64, attachment: Attachment) {
         self.message = message
         self.numberOfReplies = numberOfReplies
         self.attachment = attachment
+    }
+
+    var caption: StyleOnlyMessageBody? {
+        switch attachment {
+        case let .stream(attachment, captionStyles):
+            guard let text = attachment.caption?.nilIfEmpty else {
+                return nil
+            }
+            return StyleOnlyMessageBody(text: text, collapsedStyles: captionStyles)
+        case let .pointer(attachment, captionStyles):
+            guard let text = attachment.caption?.nilIfEmpty else {
+                return nil
+            }
+            return StyleOnlyMessageBody(text: text, collapsedStyles: captionStyles)
+        case .text:
+            return nil
+        }
     }
 }
 
@@ -830,7 +1051,7 @@ extension StoryItem {
 
     @discardableResult
     func startAttachmentDownloadIfNecessary(completion: (() -> Void)? = nil) -> Bool {
-        guard case .pointer(let pointer) = attachment, ![.enqueued, .downloading].contains(pointer.state) else { return false }
+        guard case .pointer(let pointer, _) = attachment, ![.enqueued, .downloading].contains(pointer.state) else { return false }
 
         attachmentDownloads.enqueueDownloadOfAttachments(
             forStoryMessageId: message.uniqueId,
@@ -853,8 +1074,8 @@ extension StoryItem {
     }
 }
 
-extension StoryItemMediaView: OWSVideoPlayerDelegate {
-    func videoPlayerDidPlayToCompletion(_ videoPlayer: OWSVideoPlayer) {
+extension StoryItemMediaView: VideoPlayerDelegate {
+    func videoPlayerDidPlayToCompletion(_ videoPlayer: VideoPlayer) {
         videoPlayerLoopCount += 1
     }
 }

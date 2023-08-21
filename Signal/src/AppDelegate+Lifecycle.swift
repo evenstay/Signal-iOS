@@ -34,7 +34,7 @@ extension AppDelegate {
         ClearOldTemporaryDirectories()
 
         // Ensure that all windows have the correct frame.
-        windowManager.updateWindowFrames()
+        WindowManager.shared.updateWindowFrames()
 
         Logger.info("applicationDidBecomeActive completed.")
     }
@@ -78,8 +78,12 @@ extension AppDelegate {
 
         Logger.warn("handleActivation.")
 
-        // Always check prekeys after app launches, and sometimes check on app activation.
-        TSPreKeyManager.checkPreKeysIfNecessary()
+        databaseStorage.read { tx in
+            // Always check prekeys after app launches, and sometimes check on app activation.
+            if TSAccountManager.shared.isRegisteredAndReady(transaction: tx) {
+                DependenciesBridge.shared.preKeyManager.checkPreKeysIfNecessary(tx: tx.asV2Read)
+            }
+        }
 
         if !Self.hasActivated {
             Self.hasActivated = true
@@ -96,8 +100,6 @@ extension AppDelegate {
                     // Clean up any messages that expired since last launch immediately
                     // and continue cleaning in the background.
                     self.disappearingMessagesJob.startIfNecessary()
-
-                    self.enableBackgroundRefreshIfNecessary()
                 }
             } else {
                 Logger.info("running post launch block for unregistered user.")
@@ -136,8 +138,9 @@ extension AppDelegate {
         AssertIsOnMainThread()
 
         AppReadiness.runNowOrWhenAppDidBecomeReadySync {
+            let oldBadgeValue = UIApplication.shared.applicationIconBadgeNumber
             AppEnvironment.shared.notificationPresenter.clearAllNotifications()
-            self.messageManager.updateApplicationBadgeCount()
+            UIApplication.shared.applicationIconBadgeNumber = oldBadgeValue
         }
     }
 }

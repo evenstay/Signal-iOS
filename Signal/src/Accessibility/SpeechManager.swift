@@ -4,8 +4,8 @@
 //
 
 import AVFAudio
+import SignalServiceKit
 
-@objc
 public class SpeechManager: NSObject, AVSpeechSynthesizerDelegate {
     private let speechSynthesizer = AVSpeechSynthesizer()
 

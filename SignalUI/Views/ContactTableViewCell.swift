@@ -6,17 +6,14 @@
 import Foundation
 import SignalMessaging
 
-@objc
 open class ContactTableViewCell: UITableViewCell, ReusableTableViewCell {
 
-    @objc
     open class var reuseIdentifier: String { "ContactTableViewCell" }
 
     private let cellView = ContactCellView()
 
     public var tooltipTailReferenceView: UIView { return cellView.tooltipTailReferenceView }
 
-    @objc
     public override var accessoryView: UIView? {
         didSet {
             owsFailDebug("Use ows_setAccessoryView instead.")
@@ -66,7 +63,6 @@ open class ContactTableViewCell: UITableViewCell, ReusableTableViewCell {
         configure(configuration: configuration, transaction: transaction)
     }
 
-    @objc
     open func configure(
         configuration: ContactCellConfiguration,
         transaction: SDSAnyReadTransaction

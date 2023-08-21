@@ -3,75 +3,62 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalCoreKit
+import SignalUI
 
-@objc
 class ThemeSettingsTableViewController: OWSTableViewController2 {
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        title = NSLocalizedString("SETTINGS_APPEARANCE_THEME_TITLE",
+        title = OWSLocalizedString("SETTINGS_APPEARANCE_THEME_TITLE",
                                   comment: "The title for the theme section in the appearance settings.")
 
         updateTableContents()
     }
 
-    func updateTableContents() {
+    private func updateTableContents() {
         let contents = OWSTableContents()
 
         let themeSection = OWSTableSection()
-        themeSection.headerTitle = NSLocalizedString("SETTINGS_APPEARANCE_THEME_TITLE",
-                                                     comment: "The title for the theme section in the appearance settings.")
-
-        if #available(iOS 13, *) {
-            themeSection.add(appearanceItem(.system))
-        }
+        themeSection.add(appearanceItem(.system))
         themeSection.add(appearanceItem(.light))
         themeSection.add(appearanceItem(.dark))
 
-        contents.addSection(themeSection)
+        contents.add(themeSection)
 
         self.contents = contents
     }
 
-    func appearanceItem(_ mode: ThemeMode) -> OWSTableItem {
+    private func appearanceItem(_ mode: Theme.Mode) -> OWSTableItem {
         return OWSTableItem(
-            text: Self.nameForTheme(mode),
+            text: Self.nameForThemeMode(mode),
             actionBlock: { [weak self] in
-                self?.changeTheme(mode)
+                self?.changeThemeMode(mode)
             },
-            accessoryType: Theme.getOrFetchCurrentTheme() == mode ? .checkmark : .none
+            accessoryType: Theme.getOrFetchCurrentMode() == mode ? .checkmark : .none
         )
     }
 
-    func changeTheme(_ mode: ThemeMode) {
-        Theme.setCurrent(mode)
+    private func changeThemeMode(_ mode: Theme.Mode) {
+        Theme.setCurrentMode(mode)
         updateTableContents()
     }
 
     static var currentThemeName: String {
-        return nameForTheme(Theme.getOrFetchCurrentTheme())
+        return nameForThemeMode(Theme.getOrFetchCurrentMode())
     }
 
-    static func nameForTheme(_ mode: ThemeMode) -> String {
+    private static func nameForThemeMode(_ mode: Theme.Mode) -> String {
         switch mode {
         case .dark:
-            return NSLocalizedString("APPEARANCE_SETTINGS_DARK_THEME_NAME",
+            return OWSLocalizedString("APPEARANCE_SETTINGS_DARK_THEME_NAME",
                                      comment: "Name indicating that the dark theme is enabled.")
         case .light:
-            return NSLocalizedString("APPEARANCE_SETTINGS_LIGHT_THEME_NAME",
+            return OWSLocalizedString("APPEARANCE_SETTINGS_LIGHT_THEME_NAME",
                                      comment: "Name indicating that the light theme is enabled.")
         case .system:
-            return NSLocalizedString("APPEARANCE_SETTINGS_SYSTEM_THEME_NAME",
+            return OWSLocalizedString("APPEARANCE_SETTINGS_SYSTEM_THEME_NAME",
                                      comment: "Name indicating that the system theme is enabled.")
-        }
-    }
-
-    @objc
-    func didToggleAvatarPreference(_ sender: UISwitch) {
-        Logger.info("Avatar preference toggled: \(sender.isOn)")
-        SDSDatabaseStorage.shared.asyncWrite { writeTx in
-            SSKPreferences.setPreferContactAvatars(sender.isOn, transaction: writeTx)
         }
     }
 }

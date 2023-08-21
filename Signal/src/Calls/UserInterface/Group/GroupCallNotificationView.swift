@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalRingRTC
+import SignalServiceKit
 
 class GroupCallNotificationView: UIView {
     private let call: SignalCall
@@ -102,21 +102,21 @@ class GroupCallNotificationView: UIView {
 
         layoutIfNeeded()
 
-        firstly(on: .main) {
+        firstly(on: DispatchQueue.main) {
             UIView.animate(.promise, duration: 0.35) {
                 offScreenConstraint.isActive = false
                 onScreenConstraint.isActive = true
 
                 self.layoutIfNeeded()
             }
-        }.then(on: .main) { _ in
+        }.then(on: DispatchQueue.main) { _ in
             UIView.animate(.promise, duration: 0.35, delay: 2, options: .curveEaseInOut) {
                 onScreenConstraint.isActive = false
                 offScreenConstraint.isActive = true
 
                 self.layoutIfNeeded()
             }
-        }.done(on: .main) { _ in
+        }.done(on: DispatchQueue.main) { _ in
             bannerView.removeFromSuperview()
             self.isPresentingNotification = false
             self.presentNextNotificationIfNecessary()
@@ -186,33 +186,33 @@ private class BannerView: UIView {
         let actionText: String
         if displayNames.count > 2 {
             let formatText = action == .join
-                ? NSLocalizedString(
+                ? OWSLocalizedString(
                     "GROUP_CALL_NOTIFICATION_MANY_JOINED_%d", tableName: "PluralAware",
                     comment: "Copy explaining that many new users have joined the group call. Embeds {number of additional members}, {first member name}, {second member name}"
                 )
-                : NSLocalizedString(
+                : OWSLocalizedString(
                     "GROUP_CALL_NOTIFICATION_MANY_LEFT_%d", tableName: "PluralAware",
                     comment: "Copy explaining that many users have left the group call. Embeds {number of additional members}, {first member name}, {second member name}"
                 )
             actionText = String.localizedStringWithFormat(formatText, displayNames.count - 2, displayNames[0], displayNames[1])
         } else if displayNames.count > 1 {
             let formatText = action == .join
-                ? NSLocalizedString(
+                ? OWSLocalizedString(
                     "GROUP_CALL_NOTIFICATION_TWO_JOINED_FORMAT",
                     comment: "Copy explaining that two users have joined the group call. Embeds {first member name}, {second member name}"
                 )
-                : NSLocalizedString(
+                : OWSLocalizedString(
                     "GROUP_CALL_NOTIFICATION_TWO_LEFT_FORMAT",
                     comment: "Copy explaining that two users have left the group call. Embeds {first member name}, {second member name}"
                 )
             actionText = String(format: formatText, displayNames[0], displayNames[1])
         } else {
             let formatText = action == .join
-                ? NSLocalizedString(
+                ? OWSLocalizedString(
                     "GROUP_CALL_NOTIFICATION_ONE_JOINED_FORMAT",
                     comment: "Copy explaining that a user has joined the group call. Embeds {member name}"
                 )
-                : NSLocalizedString(
+                : OWSLocalizedString(
                     "GROUP_CALL_NOTIFICATION_ONE_LEFT_FORMAT",
                     comment: "Copy explaining that a user has left the group call. Embeds {member name}"
                 )
@@ -256,7 +256,7 @@ private class BannerView: UIView {
         hStack.addArrangedSubview(label)
         label.setCompressionResistanceHorizontalHigh()
         label.numberOfLines = 0
-        label.font = UIFont.ows_dynamicTypeSubheadlineClamped.ows_semibold
+        label.font = UIFont.dynamicTypeSubheadlineClamped.semibold()
         label.textColor = .ows_white
         label.text = actionText
 

@@ -3,7 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalServiceKit
+import SignalUI
 
 public class ColorAndWallpaperSettingsViewController: OWSTableViewController2 {
     let thread: TSThread?
@@ -13,50 +14,51 @@ public class ColorAndWallpaperSettingsViewController: OWSTableViewController2 {
 
         NotificationCenter.default.addObserver(
             self,
-            selector: #selector(updateTableContents),
-            name: Wallpaper.wallpaperDidChangeNotification,
+            selector: #selector(wallpaperDidChange(notification:)),
+            name: WallpaperStore.wallpaperDidChangeNotification,
             object: nil
         )
         NotificationCenter.default.addObserver(
             self,
-            selector: #selector(updateTableContents),
-            name: ChatColors.customChatColorsDidChange,
-            object: nil
-        )
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(updateTableContents),
-            name: ChatColors.autoChatColorsDidChange,
-            object: nil
-        )
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(conversationChatColorSettingDidChange),
-            name: ChatColors.conversationChatColorSettingDidChange,
+            selector: #selector(chatColorsDidChange),
+            name: ChatColors.chatColorsDidChangeNotification,
             object: nil
         )
     }
 
+    private var wallpaperViewBuilder: WallpaperViewBuilder?
+
+    private func updateWallpaperViewBuilder() {
+        wallpaperViewBuilder = databaseStorage.read { tx in Wallpaper.viewBuilder(for: thread, tx: tx) }
+    }
+
     @objc
-    private func conversationChatColorSettingDidChange(_ notification: NSNotification) {
-        guard let thread = self.thread else {
-            return
-        }
-        guard let threadUniqueId = notification.userInfo?[ChatColors.conversationChatColorSettingDidChangeThreadUniqueIdKey] as? String else {
-            owsFailDebug("Missing threadUniqueId.")
-            return
-        }
-        guard threadUniqueId == thread.uniqueId else {
-            return
-        }
+    private func wallpaperDidChange(notification: Notification) {
+        guard notification.object == nil || (notification.object as? String) == thread?.uniqueId else { return }
+        updateWallpaperViewBuilder()
+        updateTableContents()
+    }
+
+    private var chatColor: ColorOrGradientSetting!
+
+    private func updateChatColor() {
+        chatColor = databaseStorage.read { tx in ChatColors.resolvedChatColor(for: thread, tx: tx) }
+    }
+
+    @objc
+    private func chatColorsDidChange(_ notification: NSNotification) {
+        guard notification.object == nil || (notification.object as? String) == thread?.uniqueId else { return }
+        updateChatColor()
         updateTableContents()
     }
 
     public override func viewDidLoad() {
         super.viewDidLoad()
 
-        title = NSLocalizedString("COLOR_AND_WALLPAPER_SETTINGS_TITLE", comment: "Title for the color & wallpaper settings view.")
+        title = OWSLocalizedString("COLOR_AND_WALLPAPER_SETTINGS_TITLE", comment: "Title for the color & wallpaper settings view.")
 
+        updateWallpaperViewBuilder()
+        updateChatColor()
         updateTableContents()
     }
 
@@ -70,7 +72,7 @@ public class ColorAndWallpaperSettingsViewController: OWSTableViewController2 {
             let cell = OWSTableItem.newCell()
             cell.selectionStyle = .none
             guard let self = self else { return cell }
-            let miniPreview = MiniPreviewView(thread: self.thread)
+            let miniPreview = MiniPreviewView(wallpaperViewBuilder: self.wallpaperViewBuilder, chatColor: self.chatColor)
             cell.contentView.addSubview(miniPreview)
             miniPreview.autoPinEdge(toSuperviewEdge: .left, withInset: self.cellHOuterLeftMargin)
             miniPreview.autoPinEdge(toSuperviewEdge: .right, withInset: self.cellHOuterRightMargin)
@@ -79,117 +81,116 @@ public class ColorAndWallpaperSettingsViewController: OWSTableViewController2 {
         } actionBlock: {}
         previewSection.add(previewItem)
 
-        contents.addSection(previewSection)
+        contents.add(previewSection)
 
         do {
             let chatColorSection = OWSTableSection()
             chatColorSection.customHeaderHeight = 14
 
-            let chatColor: ChatColor
-            if let thread = self.thread {
-                chatColor = Self.databaseStorage.read { transaction in
-                    ChatColors.chatColorForRendering(thread: thread, transaction: transaction)
-                }
-            } else {
-                chatColor = Self.databaseStorage.read { transaction in
-                    ChatColors.defaultChatColorForRendering(transaction: transaction)
-                }
-            }
-            let defaultColorView = ColorOrGradientSwatchView(setting: chatColor.setting, shapeMode: .circle)
+            let defaultColorView = ColorOrGradientSwatchView(setting: chatColor, shapeMode: .circle)
             defaultColorView.autoSetDimensions(to: .square(16))
             defaultColorView.setContentHuggingHigh()
             defaultColorView.setCompressionResistanceHigh()
             chatColorSection.add(.item(
-                name: NSLocalizedString("WALLPAPER_SETTINGS_SET_CHAT_COLOR",
+                name: OWSLocalizedString("WALLPAPER_SETTINGS_SET_CHAT_COLOR",
                                         comment: "Set chat color action in color and wallpaper settings view."),
                 accessoryType: .disclosureIndicator,
-                accessoryView: defaultColorView,
+                accessoryContentView: defaultColorView,
                 accessibilityIdentifier: UIView.accessibilityIdentifier(in: self, name: "set_chat_color")
             ) { [weak self] in
                 guard let self = self else { return }
-                let vc = ChatColorViewController(thread: self.thread)
-                self.navigationController?.pushViewController(vc, animated: true)
+                let viewController = self.databaseStorage.read { tx in
+                    ChatColorViewController.load(thread: self.thread, tx: tx)
+                }
+                self.navigationController?.pushViewController(viewController, animated: true)
             })
 
             if nil != thread {
-                chatColorSection.add(.actionItem(
-                    name: NSLocalizedString("WALLPAPER_SETTINGS_RESET_CONVERSATION_CHAT_COLOR",
-                                            comment: "Reset conversation chat color action in wallpaper settings view."),
+                chatColorSection.add(.item(
+                    name: OWSLocalizedString(
+                        "WALLPAPER_SETTINGS_RESET_CONVERSATION_CHAT_COLOR",
+                        comment: "Reset conversation chat color action in wallpaper settings view."
+                    ),
                     accessibilityIdentifier: UIView.accessibilityIdentifier(in: self, name: "reset_chat_color")
                 ) { [weak self] in
                     self?.didPressResetConversationChatColor()
                 })
             } else {
-                chatColorSection.add(.actionItem(
-                    name: NSLocalizedString("WALLPAPER_SETTINGS_RESET_DEFAULT_CHAT_COLORS",
-                                            comment: "Reset global chat colors action in wallpaper settings view."),
+                chatColorSection.add(.item(
+                    name: OWSLocalizedString(
+                        "WALLPAPER_SETTINGS_RESET_DEFAULT_CHAT_COLORS",
+                        comment: "Reset global chat colors action in wallpaper settings view."
+                    ),
                     accessibilityIdentifier: UIView.accessibilityIdentifier(in: self, name: "reset_chat_colors")
                 ) { [weak self] in
                     self?.didPressResetGlobalChatColors()
                 })
             }
 
-            contents.addSection(chatColorSection)
+            contents.add(chatColorSection)
         }
 
         let wallpaperSection = OWSTableSection()
         wallpaperSection.customHeaderHeight = 14
 
         wallpaperSection.add(OWSTableItem.disclosureItem(
-            withText: NSLocalizedString("WALLPAPER_SETTINGS_SET_WALLPAPER",
+            withText: OWSLocalizedString("WALLPAPER_SETTINGS_SET_WALLPAPER",
                                         comment: "Set wallpaper action in wallpaper settings view."),
             accessibilityIdentifier: UIView.accessibilityIdentifier(in: self, name: "set_wallpaper")
         ) { [weak self] in
             guard let self = self else { return }
-            let vc = SetWallpaperViewController(thread: self.thread)
-            self.navigationController?.pushViewController(vc, animated: true)
+            let viewController = self.databaseStorage.read { tx in
+                SetWallpaperViewController.load(thread: self.thread, tx: tx)
+            }
+            self.navigationController?.pushViewController(viewController, animated: true)
         })
 
         wallpaperSection.add(OWSTableItem.switch(
-            withText: NSLocalizedString("WALLPAPER_SETTINGS_DIM_WALLPAPER",
+            withText: OWSLocalizedString("WALLPAPER_SETTINGS_DIM_WALLPAPER",
                                         comment: "Dim wallpaper action in wallpaper settings view."),
             accessibilityIdentifier: UIView.accessibilityIdentifier(in: self, name: "dim_wallpaper"),
             isOn: { () -> Bool in
                 self.databaseStorage.read { Wallpaper.dimInDarkMode(for: self.thread, transaction: $0) }
             },
-            isEnabledBlock: {
-                self.databaseStorage.read { Wallpaper.exists(for: self.thread, transaction: $0) }
+            isEnabled: {
+                self.databaseStorage.read { Wallpaper.wallpaperForRendering(for: self.thread, transaction: $0) != nil }
             },
             target: self,
             selector: #selector(updateWallpaperDimming)
         ))
 
         if nil != thread {
-            wallpaperSection.add(.actionItem(
-                name: NSLocalizedString("WALLPAPER_SETTINGS_RESET_CONVERSATION_WALLPAPER",
-                                        comment: "Reset conversation wallpaper action in wallpaper settings view."),
+            wallpaperSection.add(.item(
+                name: OWSLocalizedString(
+                    "WALLPAPER_SETTINGS_RESET_CONVERSATION_WALLPAPER",
+                    comment: "Reset conversation wallpaper action in wallpaper settings view."
+                ),
                 accessibilityIdentifier: UIView.accessibilityIdentifier(in: self, name: "reset_wallpaper")
             ) { [weak self] in
                 self?.didPressResetConversationWallpaper()
             })
         } else {
-            wallpaperSection.add(.actionItem(
-                name: NSLocalizedString("WALLPAPER_SETTINGS_RESET_GLOBAL_WALLPAPER",
-                                        comment: "Reset wallpapers action in wallpaper settings view."),
+            wallpaperSection.add(.item(
+                name: OWSLocalizedString(
+                    "WALLPAPER_SETTINGS_RESET_GLOBAL_WALLPAPER",
+                    comment: "Reset wallpapers action in wallpaper settings view."
+                ),
                 accessibilityIdentifier: UIView.accessibilityIdentifier(in: self, name: "reset_wallpapers")
             ) { [weak self] in
                 self?.didPressResetGlobalWallpapers()
             })
         }
 
-        contents.addSection(wallpaperSection)
+        contents.add(wallpaperSection)
 
         self.contents = contents
     }
 
     @objc
     func updateWallpaperDimming(_ sender: UISwitch) {
-        databaseStorage.asyncWrite { transaction in
-            do {
-                try Wallpaper.setDimInDarkMode(sender.isOn, for: self.thread, transaction: transaction)
-            } catch {
-                owsFailDebug("Failed to set dim in dark mode \(error)")
-            }
+        databaseStorage.asyncWrite { tx in
+            let wallpaperStore = DependenciesBridge.shared.wallpaperStore
+            wallpaperStore.setDimInDarkMode(sender.isOn, for: self.thread?.uniqueId, tx: tx.asV2Write)
         }
     }
 
@@ -199,9 +200,9 @@ public class ColorAndWallpaperSettingsViewController: OWSTableViewController2 {
         owsAssertDebug(thread != nil)
 
         OWSActionSheets.showConfirmationAlert(
-            title: NSLocalizedString("WALLPAPER_SETTINGS_CLEAR_WALLPAPER_CHAT_CONFIRMATION",
+            title: OWSLocalizedString("WALLPAPER_SETTINGS_CLEAR_WALLPAPER_CHAT_CONFIRMATION",
                                      comment: "Confirmation dialog when clearing the wallpaper for a specific chat."),
-            proceedTitle: NSLocalizedString(
+            proceedTitle: OWSLocalizedString(
                 "WALLPAPER_SETTINGS_CLEAR_WALLPAPER",
                 comment: "Clear wallpaper action in wallpaper settings view."
             ),
@@ -213,20 +214,20 @@ public class ColorAndWallpaperSettingsViewController: OWSTableViewController2 {
 
     func didPressResetGlobalWallpapers() {
         let actionSheet = ActionSheetController(
-            title: NSLocalizedString("WALLPAPER_SETTINGS_RESET_WALLPAPERS_CONFIRMATION_TITLE",
+            title: OWSLocalizedString("WALLPAPER_SETTINGS_RESET_WALLPAPERS_CONFIRMATION_TITLE",
                                      comment: "Title of confirmation dialog when resetting the global wallpaper settings."),
-            message: NSLocalizedString("WALLPAPER_SETTINGS_RESET_WALLPAPERS_CONFIRMATION_MESSAGE",
+            message: OWSLocalizedString("WALLPAPER_SETTINGS_RESET_WALLPAPERS_CONFIRMATION_MESSAGE",
                                        comment: "Message of confirmation dialog when resetting the global wallpaper settings.")
         )
 
         actionSheet.addAction(ActionSheetAction(
-            title: NSLocalizedString("WALLPAPER_SETTINGS_RESET_DEFAULT_WALLPAPER",
+            title: OWSLocalizedString("WALLPAPER_SETTINGS_RESET_DEFAULT_WALLPAPER",
                                      comment: "Label for 'reset default wallpaper' action in the global wallpaper settings.")) { [weak self] _ in
             self?.resetWallpaper()
         })
 
         actionSheet.addAction(ActionSheetAction(
-            title: NSLocalizedString("WALLPAPER_SETTINGS_RESET_ALL_WALLPAPERS",
+            title: OWSLocalizedString("WALLPAPER_SETTINGS_RESET_ALL_WALLPAPERS",
                                      comment: "Label for 'reset all wallpapers' action in the global wallpaper settings.")) { [weak self] _ in
             self?.resetAllWallpapers()
         })
@@ -238,42 +239,40 @@ public class ColorAndWallpaperSettingsViewController: OWSTableViewController2 {
 
     func resetWallpaper() {
         let thread = self.thread
-        databaseStorage.asyncWrite { transaction in
+        databaseStorage.asyncWrite { tx in
             do {
-                try Wallpaper.clear(for: thread, transaction: transaction)
+                let wallpaperStore = DependenciesBridge.shared.wallpaperStore
+                try wallpaperStore.reset(for: thread, tx: tx.asV2Write)
             } catch {
                 owsFailDebug("Failed to clear wallpaper with error: \(error)")
                 DispatchQueue.main.async {
                     OWSActionSheets.showErrorAlert(
-                        message: NSLocalizedString("WALLPAPER_SETTINGS_FAILED_TO_CLEAR",
+                        message: OWSLocalizedString("WALLPAPER_SETTINGS_FAILED_TO_CLEAR",
                                                    comment: "An error indicating to the user that we failed to clear the wallpaper.")
                     )
                 }
             }
-            transaction.addAsyncCompletionOnMain {
-                AssertIsOnMainThread()
-
+            tx.addAsyncCompletionOnMain {
                 self.updateTableContents()
             }
         }
     }
 
     private func resetAllWallpapers() {
-        databaseStorage.asyncWrite { transaction in
+        databaseStorage.asyncWrite { tx in
             do {
-                try Wallpaper.resetAll(transaction: transaction)
+                let wallpaperStore = DependenciesBridge.shared.wallpaperStore
+                try wallpaperStore.resetAll(tx: tx.asV2Write)
             } catch {
                 owsFailDebug("Failed to reset all wallpapers with error: \(error)")
                 DispatchQueue.main.async {
                     OWSActionSheets.showErrorAlert(
-                        message: NSLocalizedString("WALLPAPER_SETTINGS_FAILED_TO_RESET",
+                        message: OWSLocalizedString("WALLPAPER_SETTINGS_FAILED_TO_RESET",
                                                    comment: "An error indicating to the user that we failed to reset all wallpapers.")
                     )
                 }
             }
-            transaction.addAsyncCompletionOnMain {
-                AssertIsOnMainThread()
-
+            tx.addAsyncCompletionOnMain {
                 self.updateTableContents()
             }
         }
@@ -285,9 +284,9 @@ public class ColorAndWallpaperSettingsViewController: OWSTableViewController2 {
         owsAssertDebug(thread != nil)
 
         OWSActionSheets.showConfirmationAlert(
-            title: NSLocalizedString("WALLPAPER_SETTINGS_CLEAR_CHAT_COLOR_CHAT_CONFIRMATION",
+            title: OWSLocalizedString("WALLPAPER_SETTINGS_CLEAR_CHAT_COLOR_CHAT_CONFIRMATION",
                                      comment: "Confirmation dialog when clearing the chat color for a specific chat."),
-            proceedTitle: NSLocalizedString(
+            proceedTitle: OWSLocalizedString(
                 "WALLPAPER_SETTINGS_CLEAR_CHAT_COLOR",
                 comment: "Clear chat color action in wallpaper settings view."
             ),
@@ -299,20 +298,20 @@ public class ColorAndWallpaperSettingsViewController: OWSTableViewController2 {
 
     func didPressResetGlobalChatColors() {
         let actionSheet = ActionSheetController(
-            title: NSLocalizedString("WALLPAPER_SETTINGS_RESET_CHAT_COLORS_CONFIRMATION_TITLE",
+            title: OWSLocalizedString("WALLPAPER_SETTINGS_RESET_CHAT_COLORS_CONFIRMATION_TITLE",
                                      comment: "Title of confirmation dialog when resetting the global wallpaper settings."),
-            message: NSLocalizedString("WALLPAPER_SETTINGS_RESET_CHAT_COLORS_CONFIRMATION_MESSAGE",
+            message: OWSLocalizedString("WALLPAPER_SETTINGS_RESET_CHAT_COLORS_CONFIRMATION_MESSAGE",
                                        comment: "Message of confirmation dialog when resetting the global wallpaper settings.")
         )
 
         actionSheet.addAction(ActionSheetAction(
-            title: NSLocalizedString("WALLPAPER_SETTINGS_RESET_DEFAULT_CHAT_COLOR",
+            title: OWSLocalizedString("WALLPAPER_SETTINGS_RESET_DEFAULT_CHAT_COLOR",
                                      comment: "Label for 'reset default chat color' action in the global wallpaper settings.")) { [weak self] _ in
             self?.resetChatColor()
         })
 
         actionSheet.addAction(ActionSheetAction(
-            title: NSLocalizedString("WALLPAPER_SETTINGS_RESET_ALL_CHAT_COLORS",
+            title: OWSLocalizedString("WALLPAPER_SETTINGS_RESET_ALL_CHAT_COLORS",
                                      comment: "Label for 'reset all chat colors' action in the global wallpaper settings.")) { [weak self] _ in
             self?.resetAllChatColors()
         })
@@ -323,49 +322,25 @@ public class ColorAndWallpaperSettingsViewController: OWSTableViewController2 {
     }
 
     func resetChatColor() {
-        let thread = self.thread
-        databaseStorage.asyncWrite { transaction in
-            if let thread = thread {
-                ChatColors.setChatColorSetting(nil, thread: thread, transaction: transaction)
-            } else {
-                ChatColors.setDefaultChatColorSetting(nil, transaction: transaction)
-            }
-            transaction.addAsyncCompletionOnMain {
-                AssertIsOnMainThread()
-
-                self.updateTableContents()
-            }
-        }
+        databaseStorage.asyncWrite { [thread] tx in ChatColors.setChatColorSetting(.auto, for: thread, tx: tx) }
     }
 
     private func resetAllChatColors() {
-        databaseStorage.asyncWrite { transaction in
-            ChatColors.resetAllSettings(transaction: transaction)
-
-            transaction.addAsyncCompletionOnMain {
-                AssertIsOnMainThread()
-
-                self.updateTableContents()
-            }
-        }
+        databaseStorage.asyncWrite { tx in ChatColors.resetAllSettings(transaction: tx) }
     }
 }
 
 // MARK: -
 
 private class MiniPreviewView: UIView {
-    private let thread: TSThread?
     private let hasWallpaper: Bool
+    private let chatColor: ColorOrGradientSetting
 
-    init(thread: TSThread?) {
-        self.thread = thread
-
+    init(wallpaperViewBuilder: WallpaperViewBuilder?, chatColor: ColorOrGradientSetting) {
         let hasWallpaper: Bool
         let stackViewContainer: UIView
-        if let wallpaperView = (Self.databaseStorage.read { transaction in
-            Wallpaper.view(for: thread, transaction: transaction)
-        }) {
-            stackViewContainer = wallpaperView.asPreviewView()
+        if let wallpaperViewBuilder {
+            stackViewContainer = wallpaperViewBuilder.build().asPreviewView()
             hasWallpaper = true
         } else {
             stackViewContainer = UIView()
@@ -373,6 +348,7 @@ private class MiniPreviewView: UIView {
             hasWallpaper = false
         }
         self.hasWallpaper = hasWallpaper
+        self.chatColor = chatColor
 
         super.init(frame: .zero)
 
@@ -442,16 +418,8 @@ private class MiniPreviewView: UIView {
     }
 
     func buildOutgoingBubble() -> UIView {
-        let chatColor: ChatColor = databaseStorage.read { transaction in
-            if let thread = self.thread {
-                return ChatColors.chatColorForRendering(thread: thread,
-                                                        transaction: transaction)
-            } else {
-                return ChatColors.defaultChatColorForRendering(transaction: transaction)
-            }
-        }
         let chatColorView = CVColorOrGradientView()
-        chatColorView.configure(value: chatColor.setting.asValue, referenceView: self)
+        chatColorView.configure(value: chatColor.asValue, referenceView: self)
 
         let bubbleView = UIView()
         bubbleView.layer.cornerRadius = 10
@@ -481,11 +449,9 @@ private class MiniPreviewView: UIView {
         hStackView.autoSetDimension(.height, toSize: 14)
         vStackView.addArrangedSubview(hStackView)
 
-        let backImage = CurrentAppContext().isRTL ? #imageLiteral(resourceName: "NavBarBackRTL") : #imageLiteral(resourceName: "NavBarBack")
-
         let backImageView = UIImageView()
         backImageView.contentMode = .scaleAspectFit
-        backImageView.setTemplateImage(backImage, tintColor: Theme.primaryIconColor)
+        backImageView.setTemplateImage(UIImage(imageLiteralResourceName: "NavBarBack"), tintColor: Theme.primaryIconColor)
         backImageView.autoSetDimension(.width, toSize: 10)
         hStackView.addArrangedSubview(backImageView)
 
@@ -498,9 +464,9 @@ private class MiniPreviewView: UIView {
         hStackView.addArrangedSubview(.spacer(withWidth: 4))
 
         let contactNameLabel = UILabel()
-        contactNameLabel.font = .ows_semiboldFont(withSize: 8)
+        contactNameLabel.font = .semiboldFont(ofSize: 8)
         contactNameLabel.textColor = Theme.primaryTextColor
-        contactNameLabel.text = NSLocalizedString(
+        contactNameLabel.text = OWSLocalizedString(
             "WALLPAPER_MINI_PREVIEW_CONTACT_NAME",
             comment: "Placeholder text for header of the wallpaper mini preview"
         )
@@ -511,7 +477,7 @@ private class MiniPreviewView: UIView {
         let videoCallImageView = UIImageView()
         videoCallImageView.contentMode = .scaleAspectFit
         videoCallImageView.autoSetDimension(.width, toSize: 10)
-        videoCallImageView.setTemplateImageName(Theme.iconName(.videoCall), tintColor: Theme.primaryIconColor)
+        videoCallImageView.setTemplateImageName(Theme.iconName(.buttonVideoCall), tintColor: Theme.primaryIconColor)
         hStackView.addArrangedSubview(videoCallImageView)
 
         hStackView.addArrangedSubview(.spacer(withWidth: 8))
@@ -519,7 +485,7 @@ private class MiniPreviewView: UIView {
         let audioCallImageView = UIImageView()
         audioCallImageView.contentMode = .scaleAspectFit
         audioCallImageView.autoSetDimension(.width, toSize: 10)
-        audioCallImageView.setTemplateImageName(Theme.iconName(.audioCall), tintColor: Theme.primaryIconColor)
+        audioCallImageView.setTemplateImageName(Theme.iconName(.buttonVoiceCall), tintColor: Theme.primaryIconColor)
         hStackView.addArrangedSubview(audioCallImageView)
 
         return vStackView
@@ -534,7 +500,7 @@ private class MiniPreviewView: UIView {
 
         let plusImageView = UIImageView()
         plusImageView.contentMode = .scaleAspectFit
-        plusImageView.setTemplateImageName("plus-24", tintColor: Theme.primaryIconColor)
+        plusImageView.setTemplateImageName("plus", tintColor: Theme.primaryIconColor)
         plusImageView.autoSetDimension(.width, toSize: 10)
         stackView.addArrangedSubview(plusImageView)
 
@@ -549,7 +515,7 @@ private class MiniPreviewView: UIView {
         let cameraImageView = UIImageView()
         cameraImageView.contentMode = .scaleAspectFit
         cameraImageView.autoSetDimension(.width, toSize: 10)
-        cameraImageView.setTemplateImageName(Theme.iconName(.cameraButton), tintColor: Theme.primaryIconColor)
+        cameraImageView.setTemplateImageName(Theme.iconName(.buttonCamera), tintColor: Theme.primaryIconColor)
         stackView.addArrangedSubview(cameraImageView)
 
         stackView.addArrangedSubview(.spacer(withWidth: 8))
@@ -557,7 +523,7 @@ private class MiniPreviewView: UIView {
         let microphoneImageView = UIImageView()
         microphoneImageView.contentMode = .scaleAspectFit
         microphoneImageView.autoSetDimension(.width, toSize: 10)
-        microphoneImageView.setTemplateImageName(Theme.iconName(.micButton), tintColor: Theme.primaryIconColor)
+        microphoneImageView.setTemplateImageName(Theme.iconName(.buttonMicrophone), tintColor: Theme.primaryIconColor)
         stackView.addArrangedSubview(microphoneImageView)
 
         return stackView

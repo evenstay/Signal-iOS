@@ -29,7 +29,7 @@ public class AudioWaveformManager: NSObject {
     private override init() {}
 
     @objc
-    public static func audioWaveform(forAttachment attachment: TSAttachmentStream) -> AudioWaveform? {
+    public static func audioWaveform(forAttachment attachment: TSAttachmentStream, highPriority: Bool) -> AudioWaveform? {
         unfairLock.withLock {
             let attachmentId = attachment.uniqueId
 
@@ -56,7 +56,8 @@ public class AudioWaveformManager: NSObject {
             guard let value = buildAudioWaveForm(
                 forAudioPath: originalFilePath,
                 waveformPath: audioWaveformPath,
-                identifier: attachmentId
+                identifier: attachmentId,
+                highPriority: highPriority
             ) else {
                 return nil
             }
@@ -73,7 +74,8 @@ public class AudioWaveformManager: NSObject {
             guard let value = buildAudioWaveForm(
                     forAudioPath: audioPath,
                     waveformPath: waveformPath,
-                    identifier: UUID().uuidString
+                    identifier: UUID().uuidString,
+                    highPriority: false
             ) else {
                 return nil
             }
@@ -82,8 +84,12 @@ public class AudioWaveformManager: NSObject {
     }
 
     // This method should only be called with unfairLock acquired.
-    private static func buildAudioWaveForm(forAudioPath audioPath: String, waveformPath: String, identifier: String) -> AudioWaveform? {
-
+    private static func buildAudioWaveForm(
+        forAudioPath audioPath: String,
+        waveformPath: String,
+        identifier: String,
+        highPriority: Bool
+    ) -> AudioWaveform? {
         if FileManager.default.fileExists(atPath: waveformPath) {
             // We have a cached waveform on disk, read it into memory.
             do {
@@ -96,26 +102,45 @@ public class AudioWaveformManager: NSObject {
             }
         }
 
-        var asset = AVURLAsset(url: URL(fileURLWithPath: audioPath))
+        let audioUrl = URL(fileURLWithPath: audioPath)
 
-        // If the asset isn't readable, we may not be able to generate a waveform for this file.
-        //
-        // Android sends voice messages in a hacky m4a container that we can't process
-        // when it has the m4a extension. If we hint to the OS that it's an AAC file with
-        // the file extension, we can. This is pretty brittle and hopefully android will
-        // be able to fix the issue in the future in which case `isReadable` will become
-        // true and this path will no longer be hit.
-        if !asset.isReadable, audioPath.hasSuffix("m4a") {
+        var asset = AVURLAsset(url: audioUrl)
 
-            let symlinkPath = OWSFileSystem.temporaryFilePath(fileExtension: "aac", isAvailableWhileDeviceLocked: true)
-            do {
-                try FileManager.default.createSymbolicLink(atPath: symlinkPath,
-                                                           withDestinationPath: audioPath)
-            } catch {
-                owsFailDebug("Failed to create voice memo symlink: \(error)")
-                return nil
+        if !asset.isReadable {
+            // In some cases, Android sends audio messages with the "audio/mpeg" content type. This
+            // makes our choice of file extension ambiguous—`.mp3` or `.m4a`? AVFoundation uses the
+            // extension to read the file, and if the extension is wrong, it won't be readable.
+            //
+            // We "lie" about the extension to generate the waveform so that AVFoundation may read
+            // it. This is brittle but necessary to work around the buggy marriage of Android's
+            // content type and AVFoundation's behavior.
+            //
+            // Note that we probably still want this code even if Android updates theirs, because
+            // iOS users might have existing attachments.
+            //
+            // See a similar comment in `AudioPlayer` and
+            // <https://github.com/signalapp/Signal-iOS/issues/3590>.
+            let extensionOverride: String?
+            switch audioUrl.pathExtension {
+            case "m4a": extensionOverride = "aac"
+            case "mp3": extensionOverride = "m4a"
+            default: extensionOverride = nil
             }
-            asset = AVURLAsset(url: URL(fileURLWithPath: symlinkPath))
+
+            if let extensionOverride {
+                let symlinkPath = OWSFileSystem.temporaryFilePath(
+                    fileExtension: extensionOverride,
+                    isAvailableWhileDeviceLocked: true
+                )
+                do {
+                    try FileManager.default.createSymbolicLink(atPath: symlinkPath,
+                                                               withDestinationPath: audioPath)
+                } catch {
+                    owsFailDebug("Failed to create voice memo symlink: \(error)")
+                    return nil
+                }
+                asset = AVURLAsset(url: URL(fileURLWithPath: symlinkPath))
+            }
         }
 
         guard asset.isReadable else {
@@ -138,7 +163,7 @@ public class AudioWaveformManager: NSObject {
         observerMap[identifier] = observer
         waveform.addSamplingObserver(observer)
 
-        waveform.beginSampling(for: asset)
+        waveform.beginSampling(for: asset, highPriority: highPriority)
 
         return waveform
     }
@@ -219,7 +244,7 @@ public class AudioWaveform: NSObject {
             throw OWSAssertionError("can't write incomplete waveform to file \(filePath)")
         }
 
-        let archivedData = NSKeyedArchiver.archivedData(withRootObject: decibelSamples)
+        let archivedData = try NSKeyedArchiver.archivedData(withRootObject: decibelSamples, requiringSecureCoding: false)
         try archivedData.write(to: URL(fileURLWithPath: filePath), options: atomically ? .atomicWrite : .init())
     }
 
@@ -287,17 +312,51 @@ public class AudioWaveform: NSObject {
     fileprivate static let maximumDuration: TimeInterval = 15 * kMinuteInterval
 
     private weak var sampleOperation: Operation?
+    private static var operationDequeue = AtomicArray<AudioWaveformSamplingOperation>()
 
-    fileprivate func beginSampling(for asset: AVAsset) {
+    fileprivate func beginSampling(for asset: AVAsset, highPriority: Bool) {
         owsAssertDebug(sampleOperation == nil)
 
-        let operation = AudioWaveformSamplingOperation(asset: asset) { [weak self] samples in
+        let innerOperation = AudioWaveformSamplingOperation(asset: asset) { [weak self] samples in
             guard let self = self else { return }
             self.decibelSamples = samples
             self.notifyObserversOfSamplingCompletion()
         }
-        AudioWaveformSamplingOperation.operationQueue.addOperation(operation)
-        sampleOperation = operation
+
+        class WrapperOperation: Operation {
+            static let operationQueue: OperationQueue = {
+                let operationQueue = OperationQueue()
+                operationQueue.name = "AudioWaveformSamplingWrapper"
+                operationQueue.maxConcurrentOperationCount = 1
+                operationQueue.qualityOfService = .utility
+                return operationQueue
+            }()
+
+            private let closure: () -> Void
+            init(_ closure: @escaping () -> Void) {
+                self.closure = closure
+            }
+            override func main() {
+                closure()
+            }
+        }
+        let outerOperation = WrapperOperation {
+            guard let operation = Self.operationDequeue.popHead() else {
+                return
+            }
+            guard !operation.isCancelled else {
+                return
+            }
+            AudioWaveformSamplingOperation.operationQueue.addOperation(operation)
+            operation.waitUntilFinished()
+        }
+        if highPriority {
+            Self.operationDequeue.pushHead(innerOperation)
+        } else {
+            Self.operationDequeue.pushTail(innerOperation)
+        }
+        WrapperOperation.operationQueue.addOperation(outerOperation)
+        sampleOperation = innerOperation
     }
 
     private func downsample(samples: [Float], toSampleCount sampleCount: Int) -> [Float] {
@@ -384,7 +443,7 @@ private class AudioWaveformSamplingOperation: Operation {
 
     static let operationQueue: OperationQueue = {
         let operationQueue = OperationQueue()
-        operationQueue.name = "org.signal.AudioWaveformSampling"
+        operationQueue.name = "AudioWaveformSampling"
         operationQueue.maxConcurrentOperationCount = 1
         operationQueue.qualityOfService = .utility
         return operationQueue

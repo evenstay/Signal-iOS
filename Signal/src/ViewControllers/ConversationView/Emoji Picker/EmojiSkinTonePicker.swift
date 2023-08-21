@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalMessaging
+import SignalUI
 
 class EmojiSkinTonePicker: UIView {
     let emoji: Emoji
@@ -21,7 +21,7 @@ class EmojiSkinTonePicker: UIView {
     ) -> EmojiSkinTonePicker? {
         guard emoji.baseEmoji.hasSkinTones else { return nil }
 
-        ImpactHapticFeedback.impactOccured(style: .light)
+        ImpactHapticFeedback.impactOccurred(style: .light)
 
         let picker = EmojiSkinTonePicker(emoji: emoji, completion: completion)
 

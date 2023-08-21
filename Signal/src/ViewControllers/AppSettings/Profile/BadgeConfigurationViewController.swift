@@ -3,10 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalMessaging
 import SignalUI
-import UIKit
 
 enum BadgeConfiguration {
     case doNotDisplayPublicly
@@ -100,11 +98,7 @@ class BadgeConfigurationViewController: OWSTableViewController2, BadgeCollection
 
         if hasUnsavedChanges, showDismissalActivity {
             let indicatorStyle: UIActivityIndicatorView.Style
-            if #available(iOS 13, *) {
-                indicatorStyle = .medium
-            } else {
-                indicatorStyle = Theme.isDarkThemeEnabled ? .white : .gray
-            }
+            indicatorStyle = .medium
             let spinner = UIActivityIndicatorView(style: indicatorStyle)
             spinner.startAnimating()
             navigationItem.rightBarButtonItem = UIBarButtonItem(customView: spinner)
@@ -121,7 +115,7 @@ class BadgeConfigurationViewController: OWSTableViewController2, BadgeCollection
     }
 
     @objc
-    func didTapCancel() {
+    private func didTapCancel() {
         let requestDismissal: () -> Void = { [weak self] in
             guard let self = self else { return }
             self.badgeConfigDelegate?.badgeConfirmationDidCancel(self)
@@ -135,7 +129,7 @@ class BadgeConfigurationViewController: OWSTableViewController2, BadgeCollection
     }
 
     @objc
-    func didTapDone() {
+    private func didTapDone() {
         if displayBadgeOnProfile, let selectedPrimaryBadge = selectedPrimaryBadge {
             badgeConfigDelegate?.badgeConfiguration(self, didCompleteWithBadgeSetting: .display(featuredBadge: selectedPrimaryBadge))
         } else {
@@ -152,10 +146,10 @@ class BadgeConfigurationViewController: OWSTableViewController2, BadgeCollection
 
     func updateTableContents() {
         self.contents = OWSTableContents(
-            title: NSLocalizedString("BADGE_CONFIGURATION_TITLE", comment: "The title for the badge configuration page"),
+            title: OWSLocalizedString("BADGE_CONFIGURATION_TITLE", comment: "The title for the badge configuration page"),
             sections: [
                 OWSTableSection(
-                    title: NSLocalizedString(
+                    title: OWSLocalizedString(
                         "BADGE_CONFIGURATION_BADGE_SECTION_TITLE",
                         comment: "Section header for badge view section in the badge configuration page"),
                     items: [
@@ -184,7 +178,7 @@ class BadgeConfigurationViewController: OWSTableViewController2, BadgeCollection
 
                 OWSTableSection(title: nil, items: [
                     .switch(
-                        withText: NSLocalizedString(
+                        withText: OWSLocalizedString(
                             "DISPLAY_BADGES_ON_PROFILE_SETTING",
                             comment: "Title for switch to enable sharing of badges publicly"),
                         isOn: { [weak self] in self?.displayBadgeOnProfile ?? false },
@@ -192,7 +186,7 @@ class BadgeConfigurationViewController: OWSTableViewController2, BadgeCollection
                         selector: #selector(didTogglePublicDisplaySetting(_:))),
 
                     .item(
-                        name: NSLocalizedString(
+                        name: OWSLocalizedString(
                             "FEATURED_BADGE_SETTINGS_TITLE",
                             comment: "The title for the featured badge settings page"),
                         textColor: displayBadgeOnProfile ? nil : .ows_gray45,
@@ -211,7 +205,7 @@ class BadgeConfigurationViewController: OWSTableViewController2, BadgeCollection
     }
 
     @objc
-    func didTogglePublicDisplaySetting(_ sender: UISwitch) {
+    private func didTogglePublicDisplaySetting(_ sender: UISwitch) {
         displayBadgeOnProfile = sender.isOn
     }
 

@@ -3,22 +3,24 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalServiceKit
+import SignalUI
 
-@objc
 public class ArchivedConversationsCell: UITableViewCell {
-    @objc
+
     public static let reuseIdentifier = "ArchivedConversationsCell"
 
     private let label = UILabel()
+    private let disclosureImageView = UIImageView(image: UIImage(imageLiteralResourceName: "chevron-right-20"))
 
     var enabled = true {
         didSet {
             if enabled {
-                label.textColor = Theme.isDarkThemeEnabled ? .ows_gray05 : .ows_gray90
+                label.textColor = Theme.primaryTextColor
             } else {
-                label.textColor = Theme.isDarkThemeEnabled ? .ows_gray60 : .ows_gray25
+                label.textColor = Theme.secondaryTextAndIconColor
             }
+            disclosureImageView.tintColor = label.textColor
         }
     }
 
@@ -37,13 +39,11 @@ public class ArchivedConversationsCell: UITableViewCell {
     private func commonInit() {
         self.selectionStyle = .none
 
-        let disclosureImageName = CurrentAppContext().isRTL ? "NavBarBack" : "NavBarBackRTL"
-        let disclosureImageView = UIImageView.withTemplateImageName(disclosureImageName,
-                                                                    tintColor: UIColor(rgbHex: 0xd1d1d6))
+        disclosureImageView.tintColor = Theme.primaryTextColor
         disclosureImageView.setContentHuggingHigh()
         disclosureImageView.setCompressionResistanceHigh()
 
-        label.text = NSLocalizedString("HOME_VIEW_ARCHIVED_CONVERSATIONS",
+        label.text = OWSLocalizedString("HOME_VIEW_ARCHIVED_CONVERSATIONS",
                                        comment: "Label for 'archived conversations' button.")
         label.textAlignment = .center
 
@@ -69,7 +69,7 @@ public class ArchivedConversationsCell: UITableViewCell {
 
     func configure(enabled: Bool) {
         OWSTableItem.configureCell(self)
-        label.font = .ows_dynamicTypeBody
+        label.font = .dynamicTypeBody
         self.enabled = enabled
         NotificationCenter.default.removeObserver(self)
         NotificationCenter.default.addObserver(self,
@@ -78,7 +78,6 @@ public class ArchivedConversationsCell: UITableViewCell {
                                                object: nil)
     }
 
-    @objc
     public override func prepareForReuse() {
         NotificationCenter.default.removeObserver(self)
         super.prepareForReuse()

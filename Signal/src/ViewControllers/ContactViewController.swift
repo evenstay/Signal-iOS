@@ -3,13 +3,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
-import SignalServiceKit
-import SignalMessaging
 import ContactsUI
 import MessageUI
+import SignalMessaging
+import SignalServiceKit
+import SignalUI
 
-class ContactViewController: OWSViewController, ContactShareViewHelperDelegate {
+class ContactViewController: OWSViewController, ContactShareViewHelperDelegate, OWSNavigationChildController {
 
     enum ContactViewMode {
         case systemContactWithSignal,
@@ -35,11 +35,8 @@ class ContactViewController: OWSViewController, ContactShareViewHelperDelegate {
 
     private var contactShareViewHelper: ContactShareViewHelper
 
-    private weak var postDismissNavigationController: UINavigationController?
-
     // MARK: - Initializers
 
-    @objc
     required init(contactShare: ContactShareViewModel) {
         self.contactShare = contactShare
         self.contactShareViewHelper = ContactShareViewHelper()
@@ -62,39 +59,13 @@ class ContactViewController: OWSViewController, ContactShareViewHelperDelegate {
 
     // MARK: - View Lifecycle
 
+    var prefersNavigationBarHidden: Bool { true }
+
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
 
-        guard let navigationController = self.navigationController else {
-            owsFailDebug("navigationController was unexpectedly nil")
-            return
-        }
-
-        // self.navigationController is nil in viewWillDisappear when transition via message/call buttons
-        // so we maintain our own reference to restore the navigation bars.
-        postDismissNavigationController = navigationController
-        navigationController.isNavigationBarHidden = true
-
-        contactsManagerImpl.requestSystemContactsOnce(completion: { [weak self] _ in
-            guard let strongSelf = self else { return }
-            strongSelf.updateMode()
-        })
-    }
-
-    override func viewWillDisappear(_ animated: Bool) {
-        super.viewWillDisappear(animated)
-
-        if self.presentedViewController == nil {
-            // No need to do this when we're disappearing due to a modal presentation.
-            // We'll eventually return to to this view and need to hide again. But also, there is a visible
-            // animation glitch where the navigation bar for this view controller starts to appear while
-            // the whole nav stack is about to be obscured by the modal we are presenting.
-            guard let postDismissNavigationController = self.postDismissNavigationController else {
-                owsFailDebug("postDismissNavigationController was unexpectedly nil")
-                return
-            }
-
-            postDismissNavigationController.setNavigationBarHidden(false, animated: animated)
+        contactsManagerImpl.requestSystemContactsOnce { [weak self] _ in
+            self?.updateMode()
         }
     }
 
@@ -211,14 +182,9 @@ class ContactViewController: OWSViewController, ContactShareViewHelperDelegate {
         backButton.autoPinEdge(toSuperviewEdge: .top)
         backButton.autoPinLeadingToSuperviewMargin()
 
-        let backIconName = (CurrentAppContext().isRTL ? "system_disclosure_indicator" : "system_disclosure_indicator_rtl")
-        guard let backIconImage = UIImage(named: backIconName) else {
-            owsFailDebug("missing icon.")
-            return topView
-        }
-        let backIconView = UIImageView(image: backIconImage.withRenderingMode(.alwaysTemplate))
+        let backIconView = UIImageView(image: UIImage(imageLiteralResourceName: "NavBarBack"))
         backIconView.contentMode = .scaleAspectFit
-        backIconView.tintColor = Theme.primaryTextColor.withAlphaComponent(0.6)
+        backIconView.tintColor = Theme.primaryIconColor
         backButton.addSubview(backIconView)
         backIconView.autoCenterInSuperview()
 
@@ -233,7 +199,7 @@ class ContactViewController: OWSViewController, ContactShareViewHelperDelegate {
 
         let nameLabel = UILabel()
         nameLabel.text = contactShare.displayName
-        nameLabel.font = UIFont.ows_dynamicTypeTitle1
+        nameLabel.font = UIFont.dynamicTypeTitle1
         nameLabel.textColor = Theme.primaryTextColor
         nameLabel.lineBreakMode = .byTruncatingTail
         nameLabel.textAlignment = .center
@@ -247,7 +213,7 @@ class ContactViewController: OWSViewController, ContactShareViewHelperDelegate {
         for phoneNumber in systemContactsWithSignalAccountsForContact() {
             let phoneNumberLabel = UILabel()
             phoneNumberLabel.text = PhoneNumber.bestEffortLocalizedPhoneNumber(withE164: phoneNumber)
-            phoneNumberLabel.font = UIFont.ows_dynamicTypeFootnote
+            phoneNumberLabel.font = UIFont.dynamicTypeFootnote
             phoneNumberLabel.textColor = Theme.primaryTextColor
             phoneNumberLabel.lineBreakMode = .byTruncatingTail
             phoneNumberLabel.textAlignment = .center
@@ -264,26 +230,32 @@ class ContactViewController: OWSViewController, ContactShareViewHelperDelegate {
             let stackView = UIStackView()
             stackView.axis = .horizontal
             stackView.distribution = .fillEqually
-            stackView.addArrangedSubview(createCircleActionButton(text: CommonStrings.sendMessage,
-                                                                  imageName: "contact_view_message",
-                                                                  actionBlock: { [weak self] in
-                                                                    guard let strongSelf = self else { return }
-                                                                    strongSelf.didPressSendMessage()
-            }))
-                stackView.addArrangedSubview(createCircleActionButton(text: NSLocalizedString("ACTION_AUDIO_CALL",
-                                                                                              comment: "Label for 'audio call' button in contact view."),
-                                                                      imageName: "contact_view_audio_call",
-                                                                      actionBlock: { [weak self] in
-                                                                        guard let strongSelf = self else { return }
-                                                                        strongSelf.didPressAudioCall()
-                }))
-                stackView.addArrangedSubview(createCircleActionButton(text: NSLocalizedString("ACTION_VIDEO_CALL",
-                                                                                              comment: "Label for 'video call' button in contact view."),
-                                                                      imageName: "contact_view_video_call",
-                                                                      actionBlock: { [weak self] in
-                                                                        guard let strongSelf = self else { return }
-                                                                        strongSelf.didPressVideoCall()
-                }))
+            stackView.addArrangedSubview(createCircleActionButton(
+                text: CommonStrings.sendMessage,
+                image: Theme.iconImage(.buttonMessage),
+                actionBlock: { [weak self] in
+                    guard let strongSelf = self else { return }
+                    strongSelf.didPressSendMessage()
+                }
+            ))
+            stackView.addArrangedSubview(createCircleActionButton(
+                text: OWSLocalizedString("ACTION_AUDIO_CALL",
+                                         comment: "Label for 'voice call' button in contact view."),
+                image: Theme.iconImage(.buttonVoiceCall),
+                actionBlock: { [weak self] in
+                    guard let strongSelf = self else { return }
+                    strongSelf.didPressAudioCall()
+                }
+            ))
+            stackView.addArrangedSubview(createCircleActionButton(
+                text: OWSLocalizedString("ACTION_VIDEO_CALL",
+                                         comment: "Label for 'video call' button in contact view."),
+                image: Theme.iconImage(.buttonVideoCall),
+                actionBlock: { [weak self] in
+                    guard let strongSelf = self else { return }
+                    strongSelf.didPressVideoCall()
+                }
+            ))
             topView.addSubview(stackView)
             stackView.autoPinEdge(.top, to: .bottom, of: lastView, withOffset: 20)
             stackView.autoPinLeadingToSuperviewMargin(withInset: hMargin)
@@ -291,7 +263,7 @@ class ContactViewController: OWSViewController, ContactShareViewHelperDelegate {
             lastView = stackView
         case .systemContactWithoutSignal:
             // Show invite button for system contacts without a Signal account.
-            let inviteButton = createLargePillButton(text: NSLocalizedString("ACTION_INVITE",
+            let inviteButton = createLargePillButton(text: OWSLocalizedString("ACTION_INVITE",
                                                                              comment: "Label for 'invite' button in contact view."),
                                                      actionBlock: { [weak self] in
                                                         guard let strongSelf = self else { return }
@@ -309,7 +281,7 @@ class ContactViewController: OWSViewController, ContactShareViewHelperDelegate {
             // Show no action buttons for contacts without a phone number.
             break
         case .unknown:
-            let activityIndicator = UIActivityIndicatorView(style: .whiteLarge)
+            let activityIndicator = UIActivityIndicatorView(style: .large)
             topView.addSubview(activityIndicator)
             activityIndicator.autoPinEdge(.top, to: .bottom, of: lastView, withOffset: 10)
             activityIndicator.autoHCenterInSuperview()
@@ -317,7 +289,7 @@ class ContactViewController: OWSViewController, ContactShareViewHelperDelegate {
         }
 
         // Always show "add to contacts" button.
-        let addToContactsButton = createLargePillButton(text: NSLocalizedString("CONVERSATION_VIEW_ADD_TO_CONTACTS_OFFER",
+        let addToContactsButton = createLargePillButton(text: OWSLocalizedString("CONVERSATION_VIEW_ADD_TO_CONTACTS_OFFER",
                                                                                 comment: "Message shown in conversation view that offers to add an unknown user to your phone's contacts."),
                                                         actionBlock: { [weak self] in
                                                             guard let strongSelf = self else { return }
@@ -342,7 +314,7 @@ class ContactViewController: OWSViewController, ContactShareViewHelperDelegate {
         // TODO: Not designed yet.
 //        if viewMode == .systemContactWithSignal ||
 //           viewMode == .systemContactWithoutSignal {
-//            addRow(createActionRow(labelText:NSLocalizedString("ACTION_SHARE_CONTACT",
+//            addRow(createActionRow(labelText:OWSLocalizedString("ACTION_SHARE_CONTACT",
 //                                                               comment:"Label for 'share contact' button."),
 //                                   action:#selector(didPressShareContact)))
 //        }
@@ -396,7 +368,7 @@ class ContactViewController: OWSViewController, ContactShareViewHelperDelegate {
 
         let label = UILabel()
         label.text = labelText
-        label.font = UIFont.ows_dynamicTypeBody
+        label.font = UIFont.dynamicTypeBody
         label.textColor = Theme.accentBlueColor
         label.lineBreakMode = .byTruncatingTail
         row.addSubview(label)
@@ -409,7 +381,7 @@ class ContactViewController: OWSViewController, ContactShareViewHelperDelegate {
     }
 
     // TODO: Use real assets.
-    private func createCircleActionButton(text: String, imageName: String, actionBlock: @escaping () -> Void) -> UIView {
+    private func createCircleActionButton(text: String, image: UIImage, actionBlock: @escaping () -> Void) -> UIView {
         let buttonSize = CGFloat(50)
 
         let button = TappableView(actionBlock: actionBlock)
@@ -422,18 +394,14 @@ class ContactViewController: OWSViewController, ContactShareViewHelperDelegate {
         circleView.autoPinEdge(toSuperviewEdge: .top)
         circleView.autoHCenterInSuperview()
 
-        guard let image = UIImage(named: imageName) else {
-            owsFailDebug("missing image.")
-            return button
-        }
-        let imageView = UIImageView(image: image.withRenderingMode(.alwaysTemplate))
+        let imageView = UIImageView(image: image)
         imageView.tintColor = Theme.primaryTextColor.withAlphaComponent(0.6)
         circleView.addSubview(imageView)
         imageView.autoCenterInSuperview()
 
         let label = UILabel()
         label.text = text
-        label.font = UIFont.ows_dynamicTypeCaption2
+        label.font = UIFont.dynamicTypeCaption2
         label.textColor = Theme.primaryTextColor
         label.lineBreakMode = .byTruncatingTail
         label.textAlignment = .center
@@ -455,7 +423,7 @@ class ContactViewController: OWSViewController, ContactShareViewHelperDelegate {
 
         let label = UILabel()
         label.text = text
-        label.font = UIFont.ows_dynamicTypeBody
+        label.font = UIFont.dynamicTypeBody
         label.textColor = Theme.accentBlueColor
         label.lineBreakMode = .byTruncatingTail
         label.textAlignment = .center
@@ -527,25 +495,28 @@ class ContactViewController: OWSViewController, ContactShareViewHelperDelegate {
         if let e164 = phoneNumber.tryToConvertToE164() {
             let address = SignalServiceAddress(phoneNumber: e164)
             if contactShare.systemContactsWithSignalAccountPhoneNumbers().contains(e164) {
-                actionSheet.addAction(ActionSheetAction(title: CommonStrings.sendMessage,
-                                                        style: .default) { _ in
-                                                        SignalApp.shared().presentConversation(for: address, action: .compose, animated: true)
-                })
-                actionSheet.addAction(ActionSheetAction(title: NSLocalizedString("ACTION_AUDIO_CALL",
-                                                                             comment: "Label for 'audio call' button in contact view."),
-                                                    style: .default) { _ in
-                                                        SignalApp.shared().presentConversation(for: address, action: .audioCall, animated: true)
-                })
-                actionSheet.addAction(ActionSheetAction(title: NSLocalizedString("ACTION_VIDEO_CALL",
-                                                                             comment: "Label for 'video call' button in contact view."),
-                                                    style: .default) { _ in
-                                                        SignalApp.shared().presentConversation(for: address, action: .videoCall, animated: true)
-                })
+                actionSheet.addAction(ActionSheetAction(
+                    title: CommonStrings.sendMessage,
+                    style: .default) { _ in
+                        SignalApp.shared.presentConversationForAddress(address, action: .compose, animated: true)
+                    })
+                actionSheet.addAction(ActionSheetAction(
+                    title: OWSLocalizedString("ACTION_AUDIO_CALL",
+                                              comment: "Label for 'voice call' button in contact view."),
+                    style: .default) { _ in
+                        SignalApp.shared.presentConversationForAddress(address, action: .audioCall, animated: true)
+                    })
+                actionSheet.addAction(ActionSheetAction(
+                    title: OWSLocalizedString("ACTION_VIDEO_CALL",
+                                              comment: "Label for 'video call' button in contact view."),
+                    style: .default) { _ in
+                        SignalApp.shared.presentConversationForAddress(address, action: .videoCall, animated: true)
+                    })
             } else {
                 // TODO: We could offer callPhoneNumberWithSystemCall.
             }
         }
-        actionSheet.addAction(ActionSheetAction(title: NSLocalizedString("EDIT_ITEM_COPY_ACTION",
+        actionSheet.addAction(ActionSheetAction(title: OWSLocalizedString("EDIT_ITEM_COPY_ACTION",
                                                                      comment: "Short name for edit menu item to copy contents of media message."),
                                             style: .default) { _ in
                                                 UIPasteboard.general.string = phoneNumber.phoneNumber
@@ -568,12 +539,12 @@ class ContactViewController: OWSViewController, ContactShareViewHelperDelegate {
         Logger.info("")
 
         let actionSheet = ActionSheetController(title: nil, message: nil)
-        actionSheet.addAction(ActionSheetAction(title: NSLocalizedString("CONTACT_VIEW_OPEN_EMAIL_IN_EMAIL_APP",
+        actionSheet.addAction(ActionSheetAction(title: OWSLocalizedString("CONTACT_VIEW_OPEN_EMAIL_IN_EMAIL_APP",
                                                                      comment: "Label for 'open email in email app' button in contact view."),
                                             style: .default) { [weak self] _ in
                                                 self?.openEmailInEmailApp(email: email)
         })
-        actionSheet.addAction(ActionSheetAction(title: NSLocalizedString("EDIT_ITEM_COPY_ACTION",
+        actionSheet.addAction(ActionSheetAction(title: OWSLocalizedString("EDIT_ITEM_COPY_ACTION",
                                                                      comment: "Short name for edit menu item to copy contents of media message."),
                                             style: .default) { _ in
                                                 UIPasteboard.general.string = email.email
@@ -596,12 +567,12 @@ class ContactViewController: OWSViewController, ContactShareViewHelperDelegate {
         Logger.info("")
 
         let actionSheet = ActionSheetController(title: nil, message: nil)
-        actionSheet.addAction(ActionSheetAction(title: NSLocalizedString("CONTACT_VIEW_OPEN_ADDRESS_IN_MAPS_APP",
+        actionSheet.addAction(ActionSheetAction(title: OWSLocalizedString("CONTACT_VIEW_OPEN_ADDRESS_IN_MAPS_APP",
                                                                      comment: "Label for 'open address in maps app' button in contact view."),
                                             style: .default) { [weak self] _ in
                                                 self?.openAddressInMaps(address: address)
         })
-        actionSheet.addAction(ActionSheetAction(title: NSLocalizedString("EDIT_ITEM_COPY_ACTION",
+        actionSheet.addAction(ActionSheetAction(title: OWSLocalizedString("EDIT_ITEM_COPY_ACTION",
                                                                      comment: "Short name for edit menu item to copy contents of media message."),
                                             style: .default) { [weak self] _ in
                                                 guard let strongSelf = self else { return }

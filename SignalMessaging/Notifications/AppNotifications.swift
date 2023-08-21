@@ -34,6 +34,7 @@ public enum AppNotificationCategory: CaseIterable {
     case internalError
     case incomingMessageGeneric
     case incomingGroupStoryReply
+    case deregistration
 }
 
 public enum AppNotificationAction: String, CaseIterable {
@@ -46,6 +47,7 @@ public enum AppNotificationAction: String, CaseIterable {
     case reactWithThumbsUp
     case showCallLobby
     case submitDebugLogs
+    case reregister
 }
 
 public struct AppNotificationUserInfoKey {
@@ -56,6 +58,7 @@ public struct AppNotificationUserInfoKey {
     public static let callBackUuid = "Signal.AppNotificationsUserInfoKey.callBackUuid"
     public static let callBackPhoneNumber = "Signal.AppNotificationsUserInfoKey.callBackPhoneNumber"
     public static let localCallId = "Signal.AppNotificationsUserInfoKey.localCallId"
+    public static let isMissedCall = "Signal.AppNotificationsUserInfoKey.isMissedCall"
     public static let defaultAction = "Signal.AppNotificationsUserInfoKey.defaultAction"
 }
 
@@ -92,6 +95,8 @@ extension AppNotificationCategory {
             return "Signal.AppNotificationCategory.incomingMessageGeneric"
         case .incomingGroupStoryReply:
             return "Signal.AppNotificationCategory.incomingGroupStoryReply"
+        case .deregistration:
+            return "Signal.AppNotificationCategory.authErrorLogout"
         }
     }
 
@@ -130,6 +135,8 @@ extension AppNotificationCategory {
             return []
         case .incomingGroupStoryReply:
             return [.reply]
+        case .deregistration:
+            return []
         }
     }
 }
@@ -155,6 +162,8 @@ extension AppNotificationAction {
             return "Signal.AppNotifications.Action.showCallLobby"
         case .submitDebugLogs:
             return "Signal.AppNotifications.Action.submitDebugLogs"
+        case .reregister:
+            return "Signal.AppNotifications.Action.reregister"
         }
     }
 }
@@ -166,17 +175,17 @@ let kAudioNotificationsThrottleInterval: TimeInterval = 5
 
 extension UserNotificationPresenter {
     var hasReceivedSyncMessageRecently: Bool {
-        return OWSDeviceManager.shared().hasReceivedSyncMessage(inLastSeconds: 60)
+        return DependenciesBridge.shared.deviceManager.hasReceivedSyncMessage(
+            inLastSeconds: 60
+        )
     }
 }
 
 // MARK: -
 
-@objc(OWSNotificationPresenter)
 public class NotificationPresenter: NSObject, NotificationsProtocol {
     private let presenter = UserNotificationPresenter()
 
-    @objc
     public override init() {
         super.init()
 
@@ -184,7 +193,7 @@ public class NotificationPresenter: NSObject, NotificationsProtocol {
     }
 
     var previewType: NotificationType {
-        return preferences.notificationPreviewType()
+        return preferences.notificationPreviewType
     }
 
     var shouldShowActions: Bool {
@@ -193,7 +202,7 @@ public class NotificationPresenter: NSObject, NotificationsProtocol {
 
     // MARK: - Notifications Permissions
 
-    public func registerNotificationSettings() -> Promise<Void> {
+    public func registerNotificationSettings() -> Guarantee<Void> {
         return presenter.registerNotificationSettings()
     }
 
@@ -243,8 +252,7 @@ public class NotificationPresenter: NSObject, NotificationsProtocol {
         ]
 
         var interaction: INInteraction?
-        if #available(iOS 13, *),
-           previewType != .noNameNoPreview,
+        if previewType != .noNameNoPreview,
            let intent = thread.generateIncomingCallIntent(callerAddress: caller) {
             let wrapper = INInteraction(intent: intent, response: nil)
             wrapper.direction = .incoming
@@ -317,9 +325,9 @@ public class NotificationPresenter: NSObject, NotificationsProtocol {
         case .last24Hours:
             timestampArgument = DateUtil.formatDateAsTime(timestamp)
         case .lastWeek:
-            timestampArgument = DateUtil.weekdayFormatter().string(from: timestamp)
+            timestampArgument = DateUtil.weekdayFormatter.string(from: timestamp)
         case .other:
-            timestampArgument = DateUtil.monthAndDayFormatter().string(from: timestamp)
+            timestampArgument = DateUtil.monthAndDayFormatter.string(from: timestamp)
         }
 
         // We could build these localized string keys by interpolating the two pieces,
@@ -368,8 +376,7 @@ public class NotificationPresenter: NSObject, NotificationsProtocol {
             : .missedCallWithoutActions)
 
         var interaction: INInteraction?
-        if #available(iOS 13, *),
-           previewType != .noNameNoPreview,
+        if previewType != .noNameNoPreview,
            let intent = thread.generateIncomingCallIntent(callerAddress: caller) {
             let wrapper = INInteraction(intent: intent, response: nil)
             wrapper.direction = .incoming
@@ -469,6 +476,7 @@ public class NotificationPresenter: NSObject, NotificationsProtocol {
         if let phoneNumber = remoteAddress.phoneNumber {
             userInfo[AppNotificationUserInfoKey.callBackPhoneNumber] = phoneNumber
         }
+        userInfo[AppNotificationUserInfoKey.isMissedCall] = true
         return userInfo
     }
 
@@ -494,6 +502,14 @@ public class NotificationPresenter: NSObject, NotificationsProtocol {
 
             // Always notify for replies to group stories you sent
             if storyAuthorAddress.isLocalAddress { return true }
+
+            // Always notify if you have been @mentioned
+            if
+                let mentionedUuids = incomingMessage.bodyRanges?.mentions.values,
+                let localUuid = tsAccountManager.localUuid,
+                mentionedUuids.contains(where: { $0 == localUuid }) {
+                return true
+            }
 
             // Notify people who did not author the story if they've previously replied to it
             return InteractionFinder.hasLocalUserReplied(
@@ -530,9 +546,38 @@ public class NotificationPresenter: NSObject, NotificationsProtocol {
         }
     }
 
-    public func notifyUser(forIncomingMessage incomingMessage: TSIncomingMessage,
-                           thread: TSThread,
-                           transaction: SDSAnyReadTransaction) {
+    public func notifyUser(
+        forIncomingMessage incomingMessage: TSIncomingMessage,
+        thread: TSThread,
+        transaction: SDSAnyReadTransaction
+    ) {
+        notifyUserInternal(
+            forIncomingMessage: incomingMessage,
+            editTarget: nil,
+            thread: thread,
+            transaction: transaction
+        )
+    }
+
+    public func notifyUser(
+        forIncomingMessage incomingMessage: TSIncomingMessage,
+        editTarget: TSIncomingMessage,
+        thread: TSThread,
+        transaction: SDSAnyReadTransaction
+    ) {
+        notifyUserInternal(
+            forIncomingMessage: incomingMessage,
+            editTarget: editTarget,
+            thread: thread,
+            transaction: transaction
+        )
+    }
+
+    private func notifyUserInternal(
+        forIncomingMessage incomingMessage: TSIncomingMessage,
+        editTarget: TSIncomingMessage?,
+        thread: TSThread,
+        transaction: SDSAnyReadTransaction) {
 
         guard canNotify(for: incomingMessage, thread: thread, transaction: transaction) else {
             if DebugFlags.internalLogging {
@@ -542,7 +587,7 @@ public class NotificationPresenter: NSObject, NotificationsProtocol {
         }
 
         // While batch processing, some of the necessary changes have not been committed.
-        let rawMessageText = incomingMessage.previewText(transaction: transaction)
+        let rawMessageText = incomingMessage.notificationPreviewText(transaction)
 
         let messageText = rawMessageText.filterStringForDisplay()
 
@@ -574,14 +619,18 @@ public class NotificationPresenter: NSObject, NotificationsProtocol {
             threadIdentifier = thread.uniqueId
         }
 
-        let notificationBody: String?
-        switch previewType {
-        case .noNameNoPreview, .nameNoPreview:
-            notificationBody = NotificationStrings.genericIncomingMessageNotification
-        case .namePreview:
-            notificationBody = messageText
-        }
-        assert((notificationBody ?? notificationTitle) != nil)
+        let notificationBody: String = {
+            if thread.hasPendingMessageRequest(transaction: transaction.unwrapGrdbRead) {
+                return NotificationStrings.incomingMessageRequestNotification
+            }
+
+            switch previewType {
+            case .noNameNoPreview, .nameNoPreview:
+                return NotificationStrings.genericIncomingMessageNotification
+            case .namePreview:
+                return messageText
+            }
+        }()
 
         // Don't reply from lockscreen if anyone in this conversation is
         // "no longer verified".
@@ -624,15 +673,28 @@ public class NotificationPresenter: NSObject, NotificationsProtocol {
         }
 
         performNotificationActionAsync { completion in
-            let sound = self.requestSound(thread: thread)
-            self.presenter.notify(category: category,
-                                title: notificationTitle,
-                                body: notificationBody ?? "",
-                                threadIdentifier: threadIdentifier,
-                                userInfo: userInfo,
-                                interaction: interaction,
-                                sound: sound,
-                                completion: completion)
+            let sound = (editTarget != nil) ? nil : self.requestSound(thread: thread)
+            let notify = {
+                self.presenter.notify(
+                    category: category,
+                    title: notificationTitle,
+                    body: notificationBody,
+                    threadIdentifier: threadIdentifier,
+                    userInfo: userInfo,
+                    interaction: interaction,
+                    sound: sound,
+                    completion: completion
+                )
+            }
+
+            if let editTarget {
+                self.presenter.replaceNotification(messageId: editTarget.uniqueId) { didReplaceNotification in
+                    guard didReplaceNotification else { return }
+                    notify()
+                }
+            } else {
+               notify()
+            }
         }
     }
 
@@ -667,7 +729,7 @@ public class NotificationPresenter: NSObject, NotificationsProtocol {
 
         let notificationBody: String
         if let bodyDescription: String = {
-            if let messageBody = message.plaintextBody(with: transaction.unwrapGrdbRead), !messageBody.isEmpty {
+            if let messageBody = message.notificationPreviewText(transaction).nilIfEmpty {
                 return messageBody
             } else {
                 return nil
@@ -857,17 +919,56 @@ public class NotificationPresenter: NSObject, NotificationsProtocol {
              .groupCreationFailed:
             return
         case .sessionRefresh:
-            notifyUser(forPreviewableInteraction: errorMessage as TSMessage,
-                       thread: thread,
-                       wantsSound: true,
-                       transaction: transaction)
+            notifyUser(
+                forTSMessage: errorMessage as TSMessage,
+                thread: thread,
+                wantsSound: true,
+                transaction: transaction
+            )
         }
     }
 
-    public func notifyUser(forPreviewableInteraction previewableInteraction: TSInteraction & OWSPreviewText,
-                           thread: TSThread,
-                           wantsSound: Bool,
-                           transaction: SDSAnyWriteTransaction) {
+    public func notifyUser(
+        forTSMessage message: TSMessage,
+        thread: TSThread,
+        wantsSound: Bool,
+        transaction: SDSAnyWriteTransaction
+    ) {
+        notifyUser(
+            tsInteraction: message,
+            previewProvider: { tx in
+                return message.notificationPreviewText(tx)
+            },
+            thread: thread,
+            wantsSound: wantsSound,
+            transaction: transaction
+        )
+    }
+
+    public func notifyUser(
+        forPreviewableInteraction previewableInteraction: TSInteraction & OWSPreviewText,
+        thread: TSThread,
+        wantsSound: Bool,
+        transaction: SDSAnyWriteTransaction
+    ) {
+        notifyUser(
+            tsInteraction: previewableInteraction,
+            previewProvider: { tx in
+                return previewableInteraction.previewText(transaction: tx)
+            },
+            thread: thread,
+            wantsSound: wantsSound,
+            transaction: transaction
+        )
+    }
+
+    private func notifyUser(
+        tsInteraction: TSInteraction,
+        previewProvider: (SDSAnyWriteTransaction) -> String,
+        thread: TSThread,
+        wantsSound: Bool,
+        transaction: SDSAnyWriteTransaction
+    ) {
         guard !isThreadMuted(thread, transaction: transaction) else { return }
 
         let notificationTitle: String?
@@ -886,16 +987,16 @@ public class NotificationPresenter: NSObject, NotificationsProtocol {
         case .noNameNoPreview, .nameNoPreview:
             notificationBody = NotificationStrings.genericIncomingMessageNotification
         case .namePreview:
-            notificationBody = previewableInteraction.previewText(transaction: transaction)
+            notificationBody = previewProvider(transaction)
         }
 
-        let isGroupCallMessage = previewableInteraction is OWSGroupCallMessage
+        let isGroupCallMessage = tsInteraction is OWSGroupCallMessage
         let preferredDefaultAction: AppNotificationAction = isGroupCallMessage ? .showCallLobby : .showThread
 
         let threadId = thread.uniqueId
         let userInfo = [
             AppNotificationUserInfoKey.threadId: threadId,
-            AppNotificationUserInfoKey.messageId: previewableInteraction.uniqueId,
+            AppNotificationUserInfoKey.messageId: tsInteraction.uniqueId,
             AppNotificationUserInfoKey.defaultAction: preferredDefaultAction.rawValue
         ]
 
@@ -910,7 +1011,7 @@ public class NotificationPresenter: NSObject, NotificationsProtocol {
                 interaction = wrapper
             }
 
-            if let infoMessage = previewableInteraction as? TSInfoMessage {
+            if let infoMessage = tsInteraction as? TSInfoMessage {
                 switch infoMessage.messageType {
                 case .typeGroupUpdate:
                     if let groupUpdateAuthor = infoMessage.groupUpdateSourceAddress,
@@ -925,7 +1026,7 @@ public class NotificationPresenter: NSObject, NotificationsProtocol {
                 default:
                     break
                 }
-            } else if let callMessage = previewableInteraction as? OWSGroupCallMessage,
+            } else if let callMessage = tsInteraction as? OWSGroupCallMessage,
                       let callCreator = callMessage.creatorAddress,
                       let intent = thread.generateSendMessageIntent(context: .senderAddress(callCreator), transaction: transaction) {
                 wrapIntent(intent)
@@ -961,6 +1062,27 @@ public class NotificationPresenter: NSObject, NotificationsProtocol {
         }
     }
 
+    public func notifyUserOfDeregistration(transaction: SDSAnyWriteTransaction) {
+        let notificationBody = OWSLocalizedString(
+            "DEREGISTRATION_NOTIFICATION",
+            comment: "Notification warning the user that they have been de-registered."
+        )
+        performNotificationActionInAsyncCompletion(transaction: transaction) { completion in
+            self.presenter.notify(
+                category: .deregistration,
+                title: nil,
+                body: notificationBody,
+                threadIdentifier: nil,
+                userInfo: [
+                    AppNotificationUserInfoKey.defaultAction: AppNotificationAction.reregister.rawValue
+                ],
+                interaction: nil,
+                sound: self.requestGlobalSound(),
+                completion: completion
+            )
+        }
+    }
+
     /// Note that this method is not serialized with other notifications
     /// actions.
     public func postGenericIncomingMessageNotification() -> Promise<Void> {
@@ -987,14 +1109,19 @@ public class NotificationPresenter: NSObject, NotificationsProtocol {
         }
     }
 
-    @objc
+    public func cancelNotificationsForMissedCalls(threadUniqueId: String) {
+        performNotificationActionAsync { completion in
+            self.presenter.cancelNotificationsForMissedCalls(withThreadUniqueId: threadUniqueId, completion: completion)
+        }
+    }
+
     public func clearAllNotifications() {
         presenter.clearAllNotifications()
     }
 
     // MARK: - Serialization
 
-    private static let serialQueue = DispatchQueue(label: "org.signal.notificationActions")
+    private static let serialQueue = DispatchQueue(label: "org.signal.notifications.action")
     private static var notificationQueue: DispatchQueue {
         // The NSE can safely post notifications off the main thread, but the
         // main app cannot.
@@ -1044,16 +1171,12 @@ public class NotificationPresenter: NSObject, NotificationsProtocol {
     private let unfairLock = UnfairLock()
     private var mostRecentNotifications = TruncatedList<UInt64>(maxLength: kAudioNotificationsThrottleCount)
 
-    private func requestSound(thread: TSThread) -> OWSSound? {
-        guard checkIfShouldPlaySound() else {
-            return nil
-        }
-
-        return OWSSounds.notificationSound(for: thread)
+    private func requestSound(thread: TSThread) -> Sound? {
+        checkIfShouldPlaySound() ? Sounds.notificationSoundForThread(thread) : nil
     }
 
-    private func requestGlobalSound() -> OWSSound? {
-        checkIfShouldPlaySound() ? OWSSounds.globalNotificationSound() : nil
+    private func requestGlobalSound() -> Sound? {
+        checkIfShouldPlaySound() ? Sounds.globalNotificationSound : nil
     }
 
     // This method is thread-safe.
@@ -1063,7 +1186,7 @@ public class NotificationPresenter: NSObject, NotificationsProtocol {
             return true
         }
 
-        guard preferences.soundInForeground() else {
+        guard preferences.soundInForeground else {
             Logger.info("[Notification Sounds] foreground sound disabled")
             return false
         }

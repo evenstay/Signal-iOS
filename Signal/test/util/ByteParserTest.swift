@@ -4,9 +4,11 @@
 //
 
 import XCTest
-@testable import Signal
 
-class ByteParserTest: SignalBaseTest {
+@testable import Signal
+@testable import SignalServiceKit
+
+class ByteParserTest: XCTestCase {
     func testGetShort_Empty() {
         let parser = ByteParser(data: Data(), littleEndian: true)
         XCTAssertNotNil(parser)

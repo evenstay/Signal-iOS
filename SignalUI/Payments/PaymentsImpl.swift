@@ -8,7 +8,6 @@ import MobileCoin
 import SignalMessaging
 import SignalServiceKit
 
-@objc
 public class PaymentsImpl: NSObject, PaymentsSwift {
 
     private var refreshBalanceEvent: RefreshEvent?
@@ -17,10 +16,8 @@ public class PaymentsImpl: NSObject, PaymentsSwift {
 
     private let paymentsProcessor = PaymentsProcessor()
 
-    @objc
     public static let maxPaymentMemoMessageLength: Int = 32
 
-    @objc
     public required override init() {
         super.init()
 
@@ -55,7 +52,7 @@ public class PaymentsImpl: NSObject, PaymentsSwift {
         }
 
         let appVersionKey = "appVersion"
-        let currentAppVersion4 = appVersion.currentAppVersion4
+        let currentAppVersion4 = AppVersionImpl.shared.currentAppVersion4
 
         let shouldUpdate = Self.databaseStorage.read { (transaction: SDSAnyReadTransaction) -> Bool in
             // Check if the app version has changed.
@@ -124,9 +121,9 @@ public class PaymentsImpl: NSObject, PaymentsSwift {
             return Promise.value(api)
         }
 
-        return firstly(on: .global()) {
+        return firstly(on: DispatchQueue.global()) {
             MobileCoinAPI.buildPromise(paymentsEntropy: paymentsEntropy)
-        }.map(on: .global()) { (api: MobileCoinAPI) -> MobileCoinAPI in
+        }.map(on: DispatchQueue.global()) { (api: MobileCoinAPI) -> MobileCoinAPI in
             setCurrentApi(api)
             return api
         }
@@ -215,7 +212,6 @@ public class PaymentsImpl: NSObject, PaymentsSwift {
 
     // MARK: - Balance
 
-    @objc
     public static let currentPaymentBalanceDidChange = Notification.Name("currentPaymentBalanceDidChange")
 
     private let paymentBalanceCache = AtomicOptional<PaymentBalance>(nil)
@@ -301,6 +297,10 @@ public class PaymentsImpl: NSObject, PaymentsSwift {
         updateCurrentPaymentBalance()
     }
 
+    public func clearCurrentPaymentBalance() {
+        paymentBalanceCache.set(nil)
+    }
+
     // MARK: -
 
     public func findPaymentModels(withMCLedgerBlockIndex mcLedgerBlockIndex: UInt64,
@@ -320,11 +320,12 @@ public extension PaymentsImpl {
 
     private func fetchPublicAddress(forAddress address: SignalServiceAddress) -> Promise<MobileCoin.PublicAddress> {
         return firstly {
-            ProfileFetcherJob.fetchProfilePromise(address: address,
-                                                  mainAppOnly: false,
-                                                  ignoreThrottling: true,
-                                                  fetchType: .`default`)
-        }.map(on: .global()) { (fetchedProfile: FetchedProfile) -> MobileCoin.PublicAddress in
+            ProfileFetcherJob.fetchProfilePromise(
+                address: address,
+                mainAppOnly: false,
+                ignoreThrottling: true
+            )
+        }.map(on: DispatchQueue.global()) { (fetchedProfile: FetchedProfile) -> MobileCoin.PublicAddress in
             guard let decryptedProfile = fetchedProfile.decryptedProfile else {
                 Logger.verbose("address: \(address)")
                 throw PaymentsError.userHasNoPublicAddress
@@ -361,7 +362,7 @@ public extension PaymentsImpl {
         guard !isKillSwitchActive else {
             return Promise(error: PaymentsError.killSwitch)
         }
-        return firstly(on: .global()) {
+        return firstly(on: DispatchQueue.global()) {
             var addressUuidString: String?
             if let recipientAddress = recipientAddress {
                 guard recipientAddress.isValid else {
@@ -519,7 +520,7 @@ public extension PaymentsImpl {
     func getCurrentBalance() -> Promise<TSPaymentAmount> {
         firstly { () -> Promise<MobileCoinAPI> in
             self.getMobileCoinAPI()
-        }.then(on: .global()) { (mobileCoinAPI: MobileCoinAPI) in
+        }.then(on: DispatchQueue.global()) { (mobileCoinAPI: MobileCoinAPI) in
             return mobileCoinAPI.getLocalBalance()
         }
     }
@@ -530,9 +531,9 @@ public extension PaymentsImpl {
 public extension PaymentsImpl {
 
     func maximumPaymentAmount() -> Promise<TSPaymentAmount> {
-        return firstly(on: .global()) { () -> Promise<MobileCoinAPI> in
+        return firstly(on: DispatchQueue.global()) { () -> Promise<MobileCoinAPI> in
             self.getMobileCoinAPI()
-        }.then(on: .global()) { (mobileCoinAPI: MobileCoinAPI) -> Promise<TSPaymentAmount> in
+        }.then(on: DispatchQueue.global()) { (mobileCoinAPI: MobileCoinAPI) -> Promise<TSPaymentAmount> in
             try mobileCoinAPI.maxTransactionAmount()
         }
     }
@@ -542,9 +543,9 @@ public extension PaymentsImpl {
             return Promise(error: OWSAssertionError("Invalid currency."))
         }
 
-        return firstly(on: .global()) { () -> Promise<MobileCoinAPI> in
+        return firstly(on: DispatchQueue.global()) { () -> Promise<MobileCoinAPI> in
             self.getMobileCoinAPI()
-        }.then(on: .global()) { (mobileCoinAPI: MobileCoinAPI) -> Promise<TSPaymentAmount> in
+        }.then(on: DispatchQueue.global()) { (mobileCoinAPI: MobileCoinAPI) -> Promise<TSPaymentAmount> in
             try mobileCoinAPI.getEstimatedFee(forPaymentAmount: paymentAmount)
         }
     }
@@ -570,9 +571,9 @@ public extension PaymentsImpl {
                 return Promise(error: PaymentsError.killSwitch)
             }
 
-            return firstly(on: .global()) { () -> Promise<MobileCoin.PublicAddress> in
+            return firstly(on: DispatchQueue.global()) { () -> Promise<MobileCoin.PublicAddress> in
                 self.fetchPublicAddress(forAddress: recipientAddress)
-            }.then(on: .global()) { (recipientPublicAddress: MobileCoin.PublicAddress) -> Promise<PreparedPayment> in
+            }.then(on: DispatchQueue.global()) { (recipientPublicAddress: MobileCoin.PublicAddress) -> Promise<PreparedPayment> in
                 self.prepareOutgoingPayment(recipientAddress: recipientAddress,
                                               recipientPublicAddress: recipientPublicAddress,
                                               paymentAmount: paymentAmount,
@@ -612,24 +613,24 @@ public extension PaymentsImpl {
             return Promise(error: OWSAssertionError("Can't make payment to yourself."))
         }
 
-        return firstly(on: .global()) { () -> Promise<MobileCoinAPI> in
+        return firstly(on: DispatchQueue.global()) { () -> Promise<MobileCoinAPI> in
             self.getMobileCoinAPI()
-        }.then(on: .global()) { (mobileCoinAPI: MobileCoinAPI) -> Promise<PreparedPayment> in
-            return firstly(on: .global()) { () throws -> Promise<TSPaymentAmount> in
+        }.then(on: DispatchQueue.global()) { (mobileCoinAPI: MobileCoinAPI) -> Promise<PreparedPayment> in
+            return firstly(on: DispatchQueue.global()) { () throws -> Promise<TSPaymentAmount> in
                 // prepareTransaction() will fail if local balance is not yet known.
                 mobileCoinAPI.getLocalBalance()
-            }.then(on: .global()) { (balance: TSPaymentAmount) -> Promise<Void> in
+            }.then(on: DispatchQueue.global()) { (balance: TSPaymentAmount) -> Promise<Void> in
                 Logger.verbose("balance: \(balance.picoMob)")
                 return self.defragmentIfNecessary(forPaymentAmount: paymentAmount,
                                                   mobileCoinAPI: mobileCoinAPI,
                                                   canDefragment: canDefragment)
-            }.then(on: .global()) { () -> Promise<MobileCoinAPI.PreparedTransaction> in
+            }.then(on: DispatchQueue.global()) { () -> Promise<MobileCoinAPI.PreparedTransaction> in
                 // prepareTransaction() will fail if local balance is not yet known.
                 let shouldUpdateBalance = self.currentPaymentBalance == nil
                 return mobileCoinAPI.prepareTransaction(paymentAmount: paymentAmount,
                                                         recipientPublicAddress: recipientPublicAddress,
                                                         shouldUpdateBalance: shouldUpdateBalance)
-            }.map(on: .global()) { (preparedTransaction: MobileCoinAPI.PreparedTransaction) -> PreparedPayment in
+            }.map(on: DispatchQueue.global()) { (preparedTransaction: MobileCoinAPI.PreparedTransaction) -> PreparedPayment in
                 PreparedPaymentImpl(
                     recipientAddress: recipientAddress,
                     recipientPublicAddress: recipientPublicAddress,
@@ -648,9 +649,9 @@ public extension PaymentsImpl {
                                        canDefragment: Bool) -> Promise<Void> {
         Logger.verbose("")
 
-        return firstly(on: .global()) { () throws -> Promise<Bool> in
+        return firstly(on: DispatchQueue.global()) { () throws -> Promise<Bool> in
             mobileCoinAPI.requiresDefragmentation(forPaymentAmount: paymentAmount)
-        }.then(on: .global()) { (shouldDefragment: Bool) -> Promise<Void> in
+        }.then(on: DispatchQueue.global()) { (shouldDefragment: Bool) -> Promise<Void> in
             guard shouldDefragment else {
                 return Promise.value(())
             }
@@ -671,9 +672,9 @@ public extension PaymentsImpl {
         //   3. Submit defragmentation transactions (payment processor will do this).
         //   4. Verify defragmentation transactions (payment processor will do this).
         // 5. Block on verification of defragmentation transactions.
-        return firstly(on: .global()) { () throws -> Promise<[MobileCoin.Transaction]> in
+        return firstly(on: DispatchQueue.global()) { () throws -> Promise<[MobileCoin.Transaction]> in
             mobileCoinAPI.prepareDefragmentationStepTransactions(forPaymentAmount: paymentAmount)
-        }.map(on: .global()) { (mcTransactions: [MobileCoin.Transaction]) -> [TSPaymentModel] in
+        }.map(on: DispatchQueue.global()) { (mcTransactions: [MobileCoin.Transaction]) -> [TSPaymentModel] in
             Logger.info("mcTransactions: \(mcTransactions.count)")
 
             // To initiate the defragmentation transactions, all we need to do
@@ -718,7 +719,7 @@ public extension PaymentsImpl {
                     return paymentModel
                 }
             }
-        }.then(on: .global()) { (paymentModels: [TSPaymentModel]) -> Promise<Void> in
+        }.then(on: DispatchQueue.global()) { (paymentModels: [TSPaymentModel]) -> Promise<Void> in
             self.blockOnVerificationOfDefragmentation(paymentModels: paymentModels)
         }
     }
@@ -727,7 +728,7 @@ public extension PaymentsImpl {
         guard !isKillSwitchActive else {
             return Promise(error: PaymentsError.killSwitch)
         }
-        return firstly(on: .global()) { () -> Promise<TSPaymentModel> in
+        return firstly(on: DispatchQueue.global()) { () -> Promise<TSPaymentModel> in
             guard let preparedPayment = preparedPayment as? PreparedPaymentImpl else {
                 throw OWSAssertionError("Invalid preparedPayment.")
             }
@@ -754,11 +755,11 @@ public extension PaymentsImpl {
     private func blockOnVerificationOfDefragmentation(paymentModels: [TSPaymentModel]) -> Promise<Void> {
         let maxBlockInterval = kSecondInterval * 30
 
-        return firstly(on: .global()) { () -> Promise<Void> in
+        return firstly(on: DispatchQueue.global()) { () -> Promise<Void> in
             let promises = paymentModels.map { paymentModel in
-                firstly(on: .global()) { () -> Promise<Bool> in
+                firstly(on: DispatchQueue.global()) { () -> Promise<Bool> in
                     self.blockOnOutgoingVerification(paymentModel: paymentModel)
-                }.map(on: .global()) { (didSucceed: Bool) -> Void in
+                }.map(on: DispatchQueue.global()) { (didSucceed: Bool) -> Void in
                     guard didSucceed else {
                         throw PaymentsError.defragmentationFailed
                     }
@@ -771,7 +772,7 @@ public extension PaymentsImpl {
     }
 
     func blockOnOutgoingVerification(paymentModel: TSPaymentModel) -> Promise<Bool> {
-        firstly(on: .global()) { () -> Promise<Bool> in
+        firstly(on: DispatchQueue.global()) { () -> Promise<Bool> in
             let paymentModelLatest = Self.databaseStorage.read { transaction in
                 TSPaymentModel.anyFetch(uniqueId: paymentModel.uniqueId,
                                         transaction: transaction)
@@ -784,9 +785,9 @@ public extension PaymentsImpl {
             case .outgoingUnsubmitted,
                  .outgoingUnverified:
                 // Not yet verified, wait then try again.
-                return firstly(on: .global()) {
+                return firstly(on: DispatchQueue.global()) {
                     Guarantee.after(seconds: 0.05)
-                }.then(on: .global()) { () -> Promise<Bool> in
+                }.then(on: DispatchQueue.global()) { () -> Promise<Bool> in
                     // Recurse.
                     self.blockOnOutgoingVerification(paymentModel: paymentModel)
                 }
@@ -1048,7 +1049,8 @@ public extension PaymentsImpl {
             let paymentRequest = TSPaymentRequest(requestUuidString: requestUuidString,
                                                   paymentAmount: paymentAmount,
                                                   memoMessage: memoMessage)
-            let expiresInSeconds = thread.disappearingMessagesDuration(with: transaction)
+            let dmConfigurationStore = DependenciesBridge.shared.disappearingMessagesConfigurationStore
+            let expiresInSeconds = dmConfigurationStore.durationSeconds(for: thread, tx: transaction.asV2Read)
             let message = OWSOutgoingPaymentMessage(thread: thread,
                                                     paymentCancellation: nil,
                                                     paymentNotification: nil,
@@ -1083,7 +1085,8 @@ public extension PaymentsImpl {
         let paymentNotification = TSPaymentNotification(memoMessage: memoMessage,
                                                         requestUuidString: requestUuidString,
                                                         mcReceiptData: mcReceiptData)
-        let expiresInSeconds = thread.disappearingMessagesDuration(with: transaction)
+        let dmConfigurationStore = DependenciesBridge.shared.disappearingMessagesConfigurationStore
+        let expiresInSeconds = dmConfigurationStore.durationSeconds(for: thread, tx: transaction.asV2Read)
         let message = OWSOutgoingPaymentMessage(thread: thread,
                                                 paymentCancellation: nil,
                                                 paymentNotification: paymentNotification,
@@ -1110,7 +1113,8 @@ public extension PaymentsImpl {
         let thread = TSContactThread.getOrCreateThread(withContactAddress: address,
                                                        transaction: transaction)
         let paymentCancellation = TSPaymentCancellation(requestUuidString: requestUuidString)
-        let expiresInSeconds = thread.disappearingMessagesDuration(with: transaction)
+        let dmConfigurationStore = DependenciesBridge.shared.disappearingMessagesConfigurationStore
+        let expiresInSeconds = dmConfigurationStore.durationSeconds(for: thread, tx: transaction.asV2Read)
         let message = OWSOutgoingPaymentMessage(thread: thread,
                                                 paymentCancellation: paymentCancellation,
                                                 paymentNotification: nil,
@@ -1158,7 +1162,6 @@ public extension PaymentsImpl {
 
 // MARK: -
 
-@objc
 public class PaymentsEventsMainApp: NSObject, PaymentsEvents {
     public func willInsertPayment(_ paymentModel: TSPaymentModel, transaction: SDSAnyWriteTransaction) {
         let payments = self.payments as! PaymentsImpl

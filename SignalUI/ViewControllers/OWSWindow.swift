@@ -3,9 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import UIKit
 
-@objc
 public class OWSWindow: UIWindow {
     public override init(frame: CGRect) {
         super.init(frame: frame)
@@ -13,7 +12,7 @@ public class OWSWindow: UIWindow {
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(themeDidChange),
-            name: .ThemeDidChange,
+            name: .themeDidChange,
             object: nil
         )
 
@@ -21,7 +20,6 @@ public class OWSWindow: UIWindow {
     }
 
     // This useless override is defined so that you can call `-init` from Swift.
-    @available(iOS 13, *)
     public override init(windowScene: UIWindowScene) {
         fatalError("init(windowScene:) has not been implemented")
     }
@@ -36,10 +34,8 @@ public class OWSWindow: UIWindow {
     }
 
     private func applyTheme() {
-        guard #available(iOS 13, *) else { return }
-
         // Ensure system UI elements use the appropriate styling for the selected theme.
-        switch Theme.getOrFetchCurrentTheme() {
+        switch Theme.getOrFetchCurrentMode() {
         case .light:
             overrideUserInterfaceStyle = .light
         case .dark:
@@ -51,8 +47,6 @@ public class OWSWindow: UIWindow {
 
     public override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
         super.traitCollectionDidChange(previousTraitCollection)
-
-        guard #available(iOS 13, *) else { return }
 
         if previousTraitCollection?.userInterfaceStyle != traitCollection.userInterfaceStyle {
             Theme.systemThemeChanged()

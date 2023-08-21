@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalMessaging
+import SignalUI
 
 extension DonateViewController {
     internal class MonthlySubscriptionLevelView: UIStackView {
@@ -25,7 +25,7 @@ extension DonateViewController {
 
         private let headingLabel: UILabel = {
             let result = UILabel()
-            result.font = .ows_dynamicTypeBody
+            result.font = .dynamicTypeBody
             result.numberOfLines = 0
             result.setContentHuggingHorizontalHigh()
             result.setCompressionResistanceHorizontalHigh()
@@ -34,7 +34,7 @@ extension DonateViewController {
 
         private let subheadingLabel: UILabel = {
             let result = UILabel()
-            result.font = .ows_dynamicTypeBody2
+            result.font = .dynamicTypeBody2
             result.numberOfLines = 0
             return result
         }()
@@ -87,6 +87,7 @@ extension DonateViewController {
             let isCurrentSubscription: Bool = {
                 guard let currentSubscription = currentSubscription else { return false }
                 return (
+                    currentSubscription.active &&
                     currentSubscription.level == subscriptionLevel.level &&
                     currentSubscription.amount.currencyCode == currencyCode
                 )
@@ -99,7 +100,7 @@ extension DonateViewController {
             : DonateViewController.bubbleBackgroundColor
 
             headingLabel.text = {
-                let format = NSLocalizedString(
+                let format = OWSLocalizedString(
                     "DONATE_SCREEN_MONTHLY_SUBSCRIPTION_TITLE",
                     comment: "On the donation screen, you can see a list of monthly subscription levels. This text will be shown as the title for each level, telling you the price per month. Embeds {{currency string}}, such as \"$5\"."
                 )
@@ -112,7 +113,7 @@ extension DonateViewController {
             headingStackView.removeAllSubviews()
             headingStackView.addArrangedSubview(headingLabel)
             if isCurrentSubscription {
-                let checkmark = UIImageView(image: UIImage(named: "check-20")?.withRenderingMode(.alwaysTemplate))
+                let checkmark = UIImageView(image: UIImage(named: "check-20"))
                 checkmark.tintColor = Theme.primaryTextColor
                 headingStackView.addArrangedSubview(checkmark)
                 checkmark.setCompressionResistanceHorizontalHigh()
@@ -123,12 +124,12 @@ extension DonateViewController {
                 if isCurrentSubscription, let currentSubscription = currentSubscription {
                     let format: String
                     if currentSubscription.cancelAtEndOfPeriod {
-                        format = NSLocalizedString(
+                        format = OWSLocalizedString(
                             "DONATE_SCREEN_MONTHLY_SUBSCRIPTION_EXPIRES_ON_DATE",
                             comment: "On the donation screen, you can see a list of monthly subscription levels. If you already have one of these and it expires soon, this text is shown below it indicating when it will expire. Embeds {{formatted renewal date}}, such as \"June 9, 2010\"."
                         )
                     } else {
-                        format = NSLocalizedString(
+                        format = OWSLocalizedString(
                             "DONATE_SCREEN_MONTHLY_SUBSCRIPTION_RENEWS_ON_DATE",
                             comment: "On the donation screen, you can see a list of monthly subscription levels. If you already have one of these, this text is shown below it indicating when it will renew. Embeds {{formatted renewal date}}, such as \"June 9, 2010\"."
                         )
@@ -141,7 +142,7 @@ extension DonateViewController {
 
                     return String(format: format, dateString)
                 } else {
-                    let format = NSLocalizedString(
+                    let format = OWSLocalizedString(
                         "DONATE_SCREEN_MONTHLY_SUBSCRIPTION_SUBTITLE",
                         comment: "On the donation screen, you can see a list of monthly subscription levels. This text will be shown in the subtitle of each level, telling you which badge you'll get. Embeds {{localized badge name}}, such as \"Planet\"."
                     )

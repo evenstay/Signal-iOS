@@ -3,8 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import LibSignalClient
 import SignalServiceKit
+import SignalUI
 
 protocol AddGroupMembersViewControllerDelegate: AnyObject {
     func addGroupMembersViewDidUpdate()
@@ -12,7 +13,6 @@ protocol AddGroupMembersViewControllerDelegate: AnyObject {
 
 // MARK: -
 
-@objc
 public class AddGroupMembersViewController: BaseGroupMemberViewController {
 
     weak var addGroupMembersViewControllerDelegate: AddGroupMembersViewControllerDelegate?
@@ -35,11 +35,10 @@ public class AddGroupMembersViewController: BaseGroupMemberViewController {
 
     // MARK: - View Lifecycle
 
-    @objc
     public override func viewDidLoad() {
         super.viewDidLoad()
 
-        title = NSLocalizedString("ADD_GROUP_MEMBERS_VIEW_TITLE",
+        title = OWSLocalizedString("ADD_GROUP_MEMBERS_VIEW_TITLE",
                                   comment: "The title for the 'add group members' view.")
     }
 
@@ -47,7 +46,7 @@ public class AddGroupMembersViewController: BaseGroupMemberViewController {
 
     fileprivate func updateNavbar() {
         if hasUnsavedChanges {
-            navigationItem.rightBarButtonItem = UIBarButtonItem(title: NSLocalizedString("EDIT_GROUP_UPDATE_BUTTON",
+            navigationItem.rightBarButtonItem = UIBarButtonItem(title: OWSLocalizedString("EDIT_GROUP_UPDATE_BUTTON",
                                                                                          comment: "The title for the 'update group' button."),
                                                                 style: .plain,
                                                                 target: self,
@@ -59,7 +58,7 @@ public class AddGroupMembersViewController: BaseGroupMemberViewController {
     }
 
     @objc
-    func updateGroupPressed() {
+    private func updateGroupPressed() {
         showConfirmationAlert()
     }
 
@@ -74,12 +73,12 @@ public class AddGroupMembersViewController: BaseGroupMemberViewController {
         let alertTitle: String
         let alertMessage: String
         let actionTitle: String
-        let messageFormat = NSLocalizedString("ADD_GROUP_MEMBERS_VIEW_CONFIRM_ALERT_MESSAGE_%d", tableName: "PluralAware",
+        let messageFormat = OWSLocalizedString("ADD_GROUP_MEMBERS_VIEW_CONFIRM_ALERT_MESSAGE_%d", tableName: "PluralAware",
                                               comment: "Format for the message for the 'add group members' confirmation alert.  Embeds {{ %1$@ number of new members, %2$@ name of the group. }}.")
         alertMessage = String.localizedStringWithFormat(messageFormat, newRecipientSet.count, groupName)
-        alertTitle = String.localizedStringWithFormat(NSLocalizedString("ADD_GROUP_MEMBERS_VIEW_CONFIRM_ALERT_TITLE_%d", tableName: "PluralAware",
+        alertTitle = String.localizedStringWithFormat(OWSLocalizedString("ADD_GROUP_MEMBERS_VIEW_CONFIRM_ALERT_TITLE_%d", tableName: "PluralAware",
                                                       comment: "Title for the 'add group members' confirmation alert."), newRecipientSet.count)
-        actionTitle = String.localizedStringWithFormat(NSLocalizedString("ADD_GROUP_MEMBERS_ACTION_TITLE_%d", tableName: "PluralAware",
+        actionTitle = String.localizedStringWithFormat(OWSLocalizedString("ADD_GROUP_MEMBERS_ACTION_TITLE_%d", tableName: "PluralAware",
                                         comment: "Label for the 'add group members' button."), newRecipientSet.count)
 
         let actionSheet = ActionSheetController(title: alertTitle, message: alertMessage)
@@ -112,18 +111,18 @@ private extension AddGroupMembersViewController {
             return dismissAndUpdateDelegate()
         }
 
-        let newUuids = newRecipientSet.orderedMembers
-            .compactMap { recipient -> UUID? in
-                if let uuid = recipient.address?.uuid,
-                   !oldGroupModel.groupMembership.isFullMember(uuid) {
-                    return uuid
+        let newServiceIds = newRecipientSet.orderedMembers
+            .compactMap { recipient -> ServiceId? in
+                if let serviceId = recipient.address?.serviceId,
+                   !oldGroupModel.groupMembership.isFullMember(serviceId) {
+                    return serviceId
                 }
 
                 owsFailDebug("Missing UUID, or recipient is already in group!")
                 return nil
             }
 
-        guard !newUuids.isEmpty else {
+        guard !newServiceIds.isEmpty else {
             let error = OWSAssertionError("No valid recipients")
             GroupViewUtils.showUpdateErrorUI(error: error)
             return
@@ -135,7 +134,7 @@ private extension AddGroupMembersViewController {
             updateDescription: self.logTag,
             updateBlock: {
                 GroupManager.addOrInvite(
-                    aciOrPniUuids: newUuids,
+                    serviceIds: newServiceIds,
                     toExistingGroup: self.oldGroupModel
                 )
             },

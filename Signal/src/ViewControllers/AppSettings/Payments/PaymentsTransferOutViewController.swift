@@ -3,12 +3,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import Lottie
 import MobileCoin
 import SignalMessaging
+import SignalUI
 
-@objc
 public class PaymentsTransferOutViewController: OWSTableViewController2 {
 
     private let transferAmount: TSPaymentAmount?
@@ -34,7 +33,7 @@ public class PaymentsTransferOutViewController: OWSTableViewController2 {
     public override func viewDidLoad() {
         super.viewDidLoad()
 
-        title = NSLocalizedString("SETTINGS_PAYMENTS_TRANSFER_OUT_TITLE",
+        title = OWSLocalizedString("SETTINGS_PAYMENTS_TRANSFER_OUT_TITLE",
                                   comment: "Label for 'transfer currency out' view in the payment settings.")
 
         navigationItem.leftBarButtonItem = UIBarButtonItem(barButtonSystemItem: .cancel,
@@ -79,7 +78,7 @@ public class PaymentsTransferOutViewController: OWSTableViewController2 {
 
     private func createViews() {
         addressTextfield.delegate = self
-        addressTextfield.font = .ows_dynamicTypeBodyClamped
+        addressTextfield.font = .dynamicTypeBodyClamped
         addressTextfield.keyboardAppearance = Theme.keyboardAppearance
         addressTextfield.accessibilityIdentifier = "payments.transfer.out.addressTextfield"
         addressTextfield.addTarget(self, action: #selector(addressDidChange), for: .editingChanged)
@@ -91,12 +90,11 @@ public class PaymentsTransferOutViewController: OWSTableViewController2 {
         updateTableContents()
     }
 
-    @objc
     private func updateTableContents() {
         AssertIsOnMainThread()
 
         addressTextfield.textColor = Theme.primaryTextColor
-        let placeholder = NSAttributedString(string: NSLocalizedString("SETTINGS_PAYMENTS_TRANSFER_OUT_PLACEHOLDER",
+        let placeholder = NSAttributedString(string: OWSLocalizedString("SETTINGS_PAYMENTS_TRANSFER_OUT_PLACEHOLDER",
                                                                        comment: "Placeholder text for the address text field in the 'transfer currency out' settings view."),
                                              attributes: [
                                                 .foregroundColor: Theme.secondaryTextAndIconColor
@@ -106,11 +104,11 @@ public class PaymentsTransferOutViewController: OWSTableViewController2 {
         let contents = OWSTableContents()
 
         let section = OWSTableSection()
-        section.footerTitle = NSLocalizedString("SETTINGS_PAYMENTS_TRANSFER_OUT_FOOTER",
+        section.footerTitle = OWSLocalizedString("SETTINGS_PAYMENTS_TRANSFER_OUT_FOOTER",
                                                 comment: "Footer of the 'transfer currency out' view in the payment settings.")
         let addressTextfield = self.addressTextfield
 
-        let iconView = UIImageView.withTemplateImageName("qr-24", tintColor: Theme.primaryIconColor)
+        let iconView = UIImageView.withTemplateImageName("qr_code", tintColor: Theme.primaryIconColor)
         iconView.autoSetDimensions(to: .square(24))
         iconView.setCompressionResistanceHigh()
         iconView.setContentHuggingHigh()
@@ -131,7 +129,7 @@ public class PaymentsTransferOutViewController: OWSTableViewController2 {
             return cell
         },
         actionBlock: nil))
-        contents.addSection(section)
+        contents.add(section)
 
         self.contents = contents
     }
@@ -139,25 +137,25 @@ public class PaymentsTransferOutViewController: OWSTableViewController2 {
     // MARK: - Events
 
     @objc
-    func didTapDismiss() {
+    private func didTapDismiss() {
         dismiss(animated: true, completion: nil)
     }
 
     @objc
     private func didTapNext() {
         guard let publicAddress = tryToParseAddress() else {
-            OWSActionSheets.showActionSheet(title: NSLocalizedString("SETTINGS_PAYMENTS_TRANSFER_OUT_INVALID_PUBLIC_ADDRESS_TITLE",
+            OWSActionSheets.showActionSheet(title: OWSLocalizedString("SETTINGS_PAYMENTS_TRANSFER_OUT_INVALID_PUBLIC_ADDRESS_TITLE",
                                                                      comment: "Title for error alert indicating that MobileCoin public address is not valid."),
-                                            message: NSLocalizedString("SETTINGS_PAYMENTS_TRANSFER_OUT_INVALID_PUBLIC_ADDRESS",
+                                            message: OWSLocalizedString("SETTINGS_PAYMENTS_TRANSFER_OUT_INVALID_PUBLIC_ADDRESS",
                                                                        comment: "Error indicating that MobileCoin public address is not valid."))
             return
         }
         let recipientAddressBase58 = PaymentsImpl.formatAsBase58(publicAddress: publicAddress)
         guard let localWalletAddressBase58 = payments.walletAddressBase58(),
               localWalletAddressBase58 != recipientAddressBase58 else {
-            OWSActionSheets.showActionSheet(title: NSLocalizedString("SETTINGS_PAYMENTS_TRANSFER_OUT_INVALID_PUBLIC_ADDRESS_TITLE",
+            OWSActionSheets.showActionSheet(title: OWSLocalizedString("SETTINGS_PAYMENTS_TRANSFER_OUT_INVALID_PUBLIC_ADDRESS_TITLE",
                                                                      comment: "Title for error alert indicating that MobileCoin public address is not valid."),
-                                            message: NSLocalizedString("SETTINGS_PAYMENTS_TRANSFER_OUT_CANNOT_SEND_TO_SELF",
+                                            message: OWSLocalizedString("SETTINGS_PAYMENTS_TRANSFER_OUT_CANNOT_SEND_TO_SELF",
                                                                        comment: "Error indicating that it is not valid to send yourself a payment."))
             return
         }
@@ -206,8 +204,16 @@ extension PaymentsTransferOutViewController: UITextFieldDelegate {
 // MARK: -
 
 extension PaymentsTransferOutViewController: SendPaymentViewDelegate {
-    public func didSendPayment() {
-        dismiss(animated: true, completion: nil)
+    public func didSendPayment(success: Bool) {
+        dismiss(animated: true) {
+            guard success else {
+                // only prompt users to enable payments lock when successful.
+                return
+            }
+            PaymentOnboarding.presentBiometricLockPromptIfNeeded {
+                Logger.debug("Payments Lock Request Complete")
+            }
+        }
     }
 }
 

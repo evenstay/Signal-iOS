@@ -3,11 +3,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SafariServices
 import SignalMessaging
+import SignalUI
 
-@objc
 public class NewGroupConfirmViewController: OWSTableViewController2 {
 
     private let newGroupState: NewGroupState
@@ -26,8 +25,9 @@ public class NewGroupConfirmViewController: OWSTableViewController2 {
         return helper.nameTextField
     }
 
-    private lazy var disappearingMessagesConfiguration = databaseStorage.read { transaction in
-        OWSDisappearingMessagesConfiguration.fetchOrBuildDefaultUniversalConfiguration(with: transaction)
+    private lazy var disappearingMessagesConfiguration = databaseStorage.read { tx in
+        let dmConfigurationStore = DependenciesBridge.shared.disappearingMessagesConfigurationStore
+        return dmConfigurationStore.fetchOrBuildDefault(for: .universal, tx: tx.asV2Read)
     }
 
     required init(newGroupState: NewGroupState) {
@@ -49,14 +49,13 @@ public class NewGroupConfirmViewController: OWSTableViewController2 {
 
     // MARK: - View Lifecycle
 
-    @objc
     public override func viewDidLoad() {
         super.viewDidLoad()
 
-        title = NSLocalizedString("NEW_GROUP_NAME_GROUP_VIEW_TITLE",
+        title = OWSLocalizedString("NEW_GROUP_NAME_GROUP_VIEW_TITLE",
                                   comment: "The title for the 'name new group' view.")
 
-        navigationItem.rightBarButtonItem = UIBarButtonItem(title: NSLocalizedString("NEW_GROUP_CREATE_BUTTON",
+        navigationItem.rightBarButtonItem = UIBarButtonItem(title: OWSLocalizedString("NEW_GROUP_CREATE_BUTTON",
                                                                                      comment: "The title for the 'create group' button."),
                                                             style: .plain,
                                                             target: self,
@@ -111,7 +110,7 @@ public class NewGroupConfirmViewController: OWSTableViewController2 {
         }.compactMap { $0.address }
 
         if members.isEmpty {
-            nameAndAvatarSection.footerTitle = NSLocalizedString("GROUP_MEMBERS_NO_OTHER_MEMBERS",
+            nameAndAvatarSection.footerTitle = OWSLocalizedString("GROUP_MEMBERS_NO_OTHER_MEMBERS",
                                                     comment: "Label indicating that a new group has no other members.")
         }
 
@@ -138,25 +137,24 @@ public class NewGroupConfirmViewController: OWSTableViewController2 {
             },
             actionBlock: {}
         ))
-        contents.addSection(nameAndAvatarSection)
+        contents.add(nameAndAvatarSection)
 
         let disappearingMessagesSection = OWSTableSection()
         disappearingMessagesSection.add(.init(
             customCellBlock: { [weak self] in
                 guard let self = self else { return UITableViewCell() }
-                let cell = OWSTableItem.buildIconNameCell(
+                let cell = OWSTableItem.buildCell(
                     icon: self.disappearingMessagesConfiguration.isEnabled
-                        ? .settingsTimer
-                        : .settingsTimerDisabled,
-                    itemName: NSLocalizedString(
+                        ? .chatSettingsTimerOn
+                        : .chatSettingsTimerOff,
+                    itemName: OWSLocalizedString(
                         "DISAPPEARING_MESSAGES",
                         comment: "table cell label in conversation settings"
                     ),
                     accessoryText: self.disappearingMessagesConfiguration.isEnabled
-                        ? NSString.formatDurationSeconds(self.disappearingMessagesConfiguration.durationSeconds, useShortFormat: true)
+                        ? DateUtil.formatDuration(seconds: self.disappearingMessagesConfiguration.durationSeconds, useShortFormat: true)
                         : CommonStrings.switchOff,
                     accessoryType: .disclosureIndicator,
-                    accessoryImage: nil,
                     accessibilityIdentifier: UIView.accessibilityIdentifier(in: self, name: "disappearing_messages")
                 )
                 return cell
@@ -169,11 +167,11 @@ public class NewGroupConfirmViewController: OWSTableViewController2 {
                 self.presentFormSheet(OWSNavigationController(rootViewController: vc), animated: true)
             }
         ))
-        contents.addSection(disappearingMessagesSection)
+        contents.add(disappearingMessagesSection)
 
         if members.count > 0 {
             let section = OWSTableSection()
-            section.headerTitle = NSLocalizedString("GROUP_MEMBERS_SECTION_TITLE_MEMBERS",
+            section.headerTitle = OWSLocalizedString("GROUP_MEMBERS_SECTION_TITLE_MEMBERS",
                                                     comment: "Title for the 'members' section of the 'group members' view.")
 
             for address in members {
@@ -193,7 +191,7 @@ public class NewGroupConfirmViewController: OWSTableViewController2 {
                         return cell
                 }))
             }
-            contents.addSection(section)
+            contents.add(section)
         }
 
         self.contents = contents
@@ -202,7 +200,7 @@ public class NewGroupConfirmViewController: OWSTableViewController2 {
     // MARK: - Actions
 
     @objc
-    func createNewGroup() {
+    private func createNewGroup() {
         AssertIsOnMainThread()
 
         guard let localAddress = tsAccountManager.localAddress else {
@@ -254,23 +252,23 @@ public class NewGroupConfirmViewController: OWSTableViewController2 {
         AssertIsOnMainThread()
 
         if error.isNetworkFailureOrTimeout {
-            OWSActionSheets.showActionSheet(title: NSLocalizedString("ERROR_NETWORK_FAILURE",
+            OWSActionSheets.showActionSheet(title: OWSLocalizedString("ERROR_NETWORK_FAILURE",
                                                                      comment: "Error indicating network connectivity problems."),
-                                            message: NSLocalizedString("NEW_GROUP_CREATION_FAILED_DUE_TO_NETWORK",
+                                            message: OWSLocalizedString("NEW_GROUP_CREATION_FAILED_DUE_TO_NETWORK",
                                                                      comment: "Error indicating that a new group could not be created due to network connectivity problems."))
             return
         }
 
-        OWSActionSheets.showActionSheet(title: NSLocalizedString("NEW_GROUP_CREATION_FAILED",
+        OWSActionSheets.showActionSheet(title: OWSLocalizedString("NEW_GROUP_CREATION_FAILED",
                                                                  comment: "Error indicating that a new group could not be created."))
     }
 
     public class func showMissingGroupNameAlert() {
         AssertIsOnMainThread()
 
-        OWSActionSheets.showActionSheet(title: NSLocalizedString("NEW_GROUP_CREATION_MISSING_NAME_ALERT_TITLE",
+        OWSActionSheets.showActionSheet(title: OWSLocalizedString("NEW_GROUP_CREATION_MISSING_NAME_ALERT_TITLE",
                                                                  comment: "Title for error alert indicating that a group name is required."),
-                                        message: NSLocalizedString("NEW_GROUP_CREATION_MISSING_NAME_ALERT_MESSAGE",
+                                        message: OWSLocalizedString("NEW_GROUP_CREATION_MISSING_NAME_ALERT_MESSAGE",
                                                                    comment: "Message for error alert indicating that a group name is required."))
     }
 
@@ -282,9 +280,9 @@ public class NewGroupConfirmViewController: OWSTableViewController2 {
 
         func navigateToNewGroup(completion: (() -> Void)?) {
             _ = self.presentingViewController?.dismiss(animated: true) {
-                SignalApp.shared().presentConversation(for: groupThread,
-                                                          action: hasAnyRemoteMembers ? .none : .newGroupActionSheet,
-                                                          animated: false)
+                SignalApp.shared.presentConversationForThread(groupThread,
+                                                              action: hasAnyRemoteMembers ? .none : .newGroupActionSheet,
+                                                              animated: false)
                 completion?()
             }
         }
@@ -297,16 +295,16 @@ public class NewGroupConfirmViewController: OWSTableViewController2 {
 
         let alertTitle: String
         let alertMessage: String
-        let alertTitleFormat = NSLocalizedString("GROUP_INVITES_SENT_ALERT_TITLE_%d", tableName: "PluralAware",
+        let alertTitleFormat = OWSLocalizedString("GROUP_INVITES_SENT_ALERT_TITLE_%d", tableName: "PluralAware",
                                        comment: "Format for the title for an alert indicating that some members were invited to a group. Embeds: {{ the number of invites sent. }}")
         if pendingMembers.count > 0 {
             alertTitle = String.localizedStringWithFormat(alertTitleFormat, pendingMembers.count)
-            alertMessage = NSLocalizedString("GROUP_INVITES_SENT_ALERT_TITLE_N_MESSAGE",
+            alertMessage = OWSLocalizedString("GROUP_INVITES_SENT_ALERT_TITLE_N_MESSAGE",
                                              comment: "Message for an alert indicating that some members were invited to a group.")
         } else {
             alertTitle = String.localizedStringWithFormat(alertTitleFormat, 1)
             let inviteeName = contactsManager.displayName(for: firstPendingMember)
-            let alertMessageFormat = NSLocalizedString("GROUP_INVITES_SENT_ALERT_MESSAGE_1_FORMAT",
+            let alertMessageFormat = OWSLocalizedString("GROUP_INVITES_SENT_ALERT_MESSAGE_1_FORMAT",
                                                      comment: "Format for the message for an alert indicating that a member was invited to a group. Embeds: {{ the name of the member. }}")
             alertMessage = String(format: alertMessageFormat, inviteeName)
         }

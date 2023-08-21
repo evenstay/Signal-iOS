@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
-import UIKit
+import SignalServiceKit
+import SignalUI
 
 class CallButton: UIButton {
     var iconName: String { didSet { updateAppearance() } }
@@ -92,7 +92,7 @@ class CallButton: UIButton {
         addSubview(stackView)
         stackView.autoPinEdgesToSuperviewEdges()
 
-        label.font = .ows_dynamicTypeFootnote
+        label.font = .dynamicTypeFootnote
         label.textColor = Theme.darkThemePrimaryColor
         label.textAlignment = .center
         label.layer.shadowOffset = .zero
@@ -114,7 +114,7 @@ class CallButton: UIButton {
     private func updateAppearance() {
         circleView.backgroundColor = currentBackgroundColor
         iconView.setTemplateImageName(currentIconName, tintColor: currentIconColor)
-        dropdownIconView?.setTemplateImageName("arrow-down-12", tintColor: currentIconColor)
+        dropdownIconView?.setTemplateImageName("dropdown-triangle-12", tintColor: currentIconColor)
 
         if let text = text {
             label.isHidden = false

@@ -3,16 +3,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import YYImage
 import AVKit
+import SignalServiceKit
+import YYImage
 
 /// Model object for a looping video asset
 /// Any LoopingVideoViews playing this instance will all be kept in sync
-@objc
 public class LoopingVideo: NSObject {
     fileprivate var asset: AVAsset
 
-    @objc
     public init?(url: URL) {
         guard OWSMediaUtils.isVideoOfValidContentTypeAndSize(path: url.path) else {
             return nil
@@ -82,6 +81,7 @@ private class LoopingVideoPlayer: AVPlayer {
     }
 
     private var readyStatusObserver: NSKeyValueObservation?
+
     override public func play() {
         // Don't bother if we're already playing, or we don't have an item
         guard let item = currentItem, rate == 0 else { return }
@@ -103,21 +103,18 @@ private class LoopingVideoPlayer: AVPlayer {
 
 // MARK: -
 
-@objc
 public protocol LoopingVideoViewDelegate: AnyObject {
     func loopingVideoViewChangedPlayerItem()
 }
 
 // MARK: -
 
-@objc
 public class LoopingVideoView: UIView {
-    @objc
+
     public weak var delegate: LoopingVideoViewDelegate?
 
     private let player = LoopingVideoPlayer()
 
-    @objc
     public var video: LoopingVideo? {
         didSet {
             guard video !== oldValue else { return }
@@ -125,14 +122,14 @@ public class LoopingVideoView: UIView {
             invalidateIntrinsicContentSize()
 
             if let asset = video?.asset {
-                firstly(on: .global(qos: .userInitiated)) { [weak self] () -> Void in
+                firstly(on: DispatchQueue.global(qos: .userInitiated)) { [weak self] () -> Void in
                     guard let self = self else {
                         return
                     }
                     let playerItem = AVPlayerItem(asset: asset, automaticallyLoadedAssetKeys: ["tracks"])
                     self.player.replaceCurrentItem(with: playerItem)
                     self.player.play()
-                }.done(on: .main) { [weak self] in
+                }.done(on: DispatchQueue.main) { [weak self] in
                     guard let self = self else {
                         return
                     }
@@ -153,6 +150,7 @@ public class LoopingVideoView: UIView {
     }
 
     override public static var layerClass: AnyClass { AVPlayerLayer.self }
+
     private var playerLayer: AVPlayerLayer {
         layer as? AVPlayerLayer ?? {
             owsFailDebug("Unexpected player type")

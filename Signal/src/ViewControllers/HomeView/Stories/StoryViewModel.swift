@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import SignalServiceKit
+import SignalUI
 
 struct StoryViewModel: Dependencies {
     let context: StoryContext
@@ -20,6 +20,7 @@ struct StoryViewModel: Dependencies {
     let latestMessageAttachment: StoryThumbnailView.Attachment
     let hasReplies: Bool
     let latestMessageName: String
+    let latestMessageIdentifier: InteractionSnapshotIdentifier
     let latestMessageTimestamp: UInt64
     let latestMessageViewedTimestamp: UInt64?
     let latestMessageSendingState: TSOutgoingMessageState
@@ -45,7 +46,7 @@ struct StoryViewModel: Dependencies {
 
         self.latestMessage = latestMessage
         self.context = latestMessage.context
-        self.hasReplies = InteractionFinder.hasReplies(for: sortedFilteredMessages, transaction: transaction)
+        self.hasReplies = sortedFilteredMessages.contains(where: \.hasReplies)
 
         latestMessageName = StoryUtil.authorDisplayName(
             for: latestMessage,
@@ -54,6 +55,7 @@ struct StoryViewModel: Dependencies {
         )
         latestMessageAvatarDataSource = try StoryUtil.contextAvatarDataSource(for: latestMessage, transaction: transaction)
         latestMessageAttachment = .from(latestMessage.attachment, transaction: transaction)
+        latestMessageIdentifier = .fromStoryMessage(latestMessage)
         latestMessageTimestamp = latestMessage.timestamp
         latestMessageViewedTimestamp = latestMessage.localUserViewedTimestamp
         latestMessageSendingState = latestMessage.sendingState
@@ -93,8 +95,8 @@ extension StoryContext: BatchUpdateValue {
         switch self {
         case .groupId(let data):
             return data.hexadecimalString
-        case .authorUuid(let uuid):
-            return uuid.uuidString
+        case .authorAci(let authorAci):
+            return authorAci.serviceIdUppercaseString
         case .privateStory(let uniqueId):
             return uniqueId
         case .none:

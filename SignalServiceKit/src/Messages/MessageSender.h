@@ -4,21 +4,25 @@
 //
 
 #import <SignalServiceKit/DataSource.h>
+#import <SignalServiceKit/TSOutgoingMessage.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
 extern const NSUInteger kOversizeTextMessageSizeThreshold;
 
 @class BlockingManager;
+@class DeviceMessage;
 @class OWSMessageSend;
 @class OutgoingMessagePreparer;
 @class PendingTasks;
 @class SDSAnyWriteTransaction;
+@class SignalServiceAddress;
 @class TSAttachmentStream;
 @class TSOutgoingMessage;
 @class TSThread;
 
 @protocol ContactsManagerProtocol;
+@protocol UDSendingParamsProvider;
 
 /**
  * Useful for when you *sometimes* want to retry before giving up and calling the failure handler
@@ -101,9 +105,6 @@ NS_SWIFT_NAME(OutgoingAttachmentInfo)
                         failure:(void (^)(NSError *error))failureHandler;
 
 + (NSOperationQueuePriority)queuePriorityForMessage:(TSOutgoingMessage *)message;
-
-// TODO: Make this private.
-- (void)sendMessageToRecipient:(OWSMessageSend *)messageSend;
 
 @end
 

@@ -5,6 +5,8 @@
 
 import GRDB
 import Foundation
+import LibSignalClient
+import SignalCoreKit
 
 // MARK: -
 
@@ -14,52 +16,12 @@ private enum Constant {
 
 // MARK: -
 
-/// Runs a CDSv1-compatible operation against the CDSv2 backend.
-final class ContactDiscoveryV2CompatibilityOperation: ContactDiscoveryOperation {
-    let e164sToLookup: Set<String>
-    let mode: ContactDiscoveryMode
-
-    init(e164sToLookup: Set<String>, mode: ContactDiscoveryMode) {
-        self.e164sToLookup = e164sToLookup
-        self.mode = mode
-    }
-
-    func perform(on queue: DispatchQueue) -> Promise<Set<DiscoveredContactInfo>> {
-        let operation = ContactDiscoveryV2Operation(
-            e164sToLookup: e164sToLookup,
-            mode: mode,
-            compatibilityMode: .fetchAllACIs
-        )
-        return firstly {
-            operation.perform(on: queue)
-        }.map(on: queue) { discoveryResults in
-            var results = Set<DiscoveredContactInfo>()
-            for discoveryResult in discoveryResults {
-                guard self.e164sToLookup.contains(discoveryResult.e164) else {
-                    // In v2, we get back results for previous lookups as well. The API
-                    // contract expects only those that were explicitly requested, so filter to
-                    // include only those.
-                    continue
-                }
-                guard let aci = discoveryResult.aci else {
-                    owsFailDebug("CDSv2: All discovery results should have an ACI")
-                    continue
-                }
-                results.insert(DiscoveredContactInfo(e164: discoveryResult.e164, uuid: aci))
-            }
-            return results
-        }
-    }
-}
-
-// MARK: -
-
 protocol ContactDiscoveryV2PersistentState {
     /// Load the token & e164s represented by the token.
     ///
     /// If the data isn't available, can't be read, or is corrupted, return
     /// `nil` to reset the token.
-    func load() -> (token: Data, e164s: ContactDiscoveryE164Collection<Set<String>>)?
+    func load() -> (token: Data, e164s: ContactDiscoveryE164Collection<Set<E164>>)?
 
     /// Save the token response from the server.
     /// - Parameters:
@@ -69,7 +31,7 @@ protocol ContactDiscoveryV2PersistentState {
     ///       written. This is most useful when saving the initial token or
     ///       resetting the token after it's been corrupted.
     ///   - newE164s: The e164s that should be saved.
-    func save(newToken: Data, clearE164s: Bool, newE164s: Set<String>) throws
+    func save(newToken: Data, clearE164s: Bool, newE164s: Set<E164>) throws
 
     /// Reset the token.
     ///
@@ -81,16 +43,9 @@ protocol ContactDiscoveryV2PersistentState {
 
 final class ContactDiscoveryV2Operation {
 
-    let e164sToLookup: Set<String>
+    let e164sToLookup: Set<E164>
 
-    let compatibilityMode: CompatibilityMode
-    enum CompatibilityMode {
-        /// Send a request that returns a CDSv1-equivalent response.
-        case fetchAllACIs
-
-        /// Send a PNP-aware request. Requires full support for PNI-only contacts.
-        case fetchKnownACIs
-    }
+    let tryToReturnAcisWithoutUaks: Bool
 
     /// If non-nil, requests will include prevE164s & a token, so we'll only
     /// consume quota for new E164s.
@@ -101,21 +56,31 @@ final class ContactDiscoveryV2Operation {
     /// consume too much quota without the user's consent.
     let persistentState: ContactDiscoveryV2PersistentState?
 
-    let connectionFactory: ContactDiscoveryV2ConnectionFactory
+    let udManager: Shims.UDManager
+
+    let connectionFactory: SgxWebsocketConnectionFactory
 
     init(
-        e164sToLookup: Set<String>,
-        compatibilityMode: CompatibilityMode,
+        e164sToLookup: Set<E164>,
+        tryToReturnAcisWithoutUaks: Bool,
         persistentState: ContactDiscoveryV2PersistentState?,
-        connectionFactory: ContactDiscoveryV2ConnectionFactory
+        udManager: Shims.UDManager,
+        connectionFactory: SgxWebsocketConnectionFactory
     ) {
         self.e164sToLookup = e164sToLookup
-        self.compatibilityMode = compatibilityMode
+        self.tryToReturnAcisWithoutUaks = tryToReturnAcisWithoutUaks
         self.persistentState = persistentState
+        self.udManager = udManager
         self.connectionFactory = connectionFactory
     }
 
-    convenience init(e164sToLookup: Set<String>, mode: ContactDiscoveryMode, compatibilityMode: CompatibilityMode) {
+    convenience init(
+        e164sToLookup: Set<E164>,
+        mode: ContactDiscoveryMode,
+        tryToReturnAcisWithoutUaks: Bool,
+        udManager: Shims.UDManager,
+        websocketFactory: WebSocketFactory
+    ) {
         let persistentState: ContactDiscoveryV2PersistentState?
         if mode == .oneOffUserRequest {
             persistentState = nil
@@ -124,32 +89,36 @@ final class ContactDiscoveryV2Operation {
         }
         self.init(
             e164sToLookup: e164sToLookup,
-            compatibilityMode: compatibilityMode,
+            tryToReturnAcisWithoutUaks: tryToReturnAcisWithoutUaks,
             persistentState: persistentState,
-            connectionFactory: ContactDiscoveryV2ConnectionFactoryImpl()
+            udManager: udManager,
+            connectionFactory: SgxWebsocketConnectionFactoryImpl(websocketFactory: websocketFactory)
         )
     }
 
     func perform(on queue: DispatchQueue) -> Promise<[DiscoveryResult]> {
         firstly(on: queue) {
-            self.connectionFactory.connectAndPerformHandshake(on: queue)
+            return self.connectionFactory.connectAndPerformHandshake(
+                configurator: ContactDiscoveryV2WebsocketConfigurator(),
+                on: queue
+            )
         }.then(on: queue) { connection -> Promise<[DiscoveryResult]> in
-            let initialRequest = try self.buildRequest()
-            return firstly {
-                connection.sendRequestAndReadResponse(initialRequest.requestData)
+            let initialRequest = self.buildRequest()
+            return firstly { () -> Promise<CDSI_ClientResponse> in
+                connection.sendRequestAndReadResponse(initialRequest.request)
             }.map(on: queue) { tokenResponse in
                 // We need to persist the token & new e164s before dealing with the result.
                 // If we don't, a interrupted request could lead to a corrupted token.
                 try self.handle(tokenResponse: tokenResponse, initialRequest: initialRequest)
             }.then(on: queue) {
-                connection.sendRequestAndReadAllResponses(try self.buildTokenAck())
-            }.map(on: queue) { dataResponses in
-                try self.handle(dataResponses: dataResponses)
+                connection.sendRequestAndReadAllResponses(self.buildTokenAck())
+            }.map(on: queue) { responses in
+                try self.handle(responses: responses)
             }.recover(on: queue) { error -> Promise<[DiscoveryResult]> in
                 // We disconnect if there's an error. This might be a connection error, but
                 // it also might be a locally-thrown error, and in that case, we need to
                 // disconnect from the server. (The server disconnects in the happy path.)
-                connection.disconnect()
+                connection.disconnect(code: nil)
                 throw error
             }
         }.recover(on: queue) { error -> Promise<[DiscoveryResult]> in
@@ -169,16 +138,16 @@ final class ContactDiscoveryV2Operation {
         /// The set of e164s that needs to be persisted alongside the token we
         /// receive from the server. This may be empty, and it may contain only a
         /// few e164s in the common case.
-        var newE164s: Set<String>
+        var newE164s: Set<E164>
 
-        /// The data to send to the server as part of the initial request.
-        var requestData: Data
+        /// The proto to send to the server as part of the initial request.
+        var request: CDSI_ClientRequest
     }
 
-    private func buildRequest() throws -> InitialRequest {
+    private func buildRequest() -> InitialRequest {
         let prevToken: Data
         let prevE164s: Data
-        let newE164s: Set<String>
+        let newE164s: Set<E164>
 
         if let priorFetchResult = persistentState?.load() {
             // We've got a valid token from a prior request. Use that.
@@ -195,30 +164,30 @@ final class ContactDiscoveryV2Operation {
         var request = CDSI_ClientRequest()
         request.token = prevToken
         request.prevE164S = prevE164s
-        request.newE164S = try ContactDiscoveryE164Collection(newE164s).encodedValues
-
-        switch compatibilityMode {
-        case .fetchAllACIs:
-            request.returnAcisWithoutUaks = true
-        case .fetchKnownACIs:
-            request.returnAcisWithoutUaks = false
-            // TODO: Fetch all ACI-UAK pairs.
-        }
+        request.newE164S = ContactDiscoveryE164Collection(newE164s).encodedValues
+        request.returnAcisWithoutUaks = tryToReturnAcisWithoutUaks
+        request.aciUakPairs = { () -> Data in
+            var result = Data()
+            for (aci, uak) in udManager.fetchAllAciUakPairsWithSneakyTransaction() {
+                result.append(contentsOf: aci.wrappedAciValue.serviceIdBinary)
+                result.append(uak.keyData)
+            }
+            return result
+        }()
 
         return InitialRequest(
             hasToken: !prevToken.isEmpty,
             newE164s: newE164s,
-            requestData: try request.serializedData()
+            request: request
         )
     }
 
     private func handle(
-        tokenResponse: Data,
+        tokenResponse: CDSI_ClientResponse,
         initialRequest: InitialRequest
     ) throws {
-        let response = try CDSI_ClientResponse(serializedData: tokenResponse)
         // If the server provides an empty token, we should reject it.
-        guard !response.token.isEmpty else {
+        guard !tokenResponse.token.isEmpty else {
             throw ContactDiscoveryError(
                 kind: .genericServerError,
                 debugDescription: "token response missing token",
@@ -227,22 +196,21 @@ final class ContactDiscoveryV2Operation {
             )
         }
         try persistentState?.save(
-            newToken: response.token,
+            newToken: tokenResponse.token,
             clearE164s: !initialRequest.hasToken,
             newE164s: initialRequest.newE164s
         )
     }
 
-    private func buildTokenAck() throws -> Data {
+    private func buildTokenAck() -> CDSI_ClientRequest {
         var request = CDSI_ClientRequest()
         request.tokenAck = true
-        return try request.serializedData()
+        return request
     }
 
-    private func handle(dataResponses: [Data]) throws -> [DiscoveryResult] {
+    private func handle(responses: [CDSI_ClientResponse]) throws -> [DiscoveryResult] {
         var result = [DiscoveryResult]()
-        for dataResponse in dataResponses {
-            let response = try CDSI_ClientResponse(serializedData: dataResponse)
+        for response in responses {
             Logger.info("CDSv2: Consumed \(response.debugPermitsUsed) tokens")
             result.append(contentsOf: try Self.decodePniAciResult(response.e164PniAciTriples))
         }
@@ -343,16 +311,16 @@ final class ContactDiscoveryV2Operation {
     // MARK: - Parsing the Response
 
     struct DiscoveryResult {
-        var e164: String
+        var e164: E164
 
         /// If the lookup succeeds, we'll get back a PNI. If it doesn't succeed, the
         /// user with a particular e164 may not be registered, or they may have
         /// chosen to hide their phone number.
-        var pni: UUID
+        var pni: Pni
 
         /// If we provide the correct ACI-UAK pair, we'll also get back the ACI
         /// associated with the e164/PNI.
-        var aci: UUID?
+        var aci: Aci?
     }
 
     static func decodePniAciResult(_ data: Data) throws -> [DiscoveryResult] {
@@ -369,28 +337,31 @@ final class ContactDiscoveryV2Operation {
     }
 
     static func decodePniAciElement(_ remainingData: inout Data) throws -> DiscoveryResult? {
-        guard let (e164, e164Count) = UInt64.from(bigEndianData: remainingData) else {
+        guard let (rawE164, rawE164Count) = UInt64.from(bigEndianData: remainingData) else {
             throw ContactDiscoveryError.assertionError(description: "malformed e164/aci/pni triples")
         }
-        remainingData = remainingData.dropFirst(e164Count)
+        remainingData = remainingData.dropFirst(rawE164Count)
 
-        guard let (pni, pniCount) = UUID.from(data: remainingData) else {
+        guard let (pniUuid, pniCount) = UUID.from(data: remainingData) else {
             throw ContactDiscoveryError.assertionError(description: "malformed e164/aci/pni triples")
         }
         remainingData = remainingData.dropFirst(pniCount)
 
-        guard let (aci, aciCount) = UUID.from(data: remainingData) else {
+        guard let (aciUuid, aciCount) = UUID.from(data: remainingData) else {
             throw ContactDiscoveryError.assertionError(description: "malformed e164/aci/pni triples")
         }
         remainingData = remainingData.dropFirst(aciCount)
 
-        guard pni != UUID.allZeros else {
+        guard pniUuid != UUID.allZeros else {
             return nil
         }
+        guard let e164 = E164("+\(rawE164)") else {
+            throw ContactDiscoveryError.assertionError(description: "malformed e164")
+        }
         return DiscoveryResult(
-            e164: "+\(e164)",
-            pni: pni,
-            aci: aci == UUID.allZeros ? nil : aci
+            e164: e164,
+            pni: Pni(fromUUID: pniUuid),
+            aci: aciUuid == UUID.allZeros ? nil : Aci(fromUUID: aciUuid)
         )
     }
 }
@@ -413,15 +384,20 @@ private class ContactDiscoveryV2PersistentStateImpl: ContactDiscoveryV2Persisten
     private static let tokenStore = SDSKeyValueStore(collection: "CdsMetadata")
     private static let tokenKey = "token"
 
-    func load() -> (token: Data, e164s: ContactDiscoveryE164Collection<Set<String>>)? {
+    func load() -> (token: Data, e164s: ContactDiscoveryE164Collection<Set<E164>>)? {
         databaseStorage.read { transaction in
             guard let existingToken = Self.tokenStore.getData(Self.tokenKey, transaction: transaction) else {
                 return nil
             }
-            let validatedE164s: ContactDiscoveryE164Collection<Set<String>>
+            let validatedE164s: ContactDiscoveryE164Collection<Set<E164>>
             do {
-                let prevE164s = try CdsPreviousE164.fetchAll(transaction.unwrapGrdbRead.database).map { $0.e164 }
-                validatedE164s = try ContactDiscoveryE164Collection(Set(prevE164s))
+                let prevE164s = try CdsPreviousE164.fetchAll(transaction.unwrapGrdbRead.database).map {
+                    guard let e164 = E164($0.e164) else {
+                        throw ContactDiscoveryError.assertionError(description: "Found malformed E164 in database.")
+                    }
+                    return e164
+                }
+                validatedE164s = ContactDiscoveryE164Collection(Set(prevE164s))
             } catch {
                 // If we find an invalid local value, it's very likely that our local
                 // e164/token state is inconsistent. To recover from this scenario, we
@@ -433,7 +409,7 @@ private class ContactDiscoveryV2PersistentStateImpl: ContactDiscoveryV2Persisten
         }
     }
 
-    func save(newToken: Data, clearE164s: Bool, newE164s: Set<String>) throws {
+    func save(newToken: Data, clearE164s: Bool, newE164s: Set<E164>) throws {
         try databaseStorage.write { transaction in
             let database = transaction.unwrapGrdbWrite.database
 
@@ -448,7 +424,7 @@ private class ContactDiscoveryV2PersistentStateImpl: ContactDiscoveryV2Persisten
             }
 
             for newE164 in newE164s {
-                try CdsPreviousE164(e164: newE164).insert(database)
+                try CdsPreviousE164(e164: newE164.stringValue).insert(database)
             }
 
             Logger.info("CDSv2: Saved CDS token and \(newE164s.count) new CdsE164s")
@@ -467,4 +443,34 @@ extension UUID {
     static let allZeros: Self = {
         Self(data: Data(count: 16))!
     }()
+}
+
+// MARK: - Shims
+
+extension ContactDiscoveryV2Operation {
+    enum Shims {
+        typealias UDManager = _ContactDiscoveryV2Operation_UDManagerShim
+    }
+
+    enum Wrappers {
+        typealias UDManager = _ContactDiscoveryV2Operation_UDManagerWrapper
+    }
+}
+
+protocol _ContactDiscoveryV2Operation_UDManagerShim {
+    func fetchAllAciUakPairsWithSneakyTransaction() -> [AciObjC: SMKUDAccessKey]
+}
+
+class _ContactDiscoveryV2Operation_UDManagerWrapper: _ContactDiscoveryV2Operation_UDManagerShim {
+    private let db: DB
+    private let udManager: OWSUDManager
+
+    init(db: DB, udManager: OWSUDManager) {
+        self.db = db
+        self.udManager = udManager
+    }
+
+    func fetchAllAciUakPairsWithSneakyTransaction() -> [AciObjC: SMKUDAccessKey] {
+        db.read { tx in udManager.fetchAllAciUakPairs(tx: SDSDB.shimOnlyBridge(tx)) }
+    }
 }

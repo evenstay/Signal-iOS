@@ -86,6 +86,7 @@ static const NSUInteger OWSMessageSchemaVersion = 4;
         OWSFailDebug(@"Empty message body.");
     }
     _attachmentIds = messageBuilder.attachmentIds;
+    _editState = messageBuilder.editState;
     _expiresInSeconds = messageBuilder.expiresInSeconds;
     _expireStartedAt = messageBuilder.expireStartedAt;
     [self updateExpiresAt];
@@ -124,6 +125,7 @@ static const NSUInteger OWSMessageSchemaVersion = 4;
                             body:(nullable NSString *)body
                       bodyRanges:(nullable MessageBodyRanges *)bodyRanges
                     contactShare:(nullable OWSContact *)contactShare
+                       editState:(TSEditState)editState
                  expireStartedAt:(uint64_t)expireStartedAt
                        expiresAt:(uint64_t)expiresAt
                 expiresInSeconds:(unsigned int)expiresInSeconds
@@ -155,6 +157,7 @@ static const NSUInteger OWSMessageSchemaVersion = 4;
     _body = body;
     _bodyRanges = bodyRanges;
     _contactShare = contactShare;
+    _editState = editState;
     _expireStartedAt = expireStartedAt;
     _expiresAt = expiresAt;
     _expiresInSeconds = expiresInSeconds;
@@ -307,9 +310,18 @@ static const NSUInteger OWSMessageSchemaVersion = 4;
 
 #pragma mark - Story Context
 
+- (nullable AciObjC *)storyAuthorAci
+{
+    return [[AciObjC alloc] initWithAciString:self.storyAuthorUuidString];
+}
+
 - (nullable SignalServiceAddress *)storyAuthorAddress
 {
-    return [[SignalServiceAddress alloc] initWithUuidString:self.storyAuthorUuidString];
+    AciObjC *storyAuthorAci = self.storyAuthorAci;
+    if (storyAuthorAci == nil) {
+        return nil;
+    }
+    return [[SignalServiceAddress alloc] initWithServiceIdObjC:storyAuthorAci];
 }
 
 - (BOOL)isStoryReply
@@ -466,131 +478,6 @@ static const NSUInteger OWSMessageSchemaVersion = 4;
     return nil;
 }
 
-- (nullable NSString *)plaintextBodyWithTransaction:(GRDBReadTransaction *)transaction
-{
-    NSString *_Nullable rawBody = [self rawBodyWithTransaction:transaction];
-    if (rawBody) {
-        if (self.bodyRanges) {
-            return [self.bodyRanges plaintextBodyWithText:rawBody transaction:transaction];
-        }
-
-        return rawBody.filterStringForDisplay;
-    }
-
-    return nil;
-}
-
-// TODO: This method contains view-specific logic and probably belongs in NotificationsManager, not in SSK.
-- (NSString *)previewTextWithTransaction:(SDSAnyReadTransaction *)transaction
-{
-    if (self.wasRemotelyDeleted) {
-        return [self isKindOfClass:[TSIncomingMessage class]]
-            ? OWSLocalizedString(@"THIS_MESSAGE_WAS_DELETED", "text indicating the message was remotely deleted")
-            : OWSLocalizedString(@"YOU_DELETED_THIS_MESSAGE", "text indicating the message was remotely deleted by you");
-    }
-
-    NSString *_Nullable bodyDescription = nil;
-
-    if (self.body.length > 0) {
-        bodyDescription = self.body;
-    }
-
-    if (self.bodyRanges) {
-        bodyDescription = [self.bodyRanges plaintextBodyWithText:bodyDescription
-                                                     transaction:transaction.unwrapGrdbRead];
-    }
-
-    if (bodyDescription == nil) {
-        TSAttachment *_Nullable oversizeTextAttachment =
-            [self oversizeTextAttachmentWithTransaction:transaction.unwrapGrdbRead];
-        if ([oversizeTextAttachment isKindOfClass:[TSAttachmentStream class]]) {
-            TSAttachmentStream *oversizeTextAttachmentStream = (TSAttachmentStream *)oversizeTextAttachment;
-            NSData *_Nullable data = [NSData dataWithContentsOfFile:oversizeTextAttachmentStream.originalFilePath];
-            if (data) {
-                NSString *_Nullable text = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
-                if (text) {
-                    bodyDescription = text.filterStringForDisplay;
-                }
-            }
-        }
-    }
-
-    if (bodyDescription == nil && self.storyReactionEmoji.length > 0) {
-        if (self.storyAuthorAddress.isLocalAddress) {
-            bodyDescription =
-                [NSString stringWithFormat:OWSLocalizedString(@"STORY_REACTION_LOCAL_AUTHOR_PREVIEW_FORMAT",
-                                               @"inbox and notification text for a reaction to a story authored by the "
-                                               @"local user. Embeds {{reaction emoji}}"),
-                          self.storyReactionEmoji];
-        } else {
-            NSString *storyAuthorName = [self.contactsManager shortDisplayNameForAddress:self.storyAuthorAddress
-                                                                             transaction:transaction];
-            bodyDescription = [NSString
-                stringWithFormat:OWSLocalizedString(@"STORY_REACTION_REMOTE_AUTHOR_PREVIEW_FORMAT",
-                                     @"inbox and notification text for a reaction to a story authored by another user. "
-                                     @"Embeds {{ %1$@ reaction emoji, %2$@ story author name }}"),
-                self.storyReactionEmoji,
-                storyAuthorName];
-        }
-    }
-
-    NSString *_Nullable attachmentEmoji = nil;
-    NSString *_Nullable attachmentDescription = nil;
-
-    TSAttachment *_Nullable mediaAttachment =
-        [self mediaAttachmentsWithTransaction:transaction.unwrapGrdbRead].firstObject;
-    if (mediaAttachment != nil) {
-        attachmentEmoji = mediaAttachment.emoji;
-        attachmentDescription = mediaAttachment.description;
-    }
-
-    if (self.isViewOnceMessage) {
-        if ([self isKindOfClass:TSOutgoingMessage.class] || mediaAttachment == nil) {
-            return OWSLocalizedString(@"PER_MESSAGE_EXPIRATION_NOT_VIEWABLE",
-                @"inbox cell and notification text for an already viewed view-once media message.");
-        } else if (mediaAttachment.isVideo) {
-            return OWSLocalizedString(
-                @"PER_MESSAGE_EXPIRATION_VIDEO_PREVIEW", @"inbox cell and notification text for a view-once video.");
-        } else {
-            OWSAssertDebug(mediaAttachment.isImage || mediaAttachment.isLoopingVideo || mediaAttachment.isAnimated);
-            return OWSLocalizedString(
-                @"PER_MESSAGE_EXPIRATION_PHOTO_PREVIEW", @"inbox cell and notification text for a view-once photo.");
-        }
-    }
-
-    if (attachmentEmoji.length > 0 && bodyDescription.length > 0) {
-        // Attachment with caption.
-        return [[attachmentEmoji stringByAppendingString:@" "] stringByAppendingString:bodyDescription];
-    } else if (bodyDescription.length > 0) {
-        return bodyDescription;
-    } else if (attachmentDescription.length > 0) {
-        return attachmentDescription;
-    } else if (self.contactShare) {
-        return [[@"👤" stringByAppendingString:@" "] stringByAppendingString:self.contactShare.name.displayName];
-    } else if (self.messageSticker) {
-        NSString *stickerDescription = OWSLocalizedString(@"STICKER_MESSAGE_PREVIEW",
-            @"Preview text shown in notifications and conversation list for sticker messages.");
-        NSString *_Nullable stickerEmoji = [StickerManager firstEmojiInEmojiString:self.messageSticker.emoji];
-        if (stickerEmoji.length > 0) {
-            return [[stickerEmoji stringByAppendingString:@" "] stringByAppendingString:stickerDescription];
-        } else {
-            return stickerDescription;
-        }
-    } else if (self.giftBadge != nil) {
-        if ([self isKindOfClass:[TSIncomingMessage class]]) {
-            return OWSLocalizedString(@"BADGE_GIFTING_PREVIEW_INCOMING",
-                @"Shown on the list of chats when the most recent message is a gift you received from someone else.");
-        } else {
-            return OWSLocalizedString(@"BADGE_GIFTING_PREVIEW_OUTGOING",
-                @"Shown on the list of chats when the most recent message is a gift you sent to someone else.");
-        }
-    } else {
-        // This can happen when initially saving outgoing messages
-        // with camera first capture over the conversation list.
-        return @"";
-    }
-}
-
 - (void)anyWillInsertWithTransaction:(SDSAnyWriteTransaction *)transaction
 {
     [super anyWillInsertWithTransaction:transaction];
@@ -615,7 +502,7 @@ static const NSUInteger OWSMessageSchemaVersion = 4;
             TSMention *mention = [[TSMention alloc] initWithUniqueMessageId:self.uniqueId
                                                              uniqueThreadId:self.uniqueThreadId
                                                                  uuidString:uuid.UUIDString];
-            [mention anyInsertWithTransaction:transaction];
+            [mention anyInsertObjcWithTransaction:transaction];
         }
     }
 
@@ -632,7 +519,7 @@ static const NSUInteger OWSMessageSchemaVersion = 4;
 
     [self ensurePerConversationExpirationWithTransaction:transaction];
 
-    [self touchStoryMessageIfNecessaryWithTransaction:transaction];
+    [self touchStoryMessageIfNecessaryWithReplyCountIncrement:ReplyCountIncrementNewReplyAdded transaction:transaction];
 }
 
 - (void)anyWillUpdateWithTransaction:(SDSAnyWriteTransaction *)transaction
@@ -652,7 +539,7 @@ static const NSUInteger OWSMessageSchemaVersion = 4;
 
     [self ensurePerConversationExpirationWithTransaction:transaction];
 
-    [self touchStoryMessageIfNecessaryWithTransaction:transaction];
+    [self touchStoryMessageIfNecessaryWithReplyCountIncrement:ReplyCountIncrementNoIncrement transaction:transaction];
 }
 
 - (void)ensurePerConversationExpirationWithTransaction:(SDSAnyWriteTransaction *)transaction
@@ -677,6 +564,9 @@ static const NSUInteger OWSMessageSchemaVersion = 4;
 
 - (void)anyWillRemoveWithTransaction:(SDSAnyWriteTransaction *)transaction
 {
+    // Ensure any associated edits are deleted before removing the interaction
+    [self removeEditsWithTransaction:transaction];
+
     [super anyWillRemoveWithTransaction:transaction];
 
     // StickerManager does reference counting of "known" sticker packs.
@@ -705,21 +595,7 @@ static const NSUInteger OWSMessageSchemaVersion = 4;
 
     [self removeAllMentionsWithTransaction:transaction];
 
-    [self touchStoryMessageIfNecessaryWithTransaction:transaction];
-}
-
-- (void)touchStoryMessageIfNecessaryWithTransaction:(SDSAnyWriteTransaction *)transaction
-{
-    if (!self.isStoryReply) {
-        return;
-    }
-
-    StoryMessage *_Nullable storyMessage = [StoryFinder storyWithTimestamp:self.storyTimestamp.unsignedLongLongValue
-                                                                    author:self.storyAuthorAddress
-                                                               transaction:transaction];
-    if (storyMessage) {
-        [self.databaseStorage touchStoryMessage:storyMessage transaction:transaction];
-    }
+    [self touchStoryMessageIfNecessaryWithReplyCountIncrement:ReplyCountIncrementReplyDeleted transaction:transaction];
 }
 
 - (void)removeAllAttachmentsWithTransaction:(SDSAnyWriteTransaction *)transaction
@@ -774,13 +650,13 @@ static const NSUInteger OWSMessageSchemaVersion = 4;
     BOOL needsClone = [attachment isKindOfClass:[TSAttachmentStream class]] && !self.quotedMessage.isThumbnailOwned;
     TSAttachment * (^saveUpdatedThumbnail)(SDSAnyWriteTransaction *) = ^TSAttachment *(SDSAnyWriteTransaction *writeTx)
     {
-        __block TSAttachment *_Nullable attachment = nil;
+        __block TSAttachment *_Nullable localAttachment = nil;
         [self anyUpdateMessageWithTransaction:writeTx
                                         block:^(TSMessage *message) {
-                                            attachment = [message.quotedMessage
+                                            localAttachment = [message.quotedMessage
                                                 createThumbnailIfNecessaryWithTransaction:writeTx];
                                         }];
-        return attachment;
+        return localAttachment;
     };
 
     // If we happen to be handed a write transaction, we can perform the clone synchronously
@@ -905,7 +781,7 @@ static const NSUInteger OWSMessageSchemaVersion = 4;
     [self anyReloadWithTransaction:transaction ignoreMissing:YES];
     [self removeAllAttachmentsWithTransaction:transaction];
     [self removeAllMentionsWithTransaction:transaction];
-    [MessageSendLog deleteAllPayloadsForInteraction:self transaction:transaction];
+    [MessageSendLogObjC deleteAllPayloadsForInteraction:self tx:transaction];
 
     [self anyUpdateMessageWithTransaction:transaction
                                     block:^(TSMessage *message) {

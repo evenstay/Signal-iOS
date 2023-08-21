@@ -3,10 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
-import UIKit
+import PureLayout
+import SignalCoreKit
 
-@objc
 public class ToastController: NSObject, ToastViewDelegate {
 
     static var currentToastController: ToastController?
@@ -16,7 +15,6 @@ public class ToastController: NSObject, ToastViewDelegate {
 
     // MARK: Initializers
 
-    @objc
     required public init(text: String) {
         toastView = ToastView()
         toastView.text = text
@@ -147,7 +145,7 @@ class ToastView: UIView {
         darkThemeBackgroundOverlay.backgroundColor = UIColor.white.withAlphaComponent(0.10)
 
         label.textColor = .ows_white
-        label.font = UIFont.ows_dynamicTypeBody2
+        label.font = UIFont.dynamicTypeBody2
         label.numberOfLines = 0
         self.addSubview(label)
         label.autoPinEdgesToSuperviewMargins()
@@ -158,7 +156,7 @@ class ToastView: UIView {
         let swipeGesture = UISwipeGestureRecognizer(target: self, action: #selector(didSwipe(gesture:)))
         self.addGestureRecognizer(swipeGesture)
 
-        NotificationCenter.default.addObserver(self, selector: #selector(applyTheme), name: .ThemeDidChange, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(applyTheme), name: .themeDidChange, object: nil)
         applyTheme()
 
     }
@@ -170,24 +168,23 @@ class ToastView: UIView {
     // MARK: Gestures
 
     @objc
-    func applyTheme() {
+    private func applyTheme() {
         darkThemeBackgroundOverlay.isHidden = !Theme.isDarkThemeEnabled
     }
 
     @objc
-    func didTap(gesture: UITapGestureRecognizer) {
+    private func didTap(gesture: UITapGestureRecognizer) {
         self.delegate?.didTapToastView(self)
     }
 
     @objc
-    func didSwipe(gesture: UISwipeGestureRecognizer) {
+    private func didSwipe(gesture: UISwipeGestureRecognizer) {
         self.delegate?.didSwipeToastView(self)
     }
 }
 
 // MARK: -
 
-@objc
 public extension UIView {
     func presentToast(text: String, fromViewController: UIViewController) {
         fromViewController.presentToast(text: text)
@@ -196,7 +193,6 @@ public extension UIView {
 
 // MARK: -
 
-@objc
 public extension UIViewController {
     func presentToast(text: String, extraVInset: CGFloat = 0) {
         let toastController = ToastController(text: text)

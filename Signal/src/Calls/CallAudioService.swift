@@ -15,7 +15,6 @@ protocol CallAudioServiceDelegate: AnyObject {
     func callAudioServiceDidChangeAudioSource(_ callAudioService: CallAudioService, audioSource: AudioSource?)
 }
 
-@objc
 class CallAudioService: NSObject, CallObserver {
 
     private var vibrateTimer: Timer?
@@ -360,12 +359,12 @@ class CallAudioService: NSObject, CallObserver {
         stopRinging()
     }
 
-    private func prepareToPlay(sound: OWSStandardSound) -> AudioPlayer? {
-        guard let newPlayer = OWSSounds.audioPlayer(forSound: sound.rawValue, audioBehavior: .call) else {
-            owsFailDebug("unable to build player for sound: \(OWSSounds.displayName(forSound: sound.rawValue))")
+    private func prepareToPlay(sound: StandardSound) -> AudioPlayer? {
+        guard let newPlayer = Sounds.audioPlayer(forSound: .standard(sound), audioBehavior: .call) else {
+            owsFailDebug("unable to build player for sound: \(sound.displayName)")
             return nil
         }
-        Logger.info("playing sound: \(OWSSounds.displayName(forSound: sound.rawValue))")
+        Logger.info("playing sound: \(sound.displayName)")
 
         // It's important to stop the current player **before** starting the new player. In the case that
         // we're playing the same sound, since the player is memoized on the sound instance, we'd otherwise
@@ -376,7 +375,7 @@ class CallAudioService: NSObject, CallObserver {
         return newPlayer
     }
 
-    private func play(sound: OWSStandardSound) {
+    private func play(sound: StandardSound) {
         guard let newPlayer = prepareToPlay(sound: sound) else { return }
         newPlayer.play()
     }
@@ -424,7 +423,6 @@ class CallAudioService: NSObject, CallObserver {
         currentPlayer?.stop()
     }
 
-    @objc
     private func ringVibration() {
         // Since a call notification is more urgent than a message notification, we
         // vibrate twice, like a pulse, to differentiate from a normal notification vibration.
@@ -452,7 +450,7 @@ class CallAudioService: NSObject, CallObserver {
             return [AudioSource.builtInSpeaker]
         }
 
-        Logger.info("availableInputs: \(availableInputs)")
+        Logger.info("availableInputs: \(availableInputs.map(\.logSafeDescription))")
         return [AudioSource.builtInSpeaker] + availableInputs.map { portDescription in
             return AudioSource(portDescription: portDescription)
         }
