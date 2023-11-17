@@ -88,7 +88,7 @@ public class CVViewState: NSObject {
 
     public let mediaCache = CVMediaCache()
 
-    public let contactShareViewHelper = ContactShareViewHelper()
+    let contactShareViewHelper = ContactShareViewHelper()
 
     public var userHasScrolled = false
 
@@ -262,6 +262,12 @@ extension ConversationViewController {
     }
 
     var isMeasuringKeyboardHeight: Bool { inputToolbar?.isMeasuringKeyboardHeight ?? false }
+
+    var isSwitchingKeyboard: Bool {
+        // See comment in `ConversationInputToolbar.isSwitchingKeyboard`.
+        guard #available(iOS 17, *) else { return false }
+        return inputToolbar?.isSwitchingKeyboard ?? false
+    }
 
     var mediaCache: CVMediaCache { viewState.mediaCache }
 

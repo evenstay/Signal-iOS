@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import LibSignalClient
 import SignalCoreKit
 
 @objc
@@ -47,7 +48,6 @@ public struct RequestMakerResult {
 public final class RequestMaker: Dependencies {
 
     public typealias RequestFactoryBlock = (SMKUDAccessKey?) -> TSRequest?
-    public typealias UDAuthFailureBlock = () -> Void
 
     public struct Options: OptionSet {
         public let rawValue: Int
@@ -70,8 +70,7 @@ public final class RequestMaker: Dependencies {
 
     private let label: String
     private let requestFactoryBlock: RequestFactoryBlock
-    private let udAuthFailureBlock: UDAuthFailureBlock
-    private let serviceId: UntypedServiceId
+    private let serviceId: ServiceId
     private let address: SignalServiceAddress
     private let udAccess: OWSUDAccess?
     private let authedAccount: AuthedAccount
@@ -80,15 +79,13 @@ public final class RequestMaker: Dependencies {
     public init(
         label: String,
         requestFactoryBlock: @escaping RequestFactoryBlock,
-        udAuthFailureBlock: @escaping UDAuthFailureBlock,
-        serviceId: UntypedServiceId,
+        serviceId: ServiceId,
         udAccess: OWSUDAccess?,
         authedAccount: AuthedAccount,
         options: Options
     ) {
         self.label = label
         self.requestFactoryBlock = requestFactoryBlock
-        self.udAuthFailureBlock = udAuthFailureBlock
         self.serviceId = serviceId
         self.address = SignalServiceAddress(serviceId)
         self.udAccess = udAccess
@@ -116,13 +113,13 @@ public final class RequestMaker: Dependencies {
             shouldUseWebsocket = (
                 !options.contains(.skipWebSocket)
                 && OWSWebSocket.canAppUseSocketsToMakeRequests
-                && socketManager.canMakeRequests(webSocketType: webSocketType)
+                && DependenciesBridge.shared.socketManager.canMakeRequests(webSocketType: webSocketType)
             )
         }
 
         if shouldUseWebsocket {
             return firstly {
-                socketManager.makeRequestPromise(request: request)
+                DependenciesBridge.shared.socketManager.makeRequestPromise(request: request)
             }.map(on: DispatchQueue.global()) { response in
                 self.requestSucceeded(udAccess: udAccess)
                 return RequestMakerResult(response: response, wasSentByUD: isUDRequest, wasSentByWebsocket: true)
@@ -145,20 +142,24 @@ public final class RequestMaker: Dependencies {
         if let udAccess, (error.httpStatusCode == 401 || error.httpStatusCode == 403) {
             // If a UD request fails due to service response (as opposed to network
             // failure), mark recipient as _not_ in UD mode, then retry.
-            switch udAccess.udAccessMode {
-            case .unrestricted:
-                // If it was unrestricted, we *might* have the right profile key.
-                self.udManager.setUnidentifiedAccessMode(.unknown, address: self.address)
-            case .unknown, .enabled, .disabled:
-                // If it was unknown, we may have tried the real key (if we had it) or a
-                // random key. In either of these cases, we don't want to try again because
-                // it won't work.
-                self.udManager.setUnidentifiedAccessMode(.disabled, address: self.address)
+            let newUdAccessMode: UnidentifiedAccessMode = {
+                switch udAccess.udAccessMode {
+                case .unrestricted:
+                    // If it was unrestricted, we *might* have the right profile key.
+                    return .unknown
+                case .unknown, .enabled, .disabled:
+                    // If it was unknown, we may have tried the real key (if we had it) or a
+                    // random key. In either of these cases, we don't want to try again because
+                    // it won't work.
+                    return .disabled
+                }
+            }()
+            databaseStorage.write { tx in
+                self.udManager.setUnidentifiedAccessMode(newUdAccessMode, for: self.serviceId, tx: tx)
             }
             if !self.options.contains(.isProfileFetch) {
                 self.profileManager.fetchProfile(for: self.address, authedAccount: self.authedAccount)
             }
-            self.udAuthFailureBlock()
 
             if self.options.contains(.allowIdentifiedFallback) {
                 Logger.info("UD request '\(self.label)' auth failed; failing over to non-UD request")
@@ -179,16 +180,20 @@ public final class RequestMaker: Dependencies {
         guard udAccess.udAccessMode == .unknown else {
             return
         }
-        if udAccess.isRandomKey {
-            // If a UD request succeeds for an unknown user with a random key,
-            // mark address as .unrestricted.
-            udManager.setUnidentifiedAccessMode(.unrestricted, address: address)
-        } else {
-            // If a UD request succeeds for an unknown user with a non-random key,
-            // mark address as .enabled.
-            udManager.setUnidentifiedAccessMode(.enabled, address: address)
+        let newUdAccessMode: UnidentifiedAccessMode = {
+            if udAccess.isRandomKey {
+                // If a UD request succeeds for an unknown user with a random key,
+                // mark address as .unrestricted.
+                return .unrestricted
+            } else {
+                // If a UD request succeeds for an unknown user with a non-random key,
+                // mark address as .enabled.
+                return .enabled
+            }
+        }()
+        databaseStorage.write { tx in
+            self.udManager.setUnidentifiedAccessMode(newUdAccessMode, for: self.serviceId, tx: tx)
         }
-
         if !self.options.contains(.isProfileFetch) {
             // If this request isn't a profile fetch, kick off a profile fetch. If it
             // is a profile fetch, don't bother fetching it *again*.

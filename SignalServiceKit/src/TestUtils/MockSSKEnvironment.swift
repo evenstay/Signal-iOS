@@ -52,20 +52,34 @@ public class MockSSKEnvironment: SSKEnvironment {
 
         // Set up DependenciesBridge
 
+        let recipientDatabaseTable = RecipientDatabaseTableImpl()
+        let recipientFetcher = RecipientFetcherImpl(recipientDatabaseTable: recipientDatabaseTable)
+        let recipientIdFinder = RecipientIdFinder(recipientDatabaseTable: recipientDatabaseTable, recipientFetcher: recipientFetcher)
+
         let accountServiceClient = FakeAccountServiceClient()
-        let aciSignalProtocolStore = SignalProtocolStoreImpl(for: .aci, keyValueStoreFactory: keyValueStoreFactory)
+        let aciSignalProtocolStore = SignalProtocolStoreImpl(
+            for: .aci,
+            keyValueStoreFactory: keyValueStoreFactory,
+            recipientIdFinder: recipientIdFinder
+        )
+        let blockingManager = BlockingManager()
         let dateProvider = Date.provider
         let groupsV2 = MockGroupsV2()
-        let identityManager = OWSIdentityManager(databaseStorage: databaseStorage)
         let messageProcessor = MessageProcessor()
         let messageSender = FakeMessageSender()
         let modelReadCaches = ModelReadCaches(factory: TestableModelReadCacheFactory())
         let networkManager = OWSFakeNetworkManager()
         let notificationsManager = NoopNotificationsManager()
         let ows2FAManager = OWS2FAManager()
-        let pniSignalProtocolStore = SignalProtocolStoreImpl(for: .pni, keyValueStoreFactory: keyValueStoreFactory)
+        let paymentsEvents = PaymentsEventsNoop()
+        let pniSignalProtocolStore = SignalProtocolStoreImpl(
+            for: .pni,
+            keyValueStoreFactory: keyValueStoreFactory,
+            recipientIdFinder: recipientIdFinder
+        )
         let profileManager = OWSFakeProfileManager()
         let receiptManager = OWSReceiptManager()
+        let senderKeyStore = SenderKeyStore()
         let signalProtocolStoreManager = SignalProtocolStoreManagerImpl(
             aciProtocolStore: aciSignalProtocolStore,
             pniProtocolStore: pniSignalProtocolStore
@@ -74,46 +88,53 @@ public class MockSSKEnvironment: SSKEnvironment {
         let signalServiceAddressCache = SignalServiceAddressCache()
         let storageServiceManager = FakeStorageServiceManager()
         let syncManager = OWSMockSyncManager()
-        let tsAccountManager = TSAccountManager()
+        let udManager = OWSUDManagerImpl()
+        let versionedProfiles = MockVersionedProfiles()
         let webSocketFactory = WebSocketFactoryMock()
+        let sskJobQueues = SSKJobQueues()
 
-        let dependenciesBridge = DependenciesBridge.setupSingleton(
+        let dependenciesBridge = DependenciesBridge.setUpSingleton(
             accountServiceClient: accountServiceClient,
+            appContext: TestAppContext(),
             appVersion: AppVersionImpl.shared,
+            blockingManager: blockingManager,
             databaseStorage: databaseStorage,
             dateProvider: dateProvider,
             groupsV2: groupsV2,
-            identityManager: identityManager,
+            jobQueues: sskJobQueues,
+            keyValueStoreFactory: keyValueStoreFactory,
             messageProcessor: messageProcessor,
             messageSender: messageSender,
             modelReadCaches: modelReadCaches,
             networkManager: networkManager,
             notificationsManager: notificationsManager,
             ows2FAManager: ows2FAManager,
+            paymentsEvents: paymentsEvents,
             profileManager: profileManager,
             receiptManager: receiptManager,
+            recipientDatabaseTable: recipientDatabaseTable,
+            recipientFetcher: recipientFetcher,
+            recipientIdFinder: recipientIdFinder,
+            senderKeyStore: senderKeyStore,
             signalProtocolStoreManager: signalProtocolStoreManager,
             signalService: signalService,
             signalServiceAddressCache: signalServiceAddressCache,
             storageServiceManager: storageServiceManager,
             syncManager: syncManager,
-            tsAccountManager: tsAccountManager,
+            udManager: udManager,
+            versionedProfiles: versionedProfiles,
             websocketFactory: webSocketFactory
         )
 
         // Set up ourselves
-
-        let appExpiry = DependenciesBridge.shared.appExpiry
+        let appExpiry = dependenciesBridge.appExpiry
         let contactsManager = FakeContactsManager()
         let linkPreviewManager = OWSLinkPreviewManager()
         let pendingReceiptRecorder = NoopPendingReceiptRecorder()
         let messageManager = OWSMessageManager()
-        let blockingManager = BlockingManager()
         let remoteConfigManager = StubbableRemoteConfigManager()
-        let udManager = OWSUDManagerImpl()
         let messageDecrypter = OWSMessageDecrypter()
         let groupsV2MessageProcessor = GroupsV2MessageProcessor()
-        let socketManager = SocketManager(appExpiry: appExpiry, db: DependenciesBridge.shared.db)
         let disappearingMessagesJob = OWSDisappearingMessagesJob()
         let outgoingReceiptManager = OWSOutgoingReceiptManager()
         let reachabilityManager = MockSSKReachabilityManager()
@@ -123,27 +144,28 @@ public class MockSSKEnvironment: SSKEnvironment {
         let sskPreferences = SSKPreferences()
         let groupV2Updates = MockGroupV2Updates()
         let messageFetcherJob = MessageFetcherJob()
-        let bulkProfileFetch = BulkProfileFetch()
-        let versionedProfiles = MockVersionedProfiles()
+        let bulkProfileFetch = BulkProfileFetch(
+            databaseStorage: databaseStorage,
+            reachabilityManager: reachabilityManager,
+            tsAccountManager: dependenciesBridge.tsAccountManager
+        )
         let earlyMessageManager = EarlyMessageManager()
         let messagePipelineSupervisor = MessagePipelineSupervisor()
         let paymentsHelper = MockPaymentsHelper()
         let paymentsCurrencies = MockPaymentsCurrencies()
-        let paymentsEvents = PaymentsEventsNoop()
         let mobileCoinHelper = MobileCoinHelperMock()
         let spamChallengeResolver = SpamChallengeResolver()
-        let senderKeyStore = SenderKeyStore()
         let phoneNumberUtil = PhoneNumberUtil()
         let legacyChangePhoneNumber = LegacyChangePhoneNumber()
         let subscriptionManager = MockSubscriptionManager()
         let systemStoryManager = SystemStoryManagerMock()
         let remoteMegaphoneFetcher = RemoteMegaphoneFetcher()
-        let sskJobQueues = SSKJobQueues()
         let contactDiscoveryManager = ContactDiscoveryManagerImpl(
             db: dependenciesBridge.db,
+            recipientDatabaseTable: dependenciesBridge.recipientDatabaseTable,
             recipientFetcher: dependenciesBridge.recipientFetcher,
             recipientMerger: dependenciesBridge.recipientMerger,
-            tsAccountManager: tsAccountManager,
+            tsAccountManager: dependenciesBridge.tsAccountManager,
             udManager: udManager,
             websocketFactory: webSocketFactory
         )
@@ -158,15 +180,12 @@ public class MockSSKEnvironment: SSKEnvironment {
             networkManager: networkManager,
             messageManager: messageManager,
             blockingManager: blockingManager,
-            identityManager: identityManager,
             remoteConfigManager: remoteConfigManager,
             aciSignalProtocolStore: aciSignalProtocolStore,
             pniSignalProtocolStore: pniSignalProtocolStore,
             udManager: udManager,
             messageDecrypter: messageDecrypter,
             groupsV2MessageProcessor: groupsV2MessageProcessor,
-            socketManager: socketManager,
-            tsAccountManager: tsAccountManager,
             ows2FAManager: ows2FAManager,
             disappearingMessagesJob: disappearingMessagesJob,
             receiptManager: receiptManager,

@@ -28,10 +28,10 @@ class LearnMyOwnPniManagerTest: XCTestCase {
     }
 
     private var accountServiceClientMock: AccountServiceClientMock!
-    private var identityManagerMock: IdentityManagerMock!
+    private var pniIdentityKeyCheckerMock: PniIdentityKeyCheckerMock!
     private var preKeyManagerMock: PreKeyManagerMock!
-    private var profileFetcherMock: ProfileFetcherMock!
-    private var tsAccountManagerMock: TSAccountManagerMock!
+    private var registrationStateChangeManagerMock: MockRegistrationStateChangeManager!
+    private var tsAccountManagerMock: MockTSAccountManager!
 
     private var kvStore: TestKeyValueStore!
     private let db = MockDB()
@@ -39,12 +39,18 @@ class LearnMyOwnPniManagerTest: XCTestCase {
 
     private var learnMyOwnPniManager: LearnMyOwnPniManager!
 
+    private var updatedPni: Pni?
+
     override func setUp() {
         accountServiceClientMock = .init()
-        identityManagerMock = .init()
-        preKeyManagerMock = .init(identityManagerMock: identityManagerMock)
-        profileFetcherMock = .init()
+        pniIdentityKeyCheckerMock = .init()
+        preKeyManagerMock = .init()
+        registrationStateChangeManagerMock = .init()
         tsAccountManagerMock = .init()
+
+        registrationStateChangeManagerMock.didUpdateLocalPhoneNumberMock = { [weak self] _, _, pni in
+            self?.updatedPni = pni
+        }
 
         let kvStoreFactory = InMemoryKeyValueStoreFactory()
         kvStore = TestKeyValueStore(kvStoreFactory: kvStoreFactory)
@@ -56,13 +62,19 @@ class LearnMyOwnPniManagerTest: XCTestCase {
         learnMyOwnPniManager = LearnMyOwnPniManagerImpl(
             accountServiceClient: accountServiceClientMock,
             db: db,
-            identityManager: identityManagerMock,
             keyValueStoreFactory: kvStoreFactory,
+            pniIdentityKeyChecker: pniIdentityKeyCheckerMock,
             preKeyManager: preKeyManagerMock,
-            profileFetcher: profileFetcherMock,
+            registrationStateChangeManager: registrationStateChangeManagerMock,
             schedulers: schedulers,
             tsAccountManager: tsAccountManagerMock
         )
+    }
+
+    override func tearDown() {
+        accountServiceClientMock.whoAmIResult.ensureUnset()
+        pniIdentityKeyCheckerMock.checkResult.ensureUnset()
+        preKeyManagerMock.createKeysResult.ensureUnset()
     }
 
     func testSkipsIfAlreadySucceeded() {
@@ -70,65 +82,69 @@ class LearnMyOwnPniManagerTest: XCTestCase {
 
         learnMyOwnPniManager.learnMyOwnPniIfNecessary().cauterize()
 
-        XCTAssertFalse(accountServiceClientMock.completeWhoAmIRequest())
-        XCTAssertNil(tsAccountManagerMock.updatedPni)
-        XCTAssertFalse(profileFetcherMock.completeProfileFetch())
-        XCTAssertFalse(preKeyManagerMock.completeCreatePniKeys())
+        XCTAssertNil(self.updatedPni)
         XCTAssertTrue(db.read { kvStore.hasSucceeded(tx: $0) })
     }
 
     func testSkipsIfLinkedDevice() {
-        tsAccountManagerMock.isPrimaryDevice = false
+        tsAccountManagerMock.registrationStateMock = { .provisioned }
 
         learnMyOwnPniManager.learnMyOwnPniIfNecessary().cauterize()
 
-        XCTAssertFalse(accountServiceClientMock.completeWhoAmIRequest())
-        XCTAssertNil(tsAccountManagerMock.updatedPni)
-        XCTAssertFalse(profileFetcherMock.completeProfileFetch())
-        XCTAssertFalse(preKeyManagerMock.completeCreatePniKeys())
+        XCTAssertNil(self.updatedPni)
         XCTAssertFalse(db.read { kvStore.hasSucceeded(tx: $0) })
     }
 
     func testSkipsIfNoLocalIdentifiers() {
+        tsAccountManagerMock.localIdentifiersMock = { nil }
         learnMyOwnPniManager.learnMyOwnPniIfNecessary().cauterize()
 
-        XCTAssertFalse(accountServiceClientMock.completeWhoAmIRequest())
-        XCTAssertNil(tsAccountManagerMock.updatedPni)
-        XCTAssertFalse(profileFetcherMock.completeProfileFetch())
-        XCTAssertFalse(preKeyManagerMock.completeCreatePniKeys())
+        XCTAssertNil(self.updatedPni)
         XCTAssertFalse(db.read { kvStore.hasSucceeded(tx: $0) })
     }
 
-    func testFetchesPniIfMissing() {
+    func testFetchesPniAndCreatesKeysIfMissingPni() {
         let localAci = Aci.randomForTesting()
         let localE164 = E164("+17735550199")!
         let remotePni = Pni.randomForTesting()
 
-        tsAccountManagerMock.mockIdentifiers = .init(aci: localAci, pni: nil, e164: localE164)
-        accountServiceClientMock.mockWhoAmI = .init(aci: localAci, pni: remotePni, e164: localE164)
+        tsAccountManagerMock.localIdentifiersMock = { .init(aci: localAci, pni: nil, e164: localE164) }
+        accountServiceClientMock.whoAmIResult = .value(.init(aci: localAci, pni: remotePni, e164: localE164))
+        pniIdentityKeyCheckerMock.checkResult = .value(false) // Can assume false since we didn't even know the PNI
+        preKeyManagerMock.createKeysResult = .value(())
 
         learnMyOwnPniManager.learnMyOwnPniIfNecessary().cauterize()
 
-        XCTAssertTrue(accountServiceClientMock.completeWhoAmIRequest())
-        XCTAssertEqual(remotePni, tsAccountManagerMock.updatedPni)
-        XCTAssertFalse(profileFetcherMock.completeProfileFetch())
-        XCTAssertTrue(preKeyManagerMock.completeCreatePniKeys())
+        XCTAssertEqual(remotePni, self.updatedPni)
         XCTAssertTrue(db.read { kvStore.hasSucceeded(tx: $0) })
     }
 
-    func testSkipsPniFetchIfPresent() {
+    func testSkipsPniFetchButCreatesKeysIfPniPresentButKeyDoesntMatch() {
         let localAci = Aci.randomForTesting()
         let localPni = Pni.randomForTesting()
         let localE164 = E164("+17735550199")!
 
-        tsAccountManagerMock.mockIdentifiers = .init(aci: localAci, pni: localPni, e164: localE164)
+        tsAccountManagerMock.localIdentifiersMock = { .init(aci: localAci, pni: localPni, e164: localE164) }
+        pniIdentityKeyCheckerMock.checkResult = .value(false)
+        preKeyManagerMock.createKeysResult = .value(())
 
         learnMyOwnPniManager.learnMyOwnPniIfNecessary().cauterize()
 
-        XCTAssertFalse(accountServiceClientMock.completeWhoAmIRequest())
-        XCTAssertNil(tsAccountManagerMock.updatedPni)
-        XCTAssertFalse(profileFetcherMock.completeProfileFetch())
-        XCTAssertTrue(preKeyManagerMock.completeCreatePniKeys())
+        XCTAssertNil(self.updatedPni)
+        XCTAssertTrue(db.read { kvStore.hasSucceeded(tx: $0) })
+    }
+
+    func testSkipsPniFetchAndDoesntCreateKeysIfPniPresentAndKeyMatches() {
+        let localAci = Aci.randomForTesting()
+        let localPni = Pni.randomForTesting()
+        let localE164 = E164("+17735550199")!
+
+        tsAccountManagerMock.localIdentifiersMock = { .init(aci: localAci, pni: localPni, e164: localE164) }
+        pniIdentityKeyCheckerMock.checkResult = .value(true)
+
+        learnMyOwnPniManager.learnMyOwnPniIfNecessary().cauterize()
+
+        XCTAssertNil(self.updatedPni)
         XCTAssertTrue(db.read { kvStore.hasSucceeded(tx: $0) })
     }
 
@@ -139,104 +155,29 @@ class LearnMyOwnPniManagerTest: XCTestCase {
         let remoteAci = Aci.randomForTesting()
         let remotePni = Pni.randomForTesting()
 
-        tsAccountManagerMock.mockIdentifiers = .init(aci: localAci, pni: nil, e164: localE164)
-        accountServiceClientMock.mockWhoAmI = .init(aci: remoteAci, pni: remotePni, e164: localE164)
+        tsAccountManagerMock.localIdentifiersMock = { .init(aci: localAci, pni: nil, e164: localE164) }
+        accountServiceClientMock.whoAmIResult = .value(.init(aci: remoteAci, pni: remotePni, e164: localE164))
 
         learnMyOwnPniManager.learnMyOwnPniIfNecessary().cauterize()
 
-        XCTAssertTrue(accountServiceClientMock.completeWhoAmIRequest())
-        XCTAssertNil(tsAccountManagerMock.updatedPni)
-        XCTAssertFalse(profileFetcherMock.completeProfileFetch())
-        XCTAssertFalse(preKeyManagerMock.completeCreatePniKeys())
+        XCTAssertNil(self.updatedPni)
         XCTAssertFalse(db.read { kvStore.hasSucceeded(tx: $0) })
     }
 
-    func testCreatesPniKeysWithoutFetchingRemoteIfNoneLocal() {
+    func testSkipsPniSaveIfMismatchedE164() {
         let localAci = Aci.randomForTesting()
-        let localPni = Pni.randomForTesting()
         let localE164 = E164("+17735550199")!
 
-        tsAccountManagerMock.mockIdentifiers = .init(aci: localAci, pni: localPni, e164: localE164)
+        let remotePni = Pni.randomForTesting()
+        let remoteE164 = E164("+17735550198")!
+
+        tsAccountManagerMock.localIdentifiersMock = { .init(aci: localAci, pni: nil, e164: localE164) }
+        accountServiceClientMock.whoAmIResult = .value(.init(aci: localAci, pni: remotePni, e164: remoteE164))
 
         learnMyOwnPniManager.learnMyOwnPniIfNecessary().cauterize()
 
-        XCTAssertFalse(accountServiceClientMock.completeWhoAmIRequest())
-        XCTAssertNil(tsAccountManagerMock.updatedPni)
-        XCTAssertFalse(profileFetcherMock.completeProfileFetch())
-        XCTAssertTrue(preKeyManagerMock.completeCreatePniKeys())
-        XCTAssertTrue(db.read { kvStore.hasSucceeded(tx: $0) })
-    }
-
-    func testCreatesPniKeysIfRemoteMissing() {
-        let localAci = Aci.randomForTesting()
-        let localPni = Pni.randomForTesting()
-        let localE164 = E164("+17735550199")!
-
-        tsAccountManagerMock.mockIdentifiers = .init(aci: localAci, pni: localPni, e164: localE164)
-        identityManagerMock.pniPublicKeyData = Data()
-        profileFetcherMock.profileFetchResult = .success(nil)
-
-        learnMyOwnPniManager.learnMyOwnPniIfNecessary().cauterize()
-
-        XCTAssertFalse(accountServiceClientMock.completeWhoAmIRequest())
-        XCTAssertNil(tsAccountManagerMock.updatedPni)
-        XCTAssertTrue(profileFetcherMock.completeProfileFetch())
-        XCTAssertTrue(preKeyManagerMock.completeCreatePniKeys())
-        XCTAssertTrue(db.read { kvStore.hasSucceeded(tx: $0) })
-    }
-
-    func testCreatesPniKeysIfRemoteDoesNotMatchLocal() {
-        let localAci = Aci.randomForTesting()
-        let localPni = Pni.randomForTesting()
-        let localE164 = E164("+17735550199")!
-
-        tsAccountManagerMock.mockIdentifiers = .init(aci: localAci, pni: localPni, e164: localE164)
-        identityManagerMock.pniPublicKeyData = Data(repeating: 3, count: 12)
-        profileFetcherMock.profileFetchResult = .success(Data(repeating: 4, count: 12))
-
-        learnMyOwnPniManager.learnMyOwnPniIfNecessary().cauterize()
-
-        XCTAssertFalse(accountServiceClientMock.completeWhoAmIRequest())
-        XCTAssertNil(tsAccountManagerMock.updatedPni)
-        XCTAssertTrue(profileFetcherMock.completeProfileFetch())
-        XCTAssertTrue(preKeyManagerMock.completeCreatePniKeys())
-        XCTAssertTrue(db.read { kvStore.hasSucceeded(tx: $0) })
-    }
-
-    func testDoesNotCreatePniKeysIfErrorFetchingRemoteToCompare() {
-        let localAci = Aci.randomForTesting()
-        let localPni = Pni.randomForTesting()
-        let localE164 = E164("+17735550199")!
-
-        tsAccountManagerMock.mockIdentifiers = .init(aci: localAci, pni: localPni, e164: localE164)
-        identityManagerMock.pniPublicKeyData = Data(repeating: 3, count: 12)
-        profileFetcherMock.profileFetchResult = .failure(OWSGenericError("whoops"))
-
-        learnMyOwnPniManager.learnMyOwnPniIfNecessary().cauterize()
-
-        XCTAssertFalse(accountServiceClientMock.completeWhoAmIRequest())
-        XCTAssertNil(tsAccountManagerMock.updatedPni)
-        XCTAssertTrue(profileFetcherMock.completeProfileFetch())
-        XCTAssertFalse(preKeyManagerMock.completeCreatePniKeys())
+        XCTAssertNil(self.updatedPni)
         XCTAssertFalse(db.read { kvStore.hasSucceeded(tx: $0) })
-    }
-
-    func testDoesNotCreatePniKeysIfRemoteMatchesLocal() {
-        let localAci = Aci.randomForTesting()
-        let localPni = Pni.randomForTesting()
-        let localE164 = E164("+17735550199")!
-
-        tsAccountManagerMock.mockIdentifiers = .init(aci: localAci, pni: localPni, e164: localE164)
-        identityManagerMock.pniPublicKeyData = Data(repeating: 3, count: 12)
-        profileFetcherMock.profileFetchResult = .success(Data(repeating: 3, count: 12))
-
-        learnMyOwnPniManager.learnMyOwnPniIfNecessary().cauterize()
-
-        XCTAssertFalse(accountServiceClientMock.completeWhoAmIRequest())
-        XCTAssertNil(tsAccountManagerMock.updatedPni)
-        XCTAssertTrue(profileFetcherMock.completeProfileFetch())
-        XCTAssertFalse(preKeyManagerMock.completeCreatePniKeys())
-        XCTAssertTrue(db.read { kvStore.hasSucceeded(tx: $0) })
     }
 
     func testConcurrentCalls() {
@@ -244,8 +185,9 @@ class LearnMyOwnPniManagerTest: XCTestCase {
         let localE164 = E164("+17735550199")!
         let remotePni = Pni.randomForTesting()
 
-        tsAccountManagerMock.mockIdentifiers = .init(aci: localAci, pni: nil, e164: localE164)
-        accountServiceClientMock.mockWhoAmI = .init(aci: localAci, pni: remotePni, e164: localE164)
+        tsAccountManagerMock.localIdentifiersMock = { .init(aci: localAci, pni: nil, e164: localE164) }
+        accountServiceClientMock.whoAmIResult = .value(.init(aci: localAci, pni: remotePni, e164: localE164))
+        pniIdentityKeyCheckerMock.checkResult = .value(true)
 
         // Stop the scheduler and call twice; should only fetch once!
         scheduler.stop()
@@ -253,10 +195,7 @@ class LearnMyOwnPniManagerTest: XCTestCase {
         learnMyOwnPniManager.learnMyOwnPniIfNecessary().cauterize()
         scheduler.start()
 
-        XCTAssertTrue(accountServiceClientMock.completeWhoAmIRequest())
-        XCTAssertEqual(remotePni, tsAccountManagerMock.updatedPni)
-        XCTAssertFalse(profileFetcherMock.completeProfileFetch())
-        XCTAssertTrue(preKeyManagerMock.completeCreatePniKeys())
+        XCTAssertEqual(remotePni, self.updatedPni)
         XCTAssertTrue(db.read { kvStore.hasSucceeded(tx: $0) })
     }
 
@@ -264,7 +203,7 @@ class LearnMyOwnPniManagerTest: XCTestCase {
 
 private extension WhoAmIRequestFactory.Responses.WhoAmI {
     init(aci: Aci, pni: Pni, e164: E164) {
-        self.init(aci: aci.rawUUID, pni: pni.rawUUID, e164: e164, usernameHash: nil)
+        self.init(aci: aci, pni: pni, e164: e164, usernameHash: nil)
     }
 }
 
@@ -275,147 +214,29 @@ private extension WhoAmIRequestFactory.Responses.WhoAmI {
 private class AccountServiceClientMock: LearnMyOwnPniManagerImpl.Shims.AccountServiceClient {
     typealias WhoAmI = WhoAmIRequestFactory.Responses.WhoAmI
 
-    var mockWhoAmI: WhoAmI?
-    private var whoAmIRequestFuture: Future<WhoAmI>?
-
-    /// Completes a mocked operation that is async in the real app. Otherwise,
-    /// since tests complete promises synchronously we may get database
-    /// re-entrance.
-    /// - Returns whether or not a mocked operation was completed.
-    func completeWhoAmIRequest() -> Bool {
-        guard let whoAmIRequestFuture else {
-            return false
-        }
-
-        guard let mockWhoAmI else {
-            whoAmIRequestFuture.reject(OWSGenericError("Missing mock!"))
-            return false
-        }
-
-        whoAmIRequestFuture.resolve(mockWhoAmI)
-        return true
-    }
+    var whoAmIResult: ConsumableMockPromise<WhoAmI> = .unset
 
     func getAccountWhoAmI() -> Promise<WhoAmI> {
-        guard whoAmIRequestFuture == nil else {
-            XCTFail("Request already in-flight!")
-            return Promise(error: OWSGenericError("Request already in flight!"))
-        }
-
-        let (promise, future) = Promise<WhoAmI>.pending()
-
-        whoAmIRequestFuture = future
-        return promise
+        return whoAmIResult.consumeIntoPromise()
     }
 }
 
-// MARK: IdentityManager
+// MARK: PniIdentityKeyChecker
 
-private class IdentityManagerMock: LearnMyOwnPniManagerImpl.Shims.IdentityManager {
-    var pniPublicKeyData: Data?
+private class PniIdentityKeyCheckerMock: PniIdentityKeyChecker {
+    var checkResult: ConsumableMockPromise<Bool> = .unset
 
-    func pniIdentityPublicKeyData(tx _: DBReadTransaction) -> Data? {
-        return pniPublicKeyData
+    func serverHasSameKeyAsLocal(localPni: Pni, tx: DBReadTransaction) -> Promise<Bool> {
+        return checkResult.consumeIntoPromise()
     }
 }
 
 // MARK: PreKeyManager
 
 private class PreKeyManagerMock: MockPreKeyManager {
-
-    private let identityManagerMock: IdentityManagerMock
-
-    init(identityManagerMock: IdentityManagerMock) {
-        self.identityManagerMock = identityManagerMock
-    }
-
-    private var createKeysFuture: Future<Void>?
-
-    /// Completes a mocked operation that is async in the real app. Otherwise,
-    /// since tests complete promises synchronously we may get database
-    /// re-entrance.
-    /// - Returns whether or not a mocked operation was completed.
-    func completeCreatePniKeys(_ pniIdentityKey: ECKeyPair? = nil) -> Bool {
-        guard let createKeysFuture else {
-            return false
-        }
-        identityManagerMock.pniPublicKeyData = (pniIdentityKey ?? Curve25519.generateKeyPair()).publicKey
-        createKeysFuture.resolve()
-        return true
-    }
+    var createKeysResult: ConsumableMockPromise<Void> = .unset
 
     override func createOrRotatePNIPreKeys(auth: ChatServiceAuth) -> Promise<Void> {
-        guard createKeysFuture == nil else {
-            XCTFail("Creation already in-flight!")
-            return Promise(error: OWSGenericError("Creation already in-flight!"))
-        }
-
-        let (promise, future) = Promise<Void>.pending()
-
-        createKeysFuture = future
-        return promise
-    }
-}
-
-// MARK: ProfileFetcher
-
-private class ProfileFetcherMock: LearnMyOwnPniManagerImpl.Shims.ProfileFetcher {
-    var profileFetchResult: Result<Data?, Error>?
-    private var profileFetchFuture: Future<Data?>?
-
-    /// Completes a mocked operation that is async in the real app. Otherwise,
-    /// since tests complete promises synchronously we may get database
-    /// re-entrance.
-    /// - Returns whether or not a mocked operation was completed.
-    func completeProfileFetch() -> Bool {
-        guard let profileFetchFuture else {
-            return false
-        }
-
-        guard let profileFetchResult else {
-            XCTFail("Missing mock!")
-            return false
-        }
-
-        switch profileFetchResult {
-        case .success(let data):
-            profileFetchFuture.resolve(data)
-        case .failure(let error):
-            profileFetchFuture.reject(error)
-        }
-
-        return true
-    }
-
-    func fetchPniIdentityPublicKey(localPni: Pni) -> Promise<Data?> {
-        guard profileFetchFuture == nil else {
-            XCTFail("Fetch already in-flight!")
-            return Promise(error: OWSGenericError("Fetch already in flight!"))
-        }
-
-        let (promise, future) = Promise<Data?>.pending()
-
-        profileFetchFuture = future
-        return promise
-    }
-}
-
-// MARK: TSAccountManager
-
-private class TSAccountManagerMock: LearnMyOwnPniManagerImpl.Shims.TSAccountManager {
-    var isPrimaryDevice: Bool = true
-    var mockIdentifiers: LocalIdentifiers?
-    var updatedPni: Pni?
-
-    func isPrimaryDevice(tx _: DBReadTransaction) -> Bool {
-        return isPrimaryDevice
-    }
-
-    func localIdentifiers(tx _: DBReadTransaction) -> LocalIdentifiers? {
-        return mockIdentifiers
-    }
-
-    func updateLocalIdentifiers(e164 _: E164, aci _: Aci, pni: Pni, tx _: DBWriteTransaction) {
-        updatedPni = pni
+        return createKeysResult.consumeIntoPromise()
     }
 }

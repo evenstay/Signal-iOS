@@ -43,13 +43,13 @@ typedef void (^ProfileManagerFailureBlock)(NSError *error);
 @interface OWSProfileManager : NSObject <ProfileManagerProtocol>
 
 @property (nonatomic, readonly) SDSKeyValueStore *whitelistedPhoneNumbersStore;
-@property (nonatomic, readonly) SDSKeyValueStore *whitelistedUUIDsStore;
+@property (nonatomic, readonly) SDSKeyValueStore *whitelistedServiceIdsStore;
 @property (nonatomic, readonly) SDSKeyValueStore *whitelistedGroupsStore;
 @property (nonatomic, readonly) BadgeStore *badgeStore;
 
-// This property is used by the Swift extension to ensure that
-// only one profile update is in flight at a time.  It should
-// only be accessed on the main thread.
+// This property is used by the Swift extension to ensure that only one
+// profile update is in flight at a time. It should only be accessed on the
+// main thread.
 @property (nonatomic) BOOL isUpdatingProfileOnService;
 
 + (instancetype)new NS_UNAVAILABLE;
@@ -131,6 +131,8 @@ typedef void (^ProfileManagerFailureBlock)(NSError *error);
 - (nullable NSString *)profileBioForDisplayForAddress:(SignalServiceAddress *)address
                                           transaction:(SDSAnyReadTransaction *)transaction;
 
+- (void)forceRotateLocalProfileKeyForGroupDepartureWithTransaction:(SDSAnyWriteTransaction *)transaction;
+
 #pragma mark - Clean Up
 
 + (NSSet<NSString *> *)allProfileAvatarFilePathsWithTransaction:(SDSAnyReadTransaction *)transaction;
@@ -147,6 +149,11 @@ typedef void (^ProfileManagerFailureBlock)(NSError *error);
 
 - (void)logLocalProfile;
 #endif
+
+#pragma mark - Internals exposed for Swift
+
+@property (nonatomic, readonly) SDSKeyValueStore *metadataStore;
+@property (atomic, readwrite) BOOL isRotatingProfileKey;
 
 @end
 

@@ -31,10 +31,12 @@ public extension NSObject {
         .shared
     }
 
+    @nonobjc
     final var bulkProfileFetch: BulkProfileFetch {
         SSKEnvironment.shared.bulkProfileFetchRef
     }
 
+    @nonobjc
     static var bulkProfileFetch: BulkProfileFetch {
         SSKEnvironment.shared.bulkProfileFetchRef
     }
@@ -53,14 +55,6 @@ public extension NSObject {
 
     static var disappearingMessagesJob: OWSDisappearingMessagesJob {
         SSKEnvironment.shared.disappearingMessagesJobRef
-    }
-
-    final var identityManager: OWSIdentityManager {
-        SSKEnvironment.shared.identityManagerRef
-    }
-
-    static var identityManager: OWSIdentityManager {
-        SSKEnvironment.shared.identityManagerRef
     }
 
     final var groupV2UpdatesObjc: GroupV2Updates {
@@ -159,14 +153,6 @@ public extension NSObject {
         SSKEnvironment.shared.reachabilityManagerRef
     }
 
-    final var socketManager: SocketManager {
-        SSKEnvironment.shared.socketManagerRef
-    }
-
-    static var socketManager: SocketManager {
-        SSKEnvironment.shared.socketManagerRef
-    }
-
     final var storageCoordinator: StorageCoordinator {
         SSKEnvironment.shared.storageCoordinatorRef
     }
@@ -183,14 +169,6 @@ public extension NSObject {
         SSKEnvironment.shared.syncManagerRef
     }
 
-    final var tsAccountManager: TSAccountManager {
-        .shared
-    }
-
-    static var tsAccountManager: TSAccountManager {
-        .shared
-    }
-
     final var typingIndicatorsImpl: TypingIndicators {
         SSKEnvironment.shared.typingIndicatorsRef
     }
@@ -199,10 +177,12 @@ public extension NSObject {
         SSKEnvironment.shared.typingIndicatorsRef
     }
 
+    @nonobjc
     final var udManager: OWSUDManager {
         SSKEnvironment.shared.udManagerRef
     }
 
+    @nonobjc
     static var udManager: OWSUDManager {
         SSKEnvironment.shared.udManagerRef
     }
@@ -519,14 +499,6 @@ public extension Dependencies {
         SSKEnvironment.shared.disappearingMessagesJobRef
     }
 
-    var identityManager: OWSIdentityManager {
-        SSKEnvironment.shared.identityManagerRef
-    }
-
-    static var identityManager: OWSIdentityManager {
-        SSKEnvironment.shared.identityManagerRef
-    }
-
     var groupV2UpdatesObjc: GroupV2Updates {
         SSKEnvironment.shared.groupV2UpdatesRef
     }
@@ -625,14 +597,6 @@ public extension Dependencies {
         SSKEnvironment.shared.reachabilityManagerRef
     }
 
-    var socketManager: SocketManager {
-        SSKEnvironment.shared.socketManagerRef
-    }
-
-    static var socketManager: SocketManager {
-        SSKEnvironment.shared.socketManagerRef
-    }
-
     var storageCoordinator: StorageCoordinator {
         SSKEnvironment.shared.storageCoordinatorRef
     }
@@ -647,14 +611,6 @@ public extension Dependencies {
 
     static var syncManager: SyncManagerProtocol {
         SSKEnvironment.shared.syncManagerRef
-    }
-
-    var tsAccountManager: TSAccountManager {
-        .shared
-    }
-
-    static var tsAccountManager: TSAccountManager {
-        .shared
     }
 
     var typingIndicatorsImpl: TypingIndicators {
@@ -1077,15 +1033,6 @@ public extension OWSReceiptManager {
 // MARK: -
 
 @objc
-public extension TSAccountManager {
-    static var shared: TSAccountManager {
-        SSKEnvironment.shared.tsAccountManagerRef
-    }
-}
-
-// MARK: -
-
-@objc
 public extension StickerManager {
     static var shared: StickerManager {
         SSKEnvironment.shared.stickerManagerRef
@@ -1122,15 +1069,6 @@ public extension MessageProcessor {
 // MARK: -
 
 @objc
-public extension SocketManager {
-    static var shared: SocketManager {
-        SSKEnvironment.shared.socketManagerRef
-    }
-}
-
-// MARK: -
-
-@objc
 public extension NetworkManager {
     static var shared: NetworkManager {
         SSKEnvironment.shared.networkManagerRef
@@ -1143,15 +1081,6 @@ public extension NetworkManager {
 public extension OWSOutgoingReceiptManager {
     static var shared: OWSOutgoingReceiptManager {
         SSKEnvironment.shared.outgoingReceiptManagerRef
-    }
-}
-
-// MARK: -
-
-@objc
-public extension OWSIdentityManager {
-    static var shared: OWSIdentityManager {
-        SSKEnvironment.shared.identityManagerRef
     }
 }
 

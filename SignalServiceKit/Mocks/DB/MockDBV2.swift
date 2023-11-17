@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import SignalCoreKit
 
 // TODO: [DBV2] Ideally, these would live in a test target.
 //
@@ -15,17 +16,11 @@ import Foundation
 
 #if TESTABLE_BUILD
 
-/// Mock implementation of `DBReadTransaction`.
-/// Empty stub that does nothing, serves only to crash and fail tests if
-/// it is ever attempted to be unwrapped as a real SDS transaction.
-private class MockReadTransaction: DBReadTransaction {
-    init() {}
-}
-
-/// Mock implementation of `DBWriteTransaction`.
-/// Empty stub that does nothing, serves only to crash and fail tests if
-/// it is ever attempted to be unwrapped as a real SDS transaction.
-private class MockWriteTransaction: DBWriteTransaction {
+/// Mock implementation of a transaction.
+///
+/// Empty stub that does nothing, serving only to crash and fail tests if it is
+/// ever unwrapped as a real SDS transaction.
+private class MockTransaction: DBWriteTransaction {
     init() {}
 
     struct AsyncCompletion {
@@ -48,68 +43,78 @@ private class MockWriteTransaction: DBWriteTransaction {
 public class MockDB: DB {
 
     private let queue: Scheduler
+    /// A block invoked when a re-entrant transaction is detected.
+    private let reentrantTransactionBlock: () -> Void
+    /// A block invoked when an externally-retained transaction is detected.
+    private let retainedTransactionBlock: () -> Void
 
-    public convenience init() {
-        self.init(schedulers: DispatchQueueSchedulers())
-    }
-
-    public init(schedulers: Schedulers) {
+    /// Create a mock DB.
+    ///
+    /// - Parameter reentrantTransactionBlock
+    /// A block called if a read or write is performed within an existing read
+    /// or write. Useful for, e.g., detecting reentrant transactions in tests.
+    /// - Parameter retainedTransactionBlock
+    /// A block called if a read or write completes and a transaction has been
+    /// retained by the caller. Useful for, e.g., detecting retained
+    /// transactions in tests.
+    public init(
+        schedulers: Schedulers = DispatchQueueSchedulers(),
+        reentrantTransactionBlock: @escaping () -> Void = { fatalError("Re-entrant transaction!") },
+        retainedTransactionBlock: @escaping () -> Void = { fatalError("Retained transaction!") }
+    ) {
         self.queue = schedulers.queue(label: "mockDB")
+        self.reentrantTransactionBlock = reentrantTransactionBlock
+        self.retainedTransactionBlock = retainedTransactionBlock
     }
 
-    private var openTransaction: DBReadTransaction?
+    private var weaklyHeldTransactions = WeakArray<MockTransaction>()
 
-    private func makeRead() -> MockReadTransaction {
-        guard openTransaction == nil else {
-            fatalError("Re-entrant transaction opened")
-        }
-        let tx = MockReadTransaction()
-        openTransaction = tx
-        return tx
+    private func performRead<R>(block: (DBReadTransaction) throws -> R) rethrows -> R {
+        return try performWrite(block: block)
     }
 
-    private func makeWrite() -> MockWriteTransaction {
-        guard openTransaction == nil else {
-            fatalError("Re-entrant transaction opened")
-        }
-        let tx = MockWriteTransaction()
-        openTransaction = tx
-        return tx
-    }
+    private func performWrite<R>(block: (DBWriteTransaction) throws -> R) rethrows -> R {
+        var callIsReentrant = false
 
-    private func closeTransaction() {
-        guard openTransaction != nil else {
-            fatalError("Closing transaction with none open")
+        if !weaklyHeldTransactions.elements.isEmpty {
+            // If we're entering this method with live transactions, that means
+            // we're re-entering.
+            callIsReentrant = true
+            reentrantTransactionBlock()
         }
-        if let oldValue = openTransaction as? MockWriteTransaction {
-            oldValue.asyncCompletions.forEach {
-                $0.scheduler.async($0.block)
+
+        defer {
+            // If we're in a reentrant call skip the retention check, since
+            // otherwise we'll have transactions that may be alive via recursion
+            // rather than retention.
+            if !callIsReentrant {
+                weaklyHeldTransactions.removeAll { _ in
+                    // If we're leaving this method with live transactions, that
+                    // means they've been retained outside our `autoreleasepool`.
+                    //
+                    // Call the block for each retained transaction, and chuck 'em.
+                    retainedTransactionBlock()
+                    return true
+                }
             }
         }
-        openTransaction = nil
-    }
 
-    public func read(
-        file: String,
-        function: String,
-        line: Int,
-        block: (DBReadTransaction) -> Void
-    ) {
-        queue.sync {
-            block(self.makeRead())
-            self.closeTransaction()
-        }
-    }
+        // This may result in objects created during the `block` being released
+        // in addition to the transaction. If your block cares about when ARC
+        // releases its objects (e.g., if you find yourself here to understand
+        // why your objects are being released), you may wish to consider an
+        // explicit memory management technique.
+        return try autoreleasepool {
+            let tx = MockTransaction()
+            weaklyHeldTransactions.append(tx)
 
-    public func write(
-        file: String,
-        function: String,
-        line: Int,
-        block: (DBWriteTransaction) -> Void
-    ) {
-        queue.sync {
-            block(self.makeWrite())
-            self.closeTransaction()
+            let blockValue = try block(tx)
+
+            tx.asyncCompletions.forEach {
+                $0.scheduler.async($0.block)
+            }
+
+            return blockValue
         }
     }
 
@@ -124,11 +129,10 @@ public class MockDB: DB {
         completion: (() -> Void)?
     ) {
         queue.sync {
-            block(self.makeRead())
-            self.closeTransaction()
-            guard let completion = completion else {
-                return
-            }
+            performRead(block: block)
+
+            guard let completion else { return }
+
             completionQueue.sync {
                 completion()
             }
@@ -144,47 +148,30 @@ public class MockDB: DB {
         completion: (() -> Void)?
     ) {
         queue.sync {
-            block(self.makeWrite())
-            self.closeTransaction()
-            guard let completion = completion else {
-                return
-            }
+            performWrite(block: block)
+
+            guard let completion else { return }
+
             completionQueue.sync {
                 completion()
             }
         }
     }
 
+    public func awaitableWrite<T>(
+        file: String,
+        function: String,
+        line: Int,
+        block: @escaping (DBWriteTransaction) throws -> T
+    ) async rethrows -> T {
+        await Task.yield()
+        return try queue.sync {
+            return try self.performWrite(block: block)
+        }
+    }
+
     // MARK: - Promises
 
-    public func readPromise(
-        file: String,
-        function: String,
-        line: Int,
-        _ block: @escaping (DBReadTransaction) -> Void
-    ) -> AnyPromise {
-        queue.sync {
-            block(self.makeRead())
-            self.closeTransaction()
-        }
-        return AnyPromise(Promise<Void>.value(()))
-    }
-
-    public func readPromise<T>(
-        file: String,
-        function: String,
-        line: Int,
-        _ block: @escaping (DBReadTransaction) -> T
-    ) -> Promise<T> {
-        let t = queue.sync {
-            let t = block(self.makeRead())
-            self.closeTransaction()
-            return t
-        }
-        return Promise<T>.value(t)
-    }
-
-    // throws version
     public func readPromise<T>(
         file: String,
         function: String,
@@ -193,9 +180,7 @@ public class MockDB: DB {
     ) -> Promise<T> {
         do {
             let t = try queue.sync {
-                let t = try block(self.makeRead())
-                self.closeTransaction()
-                return t
+                return try performRead(block: block)
             }
             return Promise<T>.value(t)
         } catch {
@@ -203,34 +188,6 @@ public class MockDB: DB {
         }
     }
 
-    public func writePromise(
-        file: String,
-        function: String,
-        line: Int,
-        _ block: @escaping (DBWriteTransaction) -> Void
-    ) -> AnyPromise {
-        queue.sync {
-            block(self.makeWrite())
-            self.closeTransaction()
-        }
-        return AnyPromise(Promise<Void>.value(()))
-    }
-
-    public func writePromise<T>(
-        file: String,
-        function: String,
-        line: Int,
-        _ block: @escaping (DBWriteTransaction) -> T
-    ) -> Promise<T> {
-        let t = queue.sync {
-            let t = block(self.makeWrite())
-            self.closeTransaction()
-            return t
-        }
-        return Promise<T>.value(t)
-    }
-
-    // throws version
     public func writePromise<T>(
         file: String,
         function: String,
@@ -239,9 +196,7 @@ public class MockDB: DB {
     ) -> Promise<T> {
         do {
             let t = try queue.sync {
-                let t = try block(self.makeWrite())
-                self.closeTransaction()
-                return t
+                return try performWrite(block: block)
             }
             return Promise<T>.value(t)
         } catch {
@@ -255,54 +210,26 @@ public class MockDB: DB {
         file: String,
         function: String,
         line: Int,
-        block: (DBReadTransaction) -> T
-    ) -> T {
-        return queue.sync {
-            let t = block(self.makeRead())
-            self.closeTransaction()
-            return t
-        }
-    }
-
-    // throws version
-    public func read<T>(
-        file: String,
-        function: String,
-        line: Int,
         block: (DBReadTransaction) throws -> T
-    ) throws -> T {
+    ) rethrows -> T {
         return try queue.sync {
-            let t = try block(self.makeRead())
-            self.closeTransaction()
-            return t
+            return try performRead(block: block)
         }
     }
 
-    public func write<T>(
-        file: String,
-        function: String,
-        line: Int,
-        block: (DBWriteTransaction) -> T
-    ) -> T {
-        return queue.sync {
-            let t = block(self.makeWrite())
-            self.closeTransaction()
-            return t
-        }
-    }
-
-    // throws version
     public func write<T>(
         file: String,
         function: String,
         line: Int,
         block: (DBWriteTransaction) throws -> T
-    ) throws -> T {
+    ) rethrows -> T {
         return try queue.sync {
-            let t = try block(self.makeWrite())
-            self.closeTransaction()
-            return t
+            return try performWrite(block: block)
         }
+    }
+
+    public func appendDbChangeDelegate(_ dbChangeDelegate: DBChangeDelegate) {
+        // Do nothing.
     }
 }
 

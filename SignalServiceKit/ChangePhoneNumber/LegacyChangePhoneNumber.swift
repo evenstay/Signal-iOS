@@ -10,14 +10,7 @@ import SignalCoreKit
 @objc
 public class LegacyChangePhoneNumber: NSObject {
 
-    private enum Constants {
-        static let localUserSupportsChangePhoneNumberKey = "localUserSupportsChangePhoneNumber"
-    }
-
     private let changePhoneNumberPniManager: ChangePhoneNumberPniManager
-
-    /// Stores metadata about change-number operations for this user.
-    private let keyValueStore = SDSKeyValueStore(collection: "ChangePhoneNumber")
 
     /// Records change-number operations that were started (by this, or
     /// potentially a prior launch of the app) but not yet known to have
@@ -45,14 +38,14 @@ public class LegacyChangePhoneNumber: NSObject {
         /// Our account's new E164 on the service.
         let newServiceE164: E164
         /// Our account's ACI on the service.
-        let serviceAci: UUID
+        let serviceAci: Aci
         /// Our account's PNI on the service.
-        let servicePni: UUID
+        let servicePni: Pni
 
         public init(
             newServiceE164: E164,
-            serviceAci: UUID,
-            servicePni: UUID
+            serviceAci: Aci,
+            servicePni: Pni
         ) {
             self.newServiceE164 = newServiceE164
             self.serviceAci = serviceAci
@@ -78,8 +71,8 @@ public class LegacyChangePhoneNumber: NSObject {
         if let successfulChangeParams {
             do {
                 try updateLocalPhoneNumber(
-                    forServiceAci: Aci(fromUUID: successfulChangeParams.serviceAci),
-                    servicePni: Pni(fromUUID: successfulChangeParams.servicePni),
+                    forServiceAci: successfulChangeParams.serviceAci,
+                    servicePni: successfulChangeParams.servicePni,
                     serviceE164: successfulChangeParams.newServiceE164,
                     transaction: transaction
                 )
@@ -144,7 +137,7 @@ public class LegacyChangePhoneNumber: NSObject {
 
         guard
             CurrentAppContext().isMainApp,
-            tsAccountManager.isRegisteredAndReady
+            DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isRegistered
         else {
             return
         }
@@ -183,15 +176,15 @@ public class LegacyChangePhoneNumber: NSObject {
     /// StorageService AccountRecord, we should remove this behavior as well.
     @objc
     public func deprecated_updateLocalPhoneNumberOnAccountRecordMismatch() {
-        // PNI TODO: Remove this once we've removed the e164 from AccountRecord.
+        // PNP0 TODO: Remove this once we've removed the e164 from AccountRecord.
 
         firstly { () -> Promise<WhoAmIRequestFactory.Responses.WhoAmI> in
             Self.accountServiceClient.getAccountWhoAmI()
         }.map(on: DispatchQueue.global()) { whoAmIResponse throws in
             try self.databaseStorage.write { transaction in
                 try self.updateLocalPhoneNumber(
-                    forServiceAci: Aci(fromUUID: whoAmIResponse.aci),
-                    servicePni: Pni(fromUUID: whoAmIResponse.pni),
+                    forServiceAci: whoAmIResponse.aci,
+                    servicePni: whoAmIResponse.pni,
                     serviceE164: whoAmIResponse.e164,
                     transaction: transaction
                 )
@@ -214,7 +207,7 @@ public class LegacyChangePhoneNumber: NSObject {
         transaction: SDSAnyWriteTransaction
     ) throws -> E164 {
         guard
-            let localIdentifiers = tsAccountManager.localIdentifiers(transaction: transaction),
+            let localIdentifiers = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: transaction.asV2Read),
             let localE164 = E164(localIdentifiers.phoneNumber)
         else {
             throw OWSAssertionError("Missing or invalid local parameters!")
@@ -241,8 +234,8 @@ public class LegacyChangePhoneNumber: NSObject {
         let recipientMerger = DependenciesBridge.shared.recipientMerger
         let localRecipient = recipientMerger.applyMergeForLocalAccount(
             aci: serviceAci,
-            pni: servicePni,
             phoneNumber: serviceE164,
+            pni: servicePni,
             tx: transaction.asV2Write
         )
         localRecipient.markAsRegisteredAndSave(tx: transaction)
@@ -255,11 +248,11 @@ public class LegacyChangePhoneNumber: NSObject {
                 "Recording new phone number: \(serviceE164), PNI: \(servicePni)"
             )
 
-            self.tsAccountManager.updateLocalPhoneNumber(
-               E164ObjC(serviceE164),
-                aci: AciObjC(serviceAci), // Verified equal to `localAci` above
-                pni: PniObjC(servicePni),
-                transaction: transaction
+            DependenciesBridge.shared.registrationStateChangeManager.didUpdateLocalPhoneNumber(
+                serviceE164,
+                aci: serviceAci,
+                pni: servicePni,
+                tx: transaction.asV2Write
             )
 
             self.storageServiceManager.recordPendingLocalAccountUpdates()
@@ -268,23 +261,5 @@ public class LegacyChangePhoneNumber: NSObject {
         } else {
             return localE164
         }
-    }
-
-    // MARK: - Supports change-number
-
-    public func localUserSupportsChangePhoneNumber(transaction: SDSAnyReadTransaction) -> Bool {
-        keyValueStore.getBool(
-            Constants.localUserSupportsChangePhoneNumberKey,
-            defaultValue: false,
-            transaction: transaction
-        )
-    }
-
-    public func setLocalUserSupportsChangePhoneNumber(_ value: Bool, transaction: SDSAnyWriteTransaction) {
-        keyValueStore.setBool(
-            value,
-            key: Constants.localUserSupportsChangePhoneNumberKey,
-            transaction: transaction
-        )
     }
 }

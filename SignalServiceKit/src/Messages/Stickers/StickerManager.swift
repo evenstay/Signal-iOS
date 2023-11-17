@@ -85,7 +85,7 @@ public class StickerManager: NSObject {
 
         // Resume sticker and sticker pack downloads when app is ready.
         AppReadiness.runNowOrWhenMainAppDidBecomeReadyAsync {
-            if TSAccountManager.shared.isRegisteredAndReady {
+            if DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isRegistered {
                 StickerManager.refreshContents()
             }
         }
@@ -634,7 +634,7 @@ public class StickerManager: NSObject {
         // after the transaction is complete so that other transactions aren't
         // blocked.
         transaction.addSyncCompletion {
-            DispatchQueue.global(qos: .background).async {
+            DispatchQueue.sharedUtility.async {
                 do {
                     try OWSFileSystem.deleteFileIfExists(url: stickerDataUrl)
                 } catch {
@@ -1181,10 +1181,10 @@ public class StickerManager: NSObject {
     private class func enqueueStickerSyncMessage(operationType: StickerPackOperationType,
                                                  packs: [StickerPackInfo],
                                                  transaction: SDSAnyWriteTransaction) {
-        guard tsAccountManager.isRegisteredAndReady else {
+        guard DependenciesBridge.shared.tsAccountManager.registrationState(tx: transaction.asV2Read).isRegistered else {
             return
         }
-        guard let thread = TSAccountManager.getOrCreateLocalThread(transaction: transaction) else {
+        guard let thread = TSContactThread.getOrCreateLocalThread(transaction: transaction) else {
             owsFailDebug("Missing thread.")
             return
         }
@@ -1195,7 +1195,7 @@ public class StickerManager: NSObject {
 
     @objc
     public class func syncAllInstalledPacks(transaction: SDSAnyWriteTransaction) {
-        guard tsAccountManager.isRegisteredAndReady else {
+        guard DependenciesBridge.shared.tsAccountManager.registrationState(tx: transaction.asV2Read).isRegistered else {
             return
         }
 
@@ -1209,13 +1209,8 @@ public class StickerManager: NSObject {
                                   transaction: transaction)
     }
 
-    @objc
     public class func processIncomingStickerPackOperation(_ proto: SSKProtoSyncMessageStickerPackOperation,
                                                           transaction: SDSAnyWriteTransaction) {
-        guard tsAccountManager.isRegisteredAndReady else {
-            return
-        }
-
         let packID: Data = proto.packID
         let packKey: Data = proto.packKey
         guard let stickerPackInfo = StickerPackInfo.parse(packId: packID, packKey: packKey) else {

@@ -73,9 +73,6 @@
 /* Label for button that lets you send a message to a contact. */
 "ACTION_SEND_MESSAGE" = "메시지 보내기";
 
-/* Label for 'share contact' button. */
-"ACTION_SHARE_CONTACT" = "연락처 공유";
-
 /* A label for 'tap to download' buttons. */
 "ACTION_TAP_TO_DOWNLOAD" = "탭하여 다운로드";
 
@@ -373,8 +370,8 @@
 /* Accessibility hint describing what you can do with the attachment button */
 "ATTACHMENT_HINT" = "보낼 미디어를 선택하세요";
 
-/* A button to open the camera from the Attachment Keyboard */
-"ATTACHMENT_KEYBOARD_CAMERA" = "카메라";
+/* Button in chat attachment panel that allows to select photos/videos Signal has access to. */
+"ATTACHMENT_KEYBOARD_BUTTON_MANAGE" = "관리";
 
 /* A button to select a contact from the Attachment Keyboard */
 "ATTACHMENT_KEYBOARD_CONTACT" = "연락처";
@@ -385,20 +382,29 @@
 /* A button to select a GIF from the Attachment Keyboard */
 "ATTACHMENT_KEYBOARD_GIF" = "GIF";
 
-/* A message on a button prompting the user to go settings to grant Signal photos access. */
-"ATTACHMENT_KEYBOARD_GIVE_PHOTOS_ACCESS" = "액세스 허용";
+/* Text in chat attachment panel when Signal only has access to some photos/videos. */
+"ATTACHMENT_KEYBOARD_LIMITED_ACCESS" = "Signal에는 사용자가 선택한 사진과 동영상에 대해서만 액세스 권한이 부여됩니다.";
 
 /* A button to select a location from the Attachment Keyboard */
 "ATTACHMENT_KEYBOARD_LOCATION" = "위치";
 
-/* A string indicating to the user that they'll be able to send photos from this view once they enable photo access. */
-"ATTACHMENT_KEYBOARD_NO_PHOTO_ACCESS" = "Signal에서 사진이나 동영상을 표시하려면 권한이 필요합니다.";
+/* Second block of text in chat attachment panel when there's no recent photos to show. */
+"ATTACHMENT_KEYBOARD_NO_MEDIA_BODY" = "사진이나 동영상을 캡쳐하면 여기서 최근 사용 항목을 보낼 수 있습니다.";
 
-/* A string indicating to the user that once they take photos, they'll be able to send them from this view. */
-"ATTACHMENT_KEYBOARD_NO_PHOTOS" = "사진을 찍은 후 여기에서 최근 연락처에게 보낼 수 있습니다.";
+/* First block of text in chat attachment panel when there's no recent photos to show. */
+"ATTACHMENT_KEYBOARD_NO_MEDIA_TITLE" = "사진이나 동영상 없음";
+
+/* Text in chat attachment panel explaining that user needs to give Signal permission to access photos. */
+"ATTACHMENT_KEYBOARD_NO_PHOTO_ACCESS" = "Signal에 사진이나 동영상에 액세스할 권한이 없습니다. 액세스를 활성화하려면 설정을 열고 사진을 탭하세요.";
+
+/* Button in chat attachment panel to let user open Settings app and give Signal persmission to access photos. */
+"ATTACHMENT_KEYBOARD_OPEN_SETTINGS" = "설정 열기";
 
 /* A button to select a payment from the Attachment Keyboard */
 "ATTACHMENT_KEYBOARD_PAYMENT" = "결제";
+
+/* A button to open the photo picker from the Attachment Keyboard */
+"ATTACHMENT_KEYBOARD_PHOTOS" = "사진";
 
 /* Accessibility label for attaching photos */
 "ATTACHMENT_LABEL" = "첨부 파일";
@@ -493,20 +499,26 @@
 /* Button text when a badge expires, asking users to donate */
 "BADGE_EXPIRED_DONATE_BUTTON" = "기부";
 
-/* Text for the 'learn more' link in the badge expiration sheet, shown when a badge expires due to a charge failure */
+/* Text for the 'learn more' link in a sheet explaining there's been an issue with your badge. */
 "BADGE_EXPIRED_LEARN_MORE_LINK" = "더 알아보세요.";
 
 /* Title for subscription on the badge expiration sheet. */
-"BADGE_EXPIRED_SUBSCRIPTION_TITLE" = "월간 기부를 취소함";
+"BADGE_EXPIRED_SUBSCRIPTION_TITLE" = "Monthly Donation Canceled";
 
-/* String explaining to the user that their subscription badge has expired on the badge expiry sheet. Embeds {failure-specific sentence(s)}. */
-"BADGE_SUBSCRIPTION_EXPIRED_BECAUSE_OF_CHARGE_FAILURE_BODY_FORMAT" = "월간 기부를 취소했습니다. %1$@ 배지가 더는 프로필에 표시되지 않습니다.\n\nSignal을 계속 지원하고 배지를 재활성화하려면 결제 정보를 업데이트하고 기부를 다시 시작하세요.";
+/* String explaining to the user on a badge expiry sheet that their subscription badge has expired because the renewal payment failed. Embeds {{ a specific, already-localized string describing the payment failure }}. Will have a 'learn more' link appended, when it is rendered. */
+"BADGE_SUBSCRIPTION_EXPIRED_BECAUSE_OF_CHARGE_FAILURE_BODY_FORMAT" = "Your recurring monthly donation has ended. %1$@\n\nWithout an active subscription your badge will no longer be visible on your profile.";
 
-/* Body of the sheet shown when your subscription is canceled due to inactivity */
+/* Body of the sheet shown when your subscription is canceled due to inactivity. Embeds {{ the name of the badge }}. Will have a 'learn more' link appended, when it is rendered. */
 "BADGE_SUBSCRIPTION_EXPIRED_BECAUSE_OF_INACTIVITY_BODY_FORMAT" = "오랫동안 활동이 없어 자동으로 월간 기부가 취소되었습니다. %1$@ 배지가 더는 프로필에 표시되지 않습니다.\n\nSignal을 계속 사용할 수는 있지만 앱을 지원하고 배지를 재활성화하려면 지금 기부를 시작하세요.";
 
+/* Body for a sheet explaining that a bank transfer donation is complete, and that you have received a badge. */
+"BADGE_THANKS_BANK_DONATION_COMPLETE_BODY" = "Your bank transfer was received. You can choose to display this badge on your profile to show off your support.";
+
+/* Title for a sheet explaining that a bank transfer donation is complete, and that you have received a badge. */
+"BADGE_THANKS_BANK_DONATION_COMPLETE_TITLE" = "Donation Complete";
+
 /* When you make a donation to Signal, you will receive a badge. A thank-you sheet appears when this happens. This is the body text on that sheet. */
-"BADGE_THANKS_BODY" = "Signal에서 기부자 배지를 받았습니다! 프로필에 표시하여 Signal에 대한 지지를 보여주세요.";
+"BADGE_THANKS_BODY" = "You can choose to display this badge on your profile to show off your support.";
 
 /* Label prompting the user to display the new badge on their profile on the badge thank you sheet. */
 "BADGE_THANKS_DISPLAY_ON_PROFILE_LABEL" = "프로필에 표시";
@@ -519,6 +531,24 @@
 
 /* Footer explaining that only one badge can be featured at a time on the thank you sheet. */
 "BADGE_THANKS_TOGGLE_FOOTER" = "배지가 여러 개 있는 경우 프로필에 표시하고 싶은 배지를 선택하여 등록할 수 있습니다.";
+
+/* On the bank donation screen, show a link below the input form to show help about finding account info. */
+"BANK_DONATION_FOOTER_FIND_ACCOUNT_INFO" = "Find Account Info";
+
+/* On the bank transfer donation screen, a small amount of information text is shown. This is that text. It should (1) instruct users to enter their bank information (2) tell them that Signal does not collect or store their personal information. */
+"BANK_DONATION_SUBHEADER_TEXT" = "Enter your bank details. Signal does not collect or store your personal information.";
+
+/* Users can donate to Signal with a bank account. We are required to show them a mandate with information about bank transfers. This is a label for a button to agree to the mandate. */
+"BANK_MANDATE_AGREE" = "Agree";
+
+/* Users can donate to Signal with a bank account. We are required to show them a mandate with information about bank transfers. This is a label for a button that shows more of the mandate if it is not all visible. */
+"BANK_MANDATE_READ_MORE" = "Read More";
+
+/* Users can donate to Signal with a bank account. We are required to show them a mandate with information about bank transfers. This is a subtitle about the payment processor Stripe above that mandate. */
+"BANK_MANDATE_SUBTITLE" = "Stripe processes donations made to Signal. Signal does not collect or store your personal information.";
+
+/* Users can donate to Signal with a bank account. We are required to show them a mandate with information about bank transfers. This is the title above that mandate. */
+"BANK_MANDATE_TITLE" = "Bank Transfer";
 
 /* Accessibility label for banner close button */
 "BANNER_CLOSE_ACCESSIBILITY_LABEL" = "배너 닫기";
@@ -841,12 +871,6 @@
 /* VoiceOver description of current camera zoom level. */
 "CAMERA_VO_ZOOM_LEVEL" = "%1$@배";
 
-/* Message for alert explaining that a user cannot be verified. */
-"CANT_VERIFY_IDENTITY_ALERT_MESSAGE" = "이 사용자를 인증하려면 먼저 메시지를 주고받아야 합니다.";
-
-/* Title for alert explaining that a user cannot be verified. */
-"CANT_VERIFY_IDENTITY_ALERT_TITLE" = "오류";
-
 /* Alert shown when the user needs to exchange messages to see the safety number. */
 "CANT_VERIFY_IDENTITY_EXCHANGE_MESSAGES" = "메시지를 주고받은 후 상대와의 메시지 보안을 위한 안전 번호가 생성됩니다.";
 
@@ -865,9 +889,6 @@
 /* Users can donate to Signal with a credit or debit card. If their card verification code (CVV) is too long, this error will be shown. Try to use a short string to make space in the UI. */
 "CARD_DONATION_CVV_TOO_LONG_ERROR" = "코드가 너무 깁니다.";
 
-/* Users can donate to Signal with a credit or debit card. This is the text on the \"Donate\" button. */
-"CARD_DONATION_DONATE_BUTTON" = "기부";
-
 /* Users can donate to Signal with a credit or debit card. If their expiration date is invalid, this generic error message will be shown. Try to use a short string to make space in the UI. */
 "CARD_DONATION_EXPIRATION_DATE_GENERIC_ERROR" = "잘못된 만료 날짜";
 
@@ -876,9 +897,6 @@
 
 /* Users can donate to Signal with a credit or debit card. This is the label for the card expiration date field on that screen. */
 "CARD_DONATION_EXPIRATION_DATE_PLACEHOLDER" = "MM/YY";
-
-/* Users can donate to Signal with a credit or debit card. This is the heading on that screen, telling them how much they'll donate. Embeds {{formatted amount of money}}, such as \"$20\". */
-"CARD_DONATION_HEADER" = "기부 금액: %1$@";
 
 /* Users can choose to learn more about their credit/debit card donations, which will open a sheet with additional information. This is the body text of that sheet. */
 "CARD_DONATION_READ_MORE_SHEET_BODY" = "Signal은 기부할 때 사용자의 개인 정보를 수집하거나 저장하지 않습니다.\n\nSignal은 기부를 받을 때 Stripe를 결제 처리자로 사용합니다. Signal은 사용자가 Stripe에 제공하는 어떠한 정보에도 액세스하지 않으며, 이를 보관하거나 저장하지 않습니다.\n\nSignal은 사용자의 기부를 Signal 계정에 연결하거나 연결을 시도하지 않습니다.\n\nSignal을 지지해 주셔서 감사합니다!";
@@ -1009,32 +1027,8 @@
 /* No comment provided by engineer. */
 "CONTACT_DETAIL_COMM_TYPE_INSECURE" = "등록되지 않은 전화번호";
 
-/* Label for the 'edit name' button in the contact share approval view. */
-"CONTACT_EDIT_NAME_BUTTON" = "수정";
-
 /* Label for a contact's email address. */
 "CONTACT_EMAIL" = "이메일";
-
-/* Label for the 'city' field of a contact's address. */
-"CONTACT_FIELD_ADDRESS_CITY" = "도시";
-
-/* Label for the 'country' field of a contact's address. */
-"CONTACT_FIELD_ADDRESS_COUNTRY" = "국가";
-
-/* Label for the 'neighborhood' field of a contact's address. */
-"CONTACT_FIELD_ADDRESS_NEIGHBORHOOD" = "이웃";
-
-/* Label for the 'pobox' field of a contact's address. */
-"CONTACT_FIELD_ADDRESS_POBOX" = "우편사서함";
-
-/* Label for the 'postcode' field of a contact's address. */
-"CONTACT_FIELD_ADDRESS_POSTCODE" = "우편번호";
-
-/* Label for the 'region' field of a contact's address. */
-"CONTACT_FIELD_ADDRESS_REGION" = "지역";
-
-/* Label for the 'street' field of a contact's address. */
-"CONTACT_FIELD_ADDRESS_STREET" = "도로";
 
 /* Label for the 'family name' field of a contact. */
 "CONTACT_FIELD_FAMILY_NAME" = "성";
@@ -1194,6 +1188,9 @@
 
 /* Context menu button title */
 "CONTEXT_MENU_FORWARD_MESSAGE" = "전달";
+
+/* Context menu button title */
+"CONTEXT_MENU_PAYMENT_DETAILS" = "결제 세부 정보";
 
 /* Context menu button title */
 "CONTEXT_MENU_REPLY" = "답장";
@@ -1675,6 +1672,21 @@
 /* button text */
 "DELETE_ALL_MESSAGES_IN_CONVERSATION_BUTTON" = "모든 메시지 삭제";
 
+/* 'Delete' button label on the delete contact confirmation action sheet */
+"DELETE_CONTACT_ACTION_SHEET_BUTTON" = "삭제";
+
+/* An explanation of what happens in Signal when you remove a system contact. */
+"DELETE_CONTACT_ACTION_SHEET_EXPLANATION" = "이 사용자를 내 시스템 연락처에서 삭제합니다. 검색 시 이 사용자가 표시되지 않습니다. 향후 해당 사용자가 메시지를 보내는 경우 메시지 요청이 수신됩니다.";
+
+/* Title of action sheet confirming the user wants to delete a system contact. */
+"DELETE_CONTACT_ACTION_SHEET_TITLE" = "연락처를 삭제하고 목록에서 제거할까요?";
+
+/* Title of button for deleting system contact. */
+"DELETE_CONTACT_BUTTON" = "연락처 삭제";
+
+/* Toast message confirming the system contact was deleted. Embeds {{The name of the user who was deleted.}}. */
+"DELETE_CONTACT_CONFIRMATION_TOAST" = "내 연락처에서 %1$@ 님을 삭제하고 제거했습니다.";
+
 /* Notification warning the user that they have been de-registered. */
 "DEREGISTRATION_NOTIFICATION" = "이 기기의 Signal에서 로그아웃했습니다.";
 
@@ -1744,11 +1756,17 @@
 /* A warning for the device transfer 'choice' view indicating you can only have one device registered with your number */
 "DEVICE_TRANSFER_CHOICE_WARNING" = "계속하면 같은 전화번호로 등록한 다른 모든 기기의 Signal을 비활성화합니다.";
 
+/* Button shown to contract a QR code and exit the fullscreen view. */
+"DEVICE_TRANSFER_CONTRACT_QR_CODE_BUTTON" = "더 작게 보기";
+
+/* An error indicating that the other device closed signal mid-transfer and it could not complete */
+"DEVICE_TRANSFER_ERROR_BACKGROUNDED" = "송금을 완료할 수 없습니다. 두 기기 모두에 Signal이 열려 있는지 확인하고 다시 시도하세요.";
+
 /* An error indicating that we were unable to verify the identity of the new device to complete the transfer */
 "DEVICE_TRANSFER_ERROR_CERTIFICATE_MISMATCH" = "새 기기를 검증할 수 없습니다. 다시 시도해 주세요.";
 
 /* An error indicating that something went wrong with the transfer and it could not complete */
-"DEVICE_TRANSFER_ERROR_GENERIC" = "이동을 완료할 수 없습니다. 기기들이 서로 가까이 있는지 확인하고 다시 시도해 주세요.";
+"DEVICE_TRANSFER_ERROR_GENERIC" = "송금을 완료할 수 없습니다. 두 기기를 가까이 두고 다시 시도하세요.";
 
 /* An error indicating the user must scan this code with a linked device to transfer. */
 "DEVICE_TRANSFER_ERROR_MODE_MISMATCH_LINKED" = "이 iPad를 연결하려면 이전 iPad를 스캔해야 합니다";
@@ -1762,6 +1780,9 @@
 /* An error indicating the user must update their device before trying to transfer. */
 "DEVICE_TRANSFER_ERROR_UNSUPPORTED_VERSION" = "최신 Signal 버전으로 업데이트한 후 다시 시도해 주세요.";
 
+/* Button shown to expand a QR code and view it fullscreen. */
+"DEVICE_TRANSFER_EXPAND_QR_CODE_BUTTON" = "더 크게 보기";
+
 /* The explanation on the action sheet prompting the user if they want to transfer their device. */
 "DEVICE_TRANSFER_PROMPT_EXPLANATION" = "새 iOS 기기로 Signal 계정을 이동하세요. 새 기기가 가까이 있고 켜져 있는지 확인하세요.";
 
@@ -1769,16 +1790,16 @@
 "DEVICE_TRANSFER_PROMPT_TITLE" = "계정 이동";
 
 /* The explanation for the device transfer qr code view */
-"DEVICE_TRANSFER_QRCODE_EXPLANATION" = "이전 기기에서 Signal을 열고 가까이 가져온 후, Wi-Fi와 Bluetooth가 두 기기에서 모두 켜져 있는지 확인하세요.";
+"DEVICE_TRANSFER_QRCODE_EXPLANATION" = "이전 기기를 가까이 가져와서 Wi-Fi와 Bluetooth가 활성화되어 있는지 확인한 다음 해당 기기로 이 QR 코드를 스캔하세요.";
 
 /* The second explanation for the device transfer qr code view */
-"DEVICE_TRANSFER_QRCODE_EXPLANATION2" = "다른 기기 화면에서 QR 코드를 맞추세요";
+"DEVICE_TRANSFER_QRCODE_EXPLANATION2" = "다른 iOS 기기의 프레임에 이 QR 코드를 맞추세요.";
 
 /* A prompt to provide further explanation if the user is not seeing the transfer on both devices. */
 "DEVICE_TRANSFER_QRCODE_NOT_SEEING" = "이전 기기에 메시지가 표시되지 않습니까?";
 
 /* The title for the device transfer qr code view */
-"DEVICE_TRANSFER_QRCODE_TITLE" = "다른 기기 응답 대기 중…";
+"DEVICE_TRANSFER_QRCODE_TITLE" = "QR 코드 스캔";
 
 /* The explanation on the view that shows receiving progress */
 "DEVICE_TRANSFER_RECEIVING_EXPLANATION" = "두 기기를 가까이 두세요. 기기를 끄지 말고 Signal을 계속 켜두시기 바랍니다. 이동은 단대단 암호화됩니다.";
@@ -1852,6 +1873,15 @@
 /* Section title for the 'domain fronting country' view. */
 "DOMAIN_FRONTING_COUNTRY_VIEW_SECTION_HEADER" = "검열 우회 위치";
 
+/* Users can donate to Signal with a credit or debit card. This is the heading on that screen, telling them how much they'll donate. Embeds {{formatted amount of money}}, such as \"$20\". */
+"DONATE_BUTTON" = "Donate %1$@";
+
+/* Users can donate to Signal with a credit or debit card. This is the heading on that screen, telling them how much they'll donate every month. Embeds {{formatted amount of money}}, such as \"$20\". */
+"DONATE_BUTTON_MONTHLY" = "Donate %1$@/month";
+
+/* When users make donations, they can choose which payment method they want to use. This is the text on the button that lets them choose to pay with bank transfer. */
+"DONATE_CHOOSE_BANK_TRANSFER_AS_PAYMENT_METHOD" = "Bank Transfer";
+
 /* When users make donations, they can choose which payment method they want to use. This is the text on the button that lets them choose to pay with credit or debit card. */
 "DONATE_CHOOSE_CREDIT_OR_DEBIT_CARD_AS_PAYMENT_METHOD" = "신용 또는 직불 카드";
 
@@ -1862,7 +1892,7 @@
 "DONATE_CHOOSE_PAYMENT_METHOD_SHEET_SUBTITLE_FOR_MONTHLY_DONATION" = "%1$@ 배지 받기";
 
 /* When users make one-time donations, they see a sheet that lets them pick a payment method. It also tells them what they'll be doing when they pay: receive a badge for a month. This is the subtitle on that sheet. Embeds {{localized badge name}}, such as \"Boost\". */
-"DONATE_CHOOSE_PAYMENT_METHOD_SHEET_SUBTITLE_FOR_ONE_TIME_DONATION" = "한 달 동안 %1$@ 배지 받기";
+"DONATE_CHOOSE_PAYMENT_METHOD_SHEET_SUBTITLE_FOR_ONE_TIME_DONATION" = "Get the %1$@ badge for 30 days";
 
 /* When users make donations on a friend's behalf, they see a sheet that lets them pick a payment method. This is the title on that sheet. Embeds {{amount of money}}, such as \"$5\". */
 "DONATE_CHOOSE_PAYMENT_METHOD_SHEET_TITLE_FOR_DONATION_ON_BEHALF_OF_A_FRIEND" = "Signal에 %1$@ 기부";
@@ -1882,11 +1912,29 @@
 /* If a donation badge has been sent, indicates that it's expired and can no longer be redeemed. This is shown in the chat. */
 "DONATE_ON_BEHALF_OF_A_FRIEND_CHAT_EXPIRED" = "만료됨";
 
+/* Message in an alert presented when the user tries to make a donation, but already has a donation that is currently processing via bank payment. */
+"DONATE_SCREEN_ERROR_MESSAGE_BANK_PAYMENT_PLEASE_WAIT_BEFORE_MAKING_ANOTHER_DONATION" = "Bank transfers usually take 1 business day to process. Please wait until this donation completes before making another donation.";
+
+/* Message in an alert presented when the user tries to update their recurring donation, but already has a recurring donation that is currently processing via bank payment. */
+"DONATE_SCREEN_ERROR_MESSAGE_BANK_PAYMENT_PLEASE_WAIT_BEFORE_UPDATING_YOUR_SUBSCRIPTION" = "Bank transfers usually take 1 business day to process. Please wait until this donation completes before updating your subscription.";
+
+/* Message in an alert presented when the user tries to make a donation, but already has a donation that is currently processing via non-bank payment. */
+"DONATE_SCREEN_ERROR_MESSAGE_PLEASE_WAIT_BEFORE_MAKING_ANOTHER_DONATION" = "Your donation is still being processed. This can take a few minutes depending on your connection. Please wait until this donation completes before making another donation.";
+
+/* Message in an alert presented when the user tries to update their recurring donation, but already has a recurring donation that is currently processing via non-bank payment. */
+"DONATE_SCREEN_ERROR_MESSAGE_PLEASE_WAIT_BEFORE_UPDATING_YOUR_SUBSCRIPTION" = "Your donation is still being processed. This can take a few minutes depending on your connection. Please wait until this donation completes before updating your subscription.";
+
 /* If the user tries to donate to Signal but no amount is selected, this error message is shown. */
 "DONATE_SCREEN_ERROR_NO_AMOUNT_SELECTED" = "기부할 금액을 선택하세요.";
 
 /* If the user tries to donate to Signal but they've entered an amount that's too small, this error message is shown. Embeds {{currency string}}, such as \"$5\". */
 "DONATE_SCREEN_ERROR_SELECT_A_LARGER_AMOUNT_FORMAT" = "기부할 수 있는 최소 금액은 %1$@입니다.";
+
+/* Title for an alert presented when the user tries to make a donation, but already has a donation that is currently processing via bank payment. */
+"DONATE_SCREEN_ERROR_TITLE_BANK_PAYMENT_YOU_HAVE_A_DONATION_PENDING" = "You have a donation pending";
+
+/* Title for an alert presented when the user tries to make a donation, but already has a donation that is currently processing via non-bank payment. */
+"DONATE_SCREEN_ERROR_TITLE_YOU_HAVE_A_PAYMENT_PROCESSING" = "You have a donation processing";
 
 /* On the donation screen, you can choose between one-time and monthly donations. This is the text on the picker for one-time donations. */
 "DONATE_SCREEN_MONTHLY_CHOICE" = "월간";
@@ -1908,6 +1956,27 @@
 
 /* On the donation screen, if you already have a subscription, you'll see a button to update your subscription. This is the text on that button. */
 "DONATE_SCREEN_UPDATE_MONTHLY_SUBSCRIPTION_BUTTON" = "구독 업데이트";
+
+/* Message for a sheet explaining that a donation via bank payment has failed. Embeds {{ a specific, already-localized string describing the payment failure }}. */
+"DONATION_BADGE_ISSUE_SHEET_BANK_PAYMENT_FAILED_MESSAGE" = "We’re having trouble processing your bank transfer. %1$@";
+
+/* Title for a sheet explaining that a donation via bank payment has failed. */
+"DONATION_BADGE_ISSUE_SHEET_BANK_PAYMENT_FAILED_TITLE" = "Donation Couldn’t Be Processed";
+
+/* Title for a sheet explaining that a donation via bank payment is pending. */
+"DONATION_BADGE_ISSUE_SHEET_BANK_PAYMENT_PROCESSING_TITLE" = "Donation Pending";
+
+/* Message for a sheet explaining that a one-time donation via bank payment is pending, and how that will affect the user's badge. Embeds {{ the name of the badge }}. Will have a 'learn more' link appended, when it is rendered. */
+"DONATION_BADGE_ISSUE_SHEET_ONE_TIME_BANK_PAYMENT_PROCESSING_MESSAGE" = "Your one-time donation is pending. You’ll be able to display the %1$@ badge on your profile when your donation is received.\n\nBank transfers usually take 1 business day to process.";
+
+/* Message for a sheet explaining that a recurring donation via bank payment is pending, and how that will affect the user's badge. Embeds {{ the name of the badge }}. Will have a 'learn more' link appended, when it is rendered. */
+"DONATION_BADGE_ISSUE_SHEET_RECURRING_BANK_PAYMENT_PROCESSING_MESSAGE" = "Your monthly donation is pending. You’ll be able to display the %1$@ badge on your profile when your donation is received.\n\nBank transfers usually take 1 business day to process.";
+
+/* Title for a button asking the user to renew their subscription, because it has expired. */
+"DONATION_BADGE_ISSUE_SHEET_RENEW_SUBSCRIPTION_BUTTON_TITLE" = "Renew Subscription";
+
+/* Title for a button asking the user to try their donation again, because something went wrong. */
+"DONATION_BADGE_ISSUE_SHEET_TRY_AGAIN_BUTTON_TITLE" = "Try Again";
 
 /* When donating on behalf of a friend, a badge will be sent. This shows how long the badge lasts. Embeds {{formatted duration}}. */
 "DONATION_FOR_A_FRIEND_ROW_DURATION" = "지속 기간: %1$@";
@@ -1971,12 +2040,6 @@
 
 /* You received a donation from a friend. This is the title of that message in the chat. Embeds {{short contact name}}. */
 "DONATION_ON_BEHALF_OF_A_FRIEND_RECEIVED_TITLE_FORMAT" = "%1$@ 님이 귀하를 대신해 Signal에 기부했습니다.";
-
-/* Users can donate on a friend's behalf. If the friend cannot receive these donations, this error message will be shown. */
-"DONATION_ON_BEHALF_OF_A_FRIEND_RECIPIENT_CANNOT_RECEIVE_DONATION_ERROR_BODY" = "이 사용자를 대신해 기부하려면 이 사용자가 Signal을 업그레이드해야 합니다.";
-
-/* Users can donate on a friend's behalf. If the friend cannot receive these donations, an error dialog will be shown. This is the title of that error dialog. */
-"DONATION_ON_BEHALF_OF_A_FRIEND_RECIPIENT_CANNOT_RECEIVE_DONATION_ERROR_TITLE" = "기부를 완료할 수 없습니다.";
 
 /* Users can donate on a friend's behalf. This is the error message that appears if the try to do this, but the recipient is blocked. */
 "DONATION_ON_BEHALF_OF_A_FRIEND_RECIPIENT_IS_BLOCKED_ERROR_BODY" = "이 사용자를 대신해 기부하려면 이 사용자를 차단 해제해야 합니다.";
@@ -2071,20 +2134,59 @@
 /* On donation screens, a small amount of information text is shown. This is the title for that text. */
 "DONATION_SCREENS_HEADER_TITLE" = "Signal은 이익보다 개인정보보호를 우선시합니다.";
 
+/* Title for an action in an action sheet asking the user to renew a subscription that has failed to renew. */
+"DONATION_SETTINGS_MY_SUPPORT_ACTION_SHEET_ACTION_TITLE_RENEW_SUBSCRIPTION" = "Renew Subscription";
+
+/* Title for an action in an action sheet asking the user to try again, in reference to a donation that failed. */
+"DONATION_SETTINGS_MY_SUPPORT_ACTION_SHEET_ACTION_TITLE_TRY_AGAIN" = "Try Again";
+
+/* Message for an alert explaining that a one-time payment made via bank transfer is being processed. */
+"DONATION_SETTINGS_MY_SUPPORT_BANK_PAYMENT_PROCESSING_MESSAGE" = "Your bank transfer is pending. Bank transfers usually take 1 business day to process.";
+
+/* Title for an alert explaining that a one-time payment made via bank transfer is being processed. */
+"DONATION_SETTINGS_MY_SUPPORT_BANK_PAYMENT_PROCESSING_TITLE" = "Donation Pending";
+
+/* Message shown in a sheet explaining that the user's donation has failed because payment failed. Embeds {{ a specific, already-localized string describing the payment failure reason }}. */
+"DONATION_SETTINGS_MY_SUPPORT_DONATION_FAILED_ALERT_MESSAGE_FORMAT" = "We’re having trouble processing your donation. %1$@";
+
+/* Title for a sheet explaining that a payment failed. */
+"DONATION_SETTINGS_MY_SUPPORT_DONATION_FAILED_ALERT_TITLE" = "Error Processing Donation";
+
+/* Message shown in a sheet explaining that the user's recurring subscription has ended because payment failed. Embeds {{ a specific, already-localized string describing the failure reason }}. */
+"DONATION_SETTINGS_MY_SUPPORT_RECURRING_SUBSCRIPTION_LAPSED_CHARGE_FAILURE_ALERT_MESSAGE_FORMAT" = "Your recurring monthly donation has ended. %1$@";
+
+/* Title for a sheet explaining that the user's recurring subscription has ended because payment failed. */
+"DONATION_SETTINGS_MY_SUPPORT_RECURRING_SUBSCRIPTION_LAPSED_TITLE" = "Monthly Donation Canceled";
+
+/* A label describing a donation payment that was made via bank transfer, which is still processing and has not completed. */
+"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_BANK_PAYMENT_PROCESSING" = "Donation Pending";
+
+/* A label describing a donation payment that was made by a method other than bank transfer (such as by credit card), which is still processing and has not completed. */
+"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_NON_BANK_PAYMENT_PROCESSING" = "Processing Donation...";
+
+/* A label describing a donation payment that has failed to process. */
+"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_PAYMENT_FAILED" = "Error Processing Donation";
+
+/* A label describing a recurring monthly donation that used to be active, but has now been canceled because it failed to renew. */
+"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_SUBSCRIPTION_LAPSED" = "Monthly Donation Canceled";
+
+/* A string describing the amount and currency of a one-time payment. Embeds {{ the amount, formatted as a currency }}. */
+"DONATION_SETTINGS_ONE_TIME_AMOUNT_FORMAT" = "%1$@ one-time";
+
 /* Title for the \"donate for a friend\" button on the donation view. */
 "DONATION_VIEW_DONATE_ON_BEHALF_OF_A_FRIEND" = "친구를 대신해 기부하세요.";
 
 /* Text describing to the user that they're going to pay a donation to Signal */
 "DONATION_VIEW_DONATION_TO_SIGNAL" = "Signal 기부";
 
+/* Title for the 'Donor FAQ' button on the donation screen */
+"DONATION_VIEW_DONOR_FAQ" = "Donor FAQ";
+
 /* Text that's shown when the donation view fails to load data, probably due to network failure */
 "DONATION_VIEW_LOAD_FAILED" = "네트워크 오류. 연결을 확인하고 다시 시도하세요.";
 
 /* Title for the 'Badges' button on the donation screen */
 "DONATION_VIEW_MANAGE_BADGES" = "배지";
-
-/* Title for the 'Manage Subscription' button on the donation screen */
-"DONATION_VIEW_MANAGE_SUBSCRIPTION" = "구독 관리";
 
 /* Text describing to the user that they're going to pay a monthly donation to Signal */
 "DONATION_VIEW_MONTHLY_DONATION_TO_SIGNAL" = "Signal 월간 기부";
@@ -2097,9 +2199,6 @@
 
 /* Title for the \"other ways to donate\" section on the donation view. */
 "DONATION_VIEW_OTHER_WAYS_TO_DONATE_TITLE" = "다른 기부 방법";
-
-/* Title for the 'Subscription FAQ' button on the donation screen */
-"DONATION_VIEW_SUBSCRIPTION_FAQ" = "구독 관련 FAQ";
 
 /* Title on the 'Donate to Signal' screen */
 "DONATION_VIEW_TITLE" = "Signal에 기부";
@@ -2138,16 +2237,16 @@
 "EDIT_ITEM_COPY_ACTION" = "복사";
 
 /* Edit Send Beta prompt body */
-"EDIT_MESSAGE_SEND_BETA_MESSAGE_BODY" = "메시지 수정은 Signal 베타 사용자만 사용할 수 있습니다. 메시지를 수정하면 Signal 베타 최신 버전을 사용하는 사용자에게만 표시됩니다.";
+"EDIT_MESSAGE_SEND_MESSAGE_BODY" = "메시지를 수정하면 Signal 최신 버전을 사용하는 사용자에게만 표시됩니다. 해당 사용자는 수정 메시지를 볼 수 있습니다.";
 
 /* Label to confirm sending an edit */
-"EDIT_MESSAGE_SEND_BETA_MESSAGE_CONFIRM" = "보내기";
+"EDIT_MESSAGE_SEND_MESSAGE_CONFIRM" = "보내기";
 
 /* Edit Send Beta prompt title */
-"EDIT_MESSAGE_SEND_BETA_MESSAGE_TITLE" = "Signal 베타 전용";
+"EDIT_MESSAGE_SEND_MESSAGE_TITLE" = "메시지 수정";
 
-/* Error message to display to user when a messaeg is too old to edit */
-"EDIT_MESSAGE_SEND_MESSAGE_TOO_OLD_ERROR" = "메시지 수정은 발송 시간으로부터 3시간 이내로 제한됩니다.";
+/* Error message to display to user when a message is too old to edit */
+"EDIT_MESSAGE_SEND_MESSAGE_TOO_OLD_ERROR" = "메시지 수정은 발송 시간으로부터 24시간 이내에 해야 합니다.";
 
 /* Edit failed for an unexpected reason */
 "EDIT_MESSAGE_SEND_MESSAGE_UNKNOWN_ERROR" = "EDIT_MESSAGE_SEND_MESSAGE_UNKNOWN_ERROR";
@@ -2341,6 +2440,9 @@
 /* Label warning the user that the app will expire today. */
 "EXPIRATION_WARNING_TODAY" = "이 Signal 버전은 오늘 만료됩니다. 업데이트하여 계속 메시지를 주고받으세요.";
 
+/* action sheet header when re-sending message which failed because of an invalid key signature */
+"FAILED_SENDING_BECAUSE_INVALID_KEY_SIGNATURE" = "메시지를 전송하지 못했습니다. %1$@님이 Signal을 업데이트한 후 다시 열어야 합니다.";
+
 /* action sheet header when re-sending message which failed because of too many attempts */
 "FAILED_SENDING_BECAUSE_RATE_LIMIT" = "이 연락처에서 너무 많은 오류가 발생했습니다. 나중에 다시 시도해 주세요.";
 
@@ -2361,6 +2463,12 @@
 
 /* The title for the featured badge settings page */
 "FEATURED_BADGE_SETTINGS_TITLE" = "프로필 배지";
+
+/* Users can choose to learn more about how to find account info, which will open a sheet with additional information. This is the body of that sheet. */
+"FIND_ACCOUNT_INFO_SHEET_BODY" = "Look for your IBAN at the top of your bank statement. IBAN numbers contain up to 34 characters. The name you enter should match your full name on your bank account. Contact your bank for more information.";
+
+/* Users can choose to learn more about how to find account info, which will open a sheet with additional information. This is the title of that sheet. */
+"FIND_ACCOUNT_INFO_SHEET_TITLE" = "Find Your Account Information";
 
 /* Button that marks user as verified after a successful fingerprint scan. */
 "FINGERPRINT_SCAN_VERIFY_BUTTON" = "검증으로 표시";
@@ -3209,22 +3317,31 @@
 "HELP_SUPPORT_CENTER" = "지원 센터";
 
 /* A format for the 'remove user' action sheet title. Embeds {{the removed user's name or phone number}}. */
-"HIDE_RECIPIENT_ACTION_SHEET_TITLE_FORMAT" = "Remove %1$@?";
+"HIDE_RECIPIENT_ACTION_SHEET_TITLE_FORMAT" = "%1$@ 님을 제거할까요?";
 
 /* An explanation of the consequences of removing a user. */
-"HIDE_RECIPIENT_BEHAVIOR_EXPLANATION" = "You won't see this person when searching. You'll get a message request if they message you in the future.";
+"HIDE_RECIPIENT_BEHAVIOR_EXPLANATION" = "검색 시 이 사용자가 표시되지 않습니다. 향후 해당 사용자가 메시지를 보내는 경우 메시지 요청이 수신됩니다.";
 
 /* Button label for the 'remove' button */
-"HIDE_RECIPIENT_BUTTON" = "Remove";
+"HIDE_RECIPIENT_BUTTON" = "제거";
 
 /* Toast message confirming the recipient was removed. Embeds {{The name of the user who was removed.}}.. */
-"HIDE_RECIPIENT_CONFIRMATION_TOAST" = "%1$@ has been removed.";
+"HIDE_RECIPIENT_CONFIRMATION_TOAST" = "%1$@ 님을 제거했습니다.";
 
 /* An explanation of why a user was not successfully removed and what to do. */
-"HIDE_RECIPIENT_ERROR_ACTION_SHEET_EXPLANATION" = "Check your connection and try again.";
+"HIDE_RECIPIENT_ERROR_ACTION_SHEET_EXPLANATION" = "연결을 확인하고 다시 시도하세요.";
 
 /* Title for an action sheet indicating that the user was not successfully removed. Embeds {{name of user we attempted to hide}}. */
-"HIDE_RECIPIENT_ERROR_ACTION_SHEET_TITLE_FORMAT" = "Unable to remove %1$@";
+"HIDE_RECIPIENT_ERROR_ACTION_SHEET_TITLE_FORMAT" = "%1$@ 님을 제거할 수 없습니다.";
+
+/* An explanation of why the user cannot be removed. */
+"HIDE_RECIPIENT_IMPASS_BECAUSE_SYSTEM_CONTACT_ACTION_SHEET_EXPLANATION" = "이 사용자는 내 장치 연락처에 저장되어 있습니다. 이 목록에서 제거하려면 내 연락처에서 먼저 제거하세요.";
+
+/* A format for the 'unable to remove user' action sheet title. Embeds {{the removed user's name or phone number}}. */
+"HIDE_RECIPIENT_IMPASS_BECAUSE_SYSTEM_CONTACT_ACTION_SHEET_TITLE" = "%1$@ 님을 제거할 수 없습니다.";
+
+/* An explanation of why the user cannot be removed on a linked device. */
+"HIDE_RECIPIENT_IMPOSSIBLE_BECAUSE_SYSTEM_CONTACT_ACTION_SHEET_EXPLANATION" = "귀하의 휴대폰 연락처에 저장된 사용자입니다. 휴대폰 연락처에서 제거한 다음 다시 시도하세요.";
 
 /* Label for 'archived conversations' button. */
 "HOME_VIEW_ARCHIVED_CONVERSATIONS" = "보관한 대화";
@@ -3280,15 +3397,6 @@
 /* Momentarily shown to the user when attempting to select more images than is allowed. Embeds {{max number of items}} that can be shared. */
 "IMAGE_PICKER_CAN_SELECT_NO_MORE_TOAST_FORMAT" = "항목 %1$@개를 초과하여 공유할 수 없습니다.";
 
-/* Button that will present a view for the user to change the photos Signal has access to. */
-"IMAGE_PICKER_CHANGE_PHOTOS" = "사진 변경하기";
-
-/* Explanation showing that the user has granted limited access to their photos and can change that in the Settings app. */
-"IMAGE_PICKER_CHANGE_PHOTOS_EXPLANATION" = "설정에서 전체 권한을 부여하거나 Signal이 어떤 사진에 접근할 수 있을지를 변경하세요.";
-
-/* Title show that the user has granted limited access to their photos and can change that in the Settings app. */
-"IMAGE_PICKER_CHANGE_PHOTOS_TITLE" = "사진이 보이지 않나요?";
-
 /* alert title */
 "IMAGE_PICKER_FAILED_TO_PROCESS_ATTACHMENTS" = "첨부 파일을 선택할 수 없습니다.";
 
@@ -3337,8 +3445,23 @@
 /* info message text in conversation view */
 "INCOMING_VIDEO_CALL" = "수신 영상 통화";
 
+/* Indicates that a previously-removed recipient has been added back to the current user's contacts. */
+"INFO_MESSAGE_CONTACT_REINSTATED" = "이 사용자를 Signal 연락처 목록에 다시 추가했습니다.";
+
 /* Indicates that the recipient has been removed from the current user's contacts and that messaging them will re-add them. */
-"INFO_MESSAGE_CONTACT_REMOVED" = "이전에 제거한 사용자입니다. 해당 사용자에게 메시지를 보내면 사용자가 목록에 다시 추가됩니다.";
+"INFO_MESSAGE_CONTACT_REMOVED" = "Signal 연락처 목록에서 삭제한 사용자입니다. 메시지를 보내면 해당 사용자가 연락처 목록에 다시 추가됩니다.";
+
+/* Shown when a user activates payments from a chat */
+"INFO_MESSAGE_PAYMENTS_ACTIVATED" = "결제를 활성화했습니다.";
+
+/* Shown when a user activates payments from a chat. Embeds: {{ the user's name}} */
+"INFO_MESSAGE_PAYMENTS_ACTIVATION_REQUEST_FINISHED" = "%1$@ 님이 이제 결제를 수락할 수 있습니다.";
+
+/* Shown when a user receives a payment activation request. Embeds: {{ the user's name}} */
+"INFO_MESSAGE_PAYMENTS_ACTIVATION_REQUEST_RECEIVED" = "%1$@ 님에게서 결제를 활성화해달라는 요청이 왔습니다. 결제는 신뢰할 수 있는 사람에게만 보내주세요.";
+
+/* Shown when requesting a user activates payments. Embeds: {{ the user's name}} */
+"INFO_MESSAGE_PAYMENTS_ACTIVATION_REQUEST_SENT" = "%1$@ 님에게 결제를 활성화해달라는 요청을 보냈습니다.";
 
 /* Shown in inbox and conversation after syncing as a placeholder indicating why your message history is missing. */
 "INFO_MESSAGE_SYNCED_THREAD" = "You can send or receive synchronized messages from your phone or iPad.  For your security, chat history isn't transferred to new linked devices.";
@@ -3568,6 +3691,9 @@
 /* Title for the button that resets photo to its initial state. */
 "MEDIA_EDITOR_RESET" = "초기화";
 
+/* Tooltip to display above a clock sticker in the media editor saying to tap for more clock styles */
+"MEDIA_EDITOR_TAP_FOR_MORE" = "탭하여 더 보기";
+
 /* Placeholder for message text input field in media editor. */
 "MEDIA_EDITOR_TEXT_FIELD_ADD_MESSAGE" = "메시지 추가";
 
@@ -3669,6 +3795,9 @@
 
 /* Label for button to open a sticker pack. */
 "MESSAGE_ACTION_LINK_OPEN_STICKER_PACK" = "스티커 팩 보기";
+
+/* Action sheet button title */
+"MESSAGE_ACTION_PAYMENT_DETAILS" = "결제 세부 정보";
 
 /* Label for button to call a phone number. */
 "MESSAGE_ACTION_PHONE_NUMBER_CALL" = "전화";
@@ -3945,6 +4074,18 @@
 
 /* info message text in conversation view */
 "MISSED_AUDIO_CALL" = "부재중 음성 통화";
+
+/* info message text in conversation view for when a call was dropped because the contact is blocked in iOS settings */
+"MISSED_CALL_BLOCKED_SYSTEM_CONTACT" = "통화 설정에 차단한 연락처에서 온 부재중 전화가 있습니다.";
+
+/* Action to block contact in Signal for sheet shown when the user taps a missed call from a contact blocked in iOS settings. */
+"MISSED_CALL_BLOCKED_SYSTEM_SETTINGS_SHEET_BLOCK_ACTION" = "Singal에서도 연락처 차단";
+
+/* Message for sheet shown when the user taps a missed call from a contact blocked in iOS settings. */
+"MISSED_CALL_BLOCKED_SYSTEM_SETTINGS_SHEET_MESSAGE" = "통화 설정에서 차단한 사용자라 전화를 받지 못했습니다. 설정 > 통화로 이동한 다음 차단한 연락처를 탭하여 이 항목을 관리하세요.";
+
+/* Title for sheet shown when the user taps a missed call from a contact blocked in iOS settings. Embeds {{ Contact's name }} */
+"MISSED_CALL_BLOCKED_SYSTEM_SETTINGS_SHEET_TITLE" = "통화 설정에서 %1$@ 님을 차단했습니다.";
 
 /* info message text in conversation view (use Apple's name for 'Do Not Disturb' on iOS 14 and older) */
 "MISSED_CALL_DO_NOT_DISTURB" = "방해 금지 모드 중 부재중 전화";
@@ -4360,11 +4501,23 @@
 /* info message text in conversation view */
 "OUTGOING_MISSED_VIDEO_CALL" = "미응답 영상 통화";
 
+/* Button for action sheet shown when device transfer completes; quits the Signal app immediately (does not automatically relaunch, but the user may choose to relaunch). */
+"OUTGOING_TRANSFER_COMPLETE_EXIT_ACTION" = "Signal 종료";
+
+/* Message for action sheet shown when device transfer completes */
+"OUTGOING_TRANSFER_COMPLETE_MESSAGE" = "이제 이 기기에서 Signal을 종료합니다.";
+
+/* Title for action sheet shown when device transfer completes */
+"OUTGOING_TRANSFER_COMPLETE_TITLE" = "전송 완료!";
+
 /* info message text in conversation view */
 "OUTGOING_VIDEO_CALL" = "발신 영상 통화";
 
-/* Button used to decline a payment request. */
-"PAYMENTS_ACTION_DECLINE_REQUEST" = "요청 거부";
+/* Header title for bank payment details screen */
+"PAYMENT_DETAILS_BANK_TITLE" = "Bank Transfer";
+
+/* Header title for card payment details screen */
+"PAYMENT_DETAILS_CARD_TITLE" = "Credit or Debit Card";
 
 /* Format for indicator of a payment amount converted to fiat currency with the freshness of the conversion rate. Embeds: {{ %1$@ the payment amount, %2$@ the freshness of the currency conversion rate }}. */
 "PAYMENTS_CURRENCY_CONVERSION_FRESHNESS_FORMAT" = "%2$@의 %1$@";
@@ -4372,20 +4525,8 @@
 /* Indicator for unknown currency. */
 "PAYMENTS_CURRENCY_UNKNOWN" = "?";
 
-/* Message for the 'decline a payment request' alert. Embeds {{ the name of the user requesting payment }}. */
-"PAYMENTS_DECLINE_REQUEST_ALERT_MESSAGE_FORMAT" = "%1$@ 님이 거절했다는 알림을 받게 됩니다.";
-
-/* Title for the 'decline a payment request' alert. */
-"PAYMENTS_DECLINE_REQUEST_ALERT_TITLE" = "이 요청을 거부하시겠습니까?";
-
 /* Label for 'defragmentation' payments. */
 "PAYMENTS_DEFRAGMENTATION_PAYMENT" = "코인 정리 수수료";
-
-/* Error indicating that a payment request could not be cancelled. */
-"PAYMENTS_ERROR_PAYMENT_REQUEST_CANCEL_FAILED" = "요청을 취소할 수 없습니다.";
-
-/* Error indicating that a payment request could not be declined. */
-"PAYMENTS_ERROR_PAYMENT_REQUEST_DECLINE_FAILED" = "요청을 거부할 수 없습니다.";
 
 /* Status indicator for incoming payments which failed. */
 "PAYMENTS_FAILURE_INCOMING_FAILED" = "실패";
@@ -4407,6 +4548,15 @@
 
 /* Status indicator for outgoing payments which failed to verify. */
 "PAYMENTS_FAILURE_OUTGOING_VALIDATION_FAILED" = "유효하지 않음";
+
+/* Payments in-chat message shown if a payment fails to send, bottom half. */
+"PAYMENTS_IN_CHAT_FAILURE_MESSAGE_BOTTOM" = "탭하여 자세한 내용을 확인하세요.";
+
+/* Payments in-chat message shown if a payment fails to send, top part. Embeds {{ number, amount of MOB coin not sent }} */
+"PAYMENTS_IN_CHAT_FAILURE_MESSAGE_TOP" = "%1$@MOB를 보내지 못함";
+
+/* Status indicator for invalid payments which could not be processed. */
+"PAYMENTS_INFO_UNAVAILABLE_MESSAGE" = "사용할 수 없음";
 
 /* Indicates that an unknown error occurred while using Touch ID/Face ID/Phone Passcode. */
 "PAYMENTS_LOCK_AUTHENTICATION_ENABLE_UNKNOWN_ERROR" = "인증 기능에 접근할 수 없습니다.";
@@ -4531,9 +4681,6 @@
 /* Format for the 'payment recipient amount' indicator. Embeds {{ the name of the recipient of the payment }}. */
 "PAYMENTS_NEW_PAYMENT_RECIPIENT_AMOUNT_FORMAT" = "%1$@에게";
 
-/* Label for the 'new payment request' button. */
-"PAYMENTS_NEW_PAYMENT_REQUEST_BUTTON" = "요청";
-
 /* Label for the payments notification banner for a single payment notification. */
 "PAYMENTS_NOTIFICATION_BANNER_1" = "새로운 결제 알림 1개";
 
@@ -4542,6 +4689,18 @@
 
 /* Format for the payments notification banner for multiple payment notifications. Embeds: {{ the number of unread payment notifications }}. */
 "PAYMENTS_NOTIFICATION_BANNER_N_FORMAT" = "%1$@ 새로운 결제 알림";
+
+/* Payment status context with contact name, failed. Embeds {{ Name of receiving contact }} */
+"PAYMENTS_PAYMENT_STATUS_IN_CHAT_PAYMENT_TO" = "결제를 받을 사람: %1$@";
+
+/* Payment status context while sending */
+"PAYMENTS_PAYMENT_STATUS_IN_CHAT_PROCESSING" = "결제 처리 중…";
+
+/* Payment status context with contact name, incoming. Embeds {{ Name of sending contact }} */
+"PAYMENTS_PAYMENT_STATUS_IN_CHAT_SENT_YOU" = "%1$@ 님이 보냄";
+
+/* Payment status context with contact name, sent. Embeds {{ Name of receiving contact }} */
+"PAYMENTS_PAYMENT_STATUS_IN_CHAT_YOU_SENT" = "받는 사람: %1$@";
 
 /* Status indicator for incoming payments which are complete. */
 "PAYMENTS_PAYMENT_STATUS_LONG_INCOMING_COMPLETE" = "결제 완료";
@@ -4603,6 +4762,12 @@
 /* Status indicator for payments which had an unknown failure. */
 "PAYMENTS_PAYMENT_STATUS_SHORT_UNKNOWN" = "알 수 없는 오류";
 
+/* Payments Preview Text shown in quoted replies, for payments. Embeds {{ Amount sent (number), Currency (e.g. 'MOB') }} */
+"PAYMENTS_PREVIEW_TEXT_QUOTED_REPLY" = "결제: %1$@%2$@";
+
+/* Payments Preview Text shown in quoted replies, for unknown payments. */
+"PAYMENTS_PREVIEW_TEXT_UNKNOWN" = "알 수 없는 결제";
+
 /* Message for error alert indicating that a given user cannot receive payments because of a pending message request for a recipient that they have sent messages to. */
 "PAYMENTS_RECIPIENT_MISSING_PROFILE_KEY_MESSAGE_W_MESSAGES" = "사용자에게 지불을 보내려면 사용자의 메시지 요청을 수락해야 합니다.";
 
@@ -4612,11 +4777,17 @@
 /* Title for error alert indicating that a given user cannot receive payments because of a pending message request. */
 "PAYMENTS_RECIPIENT_MISSING_PROFILE_KEY_TITLE" = "결제를 전송할 수 없음";
 
-/* Message for error alert indicating that a given user cannot receive payments because they have not enabled payments. */
-"PAYMENTS_RECIPIENT_PAYMENTS_NOT_ENABLED_MESSAGE" = "해당 사용자는 결제를 활성화하지 않았습니다.";
+/* The label for the 'send request' button in alerts and action sheets. */
+"PAYMENTS_RECIPIENT_PAYMENTS_NOT_ENABLED_BUTTON" = "요청 보내기";
 
-/* Title for error alert indicating that a given user cannot receive payments because they have not enabled payments. */
-"PAYMENTS_RECIPIENT_PAYMENTS_NOT_ENABLED_TITLE" = "잘못된 수신자";
+/* Message for error alert indicating that a given user cannot receive payments because they have not enabled payments. */
+"PAYMENTS_RECIPIENT_PAYMENTS_NOT_ENABLED_MESSAGE" = "결제를 활성화해달라는 요청을 보낼까요?";
+
+/* Title for error alert indicating that a given user cannot receive payments because they have not enabled payments. Embeds {{ the contact's name }} */
+"PAYMENTS_RECIPIENT_PAYMENTS_NOT_ENABLED_TITLE" = "%1$@ 님이 결제를 아직 활성화하지 않았습니다.";
+
+/* Payments Preview Text shown in chat list for payments. */
+"PAYMENTS_THREAD_PREVIEW_TEXT" = "💳 결제";
 
 /* Label for 'transfer out' payments. */
 "PAYMENTS_TRANSFER_OUT_PAYMENT" = "출금";
@@ -4779,6 +4950,9 @@
 
 /* alert title */
 "PHOTO_CAPTURE_UNABLE_TO_INITIALIZE_CAMERA" = "카메라를 구성할 수 없습니다.";
+
+/* alert title, generic error preventing user from capturing a video that is too long */
+"PHOTO_CAPTURE_VIDEO_SIZE_ERROR" = "동영상이 너무 깁니다.";
 
 /* label for system photo collections which have no name. */
 "PHOTO_PICKER_UNNAMED_COLLECTION" = "이름 없는 앨범";
@@ -5380,17 +5554,8 @@
 /* Alert shown when submitting a verification code too many times. Embeds {{ duration }}, such as \"5:00\" */
 "REGISTRATION_SUBMIT_CODE_RATE_LIMIT_ALERT_FORMAT" = "코드 입력을 너무 많이 시도했습니다. %1$@ 후 다시 시도하세요.";
 
-/* Error message indicating that device transfer from another device might be possible. */
-"REGISTRATION_TRANSFER_AVAILABLE_DESCRIPTION" = "이전에 이 번호로 등록한 전달에 사용할 수 있는 계정이 있습니다.";
-
 /* During registration and re-registration, users may have to enter a code to verify ownership of their phone number. If they enter an invalid code, they will see this error message. */
 "REGISTRATION_VERIFICATION_ERROR_INVALID_VERIFICATION_CODE" = "입력한 코드가 틀렸습니다. 코드를 다시 보내고 다시 시도하세요.";
-
-/* Error message indicating that registration failed due to a missing or incorrect verification code. */
-"REGISTRATION_VERIFICATION_FAILED_WRONG_CODE_DESCRIPTION" = "입력한 번호가 저희가 보낸 번호와 일치하지 않습니다. 다시 확인해보세요.";
-
-/* Error message indicating that registration failed due to a missing or incorrect 2FA PIN. */
-"REGISTRATION_VERIFICATION_FAILED_WRONG_PIN" = "등록 잠금 PIN이 올바르지 않습니다.";
 
 /* Message of alert indicating that users needs to enter a valid phone number to register. */
 "REGISTRATION_VIEW_INVALID_PHONE_NUMBER_ALERT_MESSAGE" = "유효한 전화번호를 입력하세요.";
@@ -5478,21 +5643,6 @@
 
 /* Snippet to share {{safety number}} with a friend. sent e.g. via SMS */
 "SAFETY_NUMBER_SHARE_FORMAT" = "Signal 안전 번호:\n%1$@";
-
-/* Header informing the user about the transition from phone number to user identifier based. */
-"SAFETY_NUMBER_TRANSITION_HEADER_ALERT" = "안전 번호가 업데이트됩니다.";
-
-/* Button text for a sheet informing the user about the transition from phone number to user identifier based. */
-"SAFETY_NUMBER_TRANSITION_SHEET_HELP_TEXT" = "도움이 필요하신가요?";
-
-/* Informs the user about the transition from phone number to user identifier based. */
-"SAFETY_NUMBER_TRANSITION_SHEET_PARAGRAPH_1" = "전환 기간에 안전 번호가 업데이트 되어 앞으로 Signal에서 예정된 개인정보 보호 기능이 활성화됩니다.";
-
-/* Informs the user about the transition from phone number to user identifier based. */
-"SAFETY_NUMBER_TRANSITION_SHEET_PARAGRAPH_2" = "안전 번호를 검증하려면 컬러 카드와 상대의 기기를 매칭하세요. 일치하지 않으면 스와이프하여 다른 안전 번호 쌍을 시도해 보세요. 한 쌍만 일치하면 됩니다.";
-
-/* Title for a sheet informing the user about the transition from phone number to user identifier based. */
-"SAFETY_NUMBER_TRANSITION_SHEET_TITLE" = "안전 번호 변경";
 
 /* Action sheet heading */
 "SAFETY_NUMBERS_ACTIONSHEET_TITLE" = "%1$@ 님과의 안전 번호가 변경되었습니다. 안전 번호를 검증해보세요.";
@@ -5656,11 +5806,59 @@
 /* String describing standard quality sent media */
 "SENT_MEDIA_QUALITY_STANDARD" = "기본";
 
+/* Users can donate to Signal with a bank account. This is the label for email field on that screen. */
+"SEPA_DONATION_EMAIL_LABEL" = "Email";
+
+/* Users can donate to Signal with a bank account. This is placeholder text for the email field before the user starts typing. */
+"SEPA_DONATION_EMAIL_PLACEHOLDER" = "Email Address";
+
+/* SEPA bank account donation error for insufficient funds. */
+"SEPA_DONATION_ERROR_INSUFFICIENT_FUNDS" = "The bank account provided has insufficient funds to complete this purchase, try again or contact your bank for more information.";
+
+/* SEPA bank account donation error for missing or incorrect mandate information. */
+"SEPA_DONATION_ERROR_NOT_AUTHORIZED" = "An error occurred while processing this payment, please try again.";
+
+/* SEPA bank account donation error for the account details not being able to be processed. */
+"SEPA_DONATION_ERROR_NOT_PROCESSED" = "The bank details provided could not be processed, contact your bank for more information.";
+
+/* SEPA bank account donation error for unspecified decline failures. */
+"SEPA_DONATION_ERROR_OTHER" = "Verify your bank details are correct and try again. If the problem continues, contact your bank.";
+
+/* SEPA bank account donation error for the payment not being authorizing by the account holder. */
+"SEPA_DONATION_ERROR_PAYMENT_NOT_AUTHORIZED" = "This payment was revoked by the account holder and could not be processed. You haven’t been charged.";
+
+/* Users can donate to Signal with a bank account. If their internation bank account number (IBAN) contains characters other than letters and numbers, this error will be shown. Try to use a short string to make space in the UI. */
+"SEPA_DONATION_IBAN_INVALID_CHARACTERS_ERROR" = "IBAN can only contain A-Z and 0-9";
+
+/* Users can donate to Signal with a bank account. If their internation bank account number (IBAN) does not pass validation, this error will be shown. Try to use a short string to make space in the UI. */
+"SEPA_DONATION_IBAN_INVALID_CHECK_ERROR" = "Invalid IBAN number";
+
+/* Users can donate to Signal with a bank account. If their internation bank account number (IBAN) has an unsupported country code, this error will be shown. Try to use a short string to make space in the UI. */
+"SEPA_DONATION_IBAN_INVALID_COUNTRY_ERROR" = "IBAN country code is not supported";
+
+/* Users can donate to Signal with a bank account. This is the label for IBAN (internation bank account number) field on that screen. */
+"SEPA_DONATION_IBAN_LABEL" = "IBAN";
+
+/* Users can donate to Signal with a bank account. If their internation bank account number (IBAN) is too long, this error will be shown. Try to use a short string to make space in the UI. */
+"SEPA_DONATION_IBAN_TOO_LONG_ERROR" = "IBAN is too long";
+
+/* Users can donate to Signal with a bank account. If their internation bank account number (IBAN) is too long, this error will be shown. Try to use a short string to make space in the UI. */
+"SEPA_DONATION_IBAN_TOO_SHORT_ERROR" = "IBAN is too short";
+
+/* Users can donate to Signal with a bank account. This is the label for name field on that screen. */
+"SEPA_DONATION_NAME_LABEL" = "Name";
+
+/* Users can donate to Signal with a bank account. This is placeholder text for the name field before the user starts typing. */
+"SEPA_DONATION_NAME_PLACEHOLDER" = "Name on Bank Account";
+
 /* Description for the session refresh alert */
 "SESSION_REFRESH_ALERT_MESSAGE" = "Signal은 엔드투엔드 암호화를 사용하므로 때때로 대화 세션을 새로 고쳐야 할 수 있습니다. 이 작업은 대화 보안에 영향을 미치지 않으나, 이로 인해 해당 연락처가 보낸 메시지를 놓쳤을 수 있습니다. 메시지를 다시 보내달라고 요청하세요.";
 
 /* Title for the session refresh alert */
 "SESSION_REFRESH_ALERT_TITLE" = "대화 세션을 새로 고침";
+
+/* If you send a message to a phone number, we might not know the owner of the account. When you later learn the owner of the account, we may show this message. The first parameter is a phone number; the second parameter is the contact's name. Put differently, this message indicates that a phone number belongs to a particular named recipient. */
+"SESSION_SWITCHOVER_EVENT" = "%1$@번은 %2$@ 님의 전화번호입니다.";
 
 /* Title for the wallpaper choose from photos option */
 "SET_WALLPAPER_CHOOSE_PHOTO" = "갤러리에서 선택";
@@ -5721,6 +5919,21 @@
 
 /* No comment provided by engineer. */
 "SETTINGS_ADVANCED_VIEW_ERROR_LOG" = "오류 로그";
+
+/* Information on sheet about changing the app icon - first line */
+"SETTINGS_APP_ICON_EDUCATION_APP_NAME" = "홈 화면, 알림, 앱 라이브러리에 앱 이름 'Signal'이 표시됩니다.";
+
+/* Information on sheet about changing the app icon - second line */
+"SETTINGS_APP_ICON_EDUCATION_HOME_SCREEN_DOCK" = "홈 화면 맨 아래에 있는 Dock으로 앱을 옮겨 홈 화면에서 앱 이름 'Signal'을 숨길 수 있습니다.";
+
+/* The footer for the app icon selection settings page. */
+"SETTINGS_APP_ICON_FOOTER" = "홈 화면, 알림, 앱 라이브러리에 앱 이름 'Signal'이 표시됩니다.";
+
+/* The title for the app icon selection settings page. */
+"SETTINGS_APP_ICON_TITLE" = "앱 아이콘";
+
+/* The title for the app icon section in the appearance settings. */
+"SETTINGS_APPEARANCE_APP_ICON" = "앱 아이콘";
 
 /* Footer for avatar section in appearance settings */
 "SETTINGS_APPEARANCE_AVATAR_FOOTER" = "가능한 경우 시스템 연락처 사진을 표시합니다.";
@@ -5948,7 +6161,7 @@
 "SETTINGS_PAYMENTS_ACTIVATE_PAYMENTS_CONFIRM_AGREE" = "활성화";
 
 /* Description for the 'activate payments confirmation' UI in the payment settings. */
-"SETTINGS_PAYMENTS_ACTIVATE_PAYMENTS_CONFIRM_DESCRIPTION" = "Signal을 사용하여 MobileCoin을 보내고 받을 수 있습니다. 모든 지불은 MobileCoin 및 MobileCoin 지갑에 대한 사용 약관의 적용을 받습니다. 이는 베타 기능이므로 일부 문제가 발생할 수 있으며 손실될 수 있는 지불 또는 잔액은 복구할 수 없습니다.";
+"SETTINGS_PAYMENTS_ACTIVATE_PAYMENTS_CONFIRM_DESCRIPTION" = "Signal을 사용하여 MobileCoin을 주고받으세요. 모든 결제에는 MobileCoins와 MobileCoin Wallet의 사용 약관이 적용됩니다. 일부 문제가 발생할 수 있으며, 손실된 결제나 잔액은 복구할 수 없습니다.";
 
 /* Title for the 'activate payments confirmation' UI in the payment settings. */
 "SETTINGS_PAYMENTS_ACTIVATE_PAYMENTS_CONFIRM_TITLE" = "활성화";
@@ -6104,7 +6317,7 @@
 "SETTINGS_PAYMENTS_OPT_IN_REACTIVATE_BUTTON" = "결제 재활성화";
 
 /* Title for the 'payments opt-in' view in the app settings. */
-"SETTINGS_PAYMENTS_OPT_IN_TITLE" = "결제 (베타) 소개";
+"SETTINGS_PAYMENTS_OPT_IN_TITLE" = "결제 소개";
 
 /* Button when discarding recovery phrase. */
 "SETTINGS_PAYMENTS_PASSPHRASE_DISCARD_CONFIRMATION_BUTTON" = "복구 문구 건너뛰기";
@@ -6142,14 +6355,20 @@
 /* Label for the sender in the payment details view in the app settings. */
 "SETTINGS_PAYMENTS_PAYMENT_DETAILS_SENDER" = "발신자";
 
+/* Label for the sender in the payment details view in the app settings when the status is 'Failed'. Followed by sender name. */
+"SETTINGS_PAYMENTS_PAYMENT_DETAILS_SENDER_ATTEMPTED" = "결제를 시도한 사람";
+
 /* Format for the sender info in the payment details view in the app settings. Embeds {{ %1$@ the name of the sender of the payment, %2$@ the date the transaction was sent }}. */
 "SETTINGS_PAYMENTS_PAYMENT_DETAILS_SENDER_FORMAT" = "%2$@의 %1$@";
+
+/* Format for indicator that you sent a payment in the payment details view in the app settings. Embeds: {{ the user who you sent the payment to }}. */
+"SETTINGS_PAYMENTS_PAYMENT_DETAILS_SENDING_FORMAT" = "%1$@ 님에게 결제 전송 중";
 
 /* Indicates that you sent a payment in the payment details view in the app settings. */
 "SETTINGS_PAYMENTS_PAYMENT_DETAILS_SENT" = "보낸 시간";
 
 /* Format for indicator that you sent a payment in the payment details view in the app settings. Embeds: {{ the user who you sent the payment to }}. */
-"SETTINGS_PAYMENTS_PAYMENT_DETAILS_SENT_FORMAT" = "%1$@에게 보냄";
+"SETTINGS_PAYMENTS_PAYMENT_DETAILS_SENT_FORMAT" = "%1$@ 님에게 보냄";
 
 /* Label for the transaction status in the payment details view in the app settings. */
 "SETTINGS_PAYMENTS_PAYMENT_DETAILS_STATUS" = "상태";
@@ -6413,7 +6632,7 @@
 "SETTINGS_PAYMENTS_VIEW_RECOVERY_PASSPHRASE" = "복구 문구";
 
 /* Title for the 'payments settings' view in the app settings. */
-"SETTINGS_PAYMENTS_VIEW_TITLE" = "결제 (베타)";
+"SETTINGS_PAYMENTS_VIEW_TITLE" = "결제";
 
 /* Label for the payments wallet address. */
 "SETTINGS_PAYMENTS_WALLET_ADDRESS_LABEL" = "지갑 주소";
@@ -6645,6 +6864,12 @@
 
 /* Title for the captcha view controller */
 "SPAM_CAPTCHA_VIEW_CONTROLLER" = "확인 완료";
+
+/* The name for the sticker category 'Featured' */
+"STICKER_CATEGORY_FEATURED_NAME" = "추천";
+
+/* The name for the sticker category 'Recents' */
+"STICKER_CATEGORY_RECENTS_NAME" = "최근";
 
 /* Preview text shown in notifications and conversation list for sticker messages. */
 "STICKER_MESSAGE_PREVIEW" = "스티커 메시지";
@@ -6904,6 +7129,9 @@
 /* Text indicating that the story send has failed */
 "STORY_SEND_FAILED" = "전송에 실패했습니다.";
 
+/* Body for notification shown when a story fails to send. */
+"STORY_SEND_FAILED_NOTIFICATION_BODY" = "❗️스토리를 보내지 못했습니다.";
+
 /* Text indicating that you can tap to retry sending */
 "STORY_SEND_FAILED_RETRY" = "탭하여 다시 시도하세요.";
 
@@ -7039,38 +7267,26 @@
 /* Confirm Cancellation? Action sheet title */
 "SUSTAINER_VIEW_CANCEL_SUBSCRIPTION_CONFIRMATION_TITLE" = "취소할까요?";
 
-/* Couldn't add badge text, embeds {{link to contact support}} */
-"SUSTAINER_VIEW_CANT_ADD_BADGE" = "배지를 추가하지 못했습니다. %1$@";
-
 /* Action sheet message for Couldn't Add Badge sheet */
 "SUSTAINER_VIEW_CANT_ADD_BADGE_MESSAGE" = "배지를 계정에 추가할 수 없습니다. 고객 지원팀에 문의하세요.";
 
 /* Action sheet title for Couldn't Add Badge sheet */
 "SUSTAINER_VIEW_CANT_ADD_BADGE_TITLE" = "배지를 추가하지 못했습니다.";
 
-/* Contact support link */
-"SUSTAINER_VIEW_CONTACT_SUPPORT" = "고객 지원팀으로 문의하세요.";
-
 /* Action sheet title for Error Processing Payment sheet */
-"SUSTAINER_VIEW_ERROR_PROCESSING_PAYMENT_TITLE" = "결제 처리 중 오류가 발생했습니다.";
-
-/* Payment error occurred text, embeds {{link to contact support}} */
-"SUSTAINER_VIEW_PAYMENT_ERROR" = "결제 처리 중 오류가 발생했습니다. %1$@";
+"SUSTAINER_VIEW_ERROR_PROCESSING_PAYMENT_TITLE" = "Error Processing Donation";
 
 /* Pricing text for sustainer view badges, embeds {{price}} */
 "SUSTAINER_VIEW_PRICING" = "%1$@/월";
 
 /* Loading indicator on the sustainer view */
-"SUSTAINER_VIEW_PROCESSING_PAYMENT" = "결제 처리 중…";
-
-/* Status text while processing a badge redemption */
-"SUSTAINER_VIEW_PROCESSING_TRANSACTION" = "거래 처리 중…";
+"SUSTAINER_VIEW_PROCESSING_PAYMENT" = "Processing donation...";
 
 /* Renewal date text for sustainer view level, embeds {{renewal date}} */
 "SUSTAINER_VIEW_RENEWAL" = "%1$@ 갱신";
 
 /* Action sheet message for Still Processing Badge sheet */
-"SUSTAINER_VIEW_STILL_PROCESSING_BADGE_MESSAGE" = "아직 결제 처리 중입니다. 연결 상태에 따라 몇 분이 소요될 수 있습니다.";
+"SUSTAINER_VIEW_STILL_PROCESSING_BADGE_MESSAGE" = "Your donation is still being processed. This can take a few minutes depending on your connection.";
 
 /* Toast indicating that the subscription has been cancelled */
 "SUSTAINER_VIEW_SUBSCRIPTION_CANCELLED" = "구독을 취소했습니다.";
@@ -7138,6 +7354,9 @@
 /* Option in selected text edit menu to make text strikethrough */
 "TEXT_MENU_STRIKETHROUGH" = "취소선";
 
+/* Option in selected text edit menu to translate the word */
+"TEXT_MENU_TRANSLATE" = "번역";
+
 /* text indicating the message was remotely deleted */
 "THIS_MESSAGE_WAS_DELETED" = "이 메세지는 삭제되었습니다.";
 
@@ -7158,6 +7377,15 @@
 
 /* A string indicating two mutual groups the user shares with this contact. Embeds {{mutual group name}} */
 "THREAD_DETAILS_TWO_MUTUAL_GROUP" = "%1$@ 및 %2$@ 멤버";
+
+/* Shown after tapping a 'Learn More' button when multiple conversations for the same person have been merged into one. The first parameter is a phone number (eg +1 650-555-0100) and the second parameter is a name (eg John). */
+"THREAD_MERGE_LEARN_MORE" = "%1$@ 님과 메시지를 주고받은 후 이 번호가 %2$@ 님의 전화번호라는 걸 알게 됐습니다. 해당 사용자의 번호는 비공개 상태입니다.\n\n두 대화의 메시지 기록이 여기에 병합됩니다.";
+
+/* A system event shown in a conversation when multiple conversations for the same person have been merged into one. The parameter is replaced with the contact's name (eg John Doe). */
+"THREAD_MERGE_NO_PHONE_NUMBER" = "%1$@ 님과 주고받은 메시지 기록과 해당 사용자가 속한 다른 대화의 메시지 기록을 병합했습니다.";
+
+/* A system event shown in a conversation when multiple conversations for the same person have been merged into one. The parameters are replaced with the contact's name (eg John Doe) and their phone number (eg +1 650 555 0100). */
+"THREAD_MERGE_PHONE_NUMBER" = "%1$@ 님과 해당 사용자 번호 %2$@의 메시지 기록을 병합했습니다.";
 
 /* {{number of days}} embedded in strings, e.g. 'Alice updated disappearing messages expiration to {{5 days}}'. See other *_TIME_AMOUNT strings */
 "TIME_AMOUNT_DAYS" = "%1$@일";
@@ -7200,6 +7428,18 @@
 
 /* Label text below navbar button, embeds {{number of weeks}}. Must be very short, like 1 or 2 characters, The space is intentionally omitted between the text and the embedded duration so that we get, e.g. '5w' not '5 w'. See other *_TIME_AMOUNT strings */
 "TIME_AMOUNT_WEEKS_SHORT_FORMAT" = "%1$@주";
+
+/* Button for bottom sheet shown when device transfer completes on the receiving device. Tapping will terminate the Signal app and trigger a notification to relaunch. */
+"TRANSFER_COMPLETE_SHEET_BUTTON" = "Signal 종료";
+
+/* Subtitle for bottom sheet shown when device transfer completes on the receiving device. */
+"TRANSFER_COMPLETE_SHEET_SUBTITLE" = "이 기기에서 계정을 사용하기 시작하려면 Signal을 종료했다가 다시 시작하세요.";
+
+/* Title for bottom sheet shown when device transfer completes on the receiving device. */
+"TRANSFER_COMPLETE_SHEET_TITLE" = "전송 완료";
+
+/* Notification prompting the user to relaunch Signal after a device transfer completed. */
+"TRANSFER_RELAUNCH_NOTIFICATION" = "Signal을 열어 메시지를 보내기 시작하세요.";
 
 /* Label for the cancel button in an alert or action sheet. */
 "TXT_CANCEL_TITLE" = "취소";
@@ -7439,13 +7679,16 @@
 "VERIFY_PRIVACY_MULTIPLE" = "안전 번호 검토";
 
 /* Instructions for verifying your safety number. Embeds {{contact's name}} */
-"VERIFY_SAFETY_NUMBER_INSTRUCTIONS" = "%1$@님과의 종단간 암호화를 검증하려면 위 컬러 카드에 기기를 매칭하여 번호를 비교하세요. 일치하지 않으면 스와이프하여 다른 안전 번호 쌍을 시도해 보세요. 한 쌍만 일치하면 됩니다.";
+"VERIFY_SAFETY_NUMBER_INSTRUCTIONS" = "To verify end-to-end encryption with %1$@, compare the numbers above with their device. You can also scan the code on their device.";
 
 /* Toast alert text shown when tapping on a video that cannot be played. */
 "VIDEO_BROKEN" = "이 동영상을 표시할 수 없습니다.";
 
 /* Accessibility label for placing a video call */
 "VIDEO_CALL_LABEL" = "영상 통화";
+
+/* Button label for the 'View Contact' button */
+"VIEW_CONTACT_BUTTON" = "연락처 보기";
 
 /* Toast alert text shown when tapping on a view-once message that has already been viewed. */
 "VIEW_ONCE_ALREADY_VIEWED_TOAST" = "이미 이 메시지는 확인했습니다.";

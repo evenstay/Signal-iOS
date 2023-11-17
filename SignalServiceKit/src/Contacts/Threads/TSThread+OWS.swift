@@ -98,6 +98,10 @@ public extension TSThread {
         }
         return groupModel.isAnnouncementsOnly
     }
+
+    func hasPendingMessageRequest(transaction: SDSAnyReadTransaction) -> Bool {
+        return ThreadFinder().hasPendingMessageRequest(thread: self, transaction: transaction)
+    }
 }
 
 // MARK: -
@@ -217,7 +221,7 @@ extension TSThread {
     public func editTarget(transaction: SDSAnyReadTransaction) -> TSOutgoingMessage? {
         guard
             let editTargetTimestamp = editTargetTimestamp?.uint64Value,
-            let localAddress = tsAccountManager.localAddress
+            let localAddress = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: transaction.asV2Read)?.aciAddress
         else {
             return nil
         }
@@ -227,15 +231,5 @@ extension TSThread {
             author: localAddress,
             transaction: transaction
         ) as? TSOutgoingMessage
-    }
-}
-
-// MARK: - Drafts
-
-extension TSContactThread {
-    @objc
-    public var addressComponentsDescription: String {
-        SignalServiceAddress.addressComponentsDescription(uuidString: contactUUID,
-                                                          phoneNumber: contactPhoneNumber)
     }
 }

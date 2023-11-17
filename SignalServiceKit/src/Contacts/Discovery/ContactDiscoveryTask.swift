@@ -13,6 +13,7 @@ protocol ContactDiscoveryTaskQueue {
 
 final class ContactDiscoveryTaskQueueImpl: ContactDiscoveryTaskQueue {
     private let db: DB
+    private let recipientDatabaseTable: RecipientDatabaseTable
     private let recipientFetcher: RecipientFetcher
     private let recipientMerger: RecipientMerger
     private let tsAccountManager: TSAccountManager
@@ -21,6 +22,7 @@ final class ContactDiscoveryTaskQueueImpl: ContactDiscoveryTaskQueue {
 
     init(
         db: DB,
+        recipientDatabaseTable: RecipientDatabaseTable,
         recipientFetcher: RecipientFetcher,
         recipientMerger: RecipientMerger,
         tsAccountManager: TSAccountManager,
@@ -28,6 +30,7 @@ final class ContactDiscoveryTaskQueueImpl: ContactDiscoveryTaskQueue {
         websocketFactory: WebSocketFactory
     ) {
         self.db = db
+        self.recipientDatabaseTable = recipientDatabaseTable
         self.recipientFetcher = recipientFetcher
         self.recipientMerger = recipientMerger
         self.tsAccountManager = tsAccountManager
@@ -65,37 +68,22 @@ final class ContactDiscoveryTaskQueueImpl: ContactDiscoveryTaskQueue {
         requestedPhoneNumbers: Set<E164>,
         discoveryResults: [ContactDiscoveryV2Operation.DiscoveryResult]
     ) throws -> Set<SignalRecipient> {
-        return try db.write { tx in
-            guard let localIdentifiers = tsAccountManager.localIdentifiers(transaction: SDSDB.shimOnlyBridge(tx)) else {
-                throw OWSAssertionError("Not registered.")
-            }
-            return storeResults(
-                requestedPhoneNumbers: requestedPhoneNumbers,
-                discoveryResults: discoveryResults,
-                localIdentifiers: localIdentifiers,
-                tx: tx
-            )
-        }
-    }
-
-    private func storeResults(
-        requestedPhoneNumbers: Set<E164>,
-        discoveryResults: [ContactDiscoveryV2Operation.DiscoveryResult],
-        localIdentifiers: LocalIdentifiers,
-        tx: DBWriteTransaction
-    ) -> Set<SignalRecipient> {
         var registeredRecipients = Set<SignalRecipient>()
-        for discoveryResult in discoveryResults {
-            // PNI TODO: Pass the PNI into the merging logic.
-            guard let aci = discoveryResult.aci else {
-                continue
+
+        try db.enumerateWithTimeBatchedWriteTx(discoveryResults) { discoveryResult, tx in
+            guard let localIdentifiers = tsAccountManager.localIdentifiers(tx: tx) else {
+                throw OWSAssertionError("Not registered.")
             }
             let recipient = recipientMerger.applyMergeFromContactDiscovery(
                 localIdentifiers: localIdentifiers,
-                aci: aci,
                 phoneNumber: discoveryResult.e164,
+                pni: discoveryResult.pni,
+                aci: discoveryResult.aci,
                 tx: tx
             )
+            guard let recipient else {
+                return
+            }
             recipient.markAsRegisteredAndSave(tx: SDSDB.shimOnlyBridge(tx))
 
             // We process all the results that we were provided, but we only return the
@@ -106,7 +94,7 @@ final class ContactDiscoveryTaskQueueImpl: ContactDiscoveryTaskQueue {
         }
 
         let undiscoverablePhoneNumbers = requestedPhoneNumbers.subtracting(discoveryResults.lazy.map { $0.e164 })
-        for phoneNumber in undiscoverablePhoneNumbers {
+        db.enumerateWithTimeBatchedWriteTx(undiscoverablePhoneNumbers) { phoneNumber, tx in
             // It's possible we have an undiscoverable phone number that already has an
             // ACI or PNI in a number of scenarios, such as (but not exclusive to) the
             // following:
@@ -123,11 +111,9 @@ final class ContactDiscoveryTaskQueueImpl: ContactDiscoveryTaskQueue {
             // *only* mark the addresses without any UUIDs as unregistered. Everything
             // else we ignore; we will identify their current registration status
             // either when attempting to send a message or when fetching their profile.
-            let finder = AnySignalRecipientFinder()
-            let recipient = finder.signalRecipientForPhoneNumber(phoneNumber.stringValue, transaction: SDSDB.shimOnlyBridge(tx))
-            // PNI TODO: Also check for PNIs here.
-            guard let recipient, recipient.serviceId == nil else {
-                continue
+            let recipient = recipientDatabaseTable.fetchRecipient(phoneNumber: phoneNumber.stringValue, transaction: tx)
+            guard let recipient, recipient.aci == nil, recipient.pni == nil else {
+                return
             }
             recipient.markAsUnregisteredAndSave(tx: SDSDB.shimOnlyBridge(tx))
         }

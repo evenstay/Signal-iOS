@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
+import MobileCoin
 import SignalMessaging
 
 @objc
@@ -11,8 +12,6 @@ public protocol Payments: AnyObject {
     func walletAddressBase58() -> String?
 
     func walletAddressQRUrl() -> URL?
-
-    func localPaymentAddressProtoData() -> Data?
 
     var shouldShowPaymentsUI: Bool { get }
 
@@ -47,12 +46,13 @@ public protocol PaymentsSwift: Payments {
 
     func getEstimatedFee(forPaymentAmount paymentAmount: TSPaymentAmount) -> Promise<TSPaymentAmount>
 
-    func prepareOutgoingPayment(recipient: SendPaymentRecipient,
-                                paymentAmount: TSPaymentAmount,
-                                memoMessage: String?,
-                                paymentRequestModel: TSPaymentRequestModel?,
-                                isOutgoingTransfer: Bool,
-                                canDefragment: Bool) -> Promise<PreparedPayment>
+    func prepareOutgoingPayment(
+        recipient: SendPaymentRecipient,
+        paymentAmount: TSPaymentAmount,
+        memoMessage: String?,
+        isOutgoingTransfer: Bool,
+        canDefragment: Bool
+    ) -> Promise<PreparedPayment>
 
     func initiateOutgoingPayment(preparedPayment: PreparedPayment) -> Promise<TSPaymentModel>
 
@@ -103,6 +103,9 @@ public protocol SendPaymentRecipient {
 // MARK: -
 
 public protocol PreparedPayment {
+    var transaction: MobileCoin.Transaction { get }
+    var receipt: MobileCoin.Receipt { get }
+    var feeAmount: TSPaymentAmount { get }
 }
 
 // MARK: -
@@ -142,10 +145,6 @@ extension MockPayments: PaymentsSwift {
         owsFail("Not implemented.")
     }
 
-    public func localPaymentAddressProtoData() -> Data? {
-        owsFail("Not implemented.")
-    }
-
     public var isKillSwitchActive: Bool { false }
 
     public func warmCaches() {
@@ -176,12 +175,13 @@ extension MockPayments: PaymentsSwift {
         owsFail("Not implemented.")
     }
 
-    public func prepareOutgoingPayment(recipient: SendPaymentRecipient,
-                                       paymentAmount: TSPaymentAmount,
-                                       memoMessage: String?,
-                                       paymentRequestModel: TSPaymentRequestModel?,
-                                       isOutgoingTransfer: Bool,
-                                       canDefragment: Bool) -> Promise<PreparedPayment> {
+    public func prepareOutgoingPayment(
+        recipient: SendPaymentRecipient,
+        paymentAmount: TSPaymentAmount,
+        memoMessage: String?,
+        isOutgoingTransfer: Bool,
+        canDefragment: Bool
+    ) -> Promise<PreparedPayment> {
         owsFail("Not implemented.")
     }
 

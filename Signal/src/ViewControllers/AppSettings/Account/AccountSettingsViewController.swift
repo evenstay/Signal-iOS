@@ -36,7 +36,7 @@ class AccountSettingsViewController: OWSTableViewController2 {
         let contents = OWSTableContents()
 
         // Show the change pin and reglock sections
-        if tsAccountManager.isRegisteredPrimaryDevice {
+        if DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isRegisteredPrimaryDevice {
             let pinSection = OWSTableSection()
             pinSection.headerTitle = OWSLocalizedString(
                 "SETTINGS_PINS_TITLE",
@@ -121,9 +121,10 @@ class AccountSettingsViewController: OWSTableViewController2 {
         let accountSection = OWSTableSection()
         accountSection.headerTitle = OWSLocalizedString("SETTINGS_ACCOUNT", comment: "Title for the 'account' link in settings.")
 
-        if tsAccountManager.isDeregistered {
+        let tsRegistrationState = DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction
+        if tsRegistrationState.isDeregistered {
             accountSection.add(.actionItem(
-                withText: tsAccountManager.isPrimaryDevice
+                withText: tsRegistrationState.isPrimaryDevice ?? true
                     ? OWSLocalizedString("SETTINGS_REREGISTER_BUTTON", comment: "Label for re-registration button.")
                     : OWSLocalizedString("SETTINGS_RELINK_BUTTON", comment: "Label for re-link button."),
                 textColor: .ows_accentBlue,
@@ -138,10 +139,10 @@ class AccountSettingsViewController: OWSTableViewController2 {
                 textColor: .ows_accentRed,
                 accessibilityIdentifier: UIView.accessibilityIdentifier(in: self, name: "delete_data"),
                 actionBlock: { [weak self] in
-                    self?.deleteUnregisterUserData()
+                    self?.deleteUnregisteredUserData()
                 }
             ))
-        } else if tsAccountManager.isRegisteredPrimaryDevice {
+        } else if tsRegistrationState.isRegisteredPrimaryDevice {
             switch self.changeNumberState() {
             case .disallowed:
                 break
@@ -224,7 +225,7 @@ class AccountSettingsViewController: OWSTableViewController2 {
         presentFormSheet(OWSNavigationController(rootViewController: vc), animated: true)
     }
 
-    private func deleteUnregisterUserData() {
+    private func deleteUnregisteredUserData() {
         OWSActionSheets.showConfirmationAlert(
             title: OWSLocalizedString("CONFIRM_DELETE_DATA_TITLE", comment: ""),
             message: OWSLocalizedString("CONFIRM_DELETE_DATA_TEXT", comment: ""),
@@ -247,10 +248,9 @@ class AccountSettingsViewController: OWSTableViewController2 {
 
     private func changeNumberState() -> ChangeNumberState {
         return databaseStorage.read { transaction -> ChangeNumberState in
-            guard self.legacyChangePhoneNumber.localUserSupportsChangePhoneNumber(transaction: transaction) else {
-                return .disallowed
-            }
-            guard self.tsAccountManager.isDeregistered(transaction: transaction).negated else {
+            let tsAccountManager = DependenciesBridge.shared.tsAccountManager
+            let tsRegistrationState = tsAccountManager.registrationState(tx: transaction.asV2Read)
+            guard tsRegistrationState.isRegistered else {
                 return .disallowed
             }
             let loader = RegistrationCoordinatorLoaderImpl(dependencies: .from(self))
@@ -262,12 +262,11 @@ class AccountSettingsViewController: OWSTableViewController2 {
                 return .disallowed
             }
             guard
-                let localAddress = tsAccountManager.localAddress(with: transaction),
-                let localAci = localAddress.uuid,
-                let localE164 = localAddress.e164,
-                let authToken = tsAccountManager.storedServerAuthToken(transaction: transaction),
+                let localIdentifiers = tsAccountManager.localIdentifiers(tx: transaction.asV2Read),
+                let localE164 = E164(localIdentifiers.phoneNumber),
+                let authToken = tsAccountManager.storedServerAuthToken(tx: transaction.asV2Read),
                 let localRecipient = SignalRecipient.fetchRecipient(
-                    for: localAddress,
+                    for: localIdentifiers.aciAddress,
                     onlyIfRegistered: false,
                     tx: transaction
                 ),
@@ -275,13 +274,13 @@ class AccountSettingsViewController: OWSTableViewController2 {
             else {
                 return .disallowed
             }
-            let localDeviceId = tsAccountManager.storedDeviceId(transaction: transaction)
+            let localDeviceId = tsAccountManager.storedDeviceId(tx: transaction.asV2Read)
             let localUserAllDeviceIds = localRecipient.deviceIds
 
             return .allowed(RegistrationMode.ChangeNumberParams(
                 oldE164: localE164,
                 oldAuthToken: authToken,
-                localAci: localAci,
+                localAci: localIdentifiers.aci,
                 localAccountId: localAccountId,
                 localDeviceId: localDeviceId,
                 localUserAllDeviceIds: localUserAllDeviceIds

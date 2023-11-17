@@ -40,7 +40,6 @@ public class SendPaymentViewController: OWSViewController {
     public weak var delegate: SendPaymentViewDelegate?
 
     private let recipient: SendPaymentRecipient
-    private let paymentRequestModel: TSPaymentRequestModel?
     private let isOutgoingTransfer: Bool
 
     private let rootStack = UIStackView()
@@ -113,11 +112,12 @@ public class SendPaymentViewController: OWSViewController {
         }
     }
 
-    public required init(recipient: SendPaymentRecipient,
-                         paymentRequestModel: TSPaymentRequestModel?,
-                         initialPaymentAmount: TSPaymentAmount?,
-                         isOutgoingTransfer: Bool,
-                         mode: SendPaymentMode) {
+    public required init(
+        recipient: SendPaymentRecipient,
+        initialPaymentAmount: TSPaymentAmount?,
+        isOutgoingTransfer: Bool,
+        mode: SendPaymentMode
+    ) {
         self.recipient = recipient
         self.mode = mode
         self.isOutgoingTransfer = isOutgoingTransfer
@@ -127,26 +127,6 @@ public class SendPaymentViewController: OWSViewController {
             amounts.set(currentAmount: defaultFiatAmount, otherCurrencyAmount: nil)
         } else {
             amounts.set(currentAmount: Amounts.defaultMCAmount, otherCurrencyAmount: nil)
-        }
-
-        if !FeatureFlags.paymentsRequests {
-            owsAssertDebug(paymentRequestModel == nil)
-            self.paymentRequestModel = nil
-        } else {
-            self.paymentRequestModel = paymentRequestModel
-
-            if let paymentRequestModel = paymentRequestModel {
-                owsAssertDebug(paymentRequestModel.paymentAmount.currency == .mobileCoin)
-
-                if let requestAmountString = PaymentsFormat.formatAsDoubleString(picoMob: paymentRequestModel.paymentAmount.picoMob) {
-                    let inputString = InputString.parseString(requestAmountString, isFiat: false)
-                    amounts.set(currentAmount: .mobileCoin(inputString: inputString,
-                                                           exactAmount: nil),
-                                otherCurrencyAmount: nil)
-                } else {
-                    owsFailDebug("Could not apply request amount.")
-                }
-            }
         }
 
         if let initialPaymentAmount = initialPaymentAmount {
@@ -173,21 +153,21 @@ public class SendPaymentViewController: OWSViewController {
         case inNavigationController(navigationController: UINavigationController)
     }
 
-    private static func present(fromViewController: UIViewController,
-                                presentationMode: PresentationMode,
-                                delegate: SendPaymentViewDelegate,
-                                recipientAddress: SignalServiceAddress,
-                                paymentRequestModel: TSPaymentRequestModel?,
-                                initialPaymentAmount: TSPaymentAmount? = nil,
-                                isOutgoingTransfer: Bool,
-                                mode: SendPaymentMode) {
-
+    private static func present(
+        fromViewController: UIViewController,
+        presentationMode: PresentationMode,
+        delegate: SendPaymentViewDelegate,
+        recipientAddress: SignalServiceAddress,
+        initialPaymentAmount: TSPaymentAmount? = nil,
+        isOutgoingTransfer: Bool,
+        mode: SendPaymentMode
+    ) {
         guard paymentsHelper.arePaymentsEnabled else {
             Logger.info("Payments not enabled.")
             showEnablePaymentsActionSheet()
             return
         }
-        guard tsAccountManager.isRegisteredAndReady else {
+        guard DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isRegistered else {
             Logger.info("Local user is not registered and ready.")
             showNotRegisteredActionSheet()
             return
@@ -257,13 +237,14 @@ public class SendPaymentViewController: OWSViewController {
             Self.paymentsHelper.arePaymentsEnabled(for: recipientAddress, transaction: transaction)
         }
         if recipientHasPaymentsEnabled {
-            presentAfterRecipientCheck(presentationMode: presentationMode,
-                                       delegate: delegate,
-                                       recipientAddress: recipientAddress,
-                                       paymentRequestModel: paymentRequestModel,
-                                       initialPaymentAmount: initialPaymentAmount,
-                                       isOutgoingTransfer: isOutgoingTransfer,
-                                       mode: mode)
+            presentAfterRecipientCheck(
+                presentationMode: presentationMode,
+                delegate: delegate,
+                recipientAddress: recipientAddress,
+                initialPaymentAmount: initialPaymentAmount,
+                isOutgoingTransfer: isOutgoingTransfer,
+                mode: mode
+            )
         } else {
             // Check whether recipient can receive payments.
             ModalActivityIndicatorViewController.presentAsInvisible(fromViewController: fromViewController) { modalActivityIndicator in
@@ -273,13 +254,14 @@ public class SendPaymentViewController: OWSViewController {
                     AssertIsOnMainThread()
 
                     modalActivityIndicator.dismiss {
-                        Self.presentAfterRecipientCheck(presentationMode: presentationMode,
-                                                        delegate: delegate,
-                                                        recipientAddress: recipientAddress,
-                                                        paymentRequestModel: paymentRequestModel,
-                                                        initialPaymentAmount: initialPaymentAmount,
-                                                        isOutgoingTransfer: isOutgoingTransfer,
-                                                        mode: mode)
+                        Self.presentAfterRecipientCheck(
+                            presentationMode: presentationMode,
+                            delegate: delegate,
+                            recipientAddress: recipientAddress,
+                            initialPaymentAmount: initialPaymentAmount,
+                            isOutgoingTransfer: isOutgoingTransfer,
+                            mode: mode
+                        )
                     }
                 }.catch { error in
                     AssertIsOnMainThread()
@@ -288,35 +270,36 @@ public class SendPaymentViewController: OWSViewController {
                     modalActivityIndicator.dismiss {
                         AssertIsOnMainThread()
 
-                        Self.showRecipientNotEnabledAlert()
+                        Self.showRecipientNotEnabledAlert(recipientAddress: recipientAddress)
                     }
                 }
             }
         }
     }
 
-    private static func presentAfterRecipientCheck(presentationMode: PresentationMode,
-                                                   delegate: SendPaymentViewDelegate,
-                                                   recipientAddress: SignalServiceAddress,
-                                                   paymentRequestModel: TSPaymentRequestModel?,
-                                                   initialPaymentAmount: TSPaymentAmount? = nil,
-                                                   isOutgoingTransfer: Bool,
-                                                   mode: SendPaymentMode) {
-
+    private static func presentAfterRecipientCheck(
+        presentationMode: PresentationMode,
+        delegate: SendPaymentViewDelegate,
+        recipientAddress: SignalServiceAddress,
+        initialPaymentAmount: TSPaymentAmount? = nil,
+        isOutgoingTransfer: Bool,
+        mode: SendPaymentMode
+    ) {
         let recipientHasPaymentsEnabled = databaseStorage.read { transaction in
             Self.paymentsHelper.arePaymentsEnabled(for: recipientAddress, transaction: transaction)
         }
         guard recipientHasPaymentsEnabled else {
-            showRecipientNotEnabledAlert()
+            showRecipientNotEnabledAlert(recipientAddress: recipientAddress)
             return
         }
 
         let recipient: SendPaymentRecipientImpl = .address(address: recipientAddress)
-        let view = SendPaymentViewController(recipient: recipient,
-                                             paymentRequestModel: paymentRequestModel,
-                                             initialPaymentAmount: initialPaymentAmount,
-                                             isOutgoingTransfer: isOutgoingTransfer,
-                                             mode: mode)
+        let view = SendPaymentViewController(
+            recipient: recipient,
+            initialPaymentAmount: initialPaymentAmount,
+            isOutgoingTransfer: isOutgoingTransfer,
+            mode: mode
+        )
         view.delegate = delegate
         switch presentationMode {
         case .fromConversationView(let fromViewController):
@@ -327,44 +310,100 @@ public class SendPaymentViewController: OWSViewController {
         }
     }
 
-    private static func showRecipientNotEnabledAlert() {
-        OWSActionSheets.showActionSheet(title: OWSLocalizedString("PAYMENTS_RECIPIENT_PAYMENTS_NOT_ENABLED_TITLE",
-                                                                 comment: "Title for error alert indicating that a given user cannot receive payments because they have not enabled payments."),
-                                        message: OWSLocalizedString("PAYMENTS_RECIPIENT_PAYMENTS_NOT_ENABLED_MESSAGE",
-                                                                   comment: "Message for error alert indicating that a given user cannot receive payments because they have not enabled payments."))
+    private static func showRecipientNotEnabledAlert(recipientAddress: SignalServiceAddress) {
+        let titleFormat = OWSLocalizedString(
+            "PAYMENTS_RECIPIENT_PAYMENTS_NOT_ENABLED_TITLE",
+            comment: "Title for error alert indicating that a given user cannot receive payments because they have not enabled payments. Embeds {{ the contact's name }}"
+        )
+        let recipientName: String = self.databaseStorage.read { tx in
+            self.contactsManager.displayName(for: recipientAddress, transaction: tx)
+        }
+        let title = String(format: titleFormat, recipientName)
+        let actionSheet = ActionSheetController(
+            title: title,
+            message: OWSLocalizedString(
+                "PAYMENTS_RECIPIENT_PAYMENTS_NOT_ENABLED_MESSAGE",
+                comment: "Message for error alert indicating that a given user cannot receive payments because they have not enabled payments."
+            )
+        )
+
+        let sendAction = ActionSheetAction(
+            title: OWSLocalizedString(
+                "PAYMENTS_RECIPIENT_PAYMENTS_NOT_ENABLED_BUTTON",
+                comment: "The label for the 'send request' button in alerts and action sheets."
+            ),
+            accessibilityIdentifier: "OWSActionSheets.sendPaymentAuthorizationRequest",
+            style: .default
+        ) { _ in
+            sendActivationRequest(recipientAddress: recipientAddress)
+        }
+        actionSheet.addAction(sendAction)
+        actionSheet.addAction(OWSActionSheets.cancelAction)
+
+        OWSActionSheets.showActionSheet(actionSheet)
     }
 
-    public static func presentFromConversationView(_ fromViewController: UIViewController,
-                                                   delegate: SendPaymentViewDelegate,
-                                                   recipientAddress: SignalServiceAddress,
-                                                   paymentRequestModel: TSPaymentRequestModel?,
-                                                   initialPaymentAmount: TSPaymentAmount? = nil,
-                                                   isOutgoingTransfer: Bool) {
-        present(fromViewController: fromViewController,
-                presentationMode: .fromConversationView(fromViewController: fromViewController),
-                delegate: delegate,
-                recipientAddress: recipientAddress,
-                paymentRequestModel: paymentRequestModel,
-                initialPaymentAmount: initialPaymentAmount,
-                isOutgoingTransfer: isOutgoingTransfer,
-                mode: .fromConversationView)
+    private static func sendActivationRequest(recipientAddress: SignalServiceAddress) {
+        self.databaseStorage.asyncWrite { transaction in
+            guard let thread = TSContactThread.getWithContactAddress(
+                recipientAddress,
+                transaction: transaction
+            ) else {
+                return
+            }
+            let interaction = OWSPaymentActivationRequestMessage(thread: thread, transaction: transaction)
+            Self.sskJobQueues.messageSenderJobQueue.add(
+                message: interaction.asPreparer,
+                transaction: transaction
+            )
+            if let localAci = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: transaction.asV2Read)?.aci {
+                let infoMessage = TSInfoMessage(
+                    thread: thread,
+                    messageType: .paymentsActivationRequest,
+                    infoMessageUserInfo: [
+                        .paymentActivationRequestSenderAci: localAci.serviceIdString
+                    ]
+                )
+                infoMessage.anyInsert(transaction: transaction)
+            }
+        }
     }
 
-    public static func present(inNavigationController navigationController: UINavigationController,
-                               delegate: SendPaymentViewDelegate,
-                               recipientAddress: SignalServiceAddress,
-                               paymentRequestModel: TSPaymentRequestModel?,
-                               initialPaymentAmount: TSPaymentAmount? = nil,
-                               isOutgoingTransfer: Bool,
-                               mode: SendPaymentMode) {
-        present(fromViewController: navigationController,
-                presentationMode: .inNavigationController(navigationController: navigationController),
-                delegate: delegate,
-                recipientAddress: recipientAddress,
-                paymentRequestModel: paymentRequestModel,
-                initialPaymentAmount: initialPaymentAmount,
-                isOutgoingTransfer: isOutgoingTransfer,
-                mode: mode)
+    public static func presentFromConversationView(
+        _ fromViewController: UIViewController,
+        delegate: SendPaymentViewDelegate,
+        recipientAddress: SignalServiceAddress,
+        initialPaymentAmount: TSPaymentAmount? = nil,
+        isOutgoingTransfer: Bool
+    ) {
+        present(
+            fromViewController: fromViewController,
+            presentationMode: .fromConversationView(fromViewController: fromViewController),
+            delegate: delegate,
+            recipientAddress: recipientAddress,
+            initialPaymentAmount: initialPaymentAmount,
+            isOutgoingTransfer: isOutgoingTransfer,
+            mode: .fromConversationView
+        )
+    }
+
+    public static func present(
+        inNavigationController navigationController: UINavigationController,
+        delegate: SendPaymentViewDelegate,
+        recipientAddress: SignalServiceAddress,
+        initialPaymentAmount: TSPaymentAmount? = nil,
+        isOutgoingTransfer: Bool,
+        mode: SendPaymentMode
+    ) {
+        present(
+            fromViewController: navigationController,
+            presentationMode: .inNavigationController(navigationController: navigationController),
+            delegate: delegate,
+            recipientAddress: recipientAddress,
+            initialPaymentAmount: initialPaymentAmount,
+            isOutgoingTransfer: isOutgoingTransfer,
+            mode: mode
+        )
     }
 
     open override func viewDidLoad() {
@@ -691,18 +730,11 @@ public class SendPaymentViewController: OWSViewController {
     }
 
     private func buildAmountButtons() -> UIView {
-        let requestButton = buildBottomButton(title: OWSLocalizedString("PAYMENTS_NEW_PAYMENT_REQUEST_BUTTON",
-                                                                       comment: "Label for the 'new payment request' button."),
-                                              target: self,
-                                              selector: #selector(didTapRequestButton))
-        let payButton = buildBottomButton(title: OWSLocalizedString("PAYMENTS_NEW_PAYMENT_PAY_BUTTON",
-                                                                   comment: "Label for the 'new payment' button."),
-                                          target: self,
-                                          selector: #selector(didTapPayButton))
-
-        return buildBottomButtonStack(FeatureFlags.paymentsRequests
-                                        ? [requestButton, payButton]
-                                        : [payButton])
+        return buildBottomButtonStack([buildBottomButton(
+            title: OWSLocalizedString("PAYMENTS_NEW_PAYMENT_PAY_BUTTON", comment: "Label for the 'new payment' button."),
+            target: self,
+            selector: #selector(didTapPayButton)
+        )])
     }
 
     // MARK: -
@@ -1060,13 +1092,14 @@ public class SendPaymentViewController: OWSViewController {
         Logger.verbose("paymentAmount: \(paymentAmount)")
         Logger.verbose("estimatedFeeAmount: \(estimatedFeeAmount)")
 
-        let paymentInfo = PaymentInfo(recipient: recipient,
-                                      paymentAmount: paymentAmount,
-                                      estimatedFeeAmount: estimatedFeeAmount,
-                                      currencyConversion: currencyConversion,
-                                      paymentRequestModel: paymentRequestModel,
-                                      memoMessage: memoMessage,
-                                      isOutgoingTransfer: isOutgoingTransfer)
+        let paymentInfo = PaymentInfo(
+            recipient: recipient,
+            paymentAmount: paymentAmount,
+            estimatedFeeAmount: estimatedFeeAmount,
+            currencyConversion: currencyConversion,
+            memoMessage: memoMessage,
+            isOutgoingTransfer: isOutgoingTransfer
+        )
         let actionSheet = SendPaymentCompletionActionSheet(mode: .payment(paymentInfo: paymentInfo),
                                                            delegate: self)
         self.actionSheet = actionSheet

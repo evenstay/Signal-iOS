@@ -10,7 +10,6 @@
 #import "OWSOutgoingReceiptManager.h"
 #import "OWSReadReceiptsForLinkedDevicesMessage.h"
 #import "OWSReceiptsForSenderMessage.h"
-#import "TSAccountManager.h"
 #import "TSContactThread.h"
 #import "TSIncomingMessage.h"
 #import <SignalCoreKit/NSDate+OWS.h>
@@ -113,10 +112,10 @@ NSString *const OWSReceiptManagerAreReadReceiptsEnabled = @"areReadReceiptsEnabl
 
             if ([self areReadReceiptsEnabled]) {
                 OWSLogVerbose(@"Enqueuing read receipt for sender.");
-                [self.outgoingReceiptManager enqueueReadReceiptForAddress:message.authorAddress
-                                                                timestamp:message.timestamp
-                                                          messageUniqueId:message.uniqueId
-                                                              transaction:transaction];
+                [self.outgoingReceiptManager enqueueReadReceiptFor:message.authorAddress
+                                                         timestamp:message.timestamp
+                                                   messageUniqueId:message.uniqueId
+                                                                tx:transaction];
             }
             break;
         }
@@ -158,10 +157,10 @@ NSString *const OWSReceiptManagerAreReadReceiptsEnabled = @"areReadReceiptsEnabl
 
             if ([self areReadReceiptsEnabled]) {
                 OWSLogVerbose(@"Enqueuing viewed receipt for sender.");
-                [self.outgoingReceiptManager enqueueViewedReceiptForAddress:message.authorAddress
-                                                                  timestamp:message.timestamp
-                                                            messageUniqueId:message.uniqueId
-                                                                transaction:transaction];
+                [self.outgoingReceiptManager enqueueViewedReceiptFor:message.authorAddress
+                                                           timestamp:message.timestamp
+                                                     messageUniqueId:message.uniqueId
+                                                                  tx:transaction];
             }
             break;
         }

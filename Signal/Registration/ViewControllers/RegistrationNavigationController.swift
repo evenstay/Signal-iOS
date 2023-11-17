@@ -404,8 +404,10 @@ extension RegistrationNavigationController: RegistrationChangeNumberSplashPresen
 
 extension RegistrationNavigationController: RegistrationPermissionsPresenter {
 
-    func requestPermissions() {
-        pushNextController(coordinator.requestPermissions(), loadingMode: nil)
+    func requestPermissions() -> Guarantee<Void> {
+        let guarantee = coordinator.requestPermissions()
+        pushNextController(guarantee, loadingMode: nil)
+        return guarantee.asVoid()
     }
 }
 
@@ -491,7 +493,7 @@ extension RegistrationNavigationController: RegistrationPinAttemptsExhaustedAndM
 
 extension RegistrationNavigationController: RegistrationTransferChoicePresenter {
 
-    func transferDevice() {
+    public func transferDevice() {
         // We push these controllers right onto the same navigation stack, even though they
         // are not coordinator "steps". They have their own internal logic to proceed and go
         // back (direct calls to push and pop) and, when they complete, they will have _totally_
@@ -510,14 +512,14 @@ extension RegistrationNavigationController: RegistrationProfilePresenter {
         givenName: String,
         familyName: String?,
         avatarData: Data?,
-        isDiscoverableByPhoneNumber: Bool
+        phoneNumberDiscoverability: PhoneNumberDiscoverability
     ) {
         pushNextController(
             coordinator.setProfileInfo(
                 givenName: givenName,
                 familyName: familyName,
                 avatarData: avatarData,
-                isDiscoverableByPhoneNumber: isDiscoverableByPhoneNumber
+                phoneNumberDiscoverability: phoneNumberDiscoverability
             )
         )
     }
@@ -527,8 +529,8 @@ extension RegistrationNavigationController: RegistrationPhoneNumberDiscoverabili
 
     var presentedAsModal: Bool { return false }
 
-    func setPhoneNumberDiscoverability(_ isDiscoverable: Bool) {
-        pushNextController(coordinator.setPhoneNumberDiscoverability(isDiscoverable))
+    func setPhoneNumberDiscoverability(_ phoneNumberDiscoverability: PhoneNumberDiscoverability) {
+        pushNextController(coordinator.setPhoneNumberDiscoverability(phoneNumberDiscoverability))
     }
 }
 

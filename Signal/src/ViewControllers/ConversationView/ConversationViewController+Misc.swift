@@ -4,6 +4,7 @@
 //
 
 import ContactsUI
+import SignalServiceKit
 import SignalMessaging
 import SignalUI
 
@@ -43,74 +44,64 @@ public extension ConversationViewController {
      * returns YES if an alert was shown
      *          NO if there were no unconfirmed identities
      */
-    func showSafetyNumberConfirmationIfNecessary(confirmationText: String,
-                                                 completion: @escaping (Bool) -> Void) -> Bool {
-        SafetyNumberConfirmationSheet.presentIfNecessary(addresses: thread.recipientAddressesWithSneakyTransaction,
-                                                         confirmationText: confirmationText,
-                                                         completion: completion)
+    func showSafetyNumberConfirmationIfNecessary(
+        confirmationText: String,
+        untrustedThreshold: Date?,
+        completion: @escaping (Bool) -> Void
+    ) -> Bool {
+        SafetyNumberConfirmationSheet.presentIfNecessary(
+            addresses: thread.recipientAddressesWithSneakyTransaction,
+            confirmationText: confirmationText,
+            untrustedThreshold: untrustedThreshold,
+            completion: completion
+        )
     }
 
     // MARK: - Verification
 
-    // Returns a random sub-collection of the group members who are "no longer verified".
-    func arbitraryNoLongerVerifiedAddresses(limit: Int) -> [SignalServiceAddress] {
-        databaseStorage.read { transaction in
-            self.noLongerVerifiedAddresses(limit: limit, transaction: transaction)
-        }
-    }
-
-    func noLongerVerifiedAddresses(limit: Int, transaction: SDSAnyReadTransaction) -> [SignalServiceAddress] {
+    func noLongerVerifiedIdentityKeys(tx: SDSAnyReadTransaction) -> [SignalServiceAddress: Data] {
         if let groupThread = thread as? TSGroupThread {
-            return Self.identityManager.noLongerVerifiedAddresses(inGroup: groupThread.uniqueId,
-                                                                  limit: limit,
-                                                                  transaction: transaction)
+            return OWSRecipientIdentity.noLongerVerifiedIdentityKeys(in: groupThread.uniqueId, tx: tx)
         }
-        return thread.recipientAddresses(with: transaction).filter { address in
-            Self.identityManager.verificationState(for: address,
-                                                   transaction: transaction) == .noLongerVerified
+        let identityManager = DependenciesBridge.shared.identityManager
+        return thread.recipientAddresses(with: tx).reduce(into: [:]) { result, address in
+            guard let recipientIdentity = identityManager.recipientIdentity(for: address, tx: tx.asV2Read) else {
+                return
+            }
+            guard recipientIdentity.verificationState == .noLongerVerified else {
+                return
+            }
+            result[address] = recipientIdentity.identityKey
         }
     }
 
-    func resetVerificationStateToDefault() {
+    func resetVerificationStateToDefault(noLongerVerifiedIdentityKeys: [SignalServiceAddress: Data]) {
         AssertIsOnMainThread()
 
         databaseStorage.write { transaction in
-            let noLongerVerifiedAddresses = self.noLongerVerifiedAddresses(limit: Int.max,
-                                                                           transaction: transaction)
-            for address in noLongerVerifiedAddresses {
+            let identityManager = DependenciesBridge.shared.identityManager
+            for (address, identityKey) in noLongerVerifiedIdentityKeys {
                 owsAssertDebug(address.isValid)
-
-                guard let recipientIdentity = Self.identityManager.recipientIdentity(for: address,
-                                                                                     transaction: transaction) else {
-                    owsFailDebug("Missing recipientIdentity.")
-                    continue
-                }
-                guard recipientIdentity.identityKey.count > 0 else {
-                    owsFailDebug("Invalid identityKey.")
-                    continue
-                }
-                Self.identityManager.setVerificationState(
-                    .default,
-                    identityKey: recipientIdentity.identityKey,
-                    address: address,
+                _ = identityManager.setVerificationState(
+                    .implicit(isAcknowledged: true),
+                    of: identityKey,
+                    for: address,
                     isUserInitiatedChange: true,
-                    transaction: transaction
+                    tx: transaction.asV2Write
                 )
             }
         }
     }
 
-    func showNoLongerVerifiedUI() {
+    func showNoLongerVerifiedUI(noLongerVerifiedIdentityKeys: [SignalServiceAddress: Data]) {
         AssertIsOnMainThread()
 
-        let addresses = arbitraryNoLongerVerifiedAddresses(limit: 2)
-        switch addresses.count {
+        switch noLongerVerifiedIdentityKeys.count {
         case 0:
              break
 
         case 1:
-            // Pick one in an arbitrary but deterministic manner.
-            showFingerprint(address: addresses[0])
+            showFingerprint(address: noLongerVerifiedIdentityKeys.first!.key)
 
         default:
             showConversationSettingsAndShowVerification()
@@ -254,26 +245,6 @@ public extension ConversationViewController {
 
 extension ConversationViewController: ConversationSettingsViewDelegate {
 
-    public func conversationColorWasUpdated() {
-        AssertIsOnMainThread()
-
-        updateConversationStyle()
-        headerView.updateAvatar()
-    }
-
-    public func conversationSettingsDidUpdate() {
-        AssertIsOnMainThread()
-
-        Self.databaseStorage.write { transaction in
-            // We updated the group, so if there was a pending message request we should accept it.
-            ThreadUtil.addThreadToProfileWhitelistIfEmptyOrPendingRequest(
-                thread,
-                setDefaultTimerIfNecessary: true,
-                tx: transaction
-            )
-        }
-    }
-
     public func conversationSettingsDidRequestConversationSearch() {
         AssertIsOnMainThread()
 
@@ -299,7 +270,7 @@ extension ConversationViewController: ConversationSettingsViewDelegate {
         }
     }
 
-    public func popAllConversationSettingsViews(completion: (() -> Void)?) {
+    private func popAllConversationSettingsViews(completion: (() -> Void)?) {
         AssertIsOnMainThread()
 
         guard let presentedViewController = presentedViewController else {

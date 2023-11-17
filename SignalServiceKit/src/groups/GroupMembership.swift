@@ -506,6 +506,34 @@ public extension GroupMembership {
             return false
         }
     }
+
+    /// Is this user's profile key exposed to the group?
+    func hasProfileKeyInGroup(serviceId: ServiceId) -> Bool {
+        guard let memberState = memberStates[SignalServiceAddress(serviceId)] else {
+            return false
+        }
+
+        switch memberState {
+        case .fullMember, .requesting:
+            return true
+        case .invited:
+            return false
+        }
+    }
+
+    /// Can this user view the profile keys in the group?
+    func canViewProfileKeys(serviceId: ServiceId) -> Bool {
+        guard let memberState = memberStates[SignalServiceAddress(serviceId)] else {
+            return false
+        }
+
+        switch memberState {
+        case .fullMember, .invited:
+            return true
+        case .requesting:
+            return false
+        }
+    }
 }
 
 // MARK: - Builder
@@ -694,7 +722,7 @@ public extension GroupMembership {
 
     @objc
     var isLocalUserMemberOfAnyKind: Bool {
-        guard let localIdentifiers = tsAccountManager.localIdentifiers else {
+        guard let localIdentifiers = DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction else {
             return false
         }
 
@@ -707,7 +735,7 @@ public extension GroupMembership {
 
     @objc
     var isLocalUserFullMember: Bool {
-        guard let localAci = tsAccountManager.localIdentifiers?.aci else {
+        guard let localAci = DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction?.aci else {
             return false
         }
 
@@ -737,7 +765,7 @@ public extension GroupMembership {
     /// Checks membership for the local ACI first. If none is available, falls
     /// back to checking membership for the local PNI.
     var isLocalUserInvitedMember: Bool {
-        guard let localIdentifiers = tsAccountManager.localIdentifiers else {
+        guard let localIdentifiers = DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction else {
             return false
         }
 
@@ -745,7 +773,7 @@ public extension GroupMembership {
     }
 
     var isLocalUserRequestingMember: Bool {
-        guard let localAci = tsAccountManager.localIdentifiers?.aci else {
+        guard let localAci = DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction?.aci else {
             return false
         }
 
@@ -758,7 +786,7 @@ public extension GroupMembership {
     }
 
     var isLocalUserFullMemberAndAdministrator: Bool {
-        guard let localAci = tsAccountManager.localIdentifiers?.aci else {
+        guard let localAci = DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction?.aci else {
             return false
         }
 

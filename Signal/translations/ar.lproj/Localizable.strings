@@ -73,9 +73,6 @@
 /* Label for button that lets you send a message to a contact. */
 "ACTION_SEND_MESSAGE" = "إرسال رسالة";
 
-/* Label for 'share contact' button. */
-"ACTION_SHARE_CONTACT" = "مشاركة جهة الاتصال";
-
 /* A label for 'tap to download' buttons. */
 "ACTION_TAP_TO_DOWNLOAD" = "يُرجى اللمس للتنزيل";
 
@@ -373,8 +370,8 @@
 /* Accessibility hint describing what you can do with the attachment button */
 "ATTACHMENT_HINT" = "عليك اختيار ملف وسائط لإرساله.";
 
-/* A button to open the camera from the Attachment Keyboard */
-"ATTACHMENT_KEYBOARD_CAMERA" = "الكاميرا";
+/* Button in chat attachment panel that allows to select photos/videos Signal has access to. */
+"ATTACHMENT_KEYBOARD_BUTTON_MANAGE" = "إدارة";
 
 /* A button to select a contact from the Attachment Keyboard */
 "ATTACHMENT_KEYBOARD_CONTACT" = "جهة اتصال";
@@ -383,22 +380,31 @@
 "ATTACHMENT_KEYBOARD_FILE" = "ملف";
 
 /* A button to select a GIF from the Attachment Keyboard */
-"ATTACHMENT_KEYBOARD_GIF" = "صورة متحركة";
+"ATTACHMENT_KEYBOARD_GIF" = "صورة Gif";
 
-/* A message on a button prompting the user to go settings to grant Signal photos access. */
-"ATTACHMENT_KEYBOARD_GIVE_PHOTOS_ACCESS" = "منح حق الوصول";
+/* Text in chat attachment panel when Signal only has access to some photos/videos. */
+"ATTACHMENT_KEYBOARD_LIMITED_ACCESS" = "لا يتوفر سيجنال إلا على الوصول للصور والفيديوهات التي اخترتها";
 
 /* A button to select a location from the Attachment Keyboard */
 "ATTACHMENT_KEYBOARD_LOCATION" = "الموقع";
 
-/* A string indicating to the user that they'll be able to send photos from this view once they enable photo access. */
-"ATTACHMENT_KEYBOARD_NO_PHOTO_ACCESS" = "يحتاج سيجنال إلى إذن لإظهار الصور ومقاطع الفيديو الخاصة بك.";
+/* Second block of text in chat attachment panel when there's no recent photos to show. */
+"ATTACHMENT_KEYBOARD_NO_MEDIA_BODY" = "بمُجرد أن تلتقط صورة أو فيديو، ستتمكّن من إرسال آخرها هنا";
 
-/* A string indicating to the user that once they take photos, they'll be able to send them from this view. */
-"ATTACHMENT_KEYBOARD_NO_PHOTOS" = "بمُجرد التقاطك صورا، سيصبح بإمكانك إرسال الأخيرة من هنا.";
+/* First block of text in chat attachment panel when there's no recent photos to show. */
+"ATTACHMENT_KEYBOARD_NO_MEDIA_TITLE" = "لا توجد صور أو فيديوهات";
+
+/* Text in chat attachment panel explaining that user needs to give Signal permission to access photos. */
+"ATTACHMENT_KEYBOARD_NO_PHOTO_ACCESS" = "لا يُمكن لسيجنال الوصول إلى صورك وفيديوهاتك. لمنح الوصول افتح الإعدادات وانقر على الصور";
+
+/* Button in chat attachment panel to let user open Settings app and give Signal persmission to access photos. */
+"ATTACHMENT_KEYBOARD_OPEN_SETTINGS" = "فتح الإعدادات";
 
 /* A button to select a payment from the Attachment Keyboard */
-"ATTACHMENT_KEYBOARD_PAYMENT" = "عمليات الدفع";
+"ATTACHMENT_KEYBOARD_PAYMENT" = "المدفوعات";
+
+/* A button to open the photo picker from the Attachment Keyboard */
+"ATTACHMENT_KEYBOARD_PHOTOS" = "الصور";
 
 /* Accessibility label for attaching photos */
 "ATTACHMENT_LABEL" = "مُرفق";
@@ -493,20 +499,26 @@
 /* Button text when a badge expires, asking users to donate */
 "BADGE_EXPIRED_DONATE_BUTTON" = "تبرّع";
 
-/* Text for the 'learn more' link in the badge expiration sheet, shown when a badge expires due to a charge failure */
+/* Text for the 'learn more' link in a sheet explaining there's been an issue with your badge. */
 "BADGE_EXPIRED_LEARN_MORE_LINK" = "لمعرفة المزيد.";
 
 /* Title for subscription on the badge expiration sheet. */
-"BADGE_EXPIRED_SUBSCRIPTION_TITLE" = "تم إلغاء التبرعات الشهرية";
+"BADGE_EXPIRED_SUBSCRIPTION_TITLE" = "Monthly Donation Canceled";
 
-/* String explaining to the user that their subscription badge has expired on the badge expiry sheet. Embeds {failure-specific sentence(s)}. */
-"BADGE_SUBSCRIPTION_EXPIRED_BECAUSE_OF_CHARGE_FAILURE_BODY_FORMAT" = "تم إلغاء التبرّع الشهري المُتكرر. %1$@ لم تعد شارتك ظاهرة على حسابك.\n\nللاستمرار في دعم سيجنال وإعادة تفعيل شارتك، يُرجى تحديث تفاصيل الدفع الخاصة بك والتبرّع مرة أخرى.";
+/* String explaining to the user on a badge expiry sheet that their subscription badge has expired because the renewal payment failed. Embeds {{ a specific, already-localized string describing the payment failure }}. Will have a 'learn more' link appended, when it is rendered. */
+"BADGE_SUBSCRIPTION_EXPIRED_BECAUSE_OF_CHARGE_FAILURE_BODY_FORMAT" = "Your recurring monthly donation has ended. %1$@\n\nWithout an active subscription your badge will no longer be visible on your profile.";
 
-/* Body of the sheet shown when your subscription is canceled due to inactivity */
+/* Body of the sheet shown when your subscription is canceled due to inactivity. Embeds {{ the name of the badge }}. Will have a 'learn more' link appended, when it is rendered. */
 "BADGE_SUBSCRIPTION_EXPIRED_BECAUSE_OF_INACTIVITY_BODY_FORMAT" = "لقد أُلغيَ تبرّعك الشهري المُتكرر تلقائيًا بسبب طول غياب نشاطك لفترة طويلة. لم تعُد شارتك %1$@ ظاهرة في حسابك.\n\nيُمكنك الاستمرار في استخدام سيجنال، ولكن يُرجى التجديد الآن لدعم التطبيق وإعادة تفعيل شارتك، تبرّع الآن.";
 
+/* Body for a sheet explaining that a bank transfer donation is complete, and that you have received a badge. */
+"BADGE_THANKS_BANK_DONATION_COMPLETE_BODY" = "Your bank transfer was received. You can choose to display this badge on your profile to show off your support.";
+
+/* Title for a sheet explaining that a bank transfer donation is complete, and that you have received a badge. */
+"BADGE_THANKS_BANK_DONATION_COMPLETE_TITLE" = "Donation Complete";
+
 /* When you make a donation to Signal, you will receive a badge. A thank-you sheet appears when this happens. This is the body text on that sheet. */
-"BADGE_THANKS_BODY" = "لقد حصلت على شارة مُتبرع من سيجنال! اعرضها في حسابك الشخصي لإظهار دعمك.";
+"BADGE_THANKS_BODY" = "You can choose to display this badge on your profile to show off your support.";
 
 /* Label prompting the user to display the new badge on their profile on the badge thank you sheet. */
 "BADGE_THANKS_DISPLAY_ON_PROFILE_LABEL" = "عرض في الملف الشخصي";
@@ -519,6 +531,24 @@
 
 /* Footer explaining that only one badge can be featured at a time on the thank you sheet. */
 "BADGE_THANKS_TOGGLE_FOOTER" = "عندما يكون لديك أكثر من شارة واحدة، يمكنك اختيار واحدة لتمييزها ليراها الآخرون في ملفك الشخصي.";
+
+/* On the bank donation screen, show a link below the input form to show help about finding account info. */
+"BANK_DONATION_FOOTER_FIND_ACCOUNT_INFO" = "Find Account Info";
+
+/* On the bank transfer donation screen, a small amount of information text is shown. This is that text. It should (1) instruct users to enter their bank information (2) tell them that Signal does not collect or store their personal information. */
+"BANK_DONATION_SUBHEADER_TEXT" = "Enter your bank details. Signal does not collect or store your personal information.";
+
+/* Users can donate to Signal with a bank account. We are required to show them a mandate with information about bank transfers. This is a label for a button to agree to the mandate. */
+"BANK_MANDATE_AGREE" = "Agree";
+
+/* Users can donate to Signal with a bank account. We are required to show them a mandate with information about bank transfers. This is a label for a button that shows more of the mandate if it is not all visible. */
+"BANK_MANDATE_READ_MORE" = "Read More";
+
+/* Users can donate to Signal with a bank account. We are required to show them a mandate with information about bank transfers. This is a subtitle about the payment processor Stripe above that mandate. */
+"BANK_MANDATE_SUBTITLE" = "Stripe processes donations made to Signal. Signal does not collect or store your personal information.";
+
+/* Users can donate to Signal with a bank account. We are required to show them a mandate with information about bank transfers. This is the title above that mandate. */
+"BANK_MANDATE_TITLE" = "Bank Transfer";
 
 /* Accessibility label for banner close button */
 "BANNER_CLOSE_ACCESSIBILITY_LABEL" = "إغلاق اللافتة";
@@ -841,12 +871,6 @@
 /* VoiceOver description of current camera zoom level. */
 "CAMERA_VO_ZOOM_LEVEL" = "%1$@ مرات";
 
-/* Message for alert explaining that a user cannot be verified. */
-"CANT_VERIFY_IDENTITY_ALERT_MESSAGE" = "لا يمكن التحقق من هذا المستخدم حتى يتم تبادل الرسائل معه.";
-
-/* Title for alert explaining that a user cannot be verified. */
-"CANT_VERIFY_IDENTITY_ALERT_TITLE" = "خطأ";
-
 /* Alert shown when the user needs to exchange messages to see the safety number. */
 "CANT_VERIFY_IDENTITY_EXCHANGE_MESSAGES" = "سيتم إنشاء رقم أمان مع هذا الشخص بعد تبادل الرسائل معه.";
 
@@ -865,9 +889,6 @@
 /* Users can donate to Signal with a credit or debit card. If their card verification code (CVV) is too long, this error will be shown. Try to use a short string to make space in the UI. */
 "CARD_DONATION_CVV_TOO_LONG_ERROR" = "الرمز طويل جدًا";
 
-/* Users can donate to Signal with a credit or debit card. This is the text on the \"Donate\" button. */
-"CARD_DONATION_DONATE_BUTTON" = "تبرّع";
-
 /* Users can donate to Signal with a credit or debit card. If their expiration date is invalid, this generic error message will be shown. Try to use a short string to make space in the UI. */
 "CARD_DONATION_EXPIRATION_DATE_GENERIC_ERROR" = "تاريخ انتهاء الصلاحية غير صحيح";
 
@@ -876,9 +897,6 @@
 
 /* Users can donate to Signal with a credit or debit card. This is the label for the card expiration date field on that screen. */
 "CARD_DONATION_EXPIRATION_DATE_PLACEHOLDER" = "الشهر/السنة";
-
-/* Users can donate to Signal with a credit or debit card. This is the heading on that screen, telling them how much they'll donate. Embeds {{formatted amount of money}}, such as \"$20\". */
-"CARD_DONATION_HEADER" = "مَبلَغ التَّبَرُّع: %1$@";
 
 /* Users can choose to learn more about their credit/debit card donations, which will open a sheet with additional information. This is the body text of that sheet. */
 "CARD_DONATION_READ_MORE_SHEET_BODY" = "لا يقوم سيجنال بجمع أو تخزين معلوماتك الشخصية عند قيامك بتبرع.\n\nنستخدم Stripe كمعالج عمليات الدفع الخاصة بنا لتلقي تبرعاتك. لا يُمكننا الوصول إلى أو تخزين أو حفظ أي من المعلومات التي تُقدمها.\n\nلا يقوم تطبيق سيجنال ولا يمكنه ربط تبرعاتك بحسابك على سيجنال.\n\nشكراً لدعمك!";
@@ -1009,32 +1027,8 @@
 /* No comment provided by engineer. */
 "CONTACT_DETAIL_COMM_TYPE_INSECURE" = "رقم غير مُسجّل";
 
-/* Label for the 'edit name' button in the contact share approval view. */
-"CONTACT_EDIT_NAME_BUTTON" = "تحرير";
-
 /* Label for a contact's email address. */
 "CONTACT_EMAIL" = "البريد الإلكتروني";
-
-/* Label for the 'city' field of a contact's address. */
-"CONTACT_FIELD_ADDRESS_CITY" = "المدينة";
-
-/* Label for the 'country' field of a contact's address. */
-"CONTACT_FIELD_ADDRESS_COUNTRY" = "الدولة";
-
-/* Label for the 'neighborhood' field of a contact's address. */
-"CONTACT_FIELD_ADDRESS_NEIGHBORHOOD" = "الحي";
-
-/* Label for the 'pobox' field of a contact's address. */
-"CONTACT_FIELD_ADDRESS_POBOX" = "صندوق البريد";
-
-/* Label for the 'postcode' field of a contact's address. */
-"CONTACT_FIELD_ADDRESS_POSTCODE" = "الرمز البريدي";
-
-/* Label for the 'region' field of a contact's address. */
-"CONTACT_FIELD_ADDRESS_REGION" = "الإقليم";
-
-/* Label for the 'street' field of a contact's address. */
-"CONTACT_FIELD_ADDRESS_STREET" = "الشارع";
 
 /* Label for the 'family name' field of a contact. */
 "CONTACT_FIELD_FAMILY_NAME" = "اسم العائلة";
@@ -1194,6 +1188,9 @@
 
 /* Context menu button title */
 "CONTEXT_MENU_FORWARD_MESSAGE" = "إعادة التوجيه";
+
+/* Context menu button title */
+"CONTEXT_MENU_PAYMENT_DETAILS" = "تفاصيل عمليات الدفع";
 
 /* Context menu button title */
 "CONTEXT_MENU_REPLY" = "الرَّدّ";
@@ -1675,6 +1672,21 @@
 /* button text */
 "DELETE_ALL_MESSAGES_IN_CONVERSATION_BUTTON" = "حَذف جَميع الرَّسائل";
 
+/* 'Delete' button label on the delete contact confirmation action sheet */
+"DELETE_CONTACT_ACTION_SHEET_BUTTON" = "حذف";
+
+/* An explanation of what happens in Signal when you remove a system contact. */
+"DELETE_CONTACT_ACTION_SHEET_EXPLANATION" = "سيُحذف هذا الشخص من نظام جهات اتصالك. لن يظهر لك هذا الشخص عند البحث. سَتتلقّى طلب رسالة إذا راسلوك في المُستقبل.";
+
+/* Title of action sheet confirming the user wants to delete a system contact. */
+"DELETE_CONTACT_ACTION_SHEET_TITLE" = "حذف جهة الاتصال وإزالتها من اللائحة؟";
+
+/* Title of button for deleting system contact. */
+"DELETE_CONTACT_BUTTON" = "حذف جهة الاتصال";
+
+/* Toast message confirming the system contact was deleted. Embeds {{The name of the user who was deleted.}}. */
+"DELETE_CONTACT_CONFIRMATION_TOAST" = "حُذف %1$@ من جهات اتصالك وأُزيل.";
+
 /* Notification warning the user that they have been de-registered. */
 "DEREGISTRATION_NOTIFICATION" = "لقد تم تسجيل خروجك من تطبيق سيجنال على هذا الجهاز.";
 
@@ -1744,11 +1756,17 @@
 /* A warning for the device transfer 'choice' view indicating you can only have one device registered with your number */
 "DEVICE_TRANSFER_CHOICE_WARNING" = "الاستمرار سوف يُعطل سيجنال على الأجهزة الأُخرى المُسجلة بنفس رقم الهاتف.";
 
+/* Button shown to contract a QR code and exit the fullscreen view. */
+"DEVICE_TRANSFER_CONTRACT_QR_CODE_BUTTON" = "عرض بحجم أصغر";
+
+/* An error indicating that the other device closed signal mid-transfer and it could not complete */
+"DEVICE_TRANSFER_ERROR_BACKGROUNDED" = "تعذّر إتمام عملية النقل. يُرجى الحرص على أن تطبيق سيجنال مفتوح في كلا الجهازين ثمَّ حاوِل مُجددًا.";
+
 /* An error indicating that we were unable to verify the identity of the new device to complete the transfer */
 "DEVICE_TRANSFER_ERROR_CERTIFICATE_MISMATCH" = "تعذَّر التَّحقُّق مِن جِهازك الجَديد، مِن فَضلِك حاوِل مُجددًا";
 
 /* An error indicating that something went wrong with the transfer and it could not complete */
-"DEVICE_TRANSFER_ERROR_GENERIC" = "يتعذَّر إكتِمال عَمليِّة النَقل، مِن فَضلِك احرص على أن تكون أجهزتكَ بالقُرب مِن بَعضِها البَعض ثمَّ حاوِل مُجددًا.";
+"DEVICE_TRANSFER_ERROR_GENERIC" = "تعذّر إتمام عملية النقل. يُرجى الحرص على أن تكون أجهزتكَ بالقُرب مِن بَعضِها البَعض ثمَّ حاوِل مُجددًا.";
 
 /* An error indicating the user must scan this code with a linked device to transfer. */
 "DEVICE_TRANSFER_ERROR_MODE_MISMATCH_LINKED" = "لإعداد جِهاز الـiPad هَذَا كَجِهاز مُرتبِط، يَجب مَسح الرَّمز باستخدام جِهاز iPad القديم";
@@ -1762,6 +1780,9 @@
 /* An error indicating the user must update their device before trying to transfer. */
 "DEVICE_TRANSFER_ERROR_UNSUPPORTED_VERSION" = "حَدِّث إلى آخَر إصدار مِن سيجنال ثُمَّ حاوِل مَرة أُخرى";
 
+/* Button shown to expand a QR code and view it fullscreen. */
+"DEVICE_TRANSFER_EXPAND_QR_CODE_BUTTON" = "عرض بحجم أكبر";
+
 /* The explanation on the action sheet prompting the user if they want to transfer their device. */
 "DEVICE_TRANSFER_PROMPT_EXPLANATION" = "إنقل حساب سيجنال الخاص بك إلى جهاز iOS جديد. تأكد من أن جهازك الجديد قريب و قيد التشغيل.";
 
@@ -1769,16 +1790,16 @@
 "DEVICE_TRANSFER_PROMPT_TITLE" = "نقل الحساب";
 
 /* The explanation for the device transfer qr code view */
-"DEVICE_TRANSFER_QRCODE_EXPLANATION" = "افتَح سيجنال عَلى جِهازك القَديم، ضَعه بِمَكان قَريب، وتأكَّد مِن تَمكيِّن الـWi-Fi والبلوتوث في كِلا الجِهازين.";
+"DEVICE_TRANSFER_QRCODE_EXPLANATION" = "ضع جهازك القديم بمكان قريب، تأكد من أن الـWi-Fi والبلوتوث مُفعلين فيه، وامسح رمز الاستجابة السريع هذا بواسطته.";
 
 /* The second explanation for the device transfer qr code view */
-"DEVICE_TRANSFER_QRCODE_EXPLANATION2" = "مَوضِع رَمز الاِستجابة السَريعة في إطار جِهازك الآخر.";
+"DEVICE_TRANSFER_QRCODE_EXPLANATION2" = "ضع رَمز الاِستجابة السَريعة في إطار جِهاز iOS الخاص بك الآخر.";
 
 /* A prompt to provide further explanation if the user is not seeing the transfer on both devices. */
 "DEVICE_TRANSFER_QRCODE_NOT_SEEING" = "ألا يظهر التَنبيه الفَوري في جِهازك القديم؟";
 
 /* The title for the device transfer qr code view */
-"DEVICE_TRANSFER_QRCODE_TITLE" = "في انتظار جهاز آخر…";
+"DEVICE_TRANSFER_QRCODE_TITLE" = "مَسح رَمز الاِستِجابَة السَّريعَة";
 
 /* The explanation on the view that shows receiving progress */
 "DEVICE_TRANSFER_RECEIVING_EXPLANATION" = "أبقي الجهازين بالقرب من بعضهما البعض. لا تقم بإيقاف تشغيل أياً مِنهُما وحافظ على سيجنال مفتوحاً. عمليات النقل مُعمّاة من النهاية إلى النهاية.";
@@ -1852,6 +1873,15 @@
 /* Section title for the 'domain fronting country' view. */
 "DOMAIN_FRONTING_COUNTRY_VIEW_SECTION_HEADER" = "مكان التحايل على الرقابة";
 
+/* Users can donate to Signal with a credit or debit card. This is the heading on that screen, telling them how much they'll donate. Embeds {{formatted amount of money}}, such as \"$20\". */
+"DONATE_BUTTON" = "Donate %1$@";
+
+/* Users can donate to Signal with a credit or debit card. This is the heading on that screen, telling them how much they'll donate every month. Embeds {{formatted amount of money}}, such as \"$20\". */
+"DONATE_BUTTON_MONTHLY" = "Donate %1$@/month";
+
+/* When users make donations, they can choose which payment method they want to use. This is the text on the button that lets them choose to pay with bank transfer. */
+"DONATE_CHOOSE_BANK_TRANSFER_AS_PAYMENT_METHOD" = "Bank Transfer";
+
 /* When users make donations, they can choose which payment method they want to use. This is the text on the button that lets them choose to pay with credit or debit card. */
 "DONATE_CHOOSE_CREDIT_OR_DEBIT_CARD_AS_PAYMENT_METHOD" = "بطاقة الائتمان أو الخصم";
 
@@ -1862,7 +1892,7 @@
 "DONATE_CHOOSE_PAYMENT_METHOD_SHEET_SUBTITLE_FOR_MONTHLY_DONATION" = "احصل على شارة %1$@";
 
 /* When users make one-time donations, they see a sheet that lets them pick a payment method. It also tells them what they'll be doing when they pay: receive a badge for a month. This is the subtitle on that sheet. Embeds {{localized badge name}}, such as \"Boost\". */
-"DONATE_CHOOSE_PAYMENT_METHOD_SHEET_SUBTITLE_FOR_ONE_TIME_DONATION" = "احصل على شارة %1$@ لشهر واحد";
+"DONATE_CHOOSE_PAYMENT_METHOD_SHEET_SUBTITLE_FOR_ONE_TIME_DONATION" = "Get the %1$@ badge for 30 days";
 
 /* When users make donations on a friend's behalf, they see a sheet that lets them pick a payment method. This is the title on that sheet. Embeds {{amount of money}}, such as \"$5\". */
 "DONATE_CHOOSE_PAYMENT_METHOD_SHEET_TITLE_FOR_DONATION_ON_BEHALF_OF_A_FRIEND" = "%1$@ تبرّع لسيجنال";
@@ -1882,11 +1912,29 @@
 /* If a donation badge has been sent, indicates that it's expired and can no longer be redeemed. This is shown in the chat. */
 "DONATE_ON_BEHALF_OF_A_FRIEND_CHAT_EXPIRED" = "انتهت الصلاحية";
 
+/* Message in an alert presented when the user tries to make a donation, but already has a donation that is currently processing via bank payment. */
+"DONATE_SCREEN_ERROR_MESSAGE_BANK_PAYMENT_PLEASE_WAIT_BEFORE_MAKING_ANOTHER_DONATION" = "Bank transfers usually take 1 business day to process. Please wait until this donation completes before making another donation.";
+
+/* Message in an alert presented when the user tries to update their recurring donation, but already has a recurring donation that is currently processing via bank payment. */
+"DONATE_SCREEN_ERROR_MESSAGE_BANK_PAYMENT_PLEASE_WAIT_BEFORE_UPDATING_YOUR_SUBSCRIPTION" = "Bank transfers usually take 1 business day to process. Please wait until this donation completes before updating your subscription.";
+
+/* Message in an alert presented when the user tries to make a donation, but already has a donation that is currently processing via non-bank payment. */
+"DONATE_SCREEN_ERROR_MESSAGE_PLEASE_WAIT_BEFORE_MAKING_ANOTHER_DONATION" = "Your donation is still being processed. This can take a few minutes depending on your connection. Please wait until this donation completes before making another donation.";
+
+/* Message in an alert presented when the user tries to update their recurring donation, but already has a recurring donation that is currently processing via non-bank payment. */
+"DONATE_SCREEN_ERROR_MESSAGE_PLEASE_WAIT_BEFORE_UPDATING_YOUR_SUBSCRIPTION" = "Your donation is still being processed. This can take a few minutes depending on your connection. Please wait until this donation completes before updating your subscription.";
+
 /* If the user tries to donate to Signal but no amount is selected, this error message is shown. */
 "DONATE_SCREEN_ERROR_NO_AMOUNT_SELECTED" = "يُرجى تحديد مبلغ للتبرع به.";
 
 /* If the user tries to donate to Signal but they've entered an amount that's too small, this error message is shown. Embeds {{currency string}}, such as \"$5\". */
 "DONATE_SCREEN_ERROR_SELECT_A_LARGER_AMOUNT_FORMAT" = "الحد الأدنى الذي يُمكنك التبرع به هو %1$@.";
+
+/* Title for an alert presented when the user tries to make a donation, but already has a donation that is currently processing via bank payment. */
+"DONATE_SCREEN_ERROR_TITLE_BANK_PAYMENT_YOU_HAVE_A_DONATION_PENDING" = "You have a donation pending";
+
+/* Title for an alert presented when the user tries to make a donation, but already has a donation that is currently processing via non-bank payment. */
+"DONATE_SCREEN_ERROR_TITLE_YOU_HAVE_A_PAYMENT_PROCESSING" = "You have a donation processing";
 
 /* On the donation screen, you can choose between one-time and monthly donations. This is the text on the picker for one-time donations. */
 "DONATE_SCREEN_MONTHLY_CHOICE" = "شهريًا";
@@ -1908,6 +1956,27 @@
 
 /* On the donation screen, if you already have a subscription, you'll see a button to update your subscription. This is the text on that button. */
 "DONATE_SCREEN_UPDATE_MONTHLY_SUBSCRIPTION_BUTTON" = "تحديث الاشتراك";
+
+/* Message for a sheet explaining that a donation via bank payment has failed. Embeds {{ a specific, already-localized string describing the payment failure }}. */
+"DONATION_BADGE_ISSUE_SHEET_BANK_PAYMENT_FAILED_MESSAGE" = "We’re having trouble processing your bank transfer. %1$@";
+
+/* Title for a sheet explaining that a donation via bank payment has failed. */
+"DONATION_BADGE_ISSUE_SHEET_BANK_PAYMENT_FAILED_TITLE" = "Donation Couldn’t Be Processed";
+
+/* Title for a sheet explaining that a donation via bank payment is pending. */
+"DONATION_BADGE_ISSUE_SHEET_BANK_PAYMENT_PROCESSING_TITLE" = "Donation Pending";
+
+/* Message for a sheet explaining that a one-time donation via bank payment is pending, and how that will affect the user's badge. Embeds {{ the name of the badge }}. Will have a 'learn more' link appended, when it is rendered. */
+"DONATION_BADGE_ISSUE_SHEET_ONE_TIME_BANK_PAYMENT_PROCESSING_MESSAGE" = "Your one-time donation is pending. You’ll be able to display the %1$@ badge on your profile when your donation is received.\n\nBank transfers usually take 1 business day to process.";
+
+/* Message for a sheet explaining that a recurring donation via bank payment is pending, and how that will affect the user's badge. Embeds {{ the name of the badge }}. Will have a 'learn more' link appended, when it is rendered. */
+"DONATION_BADGE_ISSUE_SHEET_RECURRING_BANK_PAYMENT_PROCESSING_MESSAGE" = "Your monthly donation is pending. You’ll be able to display the %1$@ badge on your profile when your donation is received.\n\nBank transfers usually take 1 business day to process.";
+
+/* Title for a button asking the user to renew their subscription, because it has expired. */
+"DONATION_BADGE_ISSUE_SHEET_RENEW_SUBSCRIPTION_BUTTON_TITLE" = "Renew Subscription";
+
+/* Title for a button asking the user to try their donation again, because something went wrong. */
+"DONATION_BADGE_ISSUE_SHEET_TRY_AGAIN_BUTTON_TITLE" = "Try Again";
 
 /* When donating on behalf of a friend, a badge will be sent. This shows how long the badge lasts. Embeds {{formatted duration}}. */
 "DONATION_FOR_A_FRIEND_ROW_DURATION" = "تدوم %1$@";
@@ -1971,12 +2040,6 @@
 
 /* You received a donation from a friend. This is the title of that message in the chat. Embeds {{short contact name}}. */
 "DONATION_ON_BEHALF_OF_A_FRIEND_RECEIVED_TITLE_FORMAT" = "قدم %1$@ تبرّعًا لسيجنال نيابة عنك";
-
-/* Users can donate on a friend's behalf. If the friend cannot receive these donations, this error message will be shown. */
-"DONATION_ON_BEHALF_OF_A_FRIEND_RECIPIENT_CANNOT_RECEIVE_DONATION_ERROR_BODY" = "لا يُمكنك تقديم تبرّع لهذا المُستخدم حتى يقوم بترقية تطبيق سيجنال.";
-
-/* Users can donate on a friend's behalf. If the friend cannot receive these donations, an error dialog will be shown. This is the title of that error dialog. */
-"DONATION_ON_BEHALF_OF_A_FRIEND_RECIPIENT_CANNOT_RECEIVE_DONATION_ERROR_TITLE" = "تعذّر تقديم التبرّع";
 
 /* Users can donate on a friend's behalf. This is the error message that appears if the try to do this, but the recipient is blocked. */
 "DONATION_ON_BEHALF_OF_A_FRIEND_RECIPIENT_IS_BLOCKED_ERROR_BODY" = "لا يُمكنك تقديم تبرّع لهذا المُستخدم لأنك قمت بحظرهم.";
@@ -2071,20 +2134,59 @@
 /* On donation screens, a small amount of information text is shown. This is the title for that text. */
 "DONATION_SCREENS_HEADER_TITLE" = "الخصوصية على حساب الربح";
 
+/* Title for an action in an action sheet asking the user to renew a subscription that has failed to renew. */
+"DONATION_SETTINGS_MY_SUPPORT_ACTION_SHEET_ACTION_TITLE_RENEW_SUBSCRIPTION" = "Renew Subscription";
+
+/* Title for an action in an action sheet asking the user to try again, in reference to a donation that failed. */
+"DONATION_SETTINGS_MY_SUPPORT_ACTION_SHEET_ACTION_TITLE_TRY_AGAIN" = "Try Again";
+
+/* Message for an alert explaining that a one-time payment made via bank transfer is being processed. */
+"DONATION_SETTINGS_MY_SUPPORT_BANK_PAYMENT_PROCESSING_MESSAGE" = "Your bank transfer is pending. Bank transfers usually take 1 business day to process.";
+
+/* Title for an alert explaining that a one-time payment made via bank transfer is being processed. */
+"DONATION_SETTINGS_MY_SUPPORT_BANK_PAYMENT_PROCESSING_TITLE" = "Donation Pending";
+
+/* Message shown in a sheet explaining that the user's donation has failed because payment failed. Embeds {{ a specific, already-localized string describing the payment failure reason }}. */
+"DONATION_SETTINGS_MY_SUPPORT_DONATION_FAILED_ALERT_MESSAGE_FORMAT" = "We’re having trouble processing your donation. %1$@";
+
+/* Title for a sheet explaining that a payment failed. */
+"DONATION_SETTINGS_MY_SUPPORT_DONATION_FAILED_ALERT_TITLE" = "Error Processing Donation";
+
+/* Message shown in a sheet explaining that the user's recurring subscription has ended because payment failed. Embeds {{ a specific, already-localized string describing the failure reason }}. */
+"DONATION_SETTINGS_MY_SUPPORT_RECURRING_SUBSCRIPTION_LAPSED_CHARGE_FAILURE_ALERT_MESSAGE_FORMAT" = "Your recurring monthly donation has ended. %1$@";
+
+/* Title for a sheet explaining that the user's recurring subscription has ended because payment failed. */
+"DONATION_SETTINGS_MY_SUPPORT_RECURRING_SUBSCRIPTION_LAPSED_TITLE" = "Monthly Donation Canceled";
+
+/* A label describing a donation payment that was made via bank transfer, which is still processing and has not completed. */
+"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_BANK_PAYMENT_PROCESSING" = "Donation Pending";
+
+/* A label describing a donation payment that was made by a method other than bank transfer (such as by credit card), which is still processing and has not completed. */
+"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_NON_BANK_PAYMENT_PROCESSING" = "Processing Donation...";
+
+/* A label describing a donation payment that has failed to process. */
+"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_PAYMENT_FAILED" = "Error Processing Donation";
+
+/* A label describing a recurring monthly donation that used to be active, but has now been canceled because it failed to renew. */
+"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_SUBSCRIPTION_LAPSED" = "Monthly Donation Canceled";
+
+/* A string describing the amount and currency of a one-time payment. Embeds {{ the amount, formatted as a currency }}. */
+"DONATION_SETTINGS_ONE_TIME_AMOUNT_FORMAT" = "%1$@ one-time";
+
 /* Title for the \"donate for a friend\" button on the donation view. */
 "DONATION_VIEW_DONATE_ON_BEHALF_OF_A_FRIEND" = "تبرّع لصديق";
 
 /* Text describing to the user that they're going to pay a donation to Signal */
 "DONATION_VIEW_DONATION_TO_SIGNAL" = "التَّبّرُّع لِسيجنال";
 
+/* Title for the 'Donor FAQ' button on the donation screen */
+"DONATION_VIEW_DONOR_FAQ" = "Donor FAQ";
+
 /* Text that's shown when the donation view fails to load data, probably due to network failure */
 "DONATION_VIEW_LOAD_FAILED" = "لقد حدث خطأ في الشبكة. يُرجى التحقق من اتصالك بالانترنت ثم المحاولة مرة أخرى.";
 
 /* Title for the 'Badges' button on the donation screen */
 "DONATION_VIEW_MANAGE_BADGES" = "الشارات";
-
-/* Title for the 'Manage Subscription' button on the donation screen */
-"DONATION_VIEW_MANAGE_SUBSCRIPTION" = "إدارة الاشتراك";
 
 /* Text describing to the user that they're going to pay a monthly donation to Signal */
 "DONATION_VIEW_MONTHLY_DONATION_TO_SIGNAL" = "التبرعات الشهرية لسيجنال";
@@ -2097,9 +2199,6 @@
 
 /* Title for the \"other ways to donate\" section on the donation view. */
 "DONATION_VIEW_OTHER_WAYS_TO_DONATE_TITLE" = "طُرُق أُخرَى لِلتَبرُّع";
-
-/* Title for the 'Subscription FAQ' button on the donation screen */
-"DONATION_VIEW_SUBSCRIPTION_FAQ" = "الأسئلة الشائعة حول الاشتراك";
 
 /* Title on the 'Donate to Signal' screen */
 "DONATION_VIEW_TITLE" = "تبرَّع لسيجنال";
@@ -2138,16 +2237,16 @@
 "EDIT_ITEM_COPY_ACTION" = "نسخ";
 
 /* Edit Send Beta prompt body */
-"EDIT_MESSAGE_SEND_BETA_MESSAGE_BODY" = "تعديل الرسائل مُتاح لمُستخدمي إصدار سيجنال التجريبي فقط. إذا قمت بتعديل رسالة، فلن تكون متاحة إلا للأشخاص الذين يستخدمون أحدث إصدار سيجنال التجريبي.";
+"EDIT_MESSAGE_SEND_MESSAGE_BODY" = "إذا قُمت بتعديل رسالة، فلن يظهر إلا للأشخاص الذين يستخدمون أحدث إصدار سيجنال. سَيتمكنون من رؤية أنك قمت بتعديل رسالة.";
 
 /* Label to confirm sending an edit */
-"EDIT_MESSAGE_SEND_BETA_MESSAGE_CONFIRM" = "إرسال";
+"EDIT_MESSAGE_SEND_MESSAGE_CONFIRM" = "إرسال";
 
 /* Edit Send Beta prompt title */
-"EDIT_MESSAGE_SEND_BETA_MESSAGE_TITLE" = "إصدار سيجنال التجريبي فقط";
+"EDIT_MESSAGE_SEND_MESSAGE_TITLE" = "تعديل الرسالة";
 
-/* Error message to display to user when a messaeg is too old to edit */
-"EDIT_MESSAGE_SEND_MESSAGE_TOO_OLD_ERROR" = "لا يُمكن إحداث التعديلات إلا في غضون 3 ساعات من وقت إرسال هذه الرسالة.";
+/* Error message to display to user when a message is too old to edit */
+"EDIT_MESSAGE_SEND_MESSAGE_TOO_OLD_ERROR" = "لا يُمكن إحداث التعديلات إلاّ في غضون 24 ساعة من وقت إرسال هذه الرسالة.";
 
 /* Edit failed for an unexpected reason */
 "EDIT_MESSAGE_SEND_MESSAGE_UNKNOWN_ERROR" = "EDIT_MESSAGE_SEND_MESSAGE_UNKNOWN_ERROR";
@@ -2341,6 +2440,9 @@
 /* Label warning the user that the app will expire today. */
 "EXPIRATION_WARNING_TODAY" = "سَتنتهي صلاحية هذا الإصدار من سيجنال اليوم. قم بالتحديث لتواصل المراسلة.";
 
+/* action sheet header when re-sending message which failed because of an invalid key signature */
+"FAILED_SENDING_BECAUSE_INVALID_KEY_SIGNATURE" = "تعذّر إرسال الرسالة لأن %1$@ يَحتاج إلى تحديث سيجنال وفتحه.";
+
 /* action sheet header when re-sending message which failed because of too many attempts */
 "FAILED_SENDING_BECAUSE_RATE_LIMIT" = "العديد من الأخطاء مع جهة الاتصال هذه. يُرجى إعادة المحاولة لاحقا.";
 
@@ -2361,6 +2463,12 @@
 
 /* The title for the featured badge settings page */
 "FEATURED_BADGE_SETTINGS_TITLE" = "الشارة المُميزة";
+
+/* Users can choose to learn more about how to find account info, which will open a sheet with additional information. This is the body of that sheet. */
+"FIND_ACCOUNT_INFO_SHEET_BODY" = "Look for your IBAN at the top of your bank statement. IBAN numbers contain up to 34 characters. The name you enter should match your full name on your bank account. Contact your bank for more information.";
+
+/* Users can choose to learn more about how to find account info, which will open a sheet with additional information. This is the title of that sheet. */
+"FIND_ACCOUNT_INFO_SHEET_TITLE" = "Find Your Account Information";
 
 /* Button that marks user as verified after a successful fingerprint scan. */
 "FINGERPRINT_SCAN_VERIFY_BUTTON" = "علِّم كمُتحقَّق منه";
@@ -3209,22 +3317,31 @@
 "HELP_SUPPORT_CENTER" = "مَركَزُ الدَّعم";
 
 /* A format for the 'remove user' action sheet title. Embeds {{the removed user's name or phone number}}. */
-"HIDE_RECIPIENT_ACTION_SHEET_TITLE_FORMAT" = "Remove %1$@?";
+"HIDE_RECIPIENT_ACTION_SHEET_TITLE_FORMAT" = "إزالة %1$@؟";
 
 /* An explanation of the consequences of removing a user. */
-"HIDE_RECIPIENT_BEHAVIOR_EXPLANATION" = "You won't see this person when searching. You'll get a message request if they message you in the future.";
+"HIDE_RECIPIENT_BEHAVIOR_EXPLANATION" = "لن يظهر لك هذا الشخص عند البحث. سَتتلقّى طلب رسالة إذا راسلوك في المستقبل.";
 
 /* Button label for the 'remove' button */
-"HIDE_RECIPIENT_BUTTON" = "Remove";
+"HIDE_RECIPIENT_BUTTON" = "إزالة";
 
 /* Toast message confirming the recipient was removed. Embeds {{The name of the user who was removed.}}.. */
-"HIDE_RECIPIENT_CONFIRMATION_TOAST" = "%1$@ has been removed.";
+"HIDE_RECIPIENT_CONFIRMATION_TOAST" = "تم حذف %1$@.";
 
 /* An explanation of why a user was not successfully removed and what to do. */
-"HIDE_RECIPIENT_ERROR_ACTION_SHEET_EXPLANATION" = "Check your connection and try again.";
+"HIDE_RECIPIENT_ERROR_ACTION_SHEET_EXPLANATION" = "تحقّق من اتصالك بالشبكة ثم حاول مُجددًا.";
 
 /* Title for an action sheet indicating that the user was not successfully removed. Embeds {{name of user we attempted to hide}}. */
-"HIDE_RECIPIENT_ERROR_ACTION_SHEET_TITLE_FORMAT" = "Unable to remove %1$@";
+"HIDE_RECIPIENT_ERROR_ACTION_SHEET_TITLE_FORMAT" = "لا يمكن إزالة %1$@";
+
+/* An explanation of why the user cannot be removed. */
+"HIDE_RECIPIENT_IMPASS_BECAUSE_SYSTEM_CONTACT_ACTION_SHEET_EXPLANATION" = "هذا الشخص محفوظ في جهات اتصالك. اِحذفه من جهات اتصالك لإزالته من اللائحة.";
+
+/* A format for the 'unable to remove user' action sheet title. Embeds {{the removed user's name or phone number}}. */
+"HIDE_RECIPIENT_IMPASS_BECAUSE_SYSTEM_CONTACT_ACTION_SHEET_TITLE" = "لا يمكن إزالة %1$@";
+
+/* An explanation of why the user cannot be removed on a linked device. */
+"HIDE_RECIPIENT_IMPOSSIBLE_BECAUSE_SYSTEM_CONTACT_ACTION_SHEET_EXPLANATION" = "هذا الشخص محفوظ في جهات اتصالك. احذفه من جهات اتصالك على هاتفك وحاول مجددًا.";
 
 /* Label for 'archived conversations' button. */
 "HOME_VIEW_ARCHIVED_CONVERSATIONS" = "الدردشات المؤرشفة";
@@ -3280,15 +3397,6 @@
 /* Momentarily shown to the user when attempting to select more images than is allowed. Embeds {{max number of items}} that can be shared. */
 "IMAGE_PICKER_CAN_SELECT_NO_MORE_TOAST_FORMAT" = "لا يُمكنك مُشاركة أكثر من %1$@ عنصر.";
 
-/* Button that will present a view for the user to change the photos Signal has access to. */
-"IMAGE_PICKER_CHANGE_PHOTOS" = "تغيير الصور";
-
-/* Explanation showing that the user has granted limited access to their photos and can change that in the Settings app. */
-"IMAGE_PICKER_CHANGE_PHOTOS_EXPLANATION" = "امنح حق الوصول الكامل في الإعدادات أو غير الصور التي يحقّ لسيجنال الوصول إليها.";
-
-/* Title show that the user has granted limited access to their photos and can change that in the Settings app. */
-"IMAGE_PICKER_CHANGE_PHOTOS_TITLE" = "ألا ترى صورك؟";
-
 /* alert title */
 "IMAGE_PICKER_FAILED_TO_PROCESS_ATTACHMENTS" = "فشل في تحديد المُرفق.";
 
@@ -3337,8 +3445,23 @@
 /* info message text in conversation view */
 "INCOMING_VIDEO_CALL" = "مكالمة فيديو واردة";
 
+/* Indicates that a previously-removed recipient has been added back to the current user's contacts. */
+"INFO_MESSAGE_CONTACT_REINSTATED" = "لقد أضيف هذا الشخص إلى لائحة جهات اتصال سيجنال الخاصة بك من جديد.";
+
 /* Indicates that the recipient has been removed from the current user's contacts and that messaging them will re-add them. */
-"INFO_MESSAGE_CONTACT_REMOVED" = "لقد حذفت هذا الشخص، وبمراسلتك لهم سَتتم إضافتهم إلى قائمتك.";
+"INFO_MESSAGE_CONTACT_REMOVED" = "لقد أزلتَ هذا الشخص من لائحة جهات اتصال سيجنال الخاصة بك، وسيَرجع إلى اللائحة إذا راسلته.";
+
+/* Shown when a user activates payments from a chat */
+"INFO_MESSAGE_PAYMENTS_ACTIVATED" = "لقد فعّلت عمليات الدفع";
+
+/* Shown when a user activates payments from a chat. Embeds: {{ the user's name}} */
+"INFO_MESSAGE_PAYMENTS_ACTIVATION_REQUEST_FINISHED" = "يُمكن لـ %1$@ قبول عمليات الدفع الآن";
+
+/* Shown when a user receives a payment activation request. Embeds: {{ the user's name}} */
+"INFO_MESSAGE_PAYMENTS_ACTIVATION_REQUEST_RECEIVED" = "يريدك %1$@ أن تُفعّل عمليات الدفع. أرسل عمليات الدفع فقط للأشخاص الذين تثق بهم.";
+
+/* Shown when requesting a user activates payments. Embeds: {{ the user's name}} */
+"INFO_MESSAGE_PAYMENTS_ACTIVATION_REQUEST_SENT" = "أرسلت لـ %1$@ طلبًا لتفعيل عمليات الدفع";
 
 /* Shown in inbox and conversation after syncing as a placeholder indicating why your message history is missing. */
 "INFO_MESSAGE_SYNCED_THREAD" = "You can send or receive synchronized messages from your phone or iPad.  For your security, chat history isn't transferred to new linked devices.";
@@ -3568,6 +3691,9 @@
 /* Title for the button that resets photo to its initial state. */
 "MEDIA_EDITOR_RESET" = "إعادة التعيين";
 
+/* Tooltip to display above a clock sticker in the media editor saying to tap for more clock styles */
+"MEDIA_EDITOR_TAP_FOR_MORE" = "انقر للمزيد";
+
 /* Placeholder for message text input field in media editor. */
 "MEDIA_EDITOR_TEXT_FIELD_ADD_MESSAGE" = "إضافة رسالة";
 
@@ -3669,6 +3795,9 @@
 
 /* Label for button to open a sticker pack. */
 "MESSAGE_ACTION_LINK_OPEN_STICKER_PACK" = "عرض حزمة الملصقات";
+
+/* Action sheet button title */
+"MESSAGE_ACTION_PAYMENT_DETAILS" = "تفاصيل عمليات الدفع";
 
 /* Label for button to call a phone number. */
 "MESSAGE_ACTION_PHONE_NUMBER_CALL" = "اتصال";
@@ -3945,6 +4074,18 @@
 
 /* info message text in conversation view */
 "MISSED_AUDIO_CALL" = "مكالمة صوتية فائتة";
+
+/* info message text in conversation view for when a call was dropped because the contact is blocked in iOS settings */
+"MISSED_CALL_BLOCKED_SYSTEM_CONTACT" = "مكالمة فائتة من جهة اتصال محظورة في إعدادات الهاتف";
+
+/* Action to block contact in Signal for sheet shown when the user taps a missed call from a contact blocked in iOS settings. */
+"MISSED_CALL_BLOCKED_SYSTEM_SETTINGS_SHEET_BLOCK_ACTION" = "احظر جهة الاتصال على سيجنال أيضًا";
+
+/* Message for sheet shown when the user taps a missed call from a contact blocked in iOS settings. */
+"MISSED_CALL_BLOCKED_SYSTEM_SETTINGS_SHEET_MESSAGE" = "لقد فاتتك مُكالمته لأنك حظرته في إعدادات هاتفك. انتقل إلى إعدادات > الهاتف وانقر على جهات الاتصال المحظورة لإدارتها.";
+
+/* Title for sheet shown when the user taps a missed call from a contact blocked in iOS settings. Embeds {{ Contact's name }} */
+"MISSED_CALL_BLOCKED_SYSTEM_SETTINGS_SHEET_TITLE" = "%1$@ محظور في إعدادات الهاتف";
 
 /* info message text in conversation view (use Apple's name for 'Do Not Disturb' on iOS 14 and older) */
 "MISSED_CALL_DO_NOT_DISTURB" = "مكالمة فائتة خلال وضع عدم الإزعاج";
@@ -4360,11 +4501,23 @@
 /* info message text in conversation view */
 "OUTGOING_MISSED_VIDEO_CALL" = "مكالمة فيديو لم يتم الرد عليها";
 
+/* Button for action sheet shown when device transfer completes; quits the Signal app immediately (does not automatically relaunch, but the user may choose to relaunch). */
+"OUTGOING_TRANSFER_COMPLETE_EXIT_ACTION" = "مغادرة سيجنال";
+
+/* Message for action sheet shown when device transfer completes */
+"OUTGOING_TRANSFER_COMPLETE_MESSAGE" = "سيُغلق سيجنال على هذا الجهاز الآن";
+
+/* Title for action sheet shown when device transfer completes */
+"OUTGOING_TRANSFER_COMPLETE_TITLE" = "انتهى النقل!";
+
 /* info message text in conversation view */
 "OUTGOING_VIDEO_CALL" = "مكالمة فيديو صادرة";
 
-/* Button used to decline a payment request. */
-"PAYMENTS_ACTION_DECLINE_REQUEST" = "رفض الطلب";
+/* Header title for bank payment details screen */
+"PAYMENT_DETAILS_BANK_TITLE" = "Bank Transfer";
+
+/* Header title for card payment details screen */
+"PAYMENT_DETAILS_CARD_TITLE" = "Credit or Debit Card";
 
 /* Format for indicator of a payment amount converted to fiat currency with the freshness of the conversion rate. Embeds: {{ %1$@ the payment amount, %2$@ the freshness of the currency conversion rate }}. */
 "PAYMENTS_CURRENCY_CONVERSION_FRESHNESS_FORMAT" = "%1$@ بسعر %2$@";
@@ -4372,20 +4525,8 @@
 /* Indicator for unknown currency. */
 "PAYMENTS_CURRENCY_UNKNOWN" = "؟";
 
-/* Message for the 'decline a payment request' alert. Embeds {{ the name of the user requesting payment }}. */
-"PAYMENTS_DECLINE_REQUEST_ALERT_MESSAGE_FORMAT" = "سيتم إشعار %1$@ أنك رفضت الطلب.";
-
-/* Title for the 'decline a payment request' alert. */
-"PAYMENTS_DECLINE_REQUEST_ALERT_TITLE" = "رفض هذا الطلب ؟";
-
 /* Label for 'defragmentation' payments. */
 "PAYMENTS_DEFRAGMENTATION_PAYMENT" = "رسوم تنظيف العملة";
-
-/* Error indicating that a payment request could not be cancelled. */
-"PAYMENTS_ERROR_PAYMENT_REQUEST_CANCEL_FAILED" = "تعذر إلغاء الطلب.";
-
-/* Error indicating that a payment request could not be declined. */
-"PAYMENTS_ERROR_PAYMENT_REQUEST_DECLINE_FAILED" = "تعذر رفض الطلب.";
 
 /* Status indicator for incoming payments which failed. */
 "PAYMENTS_FAILURE_INCOMING_FAILED" = "فشل";
@@ -4407,6 +4548,15 @@
 
 /* Status indicator for outgoing payments which failed to verify. */
 "PAYMENTS_FAILURE_OUTGOING_VALIDATION_FAILED" = "غير صالحة";
+
+/* Payments in-chat message shown if a payment fails to send, bottom half. */
+"PAYMENTS_IN_CHAT_FAILURE_MESSAGE_BOTTOM" = "يُرجى النقر للتفاصيل";
+
+/* Payments in-chat message shown if a payment fails to send, top part. Embeds {{ number, amount of MOB coin not sent }} */
+"PAYMENTS_IN_CHAT_FAILURE_MESSAGE_TOP" = "%1$@ لم تُرسل عملة MOB";
+
+/* Status indicator for invalid payments which could not be processed. */
+"PAYMENTS_INFO_UNAVAILABLE_MESSAGE" = "غير متوفر";
 
 /* Indicates that an unknown error occurred while using Touch ID/Face ID/Phone Passcode. */
 "PAYMENTS_LOCK_AUTHENTICATION_ENABLE_UNKNOWN_ERROR" = "تعذّر الوصول إلى المُصادقة.";
@@ -4531,9 +4681,6 @@
 /* Format for the 'payment recipient amount' indicator. Embeds {{ the name of the recipient of the payment }}. */
 "PAYMENTS_NEW_PAYMENT_RECIPIENT_AMOUNT_FORMAT" = "إلى %1$@";
 
-/* Label for the 'new payment request' button. */
-"PAYMENTS_NEW_PAYMENT_REQUEST_BUTTON" = "الطلب";
-
 /* Label for the payments notification banner for a single payment notification. */
 "PAYMENTS_NOTIFICATION_BANNER_1" = "هناك إشعار دفع جديد";
 
@@ -4542,6 +4689,18 @@
 
 /* Format for the payments notification banner for multiple payment notifications. Embeds: {{ the number of unread payment notifications }}. */
 "PAYMENTS_NOTIFICATION_BANNER_N_FORMAT" = "هناك %1$@ إشعار دفع جديد";
+
+/* Payment status context with contact name, failed. Embeds {{ Name of receiving contact }} */
+"PAYMENTS_PAYMENT_STATUS_IN_CHAT_PAYMENT_TO" = "عملية دفع إلى %1$@";
+
+/* Payment status context while sending */
+"PAYMENTS_PAYMENT_STATUS_IN_CHAT_PROCESSING" = "تجري معالجة الدفوعات…";
+
+/* Payment status context with contact name, incoming. Embeds {{ Name of sending contact }} */
+"PAYMENTS_PAYMENT_STATUS_IN_CHAT_SENT_YOU" = "أرسل لك %1$@";
+
+/* Payment status context with contact name, sent. Embeds {{ Name of receiving contact }} */
+"PAYMENTS_PAYMENT_STATUS_IN_CHAT_YOU_SENT" = "أرسلت %1$@";
 
 /* Status indicator for incoming payments which are complete. */
 "PAYMENTS_PAYMENT_STATUS_LONG_INCOMING_COMPLETE" = "تمَّ الدفع";
@@ -4603,6 +4762,12 @@
 /* Status indicator for payments which had an unknown failure. */
 "PAYMENTS_PAYMENT_STATUS_SHORT_UNKNOWN" = "فشل مجهول";
 
+/* Payments Preview Text shown in quoted replies, for payments. Embeds {{ Amount sent (number), Currency (e.g. 'MOB') }} */
+"PAYMENTS_PREVIEW_TEXT_QUOTED_REPLY" = "عملية دفع: %1$@ %2$@";
+
+/* Payments Preview Text shown in quoted replies, for unknown payments. */
+"PAYMENTS_PREVIEW_TEXT_UNKNOWN" = "عملية دفع مجهولة";
+
 /* Message for error alert indicating that a given user cannot receive payments because of a pending message request for a recipient that they have sent messages to. */
 "PAYMENTS_RECIPIENT_MISSING_PROFILE_KEY_MESSAGE_W_MESSAGES" = "على هذا المستخدم أن يوافق على طلب التراسل معك لأجل التمكن من إرسال المبلغ إليه.";
 
@@ -4612,11 +4777,17 @@
 /* Title for error alert indicating that a given user cannot receive payments because of a pending message request. */
 "PAYMENTS_RECIPIENT_MISSING_PROFILE_KEY_TITLE" = "تعذَّر إرسال المدفوعات";
 
-/* Message for error alert indicating that a given user cannot receive payments because they have not enabled payments. */
-"PAYMENTS_RECIPIENT_PAYMENTS_NOT_ENABLED_MESSAGE" = "لم يقم هذا الشخص بتفعيل الدفوعات.";
+/* The label for the 'send request' button in alerts and action sheets. */
+"PAYMENTS_RECIPIENT_PAYMENTS_NOT_ENABLED_BUTTON" = "إرسال طلب";
 
-/* Title for error alert indicating that a given user cannot receive payments because they have not enabled payments. */
-"PAYMENTS_RECIPIENT_PAYMENTS_NOT_ENABLED_TITLE" = "مُستلِم غير صحيح";
+/* Message for error alert indicating that a given user cannot receive payments because they have not enabled payments. */
+"PAYMENTS_RECIPIENT_PAYMENTS_NOT_ENABLED_MESSAGE" = "هل تُريد أن ترسل لهم طلبًا لتفعيل عمليات الدفع؟";
+
+/* Title for error alert indicating that a given user cannot receive payments because they have not enabled payments. Embeds {{ the contact's name }} */
+"PAYMENTS_RECIPIENT_PAYMENTS_NOT_ENABLED_TITLE" = "لم يُفعّل %1$@ عمليات الدفع";
+
+/* Payments Preview Text shown in chat list for payments. */
+"PAYMENTS_THREAD_PREVIEW_TEXT" = "💳 عملية دفع";
 
 /* Label for 'transfer out' payments. */
 "PAYMENTS_TRANSFER_OUT_PAYMENT" = "إرسال";
@@ -4779,6 +4950,9 @@
 
 /* alert title */
 "PHOTO_CAPTURE_UNABLE_TO_INITIALIZE_CAMERA" = "فشلت تهيئة الكاميرا.";
+
+/* alert title, generic error preventing user from capturing a video that is too long */
+"PHOTO_CAPTURE_VIDEO_SIZE_ERROR" = "فيديو طويل جدًا.";
 
 /* label for system photo collections which have no name. */
 "PHOTO_PICKER_UNNAMED_COLLECTION" = "ألبوم بدون اسم";
@@ -5380,17 +5554,8 @@
 /* Alert shown when submitting a verification code too many times. Embeds {{ duration }}, such as \"5:00\" */
 "REGISTRATION_SUBMIT_CODE_RATE_LIMIT_ALERT_FORMAT" = "لقد قمت بمحاولات كثيرة لإدخال الرمز. حاول مجددًا في %1$@";
 
-/* Error message indicating that device transfer from another device might be possible. */
-"REGISTRATION_TRANSFER_AVAILABLE_DESCRIPTION" = "هناك مسبقا حساب مسجل برقم الهاتف هذا، والذي هو متاح للنقل.";
-
 /* During registration and re-registration, users may have to enter a code to verify ownership of their phone number. If they enter an invalid code, they will see this error message. */
 "REGISTRATION_VERIFICATION_ERROR_INVALID_VERIFICATION_CODE" = "الرمز الذي أدخلته غير صحيح. يُرجى إعادة إرسال الرمز والمحاولة من جديد.";
-
-/* Error message indicating that registration failed due to a missing or incorrect verification code. */
-"REGISTRATION_VERIFICATION_FAILED_WRONG_CODE_DESCRIPTION" = "الأرقام التي أدخلتها لا تتطابق مع التي أرسلناها. لم لا تتأكد مجدداً؟";
-
-/* Error message indicating that registration failed due to a missing or incorrect 2FA PIN. */
-"REGISTRATION_VERIFICATION_FAILED_WRONG_PIN" = "إنَّ PIN قفل التسجيل غير صحيح.";
 
 /* Message of alert indicating that users needs to enter a valid phone number to register. */
 "REGISTRATION_VIEW_INVALID_PHONE_NUMBER_ALERT_MESSAGE" = "فضلاً أدخل رقم هاتف صالح للتسجيل.";
@@ -5478,21 +5643,6 @@
 
 /* Snippet to share {{safety number}} with a friend. sent e.g. via SMS */
 "SAFETY_NUMBER_SHARE_FORMAT" = "رقم أمان سيجنال الخاص بنا:\n%1$@";
-
-/* Header informing the user about the transition from phone number to user identifier based. */
-"SAFETY_NUMBER_TRANSITION_HEADER_ALERT" = "جارٍ تحديث أرقام الأمان.";
-
-/* Button text for a sheet informing the user about the transition from phone number to user identifier based. */
-"SAFETY_NUMBER_TRANSITION_SHEET_HELP_TEXT" = "بحاجة إلى مساعدة؟";
-
-/* Informs the user about the transition from phone number to user identifier based. */
-"SAFETY_NUMBER_TRANSITION_SHEET_PARAGRAPH_1" = "يتم تحديث أرقام الأمان على مدى فترة انتقالية لتفعيل ميزات الخصوصية القادمة في سيجنال-Signal.";
-
-/* Informs the user about the transition from phone number to user identifier based. */
-"SAFETY_NUMBER_TRANSITION_SHEET_PARAGRAPH_2" = "للتحقّق من أرقام الأمان، يُرجى مطابقة لون البطاقة مع جهاز جهة اتصالك. إذا فشل تطابقهما، يُرجى السحب لتجربة زوج آخر من أرقام الأمان. نحتاج إلى تطابق زوج واحد فقط.";
-
-/* Title for a sheet informing the user about the transition from phone number to user identifier based. */
-"SAFETY_NUMBER_TRANSITION_SHEET_TITLE" = "التغييرات التي ستطرأ على أرقام الأمان";
 
 /* Action sheet heading */
 "SAFETY_NUMBERS_ACTIONSHEET_TITLE" = "تغير رقم أمانك مع %1$@. قد ترغب بالتحقق منه.";
@@ -5656,11 +5806,59 @@
 /* String describing standard quality sent media */
 "SENT_MEDIA_QUALITY_STANDARD" = "قياسي";
 
+/* Users can donate to Signal with a bank account. This is the label for email field on that screen. */
+"SEPA_DONATION_EMAIL_LABEL" = "Email";
+
+/* Users can donate to Signal with a bank account. This is placeholder text for the email field before the user starts typing. */
+"SEPA_DONATION_EMAIL_PLACEHOLDER" = "Email Address";
+
+/* SEPA bank account donation error for insufficient funds. */
+"SEPA_DONATION_ERROR_INSUFFICIENT_FUNDS" = "The bank account provided has insufficient funds to complete this purchase, try again or contact your bank for more information.";
+
+/* SEPA bank account donation error for missing or incorrect mandate information. */
+"SEPA_DONATION_ERROR_NOT_AUTHORIZED" = "An error occurred while processing this payment, please try again.";
+
+/* SEPA bank account donation error for the account details not being able to be processed. */
+"SEPA_DONATION_ERROR_NOT_PROCESSED" = "The bank details provided could not be processed, contact your bank for more information.";
+
+/* SEPA bank account donation error for unspecified decline failures. */
+"SEPA_DONATION_ERROR_OTHER" = "Verify your bank details are correct and try again. If the problem continues, contact your bank.";
+
+/* SEPA bank account donation error for the payment not being authorizing by the account holder. */
+"SEPA_DONATION_ERROR_PAYMENT_NOT_AUTHORIZED" = "This payment was revoked by the account holder and could not be processed. You haven’t been charged.";
+
+/* Users can donate to Signal with a bank account. If their internation bank account number (IBAN) contains characters other than letters and numbers, this error will be shown. Try to use a short string to make space in the UI. */
+"SEPA_DONATION_IBAN_INVALID_CHARACTERS_ERROR" = "IBAN can only contain A-Z and 0-9";
+
+/* Users can donate to Signal with a bank account. If their internation bank account number (IBAN) does not pass validation, this error will be shown. Try to use a short string to make space in the UI. */
+"SEPA_DONATION_IBAN_INVALID_CHECK_ERROR" = "Invalid IBAN number";
+
+/* Users can donate to Signal with a bank account. If their internation bank account number (IBAN) has an unsupported country code, this error will be shown. Try to use a short string to make space in the UI. */
+"SEPA_DONATION_IBAN_INVALID_COUNTRY_ERROR" = "IBAN country code is not supported";
+
+/* Users can donate to Signal with a bank account. This is the label for IBAN (internation bank account number) field on that screen. */
+"SEPA_DONATION_IBAN_LABEL" = "IBAN";
+
+/* Users can donate to Signal with a bank account. If their internation bank account number (IBAN) is too long, this error will be shown. Try to use a short string to make space in the UI. */
+"SEPA_DONATION_IBAN_TOO_LONG_ERROR" = "IBAN is too long";
+
+/* Users can donate to Signal with a bank account. If their internation bank account number (IBAN) is too long, this error will be shown. Try to use a short string to make space in the UI. */
+"SEPA_DONATION_IBAN_TOO_SHORT_ERROR" = "IBAN is too short";
+
+/* Users can donate to Signal with a bank account. This is the label for name field on that screen. */
+"SEPA_DONATION_NAME_LABEL" = "Name";
+
+/* Users can donate to Signal with a bank account. This is placeholder text for the name field before the user starts typing. */
+"SEPA_DONATION_NAME_PLACEHOLDER" = "Name on Bank Account";
+
 /* Description for the session refresh alert */
 "SESSION_REFRESH_ALERT_MESSAGE" = "يستخدم سيجنال تعمية النهاية-إلى-النهاية وقد يحتاج إلى إنعاش جلسة الدردشة الخاصة بك في بعض الأحيان. لا يُؤثر هذا على أمان الدردشة ولكن أنت رُبما تكون قد فوّتَ رسالة من جهة الاتصال هذه، يُمكِنُك سؤاله لإعادة إرسالها.";
 
 /* Title for the session refresh alert */
 "SESSION_REFRESH_ALERT_TITLE" = "تمَّ إنعاش جلسة الدردشة";
+
+/* If you send a message to a phone number, we might not know the owner of the account. When you later learn the owner of the account, we may show this message. The first parameter is a phone number; the second parameter is the contact's name. Put differently, this message indicates that a phone number belongs to a particular named recipient. */
+"SESSION_SWITCHOVER_EVENT" = "يعود الرقم %1$@ إلى %2$@";
 
 /* Title for the wallpaper choose from photos option */
 "SET_WALLPAPER_CHOOSE_PHOTO" = "الاختيار من الصور";
@@ -5721,6 +5919,21 @@
 
 /* No comment provided by engineer. */
 "SETTINGS_ADVANCED_VIEW_ERROR_LOG" = "سجلات الأخطاء";
+
+/* Information on sheet about changing the app icon - first line */
+"SETTINGS_APP_ICON_EDUCATION_APP_NAME" = "سيظهر اسم التطبيق \"سيجنال\" على الشاشة الرئيسية وفي الإشعارات ومكتبة التطبيقات.";
+
+/* Information on sheet about changing the app icon - second line */
+"SETTINGS_APP_ICON_EDUCATION_HOME_SCREEN_DOCK" = "يمكنك إخفاء اسم التطبيق \"سيجنال\" من الشاشة الرئيسية عبر نقل التطبيق إلى الرصيف في أسفل الصفحة الرئيسية.";
+
+/* The footer for the app icon selection settings page. */
+"SETTINGS_APP_ICON_FOOTER" = "سيظهر اسم التطبيق \"سيجنال\" على الشاشة الرئيسية وفي الإشعارات ومكتبة التطبيقات.";
+
+/* The title for the app icon selection settings page. */
+"SETTINGS_APP_ICON_TITLE" = "أيقونة التطبيق";
+
+/* The title for the app icon section in the appearance settings. */
+"SETTINGS_APPEARANCE_APP_ICON" = "أيقونة التطبيق";
 
 /* Footer for avatar section in appearance settings */
 "SETTINGS_APPEARANCE_AVATAR_FOOTER" = "عَرضُ صُوَرِ جِهَاتِ اِتِّصَالِ النِّظام إن كَانَت مُتَاحَة.";
@@ -5948,7 +6161,7 @@
 "SETTINGS_PAYMENTS_ACTIVATE_PAYMENTS_CONFIRM_AGREE" = "تفعيل";
 
 /* Description for the 'activate payments confirmation' UI in the payment settings. */
-"SETTINGS_PAYMENTS_ACTIVATE_PAYMENTS_CONFIRM_DESCRIPTION" = "يمكنك استخدام سيجنال لإرسال وتلقي MobileCoin. إن كل الدفوعات تخضع لشروط استخدام MobileCoin بما في ذلك محفظة MobileCoin. إن هذه الميزة تجريبية حاليا، لذا قد تحدث لك بعض المشاكل. كما أن الدفوعات وحسابك قد تصبحان عرضة للضياع، ولن يكون بالإمكان حينها استرجاعهما.";
+"SETTINGS_PAYMENTS_ACTIVATE_PAYMENTS_CONFIRM_DESCRIPTION" = "يُمكنك استخدام سيجنال لإرسال عملة MobileCoin والتوصل بها. تخضع كل عمليات الدفع لشروط استخدام MobileCoin ومحفظة MobileCoin. قد تُواجه بعض المشاكل وقد تُصبح الدفوعات أو حسابك عرضة للضياع فلن يكون بإمكانك استرجاعها.";
 
 /* Title for the 'activate payments confirmation' UI in the payment settings. */
 "SETTINGS_PAYMENTS_ACTIVATE_PAYMENTS_CONFIRM_TITLE" = "تفعيل";
@@ -6104,7 +6317,7 @@
 "SETTINGS_PAYMENTS_OPT_IN_REACTIVATE_BUTTON" = "إعادة تفعيل عمليات الدفع";
 
 /* Title for the 'payments opt-in' view in the app settings. */
-"SETTINGS_PAYMENTS_OPT_IN_TITLE" = "مقدمة حول الدفوعات (الإصدار التجريبي)";
+"SETTINGS_PAYMENTS_OPT_IN_TITLE" = "نقدم لكم عمليات الدفع";
 
 /* Button when discarding recovery phrase. */
 "SETTINGS_PAYMENTS_PASSPHRASE_DISCARD_CONFIRMATION_BUTTON" = "تَخَطَّ جملة الاستعادة";
@@ -6142,8 +6355,14 @@
 /* Label for the sender in the payment details view in the app settings. */
 "SETTINGS_PAYMENTS_PAYMENT_DETAILS_SENDER" = "مُرسَلَة بِواسِطَة";
 
+/* Label for the sender in the payment details view in the app settings when the status is 'Failed'. Followed by sender name. */
+"SETTINGS_PAYMENTS_PAYMENT_DETAILS_SENDER_ATTEMPTED" = "محاولة من طرف";
+
 /* Format for the sender info in the payment details view in the app settings. Embeds {{ %1$@ the name of the sender of the payment, %2$@ the date the transaction was sent }}. */
 "SETTINGS_PAYMENTS_PAYMENT_DETAILS_SENDER_FORMAT" = "%1$@ بتاريخ %2$@";
+
+/* Format for indicator that you sent a payment in the payment details view in the app settings. Embeds: {{ the user who you sent the payment to }}. */
+"SETTINGS_PAYMENTS_PAYMENT_DETAILS_SENDING_FORMAT" = "يجري الإرسال إلى %1$@";
 
 /* Indicates that you sent a payment in the payment details view in the app settings. */
 "SETTINGS_PAYMENTS_PAYMENT_DETAILS_SENT" = "تمّ الارسال";
@@ -6413,7 +6632,7 @@
 "SETTINGS_PAYMENTS_VIEW_RECOVERY_PASSPHRASE" = "جملة الاستعادة";
 
 /* Title for the 'payments settings' view in the app settings. */
-"SETTINGS_PAYMENTS_VIEW_TITLE" = "المدفوعات (تجريبي)";
+"SETTINGS_PAYMENTS_VIEW_TITLE" = "عمليات الدفع";
 
 /* Label for the payments wallet address. */
 "SETTINGS_PAYMENTS_WALLET_ADDRESS_LABEL" = "عنوان محفظتك";
@@ -6645,6 +6864,12 @@
 
 /* Title for the captcha view controller */
 "SPAM_CAPTCHA_VIEW_CONTROLLER" = "إتمام التَحَقُق";
+
+/* The name for the sticker category 'Featured' */
+"STICKER_CATEGORY_FEATURED_NAME" = "موصى به";
+
+/* The name for the sticker category 'Recents' */
+"STICKER_CATEGORY_RECENTS_NAME" = "مؤخراً";
 
 /* Preview text shown in notifications and conversation list for sticker messages. */
 "STICKER_MESSAGE_PREVIEW" = "رسالة مُلصق";
@@ -6904,6 +7129,9 @@
 /* Text indicating that the story send has failed */
 "STORY_SEND_FAILED" = "فشل الإرسال";
 
+/* Body for notification shown when a story fails to send. */
+"STORY_SEND_FAILED_NOTIFICATION_BODY" = "❗️تعذّر إرسال القصة";
+
 /* Text indicating that you can tap to retry sending */
 "STORY_SEND_FAILED_RETRY" = "انقر لإعادة المحاولة";
 
@@ -7039,38 +7267,26 @@
 /* Confirm Cancellation? Action sheet title */
 "SUSTAINER_VIEW_CANCEL_SUBSCRIPTION_CONFIRMATION_TITLE" = "تأكيد الإلغاء؟";
 
-/* Couldn't add badge text, embeds {{link to contact support}} */
-"SUSTAINER_VIEW_CANT_ADD_BADGE" = "تعذّر إضافة الشارة. %1$@";
-
 /* Action sheet message for Couldn't Add Badge sheet */
 "SUSTAINER_VIEW_CANT_ADD_BADGE_MESSAGE" = "تعذّر إضافة شارتك إلى حسابك. يُرجى التواصل مع الدعم.";
 
 /* Action sheet title for Couldn't Add Badge sheet */
 "SUSTAINER_VIEW_CANT_ADD_BADGE_TITLE" = "تعذّر إضافة الشارة";
 
-/* Contact support link */
-"SUSTAINER_VIEW_CONTACT_SUPPORT" = "يُرجى الاتصال بفريق الدعم.";
-
 /* Action sheet title for Error Processing Payment sheet */
-"SUSTAINER_VIEW_ERROR_PROCESSING_PAYMENT_TITLE" = "حدث خطأ أثناء إجراء عملية الدفع";
-
-/* Payment error occurred text, embeds {{link to contact support}} */
-"SUSTAINER_VIEW_PAYMENT_ERROR" = "حدث خطأ أثناء معالجة عملية الدفع الخاصة بك. %1$@";
+"SUSTAINER_VIEW_ERROR_PROCESSING_PAYMENT_TITLE" = "Error Processing Donation";
 
 /* Pricing text for sustainer view badges, embeds {{price}} */
 "SUSTAINER_VIEW_PRICING" = "%1$@/شهر";
 
 /* Loading indicator on the sustainer view */
-"SUSTAINER_VIEW_PROCESSING_PAYMENT" = "جارٍ معالجة عملية الدفع…";
-
-/* Status text while processing a badge redemption */
-"SUSTAINER_VIEW_PROCESSING_TRANSACTION" = "جارٍ معالجة المعاملة…";
+"SUSTAINER_VIEW_PROCESSING_PAYMENT" = "Processing donation...";
 
 /* Renewal date text for sustainer view level, embeds {{renewal date}} */
 "SUSTAINER_VIEW_RENEWAL" = "يتجدد %1$@";
 
 /* Action sheet message for Still Processing Badge sheet */
-"SUSTAINER_VIEW_STILL_PROCESSING_BADGE_MESSAGE" = "ما زالت عملية الدفع الخاصة بك قيد المعالجة. قد يستغرق الأمر بضع دقائق وفقاً لاتصال شبكتك.";
+"SUSTAINER_VIEW_STILL_PROCESSING_BADGE_MESSAGE" = "Your donation is still being processed. This can take a few minutes depending on your connection.";
 
 /* Toast indicating that the subscription has been cancelled */
 "SUSTAINER_VIEW_SUBSCRIPTION_CANCELLED" = "تمّ إلغاء اشتراكك";
@@ -7138,6 +7354,9 @@
 /* Option in selected text edit menu to make text strikethrough */
 "TEXT_MENU_STRIKETHROUGH" = "تنسيق يتوسطه خط";
 
+/* Option in selected text edit menu to translate the word */
+"TEXT_MENU_TRANSLATE" = "ترجمة";
+
 /* text indicating the message was remotely deleted */
 "THIS_MESSAGE_WAS_DELETED" = "تمَّ حذف هذه الرسالة.";
 
@@ -7158,6 +7377,15 @@
 
 /* A string indicating two mutual groups the user shares with this contact. Embeds {{mutual group name}} */
 "THREAD_DETAILS_TWO_MUTUAL_GROUP" = "عضو في %1$@ و %2$@";
+
+/* Shown after tapping a 'Learn More' button when multiple conversations for the same person have been merged into one. The first parameter is a phone number (eg +1 650-555-0100) and the second parameter is a name (eg John). */
+"THREAD_MERGE_LEARN_MORE" = "بعد تبادل الرسائل مع %1$@، أدركت أن هذا الرقم يعود إلى %2$@. رقم هاتفه خاص.\n\nتم دمج سِجل رسائلك للدردشتين معًا.";
+
+/* A system event shown in a conversation when multiple conversations for the same person have been merged into one. The parameter is replaced with the contact's name (eg John Doe). */
+"THREAD_MERGE_NO_PHONE_NUMBER" = "تمّ دمج سِجّل رسائلك مع %1$@ ودردشة أخرى تخصه.";
+
+/* A system event shown in a conversation when multiple conversations for the same person have been merged into one. The parameters are replaced with the contact's name (eg John Doe) and their phone number (eg +1 650 555 0100). */
+"THREAD_MERGE_PHONE_NUMBER" = "تمّ دمج سِجّل رسائلك مع %1$@ ورقمه %2$@.";
 
 /* {{number of days}} embedded in strings, e.g. 'Alice updated disappearing messages expiration to {{5 days}}'. See other *_TIME_AMOUNT strings */
 "TIME_AMOUNT_DAYS" = "%1$@ أيام";
@@ -7200,6 +7428,18 @@
 
 /* Label text below navbar button, embeds {{number of weeks}}. Must be very short, like 1 or 2 characters, The space is intentionally omitted between the text and the embedded duration so that we get, e.g. '5w' not '5 w'. See other *_TIME_AMOUNT strings */
 "TIME_AMOUNT_WEEKS_SHORT_FORMAT" = "%1$@أ";
+
+/* Button for bottom sheet shown when device transfer completes on the receiving device. Tapping will terminate the Signal app and trigger a notification to relaunch. */
+"TRANSFER_COMPLETE_SHEET_BUTTON" = "أغلق سيجنال";
+
+/* Subtitle for bottom sheet shown when device transfer completes on the receiving device. */
+"TRANSFER_COMPLETE_SHEET_SUBTITLE" = "لبدء استخدام حسابك على هذا الجهاز، أغلق سيجنال وافتحه من جديد.";
+
+/* Title for bottom sheet shown when device transfer completes on the receiving device. */
+"TRANSFER_COMPLETE_SHEET_TITLE" = "انتهى النقل";
+
+/* Notification prompting the user to relaunch Signal after a device transfer completed. */
+"TRANSFER_RELAUNCH_NOTIFICATION" = "افتح سيجنال للبدء في المراسلة";
 
 /* Label for the cancel button in an alert or action sheet. */
 "TXT_CANCEL_TITLE" = "إلغاء";
@@ -7439,13 +7679,16 @@
 "VERIFY_PRIVACY_MULTIPLE" = "مُراجعة أرقام الأمان";
 
 /* Instructions for verifying your safety number. Embeds {{contact's name}} */
-"VERIFY_SAFETY_NUMBER_INSTRUCTIONS" = "للتحقّق من أمان تعميتك من الطرف للطرف مع %1$@، يُرجى مطابقة لون البطاقة أعلاه مع جهازه ومقارنة الأرقام. إذا فشل تطابقهما، يُرجى السحب لتجربة زوج آخر من أرقام الأمان. ستحتاج إلى تطابق زوج واحد فقط.";
+"VERIFY_SAFETY_NUMBER_INSTRUCTIONS" = "To verify end-to-end encryption with %1$@, compare the numbers above with their device. You can also scan the code on their device.";
 
 /* Toast alert text shown when tapping on a video that cannot be played. */
 "VIDEO_BROKEN" = "تعذّر تشغيل هذا الفيديو";
 
 /* Accessibility label for placing a video call */
 "VIDEO_CALL_LABEL" = "مُكالمة فيديو";
+
+/* Button label for the 'View Contact' button */
+"VIEW_CONTACT_BUTTON" = "عرض جهات الاتصال";
 
 /* Toast alert text shown when tapping on a view-once message that has already been viewed. */
 "VIEW_ONCE_ALREADY_VIEWED_TOAST" = "أنتَ بالفعل قد شاهدتَ هذه الرسالة.";

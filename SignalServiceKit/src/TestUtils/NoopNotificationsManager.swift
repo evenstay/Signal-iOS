@@ -4,7 +4,7 @@
 //
 
 @objc
-public class NoopNotificationsManager: NSObject, NotificationsProtocol {
+public class NoopNotificationsManager: NSObject, NotificationsProtocolSwift {
     public var expectErrors: Bool = false
 
     public func notifyUser(forIncomingMessage incomingMessage: TSIncomingMessage,
@@ -49,14 +49,21 @@ public class NoopNotificationsManager: NSObject, NotificationsProtocol {
         Logger.warn("skipping notification for: \(previewableInteraction.description)")
     }
 
-    public func notifyUser(forThreadlessErrorMessage errorMessage: ThreadlessErrorMessage,
-                           transaction: SDSAnyWriteTransaction) {
-        Logger.warn("skipping notification for: \(errorMessage.description)")
-    }
-
     public func notifyTestPopulation(ofErrorMessage errorString: String) {
         owsAssertDebug(expectErrors, "Internal error message: \(errorString)")
         Logger.warn("Skipping internal error notification: \(errorString)")
+    }
+
+    public func notifyUser(forFailedStorySend storyMessage: StoryMessage, to thread: TSThread, transaction: SDSAnyWriteTransaction) {
+        Logger.warn("skipping failed story send notification")
+    }
+
+    public func notifyUserToRelaunchAfterTransfer(completion: (() -> Void)? = nil) {
+        Logger.warn("skipping transfer relaunch notification")
+    }
+
+    public func notifyUserOfDeregistration(tx: DBWriteTransaction) {
+        Logger.warn("skipping deregistration notification")
     }
 
     public func notifyUserOfDeregistration(transaction: SDSAnyWriteTransaction) {
@@ -81,5 +88,9 @@ public class NoopNotificationsManager: NSObject, NotificationsProtocol {
 
     public func cancelNotificationsForMissedCalls(threadUniqueId: String) {
         Logger.warn("cancelNotificationsForMissedCalls for threadId: \(threadUniqueId)")
+    }
+
+    public func cancelNotifications(for storyMessage: StoryMessage) {
+        Logger.warn("cancelNotifications(for storyMessage:) \(storyMessage.uniqueId)")
     }
 }

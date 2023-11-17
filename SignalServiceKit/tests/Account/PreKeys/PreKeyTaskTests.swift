@@ -12,8 +12,9 @@ final class PreKeyTaskTests: XCTestCase {
 
     private var testSchedulers: TestSchedulers!
 
-    private var mockAccountManager: PreKey.Operation.Mocks.AccountManager!
+    private var mockTSAccountManager: MockTSAccountManager!
     private var mockIdentityManager: PreKey.Operation.Mocks.IdentityManager!
+    private var mockLinkedDevicePniKeyManager: PreKey.Operation.Mocks.LinkedDevicePniKeyManager!
     private var mockServiceClient: PreKey.Operation.Mocks.AccountServiceClient!
     private var mockDateProvider: PreKey.Operation.Mocks.DateProvider!
     private var context: PreKeyTasks.Context!
@@ -25,10 +26,11 @@ final class PreKeyTaskTests: XCTestCase {
     override func setUp() {
         super.setUp()
         testSchedulers = TestSchedulers(scheduler: TestScheduler())
-        mockAccountManager = .init()
-        mockServiceClient = .init()
-        mockDateProvider = .init()
+        mockTSAccountManager = .init()
         mockIdentityManager = .init()
+        mockLinkedDevicePniKeyManager = .init()
+        mockServiceClient = .init(schedulers: testSchedulers)
+        mockDateProvider = .init()
 
         mockAciProtocolStore = .init()
         mockPniProtocolStore = .init()
@@ -38,15 +40,20 @@ final class PreKeyTaskTests: XCTestCase {
         )
 
         context = PreKeyTasks.Context(
-            accountManager: mockAccountManager,
             dateProvider: mockDateProvider.targetDate,
             db: MockDB(schedulers: testSchedulers),
             identityManager: mockIdentityManager,
+            linkedDevicePniKeyManager: mockLinkedDevicePniKeyManager,
             messageProcessor: PreKey.Operation.Mocks.MessageProcessor(),
             protocolStoreManager: mockProtocolStoreManager,
             schedulers: testSchedulers,
-            serviceClient: mockServiceClient
+            serviceClient: mockServiceClient,
+            tsAccountManager: mockTSAccountManager
         )
+    }
+
+    override func tearDown() {
+        mockServiceClient.setPreKeysResult.ensureUnset()
     }
 
     //
@@ -56,6 +63,8 @@ final class PreKeyTaskTests: XCTestCase {
     //
 
     func testCreateAll() {
+        mockServiceClient.setPreKeysResult = .value(())
+
         let task = PreKeyTasks.PreKeyTask(
             action: .legacy_create(identity: .aci, targets: .all),
             auth: .implicit(),
@@ -78,6 +87,8 @@ final class PreKeyTaskTests: XCTestCase {
     }
 
     func testCreateSignedPreKeyOnly() {
+        mockServiceClient.setPreKeysResult = .value(())
+
         let task = PreKeyTasks.PreKeyTask(
             action: .legacy_create(identity: .aci, targets: .signedPreKey),
             auth: .implicit(),
@@ -104,6 +115,8 @@ final class PreKeyTaskTests: XCTestCase {
     }
 
     func testCreatePreKeyOnly() {
+        mockServiceClient.setPreKeysResult = .value(())
+
         let task = PreKeyTasks.PreKeyTask(
             action: .legacy_create(identity: .aci, targets: .oneTimePreKey),
             auth: .implicit(),
@@ -133,7 +146,9 @@ final class PreKeyTaskTests: XCTestCase {
     // Test that the IdentityMananger keypair makes it through to the
     // service client
     func testMockPreKeyTaskCreateWithExistingIdentityKey() {
-        mockIdentityManager.aciKeyPair = Curve25519.generateKeyPair()
+        mockIdentityManager.aciKeyPair = ECKeyPair.generateKeyPair()
+        mockServiceClient.setPreKeysResult = .value(())
+
         let task = PreKeyTasks.PreKeyTask(
             action: .legacy_create(identity: .aci, targets: .all),
             auth: .implicit(),
@@ -146,7 +161,7 @@ final class PreKeyTaskTests: XCTestCase {
         testSchedulers.scheduler.start()
 
         XCTAssertEqual(mockServiceClient.preKeyRecords?.count, 100)
-        XCTAssertEqual(mockServiceClient.identityKey, mockIdentityManager.aciKeyPair!.publicKey)
+        XCTAssertEqual(mockServiceClient.identityKey, mockIdentityManager.aciKeyPair!.keyPair.identityKey)
         XCTAssertNotNil(mockServiceClient.signedPreKeyRecord)
         XCTAssertNotNil(mockServiceClient.pqPreKeyRecords)
         XCTAssertEqual(mockServiceClient.pqPreKeyRecords?.count, 100)
@@ -154,7 +169,9 @@ final class PreKeyTaskTests: XCTestCase {
     }
 
     func testMockCreateSignedPreKeyWithExisting() {
-        mockIdentityManager.aciKeyPair = Curve25519.generateKeyPair()
+        mockIdentityManager.aciKeyPair = ECKeyPair.generateKeyPair()
+        mockServiceClient.setPreKeysResult = .value(())
+
         let task = PreKeyTasks.PreKeyTask(
             action: .legacy_create(identity: .aci, targets: .signedPreKey),
             auth: .implicit(),
@@ -176,7 +193,9 @@ final class PreKeyTaskTests: XCTestCase {
     }
 
     func testMockCreatePreKeyOnlyWithExisting() {
-        mockIdentityManager.aciKeyPair = Curve25519.generateKeyPair()
+        mockIdentityManager.aciKeyPair = ECKeyPair.generateKeyPair()
+        mockServiceClient.setPreKeysResult = .value(())
+
         let task = PreKeyTasks.PreKeyTask(
             action: .legacy_create(identity: .aci, targets: .oneTimePreKey),
             auth: .implicit(),
@@ -197,6 +216,8 @@ final class PreKeyTaskTests: XCTestCase {
     }
 
     func testCreatePqKeysOnly() {
+        mockServiceClient.setPreKeysResult = .value(())
+
         let task = PreKeyTasks.PreKeyTask(
             action: .legacy_create(identity: .aci, targets: [.lastResortPqPreKey, .oneTimePqPreKey]),
             auth: .implicit(),
@@ -245,11 +266,15 @@ final class PreKeyTaskTests: XCTestCase {
     //
 
     func testMockPreKeyTaskUpdate() {
-        let aciKeyPair = Curve25519.generateKeyPair()
+        let aciKeyPair = ECKeyPair.generateKeyPair()
         mockIdentityManager.aciKeyPair = aciKeyPair
 
         let originalSignedPreKey = mockAciProtocolStore.mockSignedPreKeyStore.generateRandomSignedRecord()
         mockAciProtocolStore.mockSignedPreKeyStore.setCurrentSignedPreKey(originalSignedPreKey)
+
+        mockServiceClient.setPreKeysResult = .value(())
+        mockServiceClient.currentPreKeyCount = 0
+        mockServiceClient.currentPqPreKeyCount = 0
 
         mockDateProvider.currentDate = Date(timeIntervalSinceNow: PreKeyTasks.Constants.SignedPreKeyRotationTime + 1)
         let task = PreKeyTasks.PreKeyTask(
@@ -273,7 +298,9 @@ final class PreKeyTaskTests: XCTestCase {
     }
 
     func testMockPreKeyTaskNoUpdate() {
-        mockIdentityManager.aciKeyPair = Curve25519.generateKeyPair()
+        mockIdentityManager.aciKeyPair = ECKeyPair.generateKeyPair()
+        mockServiceClient.setPreKeysResult = .value(())
+
         let task = PreKeyTasks.PreKeyTask(
             action: .refresh(identity: .aci, targets: .all),
             auth: .implicit(),
@@ -283,6 +310,7 @@ final class PreKeyTaskTests: XCTestCase {
         _ = mockAciProtocolStore.mockPreKeyStore.generatePreKeyRecords()
 
         mockServiceClient.currentPreKeyCount = 50
+        mockServiceClient.currentPqPreKeyCount = 0
         XCTAssertEqual(mockAciProtocolStore.mockPreKeyStore.records.count, 100)
         XCTAssertEqual(mockAciProtocolStore.mockPreKeyStore.preKeyId, 100)
 
@@ -324,7 +352,9 @@ final class PreKeyTaskTests: XCTestCase {
     }
 
     func testMockUpdateSkipSignedPreKey() {
-        mockIdentityManager.aciKeyPair = Curve25519.generateKeyPair()
+        mockIdentityManager.aciKeyPair = ECKeyPair.generateKeyPair()
+        mockServiceClient.setPreKeysResult = .value(())
+
         let task = PreKeyTasks.PreKeyTask(
             action: .refresh(identity: .aci, targets: .all),
             auth: .implicit(),
@@ -332,6 +362,7 @@ final class PreKeyTaskTests: XCTestCase {
         )
 
         mockServiceClient.currentPreKeyCount = 50
+        mockServiceClient.currentPqPreKeyCount = 0
         XCTAssertEqual(mockAciProtocolStore.mockPreKeyStore.records.count, 0)
 
         _ = task.runPreKeyTask()
@@ -349,7 +380,9 @@ final class PreKeyTaskTests: XCTestCase {
     //
 
     func testRefreshNoUpdatesNeeded() {
-        mockIdentityManager.aciKeyPair = Curve25519.generateKeyPair()
+        mockIdentityManager.aciKeyPair = ECKeyPair.generateKeyPair()
+        mockServiceClient.setPreKeysResult = .value(())
+
         let task = PreKeyTasks.PreKeyTask(
             action: .refresh(identity: .aci, targets: .all),
             auth: .implicit(),
@@ -357,6 +390,7 @@ final class PreKeyTaskTests: XCTestCase {
         )
 
         mockServiceClient.currentPreKeyCount = 100
+        mockServiceClient.currentPqPreKeyCount = 100
 
         let originalSignedPreKey = mockAciProtocolStore.signedPreKeyStore.generateSignedPreKey(signedBy: mockIdentityManager.aciKeyPair!)
         mockAciProtocolStore.mockSignedPreKeyStore.setCurrentSignedPreKey(originalSignedPreKey)
@@ -376,7 +410,9 @@ final class PreKeyTaskTests: XCTestCase {
     }
 
     func testForceRefreshAll() {
-        mockIdentityManager.aciKeyPair = Curve25519.generateKeyPair()
+        mockIdentityManager.aciKeyPair = ECKeyPair.generateKeyPair()
+        mockServiceClient.setPreKeysResult = .value(())
+
         let task = PreKeyTasks.PreKeyTask(
             action: .rotate(identity: .aci, targets: .all),
             auth: .implicit(),
@@ -403,7 +439,9 @@ final class PreKeyTaskTests: XCTestCase {
     }
 
     func testForceRefreshOnlyPreKeys() {
-        mockIdentityManager.aciKeyPair = Curve25519.generateKeyPair()
+        mockIdentityManager.aciKeyPair = ECKeyPair.generateKeyPair()
+        mockServiceClient.setPreKeysResult = .value(())
+
         let task = PreKeyTasks.PreKeyTask(
             action: .rotate(identity: .aci, targets: .oneTimePreKey),
             auth: .implicit(),
@@ -430,6 +468,8 @@ final class PreKeyTaskTests: XCTestCase {
     //
 
     func testMockPreKeyTaskCreate() {
+        mockServiceClient.setPreKeysResult = .value(())
+
         let task = PreKeyTasks.PreKeyTask(
             action: .createOrRotatePniKeys(targets: .all),
             auth: .implicit(),
@@ -451,12 +491,37 @@ final class PreKeyTaskTests: XCTestCase {
         XCTAssertNotNil(mockServiceClient.signedPreKeyRecord)
     }
 
+    func test403WhileSettingKeysReportsSuspectedPniIdentityKeyIssue() {
+        mockIdentityManager.pniKeyPair = ECKeyPair.generateKeyPair()
+        mockServiceClient.setPreKeysResult = .error(OWSHTTPError.forServiceResponse(
+            requestUrl: URL(string: "https://example.com")!,
+            responseStatus: 403,
+            responseHeaders: OWSHttpHeaders(),
+            responseError: nil,
+            responseData: nil
+        ))
+
+        let task = PreKeyTasks.PreKeyTask(
+            action: .rotate(identity: .pni, targets: .all),
+            auth: .implicit(),
+            context: context
+        )
+
+        _ = task.runPreKeyTask()
+        testSchedulers.scheduler.start()
+
+        // Validate
+        XCTAssertTrue(mockLinkedDevicePniKeyManager.hasSuspectedIssue)
+    }
+
     //
     // Test validation
     //
 
     func testSignedPreKeyExpired() {
-        mockIdentityManager.aciKeyPair = Curve25519.generateKeyPair()
+        mockIdentityManager.aciKeyPair = ECKeyPair.generateKeyPair()
+        mockServiceClient.setPreKeysResult = .value(())
+
         let task = PreKeyTasks.PreKeyTask(
             action: .refresh(identity: .aci, targets: .signedPreKey),
             auth: .implicit(),
@@ -479,7 +544,9 @@ final class PreKeyTaskTests: XCTestCase {
     }
 
     func testRefreshOnlyPreKeysBasedOnCount() {
-        mockIdentityManager.aciKeyPair = Curve25519.generateKeyPair()
+        mockIdentityManager.aciKeyPair = ECKeyPair.generateKeyPair()
+        mockServiceClient.setPreKeysResult = .value(())
+
         let task = PreKeyTasks.PreKeyTask(
             action: .refresh(identity: .aci, targets: .oneTimePreKey),
             auth: .implicit(),
@@ -487,6 +554,7 @@ final class PreKeyTaskTests: XCTestCase {
         )
 
         mockServiceClient.currentPreKeyCount = 9
+        mockServiceClient.currentPqPreKeyCount = 0
         XCTAssertEqual(mockAciProtocolStore.mockPreKeyStore.records.count, 0)
 
         _ = task.runPreKeyTask()

@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import LibSignalClient
 import SignalMessaging
 import SignalRingRTC
 import SignalUI
@@ -169,7 +170,7 @@ class GroupCallLocalMemberView: GroupCallMemberView {
         // In full-screen mode the image is shown as part of the "Your camera is off" message.
         videoOffIndicatorImage.isHidden = noVideoView.isHidden || isFullScreen
 
-        guard let localAddress = tsAccountManager.localAddress else {
+        guard let localAddress = DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction?.aciAddress else {
             return owsFailDebug("missing local address")
         }
 
@@ -429,6 +430,6 @@ class GroupCallRemoteMemberView: GroupCallMemberView {
 
 extension RemoteDeviceState {
     var address: SignalServiceAddress {
-        return SignalServiceAddress(uuid: userId)
+        return SignalServiceAddress(Aci(fromUUID: userId))
     }
 }

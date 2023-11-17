@@ -3,12 +3,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import LibSignalClient
 import SignalCoreKit
 
 protocol ThreadStore {
+    func fetchThread(rowId threadRowId: Int64, tx: DBReadTransaction) -> TSThread?
     func fetchThread(uniqueId: String, tx: DBReadTransaction) -> TSThread?
-    func fetchContactThreads(serviceId: UntypedServiceId, tx: DBReadTransaction) -> [TSContactThread]
+    func fetchContactThreads(serviceId: ServiceId, tx: DBReadTransaction) -> [TSContactThread]
     func fetchContactThreads(phoneNumber: String, tx: DBReadTransaction) -> [TSContactThread]
     func removeThread(_ thread: TSThread, tx: DBWriteTransaction)
     func updateThread(_ thread: TSThread, tx: DBWriteTransaction)
@@ -26,22 +27,41 @@ extension ThreadStore {
         return groupThread
     }
 
-    func fetchThread(serviceId: UntypedServiceId, tx: DBReadTransaction) -> TSContactThread? {
-        return fetchContactThreads(serviceId: serviceId, tx: tx).first
+    /// Fetch a contact thread for the given recipient.
+    ///
+    /// There may be multiple threads for a given service ID, but there is only
+    /// one canonical thread for a recipient. This gets that thread.
+    ///
+    /// If you simply want a thread, and don't want to think about thread
+    /// merges, ACIs, PNIs, etc. – this is the method for you.
+    func fetchContactThread(recipient: SignalRecipient, tx: DBReadTransaction) -> TSContactThread? {
+        return UniqueRecipientObjectMerger.fetchAndExpunge(
+            for: recipient,
+            serviceIdField: \.contactUUID,
+            phoneNumberField: \.contactPhoneNumber,
+            uniqueIdField: \.uniqueId,
+            fetchObjectsForServiceId: { fetchContactThreads(serviceId: $0, tx: tx) },
+            fetchObjectsForPhoneNumber: { fetchContactThreads(phoneNumber: $0.stringValue, tx: tx) },
+            updateObject: { _ in }
+        ).first
     }
 }
 
 class ThreadStoreImpl: ThreadStore {
+    func fetchThread(rowId threadRowId: Int64, tx: DBReadTransaction) -> TSThread? {
+        return ThreadFinder().fetch(rowId: threadRowId, tx: SDSDB.shimOnlyBridge(tx))
+    }
+
     func fetchThread(uniqueId: String, tx: DBReadTransaction) -> TSThread? {
         TSThread.anyFetch(uniqueId: uniqueId, transaction: SDSDB.shimOnlyBridge(tx))
     }
 
-    func fetchContactThreads(serviceId: UntypedServiceId, tx: DBReadTransaction) -> [TSContactThread] {
-        AnyContactThreadFinder().contactThreads(for: serviceId, tx: SDSDB.shimOnlyBridge(tx))
+    func fetchContactThreads(serviceId: ServiceId, tx: DBReadTransaction) -> [TSContactThread] {
+        ContactThreadFinder().contactThreads(for: serviceId, tx: SDSDB.shimOnlyBridge(tx))
     }
 
     func fetchContactThreads(phoneNumber: String, tx: DBReadTransaction) -> [TSContactThread] {
-        AnyContactThreadFinder().contactThreads(for: phoneNumber, tx: SDSDB.shimOnlyBridge(tx))
+        ContactThreadFinder().contactThreads(for: phoneNumber, tx: SDSDB.shimOnlyBridge(tx))
     }
 
     func removeThread(_ thread: TSThread, tx: DBWriteTransaction) {
@@ -64,14 +84,39 @@ class ThreadStoreImpl: ThreadStore {
 #if TESTABLE_BUILD
 
 class MockThreadStore: ThreadStore {
-    var threads = [TSThread]()
+    private(set) var threads = [TSThread]()
+    var nextRowId: Int64 = 1
+
+    func insertThreads(_ threads: [TSThread]) {
+        threads.forEach { insertThread($0) }
+    }
+
+    func insertThread(_ thread: TSThread) {
+        thread.updateRowId(nextRowId)
+        threads.append(thread)
+        nextRowId += 1
+    }
+
+    func fetchThread(rowId threadRowId: Int64, tx: DBReadTransaction) -> TSThread? {
+        threads.first(where: { $0.sqliteRowId == threadRowId })
+    }
 
     func fetchThread(uniqueId: String, tx: DBReadTransaction) -> TSThread? {
         threads.first(where: { $0.uniqueId == uniqueId })
     }
 
-    func fetchContactThreads(serviceId: UntypedServiceId, tx: DBReadTransaction) -> [TSContactThread] {
-        threads.lazy.compactMap { $0 as? TSContactThread }.filter { UntypedServiceId(uuidString: $0.contactUUID) == serviceId }
+    func fetchContactThreads(serviceId: ServiceId, tx: DBReadTransaction) -> [TSContactThread] {
+        threads.lazy.compactMap { $0 as? TSContactThread }
+            .filter { contactThread in
+                guard
+                    let contactServiceIdString = contactThread.contactUUID,
+                    let contactServiceId = try? ServiceId.parseFrom(serviceIdString: contactServiceIdString)
+                else {
+                    return false
+                }
+
+                return contactServiceId == serviceId
+            }
     }
 
     func fetchContactThreads(phoneNumber: String, tx: DBReadTransaction) -> [TSContactThread] {

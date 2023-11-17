@@ -91,12 +91,9 @@ public class ThreadAssociatedData: NSObject, Codable, FetchableRecord, Persistab
     }
 
     @objc
-    public static func create(for threadUniqueId: String, warnIfPresent: Bool, transaction: SDSAnyWriteTransaction) {
+    public static func create(for threadUniqueId: String, transaction: SDSAnyWriteTransaction) {
         let threadAssociatedDataStore = DependenciesBridge.shared.threadAssociatedDataStore
         guard threadAssociatedDataStore.fetch(for: threadUniqueId, tx: transaction.asV2Write) == nil else {
-            if warnIfPresent {
-                owsFailDebug("Unexpectedly tried to create for a thread that already exists.")
-            }
             return
         }
         do {
@@ -268,13 +265,13 @@ public extension TSThread {
     }
 
     fileprivate func markAllAsRead(transaction: SDSAnyWriteTransaction) {
-        let hasPendingMessageRequest = hasPendingMessageRequest(transaction: transaction.unwrapGrdbRead)
+        let hasPendingMessageRequest = hasPendingMessageRequest(transaction: transaction)
         let circumstance: OWSReceiptCircumstance = hasPendingMessageRequest
             ? .onThisDeviceWhilePendingMessageRequest
             : .onThisDevice
 
         let finder = InteractionFinder(threadUniqueId: uniqueId)
-        var cursor = finder.fetchAllUnreadMessages(transaction: transaction.unwrapGrdbRead)
+        var cursor = finder.fetchAllUnreadMessages(transaction: transaction)
         do {
             while let message = try cursor.next() {
                 message.markAsRead(
@@ -290,6 +287,6 @@ public extension TSThread {
         }
 
         // Just to be defensive, we'll also check for unread messages.
-        owsAssertDebug(finder.unreadCount(transaction: transaction.unwrapGrdbRead) == 0)
+        owsAssertDebug(finder.unreadCount(transaction: transaction) == 0)
     }
 }

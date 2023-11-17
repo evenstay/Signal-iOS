@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import LibSignalClient
 
 public extension TSInfoMessage {
 
@@ -17,7 +18,7 @@ public extension TSInfoMessage {
 
         guard
             let newGroupModel,
-            let localIdentifiers = tsAccountManager.localIdentifiers(transaction: transaction)
+            let localIdentifiers = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: transaction.asV2Read)
         else {
             return GroupUpdateItemBuilderImpl(
                 contactsManager: GroupUpdateItemBuilderImpl.Wrappers.ContactsManager(contactsManager)
@@ -44,8 +45,8 @@ public extension TSInfoMessage {
             return nil
         }
 
-        guard let localIdentifiers = tsAccountManager.localIdentifiers(
-            transaction: transaction
+        guard let localIdentifiers = DependenciesBridge.shared.tsAccountManager.localIdentifiers(
+            tx: transaction.asV2Read
         ) else {
             owsFailDebug("Missing local identifiers!")
             return nil
@@ -67,6 +68,51 @@ public extension TSInfoMessage {
         }
 
         return updateDescription
+    }
+
+    @objc
+    func threadMergeDescription(tx: SDSAnyReadTransaction) -> String {
+        let displayName = contactThreadDisplayName(tx: tx)
+        if let phoneNumber = infoMessageUserInfo?[.threadMergePhoneNumber] as? String {
+            let formatString = OWSLocalizedString(
+                "THREAD_MERGE_PHONE_NUMBER",
+                comment: "A system event shown in a conversation when multiple conversations for the same person have been merged into one. The parameters are replaced with the contact's name (eg John Doe) and their phone number (eg +1 650 555 0100)."
+            )
+            let formattedPhoneNumber = PhoneNumber.bestEffortLocalizedPhoneNumber(withE164: phoneNumber)
+            return String(format: formatString, displayName, formattedPhoneNumber)
+        } else {
+            let formatString = OWSLocalizedString(
+                "THREAD_MERGE_NO_PHONE_NUMBER",
+                comment: "A system event shown in a conversation when multiple conversations for the same person have been merged into one. The parameter is replaced with the contact's name (eg John Doe)."
+            )
+            return String(format: formatString, displayName)
+        }
+    }
+
+    @objc
+    func sessionSwitchoverDescription(tx: SDSAnyReadTransaction) -> String {
+        if let phoneNumber = infoMessageUserInfo?[.sessionSwitchoverPhoneNumber] as? String {
+            let displayName = contactThreadDisplayName(tx: tx)
+            let formattedPhoneNumber = PhoneNumber.bestEffortLocalizedPhoneNumber(withE164: phoneNumber)
+            let formatString = OWSLocalizedString(
+                "SESSION_SWITCHOVER_EVENT",
+                comment: "If you send a message to a phone number, we might not know the owner of the account. When you later learn the owner of the account, we may show this message. The first parameter is a phone number; the second parameter is the contact's name. Put differently, this message indicates that a phone number belongs to a particular named recipient."
+            )
+            return String(format: formatString, formattedPhoneNumber, displayName)
+        } else {
+            let address = TSContactThread.contactAddress(fromThreadId: uniqueThreadId, transaction: tx)
+            return TSErrorMessage.safetyNumberChangeDescription(for: address, tx: tx)
+        }
+    }
+
+    private func contactThreadDisplayName(tx: SDSAnyReadTransaction) -> String {
+        let result: String? = {
+            guard let address = TSContactThread.contactAddress(fromThreadId: uniqueThreadId, transaction: tx) else {
+                return nil
+            }
+            return contactsManager.displayName(for: address, transaction: tx)
+        }()
+        return result ?? OWSLocalizedString("UNKNOWN_USER", comment: "Label indicating an unknown user.")
     }
 
     var profileChangeAddress: SignalServiceAddress? {
@@ -167,6 +213,125 @@ extension TSInfoMessage {
     }
 }
 
+// MARK: Payments
+
+extension TSInfoMessage {
+
+    private enum PaymentsInfoMessageType {
+        case incoming(from: Aci)
+        case outgoing(to: Aci)
+    }
+
+    private func paymentsActivationRequestType(transaction: SDSAnyReadTransaction) -> PaymentsInfoMessageType? {
+        guard
+            let paymentActivationRequestSenderAci,
+            let localAci = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: transaction.asV2Read)?.aci
+        else {
+            return nil
+        }
+        if paymentActivationRequestSenderAci == localAci {
+            guard let peerAci = TSContactThread.contactAddress(
+                fromThreadId: self.uniqueThreadId,
+                transaction: transaction
+            )?.aci else {
+                return nil
+            }
+            return .outgoing(to: peerAci)
+        } else {
+            return .incoming(from: paymentActivationRequestSenderAci)
+        }
+    }
+
+    private func paymentsActivatedType(transaction: SDSAnyReadTransaction) -> PaymentsInfoMessageType? {
+        guard
+            let paymentActivatedAci,
+            let localAci = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: transaction.asV2Read)?.aci
+        else {
+            return nil
+        }
+        if paymentActivatedAci == localAci {
+            guard let peerAci = TSContactThread.contactAddress(
+                fromThreadId: self.uniqueThreadId,
+                transaction: transaction
+            )?.aci else {
+                return nil
+            }
+            return .outgoing(to: peerAci)
+        } else {
+            return .incoming(from: paymentActivatedAci)
+        }
+    }
+
+    public func isIncomingPaymentsActivationRequest(_ tx: SDSAnyReadTransaction) -> Bool {
+        switch paymentsActivationRequestType(transaction: tx) {
+        case .none, .outgoing:
+            return false
+        case .incoming:
+            return true
+        }
+    }
+
+    public func isIncomingPaymentsActivated(_ tx: SDSAnyReadTransaction) -> Bool {
+        switch paymentsActivatedType(transaction: tx) {
+        case .none, .outgoing:
+            return false
+        case .incoming:
+            return true
+        }
+    }
+
+    @objc
+    func paymentsActivationRequestDescription(transaction: SDSAnyReadTransaction) -> String? {
+        let aci: Aci
+        let formatString: String
+        switch paymentsActivationRequestType(transaction: transaction) {
+        case .none:
+            return nil
+        case .incoming(let fromAci):
+            aci = fromAci
+            formatString = OWSLocalizedString(
+                "INFO_MESSAGE_PAYMENTS_ACTIVATION_REQUEST_RECEIVED",
+                comment: "Shown when a user receives a payment activation request. Embeds: {{ the user's name}}"
+            )
+        case .outgoing(let toAci):
+            aci = toAci
+            formatString = OWSLocalizedString(
+                "INFO_MESSAGE_PAYMENTS_ACTIVATION_REQUEST_SENT",
+                comment: "Shown when requesting a user activates payments. Embeds: {{ the user's name}}"
+            )
+        }
+
+        let name = contactsManager.displayName(
+            for: SignalServiceAddress(aci),
+            transaction: transaction
+        )
+        return String(format: formatString, name)
+    }
+
+    @objc
+    func paymentsActivatedDescription(transaction: SDSAnyReadTransaction) -> String? {
+        switch paymentsActivatedType(transaction: transaction) {
+        case .none:
+            return nil
+        case .outgoing:
+            return OWSLocalizedString(
+                "INFO_MESSAGE_PAYMENTS_ACTIVATED",
+                comment: "Shown when a user activates payments from a chat"
+            )
+        case .incoming(let aci):
+            let name = contactsManager.displayName(
+                for: SignalServiceAddress(aci),
+                transaction: transaction
+            )
+            let format = OWSLocalizedString(
+                "INFO_MESSAGE_PAYMENTS_ACTIVATION_REQUEST_FINISHED",
+                comment: "Shown when a user activates payments from a chat. Embeds: {{ the user's name}}"
+            )
+            return String(format: format, name)
+        }
+    }
+}
+
 // MARK: - InfoMessageUserInfo
 
 extension TSInfoMessage {
@@ -221,6 +386,20 @@ extension TSInfoMessage {
 
     fileprivate var profileChanges: ProfileChanges? {
         return infoMessageValue(forKey: .profileChanges)
+    }
+
+    fileprivate var paymentActivationRequestSenderAci: Aci? {
+        guard let raw: String = infoMessageValue(forKey: .paymentActivationRequestSenderAci) else {
+            return nil
+        }
+        return try? Aci.parseFrom(serviceIdString: raw)
+    }
+
+    fileprivate var paymentActivatedAci: Aci? {
+        guard let raw: String = infoMessageValue(forKey: .paymentActivatedAci) else {
+            return nil
+        }
+        return try? Aci.parseFrom(serviceIdString: raw)
     }
 }
 

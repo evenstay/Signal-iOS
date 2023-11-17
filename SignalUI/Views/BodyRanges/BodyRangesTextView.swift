@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
+import LibSignalClient
 import SignalMessaging
 
 public protocol BodyRangesTextViewDelegate: UITextViewDelegate {
@@ -87,13 +88,13 @@ open class BodyRangesTextView: OWSTextView, EditableMessageBodyDelegate {
         guard let mentionDelegate = mentionDelegate else {
             return owsFailDebug("Can't replace characters without delegate")
         }
-        guard let mentionUuid = mentionAddress.uuid else {
-            return owsFailDebug("Can't insert a mention without a uuid")
+        guard let mentionAci = mentionAddress.aci else {
+            return owsFailDebug("Can't insert a mention without an ACI")
         }
 
         let body = MessageBody(
             text: "@",
-            ranges: MessageBodyRanges(mentions: [NSRange(location: 0, length: 1): mentionUuid], styles: [])
+            ranges: MessageBodyRanges(mentions: [NSRange(location: 0, length: 1): mentionAci], styles: [])
         )
         let (hydrated, possibleAddresses) = DependenciesBridge.shared.db.read { tx in
             return (
@@ -105,7 +106,7 @@ open class BodyRangesTextView: OWSTextView, EditableMessageBodyDelegate {
 
         if possibleAddresses.contains(mentionAddress) {
             editableBody.beginEditing()
-            editableBody.replaceCharacters(in: range, withMentionUUID: mentionUuid, txProvider: DependenciesBridge.shared.db.readTxProvider)
+            editableBody.replaceCharacters(in: range, withMentionAci: mentionAci, txProvider: DependenciesBridge.shared.db.readTxProvider)
             editableBody.endEditing()
         } else {
             // If we shouldn't resolve the mention, insert the plaintext representation.
@@ -414,6 +415,11 @@ open class BodyRangesTextView: OWSTextView, EditableMessageBodyDelegate {
     @objc
     func customUIMenuPromptReplace(_ sender: Any?) { super.perform(uiMenuPromptReplaceAction, with: sender) }
 
+    private let uiMenuTranslateAction = Selector(("_translate:"))
+    private let customUIMenuTranslateAction = #selector(customUIMenuTranslate)
+    @objc
+    func customUIMenuTranslate(_ sender: Any?) { super.perform(uiMenuTranslateAction, with: sender) }
+
     private let uiMenuLookUpAction = Selector(("_define:"))
     private let customUIMenuLookUpAction = #selector(customUIMenuLookUp)
     @objc
@@ -477,6 +483,8 @@ open class BodyRangesTextView: OWSTextView, EditableMessageBodyDelegate {
             return super.canPerformAction(uiMenuLookUpAction, withSender: sender)
         case customUIMenuShareAction:
             return super.canPerformAction(uiMenuShareAction, withSender: sender)
+        case customUIMenuTranslateAction:
+            return true
 
         // The second stage of replace (picking the thing to replace with) is allowed.
         case uiMenuReplaceAction:
@@ -547,6 +555,13 @@ open class BodyRangesTextView: OWSTextView, EditableMessageBodyDelegate {
                             comment: "Option in selected text edit menu to look up word definitions"
                         ),
                         action: #selector(customUIMenuLookUp)
+                    ),
+                    UIMenuItem(
+                        title: OWSLocalizedString(
+                            "TEXT_MENU_TRANSLATE",
+                            comment: "Option in selected text edit menu to translate the word"
+                        ),
+                        action: #selector(customUIMenuTranslate)
                     ),
                     UIMenuItem(
                         title: OWSLocalizedString(
@@ -668,18 +683,18 @@ open class BodyRangesTextView: OWSTextView, EditableMessageBodyDelegate {
     }
 
     public func editableMessageBodyHydrator(tx: DBReadTransaction) -> MentionHydrator {
-        var possibleMentionUUIDs = Set<UUID>()
+        var possibleMentionAcis = Set<Aci>()
         mentionDelegate?.textViewMentionPickerPossibleAddresses(self, tx: tx).forEach {
-            if let uuid = $0.uuid {
-                possibleMentionUUIDs.insert(uuid)
+            if let aci = $0.aci {
+                possibleMentionAcis.insert(aci)
             }
         }
         let hydrator = ContactsMentionHydrator.mentionHydrator(transaction: tx)
-        return { uuid in
-            guard possibleMentionUUIDs.contains(uuid) else {
+        return { aci in
+            guard possibleMentionAcis.contains(aci) else {
                 return .preserveMention
             }
-            return hydrator(uuid)
+            return hydrator(aci)
         }
     }
 

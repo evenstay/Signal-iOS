@@ -29,7 +29,11 @@ typedef NS_CLOSED_ENUM(NSInteger, TSInfoMessageType) {
     TSInfoMessageSyncedThread,
     TSInfoMessageProfileUpdate,
     TSInfoMessagePhoneNumberChange,
-    TSInfoMessageContactHidden
+    TSInfoMessageRecipientHidden,
+    TSInfoMessagePaymentsActivationRequest,
+    TSInfoMessagePaymentsActivated,
+    TSInfoMessageThreadMerge,
+    TSInfoMessageSessionSwitchover,
 };
 
 typedef NSString *InfoMessageUserInfoKey NS_STRING_ENUM;
@@ -42,9 +46,13 @@ extern InfoMessageUserInfoKey const InfoMessageUserInfoKeyNewDisappearingMessage
 extern InfoMessageUserInfoKey const InfoMessageUserInfoKeyGroupUpdateSourceAddress;
 extern InfoMessageUserInfoKey const InfoMessageUserInfoKeyUpdaterKnownToBeLocalUser;
 extern InfoMessageUserInfoKey const InfoMessageUserInfoKeyProfileChanges;
-extern InfoMessageUserInfoKey const InfoMessageUserInfoKeyChangePhoneNumberUuid;
+extern InfoMessageUserInfoKey const InfoMessageUserInfoKeyChangePhoneNumberAciString;
 extern InfoMessageUserInfoKey const InfoMessageUserInfoKeyChangePhoneNumberOld;
 extern InfoMessageUserInfoKey const InfoMessageUserInfoKeyChangePhoneNumberNew;
+extern InfoMessageUserInfoKey const InfoMessageUserInfoKeyPaymentActivationRequestSenderAci;
+extern InfoMessageUserInfoKey const InfoMessageUserInfoKeyPaymentActivatedAci;
+extern InfoMessageUserInfoKey const InfoMessageUserInfoKeyThreadMergePhoneNumber;
+extern InfoMessageUserInfoKey const InfoMessageUserInfoKeySessionSwitchoverPhoneNumber;
 
 + (instancetype)userNotRegisteredMessageInThread:(TSThread *)thread address:(SignalServiceAddress *)address;
 
@@ -66,6 +74,7 @@ extern InfoMessageUserInfoKey const InfoMessageUserInfoKeyChangePhoneNumberNew;
                             body:(nullable NSString *)body
                       bodyRanges:(nullable MessageBodyRanges *)bodyRanges
                     contactShare:(nullable OWSContact *)contactShare
+                       editState:(TSEditState)editState
                  expireStartedAt:(uint64_t)expireStartedAt
                        expiresAt:(uint64_t)expiresAt
                 expiresInSeconds:(unsigned int)expiresInSeconds

@@ -24,15 +24,21 @@ class PhoneNumberChangedMessageInserter: RecipientMergeObserver {
         self.threadStore = threadStore
     }
 
-    func willBreakAssociation(aci: Aci, phoneNumber: E164, transaction: DBWriteTransaction) {}
+    func willBreakAssociation(for recipient: SignalRecipient, mightReplaceNonnilPhoneNumber: Bool, tx: DBWriteTransaction) {}
 
-    func didLearnAssociation(mergedRecipient: MergedRecipient, transaction tx: DBWriteTransaction) {
+    func didLearnAssociation(mergedRecipient: MergedRecipient, tx: DBWriteTransaction) {
         guard !mergedRecipient.isLocalRecipient else {
             // Don't insert change number messages when we change our own number.
             return
         }
-        guard let oldPhoneNumber = mergedRecipient.oldPhoneNumber else {
-            // Don't insert change number messages unless we've *changed* from an old number to a new number.
+        guard
+            let aci = mergedRecipient.newRecipient.aci,
+            let oldPhoneNumber = mergedRecipient.oldRecipient?.phoneNumber,
+            let newPhoneNumber = E164(mergedRecipient.newRecipient.phoneNumber),
+            oldPhoneNumber != newPhoneNumber.stringValue
+        else {
+            // Don't insert change number messages unless we've *changed* from an old
+            // number to a new number.
             return
         }
 
@@ -47,16 +53,16 @@ class PhoneNumberChangedMessageInserter: RecipientMergeObserver {
                 return
             }
             let infoMessage = TSInfoMessage(thread: thread, messageType: .phoneNumberChange, infoMessageUserInfo: [
-                .changePhoneNumberUuid: mergedRecipient.aci.serviceIdUppercaseString,
+                .changePhoneNumberAciString: aci.serviceIdUppercaseString,
                 .changePhoneNumberOld: oldPhoneNumber,
-                .changePhoneNumberNew: mergedRecipient.newPhoneNumber.stringValue
+                .changePhoneNumberNew: newPhoneNumber.stringValue
             ])
             infoMessage.wasRead = true
             interactionStore.insertInteraction(infoMessage, tx: tx)
         }
 
         // Only insert "change phone number" interactions for full members.
-        for threadId in groupMemberStore.groupThreadIds(withFullMember: mergedRecipient.aci.untypedServiceId, tx: tx) {
+        for threadId in groupMemberStore.groupThreadIds(withFullMember: aci, tx: tx) {
             guard let thread = threadStore.fetchGroupThread(uniqueId: threadId, tx: tx) else {
                 continue
             }
@@ -64,7 +70,7 @@ class PhoneNumberChangedMessageInserter: RecipientMergeObserver {
         }
 
         // Only insert "change phone number" interaction in 1:1 thread if it already exists.
-        if let thread = threadStore.fetchThread(serviceId: mergedRecipient.aci.untypedServiceId, tx: tx) {
+        if let thread = threadStore.fetchContactThread(recipient: mergedRecipient.newRecipient, tx: tx) {
             insertChangeMessage(thread: thread)
         }
     }

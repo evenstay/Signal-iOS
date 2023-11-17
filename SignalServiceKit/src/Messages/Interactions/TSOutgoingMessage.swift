@@ -5,6 +5,7 @@
 
 import Foundation
 import LibSignalClient
+import SignalCoreKit
 
 // Every time we add a new property to TSOutgoingMessage, we should:
 //
@@ -42,7 +43,7 @@ public class TSOutgoingMessageBuilder: TSMessageBuilder {
                          changeActionsProtoData: Data? = nil,
                          additionalRecipients: [SignalServiceAddress]? = nil,
                          skippedRecipients: Set<SignalServiceAddress>? = nil,
-                         storyAuthorAddress: SignalServiceAddress? = nil,
+                         storyAuthorAci: Aci? = nil,
                          storyTimestamp: UInt64? = nil,
                          storyReactionEmoji: String? = nil,
                          giftBadge: OWSGiftBadge? = nil
@@ -61,7 +62,7 @@ public class TSOutgoingMessageBuilder: TSMessageBuilder {
                    linkPreview: linkPreview,
                    messageSticker: messageSticker,
                    isViewOnceMessage: isViewOnceMessage,
-                   storyAuthorAddress: storyAuthorAddress,
+                   storyAuthorAci: storyAuthorAci.map { AciObjC($0) },
                    storyTimestamp: storyTimestamp,
                    storyReactionEmoji: storyReactionEmoji,
                    giftBadge: giftBadge)
@@ -106,7 +107,7 @@ public class TSOutgoingMessageBuilder: TSMessageBuilder {
                               changeActionsProtoData: Data?,
                               additionalRecipients: [SignalServiceAddress]?,
                               skippedRecipients: Set<SignalServiceAddress>?,
-                              storyAuthorAddress: SignalServiceAddress?,
+                              storyAuthorAci: AciObjC?,
                               storyTimestamp: NSNumber?,
                               storyReactionEmoji: String?,
                               giftBadge: OWSGiftBadge?) -> TSOutgoingMessageBuilder {
@@ -127,7 +128,7 @@ public class TSOutgoingMessageBuilder: TSMessageBuilder {
                                         changeActionsProtoData: changeActionsProtoData,
                                         additionalRecipients: additionalRecipients,
                                         skippedRecipients: skippedRecipients,
-                                        storyAuthorAddress: storyAuthorAddress,
+                                        storyAuthorAci: storyAuthorAci?.wrappedAciValue,
                                         storyTimestamp: storyTimestamp?.uint64Value,
                                         storyReactionEmoji: storyReactionEmoji,
                                         giftBadge: giftBadge)
@@ -179,25 +180,28 @@ public extension TSOutgoingMessage {
     }
 
     @objc(buildPniSignatureMessageIfNeededWithTransaction:)
-    func buildPniSignatureMessageIfNeeded(transaction: SDSAnyReadTransaction) -> SSKProtoPniSignatureMessage? {
+    func buildPniSignatureMessageIfNeeded(transaction tx: SDSAnyReadTransaction) -> SSKProtoPniSignatureMessage? {
         guard recipientAddressStates?.count == 1 else {
             // This is probably a group message, nothing to be alarmed about.
             return nil
         }
-        guard identityManager.shouldSharePhoneNumber(with: recipientAddressStates!.keys.first!,
-                                                     transaction: transaction) else {
+        guard let recipientServiceId = recipientAddressStates!.keys.first!.serviceId else {
+            return nil
+        }
+        let identityManager = DependenciesBridge.shared.identityManager
+        guard identityManager.shouldSharePhoneNumber(with: recipientServiceId, tx: tx.asV2Read) else {
             // No PNI signature needed.
             return nil
         }
-        guard let pni = tsAccountManager.localPni else {
+        guard let pni = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: tx.asV2Read)?.pni else {
             owsFailDebug("missing PNI")
             return nil
         }
-        guard let pniIdentityKeyPair = identityManager.identityKeyPair(for: .pni, transaction: transaction) else {
+        guard let pniIdentityKeyPair = identityManager.identityKeyPair(for: .pni, tx: tx.asV2Read) else {
             owsFailDebug("missing PNI identity key")
             return nil
         }
-        guard let aciIdentityKeyPair = identityManager.identityKeyPair(for: .aci, transaction: transaction) else {
+        guard let aciIdentityKeyPair = identityManager.identityKeyPair(for: .aci, tx: tx.asV2Read) else {
             owsFailDebug("missing ACI identity key")
             return nil
         }
@@ -206,25 +210,18 @@ public extension TSOutgoingMessage {
             aciIdentityKeyPair.identityKeyPair.identityKey)
 
         let builder = SSKProtoPniSignatureMessage.builder()
-        builder.setPni(pni.data)
+        builder.setPni(pni.rawUUID.data)
         builder.setSignature(Data(signature))
-
-        do {
-            return try builder.build()
-        } catch {
-            owsFailDebug("failed to build protobuf: \(error)")
-            return nil
-        }
+        return builder.buildInfallibly()
     }
 
-    @objc(maybeClearShouldSharePhoneNumberForRecipient:recipientDeviceId:transaction:)
-    func maybeClearShouldSharePhoneNumber(
+    fileprivate func maybeClearShouldSharePhoneNumber(
         for recipientAddress: SignalServiceAddress,
         recipientDeviceId deviceId: UInt32,
         transaction: SDSAnyWriteTransaction
     ) {
-        guard let serviceId = recipientAddress.untypedServiceId else {
-            // We can't be sharing our phone number b/c there's no ServiceId.
+        guard let aci = recipientAddress.serviceId as? Aci else {
+            // We can't be sharing our phone number b/c there's no ACI.
             return
         }
 
@@ -234,14 +231,15 @@ public extension TSOutgoingMessage {
             return
         }
 
-        guard identityManager.shouldSharePhoneNumber(with: recipientAddress, transaction: transaction) else {
+        let identityManager = DependenciesBridge.shared.identityManager
+        guard identityManager.shouldSharePhoneNumber(with: aci, tx: transaction.asV2Read) else {
             // Not currently sharing anyway!
             return
         }
 
         let messageSendLog = SSKEnvironment.shared.messageSendLogRef
         let messagePayload = messageSendLog.fetchPayload(
-            recipientServiceId: serviceId,
+            recipientAci: aci,
             recipientDeviceId: deviceId,
             timestamp: timestamp,
             tx: transaction
@@ -253,7 +251,7 @@ public extension TSOutgoingMessage {
 
         let deviceIdsPendingDelivery = messageSendLog.deviceIdsPendingDelivery(
             for: payloadId,
-            recipientServiceId: serviceId,
+            recipientAci: aci,
             tx: transaction
         )
         guard let deviceIdsPendingDelivery, deviceIdsPendingDelivery == [deviceId] else {
@@ -267,18 +265,111 @@ public extension TSOutgoingMessage {
             return
         }
 
-        guard let currentPni = tsAccountManager.localPni else {
+        guard let currentPni = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: transaction.asV2Read)?.pni else {
             owsFailDebug("missing local PNI")
             return
         }
 
-        if messagePniData == currentPni.data {
-            identityManager.clearShouldSharePhoneNumber(with: recipientAddress, transaction: transaction)
+        if messagePniData == currentPni.rawUUID.data {
+            identityManager.clearShouldSharePhoneNumber(with: aci, tx: transaction.asV2Write)
         }
     }
 }
 
-// MARK: Sender Key + Message Send Log
+// MARK: - Receipts
+
+extension TSOutgoingMessage {
+    public func update(
+        withDeliveredRecipient recipientAddress: SignalServiceAddress,
+        deviceId: UInt32,
+        deliveryTimestamp timestamp: UInt64,
+        context: DeliveryReceiptContext,
+        tx: SDSAnyWriteTransaction
+    ) {
+        handleReceipt(
+            from: recipientAddress,
+            deviceId: deviceId,
+            type: \.deliveryTimestamp,
+            timestamp: timestamp,
+            tryToClearPhoneNumberSharing: true,
+            tx: tx
+        )
+    }
+
+    public func update(
+        withReadRecipient recipientAddress: SignalServiceAddress,
+        deviceId: UInt32,
+        readTimestamp timestamp: UInt64,
+        tx: SDSAnyWriteTransaction
+    ) {
+        handleReceipt(from: recipientAddress, deviceId: deviceId, type: \.readTimestamp, timestamp: timestamp, tx: tx)
+    }
+
+    public func update(
+        withViewedRecipient recipientAddress: SignalServiceAddress,
+        deviceId: UInt32,
+        viewedTimestamp timestamp: UInt64,
+        tx: SDSAnyWriteTransaction
+    ) {
+        handleReceipt(from: recipientAddress, deviceId: deviceId, type: \.viewedTimestamp, timestamp: timestamp, tx: tx)
+    }
+
+    private func handleReceipt(
+        from recipientAddress: SignalServiceAddress,
+        deviceId: UInt32,
+        type timestampProperty: ReferenceWritableKeyPath<TSOutgoingMessageRecipientState, NSNumber?>,
+        timestamp: UInt64,
+        tryToClearPhoneNumberSharing: Bool = false,
+        tx: SDSAnyWriteTransaction
+    ) {
+        owsAssertDebug(recipientAddress.isValid)
+
+        // Ignore receipts for messages that have been deleted. They are no longer
+        // relevant to this message.
+        if wasRemotelyDeleted {
+            return
+        }
+
+        // Note that this relies on the Message Send Log, so we have to execute it first.
+        if tryToClearPhoneNumberSharing {
+            maybeClearShouldSharePhoneNumber(for: recipientAddress, recipientDeviceId: deviceId, transaction: tx)
+        }
+
+        // This is only necessary for delivery receipts, but while we're here with
+        // an open write transaction, we check it for other receipts as well.
+        clearMessageSendLogEntry(forRecipient: recipientAddress, deviceId: deviceId, tx: tx)
+
+        let recipientStateMerger = RecipientStateMerger(
+            recipientDatabaseTable: DependenciesBridge.shared.recipientDatabaseTable,
+            signalServiceAddressCache: signalServiceAddressCache
+        )
+        anyUpdateOutgoingMessage(transaction: tx) { message in
+            guard let recipientState: TSOutgoingMessageRecipientState = {
+                if let existingMatch = message.recipientAddressStates?[recipientAddress] {
+                    return existingMatch
+                }
+                if let normalizedAddress = recipientStateMerger.normalizedAddressIfNeeded(for: recipientAddress, tx: tx.asV2Read) {
+                    // If we get a receipt from a PNI, then normalizing PNIs -> ACIs won't fix
+                    // it, but normalizing the address from a PNI to an ACI might fix it.
+                    return message.recipientAddressStates?[normalizedAddress]
+                } else {
+                    // If we get a receipt from an ACI, then we might have the PNI stored, and
+                    // we need to migrate it to the ACI before we'll be able to find it.
+                    recipientStateMerger.normalize(&message.recipientAddressStates, tx: tx.asV2Read)
+                    return message.recipientAddressStates?[recipientAddress]
+                }
+            }() else {
+                owsFailDebug("Missing recipient state for \(recipientAddress)")
+                return
+            }
+            recipientState.state = .sent
+            recipientState[keyPath: timestampProperty] = NSNumber(value: timestamp)
+            recipientState.errorCode = nil
+        }
+    }
+}
+
+// MARK: - Sender Key + Message Send Log
 
 extension TSOutgoingMessage {
 
@@ -332,14 +423,14 @@ extension TSOutgoingMessage {
 
     @objc
     func clearMessageSendLogEntry(forRecipient address: SignalServiceAddress, deviceId: UInt32, tx: SDSAnyWriteTransaction) {
-        // MSL entries will only exist for addresses with UUIDs
-        guard let serviceId = address.untypedServiceId else {
+        // MSL entries will only exist for addresses with ACIs
+        guard let aci = address.serviceId as? Aci else {
             return
         }
         let messageSendLog = SSKEnvironment.shared.messageSendLogRef
         messageSendLog.recordSuccessfulDelivery(
             message: self,
-            recipientServiceId: serviceId,
+            recipientAci: aci,
             recipientDeviceId: deviceId,
             tx: tx
         )
@@ -358,14 +449,14 @@ extension TSOutgoingMessage {
 // MARK: - Transcripts
 
 public extension TSOutgoingMessage {
-    func sendSyncTranscript() -> Promise<Void> {
-        return databaseStorage.write(.promise) { tx in
-            guard let localThread = TSAccountManager.getOrCreateLocalThread(transaction: tx) else {
+    func sendSyncTranscript() async throws {
+        let messageSend = try await databaseStorage.awaitableWrite { tx in
+            guard let localThread = TSContactThread.getOrCreateLocalThread(transaction: tx) else {
                 throw OWSAssertionError("Missing local thread")
             }
 
-            guard let localUuid = Self.tsAccountManager.localUuid else {
-                throw OWSAssertionError("Missing local uuid")
+            guard let localIdentifiers = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: tx.asV2Read) else {
+                throw OWSAssertionError("Missing localIdentifiers.")
             }
 
             guard let transcript = self.buildTranscriptSyncMessage(localThread: localThread, transaction: tx) else {
@@ -381,13 +472,10 @@ public extension TSOutgoingMessage {
                 plaintextContent: serializedMessage.plaintextData,
                 plaintextPayloadId: serializedMessage.payloadId,
                 thread: localThread,
-                serviceId: UntypedServiceId(localUuid),
-                udSendingAccess: nil,
-                localAddress: Self.tsAccountManager.localAddress!,
-                sendErrorBlock: nil
+                serviceId: localIdentifiers.aci,
+                localIdentifiers: localIdentifiers
             )
-        }.then { messageSend -> Promise<Void> in
-            Self.messageSender.performMessageSendAttempt(messageSend)
         }
+        try await messageSender.performMessageSend(messageSend, sealedSenderParameters: nil)
     }
 }

@@ -73,9 +73,6 @@
 /* Label for button that lets you send a message to a contact. */
 "ACTION_SEND_MESSAGE" = "Пошаљите поруку";
 
-/* Label for 'share contact' button. */
-"ACTION_SHARE_CONTACT" = "Поделите контакт";
-
 /* A label for 'tap to download' buttons. */
 "ACTION_TAP_TO_DOWNLOAD" = "Кликните за преузимање";
 
@@ -373,8 +370,8 @@
 /* Accessibility hint describing what you can do with the attachment button */
 "ATTACHMENT_HINT" = "Изаберите медиј за слање";
 
-/* A button to open the camera from the Attachment Keyboard */
-"ATTACHMENT_KEYBOARD_CAMERA" = "Камера";
+/* Button in chat attachment panel that allows to select photos/videos Signal has access to. */
+"ATTACHMENT_KEYBOARD_BUTTON_MANAGE" = "Измени";
 
 /* A button to select a contact from the Attachment Keyboard */
 "ATTACHMENT_KEYBOARD_CONTACT" = "Контакт";
@@ -385,20 +382,29 @@
 /* A button to select a GIF from the Attachment Keyboard */
 "ATTACHMENT_KEYBOARD_GIF" = "GIF";
 
-/* A message on a button prompting the user to go settings to grant Signal photos access. */
-"ATTACHMENT_KEYBOARD_GIVE_PHOTOS_ACCESS" = "Омогућите приступ";
+/* Text in chat attachment panel when Signal only has access to some photos/videos. */
+"ATTACHMENT_KEYBOARD_LIMITED_ACCESS" = "Signal само има приступ фотографијама и видео снимцима које сте изабрали";
 
 /* A button to select a location from the Attachment Keyboard */
 "ATTACHMENT_KEYBOARD_LOCATION" = "Локација";
 
-/* A string indicating to the user that they'll be able to send photos from this view once they enable photo access. */
-"ATTACHMENT_KEYBOARD_NO_PHOTO_ACCESS" = "Signal-у је потребна дозвола за приказивање ваших слика и видео снимака.";
+/* Second block of text in chat attachment panel when there's no recent photos to show. */
+"ATTACHMENT_KEYBOARD_NO_MEDIA_BODY" = "Када снимите фотографију или видео, моћи ћете да их пошаљете овде";
 
-/* A string indicating to the user that once they take photos, they'll be able to send them from this view. */
-"ATTACHMENT_KEYBOARD_NO_PHOTOS" = "Одавде ћете моћи слати фотографије које сте недавно фотографисали.";
+/* First block of text in chat attachment panel when there's no recent photos to show. */
+"ATTACHMENT_KEYBOARD_NO_MEDIA_TITLE" = "Нема фотографија или видео снимака";
+
+/* Text in chat attachment panel explaining that user needs to give Signal permission to access photos. */
+"ATTACHMENT_KEYBOARD_NO_PHOTO_ACCESS" = "Signal нема приступ вашим фотографијама и видео снимцима. Да бисте омогућили тај приступ, отворите „Подешавања“ и изаберите „Фотографије“";
+
+/* Button in chat attachment panel to let user open Settings app and give Signal persmission to access photos. */
+"ATTACHMENT_KEYBOARD_OPEN_SETTINGS" = "Отвори подешавања";
 
 /* A button to select a payment from the Attachment Keyboard */
 "ATTACHMENT_KEYBOARD_PAYMENT" = "Плаћање";
+
+/* A button to open the photo picker from the Attachment Keyboard */
+"ATTACHMENT_KEYBOARD_PHOTOS" = "Слике";
 
 /* Accessibility label for attaching photos */
 "ATTACHMENT_LABEL" = "Прилог";
@@ -493,20 +499,26 @@
 /* Button text when a badge expires, asking users to donate */
 "BADGE_EXPIRED_DONATE_BUTTON" = "Донирајте";
 
-/* Text for the 'learn more' link in the badge expiration sheet, shown when a badge expires due to a charge failure */
+/* Text for the 'learn more' link in a sheet explaining there's been an issue with your badge. */
 "BADGE_EXPIRED_LEARN_MORE_LINK" = "Сазнај више";
 
 /* Title for subscription on the badge expiration sheet. */
-"BADGE_EXPIRED_SUBSCRIPTION_TITLE" = "Месечна донација је отказана";
+"BADGE_EXPIRED_SUBSCRIPTION_TITLE" = "Monthly Donation Canceled";
 
-/* String explaining to the user that their subscription badge has expired on the badge expiry sheet. Embeds {failure-specific sentence(s)}. */
-"BADGE_SUBSCRIPTION_EXPIRED_BECAUSE_OF_CHARGE_FAILURE_BODY_FORMAT" = "Периодична месечна донација је отказана. Значка донације %1$@ више није видљива на вашем профилу.\n\nДа бисте наставили да подржавате Signal и да бисте поново активирали значку, ажурирајте податке о плаћању и поново донирајте.";
+/* String explaining to the user on a badge expiry sheet that their subscription badge has expired because the renewal payment failed. Embeds {{ a specific, already-localized string describing the payment failure }}. Will have a 'learn more' link appended, when it is rendered. */
+"BADGE_SUBSCRIPTION_EXPIRED_BECAUSE_OF_CHARGE_FAILURE_BODY_FORMAT" = "Your recurring monthly donation has ended. %1$@\n\nWithout an active subscription your badge will no longer be visible on your profile.";
 
-/* Body of the sheet shown when your subscription is canceled due to inactivity */
+/* Body of the sheet shown when your subscription is canceled due to inactivity. Embeds {{ the name of the badge }}. Will have a 'learn more' link appended, when it is rendered. */
 "BADGE_SUBSCRIPTION_EXPIRED_BECAUSE_OF_INACTIVITY_BODY_FORMAT" = "Ваша периодична месечна донација је аутоматски отказана јер сте предуго били неактивни. Значка %1$@ више није видљива на вашем профилу.\n\nЈош увек можете да користите Signal, али да бисте подржали апликацију и поново активирали значку, донирајте сада.";
 
+/* Body for a sheet explaining that a bank transfer donation is complete, and that you have received a badge. */
+"BADGE_THANKS_BANK_DONATION_COMPLETE_BODY" = "Your bank transfer was received. You can choose to display this badge on your profile to show off your support.";
+
+/* Title for a sheet explaining that a bank transfer donation is complete, and that you have received a badge. */
+"BADGE_THANKS_BANK_DONATION_COMPLETE_TITLE" = "Donation Complete";
+
 /* When you make a donation to Signal, you will receive a badge. A thank-you sheet appears when this happens. This is the body text on that sheet. */
-"BADGE_THANKS_BODY" = "Добили сте значку донатора од Signal-а! Прикажите је на профилу да истакнете своју подршку.";
+"BADGE_THANKS_BODY" = "You can choose to display this badge on your profile to show off your support.";
 
 /* Label prompting the user to display the new badge on their profile on the badge thank you sheet. */
 "BADGE_THANKS_DISPLAY_ON_PROFILE_LABEL" = "Показати на профил";
@@ -519,6 +531,24 @@
 
 /* Footer explaining that only one badge can be featured at a time on the thank you sheet. */
 "BADGE_THANKS_TOGGLE_FOOTER" = "Када имате више од једне значке, можете да изаберете једну да садржите да другу да се види на ваш профил.";
+
+/* On the bank donation screen, show a link below the input form to show help about finding account info. */
+"BANK_DONATION_FOOTER_FIND_ACCOUNT_INFO" = "Find Account Info";
+
+/* On the bank transfer donation screen, a small amount of information text is shown. This is that text. It should (1) instruct users to enter their bank information (2) tell them that Signal does not collect or store their personal information. */
+"BANK_DONATION_SUBHEADER_TEXT" = "Enter your bank details. Signal does not collect or store your personal information.";
+
+/* Users can donate to Signal with a bank account. We are required to show them a mandate with information about bank transfers. This is a label for a button to agree to the mandate. */
+"BANK_MANDATE_AGREE" = "Agree";
+
+/* Users can donate to Signal with a bank account. We are required to show them a mandate with information about bank transfers. This is a label for a button that shows more of the mandate if it is not all visible. */
+"BANK_MANDATE_READ_MORE" = "Read More";
+
+/* Users can donate to Signal with a bank account. We are required to show them a mandate with information about bank transfers. This is a subtitle about the payment processor Stripe above that mandate. */
+"BANK_MANDATE_SUBTITLE" = "Stripe processes donations made to Signal. Signal does not collect or store your personal information.";
+
+/* Users can donate to Signal with a bank account. We are required to show them a mandate with information about bank transfers. This is the title above that mandate. */
+"BANK_MANDATE_TITLE" = "Bank Transfer";
 
 /* Accessibility label for banner close button */
 "BANNER_CLOSE_ACCESSIBILITY_LABEL" = "Затвори банер";
@@ -841,12 +871,6 @@
 /* VoiceOver description of current camera zoom level. */
 "CAMERA_VO_ZOOM_LEVEL" = "%1$@ put(a)";
 
-/* Message for alert explaining that a user cannot be verified. */
-"CANT_VERIFY_IDENTITY_ALERT_MESSAGE" = "Ова особа не може бити оверена док не започнете разговор.";
-
-/* Title for alert explaining that a user cannot be verified. */
-"CANT_VERIFY_IDENTITY_ALERT_TITLE" = "Грешка";
-
 /* Alert shown when the user needs to exchange messages to see the safety number. */
 "CANT_VERIFY_IDENTITY_EXCHANGE_MESSAGES" = "Са овом особом биће креиран безбедносни број након што с њом размените поруке.";
 
@@ -865,9 +889,6 @@
 /* Users can donate to Signal with a credit or debit card. If their card verification code (CVV) is too long, this error will be shown. Try to use a short string to make space in the UI. */
 "CARD_DONATION_CVV_TOO_LONG_ERROR" = "Код је предугачак";
 
-/* Users can donate to Signal with a credit or debit card. This is the text on the \"Donate\" button. */
-"CARD_DONATION_DONATE_BUTTON" = "Донирајте";
-
 /* Users can donate to Signal with a credit or debit card. If their expiration date is invalid, this generic error message will be shown. Try to use a short string to make space in the UI. */
 "CARD_DONATION_EXPIRATION_DATE_GENERIC_ERROR" = "Неважећи датум истека";
 
@@ -876,9 +897,6 @@
 
 /* Users can donate to Signal with a credit or debit card. This is the label for the card expiration date field on that screen. */
 "CARD_DONATION_EXPIRATION_DATE_PLACEHOLDER" = "ММ/ГГ";
-
-/* Users can donate to Signal with a credit or debit card. This is the heading on that screen, telling them how much they'll donate. Embeds {{formatted amount of money}}, such as \"$20\". */
-"CARD_DONATION_HEADER" = "Износ донације: %1$@";
 
 /* Users can choose to learn more about their credit/debit card donations, which will open a sheet with additional information. This is the body text of that sheet. */
 "CARD_DONATION_READ_MORE_SHEET_BODY" = "Signal не прикупља, нити чува, ваше податке о личности када донирате.\n\nКористимо Stripe као процесор плаћања за примање ваших донација. Не приступамо ниједној од информација које им пружите, нити их складиштимо или чувамо.\n\nSignal не повезује, нити може да повеже, вашу донацију са вашим налогом на Signal-у.\n\nХвала вам на подршци!";
@@ -1009,32 +1027,8 @@
 /* No comment provided by engineer. */
 "CONTACT_DETAIL_COMM_TYPE_INSECURE" = "Нерегистрован број";
 
-/* Label for the 'edit name' button in the contact share approval view. */
-"CONTACT_EDIT_NAME_BUTTON" = "Уреди";
-
 /* Label for a contact's email address. */
 "CONTACT_EMAIL" = "Имејл";
-
-/* Label for the 'city' field of a contact's address. */
-"CONTACT_FIELD_ADDRESS_CITY" = "Град";
-
-/* Label for the 'country' field of a contact's address. */
-"CONTACT_FIELD_ADDRESS_COUNTRY" = "Држава";
-
-/* Label for the 'neighborhood' field of a contact's address. */
-"CONTACT_FIELD_ADDRESS_NEIGHBORHOOD" = "Комшилук";
-
-/* Label for the 'pobox' field of a contact's address. */
-"CONTACT_FIELD_ADDRESS_POBOX" = "Поштански фах";
-
-/* Label for the 'postcode' field of a contact's address. */
-"CONTACT_FIELD_ADDRESS_POSTCODE" = "Поштански број";
-
-/* Label for the 'region' field of a contact's address. */
-"CONTACT_FIELD_ADDRESS_REGION" = "Округ";
-
-/* Label for the 'street' field of a contact's address. */
-"CONTACT_FIELD_ADDRESS_STREET" = "Улица";
 
 /* Label for the 'family name' field of a contact. */
 "CONTACT_FIELD_FAMILY_NAME" = "Презиме";
@@ -1196,6 +1190,9 @@
 "CONTEXT_MENU_FORWARD_MESSAGE" = "Проследи";
 
 /* Context menu button title */
+"CONTEXT_MENU_PAYMENT_DETAILS" = "Подаци о плаћању";
+
+/* Context menu button title */
 "CONTEXT_MENU_REPLY" = "Одговори";
 
 /* Context menu button title */
@@ -1223,7 +1220,7 @@
 "CONVERSATION_MUTE_CONFIRMATION_OPTION_1D" = "1 дан";
 
 /* 1 hour */
-"CONVERSATION_MUTE_CONFIRMATION_OPTION_1H" = "1 час";
+"CONVERSATION_MUTE_CONFIRMATION_OPTION_1H" = "1 сат";
 
 /* 1 week */
 "CONVERSATION_MUTE_CONFIRMATION_OPTION_1W" = "1 седмица";
@@ -1280,7 +1277,7 @@
 "CONVERSATION_SETTINGS_ATTRIBUTES_ACCESS_SECTION_FOOTER" = "Изаберите ко може мењати име групе, слику и трајање нестајућих порука.";
 
 /* Button to start a audio call */
-"CONVERSATION_SETTINGS_AUDIO_CALL_BUTTON" = "аудио";
+"CONVERSATION_SETTINGS_AUDIO_CALL_BUTTON" = "Гласовни позив";
 
 /* Footer string for a contact's badges in conversation settings */
 "CONVERSATION_SETTINGS_BADGES_FOOTER" = "Добијте значке за свој профил подржавајући Signal. Пипните значку да би сазнали више.";
@@ -1319,7 +1316,7 @@
 "CONVERSATION_SETTINGS_EDIT_MEMBERSHIP_ACCESS_FOOTER" = "Изаберите ко може мењати чланове групе.";
 
 /* Label for 'group link' action in conversation settings view. */
-"CONVERSATION_SETTINGS_GROUP_LINK" = "Link za grupu";
+"CONVERSATION_SETTINGS_GROUP_LINK" = "Линк за групу";
 
 /* Label for 'make group admin' button in conversation settings view. */
 "CONVERSATION_SETTINGS_MAKE_GROUP_ADMIN_BUTTON" = "Постави за администратора";
@@ -1367,7 +1364,7 @@
 "CONVERSATION_SETTINGS_MUTE_ONE_DAY_ACTION" = "1 дан";
 
 /* Label for button to mute a thread for a hour. */
-"CONVERSATION_SETTINGS_MUTE_ONE_HOUR_ACTION" = "1 час";
+"CONVERSATION_SETTINGS_MUTE_ONE_HOUR_ACTION" = "1 сат";
 
 /* Label for button to mute a thread for a minute. */
 "CONVERSATION_SETTINGS_MUTE_ONE_MINUTE_ACTION" = "1 минут";
@@ -1412,7 +1409,7 @@
 "CONVERSATION_SETTINGS_REVOKE_GROUP_ADMIN_TITLE_FORMAT" = "Одузми администраторске дозволе групе од %1$@?";
 
 /* Button to search the chat */
-"CONVERSATION_SETTINGS_SEARCH_BUTTON" = "тражи";
+"CONVERSATION_SETTINGS_SEARCH_BUTTON" = "Претражи";
 
 /* Label for button that sets 'send messages permission' for a group to 'all members'. */
 "CONVERSATION_SETTINGS_SEND_MESSAGES_SECTION_ALL_MEMBERS" = "Сви чланови";
@@ -1436,7 +1433,7 @@
 "CONVERSATION_SETTINGS_UNMUTE_ACTION" = "Укључи обавештења";
 
 /* Button to start a video call */
-"CONVERSATION_SETTINGS_VIDEO_CALL_BUTTON" = "идео";
+"CONVERSATION_SETTINGS_VIDEO_CALL_BUTTON" = "Видео позив";
 
 /* Indicates that user is in the system contacts list. */
 "CONVERSATION_SETTINGS_VIEW_IS_SYSTEM_CONTACT" = "Детаљи контакта";
@@ -1675,6 +1672,21 @@
 /* button text */
 "DELETE_ALL_MESSAGES_IN_CONVERSATION_BUTTON" = "Избриши све поруке";
 
+/* 'Delete' button label on the delete contact confirmation action sheet */
+"DELETE_CONTACT_ACTION_SHEET_BUTTON" = "Избриши";
+
+/* An explanation of what happens in Signal when you remove a system contact. */
+"DELETE_CONTACT_ACTION_SHEET_EXPLANATION" = "Ова особа ће бити избрисана из ваших системских контаката. Нећете видети ову особу приликом претраживања. Добићете захтев за поруку ако вам у будућности пошаље поруку.";
+
+/* Title of action sheet confirming the user wants to delete a system contact. */
+"DELETE_CONTACT_ACTION_SHEET_TITLE" = "Желите ли да избришете овај контакт и уклоните особу са листе?";
+
+/* Title of button for deleting system contact. */
+"DELETE_CONTACT_BUTTON" = "Избриши контакт";
+
+/* Toast message confirming the system contact was deleted. Embeds {{The name of the user who was deleted.}}. */
+"DELETE_CONTACT_CONFIRMATION_TOAST" = "%1$@ је избрисан(а) из ваших контаката и уклоњен(а).";
+
 /* Notification warning the user that they have been de-registered. */
 "DEREGISTRATION_NOTIFICATION" = "Одјављени сте са Signal-а на овом уређају.";
 
@@ -1744,11 +1756,17 @@
 /* A warning for the device transfer 'choice' view indicating you can only have one device registered with your number */
 "DEVICE_TRANSFER_CHOICE_WARNING" = "Настављањем ћете онемогућити Signal на свим постојећим уређајима повезаним на исти број телефона.";
 
+/* Button shown to contract a QR code and exit the fullscreen view. */
+"DEVICE_TRANSFER_CONTRACT_QR_CODE_BUTTON" = "Умањи";
+
+/* An error indicating that the other device closed signal mid-transfer and it could not complete */
+"DEVICE_TRANSFER_ERROR_BACKGROUNDED" = "Пренос није успео. Проверите да ли је Signal отворен на оба уређаја и пробајте поново.";
+
 /* An error indicating that we were unable to verify the identity of the new device to complete the transfer */
 "DEVICE_TRANSFER_ERROR_CERTIFICATE_MISMATCH" = "Није могуће оверити ваш нови уређај, молимо покушајте поново";
 
 /* An error indicating that something went wrong with the transfer and it could not complete */
-"DEVICE_TRANSFER_ERROR_GENERIC" = "Неуспешан пренос података. Проверите да ли су уређаји близу један другога и покушајте поново";
+"DEVICE_TRANSFER_ERROR_GENERIC" = "Пренос није успео. Проверите да ли су уређаји близу један другог и пробајте поново.";
 
 /* An error indicating the user must scan this code with a linked device to transfer. */
 "DEVICE_TRANSFER_ERROR_MODE_MISMATCH_LINKED" = "Да додате овај iPad у повезане уређаје, морате скенирати вашим старим iPad-ом";
@@ -1762,6 +1780,9 @@
 /* An error indicating the user must update their device before trying to transfer. */
 "DEVICE_TRANSFER_ERROR_UNSUPPORTED_VERSION" = "Ажурирајте Signal на најновију верзију и покушајте поново";
 
+/* Button shown to expand a QR code and view it fullscreen. */
+"DEVICE_TRANSFER_EXPAND_QR_CODE_BUTTON" = "Увећај";
+
 /* The explanation on the action sheet prompting the user if they want to transfer their device. */
 "DEVICE_TRANSFER_PROMPT_EXPLANATION" = "Пренесите ваш Signal налог на нови iOS уређај. Ваш нови уређај мора бити укључен и у непосредној близини.";
 
@@ -1769,16 +1790,16 @@
 "DEVICE_TRANSFER_PROMPT_TITLE" = "Пренесите налог";
 
 /* The explanation for the device transfer qr code view */
-"DEVICE_TRANSFER_QRCODE_EXPLANATION" = "Отворите Signal на вашем старом уређају, приближите га и укључите Wi-Fi и Bluetooth на оба уређаја.";
+"DEVICE_TRANSFER_QRCODE_EXPLANATION" = "Узмите свој стари уређај, проверите се да ли су Wi-Fi и Bluetooth активирани на њему и скенирајте њиме овај QR код.";
 
 /* The second explanation for the device transfer qr code view */
-"DEVICE_TRANSFER_QRCODE_EXPLANATION2" = "Поставите овај QR кôд унутар оквира на другом уређају.";
+"DEVICE_TRANSFER_QRCODE_EXPLANATION2" = "Поставите овај QR код унутар оквира на другом iOS уређају.";
 
 /* A prompt to provide further explanation if the user is not seeing the transfer on both devices. */
 "DEVICE_TRANSFER_QRCODE_NOT_SEEING" = "Не видите упит на старом уређају?";
 
 /* The title for the device transfer qr code view */
-"DEVICE_TRANSFER_QRCODE_TITLE" = "Чека се други уређај…";
+"DEVICE_TRANSFER_QRCODE_TITLE" = "Скенирајте QR кôд";
 
 /* The explanation on the view that shows receiving progress */
 "DEVICE_TRANSFER_RECEIVING_EXPLANATION" = "Приближите уређаје, не искључујте их и не затварајте Signal. Пренос података је потпуно енкриптован.";
@@ -1808,7 +1829,7 @@
 "DISAPPEARING_MESSAGES_CONFIGURATION_GROUP_EXISTING_FORMAT" = "Поруке у овом ћаскању ће нестати након %1$@.";
 
 /* Disappearing message option to define a custom time */
-"DISAPPEARING_MESSAGES_CUSTOM_TIME" = "Прилагодити време";
+"DISAPPEARING_MESSAGES_CUSTOM_TIME" = "Прилагођено време";
 
 /* The unit for a number of days */
 "DISAPPEARING_MESSAGES_DAYS" = "дан(а)";
@@ -1852,6 +1873,15 @@
 /* Section title for the 'domain fronting country' view. */
 "DOMAIN_FRONTING_COUNTRY_VIEW_SECTION_HEADER" = "Заобилазак цензуре локације";
 
+/* Users can donate to Signal with a credit or debit card. This is the heading on that screen, telling them how much they'll donate. Embeds {{formatted amount of money}}, such as \"$20\". */
+"DONATE_BUTTON" = "Donate %1$@";
+
+/* Users can donate to Signal with a credit or debit card. This is the heading on that screen, telling them how much they'll donate every month. Embeds {{formatted amount of money}}, such as \"$20\". */
+"DONATE_BUTTON_MONTHLY" = "Donate %1$@/month";
+
+/* When users make donations, they can choose which payment method they want to use. This is the text on the button that lets them choose to pay with bank transfer. */
+"DONATE_CHOOSE_BANK_TRANSFER_AS_PAYMENT_METHOD" = "Bank Transfer";
+
 /* When users make donations, they can choose which payment method they want to use. This is the text on the button that lets them choose to pay with credit or debit card. */
 "DONATE_CHOOSE_CREDIT_OR_DEBIT_CARD_AS_PAYMENT_METHOD" = "Кредитна или дебитна картица";
 
@@ -1862,7 +1892,7 @@
 "DONATE_CHOOSE_PAYMENT_METHOD_SHEET_SUBTITLE_FOR_MONTHLY_DONATION" = "Набавите значку „%1$@“";
 
 /* When users make one-time donations, they see a sheet that lets them pick a payment method. It also tells them what they'll be doing when they pay: receive a badge for a month. This is the subtitle on that sheet. Embeds {{localized badge name}}, such as \"Boost\". */
-"DONATE_CHOOSE_PAYMENT_METHOD_SHEET_SUBTITLE_FOR_ONE_TIME_DONATION" = "Набавите значку „%1$@“ на месец дана";
+"DONATE_CHOOSE_PAYMENT_METHOD_SHEET_SUBTITLE_FOR_ONE_TIME_DONATION" = "Get the %1$@ badge for 30 days";
 
 /* When users make donations on a friend's behalf, they see a sheet that lets them pick a payment method. This is the title on that sheet. Embeds {{amount of money}}, such as \"$5\". */
 "DONATE_CHOOSE_PAYMENT_METHOD_SHEET_TITLE_FOR_DONATION_ON_BEHALF_OF_A_FRIEND" = "Донација од %1$@ Signal-у";
@@ -1882,11 +1912,29 @@
 /* If a donation badge has been sent, indicates that it's expired and can no longer be redeemed. This is shown in the chat. */
 "DONATE_ON_BEHALF_OF_A_FRIEND_CHAT_EXPIRED" = "Истекло";
 
+/* Message in an alert presented when the user tries to make a donation, but already has a donation that is currently processing via bank payment. */
+"DONATE_SCREEN_ERROR_MESSAGE_BANK_PAYMENT_PLEASE_WAIT_BEFORE_MAKING_ANOTHER_DONATION" = "Bank transfers usually take 1 business day to process. Please wait until this donation completes before making another donation.";
+
+/* Message in an alert presented when the user tries to update their recurring donation, but already has a recurring donation that is currently processing via bank payment. */
+"DONATE_SCREEN_ERROR_MESSAGE_BANK_PAYMENT_PLEASE_WAIT_BEFORE_UPDATING_YOUR_SUBSCRIPTION" = "Bank transfers usually take 1 business day to process. Please wait until this donation completes before updating your subscription.";
+
+/* Message in an alert presented when the user tries to make a donation, but already has a donation that is currently processing via non-bank payment. */
+"DONATE_SCREEN_ERROR_MESSAGE_PLEASE_WAIT_BEFORE_MAKING_ANOTHER_DONATION" = "Your donation is still being processed. This can take a few minutes depending on your connection. Please wait until this donation completes before making another donation.";
+
+/* Message in an alert presented when the user tries to update their recurring donation, but already has a recurring donation that is currently processing via non-bank payment. */
+"DONATE_SCREEN_ERROR_MESSAGE_PLEASE_WAIT_BEFORE_UPDATING_YOUR_SUBSCRIPTION" = "Your donation is still being processed. This can take a few minutes depending on your connection. Please wait until this donation completes before updating your subscription.";
+
 /* If the user tries to donate to Signal but no amount is selected, this error message is shown. */
 "DONATE_SCREEN_ERROR_NO_AMOUNT_SELECTED" = "Изаберите износ донације.";
 
 /* If the user tries to donate to Signal but they've entered an amount that's too small, this error message is shown. Embeds {{currency string}}, such as \"$5\". */
 "DONATE_SCREEN_ERROR_SELECT_A_LARGER_AMOUNT_FORMAT" = "Минимални износ који можете да донирате је %1$@.";
+
+/* Title for an alert presented when the user tries to make a donation, but already has a donation that is currently processing via bank payment. */
+"DONATE_SCREEN_ERROR_TITLE_BANK_PAYMENT_YOU_HAVE_A_DONATION_PENDING" = "You have a donation pending";
+
+/* Title for an alert presented when the user tries to make a donation, but already has a donation that is currently processing via non-bank payment. */
+"DONATE_SCREEN_ERROR_TITLE_YOU_HAVE_A_PAYMENT_PROCESSING" = "You have a donation processing";
 
 /* On the donation screen, you can choose between one-time and monthly donations. This is the text on the picker for one-time donations. */
 "DONATE_SCREEN_MONTHLY_CHOICE" = "Месечно";
@@ -1908,6 +1956,27 @@
 
 /* On the donation screen, if you already have a subscription, you'll see a button to update your subscription. This is the text on that button. */
 "DONATE_SCREEN_UPDATE_MONTHLY_SUBSCRIPTION_BUTTON" = "Надоградите претплату";
+
+/* Message for a sheet explaining that a donation via bank payment has failed. Embeds {{ a specific, already-localized string describing the payment failure }}. */
+"DONATION_BADGE_ISSUE_SHEET_BANK_PAYMENT_FAILED_MESSAGE" = "We’re having trouble processing your bank transfer. %1$@";
+
+/* Title for a sheet explaining that a donation via bank payment has failed. */
+"DONATION_BADGE_ISSUE_SHEET_BANK_PAYMENT_FAILED_TITLE" = "Donation Couldn’t Be Processed";
+
+/* Title for a sheet explaining that a donation via bank payment is pending. */
+"DONATION_BADGE_ISSUE_SHEET_BANK_PAYMENT_PROCESSING_TITLE" = "Donation Pending";
+
+/* Message for a sheet explaining that a one-time donation via bank payment is pending, and how that will affect the user's badge. Embeds {{ the name of the badge }}. Will have a 'learn more' link appended, when it is rendered. */
+"DONATION_BADGE_ISSUE_SHEET_ONE_TIME_BANK_PAYMENT_PROCESSING_MESSAGE" = "Your one-time donation is pending. You’ll be able to display the %1$@ badge on your profile when your donation is received.\n\nBank transfers usually take 1 business day to process.";
+
+/* Message for a sheet explaining that a recurring donation via bank payment is pending, and how that will affect the user's badge. Embeds {{ the name of the badge }}. Will have a 'learn more' link appended, when it is rendered. */
+"DONATION_BADGE_ISSUE_SHEET_RECURRING_BANK_PAYMENT_PROCESSING_MESSAGE" = "Your monthly donation is pending. You’ll be able to display the %1$@ badge on your profile when your donation is received.\n\nBank transfers usually take 1 business day to process.";
+
+/* Title for a button asking the user to renew their subscription, because it has expired. */
+"DONATION_BADGE_ISSUE_SHEET_RENEW_SUBSCRIPTION_BUTTON_TITLE" = "Renew Subscription";
+
+/* Title for a button asking the user to try their donation again, because something went wrong. */
+"DONATION_BADGE_ISSUE_SHEET_TRY_AGAIN_BUTTON_TITLE" = "Try Again";
 
 /* When donating on behalf of a friend, a badge will be sent. This shows how long the badge lasts. Embeds {{formatted duration}}. */
 "DONATION_FOR_A_FRIEND_ROW_DURATION" = "Траје %1$@";
@@ -1971,12 +2040,6 @@
 
 /* You received a donation from a friend. This is the title of that message in the chat. Embeds {{short contact name}}. */
 "DONATION_ON_BEHALF_OF_A_FRIEND_RECEIVED_TITLE_FORMAT" = "%1$@ је дао/ла донацију Signal-у у ваше име";
-
-/* Users can donate on a friend's behalf. If the friend cannot receive these donations, this error message will be shown. */
-"DONATION_ON_BEHALF_OF_A_FRIEND_RECIPIENT_CANNOT_RECEIVE_DONATION_ERROR_BODY" = "Не можете дати донацију за овог корисника док не надогради Signal.";
-
-/* Users can donate on a friend's behalf. If the friend cannot receive these donations, an error dialog will be shown. This is the title of that error dialog. */
-"DONATION_ON_BEHALF_OF_A_FRIEND_RECIPIENT_CANNOT_RECEIVE_DONATION_ERROR_TITLE" = "Није могуће дати донацију";
 
 /* Users can donate on a friend's behalf. This is the error message that appears if the try to do this, but the recipient is blocked. */
 "DONATION_ON_BEHALF_OF_A_FRIEND_RECIPIENT_IS_BLOCKED_ERROR_BODY" = "Не можете дати донацију за овог корисника јер сте га блокирали.";
@@ -2071,20 +2134,59 @@
 /* On donation screens, a small amount of information text is shown. This is the title for that text. */
 "DONATION_SCREENS_HEADER_TITLE" = "Приватност испред профита";
 
+/* Title for an action in an action sheet asking the user to renew a subscription that has failed to renew. */
+"DONATION_SETTINGS_MY_SUPPORT_ACTION_SHEET_ACTION_TITLE_RENEW_SUBSCRIPTION" = "Renew Subscription";
+
+/* Title for an action in an action sheet asking the user to try again, in reference to a donation that failed. */
+"DONATION_SETTINGS_MY_SUPPORT_ACTION_SHEET_ACTION_TITLE_TRY_AGAIN" = "Try Again";
+
+/* Message for an alert explaining that a one-time payment made via bank transfer is being processed. */
+"DONATION_SETTINGS_MY_SUPPORT_BANK_PAYMENT_PROCESSING_MESSAGE" = "Your bank transfer is pending. Bank transfers usually take 1 business day to process.";
+
+/* Title for an alert explaining that a one-time payment made via bank transfer is being processed. */
+"DONATION_SETTINGS_MY_SUPPORT_BANK_PAYMENT_PROCESSING_TITLE" = "Donation Pending";
+
+/* Message shown in a sheet explaining that the user's donation has failed because payment failed. Embeds {{ a specific, already-localized string describing the payment failure reason }}. */
+"DONATION_SETTINGS_MY_SUPPORT_DONATION_FAILED_ALERT_MESSAGE_FORMAT" = "We’re having trouble processing your donation. %1$@";
+
+/* Title for a sheet explaining that a payment failed. */
+"DONATION_SETTINGS_MY_SUPPORT_DONATION_FAILED_ALERT_TITLE" = "Error Processing Donation";
+
+/* Message shown in a sheet explaining that the user's recurring subscription has ended because payment failed. Embeds {{ a specific, already-localized string describing the failure reason }}. */
+"DONATION_SETTINGS_MY_SUPPORT_RECURRING_SUBSCRIPTION_LAPSED_CHARGE_FAILURE_ALERT_MESSAGE_FORMAT" = "Your recurring monthly donation has ended. %1$@";
+
+/* Title for a sheet explaining that the user's recurring subscription has ended because payment failed. */
+"DONATION_SETTINGS_MY_SUPPORT_RECURRING_SUBSCRIPTION_LAPSED_TITLE" = "Monthly Donation Canceled";
+
+/* A label describing a donation payment that was made via bank transfer, which is still processing and has not completed. */
+"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_BANK_PAYMENT_PROCESSING" = "Donation Pending";
+
+/* A label describing a donation payment that was made by a method other than bank transfer (such as by credit card), which is still processing and has not completed. */
+"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_NON_BANK_PAYMENT_PROCESSING" = "Processing Donation...";
+
+/* A label describing a donation payment that has failed to process. */
+"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_PAYMENT_FAILED" = "Error Processing Donation";
+
+/* A label describing a recurring monthly donation that used to be active, but has now been canceled because it failed to renew. */
+"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_SUBSCRIPTION_LAPSED" = "Monthly Donation Canceled";
+
+/* A string describing the amount and currency of a one-time payment. Embeds {{ the amount, formatted as a currency }}. */
+"DONATION_SETTINGS_ONE_TIME_AMOUNT_FORMAT" = "%1$@ one-time";
+
 /* Title for the \"donate for a friend\" button on the donation view. */
 "DONATION_VIEW_DONATE_ON_BEHALF_OF_A_FRIEND" = "Донирајте за пријатеља";
 
 /* Text describing to the user that they're going to pay a donation to Signal */
 "DONATION_VIEW_DONATION_TO_SIGNAL" = "Донација Signal-у";
 
+/* Title for the 'Donor FAQ' button on the donation screen */
+"DONATION_VIEW_DONOR_FAQ" = "Donor FAQ";
+
 /* Text that's shown when the donation view fails to load data, probably due to network failure */
 "DONATION_VIEW_LOAD_FAILED" = "Мрежна грешка. Проверите да ли сте повезани и покушајте поново.";
 
 /* Title for the 'Badges' button on the donation screen */
 "DONATION_VIEW_MANAGE_BADGES" = "Значке";
-
-/* Title for the 'Manage Subscription' button on the donation screen */
-"DONATION_VIEW_MANAGE_SUBSCRIPTION" = "Управљање претплатом";
 
 /* Text describing to the user that they're going to pay a monthly donation to Signal */
 "DONATION_VIEW_MONTHLY_DONATION_TO_SIGNAL" = "Месечна донација Signal-у";
@@ -2097,9 +2199,6 @@
 
 /* Title for the \"other ways to donate\" section on the donation view. */
 "DONATION_VIEW_OTHER_WAYS_TO_DONATE_TITLE" = "Други начини на које можете да донирате";
-
-/* Title for the 'Subscription FAQ' button on the donation screen */
-"DONATION_VIEW_SUBSCRIPTION_FAQ" = "FAQ претплате";
 
 /* Title on the 'Donate to Signal' screen */
 "DONATION_VIEW_TITLE" = "Донирајте Signal-у";
@@ -2138,16 +2237,16 @@
 "EDIT_ITEM_COPY_ACTION" = "Копирај";
 
 /* Edit Send Beta prompt body */
-"EDIT_MESSAGE_SEND_BETA_MESSAGE_BODY" = "Измена порука је доступна само бета корисницима Signal-а. Ако измените поруку, она ће бити видљива само људима који су на најновијој бета верзији Signal-а.";
+"EDIT_MESSAGE_SEND_MESSAGE_BODY" = "Ако измените поруку, она ће бити видљива само људима који су на најновијим верзијама Signal-а. Они ће моћи да виде да сте изменили поруку.";
 
 /* Label to confirm sending an edit */
-"EDIT_MESSAGE_SEND_BETA_MESSAGE_CONFIRM" = "Пошаљи";
+"EDIT_MESSAGE_SEND_MESSAGE_CONFIRM" = "Пошаљи";
 
 /* Edit Send Beta prompt title */
-"EDIT_MESSAGE_SEND_BETA_MESSAGE_TITLE" = "Само у бета верзији Signal-а";
+"EDIT_MESSAGE_SEND_MESSAGE_TITLE" = "Измените поруку";
 
-/* Error message to display to user when a messaeg is too old to edit */
-"EDIT_MESSAGE_SEND_MESSAGE_TOO_OLD_ERROR" = "Измене се могу применити само у року од 3 сата од тренутка када сте послали ову поруку.";
+/* Error message to display to user when a message is too old to edit */
+"EDIT_MESSAGE_SEND_MESSAGE_TOO_OLD_ERROR" = "Измене се могу применити само у року од 24 сата од тренутка када сте послали ову поруку.";
 
 /* Edit failed for an unexpected reason */
 "EDIT_MESSAGE_SEND_MESSAGE_UNKNOWN_ERROR" = "EDIT_MESSAGE_SEND_MESSAGE_UNKNOWN_ERROR";
@@ -2341,6 +2440,9 @@
 /* Label warning the user that the app will expire today. */
 "EXPIRATION_WARNING_TODAY" = "Ова верзија Signal-а истиче данас. Ажурирајте апликацију да бисте наставили да се дописујете.";
 
+/* action sheet header when re-sending message which failed because of an invalid key signature */
+"FAILED_SENDING_BECAUSE_INVALID_KEY_SIGNATURE" = "Није било могуће послати поруку јер %1$@ треба да ажурира и отвори Signal.";
+
 /* action sheet header when re-sending message which failed because of too many attempts */
 "FAILED_SENDING_BECAUSE_RATE_LIMIT" = "Дошло је до превише грешака са овим контактом. Покушајте поново касније.";
 
@@ -2361,6 +2463,12 @@
 
 /* The title for the featured badge settings page */
 "FEATURED_BADGE_SETTINGS_TITLE" = "Истакнута значка";
+
+/* Users can choose to learn more about how to find account info, which will open a sheet with additional information. This is the body of that sheet. */
+"FIND_ACCOUNT_INFO_SHEET_BODY" = "Look for your IBAN at the top of your bank statement. IBAN numbers contain up to 34 characters. The name you enter should match your full name on your bank account. Contact your bank for more information.";
+
+/* Users can choose to learn more about how to find account info, which will open a sheet with additional information. This is the title of that sheet. */
+"FIND_ACCOUNT_INFO_SHEET_TITLE" = "Find Your Account Information";
 
 /* Button that marks user as verified after a successful fingerprint scan. */
 "FINGERPRINT_SCAN_VERIFY_BUTTON" = "Означи овереним";
@@ -2684,58 +2792,58 @@
 "GROUP_INVALID_INVITES_REMOVED_N" = "Неважећи позиви су опозвани.";
 
 /* Message indicating that the group invite link was disabled. */
-"GROUP_INVITE_LINK_DISABLED" = "Link za grupu je isključen.";
+"GROUP_INVITE_LINK_DISABLED" = "Линк за групу је искључен.";
 
 /* Message indicating that the group invite link was disabled by the local user. */
-"GROUP_INVITE_LINK_DISABLED_BY_LOCAL_USER" = "Isključili ste link za grupu.";
+"GROUP_INVITE_LINK_DISABLED_BY_LOCAL_USER" = "Искључили сте линк за групу.";
 
 /* Message indicating that the group invite link was disabled by a remote user. Embeds {{ user who disabled the group invite link }}. */
-"GROUP_INVITE_LINK_DISABLED_BY_REMOTE_USER_FORMAT" = "%1$@ je isključio/la link za grupu.";
+"GROUP_INVITE_LINK_DISABLED_BY_REMOTE_USER_FORMAT" = "%1$@ је искључио/ла линк за групу.";
 
 /* Message indicating that the group invite link was enabled. */
-"GROUP_INVITE_LINK_ENABLED_WITH_APPROVAL" = "Uključen je link za grupu sa obaveznim odobrenjem administratora.";
+"GROUP_INVITE_LINK_ENABLED_WITH_APPROVAL" = "Укључен је линк за групу са обавезним одобрењем администратора.";
 
 /* Message indicating that the group invite link was enabled by the local user. */
-"GROUP_INVITE_LINK_ENABLED_WITH_APPROVAL_BY_LOCAL_USER" = "Uključili ste link za grupu sa obaveznim odobrenjem administratora.";
+"GROUP_INVITE_LINK_ENABLED_WITH_APPROVAL_BY_LOCAL_USER" = "Укључили сте линк за групу са обавезним одобрењем администратора.";
 
 /* Message indicating that the group invite link was enabled by a remote user. Embeds {{ user who enabled the group invite link }}. */
-"GROUP_INVITE_LINK_ENABLED_WITH_APPROVAL_BY_REMOTE_USER_FORMAT" = "%1$@ je uključio/la link za grupu sa obaveznim odobrenjem administratora.";
+"GROUP_INVITE_LINK_ENABLED_WITH_APPROVAL_BY_REMOTE_USER_FORMAT" = "%1$@ је укључио/ла линк за групу са обавезним одобрењем администратора.";
 
 /* Message indicating that the group invite link was enabled. */
-"GROUP_INVITE_LINK_ENABLED_WITHOUT_APPROVAL" = "Uključen je link za grupu bez obaveznog odobrenja administratora.";
+"GROUP_INVITE_LINK_ENABLED_WITHOUT_APPROVAL" = "Укључен је линк за групу без обавезног одобрења администратора.";
 
 /* Message indicating that the group invite link was enabled by the local user. */
-"GROUP_INVITE_LINK_ENABLED_WITHOUT_APPROVAL_BY_LOCAL_USER" = "Uključili ste link za grupu bez obaveznog odobrenja administratora.";
+"GROUP_INVITE_LINK_ENABLED_WITHOUT_APPROVAL_BY_LOCAL_USER" = "Укључили сте линк за групу без обавезног одобрења администратора.";
 
 /* Message indicating that the group invite link was enabled by a remote user. Embeds {{ user who enabled the group invite link }}. */
-"GROUP_INVITE_LINK_ENABLED_WITHOUT_APPROVAL_BY_REMOTE_USER_FORMAT" = "%1$@ je uključio/la link za grupu bez obaveznog odobrenja administratora.";
+"GROUP_INVITE_LINK_ENABLED_WITHOUT_APPROVAL_BY_REMOTE_USER_FORMAT" = "%1$@ је укључио/ла линк за групу без обавезног одобрења администратора.";
 
 /* Message indicating that the group invite link was reset. */
-"GROUP_INVITE_LINK_RESET" = " Link za grupu je resetovan.";
+"GROUP_INVITE_LINK_RESET" = " Линк за групу је ресетован.";
 
 /* Message indicating that the group invite link was reset by the local user. */
-"GROUP_INVITE_LINK_RESET_BY_LOCAL_USER" = "Resetovali ste link za grupu.";
+"GROUP_INVITE_LINK_RESET_BY_LOCAL_USER" = "Ресетовали сте линк за групу.";
 
 /* Message indicating that the group invite link was reset by a remote user. Embeds {{ user who reset the group invite link }}. */
-"GROUP_INVITE_LINK_RESET_BY_REMOTE_USER_FORMAT" = "%1$@ je resetovao/la link za grupu.";
+"GROUP_INVITE_LINK_RESET_BY_REMOTE_USER_FORMAT" = "%1$@ је ресетовао/ла линк за групу.";
 
 /* Message indicating that the group invite link was set to not require approval. */
-"GROUP_INVITE_LINK_SET_TO_NOT_REQUIRE_APPROVAL" = "Isključeno je obavezno odobrenje administratora za link za grupu.";
+"GROUP_INVITE_LINK_SET_TO_NOT_REQUIRE_APPROVAL" = "Искључено је обавезно одобрење администратора за линк за групу.";
 
 /* Message indicating that the group invite link was set to not require approval by the local user. */
-"GROUP_INVITE_LINK_SET_TO_NOT_REQUIRE_APPROVAL_BY_LOCAL_USER" = "Isključili ste obavezno odobrenje administratora za link za grupu.";
+"GROUP_INVITE_LINK_SET_TO_NOT_REQUIRE_APPROVAL_BY_LOCAL_USER" = "Искључили сте обавезно одобрење администратора за линк за групу.";
 
 /* Message indicating that the group invite link was set to not require approval by a remote user. Embeds {{ user who set the group invite link to not require approval }}. */
-"GROUP_INVITE_LINK_SET_TO_NOT_REQUIRE_APPROVAL_BY_REMOTE_USER_FORMAT" = "%1$@ je isključio/la obavezno odobrenje administratora za link za grupu.";
+"GROUP_INVITE_LINK_SET_TO_NOT_REQUIRE_APPROVAL_BY_REMOTE_USER_FORMAT" = "%1$@ је искључио/ла обавезно одобрење администратора за линк за групу.";
 
 /* Message indicating that the group invite link was set to require approval. */
-"GROUP_INVITE_LINK_SET_TO_REQUIRE_APPROVAL" = "Uključeno je obavezno odobrenje administratora za link za grupu.";
+"GROUP_INVITE_LINK_SET_TO_REQUIRE_APPROVAL" = "Укључено је обавезно одобрење администратора за линк за групу.";
 
 /* Message indicating that the group invite link was set to require approval by the local user. */
-"GROUP_INVITE_LINK_SET_TO_REQUIRE_APPROVAL_BY_LOCAL_USER" = "Uključili ste obavezno odobrenje administratora za link za grupu.";
+"GROUP_INVITE_LINK_SET_TO_REQUIRE_APPROVAL_BY_LOCAL_USER" = "Укључили сте обавезно одобрење администратора за линк за групу.";
 
 /* Message indicating that the group invite link was set to require approval by a remote user. Embeds {{ user who set the group invite link to require approval }}. */
-"GROUP_INVITE_LINK_SET_TO_REQUIRE_APPROVAL_BY_REMOTE_USER_FORMAT" = "%1$@ je uključio/la obavezno odobrenje administratora za link za grupu.";
+"GROUP_INVITE_LINK_SET_TO_REQUIRE_APPROVAL_BY_REMOTE_USER_FORMAT" = "%1$@ jе укључио/ла обавезно одобрење администратора за линк за групу.";
 
 /* Format for the message for an alert indicating that a member was invited to a group. Embeds: {{ the name of the member. }} */
 "GROUP_INVITES_SENT_ALERT_MESSAGE_1_FORMAT" = "Не можете аутоматски додати %1$@ у групу. Позивница им је послата, а групне поруке неће видети док је не прихвате.";
@@ -2768,7 +2876,7 @@
 "GROUP_LINK_ACTION_SHEET_VIEW_CANNOT_JOIN_GROUP_TITLE" = "Не може да се придружи групи";
 
 /* Subtitle indicating that the group invite link has expired in the 'group invite link' action sheet. */
-"GROUP_LINK_ACTION_SHEET_VIEW_EXPIRED_LINK_SUBTITLE" = "Link za grupu više nije ispravan.";
+"GROUP_LINK_ACTION_SHEET_VIEW_EXPIRED_LINK_SUBTITLE" = "Линк за групу више није исправан.";
 
 /* Indicator for group conversations in the 'group invite link' action sheet. */
 "GROUP_LINK_ACTION_SHEET_VIEW_GROUP_INDICATOR" = "Група";
@@ -2789,7 +2897,7 @@
 "GROUP_LINK_COULD_NOT_REQUEST_TO_JOIN_GROUP_ERROR_MESSAGE" = "Молимо покушајте поново.";
 
 /* Message for the 'invalid group invite link' alert. */
-"GROUP_LINK_INVALID_GROUP_INVITE_LINK_ERROR_MESSAGE" = "Ovaj link za grupu nije ispravan. Proverite da li je ceo link kompletan i ispravan pre nego što pokušate da se pridružite.";
+"GROUP_LINK_INVALID_GROUP_INVITE_LINK_ERROR_MESSAGE" = "Овај линк за групу није исправан. Проверите да ли је цео линк комплетан и исправан пре него што покушате да се придружите.";
 
 /* Title for the 'invalid group invite link' alert. */
 "GROUP_LINK_INVALID_GROUP_INVITE_LINK_ERROR_TITLE" = "Neispravan link";
@@ -2798,7 +2906,7 @@
 "GROUP_LINK_LOCAL_USER_DOES_NOT_SUPPORT_GROUPS_V2_ERROR_MESSAGE" = "Ажурирајте Signal на овом уређају како бисте могли да се придружите овој групи.";
 
 /* Explanation of the 'approve new group members' switch. */
-"GROUP_LINK_PROMOTION_ALERT_APPROVE_NEW_MEMBERS_EXPLANATION" = "Obavezno je da administrator odobri nove članove koji se pridružuju preko linka za grupu.";
+"GROUP_LINK_PROMOTION_ALERT_APPROVE_NEW_MEMBERS_EXPLANATION" = "Обавезно је да администратор групе одобри нове чланове који се придружују групи преко линка за групу.";
 
 /* Label for the 'approve new group members' switch. */
 "GROUP_LINK_PROMOTION_ALERT_APPROVE_NEW_MEMBERS_SWITCH" = "Одобри нове чланове";
@@ -2834,16 +2942,16 @@
 "GROUP_LINK_VIEW_COPY_LINK" = "Kopiraj link";
 
 /* Label for the 'enable group link' switch in the 'group link' view. */
-"GROUP_LINK_VIEW_ENABLE_GROUP_LINK_SWITCH" = "Link za grupu";
+"GROUP_LINK_VIEW_ENABLE_GROUP_LINK_SWITCH" = "Линк за групу";
 
 /* Footer for the 'member requests' section of the 'group link' view. */
-"GROUP_LINK_VIEW_MEMBER_REQUESTS_SECTION_FOOTER" = "Obavezno je da administrator odobri nove članove koji se pridružuju preko linka za grupu.";
+"GROUP_LINK_VIEW_MEMBER_REQUESTS_SECTION_FOOTER" = "Обавезно је да администратор групе одобри нове чланове који се придружују групи преко линка за групу.";
 
 /* Label for the 'reset link' button in the 'group link' view. */
-"GROUP_LINK_VIEW_RESET_LINK" = "Resetuj link";
+"GROUP_LINK_VIEW_RESET_LINK" = "Ресетуj линк";
 
 /* Title for the 'confirm reset link' alert in the 'group link' view. */
-"GROUP_LINK_VIEW_RESET_LINK_CONFIRM_ALERT_TITLE" = "Da li ste sigurni da želite da resetujete link za grupu? Ljudi više neće moći da se pridruže grupi preko trenutnog linka.";
+"GROUP_LINK_VIEW_RESET_LINK_CONFIRM_ALERT_TITLE" = "Да ли сте сигурни да желите да ресетујете линк за групу? Људи више неће моћи да се придруже групи преко тренутног линка.";
 
 /* Label for the 'share link' button in the 'group link' view. */
 "GROUP_LINK_VIEW_SHARE_LINK" = "Поделите";
@@ -2861,7 +2969,7 @@
 "GROUP_LINK_VIEW_SHARE_SHEET_MESSAGE" = "Svako ko ima ovaj link može da vidi naziv grupe i njene članove, kao i da zatraži da se pridruži grupi. Podelite link sa ljudima u koje imate poverenja.";
 
 /* The title for the 'group link' view. */
-"GROUP_LINK_VIEW_TITLE" = "Link za grupu";
+"GROUP_LINK_VIEW_TITLE" = "Линк за групу";
 
 /* Message indicating that the local user was added to the group by another user. Embeds {{remote user name}}. */
 "GROUP_LOCAL_USER_ADDED_TO_GROUP_BY_REMOTE_USER_FORMAT" = "%1$@ вас је додао/ла.";
@@ -3209,22 +3317,31 @@
 "HELP_SUPPORT_CENTER" = "Центар за подршку";
 
 /* A format for the 'remove user' action sheet title. Embeds {{the removed user's name or phone number}}. */
-"HIDE_RECIPIENT_ACTION_SHEET_TITLE_FORMAT" = "Remove %1$@?";
+"HIDE_RECIPIENT_ACTION_SHEET_TITLE_FORMAT" = "Желите ли да уклоните корисника (%1$@)?";
 
 /* An explanation of the consequences of removing a user. */
-"HIDE_RECIPIENT_BEHAVIOR_EXPLANATION" = "You won't see this person when searching. You'll get a message request if they message you in the future.";
+"HIDE_RECIPIENT_BEHAVIOR_EXPLANATION" = "Нећете видети ову особу приликом претраживања. Добићете захтев за поруку ако вам у будућности пошаље поруку.";
 
 /* Button label for the 'remove' button */
-"HIDE_RECIPIENT_BUTTON" = "Remove";
+"HIDE_RECIPIENT_BUTTON" = "Уклони";
 
 /* Toast message confirming the recipient was removed. Embeds {{The name of the user who was removed.}}.. */
-"HIDE_RECIPIENT_CONFIRMATION_TOAST" = "%1$@ has been removed.";
+"HIDE_RECIPIENT_CONFIRMATION_TOAST" = "Корисник је уклоњен (%1$@).";
 
 /* An explanation of why a user was not successfully removed and what to do. */
-"HIDE_RECIPIENT_ERROR_ACTION_SHEET_EXPLANATION" = "Check your connection and try again.";
+"HIDE_RECIPIENT_ERROR_ACTION_SHEET_EXPLANATION" = "Проверите да ли сте повезани и пробајте поново.";
 
 /* Title for an action sheet indicating that the user was not successfully removed. Embeds {{name of user we attempted to hide}}. */
-"HIDE_RECIPIENT_ERROR_ACTION_SHEET_TITLE_FORMAT" = "Unable to remove %1$@";
+"HIDE_RECIPIENT_ERROR_ACTION_SHEET_TITLE_FORMAT" = "Нисмо успели да уклонимо корисника (%1$@)";
+
+/* An explanation of why the user cannot be removed. */
+"HIDE_RECIPIENT_IMPASS_BECAUSE_SYSTEM_CONTACT_ACTION_SHEET_EXPLANATION" = "Ова особа је сачувана у вашим контактима на уређају. Избришите је из контаката да је уклоните са ове листе.";
+
+/* A format for the 'unable to remove user' action sheet title. Embeds {{the removed user's name or phone number}}. */
+"HIDE_RECIPIENT_IMPASS_BECAUSE_SYSTEM_CONTACT_ACTION_SHEET_TITLE" = "Нисмо успели да уклонимо корисника (%1$@)";
+
+/* An explanation of why the user cannot be removed on a linked device. */
+"HIDE_RECIPIENT_IMPOSSIBLE_BECAUSE_SYSTEM_CONTACT_ACTION_SHEET_EXPLANATION" = "Ова особа је сачувана у контактима на вашем телефону. Избришите је из контаката на телефону и пробајте поново.";
 
 /* Label for 'archived conversations' button. */
 "HOME_VIEW_ARCHIVED_CONVERSATIONS" = "Архивирана ћаскања";
@@ -3280,15 +3397,6 @@
 /* Momentarily shown to the user when attempting to select more images than is allowed. Embeds {{max number of items}} that can be shared. */
 "IMAGE_PICKER_CAN_SELECT_NO_MORE_TOAST_FORMAT" = "Maksimalan broj stavki koje možete da podelite je %1$@.";
 
-/* Button that will present a view for the user to change the photos Signal has access to. */
-"IMAGE_PICKER_CHANGE_PHOTOS" = "Промени фотографију";
-
-/* Explanation showing that the user has granted limited access to their photos and can change that in the Settings app. */
-"IMAGE_PICKER_CHANGE_PHOTOS_EXPLANATION" = "Одобрите пуни приступ у Подешавањима или промените којим фотографијама Signal може да приступи.";
-
-/* Title show that the user has granted limited access to their photos and can change that in the Settings app. */
-"IMAGE_PICKER_CHANGE_PHOTOS_TITLE" = "Не видите своје фотографије?";
-
 /* alert title */
 "IMAGE_PICKER_FAILED_TO_PROCESS_ATTACHMENTS" = "Грешка при слању прилога.";
 
@@ -3337,8 +3445,23 @@
 /* info message text in conversation view */
 "INCOMING_VIDEO_CALL" = "Долазни видео позив";
 
+/* Indicates that a previously-removed recipient has been added back to the current user's contacts. */
+"INFO_MESSAGE_CONTACT_REINSTATED" = "Ова особа је сачувана у вашој листи контаката на Signal-у.";
+
 /* Indicates that the recipient has been removed from the current user's contacts and that messaging them will re-add them. */
-"INFO_MESSAGE_CONTACT_REMOVED" = "Уклонили сте ову особу. Ако јој поново пошаљете поруку, вратићете је на листу.";
+"INFO_MESSAGE_CONTACT_REMOVED" = "Уклонили сте ову особу са своје листе контаката на Signal-у. Ако јој пошаљете поруку, поново ћете је додати.";
+
+/* Shown when a user activates payments from a chat */
+"INFO_MESSAGE_PAYMENTS_ACTIVATED" = "Активирали сте плаћања.";
+
+/* Shown when a user activates payments from a chat. Embeds: {{ the user's name}} */
+"INFO_MESSAGE_PAYMENTS_ACTIVATION_REQUEST_FINISHED" = "%1$@ сада може да прима плаћања.";
+
+/* Shown when a user receives a payment activation request. Embeds: {{ the user's name}} */
+"INFO_MESSAGE_PAYMENTS_ACTIVATION_REQUEST_RECEIVED" = "%1$@ жели да активирате плаћања. Плаћања шаљите само људима којима верујете.";
+
+/* Shown when requesting a user activates payments. Embeds: {{ the user's name}} */
+"INFO_MESSAGE_PAYMENTS_ACTIVATION_REQUEST_SENT" = "%1$@ ће од вас примити захтев за активирање плаћања.";
 
 /* Shown in inbox and conversation after syncing as a placeholder indicating why your message history is missing. */
 "INFO_MESSAGE_SYNCED_THREAD" = "You can send or receive synchronized messages from your phone or iPad.  For your security, chat history isn't transferred to new linked devices.";
@@ -3568,6 +3691,9 @@
 /* Title for the button that resets photo to its initial state. */
 "MEDIA_EDITOR_RESET" = "Ресетуј";
 
+/* Tooltip to display above a clock sticker in the media editor saying to tap for more clock styles */
+"MEDIA_EDITOR_TAP_FOR_MORE" = "Додирни за више";
+
 /* Placeholder for message text input field in media editor. */
 "MEDIA_EDITOR_TEXT_FIELD_ADD_MESSAGE" = "Dodaj poruku";
 
@@ -3669,6 +3795,9 @@
 
 /* Label for button to open a sticker pack. */
 "MESSAGE_ACTION_LINK_OPEN_STICKER_PACK" = "Видите пакет налепница";
+
+/* Action sheet button title */
+"MESSAGE_ACTION_PAYMENT_DETAILS" = "Подаци о плаћању";
 
 /* Label for button to call a phone number. */
 "MESSAGE_ACTION_PHONE_NUMBER_CALL" = "Позови";
@@ -3946,6 +4075,18 @@
 /* info message text in conversation view */
 "MISSED_AUDIO_CALL" = "Пропуштен гласовни позив";
 
+/* info message text in conversation view for when a call was dropped because the contact is blocked in iOS settings */
+"MISSED_CALL_BLOCKED_SYSTEM_CONTACT" = "Пропуштен позив од контакта који је блокиран у подешавањима телефона";
+
+/* Action to block contact in Signal for sheet shown when the user taps a missed call from a contact blocked in iOS settings. */
+"MISSED_CALL_BLOCKED_SYSTEM_SETTINGS_SHEET_BLOCK_ACTION" = "Такође блокирај контакт на Signal-у";
+
+/* Message for sheet shown when the user taps a missed call from a contact blocked in iOS settings. */
+"MISSED_CALL_BLOCKED_SYSTEM_SETTINGS_SHEET_MESSAGE" = "Пропустили сте позив овог корисника зато што је блокиран у подешавањима вашег телефона. Идите на Подешавања > Телефон и изаберите блокиране контакте да бисте то променили.";
+
+/* Title for sheet shown when the user taps a missed call from a contact blocked in iOS settings. Embeds {{ Contact's name }} */
+"MISSED_CALL_BLOCKED_SYSTEM_SETTINGS_SHEET_TITLE" = "%1$@ је блокиран(а) у подешавањима телефона";
+
 /* info message text in conversation view (use Apple's name for 'Do Not Disturb' on iOS 14 and older) */
 "MISSED_CALL_DO_NOT_DISTURB" = "Propušten poziv u režimu „Ne uznemiravaj“";
 
@@ -4094,7 +4235,7 @@
 "NEW_PRIVATE_STORY_NAME_FOOTER" = "Само ви можете да видите назив ове приче.";
 
 /* Placeholder text for a new private story name */
-"NEW_PRIVATE_STORY_NAME_PLACEHOLDER" = "Naziv priče (obavezno)";
+"NEW_PRIVATE_STORY_NAME_PLACEHOLDER" = "Назив приче (обавезно)";
 
 /* The title for the 'new private story' view. */
 "NEW_PRIVATE_STORY_VIEW_TITLE" = "Izaberite gledaoce";
@@ -4360,11 +4501,23 @@
 /* info message text in conversation view */
 "OUTGOING_MISSED_VIDEO_CALL" = "Неодговорен видео позив";
 
+/* Button for action sheet shown when device transfer completes; quits the Signal app immediately (does not automatically relaunch, but the user may choose to relaunch). */
+"OUTGOING_TRANSFER_COMPLETE_EXIT_ACTION" = "Затвори Signal";
+
+/* Message for action sheet shown when device transfer completes */
+"OUTGOING_TRANSFER_COMPLETE_MESSAGE" = "Signal ће се сада затворити на овом уређају";
+
+/* Title for action sheet shown when device transfer completes */
+"OUTGOING_TRANSFER_COMPLETE_TITLE" = "Пренос је завршен!";
+
 /* info message text in conversation view */
 "OUTGOING_VIDEO_CALL" = "Одлазни видео позив";
 
-/* Button used to decline a payment request. */
-"PAYMENTS_ACTION_DECLINE_REQUEST" = "Одбиј захтев";
+/* Header title for bank payment details screen */
+"PAYMENT_DETAILS_BANK_TITLE" = "Bank Transfer";
+
+/* Header title for card payment details screen */
+"PAYMENT_DETAILS_CARD_TITLE" = "Credit or Debit Card";
 
 /* Format for indicator of a payment amount converted to fiat currency with the freshness of the conversion rate. Embeds: {{ %1$@ the payment amount, %2$@ the freshness of the currency conversion rate }}. */
 "PAYMENTS_CURRENCY_CONVERSION_FRESHNESS_FORMAT" = "%1$@ на %2$@";
@@ -4372,20 +4525,8 @@
 /* Indicator for unknown currency. */
 "PAYMENTS_CURRENCY_UNKNOWN" = "?";
 
-/* Message for the 'decline a payment request' alert. Embeds {{ the name of the user requesting payment }}. */
-"PAYMENTS_DECLINE_REQUEST_ALERT_MESSAGE_FORMAT" = "%1$@ биће обавештен да сте одбили.";
-
-/* Title for the 'decline a payment request' alert. */
-"PAYMENTS_DECLINE_REQUEST_ALERT_TITLE" = "Одбити захтев?";
-
 /* Label for 'defragmentation' payments. */
 "PAYMENTS_DEFRAGMENTATION_PAYMENT" = "Накнада за чишћење новчића";
-
-/* Error indicating that a payment request could not be cancelled. */
-"PAYMENTS_ERROR_PAYMENT_REQUEST_CANCEL_FAILED" = "Захтев се не може отказати.";
-
-/* Error indicating that a payment request could not be declined. */
-"PAYMENTS_ERROR_PAYMENT_REQUEST_DECLINE_FAILED" = "Захтев се не може одбити.";
 
 /* Status indicator for incoming payments which failed. */
 "PAYMENTS_FAILURE_INCOMING_FAILED" = "Неуспешно";
@@ -4407,6 +4548,15 @@
 
 /* Status indicator for outgoing payments which failed to verify. */
 "PAYMENTS_FAILURE_OUTGOING_VALIDATION_FAILED" = "Неисправно";
+
+/* Payments in-chat message shown if a payment fails to send, bottom half. */
+"PAYMENTS_IN_CHAT_FAILURE_MESSAGE_BOTTOM" = "Додирните да видите детаље";
+
+/* Payments in-chat message shown if a payment fails to send, top part. Embeds {{ number, amount of MOB coin not sent }} */
+"PAYMENTS_IN_CHAT_FAILURE_MESSAGE_TOP" = "%1$@ MOB није послато";
+
+/* Status indicator for invalid payments which could not be processed. */
+"PAYMENTS_INFO_UNAVAILABLE_MESSAGE" = "НИЈЕ ДОСТУПНО";
 
 /* Indicates that an unknown error occurred while using Touch ID/Face ID/Phone Passcode. */
 "PAYMENTS_LOCK_AUTHENTICATION_ENABLE_UNKNOWN_ERROR" = "Није могуће приступити системској потврди идентитета.";
@@ -4531,9 +4681,6 @@
 /* Format for the 'payment recipient amount' indicator. Embeds {{ the name of the recipient of the payment }}. */
 "PAYMENTS_NEW_PAYMENT_RECIPIENT_AMOUNT_FORMAT" = "За %1$@";
 
-/* Label for the 'new payment request' button. */
-"PAYMENTS_NEW_PAYMENT_REQUEST_BUTTON" = "Захтев";
-
 /* Label for the payments notification banner for a single payment notification. */
 "PAYMENTS_NOTIFICATION_BANNER_1" = "1 Ново обавештење о уплати";
 
@@ -4542,6 +4689,18 @@
 
 /* Format for the payments notification banner for multiple payment notifications. Embeds: {{ the number of unread payment notifications }}. */
 "PAYMENTS_NOTIFICATION_BANNER_N_FORMAT" = "%1$@ нових обавештења о уплати";
+
+/* Payment status context with contact name, failed. Embeds {{ Name of receiving contact }} */
+"PAYMENTS_PAYMENT_STATUS_IN_CHAT_PAYMENT_TO" = "Плаћање за: %1$@";
+
+/* Payment status context while sending */
+"PAYMENTS_PAYMENT_STATUS_IN_CHAT_PROCESSING" = "Обрађујем уплату…";
+
+/* Payment status context with contact name, incoming. Embeds {{ Name of sending contact }} */
+"PAYMENTS_PAYMENT_STATUS_IN_CHAT_SENT_YOU" = "%1$@ вам је послао/ла уплату";
+
+/* Payment status context with contact name, sent. Embeds {{ Name of receiving contact }} */
+"PAYMENTS_PAYMENT_STATUS_IN_CHAT_YOU_SENT" = "%1$@ је примио/ла уплату од вас";
 
 /* Status indicator for incoming payments which are complete. */
 "PAYMENTS_PAYMENT_STATUS_LONG_INCOMING_COMPLETE" = "Уплата завршена";
@@ -4603,6 +4762,12 @@
 /* Status indicator for payments which had an unknown failure. */
 "PAYMENTS_PAYMENT_STATUS_SHORT_UNKNOWN" = "Непозната грешка";
 
+/* Payments Preview Text shown in quoted replies, for payments. Embeds {{ Amount sent (number), Currency (e.g. 'MOB') }} */
+"PAYMENTS_PREVIEW_TEXT_QUOTED_REPLY" = "Плаћање: %1$@ %2$@";
+
+/* Payments Preview Text shown in quoted replies, for unknown payments. */
+"PAYMENTS_PREVIEW_TEXT_UNKNOWN" = "Непознато плаћање";
+
 /* Message for error alert indicating that a given user cannot receive payments because of a pending message request for a recipient that they have sent messages to. */
 "PAYMENTS_RECIPIENT_MISSING_PROFILE_KEY_MESSAGE_W_MESSAGES" = "Да бисте послали уплате овом кориснику, потребно је да прихвати ваш захтев.";
 
@@ -4612,11 +4777,17 @@
 /* Title for error alert indicating that a given user cannot receive payments because of a pending message request. */
 "PAYMENTS_RECIPIENT_MISSING_PROFILE_KEY_TITLE" = "Не може да се пошаље уплата";
 
-/* Message for error alert indicating that a given user cannot receive payments because they have not enabled payments. */
-"PAYMENTS_RECIPIENT_PAYMENTS_NOT_ENABLED_MESSAGE" = "Ова особа није активирала уплате.";
+/* The label for the 'send request' button in alerts and action sheets. */
+"PAYMENTS_RECIPIENT_PAYMENTS_NOT_ENABLED_BUTTON" = "Пошаљи захтев";
 
-/* Title for error alert indicating that a given user cannot receive payments because they have not enabled payments. */
-"PAYMENTS_RECIPIENT_PAYMENTS_NOT_ENABLED_TITLE" = "Неисправан прималац";
+/* Message for error alert indicating that a given user cannot receive payments because they have not enabled payments. */
+"PAYMENTS_RECIPIENT_PAYMENTS_NOT_ENABLED_MESSAGE" = "Желите ли да пошаљете тој особи захтев за активирање плаћања?";
+
+/* Title for error alert indicating that a given user cannot receive payments because they have not enabled payments. Embeds {{ the contact's name }} */
+"PAYMENTS_RECIPIENT_PAYMENTS_NOT_ENABLED_TITLE" = "%1$@ није активирао/ла плаћања";
+
+/* Payments Preview Text shown in chat list for payments. */
+"PAYMENTS_THREAD_PREVIEW_TEXT" = "💳 Плаћање";
 
 /* Label for 'transfer out' payments. */
 "PAYMENTS_TRANSFER_OUT_PAYMENT" = "Пренос";
@@ -4779,6 +4950,9 @@
 
 /* alert title */
 "PHOTO_CAPTURE_UNABLE_TO_INITIALIZE_CAMERA" = "Грешка при подешавању камере.";
+
+/* alert title, generic error preventing user from capturing a video that is too long */
+"PHOTO_CAPTURE_VIDEO_SIZE_ERROR" = "Видео је предугачак.";
 
 /* label for system photo collections which have no name. */
 "PHOTO_PICKER_UNNAMED_COLLECTION" = "Неименовани албум";
@@ -5380,17 +5554,8 @@
 /* Alert shown when submitting a verification code too many times. Embeds {{ duration }}, such as \"5:00\" */
 "REGISTRATION_SUBMIT_CODE_RATE_LIMIT_ALERT_FORMAT" = "Превише пута сте покушали да унесете шифру. Пробајте поново за %1$@";
 
-/* Error message indicating that device transfer from another device might be possible. */
-"REGISTRATION_TRANSFER_AVAILABLE_DESCRIPTION" = "Постојао је рачун који је претходно регистрован у овом броју који је доступан за пренос.";
-
 /* During registration and re-registration, users may have to enter a code to verify ownership of their phone number. If they enter an invalid code, they will see this error message. */
 "REGISTRATION_VERIFICATION_ERROR_INVALID_VERIFICATION_CODE" = "Шифра коју сте унели није важећа. Пошаљите шифру поново и пробајте поново.";
-
-/* Error message indicating that registration failed due to a missing or incorrect verification code. */
-"REGISTRATION_VERIFICATION_FAILED_WRONG_CODE_DESCRIPTION" = "Број који сте унели се не подудара са оним који смо вам послали. Молимо вас да га проверите.";
-
-/* Error message indicating that registration failed due to a missing or incorrect 2FA PIN. */
-"REGISTRATION_VERIFICATION_FAILED_WRONG_PIN" = "Нетачан PIN за закључавање регистрације.";
 
 /* Message of alert indicating that users needs to enter a valid phone number to register. */
 "REGISTRATION_VIEW_INVALID_PHONE_NUMBER_ALERT_MESSAGE" = "Унесите исправан број телефона да се региструјете.";
@@ -5478,21 +5643,6 @@
 
 /* Snippet to share {{safety number}} with a friend. sent e.g. via SMS */
 "SAFETY_NUMBER_SHARE_FORMAT" = "Наш Signal сигурносни број:\n%1$@";
-
-/* Header informing the user about the transition from phone number to user identifier based. */
-"SAFETY_NUMBER_TRANSITION_HEADER_ALERT" = "Безбедносни бројеви се ажурирају.";
-
-/* Button text for a sheet informing the user about the transition from phone number to user identifier based. */
-"SAFETY_NUMBER_TRANSITION_SHEET_HELP_TEXT" = "Потребна вам је помоћ?";
-
-/* Informs the user about the transition from phone number to user identifier based. */
-"SAFETY_NUMBER_TRANSITION_SHEET_PARAGRAPH_1" = "Током прелазног периода ажурирају се безбедносни бројеви, како би се омогућиле будуће опције за приватност на платформи Signal.";
-
-/* Informs the user about the transition from phone number to user identifier based. */
-"SAFETY_NUMBER_TRANSITION_SHEET_PARAGRAPH_2" = "Ради верификације безбедносних бројева, повежите картицу у боји са уређајем свог контакта. Ако се не повежу, превуците и покушајте с другим паром безбедносних бројева. Довољно је да се повеже један пар.";
-
-/* Title for a sheet informing the user about the transition from phone number to user identifier based. */
-"SAFETY_NUMBER_TRANSITION_SHEET_TITLE" = "Промена у безбедносне бројеве";
 
 /* Action sheet heading */
 "SAFETY_NUMBERS_ACTIONSHEET_TITLE" = "Ваш сигурносни број са %1$@ је промењен. Препоручујемо да га оверите.";
@@ -5656,11 +5806,59 @@
 /* String describing standard quality sent media */
 "SENT_MEDIA_QUALITY_STANDARD" = "Стандардно";
 
+/* Users can donate to Signal with a bank account. This is the label for email field on that screen. */
+"SEPA_DONATION_EMAIL_LABEL" = "Email";
+
+/* Users can donate to Signal with a bank account. This is placeholder text for the email field before the user starts typing. */
+"SEPA_DONATION_EMAIL_PLACEHOLDER" = "Email Address";
+
+/* SEPA bank account donation error for insufficient funds. */
+"SEPA_DONATION_ERROR_INSUFFICIENT_FUNDS" = "The bank account provided has insufficient funds to complete this purchase, try again or contact your bank for more information.";
+
+/* SEPA bank account donation error for missing or incorrect mandate information. */
+"SEPA_DONATION_ERROR_NOT_AUTHORIZED" = "An error occurred while processing this payment, please try again.";
+
+/* SEPA bank account donation error for the account details not being able to be processed. */
+"SEPA_DONATION_ERROR_NOT_PROCESSED" = "The bank details provided could not be processed, contact your bank for more information.";
+
+/* SEPA bank account donation error for unspecified decline failures. */
+"SEPA_DONATION_ERROR_OTHER" = "Verify your bank details are correct and try again. If the problem continues, contact your bank.";
+
+/* SEPA bank account donation error for the payment not being authorizing by the account holder. */
+"SEPA_DONATION_ERROR_PAYMENT_NOT_AUTHORIZED" = "This payment was revoked by the account holder and could not be processed. You haven’t been charged.";
+
+/* Users can donate to Signal with a bank account. If their internation bank account number (IBAN) contains characters other than letters and numbers, this error will be shown. Try to use a short string to make space in the UI. */
+"SEPA_DONATION_IBAN_INVALID_CHARACTERS_ERROR" = "IBAN can only contain A-Z and 0-9";
+
+/* Users can donate to Signal with a bank account. If their internation bank account number (IBAN) does not pass validation, this error will be shown. Try to use a short string to make space in the UI. */
+"SEPA_DONATION_IBAN_INVALID_CHECK_ERROR" = "Invalid IBAN number";
+
+/* Users can donate to Signal with a bank account. If their internation bank account number (IBAN) has an unsupported country code, this error will be shown. Try to use a short string to make space in the UI. */
+"SEPA_DONATION_IBAN_INVALID_COUNTRY_ERROR" = "IBAN country code is not supported";
+
+/* Users can donate to Signal with a bank account. This is the label for IBAN (internation bank account number) field on that screen. */
+"SEPA_DONATION_IBAN_LABEL" = "IBAN";
+
+/* Users can donate to Signal with a bank account. If their internation bank account number (IBAN) is too long, this error will be shown. Try to use a short string to make space in the UI. */
+"SEPA_DONATION_IBAN_TOO_LONG_ERROR" = "IBAN is too long";
+
+/* Users can donate to Signal with a bank account. If their internation bank account number (IBAN) is too long, this error will be shown. Try to use a short string to make space in the UI. */
+"SEPA_DONATION_IBAN_TOO_SHORT_ERROR" = "IBAN is too short";
+
+/* Users can donate to Signal with a bank account. This is the label for name field on that screen. */
+"SEPA_DONATION_NAME_LABEL" = "Name";
+
+/* Users can donate to Signal with a bank account. This is placeholder text for the name field before the user starts typing. */
+"SEPA_DONATION_NAME_PLACEHOLDER" = "Name on Bank Account";
+
 /* Description for the session refresh alert */
 "SESSION_REFRESH_ALERT_MESSAGE" = "Signal користи потпуно шифровање и можда ће понекад морати да освежи вашу сесију ћаскања. То не утиче на безбедност ћаскања, али може се десити да пропустите поруку од овог контакта, па можете затражити да вам је поново пошаље.";
 
 /* Title for the session refresh alert */
 "SESSION_REFRESH_ALERT_TITLE" = "Сесија ћаскања је освежена";
+
+/* If you send a message to a phone number, we might not know the owner of the account. When you later learn the owner of the account, we may show this message. The first parameter is a phone number; the second parameter is the contact's name. Put differently, this message indicates that a phone number belongs to a particular named recipient. */
+"SESSION_SWITCHOVER_EVENT" = "%2$@ је власник броја %1$@";
 
 /* Title for the wallpaper choose from photos option */
 "SET_WALLPAPER_CHOOSE_PHOTO" = "Одабери из фотографије";
@@ -5721,6 +5919,21 @@
 
 /* No comment provided by engineer. */
 "SETTINGS_ADVANCED_VIEW_ERROR_LOG" = "Извештаји грешака";
+
+/* Information on sheet about changing the app icon - first line */
+"SETTINGS_APP_ICON_EDUCATION_APP_NAME" = "Назив апликације „Signal“ биће видљив на почетном екрану, у обавештењима и на списку апликација.";
+
+/* Information on sheet about changing the app icon - second line */
+"SETTINGS_APP_ICON_EDUCATION_HOME_SCREEN_DOCK" = "Можете да сакријете назив апликације „Signal“ са почетног екрана тако што ћете померити апликацију на дно почетног екрана.";
+
+/* The footer for the app icon selection settings page. */
+"SETTINGS_APP_ICON_FOOTER" = "Назив апликације „Signal“ биће видљив на почетном екрану, у обавештењима и на списку апликација.";
+
+/* The title for the app icon selection settings page. */
+"SETTINGS_APP_ICON_TITLE" = "Икона апликације";
+
+/* The title for the app icon section in the appearance settings. */
+"SETTINGS_APPEARANCE_APP_ICON" = "Икона апликације";
 
 /* Footer for avatar section in appearance settings */
 "SETTINGS_APPEARANCE_AVATAR_FOOTER" = "Покажати системску фотографију контакта ако је доступна";
@@ -5825,7 +6038,7 @@
 "SETTINGS_DATA_MEDIA_AUTO_DOWNLOAD_RESET" = "Ресетујте поставке ауто-преузимања";
 
 /* Item title for the sent media quality setting */
-"SETTINGS_DATA_SENT_MEDIA_QUALITY_ITEM_TITLE" = "Квалитет сланог медија";
+"SETTINGS_DATA_SENT_MEDIA_QUALITY_ITEM_TITLE" = "Квалитет послатог медија";
 
 /* Section footer for the sent media section in data settings */
 "SETTINGS_DATA_SENT_MEDIA_SECTION_FOOTER" = "Изаберите квалитет у који шаљете фотографије и видео записе.";
@@ -5948,7 +6161,7 @@
 "SETTINGS_PAYMENTS_ACTIVATE_PAYMENTS_CONFIRM_AGREE" = "Активирај";
 
 /* Description for the 'activate payments confirmation' UI in the payment settings. */
-"SETTINGS_PAYMENTS_ACTIVATE_PAYMENTS_CONFIRM_DESCRIPTION" = "Можете да користите Signal да бисте послали и примили MobileCoin. Сва плаћања подлежу условима коришћења за MobileCoins  и новчаник MobileCoin-а. Ово је бета карактеристика, тако да можете наићи на грешке и плаћања или салто које можете изгубити не можете се вратити.";
+"SETTINGS_PAYMENTS_ACTIVATE_PAYMENTS_CONFIRM_DESCRIPTION" = "Можете да користите Signal да бисте слали и примали MobileCoin. Сва плаћања подлежу условима коришћења за MobileCoin и MobileCoin Wallet. Може се десити да наиђете на неке проблеме због којих се плаћања или износи које можда изгубите не могу повратити.";
 
 /* Title for the 'activate payments confirmation' UI in the payment settings. */
 "SETTINGS_PAYMENTS_ACTIVATE_PAYMENTS_CONFIRM_TITLE" = "Активирај";
@@ -6104,7 +6317,7 @@
 "SETTINGS_PAYMENTS_OPT_IN_REACTIVATE_BUTTON" = "Поново активирајте плаћања";
 
 /* Title for the 'payments opt-in' view in the app settings. */
-"SETTINGS_PAYMENTS_OPT_IN_TITLE" = "Увођење уплате (Beta)";
+"SETTINGS_PAYMENTS_OPT_IN_TITLE" = "Представљамо плаћања";
 
 /* Button when discarding recovery phrase. */
 "SETTINGS_PAYMENTS_PASSPHRASE_DISCARD_CONFIRMATION_BUTTON" = "Прескочи фразу за опоравак";
@@ -6142,14 +6355,20 @@
 /* Label for the sender in the payment details view in the app settings. */
 "SETTINGS_PAYMENTS_PAYMENT_DETAILS_SENDER" = "Послао";
 
+/* Label for the sender in the payment details view in the app settings when the status is 'Failed'. Followed by sender name. */
+"SETTINGS_PAYMENTS_PAYMENT_DETAILS_SENDER_ATTEMPTED" = "Ко је покушао да плати:";
+
 /* Format for the sender info in the payment details view in the app settings. Embeds {{ %1$@ the name of the sender of the payment, %2$@ the date the transaction was sent }}. */
 "SETTINGS_PAYMENTS_PAYMENT_DETAILS_SENDER_FORMAT" = "%1$@ на %2$@";
+
+/* Format for indicator that you sent a payment in the payment details view in the app settings. Embeds: {{ the user who you sent the payment to }}. */
+"SETTINGS_PAYMENTS_PAYMENT_DETAILS_SENDING_FORMAT" = "Шаље се кориснику: %1$@";
 
 /* Indicates that you sent a payment in the payment details view in the app settings. */
 "SETTINGS_PAYMENTS_PAYMENT_DETAILS_SENT" = "Послато";
 
 /* Format for indicator that you sent a payment in the payment details view in the app settings. Embeds: {{ the user who you sent the payment to }}. */
-"SETTINGS_PAYMENTS_PAYMENT_DETAILS_SENT_FORMAT" = "Послано %1$@";
+"SETTINGS_PAYMENTS_PAYMENT_DETAILS_SENT_FORMAT" = "Послато кориснику: %1$@";
 
 /* Label for the transaction status in the payment details view in the app settings. */
 "SETTINGS_PAYMENTS_PAYMENT_DETAILS_STATUS" = "Стање";
@@ -6413,7 +6632,7 @@
 "SETTINGS_PAYMENTS_VIEW_RECOVERY_PASSPHRASE" = "Фраза опоравка";
 
 /* Title for the 'payments settings' view in the app settings. */
-"SETTINGS_PAYMENTS_VIEW_TITLE" = "Плаћања (Beta)";
+"SETTINGS_PAYMENTS_VIEW_TITLE" = "Уплате";
 
 /* Label for the payments wallet address. */
 "SETTINGS_PAYMENTS_WALLET_ADDRESS_LABEL" = "Адреса Вашег новчаника";
@@ -6645,6 +6864,12 @@
 
 /* Title for the captcha view controller */
 "SPAM_CAPTCHA_VIEW_CONTROLLER" = "Довршите верификацију";
+
+/* The name for the sticker category 'Featured' */
+"STICKER_CATEGORY_FEATURED_NAME" = "Истакнуто";
+
+/* The name for the sticker category 'Recents' */
+"STICKER_CATEGORY_RECENTS_NAME" = "Недавно";
 
 /* Preview text shown in notifications and conversation list for sticker messages. */
 "STICKER_MESSAGE_PREVIEW" = "Налепница";
@@ -6904,6 +7129,9 @@
 /* Text indicating that the story send has failed */
 "STORY_SEND_FAILED" = "Слање није успело";
 
+/* Body for notification shown when a story fails to send. */
+"STORY_SEND_FAILED_NOTIFICATION_BODY" = "❗️Слање приче није успело";
+
 /* Text indicating that you can tap to retry sending */
 "STORY_SEND_FAILED_RETRY" = "Пробајте поново";
 
@@ -6938,7 +7166,7 @@
 "STORY_SETTINGS_TITLE" = "Приче";
 
 /* Section footer for the 'viewers' section on the 'story settings' view */
-"STORY_SETTINGS_WHO_CAN_VIEW_THIS_FOOTER" = "Choose which Signal Connections can view your story. Changes won’t affect stories you’ve already sent.";
+"STORY_SETTINGS_WHO_CAN_VIEW_THIS_FOOTER" = "Бирајте које Signal везе могу да виде вашу причу. Промене неће утицати на приче које сте већ послали.";
 
 /* Section header for the 'viewers' section on the 'story settings' view */
 "STORY_SETTINGS_WHO_CAN_VIEW_THIS_HEADER" = "Who Can View This Story";
@@ -7039,38 +7267,26 @@
 /* Confirm Cancellation? Action sheet title */
 "SUSTAINER_VIEW_CANCEL_SUBSCRIPTION_CONFIRMATION_TITLE" = "Желите ли да потврдите отказивање?";
 
-/* Couldn't add badge text, embeds {{link to contact support}} */
-"SUSTAINER_VIEW_CANT_ADD_BADGE" = "Не могу да додам значку. %1$@";
-
 /* Action sheet message for Couldn't Add Badge sheet */
 "SUSTAINER_VIEW_CANT_ADD_BADGE_MESSAGE" = "Ваша значка није могла да се дода на ваш налог. Молимо контактирајте подршку.";
 
 /* Action sheet title for Couldn't Add Badge sheet */
 "SUSTAINER_VIEW_CANT_ADD_BADGE_TITLE" = "Не могу да додам значку";
 
-/* Contact support link */
-"SUSTAINER_VIEW_CONTACT_SUPPORT" = "Молимо контактирајте подршку.";
-
 /* Action sheet title for Error Processing Payment sheet */
-"SUSTAINER_VIEW_ERROR_PROCESSING_PAYMENT_TITLE" = "Грешка при обради уплате";
-
-/* Payment error occurred text, embeds {{link to contact support}} */
-"SUSTAINER_VIEW_PAYMENT_ERROR" = "Грешка при обради уплате. %1$@";
+"SUSTAINER_VIEW_ERROR_PROCESSING_PAYMENT_TITLE" = "Error Processing Donation";
 
 /* Pricing text for sustainer view badges, embeds {{price}} */
 "SUSTAINER_VIEW_PRICING" = "%1$@ месечно";
 
 /* Loading indicator on the sustainer view */
-"SUSTAINER_VIEW_PROCESSING_PAYMENT" = "Уплата се обрађује…";
-
-/* Status text while processing a badge redemption */
-"SUSTAINER_VIEW_PROCESSING_TRANSACTION" = "Трансакција се обрађује…";
+"SUSTAINER_VIEW_PROCESSING_PAYMENT" = "Processing donation...";
 
 /* Renewal date text for sustainer view level, embeds {{renewal date}} */
 "SUSTAINER_VIEW_RENEWAL" = "Обнавља се на дан %1$@";
 
 /* Action sheet message for Still Processing Badge sheet */
-"SUSTAINER_VIEW_STILL_PROCESSING_BADGE_MESSAGE" = "Ваша уплата се и даље обрађује. Ово може потрајати неколико минута у зависности од ваше везе.";
+"SUSTAINER_VIEW_STILL_PROCESSING_BADGE_MESSAGE" = "Your donation is still being processed. This can take a few minutes depending on your connection.";
 
 /* Toast indicating that the subscription has been cancelled */
 "SUSTAINER_VIEW_SUBSCRIPTION_CANCELLED" = "Ваша претплата је поништена";
@@ -7138,6 +7354,9 @@
 /* Option in selected text edit menu to make text strikethrough */
 "TEXT_MENU_STRIKETHROUGH" = "Прецртано";
 
+/* Option in selected text edit menu to translate the word */
+"TEXT_MENU_TRANSLATE" = "Преведи";
+
 /* text indicating the message was remotely deleted */
 "THIS_MESSAGE_WAS_DELETED" = "Ова порука је избрисана.";
 
@@ -7158,6 +7377,15 @@
 
 /* A string indicating two mutual groups the user shares with this contact. Embeds {{mutual group name}} */
 "THREAD_DETAILS_TWO_MUTUAL_GROUP" = "Члан %1$@ и %2$@";
+
+/* Shown after tapping a 'Learn More' button when multiple conversations for the same person have been merged into one. The first parameter is a phone number (eg +1 650-555-0100) and the second parameter is a name (eg John). */
+"THREAD_MERGE_LEARN_MORE" = "Након ћаскања са бројем %1$@, сазнали сте да је власник тог броја %2$@. Број тог корисника је приватан.\n\nИсторија порука за оба ћаскања спојена је овде.";
+
+/* A system event shown in a conversation when multiple conversations for the same person have been merged into one. The parameter is replaced with the contact's name (eg John Doe). */
+"THREAD_MERGE_NO_PHONE_NUMBER" = "Историја порука које сте разменили ви и %1$@ и друго ћаскање које је припадало том кориснику сада су спојени.";
+
+/* A system event shown in a conversation when multiple conversations for the same person have been merged into one. The parameters are replaced with the contact's name (eg John Doe) and their phone number (eg +1 650 555 0100). */
+"THREAD_MERGE_PHONE_NUMBER" = "Историја порука које сте разменили ви и %1$@ и број тог корисника %2$@ сада су спојени.";
 
 /* {{number of days}} embedded in strings, e.g. 'Alice updated disappearing messages expiration to {{5 days}}'. See other *_TIME_AMOUNT strings */
 "TIME_AMOUNT_DAYS" = "%1$@ дана";
@@ -7200,6 +7428,18 @@
 
 /* Label text below navbar button, embeds {{number of weeks}}. Must be very short, like 1 or 2 characters, The space is intentionally omitted between the text and the embedded duration so that we get, e.g. '5w' not '5 w'. See other *_TIME_AMOUNT strings */
 "TIME_AMOUNT_WEEKS_SHORT_FORMAT" = "%1$@н";
+
+/* Button for bottom sheet shown when device transfer completes on the receiving device. Tapping will terminate the Signal app and trigger a notification to relaunch. */
+"TRANSFER_COMPLETE_SHEET_BUTTON" = "Затвори Signal";
+
+/* Subtitle for bottom sheet shown when device transfer completes on the receiving device. */
+"TRANSFER_COMPLETE_SHEET_SUBTITLE" = "Да бисте почели да користите свој налог на овом уређају, затворите Signal и поново га отворите.";
+
+/* Title for bottom sheet shown when device transfer completes on the receiving device. */
+"TRANSFER_COMPLETE_SHEET_TITLE" = "Пренос је завршен";
+
+/* Notification prompting the user to relaunch Signal after a device transfer completed. */
+"TRANSFER_RELAUNCH_NOTIFICATION" = "Отворите Signal да почнете са дописивањем";
 
 /* Label for the cancel button in an alert or action sheet. */
 "TXT_CANCEL_TITLE" = "Одустани";
@@ -7439,13 +7679,16 @@
 "VERIFY_PRIVACY_MULTIPLE" = "Провери сигурносне бројеве";
 
 /* Instructions for verifying your safety number. Embeds {{contact's name}} */
-"VERIFY_SAFETY_NUMBER_INSTRUCTIONS" = "Ради верификације end-to-end шифровања са контактом %1$@, повежите картицу у боји с његовим уређајем и упоредите бројеве. Ако се не повежу, превуците и покушајте с другим паром безбедносних бројева. Довољно је да се повеже један пар.";
+"VERIFY_SAFETY_NUMBER_INSTRUCTIONS" = "To verify end-to-end encryption with %1$@, compare the numbers above with their device. You can also scan the code on their device.";
 
 /* Toast alert text shown when tapping on a video that cannot be played. */
 "VIDEO_BROKEN" = "Ovaj video snimak se ne može pustiti";
 
 /* Accessibility label for placing a video call */
 "VIDEO_CALL_LABEL" = "Видео позив";
+
+/* Button label for the 'View Contact' button */
+"VIEW_CONTACT_BUTTON" = "Прикажи контакт";
 
 /* Toast alert text shown when tapping on a view-once message that has already been viewed. */
 "VIEW_ONCE_ALREADY_VIEWED_TOAST" = "Већ сте видели ову поруку.";
@@ -7517,7 +7760,7 @@
 "WALLPAPER_SETTINGS_FAILED_TO_RESET" = "Није могуће ресетовати све позадине. Покушајте поново касније или контактирајте подршку ако се грешка настави.";
 
 /* Label for 'reset all chat colors' action in the global wallpaper settings. */
-"WALLPAPER_SETTINGS_RESET_ALL_CHAT_COLORS" = "Рисетовати све боје";
+"WALLPAPER_SETTINGS_RESET_ALL_CHAT_COLORS" = "Ресетовати све боје";
 
 /* Label for 'reset all wallpapers' action in the global wallpaper settings. */
 "WALLPAPER_SETTINGS_RESET_ALL_WALLPAPERS" = "Рисетуј све позадине";
@@ -7532,25 +7775,25 @@
 "WALLPAPER_SETTINGS_RESET_CONVERSATION_CHAT_COLOR" = "Ресетуј боју ћаскања";
 
 /* Reset conversation wallpaper action in wallpaper settings view. */
-"WALLPAPER_SETTINGS_RESET_CONVERSATION_WALLPAPER" = "Рисетовати позадину";
+"WALLPAPER_SETTINGS_RESET_CONVERSATION_WALLPAPER" = "Ресетовати позадину";
 
 /* Label for 'reset default chat color' action in the global wallpaper settings. */
-"WALLPAPER_SETTINGS_RESET_DEFAULT_CHAT_COLOR" = "Рисетовати подразумеване боје";
+"WALLPAPER_SETTINGS_RESET_DEFAULT_CHAT_COLOR" = "Ресетовати подразумеване боје";
 
 /* Reset global chat colors action in wallpaper settings view. */
 "WALLPAPER_SETTINGS_RESET_DEFAULT_CHAT_COLORS" = "Ресетуј боје ћаскања";
 
 /* Label for 'reset default wallpaper' action in the global wallpaper settings. */
-"WALLPAPER_SETTINGS_RESET_DEFAULT_WALLPAPER" = "Рисетовати подразумевану позадину";
+"WALLPAPER_SETTINGS_RESET_DEFAULT_WALLPAPER" = "Ресетовати подразумевану позадину";
 
 /* Reset wallpapers action in wallpaper settings view. */
-"WALLPAPER_SETTINGS_RESET_GLOBAL_WALLPAPER" = "Рисетовати позадине";
+"WALLPAPER_SETTINGS_RESET_GLOBAL_WALLPAPER" = "Ресетовати позадине";
 
 /* Message of confirmation dialog when resetting the global wallpaper settings. */
 "WALLPAPER_SETTINGS_RESET_WALLPAPERS_CONFIRMATION_MESSAGE" = "Да ли желите да надјачате све позадине?";
 
 /* Title of confirmation dialog when resetting the global wallpaper settings. */
-"WALLPAPER_SETTINGS_RESET_WALLPAPERS_CONFIRMATION_TITLE" = "Рисетовати позадину";
+"WALLPAPER_SETTINGS_RESET_WALLPAPERS_CONFIRMATION_TITLE" = "Ресетовати позадину";
 
 /* Set chat color action in color and wallpaper settings view. */
 "WALLPAPER_SETTINGS_SET_CHAT_COLOR" = "Боја ћаскања";

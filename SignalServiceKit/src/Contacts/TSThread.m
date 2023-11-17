@@ -7,7 +7,6 @@
 #import "AppReadiness.h"
 #import "OWSDisappearingMessagesConfiguration.h"
 #import "OWSReadTracking.h"
-#import "TSAccountManager.h"
 #import "TSIncomingMessage.h"
 #import "TSInfoMessage.h"
 #import "TSInteraction.h"
@@ -175,7 +174,7 @@ lastVisibleSortIdOnScreenPercentageObsolete:(double)lastVisibleSortIdOnScreenPer
 {
     [super anyDidInsertWithTransaction:transaction];
 
-    [ThreadAssociatedData createFor:self.uniqueId warnIfPresent:YES transaction:transaction];
+    [ThreadAssociatedData createFor:self.uniqueId transaction:transaction];
 
     if (self.shouldThreadBeVisible && ![SSKPreferences hasSavedThreadWithTransaction:transaction]) {
         [SSKPreferences setHasSavedThread:YES transaction:transaction];
@@ -408,7 +407,7 @@ lastVisibleSortIdOnScreenPercentageObsolete:(double)lastVisibleSortIdOnScreenPer
                             transaction:transaction];
         if (needsToMarkAsVisible) {
             // Non-visible threads don't get indexed, so if we're becoming visible for the first time...
-            [SDSDatabaseStorage.shared touchThread:self shouldReindex:true transaction:transaction];
+            [SDSDatabaseStorage.shared touchThread:self shouldReindex:YES transaction:transaction];
         }
         if (needsToClearLastVisibleSortId) {
             [self clearLastVisibleInteractionWithTransaction:transaction];
@@ -430,10 +429,32 @@ lastVisibleSortIdOnScreenPercentageObsolete:(double)lastVisibleSortIdOnScreenPer
         needsToClearArchived = NO;
     }
 
-    // Shouldn't clear archived during thread import.
-    if ([message isKindOfClass:TSInfoMessage.class]
-        && ((TSInfoMessage *)message).messageType == TSInfoMessageSyncedThread) {
-        needsToClearArchived = NO;
+    if ([message isKindOfClass:TSInfoMessage.class]) {
+        switch (((TSInfoMessage *)message).messageType) {
+            case TSInfoMessageSyncedThread: // Shouldn't clear archived during thread import.
+            case TSInfoMessageThreadMerge:
+                needsToClearArchived = NO;
+                break;
+            case TSInfoMessageTypeSessionDidEnd:
+            case TSInfoMessageUserNotRegistered:
+            case TSInfoMessageTypeUnsupportedMessage:
+            case TSInfoMessageTypeGroupUpdate:
+            case TSInfoMessageTypeGroupQuit:
+            case TSInfoMessageTypeDisappearingMessagesUpdate:
+            case TSInfoMessageAddToContactsOffer:
+            case TSInfoMessageVerificationStateChange:
+            case TSInfoMessageAddUserToProfileWhitelistOffer:
+            case TSInfoMessageAddGroupToProfileWhitelistOffer:
+            case TSInfoMessageUnknownProtocolVersion:
+            case TSInfoMessageUserJoinedSignal:
+            case TSInfoMessageProfileUpdate:
+            case TSInfoMessagePhoneNumberChange:
+            case TSInfoMessageRecipientHidden:
+            case TSInfoMessagePaymentsActivationRequest:
+            case TSInfoMessagePaymentsActivated:
+            case TSInfoMessageSessionSwitchover:
+                break;
+        }
     }
 
     // Shouldn't clear archived if:
@@ -520,11 +541,6 @@ lastVisibleSortIdOnScreenPercentageObsolete:(double)lastVisibleSortIdOnScreenPer
 
     // Delete any intents we previously donated for this thread.
     [INInteraction deleteInteractionsWithGroupIdentifier:self.uniqueId completion:^(NSError *error) {}];
-}
-
-- (BOOL)hasPendingMessageRequestWithTransaction:(GRDBReadTransaction *)transaction
-{
-    return [GRDBThreadFinder hasPendingMessageRequestWithThread:self transaction:transaction];
 }
 
 #pragma mark - Archival

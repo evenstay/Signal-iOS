@@ -103,7 +103,7 @@ class UrlOpener {
     // MARK: - Opening URLs
 
     func openUrl(_ parsedUrl: ParsedUrl, in window: UIWindow) {
-        guard tsAccountManager.isRegistered else {
+        guard tsAccountManager.registrationStateWithMaybeSneakyTransaction.isRegistered else {
             return owsFailDebug("Ignoring URL; not registered.")
         }
         guard let rootViewController = window.rootViewController else {
@@ -148,7 +148,7 @@ class UrlOpener {
             rootViewController.present(ProxyLinkSheetViewController(url: url)!, animated: true)
 
         case .linkDevice(let deviceProvisioningURL):
-            guard tsAccountManager.isPrimaryDevice else {
+            guard tsAccountManager.registrationStateWithMaybeSneakyTransaction.isRegisteredPrimaryDevice else {
                 return owsFailDebug("Ignoring URL; not primary device.")
             }
             let linkedDevicesViewController = LinkedDevicesTableViewController()

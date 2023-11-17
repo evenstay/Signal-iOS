@@ -52,7 +52,7 @@ class DebugUIGroupsV2: DebugUIPage, Dependencies {
     // MARK: -
 
     private func kickOtherGroupMembers(groupModel: TSGroupModelV2) {
-        guard let localAci = tsAccountManager.localIdentifiers?.aci else {
+        guard let localAci = DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction?.aci else {
             return owsFailDebug("Missing localAddress.")
         }
 
@@ -69,7 +69,7 @@ class DebugUIGroupsV2: DebugUIPage, Dependencies {
 
     private func sendInvalidGroupMessages(contactThread: TSContactThread) {
         let otherUserAddress = contactThread.contactAddress
-        // PNI TODO: Support PNIs.
+        // TODO: Support PNIs.
         guard let otherUserAci = otherUserAddress.serviceId as? Aci else {
             owsFailDebug("Recipient is missing ACI.")
             return

@@ -4,6 +4,8 @@
 //
 
 import Foundation
+import SignalCoreKit
+import SignalServiceKit
 
 public final class CachedBadge: Equatable, Dependencies {
 
@@ -47,7 +49,7 @@ public final class CachedBadge: Equatable, Dependencies {
             }
             // Otherwise, kick off a new fetch.
             let fetchPromise: Promise<Value> = firstly {
-                SubscriptionManagerImpl.getBadge(level: self.badgeLevel)
+                SubscriptionManagerImpl.getOneTimeBadge(level: self.badgeLevel)
             }.then { (profileBadge) -> Promise<Value> in
                 switch profileBadge {
                 case .none:

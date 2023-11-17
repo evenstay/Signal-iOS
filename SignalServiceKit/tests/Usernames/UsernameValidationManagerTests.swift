@@ -10,7 +10,6 @@ import XCTest
 @testable import SignalServiceKit
 
 final class UsernameValidationManagerTest: XCTestCase {
-    typealias UntypedServiceId = SignalServiceKit.UntypedServiceId
     typealias Username = String
 
     private var mockAccountServiceClient: MockAccountServiceClient!
@@ -325,16 +324,16 @@ final class UsernameValidationManagerTest: XCTestCase {
 
 private extension WhoAmIRequestFactory.Responses.WhoAmI {
     static let noRemoteUsername: Self = .init(
-        aci: UUID(),
-        pni: UUID(),
+        aci: Aci.randomForTesting(),
+        pni: Pni.randomForTesting(),
         e164: E164("+16125550101")!,
         usernameHash: nil
     )
 
     static func withRemoteUsername(_ remoteUsername: String) -> Self {
         return .init(
-            aci: UUID(),
-            pni: UUID(),
+            aci: Aci.randomForTesting(),
+            pni: Pni.randomForTesting(),
             e164: E164("+16125550101")!,
             usernameHash: try! Usernames.HashedUsername(forUsername: remoteUsername).hashString
         )

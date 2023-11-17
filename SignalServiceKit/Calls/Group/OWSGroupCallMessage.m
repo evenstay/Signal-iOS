@@ -15,22 +15,16 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (nonatomic, getter=wasRead) BOOL read;
 
-@property (nonatomic, nullable, readonly) NSString *eraId;
-@property (nonatomic, nullable) NSArray<NSString *> *joinedMemberUuids;
-@property (nonatomic, nullable) NSString *creatorUuid;
-@property (nonatomic) BOOL hasEnded;
-
 @end
 
 #pragma mark -
 
 @implementation OWSGroupCallMessage
 
-- (instancetype)initWithEraId:(NSString *)eraId
-            joinedMemberUuids:(NSArray<NSUUID *> *)joinedMemberUuids
-                  creatorUuid:(nullable NSUUID *)creatorUuid
-                       thread:(TSGroupThread *)thread
-              sentAtTimestamp:(uint64_t)sentAtTimestamp
+- (instancetype)initWithJoinedMemberAcis:(NSArray<AciObjC *> *)joinedMemberAcis
+                              creatorAci:(nullable AciObjC *)creatorAci
+                                  thread:(TSGroupThread *)thread
+                         sentAtTimestamp:(uint64_t)sentAtTimestamp
 {
     self = [super initInteractionWithTimestamp:sentAtTimestamp thread:thread];
 
@@ -38,9 +32,8 @@ NS_ASSUME_NONNULL_BEGIN
         return self;
     }
 
-    _eraId = eraId;
-    _joinedMemberUuids = [joinedMemberUuids map:^(NSUUID *uuid) { return uuid.UUIDString; }];
-    _creatorUuid = creatorUuid.UUIDString;
+    _joinedMemberUuids = [joinedMemberAcis map:^(AciObjC *aci) { return aci.serviceIdUppercaseString; }];
+    _creatorUuid = creatorAci.serviceIdUppercaseString;
 
     return self;
 }
@@ -96,13 +89,13 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSArray<SignalServiceAddress *> *)joinedMemberAddresses
 {
     return [self.joinedMemberUuids
-        map:^(NSString *uuidString) { return [[SignalServiceAddress alloc] initWithUuidString:uuidString]; }];
+        map:^(NSString *aciString) { return [[SignalServiceAddress alloc] initWithAciString:aciString]; }];
 }
 
 - (nullable SignalServiceAddress *)creatorAddress
 {
     if (self.creatorUuid) {
-        return [[SignalServiceAddress alloc] initWithUuidString:self.creatorUuid];
+        return [[SignalServiceAddress alloc] initWithAciString:self.creatorUuid];
     } else {
         return nil;
     }
@@ -247,19 +240,6 @@ NS_ASSUME_NONNULL_BEGIN
                                              block:^(OWSGroupCallMessage *message) {
                                                  message.hasEnded = hasEnded;
                                                  message.joinedMemberUuids = @[];
-                                             }];
-}
-
-- (void)updateWithJoinedMemberUuids:(NSArray<NSUUID *> *)joinedMemberUuids
-                        creatorUuid:(NSUUID *)uuid
-                        transaction:(SDSAnyWriteTransaction *)transaction
-{
-    [self anyUpdateGroupCallMessageWithTransaction:transaction
-                                             block:^(OWSGroupCallMessage *message) {
-                                                 message.hasEnded = joinedMemberUuids.count == 0;
-                                                 message.creatorUuid = uuid.UUIDString;
-                                                 message.joinedMemberUuids = [joinedMemberUuids map:^(
-                                                     NSUUID *blockParamUuid) { return blockParamUuid.UUIDString; }];
                                              }];
 }
 

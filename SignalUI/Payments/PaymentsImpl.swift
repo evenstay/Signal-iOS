@@ -4,7 +4,9 @@
 //
 
 import Foundation
+import LibSignalClient
 import MobileCoin
+import SignalCoreKit
 import SignalMessaging
 import SignalServiceKit
 
@@ -44,7 +46,7 @@ public class PaymentsImpl: NSObject, PaymentsSwift {
     fileprivate var keyValueStore: SDSKeyValueStore { paymentsHelper.keyValueStore}
 
     private func updateLastKnownLocalPaymentAddressProtoDataIfNecessary() {
-        guard tsAccountManager.isRegisteredAndReady else {
+        guard DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isRegistered else {
             return
         }
         guard AppReadiness.isAppReady else {
@@ -257,9 +259,11 @@ public class PaymentsImpl: NSObject, PaymentsSwift {
         guard canUsePayments else {
             return
         }
-        guard AppReadiness.isAppReady,
-              CurrentAppContext().isMainAppAndActive,
-              Self.tsAccountManager.isRegisteredAndReady else {
+        guard
+            AppReadiness.isAppReady,
+            CurrentAppContext().isMainAppAndActive,
+            DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isRegistered
+        else {
             return
         }
 
@@ -318,16 +322,15 @@ public class PaymentsImpl: NSObject, PaymentsSwift {
 
 public extension PaymentsImpl {
 
-    private func fetchPublicAddress(forAddress address: SignalServiceAddress) -> Promise<MobileCoin.PublicAddress> {
+    private func fetchPublicAddress(for recipientAci: Aci) -> Promise<MobileCoin.PublicAddress> {
         return firstly {
             ProfileFetcherJob.fetchProfilePromise(
-                address: address,
+                serviceId: recipientAci,
                 mainAppOnly: false,
                 ignoreThrottling: true
             )
         }.map(on: DispatchQueue.global()) { (fetchedProfile: FetchedProfile) -> MobileCoin.PublicAddress in
             guard let decryptedProfile = fetchedProfile.decryptedProfile else {
-                Logger.verbose("address: \(address)")
                 throw PaymentsError.userHasNoPublicAddress
             }
 
@@ -336,43 +339,31 @@ public extension PaymentsImpl {
             guard let paymentAddress = decryptedProfile.paymentAddress,
                   paymentAddress.isValid,
                   paymentAddress.currency == .mobileCoin else {
-                Logger.verbose("address: \(address)")
-                Logger.verbose("profile.paymentAddress: \(String(describing: decryptedProfile.paymentAddress))")
                 throw PaymentsError.userHasNoPublicAddress
             }
             do {
                 return try paymentAddress.asPublicAddress()
             } catch {
-                Logger.verbose("address: \(address)")
                 owsFailDebug("Can't parse public address: \(error)")
                 throw PaymentsError.userHasNoPublicAddress
             }
         }
     }
 
-    private func upsertNewOutgoingPaymentModel(recipientAddress: SignalServiceAddress?,
-                                               recipientPublicAddress: MobileCoin.PublicAddress,
-                                               paymentAmount: TSPaymentAmount,
-                                               feeAmount: TSPaymentAmount,
-                                               memoMessage: String?,
-                                               transaction: MobileCoin.Transaction,
-                                               receipt: MobileCoin.Receipt,
-                                               paymentRequestModel: TSPaymentRequestModel?,
-                                               isOutgoingTransfer: Bool) -> Promise<TSPaymentModel> {
+    private func upsertNewOutgoingPaymentModel(
+        recipientAci: Aci?,
+        recipientPublicAddress: MobileCoin.PublicAddress,
+        paymentAmount: TSPaymentAmount,
+        feeAmount: TSPaymentAmount,
+        memoMessage: String?,
+        transaction: MobileCoin.Transaction,
+        receipt: MobileCoin.Receipt,
+        isOutgoingTransfer: Bool
+    ) -> Promise<TSPaymentModel> {
         guard !isKillSwitchActive else {
             return Promise(error: PaymentsError.killSwitch)
         }
         return firstly(on: DispatchQueue.global()) {
-            var addressUuidString: String?
-            if let recipientAddress = recipientAddress {
-                guard recipientAddress.isValid else {
-                    throw OWSAssertionError("Invalid address.")
-                }
-                guard let recipientUuid = recipientAddress.uuid else {
-                    throw OWSAssertionError("Missing recipientUuid.")
-                }
-                addressUuidString = recipientUuid.uuidString
-            }
             let recipientPublicAddressData = recipientPublicAddress.serializedData
             guard paymentAmount.currency == .mobileCoin,
                   paymentAmount.isValidAmount(canBeEmpty: false) else {
@@ -401,15 +392,17 @@ public extension PaymentsImpl {
                                                ledgerBlockIndex: 0,
                                                feeAmount: feeAmount)
 
-            let paymentModel = TSPaymentModel(paymentType: paymentType,
-                                              paymentState: .outgoingUnsubmitted,
-                                              paymentAmount: paymentAmount,
-                                              createdDate: Date(),
-                                              addressUuidString: addressUuidString,
-                                              memoMessage: memoMessage?.nilIfEmpty,
-                                              requestUuidString: paymentRequestModel?.requestUuidString,
-                                              isUnread: false,
-                                              mobileCoin: mobileCoin)
+            let paymentModel = TSPaymentModel(
+                paymentType: paymentType,
+                paymentState: .outgoingUnsubmitted,
+                paymentAmount: paymentAmount,
+                createdDate: Date(),
+                senderOrRecipientAci: recipientAci.map { AciObjC($0) },
+                memoMessage: memoMessage?.nilIfEmpty,
+                isUnread: false,
+                interactionUniqueId: nil,
+                mobileCoin: mobileCoin
+            )
 
             guard paymentModel.isValid else {
                 throw OWSAssertionError("Invalid paymentModel.")
@@ -448,6 +441,25 @@ public extension PaymentsImpl {
         localMobileCoinAccount(paymentsState: self.paymentsState)
     }
 
+    // Only valid for the recipient
+    func unmaskReceiptAmount(data: Data?) -> Amount? {
+        guard let data = data else { return nil }
+        let account = localMobileCoinAccount()
+        guard let accountKey = account?.accountKey else { return nil }
+        guard let receipt = Receipt(serializedData: data) else { return nil }
+        guard let amount = receipt.validateAndUnmaskAmount(accountKey: accountKey) else { return nil }
+        return amount
+    }
+
+    // Only valid for the recipient
+    func decryptReceipt(data: Data) -> (Amount?, Receipt?) {
+        let account = localMobileCoinAccount()
+        guard let accountKey = account?.accountKey else { return (nil, nil) }
+        guard let receipt = Receipt(serializedData: data) else { return (nil, nil) }
+        guard let amount = receipt.validateAndUnmaskAmount(accountKey: accountKey) else { return (nil, nil) }
+        return (amount, receipt)
+    }
+
     func buildLocalPaymentAddress(paymentsState: PaymentsState) -> TSPaymentAddress? {
         owsAssertDebug(paymentsState.isEnabled)
 
@@ -476,25 +488,20 @@ public extension PaymentsImpl {
         return url
     }
 
-    func localPaymentAddressProtoData() -> Data? {
-        localPaymentAddressProtoData(paymentsState: self.paymentsState)
-    }
-
-    func localPaymentAddressProtoData(paymentsState: PaymentsState) -> Data? {
+    func localPaymentAddressProtoData(paymentsState: PaymentsState, tx: SDSAnyReadTransaction) -> Data? {
         owsAssertDebug(paymentsState.isEnabled)
 
         guard let localPaymentAddress = buildLocalPaymentAddress(paymentsState: paymentsState) else {
             owsFailDebug("Missing localPaymentAddress.")
             return nil
         }
-        guard localPaymentAddress.isValid,
-              localPaymentAddress.currency == .mobileCoin else {
+        guard localPaymentAddress.isValid, localPaymentAddress.currency == .mobileCoin else {
             owsFailDebug("Invalid localPaymentAddress.")
             return nil
         }
 
         do {
-            let proto = try localPaymentAddress.buildProto()
+            let proto = try localPaymentAddress.buildProto(tx: tx)
             return try proto.serializedData()
         } catch {
             owsFailDebug("Error: \(error)")
@@ -506,7 +513,7 @@ public extension PaymentsImpl {
         let data: Data?
         let paymentsState = self.paymentsState
         if paymentsState.isEnabled {
-            data = localPaymentAddressProtoData(paymentsState: paymentsState)
+            data = localPaymentAddressProtoData(paymentsState: paymentsState, tx: transaction)
         } else {
             data = nil
         }
@@ -550,12 +557,13 @@ public extension PaymentsImpl {
         }
     }
 
-    func prepareOutgoingPayment(recipient: SendPaymentRecipient,
-                                paymentAmount: TSPaymentAmount,
-                                memoMessage: String?,
-                                paymentRequestModel: TSPaymentRequestModel?,
-                                isOutgoingTransfer: Bool,
-                                canDefragment: Bool) -> Promise<PreparedPayment> {
+    func prepareOutgoingPayment(
+        recipient: SendPaymentRecipient,
+        paymentAmount: TSPaymentAmount,
+        memoMessage: String?,
+        isOutgoingTransfer: Bool,
+        canDefragment: Bool
+    ) -> Promise<PreparedPayment> {
 
         guard !isKillSwitchActive else {
             return Promise(error: PaymentsError.killSwitch)
@@ -571,34 +579,39 @@ public extension PaymentsImpl {
                 return Promise(error: PaymentsError.killSwitch)
             }
 
+            guard let recipientAci = recipientAddress.serviceId as? Aci else {
+                return Promise(error: PaymentsError.userHasNoPublicAddress)
+            }
+
             return firstly(on: DispatchQueue.global()) { () -> Promise<MobileCoin.PublicAddress> in
-                self.fetchPublicAddress(forAddress: recipientAddress)
+                self.fetchPublicAddress(for: recipientAci)
             }.then(on: DispatchQueue.global()) { (recipientPublicAddress: MobileCoin.PublicAddress) -> Promise<PreparedPayment> in
-                self.prepareOutgoingPayment(recipientAddress: recipientAddress,
-                                              recipientPublicAddress: recipientPublicAddress,
-                                              paymentAmount: paymentAmount,
-                                              memoMessage: memoMessage,
-                                              paymentRequestModel: paymentRequestModel,
-                                              isOutgoingTransfer: isOutgoingTransfer,
-                                              canDefragment: canDefragment)
+                self.prepareOutgoingPayment(
+                    recipientAci: recipientAci,
+                    recipientPublicAddress: recipientPublicAddress,
+                    paymentAmount: paymentAmount,
+                    memoMessage: memoMessage,
+                    isOutgoingTransfer: isOutgoingTransfer,
+                    canDefragment: canDefragment
+                )
             }
         case .publicAddress(let recipientPublicAddress):
-            return prepareOutgoingPayment(recipientAddress: nil,
-                                            recipientPublicAddress: recipientPublicAddress,
-                                            paymentAmount: paymentAmount,
-                                            memoMessage: memoMessage,
-                                            paymentRequestModel: paymentRequestModel,
-                                            isOutgoingTransfer: isOutgoingTransfer,
-                                            canDefragment: canDefragment)
+            return prepareOutgoingPayment(
+                recipientAci: nil,
+                recipientPublicAddress: recipientPublicAddress,
+                paymentAmount: paymentAmount,
+                memoMessage: memoMessage,
+                isOutgoingTransfer: isOutgoingTransfer,
+                canDefragment: canDefragment
+            )
         }
     }
 
     private func prepareOutgoingPayment(
-        recipientAddress: SignalServiceAddress?,
+        recipientAci: Aci?,
         recipientPublicAddress: MobileCoin.PublicAddress,
         paymentAmount: TSPaymentAmount,
         memoMessage: String?,
-        paymentRequestModel: TSPaymentRequestModel?,
         isOutgoingTransfer: Bool,
         canDefragment: Bool
     ) -> Promise<PreparedPayment> {
@@ -609,7 +622,7 @@ public extension PaymentsImpl {
         guard paymentAmount.currency == .mobileCoin else {
             return Promise(error: OWSAssertionError("Invalid currency."))
         }
-        guard recipientAddress != Self.tsAccountManager.localAddress else {
+        guard recipientAci != DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction?.aci else {
             return Promise(error: OWSAssertionError("Can't make payment to yourself."))
         }
 
@@ -632,11 +645,10 @@ public extension PaymentsImpl {
                                                         shouldUpdateBalance: shouldUpdateBalance)
             }.map(on: DispatchQueue.global()) { (preparedTransaction: MobileCoinAPI.PreparedTransaction) -> PreparedPayment in
                 PreparedPaymentImpl(
-                    recipientAddress: recipientAddress,
+                    recipientAci: recipientAci,
                     recipientPublicAddress: recipientPublicAddress,
                     paymentAmount: paymentAmount,
                     memoMessage: memoMessage,
-                    paymentRequestModel: paymentRequestModel,
                     isOutgoingTransfer: isOutgoingTransfer,
                     preparedTransaction: preparedTransaction
                 )
@@ -704,10 +716,10 @@ public extension PaymentsImpl {
                                                       paymentState: .outgoingUnsubmitted,
                                                       paymentAmount: paymentAmount,
                                                       createdDate: Date(),
-                                                      addressUuidString: nil,
+                                                      senderOrRecipientAci: nil,
                                                       memoMessage: nil,
-                                                      requestUuidString: nil,
                                                       isUnread: false,
+                                                      interactionUniqueId: nil,
                                                       mobileCoin: mobileCoin)
 
                     guard paymentModel.isValid else {
@@ -738,17 +750,16 @@ public extension PaymentsImpl {
             // the TSPaymentModel to the database. The PaymentsProcessor
             // will observe this and take responsibility for the submission,
             // verification and notification of the payment.
-            //
-            // TODO: Handle requests.
-            return self.upsertNewOutgoingPaymentModel(recipientAddress: preparedPayment.recipientAddress,
-                                                      recipientPublicAddress: preparedPayment.recipientPublicAddress,
-                                                      paymentAmount: preparedPayment.paymentAmount,
-                                                      feeAmount: preparedTransaction.feeAmount,
-                                                      memoMessage: preparedPayment.memoMessage,
-                                                      transaction: preparedTransaction.transaction,
-                                                      receipt: preparedTransaction.receipt,
-                                                      paymentRequestModel: preparedPayment.paymentRequestModel,
-                                                      isOutgoingTransfer: preparedPayment.isOutgoingTransfer)
+            return self.upsertNewOutgoingPaymentModel(
+                recipientAci: preparedPayment.recipientAci,
+                recipientPublicAddress: preparedPayment.recipientPublicAddress,
+                paymentAmount: preparedPayment.paymentAmount,
+                feeAmount: preparedTransaction.feeAmount,
+                memoMessage: preparedPayment.memoMessage,
+                transaction: preparedTransaction.transaction,
+                receipt: preparedTransaction.receipt,
+                isOutgoingTransfer: preparedPayment.isOutgoingTransfer
+            )
         }
     }
 
@@ -872,7 +883,7 @@ public extension PaymentsImpl {
             return
         }
 
-        _ = sendOutgoingPaymentSyncMessage(recipientUuid: nil,
+        _ = sendOutgoingPaymentSyncMessage(recipientAci: nil,
                                            recipientAddress: nil,
                                            paymentAmount: paymentAmount,
                                            feeAmount: feeAmount,
@@ -888,8 +899,6 @@ public extension PaymentsImpl {
 
     class func sendPaymentNotificationMessage(paymentModel: TSPaymentModel,
                                               transaction: SDSAnyWriteTransaction) throws -> OWSOutgoingPaymentMessage {
-
-        Logger.verbose("")
         guard paymentModel.paymentType == .outgoingPayment else {
             owsFailDebug("Invalid paymentType.")
             throw PaymentsError.invalidModel
@@ -911,9 +920,8 @@ public extension PaymentsImpl {
             owsFailDebug("Invalid amount.")
             throw PaymentsError.invalidModel
         }
-        guard let address = paymentModel.address,
-              address.isValid else {
-            owsFailDebug("Invalid address.")
+        guard let recipientAci = paymentModel.senderOrRecipientAci?.wrappedAciValue else {
+            owsFailDebug("Invalid recipientAci.")
             throw PaymentsError.invalidModel
         }
         guard let mcTransactionData = paymentModel.mcTransactionData,
@@ -930,15 +938,14 @@ public extension PaymentsImpl {
             }
             throw PaymentsError.invalidModel
         }
-        let requestUuidString = paymentModel.requestUuidString
 
-        Logger.verbose("paymentState: \(paymentModel.paymentState.formatted).")
-
-        let message = self.sendPaymentNotificationMessage(address: address,
-                                                          memoMessage: paymentModel.memoMessage,
-                                                          mcReceiptData: mcReceiptData,
-                                                          requestUuidString: requestUuidString,
-                                                          transaction: transaction)
+        let message = self.sendPaymentNotificationMessage(
+            paymentModel: paymentModel,
+            recipientAci: recipientAci,
+            memoMessage: paymentModel.memoMessage,
+            mcReceiptData: mcReceiptData,
+            transaction: transaction
+        )
         return message
     }
 
@@ -946,9 +953,8 @@ public extension PaymentsImpl {
                                               transaction: SDSAnyWriteTransaction) {
 
         Logger.verbose("")
-        guard let recipientUuidString = paymentModel.addressUuidString,
-              let recipientUuid = UUID(uuidString: recipientUuidString) else {
-            owsFailDebug("Missing recipientUuid.")
+        guard let recipientAci = paymentModel.senderOrRecipientAci else {
+            owsFailDebug("Missing recipientAci.")
             return
         }
         guard let recipientAddress = paymentModel.mobileCoin?.recipientPublicAddressData else {
@@ -1009,7 +1015,7 @@ public extension PaymentsImpl {
             }
             return
         }
-        _ = sendOutgoingPaymentSyncMessage(recipientUuid: recipientUuid,
+        _ = sendOutgoingPaymentSyncMessage(recipientAci: recipientAci.wrappedAciValue,
                                            recipientAddress: recipientAddress,
                                            paymentAmount: paymentAmount,
                                            feeAmount: feeAmount,
@@ -1028,105 +1034,76 @@ public extension PaymentsImpl {
 // MARK: - Messages
 
 public extension PaymentsImpl {
-    class func sendPaymentRequestMessagePromise(address: SignalServiceAddress,
-                                                paymentAmount: TSPaymentAmount,
-                                                memoMessage: String?) -> Promise<OWSOutgoingPaymentMessage> {
-        databaseStorage.write(.promise) { transaction in
-            guard let addressUuid = address.uuid else {
-                throw OWSAssertionError("Missing address.uuid.")
+    private class func sendPaymentNotificationMessage(
+        paymentModel: TSPaymentModel,
+        recipientAci: Aci,
+        memoMessage: String?,
+        mcReceiptData: Data,
+        transaction: SDSAnyWriteTransaction
+    ) -> OWSOutgoingPaymentMessage {
+
+        if
+            let paymentModel = TSPaymentModel.anyFetch(uniqueId: paymentModel.uniqueId, transaction: transaction),
+            let interactionUniqueId = paymentModel.interactionUniqueId
+        {
+            if
+                let existingInteraction = TSInteraction.anyFetch(uniqueId: interactionUniqueId, transaction: transaction),
+                let message = existingInteraction as? OWSOutgoingPaymentMessage
+            {
+                // We already have a message, no need to send anything.
+                return message
+            } else {
+                owsFailBeta("Missing or incorrect interaction type")
             }
-            let requestUuidString = UUID().uuidString
-            let paymentRequestModel = TSPaymentRequestModel(requestUuidString: requestUuidString,
-                                                            addressUuidString: addressUuid.uuidString,
-                                                            isIncomingRequest: false,
-                                                            paymentAmount: paymentAmount,
-                                                            memoMessage: memoMessage,
-                                                            createdDate: Date())
-            paymentRequestModel.anyInsert(transaction: transaction)
-
-            let thread = TSContactThread.getOrCreateThread(withContactAddress: address,
-                                                           transaction: transaction)
-            let paymentRequest = TSPaymentRequest(requestUuidString: requestUuidString,
-                                                  paymentAmount: paymentAmount,
-                                                  memoMessage: memoMessage)
-            let dmConfigurationStore = DependenciesBridge.shared.disappearingMessagesConfigurationStore
-            let expiresInSeconds = dmConfigurationStore.durationSeconds(for: thread, tx: transaction.asV2Read)
-            let message = OWSOutgoingPaymentMessage(thread: thread,
-                                                    paymentCancellation: nil,
-                                                    paymentNotification: nil,
-                                                    paymentRequest: paymentRequest,
-                                                    expiresInSeconds: expiresInSeconds,
-                                                    transaction: transaction)
-            Self.sskJobQueues.messageSenderJobQueue.add(message: message.asPreparer, transaction: transaction)
-            return message
         }
-    }
 
-    class func sendPaymentNotificationMessagePromise(address: SignalServiceAddress,
-                                                     memoMessage: String?,
-                                                     mcReceiptData: Data,
-                                                     requestUuidString: String?) -> Promise<OWSOutgoingPaymentMessage> {
-        databaseStorage.write(.promise) { transaction in
-            self.sendPaymentNotificationMessage(address: address,
-                                                memoMessage: memoMessage,
-                                                mcReceiptData: mcReceiptData,
-                                                requestUuidString: requestUuidString,
-                                                transaction: transaction)
-        }
-    }
-
-    class func sendPaymentNotificationMessage(address: SignalServiceAddress,
-                                              memoMessage: String?,
-                                              mcReceiptData: Data,
-                                              requestUuidString: String?,
-                                              transaction: SDSAnyWriteTransaction) -> OWSOutgoingPaymentMessage {
-        let thread = TSContactThread.getOrCreateThread(withContactAddress: address,
-                                                       transaction: transaction)
-        let paymentNotification = TSPaymentNotification(memoMessage: memoMessage,
-                                                        requestUuidString: requestUuidString,
-                                                        mcReceiptData: mcReceiptData)
+        let thread = TSContactThread.getOrCreateThread(
+            withContactAddress: SignalServiceAddress(recipientAci),
+            transaction: transaction
+        )
+        let paymentNotification = TSPaymentNotification(
+            memoMessage: memoMessage,
+            mcReceiptData: mcReceiptData
+        )
         let dmConfigurationStore = DependenciesBridge.shared.disappearingMessagesConfigurationStore
         let expiresInSeconds = dmConfigurationStore.durationSeconds(for: thread, tx: transaction.asV2Read)
-        let message = OWSOutgoingPaymentMessage(thread: thread,
-                                                paymentCancellation: nil,
-                                                paymentNotification: paymentNotification,
-                                                paymentRequest: nil,
-                                                expiresInSeconds: expiresInSeconds,
-                                                transaction: transaction)
-        Self.sskJobQueues.messageSenderJobQueue.add(message: message.asPreparer, transaction: transaction)
+
+        let messageBody: String? = {
+            guard let picoMob = paymentModel.paymentAmount?.picoMob else {
+                return nil
+            }
+            // Reverse type direction, so it reads correctly incoming to the recipient.
+            return PaymentsFormat.paymentPreviewText(
+                amount: picoMob,
+                transaction: transaction,
+                type: .incomingMessage
+            )
+        }()
+
+        let message = OWSOutgoingPaymentMessage(
+            thread: thread,
+            messageBody: messageBody,
+            paymentNotification: paymentNotification,
+            expiresInSeconds: expiresInSeconds,
+            transaction: transaction
+        )
+
+        paymentModel.update(withInteractionUniqueId: message.uniqueId, transaction: transaction)
+
+        ThreadUtil.enqueueMessage(
+            message,
+            thread: thread,
+            insertMessage: { innerTx in
+                message.anyInsert(transaction: innerTx)
+                return message.asPreparer
+            },
+            transaction: transaction
+        )
+
         return message
-
     }
 
-    class func sendPaymentCancellationMessagePromise(address: SignalServiceAddress,
-                                                     requestUuidString: String) -> Promise<OWSOutgoingPaymentMessage> {
-        return databaseStorage.write(.promise) { transaction in
-            Self.sendPaymentCancellationMessage(address: address,
-                                                requestUuidString: requestUuidString,
-                                                transaction: transaction)
-        }
-    }
-
-    class func sendPaymentCancellationMessage(address: SignalServiceAddress,
-                                              requestUuidString: String,
-                                              transaction: SDSAnyWriteTransaction) -> OWSOutgoingPaymentMessage {
-        let thread = TSContactThread.getOrCreateThread(withContactAddress: address,
-                                                       transaction: transaction)
-        let paymentCancellation = TSPaymentCancellation(requestUuidString: requestUuidString)
-        let dmConfigurationStore = DependenciesBridge.shared.disappearingMessagesConfigurationStore
-        let expiresInSeconds = dmConfigurationStore.durationSeconds(for: thread, tx: transaction.asV2Read)
-        let message = OWSOutgoingPaymentMessage(thread: thread,
-                                                paymentCancellation: paymentCancellation,
-                                                paymentNotification: nil,
-                                                paymentRequest: nil,
-                                                expiresInSeconds: expiresInSeconds,
-                                                transaction: transaction)
-        Self.sskJobQueues.messageSenderJobQueue.add(message: message.asPreparer, transaction: transaction)
-        return message
-
-    }
-
-    class func sendOutgoingPaymentSyncMessage(recipientUuid: UUID?,
+    class func sendOutgoingPaymentSyncMessage(recipientAci: Aci?,
                                               recipientAddress: Data?,
                                               paymentAmount: TSPaymentAmount,
                                               feeAmount: TSPaymentAmount,
@@ -1139,11 +1116,11 @@ public extension PaymentsImpl {
                                               isDefragmentation: Bool,
                                               transaction: SDSAnyWriteTransaction) -> TSOutgoingMessage? {
 
-        guard let thread = TSAccountManager.getOrCreateLocalThread(transaction: transaction) else {
+        guard let thread = TSContactThread.getOrCreateLocalThread(transaction: transaction) else {
             owsFailDebug("Missing local thread.")
             return nil
         }
-        let mobileCoin = OutgoingPaymentMobileCoin(recipientUuidString: recipientUuid?.uuidString,
+        let mobileCoin = OutgoingPaymentMobileCoin(recipientAci: recipientAci.map { AciObjC($0) },
                                                    recipientAddress: recipientAddress,
                                                    amountPicoMob: paymentAmount.picoMob,
                                                    feePicoMob: feeAmount.picoMob,
@@ -1250,11 +1227,23 @@ public enum SendPaymentRecipientImpl: SendPaymentRecipient {
 // MARK: -
 
 public struct PreparedPaymentImpl: PreparedPayment {
-    fileprivate let recipientAddress: SignalServiceAddress?
+    fileprivate let recipientAci: Aci?
     fileprivate let recipientPublicAddress: MobileCoin.PublicAddress
     fileprivate let paymentAmount: TSPaymentAmount
     fileprivate let memoMessage: String?
-    fileprivate let paymentRequestModel: TSPaymentRequestModel?
     fileprivate let isOutgoingTransfer: Bool
     fileprivate let preparedTransaction: MobileCoinAPI.PreparedTransaction
+
+    public var transaction: Transaction { preparedTransaction.transaction }
+    public var receipt: Receipt { preparedTransaction.receipt }
+    public var feeAmount: TSPaymentAmount { preparedTransaction.feeAmount }
+}
+
+extension Amount {
+    public var tsPaymentAmount: TSPaymentAmount? {
+        TSPaymentAmount(
+            currency: self.tokenId == .MOB ? .mobileCoin : .unknown,
+            picoMob: self.value
+        )
+    }
 }

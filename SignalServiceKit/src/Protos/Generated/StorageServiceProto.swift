@@ -1307,14 +1307,24 @@ public struct StorageServiceProtoContactRecord: Codable, CustomDebugStringConver
         return !proto.aci.isEmpty
     }
 
-    public var serviceE164: String? {
-        guard hasServiceE164 else {
+    public var e164: String? {
+        guard hasE164 else {
             return nil
         }
-        return proto.serviceE164
+        return proto.e164
     }
-    public var hasServiceE164: Bool {
-        return !proto.serviceE164.isEmpty
+    public var hasE164: Bool {
+        return !proto.e164.isEmpty
+    }
+
+    public var pni: String? {
+        guard hasPni else {
+            return nil
+        }
+        return proto.pni
+    }
+    public var hasPni: Bool {
+        return !proto.pni.isEmpty
     }
 
     public var profileKey: Data? {
@@ -1464,6 +1474,13 @@ public struct StorageServiceProtoContactRecord: Codable, CustomDebugStringConver
         return !proto.systemNickname.isEmpty
     }
 
+    public var hidden: Bool {
+        return proto.hidden
+    }
+    public var hasHidden: Bool {
+        return true
+    }
+
     public var hasUnknownFields: Bool {
         return !proto.unknownFields.data.isEmpty
     }
@@ -1515,8 +1532,11 @@ extension StorageServiceProtoContactRecord {
         if let _value = aci {
             builder.setAci(_value)
         }
-        if let _value = serviceE164 {
-            builder.setServiceE164(_value)
+        if let _value = e164 {
+            builder.setE164(_value)
+        }
+        if let _value = pni {
+            builder.setPni(_value)
         }
         if let _value = profileKey {
             builder.setProfileKey(_value)
@@ -1566,6 +1586,9 @@ extension StorageServiceProtoContactRecord {
         if let _value = systemNickname {
             builder.setSystemNickname(_value)
         }
+        if hasHidden {
+            builder.setHidden(hidden)
+        }
         if let _value = unknownFields {
             builder.setUnknownFields(_value)
         }
@@ -1590,21 +1613,23 @@ public struct StorageServiceProtoContactRecordBuilder {
     }
 
     @available(swift, obsoleted: 1.0)
-    public mutating func setServiceE164(_ valueParam: String?) {
+    public mutating func setE164(_ valueParam: String?) {
         guard let valueParam = valueParam else { return }
-        if let valueParam = valueParam.nilIfEmpty {
-            owsAssertDebug(valueParam.isStructurallyValidE164)
-        }
-
-        proto.serviceE164 = valueParam
+        proto.e164 = valueParam
     }
 
-    public mutating func setServiceE164(_ valueParam: String) {
-        if let valueParam = valueParam.nilIfEmpty {
-            owsAssertDebug(valueParam.isStructurallyValidE164)
-        }
+    public mutating func setE164(_ valueParam: String) {
+        proto.e164 = valueParam
+    }
 
-        proto.serviceE164 = valueParam
+    @available(swift, obsoleted: 1.0)
+    public mutating func setPni(_ valueParam: String?) {
+        guard let valueParam = valueParam else { return }
+        proto.pni = valueParam
+    }
+
+    public mutating func setPni(_ valueParam: String) {
+        proto.pni = valueParam
     }
 
     @available(swift, obsoleted: 1.0)
@@ -1719,6 +1744,10 @@ public struct StorageServiceProtoContactRecordBuilder {
         proto.systemNickname = valueParam
     }
 
+    public mutating func setHidden(_ valueParam: Bool) {
+        proto.hidden = valueParam
+    }
+
     public mutating func setUnknownFields(_ unknownFields: SwiftProtobuf.UnknownStorage) {
         proto.unknownFields = unknownFields
     }
@@ -1759,41 +1788,6 @@ public struct StorageServiceProtoGroupV1Record: Codable, CustomDebugStringConver
     fileprivate let proto: StorageServiceProtos_GroupV1Record
 
     public let id: Data
-
-    public var blocked: Bool {
-        return proto.blocked
-    }
-    public var hasBlocked: Bool {
-        return true
-    }
-
-    public var whitelisted: Bool {
-        return proto.whitelisted
-    }
-    public var hasWhitelisted: Bool {
-        return true
-    }
-
-    public var archived: Bool {
-        return proto.archived
-    }
-    public var hasArchived: Bool {
-        return true
-    }
-
-    public var markedUnread: Bool {
-        return proto.markedUnread
-    }
-    public var hasMarkedUnread: Bool {
-        return true
-    }
-
-    public var mutedUntilTimestamp: UInt64 {
-        return proto.mutedUntilTimestamp
-    }
-    public var hasMutedUntilTimestamp: Bool {
-        return true
-    }
 
     public var hasUnknownFields: Bool {
         return !proto.unknownFields.data.isEmpty
@@ -1848,21 +1842,6 @@ extension StorageServiceProtoGroupV1Record {
     // asBuilder() constructs a builder that reflects the proto's contents.
     public func asBuilder() -> StorageServiceProtoGroupV1RecordBuilder {
         var builder = StorageServiceProtoGroupV1RecordBuilder(id: id)
-        if hasBlocked {
-            builder.setBlocked(blocked)
-        }
-        if hasWhitelisted {
-            builder.setWhitelisted(whitelisted)
-        }
-        if hasArchived {
-            builder.setArchived(archived)
-        }
-        if hasMarkedUnread {
-            builder.setMarkedUnread(markedUnread)
-        }
-        if hasMutedUntilTimestamp {
-            builder.setMutedUntilTimestamp(mutedUntilTimestamp)
-        }
         if let _value = unknownFields {
             builder.setUnknownFields(_value)
         }
@@ -1889,26 +1868,6 @@ public struct StorageServiceProtoGroupV1RecordBuilder {
 
     public mutating func setId(_ valueParam: Data) {
         proto.id = valueParam
-    }
-
-    public mutating func setBlocked(_ valueParam: Bool) {
-        proto.blocked = valueParam
-    }
-
-    public mutating func setWhitelisted(_ valueParam: Bool) {
-        proto.whitelisted = valueParam
-    }
-
-    public mutating func setArchived(_ valueParam: Bool) {
-        proto.archived = valueParam
-    }
-
-    public mutating func setMarkedUnread(_ valueParam: Bool) {
-        proto.markedUnread = valueParam
-    }
-
-    public mutating func setMutedUntilTimestamp(_ valueParam: UInt64) {
-        proto.mutedUntilTimestamp = valueParam
     }
 
     public mutating func setUnknownFields(_ unknownFields: SwiftProtobuf.UnknownStorage) {
@@ -2918,19 +2877,19 @@ extension StorageServiceProtoAccountRecordUsernameLinkBuilder {
 
 public enum StorageServiceProtoAccountRecordPhoneNumberSharingMode: SwiftProtobuf.Enum {
     public typealias RawValue = Int
-    case everybody // 0
-    case contactsOnly // 1
+    case unknown // 0
+    case everybody // 1
     case nobody // 2
     case UNRECOGNIZED(Int)
 
     public init() {
-        self = .everybody
+        self = .unknown
     }
 
     public init?(rawValue: Int) {
         switch rawValue {
-            case 0: self = .everybody
-            case 1: self = .contactsOnly
+            case 0: self = .unknown
+            case 1: self = .everybody
             case 2: self = .nobody
             default: self = .UNRECOGNIZED(rawValue)
         }
@@ -2938,8 +2897,8 @@ public enum StorageServiceProtoAccountRecordPhoneNumberSharingMode: SwiftProtobu
 
     public var rawValue: Int {
         switch self {
-            case .everybody: return 0
-            case .contactsOnly: return 1
+            case .unknown: return 0
+            case .everybody: return 1
             case .nobody: return 2
             case .UNRECOGNIZED(let i): return i
         }
@@ -2948,8 +2907,8 @@ public enum StorageServiceProtoAccountRecordPhoneNumberSharingMode: SwiftProtobu
 
 private func StorageServiceProtoAccountRecordPhoneNumberSharingModeWrap(_ value: StorageServiceProtos_AccountRecord.PhoneNumberSharingMode) -> StorageServiceProtoAccountRecordPhoneNumberSharingMode {
     switch value {
+    case .unknown: return .unknown
     case .everybody: return .everybody
-    case .contactsOnly: return .contactsOnly
     case .nobody: return .nobody
     case .UNRECOGNIZED(let i): return .UNRECOGNIZED(i)
     }
@@ -2957,8 +2916,8 @@ private func StorageServiceProtoAccountRecordPhoneNumberSharingModeWrap(_ value:
 
 private func StorageServiceProtoAccountRecordPhoneNumberSharingModeUnwrap(_ value: StorageServiceProtoAccountRecordPhoneNumberSharingMode) -> StorageServiceProtos_AccountRecord.PhoneNumberSharingMode {
     switch value {
+    case .unknown: return .unknown
     case .everybody: return .everybody
-    case .contactsOnly: return .contactsOnly
     case .nobody: return .nobody
     case .UNRECOGNIZED(let i): return .UNRECOGNIZED(i)
     }

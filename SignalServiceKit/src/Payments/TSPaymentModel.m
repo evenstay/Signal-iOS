@@ -27,6 +27,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (nonatomic) BOOL isUnread;
 
+@property (nonatomic, nullable) NSString *interactionUniqueId;
+
 @property (nonatomic, nullable) MobileCoinPayment *mobileCoin;
 @property (nonatomic) uint64_t mcLedgerBlockIndex;
 @property (nonatomic, nullable) NSData *mcTransactionData;
@@ -57,10 +59,10 @@ NS_ASSUME_NONNULL_BEGIN
                        paymentState:(TSPaymentState)paymentState
                       paymentAmount:(nullable TSPaymentAmount *)paymentAmount
                         createdDate:(NSDate *)createdDate
-                  addressUuidString:(nullable NSString *)addressUuidString
+               senderOrRecipientAci:(nullable AciObjC *)senderOrRecipientAci
                         memoMessage:(nullable NSString *)memoMessage
-                  requestUuidString:(nullable NSString *)requestUuidString
                            isUnread:(BOOL)isUnread
+                interactionUniqueId:(nullable NSString *)interactionUniqueId
                          mobileCoin:(MobileCoinPayment *)mobileCoin
 {
     self = [super init];
@@ -73,10 +75,11 @@ NS_ASSUME_NONNULL_BEGIN
     _paymentState = paymentState;
     _paymentAmount = paymentAmount;
     _createdTimestamp = createdDate.ows_millisecondsSince1970;
-    _addressUuidString = addressUuidString;
+    _addressUuidString = senderOrRecipientAci.serviceIdUppercaseString;
     _memoMessage = memoMessage;
-    _requestUuidString = requestUuidString;
+    _requestUuidString = nil;
     _isUnread = isUnread;
+    _interactionUniqueId = interactionUniqueId;
     _mobileCoin = mobileCoin;
 
     _mcLedgerBlockIndex = mobileCoin.ledgerBlockIndex;
@@ -105,6 +108,7 @@ NS_ASSUME_NONNULL_BEGIN
                       uniqueId:(NSString *)uniqueId
                addressUuidString:(nullable NSString *)addressUuidString
                 createdTimestamp:(uint64_t)createdTimestamp
+             interactionUniqueId:(nullable NSString *)interactionUniqueId
                         isUnread:(BOOL)isUnread
               mcLedgerBlockIndex:(uint64_t)mcLedgerBlockIndex
                    mcReceiptData:(nullable NSData *)mcReceiptData
@@ -126,6 +130,7 @@ NS_ASSUME_NONNULL_BEGIN
 
     _addressUuidString = addressUuidString;
     _createdTimestamp = createdTimestamp;
+    _interactionUniqueId = interactionUniqueId;
     _isUnread = isUnread;
     _mcLedgerBlockIndex = mcLedgerBlockIndex;
     _mcReceiptData = mcReceiptData;
@@ -150,20 +155,9 @@ NS_ASSUME_NONNULL_BEGIN
     return [NSDate ows_dateWithMillisecondsSince1970:self.createdTimestamp];
 }
 
-- (nullable NSUUID *)addressUuid
+- (nullable AciObjC *)senderOrRecipientAci
 {
-    if (self.addressUuidString == nil) {
-        return nil;
-    }
-    return [[NSUUID alloc] initWithUUIDString:self.addressUuidString];
-}
-
-- (nullable SignalServiceAddress *)address
-{
-    if (self.addressUuid == nil) {
-        return nil;
-    }
-    return [[SignalServiceAddress alloc] initWithUuid:self.addressUuid];
+    return [[AciObjC alloc] initWithAciString:self.addressUuidString];
 }
 
 - (NSDate *)sortDate
@@ -266,6 +260,14 @@ NS_ASSUME_NONNULL_BEGIN
 {
     [self anyUpdateWithTransaction:transaction
                              block:^(TSPaymentModel *paymentModel) { paymentModel.isUnread = isUnread; }];
+}
+
+- (void)updateWithInteractionUniqueId:(NSString *)interactionUniqueId transaction:(SDSAnyWriteTransaction *)transaction
+{
+    [self anyUpdateWithTransaction:transaction
+                             block:^(TSPaymentModel *paymentModel) {
+                                 paymentModel.interactionUniqueId = interactionUniqueId;
+                             }];
 }
 
 #pragma mark -

@@ -54,6 +54,24 @@ public extension TSMessage {
         }
     }
 
+    // MARK: - Mentions
+
+    @objc
+    func insertMentionsInDatabase(tx: SDSAnyWriteTransaction) {
+        guard let bodyRanges else {
+            return
+        }
+        // If we have any mentions, we need to save them to aid in querying for
+        // messages that mention a given user. We only need to save one mention
+        // record per ACI, even if the same ACI is mentioned multiple times in the
+        // message.
+        let uniqueMentionedAcis = Set(bodyRanges.mentions.values)
+        for mentionedAci in uniqueMentionedAcis {
+            let mention = TSMention(uniqueMessageId: uniqueId, uniqueThreadId: uniqueThreadId, aci: mentionedAci)
+            mention.anyInsert(transaction: tx)
+        }
+    }
+
     // MARK: - Reactions
 
     var reactionFinder: ReactionFinder {
@@ -166,7 +184,7 @@ public extension TSMessage {
     //  * you sent this message
     //  * you haven't already remotely deleted this message
     //  * it's not a message with a gift badge
-    //  * it has been less than 3 hours since you sent the message
+    //  * it has been less than 24 hours since you sent the message
     //    * this includes messages sent in the future
     var canBeRemotelyDeleted: Bool {
         guard let outgoingMessage = self as? TSOutgoingMessage else { return false }
@@ -174,7 +192,7 @@ public extension TSMessage {
         guard outgoingMessage.giftBadge == nil else { return false }
 
         let (elapsedTime, isInFuture) = Date.ows_millisecondTimestamp().subtractingReportingOverflow(outgoingMessage.timestamp)
-        guard isInFuture || (elapsedTime <= (kHourInMs * 3)) else { return false }
+        guard isInFuture || (elapsedTime <= (kHourInMs * 24)) else { return false }
 
         return true
     }
@@ -336,7 +354,8 @@ public extension TSMessage {
             let .contactShare(text),
             let .stickerDescription(text),
             let .giftBadge(text),
-            let .infoMessage(text):
+            let .infoMessage(text),
+            let .paymentMessage(text):
             return text
         case .empty:
             return ""
@@ -358,7 +377,8 @@ public extension TSMessage {
             let .contactShare(text),
             let .stickerDescription(text),
             let .giftBadge(text),
-            let .infoMessage(text):
+            let .infoMessage(text),
+            let .paymentMessage(text):
             return HydratedMessageBody.fromPlaintextWithoutRanges(text)
         case .empty:
             return HydratedMessageBody.fromPlaintextWithoutRanges("")
@@ -377,6 +397,7 @@ public extension TSMessage {
             .stickerDescription,
             .giftBadge,
             .infoMessage,
+            .paymentMessage,
             .empty:
             return nil
         }
@@ -391,12 +412,20 @@ public extension TSMessage {
         case stickerDescription(String)
         case giftBadge(String)
         case infoMessage(String)
+        case paymentMessage(String)
         case empty
     }
 
     private func previewText(_ tx: SDSAnyReadTransaction) -> PreviewText {
         if let infoMessage = self as? TSInfoMessage {
             return .infoMessage(infoMessage.infoMessagePreviewText(with: tx))
+        }
+
+        if self is OWSPaymentMessage {
+            return .paymentMessage(OWSLocalizedString(
+                "PAYMENTS_THREAD_PREVIEW_TEXT",
+                comment: "Payments Preview Text shown in chat list for payments."
+            ))
         }
 
         if self.wasRemotelyDeleted {

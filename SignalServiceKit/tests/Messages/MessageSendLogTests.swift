@@ -20,11 +20,11 @@ class MessageSendLogTests: SSKBaseTestSwift {
             let payloadId = try XCTUnwrap(messageSendLog.recordPayload(payloadData, for: newMessage, tx: writeTx))
 
             // "Send" the message to a recipient
-            let serviceId = FutureAci.randomForTesting()
+            let serviceId = Aci.randomForTesting()
             let deviceId = UInt32.random(in: 0..<100)
             messageSendLog.recordPendingDelivery(
                 payloadId: payloadId,
-                recipientServiceId: serviceId,
+                recipientAci: serviceId,
                 recipientDeviceId: deviceId,
                 message: newMessage,
                 tx: writeTx
@@ -32,7 +32,7 @@ class MessageSendLogTests: SSKBaseTestSwift {
 
             // Re-fetch the payload
             let fetchedPayload = messageSendLog.fetchPayload(
-                recipientServiceId: serviceId,
+                recipientAci: serviceId,
                 recipientDeviceId: deviceId,
                 timestamp: newMessage.timestamp,
                 tx: writeTx
@@ -52,11 +52,11 @@ class MessageSendLogTests: SSKBaseTestSwift {
             let payloadId = try XCTUnwrap(messageSendLog.recordPayload(payloadData, for: newMessage, tx: writeTx))
 
             // "Send" the message to one recipient
-            let serviceId = FutureAci.randomForTesting()
+            let serviceId = Aci.randomForTesting()
             let deviceId = UInt32.random(in: 0..<100)
             messageSendLog.recordPendingDelivery(
                 payloadId: payloadId,
-                recipientServiceId: serviceId,
+                recipientAci: serviceId,
                 recipientDeviceId: deviceId,
                 message: newMessage,
                 tx: writeTx
@@ -64,7 +64,7 @@ class MessageSendLogTests: SSKBaseTestSwift {
 
             // Expect no results when re-fetching the payload with a different deviceId
             XCTAssertNil(messageSendLog.fetchPayload(
-                recipientServiceId: serviceId,
+                recipientAci: serviceId,
                 recipientDeviceId: deviceId+1,
                 timestamp: newMessage.timestamp,
                 tx: writeTx
@@ -72,7 +72,7 @@ class MessageSendLogTests: SSKBaseTestSwift {
 
             // Expect no results when re-fetching the payload with a different address
             XCTAssertNil(messageSendLog.fetchPayload(
-                recipientServiceId: FutureAci.randomForTesting(),
+                recipientAci: Aci.randomForTesting(),
                 recipientDeviceId: deviceId,
                 timestamp: newMessage.timestamp,
                 tx: writeTx
@@ -88,11 +88,11 @@ class MessageSendLogTests: SSKBaseTestSwift {
             let payloadId = try XCTUnwrap(messageSendLog.recordPayload(payloadData, for: newMessage, tx: writeTx))
 
             // "Send" the message to two devices
-            let serviceId = FutureAci.randomForTesting()
+            let serviceId = Aci.randomForTesting()
             for deviceId: UInt32 in [0, 1] {
                 messageSendLog.recordPendingDelivery(
                     payloadId: payloadId,
-                    recipientServiceId: serviceId,
+                    recipientAci: serviceId,
                     recipientDeviceId: deviceId,
                     message: newMessage,
                     tx: writeTx
@@ -102,14 +102,14 @@ class MessageSendLogTests: SSKBaseTestSwift {
             // Mark the payload as "delivered" to the first device
             messageSendLog.recordSuccessfulDelivery(
                 message: newMessage,
-                recipientServiceId: serviceId,
+                recipientAci: serviceId,
                 recipientDeviceId: 0,
                 tx: writeTx
             )
 
             // Expect no results when re-fetching the payload for the first device
             XCTAssertNil(messageSendLog.fetchPayload(
-                recipientServiceId: serviceId,
+                recipientAci: serviceId,
                 recipientDeviceId: 0,
                 timestamp: newMessage.timestamp,
                 tx: writeTx
@@ -117,7 +117,7 @@ class MessageSendLogTests: SSKBaseTestSwift {
 
             // Expect some results when re-fetching the payload for the second device
             XCTAssertNotNil(messageSendLog.fetchPayload(
-                recipientServiceId: serviceId,
+                recipientAci: serviceId,
                 recipientDeviceId: 1,
                 timestamp: newMessage.timestamp,
                 tx: writeTx
@@ -133,11 +133,11 @@ class MessageSendLogTests: SSKBaseTestSwift {
             let payloadId = try XCTUnwrap(messageSendLog.recordPayload(payloadData, for: newMessage, tx: writeTx))
 
             // "Send" the message to a recipient
-            let serviceId = FutureAci.randomForTesting()
+            let serviceId = Aci.randomForTesting()
             let deviceId = UInt32.random(in: 0..<100)
             messageSendLog.recordPendingDelivery(
                 payloadId: payloadId,
-                recipientServiceId: serviceId,
+                recipientAci: serviceId,
                 recipientDeviceId: deviceId,
                 message: newMessage,
                 tx: writeTx
@@ -145,7 +145,7 @@ class MessageSendLogTests: SSKBaseTestSwift {
 
             // Expect no results when re-fetching the payload since it's expired
             XCTAssertNil(messageSendLog.fetchPayload(
-                recipientServiceId: serviceId,
+                recipientAci: serviceId,
                 recipientDeviceId: deviceId,
                 timestamp: newMessage.timestamp,
                 tx: writeTx
@@ -161,11 +161,11 @@ class MessageSendLogTests: SSKBaseTestSwift {
             let payloadId = try XCTUnwrap(messageSendLog.recordPayload(payloadData, for: newMessage, tx: writeTx))
 
             // "Send" the message to one recipient, two devices
-            let serviceId = FutureAci.randomForTesting()
+            let serviceId = Aci.randomForTesting()
             for deviceId: UInt32 in [0, 1] {
                 messageSendLog.recordPendingDelivery(
                     payloadId: payloadId,
-                    recipientServiceId: serviceId,
+                    recipientAci: serviceId,
                     recipientDeviceId: deviceId,
                     message: newMessage,
                     tx: writeTx
@@ -176,7 +176,7 @@ class MessageSendLogTests: SSKBaseTestSwift {
             // Deliver to first device
             messageSendLog.recordSuccessfulDelivery(
                 message: newMessage,
-                recipientServiceId: serviceId,
+                recipientAci: serviceId,
                 recipientDeviceId: 0,
                 tx: writeTx
             )
@@ -187,7 +187,7 @@ class MessageSendLogTests: SSKBaseTestSwift {
             // Deliver to second device
             messageSendLog.recordSuccessfulDelivery(
                 message: newMessage,
-                recipientServiceId: serviceId,
+                recipientAci: serviceId,
                 recipientDeviceId: 1,
                 tx: writeTx
             )
@@ -204,19 +204,19 @@ class MessageSendLogTests: SSKBaseTestSwift {
             let payloadData = CommonGenerator.sentence.data(using: .utf8)!
             let payloadId = try XCTUnwrap(messageSendLog.recordPayload(payloadData, for: newMessage, tx: writeTx))
 
-            let serviceId = FutureAci.randomForTesting()
+            let serviceId = Aci.randomForTesting()
 
             // "Send" the message to one device. It acks delivery
             messageSendLog.recordPendingDelivery(
                 payloadId: payloadId,
-                recipientServiceId: serviceId,
+                recipientAci: serviceId,
                 recipientDeviceId: 0,
                 message: newMessage,
                 tx: writeTx
             )
             messageSendLog.recordSuccessfulDelivery(
                 message: newMessage,
-                recipientServiceId: serviceId,
+                recipientAci: serviceId,
                 recipientDeviceId: 0,
                 tx: writeTx
             )
@@ -228,7 +228,7 @@ class MessageSendLogTests: SSKBaseTestSwift {
             for deviceId: UInt32 in [1, 2] {
                 messageSendLog.recordPendingDelivery(
                     payloadId: payloadId,
-                    recipientServiceId: serviceId,
+                    recipientAci: serviceId,
                     recipientDeviceId: deviceId,
                     message: newMessage,
                     tx: writeTx
@@ -239,7 +239,7 @@ class MessageSendLogTests: SSKBaseTestSwift {
             // Deliver to second device
             messageSendLog.recordSuccessfulDelivery(
                 message: newMessage,
-                recipientServiceId: serviceId,
+                recipientAci: serviceId,
                 recipientDeviceId: 1,
                 tx: writeTx
             )
@@ -250,7 +250,7 @@ class MessageSendLogTests: SSKBaseTestSwift {
             // Deliver to third device
             messageSendLog.recordSuccessfulDelivery(
                 message: newMessage,
-                recipientServiceId: serviceId,
+                recipientAci: serviceId,
                 recipientDeviceId: 2,
                 tx: writeTx
             )
@@ -267,12 +267,12 @@ class MessageSendLogTests: SSKBaseTestSwift {
             let payloadData = CommonGenerator.sentence.data(using: .utf8)!
             let initialPayloadId = try XCTUnwrap(messageSendLog.recordPayload(payloadData, for: newMessage, tx: writeTx))
 
-            let serviceId = FutureAci.randomForTesting()
+            let serviceId = Aci.randomForTesting()
 
             // "Send" the message to one device. Complete send but don't mark as delivered.
             messageSendLog.recordPendingDelivery(
                 payloadId: initialPayloadId,
-                recipientServiceId: serviceId,
+                recipientAci: serviceId,
                 recipientDeviceId: 0,
                 message: newMessage,
                 tx: writeTx
@@ -284,7 +284,7 @@ class MessageSendLogTests: SSKBaseTestSwift {
             let retryPayloadId = try XCTUnwrap(messageSendLog.recordPayload(payloadData, for: newMessage, tx: writeTx))
             messageSendLog.recordPendingDelivery(
                 payloadId: initialPayloadId,
-                recipientServiceId: serviceId,
+                recipientAci: serviceId,
                 recipientDeviceId: 1,
                 message: newMessage,
                 tx: writeTx
@@ -298,7 +298,7 @@ class MessageSendLogTests: SSKBaseTestSwift {
             // Deliver to first device
             messageSendLog.recordSuccessfulDelivery(
                 message: newMessage,
-                recipientServiceId: serviceId,
+                recipientAci: serviceId,
                 recipientDeviceId: 0,
                 tx: writeTx
             )
@@ -309,7 +309,7 @@ class MessageSendLogTests: SSKBaseTestSwift {
             // Deliver to second device
             messageSendLog.recordSuccessfulDelivery(
                 message: newMessage,
-                recipientServiceId: serviceId,
+                recipientAci: serviceId,
                 recipientDeviceId: 1,
                 tx: writeTx
             )
@@ -324,20 +324,20 @@ class MessageSendLogTests: SSKBaseTestSwift {
             // Create and save the message payload
             let newMessage = createOutgoingMessage(transaction: writeTx)
             let payloadData = CommonGenerator.sentence.data(using: .utf8)!
-            let serviceId = FutureAci.randomForTesting()
+            let serviceId = Aci.randomForTesting()
 
             // Record + Send + Deliver + Complete (Deliver and Complete can happen in either order)
             let initialPayloadId = try XCTUnwrap(messageSendLog.recordPayload(payloadData, for: newMessage, tx: writeTx))
             messageSendLog.recordPendingDelivery(
                 payloadId: initialPayloadId,
-                recipientServiceId: serviceId,
+                recipientAci: serviceId,
                 recipientDeviceId: 0,
                 message: newMessage,
                 tx: writeTx
             )
             messageSendLog.recordSuccessfulDelivery(
                 message: newMessage,
-                recipientServiceId: serviceId,
+                recipientAci: serviceId,
                 recipientDeviceId: 0,
                 tx: writeTx
             )
@@ -350,7 +350,7 @@ class MessageSendLogTests: SSKBaseTestSwift {
             let secondPayloadId = try XCTUnwrap(messageSendLog.recordPayload(payloadData, for: newMessage, tx: writeTx))
             messageSendLog.recordPendingDelivery(
                 payloadId: secondPayloadId,
-                recipientServiceId: serviceId,
+                recipientAci: serviceId,
                 recipientDeviceId: 1,
                 message: newMessage,
                 tx: writeTx
@@ -358,7 +358,7 @@ class MessageSendLogTests: SSKBaseTestSwift {
             messageSendLog.sendComplete(message: newMessage, tx: writeTx)
             messageSendLog.recordSuccessfulDelivery(
                 message: newMessage,
-                recipientServiceId: serviceId,
+                recipientAci: serviceId,
                 recipientDeviceId: 1,
                 tx: writeTx
             )
@@ -396,11 +396,11 @@ class MessageSendLogTests: SSKBaseTestSwift {
             let payloadId = try XCTUnwrap(messageSendLog.recordPayload(payloadData, for: newMessage, tx: writeTx))
 
             // "Send" the message to a recipient
-            let serviceId = FutureAci.randomForTesting()
+            let serviceId = Aci.randomForTesting()
             let deviceId = UInt32.random(in: 0..<100)
             messageSendLog.recordPendingDelivery(
                 payloadId: payloadId,
-                recipientServiceId: serviceId,
+                recipientAci: serviceId,
                 recipientDeviceId: deviceId,
                 message: newMessage,
                 tx: writeTx
@@ -429,12 +429,12 @@ class MessageSendLogTests: SSKBaseTestSwift {
             let index3 = try XCTUnwrap(messageSendLog.recordPayload(data3, for: readReceiptMessage, tx: writeTx))
 
             // "Send" the messages to a recipient
-            let serviceId = FutureAci.randomForTesting()
+            let serviceId = Aci.randomForTesting()
             let deviceId = UInt32.random(in: 0..<100)
             for index in [index1, index2, index3] {
                 messageSendLog.recordPendingDelivery(
                     payloadId: index,
-                    recipientServiceId: serviceId,
+                    recipientAci: serviceId,
                     recipientDeviceId: deviceId,
                     message: message1,
                     tx: writeTx
@@ -499,16 +499,16 @@ class MessageSendLogTests: SSKBaseTestSwift {
             let originalDate = Date(millisecondsSince1970: originalTimestamp)
             XCTAssertEqual(originalDate.ows_millisecondsSince1970, originalTimestamp)
 
-            let serviceId = FutureAci.randomForTesting()
+            let serviceId = Aci.randomForTesting()
             let message = createOutgoingMessage(date: originalDate, transaction: writeTx)
             let data = CommonGenerator.sentence.data(using: .utf8)!
             XCTAssertEqual(message.timestamp, originalTimestamp)
 
             let index = try XCTUnwrap(messageSendLog.recordPayload(data, for: message, tx: writeTx))
-            messageSendLog.recordPendingDelivery(payloadId: index, recipientServiceId: serviceId, recipientDeviceId: 1, message: message, tx: writeTx)
+            messageSendLog.recordPendingDelivery(payloadId: index, recipientAci: serviceId, recipientDeviceId: 1, message: message, tx: writeTx)
 
             let fetchedPayload = messageSendLog.fetchPayload(
-                recipientServiceId: serviceId,
+                recipientAci: serviceId,
                 recipientDeviceId: 1,
                 timestamp: originalTimestamp,
                 tx: writeTx

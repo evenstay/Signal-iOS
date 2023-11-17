@@ -339,7 +339,7 @@ public class ProvisioningController: NSObject {
     public func provisioningDidComplete(from viewController: UIViewController) {
         self.databaseStorage.write {
             Logger.info("completed provisioning")
-            self.tsAccountManager.setIsOnboarded(true, transaction: $0)
+            DependenciesBridge.shared.registrationStateChangeManager.didFinishProvisioningSecondary(tx: $0.asV2Write)
         }
         SignalApp.shared.showConversationSplitView()
     }
@@ -381,10 +381,9 @@ public class ProvisioningController: NSObject {
     // MARK: -
 
     private func buildProvisioningUrl(deviceId: String) throws -> URL {
-        let base64PubKey: String = provisioningCipher
-            .secondaryDevicePublicKey
-            .serialized
-            .base64EncodedString()
+        let base64PubKey: String = Data(
+            provisioningCipher.secondaryDevicePublicKey.serialize()
+        ).base64EncodedString()
         guard let encodedPubKey = base64PubKey.encodeURIComponent else {
             throw OWSAssertionError("Failed to url encode query params")
         }

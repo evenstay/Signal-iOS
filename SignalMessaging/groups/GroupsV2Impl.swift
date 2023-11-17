@@ -23,7 +23,7 @@ public class GroupsV2Impl: GroupsV2Swift, GroupsV2, Dependencies {
             // if we've just reset the zkgroup state, since that
             // have the same effect.
             guard !didReset,
-                  self.tsAccountManager.isRegisteredAndReady else {
+                  DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isRegistered else {
                 return
             }
 
@@ -81,7 +81,7 @@ public class GroupsV2Impl: GroupsV2Swift, GroupsV2, Dependencies {
             self.serviceStore.setInt(zkgroupVersionCounter, key: lastZKgroupVersionCounterKey, transaction: transaction)
         }
         AppReadiness.runNowOrWhenAppDidBecomeReadyAsync {
-            if self.tsAccountManager.isRegisteredAndReady {
+            if DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isRegistered {
                 Logger.info("Re-uploading local profile due to zkgroup update.")
                 firstly {
                     self.reuploadLocalProfilePromise()
@@ -205,7 +205,7 @@ public class GroupsV2Impl: GroupsV2Swift, GroupsV2, Dependencies {
         groupV2Params: GroupV2Params,
         shouldForceRefreshProfileKeyCredentials: Bool = false
     ) -> Promise<GroupsProtoGroup> {
-        guard let localAci = tsAccountManager.localIdentifiers?.aci else {
+        guard let localAci = DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction?.aci else {
             return Promise(error: OWSAssertionError("Missing localAci."))
         }
 
@@ -642,23 +642,21 @@ public class GroupsV2Impl: GroupsV2Swift, GroupsV2, Dependencies {
 
     private func fetchCurrentGroupV2Snapshot(groupSecretParamsData: Data,
                                              justUploadedAvatars: GroupV2DownloadedAvatars?) -> Promise<GroupV2Snapshot> {
-        guard let localUuid = tsAccountManager.localUuid else {
-            return Promise<GroupV2Snapshot>(error: OWSAssertionError("Missing localUuid."))
-        }
         return firstly(on: DispatchQueue.global()) { () -> GroupV2Params in
+            if DebugFlags.internalLogging { Logger.info("[Scroll Perf Debug] making GV2Params") }
             return try GroupV2Params(groupSecretParamsData: groupSecretParamsData)
         }.then(on: DispatchQueue.global()) { (groupV2Params: GroupV2Params) -> Promise<GroupV2Snapshot> in
-            return self.fetchCurrentGroupV2Snapshot(groupV2Params: groupV2Params,
-                                                    localUuid: localUuid,
-                                                    justUploadedAvatars: justUploadedAvatars)
+            return self.fetchCurrentGroupV2Snapshot(groupV2Params: groupV2Params, justUploadedAvatars: justUploadedAvatars)
         }
     }
 
-    private func fetchCurrentGroupV2Snapshot(groupV2Params: GroupV2Params,
-                                             localUuid: UUID,
-                                             justUploadedAvatars: GroupV2DownloadedAvatars?) -> Promise<GroupV2Snapshot> {
+    private func fetchCurrentGroupV2Snapshot(
+        groupV2Params: GroupV2Params,
+        justUploadedAvatars: GroupV2DownloadedAvatars?
+    ) -> Promise<GroupV2Snapshot> {
         let requestBuilder: RequestBuilder = { (authCredential) in
-            firstly(on: DispatchQueue.global()) { () -> GroupsV2Request in
+            if DebugFlags.internalLogging { Logger.info("[Scroll Perf Debug] buildFetchCurrentGroupV2SnapshotRequest") }
+            return firstly(on: DispatchQueue.global()) { () -> GroupsV2Request in
                 try StorageService.buildFetchCurrentGroupV2SnapshotRequest(groupV2Params: groupV2Params,
                                                                            authCredential: authCredential)
             }
@@ -666,6 +664,7 @@ public class GroupsV2Impl: GroupsV2Swift, GroupsV2, Dependencies {
 
         return firstly { () -> Promise<HTTPResponse> in
             let groupId = try self.groupId(forGroupSecretParamsData: groupV2Params.groupSecretParamsData)
+            if DebugFlags.internalLogging { Logger.info("[Scroll Perf Debug] performServiceRequest") }
             return self.performServiceRequest(requestBuilder: requestBuilder,
                                               groupId: groupId,
                                               behavior400: .fail,
@@ -675,11 +674,13 @@ public class GroupsV2Impl: GroupsV2Swift, GroupsV2, Dependencies {
             guard let groupProtoData = response.responseBodyData else {
                 throw OWSAssertionError("Invalid responseObject.")
             }
+            if DebugFlags.internalLogging { Logger.info("[Scroll Perf Debug] make GroupsProtoGroup") }
             return try GroupsProtoGroup(serializedData: groupProtoData)
         }.then(on: DispatchQueue.global()) { (groupProto: GroupsProtoGroup) -> Promise<(GroupsProtoGroup, GroupV2DownloadedAvatars)> in
             return firstly {
+                if DebugFlags.internalLogging { Logger.info("[Scroll Perf Debug] fetchAllAvatarData") }
                 // We can ignoreSignature; these protos came from the service.
-                self.fetchAllAvatarData(groupProto: groupProto,
+                return self.fetchAllAvatarData(groupProto: groupProto,
                                         justUploadedAvatars: justUploadedAvatars,
                                         ignoreSignature: true,
                                         groupV2Params: groupV2Params)
@@ -687,6 +688,7 @@ public class GroupsV2Impl: GroupsV2Swift, GroupsV2, Dependencies {
                 return (groupProto, downloadedAvatars)
             }
         }.map(on: DispatchQueue.global()) { (groupProto: GroupsProtoGroup, downloadedAvatars: GroupV2DownloadedAvatars) -> GroupV2Snapshot in
+            if DebugFlags.internalLogging { Logger.info("[Scroll Perf Debug] parse it all") }
             return try GroupsV2Protos.parse(groupProto: groupProto, downloadedAvatars: downloadedAvatars, groupV2Params: groupV2Params)
         }
     }
@@ -1088,7 +1090,7 @@ public class GroupsV2Impl: GroupsV2Swift, GroupsV2, Dependencies {
         behavior404: Behavior404,
         remainingRetries: UInt = 3
     ) -> Promise<HTTPResponse> {
-        guard let localIdentifiers = tsAccountManager.localIdentifiers else {
+        guard let localIdentifiers = DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction else {
             return Promise(error: OWSAssertionError("Missing localIdentifiers."))
         }
 
@@ -1504,6 +1506,10 @@ public class GroupsV2Impl: GroupsV2Swift, GroupsV2, Dependencies {
     public func clearTemporalCredentials(transaction: SDSAnyWriteTransaction) {
         // Remove stale auth credentials.
         AuthCredentialStore.removeAll(transaction: transaction)
+    }
+
+    public func clearTemporalCredentials(tx: DBWriteTransaction) {
+        clearTemporalCredentials(transaction: SDSDB.shimOnlyBridge(tx))
     }
 
     private func retrieveTemporalCredentialsFromService(
@@ -1932,7 +1938,7 @@ public class GroupsV2Impl: GroupsV2Swift, GroupsV2, Dependencies {
             self.groupV2Updates.tryToRefreshV2GroupUpToCurrentRevisionImmediately(groupId: groupId,
                                                                                   groupSecretParamsData: groupV2Params.groupSecretParamsData)
         }.then(on: DispatchQueue.global()) { (groupThread: TSGroupThread) -> Promise<TSGroupThread> in
-            guard let localAci = self.tsAccountManager.localIdentifiers?.aci else {
+            guard let localAci = DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction?.aci else {
                 throw OWSAssertionError("Missing localAci.")
             }
             guard let groupModelV2 = groupThread.groupModel as? TSGroupModelV2 else {
@@ -2069,7 +2075,7 @@ public class GroupsV2Impl: GroupsV2Swift, GroupsV2, Dependencies {
             throw OWSAssertionError("Missing revisionForPlaceholderModel.")
         }
         return try databaseStorage.write { (transaction) throws -> TSGroupThread in
-            guard let localIdentifiers = Self.tsAccountManager.localIdentifiers(transaction: transaction) else {
+            guard let localIdentifiers = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: transaction.asV2Read) else {
                 throw OWSAssertionError("Missing localIdentifiers.")
             }
 
@@ -2168,7 +2174,7 @@ public class GroupsV2Impl: GroupsV2Swift, GroupsV2, Dependencies {
                                                         groupV2Params: GroupV2Params,
                                                         revisionForPlaceholderModel: AtomicOptional<UInt32>) -> Promise<GroupsProtoGroupChangeActions> {
 
-        guard let localAci = self.tsAccountManager.localIdentifiers?.aci else {
+        guard let localAci = DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction?.aci else {
             return Promise(error: OWSAssertionError("Missing localAci."))
         }
 
@@ -2261,7 +2267,7 @@ public class GroupsV2Impl: GroupsV2Swift, GroupsV2, Dependencies {
         newRevision proposedRevision: UInt32?
     ) throws -> TSGroupThread {
         return try databaseStorage.write { transaction -> TSGroupThread in
-            guard let localIdentifiers = self.tsAccountManager.localIdentifiers(transaction: transaction) else {
+            guard let localIdentifiers = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: transaction.asV2Read) else {
                 throw OWSAssertionError("Missing localIdentifiers.")
             }
             TSGroupThread.ensureGroupIdMapping(forGroupId: groupId, transaction: transaction)
@@ -2362,7 +2368,7 @@ public class GroupsV2Impl: GroupsV2Swift, GroupsV2, Dependencies {
                                                               revisionForPlaceholderModel: AtomicOptional<UInt32>) -> Promise<GroupsProtoGroupChangeActions> {
 
         return firstly(on: DispatchQueue.global()) { () -> GroupsProtoGroupChangeActions in
-            guard let localAci = self.tsAccountManager.localIdentifiers?.aci else {
+            guard let localAci = DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction?.aci else {
                 throw OWSAssertionError("Missing localAci.")
             }
             let oldRevision = groupInviteLinkPreview.revision
@@ -2417,7 +2423,7 @@ public class GroupsV2Impl: GroupsV2Swift, GroupsV2, Dependencies {
         firstly(on: DispatchQueue.global()) {
             let groupId = try self.groupId(forGroupSecretParamsData: groupSecretParamsData)
             try self.databaseStorage.write { transaction in
-                guard let localIdentifiers = self.tsAccountManager.localIdentifiers(transaction: transaction) else {
+                guard let localIdentifiers = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: transaction.asV2Read) else {
                     throw OWSAssertionError("Missing localIdentifiers.")
                 }
                 TSGroupThread.ensureGroupIdMapping(forGroupId: groupId, transaction: transaction)

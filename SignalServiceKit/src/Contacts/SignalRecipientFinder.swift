@@ -7,83 +7,71 @@ import Foundation
 import LibSignalClient
 import SignalCoreKit
 
-@objc
-public class AnySignalRecipientFinder: NSObject {
-    let grdbAdapter = GRDBSignalRecipientFinder()
-}
+public class SignalRecipientFinder {
+    public init() {}
 
-extension AnySignalRecipientFinder {
-    @objc(signalRecipientForUUID:transaction:)
-    public func signalRecipientForUUID(_ uuid: UUID?, transaction: SDSAnyReadTransaction) -> SignalRecipient? {
-        switch transaction.readTransaction {
-        case .grdbRead(let transaction):
-            return grdbAdapter.signalRecipientForUUID(uuid, transaction: transaction)
+    public func signalRecipientForServiceId(_ serviceId: ServiceId?, tx: SDSAnyReadTransaction) -> SignalRecipient? {
+        guard let serviceId else { return nil }
+        let serviceIdColumn: SignalRecipient.CodingKeys
+        switch serviceId.kind {
+        case .aci:
+            serviceIdColumn = .aciString
+        case .pni:
+            serviceIdColumn = .pni
         }
+        let sql = "SELECT * FROM \(SignalRecipient.databaseTableName) WHERE \(signalRecipientColumn: serviceIdColumn) = ?"
+        return SignalRecipient.anyFetch(sql: sql, arguments: [serviceId.serviceIdUppercaseString], transaction: tx)
     }
 
-    @objc(signalRecipientForPhoneNumber:transaction:)
-    public func signalRecipientForPhoneNumber(_ phoneNumber: String?, transaction: SDSAnyReadTransaction) -> SignalRecipient? {
-        switch transaction.readTransaction {
-        case .grdbRead(let transaction):
-            return grdbAdapter.signalRecipientForPhoneNumber(phoneNumber, transaction: transaction)
-        }
+    public func signalRecipientForPhoneNumber(_ phoneNumber: String?, tx: SDSAnyReadTransaction) -> SignalRecipient? {
+        guard let phoneNumber = phoneNumber else { return nil }
+        let sql = "SELECT * FROM \(SignalRecipient.databaseTableName) WHERE \(signalRecipientColumn: .phoneNumber) = ?"
+        return SignalRecipient.anyFetch(sql: sql, arguments: [phoneNumber], transaction: tx)
     }
 
-    @objc(signalRecipientForAddress:transaction:)
-    public func signalRecipient(for address: SignalServiceAddress, transaction: SDSAnyReadTransaction) -> SignalRecipient? {
-        switch transaction.readTransaction {
-        case .grdbRead(let transaction):
-            return grdbAdapter.signalRecipient(for: address, transaction: transaction)
-        }
-    }
-
-    public func signalRecipients(for addresses: [SignalServiceAddress], transaction: SDSAnyReadTransaction) -> [SignalRecipient] {
-        switch transaction.readTransaction {
-        case .grdbRead(let transaction):
-            return grdbAdapter.signalRecipients(for: addresses, transaction: transaction)
-        }
-    }
-}
-
-@objc
-class GRDBSignalRecipientFinder: NSObject {
-    func signalRecipient(for address: SignalServiceAddress, transaction: GRDBReadTransaction) -> SignalRecipient? {
-        if let recipient = signalRecipientForUUID(address.uuid, transaction: transaction) {
+    public func signalRecipient(for address: SignalServiceAddress, tx: SDSAnyReadTransaction) -> SignalRecipient? {
+        if let recipient = signalRecipientForServiceId(address.serviceId, tx: tx) {
             return recipient
-        } else if let recipient = signalRecipientForPhoneNumber(address.phoneNumber, transaction: transaction) {
+        } else if let recipient = signalRecipientForPhoneNumber(address.phoneNumber, tx: tx) {
             return recipient
         } else {
             return nil
         }
     }
 
-    fileprivate func signalRecipientForUUID(_ uuid: UUID?, transaction: GRDBReadTransaction) -> SignalRecipient? {
-        guard let uuidString = uuid?.uuidString else { return nil }
-        let sql = "SELECT * FROM \(SignalRecipient.databaseTableName) WHERE \(signalRecipientColumn: .aciString) = ?"
-        return SignalRecipient.anyFetch(sql: sql, arguments: [uuidString], transaction: transaction.asAnyRead)
-    }
+    public func signalRecipients(for addresses: [SignalServiceAddress], tx: SDSAnyReadTransaction) -> [SignalRecipient] {
+        let phoneNumbersToLookUp = addresses.compactMap { $0.phoneNumber }
+        let aciStringsToLookUp = addresses.compactMap { ($0.serviceId as? Aci)?.serviceIdUppercaseString }
+        let pniStringsToLookUp = addresses.compactMap { ($0.serviceId as? Pni)?.serviceIdUppercaseString }
 
-    fileprivate func signalRecipientForPhoneNumber(_ phoneNumber: String?, transaction: GRDBReadTransaction) -> SignalRecipient? {
-        guard let phoneNumber = phoneNumber else { return nil }
-        let sql = "SELECT * FROM \(SignalRecipient.databaseTableName) WHERE \(signalRecipientColumn: .phoneNumber) = ?"
-        return SignalRecipient.anyFetch(sql: sql, arguments: [phoneNumber], transaction: transaction.asAnyRead)
-    }
+        func orClause(column: SignalRecipient.CodingKeys, values: [String]) -> String? {
+            if values.isEmpty {
+                return nil
+            }
+            let wrappedValues = values.lazy.map { "'\($0)'" }.joined(separator: ",")
+            return "\(signalRecipientColumn: column) IN (\(wrappedValues))"
+        }
 
-    func signalRecipients(for addresses: [SignalServiceAddress], transaction tx: GRDBReadTransaction) -> [SignalRecipient] {
-        guard !addresses.isEmpty else { return [] }
+        // A SQL query for "Col1 IN (v1, v2, v3)" will use an index that's
+        // available. A SQL query for "Col1 IN ()" will *not* use an index and will
+        // fall back to a full table scan. If you have a series of OR clauses that
+        // are all indexed and any of them includes "IN ()", the entire query will
+        // bypass all indexes. Therefore, we omit OR clauses that won't return any
+        // matches, and we return no results if we're left without any OR clauses.
+        let orClauses: [String] = [
+            orClause(column: .phoneNumber, values: phoneNumbersToLookUp),
+            orClause(column: .aciString, values: aciStringsToLookUp),
+            orClause(column: .pni, values: pniStringsToLookUp),
+        ].compacted()
 
-        // PNI TODO: Support PNIs.
-        let phoneNumbersToLookup = addresses.compactMap { $0.phoneNumber }.map { "'\($0)'" }.joined(separator: ",")
-        let uuidsToLookup = addresses.compactMap { $0.uuidString }.map { "'\($0)'" }.joined(separator: ",")
+        if orClauses.isEmpty {
+            return []
+        }
 
-        let sql = """
-            SELECT * FROM \(SignalRecipient.databaseTableName)
-            WHERE \(signalRecipientColumn: .phoneNumber) IN (\(phoneNumbersToLookup))
-            OR \(signalRecipientColumn: .aciString) IN (\(uuidsToLookup))
-        """
+        let sql = "SELECT * FROM \(SignalRecipient.databaseTableName) WHERE \(orClauses.joined(separator: " OR "))"
 
         var result = [SignalRecipient]()
-        SignalRecipient.anyEnumerate(transaction: tx.asAnyRead, sql: sql, arguments: []) { signalRecipient, _ in
+        SignalRecipient.anyEnumerate(transaction: tx, sql: sql, arguments: []) { signalRecipient, _ in
             result.append(signalRecipient)
         }
         return result

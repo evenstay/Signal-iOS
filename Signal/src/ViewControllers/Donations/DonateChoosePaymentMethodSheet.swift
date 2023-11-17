@@ -111,8 +111,8 @@ class DonateChoosePaymentMethodSheet: OWSTableSheetViewController {
             stackView.spacing = 6
 
             if let assets = badge.assets {
-                let badgeImageView = UIImageView(image: assets.universal112)
-                badgeImageView.autoSetDimensions(to: CGSize(square: 112))
+                let badgeImageView = UIImageView(image: assets.universal160)
+                badgeImageView.autoSetDimensions(to: CGSize(square: 80))
                 stackView.addArrangedSubview(badgeImageView)
                 stackView.setCustomSpacing(12, after: badgeImageView)
             }
@@ -153,48 +153,122 @@ class DonateChoosePaymentMethodSheet: OWSTableSheetViewController {
         self.tableViewController.setContents(contents, shouldReload: shouldReload)
     }
 
+    private func createButtonFor(paymentMethod: DonationPaymentMethod) -> UIView {
+        switch paymentMethod {
+        case .applePay:
+            return createApplePayButton()
+        case .creditOrDebitCard:
+            return createCreditOrDebitCardButton()
+        case .paypal:
+            return createPaypalButton()
+        case .sepa:
+            return createSEPAButton()
+        }
+    }
+
+    private func createApplePayButton() -> ApplePayButton {
+        ApplePayButton { [weak self] in
+            guard let self else { return }
+            self.didChoosePaymentMethod(self, .applePay)
+        }
+    }
+
+    private func createPaypalButton() -> PaypalButton {
+        PaypalButton { [weak self] in
+            guard let self else { return }
+            self.didChoosePaymentMethod(self, .paypal)
+        }
+    }
+
+    private func createCreditOrDebitCardButton() -> OWSButton {
+        let title = OWSLocalizedString(
+            "DONATE_CHOOSE_CREDIT_OR_DEBIT_CARD_AS_PAYMENT_METHOD",
+            comment: "When users make donations, they can choose which payment method they want to use. This is the text on the button that lets them choose to pay with credit or debit card."
+        )
+
+        let creditOrDebitCardButton = OWSButton(title: title) { [weak self] in
+            guard let self else { return }
+            self.didChoosePaymentMethod(self, .creditOrDebitCard)
+        }
+        guard let image = UIImage(named: "payment")?.withRenderingMode(.alwaysTemplate) else {
+            owsFail("Card asset not found")
+        }
+        creditOrDebitCardButton.setImage(image, for: .normal)
+        creditOrDebitCardButton.imageView?.tintColor = .ows_white
+        creditOrDebitCardButton.setTitleColor(.ows_white, for: .normal)
+        creditOrDebitCardButton.setPaddingBetweenImageAndText(
+            to: 8,
+            isRightToLeft: CurrentAppContext().isRTL
+        )
+        creditOrDebitCardButton.layer.cornerRadius = 12
+        creditOrDebitCardButton.backgroundColor = .ows_accentBlue
+        creditOrDebitCardButton.dimsWhenHighlighted = true
+        creditOrDebitCardButton.titleLabel?.font = .dynamicTypeBodyClamped.semibold()
+
+        return creditOrDebitCardButton
+    }
+
+    private func createSEPAButton() -> OWSButton {
+        let title = OWSLocalizedString(
+            "DONATE_CHOOSE_BANK_TRANSFER_AS_PAYMENT_METHOD",
+            comment: "When users make donations, they can choose which payment method they want to use. This is the text on the button that lets them choose to pay with bank transfer."
+        )
+
+        let sepaButton = OWSButton(title: title) { [weak self] in
+            guard let self else { return }
+            self.didChoosePaymentMethod(self, .sepa)
+        }
+
+        guard let image = UIImage(named: "building")?.withRenderingMode(.alwaysTemplate) else {
+            owsFail("Bank asset not found")
+        }
+        sepaButton.setImage(image, for: .normal)
+        sepaButton.setPaddingBetweenImageAndText(
+            to: 8,
+            isRightToLeft: CurrentAppContext().isRTL
+        )
+        sepaButton.layer.cornerRadius = 12
+        sepaButton.dimsWhenHighlighted = true
+        sepaButton.titleLabel?.font = .dynamicTypeBodyClamped.semibold()
+
+        if Theme.isDarkThemeEnabled {
+            sepaButton.imageView?.tintColor = .ows_gray05
+            sepaButton.setTitleColor(.ows_gray05, for: .normal)
+            sepaButton.backgroundColor = .ows_gray80
+        } else {
+            sepaButton.imageView?.tintColor = .ows_gray90
+            sepaButton.setTitleColor(.ows_gray90, for: .normal)
+            sepaButton.backgroundColor = .ows_white
+        }
+
+        return sepaButton
+    }
+
     private func updateBottom() {
         let paymentButtonContainerView: UIView = {
-            var paymentMethodButtons = [UIView]()
+            let paymentMethods: [DonationPaymentMethod]
+            let applePayFirstRegions = PhoneNumberRegions(arrayLiteral: "1")
 
-            if supportedPaymentMethods.contains(.applePay) {
-                paymentMethodButtons.append(ApplePayButton { [weak self] in
-                    guard let self else { return }
-                    self.didChoosePaymentMethod(self, .applePay)
-                })
+            if let localNumber = DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction?.phoneNumber,
+               applePayFirstRegions.contains(e164: localNumber) {
+                paymentMethods = [
+                    .applePay,
+                    .creditOrDebitCard,
+                    .paypal,
+                    .sepa,
+                ]
+            } else {
+                paymentMethods = [
+                    .creditOrDebitCard,
+                    .paypal,
+                    .applePay,
+                    .sepa,
+                ]
             }
 
-            if supportedPaymentMethods.contains(.paypal) {
-                paymentMethodButtons.append(PaypalButton { [weak self] in
-                    guard let self else { return }
-                    self.didChoosePaymentMethod(self, .paypal)
-                })
-            }
-
-            if supportedPaymentMethods.contains(.creditOrDebitCard) {
-                let title = OWSLocalizedString(
-                    "DONATE_CHOOSE_CREDIT_OR_DEBIT_CARD_AS_PAYMENT_METHOD",
-                    comment: "When users make donations, they can choose which payment method they want to use. This is the text on the button that lets them choose to pay with credit or debit card."
-                )
-
-                let creditOrDebitCardButton = OWSButton(title: title) { [weak self] in
-                    guard let self else { return }
-                    self.didChoosePaymentMethod(self, .creditOrDebitCard)
-                }
-                guard let image = UIImage(named: "credit-or-debit-card") else {
-                    owsFail("Card asset not found")
-                }
-                creditOrDebitCardButton.setImage(image, for: .normal)
-                creditOrDebitCardButton.setPaddingBetweenImageAndText(
-                    to: 8,
-                    isRightToLeft: CurrentAppContext().isRTL
-                )
-                creditOrDebitCardButton.layer.cornerRadius = 12
-                creditOrDebitCardButton.backgroundColor = .ows_accentBlue
-                creditOrDebitCardButton.dimsWhenHighlighted = true
-                creditOrDebitCardButton.titleLabel?.font = .dynamicTypeBody.semibold()
-                paymentMethodButtons.append(creditOrDebitCardButton)
-            }
+            let paymentMethodButtons = paymentMethods
+                .filter(supportedPaymentMethods.contains)
+                .map(createButtonFor(paymentMethod:))
 
             owsAssert(!paymentMethodButtons.isEmpty, "Expected at least one payment method")
 
@@ -213,9 +287,11 @@ class DonateChoosePaymentMethodSheet: OWSTableSheetViewController {
         footerStack.removeAllSubviews()
         footerStack.addArrangedSubview(paymentButtonContainerView)
         footerStack.alignment = .fill
-        footerStack.layoutMargins = UIEdgeInsets(top: 28, left: 20, bottom: 8, right: 20)
+        footerStack.layoutMargins = UIEdgeInsets(top: 0, left: 20, bottom: 20, right: 20)
         footerStack.isLayoutMarginsRelativeArrangement = true
 
         paymentButtonContainerView.autoPinWidthToSuperviewMargins()
+
+        footerStack.layoutIfNeeded()
     }
 }

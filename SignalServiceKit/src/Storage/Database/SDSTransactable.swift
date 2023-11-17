@@ -5,11 +5,12 @@
 
 import Foundation
 import GRDB
+import SignalCoreKit
 
 // A base class for SDSDatabaseStorage and SDSAnyDatabaseQueue.
 @objc
 public class SDSTransactable: NSObject {
-    fileprivate let asyncWriteQueue = DispatchQueue(label: "org.signal.database.write-async")
+    fileprivate let asyncWriteQueue = DispatchQueue(label: "org.signal.database.write-async", qos: .userInitiated)
 
     public func read(file: String = #file,
                      function: String = #function,
@@ -102,29 +103,48 @@ public extension SDSTransactable {
     }
 }
 
+// MARK: - Awaitable Methods
+
+extension SDSTransactable {
+    public func awaitableWrite<T>(
+        file: String = #file,
+        function: String = #function,
+        line: Int = #line,
+        block: @escaping (SDSAnyWriteTransaction) throws -> T
+    ) async rethrows -> T {
+        return try await _awaitableWrite(file: file, function: function, line: line, block: block, rescue: { throw $0 })
+    }
+
+    private func _awaitableWrite<T>(
+        file: String,
+        function: String,
+        line: Int,
+        block: @escaping (SDSAnyWriteTransaction) throws -> T,
+        rescue: @escaping (Error) throws -> Void
+    ) async rethrows -> T {
+        let result: Result<T, Error> = await withCheckedContinuation { continuation in
+            asyncWriteQueue.async {
+                do {
+                    let result = try self.write(file: file, function: function, line: line, block: block)
+                    continuation.resume(returning: .success(result))
+                } catch {
+                    continuation.resume(returning: .failure(error))
+                }
+            }
+        }
+        switch result {
+        case .success(let value):
+            return value
+        case .failure(let error):
+            try rescue(error)
+            fatalError()
+        }
+    }
+}
+
 // MARK: - Promises
 
 public extension SDSTransactable {
-    @objc
-    func readPromise(file: String = #file,
-                     function: String = #function,
-                     line: Int = #line,
-                     _ block: @escaping (SDSAnyReadTransaction) -> Void) -> AnyPromise {
-        return AnyPromise(read(.promise, file: file, function: function, line: line, block) as Promise<Void>)
-    }
-
-    func read<T>(_: PromiseNamespace,
-                 file: String = #file,
-                 function: String = #function,
-                 line: Int = #line,
-                 _ block: @escaping (SDSAnyReadTransaction) -> T) -> Promise<T> {
-        return Promise { future in
-            DispatchQueue.global().async {
-                future.resolve(self.read(file: file, function: function, line: line, block: block))
-            }
-        }
-    }
-
     func read<T>(_: PromiseNamespace,
                  file: String = #file,
                  function: String = #function,
@@ -141,26 +161,6 @@ public extension SDSTransactable {
         }
     }
 
-    // NOTE: This method is not @objc. See SDSDatabaseStorage+Objc.h.
-    func writePromise(_ block: @escaping (SDSAnyWriteTransaction) -> Void) -> AnyPromise {
-        return AnyPromise(write(.promise, block) as Promise<Void>)
-    }
-
-    func write<T>(_: PromiseNamespace,
-                  file: String = #file,
-                  function: String = #function,
-                  line: Int = #line,
-                  _ block: @escaping (SDSAnyWriteTransaction) -> T) -> Promise<T> {
-        return Promise { future in
-            self.asyncWriteQueue.async {
-                future.resolve(self.write(file: file,
-                                            function: function,
-                                            line: line,
-                                            block: block))
-            }
-        }
-    }
-
     func write<T>(_: PromiseNamespace,
                   file: String = #file,
                   function: String = #function,
@@ -169,10 +169,7 @@ public extension SDSTransactable {
         return Promise { future in
             self.asyncWriteQueue.async {
                 do {
-                    future.resolve(try self.write(file: file,
-                                                    function: function,
-                                                    line: line,
-                                                    block: block))
+                    future.resolve(try self.write(file: file, function: function, line: line, block: block))
                 } catch {
                     future.reject(error)
                 }
@@ -185,71 +182,69 @@ public extension SDSTransactable {
 
 public extension SDSTransactable {
     @discardableResult
-    func read<T>(file: String = #file,
-                 function: String = #function,
-                 line: Int = #line,
-                 block: (SDSAnyReadTransaction) -> T) -> T {
-        var value: T!
-        read(file: file, function: function, line: line) { (transaction) in
-            value = block(transaction)
-        }
-        return value
+    func read<T>(
+        file: String = #file,
+        function: String = #function,
+        line: Int = #line,
+        block: (SDSAnyReadTransaction) throws -> T
+    ) rethrows -> T {
+        return try _read(file: file, function: function, line: line, block: block, rescue: { throw $0 })
     }
 
-    @discardableResult
-    func read<T>(file: String = #file,
-                 function: String = #function,
-                 line: Int = #line,
-                 block: (SDSAnyReadTransaction) throws -> T) throws -> T {
+    // The "rescue" pattern is used in LibDispatch (and replicated here) to
+    // allow "rethrows" to work properly.
+    private func _read<T>(
+        file: String,
+        function: String,
+        line: Int,
+        block: (SDSAnyReadTransaction) throws -> T,
+        rescue: (Error) throws -> Void
+    ) rethrows -> T {
         var value: T!
         var thrown: Error?
-        read(file: file, function: function, line: line) { (transaction) in
+        read(file: file, function: function, line: line) { tx in
             do {
-                value = try block(transaction)
+                value = try block(tx)
             } catch {
                 thrown = error
             }
         }
-
-        if let error = thrown {
-            throw error.grdbErrorForLogging
-        }
-
-        return value
-    }
-
-    @discardableResult
-    func write<T>(file: String = #file,
-                  function: String = #function,
-                  line: Int = #line,
-                  block: (SDSAnyWriteTransaction) -> T) -> T {
-        var value: T!
-        write(file: file,
-              function: function,
-              line: line) { (transaction) in
-            value = block(transaction)
+        if let thrown {
+            try rescue(thrown.grdbErrorForLogging)
         }
         return value
     }
 
     @discardableResult
-    func write<T>(file: String = #file,
-                  function: String = #function,
-                  line: Int = #line,
-                  block: (SDSAnyWriteTransaction) throws -> T) throws -> T {
+    func write<T>(
+        file: String = #file,
+        function: String = #function,
+        line: Int = #line,
+        block: (SDSAnyWriteTransaction) throws -> T
+    ) rethrows -> T {
+        return try _write(file: file, function: function, line: line, block: block, rescue: { throw $0 })
+    }
+
+    // The "rescue" pattern is used in LibDispatch (and replicated here) to
+    // allow "rethrows" to work properly.
+    private func _write<T>(
+        file: String,
+        function: String,
+        line: Int,
+        block: (SDSAnyWriteTransaction) throws -> T,
+        rescue: (Error) throws -> Void
+    ) rethrows -> T {
         var value: T!
         var thrown: Error?
-        write(file: file,
-              function: function,
-              line: line) { (transaction) in
+        write(file: file, function: function, line: line) { tx in
             do {
-                value = try block(transaction)
+                value = try block(tx)
             } catch {
                 thrown = error
             }
         }
-        if let error = thrown {
-            throw error.grdbErrorForLogging
+        if let thrown {
+            try rescue(thrown.grdbErrorForLogging)
         }
         return value
     }

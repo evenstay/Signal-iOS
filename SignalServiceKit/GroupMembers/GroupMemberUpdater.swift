@@ -5,7 +5,7 @@
 
 import Foundation
 
-protocol GroupMemberUpdater {
+public protocol GroupMemberUpdater {
     func updateRecords(groupThread: TSGroupThread, transaction: DBWriteTransaction)
 }
 
@@ -55,39 +55,31 @@ class GroupMemberUpdaterImpl: GroupMemberUpdater {
         // we sort group members based on their most recent interaction, we'll
         // always keep the preferred group member.
 
-        // PNI TODO: Ensure that the ACI & PNI are never added to the same group.
-
         // This is the source of truth; we want to make the TSGroupMember objects
         // on disk match this list of addresses. However, `fullMembers` is decoded
         // from disk, so it may have outdated phone number information. Re-create
         // each address without specifying a phone number to ensure that we only
         // use values contained in the cache.
-        var expectedAddresses = Set<SignalServiceAddress>()
-        for fullMemberAddress in groupThread.groupMembership.fullMembers {
-            if let serviceId = fullMemberAddress.untypedServiceId {
-                expectedAddresses.insert(SignalServiceAddress(
-                    uuid: serviceId.uuidValue,
-                    phoneNumber: nil,
-                    cache: signalServiceAddressCache,
-                    cachePolicy: .preferInitialPhoneNumberAndListenForUpdates
-                ))
-            } else {
-                expectedAddresses.insert(fullMemberAddress)
-            }
-        }
+        var expectedAddresses = Set(groupThread.groupMembership.fullMembers.lazy.map { address in
+            address.withNormalizedPhoneNumberAndServiceId(cache: self.signalServiceAddressCache)
+        })
 
         for groupMember in groupMemberStore.sortedFullGroupMembers(in: groupThreadId, tx: transaction) {
             let serviceId = groupMember.serviceId
             let phoneNumber = groupMember.phoneNumber
 
             let expectedAddress = expectedAddresses.remove(SignalServiceAddress(
-                uuid: serviceId?.uuidValue,
+                serviceId: serviceId,
                 phoneNumber: phoneNumber,
                 cache: signalServiceAddressCache,
                 cachePolicy: .preferInitialPhoneNumberAndListenForUpdates
             ))
 
-            if let expectedAddress, expectedAddress.untypedServiceId == serviceId, expectedAddress.phoneNumber == phoneNumber {
+            if
+                let expectedAddress,
+                expectedAddress.serviceId == serviceId,
+                expectedAddress.phoneNumber == phoneNumber
+            {
                 // The value on disk already matches the source of truth; do nothing.
                 continue
             }
@@ -98,7 +90,7 @@ class GroupMemberUpdaterImpl: GroupMemberUpdater {
             if let expectedAddress {
                 // It needs to be updated, so copy fields from the removed group member.
                 groupMembersToInsert.append(TSGroupMember(
-                    serviceId: expectedAddress.untypedServiceId,
+                    serviceId: expectedAddress.serviceId,
                     phoneNumber: expectedAddress.phoneNumber,
                     groupThreadId: groupThreadId,
                     lastInteractionTimestamp: groupMember.lastInteractionTimestamp
@@ -115,7 +107,7 @@ class GroupMemberUpdaterImpl: GroupMemberUpdater {
                 transaction: transaction
             )
             groupMembersToInsert.append(TSGroupMember(
-                serviceId: expectedAddress.untypedServiceId,
+                serviceId: expectedAddress.serviceId,
                 phoneNumber: expectedAddress.phoneNumber,
                 groupThreadId: groupThreadId,
                 lastInteractionTimestamp: latestInteractionTimestamp ?? 0

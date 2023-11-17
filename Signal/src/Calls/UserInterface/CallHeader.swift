@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import LibSignalClient
 import SignalMessaging
 import SignalRingRTC
 import SignalUI
@@ -232,10 +233,9 @@ class CallHeader: UIView {
                 callStatusText = String(format: formatString, callerName)
 
             } else if let joinedMembers = call.groupCall.peekInfo?.joinedMembers, !joinedMembers.isEmpty {
-                let memberNames: [String] = databaseStorage.read { transaction in
+                let memberNames: [String] = databaseStorage.read { tx in
                     joinedMembers.prefix(2).map {
-                        contactsManager.shortDisplayName(for: SignalServiceAddress(uuid: $0),
-                                                         transaction: transaction)
+                        contactsManager.shortDisplayName(for: SignalServiceAddress(Aci(fromUUID: $0)), transaction: tx)
                     }
                 }
                 callStatusText = describeMembers(
@@ -344,13 +344,13 @@ class CallHeader: UIView {
 
     private func updateCallTitleLabel() {
         let callTitleText: String
-        if call.groupCall.localDeviceState.joinState == .joined,
-           let firstMember = call.groupCall.remoteDeviceStates.sortedBySpeakerTime.first,
-           firstMember.presenting == true {
-
-            let presentingName = databaseStorage.read { transaction in
-                contactsManager.shortDisplayName(for: SignalServiceAddress(uuid: firstMember.userId),
-                                                 transaction: transaction)
+        if
+            call.groupCall.localDeviceState.joinState == .joined,
+            let firstMember = call.groupCall.remoteDeviceStates.sortedBySpeakerTime.first,
+            firstMember.presenting == true
+        {
+            let presentingName = databaseStorage.read { tx in
+                contactsManager.shortDisplayName(for: SignalServiceAddress(Aci(fromUUID: firstMember.userId)), transaction: tx)
             }
             let formatString = OWSLocalizedString(
                 "GROUP_CALL_PRESENTING_FORMAT",
@@ -368,7 +368,7 @@ class CallHeader: UIView {
 
     func updateGroupMembersButton() {
         let isJoined = call.groupCall.localDeviceState.joinState == .joined
-        let remoteMemberCount = isJoined ? call.groupCall.remoteDeviceStates.count : Int(call.groupCall.peekInfo?.deviceCount ?? 0)
+        let remoteMemberCount = isJoined ? call.groupCall.remoteDeviceStates.count : Int(call.groupCall.peekInfo?.deviceCountExcludingPendingDevices ?? 0)
         groupMembersButton.updateMemberCount(remoteMemberCount + (isJoined ? 1 : 0))
     }
 

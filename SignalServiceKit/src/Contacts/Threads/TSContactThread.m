@@ -6,7 +6,6 @@
 #import "TSContactThread.h"
 #import "ContactsManagerProtocol.h"
 #import "NotificationsProtocol.h"
-#import "OWSIdentityManager.h"
 #import <SignalServiceKit/SignalServiceKit-Swift.h>
 
 NS_ASSUME_NONNULL_BEGIN
@@ -16,8 +15,6 @@ NSUInteger const TSContactThreadSchemaVersion = 1;
 
 @interface TSContactThread ()
 
-@property (nonatomic, nullable) NSString *contactPhoneNumber;
-@property (nonatomic, nullable) NSString *contactUUID;
 @property (nonatomic, readonly) NSUInteger contactThreadSchemaVersion;
 
 @end
@@ -28,9 +25,9 @@ NSUInteger const TSContactThreadSchemaVersion = 1;
 
 #pragma mark - Dependencies
 
-+ (AnyContactThreadFinder *)threadFinder
++ (ContactThreadFinder *)threadFinder
 {
-    return [AnyContactThreadFinder new];
+    return [ContactThreadFinder new];
 }
 
 #pragma mark -
@@ -116,7 +113,7 @@ lastVisibleSortIdOnScreenPercentageObsolete:lastVisibleSortIdOnScreenPercentageO
     OWSAssertDebug(contactAddress.isValid);
 
     if (self = [super init]) {
-        _contactUUID = contactAddress.uuidString;
+        _contactUUID = contactAddress.serviceIdUppercaseString;
         _contactPhoneNumber = contactAddress.phoneNumber;
         _contactThreadSchemaVersion = TSContactThreadSchemaVersion;
     }
@@ -166,7 +163,7 @@ lastVisibleSortIdOnScreenPercentageObsolete:lastVisibleSortIdOnScreenPercentageO
 
 - (SignalServiceAddress *)contactAddress
 {
-    return [[SignalServiceAddress alloc] initWithUuidString:self.contactUUID phoneNumber:self.contactPhoneNumber];
+    return [[SignalServiceAddress alloc] initWithServiceIdString:self.contactUUID phoneNumber:self.contactPhoneNumber];
 }
 
 - (NSArray<SignalServiceAddress *> *)recipientAddressesWithTransaction:(SDSAnyReadTransaction *)transaction
@@ -191,7 +188,7 @@ lastVisibleSortIdOnScreenPercentageObsolete:lastVisibleSortIdOnScreenPercentageO
 
 - (BOOL)hasSafetyNumbers
 {
-    return !![[OWSIdentityManager shared] identityKeyForAddress:self.contactAddress];
+    return [OWSIdentityManagerObjCBridge identityKeyForAddress:self.contactAddress] != nil;
 }
 
 + (nullable SignalServiceAddress *)contactAddressFromThreadId:(NSString *)threadId

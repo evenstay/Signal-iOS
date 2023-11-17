@@ -157,7 +157,9 @@ extension DeviceTransferService {
             stopTransfer()
             return owsFailDebug("Missing manifest file.")
         }
-        guard fileSize.uint64Value < 1024 * 1024 * 10 else {
+        // Not sure why this limit exists in the first place, but 1Gb should be
+        // plenty high for file descriptors.
+        guard fileSize.uint64Value < 1024 * 1024 * 1024 else {
             stopTransfer()
             return owsFailDebug("Unexpectedly received a very large manifest \(fileSize)")
         }
@@ -169,7 +171,7 @@ extension DeviceTransferService {
             stopTransfer()
             return owsFailDebug("Failed to parse manifest proto")
         }
-        guard !tsAccountManager.isRegistered else {
+        guard !DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isRegistered else {
             stopTransfer()
             return owsFailDebug("Ignoring incoming transfer to a registered device")
         }
@@ -196,7 +198,9 @@ extension DeviceTransferService {
             progress: progress
         )
 
-        tsAccountManager.isTransferInProgress = true
+        DependenciesBridge.shared.db.write { tx in
+            DependenciesBridge.shared.registrationStateChangeManager.setIsTransferInProgress(tx: tx)
+        }
 
         notifyObservers { $0.deviceTransferServiceDidStartTransfer(progress: progress) }
 

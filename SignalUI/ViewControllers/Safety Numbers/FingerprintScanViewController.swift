@@ -3,33 +3,32 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
+import LibSignalClient
 import SignalMessaging
 import SignalServiceKit
 import UIKit
 
 class FingerprintScanViewController: OWSViewController, OWSNavigationChildController {
 
-    private let recipientAddress: SignalServiceAddress
+    private let recipientAci: Aci
     private let recipientIdentity: OWSRecipientIdentity
     private let contactName: String
-    private let identityKey: IdentityKey
-    private let fingerprints: [OWSFingerprint]
+    private let identityKey: Data
+    private let fingerprint: OWSFingerprint
 
     private lazy var qrCodeScanViewController = QRCodeScanViewController(appearance: .masked())
 
     init(
-        recipientAddress: SignalServiceAddress,
+        recipientAci: Aci,
         recipientIdentity: OWSRecipientIdentity,
-        fingerprints: [OWSFingerprint]
+        fingerprint: OWSFingerprint
     ) {
-        owsAssertDebug(recipientAddress.isValid)
-
-        self.recipientAddress = recipientAddress
+        self.recipientAci = recipientAci
         self.recipientIdentity = recipientIdentity
         self.identityKey = recipientIdentity.identityKey
 
-        self.fingerprints = fingerprints
-        self.contactName = SSKEnvironment.shared.contactsManagerRef.displayName(for: recipientAddress)
+        self.fingerprint = fingerprint
+        self.contactName = Self.contactsManager.displayName(for: SignalServiceAddress(recipientAci))
 
         super.init()
 
@@ -101,7 +100,7 @@ class FingerprintScanViewController: OWSViewController, OWSNavigationChildContro
             FingerprintScanViewController.showVerificationSucceeded(
                 from: self,
                 identityKey: identityKey,
-                recipientAddress: recipientAddress,
+                recipientAci: recipientAci,
                 contactName: contactName,
                 tag: logTag
             )
@@ -118,38 +117,23 @@ class FingerprintScanViewController: OWSViewController, OWSNavigationChildContro
             )
         }
 
-        // Check all of them, if any succeed its success.
-        var localizedErrorDescriptionToShow: String?
-        for (i, fingerprint) in fingerprints.enumerated() {
-            switch fingerprint.matchesLogicalFingerprintsData(combinedFingerprintData) {
-            case .match:
-                showSuccess()
-                return
-            case .noMatch(let localizedErrorDescription):
-                // Prefer no match errors to version erorrs, if we end
-                // up displaying an error.
-                localizedErrorDescriptionToShow = localizedErrorDescription
-                fallthrough
-            case
-                    .weHaveOldVersion(let localizedErrorDescription),
-                    .theyHaveOldVersion(let localizedErrorDescription):
-                if i == fingerprints.count - 1 {
-                    // We reached the end, show the error for the last one.
-                    showFailure(localizedErrorDescription: localizedErrorDescriptionToShow ?? localizedErrorDescription)
-                }
-            }
+        switch fingerprint.matchesLogicalFingerprintsData(combinedFingerprintData) {
+        case .match:
+            showSuccess()
+        case .noMatch(let localizedErrorDescription), .weHaveOldVersion(let localizedErrorDescription), .theyHaveOldVersion(let localizedErrorDescription):
+            // We reached the end, show the error for the last one.
+            showFailure(localizedErrorDescription: localizedErrorDescription)
         }
     }
 
     static func showVerificationSucceeded(
         from viewController: UIViewController,
         identityKey: Data,
-        recipientAddress: SignalServiceAddress,
+        recipientAci: Aci,
         contactName: String,
         tag: String
     ) {
         AssertIsOnMainThread()
-        owsAssertDebug(recipientAddress.isValid)
 
         Logger.info("\(tag) Successfully verified safety numbers.")
 
@@ -167,12 +151,17 @@ class FingerprintScanViewController: OWSViewController, OWSNavigationChildContro
             ),
             style: .default,
             handler: { _ in
-                OWSIdentityManager.shared.setVerificationState(
-                    .verified,
-                    identityKey: identityKey,
-                    address: recipientAddress,
-                    isUserInitiatedChange: true
-                )
+                DependenciesBridge.shared.db.write { tx in
+                    let identityManager = DependenciesBridge.shared.identityManager
+                    identityManager.saveIdentityKey(identityKey, for: recipientAci, tx: tx)
+                    _ = identityManager.setVerificationState(
+                        .verified,
+                        of: identityKey,
+                        for: SignalServiceAddress(recipientAci),
+                        isUserInitiatedChange: true,
+                        tx: tx
+                    )
+                }
                 if let navigationController = viewController.navigationController {
                     navigationController.popViewController(animated: true, completion: nil)
                 } else {

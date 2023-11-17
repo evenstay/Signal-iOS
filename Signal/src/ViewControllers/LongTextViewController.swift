@@ -103,7 +103,7 @@ public class LongTextViewController: OWSViewController {
             }
 
             let hasPendingMessageRequest = databaseStorage.read { transaction in
-                itemViewModel.thread.hasPendingMessageRequest(transaction: transaction.unwrapGrdbRead)
+                itemViewModel.thread.hasPendingMessageRequest(transaction: transaction)
             }
             CVComponentBodyText.configureTextView(
                 messageTextView,
@@ -293,7 +293,7 @@ public class LongTextViewController: OWSViewController {
                         groupViewHelper!.delegate = self
                     }
 
-                    let address = SignalServiceAddress(uuid: mentionItem.mentionUUID)
+                    let address = SignalServiceAddress(mentionItem.mentionAci)
                     let actionSheet = MemberActionSheet(
                         address: address,
                         groupViewHelper: groupViewHelper,

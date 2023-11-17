@@ -4,7 +4,6 @@
 //
 
 #import "SSKBaseTestObjC.h"
-#import "TSAccountManager.h"
 #import "TSContactThread.h"
 #import "TSGroupThread.h"
 #import "TSIncomingMessage.h"
@@ -24,14 +23,14 @@
 
 @implementation TSMessageStorageTests
 
-- (UntypedServiceIdObjC *)localAci
+- (AciObjC *)localAci
 {
-    return [[UntypedServiceIdObjC alloc] initWithUuidString:@"00000000-0000-4000-8000-000000000000"];
+    return [[AciObjC alloc] initWithAciString:@"00000000-0000-4000-8000-000000000000"];
 }
 
 - (SignalServiceAddress *)localAddress
 {
-    return [[SignalServiceAddress alloc] initWithUntypedServiceIdObjC:[self localAci]];
+    return [[SignalServiceAddress alloc] initWithServiceIdObjC:[self localAci]];
 }
 
 - (AciObjC *)otherAci
@@ -51,7 +50,7 @@
     // ensure local client has necessary "registered" state
     NSString *localE164Identifier = @"+13235551234";
     NSUUID *localUUID = NSUUID.UUID;
-    [self.tsAccountManager registerForTestsWithLocalNumber:localE164Identifier uuid:localUUID];
+    [RegistrationStateChangeManagerObjcTestUtil registerForTestsWithLocalNumber:localE164Identifier aci:localUUID];
 
     [self writeWithBlock:^(SDSAnyWriteTransaction *transaction) {
         self.thread = [TSContactThread getOrCreateThreadWithContactAddress:self.otherAddress transaction:transaction];

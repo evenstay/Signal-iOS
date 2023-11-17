@@ -4,138 +4,55 @@
 //
 
 import Foundation
+import LibSignalClient
 
-/// Provides parameters required for assembling a UD (sealed-sender) message.
-@objc
-public protocol UDSendingParamsProvider {
+/// Provides parameters required for assembling a Sealed Sender message.
+final class SealedSenderParameters {
+    let message: TSOutgoingMessage
+    let udSendingAccess: OWSUDSendingAccess
+
+    init(message: TSOutgoingMessage, udSendingAccess: OWSUDSendingAccess) {
+        self.message = message
+        self.udSendingAccess = udSendingAccess
+    }
+
     /// Indicates desired behavior on the case of decryption error.
-    var contentHint: SealedSenderContentHint { get }
-
-    /// UD sending access, if available.
-    var udSendingAccess: OWSUDSendingAccess? { get }
+    var contentHint: SealedSenderContentHint {
+        return message.contentHint
+    }
 
     /// Fetches a group ID to attache to the message envelope, to assist error
     /// handling in the case of decryption error.
-    func envelopeGroupId(transaction: SDSAnyReadTransaction) -> Data?
-
-    /// Disable UD auth. After this method is called, ``udSendingAccess``
-    /// should return `nil`.
-    func disableUDAuth()
+    func envelopeGroupId(tx: DBReadTransaction) -> Data? {
+        return message.envelopeGroupIdWithTransaction(SDSDB.shimOnlyBridge(tx))
+    }
 }
 
 // Corresponds to a single effort to send a message to a given recipient,
-// which may span multiple attempts.  Note that group messages may be sent
+// which may span multiple attempts. Note that group messages may be sent
 // to multiple recipients and therefore require multiple instances of
 // OWSMessageSend.
-@objc
-public class OWSMessageSend: NSObject, UDSendingParamsProvider {
-    @objc
+final class OWSMessageSend {
     public let message: TSOutgoingMessage
-
-    @objc
     public let plaintextContent: Data
-
-    @objc(plaintextPayloadId)
-    @available(swift, obsoleted: 1.0)
-    public var plaintextPayloadIdObjc: NSNumber? { plaintextPayloadId.map { NSNumber(value: $0) } }
     public let plaintextPayloadId: Int64?
-
-    @objc
     public let thread: TSThread
-
-    @objc
-    public let serviceId: UntypedServiceIdObjC
-
-    @objc
-    public let address: SignalServiceAddress
-
-    private static let kMaxRetriesPerRecipient: Int = 3
-
-    private let _remainingAttempts = AtomicValue<Int>(OWSMessageSend.kMaxRetriesPerRecipient)
-    @objc
-    public var remainingAttempts: Int {
-        get { return _remainingAttempts.get() }
-        set { _remainingAttempts.set(newValue) }
-    }
-
-    @objc
-    public let localAddress: SignalServiceAddress
-
-    @objc
-    public let isLocalAddress: Bool
-
-    public let promise: Promise<Void>
-
-    @objc
-    public let success: () -> Void
-
-    @objc
-    public let failure: (Error) -> Void
+    public let serviceId: ServiceId
+    public let localIdentifiers: LocalIdentifiers
 
     public init(
         message: TSOutgoingMessage,
         plaintextContent: Data,
         plaintextPayloadId: Int64?,
         thread: TSThread,
-        serviceId: UntypedServiceId,
-        udSendingAccess: OWSUDSendingAccess?,
-        localAddress: SignalServiceAddress,
-        sendErrorBlock: ((Error) -> Void)?
+        serviceId: ServiceId,
+        localIdentifiers: LocalIdentifiers
     ) {
         self.message = message
         self.plaintextContent = plaintextContent
         self.plaintextPayloadId = plaintextPayloadId
         self.thread = thread
-        self.serviceId = UntypedServiceIdObjC(serviceId)
-        self.address = SignalServiceAddress(serviceId)
-        self.localAddress = localAddress
-        self.isLocalAddress = address.isLocalAddress
-
-        let (promise, future) = Promise<Void>.pending()
-        self.promise = promise
-        self.success = {
-            future.resolve()
-        }
-        self.failure = { error in
-            if let sendErrorBlock = sendErrorBlock {
-                sendErrorBlock(error)
-            }
-            future.reject(error)
-        }
-
-        super.init()
-
-        self.udSendingAccess = udSendingAccess
-    }
-
-    // MARK: - UDSendingParamsProvider
-
-    private var _udSendingAccess = AtomicOptional<OWSUDSendingAccess>(nil)
-    @objc
-    public private(set) var udSendingAccess: OWSUDSendingAccess? {
-        get { return _udSendingAccess.get() }
-        set { _udSendingAccess.set(newValue) }
-    }
-
-    @objc
-    public var contentHint: SealedSenderContentHint {
-        message.contentHint
-    }
-
-    @objc
-    public func envelopeGroupId(transaction: SDSAnyReadTransaction) -> Data? {
-        message.envelopeGroupIdWithTransaction(transaction)
-    }
-
-    @objc
-    public func disableUDAuth() {
-        udSendingAccess = nil
-    }
-
-    // MARK: - Getters
-
-    @objc
-    public var isUDSend: Bool {
-        return udSendingAccess != nil
+        self.serviceId = serviceId
+        self.localIdentifiers = localIdentifiers
     }
 }

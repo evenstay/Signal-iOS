@@ -183,7 +183,7 @@ public class ChatListViewController: OWSViewController {
 
         searchResultsController.viewDidAppear(animated)
 
-        showBadgeExpirationSheetIfNeeded()
+        showBadgeSheetIfNecessary()
 
         hasEverAppeared = true
         if viewState.multiSelectState.isActive {
@@ -503,7 +503,7 @@ public class ChatListViewController: OWSViewController {
         if SignalProxy.isEnabled {
             let proxyStatusImage: UIImage?
             let tintColor: UIColor
-            switch socketManager.socketState(forType: .identified) {
+            switch DependenciesBridge.shared.socketManager.socketState(forType: .identified) {
             case .open:
                 proxyStatusImage = UIImage(named: "safety-number")
                 tintColor = UIColor.ows_accentGreen
@@ -587,7 +587,7 @@ public class ChatListViewController: OWSViewController {
     }
 
     private func addPullToRefreshIfNeeded() {
-        if tsAccountManager.isPrimaryDevice {
+        if DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isPrimaryDevice ?? true {
             return
         }
 
@@ -601,7 +601,7 @@ public class ChatListViewController: OWSViewController {
     @objc
     private func pullToRefreshPerformed(_ refreshControl: UIRefreshControl) {
         AssertIsOnMainThread()
-        owsAssert(!tsAccountManager.isPrimaryDevice)
+        owsAssert(DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isPrimaryDevice == false)
 
         syncManager.sendAllSyncRequestMessages(timeout: 20).ensure {
             refreshControl.endRefreshing()
@@ -664,7 +664,7 @@ public class ChatListViewController: OWSViewController {
     }
 
     private var shouldShowEmptyInboxView: Bool {
-        return chatListMode == .inbox && numberOfInboxThreads == 0 && numberOfArchivedThreads == 0
+        return chatListMode == .inbox && numberOfInboxThreads == 0 && numberOfArchivedThreads == 0 && !hasVisibleReminders
     }
 
     func updateViewState() {
@@ -684,33 +684,164 @@ public class ChatListViewController: OWSViewController {
         }
     }
 
-    // MARK: Badge Expiration
+    // MARK: Badge Sheets
 
-    private var hasShownBadgeExpiration = false
+    var receiptCredentialResultStore: SubscriptionReceiptCredentialResultStore {
+        DependenciesBridge.shared.subscriptionReceiptCredentialResultStore
+    }
 
-    func showBadgeExpirationSheetIfNeeded() {
-        Logger.info("[Donations] Checking whether we should show badge expiration sheet...")
-
-        guard !hasShownBadgeExpiration else { // Do this once per launch
-            Logger.info("[Donations] Not showing badge expiration sheet, because we've already done so")
+    @objc
+    func showBadgeSheetIfNecessary() {
+        guard isChatListTopmostViewController() else {
             return
         }
 
         let (
+            oneTimeBoostReceiptCredentialRedemptionSuccess,
+            recurringSubscriptionReceiptCredentialRedemptionSuccess,
+
+            oneTimeBoostReceiptCredentialRequestError,
+            recurringSubscriptionReceiptCredentialRequestError,
+
+            oneTimeBoostErrorHasBeenPresented,
+            recurringSubscriptionErrorHasBeenPresented,
+
+            subscriberID,
             expiredBadgeID,
             shouldShowExpirySheet,
-            mostRecentSubscriptionBadgeChargeFailure,
             mostRecentSubscriptionPaymentMethod,
             hasCurrentSubscription
         ) = databaseStorage.read { transaction in (
+            receiptCredentialResultStore.getRedemptionSuccess(successMode: .oneTimeBoost, tx: transaction.asV2Read),
+            receiptCredentialResultStore.getRedemptionSuccess(successMode: .recurringSubscription, tx: transaction.asV2Read),
+
+            receiptCredentialResultStore.getRequestError(errorMode: .oneTimeBoost, tx: transaction.asV2Read),
+            receiptCredentialResultStore.getRequestError(errorMode: .recurringSubscription, tx: transaction.asV2Read),
+
+            receiptCredentialResultStore.hasPresentedError(errorMode: .oneTimeBoost, tx: transaction.asV2Read),
+            receiptCredentialResultStore.hasPresentedError(errorMode: .recurringSubscription, tx: transaction.asV2Read),
+
+            SubscriptionManagerImpl.getSubscriberID(transaction: transaction),
             SubscriptionManagerImpl.mostRecentlyExpiredBadgeID(transaction: transaction),
             SubscriptionManagerImpl.showExpirySheetOnHomeScreenKey(transaction: transaction),
-            SubscriptionManagerImpl.getMostRecentSubscriptionBadgeChargeFailure(transaction: transaction),
             SubscriptionManagerImpl.getMostRecentSubscriptionPaymentMethod(transaction: transaction),
             subscriptionManager.hasCurrentSubscription(transaction: transaction)
         )}
 
-        guard let expiredBadgeID = expiredBadgeID else {
+        if let oneTimeBoostReceiptCredentialRedemptionSuccess {
+            BadgeThanksSheetPresenter.load(
+                redemptionSuccess: oneTimeBoostReceiptCredentialRedemptionSuccess,
+                successMode: .oneTimeBoost
+            ).presentBadgeThanksAndClearSuccess(fromViewController: self)
+        } else if let recurringSubscriptionReceiptCredentialRedemptionSuccess {
+            BadgeThanksSheetPresenter.load(
+                redemptionSuccess: recurringSubscriptionReceiptCredentialRedemptionSuccess,
+                successMode: .recurringSubscription
+            ).presentBadgeThanksAndClearSuccess(fromViewController: self)
+        } else if
+            let oneTimeBoostReceiptCredentialRequestError,
+            !oneTimeBoostErrorHasBeenPresented
+        {
+            showBadgeIssueSheetIfNeeded(
+                receiptCredentialRequestError: oneTimeBoostReceiptCredentialRequestError,
+                errorMode: .oneTimeBoost
+            )
+        } else if
+            let recurringSubscriptionReceiptCredentialRequestError,
+            !recurringSubscriptionErrorHasBeenPresented
+        {
+            showBadgeIssueSheetIfNeeded(
+                receiptCredentialRequestError: recurringSubscriptionReceiptCredentialRequestError,
+                errorMode: .recurringSubscription
+            )
+        } else {
+            showBadgeExpirationSheetIfNeeded(
+                subscriberID: subscriberID,
+                expiredBadgeID: expiredBadgeID,
+                shouldShowExpirySheet: shouldShowExpirySheet,
+                mostRecentSubscriptionPaymentMethod: mostRecentSubscriptionPaymentMethod,
+                hasCurrentSubscription: hasCurrentSubscription
+            )
+        }
+    }
+
+    /// Show a badge issue sheet if we need to.
+    ///
+    /// Most payment methods succeed or fail to process quickly, and we're able
+    /// to show a blocking spinner in the donation flow until we know the
+    /// status, and show the appropriate UI there (so we show nothing here).
+    ///
+    /// Bank payments, however, are expected to take a long time (on the order
+    /// of days) to process. If one eventually fails, and we find ourselves with
+    /// an error for a failed bank payment, we should present a sheet for it.
+    private func showBadgeIssueSheetIfNeeded(
+        receiptCredentialRequestError: SubscriptionReceiptCredentialRequestError,
+        errorMode: SubscriptionReceiptCredentialResultStore.Mode
+    ) {
+        switch receiptCredentialRequestError.errorCode {
+        case .paymentStillProcessing:
+            // Not a terminal error – no reason to show a sheet.
+            return
+        case
+                .paymentFailed,
+                .localValidationFailed,
+                .serverValidationFailed,
+                .paymentNotFound,
+                .paymentIntentRedeemed:
+            break
+        }
+
+        switch receiptCredentialRequestError.paymentMethod {
+        case nil, .applePay, .creditOrDebitCard, .paypal:
+            return
+        case .sepa:
+            break
+        }
+
+        guard let badge = receiptCredentialRequestError.badge else {
+            owsFailBeta("Missing badge for failed SEPA donation! This should be impossible.")
+            return
+        }
+
+        let chargeFailureCode = receiptCredentialRequestError.chargeFailureCodeIfPaymentFailed
+
+        let logger = PrefixedLogger(prefix: "[Donations]", suffix: "\(errorMode)")
+
+        firstly(on: DispatchQueue.global()) { () -> Promise<Void> in
+            self.profileManager.badgeStore.populateAssetsOnBadge(badge)
+        }.done(on: DispatchQueue.main) {
+            guard self.isChatListTopmostViewController() else {
+                logger.info("Not presenting error – no longer the top view controller.")
+                return
+            }
+
+            let badgeIssueSheet = BadgeIssueSheet(
+                badge: badge,
+                mode: .bankPaymentFailed(chargeFailureCode: chargeFailureCode)
+            )
+            badgeIssueSheet.delegate = self
+
+            self.present(badgeIssueSheet, animated: true) {
+                self.databaseStorage.write { tx in
+                    self.receiptCredentialResultStore.setHasPresentedError(
+                        errorMode: errorMode,
+                        tx: tx.asV2Write
+                    )
+                }
+            }
+        }.catch(on: SyncScheduler()) { _ in
+            logger.error("Failed to populate badge assets!")
+        }
+    }
+
+    private func showBadgeExpirationSheetIfNeeded(
+        subscriberID: Data?,
+        expiredBadgeID: String?,
+        shouldShowExpirySheet: Bool,
+        mostRecentSubscriptionPaymentMethod: DonationPaymentMethod?,
+        hasCurrentSubscription: Bool
+    ) {
+        guard let expiredBadgeID else {
             Logger.info("[Donations] No expired badge ID, not showing sheet")
             return
         }
@@ -733,11 +864,12 @@ public class ChatListViewController: OWSViewController {
                     guard UIApplication.shared.frontmostViewController == self.conversationSplitViewController,
                           self.conversationSplitViewController?.selectedThread == nil else { return }
 
-                    let badgeSheet = BadgeExpirationSheet(badge: boostBadge,
-                                                          mode: .boostExpired(hasCurrentSubscription: hasCurrentSubscription))
+                    let badgeSheet = BadgeIssueSheet(
+                        badge: boostBadge,
+                        mode: .boostExpired(hasCurrentSubscription: hasCurrentSubscription)
+                    )
                     badgeSheet.delegate = self
                     self.present(badgeSheet, animated: true)
-                    self.hasShownBadgeExpiration = true
                     self.databaseStorage.write { transaction in
                         SubscriptionManagerImpl.setShowExpirySheetOnHomeScreenKey(show: false, transaction: transaction)
                     }
@@ -753,8 +885,17 @@ public class ChatListViewController: OWSViewController {
                 SubscriptionManagerImpl.fetchDonationConfiguration()
             }.map(on: DispatchQueue.global()) { donationConfiguration -> [SubscriptionLevel] in
                 donationConfiguration.subscription.levels
-            }.done(on: DispatchQueue.global()) { (subscriptions: [SubscriptionLevel]) in
-                let subscriptionLevel = subscriptions.first { $0.badge.id == expiredBadgeID }
+            }.then(on: DispatchQueue.global()) { subscriptionLevels -> Promise<([SubscriptionLevel], Subscription?)> in
+                guard let subscriberID else {
+                    return .value((subscriptionLevels, nil))
+                }
+
+                return SubscriptionManagerImpl.getCurrentSubscriptionStatus(for: subscriberID)
+                    .map(on: DispatchQueue.global()) { currentSubscription in
+                        (subscriptionLevels, currentSubscription)
+                    }
+            }.done(on: DispatchQueue.global()) { (subscriptionLevels, currentSubscription) in
+                let subscriptionLevel = subscriptionLevels.first { $0.badge.id == expiredBadgeID }
                 guard let subscriptionLevel = subscriptionLevel else {
                     owsFailDebug("Unable to find matching subscription level for expired badge")
                     return
@@ -764,22 +905,27 @@ public class ChatListViewController: OWSViewController {
                     self.profileManager.badgeStore.populateAssetsOnBadge(subscriptionLevel.badge)
                 }.done(on: DispatchQueue.main) {
                     // Make sure we're still the active VC
-                    guard UIApplication.shared.frontmostViewController == self.conversationSplitViewController,
-                          self.conversationSplitViewController?.selectedThread == nil else { return }
-
-                    let mode: BadgeExpirationSheetState.Mode
-                    if let mostRecentSubscriptionBadgeChargeFailure = mostRecentSubscriptionBadgeChargeFailure {
-                        mode = .subscriptionExpiredBecauseOfChargeFailure(
-                            chargeFailure: mostRecentSubscriptionBadgeChargeFailure,
-                            paymentMethod: mostRecentSubscriptionPaymentMethod
-                        )
-                    } else {
-                        mode = .subscriptionExpiredBecauseNotRenewed
+                    guard self.isChatListTopmostViewController() else {
+                        Logger.info("[Donations] No longer topmost view controller, not presenting badge expiration sheet.")
+                        return
                     }
-                    let badgeSheet = BadgeExpirationSheet(badge: subscriptionLevel.badge, mode: mode)
+
+                    let mode: BadgeIssueSheetState.Mode = {
+                        if
+                            let currentSubscription,
+                            let chargeFailure = currentSubscription.chargeFailure
+                        {
+                            return .subscriptionExpiredBecauseOfChargeFailure(
+                                chargeFailureCode: chargeFailure.code,
+                                paymentMethod: currentSubscription.paymentMethod
+                            )
+                        } else {
+                            return .subscriptionExpiredBecauseNotRenewed
+                        }
+                    }()
+                    let badgeSheet = BadgeIssueSheet(badge: subscriptionLevel.badge, mode: mode)
                     badgeSheet.delegate = self
                     self.present(badgeSheet, animated: true)
-                    self.hasShownBadgeExpiration = true
                     self.databaseStorage.write { transaction in
                         SubscriptionManagerImpl.setShowExpirySheetOnHomeScreenKey(show: false, transaction: transaction)
                     }
@@ -793,6 +939,16 @@ public class ChatListViewController: OWSViewController {
         }
     }
 
+    private func isChatListTopmostViewController() -> Bool {
+        guard
+            UIApplication.shared.frontmostViewController == self.conversationSplitViewController,
+            conversationSplitViewController?.selectedThread == nil,
+            presentedViewController == nil
+        else { return false }
+
+        return true
+    }
+
     // MARK: Payments
 
     func configureUnreadPaymentsBannerSingle(_ paymentsReminderView: UIView,
@@ -801,12 +957,13 @@ public class ChatListViewController: OWSViewController {
 
         guard paymentModel.isIncoming,
               !paymentModel.isUnidentified,
-              let address = paymentModel.address,
+              let senderAci = paymentModel.senderOrRecipientAci?.wrappedAciValue,
               let paymentAmount = paymentModel.paymentAmount,
               paymentAmount.isValid else {
             configureUnreadPaymentsBannerMultiple(paymentsReminderView, unreadCount: 1)
             return
         }
+        let address = SignalServiceAddress(senderAci)
         guard nil != TSContactThread.getWithContactAddress(address, transaction: transaction) else {
             configureUnreadPaymentsBannerMultiple(paymentsReminderView, unreadCount: 1)
             return
@@ -982,7 +1139,7 @@ extension ChatListViewController {
         let avatarView = ConversationAvatarView(sizeClass: .twentyEight, localUserDisplayMode: .asUser)
         databaseStorage.read { readTx in
             avatarView.update(readTx) { config in
-                if let address = tsAccountManager.localAddress(with: readTx) {
+                if let address = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: readTx.asV2Read)?.aciAddress {
                     config.dataSource = .address(address)
                     config.applyConfigurationSynchronously()
                 }
@@ -1102,7 +1259,7 @@ extension ChatListViewController {
         case let .donate(donateMode):
             guard DonationUtilities.canDonate(
                 inMode: donateMode.asDonationMode,
-                localNumber: tsAccountManager.localNumber
+                localNumber: DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction?.phoneNumber
             ) else {
                 DonationViewsUtil.openDonateWebsite()
                 return
@@ -1110,9 +1267,18 @@ extension ChatListViewController {
 
             let donate = DonateViewController(preferredDonateMode: donateMode) { [weak self] finishResult in
                 switch finishResult {
-                case let .completedDonation(donateSheet, thanksSheet):
+                case let .completedDonation(donateSheet, receiptCredentialSuccessMode):
                     donateSheet.dismiss(animated: true) { [weak self] in
-                        self?.present(thanksSheet, animated: true)
+                        guard
+                            let self,
+                            let badgeThanksSheetPresenter = BadgeThanksSheetPresenter.loadWithSneakyTransaction(
+                                successMode: receiptCredentialSuccessMode
+                            )
+                        else { return }
+
+                        badgeThanksSheetPresenter.presentBadgeThanksAndClearSuccess(
+                            fromViewController: self
+                        )
                     }
                 case let .monthlySubscriptionCancelled(donateSheet, toastText):
                     donateSheet.dismiss(animated: true) { [weak self] in
@@ -1132,9 +1298,9 @@ extension ChatListViewController {
     }
 }
 
-extension ChatListViewController: BadgeExpirationSheetDelegate {
+extension ChatListViewController: BadgeIssueSheetDelegate {
 
-    func badgeExpirationSheetActionTapped(_ action: BadgeExpirationSheetAction) {
+    func badgeIssueSheetActionTapped(_ action: BadgeIssueSheetAction) {
         switch action {
         case .dismiss:
             break

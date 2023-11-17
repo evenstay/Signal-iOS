@@ -21,10 +21,10 @@ public class AccountManager: NSObject, Dependencies {
         SwiftSingletons.register(self)
     }
 
-    func performInitialStorageServiceRestore(authedAccount: AuthedAccount = .implicit()) -> Promise<Void> {
+    func performInitialStorageServiceRestore(authedDevice: AuthedDevice = .implicit) -> Promise<Void> {
         BenchEventStart(title: "waiting for initial storage service restore", eventId: "initial-storage-service-restore")
         return firstly {
-            self.storageServiceManager.restoreOrCreateManifestIfNecessary(authedAccount: authedAccount).asVoid()
+            self.storageServiceManager.restoreOrCreateManifestIfNecessary(authedDevice: authedDevice)
         }.done {
             // In the case that we restored our profile from a previous registration,
             // re-upload it so that the user does not need to refill in all the details.
@@ -39,7 +39,7 @@ public class AccountManager: NSObject, Dependencies {
                 // Note we *don't* return this promise. There's no need to block registration on
                 // it completing, and if there are any errors, it's durable.
                 firstly {
-                    self.profileManagerImpl.reuploadLocalProfilePromise(authedAccount: authedAccount)
+                    self.profileManagerImpl.reuploadLocalProfilePromise(authedAccount: authedDevice.authedAccount)
                 }.catch { error in
                     Logger.error("error: \(error)")
                 }
@@ -54,44 +54,41 @@ public class AccountManager: NSObject, Dependencies {
     // MARK: Linking
 
     func completeSecondaryLinking(provisionMessage: ProvisionMessage, deviceName: String) -> Promise<Void> {
-        // * Primary devices _can_ re-register with a new uuid.
-        // * Secondary devices _cannot_ be re-linked to primaries with a different uuid.
-        if tsAccountManager.isReregistering {
+        // * Primary devices that are re-registering can provision instead with a new uuid.
+        // * Secondary devices _cannot_ be re-linked to primaries with a different uuid, but
+        //   `reregistering` state does not apply to secondaries.
+        switch DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction {
+        case .reregistering(let reregistrationPhoneNumber, let reregistrationAci):
             var canChangePhoneNumbers = false
-            if let oldUUID = tsAccountManager.reregistrationUUID,
-               let newUUID = provisionMessage.aci {
-                if !tsAccountManager.isPrimaryDevice,
-                   oldUUID != newUUID {
-                    Logger.verbose("oldUUID: \(oldUUID)")
-                    Logger.verbose("newUUID: \(newUUID)")
-                    Logger.warn("Cannot re-link with a different uuid.")
-                    return Promise(error: AccountManagerError.reregistrationDifferentAccount)
-                } else if oldUUID == newUUID {
-                    // Secondary devices _can_ re-link to primaries with different
-                    // phone numbers if the uuid is present and has not changed.
-                    canChangePhoneNumbers = true
-                }
+            if let oldAci = reregistrationAci, let newAci = provisionMessage.aci, oldAci == newAci {
+                canChangePhoneNumbers = true
             }
-            // * Primary devices _cannot_ re-register with a new phone number.
-            // * Secondary devices _cannot_ be re-linked to primaries with a different phone number
-            //   unless the uuid is present and has not changed.
-            if !canChangePhoneNumbers,
-               let reregistrationPhoneNumber = tsAccountManager.reregistrationPhoneNumber,
-               reregistrationPhoneNumber != provisionMessage.phoneNumber {
-                Logger.verbose("reregistrationPhoneNumber: \(reregistrationPhoneNumber)")
-                Logger.verbose("provisionMessage.phoneNumber: \(provisionMessage.phoneNumber)")
-                Logger.warn("Cannot re-register with a different phone number.")
+            if
+                !canChangePhoneNumbers,
+                reregistrationPhoneNumber != provisionMessage.phoneNumber
+            {
+                Logger.warn("Cannot provision with a different phone number from reregistration.")
                 return Promise(error: AccountManagerError.reregistrationDifferentAccount)
             }
+        default:
+            break
         }
 
         guard let phoneNumber = E164(provisionMessage.phoneNumber) else {
             return Promise(error: OWSAssertionError("Primary E164 isn't valid"))
         }
 
-        tsAccountManager.phoneNumberAwaitingVerification = E164ObjC(phoneNumber)
-        tsAccountManager.uuidAwaitingVerification = provisionMessage.aci
-        tsAccountManager.pniAwaitingVerification = provisionMessage.pni
+        guard let aci = provisionMessage.aci else {
+            return Promise(error: OWSAssertionError("Missing ACI in provisioning message!"))
+        }
+
+        guard let pni = provisionMessage.pni else {
+            return Promise(error: OWSAssertionError("Missing PNI in provisioning message!"))
+        }
+
+        // Cycle socket and censorship circumvention state as e164 could be changing.
+        signalService.updateHasCensoredPhoneNumberDuringProvisioning(phoneNumber)
+        DependenciesBridge.shared.socketManager.cycleSocket()
 
         let serverAuthToken = generateServerAuthToken()
 
@@ -127,7 +124,8 @@ public class AccountManager: NSObject, Dependencies {
         }.then { (apnRegistrationId, prekeyBundles) throws -> Promise<VerifySecondaryDeviceResponse> in
             let encryptedDeviceName = try DeviceNames.encryptDeviceName(
                 plaintext: deviceName,
-                identityKeyPair: provisionMessage.aciIdentityKeyPair)
+                identityKeyPair: provisionMessage.aciIdentityKeyPair.keyPair
+            )
 
             return self.accountServiceClient.verifySecondaryDevice(
                 verificationCode: provisionMessage.provisioningCode,
@@ -138,36 +136,54 @@ public class AccountManager: NSObject, Dependencies {
                 prekeyBundles: prekeyBundles
             )
         }.done { (response: VerifySecondaryDeviceResponse) in
-            if let pniFromPrimary = self.tsAccountManager.pniAwaitingVerification {
-                if pniFromPrimary != response.pni {
-                    throw OWSAssertionError("primary PNI is out of sync with the server")
-                }
-            } else {
-                self.tsAccountManager.pniAwaitingVerification = response.pni
+            if pni != response.pni {
+                throw OWSAssertionError("PNI from primary is out of sync with the server!")
             }
 
             self.databaseStorage.write { transaction in
-                self.identityManager.storeIdentityKeyPair(provisionMessage.aciIdentityKeyPair,
-                                                          for: .aci,
-                                                          transaction: transaction)
+                let identityManager = DependenciesBridge.shared.identityManager
 
-                self.identityManager.storeIdentityKeyPair(provisionMessage.pniIdentityKeyPair,
-                                                          for: .pni,
-                                                          transaction: transaction)
+                identityManager.setIdentityKeyPair(
+                    provisionMessage.aciIdentityKeyPair,
+                    for: .aci,
+                    tx: transaction.asV2Write
+                )
 
-                self.profileManagerImpl.setLocalProfileKey(provisionMessage.profileKey,
-                                                           userProfileWriter: .linking,
-                                                           authedAccount: .implicit(),
-                                                           transaction: transaction)
+                identityManager.setIdentityKeyPair(
+                    provisionMessage.pniIdentityKeyPair,
+                    for: .pni,
+                    tx: transaction.asV2Write
+                )
 
-                if let areReadReceiptsEnabled = provisionMessage.areReadReceiptsEnabled {
-                    self.receiptManager.setAreReadReceiptsEnabled(areReadReceiptsEnabled,
-                                                                  transaction: transaction)
+                self.profileManagerImpl.setLocalProfileKey(
+                    provisionMessage.profileKey,
+                    userProfileWriter: .linking,
+                    authedAccount: .implicit(),
+                    transaction: transaction
+                )
+                if let masterKey = provisionMessage.masterKey {
+                    DependenciesBridge.shared.svr.storeSyncedMasterKey(
+                        data: masterKey,
+                        authedDevice: .implicit,
+                        transaction: transaction.asV2Write
+                    )
                 }
 
-                self.tsAccountManager.setStoredServerAuthToken(serverAuthToken,
-                                                               deviceId: response.deviceId,
-                                                               transaction: transaction)
+                if let areReadReceiptsEnabled = provisionMessage.areReadReceiptsEnabled {
+                    self.receiptManager.setAreReadReceiptsEnabled(
+                        areReadReceiptsEnabled,
+                        transaction: transaction
+                    )
+                }
+
+                DependenciesBridge.shared.registrationStateChangeManager.didLinkSecondary(
+                    e164: phoneNumber,
+                    aci: aci,
+                    pni: pni,
+                    authToken: serverAuthToken,
+                    deviceId: response.deviceId,
+                    tx: transaction.asV2Write
+                )
             }
         }.then { _ -> Promise<Void> in
             if let prekeyBundlesCreated {
@@ -189,9 +205,14 @@ public class AccountManager: NSObject, Dependencies {
             let hasBackedUpMasterKey = self.databaseStorage.read { tx in
                 DependenciesBridge.shared.svr.hasBackedUpMasterKey(transaction: tx.asV2Read)
             }
-            return self.serviceClient.updateSecondaryDeviceCapabilities(hasBackedUpMasterKey: hasBackedUpMasterKey)
+            return Promise.wrapAsync {
+                let capabilities = AccountAttributes.Capabilities(hasSVRBackups: hasBackedUpMasterKey)
+                try await self.serviceClient.updateSecondaryDeviceCapabilities(capabilities)
+            }
         }.done {
-            self.completeDeviceLinking()
+            DependenciesBridge.shared.db.write { tx in
+                DependenciesBridge.shared.registrationStateChangeManager.didFinishProvisioningSecondary(tx: tx)
+            }
         }.then { _ -> Promise<Void> in
             BenchEventStart(title: "waiting for initial storage service restore", eventId: "initial-storage-service-restore")
 
@@ -202,7 +223,7 @@ public class AccountManager: NSObject, Dependencies {
             let storageServiceRestorePromise = firstly {
                 NotificationCenter.default.observe(once: .OWSSyncManagerKeysSyncDidComplete).asVoid()
             }.then {
-                StorageServiceManagerImpl.shared.restoreOrCreateManifestIfNecessary(authedAccount: .implicit()).asVoid()
+                StorageServiceManagerImpl.shared.restoreOrCreateManifestIfNecessary(authedDevice: .implicit).asVoid()
             }.ensure {
                 BenchEventComplete(eventId: "initial-storage-service-restore")
             }.timeout(seconds: 60)
@@ -242,32 +263,40 @@ public class AccountManager: NSObject, Dependencies {
 
     private func syncPushTokens() -> Promise<Void> {
         Logger.info("")
-        let job = SyncPushTokensJob(mode: .forceUpload)
-        return job.run()
-    }
-
-    private func completeDeviceLinking() {
-        Logger.info("")
-        tsAccountManager.didRegister()
+        return Promise.wrapAsync { try await SyncPushTokensJob(mode: .forceUpload).run() }
     }
 
     // MARK: Message Delivery
 
     func updatePushTokens(pushToken: String, voipToken: String?) -> Promise<Void> {
-        return Promise { future in
-            tsAccountManager.registerForPushNotifications(pushToken: pushToken,
-                                                          voipToken: voipToken,
-                                                          success: { future.resolve() },
-                                                          failure: future.reject)
-        }
+        let request = OWSRequestFactory.registerForPushRequest(
+            withPushIdentifier: pushToken,
+            voipIdentifier: voipToken
+        )
+        return updatePushTokens(request: request)
     }
 
     func updatePushTokens(request: TSRequest) -> Promise<Void> {
-        return Promise { future in
-            tsAccountManager.registerForPushNotifications(request: request,
-                                                          success: { future.resolve() },
-                                                          failure: future.reject)
-        }
+        return updatePushTokens(request: request, remainingRetries: 3)
+    }
+
+    private func updatePushTokens(
+        request: TSRequest,
+        remainingRetries: Int
+    ) -> Promise<Void> {
+        return networkManager.makePromise(request: request)
+            .asVoid()
+            .recover(on: DispatchQueue.global()) { error -> Promise<Void> in
+                if remainingRetries > 0 {
+                    return self.updatePushTokens(
+                        request: request,
+                        remainingRetries: remainingRetries - 1
+                    )
+                } else {
+                    owsFailDebugUnlessNetworkFailure(error)
+                    return Promise(error: error)
+                }
+            }
     }
 
     // MARK: Turn Server

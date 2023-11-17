@@ -4,9 +4,7 @@
 //
 
 import Foundation
-
-// TODO define actual type, and validate length
-public typealias IdentityKey = Data
+import LibSignalClient
 
 public enum AccountServiceClientError: Error {
     case captchaRequired
@@ -25,8 +23,8 @@ public class AccountServiceClient: NSObject {
     public func setPreKeys(
         for identity: OWSIdentity,
         identityKey: IdentityKey,
-        signedPreKeyRecord: SignedPreKeyRecord?,
-        preKeyRecords: [PreKeyRecord]?,
+        signedPreKeyRecord: SignalServiceKit.SignedPreKeyRecord?,
+        preKeyRecords: [SignalServiceKit.PreKeyRecord]?,
         pqLastResortPreKeyRecord: KyberPreKeyRecord?,
         pqPreKeyRecords: [KyberPreKeyRecord]?,
         auth: ChatServiceAuth
@@ -42,12 +40,12 @@ public class AccountServiceClient: NSObject {
         )
     }
 
-    public func setSignedPreKey(_ signedPreKey: SignedPreKeyRecord, for identity: OWSIdentity) -> Promise<Void> {
+    public func setSignedPreKey(_ signedPreKey: SignalServiceKit.SignedPreKeyRecord, for identity: OWSIdentity) -> Promise<Void> {
         return serviceClient.setCurrentSignedPreKey(signedPreKey, for: identity)
     }
 
-    public func updatePrimaryDeviceAccountAttributes() -> Promise<Void> {
-        return serviceClient.updatePrimaryDeviceAccountAttributes()
+    public func updatePrimaryDeviceAccountAttributes() async throws -> AccountAttributes {
+        return try await serviceClient.updatePrimaryDeviceAccountAttributes()
     }
 
     public func getAccountWhoAmI() -> Promise<WhoAmIRequestFactory.Responses.WhoAmI> {

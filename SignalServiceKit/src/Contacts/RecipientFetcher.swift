@@ -7,32 +7,32 @@ import Foundation
 import LibSignalClient
 
 public protocol RecipientFetcher {
-    func fetchOrCreate(serviceId: UntypedServiceId, tx: DBWriteTransaction) -> SignalRecipient
+    func fetchOrCreate(serviceId: ServiceId, tx: DBWriteTransaction) -> SignalRecipient
     func fetchOrCreate(phoneNumber: E164, tx: DBWriteTransaction) -> SignalRecipient
 }
 
-class RecipientFetcherImpl: RecipientFetcher {
-    private let recipientStore: RecipientDataStore
+public class RecipientFetcherImpl: RecipientFetcher {
+    private let recipientDatabaseTable: RecipientDatabaseTable
 
-    init(recipientStore: RecipientDataStore) {
-        self.recipientStore = recipientStore
+    public init(recipientDatabaseTable: RecipientDatabaseTable) {
+        self.recipientDatabaseTable = recipientDatabaseTable
     }
 
-    func fetchOrCreate(serviceId: UntypedServiceId, tx: DBWriteTransaction) -> SignalRecipient {
-        if let serviceIdRecipient = recipientStore.fetchRecipient(serviceId: serviceId, transaction: tx) {
+    public func fetchOrCreate(serviceId: ServiceId, tx: DBWriteTransaction) -> SignalRecipient {
+        if let serviceIdRecipient = recipientDatabaseTable.fetchRecipient(serviceId: serviceId, transaction: tx) {
             return serviceIdRecipient
         }
-        let newInstance = SignalRecipient(aci: Aci(fromUUID: serviceId.uuidValue), phoneNumber: nil)
-        recipientStore.insertRecipient(newInstance, transaction: tx)
+        let newInstance = SignalRecipient(aci: serviceId as? Aci, pni: serviceId as? Pni, phoneNumber: nil)
+        recipientDatabaseTable.insertRecipient(newInstance, transaction: tx)
         return newInstance
     }
 
-    func fetchOrCreate(phoneNumber: E164, tx: DBWriteTransaction) -> SignalRecipient {
-        if let result = recipientStore.fetchRecipient(phoneNumber: phoneNumber.stringValue, transaction: tx) {
+    public func fetchOrCreate(phoneNumber: E164, tx: DBWriteTransaction) -> SignalRecipient {
+        if let result = recipientDatabaseTable.fetchRecipient(phoneNumber: phoneNumber.stringValue, transaction: tx) {
             return result
         }
-        let result = SignalRecipient(aci: nil, phoneNumber: phoneNumber)
-        recipientStore.insertRecipient(result, transaction: tx)
+        let result = SignalRecipient(aci: nil, pni: nil, phoneNumber: phoneNumber)
+        recipientDatabaseTable.insertRecipient(result, transaction: tx)
         return result
     }
 }

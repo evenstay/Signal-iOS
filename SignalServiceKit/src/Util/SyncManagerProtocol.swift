@@ -16,14 +16,8 @@ public protocol SyncManagerProtocolObjc {
 
     typealias Completion = () -> Void
 
-    func syncLocalContact() -> AnyPromise
-    func syncAllContacts() -> AnyPromise
-    @discardableResult
-    func syncAllContactsIfFullSyncRequested() -> AnyPromise
-
     func processIncomingConfigurationSyncMessage(_ syncMessage: SSKProtoSyncMessageConfiguration, transaction: SDSAnyWriteTransaction)
     func processIncomingContactsSyncMessage(_ syncMessage: SSKProtoSyncMessageContacts, transaction: SDSAnyWriteTransaction)
-    func processIncomingFetchLatestSyncMessage(_ syncMessage: SSKProtoSyncMessageFetchLatest, transaction: SDSAnyWriteTransaction)
 
     func sendFetchLatestProfileSyncMessage()
     func sendFetchLatestStorageManifestSyncMessage()
@@ -37,10 +31,16 @@ public protocol SyncManagerProtocolSwift {
     func sendAllSyncRequestMessagesIfNecessary() -> AnyPromise
     func sendAllSyncRequestMessages(timeout: TimeInterval) -> AnyPromise
 
+    func syncLocalContact() -> AnyPromise
+    func syncAllContacts() -> AnyPromise
+    func syncAllContactsIfFullSyncRequested() -> AnyPromise
+
     func sendKeysSyncMessage()
+    func sendKeysSyncMessage(tx: SDSAnyWriteTransaction)
     func processIncomingKeysSyncMessage(_ syncMessage: SSKProtoSyncMessageKeys, transaction: SDSAnyWriteTransaction)
     func sendKeysSyncRequestMessage(transaction: SDSAnyWriteTransaction)
 
+    func processIncomingFetchLatestSyncMessage(_ syncMessage: SSKProtoSyncMessageFetchLatest, transaction: SDSAnyWriteTransaction)
     func processIncomingMessageRequestResponseSyncMessage(
         _ syncMessage: SSKProtoSyncMessageMessageRequestResponse,
         transaction: SDSAnyWriteTransaction

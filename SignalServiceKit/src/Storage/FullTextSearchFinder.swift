@@ -248,13 +248,7 @@ enum GRDBFullTextSearchFinder {
             // We don't need to index the user profile for the local user.
             return false
         }
-        if let signalAccount = model as? SignalAccount,
-           OWSUserProfile.isLocalProfileAddress(signalAccount.recipientAddress) {
-            // We don't need to index the signal account for the local user.
-            return false
-        }
-        if let signalRecipient = model as? SignalRecipient,
-           OWSUserProfile.isLocalProfileAddress(signalRecipient.address) {
+        if let signalRecipient = model as? SignalRecipient, signalRecipient.address.isLocalAddress {
             // We don't need to index the signal recipient for the local user.
             return false
         }
@@ -615,7 +609,7 @@ class AnySearchIndexer: Dependencies {
 
     private static let groupMemberIndexer: SearchIndexer<TSGroupMember> = SearchIndexer { (groupMember: TSGroupMember, transaction: SDSAnyReadTransaction) in
         return recipientIndexer.index(
-            SignalServiceAddress(uuid: groupMember.serviceId?.uuidValue, phoneNumber: groupMember.phoneNumber),
+            SignalServiceAddress(serviceId: groupMember.serviceId, phoneNumber: groupMember.phoneNumber),
             transaction: transaction
         )
     }

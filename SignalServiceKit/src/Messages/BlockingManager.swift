@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import LibSignalClient
 import SignalCoreKit
 
 public enum BlockMode: UInt {
@@ -102,7 +103,7 @@ extension BlockingManager {
             if let phoneNumber = address.phoneNumber, state.blockedPhoneNumbers.contains(phoneNumber) {
                 return true
             }
-            if let uuidString = address.uuidString, state.blockedUUIDStrings.contains(uuidString) {
+            if let aci = address.serviceId as? Aci, state.blockedAcis.contains(aci) {
                 return true
             }
             return false
@@ -128,11 +129,8 @@ extension BlockingManager {
                     addressSet.insert(address)
                 }
             }
-            state.blockedUUIDStrings.forEach {
-                let address = SignalServiceAddress(uuidString: $0)
-                if address.isValid {
-                    addressSet.insert(address)
-                }
+            state.blockedAcis.forEach {
+                addressSet.insert(SignalServiceAddress($0))
             }
             return addressSet
         }
@@ -161,6 +159,13 @@ extension BlockingManager {
                 storageServiceManager.recordPendingUpdates(updatedAddresses: [address])
             }
         }
+
+        // We will start dropping new stories from the blocked address;
+        // delete any existing ones we already have.
+        if let aci = address.aci {
+            StoryManager.deleteAllStories(forSender: aci, tx: transaction)
+        }
+        StoryManager.removeAddressFromAllPrivateStoryThreads(address, tx: transaction)
     }
 
     public func removeBlockedAddress(_ address: SignalServiceAddress, wasLocallyInitiated: Bool, transaction: SDSAnyWriteTransaction) {
@@ -300,25 +305,18 @@ extension BlockingManager {
 // MARK: - Syncing
 
 extension BlockingManager {
-    @objc
-    public func processIncomingSync(blockedPhoneNumbers: Set<String>, blockedAcis: Set<AciObjC>, blockedGroupIds: Set<Data>, transaction: SDSAnyWriteTransaction) {
+    public func processIncomingSync(
+        blockedPhoneNumbers: Set<String>,
+        blockedAcis: Set<Aci>,
+        blockedGroupIds: Set<Data>,
+        tx transaction: SDSAnyWriteTransaction
+    ) {
         Logger.info("")
         transaction.addAsyncCompletionOnMain {
             NotificationCenter.default.post(name: Self.blockedSyncDidComplete, object: nil)
         }
 
         updateCurrentState(transaction: transaction, wasLocallyInitiated: false) { state in
-            var newBlockedAddresses = Set<SignalServiceAddress>()
-            blockedPhoneNumbers.forEach { phoneNumber in
-                let blockedAddress = SignalServiceAddress(phoneNumber: phoneNumber)
-                if blockedAddress.isValid, blockedAddress.phoneNumber != nil {
-                    newBlockedAddresses.insert(blockedAddress)
-                }
-            }
-            blockedAcis.forEach { aci in
-                newBlockedAddresses.insert(SignalServiceAddress(aci.wrappedAciValue))
-            }
-
             // We store the list of blocked groups as GroupModels (not group ids)
             // so that we can display the group names in the block list UI, if
             // possible.
@@ -337,7 +335,7 @@ extension BlockingManager {
                 }
             }.compactMapValues { $0 }
 
-            state.replace(blockedAddresses: newBlockedAddresses, blockedGroups: newBlockedGroups)
+            state.replace(blockedPhoneNumbers: blockedPhoneNumbers, blockedAcis: blockedAcis, blockedGroups: newBlockedGroups)
         }
     }
 
@@ -350,7 +348,7 @@ extension BlockingManager {
     }
 
     private func sendBlockListSyncMessage(force: Bool) {
-        guard tsAccountManager.isRegistered else { return }
+        guard DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isRegistered else { return }
 
         databaseStorage.write { transaction in
             withCurrentState(transaction: transaction) { state in
@@ -367,7 +365,7 @@ extension BlockingManager {
                     }
                 }
 
-                let possibleThread = TSAccountManager.getOrCreateLocalThread(transaction: transaction)
+                let possibleThread = TSContactThread.getOrCreateLocalThread(transaction: transaction)
                 guard let thread = possibleThread else {
                     owsFailDebug("Missing thread.")
                     return
@@ -377,7 +375,7 @@ extension BlockingManager {
                 let message = OWSBlockedPhoneNumbersMessage(
                     thread: thread,
                     phoneNumbers: Array(state.blockedPhoneNumbers),
-                    aciStrings: Array(state.blockedUUIDStrings),
+                    aciStrings: state.blockedAcis.map { $0.serviceIdString },
                     groupIds: Array(state.blockedGroupMap.keys),
                     transaction: transaction
                 )
@@ -443,8 +441,7 @@ extension BlockingManager {
         private(set) var isDirty: Bool
         private(set) var changeToken: UInt64
         private(set) var blockedPhoneNumbers: Set<String>
-        // ACI TODO: Rename this to `blockedAciStrings`.
-        private(set) var blockedUUIDStrings: Set<String>
+        private(set) var blockedAcis: Set<Aci>
         private(set) var blockedGroupMap: [Data: TSGroupModel]   // GroupId -> GroupModel
 
         static let invalidChangeToken: UInt64 = 0
@@ -456,7 +453,7 @@ extension BlockingManager {
             isDirty = false
             changeToken = Self.invalidChangeToken
             blockedPhoneNumbers = Set()
-            blockedUUIDStrings = Set()
+            blockedAcis = Set()
             blockedGroupMap = [:]
         }
 
@@ -483,28 +480,31 @@ extension BlockingManager {
 
         // MARK: - Mutation
 
-        mutating func replace(blockedAddresses: Set<SignalServiceAddress>, blockedGroups: [Data: TSGroupModel]) {
+        mutating func replace(
+            blockedPhoneNumbers newBlockedPhoneNumbers: Set<String>,
+            blockedAcis newBlockedAcis: Set<Aci>,
+            blockedGroups newBlockedGroups: [Data: TSGroupModel]
+        ) {
             owsAssertDebug(changeToken != Self.invalidChangeToken)
 
-            let oldBlockedNumbers = blockedPhoneNumbers
-            let oldBlockedUUIDStrings = blockedUUIDStrings
-            let oldBlockedGroupMap = blockedGroupMap
+            var blockedAddresses = [SignalServiceAddress]()
+            blockedAddresses.append(contentsOf: newBlockedPhoneNumbers.lazy.compactMap { phoneNumber in
+                let address = SignalServiceAddress(phoneNumber: phoneNumber)
+                return address.isValid ? address : nil
+            })
+            blockedAddresses.append(contentsOf: newBlockedAcis.map { SignalServiceAddress($0) })
 
-            blockedGroupMap = blockedGroups
-            blockedPhoneNumbers = Set()
-            blockedUUIDStrings = Set()
-            blockedAddresses.forEach { blockedAddress in
-                if let phoneNumber = blockedAddress.phoneNumber {
-                    blockedPhoneNumbers.insert(phoneNumber)
-                }
-                if let uuidString = blockedAddress.uuidString {
-                    blockedUUIDStrings.insert(uuidString)
-                }
-            }
+            let oldBlockedPhoneNumbers = self.blockedPhoneNumbers
+            let oldBlockedAcis = self.blockedAcis
+            let oldBlockedGroupMap = self.blockedGroupMap
 
-            isDirty = isDirty || (oldBlockedNumbers != blockedPhoneNumbers)
-            isDirty = isDirty || (oldBlockedUUIDStrings != blockedUUIDStrings)
-            isDirty = isDirty || (oldBlockedGroupMap != blockedGroupMap)
+            self.blockedPhoneNumbers = Set(blockedAddresses.lazy.compactMap { $0.phoneNumber })
+            self.blockedAcis = Set(blockedAddresses.lazy.compactMap { $0.aci })
+            self.blockedGroupMap = newBlockedGroups
+
+            isDirty = isDirty || (oldBlockedPhoneNumbers != self.blockedPhoneNumbers)
+            isDirty = isDirty || (oldBlockedAcis != self.blockedAcis)
+            isDirty = isDirty || (oldBlockedGroupMap != self.blockedGroupMap)
         }
 
         @discardableResult
@@ -516,8 +516,8 @@ extension BlockingManager {
                 let result = blockedPhoneNumbers.insert(phoneNumber)
                 didInsert = didInsert || result.inserted
             }
-            if let uuidString = address.uuidString {
-                let result = blockedUUIDStrings.insert(uuidString)
+            if let aci = address.aci {
+                let result = blockedAcis.insert(aci)
                 didInsert = didInsert || result.inserted
             }
             isDirty = isDirty || didInsert
@@ -533,8 +533,8 @@ extension BlockingManager {
                 blockedPhoneNumbers.remove(phoneNumber)
                 didRemove = true
             }
-            if let uuidString = address.uuidString, blockedUUIDStrings.contains(uuidString) {
-                blockedUUIDStrings.remove(uuidString)
+            if let aci = address.aci, blockedAcis.contains(aci) {
+                blockedAcis.remove(aci)
                 didRemove = true
             }
             isDirty = isDirty || didRemove
@@ -571,7 +571,7 @@ extension BlockingManager {
             case changeTokenKey = "kOWSBlockingManager_ChangeTokenKey"
             case lastSyncedChangeTokenKey = "kOWSBlockingManager_LastSyncedChangeTokenKey"
             case blockedPhoneNumbersKey = "kOWSBlockingManager_BlockedPhoneNumbersKey"
-            case blockedUUIDsKey = "kOWSBlockingManager_BlockedUUIDsKey"
+            case blockedAciStringsKey = "kOWSBlockingManager_BlockedUUIDsKey"
             case blockedGroupMapKey = "kOWSBlockingManager_BlockedGroupMapKey"
 
             // No longer in use
@@ -602,9 +602,11 @@ extension BlockingManager {
                 changeToken = Self.keyValueStore.getUInt64(
                     PersistenceKey.changeTokenKey.rawValue,
                     defaultValue: Self.initialChangeToken,
-                    transaction: transaction)
+                    transaction: transaction
+                )
                 blockedPhoneNumbers = Set(fetchObject(of: [String].self, key: PersistenceKey.blockedPhoneNumbersKey.rawValue, defaultValue: []))
-                blockedUUIDStrings = Set(fetchObject(of: [String].self, key: PersistenceKey.blockedUUIDsKey.rawValue, defaultValue: []))
+                let blockedAciStrings = fetchObject(of: [String].self, key: PersistenceKey.blockedAciStringsKey.rawValue, defaultValue: [])
+                blockedAcis = Set(blockedAciStrings.lazy.compactMap { Aci.parseFrom(aciString: $0) })
                 blockedGroupMap = fetchObject(of: [Data: TSGroupModel].self, key: PersistenceKey.blockedGroupMapKey.rawValue, defaultValue: [:])
                 isDirty = false
             }
@@ -620,13 +622,14 @@ extension BlockingManager {
                 let databaseChangeToken = Self.keyValueStore.getUInt64(
                     PersistenceKey.changeTokenKey.rawValue,
                     defaultValue: Self.initialChangeToken,
-                    transaction: transaction)
+                    transaction: transaction
+                )
                 owsAssertDebug(databaseChangeToken == changeToken)
 
                 changeToken = databaseChangeToken + 1
                 Self.keyValueStore.setUInt64(changeToken, key: PersistenceKey.changeTokenKey.rawValue, transaction: transaction)
                 Self.keyValueStore.setObject(Array(blockedPhoneNumbers), key: PersistenceKey.blockedPhoneNumbersKey.rawValue, transaction: transaction)
-                Self.keyValueStore.setObject(Array(blockedUUIDStrings), key: PersistenceKey.blockedUUIDsKey.rawValue, transaction: transaction)
+                Self.keyValueStore.setObject(blockedAcis.map { $0.serviceIdUppercaseString }, key: PersistenceKey.blockedAciStringsKey.rawValue, transaction: transaction)
                 Self.keyValueStore.setObject(blockedGroupMap, key: PersistenceKey.blockedGroupMapKey.rawValue, transaction: transaction)
                 isDirty = false
                 return true

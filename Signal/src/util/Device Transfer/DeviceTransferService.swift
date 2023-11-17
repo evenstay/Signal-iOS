@@ -12,6 +12,8 @@ protocol DeviceTransferServiceObserver: AnyObject {
 
     func deviceTransferServiceDidStartTransfer(progress: Progress)
     func deviceTransferServiceDidEndTransfer(error: DeviceTransferService.Error?)
+
+    func deviceTransferServiceDidRequestAppRelaunch()
 }
 
 ///
@@ -181,11 +183,20 @@ class DeviceTransferService: NSObject {
         // Marking the transfer as "in progress" does a few things, most notably it:
         //   * prevents any WAL checkpoints while the transfer is in progress
         //   * causes the device to behave is if it's not registered
-        tsAccountManager.isTransferInProgress = true
+        DependenciesBridge.shared.db.write { tx in
+            DependenciesBridge.shared.registrationStateChangeManager.setIsTransferInProgress(tx: tx)
+        }
 
         defer {
             // If we failed to start the transfer, clear the transfer in progress flag
-            if case .idle = transferState { tsAccountManager.isTransferInProgress = false }
+            if case .idle = transferState {
+                DependenciesBridge.shared.db.write { tx in
+                    DependenciesBridge.shared.registrationStateChangeManager.setIsTransferComplete(
+                        sendStateUpdateNotification: true,
+                        tx: tx
+                    )
+                }
+            }
         }
 
         let manifest = try buildManifest()
@@ -239,14 +250,14 @@ class DeviceTransferService: NSObject {
     // MARK: -
 
     func failTransfer(_ error: Error, _ reason: String) {
-        owsFailDebug(reason)
+        Logger.error("Failed transfer \(reason)")
 
         stopTransfer()
 
         notifyObservers { $0.deviceTransferServiceDidEndTransfer(error: error) }
     }
 
-    func stopTransfer() {
+    func stopTransfer(notifyRegState: Bool = true) {
         switch transferState {
         case .outgoing:
             DeviceTransferOperation.cancelAllOperations()
@@ -266,7 +277,12 @@ class DeviceTransferService: NSObject {
         // simply return in the .idle case above since none of the values being
         // reset should have values if we are idle, but I am scared of it.
         if case .idle = transferState {} else {
-            tsAccountManager.isTransferInProgress = false
+            DependenciesBridge.shared.db.write { tx in
+                DependenciesBridge.shared.registrationStateChangeManager.setIsTransferComplete(
+                    sendStateUpdateNotification: notifyRegState,
+                    tx: tx
+                )
+            }
         }
 
         transferState = .idle
@@ -278,13 +294,19 @@ class DeviceTransferService: NSObject {
 
     @objc
     private func didEnterBackground() {
+        // MCSession automatically disconnects when the app is backgrounded.
+        // Send an explicit message to the peer (if connected) telling them
+        // that's what happened.
         switch transferState {
         case .idle:
             break
-        default:
-            notifyObservers { $0.deviceTransferServiceDidEndTransfer(error: .cancel) }
+        case .incoming(let oldDevicePeerId, _, _, _, _):
+            try? sendBackgroundAppMessage(to: oldDevicePeerId)
+            notifyObservers { $0.deviceTransferServiceDidEndTransfer(error: .backgroundedDevice) }
+        case .outgoing(let newDevicePeerId, _, _, _, _):
+            try? sendBackgroundAppMessage(to: newDevicePeerId)
+            notifyObservers { $0.deviceTransferServiceDidEndTransfer(error: .backgroundedDevice) }
         }
-
         stopTransfer()
     }
 
@@ -301,22 +323,42 @@ class DeviceTransferService: NSObject {
 
         var promises = [Promise<Void>]()
 
-        let (databasePromise, databaseFuture) = Promise<Void>.pending()
-        promises.append(databasePromise)
+        struct DatabaseCopy {
+            let db: DeviceTransferProtoFile
+            let wal: DeviceTransferProtoFile
+        }
 
-        // Transfer the database files within a write transaction so we can be confident
-        // they aren't mutated during the transfer. We add them to the queue with high
-        // priority so they transfer ASAP, so we only have to block the database for a
-        // minimal amount of time.
+        let (databaseCopyPromise, databaseCopyFuture) = Promise<DatabaseCopy>.pending()
+
+        let databaseTransferPromise = databaseCopyPromise.then { dbCopy in
+            return Promise.when(fulfilled: [
+                DeviceTransferOperation.scheduleTransfer(file: dbCopy.db, priority: .high).ensure {
+                    // Delete the copy (but don't block on it if it fails).
+                    if let copyURL = try? Self.urlForCopy(databaseFile: dbCopy.db) {
+                        try? OWSFileSystem.deleteFile(url: copyURL)
+                    }
+                },
+                DeviceTransferOperation.scheduleTransfer(file: dbCopy.wal, priority: .high).ensure {
+                    // Delete the copy (but don't block on it if it fails).
+                    if let copyURL = try? Self.urlForCopy(databaseFile: dbCopy.wal) {
+                        try? OWSFileSystem.deleteFile(url: copyURL)
+                    }
+                },
+            ])
+        }
+
+        promises.append(databaseTransferPromise)
+
+        // Make a copy of the database files within a write transaction so we can be confident
+        // they aren't mutated during the copy. We then transfer these copies.
         databaseStorage.asyncWrite { _ in
             do {
-                try Promise.when(fulfilled: [
-                    DeviceTransferOperation.scheduleTransfer(file: database.database, priority: .high),
-                    DeviceTransferOperation.scheduleTransfer(file: database.wal, priority: .high)
-                ]).wait()
-                databaseFuture.resolve()
+                let dbCopy = try Self.makeLocalCopy(databaseFile: database.database)
+                let walCopy = try Self.makeLocalCopy(databaseFile: database.wal)
+                databaseCopyFuture.resolve(.init(db: dbCopy, wal: walCopy))
             } catch {
-                databaseFuture.reject(error)
+                Logger.error("Failed to copy database files!")
+                databaseCopyFuture.reject(error)
             }
         }
 
@@ -325,13 +367,64 @@ class DeviceTransferService: NSObject {
         }
 
         Promise.when(fulfilled: promises).done {
-            if !DebugFlags.deviceTransferThrowAway {
-                self.tsAccountManager.wasTransferred = true
+            DependenciesBridge.shared.db.write { tx in
+                DependenciesBridge.shared.registrationStateChangeManager.setWasTransferred(tx: tx)
             }
             try self.sendDoneMessage(to: newDevicePeerId)
         }.catch { error in
-            self.failTransfer(.assertion, "\(error)")
+            if !(error is DeviceTransferOperation.CancelError) {
+                self.failTransfer(.assertion, "\(error)")
+            }
         }
+    }
+
+    private static let dbCopyFilename = "db_copy_for_transfer"
+    private static let walCopyFilename = "wal_copy_for_transfer"
+
+    private static func urlForCopy(
+        databaseFile: DeviceTransferProtoFile
+    ) throws -> URL {
+        let newFileName: String
+        let newFileExtension: String
+        if databaseFile.identifier == databaseIdentifier {
+            newFileName = Self.dbCopyFilename
+            newFileExtension = ".sqlite"
+        } else if databaseFile.identifier == databaseWALIdentifier {
+            newFileName = Self.walCopyFilename
+            newFileExtension = ".sqlite-wal"
+        } else {
+            throw OWSAssertionError("Unknown db file being copied")
+        }
+        owsAssertDebug(databaseFile.relativePath.hasSuffix(newFileExtension))
+        return OWSFileSystem.temporaryFileUrl(fileName: newFileName, fileExtension: newFileExtension)
+    }
+
+    private static func makeLocalCopy(
+        databaseFile: DeviceTransferProtoFile
+    ) throws -> DeviceTransferProtoFile {
+        let url = URL(
+            fileURLWithPath: databaseFile.relativePath,
+            relativeTo: DeviceTransferService.appSharedDataDirectory
+        )
+
+        if !OWSFileSystem.fileOrFolderExists(url: url) {
+            throw OWSAssertionError("Mandatory database file is missing for transfer")
+        }
+
+        let copyUrl = try Self.urlForCopy(databaseFile: databaseFile)
+
+        if OWSFileSystem.fileOrFolderExists(url: copyUrl) {
+            // We might have partially copied before. Delete it.
+            try OWSFileSystem.deleteFile(url: copyUrl)
+        }
+        try OWSFileSystem.copyFile(from: url, to: copyUrl)
+
+        // Note that the receiver doesn't care about the relative path
+        // for database files (it does care for other files!) because it
+        // forces the path to be that to its own local database.
+        var protoBuilder = databaseFile.asBuilder()
+        protoBuilder.setRelativePath(copyUrl.relativePath)
+        return try protoBuilder.build()
     }
 
     static let doneMessage = "Transfer Complete".data(using: .utf8)!
@@ -343,6 +436,17 @@ class DeviceTransferService: NSObject {
         }
 
         try session.send(DeviceTransferService.doneMessage, toPeers: [peerId], with: .reliable)
+    }
+
+    static let backgroundAppMessage = "App backgrounded".data(using: .utf8)!
+    func sendBackgroundAppMessage(to peerId: MCPeerID) throws {
+        Logger.info("Sending backgrounded message")
+
+        guard let session = session else {
+            throw OWSAssertionError("attempted to send backgrounded message without an available session")
+        }
+
+        try session.send(DeviceTransferService.backgroundAppMessage, toPeers: [peerId], with: .unreliable)
     }
 
     // MARK: - Throughput

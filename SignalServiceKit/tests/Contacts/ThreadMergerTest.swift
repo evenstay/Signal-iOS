@@ -10,12 +10,14 @@ import XCTest
 @testable import SignalServiceKit
 
 final class ThreadMergerTest: XCTestCase {
+    private var callRecordStore: MockCallRecordStore!
     private var chatColorSettingStore: ChatColorSettingStore!
     private var db: MockDB!
-    private var disappearingMessagesConfigurationManager: MockDisappearingMessagesConfigurationManager!
+    private var disappearingMessagesConfigurationManager: ThreadMerger_MockDisappearingMessagesConfigurationManager!
     private var disappearingMessagesConfigurationStore: MockDisappearingMessagesConfigurationStore!
-    private var pinnedThreadManager: MockPinnedThreadManager!
-    private var threadAssociatedDataManager: MockThreadAssociatedDataManager!
+    private var interactionStore: MockInteractionStore!
+    private var pinnedThreadManager: ThreadMerger_MockPinnedThreadManager!
+    private var threadAssociatedDataManager: ThreadMerger_MockThreadAssociatedDataManager!
     private var threadAssociatedDataStore: MockThreadAssociatedDataStore!
     private var threadStore: MockThreadStore!
     private var threadRemover: ThreadRemover!
@@ -36,35 +38,39 @@ final class ThreadMergerTest: XCTestCase {
 
         _signalServiceAddressCache = SignalServiceAddressCache()
 
+        callRecordStore = MockCallRecordStore()
         chatColorSettingStore = ChatColorSettingStore(keyValueStoreFactory: keyValueStoreFactory)
         db = MockDB()
         disappearingMessagesConfigurationStore = MockDisappearingMessagesConfigurationStore()
-        disappearingMessagesConfigurationManager = MockDisappearingMessagesConfigurationManager(disappearingMessagesConfigurationStore)
-        pinnedThreadManager = MockPinnedThreadManager()
+        disappearingMessagesConfigurationManager = ThreadMerger_MockDisappearingMessagesConfigurationManager(disappearingMessagesConfigurationStore)
+        pinnedThreadManager = ThreadMerger_MockPinnedThreadManager()
+        interactionStore = MockInteractionStore()
         threadAssociatedDataStore = MockThreadAssociatedDataStore()
-        threadAssociatedDataManager = MockThreadAssociatedDataManager(threadAssociatedDataStore)
+        threadAssociatedDataManager = ThreadMerger_MockThreadAssociatedDataManager(threadAssociatedDataStore)
         threadReplyInfoStore = ThreadReplyInfoStore(keyValueStoreFactory: keyValueStoreFactory)
         threadStore = MockThreadStore()
         wallpaperStore = WallpaperStore(keyValueStoreFactory: keyValueStoreFactory, notificationScheduler: SyncScheduler())
         threadRemover = ThreadRemoverImpl(
             chatColorSettingStore: chatColorSettingStore,
-            databaseStorage: MockDatabaseStorage(),
+            databaseStorage: ThreadRemover_MockDatabaseStorage(),
             disappearingMessagesConfigurationStore: disappearingMessagesConfigurationStore,
-            fullTextSearchFinder: MockFullTextSearchFinder(),
-            interactionRemover: MockInteractionRemover(),
-            sdsThreadRemover: MockSDSThreadRemover(),
+            fullTextSearchFinder: ThreadRemover_MockFullTextSearchFinder(),
+            interactionRemover: ThreadRemover_MockInteractionRemover(),
+            sdsThreadRemover: ThreadRemover_MockSDSThreadRemover(),
             threadAssociatedDataStore: threadAssociatedDataStore,
-            threadReadCache: MockThreadReadCache(),
+            threadReadCache: ThreadRemover_MockThreadReadCache(),
             threadReplyInfoStore: threadReplyInfoStore,
             threadStore: threadStore,
             wallpaperStore: wallpaperStore
         )
         threadMerger = ThreadMerger(
+            callRecordStore: callRecordStore,
             chatColorSettingStore: chatColorSettingStore,
             disappearingMessagesConfigurationManager: disappearingMessagesConfigurationManager,
             disappearingMessagesConfigurationStore: disappearingMessagesConfigurationStore,
+            interactionStore: interactionStore,
             pinnedThreadManager: pinnedThreadManager,
-            sdsThreadMerger: MockSDSThreadMerger(),
+            sdsThreadMerger: ThreadMerger_MockSDSThreadMerger(),
             threadAssociatedDataManager: threadAssociatedDataManager,
             threadAssociatedDataStore: threadAssociatedDataStore,
             threadRemover: threadRemover,
@@ -77,17 +83,33 @@ final class ThreadMergerTest: XCTestCase {
         phoneNumberThread = makeThread(aci: nil, phoneNumber: phoneNumber)
     }
 
-    // MARK: - Pinned Threads
+    // MARK: - Call Records
 
-    private class MockPinnedThreadManager: _ThreadMerger_PinnedThreadManagerShim {
-        var pinnedThreadIds = [String]()
-        func fetchPinnedThreadIds(tx: DBReadTransaction) -> [String] { pinnedThreadIds }
-        func setPinnedThreadIds(_ pinnedThreadIds: [String], tx: DBWriteTransaction) { self.pinnedThreadIds = pinnedThreadIds }
+    private class MockCallRecordStore: CallRecordStore {
+        var merged: (from: Int64, into: Int64)?
+
+        func updateWithMergedThread(fromThreadRowId fromRowId: Int64, intoThreadRowId intoRowId: Int64, tx: DBWriteTransaction) {
+            merged = (from: fromRowId, into: intoRowId)
+        }
+
+        func insert(callRecord: CallRecord, tx: DBWriteTransaction) -> Bool { owsFail("Not implemented!") }
+        func updateRecordStatusIfAllowed(callRecord: CallRecord, newCallStatus: CallRecord.CallStatus, tx: DBWriteTransaction) -> Bool { owsFail("Not implemented!") }
+        func fetch(callId: UInt64, threadRowId: Int64, tx: DBReadTransaction) -> CallRecord? { owsFail("Not implemented!") }
+        func fetch(interactionRowId: Int64, tx: DBReadTransaction) -> CallRecord? { owsFail("Not implemented!") }
     }
+
+    func testCallRecordsThreadRowIds() {
+        threadStore.insertThreads([serviceIdThread, phoneNumberThread])
+        performDefaultMerge()
+        XCTAssertEqual(callRecordStore.merged!.from, phoneNumberThread.sqliteRowId!)
+        XCTAssertEqual(callRecordStore.merged!.into, serviceIdThread.sqliteRowId!)
+    }
+
+    // MARK: - Pinned Threads
 
     func testPinnedThreadsNeither() {
         let otherPinnedThreadId = "00000000-0000-4000-8000-000000000ABC"
-        threadStore.threads = [serviceIdThread, phoneNumberThread]
+        threadStore.insertThreads([serviceIdThread, phoneNumberThread])
         pinnedThreadManager.pinnedThreadIds = [otherPinnedThreadId]
         performDefaultMerge()
         XCTAssertEqual(pinnedThreadManager.pinnedThreadIds, [otherPinnedThreadId])
@@ -95,7 +117,7 @@ final class ThreadMergerTest: XCTestCase {
 
     func testPinnedThreadsJustServiceId() {
         let otherPinnedThreadId = "00000000-0000-4000-8000-000000000ABC"
-        threadStore.threads = [serviceIdThread, phoneNumberThread]
+        threadStore.insertThreads([serviceIdThread, phoneNumberThread])
         pinnedThreadManager.pinnedThreadIds = [otherPinnedThreadId, serviceIdThread.uniqueId]
         performDefaultMerge()
         XCTAssertEqual(pinnedThreadManager.pinnedThreadIds, [otherPinnedThreadId, serviceIdThread.uniqueId])
@@ -103,7 +125,7 @@ final class ThreadMergerTest: XCTestCase {
 
     func testPinnedThreadsJustPhoneNumber() {
         let otherPinnedThreadId = "00000000-0000-4000-8000-000000000ABC"
-        threadStore.threads = [serviceIdThread, phoneNumberThread]
+        threadStore.insertThreads([serviceIdThread, phoneNumberThread])
         pinnedThreadManager.pinnedThreadIds = [phoneNumberThread.uniqueId, otherPinnedThreadId]
         performDefaultMerge()
         XCTAssertEqual(pinnedThreadManager.pinnedThreadIds, [serviceIdThread.uniqueId, otherPinnedThreadId])
@@ -111,23 +133,13 @@ final class ThreadMergerTest: XCTestCase {
 
     func testPinnedThreadsBoth() {
         let otherPinnedThreadId = "00000000-0000-4000-8000-000000000ABC"
-        threadStore.threads = [serviceIdThread, phoneNumberThread]
+        threadStore.insertThreads([serviceIdThread, phoneNumberThread])
         pinnedThreadManager.pinnedThreadIds = [phoneNumberThread.uniqueId, serviceIdThread.uniqueId, otherPinnedThreadId]
         performDefaultMerge()
         XCTAssertEqual(pinnedThreadManager.pinnedThreadIds, [serviceIdThread.uniqueId, otherPinnedThreadId])
     }
 
     // MARK: - Disappearing Messages
-
-    private class MockDisappearingMessagesConfigurationManager: _ThreadMerger_DisappearingMessagesConfigurationManagerShim {
-        private let store: MockDisappearingMessagesConfigurationStore
-        init(_ disappearingMessagesConfigurationStore: MockDisappearingMessagesConfigurationStore) {
-            self.store = disappearingMessagesConfigurationStore
-        }
-        func setToken(_ token: DisappearingMessageToken, for thread: TSContactThread, tx: DBWriteTransaction) {
-            self.store.set(token: token, for: .thread(thread), tx: tx)
-        }
-    }
 
     private func setDisappearingMessageIntervals(serviceIdValue: UInt32?, phoneNumberValue: UInt32?) {
         disappearingMessagesConfigurationStore.values = [
@@ -149,65 +161,41 @@ final class ThreadMergerTest: XCTestCase {
     }
 
     func testDisappearingMessagesNeither() {
-        threadStore.threads = [serviceIdThread, phoneNumberThread]
+        threadStore.insertThreads([serviceIdThread, phoneNumberThread])
         setDisappearingMessageIntervals(serviceIdValue: nil, phoneNumberValue: nil)
         performDefaultMerge()
         XCTAssertEqual(getDisappearingMessageIntervals(), [serviceIdThread.uniqueId: nil])
     }
 
     func testDisappearingMessagesJustServiceId() {
-        threadStore.threads = [serviceIdThread, phoneNumberThread]
+        threadStore.insertThreads([serviceIdThread, phoneNumberThread])
         setDisappearingMessageIntervals(serviceIdValue: 5, phoneNumberValue: nil)
         performDefaultMerge()
         XCTAssertEqual(getDisappearingMessageIntervals(), [serviceIdThread.uniqueId: 5])
     }
 
     func testDisappearingMessagesJustPhoneNumber() {
-        threadStore.threads = [serviceIdThread, phoneNumberThread]
+        threadStore.insertThreads([serviceIdThread, phoneNumberThread])
         setDisappearingMessageIntervals(serviceIdValue: nil, phoneNumberValue: 5)
         performDefaultMerge()
         XCTAssertEqual(getDisappearingMessageIntervals(), [serviceIdThread.uniqueId: 5])
     }
 
     func testDisappearingMessagesBothShorterPhoneNumber() {
-        threadStore.threads = [serviceIdThread, phoneNumberThread]
+        threadStore.insertThreads([serviceIdThread, phoneNumberThread])
         setDisappearingMessageIntervals(serviceIdValue: 5, phoneNumberValue: 3)
         performDefaultMerge()
         XCTAssertEqual(getDisappearingMessageIntervals(), [serviceIdThread.uniqueId: 3])
     }
 
     func testDisappearingMessagesBothShorterServiceId() {
-        threadStore.threads = [serviceIdThread, phoneNumberThread]
+        threadStore.insertThreads([serviceIdThread, phoneNumberThread])
         setDisappearingMessageIntervals(serviceIdValue: 2, phoneNumberValue: 3)
         performDefaultMerge()
         XCTAssertEqual(getDisappearingMessageIntervals(), [serviceIdThread.uniqueId: 2])
     }
 
     // MARK: - Thread Associated Data
-
-    private class MockThreadAssociatedDataManager: _ThreadMerger_ThreadAssociatedDataManagerShim {
-        private let store: MockThreadAssociatedDataStore
-        init(_ threadAssociatedDataStore: MockThreadAssociatedDataStore) {
-            self.store = threadAssociatedDataStore
-        }
-        func updateValue(
-            _ threadAssociatedData: ThreadAssociatedData,
-            isArchived: Bool?,
-            isMarkedUnread: Bool?,
-            mutedUntilTimestamp: UInt64?,
-            audioPlaybackRate: Float?,
-            updateStorageService: Bool,
-            tx: DBWriteTransaction
-        ) {
-            self.store.values[threadAssociatedData.threadUniqueId] = ThreadAssociatedData(
-                threadUniqueId: threadAssociatedData.threadUniqueId,
-                isArchived: isArchived ?? threadAssociatedData.isArchived,
-                isMarkedUnread: isMarkedUnread ?? threadAssociatedData.isMarkedUnread,
-                mutedUntilTimestamp: mutedUntilTimestamp ?? threadAssociatedData.mutedUntilTimestamp,
-                audioPlaybackRate: audioPlaybackRate ?? threadAssociatedData.audioPlaybackRate
-            )
-        }
-    }
 
     private func setThreadAssociatedData(for thread: TSContactThread, isArchived: Bool, isMarkedUnread: Bool, mutedUntilTimestamp: UInt64, audioPlaybackRate: Float) {
         threadAssociatedDataStore.values[thread.uniqueId] = ThreadAssociatedData(
@@ -226,27 +214,27 @@ final class ThreadMergerTest: XCTestCase {
     }
 
     func testThreadAssociatedDataNeither() {
-        threadStore.threads = [serviceIdThread, phoneNumberThread]
+        threadStore.insertThreads([serviceIdThread, phoneNumberThread])
         performDefaultMerge()
         XCTAssertEqual(getThreadAssociatedDatas(), [serviceIdThread.uniqueId: "false-false-0-1.0"])
     }
 
     func testThreadAssociatedDataJustServiceId() {
-        threadStore.threads = [serviceIdThread, phoneNumberThread]
+        threadStore.insertThreads([serviceIdThread, phoneNumberThread])
         setThreadAssociatedData(for: serviceIdThread, isArchived: true, isMarkedUnread: false, mutedUntilTimestamp: 1, audioPlaybackRate: 2)
         performDefaultMerge()
         XCTAssertEqual(getThreadAssociatedDatas(), [serviceIdThread.uniqueId: "false-false-1-2.0"])
     }
 
     func testThreadAssociatedDataJustPhoneNumber() {
-        threadStore.threads = [serviceIdThread, phoneNumberThread]
+        threadStore.insertThreads([serviceIdThread, phoneNumberThread])
         setThreadAssociatedData(for: phoneNumberThread, isArchived: false, isMarkedUnread: true, mutedUntilTimestamp: 2, audioPlaybackRate: 3)
         performDefaultMerge()
         XCTAssertEqual(getThreadAssociatedDatas(), [serviceIdThread.uniqueId: "false-true-2-3.0"])
     }
 
     func testThreadAssociatedDataBoth() {
-        threadStore.threads = [serviceIdThread, phoneNumberThread]
+        threadStore.insertThreads([serviceIdThread, phoneNumberThread])
         setThreadAssociatedData(for: serviceIdThread, isArchived: true, isMarkedUnread: false, mutedUntilTimestamp: 4, audioPlaybackRate: 1)
         setThreadAssociatedData(for: phoneNumberThread, isArchived: true, isMarkedUnread: false, mutedUntilTimestamp: 5, audioPlaybackRate: 0.5)
         performDefaultMerge()
@@ -256,7 +244,7 @@ final class ThreadMergerTest: XCTestCase {
     // MARK: - Thread Reply Info
 
     func testThreadReplyInfoNeither() {
-        threadStore.threads = [serviceIdThread, phoneNumberThread]
+        threadStore.insertThreads([serviceIdThread, phoneNumberThread])
         performDefaultMerge()
         db.read { tx in
             XCTAssertNil(threadReplyInfoStore.fetch(for: serviceIdThread.uniqueId, tx: tx))
@@ -265,9 +253,9 @@ final class ThreadMergerTest: XCTestCase {
     }
 
     func testThreadReplyInfoJustPhoneNumber() {
-        threadStore.threads = [serviceIdThread, phoneNumberThread]
+        threadStore.insertThreads([serviceIdThread, phoneNumberThread])
         db.write { tx in
-            threadReplyInfoStore.save(ThreadReplyInfo(timestamp: 2, author: aci.untypedServiceId), for: phoneNumberThread.uniqueId, tx: tx)
+            threadReplyInfoStore.save(ThreadReplyInfo(timestamp: 2, author: aci), for: phoneNumberThread.uniqueId, tx: tx)
         }
         performDefaultMerge()
         db.read { tx in
@@ -277,10 +265,10 @@ final class ThreadMergerTest: XCTestCase {
     }
 
     func testThreadReplyInfoBoth() {
-        threadStore.threads = [serviceIdThread, phoneNumberThread]
+        threadStore.insertThreads([serviceIdThread, phoneNumberThread])
         db.write { tx in
-            threadReplyInfoStore.save(ThreadReplyInfo(timestamp: 3, author: aci.untypedServiceId), for: serviceIdThread.uniqueId, tx: tx)
-            threadReplyInfoStore.save(ThreadReplyInfo(timestamp: 4, author: aci.untypedServiceId), for: phoneNumberThread.uniqueId, tx: tx)
+            threadReplyInfoStore.save(ThreadReplyInfo(timestamp: 3, author: aci), for: serviceIdThread.uniqueId, tx: tx)
+            threadReplyInfoStore.save(ThreadReplyInfo(timestamp: 4, author: aci), for: phoneNumberThread.uniqueId, tx: tx)
         }
         performDefaultMerge()
         db.read { tx in
@@ -289,29 +277,53 @@ final class ThreadMergerTest: XCTestCase {
         }
     }
 
+    // MARK: - Thread Merge Events
+
+    func testThreadMergeEvent() throws {
+        serviceIdThread.shouldThreadBeVisible = true
+        phoneNumberThread.shouldThreadBeVisible = true
+        threadStore.insertThreads([serviceIdThread, phoneNumberThread])
+        performDefaultMerge()
+        let threadMergeEvent = try XCTUnwrap(interactionStore.insertedInteractions.first as? TSInfoMessage)
+        XCTAssertEqual(interactionStore.insertedInteractions.count, 1)
+        XCTAssertEqual(threadMergeEvent.messageType, .threadMerge)
+        XCTAssertEqual(threadMergeEvent.infoMessageUserInfo?[.threadMergePhoneNumber] as? String, phoneNumber.stringValue)
+    }
+
+    func testThreadMergeEventInvisibleThread() {
+        serviceIdThread.shouldThreadBeVisible = true
+        phoneNumberThread.shouldThreadBeVisible = false
+        threadStore.insertThreads([serviceIdThread, phoneNumberThread])
+        performDefaultMerge()
+        XCTAssertEqual(interactionStore.insertedInteractions.count, 0)
+    }
+
+    func testThreadMergeEventTwoAcis() throws {
+        let thread1 = makeThread(aci: aci, phoneNumber: nil)
+        thread1.shouldThreadBeVisible = true
+        let thread2 = makeThread(aci: aci, phoneNumber: nil)
+        thread2.shouldThreadBeVisible = true
+        threadStore.insertThreads([thread1, thread2])
+        performDefaultMerge()
+        let threadMergeEvent = try XCTUnwrap(interactionStore.insertedInteractions.first as? TSInfoMessage)
+        XCTAssertEqual(interactionStore.insertedInteractions.count, 1)
+        XCTAssertEqual(threadMergeEvent.messageType, .threadMerge)
+        XCTAssertNil(threadMergeEvent.infoMessageUserInfo?[.threadMergePhoneNumber])
+    }
+
     // MARK: - Raw SDS Migrations
-
-    class MockSDSThreadRemover: ThreadRemoverImpl.Shims.SDSThreadRemover {
-        func didRemove(thread: TSThread, tx: DBWriteTransaction) {}
-    }
-
-    class MockSDSThreadMerger: ThreadMerger.Shims.SDSThreadMerger {
-        func mergeThread(_ thread: TSContactThread, into targetThread: TSContactThread, tx: DBWriteTransaction) {}
-    }
 
     // MARK: - Helpers
 
     private func performDefaultMerge() {
         db.write { tx in
-            threadMerger.didLearnAssociation(
+            _ = threadMerger.didLearnAssociation(
                 mergedRecipient: MergedRecipient(
-                    aci: aci,
-                    oldPhoneNumber: nil,
-                    newPhoneNumber: phoneNumber,
                     isLocalRecipient: false,
-                    signalRecipient: SignalRecipient(aci: aci, phoneNumber: phoneNumber)
+                    oldRecipient: nil,
+                    newRecipient: SignalRecipient(aci: aci, pni: nil, phoneNumber: phoneNumber)
                 ),
-                transaction: tx
+                tx: tx
             )
         }
     }
@@ -325,23 +337,5 @@ final class ThreadMergerTest: XCTestCase {
         ))
         threadAssociatedDataStore.values[result.uniqueId] = ThreadAssociatedData(threadUniqueId: result.uniqueId)
         return result
-    }
-
-    // MARK: - Mock Classes
-
-    private class MockInteractionRemover: ThreadRemoverImpl.Shims.InteractionRemover {
-        func removeAllInteractions(in thread: TSThread, tx: DBWriteTransaction) {}
-    }
-
-    private class MockFullTextSearchFinder: ThreadRemoverImpl.Shims.FullTextSearchFinder {
-        func modelWasRemoved(model: SDSIndexableModel, tx: DBWriteTransaction) {}
-    }
-
-    private class MockThreadReadCache: ThreadRemoverImpl.Shims.ThreadReadCache {
-        func didRemove(thread: TSThread, tx: DBWriteTransaction) {}
-    }
-
-    private class MockDatabaseStorage: ThreadRemoverImpl.Shims.DatabaseStorage {
-        func updateIdMapping(thread: TSThread, tx: DBWriteTransaction) {}
     }
 }

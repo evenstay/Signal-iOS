@@ -104,13 +104,14 @@ class InternalSettingsViewController: OWSTableViewController2 {
         // The first version of the app that was run on this device.
         infoSection.add(.copyableItem(label: "First Version", value: AppVersionImpl.shared.firstAppVersion))
 
-        infoSection.add(.copyableItem(label: "Local Phone Number", value: tsAccountManager.localNumber))
+        let localIdentifiers = DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction
+        infoSection.add(.copyableItem(label: "Local Phone Number", value: localIdentifiers?.phoneNumber))
 
-        infoSection.add(.copyableItem(label: "Local ACI", value: tsAccountManager.localUuid?.uuidString))
+        infoSection.add(.copyableItem(label: "Local ACI", value: localIdentifiers?.aci.serviceIdString))
 
-        infoSection.add(.copyableItem(label: "Local PNI", value: tsAccountManager.localPni?.uuidString))
+        infoSection.add(.copyableItem(label: "Local PNI", value: localIdentifiers?.pni?.serviceIdString))
 
-        infoSection.add(.copyableItem(label: "Device ID", value: "\(tsAccountManager.storedDeviceId)"))
+        infoSection.add(.copyableItem(label: "Device ID", value: "\(DependenciesBridge.shared.tsAccountManager.storedDeviceIdWithMaybeTransaction)"))
 
         if let buildDetails = Bundle.main.object(forInfoDictionaryKey: "BuildDetails") as? [String: AnyObject] {
             if let signalCommit = (buildDetails["SignalCommit"] as? String)?.strippedOrNil?.prefix(12) {
@@ -120,12 +121,13 @@ class InternalSettingsViewController: OWSTableViewController2 {
 
         infoSection.add(.label(withText: "Memory Usage: \(LocalDevice.memoryUsageString)"))
 
-        let (threadCount, messageCount, attachmentCount, subscriberID) = databaseStorage.read { transaction in
+        let (contactThreadCount, groupThreadCount, messageCount, attachmentCount, subscriberID) = databaseStorage.read { tx in
             return (
-                TSThread.anyCount(transaction: transaction),
-                TSInteraction.anyCount(transaction: transaction),
-                TSAttachment.anyCount(transaction: transaction),
-                SubscriptionManagerImpl.getSubscriberID(transaction: transaction)
+                TSThread.anyFetchAll(transaction: tx).filter { !$0.isGroupThread }.count,
+                TSThread.anyFetchAll(transaction: tx).filter { $0.isGroupThread }.count,
+                TSInteraction.anyCount(transaction: tx),
+                TSAttachment.anyCount(transaction: tx),
+                SubscriptionManagerImpl.getSubscriberID(transaction: tx)
             )
         }
 
@@ -134,7 +136,8 @@ class InternalSettingsViewController: OWSTableViewController2 {
         numberFormatter.formatterBehavior = .behavior10_4
         numberFormatter.numberStyle = .decimal
 
-        infoSection.add(.label(withText: "Threads: \(numberFormatter.string(for: threadCount) ?? "Unknown")"))
+        infoSection.add(.label(withText: "Contact threads: \(numberFormatter.string(for: contactThreadCount) ?? "Unknown")"))
+        infoSection.add(.label(withText: "Group threads: \(numberFormatter.string(for: groupThreadCount) ?? "Unknown")"))
         infoSection.add(.label(withText: "Messages: \(numberFormatter.string(for: messageCount) ?? "Unknown")"))
         infoSection.add(.label(withText: "Attachments: \(numberFormatter.string(for: attachmentCount) ?? "Unknown")"))
 

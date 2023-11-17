@@ -9,33 +9,29 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface OWSOutgoingPaymentMessage ()
-
-@end
-
 #pragma mark -
 
 @implementation OWSOutgoingPaymentMessage
 
 - (instancetype)initWithThread:(TSThread *)thread
-           paymentCancellation:(nullable TSPaymentCancellation *)paymentCancellation
-           paymentNotification:(nullable TSPaymentNotification *)paymentNotification
-                paymentRequest:(nullable TSPaymentRequest *)paymentRequest
+                   messageBody:(nullable NSString *)messageBody
+           paymentNotification:(TSPaymentNotification *)paymentNotification
               expiresInSeconds:(uint32_t)expiresInSeconds
                    transaction:(SDSAnyReadTransaction *)transaction
 {
-    OWSAssertDebug(paymentCancellation != nil || paymentNotification != nil || paymentRequest != nil);
+    OWSAssertDebug(paymentNotification != nil);
 
     TSOutgoingMessageBuilder *messageBuilder = [TSOutgoingMessageBuilder outgoingMessageBuilderWithThread:thread];
+    // Body ranges unsupported.
+    messageBuilder.messageBody = messageBody;
+    messageBuilder.isViewOnceMessage = false;
     messageBuilder.expiresInSeconds = expiresInSeconds;
     self = [super initOutgoingMessageWithBuilder:messageBuilder transaction:transaction];
     if (!self) {
         return self;
     }
 
-    _paymentCancellation = paymentCancellation;
     _paymentNotification = paymentNotification;
-    _paymentRequest = paymentRequest;
 
     return self;
 }
@@ -83,9 +79,9 @@ NS_ASSUME_NONNULL_BEGIN
            mostRecentFailureText:(nullable NSString *)mostRecentFailureText
           recipientAddressStates:(nullable NSDictionary<SignalServiceAddress *,TSOutgoingMessageRecipientState *> *)recipientAddressStates
               storedMessageState:(TSOutgoingMessageState)storedMessageState
-             paymentCancellation:(nullable TSPaymentCancellation *)paymentCancellation
+             paymentCancellation:(nullable NSData *)paymentCancellation
              paymentNotification:(nullable TSPaymentNotification *)paymentNotification
-                  paymentRequest:(nullable TSPaymentRequest *)paymentRequest
+                  paymentRequest:(nullable NSData *)paymentRequest
 {
     self = [super initWithGrdbId:grdbId
                         uniqueId:uniqueId
@@ -140,15 +136,24 @@ NS_ASSUME_NONNULL_BEGIN
 
 // --- CODE GENERATION MARKER
 
+// These are the things driving messages in chat; unlike for
+// a normal text message's TSOutgoingMessage which is transient
+// only needed for sending, and has a corresponding TSMessage
+// that drives UI.
 - (BOOL)shouldBeSaved
 {
-    return NO;
+    return YES;
+}
+
+- (BOOL)hasRenderableContent
+{
+    return YES;
 }
 
 - (nullable SSKProtoDataMessageBuilder *)dataMessageBuilderWithThread:(TSThread *)thread
                                                           transaction:(SDSAnyReadTransaction *)transaction
 {
-    if (self.paymentCancellation == nil && self.paymentNotification == nil && self.paymentRequest == nil) {
+    if (self.paymentNotification == nil) {
         OWSFailDebug(@"Missing payload.");
         return nil;
     }
@@ -156,24 +161,10 @@ NS_ASSUME_NONNULL_BEGIN
     SSKProtoDataMessageBuilder *builder = [super dataMessageBuilderWithThread:thread transaction:transaction];
     [builder setTimestamp:self.timestamp];
 
-    if (self.paymentRequest != nil) {
-        NSError *error;
-        BOOL success = [self.paymentRequest addToDataBuilder:builder error:&error];
-        if (error || !success) {
-            OWSFailDebug(@"Could not build paymentRequest proto: %@.", error);
-        }
-    } else if (self.paymentNotification != nil) {
-        NSError *error;
-        BOOL success = [self.paymentNotification addToDataBuilder:builder error:&error];
-        if (error || !success) {
-            OWSFailDebug(@"Could not build paymentNotification proto: %@.", error);
-        }
-    } else if (self.paymentCancellation != nil) {
-        NSError *error;
-        BOOL success = [self.paymentCancellation addToDataBuilder:builder error:&error];
-        if (error || !success) {
-            OWSFailDebug(@"Could not build paymentCancellation proto: %@.", error);
-        }
+    NSError *error;
+    BOOL success = [self.paymentNotification addToDataBuilder:builder error:&error];
+    if (error || !success) {
+        OWSFailDebug(@"Could not build paymentNotification proto: %@.", error);
     }
 
     [builder setExpireTimer:self.expiresInSeconds];

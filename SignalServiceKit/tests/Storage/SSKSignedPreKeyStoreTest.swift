@@ -37,7 +37,7 @@ class SSKSignedPreKeyStoreTest: SSKBaseTestSwift {
             assert(secondsAgo <= 0, "Time in past must be negative")
             let generatedAt = Date(timeIntervalSinceNow: secondsAgo)
             let record = SignedPreKeyRecord(id: i,
-                                            keyPair: Curve25519.generateKeyPair(),
+                                            keyPair: ECKeyPair.generateKeyPair(),
                                             signature: Data(),
                                             generatedAt: generatedAt)
             self.databaseStorage.write { transaction in
@@ -53,7 +53,7 @@ class SSKSignedPreKeyStoreTest: SSKBaseTestSwift {
             assert(secondsAgo <= 0, "Time in past must be negative")
             let generatedAt = Date(timeIntervalSinceNow: secondsAgo)
             let record = SignedPreKeyRecord(id: i,
-                                            keyPair: Curve25519.generateKeyPair(),
+                                            keyPair: ECKeyPair.generateKeyPair(),
                                             signature: Data(),
                                             generatedAt: generatedAt)
             self.databaseStorage.write { transaction in
@@ -73,6 +73,8 @@ class SSKSignedPreKeyStoreTest: SSKBaseTestSwift {
     }
 
     func testGenerateWithCorrectSignature() {
+        let identityManager = DependenciesBridge.shared.identityManager
+
         let aciStore = SSKSignedPreKeyStore(for: .aci)
         let pniStore = SSKSignedPreKeyStore(for: .pni)
 

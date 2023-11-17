@@ -113,28 +113,21 @@ public class OWSMessageDecrypter: OWSMessageHandler {
         }
     }
 
-    private func trySendReactiveProfileKey(
-        to sourceAddress: SignalServiceAddress,
-        transaction: SDSAnyWriteTransaction
-    ) {
-        guard let sourceUuid = sourceAddress.uuidString else {
-            return owsFailDebug("Unexpectedly missing UUID for sender \(sourceAddress)")
-        }
-
+    private func trySendReactiveProfileKey(to sourceAci: Aci, tx transaction: SDSAnyWriteTransaction) {
         let store = SDSKeyValueStore(collection: "OWSMessageDecrypter+ReactiveProfileKey")
 
-        let lastProfileKeyMessageDate = store.getDate(sourceUuid, transaction: transaction)
+        let lastProfileKeyMessageDate = store.getDate(sourceAci.serviceIdUppercaseString, transaction: transaction)
         let timeSinceProfileKeyMessage = abs(lastProfileKeyMessageDate?.timeIntervalSinceNow ?? .infinity)
         guard timeSinceProfileKeyMessage > RemoteConfig.reactiveProfileKeyAttemptInterval else {
-            Logger.warn("Skipping reactive profile key message after non-UD message from \(sourceAddress), last reactive profile key message sent \(lastProfileKeyMessageDate!.ows_millisecondsSince1970).")
+            Logger.warn("Skipping reactive profile key message after non-UD message from \(sourceAci), last reactive profile key message sent \(lastProfileKeyMessageDate!.ows_millisecondsSince1970).")
             return
         }
 
-        Logger.info("Sending reactive profile key message after non-UD message from: \(sourceAddress)")
-        store.setDate(Date(), key: sourceUuid, transaction: transaction)
+        Logger.info("Sending reactive profile key message after non-UD message from: \(sourceAci)")
+        store.setDate(Date(), key: sourceAci.serviceIdUppercaseString, transaction: transaction)
 
         let contactThread = TSContactThread.getOrCreateThread(
-            withContactAddress: sourceAddress,
+            withContactAddress: SignalServiceAddress(sourceAci),
             transaction: transaction
         )
 
@@ -147,12 +140,12 @@ public class OWSMessageDecrypter: OWSMessageHandler {
                     isHighPriority: true,
                     transaction: transaction
                 ).done(on: DispatchQueue.global()) {
-                    Logger.info("Successfully sent reactive profile key message after non-UD message from \(sourceAddress)")
+                    Logger.info("Successfully sent reactive profile key message after non-UD message from \(sourceAci)")
                 }.catch(on: DispatchQueue.global()) { error in
                     if error is UntrustedIdentityError {
-                        Logger.info("Failed to send reactive profile key message after non-UD message from \(sourceAddress) (\(error))")
+                        Logger.info("Failed to send reactive profile key message after non-UD message from \(sourceAci) (\(error))")
                     } else {
-                        owsFailDebug("Failed to send reactive profile key message after non-UD message from \(sourceAddress) (\(error))")
+                        owsFailDebug("Failed to send reactive profile key message after non-UD message from \(sourceAci) (\(error))")
                     }
                 }
             }
@@ -198,10 +191,9 @@ public class OWSMessageDecrypter: OWSMessageHandler {
         }
 
         guard let unsealedEnvelope else {
-            let threadlessMessage = ThreadlessErrorMessage.corruptedMessageInUnknownThread()
-            self.notificationsManager.notifyUser(forThreadlessErrorMessage: threadlessMessage, transaction: transaction)
             return wrappedError
         }
+
         let sourceAci = unsealedEnvelope.sourceAci
         let sourceAddress = SignalServiceAddress(sourceAci)
 
@@ -217,69 +209,77 @@ public class OWSMessageDecrypter: OWSMessageHandler {
 
         let errorMessage: TSErrorMessage?
 
-        let modernResendErrorMessageBytes = buildResendRequestDecryptionError(
-            validatedEnvelope: validatedEnvelope,
-            unsealedEnvelope: unsealedEnvelope
-        )
-
-        if let modernResendErrorMessageBytes, !RemoteConfig.messageResendKillSwitch {
-            Logger.info("Performing modern resend of \(unsealedEnvelope.contentHint) content with timestamp \(validatedEnvelope.timestamp)")
-
-            switch unsealedEnvelope.contentHint {
-            case .default:
-                // If default, insert an error message right away
-                errorMessage = TSErrorMessage.failedDecryption(
-                    forSender: sourceAddress,
-                    untrustedGroupId: unsealedEnvelope.untrustedGroupId,
-                    timestamp: validatedEnvelope.timestamp,
-                    transaction: transaction
+        switch validatedEnvelope.localIdentity {
+        case .aci:
+            if
+                !RemoteConfig.messageResendKillSwitch,
+                let modernResendErrorMessageBytes = buildResendRequestDecryptionError(
+                    validatedEnvelope: validatedEnvelope,
+                    unsealedEnvelope: unsealedEnvelope
                 )
-            case .resendable:
-                // If resendable, insert a placeholder
-                let recoverableErrorMessage = OWSRecoverableDecryptionPlaceholder(
-                    failedEnvelopeTimestamp: validatedEnvelope.timestamp,
-                    sourceAci: AciObjC(sourceAci),
-                    untrustedGroupId: unsealedEnvelope.untrustedGroupId,
-                    transaction: transaction
-                )
-                if let recoverableErrorMessage {
-                    schedulePlaceholderCleanupIfNecessary(for: recoverableErrorMessage)
+            {
+                Logger.info("Performing modern resend of \(unsealedEnvelope.contentHint) content with timestamp \(validatedEnvelope.timestamp)")
+
+                switch unsealedEnvelope.contentHint {
+                case .default:
+                    // If default, insert an error message right away
+                    errorMessage = TSErrorMessage.failedDecryption(
+                        forSender: sourceAddress,
+                        untrustedGroupId: unsealedEnvelope.untrustedGroupId,
+                        timestamp: validatedEnvelope.timestamp,
+                        transaction: transaction
+                    )
+                case .resendable:
+                    // If resendable, insert a placeholder
+                    let recoverableErrorMessage = OWSRecoverableDecryptionPlaceholder(
+                        failedEnvelopeTimestamp: validatedEnvelope.timestamp,
+                        sourceAci: AciObjC(sourceAci),
+                        untrustedGroupId: unsealedEnvelope.untrustedGroupId,
+                        transaction: transaction
+                    )
+                    if let recoverableErrorMessage {
+                        schedulePlaceholderCleanupIfNecessary(for: recoverableErrorMessage)
+                    }
+                    errorMessage = recoverableErrorMessage
+                case .implicit:
+                    errorMessage = nil
+                default:
+                    owsFailDebug("Unexpected content hint")
+                    errorMessage = nil
                 }
-                errorMessage = recoverableErrorMessage
-            case .implicit:
-                errorMessage = nil
-            default:
-                owsFailDebug("Unexpected content hint")
-                errorMessage = nil
-            }
 
-            // We always send a resend request, even if the contentHint indicates the sender
-            // won't be able to fulfill the request. This will notify the sender to reset
-            // the session.
-            sendResendRequest(
-                errorMessageBytes: modernResendErrorMessageBytes,
-                sourceAci: sourceAci,
-                failedEnvelopeGroupId: unsealedEnvelope.untrustedGroupId,
-                transaction: transaction
-            )
-        } else if validatedEnvelope.localIdentity == .aci {
-            Logger.info("Performing legacy session reset of \(unsealedEnvelope.contentHint) content with timestamp \(validatedEnvelope.timestamp)")
-
-            let didReset = resetSessionIfNecessary(
-                for: sourceAci,
-                sourceDeviceId: unsealedEnvelope.sourceDeviceId,
-                contactThread: contactThread,
-                transaction: transaction
-            )
-
-            if didReset {
-                // Always notify the user that we have performed an automatic archive.
-                errorMessage = TSErrorMessage.sessionRefresh(withSourceAci: AciObjC(sourceAci), with: transaction)
+                // We always send a resend request, even if the contentHint indicates the sender
+                // won't be able to fulfill the request. This will notify the sender to reset
+                // the session.
+                sendResendRequest(
+                    errorMessageBytes: modernResendErrorMessageBytes,
+                    sourceAci: sourceAci,
+                    failedEnvelopeGroupId: unsealedEnvelope.untrustedGroupId,
+                    transaction: transaction
+                )
             } else {
-                errorMessage = nil
+                Logger.info("Performing legacy session reset of \(unsealedEnvelope.contentHint) content with timestamp \(validatedEnvelope.timestamp)")
+
+                let didReset = resetSessionIfNecessary(
+                    for: sourceAci,
+                    sourceDeviceId: unsealedEnvelope.sourceDeviceId,
+                    contactThread: contactThread,
+                    transaction: transaction
+                )
+
+                if didReset {
+                    // Always notify the user that we have performed an automatic archive.
+                    errorMessage = TSErrorMessage.sessionRefresh(withSourceAci: AciObjC(sourceAci), with: transaction)
+                } else {
+                    errorMessage = nil
+                }
             }
-        } else {
-            Logger.info("Not resetting or requesting resend of message sent to \(validatedEnvelope.localIdentity)")
+        case .pni:
+            Logger.info("Not resetting or requesting resend of message sent to PNI.")
+
+            DependenciesBridge.shared.linkedDevicePniKeyManager
+                .recordSuspectedIssueWithPniIdentityKey(tx: transaction.asV2Write)
+
             errorMessage = TSErrorMessage.failedDecryption(
                 forSender: sourceAddress,
                 untrustedGroupId: unsealedEnvelope.untrustedGroupId,
@@ -381,13 +381,12 @@ public class OWSMessageDecrypter: OWSMessageHandler {
         if !senderIdsResetDuringCurrentBatch.contains(senderId) {
             senderIdsResetDuringCurrentBatch.add(senderId)
 
+            // We don't reset sessions for messages sent to our PNI because those are
+            // receive-only & we don't send retries FROM our PNI back to the sender.
+
             Logger.warn("Archiving session for undecryptable message from \(senderId)")
-            // PNI TODO: make this dependent on destinationUuid
-            DependenciesBridge.shared.signalProtocolStoreManager.signalProtocolStore(for: .aci).sessionStore.archiveSession(
-                for: SignalServiceAddress(sourceAci),
-                deviceId: Int32(sourceDeviceId),
-                tx: transaction.asV2Write
-            )
+            let sessionStore = DependenciesBridge.shared.signalProtocolStoreManager.signalProtocolStore(for: .aci).sessionStore
+            sessionStore.archiveSession(for: sourceAci, deviceId: sourceDeviceId, tx: transaction.asV2Write)
 
             trySendNullMessage(in: contactThread, senderId: senderId, transaction: transaction)
             return true
@@ -401,6 +400,7 @@ public class OWSMessageDecrypter: OWSMessageHandler {
     func decryptIdentifiedEnvelope(
         _ validatedEnvelope: ValidatedIncomingEnvelope,
         cipherType: CiphertextMessage.MessageType,
+        localIdentifiers: LocalIdentifiers,
         tx transaction: SDSAnyWriteTransaction
     ) throws -> DecryptedIncomingEnvelope {
         // This method is only used for identified envelopes. If an unidentified
@@ -420,7 +420,8 @@ public class OWSMessageDecrypter: OWSMessageHandler {
                                isRetryable: false)
             }
 
-            let protocolAddress = try ProtocolAddress(uuid: sourceAci.temporary_rawUUID, deviceId: sourceDeviceId)
+            let identityManager = DependenciesBridge.shared.identityManager
+            let protocolAddress = ProtocolAddress(sourceAci, deviceId: sourceDeviceId)
             let signalProtocolStore = DependenciesBridge.shared.signalProtocolStoreManager.signalProtocolStore(for: validatedEnvelope.localIdentity)
 
             let plaintext: [UInt8]
@@ -431,12 +432,12 @@ public class OWSMessageDecrypter: OWSMessageHandler {
                     message: message,
                     from: protocolAddress,
                     sessionStore: signalProtocolStore.sessionStore,
-                    identityStore: identityManager.store(for: localIdentity, transaction: transaction),
+                    identityStore: identityManager.libSignalStore(for: localIdentity, tx: transaction.asV2Write),
                     context: transaction
                 )
-                sendReactiveProfileKeyIfNecessary(address: SignalServiceAddress(sourceAci), transaction: transaction)
+                sendReactiveProfileKeyIfNecessary(to: sourceAci, tx: transaction)
             case .preKey:
-                if tsAccountManager.isRegisteredAndReady(transaction: transaction) {
+                if DependenciesBridge.shared.tsAccountManager.registrationState(tx: transaction.asV2Read).isRegistered {
                     DependenciesBridge.shared.preKeyManager.checkPreKeysIfNecessary(tx: transaction.asV2Read)
                 }
                 let message = try PreKeySignalMessage(bytes: encryptedData)
@@ -444,7 +445,7 @@ public class OWSMessageDecrypter: OWSMessageHandler {
                     message: message,
                     from: protocolAddress,
                     sessionStore: signalProtocolStore.sessionStore,
-                    identityStore: identityManager.store(for: localIdentity, transaction: transaction),
+                    identityStore: identityManager.libSignalStore(for: localIdentity, tx: transaction.asV2Write),
                     preKeyStore: signalProtocolStore.preKeyStore,
                     signedPreKeyStore: signalProtocolStore.signedPreKeyStore,
                     kyberPreKeyStore: signalProtocolStore.kyberPreKeyStore,
@@ -471,7 +472,7 @@ public class OWSMessageDecrypter: OWSMessageHandler {
             }
 
             let plaintextData = Data(plaintext).withoutPadding()
-            return DecryptedIncomingEnvelope(
+            let decryptedEnvelope = DecryptedIncomingEnvelope(
                 validatedEnvelope: validatedEnvelope,
                 updatedEnvelope: validatedEnvelope.envelope,
                 sourceAci: sourceAci,
@@ -479,6 +480,8 @@ public class OWSMessageDecrypter: OWSMessageHandler {
                 wasReceivedByUD: false,
                 plaintextData: plaintextData
             )
+            handlePniSignatureIfNeeded(in: decryptedEnvelope, localIdentifiers: localIdentifiers, tx: transaction)
+            return decryptedEnvelope
         } catch {
             throw processError(
                 error,
@@ -496,13 +499,12 @@ public class OWSMessageDecrypter: OWSMessageHandler {
         }
     }
 
-    private func sendReactiveProfileKeyIfNecessary(address: SignalServiceAddress, transaction: SDSAnyWriteTransaction) {
-        guard !address.isLocalAddress else {
-            Logger.debug("Skipping send of reactive profile key to self")
+    private func sendReactiveProfileKeyIfNecessary(to sourceAci: Aci, tx transaction: SDSAnyWriteTransaction) {
+        if DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: transaction.asV2Read)?.aci == sourceAci {
             return
         }
 
-        guard !blockingManager.isAddressBlocked(address, transaction: transaction) else {
+        if blockingManager.isAddressBlocked(SignalServiceAddress(sourceAci), transaction: transaction) {
             Logger.info("Skipping send of reactive profile key to blocked address")
             return
         }
@@ -514,7 +516,7 @@ public class OWSMessageDecrypter: OWSMessageHandler {
                 // This user is whitelisted, they should have our profile key / be sending UD messages
                 // Send them our profile key in case they somehow lost it.
                 if self.profileManager.isUser(
-                    inProfileWhitelist: address,
+                    inProfileWhitelist: SignalServiceAddress(sourceAci),
                     transaction: transaction
                 ) {
                     return true
@@ -524,7 +526,7 @@ public class OWSMessageDecrypter: OWSMessageHandler {
                 // be sending UD messages. Send them it in case they somehow lost it.
                 var needsReactiveProfileKeyMessage = false
                 TSGroupThread.enumerateGroupThreads(
-                    with: address,
+                    with: SignalServiceAddress(sourceAci),
                     transaction: transaction
                 ) { thread, stop in
                     guard thread.isGroupV2Thread else { return }
@@ -537,10 +539,7 @@ public class OWSMessageDecrypter: OWSMessageHandler {
 
             if needsReactiveProfileKeyMessage {
                 self.databaseStorage.write { transaction in
-                    self.trySendReactiveProfileKey(
-                        to: address,
-                        transaction: transaction
-                    )
+                    self.trySendReactiveProfileKey(to: sourceAci, tx: transaction)
                 }
             }
         }
@@ -556,6 +555,7 @@ public class OWSMessageDecrypter: OWSMessageHandler {
         guard let encryptedData = validatedEnvelope.envelope.content else {
             throw OWSAssertionError("UD Envelope is missing content.")
         }
+        let identityManager = DependenciesBridge.shared.identityManager
         let signalProtocolStore = DependenciesBridge.shared.signalProtocolStoreManager.signalProtocolStore(for: localIdentity)
 
         let cipher = try SMKSecretSessionCipher(
@@ -563,14 +563,14 @@ public class OWSMessageDecrypter: OWSMessageHandler {
             preKeyStore: signalProtocolStore.preKeyStore,
             signedPreKeyStore: signalProtocolStore.signedPreKeyStore,
             kyberPreKeyStore: signalProtocolStore.kyberPreKeyStore,
-            identityStore: identityManager.store(for: localIdentity, transaction: transaction),
+            identityStore: identityManager.libSignalStore(for: localIdentity, tx: transaction.asV2Write),
             senderKeyStore: Self.senderKeyStore
         )
 
         let decryptResult: SMKDecryptResult
         do {
             decryptResult = try cipher.decryptMessage(
-                trustRoot: Self.udManager.trustRoot.key,
+                trustRoot: Self.udManager.trustRoot,
                 cipherTextData: encryptedData,
                 timestamp: validatedEnvelope.serverTimestamp,
                 localIdentifiers: localIdentifiers,
@@ -600,7 +600,10 @@ public class OWSMessageDecrypter: OWSMessageHandler {
             )
         }
 
-        if decryptResult.messageType == .prekey, tsAccountManager.isRegisteredAndReady(transaction: transaction) {
+        if
+            decryptResult.messageType == .prekey,
+            DependenciesBridge.shared.tsAccountManager.registrationState(tx: transaction.asV2Read).isRegistered
+        {
             DependenciesBridge.shared.preKeyManager.checkPreKeysIfNecessary(tx: transaction.asV2Read)
         }
 
@@ -610,6 +613,23 @@ public class OWSMessageDecrypter: OWSMessageHandler {
         }
         let sourceDeviceId = rawSourceDeviceId
 
+        let envelopeBuilder = validatedEnvelope.envelope.asBuilder()
+        envelopeBuilder.setSourceServiceID(decryptResult.senderAci.serviceIdString)
+        envelopeBuilder.setSourceDevice(sourceDeviceId)
+
+        let decryptedEnvelope = DecryptedIncomingEnvelope(
+            validatedEnvelope: validatedEnvelope,
+            updatedEnvelope: try envelopeBuilder.build(),
+            sourceAci: decryptResult.senderAci,
+            sourceDeviceId: sourceDeviceId,
+            wasReceivedByUD: validatedEnvelope.envelope.sourceServiceID == nil,
+            plaintextData: decryptResult.paddedPayload.withoutPadding()
+        )
+
+        // We need to handle the PNI signature first b/c the sender certificate
+        // might produce a visible event and the PNI signature won't.
+        handlePniSignatureIfNeeded(in: decryptedEnvelope, localIdentifiers: localIdentifiers, tx: transaction)
+
         let recipient = DependenciesBridge.shared.recipientMerger.applyMergeFromSealedSender(
             localIdentifiers: localIdentifiers,
             aci: decryptResult.senderAci,
@@ -618,18 +638,7 @@ public class OWSMessageDecrypter: OWSMessageHandler {
         )
         recipient.markAsRegisteredAndSave(deviceId: sourceDeviceId, tx: transaction)
 
-        let envelopeBuilder = validatedEnvelope.envelope.asBuilder()
-        envelopeBuilder.setSourceServiceID(decryptResult.senderAci.serviceIdString)
-        envelopeBuilder.setSourceDevice(sourceDeviceId)
-
-        return DecryptedIncomingEnvelope(
-            validatedEnvelope: validatedEnvelope,
-            updatedEnvelope: try envelopeBuilder.build(),
-            sourceAci: decryptResult.senderAci,
-            sourceDeviceId: sourceDeviceId,
-            wasReceivedByUD: validatedEnvelope.envelope.sourceServiceID == nil,
-            plaintextData: decryptResult.paddedPayload.withoutPadding()
-        )
+        return decryptedEnvelope
     }
 
     private func handleUnidentifiedSenderDecryptionError(
@@ -658,6 +667,30 @@ public class OWSMessageDecrypter: OWSMessageHandler {
         }
     }
 
+    private func handlePniSignatureIfNeeded(
+        in envelope: DecryptedIncomingEnvelope,
+        localIdentifiers: LocalIdentifiers,
+        tx: SDSAnyWriteTransaction
+    ) {
+        guard let pniSignatureMessage = envelope.content?.pniSignatureMessage else {
+            return
+        }
+        do {
+            try PniSignatureProcessorImpl(
+                identityManager: DependenciesBridge.shared.identityManager,
+                recipientDatabaseTable: DependenciesBridge.shared.recipientDatabaseTable,
+                recipientMerger: DependenciesBridge.shared.recipientMerger
+            ).handlePniSignature(
+                pniSignatureMessage,
+                from: envelope.sourceAci,
+                localIdentifiers: localIdentifiers,
+                tx: tx.asV2Write
+            )
+        } catch {
+            Logger.warn("Ignoring Pni signature message: \(error)")
+        }
+    }
+
     private func schedulePlaceholderCleanupIfNecessary(for placeholder: OWSRecoverableDecryptionPlaceholder) {
         DispatchQueue.main.async {
             self.schedulePlaceholderCleanup(noLaterThan: placeholder.expirationDate)
@@ -680,33 +713,58 @@ public class OWSMessageDecrypter: OWSMessageHandler {
     }
 
     func cleanUpExpiredPlaceholders() {
-        databaseStorage.asyncWrite { tx in
-            Logger.info("Cleaning up placeholders")
+        Task { await self._cleanUpExpiredPlaceholders() }
+    }
+
+    private func _cleanUpExpiredPlaceholders() async {
+        Logger.info("Cleaning up placeholders")
+
+        let (expiredPlaceholderIds, nextExpirationDate) = databaseStorage.read { tx in
+            var expiredPlaceholderIds = [String]()
             var nextExpirationDate: Date?
-            GRDBInteractionFinder.enumeratePlaceholders(transaction: tx.unwrapGrdbWrite) { placeholder in
+            InteractionFinder.enumeratePlaceholders(transaction: tx) { placeholder in
                 guard placeholder.expirationDate.isBeforeNow else {
                     nextExpirationDate = [nextExpirationDate, placeholder.expirationDate].compacted().min()
                     return
                 }
-                Logger.info("Cleaning up placeholder \(placeholder.timestamp)")
-                placeholder.anyRemove(transaction: tx)
-                guard let thread = placeholder.thread(tx: tx) else {
-                    return
-                }
-                let errorMessage = TSErrorMessage.failedDecryption(
-                    forSender: placeholder.sender,
-                    thread: thread,
-                    timestamp: NSDate.ows_millisecondTimeStamp(),
-                    transaction: tx
-                )
-                errorMessage.anyInsert(transaction: tx)
-                self.notificationsManager.notifyUser(forErrorMessage: errorMessage, thread: thread, transaction: tx)
+                expiredPlaceholderIds.append(placeholder.uniqueId)
             }
-            if let nextExpirationDate {
-                DispatchQueue.main.async {
-                    self.schedulePlaceholderCleanup(noLaterThan: nextExpirationDate)
+            return (expiredPlaceholderIds, nextExpirationDate)
+        }
+
+        let batchSize = 25
+        var remainingPlaceholderIds = expiredPlaceholderIds[...]
+        while !remainingPlaceholderIds.isEmpty {
+            let thisBatchPlaceholderIds = remainingPlaceholderIds.prefix(batchSize)
+            remainingPlaceholderIds = remainingPlaceholderIds.dropFirst(batchSize)
+
+            await databaseStorage.awaitableWrite { tx in
+                for placeholderId in thisBatchPlaceholderIds {
+                    guard let placeholder = OWSRecoverableDecryptionPlaceholder.anyFetchRecoverableDecryptionPlaceholder(
+                        uniqueId: placeholderId,
+                        transaction: tx
+                    ) else {
+                        continue
+                    }
+                    Logger.info("Cleaning up placeholder \(placeholder.timestamp)")
+                    placeholder.anyRemove(transaction: tx)
+                    guard let thread = placeholder.thread(tx: tx) else {
+                        return
+                    }
+                    let errorMessage = TSErrorMessage.failedDecryption(
+                        forSender: placeholder.sender,
+                        thread: thread,
+                        timestamp: NSDate.ows_millisecondTimeStamp(),
+                        transaction: tx
+                    )
+                    errorMessage.anyInsert(transaction: tx)
+                    self.notificationsManager.notifyUser(forErrorMessage: errorMessage, thread: thread, transaction: tx)
                 }
             }
+        }
+
+        if let nextExpirationDate {
+            await MainActor.run { self.schedulePlaceholderCleanup(noLaterThan: nextExpirationDate) }
         }
     }
 }

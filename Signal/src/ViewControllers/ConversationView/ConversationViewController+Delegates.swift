@@ -77,17 +77,13 @@ extension ConversationViewController: AttachmentApprovalViewControllerDataSource
 
 // MARK: -
 
-extension ConversationViewController: ContactsPickerDelegate {
+extension ConversationViewController: ContactPickerDelegate {
 
-    public func contactsPickerDidCancel(_: ContactsPicker) {
-        AssertIsOnMainThread()
-
-        Logger.verbose("")
-
+    public func contactPickerDidCancel(_: ContactPickerViewController) {
         dismiss(animated: true, completion: nil)
     }
 
-    public func contactsPicker(_ contactsPicker: ContactsPicker, didSelectContact contact: Contact) {
+    public func contactPicker(_ contactPicker: ContactPickerViewController, didSelect contact: Contact) {
         AssertIsOnMainThread()
         owsAssertDebug(contact.cnContactId != nil)
 
@@ -98,11 +94,7 @@ extension ConversationViewController: ContactsPickerDelegate {
 
         Logger.verbose("Contact: \(contact)")
 
-        guard let contactShareRecord = OWSContacts.contact(forSystemContact: cnContact) else {
-            owsFailDebug("Could not convert system contact.")
-            return
-        }
-
+        let contactShareRecord = OWSContact(cnContact: cnContact)
         var isProfileAvatar = false
         var avatarImageData: Data? = contactsManager.avatarData(forCNContactId: cnContact.identifier)
         for address in contact.registeredAddresses() {
@@ -119,26 +111,21 @@ extension ConversationViewController: ContactsPickerDelegate {
         let contactShare = ContactShareViewModel(contactShareRecord: contactShareRecord,
                                                  avatarImageData: avatarImageData)
 
-        let approveContactShare = ContactShareApprovalViewController(contactShare: contactShare)
-        approveContactShare.delegate = self
-        guard let navigationController = contactsPicker.navigationController else {
+        let approveContactShare = ContactShareViewController(contactShare: contactShare)
+        approveContactShare.shareDelegate = self
+        guard let navigationController = contactPicker.navigationController else {
             owsFailDebug("Missing contactsPicker.navigationController.")
             return
         }
         navigationController.pushViewController(approveContactShare, animated: true)
     }
 
-    public func contactsPicker(_: ContactsPicker, didSelectMultipleContacts contacts: [Contact]) {
-        AssertIsOnMainThread()
-
-        owsFailDebug("Contacts: \(contacts)")
-
+    public func contactPicker(_: ContactPickerViewController, didSelectMultiple contacts: [Contact]) {
+        owsFailDebug("Multiple selection not allowed.")
         dismiss(animated: true, completion: nil)
     }
 
-    public func contactsPicker(_: ContactsPicker, shouldSelectContact contact: Contact) -> Bool {
-        AssertIsOnMainThread()
-
+    public func contactPicker(_: ContactPickerViewController, shouldSelect contact: Contact) -> Bool {
         // Any reason to preclude contacts?
         return true
     }
@@ -146,22 +133,34 @@ extension ConversationViewController: ContactsPickerDelegate {
 
 // MARK: -
 
-extension ConversationViewController: ContactShareApprovalViewControllerDelegate {
+extension ConversationViewController: ContactShareViewControllerDelegate {
 
-    public func approveContactShare(_ approveContactShare: ContactShareApprovalViewController,
-                                    didApproveContactShare contactShare: ContactShareViewModel) {
-        AssertIsOnMainThread()
-
-        Logger.info("")
-
+    public func contactShareViewController(_ viewController: ContactShareViewController, didApproveContactShare contactShare:
+        ContactShareViewModel) {
         dismiss(animated: true) {
             self.send(contactShare: contactShare)
         }
     }
 
-    private func send(contactShare: ContactShareViewModel) {
-        AssertIsOnMainThread()
+    public func contactShareViewControllerDidCancel(_ viewController: ContactShareViewController) {
+        dismiss(animated: true, completion: nil)
+    }
 
+    public func titleForContactShareViewController(_ viewController: ContactShareViewController) -> String? {
+        return nil
+    }
+
+    public func recipientsDescriptionForContactShareViewController(_ viewController: ContactShareViewController) -> String? {
+        return databaseStorage.read { transaction in
+            Self.contactsManager.displayName(for: self.thread, transaction: transaction)
+        }
+    }
+
+    public func approvalModeForContactShareViewController(_ viewController: ContactShareViewController) -> ApprovalMode {
+        return .send
+    }
+
+    private func send(contactShare: ContactShareViewModel) {
         Logger.verbose("Sending contact share.")
 
         let thread = self.thread
@@ -187,37 +186,6 @@ extension ConversationViewController: ContactShareApprovalViewControllerDelegate
                 }
             }
         }
-    }
-
-    public func approveContactShare(_ approveContactShare: ContactShareApprovalViewController,
-                                    didCancelContactShare contactShare: ContactShareViewModel) {
-        AssertIsOnMainThread()
-
-        Logger.info("")
-
-        dismiss(animated: true, completion: nil)
-    }
-
-    public func contactApprovalCustomTitle(_ contactApproval: ContactShareApprovalViewController) -> String? {
-        AssertIsOnMainThread()
-
-        return nil
-    }
-
-    public func contactApprovalRecipientsDescription(_ contactApproval: ContactShareApprovalViewController) -> String? {
-        AssertIsOnMainThread()
-
-        Logger.info("")
-
-        return databaseStorage.read { transaction in
-            Self.contactsManager.displayName(for: self.thread, transaction: transaction)
-        }
-    }
-
-    public func contactApprovalMode(_ contactApproval: ContactShareApprovalViewController) -> ApprovalMode {
-        AssertIsOnMainThread()
-
-        return .send
     }
 }
 

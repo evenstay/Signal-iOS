@@ -36,7 +36,6 @@ FOUNDATION_EXPORT const unsigned char SignalServiceKitVersionString[];
 #import <SignalServiceKit/MIMETypeUtil.h>
 #import <SignalServiceKit/MessageSender.h>
 #import <SignalServiceKit/NSData+Image.h>
-#import <SignalServiceKit/NSData+keyVersionByte.h>
 #import <SignalServiceKit/NSString+SSK.h>
 #import <SignalServiceKit/NSTimer+OWS.h>
 #import <SignalServiceKit/NSUserDefaults+OWS.h>
@@ -51,9 +50,6 @@ FOUNDATION_EXPORT const unsigned char SignalServiceKitVersionString[];
 #import <SignalServiceKit/OWSCallMessageHandler.h>
 #import <SignalServiceKit/OWSCensorshipConfiguration.h>
 #import <SignalServiceKit/OWSChunkedOutputStream.h>
-#import <SignalServiceKit/OWSContact+Private.h>
-#import <SignalServiceKit/OWSContact.h>
-#import <SignalServiceKit/OWSContactsOutputStream.h>
 #import <SignalServiceKit/OWSCountryMetadata.h>
 #import <SignalServiceKit/OWSDisappearingConfigurationUpdateInfoMessage.h>
 #import <SignalServiceKit/OWSDisappearingMessagesConfiguration.h>
@@ -66,7 +62,8 @@ FOUNDATION_EXPORT const unsigned char SignalServiceKitVersionString[];
 #import <SignalServiceKit/OWSFileSystem.h>
 #import <SignalServiceKit/OWSGroupCallMessage.h>
 #import <SignalServiceKit/OWSHTTPSecurityPolicy.h>
-#import <SignalServiceKit/OWSIdentityManager.h>
+#import <SignalServiceKit/OWSIdentity.h>
+#import <SignalServiceKit/OWSIncomingPaymentMessage.h>
 #import <SignalServiceKit/OWSIncomingSentMessageTranscript.h>
 #import <SignalServiceKit/OWSLinkedDeviceReadReceipt.h>
 #import <SignalServiceKit/OWSMath.h>
@@ -85,6 +82,9 @@ FOUNDATION_EXPORT const unsigned char SignalServiceKitVersionString[];
 #import <SignalServiceKit/OWSOutgoingSenderKeyDistributionMessage.h>
 #import <SignalServiceKit/OWSOutgoingSentMessageTranscript.h>
 #import <SignalServiceKit/OWSOutgoingSyncMessage.h>
+#import <SignalServiceKit/OWSPaymentActivationRequestFinishedMessage.h>
+#import <SignalServiceKit/OWSPaymentActivationRequestMessage.h>
+#import <SignalServiceKit/OWSPaymentMessage.h>
 #import <SignalServiceKit/OWSProfileKeyMessage.h>
 #import <SignalServiceKit/OWSQueues.h>
 #import <SignalServiceKit/OWSReadReceiptsForLinkedDevicesMessage.h>
@@ -98,7 +98,6 @@ FOUNDATION_EXPORT const unsigned char SignalServiceKitVersionString[];
 #import <SignalServiceKit/OWSStaticOutgoingMessage.h>
 #import <SignalServiceKit/OWSStickerPackSyncMessage.h>
 #import <SignalServiceKit/OWSSyncConfigurationMessage.h>
-#import <SignalServiceKit/OWSSyncContactsMessage.h>
 #import <SignalServiceKit/OWSSyncFetchLatestMessage.h>
 #import <SignalServiceKit/OWSSyncKeysMessage.h>
 #import <SignalServiceKit/OWSSyncMessageRequestResponseMessage.h>
@@ -121,7 +120,6 @@ FOUNDATION_EXPORT const unsigned char SignalServiceKitVersionString[];
 #import <SignalServiceKit/ProfileManagerProtocol.h>
 #import <SignalServiceKit/ProtoUtils.h>
 #import <SignalServiceKit/RESTNetworkManager.h>
-#import <SignalServiceKit/RemoteAttestationQuote.h>
 #import <SignalServiceKit/SDSCrossProcess.h>
 #import <SignalServiceKit/SDSDatabaseStorage+Objc.h>
 #import <SignalServiceKit/SDSKeyValueStore+ObjC.h>
@@ -133,7 +131,6 @@ FOUNDATION_EXPORT const unsigned char SignalServiceKitVersionString[];
 #import <SignalServiceKit/StickerInfo.h>
 #import <SignalServiceKit/StickerPack.h>
 #import <SignalServiceKit/StorageCoordinator.h>
-#import <SignalServiceKit/TSAccountManager.h>
 #import <SignalServiceKit/TSAttachment.h>
 #import <SignalServiceKit/TSAttachmentPointer.h>
 #import <SignalServiceKit/TSAttachmentStream.h>
@@ -153,7 +150,6 @@ FOUNDATION_EXPORT const unsigned char SignalServiceKitVersionString[];
 #import <SignalServiceKit/TSOutgoingMessage.h>
 #import <SignalServiceKit/TSPaymentModel.h>
 #import <SignalServiceKit/TSPaymentModels.h>
-#import <SignalServiceKit/TSPaymentRequestModel.h>
 #import <SignalServiceKit/TSPrivateStoryThread.h>
 #import <SignalServiceKit/TSQuotedMessage.h>
 #import <SignalServiceKit/TSStorageKeys.h>

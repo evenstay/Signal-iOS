@@ -10,7 +10,6 @@ NS_ASSUME_NONNULL_BEGIN
 
 typedef void (^OWSUserProfileCompletion)(void);
 
-@class AnyUserProfileFinder;
 @class AuthedAccount;
 @class OWSAES256Key;
 @class OWSUserProfileBadgeInfo;
@@ -18,6 +17,7 @@ typedef void (^OWSUserProfileCompletion)(void);
 @class SDSAnyWriteTransaction;
 @class SignalServiceAddress;
 @class UserProfileChanges;
+@class UserProfileFinder;
 
 extern NSNotificationName const kNSNotificationNameProfileWhitelistDidChange;
 extern NSNotificationName const kNSNotificationNameLocalProfileDidChange;
@@ -42,7 +42,6 @@ NSString *NSStringForUserProfileWriter(UserProfileWriter userProfileWriter);
 @interface OWSUserProfile : BaseModel <OWSMaybeUserProfile>
 
 /// Represents the uppercase ServiceId string for this profile's recipient.
-///
 /// - Note
 /// This property name includes `UUID` for compatibility with SDS (to match the
 /// SQLite column), but **may not contain a valid UUID string**.
@@ -71,7 +70,7 @@ NSString *NSStringForUserProfileWriter(UserProfileWriter userProfileWriter);
 @property (atomic, readonly, nullable) NSDate *lastMessagingDate;
 
 /// Does this profile have the Stories capability?
-@property (atomic, readonly) BOOL isStoriesCapable;
+@property (atomic, readonly) BOOL isStoriesCapable; // deprecated
 /// Does this profile have the gift badges capability?
 @property (atomic, readonly) BOOL canReceiveGiftBadges;
 /// Does this profile have the PNI capability?
@@ -118,7 +117,7 @@ NS_DESIGNATED_INITIALIZER NS_SWIFT_NAME(init(grdbId:uniqueId:avatarFileName:avat
 // --- CODE GENERATION MARKER
 
 @property (atomic, readonly, class) SignalServiceAddress *localProfileAddress;
-@property (nonatomic, readonly, class) AnyUserProfileFinder *userProfileFinder;
+@property (nonatomic, readonly, class) UserProfileFinder *userProfileFinder;
 
 + (BOOL)isLocalProfileAddress:(SignalServiceAddress *)address;
 + (SignalServiceAddress *)resolveUserProfileAddress:(SignalServiceAddress *)address;
@@ -126,10 +125,6 @@ NS_DESIGNATED_INITIALIZER NS_SWIFT_NAME(init(grdbId:uniqueId:avatarFileName:avat
 
 + (nullable OWSUserProfile *)getUserProfileForAddress:(SignalServiceAddress *)address
                                           transaction:(SDSAnyReadTransaction *)transaction;
-
-+ (OWSUserProfile *)getOrBuildUserProfileForAddress:(SignalServiceAddress *)recipientId
-                                      authedAccount:(AuthedAccount *)authedAccount
-                                        transaction:(SDSAnyWriteTransaction *)transaction;
 
 + (BOOL)localUserProfileExistsWithTransaction:(SDSAnyReadTransaction *)transaction;
 - (void)loadBadgeContentWithTransaction:(SDSAnyReadTransaction *)transaction;

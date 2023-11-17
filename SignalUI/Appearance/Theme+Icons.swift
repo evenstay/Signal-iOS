@@ -65,6 +65,8 @@ public enum ThemeIcon: UInt {
     case arrowRight
     case chevronUp
     case chevronDown
+    case maximize
+    case minimize
     case refresh
     case official
     case qrCode
@@ -129,6 +131,7 @@ public enum ThemeIcon: UInt {
     case timerDisabled16
     case timer16
     case refresh16
+    case merge16
 
     case transfer
     case register
@@ -293,6 +296,10 @@ public extension Theme {
             return "chevron-up"
         case .chevronDown:
             return "chevron-down"
+        case .maximize:
+            return "maximize"
+        case .minimize:
+            return "minimize"
         case .refresh:
             return "refresh"
         case .official:
@@ -421,6 +428,8 @@ public extension Theme {
             return "timer-compact"
         case .refresh16:
             return "refresh-compact"
+        case .merge16:
+            return "merge-compact"
 
         case .transfer:
             return "transfer-\(UIDevice.current.isIPad ? "ipad" : "phone")-outline-60-\(isDarkThemeEnabled ? "dark" : "light")"

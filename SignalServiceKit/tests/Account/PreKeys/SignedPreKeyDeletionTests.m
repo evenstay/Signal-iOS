@@ -7,7 +7,6 @@
 #import "SSKBaseTestObjC.h"
 #import "SSKSignedPreKeyStore.h"
 #import "SignedPrekeyRecord.h"
-#import <SignalServiceKit/OWSIdentityManager.h>
 #import <SignalServiceKit/SignalServiceKit-Swift.h>
 
 @interface SignedPreKeyDeletionTests : SSKBaseTestObjC
@@ -65,7 +64,7 @@
         NSAssert(secondsAgo <= 0, @"Time in past must be negative");
         NSDate *generatedAt = [NSDate dateWithTimeIntervalSinceNow:secondsAgo];
         SignedPreKeyRecord *record = [[SignedPreKeyRecord alloc] initWithId:i
-                                                                    keyPair:[Curve25519 generateKeyPair]
+                                                                    keyPair:[ECKeyPair generateKeyPair]
                                                                   signature:[NSData new]
                                                                 generatedAt:generatedAt];
         DatabaseStorageWrite(self.databaseStorage, ^(SDSAnyWriteTransaction *transaction) {
@@ -98,7 +97,7 @@
         NSAssert(secondsAgo <= 0, @"Time in past must be negative");
         NSDate *generatedAt = [NSDate dateWithTimeIntervalSinceNow:secondsAgo];
         SignedPreKeyRecord *record = [[SignedPreKeyRecord alloc] initWithId:i
-                                                                    keyPair:[Curve25519 generateKeyPair]
+                                                                    keyPair:[ECKeyPair generateKeyPair]
                                                                   signature:[NSData new]
                                                                 generatedAt:generatedAt];
         // we only retain accepted keys
@@ -134,7 +133,7 @@
         NSAssert(secondsAgo <= 0, @"Time in past must be negative");
         NSDate *generatedAt = [NSDate dateWithTimeIntervalSinceNow:secondsAgo];
         SignedPreKeyRecord *record = [[SignedPreKeyRecord alloc] initWithId:i
-                                                                    keyPair:[Curve25519 generateKeyPair]
+                                                                    keyPair:[ECKeyPair generateKeyPair]
                                                                   signature:[NSData new]
                                                                 generatedAt:generatedAt];
         DatabaseStorageWrite(self.databaseStorage, ^(SDSAnyWriteTransaction *transaction) {

@@ -3,6 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
+#import <SignalServiceKit/OWSIdentity.h>
+
 NS_ASSUME_NONNULL_BEGIN
 
 @class AciObjC;
@@ -17,14 +19,11 @@ NS_ASSUME_NONNULL_BEGIN
 @class SignalServiceAddress;
 @class SignedPreKeyRecord;
 @class TSRequest;
-@class UntypedServiceIdObjC;
 
 typedef NS_ENUM(NSUInteger, TSVerificationTransport) {
     TSVerificationTransportVoice = 1,
     TSVerificationTransportSMS
 };
-
-typedef NS_ENUM(uint8_t, OWSIdentity);
 
 @interface OWSRequestFactory : NSObject
 
@@ -72,7 +71,7 @@ typedef NS_ENUM(uint8_t, OWSIdentity);
                                             transport:(TSVerificationTransport)transport
     NS_SWIFT_NAME(requestVerificationCodeRequest(e164:preauthChallenge:captchaToken:transport:));
 
-+ (TSRequest *)submitMessageRequestWithServiceId:(UntypedServiceIdObjC *)serviceId
++ (TSRequest *)submitMessageRequestWithServiceId:(ServiceIdObjC *)serviceId
                                         messages:(NSArray<DeviceMessage *> *)messages
                                        timestamp:(uint64_t)timestamp
                                      udAccessKey:(nullable SMKUDAccessKey *)udAccessKey
@@ -90,20 +89,13 @@ typedef NS_ENUM(uint8_t, OWSIdentity);
 
 + (TSRequest *)currencyConversionRequest NS_SWIFT_NAME(currencyConversionRequest());
 
-#pragma mark - Attributes and Capabilities
-
-+ (TSRequest *)updateSecondaryDeviceCapabilitiesRequestWithHasBackedUpMasterKey:(BOOL)hasBackedUpMasterKey;
-
-+ (NSDictionary<NSString *, NSNumber *> *)deviceCapabilitiesForLocalDeviceWithHasBackedUpMasterKey:
-    (BOOL)hasBackedUpMasterKey;
-
 #pragma mark - Prekeys
 
 + (TSRequest *)availablePreKeysCountRequestForIdentity:(OWSIdentity)identity;
 
 + (TSRequest *)currentSignedPreKeyRequest;
 
-+ (TSRequest *)recipientPreKeyRequestWithServiceId:(UntypedServiceIdObjC *)serviceId
++ (TSRequest *)recipientPreKeyRequestWithServiceId:(ServiceIdObjC *)serviceId
                                           deviceId:(uint32_t)deviceId
                                        udAccessKey:(nullable SMKUDAccessKey *)udAccessKey
                                      requestPqKeys:(BOOL)requestPqKeys;
@@ -171,22 +163,6 @@ typedef NS_ENUM(uint8_t, OWSIdentity);
 #pragma mark - Payments
 
 + (TSRequest *)paymentsAuthenticationCredentialRequest;
-
-#pragma mark - Subscriptions
-
-+ (TSRequest *)subscriptionGetCurrentSubscriptionLevelRequest:(NSString *)base64SubscriberID;
-+ (TSRequest *)subscriptionCreateStripePaymentMethodRequest:(NSString *)base64SubscriberID;
-+ (TSRequest *)subscriptionCreatePaypalPaymentMethodRequest:(NSString *)base64SubscriberID
-                                                  returnUrl:(NSURL *)returnUrl
-                                                  cancelUrl:(NSURL *)cancelUrl
-    NS_SWIFT_NAME(subscriptionCreatePaypalPaymentMethodRequest(subscriberId:returnUrl:cancelUrl:));
-+ (TSRequest *)subscriptionSetSubscriptionLevelRequest:(NSString *)base64SubscriberID level:(NSString *)level currency:(NSString *)currency idempotencyKey:(NSString *)idempotencyKey;
-+ (TSRequest *)subscriptionReceiptCredentialsRequest:(NSString *)base64SubscriberID
-                                             request:(NSString *)base64ReceiptCredentialRequest;
-+ (TSRequest *)subscriptionRedeemReceiptCredential:(NSString *)base64ReceiptCredentialPresentation;
-+ (TSRequest *)boostReceiptCredentialsWithPaymentIntentId:(NSString *)paymentIntentId
-                                               andRequest:(NSString *)base64ReceiptCredentialRequest
-                                      forPaymentProcessor:(NSString *)processor;
 
 #pragma mark - Spam
 

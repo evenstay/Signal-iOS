@@ -8,6 +8,8 @@ import SignalServiceKit
 
 class DeviceTransferOperation: OWSOperation {
 
+    public struct CancelError: Error {}
+
     let file: DeviceTransferProtoFile
 
     let promise: Promise<Void>
@@ -36,20 +38,29 @@ class DeviceTransferOperation: OWSOperation {
 
     // MARK: - Run
 
-    override func didSucceed() {
-        super.didSucceed()
+    override func reportSuccess() {
+        super.reportSuccess()
         future.resolve()
     }
 
-    override func didFail(error: Error) {
-        super.didFail(error: error)
+    override func didReportError(_ error: Error) {
+        super.didReportError(error)
         future.reject(error)
+    }
+
+    override func reportCancelled() {
+        super.reportCancelled()
+        if !future.isSealed {
+            future.reject(CancelError())
+        }
     }
 
     override public func run() {
         Logger.info("Transferring file: \(file.identifier), estimatedSize: \(file.estimatedSize)")
 
-        DispatchQueue.global().async { self.prepareForSending() }
+        // Use the main thread for all MCSession related operations.
+        // There shouldn't be anything else going on in the app, anyway.
+        DispatchQueue.main.async { self.prepareForSending() }
     }
 
     private var progress: Progress?

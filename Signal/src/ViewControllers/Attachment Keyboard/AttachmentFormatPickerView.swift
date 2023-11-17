@@ -9,238 +9,347 @@ import SignalUI
 import UIKit
 
 protocol AttachmentFormatPickerDelegate: AnyObject {
-    func didTapCamera()
+    func didTapPhotos()
     func didTapGif()
     func didTapFile()
     func didTapContact()
     func didTapLocation()
     func didTapPayment()
-
-    var isGroup: Bool { get }
 }
 
-class AttachmentFormatPickerView: UICollectionView {
+class AttachmentFormatPickerView: UIView {
+
     weak var attachmentFormatPickerDelegate: AttachmentFormatPickerDelegate?
 
-    var itemSize: CGSize = .zero {
-        didSet {
-            guard oldValue != itemSize else { return }
-            updateLayout()
+    private let scrollView: UIScrollView = {
+        let scrollView = UIScrollView()
+        scrollView.showsHorizontalScrollIndicator = false
+        scrollView.contentInsetAdjustmentBehavior = .never
+        return scrollView
+    }()
+
+    private lazy var contentView: UIStackView = {
+        let buttons = AttachmentType.cases(isGroup: isGroup).map {
+            let button = AttachmentTypeButton(attachmentType: $0)
+            button.isVerticallyCompactAppearance = traitCollection.verticalSizeClass == .compact
+            button.addTarget(self, action: #selector(didTapAttachmentButton), for: .touchUpInside)
+            return button
+        }
+        let stackView = UIStackView(arrangedSubviews: buttons)
+        stackView.spacing = 12
+        stackView.axis = .horizontal
+        stackView.alignment = .top
+        stackView.translatesAutoresizingMaskIntoConstraints = false
+        return stackView
+    }()
+
+    private let isGroup: Bool
+
+    @objc
+    private func didTapAttachmentButton(sender: Any) {
+        guard
+            let delegate = attachmentFormatPickerDelegate,
+            let attachmentTypeButton = sender as? AttachmentTypeButton
+        else {
+            return
+        }
+        // Delay event handling a bit so that pressed state of the button is visible.
+        DispatchQueue.main.async {
+            switch attachmentTypeButton.attachmentType {
+            case .photo:
+                delegate.didTapPhotos()
+            case .gif:
+                delegate.didTapGif()
+            case .file:
+                delegate.didTapFile()
+            case .payment:
+                delegate.didTapPayment()
+            case .contact:
+                delegate.didTapContact()
+            case .location:
+                delegate.didTapLocation()
+            }
         }
     }
 
-    private let collectionViewFlowLayout = RTLEnabledCollectionViewFlowLayout()
+    init(isGroup: Bool) {
+        self.isGroup = isGroup
 
-    private var isGroup: Bool {
-        guard let attachmentFormatPickerDelegate else {
-            owsFailDebug("Missing attachmentFormatPickerDelegate.")
-            return false
-        }
-        return attachmentFormatPickerDelegate.isGroup
-    }
-
-    init() {
-        super.init(frame: .zero, collectionViewLayout: collectionViewFlowLayout)
-
-        dataSource = self
-        delegate = self
-        showsHorizontalScrollIndicator = false
-
-        contentInset = UIEdgeInsets(top: 0, leading: 6, bottom: 0, trailing: 6)
+        super.init(frame: .zero)
 
         backgroundColor = .clear
 
-        register(AttachmentFormatCell.self, forCellWithReuseIdentifier: AttachmentFormatCell.reuseIdentifier)
+        addSubview(scrollView)
+        scrollView.autoPinEdgesToSuperviewEdges()
 
-        collectionViewFlowLayout.scrollDirection = .horizontal
-        collectionViewFlowLayout.minimumLineSpacing = 6
-
-        updateLayout()
-    }
-
-    private func updateLayout() {
-        AssertIsOnMainThread()
-
-        guard itemSize.height > 0, itemSize.width > 0 else { return }
-
-        collectionViewFlowLayout.itemSize = itemSize
-        collectionViewFlowLayout.invalidateLayout()
-
-        reloadData()
+        scrollView.addSubview(contentView)
+        NSLayoutConstraint.activate([
+            contentView.leadingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.leadingAnchor),
+            contentView.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor),
+            contentView.trailingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.trailingAnchor),
+            contentView.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor)
+        ])
     }
 
     required init?(coder aDecoder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
-}
 
-enum AttachmentType: String, CaseIterable, Dependencies {
-    case camera
-    case gif
-    case file
-    case payment
-    case contact
-    case location
+    override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+        super.traitCollectionDidChange(previousTraitCollection)
+        let isLandscapeLayout = traitCollection.verticalSizeClass == .compact
+        contentView.arrangedSubviews.forEach { subview in
+            guard let button = subview as? AttachmentTypeButton else { return }
+            button.isVerticallyCompactAppearance = isLandscapeLayout
+        }
+        invalidateIntrinsicContentSize()
+    }
 
-    static var contactCases: [AttachmentType] {
-        if payments.shouldShowPaymentsUI {
-            return allCases
-        } else {
-            return everythingExceptPayments
+    override var intrinsicContentSize: CGSize {
+        let height: CGFloat = traitCollection.verticalSizeClass == .compact ? 86 : 122
+        return CGSize(width: UIView.noIntrinsicMetric, height: height)
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+
+        // Dispatch async is needed for the subviews to have their final frames.
+        DispatchQueue.main.async {
+            self.updateScrollViewContentInsets()
         }
     }
 
-    static var groupCases: [AttachmentType] {
-        everythingExceptPayments
+    private func updateScrollViewContentInsets() {
+        // Center button row horizontally and vertically in the scroll view.
+        let scrollViewSize = scrollView.frame.size
+        let contentSize = contentView.bounds.size
+        guard scrollViewSize.isNonEmpty, contentSize.isNonEmpty else { return }
+        let horizontalInset = max(OWSTableViewController2.defaultHOuterMargin, 0.5 * (scrollViewSize.width - contentSize.width))
+        let verticalInset = max(0, 0.5 * (scrollViewSize.height - contentSize.height))
+        let contentInset = UIEdgeInsets(hMargin: horizontalInset, vMargin: verticalInset)
+        guard scrollView.contentInset != contentInset else { return }
+        scrollView.contentInset = contentInset
+        scrollView.contentOffset = CGPoint(x: -contentInset.leading, y: -contentInset.top)
     }
 
-    static var everythingExceptPayments: [AttachmentType] {
-        return allCases.filter { (value: AttachmentType) in
-            value != .payment
+    // Set initial state for all buttons - get them ready to be animated in.
+    func prepareForPresentation() {
+        let buttons = contentView.arrangedSubviews
+        guard !buttons.isEmpty else { return }
+
+        UIView.performWithoutAnimation {
+            buttons.forEach { button in
+                button.alpha = 0
+                button.transform = .scale(0.5)
+            }
         }
     }
 
-    static func cases(isGroup: Bool) -> [AttachmentType] {
-        return isGroup ? groupCases : contactCases
-    }
-}
+    func performPresentationAnimation() {
+        let buttons = contentView.arrangedSubviews
+        guard !buttons.isEmpty else { return }
 
-// MARK: - UICollectionViewDelegate
-
-extension AttachmentFormatPickerView: UICollectionViewDelegate {
-    public func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
-        switch AttachmentType.cases(isGroup: isGroup)[indexPath.row] {
-        case .camera:
-            attachmentFormatPickerDelegate?.didTapCamera()
-        case .contact:
-            attachmentFormatPickerDelegate?.didTapContact()
-        case .file:
-            attachmentFormatPickerDelegate?.didTapFile()
-        case .gif:
-            attachmentFormatPickerDelegate?.didTapGif()
-        case .location:
-            attachmentFormatPickerDelegate?.didTapLocation()
-        case .payment:
-            attachmentFormatPickerDelegate?.didTapPayment()
+        // Chain animations for buttons.
+        let delay = 1 / CGFloat(buttons.count)
+        let animator = UIViewPropertyAnimator(duration: 0.5, springDamping: 1, springResponse: 0.2)
+        for (index, button) in buttons.enumerated() {
+            animator.addAnimations({
+                button.alpha = 1
+                button.transform = .identity
+            }, delayFactor: CGFloat(index) * delay)
         }
-    }
-}
-
-// MARK: - UICollectionViewDataSource
-
-extension AttachmentFormatPickerView: UICollectionViewDataSource {
-
-    public func numberOfSections(in collectionView: UICollectionView) -> Int {
-        return 1
+        animator.startAnimation()
     }
 
-    public func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection sectionIdx: Int) -> Int {
-        return AttachmentType.cases(isGroup: isGroup).count
-    }
+    private enum AttachmentType: String, CaseIterable, Dependencies {
+        case photo
+        case gif
+        case file
+        case contact
+        case location
+        case payment
 
-    public func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
-        guard let cell = collectionView.dequeueReusableCell(withReuseIdentifier: AttachmentFormatCell.reuseIdentifier, for: indexPath) as? AttachmentFormatCell else {
-            owsFail("cell was unexpectedly nil")
+        private static var contactCases: [AttachmentType] {
+            if payments.shouldShowPaymentsUI {
+                return allCases
+            } else {
+                return everythingExceptPayments
+            }
         }
 
-        let type = AttachmentType.cases(isGroup: isGroup)[indexPath.item]
-        cell.configure(type: type)
-        return cell
-    }
-}
-
-private class AttachmentFormatCell: UICollectionViewCell {
-
-    static let reuseIdentifier = "AttachmentFormatCell"
-
-    let imageView = UIImageView()
-    let label = UILabel()
-
-    var attachmentType: AttachmentType?
-
-    override init(frame: CGRect) {
-
-        super.init(frame: frame)
-
-        backgroundColor = Theme.attachmentKeyboardItemBackgroundColor
-
-        clipsToBounds = true
-        layer.cornerRadius = 4
-
-        contentView.addSubview(imageView)
-        imageView.autoHCenterInSuperview()
-        imageView.autoSetDimensions(to: CGSize(square: 32))
-        imageView.contentMode = .scaleAspectFit
-
-        label.font = UIFont.dynamicTypeFootnoteClamped.semibold()
-        label.textColor = Theme.attachmentKeyboardItemImageColor
-        label.textAlignment = .center
-        label.adjustsFontSizeToFitWidth = true
-        contentView.addSubview(label)
-        label.autoPinEdge(.top, to: .bottom, of: imageView, withOffset: 3)
-        label.autoPinWidthToSuperviewMargins()
-
-        // Vertically center things
-
-        let topSpacer = UILayoutGuide()
-        let bottomSpacer = UILayoutGuide()
-        contentView.addLayoutGuide(topSpacer)
-        contentView.addLayoutGuide(bottomSpacer)
-
-        topSpacer.topAnchor.constraint(equalTo: contentView.topAnchor).isActive = true
-        bottomSpacer.bottomAnchor.constraint(equalTo: contentView.bottomAnchor).isActive = true
-        topSpacer.heightAnchor.constraint(equalTo: bottomSpacer.heightAnchor).isActive = true
-
-        imageView.topAnchor.constraint(equalTo: topSpacer.bottomAnchor).isActive = true
-        label.bottomAnchor.constraint(equalTo: bottomSpacer.topAnchor).isActive = true
-    }
-
-    @available(*, unavailable, message: "Unimplemented")
-    required public init?(coder aDecoder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-
-    public func configure(type: AttachmentType) {
-        self.attachmentType = type
-
-        let imageName: String
-        let text: String
-
-        switch type {
-        case .camera:
-            text = OWSLocalizedString("ATTACHMENT_KEYBOARD_CAMERA", comment: "A button to open the camera from the Attachment Keyboard")
-            imageName = "camera-28"
-        case .contact:
-            text = OWSLocalizedString("ATTACHMENT_KEYBOARD_CONTACT", comment: "A button to select a contact from the Attachment Keyboard")
-            imageName = "person-circle-28"
-        case .file:
-            text = OWSLocalizedString("ATTACHMENT_KEYBOARD_FILE", comment: "A button to select a file from the Attachment Keyboard")
-            imageName = "file-28"
-        case .gif:
-            text = OWSLocalizedString("ATTACHMENT_KEYBOARD_GIF", comment: "A button to select a GIF from the Attachment Keyboard")
-            imageName = "gif-28"
-        case .location:
-            text = OWSLocalizedString("ATTACHMENT_KEYBOARD_LOCATION", comment: "A button to select a location from the Attachment Keyboard")
-            imageName = "location-28"
-        case .payment:
-            text = OWSLocalizedString("ATTACHMENT_KEYBOARD_PAYMENT", comment: "A button to select a payment from the Attachment Keyboard")
-            imageName = "payment-28"
+        private static var groupCases: [AttachmentType] {
+            everythingExceptPayments
         }
 
-        label.text = text
-        imageView.image = UIImage(imageLiteralResourceName: imageName)
-        imageView.tintColor = Theme.isDarkThemeEnabled ? Theme.attachmentKeyboardItemImageColor : Theme.primaryIconColor
+        private static var everythingExceptPayments: [AttachmentType] {
+            return allCases.filter { (value: AttachmentType) in
+                value != .payment
+            }
+        }
 
-        self.accessibilityIdentifier = UIView.accessibilityIdentifier(in: self, name: "format-\(type.rawValue)")
+        static func cases(isGroup: Bool) -> [AttachmentType] {
+            return isGroup ? groupCases : contactCases
+        }
     }
 
-    override public func prepareForReuse() {
-        super.prepareForReuse()
+    private class AttachmentTypeButton: UIControl {
 
-        attachmentType = nil
-        imageView.image = nil
+        private class DimmablePillView: PillView {
 
-        label.textColor = Theme.attachmentKeyboardItemImageColor
-        backgroundColor = Theme.attachmentKeyboardItemBackgroundColor
+            private let dimmerView: UIView = {
+                let view = UIView()
+                view.backgroundColor = Theme.isDarkThemeEnabled ? .ows_whiteAlpha10 : .ows_blackAlpha10
+                view.alpha = 0
+                return view
+            }()
+
+            // Implicitly animatable.
+            var isDimmed: Bool = false {
+                didSet {
+                    dimmerView.alpha = isDimmed ? 1 : 0
+                }
+            }
+
+            override init(frame: CGRect) {
+                super.init(frame: frame)
+                addSubview(dimmerView)
+            }
+
+            required init?(coder aDecoder: NSCoder) {
+                fatalError("init(coder:) has not been implemented")
+            }
+
+            override func layoutSubviews() {
+                super.layoutSubviews()
+                dimmerView.frame = bounds
+            }
+        }
+
+        let attachmentType: AttachmentType
+
+        var isVerticallyCompactAppearance = false {
+            didSet {
+                imageViewPillBoxHeightConstraint.constant = isVerticallyCompactAppearance ? 40 : 50
+            }
+        }
+
+        private let imageViewPillBox: DimmablePillView = {
+            let pillView = DimmablePillView()
+            pillView.isUserInteractionEnabled = false
+            pillView.backgroundColor = Theme.isDarkThemeEnabled ? UIColor(white: 1, alpha: 0.16) : UIColor(white: 0, alpha: 0.08)
+            return pillView
+        }()
+
+        private lazy var imageViewPillBoxHeightConstraint: NSLayoutConstraint = {
+            imageViewPillBox.heightAnchor.constraint(equalToConstant: 50)
+        }()
+
+        private let iconImageView: UIImageView = {
+            let imageView = UIImageView()
+            imageView.contentMode = .center
+            imageView.tintColor = Theme.isDarkThemeEnabled ? .white : .black
+            return imageView
+        }()
+
+        private let textLabel: UILabel = {
+            let label = UILabel()
+            label.font = .dynamicTypeFootnoteClamped.medium()
+            label.textColor = Theme.secondaryTextAndIconColor
+            label.textAlignment = .center
+            label.numberOfLines = 2
+            label.adjustsFontSizeToFitWidth = true
+            label.lineBreakMode = .byCharWrapping
+            return label
+        }()
+
+        init(attachmentType: AttachmentType) {
+            self.attachmentType = attachmentType
+
+            super.init(frame: .zero)
+
+            translatesAutoresizingMaskIntoConstraints = false
+
+            imageViewPillBox.addSubview(iconImageView)
+            iconImageView.autoPinEdgesToSuperviewEdges()
+
+            addSubview(imageViewPillBox)
+            NSLayoutConstraint.activate([
+                imageViewPillBox.widthAnchor.constraint(equalToConstant: 76),
+                imageViewPillBoxHeightConstraint
+            ])
+            imageViewPillBox.autoPinEdges(toSuperviewEdgesExcludingEdge: .bottom)
+
+            addSubview(textLabel)
+            textLabel.autoPinEdge(.top, to: .bottom, of: imageViewPillBox, withOffset: 8)
+            textLabel.autoPinEdges(toSuperviewEdgesExcludingEdge: .top)
+
+            configure()
+        }
+
+        override var isHighlighted: Bool {
+            didSet {
+                setIsPressed(isHighlighted, animated: window != nil)
+            }
+        }
+
+        private var _isPressed = false
+
+        private var isPressed: Bool {
+            get { _isPressed }
+            set { setIsPressed(newValue, animated: false) }
+        }
+
+        private func setIsPressed(_ isPressed: Bool, animated: Bool) {
+            _isPressed = isPressed
+
+            let changes = {
+                self.imageViewPillBox.isDimmed = isPressed
+                self.imageViewPillBox.transform = isPressed ? .scale(0.9) : .identity
+            }
+            guard animated else {
+                changes()
+                return
+            }
+
+            let animator = UIViewPropertyAnimator(duration: 0.15, springDamping: 0.64, springResponse: 0.25)
+            animator.addAnimations(changes)
+            animator.startAnimation()
+        }
+
+        @available(*, unavailable, message: "Unimplemented")
+        required public init?(coder aDecoder: NSCoder) {
+            fatalError("init(coder:) has not been implemented")
+        }
+
+        private func configure() {
+            let imageName: String
+            let text: String
+
+            switch attachmentType {
+            case .photo:
+                text = OWSLocalizedString("ATTACHMENT_KEYBOARD_PHOTOS", comment: "A button to open the photo picker from the Attachment Keyboard")
+                imageName = "album-tilt-28"
+            case .contact:
+                text = OWSLocalizedString("ATTACHMENT_KEYBOARD_CONTACT", comment: "A button to select a contact from the Attachment Keyboard")
+                imageName = "person-circle-28"
+            case .file:
+                text = OWSLocalizedString("ATTACHMENT_KEYBOARD_FILE", comment: "A button to select a file from the Attachment Keyboard")
+                imageName = "file-28"
+            case .gif:
+                text = OWSLocalizedString("ATTACHMENT_KEYBOARD_GIF", comment: "A button to select a GIF from the Attachment Keyboard")
+                imageName = "gif-28"
+            case .location:
+                text = OWSLocalizedString("ATTACHMENT_KEYBOARD_LOCATION", comment: "A button to select a location from the Attachment Keyboard")
+                imageName = "location-28"
+            case .payment:
+                text = OWSLocalizedString("ATTACHMENT_KEYBOARD_PAYMENT", comment: "A button to select a payment from the Attachment Keyboard")
+                imageName = "payment-28"
+            }
+
+            textLabel.text = text
+            iconImageView.image = UIImage(imageLiteralResourceName: imageName)
+            accessibilityIdentifier = UIView.accessibilityIdentifier(in: self, name: "format-\(attachmentType.rawValue)")
+        }
     }
+
 }

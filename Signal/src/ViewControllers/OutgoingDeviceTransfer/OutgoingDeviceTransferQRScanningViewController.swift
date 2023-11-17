@@ -60,6 +60,11 @@ class OutgoingDeviceTransferQRScanningViewController: DeviceTransferBaseViewCont
 
         qrView.autoPinEdges(toEdgesOf: maskingView)
 
+        view.addSubview(cameraToggleButton)
+        cameraToggleButton.autoSetDimensions(to: .square(32))
+        cameraToggleButton.autoPinEdge(.trailing, to: .trailing, of: maskingView)
+        cameraToggleButton.autoPinEdge(.bottom, to: .bottom, of: view)
+
         return view
     }()
     lazy var maskingView: UIView = {
@@ -77,6 +82,18 @@ class OutgoingDeviceTransferQRScanningViewController: DeviceTransferBaseViewCont
         maskingView.autoPinToSquareAspectRatio()
         maskingView.autoSetDimension(.height, toSize: 256)
         return maskingView
+    }()
+
+    private lazy var cameraToggleButton: UIButton = {
+        let button = UIButton()
+        button.setImage(UIImage(named: "switch-camera-28"), animated: false)
+        button.tintColor = Theme.primaryIconColor
+        button.addTarget(
+            self,
+            action: #selector(didTapCameraToggle),
+            for: .touchUpInside
+        )
+        return button
     }()
 
     override func viewDidLoad() {
@@ -112,12 +129,10 @@ class OutgoingDeviceTransferQRScanningViewController: DeviceTransferBaseViewCont
         addChild(qrCodeScanViewController)
     }
 
-    override func viewWillAppear(_ animated: Bool) {
-        super.viewWillAppear(animated)
-    }
-
-    override func viewWillDisappear(_ animated: Bool) {
-        super.viewWillDisappear(animated)
+    @objc
+    private func didTapCameraToggle() {
+        qrCodeScanViewController.prefersFrontFacingCamera =
+            !qrCodeScanViewController.prefersFrontFacingCamera
     }
 }
 
@@ -181,7 +196,8 @@ extension OutgoingDeviceTransferQRScanningViewController: QRCodeScanDelegate {
                         return
                     case .modeMismatch:
                         let desiredMode: DeviceTransferService.TransferMode =
-                            TSAccountManager.shared.isPrimaryDevice ? .linked : .primary
+                            DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isPrimaryDevice ?? true
+                            ? .linked : .primary
                         switch desiredMode {
                         case .linked:
                             self.showError(
@@ -250,5 +266,9 @@ extension OutgoingDeviceTransferQRScanningViewController: DeviceTransferServiceO
                                         comment: "An error indicating that something went wrong with the transfer and it could not complete")
             )
         }
+    }
+
+    func deviceTransferServiceDidRequestAppRelaunch() {
+        owsFail("Relaunch not supported for outgoing transfer; only on the receiving device during transfer")
     }
 }

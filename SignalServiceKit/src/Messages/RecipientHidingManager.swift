@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import Intents
 import GRDB
 import SignalCoreKit
 
@@ -80,21 +81,24 @@ public final class RecipientHidingManagerImpl: RecipientHidingManager {
     private let profileManager: ProfileManagerProtocol
     private let storageServiceManager: StorageServiceManager
     private let tsAccountManager: TSAccountManager
+    private let jobQueues: SSKJobQueues
+
+    @objc
+    public static let hideListDidChange = Notification.Name("hideListDidChange")
 
     public init(
         profileManager: ProfileManagerProtocol,
         storageServiceManager: StorageServiceManager,
-        tsAccountManager: TSAccountManager
+        tsAccountManager: TSAccountManager,
+        jobQueues: SSKJobQueues
     ) {
         self.profileManager = profileManager
         self.storageServiceManager = storageServiceManager
         self.tsAccountManager = tsAccountManager
+        self.jobQueues = jobQueues
     }
 
     public func hiddenRecipients(tx: DBReadTransaction) -> Set<SignalRecipient> {
-        guard FeatureFlags.recipientHiding else {
-            return Set()
-        }
         do {
             let sql = """
                 SELECT \(SignalRecipient.databaseTableName).*
@@ -103,6 +107,7 @@ public final class RecipientHidingManagerImpl: RecipientHidingManager {
                     AS hiddenRecipient
                     ON hiddenRecipient.recipientId = \(signalRecipientColumn: .id)
             """
+            Logger.info("[Recipient hiding] Fetching all hidden recipients.")
             return Set(
                 try SignalRecipient.fetchAll(SDSDB.shimOnlyBridge(tx).unwrapGrdbRead.database, sql: sql)
             )
@@ -113,10 +118,9 @@ public final class RecipientHidingManagerImpl: RecipientHidingManager {
     }
 
     public func isHiddenRecipient(_ recipient: SignalRecipient, tx: DBReadTransaction) -> Bool {
-        guard FeatureFlags.recipientHiding, let id = recipient.id else {
+        guard let id = recipient.id else {
             return false
         }
-
         do {
             let sql = """
             SELECT EXISTS(
@@ -139,6 +143,7 @@ public final class RecipientHidingManagerImpl: RecipientHidingManager {
         wasLocallyInitiated: Bool,
         tx: DBWriteTransaction
     ) throws {
+        Logger.info("[Recipient hiding] Initiating recipient hide.")
         guard !isHiddenRecipient(recipient, tx: tx) else {
             // This is a perhaps extraneous safeguard against
             // hiding an already-hidden address. I say extraneous
@@ -146,6 +151,7 @@ public final class RecipientHidingManagerImpl: RecipientHidingManager {
             // hide an already-hidden recipient. However, we return here,
             // just in case, in order to avoid the side-effects of
             // `didSetAsHidden`.
+            Logger.warn("[Recipient hiding] Cannot hide already-hidden recipient.")
             throw RecipientHidingError.recipientAlreadyHidden
         }
         if let id = recipient.id {
@@ -163,6 +169,7 @@ public final class RecipientHidingManagerImpl: RecipientHidingManager {
         tx: DBWriteTransaction
     ) {
         if let id = recipient.id, isHiddenRecipient(recipient, tx: tx) {
+            Logger.info("[Recipient hiding] Initiating recipient unhide.")
             let sql = """
                 DELETE FROM \(HiddenRecipient.databaseTableName)
                 WHERE \(HiddenRecipient.CodingKeys.recipientId.stringValue) = ?
@@ -188,26 +195,64 @@ private extension RecipientHidingManagerImpl {
         wasLocallyInitiated: Bool,
         tx: DBWriteTransaction
     ) {
+        // Triggers UI updates of recipient lists.
+        NotificationCenter.default.postNotificationNameAsync(Self.hideListDidChange, object: nil)
+
+        Logger.info("[Recipient hiding][side effects] Beginning side effects of setting as hidden.")
         if let thread = TSContactThread.getWithContactAddress(
             recipient.address,
             transaction: SDSDB.shimOnlyBridge(tx)
         ) {
-            let message = TSInfoMessage(thread: thread, messageType: .contactHidden)
+            let message = TSInfoMessage(thread: thread, messageType: .recipientHidden)
+            Logger.info("[Recipient hiding][side effects] Posting TSInfoMessage.")
             message.anyInsert(transaction: SDSDB.shimOnlyBridge(tx))
 
-            /// TODO recipientHiding:
-            /// - Throw out other user's profile key if not in group with user.
-            /// - Throw away existing Stories from hidden user.
-            /// - Remove hidden user from Story distribution lists.
-            /// - If this is primary device, rotate own Profile Key if not in group with them.
-            if wasLocallyInitiated {
-                profileManager.removeUser(
-                    fromProfileWhitelist: recipient.address,
-                    userProfileWriter: .storageService,
-                    transaction: SDSDB.shimOnlyBridge(tx)
-                )
-                storageServiceManager.recordPendingUpdates(updatedAddresses: [recipient.address])
-            }
+            // Delete any send message intents.
+            Logger.info("[Recipient hiding][side effects] Deleting INIntents.")
+            INInteraction.delete(with: thread.uniqueId, completion: nil)
+        }
+
+        if wasLocallyInitiated {
+            Logger.info("[Recipient hiding][side effects] Remove from whitelist.")
+            profileManager.removeUser(
+                fromProfileWhitelist: recipient.address,
+                userProfileWriter: .localUser,
+                transaction: SDSDB.shimOnlyBridge(tx)
+            )
+            Logger.info("[Recipient hiding][side effects] Remove from story distribution lists.")
+            StoryManager.removeAddressFromAllPrivateStoryThreads(recipient.address, tx: SDSDB.shimOnlyBridge(tx))
+            Logger.info("[Recipient hiding][side effects] Sync with storage service.")
+            storageServiceManager.recordPendingUpdates(updatedAddresses: [recipient.address])
+        }
+
+        // Stories are always sent from an ACI. We will start dropping new stories
+        // from the recipient; delete any existing ones we already have.
+        if let aci = recipient.aci {
+            Logger.info("[Recipient hiding][side effects] Delete stories from removed user.")
+            StoryManager.deleteAllStories(forSender: aci, tx: SDSDB.shimOnlyBridge(tx))
+        }
+
+        if
+            tsAccountManager.registrationState(tx: tx).isRegisteredPrimaryDevice,
+            let recipientServiceId = recipient.address.serviceId,
+            let localAci = self.tsAccountManager.localIdentifiers(tx: tx)?.aci,
+            !GroupManager.hasMutualGroupThread(
+                with: recipientServiceId,
+                localAci: localAci,
+                tx: SDSDB.shimOnlyBridge(tx)
+            )
+        {
+            // Profile key rotations should only be initiated by the primary device
+            // when we have no common groups with the hidee (because mutual group
+            // members are authorized to have profile keys of all group members).
+            Logger.info("[Recipient hiding][side effects] Rotate profile key.")
+            self.profileManager.rotateProfileKeyUponRecipientHide(
+                withTx: SDSDB.shimOnlyBridge(tx)
+            )
+            // A nice-to-have was to throw out the other user's profile key if we're
+            // not in a group with them. Product said this was not strictly necessary.
+            // Note that this _is_ something that is done on Android, so there is a
+            // slight lack of parity here.
         }
     }
 
@@ -224,13 +269,36 @@ private extension RecipientHidingManagerImpl {
     /// `HiddenRecipient` entry. This method does not get hit in
     /// that case.
     func didSetAsUnhidden(recipient: SignalRecipient, wasLocallyInitiated: Bool, tx: DBWriteTransaction) {
+        // Triggers UI updates of recipient lists.
+        NotificationCenter.default.postNotificationNameAsync(Self.hideListDidChange, object: nil)
+
+        Logger.info("[Recipient hiding][side effects] Beginning side effects of setting as unhidden.")
         if wasLocallyInitiated {
+            Logger.info("[Recipient hiding][side effects] Add to whitelist.")
             profileManager.addUser(
                 toProfileWhitelist: recipient.address,
-                userProfileWriter: .storageService,
+                userProfileWriter: .localUser,
                 transaction: SDSDB.shimOnlyBridge(tx)
             )
+            Logger.info("[Recipient hiding][side effects] Sync with storage service.")
             storageServiceManager.recordPendingUpdates(updatedAddresses: [recipient.address])
+        }
+
+        if
+            let thread = TSContactThread.getWithContactAddress(
+                recipient.address,
+                transaction: SDSDB.shimOnlyBridge(tx)
+            )
+        {
+            let profileKeyMessage = OWSProfileKeyMessage(
+                thread: thread,
+                transaction: SDSDB.shimOnlyBridge(tx)
+            )
+            Logger.info("[Recipient hiding][side effects] Share profile key.")
+            self.jobQueues.messageSenderJobQueue.add(
+                message: profileKeyMessage.asPreparer,
+                transaction: SDSDB.shimOnlyBridge(tx)
+            )
         }
     }
 }
@@ -273,5 +341,10 @@ public class RecipientHidingManagerObjcBridge: NSObject {
     @objc
     public static func isHiddenAddress(_ address: SignalServiceAddress, tx: SDSAnyReadTransaction) -> Bool {
         return DependenciesBridge.shared.recipientHidingManager.isHiddenAddress(address, tx: tx.asV2Read)
+    }
+
+    @objc
+    public static var hideListDidChange: Notification.Name {
+        return RecipientHidingManagerImpl.hideListDidChange
     }
 }

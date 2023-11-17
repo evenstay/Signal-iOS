@@ -19,10 +19,11 @@ public protocol PaymentsHelper: AnyObject {
     var isPaymentsVersionOutdated: Bool { get }
     func setPaymentsVersionOutdated(_ value: Bool)
 
-    func setArePaymentsEnabled(for address: SignalServiceAddress, hasPaymentsEnabled: Bool, transaction: SDSAnyWriteTransaction)
+    func setArePaymentsEnabled(for serviceId: ServiceIdObjC, hasPaymentsEnabled: Bool, transaction: SDSAnyWriteTransaction)
     func arePaymentsEnabled(for address: SignalServiceAddress, transaction: SDSAnyReadTransaction) -> Bool
 
     var arePaymentsEnabled: Bool { get }
+    func arePaymentsEnabled(tx: SDSAnyReadTransaction) -> Bool
     var paymentsEntropy: Data? { get }
     func enablePayments(transaction: SDSAnyWriteTransaction)
     func enablePayments(withPaymentsEntropy: Data, transaction: SDSAnyWriteTransaction) -> Bool
@@ -31,36 +32,29 @@ public protocol PaymentsHelper: AnyObject {
     func setLastKnownLocalPaymentAddressProtoData(_ data: Data?, transaction: SDSAnyWriteTransaction)
     func lastKnownLocalPaymentAddressProtoData(transaction: SDSAnyWriteTransaction) -> Data?
 
-    @objc(processIncomingPaymentSyncMessage:messageTimestamp:transaction:)
     func processIncomingPaymentSyncMessage(_ paymentProto: SSKProtoSyncMessageOutgoingPayment,
                                            messageTimestamp: UInt64,
                                            transaction: SDSAnyWriteTransaction)
 
-    func processIncomingPaymentRequest(thread: TSThread,
-                                       paymentRequest: TSPaymentRequest,
-                                       transaction: SDSAnyWriteTransaction)
-
     func processIncomingPaymentNotification(thread: TSThread,
                                             paymentNotification: TSPaymentNotification,
-                                            senderAddress: SignalServiceAddress,
+                                            senderAci: AciObjC,
                                             transaction: SDSAnyWriteTransaction)
 
-    func processIncomingPaymentCancellation(thread: TSThread,
-                                            paymentCancellation: TSPaymentCancellation,
-                                            transaction: SDSAnyWriteTransaction)
+    func processIncomingPaymentsActivationRequest(
+        thread: TSThread,
+        senderAci: AciObjC,
+        transaction: SDSAnyWriteTransaction
+    )
 
-    func processReceivedTranscriptPaymentRequest(thread: TSThread,
-                                                 paymentRequest: TSPaymentRequest,
-                                                 messageTimestamp: UInt64,
-                                                 transaction: SDSAnyWriteTransaction)
+    func processIncomingPaymentsActivatedMessage(
+        thread: TSThread,
+        senderAci: AciObjC,
+        transaction: SDSAnyWriteTransaction
+    )
 
     func processReceivedTranscriptPaymentNotification(thread: TSThread,
                                                       paymentNotification: TSPaymentNotification,
-                                                      messageTimestamp: UInt64,
-                                                      transaction: SDSAnyWriteTransaction)
-
-    func processReceivedTranscriptPaymentCancellation(thread: TSThread,
-                                                      paymentCancellation: TSPaymentCancellation,
                                                       messageTimestamp: UInt64,
                                                       transaction: SDSAnyWriteTransaction)
 
@@ -158,7 +152,7 @@ extension MockPaymentsHelper: PaymentsHelperSwift, PaymentsHelper {
 
     public func warmCaches() {}
 
-    public func setArePaymentsEnabled(for address: SignalServiceAddress, hasPaymentsEnabled: Bool, transaction: SDSAnyWriteTransaction) {
+    public func setArePaymentsEnabled(for serviceId: ServiceIdObjC, hasPaymentsEnabled: Bool, transaction: SDSAnyWriteTransaction) {
         // Do nothing.
     }
 
@@ -167,6 +161,10 @@ extension MockPaymentsHelper: PaymentsHelperSwift, PaymentsHelper {
     }
 
     public var arePaymentsEnabled: Bool {
+        owsFail("Not implemented.")
+    }
+
+    public func arePaymentsEnabled(tx: SDSAnyReadTransaction) -> Bool {
         owsFail("Not implemented.")
     }
 
@@ -206,41 +204,31 @@ extension MockPaymentsHelper: PaymentsHelperSwift, PaymentsHelper {
         owsFail("Not implemented.")
     }
 
-    public func processIncomingPaymentRequest(thread: TSThread,
-                                              paymentRequest: TSPaymentRequest,
-                                              transaction: SDSAnyWriteTransaction) {
-        owsFail("Not implemented.")
-    }
-
     public func processIncomingPaymentNotification(thread: TSThread,
                                                    paymentNotification: TSPaymentNotification,
-                                                   senderAddress: SignalServiceAddress,
+                                                   senderAci: AciObjC,
                                                    transaction: SDSAnyWriteTransaction) {
         owsFail("Not implemented.")
     }
 
-    public func processIncomingPaymentCancellation(thread: TSThread,
-                                                   paymentCancellation: TSPaymentCancellation,
-                                                   transaction: SDSAnyWriteTransaction) {
+    public func processIncomingPaymentsActivationRequest(
+        thread: TSThread,
+        senderAci: AciObjC,
+        transaction: SDSAnyWriteTransaction
+    ) {
         owsFail("Not implemented.")
     }
 
-    public func processReceivedTranscriptPaymentRequest(thread: TSThread,
-                                                        paymentRequest: TSPaymentRequest,
-                                                        messageTimestamp: UInt64,
-                                                        transaction: SDSAnyWriteTransaction) {
+    public func processIncomingPaymentsActivatedMessage(
+        thread: TSThread,
+        senderAci: AciObjC,
+        transaction: SDSAnyWriteTransaction
+    ) {
         owsFail("Not implemented.")
     }
 
     public func processReceivedTranscriptPaymentNotification(thread: TSThread,
                                                              paymentNotification: TSPaymentNotification,
-                                                             messageTimestamp: UInt64,
-                                                             transaction: SDSAnyWriteTransaction) {
-        owsFail("Not implemented.")
-    }
-
-    public func processReceivedTranscriptPaymentCancellation(thread: TSThread,
-                                                             paymentCancellation: TSPaymentCancellation,
                                                              messageTimestamp: UInt64,
                                                              transaction: SDSAnyWriteTransaction) {
         owsFail("Not implemented.")

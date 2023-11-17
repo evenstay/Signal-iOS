@@ -8,11 +8,9 @@
 #import "Signal-Swift.h"
 #import <SignalCoreKit/NSDate+OWS.h>
 #import <SignalServiceKit/AppReadiness.h>
-#import <SignalServiceKit/OWSContact.h>
 #import <SignalServiceKit/OWSFileSystem.h>
 #import <SignalServiceKit/OWSUserProfile.h>
 #import <SignalServiceKit/SignalServiceKit-Swift.h>
-#import <SignalServiceKit/TSAccountManager.h>
 #import <SignalServiceKit/TSAttachmentStream.h>
 #import <SignalServiceKit/TSInteraction.h>
 #import <SignalServiceKit/TSMessage.h>
@@ -310,7 +308,8 @@ typedef void (^OrphanDataBlock)(OWSOrphanData *);
     NSString *grdbHotswapDirectoryPath =
         [GRDBDatabaseStorageAdapter databaseDirUrlWithDirectoryMode:DirectoryModeHotswapLegacy].path;
     NSString *grdbTransferDirectoryPath = nil;
-    if (GRDBDatabaseStorageAdapter.hasAssignedTransferDirectory && TSAccountManager.shared.isTransferInProgress) {
+    if (GRDBDatabaseStorageAdapter.hasAssignedTransferDirectory &&
+        [TSAccountManagerObjcBridge isTransferInProgressWithMaybeTransaction]) {
         grdbTransferDirectoryPath =
             [GRDBDatabaseStorageAdapter databaseDirUrlWithDirectoryMode:DirectoryModeTransfer].path;
     }
@@ -370,8 +369,6 @@ typedef void (^OrphanDataBlock)(OWSOrphanData *);
     if (!self.isMainAppAndActive) {
         return nil;
     }
-
-    NSUInteger fileCount = allOnDiskFilePaths.count;
 
     // Attachments
     __block int attachmentStreamCount = 0;
@@ -531,7 +528,7 @@ typedef void (^OrphanDataBlock)(OWSOrphanData *);
         return nil;
     }
 
-    OWSLogDebug(@"fileCount: %zu", fileCount);
+    OWSLogDebug(@"fileCount: %zu", allOnDiskFilePaths.count);
     OWSLogDebug(@"totalFileSize: %lld", totalFileSize.longLongValue);
     OWSLogDebug(@"attachmentStreams: %d", attachmentStreamCount);
     OWSLogDebug(@"attachmentStreams with file paths: %zu", allAttachmentFilePaths.count);

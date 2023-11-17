@@ -247,7 +247,15 @@ final public class Theme: NSObject {
     }
 
     public class var secondaryBackgroundColor: UIColor {
-        isDarkThemeEnabled ? .ows_gray80 : .ows_gray02
+        isDarkThemeEnabled ? darkThemeSecondaryBackgroundColor : lightThemeSecondaryBackgroundColor
+    }
+
+    public class var lightThemeSecondaryBackgroundColor: UIColor {
+        .ows_gray02
+    }
+
+    public class var darkThemeSecondaryBackgroundColor: UIColor {
+        .ows_gray80
     }
 
     public class var washColor: UIColor {
@@ -416,14 +424,6 @@ final public class Theme: NSObject {
 
     public class var keyboardBackgroundColor: UIColor {
         isDarkThemeEnabled ? .ows_gray90 : .ows_gray02
-    }
-
-    public class var attachmentKeyboardItemBackgroundColor: UIColor {
-        isDarkThemeEnabled ? .ows_gray75 : .ows_gray05
-    }
-
-    public class var attachmentKeyboardItemImageColor: UIColor {
-        isDarkThemeEnabled ? UIColor(rgbHex: 0xd8d8d9) : UIColor(rgbHex: 0x636467)
     }
 
     // MARK: - Search Bar

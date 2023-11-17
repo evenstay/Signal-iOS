@@ -4,13 +4,9 @@
 //
 
 #import "OWSRequestFactory.h"
-#import "NSData+keyVersionByte.h"
 #import "OWS2FAManager.h"
-#import "OWSIdentityManager.h"
 #import "ProfileManagerProtocol.h"
 #import "SignedPrekeyRecord.h"
-#import "TSAccountManager.h"
-#import <Curve25519Kit/Curve25519.h>
 #import <SignalCoreKit/Cryptography.h>
 #import <SignalCoreKit/NSData+OWS.h>
 #import <SignalServiceKit/SignalServiceKit-Swift.h>
@@ -146,14 +142,13 @@ NSString *const OWSRequestKey_AuthKey = @"AuthKey";
     return [TSRequest requestWithUrl:[NSURL URLWithString:path] method:@"GET" parameters:@{}];
 }
 
-+ (TSRequest *)recipientPreKeyRequestWithServiceId:(UntypedServiceIdObjC *)serviceId
++ (TSRequest *)recipientPreKeyRequestWithServiceId:(ServiceIdObjC *)serviceId
                                           deviceId:(uint32_t)deviceId
                                        udAccessKey:(nullable SMKUDAccessKey *)udAccessKey
                                      requestPqKeys:(BOOL)requestPqKeys
 {
     NSString *format = requestPqKeys ? @"%@/%@/%u?pq=true" : @"%@/%@/%u";
-    NSString *path =
-        [NSString stringWithFormat:format, self.textSecureKeysAPI, serviceId.uuidValue.UUIDString, deviceId];
+    NSString *path = [NSString stringWithFormat:format, self.textSecureKeysAPI, serviceId.serviceIdString, deviceId];
 
     TSRequest *request = [TSRequest requestWithUrl:[NSURL URLWithString:path] method:@"GET" parameters:@{}];
     if (udAccessKey != nil) {
@@ -259,60 +254,7 @@ NSString *const OWSRequestKey_AuthKey = @"AuthKey";
     return [TSRequest requestWithUrl:[NSURL URLWithString:@"v1/payments/conversions"] method:@"GET" parameters:@{}];
 }
 
-+ (TSRequest *)updateSecondaryDeviceCapabilitiesRequestWithHasBackedUpMasterKey:(BOOL)hasBackedUpMasterKey
-{
-    // If you are updating capabilities for a primary device, use `updateAccountAttributes` instead
-    OWSAssertDebug(!self.tsAccountManager.isPrimaryDevice);
-
-    return [TSRequest requestWithUrl:[NSURL URLWithString:@"v1/devices/capabilities"]
-                              method:@"PUT"
-                          parameters:[self deviceCapabilitiesWithIsSecondaryDevice:YES
-                                                              hasBackedUpMasterKey:hasBackedUpMasterKey]];
-}
-
-+ (NSDictionary<NSString *, NSNumber *> *)deviceCapabilitiesForLocalDeviceWithHasBackedUpMasterKey:
-    (BOOL)hasBackedUpMasterKey
-{
-    // tsAccountManager.isPrimaryDevice only has a valid value for registered
-    // devices.
-    OWSAssertDebug(self.tsAccountManager.isRegisteredAndReady);
-
-    BOOL isSecondaryDevice = !self.tsAccountManager.isPrimaryDevice;
-    return [self deviceCapabilitiesWithIsSecondaryDevice:isSecondaryDevice hasBackedUpMasterKey:hasBackedUpMasterKey];
-}
-
-+ (NSDictionary<NSString *, NSNumber *> *)deviceCapabilitiesWithIsSecondaryDevice:(BOOL)isSecondaryDevice
-                                                             hasBackedUpMasterKey:(BOOL)hasBackedUpMasterKey
-{
-    NSMutableDictionary<NSString *, NSNumber *> *capabilities = [NSMutableDictionary new];
-    capabilities[@"gv2"] = @(YES);
-    capabilities[@"gv2-2"] = @(YES);
-    capabilities[@"gv2-3"] = @(YES);
-    capabilities[@"transfer"] = @(YES);
-    capabilities[@"announcementGroup"] = @(YES);
-    capabilities[@"senderKey"] = @(YES);
-    capabilities[@"giftBadges"] = @(YES);
-
-    if (RemoteConfig.stories || isSecondaryDevice) {
-        capabilities[@"stories"] = @(YES);
-    }
-
-    // If the storage service requires (or will require) secondary devices
-    // to have a capability in order to be linked, we might need to always
-    // set that capability here if isSecondaryDevice is true.
-
-
-    if (hasBackedUpMasterKey) {
-        capabilities[@"storage"] = @(YES);
-    }
-
-    capabilities[@"changeNumber"] = @(YES);
-
-    OWSLogInfo(@"local device capabilities: %@", capabilities);
-    return [capabilities copy];
-}
-
-+ (TSRequest *)submitMessageRequestWithServiceId:(UntypedServiceIdObjC *)serviceId
++ (TSRequest *)submitMessageRequestWithServiceId:(ServiceIdObjC *)serviceId
                                         messages:(NSArray<DeviceMessage *> *)messages
                                        timestamp:(uint64_t)timestamp
                                      udAccessKey:(nullable SMKUDAccessKey *)udAccessKey
@@ -323,7 +265,7 @@ NSString *const OWSRequestKey_AuthKey = @"AuthKey";
     // NOTE: messages may be empty; See comments in OWSDeviceManager.
     OWSAssertDebug(timestamp > 0);
 
-    NSString *path = [self.textSecureMessagesAPI stringByAppendingString:serviceId.uuidValue.UUIDString];
+    NSString *path = [self.textSecureMessagesAPI stringByAppendingString:serviceId.serviceIdString];
 
     path = [path stringByAppendingFormat:@"?story=%@", isStory ? @"true" : @"false"];
 
@@ -622,93 +564,6 @@ NSString *const OWSRequestKey_AuthKey = @"AuthKey";
     return [TSRequest requestWithUrl:[NSURL URLWithString:@"/v1/challenge"]
                               method:@"PUT"
                           parameters:@{ @"type" : @"recaptcha", @"token" : serverToken, @"captcha" : captchaToken }];
-}
-
-#pragma mark - Subscriptions
-
-+ (TSRequest *)subscriptionCreateStripePaymentMethodRequest:(NSString *)base64SubscriberID
-{
-    TSRequest *request = [TSRequest
-        requestWithUrl:[NSURL URLWithString:[NSString stringWithFormat:@"/v1/subscription/%@/create_payment_method",
-                                                      base64SubscriberID]]
-                method:@"POST"
-            parameters:@{}];
-    request.shouldHaveAuthorizationHeaders = NO;
-    [request objc_applySuccessResponsesURLRedactionStrategy];
-    return request;
-}
-
-+ (TSRequest *)subscriptionCreatePaypalPaymentMethodRequest:(NSString *)base64SubscriberID
-                                                  returnUrl:(NSURL *)returnUrl
-                                                  cancelUrl:(NSURL *)cancelUrl
-{
-    TSRequest *request = [TSRequest
-        requestWithUrl:[NSURL
-                           URLWithString:[NSString stringWithFormat:@"/v1/subscription/%@/create_payment_method/paypal",
-                                                   base64SubscriberID]]
-                method:@"POST"
-            parameters:@{ @"returnUrl" : returnUrl.absoluteString, @"cancelUrl" : cancelUrl.absoluteString }];
-    request.shouldHaveAuthorizationHeaders = NO;
-    [request objc_applySuccessResponsesURLRedactionStrategy];
-    return request;
-}
-
-+ (TSRequest *)subscriptionSetSubscriptionLevelRequest:(NSString *)base64SubscriberID level:(NSString *)level currency:(NSString *)currency idempotencyKey:(NSString *)idempotencyKey  {
-    TSRequest *request =  [TSRequest requestWithUrl:[NSURL URLWithString:[NSString stringWithFormat:@"/v1/subscription/%@/level/%@/%@/%@", base64SubscriberID, level, currency, idempotencyKey]]
-                                              method:@"PUT"
-                                         parameters:@{}];
-    request.shouldHaveAuthorizationHeaders = NO;
-    [request objc_applySuccessResponsesURLRedactionStrategy];
-    return request;
-}
-
-+ (TSRequest *)subscriptionReceiptCredentialsRequest:(NSString *)base64SubscriberID
-                                             request:(NSString *)base64ReceiptCredentialRequest
-{
-    TSRequest *request =  [TSRequest requestWithUrl:[NSURL URLWithString:[NSString stringWithFormat:@"/v1/subscription/%@/receipt_credentials", base64SubscriberID]]
-                                              method:@"POST"
-                                         parameters:@{@"receiptCredentialRequest" : base64ReceiptCredentialRequest}];
-    request.shouldHaveAuthorizationHeaders = NO;
-    [request objc_applySuccessResponsesURLRedactionStrategy];
-    return request;
-}
-
-+ (TSRequest *)subscriptionRedeemReceiptCredential:(NSString *)base64ReceiptCredentialPresentation
-{
-    TSRequest *request = [TSRequest requestWithUrl:[NSURL URLWithString:@"/v1/donation/redeem-receipt"]
-                                            method:@"POST"
-                                        parameters:@{
-                                            @"receiptCredentialPresentation" : base64ReceiptCredentialPresentation,
-                                            @"visible" : @(self.subscriptionManager.displayBadgesOnProfile),
-                                            @"primary" : @(NO)
-                                        }];
-    return request;
-}
-
-+ (TSRequest *)subscriptionGetCurrentSubscriptionLevelRequest:(NSString *)base64SubscriberID
-{
-    TSRequest *request = [TSRequest
-        requestWithUrl:[NSURL URLWithString:[NSString stringWithFormat:@"/v1/subscription/%@", base64SubscriberID]]
-                method:@"GET"
-            parameters:@{}];
-    [request objc_applySuccessResponsesURLRedactionStrategy];
-    request.shouldHaveAuthorizationHeaders = NO;
-    return request;
-}
-
-+ (TSRequest *)boostReceiptCredentialsWithPaymentIntentId:(NSString *)paymentIntentId
-                                               andRequest:(NSString *)base64ReceiptCredentialRequest
-                                      forPaymentProcessor:(NSString *)processor
-{
-    TSRequest *request = [TSRequest requestWithUrl:[NSURL URLWithString:@"/v1/subscription/boost/receipt_credentials"]
-                                            method:@"POST"
-                                        parameters:@{
-                                            @"paymentIntentId" : paymentIntentId,
-                                            @"receiptCredentialRequest" : base64ReceiptCredentialRequest,
-                                            @"processor" : processor
-                                        }];
-    request.shouldHaveAuthorizationHeaders = NO;
-    return request;
 }
 
 @end

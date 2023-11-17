@@ -5,7 +5,10 @@
 
 import AVKit
 import Foundation
+import LibSignalClient
+import SignalCoreKit
 import SignalMessaging
+import SignalServiceKit
 import UIKit
 
 public protocol ConversationPickerDelegate: AnyObject {
@@ -386,11 +389,11 @@ open class ConversationPickerViewController: OWSTableViewController2 {
                 }
             }
 
-            try! AnyThreadFinder().enumerateVisibleThreads(isArchived: false, transaction: transaction) { thread in
+            try! ThreadFinder().enumerateVisibleThreads(isArchived: false, transaction: transaction) { thread in
                 addThread(thread)
             }
 
-            try! AnyThreadFinder().enumerateVisibleThreads(isArchived: true, transaction: transaction) { thread in
+            try! ThreadFinder().enumerateVisibleThreads(isArchived: true, transaction: transaction) { thread in
                 addThread(thread)
             }
 
@@ -499,6 +502,14 @@ open class ConversationPickerViewController: OWSTableViewController2 {
                     )
 
                     if isAddressBlocked {
+                        return nil
+                    }
+
+                    let isRecipientHidden = DependenciesBridge.shared.recipientHidingManager.isHiddenAddress(
+                        account.recipientAddress,
+                        tx: transaction.asV2Read
+                    )
+                    if isRecipientHidden {
                         return nil
                     }
 
@@ -674,7 +685,7 @@ open class ConversationPickerViewController: OWSTableViewController2 {
             databaseStorage: databaseStorage,
             blockingManager: blockingManager,
             recipientHidingManager: DependenciesBridge.shared.recipientHidingManager,
-            accountManager: tsAccountManager,
+            accountManager: DependenciesBridge.shared.tsAccountManager,
             contactsManager: contactsManager,
             fromViewController: self
         )
@@ -1221,6 +1232,10 @@ extension ConversationPickerViewController: UISearchBarDelegate {
 
 extension ConversationPickerViewController: ApprovalFooterDelegate {
     public func approvalFooterDelegateDidRequestProceed(_ approvalFooterView: ApprovalFooterView) {
+        tryToProceed(untrustedThreshold: presentationTime?.addingTimeInterval(-OWSIdentityManagerImpl.Constants.defaultUntrustedInterval))
+    }
+
+    private func tryToProceed(untrustedThreshold: Date?) {
         guard let pickerDelegate = pickerDelegate else {
             owsFailDebug("Missing delegate.")
             return
@@ -1232,7 +1247,7 @@ extension ConversationPickerViewController: ApprovalFooterDelegate {
         }
 
         if shouldBatchUpdateIdentityKeys {
-            guard let presentationTime = presentationTime else {
+            guard let untrustedThreshold else {
                 owsFailDebug("Unexpectedly missing presentation time")
                 return
             }
@@ -1243,15 +1258,18 @@ extension ConversationPickerViewController: ApprovalFooterDelegate {
                 }
             }
 
-            // Before continuing, prompt for any safety number changes that
-            // we have learned about since the view was presented.
+            // Before continuing, prompt for any safety number changes that we have
+            // learned about since the view was presented (to handle batch identity key
+            // updates) or since we last checked (to handle the recursive passes
+            // through this method).
+            let newUntrustedThreshold = Date()
             let didHaveSafetyNumberChanges = SafetyNumberConfirmationSheet.presentIfNecessary(
                 addresses: selectedRecipients,
                 confirmationText: SafetyNumberStrings.confirmSendButton,
-                untrustedThreshold: abs(presentationTime.timeIntervalSinceNow) + OWSIdentityManager.minimumUntrustedThreshold
+                untrustedThreshold: untrustedThreshold
             ) { didConfirmSafetyNumberChange in
                 guard didConfirmSafetyNumberChange else { return }
-                pickerDelegate.conversationPickerDidCompleteSelection(self)
+                self.tryToProceed(untrustedThreshold: newUntrustedThreshold)
             }
 
             guard !didHaveSafetyNumberChanges else { return }
@@ -1319,7 +1337,7 @@ internal class ConversationPickerCell: ContactTableViewCell {
             configuration = ContactCellConfiguration(groupThread: groupThread, localUserDisplayMode: .noteToSelf)
         case .privateStory(_, let isMyStory):
             if isMyStory {
-                guard let localAddress = tsAccountManager.localAddress else {
+                guard let localAddress = DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction?.aciAddress else {
                     owsFailDebug("Unexpectedly missing local address")
                     return
                 }
@@ -1463,13 +1481,14 @@ public class ConversationPickerSelection: Dependencies {
 
         guard delegate?.shouldBatchUpdateIdentityKeys == true else { return }
 
-        let recipients: [SignalServiceAddress] = databaseStorage.read { transaction in
+        let recipients: [ServiceId] = databaseStorage.read { transaction in
             guard let thread = conversation.getExistingThread(transaction: transaction) else { return [] }
-            return thread.recipientAddresses(with: transaction)
+            return thread.recipientAddresses(with: transaction).compactMap { $0.serviceId }
         }
 
         Logger.info("Batch updating identity keys for \(recipients.count) selected recipients.")
-        identityManager.batchUpdateIdentityKeys(addresses: recipients).done {
+        let identityManager = DependenciesBridge.shared.identityManager
+        identityManager.batchUpdateIdentityKeys(for: recipients).done {
             Logger.info("Successfully batch updated identity keys.")
         }.catch { error in
             owsFailDebug("Failed to batch update identity keys: \(error)")

@@ -11,6 +11,13 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface TSContactThread : TSThread
 
+/// Represents the uppercase ServiceId string for this contact.
+/// - Note
+/// This property name includes `UUID` for compatibility with SDS (to match the
+/// SQLite column), but **may not contain a valid UUID string**.
+@property (nonatomic, nullable) NSString *contactUUID;
+@property (nonatomic, nullable) NSString *contactPhoneNumber;
+
 + (instancetype)new NS_UNAVAILABLE;
 - (instancetype)init NS_UNAVAILABLE;
 - (instancetype)initWithUniqueId:(NSString *)uniqueId NS_UNAVAILABLE;
@@ -25,9 +32,11 @@ NS_ASSUME_NONNULL_BEGIN
                                        uniqueId:(NSString *)uniqueId
                   conversationColorNameObsolete:(NSString *)conversationColorNameObsolete
                                    creationDate:(nullable NSDate *)creationDate
+                            editTargetTimestamp:(nullable NSNumber *)editTargetTimestamp
                              isArchivedObsolete:(BOOL)isArchivedObsolete
                          isMarkedUnreadObsolete:(BOOL)isMarkedUnreadObsolete
-                           lastInteractionRowId:(int64_t)lastInteractionRowId
+                           lastInteractionRowId:(uint64_t)lastInteractionRowId
+                         lastSentStoryTimestamp:(nullable NSNumber *)lastSentStoryTimestamp
                       lastVisibleSortIdObsolete:(uint64_t)lastVisibleSortIdObsolete
     lastVisibleSortIdOnScreenPercentageObsolete:(double)lastVisibleSortIdOnScreenPercentageObsolete
                         mentionNotificationMode:(TSThreadMentionNotificationMode)mentionNotificationMode
@@ -35,7 +44,9 @@ NS_ASSUME_NONNULL_BEGIN
                          messageDraftBodyRanges:(nullable MessageBodyRanges *)messageDraftBodyRanges
                          mutedUntilDateObsolete:(nullable NSDate *)mutedUntilDateObsolete
                     mutedUntilTimestampObsolete:(uint64_t)mutedUntilTimestampObsolete
-                          shouldThreadBeVisible:(BOOL)shouldThreadBeVisible NS_UNAVAILABLE;
+                          shouldThreadBeVisible:(BOOL)shouldThreadBeVisible
+                                  storyViewMode:(TSThreadStoryViewMode)storyViewMode NS_UNAVAILABLE;
+
 
 // --- CODE GENERATION MARKER
 

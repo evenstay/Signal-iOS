@@ -9,8 +9,7 @@ import SignalUI
 
 protocol AttachmentKeyboardDelegate: AnyObject {
     func didSelectRecentPhoto(asset: PHAsset, attachment: SignalAttachment)
-    func didTapGalleryButton()
-    func didTapCamera()
+    func didTapPhotos()
     func didTapGif()
     func didTapFile()
     func didTapContact()
@@ -20,129 +19,41 @@ protocol AttachmentKeyboardDelegate: AnyObject {
 }
 
 class AttachmentKeyboard: CustomKeyboard {
+
     weak var delegate: AttachmentKeyboardDelegate?
 
-    private let mainStackView = UIStackView()
-
-    private let recentPhotosCollectionView = RecentPhotosCollectionView()
-    private let recentPhotosErrorView = RecentPhotosErrorView()
-    private let galleryButton = UIButton()
-
-    private let attachmentFormatPickerView = AttachmentFormatPickerView()
-
-    private lazy var hasRecentsHeightConstraint = attachmentFormatPickerView.autoMatch(
-        .height,
-        to: .height,
-        of: recentPhotosCollectionView,
-        withMultiplier: 1,
-        relation: .lessThanOrEqual
-    )
-    private lazy var recentPhotosErrorHeightConstraint = attachmentFormatPickerView.autoMatch(
-        .height,
-        to: .height,
-        of: recentPhotosErrorView,
-        withMultiplier: 1,
-        relation: .lessThanOrEqual
-    )
-
-    private var mediaLibraryAuthorizationStatus: PHAuthorizationStatus {
-        if #available(iOS 14, *) {
-            return PHPhotoLibrary.authorizationStatus(for: .readWrite)
-        } else {
-            return PHPhotoLibrary.authorizationStatus()
-        }
-    }
+    private lazy var recentPhotosCollectionView: RecentPhotosCollectionView = {
+        let collectionView = RecentPhotosCollectionView()
+        collectionView.recentPhotosDelegate = self
+        return collectionView
+    }()
+    private lazy var attachmentFormatPickerView: AttachmentFormatPickerView = {
+        let pickerView = AttachmentFormatPickerView(isGroup: delegate?.isGroup ?? false)
+        pickerView.attachmentFormatPickerDelegate = self
+        pickerView.setContentHuggingVerticalHigh()
+        pickerView.setCompressionResistanceVerticalHigh()
+        return pickerView
+    }()
 
     // MARK: -
 
-    override init() {
+    init(delegate: AttachmentKeyboardDelegate?) {
+        self.delegate = delegate
+
         super.init()
 
         backgroundColor = Theme.backgroundColor
 
-        mainStackView.axis = .vertical
-        mainStackView.spacing = 8
-
-        contentView.addSubview(mainStackView)
-        mainStackView.autoPinWidthToSuperview()
-        mainStackView.autoPinEdge(toSuperviewEdge: .top, withInset: UIDevice.current.isIPad ? 8 : 0)
-        mainStackView.autoPinEdge(toSuperviewSafeArea: .bottom, withInset: 8)
-
-        setupRecentPhotos()
-        setupGalleryButton()
-        setupFormatPicker()
+        let stackView = UIStackView(arrangedSubviews: [ recentPhotosCollectionView, attachmentFormatPickerView ])
+        stackView.axis = .vertical
+        contentView.addSubview(stackView)
+        stackView.autoPinWidthToSuperview()
+        stackView.autoPinEdge(toSuperviewEdge: .top, withInset: 12)
+        stackView.autoPinEdge(toSuperviewSafeArea: .bottom)
     }
 
     required init?(coder aDecoder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
-    }
-
-    // MARK: Recent Photos
-
-    private func setupRecentPhotos() {
-        recentPhotosCollectionView.recentPhotosDelegate = self
-        mainStackView.addArrangedSubview(recentPhotosCollectionView)
-
-        mainStackView.addArrangedSubview(recentPhotosErrorView)
-        recentPhotosErrorView.isHidden = true
-    }
-
-    private func showRecentPhotos() {
-        guard recentPhotosCollectionView.hasPhotos else {
-            return showRecentPhotosError()
-        }
-
-        galleryButton.isHidden = false
-        recentPhotosErrorHeightConstraint.isActive = false
-        hasRecentsHeightConstraint.isActive = true
-        recentPhotosErrorView.isHidden = true
-        recentPhotosCollectionView.isHidden = false
-    }
-
-    private func showRecentPhotosError() {
-        recentPhotosErrorView.hasMediaLibraryAccess = isMediaLibraryAccessGranted
-
-        galleryButton.isHidden = true
-        hasRecentsHeightConstraint.isActive = false
-        recentPhotosErrorHeightConstraint.isActive = true
-        recentPhotosCollectionView.isHidden = true
-        recentPhotosErrorView.isHidden = false
-    }
-
-    // MARK: Gallery Button
-
-    private func setupGalleryButton() {
-        addSubview(galleryButton)
-        galleryButton.setTemplateImageName("album-tilt-28", tintColor: .white)
-        galleryButton.setBackgroundImage(UIImage(color: UIColor.black.withAlphaComponent(0.7)), for: .normal)
-
-        galleryButton.autoSetDimensions(to: CGSize(square: 48))
-        galleryButton.clipsToBounds = true
-        galleryButton.layer.cornerRadius = 24
-
-        galleryButton.autoPinEdge(toSuperviewSafeArea: .leading, withInset: 16)
-        galleryButton.autoPinEdge(.bottom, to: .bottom, of: recentPhotosCollectionView, withOffset: -8)
-
-        galleryButton.addTarget(self, action: #selector(didTapGalleryButton), for: .touchUpInside)
-    }
-
-    @objc
-    private func didTapGalleryButton() {
-        delegate?.didTapGalleryButton()
-    }
-
-    // MARK: Format Picker
-
-    private func setupFormatPicker() {
-        attachmentFormatPickerView.attachmentFormatPickerDelegate = self
-
-        mainStackView.addArrangedSubview(attachmentFormatPickerView)
-        NSLayoutConstraint.autoSetPriority(.defaultLow) {
-            attachmentFormatPickerView.autoSetDimension(.height, toSize: 80)
-        }
-
-        attachmentFormatPickerView.setCompressionResistanceLow()
-        attachmentFormatPickerView.setContentHuggingLow()
     }
 
     // MARK: -
@@ -150,60 +61,40 @@ class AttachmentKeyboard: CustomKeyboard {
     override func willPresent() {
         super.willPresent()
         checkPermissions()
+        recentPhotosCollectionView.prepareForPresentation()
+        attachmentFormatPickerView.prepareForPresentation()
     }
 
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        updateItemSizes()
-    }
-
-    private func updateItemSizes() {
-        // The items should always expand to fit the height of their collection view.
-
-        // If we have space we will show two rows of recent photos (e.g. iPad in landscape).
-        if recentPhotosCollectionView.height > 250 {
-            recentPhotosCollectionView.itemSize = CGSize(square:
-                (recentPhotosCollectionView.height - recentPhotosCollectionView.spaceBetweenRows) / 2
-            )
-
-        // Otherwise, assume the recent photos take up the full height of the collection view.
-        } else {
-            recentPhotosCollectionView.itemSize = CGSize(square: recentPhotosCollectionView.height)
-        }
-
-        // There is only ever one row for the attachment format picker.
-        attachmentFormatPickerView.itemSize = CGSize(square: attachmentFormatPickerView.height)
+    override func wasPresented() {
+        super.wasPresented()
+        recentPhotosCollectionView.performPresentationAnimation()
+        attachmentFormatPickerView.performPresentationAnimation()
     }
 
     private func checkPermissions() {
-        switch mediaLibraryAuthorizationStatus {
-        case .authorized, .limited:
-            showRecentPhotos()
-        case .denied, .restricted:
-            showRecentPhotosError()
-        case .notDetermined:
-            PHPhotoLibrary.requestAuthorization { _ in
-                DispatchQueue.main.async { self.checkPermissions() }
+        let authorizationStatus: PHAuthorizationStatus = {
+            if #available(iOS 14, *) {
+                return PHPhotoLibrary.authorizationStatus(for: .readWrite)
+            } else {
+                return PHPhotoLibrary.authorizationStatus()
             }
-        @unknown default:
-            showRecentPhotosError()
+        }()
+        guard authorizationStatus != .notDetermined else {
+            let handler: (PHAuthorizationStatus) -> Void = { status in
+                self.recentPhotosCollectionView.mediaLibraryAuthorizationStatus = status
+            }
+            if #available(iOS 14, *) {
+                PHPhotoLibrary.requestAuthorization(for: .readWrite, handler: handler)
+            } else {
+                PHPhotoLibrary.requestAuthorization(handler)
+            }
+            return
         }
+        recentPhotosCollectionView.mediaLibraryAuthorizationStatus = authorizationStatus
     }
 }
 
 extension AttachmentKeyboard: RecentPhotosDelegate {
-    var isMediaLibraryAccessGranted: Bool {
-        if #available(iOS 14, *) {
-            return [.authorized, .limited].contains(mediaLibraryAuthorizationStatus)
-        } else {
-            return mediaLibraryAuthorizationStatus == .authorized
-        }
-    }
-
-    var isMediaLibraryAccessLimited: Bool {
-        guard #available(iOS 14, *) else { return false }
-        return mediaLibraryAuthorizationStatus == .limited
-    }
 
     func didSelectRecentPhoto(asset: PHAsset, attachment: SignalAttachment) {
         delegate?.didSelectRecentPhoto(asset: asset, attachment: attachment)
@@ -211,8 +102,8 @@ extension AttachmentKeyboard: RecentPhotosDelegate {
 }
 
 extension AttachmentKeyboard: AttachmentFormatPickerDelegate {
-    func didTapCamera() {
-        delegate?.didTapCamera()
+    func didTapPhotos() {
+        delegate?.didTapPhotos()
     }
 
     func didTapGif() {
@@ -233,104 +124,5 @@ extension AttachmentKeyboard: AttachmentFormatPickerDelegate {
 
     func didTapPayment() {
         delegate?.didTapPayment()
-    }
-
-    var isGroup: Bool {
-        guard let delegate = delegate else {
-            owsFailDebug("Missing delegate.")
-            return false
-        }
-        return delegate.isGroup
-    }
-}
-
-private class RecentPhotosErrorView: UIView {
-    var hasMediaLibraryAccess = false {
-        didSet {
-            guard hasMediaLibraryAccess != oldValue else { return }
-            updateMessaging()
-        }
-    }
-
-    let label = UILabel()
-    let buttonWrapper = UIView()
-
-    override init(frame: CGRect) {
-        super.init(frame: .zero)
-
-        layoutMargins = UIEdgeInsets(top: 0, leading: 8, bottom: 0, trailing: 8)
-
-        let stackView = UIStackView()
-
-        stackView.addBackgroundView(withBackgroundColor: Theme.attachmentKeyboardItemBackgroundColor, cornerRadius: 4)
-
-        stackView.axis = .vertical
-        stackView.spacing = 8
-        stackView.distribution = .fill
-        stackView.isLayoutMarginsRelativeArrangement = true
-        stackView.layoutMargins = UIEdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16)
-
-        addSubview(stackView)
-        stackView.autoPinEdgesToSuperviewMargins()
-
-        let topSpacer = UIView.vStretchingSpacer()
-        stackView.addArrangedSubview(topSpacer)
-
-        label.numberOfLines = 0
-        label.lineBreakMode = .byWordWrapping
-        label.textColor = Theme.primaryTextColor
-        label.font = .dynamicTypeSubheadlineClamped
-        label.textAlignment = .center
-
-        stackView.addArrangedSubview(label)
-
-        let button = OWSFlatButton()
-        button.setBackgroundColors(upColor: .ows_accentBlue)
-        button.setTitle(
-            title: OWSLocalizedString(
-                "ATTACHMENT_KEYBOARD_GIVE_PHOTOS_ACCESS",
-                comment: "A message on a button prompting the user to go settings to grant Signal photos access."
-            ),
-            font: .dynamicTypeBodyClamped,
-            titleColor: .white
-        )
-        button.useDefaultCornerRadius()
-        button.contentEdgeInsets = UIEdgeInsets(top: 3, leading: 8, bottom: 3, trailing: 8)
-        button.setPressedBlock {
-            let openAppSettingsUrl = URL(string: UIApplication.openSettingsURLString)!
-            UIApplication.shared.open(openAppSettingsUrl)
-        }
-
-        buttonWrapper.addSubview(button)
-        button.autoPinHeightToSuperview()
-        button.autoHCenterInSuperview()
-
-        stackView.addArrangedSubview(buttonWrapper)
-
-        let bottomSpacer = UIView.vStretchingSpacer()
-        stackView.addArrangedSubview(bottomSpacer)
-
-        topSpacer.autoMatch(.height, to: .height, of: bottomSpacer)
-
-        updateMessaging()
-    }
-
-    required init?(coder aDecoder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-
-    func updateMessaging() {
-        buttonWrapper.isHidden = hasMediaLibraryAccess
-        if hasMediaLibraryAccess {
-            label.text = OWSLocalizedString(
-                "ATTACHMENT_KEYBOARD_NO_PHOTOS",
-                comment: "A string indicating to the user that once they take photos, they'll be able to send them from this view."
-            )
-        } else {
-            label.text = OWSLocalizedString(
-                "ATTACHMENT_KEYBOARD_NO_PHOTO_ACCESS",
-                comment: "A string indicating to the user that they'll be able to send photos from this view once they enable photo access."
-            )
-        }
     }
 }

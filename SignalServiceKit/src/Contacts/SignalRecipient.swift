@@ -34,7 +34,18 @@ public final class SignalRecipient: NSObject, NSCopying, SDSCodableModel, Decoda
 
     public var id: RowId?
     public let uniqueId: String
+    /// Represents the ACI for this SignalRecipient.
+    ///
+    /// This value has historically been represented as a String (from the ObjC
+    /// days). If we change its type to Aci, then we may fail to fetch database
+    /// rows. To avoid introducing new failure points, it should remain a String
+    /// whose contents we validate at time-of-use rather than time-of-fetch.
     public var aciString: String?
+    /// Represents the PNI for this SignalRecipient.
+    ///
+    /// These have always been strongly typed for their entire existence, so
+    /// it's safe to check it at time-of-fetch and throw an error.
+    public var pni: Pni?
     public var phoneNumber: String?
     private(set) public var deviceIds: [UInt32]
     private(set) public var unregisteredAtTimestamp: UInt64?
@@ -44,27 +55,45 @@ public final class SignalRecipient: NSObject, NSCopying, SDSCodableModel, Decoda
         set { aciString = newValue?.serviceIdUppercaseString }
     }
 
-    public var serviceId: UntypedServiceId? {
-        get { UntypedServiceId(uuidString: aciString) }
-        set { aciString = newValue?.uuidValue.uuidString }
+    public var isEmpty: Bool {
+        return aciString == nil && phoneNumber == nil && pni == nil
     }
 
     public var address: SignalServiceAddress {
-        SignalServiceAddress(aciString: aciString, phoneNumber: phoneNumber)
+        SignalServiceAddress(serviceId: aci ?? pni, phoneNumber: phoneNumber)
     }
 
-    public convenience init(aci: Aci?, phoneNumber: E164?) {
-        self.init(aci: aci, phoneNumber: phoneNumber, deviceIds: [])
+    public convenience init(aci: Aci?, pni: Pni?, phoneNumber: E164?) {
+        self.init(aci: aci, pni: pni, phoneNumber: phoneNumber, deviceIds: [])
     }
 
-    public convenience init(aci: Aci?, phoneNumber: E164?, deviceIds: [UInt32]) {
+    public convenience init(aci: Aci?, pni: Pni?, phoneNumber: E164?, deviceIds: [UInt32]) {
         self.init(
             id: nil,
             uniqueId: UUID().uuidString,
             aciString: aci?.serviceIdUppercaseString,
+            pni: pni,
             phoneNumber: phoneNumber?.stringValue,
             deviceIds: deviceIds,
             unregisteredAtTimestamp: deviceIds.isEmpty ? Constants.distantPastUnregisteredTimestamp : nil
+        )
+    }
+
+    public static func proofOfConcept_forBackup(
+        aci: Aci?,
+        pni: Pni?,
+        phoneNumber: E164?,
+        isRegistered: Bool?,
+        unregisteredAtTimestamp: UInt64?
+    ) -> Self {
+        return Self.init(
+            id: nil,
+            uniqueId: UUID().uuidString,
+            aciString: aci?.serviceIdUppercaseString,
+            pni: pni,
+            phoneNumber: phoneNumber?.stringValue,
+            deviceIds: isRegistered == true ? [OWSDevice.primaryDeviceId] : [],
+            unregisteredAtTimestamp: unregisteredAtTimestamp
         )
     }
 
@@ -72,6 +101,7 @@ public final class SignalRecipient: NSObject, NSCopying, SDSCodableModel, Decoda
         id: RowId?,
         uniqueId: String,
         aciString: String?,
+        pni: Pni?,
         phoneNumber: String?,
         deviceIds: [UInt32],
         unregisteredAtTimestamp: UInt64?
@@ -79,16 +109,22 @@ public final class SignalRecipient: NSObject, NSCopying, SDSCodableModel, Decoda
         self.id = id
         self.uniqueId = uniqueId
         self.aciString = aciString
+        self.pni = pni
         self.phoneNumber = phoneNumber
         self.deviceIds = deviceIds
         self.unregisteredAtTimestamp = unregisteredAtTimestamp
     }
 
     public func copy(with zone: NSZone? = nil) -> Any {
+        return copyRecipient()
+    }
+
+    public func copyRecipient() -> SignalRecipient {
         return SignalRecipient(
             id: id,
             uniqueId: uniqueId,
             aciString: aciString,
+            pni: pni,
             phoneNumber: phoneNumber,
             deviceIds: deviceIds,
             unregisteredAtTimestamp: unregisteredAtTimestamp
@@ -102,6 +138,7 @@ public final class SignalRecipient: NSObject, NSCopying, SDSCodableModel, Decoda
         guard id == otherRecipient.id else { return false }
         guard uniqueId == otherRecipient.uniqueId else { return false }
         guard aciString == otherRecipient.aciString else { return false }
+        guard pni == otherRecipient.pni else { return false }
         guard phoneNumber == otherRecipient.phoneNumber else { return false }
         guard deviceIds == otherRecipient.deviceIds else { return false }
         guard unregisteredAtTimestamp == otherRecipient.unregisteredAtTimestamp else { return false }
@@ -113,6 +150,7 @@ public final class SignalRecipient: NSObject, NSCopying, SDSCodableModel, Decoda
         hasher.combine(id)
         hasher.combine(uniqueId)
         hasher.combine(aciString)
+        hasher.combine(pni)
         hasher.combine(phoneNumber)
         hasher.combine(deviceIds)
         hasher.combine(unregisteredAtTimestamp)
@@ -124,6 +162,7 @@ public final class SignalRecipient: NSObject, NSCopying, SDSCodableModel, Decoda
         case recordType
         case uniqueId
         case aciString = "recipientUUID"
+        case pni
         case phoneNumber = "recipientPhoneNumber"
         case deviceIds = "devices"
         case unregisteredAtTimestamp
@@ -141,6 +180,7 @@ public final class SignalRecipient: NSObject, NSCopying, SDSCodableModel, Decoda
         id = try container.decodeIfPresent(RowId.self, forKey: .id)
         uniqueId = try container.decode(String.self, forKey: .uniqueId)
         aciString = try container.decodeIfPresent(String.self, forKey: .aciString)
+        pni = try container.decodeIfPresent(String.self, forKey: .pni).map { try Pni.parseFrom(serviceIdString: $0) }
         phoneNumber = try container.decodeIfPresent(String.self, forKey: .phoneNumber)
         let encodedDeviceIds = try container.decode(Data.self, forKey: .deviceIds)
         let deviceSetObjC: NSOrderedSet = try LegacySDSSerializer().deserializeLegacySDSData(encodedDeviceIds, propertyName: "devices")
@@ -158,6 +198,7 @@ public final class SignalRecipient: NSObject, NSCopying, SDSCodableModel, Decoda
         try container.encode(Self.recordType, forKey: .recordType)
         try container.encode(uniqueId, forKey: .uniqueId)
         try container.encodeIfPresent(aciString, forKey: .aciString)
+        try container.encodeIfPresent(pni?.serviceIdUppercaseString, forKey: .pni)
         try container.encodeIfPresent(phoneNumber, forKey: .phoneNumber)
         let deviceSetObjC = NSOrderedSet(array: deviceIds.map { NSNumber(value: $0) })
         let encodedDevices = LegacySDSSerializer().serializeAsLegacySDSData(property: deviceSetObjC)
@@ -173,8 +214,7 @@ public final class SignalRecipient: NSObject, NSCopying, SDSCodableModel, Decoda
         tx: SDSAnyReadTransaction
     ) -> SignalRecipient? {
         owsAssertDebug(address.isValid)
-        let readCache = modelReadCaches.signalRecipientReadCache
-        guard let signalRecipient = readCache.getSignalRecipient(address: address, transaction: tx) else {
+        guard let signalRecipient = SignalRecipientFinder().signalRecipient(for: address, tx: tx) else {
             return nil
         }
         if onlyIfRegistered {
@@ -235,6 +275,14 @@ public final class SignalRecipient: NSObject, NSCopying, SDSCodableModel, Decoda
         anyOverwritingUpdate(transaction: tx)
     }
 
+    public func markAsRegisteredAndSave(
+        source: ModifySource = .local,
+        deviceId: UInt32,
+        tx: DBWriteTransaction
+    ) {
+        self.markAsRegisteredAndSave(source: source, deviceId: deviceId, tx: SDSDB.shimOnlyBridge(tx))
+    }
+
     public func modifyAndSave(deviceIdsToAdd: [UInt32], deviceIdsToRemove: [UInt32], tx: SDSAnyWriteTransaction) {
         if deviceIdsToAdd.isEmpty, deviceIdsToRemove.isEmpty {
             return
@@ -255,7 +303,7 @@ public final class SignalRecipient: NSObject, NSCopying, SDSCodableModel, Decoda
             self.profileManager.fetchProfile(for: self.address, authedAccount: .implicit())
 
             if self.address.isLocalAddress {
-                self.socketManager.cycleSocket()
+                DependenciesBridge.shared.socketManager.cycleSocket()
             }
         }
     }
@@ -296,129 +344,6 @@ public final class SignalRecipient: NSObject, NSCopying, SDSCodableModel, Decoda
         }
     }
 
-    // MARK: - Callbacks
-
-    public func anyDidInsert(transaction tx: SDSAnyWriteTransaction) {
-        modelReadCaches.signalRecipientReadCache.didInsertOrUpdate(signalRecipient: self, transaction: tx)
-    }
-
-    public func anyDidUpdate(transaction tx: SDSAnyWriteTransaction) {
-        modelReadCaches.signalRecipientReadCache.didInsertOrUpdate(signalRecipient: self, transaction: tx)
-    }
-
-    public func anyDidRemove(transaction tx: SDSAnyWriteTransaction) {
-        modelReadCaches.signalRecipientReadCache.didRemove(signalRecipient: self, transaction: tx)
-        storageServiceManager.recordPendingUpdates(updatedAccountIds: [uniqueId])
-    }
-
-    public func anyDidFetchOne(transaction tx: SDSAnyReadTransaction) {
-        modelReadCaches.signalRecipientReadCache.didReadSignalRecipient(self, transaction: tx)
-    }
-
-    public func anyDidEnumerateOne(transaction tx: SDSAnyReadTransaction) {
-        modelReadCaches.signalRecipientReadCache.didReadSignalRecipient(self, transaction: tx)
-    }
-
-    // MARK: - Contact Merging
-
-    public static let phoneNumberDidChange = Notification.Name("phoneNumberDidChange")
-    public static let notificationKeyPhoneNumber = "phoneNumber"
-    public static let notificationKeyUUID = "UUID"
-
-    fileprivate static func didUpdatePhoneNumber(
-        aciString: String,
-        oldPhoneNumber: String?,
-        newPhoneNumber: String?,
-        transaction: SDSAnyWriteTransaction
-    ) {
-        let aci = Aci.parseFrom(aciString: aciString)
-
-        let oldAddress = SignalServiceAddress(
-            serviceId: aci,
-            phoneNumber: oldPhoneNumber,
-            ignoreCache: true
-        )
-        let newAddress = SignalServiceAddress(
-            serviceId: aci,
-            phoneNumber: newPhoneNumber,
-            ignoreCache: true
-        )
-
-        // The "obsolete" address is the address with *only* the just-removed phone
-        // number. (We *just* removed it, so we don't know its serviceId.)
-        let obsoleteAddress = oldPhoneNumber.map { SignalServiceAddress(uuid: nil, phoneNumber: $0, ignoreCache: true) }
-
-        let isWhitelisted = profileManager.isUser(inProfileWhitelist: oldAddress, transaction: transaction)
-
-        transaction.addAsyncCompletion(queue: .global()) {
-            let phoneNumbers: [String] = [oldPhoneNumber, newPhoneNumber].compactMap { $0 }
-            for phoneNumber in phoneNumbers {
-                let userInfo: [AnyHashable: Any] = [
-                    Self.notificationKeyUUID: aciString,
-                    Self.notificationKeyPhoneNumber: phoneNumber
-                ]
-                NotificationCenter.default.postNotificationNameAsync(Self.phoneNumberDidChange,
-                                                                     object: nil,
-                                                                     userInfo: userInfo)
-            }
-        }
-
-        if let contactThread = AnyContactThreadFinder().contactThread(for: newAddress, transaction: transaction) {
-            SDSDatabaseStorage.shared.touch(thread: contactThread, shouldReindex: true, transaction: transaction)
-        }
-
-        if let aci {
-            if !newAddress.isLocalAddress {
-                self.versionedProfiles.clearProfileKeyCredential(
-                    for: AciObjC(aci),
-                    transaction: transaction
-                )
-
-                if let obsoleteAddress {
-                    // Remove old address from profile whitelist.
-                    profileManager.removeUser(
-                        fromProfileWhitelist: obsoleteAddress,
-                        userProfileWriter: .changePhoneNumber,
-                        transaction: transaction
-                    )
-                }
-
-                // Ensure new address reflects old address' profile whitelist state.
-                if isWhitelisted {
-                    profileManager.addUser(
-                        toProfileWhitelist: newAddress,
-                        userProfileWriter: .changePhoneNumber,
-                        transaction: transaction
-                    )
-                } else {
-                    profileManager.removeUser(
-                        fromProfileWhitelist: newAddress,
-                        userProfileWriter: .changePhoneNumber,
-                        transaction: transaction
-                    )
-                }
-            }
-        } else {
-            owsFailDebug("Missing or invalid UUID")
-        }
-
-        if let obsoleteAddress {
-            transaction.addAsyncCompletion(queue: .global()) {
-                Self.udManager.setUnidentifiedAccessMode(.unknown, address: obsoleteAddress)
-            }
-        }
-
-        if aci != nil {
-            transaction.addAsyncCompletion(queue: .global()) {
-                Self.udManager.setUnidentifiedAccessMode(.unknown, address: newAddress)
-
-                if !CurrentAppContext().isRunningTests {
-                    ProfileFetcherJob.fetchProfile(address: newAddress, ignoreThrottling: true)
-                }
-            }
-        }
-    }
-
     @objc
     public var addressComponentsDescription: String {
         SignalServiceAddress.addressComponentsDescription(uuidString: aciString, phoneNumber: phoneNumber)
@@ -433,37 +358,5 @@ public extension String.StringInterpolation {
     }
     mutating func appendInterpolation(signalRecipientColumnFullyQualified column: SignalRecipient.CodingKeys) {
         appendLiteral(SignalRecipient.columnName(column, fullyQualified: true))
-    }
-}
-
-// MARK: -
-
-class SignalRecipientMergerTemporaryShims: RecipientMergerTemporaryShims {
-    private let sessionStore: SignalSessionStore
-
-    init(sessionStore: SignalSessionStore) {
-        self.sessionStore = sessionStore
-    }
-
-    func didUpdatePhoneNumber(
-        aciString: String,
-        oldPhoneNumber: String?,
-        newPhoneNumber: E164?,
-        transaction: DBWriteTransaction
-    ) {
-        SignalRecipient.didUpdatePhoneNumber(
-            aciString: aciString,
-            oldPhoneNumber: oldPhoneNumber,
-            newPhoneNumber: newPhoneNumber?.stringValue,
-            transaction: SDSDB.shimOnlyBridge(transaction)
-        )
-    }
-
-    func hasActiveSignalProtocolSession(recipientId: String, deviceId: Int32, transaction: DBWriteTransaction) -> Bool {
-        sessionStore.containsActiveSession(
-            forAccountId: recipientId,
-            deviceId: deviceId,
-            tx: transaction
-        )
     }
 }

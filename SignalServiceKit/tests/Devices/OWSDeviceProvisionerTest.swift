@@ -40,21 +40,23 @@ class OWSDeviceProvisionerTest: XCTestCase {
 
         let myAciIdentityKeyPair = IdentityKeyPair.generate()
         let myPniIdentityKeyPair = IdentityKeyPair.generate()
-        let myAci = UUID()
+        let myAci = Aci.randomForTesting()
         let myPhoneNumber = "+16505550100"
-        let myPni = UUID()
+        let myPni = Pni.randomForTesting()
         let profileKey = Cryptography.generateRandomBytes(UInt(ProfileKey.SIZE))
+        let masterKey = Cryptography.generateRandomBytes(SVR.masterKeyLengthBytes)
         let readReceiptsEnabled = true
 
         let provisioner = OWSDeviceProvisioner(
             myAciIdentityKeyPair: myAciIdentityKeyPair,
             myPniIdentityKeyPair: myPniIdentityKeyPair,
-            theirPublicKey: Data(linkedDeviceCipher.secondaryDevicePublicKey.keyData),
+            theirPublicKey: linkedDeviceCipher.secondaryDevicePublicKey,
             theirEphemeralDeviceId: "",
             myAci: myAci,
             myPhoneNumber: myPhoneNumber,
             myPni: myPni,
             profileKey: profileKey,
+            masterKey: masterKey,
             readReceiptsEnabled: readReceiptsEnabled,
             provisioningService: mockDeviceProvisioningService,
             schedulers: schedulers
@@ -74,6 +76,7 @@ class OWSDeviceProvisionerTest: XCTestCase {
             XCTAssertEqual(provisionMessage.aciIdentityKeyPair.publicKey, Data(myAciIdentityKeyPair.publicKey.keyBytes))
             XCTAssertEqual(provisionMessage.pniIdentityKeyPair.publicKey, Data(myPniIdentityKeyPair.publicKey.keyBytes))
             XCTAssertEqual(provisionMessage.profileKey.keyData, profileKey)
+            XCTAssertEqual(provisionMessage.masterKey, masterKey)
             XCTAssertEqual(provisionMessage.areReadReceiptsEnabled, readReceiptsEnabled)
             XCTAssertEqual(provisionMessage.provisioningCode, provisioningCode)
         }.wait()

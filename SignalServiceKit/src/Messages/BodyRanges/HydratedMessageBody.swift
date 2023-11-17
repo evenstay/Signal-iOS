@@ -5,6 +5,7 @@
 
 import AVFAudio
 import Foundation
+import LibSignalClient
 
 /// The result of stripping, filtering, and hydrating mentions in a `MessageBody`.
 /// This object can be held durably in memory as a way to cache mention hydrations
@@ -136,7 +137,7 @@ public class HydratedMessageBody: Equatable, Hashable {
             case .preserveMention:
                 // Preserve the mention without replacement and proceed.
                 unhydratedMentions.append(.init(
-                    UnhydratedMentionAttribute.fromOriginalRange(mention.range, mentionUuid: mention.value),
+                    UnhydratedMentionAttribute.fromOriginalRange(mention.range, mentionAci: mention.value),
                     range: newMentionRange
                 ))
                 continue
@@ -155,7 +156,7 @@ public class HydratedMessageBody: Equatable, Hashable {
                     finalMentionAttributes.append(.init(
                         HydratedMentionAttribute.fromOriginalRange(
                             mention.range,
-                            mentionUuid: mention.value,
+                            mentionAci: mention.value,
                             displayName: displayName
                         ),
                         range: NSRange(location: newMentionRange.location, length: finalMentionLength)
@@ -455,13 +456,13 @@ public class HydratedMessageBody: Equatable, Hashable {
     public func asMessageBodyForForwarding(
         preservingAllMentions: Bool = false
     ) -> MessageBody {
-        var mentionsDict = [NSRange: UUID]()
+        var mentionsDict = [NSRange: Aci]()
         unhydratedMentions.forEach {
-            mentionsDict[$0.range] = $0.value.mentionUuid
+            mentionsDict[$0.range] = $0.value.mentionAci
         }
         if preservingAllMentions {
             mentionAttributes.forEach {
-                mentionsDict[$0.range] = $0.value.mentionUuid
+                mentionsDict[$0.range] = $0.value.mentionAci
             }
         }
 
@@ -477,12 +478,12 @@ public class HydratedMessageBody: Equatable, Hashable {
     // MARK: - Editing
 
     internal func asEditableMessageBody() -> EditableMessageBodyTextStorage.Body {
-        var mentions = [NSRange: UUID]()
+        var mentions = [NSRange: Aci]()
         self.mentionAttributes.forEach {
-            mentions[$0.range] = $0.value.mentionUuid
+            mentions[$0.range] = $0.value.mentionAci
         }
         self.unhydratedMentions.forEach {
-            mentions[$0.range] = $0.value.mentionUuid
+            mentions[$0.range] = $0.value.mentionAci
         }
         var flattenedStyles = [NSRangedValue<SingleStyle>]()
         var runningStyles = [SingleStyle: (StyleIdType, NSRange)]()
@@ -546,19 +547,35 @@ public class HydratedMessageBody: Equatable, Hashable {
 
     // MARK: - Truncation
 
+    private struct TruncationLength {
+        // Length defined by displayed grapheme clusters.
+        // What you get from String.count
+        let graphemeClusterCount: Int
+        // Length defined by utf16 characters.
+        // What you get from NSString.length or String.utf16.count
+        let utf16Count: Int
+    }
+
     /// NOTE: if there is a mention at the truncation point, we instead truncate sooner
     /// so as to not cut off mid-mention.
     public func truncating(
-        desiredLength: Int,
+        desiredLength rawDesiredLength: Int,
         truncationSuffix: String
     ) -> HydratedMessageBody {
+        // Input is defined in grapheme clusters (doesn't cut emoji off)
+        // but mentions and styles are defined in utf16 character counts.
+        let desiredLength = TruncationLength(
+            graphemeClusterCount: rawDesiredLength,
+            utf16Count: hydratedText.prefix(rawDesiredLength).utf16.count
+        )
+
         var possibleOverlappingMention: NSRange?
         for mentionAttribute in self.mentionAttributes {
-            if mentionAttribute.range.contains(desiredLength) {
+            if mentionAttribute.range.contains(desiredLength.utf16Count) {
                 possibleOverlappingMention = mentionAttribute.range
                 break
             }
-            if mentionAttribute.range.location > desiredLength {
+            if mentionAttribute.range.location > desiredLength.utf16Count {
                 // mentions are ordered; can early exit if we pass it.
                 break
             }
@@ -567,47 +584,52 @@ public class HydratedMessageBody: Equatable, Hashable {
         // There's a mention overlapping our normal truncate point, we want to truncate sooner
         // so we don't "split" the mention.
         var finalLength = desiredLength
-        if let possibleOverlappingMention, possibleOverlappingMention.location < desiredLength {
-            finalLength = possibleOverlappingMention.location
+        if let possibleOverlappingMention, possibleOverlappingMention.location < desiredLength.utf16Count {
+            // This would truncate in the middle of a grapheme cluster if the mention
+            // starts in the middle of one. That should be impossible, though.
+            finalLength = TruncationLength(
+                graphemeClusterCount: (hydratedText as NSString).substring(to: possibleOverlappingMention.location).count,
+                utf16Count: possibleOverlappingMention.location
+            )
         }
 
-        var mentionHydrationStrings = [UUID: String]()
+        var mentionHydrationStrings = [Aci: String]()
         let mentions = self.mentionAttributes.filter({
-            guard $0.range.location < finalLength else {
+            guard $0.range.location < finalLength.utf16Count else {
                 return false
             }
-            mentionHydrationStrings[$0.value.mentionUuid] = $0.value.displayName
+            mentionHydrationStrings[$0.value.mentionAci] = $0.value.displayName
             return true
         })
-        let unhydratedMentions = self.unhydratedMentions.filter { $0.range.upperBound <= finalLength }
+        let unhydratedMentions = self.unhydratedMentions.filter { $0.range.upperBound <= finalLength.utf16Count }
         let styles = self.styleAttributes.compactMap { (styleAttribute) -> NSRangedValue<StyleAttribute>? in
-            if styleAttribute.range.location > finalLength {
+            if styleAttribute.range.location > finalLength.utf16Count {
                 return nil
-            } else if styleAttribute.range.upperBound <= finalLength {
+            } else if styleAttribute.range.upperBound <= finalLength.utf16Count {
                 return styleAttribute
             } else {
                 return .init(
                     styleAttribute.value,
                     range: NSRange(
                         location: styleAttribute.range.location,
-                        length: finalLength - styleAttribute.range.location
+                        length: finalLength.utf16Count - styleAttribute.range.location
                     )
                 )
             }
         }
 
         let newSelf = HydratedMessageBody(
-            hydratedText: String(hydratedText.prefix(finalLength)) + truncationSuffix,
+            hydratedText: String(hydratedText.prefix(finalLength.graphemeClusterCount)) + truncationSuffix,
             unhydratedMentions: unhydratedMentions,
             mentionAttributes: mentions,
             styleAttributes: styles
         )
-        // Strip. Its less efficient, but avoids code repetition to go through message body.
+        // Strip. It's less efficient but avoids code repetition to go through message body.
         return newSelf
             .asMessageBodyForForwarding(preservingAllMentions: true)
             .filterStringForDisplay()
-            .hydrating(mentionHydrator: { mentionUuid in
-                guard let string = mentionHydrationStrings[mentionUuid] else {
+            .hydrating(mentionHydrator: { mentionAci in
+                guard let string = mentionHydrationStrings[mentionAci] else {
                     return .preserveMention
                 }
                 return .hydrate(string)
@@ -708,7 +730,7 @@ public class HydratedMessageBody: Equatable, Hashable {
     public enum TappableItem {
         public struct Mention {
             public let range: NSRange
-            public let mentionUuid: UUID
+            public let mentionAci: Aci
         }
 
         public struct UnrevealedSpoiler {
@@ -778,7 +800,7 @@ public class HydratedMessageBody: Equatable, Hashable {
         }
         mentionAttributes.forEach {
             setRange(
-                value: TappableItem.Mention(range: $0.range, mentionUuid: $0.value.mentionUuid),
+                value: TappableItem.Mention(range: $0.range, mentionAci: $0.value.mentionAci),
                 key: mentionKey,
                 range: $0.range
             )
@@ -801,7 +823,7 @@ public class HydratedMessageBody: Equatable, Hashable {
             if let unrevealedSpoiler = attrs[unrevealedSpoilerKey] as? TappableItem.UnrevealedSpoiler {
                 items.append(.unrevealedSpoiler(.init(range: range, id: unrevealedSpoiler.id)))
             } else if let mention = attrs[mentionKey] as? TappableItem.Mention {
-                items.append(.mention(.init(range: range, mentionUuid: mention.mentionUuid)))
+                items.append(.mention(.init(range: range, mentionAci: mention.mentionAci)))
             } else if let dataItem = attrs[dataKey] as? TextCheckingDataItem {
                 items.append(.data(dataItem.copyInNewRange(range)))
             }
@@ -904,18 +926,5 @@ public class HydratedMessageBody: Equatable, Hashable {
             }
         }
         return styles
-    }
-}
-
-fileprivate extension NSRangedValue {
-
-    func offset(by offset: Int) -> Self {
-        return Self.init(
-            value,
-            range: NSRange(
-                location: self.range.location + offset,
-                length: self.range.length
-            )
-        )
     }
 }

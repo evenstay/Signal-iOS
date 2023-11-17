@@ -41,9 +41,9 @@ class BlockingManagerTests: SSKBaseTestSwift {
         // Verify
         databaseStorage.read { readTx in
             // First, query the whole set of blocked addresses:
-            // Because these are made up generated addresses, a UUID+e164 that goes in may be low trust
+            // Because these are made up generated addresses, a ACI+e164 that goes in may be low trust
             // If that happens, the addresses that come out will be two separate SignalServiceAddresses
-            // To work around this, we compactMap the result sets to e164/UUID to compare apples to apples
+            // To work around this, we compactMap the result sets to e164/ACI to compare apples to apples
             let allFetchedBlockedAddresses = blockingManager.blockedAddresses(transaction: readTx)
             let allExpectedBlockedAddresses = generatedAddresses.union([generatedThread.contactAddress])
             XCTAssertEqual(
@@ -51,8 +51,8 @@ class BlockingManagerTests: SSKBaseTestSwift {
                 Set(allExpectedBlockedAddresses.compactMap { $0.phoneNumber })
             )
             XCTAssertEqual(
-                Set(allFetchedBlockedAddresses.compactMap { $0.untypedServiceId }),
-                Set(allExpectedBlockedAddresses.compactMap { $0.untypedServiceId })
+                Set(allFetchedBlockedAddresses.compactMap { $0.aci }),
+                Set(allExpectedBlockedAddresses.compactMap { $0.aci })
             )
             // Next, ensure that querying an individual address or thread works properly
             generatedAddresses.forEach {
@@ -70,7 +70,7 @@ class BlockingManagerTests: SSKBaseTestSwift {
             let newToken = remoteState.changeToken
             XCTAssertNotEqual(oldToken, newToken)
             XCTAssertEqual(remoteState.blockedPhoneNumbers, Set(allExpectedBlockedAddresses.compactMap { $0.phoneNumber }))
-            XCTAssertEqual(remoteState.blockedUUIDStrings, Set(allExpectedBlockedAddresses.compactMap { $0.uuidString }))
+            XCTAssertEqual(remoteState.blockedAcis, Set(allExpectedBlockedAddresses.compactMap { $0.aci }))
             XCTAssertEqual(remoteState.blockedGroupMap, [:])
         }
         waitForExpectations(timeout: 3)
@@ -116,8 +116,8 @@ class BlockingManagerTests: SSKBaseTestSwift {
             XCTAssertNotEqual(oldToken, newToken)
 
             let expectedRemainingBlocks = [blockedContact, blockedThread.contactAddress]
-            XCTAssertEqual(remoteState.blockedUUIDStrings, Set(expectedRemainingBlocks.compactMap { $0.uuidString}))
-            XCTAssertEqual(remoteState.blockedPhoneNumbers, Set(expectedRemainingBlocks.compactMap { $0.phoneNumber}))
+            XCTAssertEqual(remoteState.blockedAcis, Set(expectedRemainingBlocks.compactMap { $0.aci }))
+            XCTAssertEqual(remoteState.blockedPhoneNumbers, Set(expectedRemainingBlocks.compactMap { $0.phoneNumber }))
             XCTAssertEqual(remoteState.blockedGroupMap, [:])
         }
     }
@@ -160,9 +160,9 @@ class BlockingManagerTests: SSKBaseTestSwift {
         databaseStorage.write { writeTx in
             blockingManager.processIncomingSync(
                 blockedPhoneNumbers: blockedE164s,
-                blockedAcis: Set(blockedAcis.map { AciObjC($0) }),
+                blockedAcis: Set(blockedAcis),
                 blockedGroupIds: blockedGroupIds,
-                transaction: writeTx)
+                tx: writeTx)
         }
 
         // Verify
@@ -187,7 +187,7 @@ class BlockingManagerTests: SSKBaseTestSwift {
             // Finally, verify that any remote state agrees
             remoteState.reloadIfNecessary(readTx)
             XCTAssertEqual(Set(remoteState.blockedGroupMap.keys), blockedGroupIds)
-            XCTAssertEqual(remoteState.blockedUUIDStrings, Set(blockedAcis.map { $0.serviceIdUppercaseString }))
+            XCTAssertEqual(remoteState.blockedAcis, Set(blockedAcis))
             XCTAssertEqual(remoteState.blockedPhoneNumbers, blockedE164s)
         }
     }
@@ -195,8 +195,14 @@ class BlockingManagerTests: SSKBaseTestSwift {
     func testSendSyncMessage() {
         // Setup
         // ensure local client has necessary "registered" state
+        let identityManager = DependenciesBridge.shared.identityManager
         identityManager.generateAndPersistNewIdentityKey(for: .aci)
-        tsAccountManager.registerForTests(withLocalNumber: CommonGenerator.e164(), uuid: UUID())
+        Self.databaseStorage.write { tx in
+            (DependenciesBridge.shared.registrationStateChangeManager as! RegistrationStateChangeManagerImpl).registerForTests(
+                localIdentifiers: .forUnitTests,
+                tx: tx.asV2Write
+            )
+        }
         BlockingManager.TestingFlags.optimisticallyCommitSyncToken = true
 
         // Test
@@ -219,8 +225,8 @@ class BlockingManagerTests: SSKBaseTestSwift {
     func generateAddresses(count: UInt) -> Set<SignalServiceAddress> {
         Set((0..<count).map { _ in
             let hasPhoneNumber = Int.random(in: 0...2) == 0
-            let hasUUID = !hasPhoneNumber || Bool.random()
-            return CommonGenerator.address(hasUUID: hasUUID, hasPhoneNumber: hasPhoneNumber)
+            let hasAci = !hasPhoneNumber || Bool.random()
+            return CommonGenerator.address(hasAci: hasAci, hasPhoneNumber: hasPhoneNumber)
         })
     }
 }

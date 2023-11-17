@@ -4,7 +4,7 @@
 //
 
 #import "TSQuotedMessage.h"
-#import "TSAccountManager.h"
+#import "OWSPaymentMessage.h"
 #import "TSAttachment.h"
 #import "TSAttachmentPointer.h"
 #import "TSAttachmentStream.h"
@@ -329,6 +329,12 @@ typedef NS_ENUM(NSUInteger, OWSAttachmentInfoReference) {
         isGiftBadge = YES;
     }
 
+    if ([quotedMessage conformsToProtocol:@protocol(OWSPaymentMessage)]) {
+        // This really should recalculate the string from payment metadata.
+        // But it does not.
+        body = proto.text;
+    }
+
     SSKProtoDataMessageQuoteQuotedAttachment *_Nullable firstAttachmentProto = proto.attachments.firstObject;
 
     if (firstAttachmentProto) {
@@ -371,7 +377,7 @@ typedef NS_ENUM(NSUInteger, OWSAttachmentInfoReference) {
     if ([quotedMessage isKindOfClass:[TSIncomingMessage class]]) {
         address = ((TSIncomingMessage *)quotedMessage).authorAddress;
     } else if ([quotedMessage isKindOfClass:[TSOutgoingMessage class]]) {
-        address = [TSAccountManager localAddress];
+        address = [TSAccountManagerObjcBridge localAciAddressWith:transaction];
     } else {
         OWSFailDebug(@"Received message of type: %@", NSStringFromClass(quotedMessage.class));
         return nil;

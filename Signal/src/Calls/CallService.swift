@@ -4,6 +4,7 @@
 //
 
 import AVFoundation
+import LibSignalClient
 import SignalMessaging
 import SignalRingRTC
 import SignalUI
@@ -17,7 +18,12 @@ protocol CallServiceObserver: AnyObject {
     func didUpdateCall(from oldValue: SignalCall?, to newValue: SignalCall?)
 }
 
-public final class CallService: LightweightCallManager {
+/// Manages events related to both 1:1 and group calls, while the main app is
+/// running.
+///
+/// Responsible for the 1:1 or group call this device is currently active in, if
+/// any, as well as any other updates to other calls that we learn about.
+public final class CallService: LightweightGroupCallManager {
     public typealias CallManagerType = CallManager<SignalCall, CallService>
 
     private var _callManager: CallManagerType! = nil
@@ -47,6 +53,8 @@ public final class CallService: LightweightCallManager {
     /// but othere call state may race (observer state, sleep state, etc.)
     private var _currentCallLock = UnfairLock()
     private var _currentCall: SignalCall?
+
+    /// Represents the call currently occuring on this device.
     @objc
     public private(set) var currentCall: SignalCall? {
         get {
@@ -197,8 +205,8 @@ public final class CallService: LightweightCallManager {
         }
 
         AppReadiness.runNowOrWhenAppWillBecomeReady {
-            if let localUuid = self.tsAccountManager.localUuid {
-                self.callManager.setSelfUuid(localUuid)
+            if let localAci = DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction?.aci {
+                self.callManager.setSelfUuid(localAci.rawUUID)
             }
         }
 
@@ -497,7 +505,7 @@ public final class CallService: LightweightCallManager {
 
             // Kick off a peek now that we've disconnected to get an updated participant state.
             if let thread = call.thread as? TSGroupThread {
-                peekCallAndUpdateThread(thread)
+                peekGroupCallAndUpdateThread(thread)
             } else {
                 owsFailDebug("Invalid thread type")
             }
@@ -554,7 +562,7 @@ public final class CallService: LightweightCallManager {
         }
     }
 
-    // MARK: - LightweightCallManager
+    // MARK: -
 
     func buildAndConnectGroupCallIfPossible(thread: TSGroupThread, videoMuted: Bool) -> SignalCall? {
         AssertIsOnMainThread()
@@ -614,8 +622,12 @@ public final class CallService: LightweightCallManager {
     @discardableResult
     @objc
     public func initiateCall(thread: TSThread, isVideo: Bool) -> Bool {
-        guard tsAccountManager.isOnboarded else {
-            Logger.warn("aborting due to user not being onboarded.")
+        initiateCall(thread: thread, isVideo: isVideo, untrustedThreshold: nil)
+    }
+
+    private func initiateCall(thread: TSThread, isVideo: Bool, untrustedThreshold: Date?) -> Bool {
+        guard DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isRegistered else {
+            Logger.warn("aborting due to user not being registered.")
             OWSActionSheets.showActionSheet(title: OWSLocalizedString("YOU_MUST_COMPLETE_ONBOARDING_BEFORE_PROCEEDING",
                                                                      comment: "alert body shown when trying to use features in the app before completing registration-related setup."))
             return false
@@ -635,12 +647,14 @@ public final class CallService: LightweightCallManager {
             return false
         }
 
+        let newUntrustedThreshold = Date()
         let showedAlert = SafetyNumberConfirmationSheet.presentIfNecessary(
-            address: thread.contactAddress,
-            confirmationText: CallStrings.confirmAndCallButtonTitle
+            addresses: [thread.contactAddress],
+            confirmationText: CallStrings.confirmAndCallButtonTitle,
+            untrustedThreshold: untrustedThreshold
         ) { didConfirmIdentity in
             guard didConfirmIdentity else { return }
-            _ = self.initiateCall(thread: thread, isVideo: isVideo)
+            _ = self.initiateCall(thread: thread, isVideo: isVideo, untrustedThreshold: newUntrustedThreshold)
         }
         guard !showedAlert else {
             return false
@@ -725,8 +739,8 @@ public final class CallService: LightweightCallManager {
     @objc
     private func registrationChanged() {
         AssertIsOnMainThread()
-        if let localUuid = tsAccountManager.localUuid {
-            callManager.setSelfUuid(localUuid)
+        if let localAci = DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction?.aci {
+            callManager.setSelfUuid(localAci.rawUUID)
         }
     }
 
@@ -838,17 +852,19 @@ public final class CallService: LightweightCallManager {
 
     // MARK: -
 
-    override public func peekCallAndUpdateThread(_ thread: TSGroupThread,
-                                                 expectedEraId: String? = nil,
-                                                 triggerEventTimestamp: UInt64 = NSDate.ows_millisecondTimeStamp(),
-                                                 completion: (() -> Void)? = nil) {
+    override public func peekGroupCallAndUpdateThread(
+        _ thread: TSGroupThread,
+        expectedEraId: String? = nil,
+        triggerEventTimestamp: UInt64 = NSDate.ows_millisecondTimeStamp(),
+        completion: (() -> Void)? = nil
+    ) {
         // If the currentCall is for the provided thread, we don't need to perform an explicit
         // peek. Connected calls will receive automatic updates from RingRTC
         guard currentCall?.thread != thread else {
             Logger.info("Ignoring peek request for the current call")
             return
         }
-        super.peekCallAndUpdateThread(thread, expectedEraId: expectedEraId, triggerEventTimestamp: triggerEventTimestamp, completion: completion)
+        super.peekGroupCallAndUpdateThread(thread, expectedEraId: expectedEraId, triggerEventTimestamp: triggerEventTimestamp, completion: completion)
     }
 
     override public func postUserNotificationIfNecessary(groupCallMessage: OWSGroupCallMessage, transaction: SDSAnyWriteTransaction) {
@@ -910,7 +926,11 @@ extension CallService: CallObserver {
             return
         }
         DispatchQueue.sharedUtility.async {
-            self.updateGroupCallMessageWithInfo(peekInfo, for: thread, timestamp: Date.ows_millisecondTimestamp())
+            self.updateGroupCallModelsForPeek(
+                peekInfo,
+                for: thread,
+                timestamp: Date.ows_millisecondTimestamp()
+            )
         }
     }
 
@@ -994,18 +1014,18 @@ extension CallService: CallManagerDelegate {
         AssertIsOnMainThread()
         Logger.info("shouldSendCallMessage")
 
+        let recipientAci = Aci(fromUUID: recipientUuid)
+
         // It's unlikely that this would ever have more than one call. But technically
         // we don't know which call this message is on behalf of. So we assume it's every
         // call with a participant with recipientUuid
         let relevantCalls = calls.filter { (call: SignalCall) -> Bool in
-            call.participantAddresses
-                .compactMap { $0.uuid }
-                .contains(recipientUuid)
+            call.participantAddresses.contains(where: { $0.serviceId == recipientAci })
         }
 
         databaseStorage.write(.promise) { transaction in
             TSContactThread.getOrCreateThread(
-                withContactAddress: SignalServiceAddress(uuid: recipientUuid),
+                withContactAddress: SignalServiceAddress(recipientAci),
                 transaction: transaction
             )
         }.then(on: DispatchQueue.global()) { thread throws -> Promise<Void> in
@@ -1180,6 +1200,14 @@ extension CallService: CallManagerDelegate {
 
     public func callManager(
         _ callManager: CallManager<SignalCall, CallService>,
+        onLowBandwidthForVideoFor call: SignalCall,
+        recovered: Bool
+    ) {
+        // TODO: Implement handling of the "low outgoing bandwidth for video" notification.
+    }
+
+    public func callManager(
+        _ callManager: CallManager<SignalCall, CallService>,
         shouldSendOffer callId: UInt64,
         call: SignalCall,
         destinationDeviceId: UInt32?,
@@ -1323,6 +1351,8 @@ extension CallService: CallManagerDelegate {
             return
         }
 
+        let senderAci = Aci(fromUUID: sender)
+
         guard update == .requested else {
             if let currentCall = self.currentCall,
                currentCall.isGroupCall,
@@ -1363,7 +1393,7 @@ extension CallService: CallManagerDelegate {
             return
         }
 
-        let caller = SignalServiceAddress(uuid: sender)
+        let caller = SignalServiceAddress(senderAci)
 
         enum RingAction {
             case cancel
@@ -1372,19 +1402,19 @@ extension CallService: CallManagerDelegate {
 
         let action: RingAction = databaseStorage.read { transaction in
             guard let thread = TSGroupThread.fetch(groupId: groupId, transaction: transaction) else {
-                owsFailDebug("discarding group ring \(ringId) from \(sender) for unknown group")
+                owsFailDebug("discarding group ring \(ringId) from \(senderAci) for unknown group")
                 return .cancel
             }
 
             guard GroupsV2MessageProcessor.discardMode(forMessageFrom: caller,
                                                        groupId: groupId,
                                                        transaction: transaction) == .doNotDiscard else {
-                Logger.warn("discarding group ring \(ringId) from \(sender)")
+                Logger.warn("discarding group ring \(ringId) from \(senderAci)")
                 return .cancel
             }
 
             guard thread.groupMembership.fullMembers.count <= RemoteConfig.maxGroupCallRingSize else {
-                Logger.warn("discarding group ring \(ringId) from \(sender) for too-large group")
+                Logger.warn("discarding group ring \(ringId) from \(senderAci) for too-large group")
                 return .cancel
             }
 

@@ -4,6 +4,8 @@
 //
 
 import Foundation
+import LibSignalClient
+import SignalCoreKit
 
 @objc
 public extension OWSRequestFactory {
@@ -53,6 +55,16 @@ public extension OWSRequestFactory {
     static func batchIdentityCheckRequest(elements: [[String: String]]) -> TSRequest {
         precondition(elements.count <= batchIdentityCheckElementsLimit)
         return .init(url: .init(string: "v1/profile/identity_check/batch")!, method: HTTPMethod.post.methodName, parameters: ["elements": elements])
+    }
+
+    // MARK: - Capabilities
+
+    @nonobjc
+    static func updateLinkedDeviceCapabilitiesRequest(for capabilities: AccountAttributes.Capabilities) -> TSRequest {
+        // If you are updating capabilities for a primary device, use `updateAccountAttributes` instead
+        let tsAccountManager = DependenciesBridge.shared.tsAccountManager
+        owsAssertDebug(tsAccountManager.registrationStateWithMaybeSneakyTransaction.isPrimaryDevice == false)
+        return TSRequest(url: URL(string: "v1/devices/capabilities")!, method: "PUT", parameters: capabilities.requestParameters)
     }
 
     // MARK: - Devices
@@ -142,6 +154,164 @@ public extension OWSRequestFactory {
         result.applyRedactionStrategy(.redactURLForSuccessResponses())
         return result
     }
+
+    static func subscriptionGetCurrentSubscriptionLevelRequest(subscriberID: Data) -> TSRequest {
+        let result = TSRequest(
+            url: .init(pathComponents: [
+                "v1",
+                "subscription",
+                subscriberID.asBase64Url,
+            ])!,
+            method: "GET",
+            parameters: nil
+        )
+        result.shouldHaveAuthorizationHeaders = false
+        result.applyRedactionStrategy(.redactURLForSuccessResponses())
+        return result
+    }
+
+    static func subscriptionCreateStripePaymentMethodRequest(subscriberID: Data) -> TSRequest {
+        let result = TSRequest(
+            url: .init(pathComponents: [
+                "v1",
+                "subscription",
+                subscriberID.asBase64Url,
+                "create_payment_method",
+            ])!,
+            method: "POST",
+            parameters: nil
+        )
+        result.shouldHaveAuthorizationHeaders = false
+        result.applyRedactionStrategy(.redactURLForSuccessResponses())
+        return result
+    }
+
+    static func subscriptionCreatePaypalPaymentMethodRequest(
+        subscriberID: Data,
+        returnURL: URL,
+        cancelURL: URL
+    ) -> TSRequest {
+        let result = TSRequest(
+            url: .init(pathComponents: [
+                "v1",
+                "subscription",
+                subscriberID.asBase64Url,
+                "create_payment_method",
+                "paypal",
+            ])!,
+            method: "POST",
+            parameters: [
+                "returnUrl": returnURL.absoluteString,
+                "cancelUrl": cancelURL.absoluteString,
+            ]
+        )
+        result.shouldHaveAuthorizationHeaders = false
+        result.applyRedactionStrategy(.redactURLForSuccessResponses())
+        return result
+    }
+
+    static func subscriptionSetSubscriptionLevelRequest(
+        subscriberID: Data,
+        level: UInt,
+        currency: String,
+        idempotencyKey: String
+    ) -> TSRequest {
+        let result = TSRequest(
+            url: .init(pathComponents: [
+                "v1",
+                "subscription",
+                subscriberID.asBase64Url,
+                "level",
+                String(level),
+                currency,
+                idempotencyKey,
+            ])!,
+            method: "PUT",
+            parameters: nil
+        )
+        result.shouldHaveAuthorizationHeaders = false
+        result.applyRedactionStrategy(.redactURLForSuccessResponses())
+        return result
+    }
+
+    static func subscriptionReceiptCredentialsRequest(
+        subscriberID: Data,
+        request: Data
+    ) -> TSRequest {
+        let result = TSRequest(
+            url: .init(pathComponents: [
+                "v1",
+                "subscription",
+                subscriberID.asBase64Url,
+                "receipt_credentials",
+            ])!,
+            method: "POST",
+            parameters: [
+                "receiptCredentialRequest": request.base64EncodedString(),
+            ]
+        )
+        result.shouldHaveAuthorizationHeaders = false
+        result.applyRedactionStrategy(.redactURLForSuccessResponses())
+        return result
+    }
+
+    static func subscriptionRedeemReceiptCredential(
+        receiptCredentialPresentation: Data
+    ) -> TSRequest {
+        return TSRequest(
+            url: .init(pathComponents: [
+                "v1",
+                "donation",
+                "redeem-receipt",
+            ])!,
+            method: "POST",
+            parameters: [
+                "receiptCredentialPresentation": receiptCredentialPresentation.base64EncodedString(),
+                "visible": self.subscriptionManager.displayBadgesOnProfile,
+                "primary": false,
+            ]
+        )
+    }
+
+    static func boostReceiptCredentials(
+        with paymentIntentID: String,
+        for paymentProcessor: String,
+        request: Data
+    ) -> TSRequest {
+        let result = TSRequest(
+            url: .init(pathComponents: [
+                "v1",
+                "subscription",
+                "boost",
+                "receipt_credentials",
+            ])!,
+            method: "POST",
+            parameters: [
+                "paymentIntentId": paymentIntentID,
+                "receiptCredentialRequest": request.base64EncodedString(),
+                "processor": paymentProcessor,
+            ]
+        )
+        result.shouldHaveAuthorizationHeaders = false
+        return result
+    }
+
+    @nonobjc
+    static func bankMandateRequest(bankTransferType: StripePaymentMethod.BankTransfer) -> TSRequest {
+        let result = TSRequest(
+            url: .init(pathComponents: [
+                "v1",
+                "subscription",
+                "bank_mandate",
+                bankTransferType.rawValue,
+            ])!,
+            method: "GET",
+            parameters: nil
+        )
+        result.addValue(OWSHttpHeaders.acceptLanguageHeaderValue, forHTTPHeaderField: OWSHttpHeaders.acceptLanguageHeaderKey)
+        result.shouldHaveAuthorizationHeaders = false
+        return result
+    }
 }
 
 // MARK: - Messages
@@ -165,18 +335,18 @@ extension DeviceMessage {
 
 extension OWSRequestFactory {
     @objc
-    static func preKeyRequestParameters(_ preKeyRecord: PreKeyRecord) -> [String: Any] {
+    static func preKeyRequestParameters(_ preKeyRecord: SignalServiceKit.PreKeyRecord) -> [String: Any] {
         [
             "keyId": preKeyRecord.id,
-            "publicKey": preKeyRecord.keyPair.publicKey.prependKeyType().base64EncodedStringWithoutPadding()
+            "publicKey": preKeyRecord.keyPair.keyPair.publicKey.serialize().asData.base64EncodedStringWithoutPadding()
         ]
     }
 
     @objc
-    static func signedPreKeyRequestParameters(_ signedPreKeyRecord: SignedPreKeyRecord) -> [String: Any] {
+    static func signedPreKeyRequestParameters(_ signedPreKeyRecord: SignalServiceKit.SignedPreKeyRecord) -> [String: Any] {
         [
             "keyId": signedPreKeyRecord.id,
-            "publicKey": signedPreKeyRecord.keyPair.publicKey.prependKeyType().base64EncodedStringWithoutPadding(),
+            "publicKey": signedPreKeyRecord.keyPair.keyPair.publicKey.serialize().asData.base64EncodedStringWithoutPadding(),
             "signature": signedPreKeyRecord.signature.base64EncodedStringWithoutPadding()
         ]
     }
@@ -184,7 +354,7 @@ extension OWSRequestFactory {
     static func pqPreKeyRequestParameters(_ pqPreKeyRecord: KyberPreKeyRecord) -> [String: Any] {
         [
             "keyId": pqPreKeyRecord.id,
-            "publicKey": Data(pqPreKeyRecord.keyPair.publicKey.serialize()).base64EncodedStringWithoutPadding(),
+            "publicKey": pqPreKeyRecord.keyPair.publicKey.serialize().asData.base64EncodedStringWithoutPadding(),
             "signature": pqPreKeyRecord.signature.base64EncodedStringWithoutPadding()
         ]
     }
@@ -195,14 +365,12 @@ extension OWSRequestFactory {
     static func registerPrekeysRequest(
         identity: OWSIdentity,
         identityKey: IdentityKey,
-        signedPreKeyRecord: SignedPreKeyRecord?,
-        prekeyRecords: [PreKeyRecord]?,
+        signedPreKeyRecord: SignalServiceKit.SignedPreKeyRecord?,
+        prekeyRecords: [SignalServiceKit.PreKeyRecord]?,
         pqLastResortPreKeyRecord: KyberPreKeyRecord?,
         pqPreKeyRecords: [KyberPreKeyRecord]?,
         auth: ChatServiceAuth
     ) -> TSRequest {
-        owsAssertDebug(identityKey.count > 0)
-
         var path = textSecureKeysAPI
         if let queryParam = queryParam(for: identity) {
             path = path.appending("?\(queryParam)")
@@ -210,7 +378,7 @@ extension OWSRequestFactory {
 
         var parameters = [String: Any]()
 
-        parameters["identityKey"] = identityKey.prependKeyType().base64EncodedStringWithoutPadding()
+        parameters["identityKey"] = identityKey.serialize().asData.base64EncodedStringWithoutPadding()
         if let signedPreKeyRecord {
             parameters["signedPreKey"] = signedPreKeyRequestParameters(signedPreKeyRecord)
         }
@@ -267,7 +435,7 @@ extension OWSRequestFactory {
         let accountAttributesData = try! jsonEncoder.encode(attributes)
         let accountAttributesDict = try! JSONSerialization.jsonObject(with: accountAttributesData, options: .fragmentsAllowed) as! [String: Any]
 
-        var parameters: [String: Any] = [
+        let parameters: [String: Any] = [
             "verificationCode": verificationCode,
             "accountAttributes": accountAttributesDict,
             "aciSignedPreKey": OWSRequestFactory.signedPreKeyRequestParameters(prekeyBundles.aci.signedPreKey),

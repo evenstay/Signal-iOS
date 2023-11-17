@@ -73,9 +73,6 @@
 /* Label for button that lets you send a message to a contact. */
 "ACTION_SEND_MESSAGE" = "Invia messaggio";
 
-/* Label for 'share contact' button. */
-"ACTION_SHARE_CONTACT" = "Condividi contatto";
-
 /* A label for 'tap to download' buttons. */
 "ACTION_TAP_TO_DOWNLOAD" = "Clicca per scaricare";
 
@@ -373,8 +370,8 @@
 /* Accessibility hint describing what you can do with the attachment button */
 "ATTACHMENT_HINT" = "Scegli media da inviare";
 
-/* A button to open the camera from the Attachment Keyboard */
-"ATTACHMENT_KEYBOARD_CAMERA" = "Fotocamera";
+/* Button in chat attachment panel that allows to select photos/videos Signal has access to. */
+"ATTACHMENT_KEYBOARD_BUTTON_MANAGE" = "Gestisci accesso";
 
 /* A button to select a contact from the Attachment Keyboard */
 "ATTACHMENT_KEYBOARD_CONTACT" = "Contatto";
@@ -385,20 +382,29 @@
 /* A button to select a GIF from the Attachment Keyboard */
 "ATTACHMENT_KEYBOARD_GIF" = "GIF";
 
-/* A message on a button prompting the user to go settings to grant Signal photos access. */
-"ATTACHMENT_KEYBOARD_GIVE_PHOTOS_ACCESS" = "Consenti l'accesso";
+/* Text in chat attachment panel when Signal only has access to some photos/videos. */
+"ATTACHMENT_KEYBOARD_LIMITED_ACCESS" = "Signal può accedere solo alle foto e ai video che hai selezionato";
 
 /* A button to select a location from the Attachment Keyboard */
 "ATTACHMENT_KEYBOARD_LOCATION" = "Posizione";
 
-/* A string indicating to the user that they'll be able to send photos from this view once they enable photo access. */
-"ATTACHMENT_KEYBOARD_NO_PHOTO_ACCESS" = "Signal ha bisogno dell'autorizzazione per mostrare le tue foto e i tuoi video.";
+/* Second block of text in chat attachment panel when there's no recent photos to show. */
+"ATTACHMENT_KEYBOARD_NO_MEDIA_BODY" = "Appena scatti una foto o registri un video, potrai inviare i tuoi contenuti più recenti da qui";
 
-/* A string indicating to the user that once they take photos, they'll be able to send them from this view. */
-"ATTACHMENT_KEYBOARD_NO_PHOTOS" = "Dopo aver scattato le foto, sarai in grado di inviare le più recenti qui.";
+/* First block of text in chat attachment panel when there's no recent photos to show. */
+"ATTACHMENT_KEYBOARD_NO_MEDIA_TITLE" = "Nessuna foto o video";
+
+/* Text in chat attachment panel explaining that user needs to give Signal permission to access photos. */
+"ATTACHMENT_KEYBOARD_NO_PHOTO_ACCESS" = "Signal non ha accesso alle tue foto o video. Per dare l'autorizzazione ad accedere, vai su Impostazioni e tocca l'opzione Foto";
+
+/* Button in chat attachment panel to let user open Settings app and give Signal persmission to access photos. */
+"ATTACHMENT_KEYBOARD_OPEN_SETTINGS" = "Apri impostazioni";
 
 /* A button to select a payment from the Attachment Keyboard */
 "ATTACHMENT_KEYBOARD_PAYMENT" = "Pagamento";
+
+/* A button to open the photo picker from the Attachment Keyboard */
+"ATTACHMENT_KEYBOARD_PHOTOS" = "Foto";
 
 /* Accessibility label for attaching photos */
 "ATTACHMENT_LABEL" = "Allegato";
@@ -493,20 +499,26 @@
 /* Button text when a badge expires, asking users to donate */
 "BADGE_EXPIRED_DONATE_BUTTON" = "Dona";
 
-/* Text for the 'learn more' link in the badge expiration sheet, shown when a badge expires due to a charge failure */
+/* Text for the 'learn more' link in a sheet explaining there's been an issue with your badge. */
 "BADGE_EXPIRED_LEARN_MORE_LINK" = "Scopri di più.";
 
 /* Title for subscription on the badge expiration sheet. */
-"BADGE_EXPIRED_SUBSCRIPTION_TITLE" = "Donazione mensile annullata";
+"BADGE_EXPIRED_SUBSCRIPTION_TITLE" = "Monthly Donation Canceled";
 
-/* String explaining to the user that their subscription badge has expired on the badge expiry sheet. Embeds {failure-specific sentence(s)}. */
-"BADGE_SUBSCRIPTION_EXPIRED_BECAUSE_OF_CHARGE_FAILURE_BODY_FORMAT" = "La tua donazione mensile ricorrente è stata annullata. Il tuo badge %1$@ per la donazione non è più visibile sul tuo profilo.\n\nPer continuare a supportare Signal e riattivare il badge, aggiorna il tuo metodo di pagamento ed effettua una nuova donazione.";
+/* String explaining to the user on a badge expiry sheet that their subscription badge has expired because the renewal payment failed. Embeds {{ a specific, already-localized string describing the payment failure }}. Will have a 'learn more' link appended, when it is rendered. */
+"BADGE_SUBSCRIPTION_EXPIRED_BECAUSE_OF_CHARGE_FAILURE_BODY_FORMAT" = "Your recurring monthly donation has ended. %1$@\n\nWithout an active subscription your badge will no longer be visible on your profile.";
 
-/* Body of the sheet shown when your subscription is canceled due to inactivity */
+/* Body of the sheet shown when your subscription is canceled due to inactivity. Embeds {{ the name of the badge }}. Will have a 'learn more' link appended, when it is rendered. */
 "BADGE_SUBSCRIPTION_EXPIRED_BECAUSE_OF_INACTIVITY_BODY_FORMAT" = "La tua donazione mensile ricorrente è stata automaticamente annullata per la tua inattività su Signal. Il Badge Signal - %1$@ non è più visibile sul tuo profilo.\n\nPuoi continuare a usare Signal ma, se vuoi, puoi rinnovare la tua donazione per sostenere l'app e riattivare il tuo badge.";
 
+/* Body for a sheet explaining that a bank transfer donation is complete, and that you have received a badge. */
+"BADGE_THANKS_BANK_DONATION_COMPLETE_BODY" = "Your bank transfer was received. You can choose to display this badge on your profile to show off your support.";
+
+/* Title for a sheet explaining that a bank transfer donation is complete, and that you have received a badge. */
+"BADGE_THANKS_BANK_DONATION_COMPLETE_TITLE" = "Donation Complete";
+
 /* When you make a donation to Signal, you will receive a badge. A thank-you sheet appears when this happens. This is the body text on that sheet. */
-"BADGE_THANKS_BODY" = "Hai ricevuto un Badge Signal per la tua donazione! Mostralo sul tuo profilo per far vedere che anche tu supporti Signal.";
+"BADGE_THANKS_BODY" = "You can choose to display this badge on your profile to show off your support.";
 
 /* Label prompting the user to display the new badge on their profile on the badge thank you sheet. */
 "BADGE_THANKS_DISPLAY_ON_PROFILE_LABEL" = "Mostra sul profilo";
@@ -519,6 +531,24 @@
 
 /* Footer explaining that only one badge can be featured at a time on the thank you sheet. */
 "BADGE_THANKS_TOGGLE_FOOTER" = "Quando hai più di un badge, puoi sceglierne uno da mostrare agli altri sul tuo profilo.";
+
+/* On the bank donation screen, show a link below the input form to show help about finding account info. */
+"BANK_DONATION_FOOTER_FIND_ACCOUNT_INFO" = "Find Account Info";
+
+/* On the bank transfer donation screen, a small amount of information text is shown. This is that text. It should (1) instruct users to enter their bank information (2) tell them that Signal does not collect or store their personal information. */
+"BANK_DONATION_SUBHEADER_TEXT" = "Enter your bank details. Signal does not collect or store your personal information.";
+
+/* Users can donate to Signal with a bank account. We are required to show them a mandate with information about bank transfers. This is a label for a button to agree to the mandate. */
+"BANK_MANDATE_AGREE" = "Agree";
+
+/* Users can donate to Signal with a bank account. We are required to show them a mandate with information about bank transfers. This is a label for a button that shows more of the mandate if it is not all visible. */
+"BANK_MANDATE_READ_MORE" = "Read More";
+
+/* Users can donate to Signal with a bank account. We are required to show them a mandate with information about bank transfers. This is a subtitle about the payment processor Stripe above that mandate. */
+"BANK_MANDATE_SUBTITLE" = "Stripe processes donations made to Signal. Signal does not collect or store your personal information.";
+
+/* Users can donate to Signal with a bank account. We are required to show them a mandate with information about bank transfers. This is the title above that mandate. */
+"BANK_MANDATE_TITLE" = "Bank Transfer";
 
 /* Accessibility label for banner close button */
 "BANNER_CLOSE_ACCESSIBILITY_LABEL" = "Chiudi banner";
@@ -841,12 +871,6 @@
 /* VoiceOver description of current camera zoom level. */
 "CAMERA_VO_ZOOM_LEVEL" = "Zoom %1$@x";
 
-/* Message for alert explaining that a user cannot be verified. */
-"CANT_VERIFY_IDENTITY_ALERT_MESSAGE" = "Questo utente non può essere verificato finché non verranno scambiati dei messaggi con lui.";
-
-/* Title for alert explaining that a user cannot be verified. */
-"CANT_VERIFY_IDENTITY_ALERT_TITLE" = "Errore";
-
 /* Alert shown when the user needs to exchange messages to see the safety number. */
 "CANT_VERIFY_IDENTITY_EXCHANGE_MESSAGES" = "Verrà creato un codice di sicurezza per questa persona dopo che avrai inviato dei messaggi in chat.";
 
@@ -865,9 +889,6 @@
 /* Users can donate to Signal with a credit or debit card. If their card verification code (CVV) is too long, this error will be shown. Try to use a short string to make space in the UI. */
 "CARD_DONATION_CVV_TOO_LONG_ERROR" = "Codice troppo lungo";
 
-/* Users can donate to Signal with a credit or debit card. This is the text on the \"Donate\" button. */
-"CARD_DONATION_DONATE_BUTTON" = "Dona";
-
 /* Users can donate to Signal with a credit or debit card. If their expiration date is invalid, this generic error message will be shown. Try to use a short string to make space in the UI. */
 "CARD_DONATION_EXPIRATION_DATE_GENERIC_ERROR" = "Data di scadenza non valida";
 
@@ -876,9 +897,6 @@
 
 /* Users can donate to Signal with a credit or debit card. This is the label for the card expiration date field on that screen. */
 "CARD_DONATION_EXPIRATION_DATE_PLACEHOLDER" = "MM/AA";
-
-/* Users can donate to Signal with a credit or debit card. This is the heading on that screen, telling them how much they'll donate. Embeds {{formatted amount of money}}, such as \"$20\". */
-"CARD_DONATION_HEADER" = "Importo della donazione: %1$@";
 
 /* Users can choose to learn more about their credit/debit card donations, which will open a sheet with additional information. This is the body text of that sheet. */
 "CARD_DONATION_READ_MORE_SHEET_BODY" = "Signal non archivia né salva le tue informazioni personali quando fai una donazione.\n\nUsiamo Stripe per elaborare i pagamenti e ricevere le tue donazioni. Non abbiamo accesso, né archiviamo o salviamo le informazioni che fornisci a Stripe per le transazioni.\n\nSignal non assocerà mai (né è in grado di farlo) le informazioni legate alla donazione al tuo account.\n\nGrazie per il tuo supporto!";
@@ -1009,32 +1027,8 @@
 /* No comment provided by engineer. */
 "CONTACT_DETAIL_COMM_TYPE_INSECURE" = "Utente non registrato";
 
-/* Label for the 'edit name' button in the contact share approval view. */
-"CONTACT_EDIT_NAME_BUTTON" = "Modifica";
-
 /* Label for a contact's email address. */
 "CONTACT_EMAIL" = "Email";
-
-/* Label for the 'city' field of a contact's address. */
-"CONTACT_FIELD_ADDRESS_CITY" = "Città";
-
-/* Label for the 'country' field of a contact's address. */
-"CONTACT_FIELD_ADDRESS_COUNTRY" = "Stato";
-
-/* Label for the 'neighborhood' field of a contact's address. */
-"CONTACT_FIELD_ADDRESS_NEIGHBORHOOD" = "Quartiere";
-
-/* Label for the 'pobox' field of a contact's address. */
-"CONTACT_FIELD_ADDRESS_POBOX" = "Casella postale";
-
-/* Label for the 'postcode' field of a contact's address. */
-"CONTACT_FIELD_ADDRESS_POSTCODE" = "Codice postale";
-
-/* Label for the 'region' field of a contact's address. */
-"CONTACT_FIELD_ADDRESS_REGION" = "Regione";
-
-/* Label for the 'street' field of a contact's address. */
-"CONTACT_FIELD_ADDRESS_STREET" = "Via";
 
 /* Label for the 'family name' field of a contact. */
 "CONTACT_FIELD_FAMILY_NAME" = "Cognome";
@@ -1194,6 +1188,9 @@
 
 /* Context menu button title */
 "CONTEXT_MENU_FORWARD_MESSAGE" = "Inoltra";
+
+/* Context menu button title */
+"CONTEXT_MENU_PAYMENT_DETAILS" = "Informazioni sul pagamento";
 
 /* Context menu button title */
 "CONTEXT_MENU_REPLY" = "Rispondi";
@@ -1675,6 +1672,21 @@
 /* button text */
 "DELETE_ALL_MESSAGES_IN_CONVERSATION_BUTTON" = "Elimina tutti i messaggi";
 
+/* 'Delete' button label on the delete contact confirmation action sheet */
+"DELETE_CONTACT_ACTION_SHEET_BUTTON" = "Elimina";
+
+/* An explanation of what happens in Signal when you remove a system contact. */
+"DELETE_CONTACT_ACTION_SHEET_EXPLANATION" = "Questa persona verrà rimossa dai contatti del tuo dispositivo e non verrà più mostrata nei risultati delle ricerche. Nel caso in cui dovesse contattarti in futuro, riceverai una richiesta di messaggio.";
+
+/* Title of action sheet confirming the user wants to delete a system contact. */
+"DELETE_CONTACT_ACTION_SHEET_TITLE" = "Vuoi eliminare il contatto e rimuoverlo dal tuo elenco contatti?";
+
+/* Title of button for deleting system contact. */
+"DELETE_CONTACT_BUTTON" = "Elimina contatto";
+
+/* Toast message confirming the system contact was deleted. Embeds {{The name of the user who was deleted.}}. */
+"DELETE_CONTACT_CONFIRMATION_TOAST" = "Il numero di %1$@ è stato eliminato dai tuoi contatti e rimosso da Signal.";
+
 /* Notification warning the user that they have been de-registered. */
 "DEREGISTRATION_NOTIFICATION" = "Il tuo account Signal è stato disconnesso da questo dispositivo.";
 
@@ -1744,11 +1756,17 @@
 /* A warning for the device transfer 'choice' view indicating you can only have one device registered with your number */
 "DEVICE_TRANSFER_CHOICE_WARNING" = "Continuando disabiliterai Signal su altri dispositivi attualmente registrati con lo stesso numero di telefono.";
 
+/* Button shown to contract a QR code and exit the fullscreen view. */
+"DEVICE_TRANSFER_CONTRACT_QR_CODE_BUTTON" = "Riduci l'immagine";
+
+/* An error indicating that the other device closed signal mid-transfer and it could not complete */
+"DEVICE_TRANSFER_ERROR_BACKGROUNDED" = "Il trasferimento non è stato completato. Assicurati che Signal sia aperto su entrambi i dispositivi e riprova.";
+
 /* An error indicating that we were unable to verify the identity of the new device to complete the transfer */
 "DEVICE_TRANSFER_ERROR_CERTIFICATE_MISMATCH" = "Impossibile verificare il tuo nuovo dispositivo, riprova";
 
 /* An error indicating that something went wrong with the transfer and it could not complete */
-"DEVICE_TRANSFER_ERROR_GENERIC" = "Il trasferimento non è stato completato, assicurati che i tuoi dispositivi siano vicini e riprova";
+"DEVICE_TRANSFER_ERROR_GENERIC" = "Il trasferimento non è stato completato. Assicurati che i tuoi dispositivi siano vicini e riprova.";
 
 /* An error indicating the user must scan this code with a linked device to transfer. */
 "DEVICE_TRANSFER_ERROR_MODE_MISMATCH_LINKED" = "Per configurare questo iPad come dispositivo associato, devi eseguire la scansione con il tuo vecchio iPad";
@@ -1762,6 +1780,9 @@
 /* An error indicating the user must update their device before trying to transfer. */
 "DEVICE_TRANSFER_ERROR_UNSUPPORTED_VERSION" = "Aggiorna all'ultima versione di Signal e riprova";
 
+/* Button shown to expand a QR code and view it fullscreen. */
+"DEVICE_TRANSFER_EXPAND_QR_CODE_BUTTON" = "Ingrandisci l'immagine";
+
 /* The explanation on the action sheet prompting the user if they want to transfer their device. */
 "DEVICE_TRANSFER_PROMPT_EXPLANATION" = "Trasferisci il tuo account Signal su un nuovo dispositivo iOS. Assicurati che il tuo nuovo dispositivo sia vicino e acceso.";
 
@@ -1769,16 +1790,16 @@
 "DEVICE_TRANSFER_PROMPT_TITLE" = "Trasferisci account";
 
 /* The explanation for the device transfer qr code view */
-"DEVICE_TRANSFER_QRCODE_EXPLANATION" = "Apri Signal sul tuo vecchio dispositivo, assicurati che Wi-Fi e Bluetooth siano abilitati su entrambi i dispositivi e avvicinali.";
+"DEVICE_TRANSFER_QRCODE_EXPLANATION" = "Prendi il tuo vecchio dispositivo, assicurati che Wi-Fi e Bluetooth siano abilitati e scansiona questo codice QR.";
 
 /* The second explanation for the device transfer qr code view */
-"DEVICE_TRANSFER_QRCODE_EXPLANATION2" = "Posiziona questo codice QR nel frame dell'altro dispositivo.";
+"DEVICE_TRANSFER_QRCODE_EXPLANATION2" = "Posiziona questo codice QR nel frame dell'altro dispositivo iOS.";
 
 /* A prompt to provide further explanation if the user is not seeing the transfer on both devices. */
 "DEVICE_TRANSFER_QRCODE_NOT_SEEING" = "Non vedi la richiesta sul tuo vecchio dispositivo?";
 
 /* The title for the device transfer qr code view */
-"DEVICE_TRANSFER_QRCODE_TITLE" = "In attesa dell'altro dispositivo…";
+"DEVICE_TRANSFER_QRCODE_TITLE" = "Scansione codice QR";
 
 /* The explanation on the view that shows receiving progress */
 "DEVICE_TRANSFER_RECEIVING_EXPLANATION" = "Tieni entrambi i dispositivi vicini. Non spegnere nessuno dei due dispositivi e tieni aperto Signal. I trasferimenti sono crittografati end-to-end.";
@@ -1852,6 +1873,15 @@
 /* Section title for the 'domain fronting country' view. */
 "DOMAIN_FRONTING_COUNTRY_VIEW_SECTION_HEADER" = "Raggiro censura del luogo";
 
+/* Users can donate to Signal with a credit or debit card. This is the heading on that screen, telling them how much they'll donate. Embeds {{formatted amount of money}}, such as \"$20\". */
+"DONATE_BUTTON" = "Donate %1$@";
+
+/* Users can donate to Signal with a credit or debit card. This is the heading on that screen, telling them how much they'll donate every month. Embeds {{formatted amount of money}}, such as \"$20\". */
+"DONATE_BUTTON_MONTHLY" = "Donate %1$@/month";
+
+/* When users make donations, they can choose which payment method they want to use. This is the text on the button that lets them choose to pay with bank transfer. */
+"DONATE_CHOOSE_BANK_TRANSFER_AS_PAYMENT_METHOD" = "Bank Transfer";
+
 /* When users make donations, they can choose which payment method they want to use. This is the text on the button that lets them choose to pay with credit or debit card. */
 "DONATE_CHOOSE_CREDIT_OR_DEBIT_CARD_AS_PAYMENT_METHOD" = "Carta di credito o di debito";
 
@@ -1862,7 +1892,7 @@
 "DONATE_CHOOSE_PAYMENT_METHOD_SHEET_SUBTITLE_FOR_MONTHLY_DONATION" = "Ricevi il Badge Signal %1$@";
 
 /* When users make one-time donations, they see a sheet that lets them pick a payment method. It also tells them what they'll be doing when they pay: receive a badge for a month. This is the subtitle on that sheet. Embeds {{localized badge name}}, such as \"Boost\". */
-"DONATE_CHOOSE_PAYMENT_METHOD_SHEET_SUBTITLE_FOR_ONE_TIME_DONATION" = "Ottieni il Badge Signal %1$@ per un mese";
+"DONATE_CHOOSE_PAYMENT_METHOD_SHEET_SUBTITLE_FOR_ONE_TIME_DONATION" = "Get the %1$@ badge for 30 days";
 
 /* When users make donations on a friend's behalf, they see a sheet that lets them pick a payment method. This is the title on that sheet. Embeds {{amount of money}}, such as \"$5\". */
 "DONATE_CHOOSE_PAYMENT_METHOD_SHEET_TITLE_FOR_DONATION_ON_BEHALF_OF_A_FRIEND" = "Donazione di %1$@ a Signal";
@@ -1882,11 +1912,29 @@
 /* If a donation badge has been sent, indicates that it's expired and can no longer be redeemed. This is shown in the chat. */
 "DONATE_ON_BEHALF_OF_A_FRIEND_CHAT_EXPIRED" = "Scaduto";
 
+/* Message in an alert presented when the user tries to make a donation, but already has a donation that is currently processing via bank payment. */
+"DONATE_SCREEN_ERROR_MESSAGE_BANK_PAYMENT_PLEASE_WAIT_BEFORE_MAKING_ANOTHER_DONATION" = "Bank transfers usually take 1 business day to process. Please wait until this donation completes before making another donation.";
+
+/* Message in an alert presented when the user tries to update their recurring donation, but already has a recurring donation that is currently processing via bank payment. */
+"DONATE_SCREEN_ERROR_MESSAGE_BANK_PAYMENT_PLEASE_WAIT_BEFORE_UPDATING_YOUR_SUBSCRIPTION" = "Bank transfers usually take 1 business day to process. Please wait until this donation completes before updating your subscription.";
+
+/* Message in an alert presented when the user tries to make a donation, but already has a donation that is currently processing via non-bank payment. */
+"DONATE_SCREEN_ERROR_MESSAGE_PLEASE_WAIT_BEFORE_MAKING_ANOTHER_DONATION" = "Your donation is still being processed. This can take a few minutes depending on your connection. Please wait until this donation completes before making another donation.";
+
+/* Message in an alert presented when the user tries to update their recurring donation, but already has a recurring donation that is currently processing via non-bank payment. */
+"DONATE_SCREEN_ERROR_MESSAGE_PLEASE_WAIT_BEFORE_UPDATING_YOUR_SUBSCRIPTION" = "Your donation is still being processed. This can take a few minutes depending on your connection. Please wait until this donation completes before updating your subscription.";
+
 /* If the user tries to donate to Signal but no amount is selected, this error message is shown. */
 "DONATE_SCREEN_ERROR_NO_AMOUNT_SELECTED" = "Seleziona un importo da donare.";
 
 /* If the user tries to donate to Signal but they've entered an amount that's too small, this error message is shown. Embeds {{currency string}}, such as \"$5\". */
 "DONATE_SCREEN_ERROR_SELECT_A_LARGER_AMOUNT_FORMAT" = "L'importo minimo che puoi donare è %1$@.";
+
+/* Title for an alert presented when the user tries to make a donation, but already has a donation that is currently processing via bank payment. */
+"DONATE_SCREEN_ERROR_TITLE_BANK_PAYMENT_YOU_HAVE_A_DONATION_PENDING" = "You have a donation pending";
+
+/* Title for an alert presented when the user tries to make a donation, but already has a donation that is currently processing via non-bank payment. */
+"DONATE_SCREEN_ERROR_TITLE_YOU_HAVE_A_PAYMENT_PROCESSING" = "You have a donation processing";
 
 /* On the donation screen, you can choose between one-time and monthly donations. This is the text on the picker for one-time donations. */
 "DONATE_SCREEN_MONTHLY_CHOICE" = "Mensile";
@@ -1908,6 +1956,27 @@
 
 /* On the donation screen, if you already have a subscription, you'll see a button to update your subscription. This is the text on that button. */
 "DONATE_SCREEN_UPDATE_MONTHLY_SUBSCRIPTION_BUTTON" = "Aggiorna la tua donazione";
+
+/* Message for a sheet explaining that a donation via bank payment has failed. Embeds {{ a specific, already-localized string describing the payment failure }}. */
+"DONATION_BADGE_ISSUE_SHEET_BANK_PAYMENT_FAILED_MESSAGE" = "We’re having trouble processing your bank transfer. %1$@";
+
+/* Title for a sheet explaining that a donation via bank payment has failed. */
+"DONATION_BADGE_ISSUE_SHEET_BANK_PAYMENT_FAILED_TITLE" = "Donation Couldn’t Be Processed";
+
+/* Title for a sheet explaining that a donation via bank payment is pending. */
+"DONATION_BADGE_ISSUE_SHEET_BANK_PAYMENT_PROCESSING_TITLE" = "Donation Pending";
+
+/* Message for a sheet explaining that a one-time donation via bank payment is pending, and how that will affect the user's badge. Embeds {{ the name of the badge }}. Will have a 'learn more' link appended, when it is rendered. */
+"DONATION_BADGE_ISSUE_SHEET_ONE_TIME_BANK_PAYMENT_PROCESSING_MESSAGE" = "Your one-time donation is pending. You’ll be able to display the %1$@ badge on your profile when your donation is received.\n\nBank transfers usually take 1 business day to process.";
+
+/* Message for a sheet explaining that a recurring donation via bank payment is pending, and how that will affect the user's badge. Embeds {{ the name of the badge }}. Will have a 'learn more' link appended, when it is rendered. */
+"DONATION_BADGE_ISSUE_SHEET_RECURRING_BANK_PAYMENT_PROCESSING_MESSAGE" = "Your monthly donation is pending. You’ll be able to display the %1$@ badge on your profile when your donation is received.\n\nBank transfers usually take 1 business day to process.";
+
+/* Title for a button asking the user to renew their subscription, because it has expired. */
+"DONATION_BADGE_ISSUE_SHEET_RENEW_SUBSCRIPTION_BUTTON_TITLE" = "Renew Subscription";
+
+/* Title for a button asking the user to try their donation again, because something went wrong. */
+"DONATION_BADGE_ISSUE_SHEET_TRY_AGAIN_BUTTON_TITLE" = "Try Again";
 
 /* When donating on behalf of a friend, a badge will be sent. This shows how long the badge lasts. Embeds {{formatted duration}}. */
 "DONATION_FOR_A_FRIEND_ROW_DURATION" = "Dura %1$@";
@@ -1971,12 +2040,6 @@
 
 /* You received a donation from a friend. This is the title of that message in the chat. Embeds {{short contact name}}. */
 "DONATION_ON_BEHALF_OF_A_FRIEND_RECEIVED_TITLE_FORMAT" = "%1$@ ha fatto una donazione a Signal per conto tuo";
-
-/* Users can donate on a friend's behalf. If the friend cannot receive these donations, this error message will be shown. */
-"DONATION_ON_BEHALF_OF_A_FRIEND_RECIPIENT_CANNOT_RECEIVE_DONATION_ERROR_BODY" = "Questa persona non può ricevere una donazione finché non aggiorna Signal.";
-
-/* Users can donate on a friend's behalf. If the friend cannot receive these donations, an error dialog will be shown. This is the title of that error dialog. */
-"DONATION_ON_BEHALF_OF_A_FRIEND_RECIPIENT_CANNOT_RECEIVE_DONATION_ERROR_TITLE" = "Impossibile inviare la donazione";
 
 /* Users can donate on a friend's behalf. This is the error message that appears if the try to do this, but the recipient is blocked. */
 "DONATION_ON_BEHALF_OF_A_FRIEND_RECIPIENT_IS_BLOCKED_ERROR_BODY" = "Non puoi inviare una donazione per conto di questa persona perché l'hai bloccata.";
@@ -2071,20 +2134,59 @@
 /* On donation screens, a small amount of information text is shown. This is the title for that text. */
 "DONATION_SCREENS_HEADER_TITLE" = "La privacy prima di tutto";
 
+/* Title for an action in an action sheet asking the user to renew a subscription that has failed to renew. */
+"DONATION_SETTINGS_MY_SUPPORT_ACTION_SHEET_ACTION_TITLE_RENEW_SUBSCRIPTION" = "Renew Subscription";
+
+/* Title for an action in an action sheet asking the user to try again, in reference to a donation that failed. */
+"DONATION_SETTINGS_MY_SUPPORT_ACTION_SHEET_ACTION_TITLE_TRY_AGAIN" = "Try Again";
+
+/* Message for an alert explaining that a one-time payment made via bank transfer is being processed. */
+"DONATION_SETTINGS_MY_SUPPORT_BANK_PAYMENT_PROCESSING_MESSAGE" = "Your bank transfer is pending. Bank transfers usually take 1 business day to process.";
+
+/* Title for an alert explaining that a one-time payment made via bank transfer is being processed. */
+"DONATION_SETTINGS_MY_SUPPORT_BANK_PAYMENT_PROCESSING_TITLE" = "Donation Pending";
+
+/* Message shown in a sheet explaining that the user's donation has failed because payment failed. Embeds {{ a specific, already-localized string describing the payment failure reason }}. */
+"DONATION_SETTINGS_MY_SUPPORT_DONATION_FAILED_ALERT_MESSAGE_FORMAT" = "We’re having trouble processing your donation. %1$@";
+
+/* Title for a sheet explaining that a payment failed. */
+"DONATION_SETTINGS_MY_SUPPORT_DONATION_FAILED_ALERT_TITLE" = "Error Processing Donation";
+
+/* Message shown in a sheet explaining that the user's recurring subscription has ended because payment failed. Embeds {{ a specific, already-localized string describing the failure reason }}. */
+"DONATION_SETTINGS_MY_SUPPORT_RECURRING_SUBSCRIPTION_LAPSED_CHARGE_FAILURE_ALERT_MESSAGE_FORMAT" = "Your recurring monthly donation has ended. %1$@";
+
+/* Title for a sheet explaining that the user's recurring subscription has ended because payment failed. */
+"DONATION_SETTINGS_MY_SUPPORT_RECURRING_SUBSCRIPTION_LAPSED_TITLE" = "Monthly Donation Canceled";
+
+/* A label describing a donation payment that was made via bank transfer, which is still processing and has not completed. */
+"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_BANK_PAYMENT_PROCESSING" = "Donation Pending";
+
+/* A label describing a donation payment that was made by a method other than bank transfer (such as by credit card), which is still processing and has not completed. */
+"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_NON_BANK_PAYMENT_PROCESSING" = "Processing Donation...";
+
+/* A label describing a donation payment that has failed to process. */
+"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_PAYMENT_FAILED" = "Error Processing Donation";
+
+/* A label describing a recurring monthly donation that used to be active, but has now been canceled because it failed to renew. */
+"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_SUBSCRIPTION_LAPSED" = "Monthly Donation Canceled";
+
+/* A string describing the amount and currency of a one-time payment. Embeds {{ the amount, formatted as a currency }}. */
+"DONATION_SETTINGS_ONE_TIME_AMOUNT_FORMAT" = "%1$@ one-time";
+
 /* Title for the \"donate for a friend\" button on the donation view. */
 "DONATION_VIEW_DONATE_ON_BEHALF_OF_A_FRIEND" = "Fai una donazione per un'altra persona";
 
 /* Text describing to the user that they're going to pay a donation to Signal */
 "DONATION_VIEW_DONATION_TO_SIGNAL" = "Donazione a Signal";
 
+/* Title for the 'Donor FAQ' button on the donation screen */
+"DONATION_VIEW_DONOR_FAQ" = "Donor FAQ";
+
 /* Text that's shown when the donation view fails to load data, probably due to network failure */
 "DONATION_VIEW_LOAD_FAILED" = "Errore di rete. Controlla la tua connessione e riprova.";
 
 /* Title for the 'Badges' button on the donation screen */
 "DONATION_VIEW_MANAGE_BADGES" = "Badge";
-
-/* Title for the 'Manage Subscription' button on the donation screen */
-"DONATION_VIEW_MANAGE_SUBSCRIPTION" = "Gestisci contributo";
 
 /* Text describing to the user that they're going to pay a monthly donation to Signal */
 "DONATION_VIEW_MONTHLY_DONATION_TO_SIGNAL" = "Donazione mensile a Signal";
@@ -2097,9 +2199,6 @@
 
 /* Title for the \"other ways to donate\" section on the donation view. */
 "DONATION_VIEW_OTHER_WAYS_TO_DONATE_TITLE" = "Altri modi per donare";
-
-/* Title for the 'Subscription FAQ' button on the donation screen */
-"DONATION_VIEW_SUBSCRIPTION_FAQ" = "Domande frequenti sul contributo";
 
 /* Title on the 'Donate to Signal' screen */
 "DONATION_VIEW_TITLE" = "Dona a Signal";
@@ -2138,16 +2237,16 @@
 "EDIT_ITEM_COPY_ACTION" = "Copia";
 
 /* Edit Send Beta prompt body */
-"EDIT_MESSAGE_SEND_BETA_MESSAGE_BODY" = "La funzione di modifica dei messaggi è disponibile solo agli utenti della beta di Signal. Se modifichi un messaggio, la modifica sarà visibile solamente alle persone che stanno usando la versione più recente della beta di Signal.";
+"EDIT_MESSAGE_SEND_MESSAGE_BODY" = "Se modifichi un messaggio, la modifica sarà visibile solamente alle persone che usano la versione più recente di Signal. Potranno quindi vedere che hai effettuato una modifica.";
 
 /* Label to confirm sending an edit */
-"EDIT_MESSAGE_SEND_BETA_MESSAGE_CONFIRM" = "Invia";
+"EDIT_MESSAGE_SEND_MESSAGE_CONFIRM" = "Invia";
 
 /* Edit Send Beta prompt title */
-"EDIT_MESSAGE_SEND_BETA_MESSAGE_TITLE" = "Solo per la beta di Signal";
+"EDIT_MESSAGE_SEND_MESSAGE_TITLE" = "Modifica messaggio";
 
-/* Error message to display to user when a messaeg is too old to edit */
-"EDIT_MESSAGE_SEND_MESSAGE_TOO_OLD_ERROR" = "Puoi modificare questo messaggio entro 3 ore dall'invio.";
+/* Error message to display to user when a message is too old to edit */
+"EDIT_MESSAGE_SEND_MESSAGE_TOO_OLD_ERROR" = "Puoi modificare questo messaggio entro 24 ore dall'invio.";
 
 /* Edit failed for an unexpected reason */
 "EDIT_MESSAGE_SEND_MESSAGE_UNKNOWN_ERROR" = "EDIT_MESSAGE_SEND_MESSAGE_UNKNOWN_ERROR";
@@ -2341,6 +2440,9 @@
 /* Label warning the user that the app will expire today. */
 "EXPIRATION_WARNING_TODAY" = "Questa versione di Signal scadrà oggi. Aggiorna l'app per continuare a inviare e ricevere messaggi.";
 
+/* action sheet header when re-sending message which failed because of an invalid key signature */
+"FAILED_SENDING_BECAUSE_INVALID_KEY_SIGNATURE" = "Impossibile inviare il messaggio perché %1$@ deve aggiornare e aprire Signal.";
+
 /* action sheet header when re-sending message which failed because of too many attempts */
 "FAILED_SENDING_BECAUSE_RATE_LIMIT" = "Troppi tentativi non riusciti con questo contatto. Riprova più tardi.";
 
@@ -2361,6 +2463,12 @@
 
 /* The title for the featured badge settings page */
 "FEATURED_BADGE_SETTINGS_TITLE" = "Badge in evidenza";
+
+/* Users can choose to learn more about how to find account info, which will open a sheet with additional information. This is the body of that sheet. */
+"FIND_ACCOUNT_INFO_SHEET_BODY" = "Look for your IBAN at the top of your bank statement. IBAN numbers contain up to 34 characters. The name you enter should match your full name on your bank account. Contact your bank for more information.";
+
+/* Users can choose to learn more about how to find account info, which will open a sheet with additional information. This is the title of that sheet. */
+"FIND_ACCOUNT_INFO_SHEET_TITLE" = "Find Your Account Information";
 
 /* Button that marks user as verified after a successful fingerprint scan. */
 "FINGERPRINT_SCAN_VERIFY_BUTTON" = "Segna come verificato";
@@ -3209,22 +3317,31 @@
 "HELP_SUPPORT_CENTER" = "Centro assistenza";
 
 /* A format for the 'remove user' action sheet title. Embeds {{the removed user's name or phone number}}. */
-"HIDE_RECIPIENT_ACTION_SHEET_TITLE_FORMAT" = "Remove %1$@?";
+"HIDE_RECIPIENT_ACTION_SHEET_TITLE_FORMAT" = "Vuoi rimuovere %1$@?";
 
 /* An explanation of the consequences of removing a user. */
-"HIDE_RECIPIENT_BEHAVIOR_EXPLANATION" = "You won't see this person when searching. You'll get a message request if they message you in the future.";
+"HIDE_RECIPIENT_BEHAVIOR_EXPLANATION" = "Questa persona non verrà mostrata nelle tue ricerche. Riceverai una richiesta di messaggio in caso di suoi messaggi in futuro.";
 
 /* Button label for the 'remove' button */
-"HIDE_RECIPIENT_BUTTON" = "Remove";
+"HIDE_RECIPIENT_BUTTON" = "Rimuovi";
 
 /* Toast message confirming the recipient was removed. Embeds {{The name of the user who was removed.}}.. */
-"HIDE_RECIPIENT_CONFIRMATION_TOAST" = "%1$@ has been removed.";
+"HIDE_RECIPIENT_CONFIRMATION_TOAST" = "Hai rimosso %1$@.";
 
 /* An explanation of why a user was not successfully removed and what to do. */
-"HIDE_RECIPIENT_ERROR_ACTION_SHEET_EXPLANATION" = "Check your connection and try again.";
+"HIDE_RECIPIENT_ERROR_ACTION_SHEET_EXPLANATION" = "Controlla la tua connessione e riprova.";
 
 /* Title for an action sheet indicating that the user was not successfully removed. Embeds {{name of user we attempted to hide}}. */
-"HIDE_RECIPIENT_ERROR_ACTION_SHEET_TITLE_FORMAT" = "Unable to remove %1$@";
+"HIDE_RECIPIENT_ERROR_ACTION_SHEET_TITLE_FORMAT" = "Impossibile rimuovere %1$@";
+
+/* An explanation of why the user cannot be removed. */
+"HIDE_RECIPIENT_IMPASS_BECAUSE_SYSTEM_CONTACT_ACTION_SHEET_EXPLANATION" = "Questa persona è salvata nell'elenco contatti del tuo dispositivo. Eliminala dai tuoi contatti per rimuoverla da questo elenco su Signal.";
+
+/* A format for the 'unable to remove user' action sheet title. Embeds {{the removed user's name or phone number}}. */
+"HIDE_RECIPIENT_IMPASS_BECAUSE_SYSTEM_CONTACT_ACTION_SHEET_TITLE" = "Impossibile rimuovere %1$@";
+
+/* An explanation of why the user cannot be removed on a linked device. */
+"HIDE_RECIPIENT_IMPOSSIBLE_BECAUSE_SYSTEM_CONTACT_ACTION_SHEET_EXPLANATION" = "Questa persona è salvata nella lista contatti del tuo telefono. Eliminala dai tuoi contatti e riprova.";
 
 /* Label for 'archived conversations' button. */
 "HOME_VIEW_ARCHIVED_CONVERSATIONS" = "Chat archiviate";
@@ -3280,15 +3397,6 @@
 /* Momentarily shown to the user when attempting to select more images than is allowed. Embeds {{max number of items}} that can be shared. */
 "IMAGE_PICKER_CAN_SELECT_NO_MORE_TOAST_FORMAT" = "Non puoi condividere più di %1$@ elementi.";
 
-/* Button that will present a view for the user to change the photos Signal has access to. */
-"IMAGE_PICKER_CHANGE_PHOTOS" = "Cambia foto";
-
-/* Explanation showing that the user has granted limited access to their photos and can change that in the Settings app. */
-"IMAGE_PICKER_CHANGE_PHOTOS_EXPLANATION" = "Concedi accesso completo nelle Impostazioni o modifica le foto a cui Signal può accedere.";
-
-/* Title show that the user has granted limited access to their photos and can change that in the Settings app. */
-"IMAGE_PICKER_CHANGE_PHOTOS_TITLE" = "Non vedi le tue foto?";
-
 /* alert title */
 "IMAGE_PICKER_FAILED_TO_PROCESS_ATTACHMENTS" = "Selezione allegato non riuscita.";
 
@@ -3337,8 +3445,23 @@
 /* info message text in conversation view */
 "INCOMING_VIDEO_CALL" = "Videochiamata in arrivo";
 
+/* Indicates that a previously-removed recipient has been added back to the current user's contacts. */
+"INFO_MESSAGE_CONTACT_REINSTATED" = "Questa persona è stata riaggiunta al tuo elenco contatti di Signal.";
+
 /* Indicates that the recipient has been removed from the current user's contacts and that messaging them will re-add them. */
-"INFO_MESSAGE_CONTACT_REMOVED" = "Hai rimosso questo utente: se mandi un messaggio, verrà aggiunto di nuovo al tuo elenco.";
+"INFO_MESSAGE_CONTACT_REMOVED" = "Hai rimosso questa persona dal tuo elenco contatti di Signal: se mandi un messaggio, verrà riaggiunta ai contatti.";
+
+/* Shown when a user activates payments from a chat */
+"INFO_MESSAGE_PAYMENTS_ACTIVATED" = "Hai attivato la funzione per i pagamenti.";
+
+/* Shown when a user activates payments from a chat. Embeds: {{ the user's name}} */
+"INFO_MESSAGE_PAYMENTS_ACTIVATION_REQUEST_FINISHED" = "Ora %1$@ può accettare e ricevere i pagamenti.";
+
+/* Shown when a user receives a payment activation request. Embeds: {{ the user's name}} */
+"INFO_MESSAGE_PAYMENTS_ACTIVATION_REQUEST_RECEIVED" = "%1$@ ti ha inviato una richiesta per farti attivare la funzione dei pagamenti. Ricorda di inviare pagamenti solo alle persone di cui ti fidi.";
+
+/* Shown when requesting a user activates payments. Embeds: {{ the user's name}} */
+"INFO_MESSAGE_PAYMENTS_ACTIVATION_REQUEST_SENT" = "Hai inviato a %1$@ una richiesta per l'attivazione della funzione per i pagamenti.";
 
 /* Shown in inbox and conversation after syncing as a placeholder indicating why your message history is missing. */
 "INFO_MESSAGE_SYNCED_THREAD" = "You can send or receive synchronized messages from your phone or iPad.  For your security, chat history isn't transferred to new linked devices.";
@@ -3568,6 +3691,9 @@
 /* Title for the button that resets photo to its initial state. */
 "MEDIA_EDITOR_RESET" = "Resetta";
 
+/* Tooltip to display above a clock sticker in the media editor saying to tap for more clock styles */
+"MEDIA_EDITOR_TAP_FOR_MORE" = "Mostra tutto";
+
 /* Placeholder for message text input field in media editor. */
 "MEDIA_EDITOR_TEXT_FIELD_ADD_MESSAGE" = "Aggiungi un messaggio";
 
@@ -3669,6 +3795,9 @@
 
 /* Label for button to open a sticker pack. */
 "MESSAGE_ACTION_LINK_OPEN_STICKER_PACK" = "Visualizza pacchetto di adesivi";
+
+/* Action sheet button title */
+"MESSAGE_ACTION_PAYMENT_DETAILS" = "Informazioni sul pagamento";
 
 /* Label for button to call a phone number. */
 "MESSAGE_ACTION_PHONE_NUMBER_CALL" = "Chiama";
@@ -3945,6 +4074,18 @@
 
 /* info message text in conversation view */
 "MISSED_AUDIO_CALL" = "Chiamata persa";
+
+/* info message text in conversation view for when a call was dropped because the contact is blocked in iOS settings */
+"MISSED_CALL_BLOCKED_SYSTEM_CONTACT" = "Chiamata persa da contatto bloccato nelle Impostazioni del tuo telefono";
+
+/* Action to block contact in Signal for sheet shown when the user taps a missed call from a contact blocked in iOS settings. */
+"MISSED_CALL_BLOCKED_SYSTEM_SETTINGS_SHEET_BLOCK_ACTION" = "Blocca contatto anche su Signal";
+
+/* Message for sheet shown when the user taps a missed call from a contact blocked in iOS settings. */
+"MISSED_CALL_BLOCKED_SYSTEM_SETTINGS_SHEET_MESSAGE" = "Hai perso la chiamata perché questa persona è bloccata nelle Impostazioni del tuo telefono. Vai su Impostazioni > Telefono e tocca su Contatti bloccati per gestire il blocco.";
+
+/* Title for sheet shown when the user taps a missed call from a contact blocked in iOS settings. Embeds {{ Contact's name }} */
+"MISSED_CALL_BLOCKED_SYSTEM_SETTINGS_SHEET_TITLE" = "%1$@ è un contatto bloccato nelle Impostazioni del tuo telefono";
 
 /* info message text in conversation view (use Apple's name for 'Do Not Disturb' on iOS 14 and older) */
 "MISSED_CALL_DO_NOT_DISTURB" = "Chiamata persa mentre eri in modalità Non disturbare";
@@ -4360,11 +4501,23 @@
 /* info message text in conversation view */
 "OUTGOING_MISSED_VIDEO_CALL" = "Videochiamata senza risposta";
 
+/* Button for action sheet shown when device transfer completes; quits the Signal app immediately (does not automatically relaunch, but the user may choose to relaunch). */
+"OUTGOING_TRANSFER_COMPLETE_EXIT_ACTION" = "Esci da Signal";
+
+/* Message for action sheet shown when device transfer completes */
+"OUTGOING_TRANSFER_COMPLETE_MESSAGE" = "Signal si disconnetterà da questo dispositivo";
+
+/* Title for action sheet shown when device transfer completes */
+"OUTGOING_TRANSFER_COMPLETE_TITLE" = "Trasferimento completato!";
+
 /* info message text in conversation view */
 "OUTGOING_VIDEO_CALL" = "Videochiamata in uscita";
 
-/* Button used to decline a payment request. */
-"PAYMENTS_ACTION_DECLINE_REQUEST" = "Rifiuta richiesta";
+/* Header title for bank payment details screen */
+"PAYMENT_DETAILS_BANK_TITLE" = "Bank Transfer";
+
+/* Header title for card payment details screen */
+"PAYMENT_DETAILS_CARD_TITLE" = "Credit or Debit Card";
 
 /* Format for indicator of a payment amount converted to fiat currency with the freshness of the conversion rate. Embeds: {{ %1$@ the payment amount, %2$@ the freshness of the currency conversion rate }}. */
 "PAYMENTS_CURRENCY_CONVERSION_FRESHNESS_FORMAT" = "%1$@ alle %2$@";
@@ -4372,20 +4525,8 @@
 /* Indicator for unknown currency. */
 "PAYMENTS_CURRENCY_UNKNOWN" = "?";
 
-/* Message for the 'decline a payment request' alert. Embeds {{ the name of the user requesting payment }}. */
-"PAYMENTS_DECLINE_REQUEST_ALERT_MESSAGE_FORMAT" = "%1$@ verrà notificato che hai rifiutato.";
-
-/* Title for the 'decline a payment request' alert. */
-"PAYMENTS_DECLINE_REQUEST_ALERT_TITLE" = "Rifiutare questa richiesta?";
-
 /* Label for 'defragmentation' payments. */
 "PAYMENTS_DEFRAGMENTATION_PAYMENT" = "Commissione per la pulizia delle monete";
-
-/* Error indicating that a payment request could not be cancelled. */
-"PAYMENTS_ERROR_PAYMENT_REQUEST_CANCEL_FAILED" = "Impossibile annullare la richiesta.";
-
-/* Error indicating that a payment request could not be declined. */
-"PAYMENTS_ERROR_PAYMENT_REQUEST_DECLINE_FAILED" = "Impossibile rifiutare la richiesta.";
 
 /* Status indicator for incoming payments which failed. */
 "PAYMENTS_FAILURE_INCOMING_FAILED" = "Non riuscito";
@@ -4407,6 +4548,15 @@
 
 /* Status indicator for outgoing payments which failed to verify. */
 "PAYMENTS_FAILURE_OUTGOING_VALIDATION_FAILED" = "Non valido";
+
+/* Payments in-chat message shown if a payment fails to send, bottom half. */
+"PAYMENTS_IN_CHAT_FAILURE_MESSAGE_BOTTOM" = "Tocca per i dettagli";
+
+/* Payments in-chat message shown if a payment fails to send, top part. Embeds {{ number, amount of MOB coin not sent }} */
+"PAYMENTS_IN_CHAT_FAILURE_MESSAGE_TOP" = "%1$@ MOB non inviati";
+
+/* Status indicator for invalid payments which could not be processed. */
+"PAYMENTS_INFO_UNAVAILABLE_MESSAGE" = "NON DISPONIBILE";
 
 /* Indicates that an unknown error occurred while using Touch ID/Face ID/Phone Passcode. */
 "PAYMENTS_LOCK_AUTHENTICATION_ENABLE_UNKNOWN_ERROR" = "Impossibile accedere all'autenticazione.";
@@ -4531,9 +4681,6 @@
 /* Format for the 'payment recipient amount' indicator. Embeds {{ the name of the recipient of the payment }}. */
 "PAYMENTS_NEW_PAYMENT_RECIPIENT_AMOUNT_FORMAT" = "A %1$@";
 
-/* Label for the 'new payment request' button. */
-"PAYMENTS_NEW_PAYMENT_REQUEST_BUTTON" = "Richiedi";
-
 /* Label for the payments notification banner for a single payment notification. */
 "PAYMENTS_NOTIFICATION_BANNER_1" = "1 nuova notifica di pagamento";
 
@@ -4542,6 +4689,18 @@
 
 /* Format for the payments notification banner for multiple payment notifications. Embeds: {{ the number of unread payment notifications }}. */
 "PAYMENTS_NOTIFICATION_BANNER_N_FORMAT" = "%1$@ nuove notifiche di pagamento";
+
+/* Payment status context with contact name, failed. Embeds {{ Name of receiving contact }} */
+"PAYMENTS_PAYMENT_STATUS_IN_CHAT_PAYMENT_TO" = "Pagamento a %1$@";
+
+/* Payment status context while sending */
+"PAYMENTS_PAYMENT_STATUS_IN_CHAT_PROCESSING" = "Pagamento in elaborazione…";
+
+/* Payment status context with contact name, incoming. Embeds {{ Name of sending contact }} */
+"PAYMENTS_PAYMENT_STATUS_IN_CHAT_SENT_YOU" = "%1$@ ti ha inviato";
+
+/* Payment status context with contact name, sent. Embeds {{ Name of receiving contact }} */
+"PAYMENTS_PAYMENT_STATUS_IN_CHAT_YOU_SENT" = "Hai inviato a %1$@";
 
 /* Status indicator for incoming payments which are complete. */
 "PAYMENTS_PAYMENT_STATUS_LONG_INCOMING_COMPLETE" = "Pagamento completato";
@@ -4603,6 +4762,12 @@
 /* Status indicator for payments which had an unknown failure. */
 "PAYMENTS_PAYMENT_STATUS_SHORT_UNKNOWN" = "Errore sconosciuto";
 
+/* Payments Preview Text shown in quoted replies, for payments. Embeds {{ Amount sent (number), Currency (e.g. 'MOB') }} */
+"PAYMENTS_PREVIEW_TEXT_QUOTED_REPLY" = "Pagamento: %1$@ %2$@";
+
+/* Payments Preview Text shown in quoted replies, for unknown payments. */
+"PAYMENTS_PREVIEW_TEXT_UNKNOWN" = "Pagamento sconosciuto";
+
 /* Message for error alert indicating that a given user cannot receive payments because of a pending message request for a recipient that they have sent messages to. */
 "PAYMENTS_RECIPIENT_MISSING_PROFILE_KEY_MESSAGE_W_MESSAGES" = "Per inviare un pagamento a questo utente, deve accettare una richiesta di messaggio da te.";
 
@@ -4612,11 +4777,17 @@
 /* Title for error alert indicating that a given user cannot receive payments because of a pending message request. */
 "PAYMENTS_RECIPIENT_MISSING_PROFILE_KEY_TITLE" = "Impossibile inviare il pagamento";
 
-/* Message for error alert indicating that a given user cannot receive payments because they have not enabled payments. */
-"PAYMENTS_RECIPIENT_PAYMENTS_NOT_ENABLED_MESSAGE" = "Questa persona non ha attivato i pagamenti.";
+/* The label for the 'send request' button in alerts and action sheets. */
+"PAYMENTS_RECIPIENT_PAYMENTS_NOT_ENABLED_BUTTON" = "Invia richiesta";
 
-/* Title for error alert indicating that a given user cannot receive payments because they have not enabled payments. */
-"PAYMENTS_RECIPIENT_PAYMENTS_NOT_ENABLED_TITLE" = "Destinatario non valido";
+/* Message for error alert indicating that a given user cannot receive payments because they have not enabled payments. */
+"PAYMENTS_RECIPIENT_PAYMENTS_NOT_ENABLED_MESSAGE" = "Vuoi inviare a questo utente una richiesta per l'attivazione della funzione Pagamenti?";
+
+/* Title for error alert indicating that a given user cannot receive payments because they have not enabled payments. Embeds {{ the contact's name }} */
+"PAYMENTS_RECIPIENT_PAYMENTS_NOT_ENABLED_TITLE" = "%1$@ non ha attivato la funzione per i pagamenti";
+
+/* Payments Preview Text shown in chat list for payments. */
+"PAYMENTS_THREAD_PREVIEW_TEXT" = "💳 Pagamenti";
 
 /* Label for 'transfer out' payments. */
 "PAYMENTS_TRANSFER_OUT_PAYMENT" = "Trasferimento in uscita";
@@ -4779,6 +4950,9 @@
 
 /* alert title */
 "PHOTO_CAPTURE_UNABLE_TO_INITIALIZE_CAMERA" = "Configurazione fotocamera non riuscita.";
+
+/* alert title, generic error preventing user from capturing a video that is too long */
+"PHOTO_CAPTURE_VIDEO_SIZE_ERROR" = "Video troppo lungo.";
 
 /* label for system photo collections which have no name. */
 "PHOTO_PICKER_UNNAMED_COLLECTION" = "Album senza nome";
@@ -5380,17 +5554,8 @@
 /* Alert shown when submitting a verification code too many times. Embeds {{ duration }}, such as \"5:00\" */
 "REGISTRATION_SUBMIT_CODE_RATE_LIMIT_ALERT_FORMAT" = "Hai provato a inserire il codice troppe volte. Prova di nuovo tra %1$@";
 
-/* Error message indicating that device transfer from another device might be possible. */
-"REGISTRATION_TRANSFER_AVAILABLE_DESCRIPTION" = "C'era un account precedentemente registrato con questo numero che è disponibile per il trasferimento.";
-
 /* During registration and re-registration, users may have to enter a code to verify ownership of their phone number. If they enter an invalid code, they will see this error message. */
 "REGISTRATION_VERIFICATION_ERROR_INVALID_VERIFICATION_CODE" = "Il codice che hai inserito non è valido. Prova a rinviare il codice e ritenta.";
-
-/* Error message indicating that registration failed due to a missing or incorrect verification code. */
-"REGISTRATION_VERIFICATION_FAILED_WRONG_CODE_DESCRIPTION" = "I numeri che hai inserito non corrispondono con quelli inviati. Vuoi fare un nuovo controllo?";
-
-/* Error message indicating that registration failed due to a missing or incorrect 2FA PIN. */
-"REGISTRATION_VERIFICATION_FAILED_WRONG_PIN" = "PIN blocco registrazione non corretto.";
 
 /* Message of alert indicating that users needs to enter a valid phone number to register. */
 "REGISTRATION_VIEW_INVALID_PHONE_NUMBER_ALERT_MESSAGE" = "Inserire un numero di telefono valido per la registrazione.";
@@ -5478,21 +5643,6 @@
 
 /* Snippet to share {{safety number}} with a friend. sent e.g. via SMS */
 "SAFETY_NUMBER_SHARE_FORMAT" = "I nostri codici di sicurezza Signal:\n%1$@";
-
-/* Header informing the user about the transition from phone number to user identifier based. */
-"SAFETY_NUMBER_TRANSITION_HEADER_ALERT" = "Stiamo aggiornando i codici di sicurezza.";
-
-/* Button text for a sheet informing the user about the transition from phone number to user identifier based. */
-"SAFETY_NUMBER_TRANSITION_SHEET_HELP_TEXT" = "Hai bisogno di aiuto?";
-
-/* Informs the user about the transition from phone number to user identifier based. */
-"SAFETY_NUMBER_TRANSITION_SHEET_PARAGRAPH_1" = "Stiamo aggiornando il sistema dei codici di sicurezza in vista di un periodo di transizione che ci porterà a introdurre nuove funzioni per la privacy su Signal.";
-
-/* Informs the user about the transition from phone number to user identifier based. */
-"SAFETY_NUMBER_TRANSITION_SHEET_PARAGRAPH_2" = "Per verificare i codici di sicurezza, fai combaciare il colore della scheda con quello della scheda del dispositivo del tuo contatto. Se i codici non combaciano, continua a scorrere e prova un'altra coppia di codici di sicurezza. Ricorda che deve combaciare una sola coppia.";
-
-/* Title for a sheet informing the user about the transition from phone number to user identifier based. */
-"SAFETY_NUMBER_TRANSITION_SHEET_TITLE" = "Cambiamenti nei codici di sicurezza";
 
 /* Action sheet heading */
 "SAFETY_NUMBERS_ACTIONSHEET_TITLE" = "Il tuo codice di sicurezza con %1$@ è cambiato. Dovresti verificarlo.";
@@ -5656,11 +5806,59 @@
 /* String describing standard quality sent media */
 "SENT_MEDIA_QUALITY_STANDARD" = "Normale";
 
+/* Users can donate to Signal with a bank account. This is the label for email field on that screen. */
+"SEPA_DONATION_EMAIL_LABEL" = "Email";
+
+/* Users can donate to Signal with a bank account. This is placeholder text for the email field before the user starts typing. */
+"SEPA_DONATION_EMAIL_PLACEHOLDER" = "Email Address";
+
+/* SEPA bank account donation error for insufficient funds. */
+"SEPA_DONATION_ERROR_INSUFFICIENT_FUNDS" = "The bank account provided has insufficient funds to complete this purchase, try again or contact your bank for more information.";
+
+/* SEPA bank account donation error for missing or incorrect mandate information. */
+"SEPA_DONATION_ERROR_NOT_AUTHORIZED" = "An error occurred while processing this payment, please try again.";
+
+/* SEPA bank account donation error for the account details not being able to be processed. */
+"SEPA_DONATION_ERROR_NOT_PROCESSED" = "The bank details provided could not be processed, contact your bank for more information.";
+
+/* SEPA bank account donation error for unspecified decline failures. */
+"SEPA_DONATION_ERROR_OTHER" = "Verify your bank details are correct and try again. If the problem continues, contact your bank.";
+
+/* SEPA bank account donation error for the payment not being authorizing by the account holder. */
+"SEPA_DONATION_ERROR_PAYMENT_NOT_AUTHORIZED" = "This payment was revoked by the account holder and could not be processed. You haven’t been charged.";
+
+/* Users can donate to Signal with a bank account. If their internation bank account number (IBAN) contains characters other than letters and numbers, this error will be shown. Try to use a short string to make space in the UI. */
+"SEPA_DONATION_IBAN_INVALID_CHARACTERS_ERROR" = "IBAN can only contain A-Z and 0-9";
+
+/* Users can donate to Signal with a bank account. If their internation bank account number (IBAN) does not pass validation, this error will be shown. Try to use a short string to make space in the UI. */
+"SEPA_DONATION_IBAN_INVALID_CHECK_ERROR" = "Invalid IBAN number";
+
+/* Users can donate to Signal with a bank account. If their internation bank account number (IBAN) has an unsupported country code, this error will be shown. Try to use a short string to make space in the UI. */
+"SEPA_DONATION_IBAN_INVALID_COUNTRY_ERROR" = "IBAN country code is not supported";
+
+/* Users can donate to Signal with a bank account. This is the label for IBAN (internation bank account number) field on that screen. */
+"SEPA_DONATION_IBAN_LABEL" = "IBAN";
+
+/* Users can donate to Signal with a bank account. If their internation bank account number (IBAN) is too long, this error will be shown. Try to use a short string to make space in the UI. */
+"SEPA_DONATION_IBAN_TOO_LONG_ERROR" = "IBAN is too long";
+
+/* Users can donate to Signal with a bank account. If their internation bank account number (IBAN) is too long, this error will be shown. Try to use a short string to make space in the UI. */
+"SEPA_DONATION_IBAN_TOO_SHORT_ERROR" = "IBAN is too short";
+
+/* Users can donate to Signal with a bank account. This is the label for name field on that screen. */
+"SEPA_DONATION_NAME_LABEL" = "Name";
+
+/* Users can donate to Signal with a bank account. This is placeholder text for the name field before the user starts typing. */
+"SEPA_DONATION_NAME_PLACEHOLDER" = "Name on Bank Account";
+
 /* Description for the session refresh alert */
 "SESSION_REFRESH_ALERT_MESSAGE" = "Signal utilizza la crittografia end-to-end e potrebbe essere necessario aggiornare la tua sessione di chat a volte. Ciò non influisce sulla sicurezza della tua chat, ma potresti aver perso un messaggio da questo contatto e puoi chiedere loro di inviarlo di nuovo.";
 
 /* Title for the session refresh alert */
 "SESSION_REFRESH_ALERT_TITLE" = "Sessione di chat aggiornata";
+
+/* If you send a message to a phone number, we might not know the owner of the account. When you later learn the owner of the account, we may show this message. The first parameter is a phone number; the second parameter is the contact's name. Put differently, this message indicates that a phone number belongs to a particular named recipient. */
+"SESSION_SWITCHOVER_EVENT" = "%1$@ appartiene a %2$@";
 
 /* Title for the wallpaper choose from photos option */
 "SET_WALLPAPER_CHOOSE_PHOTO" = "Scegli dalle foto";
@@ -5721,6 +5919,21 @@
 
 /* No comment provided by engineer. */
 "SETTINGS_ADVANCED_VIEW_ERROR_LOG" = "Log di errore";
+
+/* Information on sheet about changing the app icon - first line */
+"SETTINGS_APP_ICON_EDUCATION_APP_NAME" = "Il nome dell'app \"Signal\" sarà visibile sulla schermata Home, nelle notifiche che ricevi e nella Raccolta delle App.";
+
+/* Information on sheet about changing the app icon - second line */
+"SETTINGS_APP_ICON_EDUCATION_HOME_SCREEN_DOCK" = "Puoi nascondere il nome dell'app \"Signal\" dalla schermata Home del tuo dispositivo spostando l'app nella barra principale in fondo alla schermata Home.";
+
+/* The footer for the app icon selection settings page. */
+"SETTINGS_APP_ICON_FOOTER" = "Il nome dell'app \"Signal\" sarà visibile sulla schermata Home, nelle notifiche che ricevi e nella Raccolta delle App.";
+
+/* The title for the app icon selection settings page. */
+"SETTINGS_APP_ICON_TITLE" = "Icona dell'app";
+
+/* The title for the app icon section in the appearance settings. */
+"SETTINGS_APPEARANCE_APP_ICON" = "Icona dell'app";
 
 /* Footer for avatar section in appearance settings */
 "SETTINGS_APPEARANCE_AVATAR_FOOTER" = "Mostra le foto dei contatti di sistema se disponibili.";
@@ -5948,7 +6161,7 @@
 "SETTINGS_PAYMENTS_ACTIVATE_PAYMENTS_CONFIRM_AGREE" = "Attiva";
 
 /* Description for the 'activate payments confirmation' UI in the payment settings. */
-"SETTINGS_PAYMENTS_ACTIVATE_PAYMENTS_CONFIRM_DESCRIPTION" = "Puoi utilizzare Signal per inviare e ricevere MobileCoin. Tutti i pagamenti sono soggetti ai Termini di utilizzo dei MobileCoin e di MobileCoin Wallet. Questa è una funzione beta, quindi potresti riscontrare alcuni problemi e pagamenti o saldi che potresti perdere non possono essere recuperati.";
+"SETTINGS_PAYMENTS_ACTIVATE_PAYMENTS_CONFIRM_DESCRIPTION" = "Puoi usare Signal per inviare e ricevere i MobileCoin. Tutti i pagamenti sono soggetti ai Termini di Utilizzo dei MobileCoin e del MobileCoin Wallet. Ricorda che potresti riscontrare alcuni problemi. Inoltre, in caso di perdite nei pagamenti o nei saldi dei Wallet, potrebbe non essere possibile recuperare la somma persa.";
 
 /* Title for the 'activate payments confirmation' UI in the payment settings. */
 "SETTINGS_PAYMENTS_ACTIVATE_PAYMENTS_CONFIRM_TITLE" = "Attiva";
@@ -6104,7 +6317,7 @@
 "SETTINGS_PAYMENTS_OPT_IN_REACTIVATE_BUTTON" = "Riattiva pagamenti";
 
 /* Title for the 'payments opt-in' view in the app settings. */
-"SETTINGS_PAYMENTS_OPT_IN_TITLE" = "Ti presentiamo i pagamenti (beta)";
+"SETTINGS_PAYMENTS_OPT_IN_TITLE" = "Ecco i pagamenti su Signal";
 
 /* Button when discarding recovery phrase. */
 "SETTINGS_PAYMENTS_PASSPHRASE_DISCARD_CONFIRMATION_BUTTON" = "Salta l'impostazione della frase di recupero";
@@ -6142,8 +6355,14 @@
 /* Label for the sender in the payment details view in the app settings. */
 "SETTINGS_PAYMENTS_PAYMENT_DETAILS_SENDER" = "Inviato da";
 
+/* Label for the sender in the payment details view in the app settings when the status is 'Failed'. Followed by sender name. */
+"SETTINGS_PAYMENTS_PAYMENT_DETAILS_SENDER_ATTEMPTED" = "Effettuato da";
+
 /* Format for the sender info in the payment details view in the app settings. Embeds {{ %1$@ the name of the sender of the payment, %2$@ the date the transaction was sent }}. */
 "SETTINGS_PAYMENTS_PAYMENT_DETAILS_SENDER_FORMAT" = "%1$@ il %2$@";
+
+/* Format for indicator that you sent a payment in the payment details view in the app settings. Embeds: {{ the user who you sent the payment to }}. */
+"SETTINGS_PAYMENTS_PAYMENT_DETAILS_SENDING_FORMAT" = "Invio a %1$@";
 
 /* Indicates that you sent a payment in the payment details view in the app settings. */
 "SETTINGS_PAYMENTS_PAYMENT_DETAILS_SENT" = "Inviato";
@@ -6413,7 +6632,7 @@
 "SETTINGS_PAYMENTS_VIEW_RECOVERY_PASSPHRASE" = "Frase di recupero";
 
 /* Title for the 'payments settings' view in the app settings. */
-"SETTINGS_PAYMENTS_VIEW_TITLE" = "Pagamenti (beta)";
+"SETTINGS_PAYMENTS_VIEW_TITLE" = "Pagamenti";
 
 /* Label for the payments wallet address. */
 "SETTINGS_PAYMENTS_WALLET_ADDRESS_LABEL" = "L'indirizzo del tuo portafoglio";
@@ -6611,7 +6830,7 @@
 "SHOW_THREAD_BUTTON_TITLE" = "Mostra chat";
 
 /* body sent to contacts when inviting to Install Signal */
-"SMS_INVITE_BODY" = "Ti sto invitando a installare Signal! Ecco il lnk:";
+"SMS_INVITE_BODY" = "Ti sto invitando a installare Signal! Ecco il link:";
 
 /* An error message generically indicating that something went wrong. */
 "SOMETHING_WENT_WRONG_ERROR" = "Qualcosa è andato storto.";
@@ -6645,6 +6864,12 @@
 
 /* Title for the captcha view controller */
 "SPAM_CAPTCHA_VIEW_CONTROLLER" = "Completa verifica";
+
+/* The name for the sticker category 'Featured' */
+"STICKER_CATEGORY_FEATURED_NAME" = "In evidenza";
+
+/* The name for the sticker category 'Recents' */
+"STICKER_CATEGORY_RECENTS_NAME" = "Recenti";
 
 /* Preview text shown in notifications and conversation list for sticker messages. */
 "STICKER_MESSAGE_PREVIEW" = "Messaggio adesivo";
@@ -6904,6 +7129,9 @@
 /* Text indicating that the story send has failed */
 "STORY_SEND_FAILED" = "Invio non riuscito";
 
+/* Body for notification shown when a story fails to send. */
+"STORY_SEND_FAILED_NOTIFICATION_BODY" = "❗️ Impossibile inviare la Storia";
+
 /* Text indicating that you can tap to retry sending */
 "STORY_SEND_FAILED_RETRY" = "Tocca per riprovare";
 
@@ -7039,38 +7267,26 @@
 /* Confirm Cancellation? Action sheet title */
 "SUSTAINER_VIEW_CANCEL_SUBSCRIPTION_CONFIRMATION_TITLE" = "Confermare l'annullamento?";
 
-/* Couldn't add badge text, embeds {{link to contact support}} */
-"SUSTAINER_VIEW_CANT_ADD_BADGE" = "Non è stato possibile aggiungere il badge. %1$@";
-
 /* Action sheet message for Couldn't Add Badge sheet */
 "SUSTAINER_VIEW_CANT_ADD_BADGE_MESSAGE" = "Il tuo badge non può essere aggiunto al tuo account. Contatta l'assistenza.";
 
 /* Action sheet title for Couldn't Add Badge sheet */
 "SUSTAINER_VIEW_CANT_ADD_BADGE_TITLE" = "Non è stato possibile aggiungere il badge";
 
-/* Contact support link */
-"SUSTAINER_VIEW_CONTACT_SUPPORT" = "Contatta l'assistenza.";
-
 /* Action sheet title for Error Processing Payment sheet */
-"SUSTAINER_VIEW_ERROR_PROCESSING_PAYMENT_TITLE" = "Errore nell'elaborazione del pagamento";
-
-/* Payment error occurred text, embeds {{link to contact support}} */
-"SUSTAINER_VIEW_PAYMENT_ERROR" = "Errore nell'elaborazione del pagamento. %1$@";
+"SUSTAINER_VIEW_ERROR_PROCESSING_PAYMENT_TITLE" = "Error Processing Donation";
 
 /* Pricing text for sustainer view badges, embeds {{price}} */
 "SUSTAINER_VIEW_PRICING" = "%1$@/al mese";
 
 /* Loading indicator on the sustainer view */
-"SUSTAINER_VIEW_PROCESSING_PAYMENT" = "Pagamento in elaborazione…";
-
-/* Status text while processing a badge redemption */
-"SUSTAINER_VIEW_PROCESSING_TRANSACTION" = "Elaborazione della transazione…";
+"SUSTAINER_VIEW_PROCESSING_PAYMENT" = "Processing donation...";
 
 /* Renewal date text for sustainer view level, embeds {{renewal date}} */
 "SUSTAINER_VIEW_RENEWAL" = "Si rinnova il giorno: %1$@";
 
 /* Action sheet message for Still Processing Badge sheet */
-"SUSTAINER_VIEW_STILL_PROCESSING_BADGE_MESSAGE" = "Il tuo pagamento è ancora in fase di elaborazione. Questo può richiedere alcuni minuti a seconda della tua connessione.";
+"SUSTAINER_VIEW_STILL_PROCESSING_BADGE_MESSAGE" = "Your donation is still being processed. This can take a few minutes depending on your connection.";
 
 /* Toast indicating that the subscription has been cancelled */
 "SUSTAINER_VIEW_SUBSCRIPTION_CANCELLED" = "Il tuo contributo è stato cancellato";
@@ -7138,6 +7354,9 @@
 /* Option in selected text edit menu to make text strikethrough */
 "TEXT_MENU_STRIKETHROUGH" = "Barrato";
 
+/* Option in selected text edit menu to translate the word */
+"TEXT_MENU_TRANSLATE" = "Traduci";
+
 /* text indicating the message was remotely deleted */
 "THIS_MESSAGE_WAS_DELETED" = "Questo messaggio è stato eliminato.";
 
@@ -7158,6 +7377,15 @@
 
 /* A string indicating two mutual groups the user shares with this contact. Embeds {{mutual group name}} */
 "THREAD_DETAILS_TWO_MUTUAL_GROUP" = "Membro di %1$@ e %2$@";
+
+/* Shown after tapping a 'Learn More' button when multiple conversations for the same person have been merged into one. The first parameter is a phone number (eg +1 650-555-0100) and the second parameter is a name (eg John). */
+"THREAD_MERGE_LEARN_MORE" = "Dopo aver inviato un messaggio a %1$@ hai scoperto che questo numero appartiene a %2$@. Il numero di telefono di questa persona è privato.\n\nLa cronologia dei messaggi di entrambe le chat è stata unita e puoi trovarla qui.";
+
+/* A system event shown in a conversation when multiple conversations for the same person have been merged into one. The parameter is replaced with the contact's name (eg John Doe). */
+"THREAD_MERGE_NO_PHONE_NUMBER" = "La tua cronologia dei messaggi con %1$@ è stata collegata a un'altra sua chat.";
+
+/* A system event shown in a conversation when multiple conversations for the same person have been merged into one. The parameters are replaced with the contact's name (eg John Doe) and their phone number (eg +1 650 555 0100). */
+"THREAD_MERGE_PHONE_NUMBER" = "La tua cronologia dei messaggi con %1$@ è stata collegata al suo numero %2$@.";
 
 /* {{number of days}} embedded in strings, e.g. 'Alice updated disappearing messages expiration to {{5 days}}'. See other *_TIME_AMOUNT strings */
 "TIME_AMOUNT_DAYS" = "%1$@ giorni";
@@ -7200,6 +7428,18 @@
 
 /* Label text below navbar button, embeds {{number of weeks}}. Must be very short, like 1 or 2 characters, The space is intentionally omitted between the text and the embedded duration so that we get, e.g. '5w' not '5 w'. See other *_TIME_AMOUNT strings */
 "TIME_AMOUNT_WEEKS_SHORT_FORMAT" = "%1$@set";
+
+/* Button for bottom sheet shown when device transfer completes on the receiving device. Tapping will terminate the Signal app and trigger a notification to relaunch. */
+"TRANSFER_COMPLETE_SHEET_BUTTON" = "Chiudi Signal";
+
+/* Subtitle for bottom sheet shown when device transfer completes on the receiving device. */
+"TRANSFER_COMPLETE_SHEET_SUBTITLE" = "Per iniziare a usare il tuo account su questo dispositivo, devi chiudere e riaprire Signal.";
+
+/* Title for bottom sheet shown when device transfer completes on the receiving device. */
+"TRANSFER_COMPLETE_SHEET_TITLE" = "Trasferimento completato";
+
+/* Notification prompting the user to relaunch Signal after a device transfer completed. */
+"TRANSFER_RELAUNCH_NOTIFICATION" = "Apri Signal e inizia a chattare :)";
 
 /* Label for the cancel button in an alert or action sheet. */
 "TXT_CANCEL_TITLE" = "Annulla";
@@ -7439,13 +7679,16 @@
 "VERIFY_PRIVACY_MULTIPLE" = "Esamina codici di sicurezza";
 
 /* Instructions for verifying your safety number. Embeds {{contact's name}} */
-"VERIFY_SAFETY_NUMBER_INSTRUCTIONS" = "Per verificare la sicurezza della tua crittografia end-to-end con %1$@, fai combaciare il colore della scheda qui sopra con la scheda del dispositivo della persona in questione e confronta i codici. Se i codici non combaciano, continua a scorrere e prova un'altra coppia di codici di sicurezza. Ricorda che deve combaciare una sola coppia.";
+"VERIFY_SAFETY_NUMBER_INSTRUCTIONS" = "To verify end-to-end encryption with %1$@, compare the numbers above with their device. You can also scan the code on their device.";
 
 /* Toast alert text shown when tapping on a video that cannot be played. */
 "VIDEO_BROKEN" = "Impossibile riprodurre questo video";
 
 /* Accessibility label for placing a video call */
 "VIDEO_CALL_LABEL" = "Videochiamata";
+
+/* Button label for the 'View Contact' button */
+"VIEW_CONTACT_BUTTON" = "Vedi contatto";
 
 /* Toast alert text shown when tapping on a view-once message that has already been viewed. */
 "VIEW_ONCE_ALREADY_VIEWED_TOAST" = "Hai già visualizzato questo messaggio.";

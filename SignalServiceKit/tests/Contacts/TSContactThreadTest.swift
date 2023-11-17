@@ -4,16 +4,22 @@
 //
 
 import XCTest
-import SignalServiceKit
+
+@testable import SignalServiceKit
 
 class TSContactThreadTest: SSKBaseTestSwift {
     private func contactThread() -> TSContactThread {
-        TSContactThread.getOrCreateThread(contactAddress: SignalServiceAddress(phoneNumber: "+12225550123"))
+        TSContactThread.getOrCreateThread(contactAddress: SignalServiceAddress.randomForTesting())
     }
 
     override func setUp() {
         super.setUp()
-        tsAccountManager.registerForTests(withLocalNumber: "+13335550123", uuid: UUID())
+        databaseStorage.write { tx in
+            (DependenciesBridge.shared.registrationStateChangeManager as! RegistrationStateChangeManagerImpl).registerForTests(
+                localIdentifiers: .forUnitTests,
+                tx: tx.asV2Write
+            )
+        }
     }
 
     func testHasSafetyNumbersWithoutRemoteIdentity() {
@@ -22,10 +28,11 @@ class TSContactThreadTest: SSKBaseTestSwift {
 
     func testHasSafetyNumbersWithRemoteIdentity() {
         let contactThread = self.contactThread()
-        OWSIdentityManager.shared.saveRemoteIdentity(
-            Data(count: Int(kStoredIdentityKeyLength)),
-            address: contactThread.contactAddress
-        )
+
+        let identityManager = DependenciesBridge.shared.identityManager
+        databaseStorage.write { tx in
+            identityManager.saveIdentityKey(Data(count: 32), for: contactThread.contactAddress.serviceId!, tx: tx.asV2Write)
+        }
 
         XCTAssert(contactThread.hasSafetyNumbers())
     }

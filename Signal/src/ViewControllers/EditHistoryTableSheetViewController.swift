@@ -18,8 +18,6 @@ class EditHistoryTableSheetViewController: OWSTableSheetViewController {
         static let cellSpacing: CGFloat = 12.0
     }
 
-    open override var interactiveScrollViews: [UIScrollView] { [] }
-
     weak var delegate: MessageEditHistoryViewDelegate?
 
     var parentRenderItems: [CVRenderItem]?
@@ -298,6 +296,17 @@ extension EditHistoryTableSheetViewController: CVComponentDelegate {
         itemViewModel: CVItemViewModelImpl,
         shouldAllowReply: Bool) {}
 
+    func didLongPressPaymentMessage(
+        _ cell: CVCell,
+        itemViewModel: CVItemViewModelImpl,
+        shouldAllowReply: Bool
+    ) {}
+
+    func didTapPayment(
+        _ paymentModel: TSPaymentModel,
+        displayName: String
+    ) {}
+
     func didChangeLongPress(_ itemViewModel: CVItemViewModelImpl) {}
 
     func didEndLongPress(_ itemViewModel: CVItemViewModelImpl) {}
@@ -395,6 +404,8 @@ extension EditHistoryTableSheetViewController: CVComponentDelegate {
 
     func didTapIndividualCall(_ call: TSCall) {}
 
+    func didTapLearnMoreMissedCallFromBlockedContact(_ call: TSCall) {}
+
     func didTapGroupCall() {}
 
     func didTapPendingOutgoingMessage(_ message: TSOutgoingMessage) {}
@@ -422,10 +433,7 @@ extension EditHistoryTableSheetViewController: CVComponentDelegate {
         _ address: SignalServiceAddress,
         newNameComponents: PersonNameComponents) {}
 
-    func didTapPhoneNumberChange(
-        uuid: UUID,
-        phoneNumberOld: String,
-        phoneNumberNew: String) {}
+    func didTapPhoneNumberChange(aci: Aci, phoneNumberOld: String, phoneNumberNew: String) {}
 
     func didTapViewOnceAttachment(_ interaction: TSInteraction) {}
 
@@ -434,4 +442,9 @@ extension EditHistoryTableSheetViewController: CVComponentDelegate {
     func didTapUnknownThreadWarningGroup() {}
     func didTapUnknownThreadWarningContact() {}
     func didTapDeliveryIssueWarning(_ message: TSErrorMessage) {}
+
+    func didTapActivatePayments() {}
+    func didTapSendPayment() {}
+
+    func didTapThreadMergeLearnMore(phoneNumber: String) {}
 }

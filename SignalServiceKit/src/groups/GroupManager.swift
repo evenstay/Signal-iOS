@@ -71,7 +71,7 @@ public class GroupManager: NSObject {
 
     // MARK: - Group IDs
 
-    private static func groupIdLength(for groupsVersion: GroupsVersion) -> Int32 {
+    static func groupIdLength(for groupsVersion: GroupsVersion) -> Int32 {
         switch groupsVersion {
         case .V1:
             return kGroupIdLengthV1
@@ -193,7 +193,7 @@ public class GroupManager: NSObject {
                                            newGroupSeed: NewGroupSeed? = nil,
                                            shouldSendMessage: Bool) -> Promise<TSGroupThread> {
 
-        guard let localIdentifiers = tsAccountManager.localIdentifiers else {
+        guard let localIdentifiers = DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction else {
             return Promise(error: OWSAssertionError("Missing localIdentifiers."))
         }
 
@@ -318,7 +318,7 @@ public class GroupManager: NSObject {
         withMembership newGroupMembership: GroupMembership,
         transaction tx: SDSAnyReadTransaction
     ) -> GroupMembership {
-        guard let localAci = tsAccountManager.localIdentifiers(transaction: tx)?.aci else {
+        guard let localAci = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: tx.asV2Read)?.aci else {
             owsFailDebug("Missing localAci.")
             return newGroupMembership
         }
@@ -391,7 +391,7 @@ public class GroupManager: NSObject {
                                            groupsVersion: GroupsVersion = .V1,
                                            transaction: SDSAnyWriteTransaction) throws -> TSGroupThread {
 
-        guard let localIdentifiers = tsAccountManager.localIdentifiers(transaction: transaction) else {
+        guard let localIdentifiers = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: transaction.asV2Read) else {
             throw OWSAssertionError("Missing localIdentifiers.")
         }
 
@@ -474,7 +474,7 @@ public class GroupManager: NSObject {
         inContactOrGroupV1Thread thread: TSThread,
         tx: SDSAnyWriteTransaction
     ) {
-        guard let localIdentifiers = tsAccountManager.localIdentifiers(transaction: tx) else {
+        guard let localIdentifiers = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: tx.asV2Read) else {
             owsFailDebug("Not registered.")
             return
         }
@@ -854,7 +854,7 @@ public class GroupManager: NSObject {
     // MARK: - Removed from Group or Invite Revoked
 
     public static func handleNotInGroup(groupId: Data, transaction: SDSAnyWriteTransaction) {
-        guard let localIdentifiers = tsAccountManager.localIdentifiers(transaction: transaction) else {
+        guard let localIdentifiers = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: transaction.asV2Read) else {
             owsFailDebug("Missing localIdentifiers.")
             return
         }
@@ -1165,16 +1165,70 @@ public class GroupManager: NSObject {
             updateDMResult = UpdateDMConfigurationResult(oldConfiguration: dmConfiguration, newConfiguration: dmConfiguration)
         }
 
-        // Step 3: If any member was removed, make sure we rotate our sender key session
+        // Step 3: If any member was removed, make sure we rotate our sender key
+        // session.
+        //
+        // If *we* were removed, check if the group contained any blocked
+        // members and make a best-effort attempt to rotate our profile key if
+        // this was our only mutual group with them.
         let oldGroupModel = groupThread.groupModel
-        if let newGroupModelV2 = newGroupModel as? TSGroupModelV2,
-           let oldGroupModelV2 = oldGroupModel as? TSGroupModelV2 {
-
-            let oldMembers = oldGroupModelV2.membership.allMembersOfAnyKind
-            let newMembers = newGroupModelV2.membership.allMembersOfAnyKind
+        if
+            let newGroupModelV2 = newGroupModel as? TSGroupModelV2,
+            let oldGroupModelV2 = oldGroupModel as? TSGroupModelV2
+        {
+            let oldMembers = oldGroupModelV2.membership.allMembersOfAnyKindServiceIds
+            let newMembers = newGroupModelV2.membership.allMembersOfAnyKindServiceIds
 
             if oldMembers.subtracting(newMembers).isEmpty == false {
                 senderKeyStore.resetSenderKeySession(for: groupThread, transaction: transaction)
+            }
+
+            if
+                DependenciesBridge.shared.tsAccountManager.registrationState(tx: transaction.asV2Read).isPrimaryDevice ?? true,
+                let localAci = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: transaction.asV2Read)?.aci,
+                oldGroupModelV2.membership.hasProfileKeyInGroup(serviceId: localAci),
+                !newGroupModelV2.membership.hasProfileKeyInGroup(serviceId: localAci)
+            {
+                // If our profile key is no longer exposed to the group - for
+                // example, we've left the group - check if the group had any
+                // blocked users to whom our profile key was exposed.
+                var shouldRotateProfileKey = false
+                for member in oldMembers {
+                    let memberAddress = SignalServiceAddress(member)
+
+                    if
+                        (
+                            blockingManager.isAddressBlocked(memberAddress, transaction: transaction)
+                            || DependenciesBridge.shared.recipientHidingManager.isHiddenAddress(memberAddress, tx: transaction.asV2Read)
+                        ),
+                        newGroupModelV2.membership.canViewProfileKeys(serviceId: member)
+                    {
+                        // Make a best-effort attempt to find other groups with
+                        // this blocked user in which our profile key is
+                        // exposed.
+                        //
+                        // We can only efficiently query for groups in which
+                        // they are a full member, although that may not be all
+                        // the groups in which they can see your profile key.
+                        // Best effort.
+                        let mutualGroupThreads = Self.mutualGroupThreads(
+                            with: member,
+                            localAci: localAci,
+                            tx: transaction
+                        )
+
+                        // If there is exactly one group, it's the one we are leaving!
+                        // We should rotate, as it's the last group we have in common.
+                        if mutualGroupThreads.count == 1 {
+                            shouldRotateProfileKey = true
+                            break
+                        }
+                    }
+                }
+
+                if shouldRotateProfileKey {
+                    profileManager.forceRotateLocalProfileKeyForGroupDeparture(with: transaction)
+                }
             }
         }
 
@@ -1215,7 +1269,7 @@ public class GroupManager: NSObject {
 
             TSGroupThread.ensureGroupIdMapping(forGroupId: newGroupModel.groupId, transaction: transaction)
 
-            groupThread.update(with: newGroupModel, transaction: transaction)
+            groupThread.update(with: newGroupModel, shouldUpdateChatListUi: hasUserFacingChange, transaction: transaction)
 
             let action: UpsertGroupResult.Action = (hasUserFacingChange
                                                         ? .updatedWithUserFacingChanges
@@ -1259,6 +1313,38 @@ public class GroupManager: NSObject {
         }
 
         return UpsertGroupResult(action: .updatedWithUserFacingChanges, groupThread: groupThread)
+    }
+
+    private static func mutualGroupThreads(
+        with member: ServiceId,
+        localAci: Aci,
+        tx: SDSAnyReadTransaction
+    ) -> [TSGroupThread] {
+        return DependenciesBridge.shared.groupMemberStore
+            .groupThreadIds(
+                withFullMember: member,
+                tx: tx.asV2Read
+            )
+            .lazy
+            .compactMap { groupThreadId in
+                return TSGroupThread.anyFetchGroupThread(uniqueId: groupThreadId, transaction: tx)
+            }
+            .filter { groupThread in
+                return groupThread.groupMembership.hasProfileKeyInGroup(serviceId: localAci)
+            }
+    }
+
+    public static func hasMutualGroupThread(
+        with member: ServiceId,
+        localAci: Aci,
+        tx: SDSAnyReadTransaction
+    ) -> Bool {
+        let mutualGroupThreads = Self.mutualGroupThreads(
+            with: member,
+            localAci: localAci,
+            tx: tx
+        )
+        return !mutualGroupThreads.isEmpty
     }
 
     // MARK: - Storage Service
@@ -1338,19 +1424,42 @@ public class GroupManager: NSObject {
 
     // MARK: -
 
-    public static func storeProfileKeysFromGroupProtos(_ profileKeysByAci: [Aci: Data]) {
-        var profileKeysByAddress = [SignalServiceAddress: Data]()
-        for (aci, profileKeyData) in profileKeysByAci {
-            profileKeysByAddress[SignalServiceAddress(aci)] = profileKeyData
+    /// A profile key is considered "authoritative" when it comes in on a group
+    /// change action and the owner of the profile key matches the group change
+    /// action author. We consider an "authoritative" profile key the source of
+    /// truth. Even if we have a different profile key for this user already,
+    /// we consider this authoritative profile key the correct, most up-to-date
+    /// one. A "non-authoritative" profile key, on the other hand, may or may
+    /// not be the most up to date profile key for a user (such as if one user
+    /// adds another to a group without having their latest profile key), and we
+    /// only use it if we have no other profile key for the user already.
+    ///
+    /// - Parameter allProfileKeysByAci: contains both authoritative and
+    ///   non-authoritative profile keys.
+    ///
+    /// - Parameter authoritativeProfileKeysByAci: contains just authoritative
+    ///   profile keys. If authoritative profile keys cannot be determined, pass
+    ///   nil.
+    public static func storeProfileKeysFromGroupProtos(
+        allProfileKeysByAci: [Aci: Data],
+        authoritativeProfileKeysByAci: [Aci: Data]?
+    ) {
+        var allProfileKeysByAddress = [SignalServiceAddress: Data]()
+        for (aci, profileKeyData) in allProfileKeysByAci {
+            allProfileKeysByAddress[SignalServiceAddress(aci)] = profileKeyData
         }
-        // If we receive a profile key from a user, that's "authoritative" and
-        // can discard and previous key from them.
-        //
-        // However, if we learn of a user's profile key from v2 group protos,
-        // it might be stale.  E.g. maybe they were added by someone who
-        // doesn't know their new profile key.  So we only want to fill in
-        // missing keys, not overwrite any existing keys.
-        profileManager.fillInMissingProfileKeys(profileKeysByAddress, userProfileWriter: .groupState, authedAccount: .implicit())
+        var authoritativeProfileKeysByAddress = [SignalServiceAddress: Data]()
+        if let authoritativeProfileKeysByAci {
+            for (aci, profileKeyData) in authoritativeProfileKeysByAci {
+                authoritativeProfileKeysByAddress[SignalServiceAddress(aci)] = profileKeyData
+            }
+        }
+        profileManager.fillInProfileKeys(
+            allProfileKeys: allProfileKeysByAddress,
+            authoritativeProfileKeys: authoritativeProfileKeysByAddress,
+            userProfileWriter: .groupState,
+            authedAccount: .implicit()
+        )
     }
 
     /// Ensure that we have a profile key commitment for our local profile
@@ -1361,14 +1470,15 @@ public class GroupManager: NSObject {
     /// our profile key credential from the service until we've uploaded a profile
     /// key commitment to the service.
     public static func ensureLocalProfileHasCommitmentIfNecessary() -> Promise<Void> {
-        guard tsAccountManager.isOnboarded else {
+        guard DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isRegistered else {
             return Promise.value(())
         }
-        guard let localAddress = self.tsAccountManager.localAddress else {
+        guard let localAddress = DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction?.aciAddress else {
             return Promise(error: OWSAssertionError("Missing localAddress."))
         }
 
         return databaseStorage.read(.promise) { transaction -> Bool in
+            if DebugFlags.internalLogging { Logger.info("[Scroll Perf Debug] hasProfileKeyCredential") }
             return self.groupsV2Swift.hasProfileKeyCredential(for: localAddress,
                                                               transaction: transaction)
         }.then(on: DispatchQueue.global()) { hasLocalCredential -> Promise<Void> in
@@ -1379,6 +1489,7 @@ public class GroupManager: NSObject {
             // If we don't have a local profile key credential we should first
             // check if it is simply expired, by asking for a new one (which we
             // would get as part of fetching our local profile).
+            if DebugFlags.internalLogging { Logger.info("[Scroll Perf Debug] fetch local user profile") }
             return self.profileManager.fetchLocalUsersProfilePromise(authedAccount: .implicit()).asVoid()
         }.then(on: DispatchQueue.global()) { () -> Promise<Void> in
             let hasProfileKeyCredentialAfterRefresh = databaseStorage.read { transaction in
@@ -1389,11 +1500,12 @@ public class GroupManager: NSObject {
                 // We successfully refreshed our profile key credential, which
                 // means we have previously uploaded a commitment, and all is
                 // well.
+                if DebugFlags.internalLogging { Logger.info("[Scroll Perf Debug] got profile key credential") }
                 return .value(())
             }
 
             guard
-                tsAccountManager.isRegisteredPrimaryDevice,
+                DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isRegisteredPrimaryDevice,
                 CurrentAppContext().isMainApp
             else {
                 Logger.warn("Skipping upload of local profile key commitment, not in main app!")

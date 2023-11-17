@@ -3,15 +3,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import GRDB
+import LibSignalClient
 
-protocol GroupMemberStore {
+public protocol GroupMemberStore {
     func insert(fullGroupMember: TSGroupMember, tx: DBWriteTransaction)
     func update(fullGroupMember: TSGroupMember, tx: DBWriteTransaction)
     func remove(fullGroupMember: TSGroupMember, tx: DBWriteTransaction)
 
-    func groupThreadIds(withFullMember serviceId: UntypedServiceId, tx: DBReadTransaction) -> [String]
+    func groupThreadIds(withFullMember serviceId: ServiceId, tx: DBReadTransaction) -> [String]
     func groupThreadIds(withFullMember phoneNumber: E164, tx: DBReadTransaction) -> [String]
 
     func sortedFullGroupMembers(in groupThreadId: String, tx: DBReadTransaction) -> [TSGroupMember]
@@ -30,17 +30,17 @@ class GroupMemberStoreImpl: GroupMemberStore {
         groupMember.anyRemove(transaction: SDSDB.shimOnlyBridge(tx))
     }
 
-    func groupThreadIds(withFullMember serviceId: UntypedServiceId, tx: DBReadTransaction) -> [String] {
+    func groupThreadIds(withFullMember serviceId: ServiceId, tx: DBReadTransaction) -> [String] {
         Self.groupThreadIds(withFullMember: serviceId, db: SDSDB.shimOnlyBridge(tx).unwrapGrdbRead.database)
     }
 
-    fileprivate static func groupThreadIds(withFullMember serviceId: UntypedServiceId, db: Database) -> [String] {
+    fileprivate static func groupThreadIds(withFullMember serviceId: ServiceId, db: Database) -> [String] {
         let sql = """
             SELECT \(TSGroupMember.columnName(.groupThreadId))
             FROM \(TSGroupMember.databaseTableName)
             WHERE \(TSGroupMember.columnName(.serviceId)) = ?
         """
-        return db.strictRead { try String.fetchAll($0, sql: sql, arguments: [serviceId.uuidValue.uuidString]) }
+        return db.strictRead { try String.fetchAll($0, sql: sql, arguments: [serviceId.serviceIdUppercaseString]) }
     }
 
     func groupThreadIds(withFullMember phoneNumber: E164, tx: DBReadTransaction) -> [String] {
@@ -73,7 +73,7 @@ class GroupMemberStoreImpl: GroupMemberStore {
 #if TESTABLE_BUILD
 
 class MockGroupMemberStore: GroupMemberStore {
-    private let db = InMemoryDatabase()
+    private let db = InMemoryDB()
 
     func insert(fullGroupMember groupMember: TSGroupMember, tx: DBWriteTransaction) {
         db.insert(record: groupMember)
@@ -87,16 +87,22 @@ class MockGroupMemberStore: GroupMemberStore {
         db.remove(model: groupMember)
     }
 
-    func groupThreadIds(withFullMember serviceId: UntypedServiceId, tx: DBReadTransaction) -> [String] {
-        db.read { GroupMemberStoreImpl.groupThreadIds(withFullMember: serviceId, db: $0) }
+    func groupThreadIds(withFullMember serviceId: ServiceId, tx: DBReadTransaction) -> [String] {
+        db.read { tx in
+            GroupMemberStoreImpl.groupThreadIds(withFullMember: serviceId, db: InMemoryDB.shimOnlyBridge(tx).db)
+        }
     }
 
     func groupThreadIds(withFullMember phoneNumber: E164, tx: DBReadTransaction) -> [String] {
-        db.read { GroupMemberStoreImpl.groupThreadIds(withFullMember: phoneNumber, db: $0) }
+        db.read { tx in
+            GroupMemberStoreImpl.groupThreadIds(withFullMember: phoneNumber, db: InMemoryDB.shimOnlyBridge(tx).db)
+        }
     }
 
     func sortedFullGroupMembers(in groupThreadId: String, tx: DBReadTransaction) -> [TSGroupMember] {
-        db.read { GroupMemberStoreImpl.sortedFullGroupMembers(in: groupThreadId, db: $0) }
+        db.read { tx in
+            GroupMemberStoreImpl.sortedFullGroupMembers(in: groupThreadId, db: InMemoryDB.shimOnlyBridge(tx).db)
+        }
     }
 }
 

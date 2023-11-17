@@ -202,4 +202,8 @@ extension ShareAppExtensionContext: AppContext {
     var debugLogsDirPath: String { DebugLogger.shareExtensionDebugLogsDirPath }
 
     var hasActiveCall: Bool { false }
+
+    func resetAppDataAndExit() {
+        owsFailBeta("Not main app.")
+    }
 }

@@ -8,7 +8,7 @@ import XCTest
 
 @testable import SignalServiceKit
 
-class OWSRequestFactoryTest: XCTestCase {
+class OWSRequestFactoryTest: SSKBaseTestSwift {
     private func getUdAccessKey() throws -> SMKUDAccessKey {
         let profileKey = Data(count: Int(kAES256_KeyByteLength))
         let result = try? SMKUDAccessKey(profileKey: profileKey)
@@ -56,10 +56,10 @@ class OWSRequestFactoryTest: XCTestCase {
     func testSubmitMessageRequest() throws {
         let udAccessKey = try getUdAccessKey()
 
-        let serviceId = FutureAci.randomForTesting()
+        let serviceId = Aci.randomForTesting()
 
         let request = OWSRequestFactory.submitMessageRequest(
-            withServiceId: UntypedServiceIdObjC(serviceId),
+            withServiceId: ServiceIdObjC.wrapValue(serviceId),
             messages: [],
             timestamp: 1234,
             udAccessKey: udAccessKey,
@@ -70,7 +70,7 @@ class OWSRequestFactoryTest: XCTestCase {
 
         let url = try XCTUnwrap(request.url, "request.url")
         XCTAssertEqual(request.httpMethod, "PUT")
-        XCTAssertEqual(url.path, "v1/messages/\(serviceId.uuidValue.uuidString)")
+        XCTAssertEqual(url.path, "v1/messages/\(serviceId.serviceIdString)")
         XCTAssertEqual(Set(request.parameters.keys), Set(["messages", "timestamp", "online", "urgent"]))
         XCTAssertEqual(request.parameters["messages"] as? NSArray, [])
         XCTAssertEqual(request.parameters["timestamp"] as? UInt, 1234)
@@ -113,19 +113,28 @@ class OWSRequestFactoryTest: XCTestCase {
     }
 
     func testBoostStripeCreatePaymentIntentWithAmount() {
-        let request = OWSRequestFactory.boostStripeCreatePaymentIntent(
-            integerMoneyValue: 123,
-            inCurrencyCode: "CHF",
-            level: 456
-        )
+        let testCases: [(paymentMethod: OWSRequestFactory.StripePaymentMethod, expectedValue: String)] = [
+            (.card, "CARD"),
+            (.bankTransfer(.sepa), "SEPA_DEBIT"),
+        ]
 
-        XCTAssertEqual(request.url?.path, "v1/subscription/boost/create")
-        XCTAssertEqual(request.httpMethod, "POST")
-        XCTAssertEqual(Set(request.parameters.keys), Set(["currency", "amount", "level"]))
-        XCTAssertEqual(request.parameters["currency"] as? String, "chf")
-        XCTAssertEqual(request.parameters["amount"] as? UInt, 123)
-        XCTAssertEqual(request.parameters["level"] as? UInt64, 456)
-        XCTAssertFalse(request.shouldHaveAuthorizationHeaders)
+        for (paymentMethod, expectedPaymentMethodValue) in testCases {
+            let request = OWSRequestFactory.boostStripeCreatePaymentIntent(
+                integerMoneyValue: 123,
+                inCurrencyCode: "CHF",
+                level: 456,
+                paymentMethod: paymentMethod
+            )
+
+            XCTAssertEqual(request.url?.path, "v1/subscription/boost/create")
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(Set(request.parameters.keys), Set(["currency", "amount", "level", "paymentMethod"]))
+            XCTAssertEqual(request.parameters["currency"] as? String, "chf")
+            XCTAssertEqual(request.parameters["amount"] as? UInt, 123)
+            XCTAssertEqual(request.parameters["level"] as? UInt64, 456)
+            XCTAssertEqual(request.parameters["paymentMethod"] as? String, expectedPaymentMethodValue)
+            XCTAssertFalse(request.shouldHaveAuthorizationHeaders)
+        }
     }
 
     func testBoostPaypalCreatePaymentIntentWithAmount() {
@@ -176,6 +185,105 @@ class OWSRequestFactoryTest: XCTestCase {
 
         XCTAssertEqual(request.url?.path, "v1/subscription/_4A/default_payment_method/STRIPE/xyz")
         XCTAssertEqual(request.httpMethod, "POST")
+        XCTAssertFalse(request.shouldHaveAuthorizationHeaders)
+    }
+
+    func testSubscriptionCreateStripePaymentMethodRequest() {
+        let request = OWSRequestFactory.subscriptionCreateStripePaymentMethodRequest(
+            subscriberID: .init([255, 128])
+        )
+
+        XCTAssertEqual(request.url?.path, "v1/subscription/_4A/create_payment_method")
+        XCTAssertEqual(request.httpMethod, "POST")
+        XCTAssertFalse(request.shouldHaveAuthorizationHeaders)
+    }
+
+    func testSubscriptionCreatePaypalPaymentMethodRequest() {
+        let request = OWSRequestFactory.subscriptionCreatePaypalPaymentMethodRequest(
+            subscriberID: .init([255, 128]),
+            returnURL: URL(string: "https://example.com/approved")!,
+            cancelURL: URL(string: "https://example.com/canceled")!
+        )
+
+        XCTAssertEqual(request.url?.path, "v1/subscription/_4A/create_payment_method/paypal")
+        XCTAssertEqual(request.httpMethod, "POST")
+        XCTAssertEqual(Set(request.parameters.keys), Set([
+            "returnUrl", "cancelUrl"
+        ]))
+        XCTAssertEqual(request.parameters["returnUrl"] as? String, "https://example.com/approved")
+        XCTAssertEqual(request.parameters["cancelUrl"] as? String, "https://example.com/canceled")
+        XCTAssertFalse(request.shouldHaveAuthorizationHeaders)
+    }
+
+    func testSubscriptionSetSubscriptionLevelRequest() {
+        let request = OWSRequestFactory.subscriptionSetSubscriptionLevelRequest(
+            subscriberID: .init([255, 128]),
+            level: 123,
+            currency: "CHF",
+            idempotencyKey: "t3DUeQcC0laEdwMJ"
+        )
+
+        XCTAssertEqual(request.url?.path, "v1/subscription/_4A/level/123/CHF/t3DUeQcC0laEdwMJ")
+        XCTAssertEqual(request.httpMethod, "PUT")
+        XCTAssertFalse(request.shouldHaveAuthorizationHeaders)
+    }
+
+    func testSubscriptionReceiptCredentialsRequest() {
+        let request = OWSRequestFactory.subscriptionReceiptCredentialsRequest(
+            subscriberID: .init([255, 128]),
+            request: .init([128, 255])
+        )
+
+        XCTAssertEqual(request.url?.path, "v1/subscription/_4A/receipt_credentials")
+        XCTAssertEqual(request.httpMethod, "POST")
+        XCTAssertEqual(Set(request.parameters.keys), Set(["receiptCredentialRequest"]))
+        XCTAssertEqual(request.parameters["receiptCredentialRequest"] as? String, "gP8=")
+        XCTAssertFalse(request.shouldHaveAuthorizationHeaders)
+    }
+
+    func testSubscriptionRedeemReceiptCredential() {
+        let request = OWSRequestFactory.subscriptionRedeemReceiptCredential(
+            receiptCredentialPresentation: .init([255, 128])
+        )
+
+        XCTAssertEqual(request.url?.path, "v1/donation/redeem-receipt")
+        XCTAssertEqual(request.httpMethod, "POST")
+        XCTAssertEqual(Set(request.parameters.keys), Set([
+            "receiptCredentialPresentation",
+            "visible", "primary",
+        ]))
+        XCTAssertEqual(request.parameters["receiptCredentialPresentation"] as? String, "/4A=")
+        XCTAssertEqual(request.parameters["visible"] as? Bool, false)
+        XCTAssertEqual(request.parameters["primary"] as? Bool, false)
+    }
+
+    func testSubscriptionGetCurrentSubscriptionLevelRequest() {
+        let request = OWSRequestFactory.subscriptionGetCurrentSubscriptionLevelRequest(
+            subscriberID: .init([255, 128])
+        )
+
+        XCTAssertEqual(request.url?.path, "v1/subscription/_4A")
+        XCTAssertEqual(request.httpMethod, "GET")
+        XCTAssertFalse(request.shouldHaveAuthorizationHeaders)
+    }
+
+    func testBoostReceiptCredentialsWithPaymentIntentId() {
+        let request = OWSRequestFactory.boostReceiptCredentials(
+            with: "abc_123",
+            for: "STRIPE",
+            request: .init([128, 255])
+        )
+
+        XCTAssertEqual(request.url?.path, "v1/subscription/boost/receipt_credentials")
+        XCTAssertEqual(request.httpMethod, "POST")
+        XCTAssertEqual(Set(request.parameters.keys), Set([
+            "paymentIntentId",
+            "receiptCredentialRequest",
+            "processor",
+        ]))
+        XCTAssertEqual(request.parameters["paymentIntentId"] as? String, "abc_123")
+        XCTAssertEqual(request.parameters["receiptCredentialRequest"] as? String, "gP8=")
+        XCTAssertEqual(request.parameters["processor"] as? String, "STRIPE")
         XCTAssertFalse(request.shouldHaveAuthorizationHeaders)
     }
 

@@ -83,6 +83,19 @@ extension ConversationViewController: CVComponentDelegate {
         self.presentContextMenu(with: messageActions, focusedOn: cell, andModel: itemViewModel)
     }
 
+    public func didLongPressPaymentMessage(
+        _ cell: CVCell,
+        itemViewModel: CVItemViewModelImpl,
+        shouldAllowReply: Bool
+    ) {
+        let messageActions = MessageActions.paymentActions(
+            itemViewModel: itemViewModel,
+            shouldAllowReply: shouldAllowReply,
+            delegate: self
+        )
+        self.presentContextMenu(with: messageActions, focusedOn: cell, andModel: itemViewModel)
+    }
+
     public func didChangeLongPress(_ itemViewModel: CVItemViewModelImpl) {
         AssertIsOnMainThread()
 
@@ -368,6 +381,19 @@ extension ConversationViewController: CVComponentDelegate {
         packView.present(from: self, animated: true)
     }
 
+    public func didTapPayment(_ paymentModel: TSPaymentModel, displayName: String) {
+        AssertIsOnMainThread()
+
+        let paymentHistoryItem = PaymentsHistoryItem(
+            paymentModel: paymentModel,
+            displayName: displayName
+        )
+        let paymentsDetailViewController = PaymentsDetailViewController(
+            paymentItem: paymentHistoryItem
+        )
+        navigationController?.pushViewController(paymentsDetailViewController, animated: true)
+    }
+
     public func didTapGroupInviteLink(url: URL) {
         AssertIsOnMainThread()
         owsAssertDebug(GroupManager.isPossibleGroupInviteLink(url))
@@ -456,13 +482,13 @@ extension ConversationViewController: CVComponentDelegate {
 
         var address = address
         // Reload the address from disk if missing info so we don't rely on any cache.
-        if address.untypedServiceId == nil || address.e164 == nil {
+        if address.serviceId == nil || address.e164 == nil {
             databaseStorage.read { tx in
                 address = SignalRecipient.fetchRecipient(for: address, onlyIfRegistered: false, tx: tx)?.address ?? address
             }
         }
 
-        FingerprintViewController.present(from: self, address: address)
+        FingerprintViewController.present(for: address.aci, from: self)
     }
 
     public func didTapUnverifiedIdentityChange(_ address: SignalServiceAddress) {
@@ -666,6 +692,56 @@ extension ConversationViewController: CVComponentDelegate {
         self.presentActionSheet(alert)
     }
 
+    public func didTapLearnMoreMissedCallFromBlockedContact(_ call: TSCall) {
+        AssertIsOnMainThread()
+
+        guard let contactThread = thread as? TSContactThread else {
+            owsFailDebug("Invalid thread.")
+            return
+        }
+        let address = contactThread.contactAddress
+
+        let displayName = contactsManager.displayName(for: contactThread.contactAddress)
+
+        let alert = ActionSheetController(
+            title: String(
+                format: OWSLocalizedString(
+                    "MISSED_CALL_BLOCKED_SYSTEM_SETTINGS_SHEET_TITLE",
+                    comment: "Title for sheet shown when the user taps a missed call from a contact blocked in iOS settings. Embeds {{ Contact's name }}"
+                ),
+                displayName
+            ),
+            message: OWSLocalizedString(
+                "MISSED_CALL_BLOCKED_SYSTEM_SETTINGS_SHEET_MESSAGE",
+                comment: "Message for sheet shown when the user taps a missed call from a contact blocked in iOS settings.")
+        )
+
+        alert.addAction(
+            ActionSheetAction(
+                title: OWSLocalizedString(
+                    "MISSED_CALL_BLOCKED_SYSTEM_SETTINGS_SHEET_BLOCK_ACTION",
+                    comment: "Action to block contact in Signal for sheet shown when the user taps a missed call from a contact blocked in iOS settings."
+                ),
+                accessibilityIdentifier: "block_contact",
+                style: .destructive
+            ) { [weak self] _ in
+                guard let self = self else { return }
+                self.databaseStorage.write { tx in
+                    self.blockingManager.addBlockedAddress(
+                        address,
+                        blockMode: .localShouldLeaveGroups,
+                        transaction: tx
+                    )
+                }
+            }
+        )
+        alert.addAction(OWSActionSheets.okayAction)
+
+        inputToolbar?.clearDesiredKeyboard()
+        dismissKeyBoard()
+        self.presentActionSheet(alert)
+    }
+
     public func didTapGroupCall() {
         AssertIsOnMainThread()
 
@@ -816,7 +892,7 @@ extension ConversationViewController: CVComponentDelegate {
         )
     }
 
-    public func didTapPhoneNumberChange(uuid: UUID, phoneNumberOld: String, phoneNumberNew: String) {
+    public func didTapPhoneNumberChange(aci: Aci, phoneNumberOld: String, phoneNumberNew: String) {
         guard let navigationController else {
             return owsFailDebug("Missing navigationController.")
         }
@@ -830,7 +906,7 @@ extension ConversationViewController: CVComponentDelegate {
                     return nil
                 }
 
-                let address = SignalServiceAddress(uuid: uuid, phoneNumber: phoneNumberNew)
+                let address = SignalServiceAddress(serviceId: aci, phoneNumber: phoneNumberNew)
                 let result = self.contactsViewHelper.contactViewController(
                     for: address,
                     editImmediately: true,
@@ -896,5 +972,51 @@ extension ConversationViewController: CVComponentDelegate {
         // There's no reason to add an additional bit to the interactions db to track whether or not we know
         // the originating thread.
         showDeliveryIssueWarningAlert(from: senderAddress, isKnownThread: thread.isGroupThread)
+    }
+
+    public func didTapActivatePayments() {
+        AssertIsOnMainThread()
+        SignalApp.shared.showAppSettings(mode: .payments)
+    }
+
+    public func didTapSendPayment() {
+        AssertIsOnMainThread()
+        // Same action as tapping on the attachment toolbar.
+        paymentButtonPressed()
+    }
+
+    public func didTapThreadMergeLearnMore(phoneNumber: String) {
+        guard let contactAddress = (thread as? TSContactThread)?.contactAddress else {
+            owsFailDebug("Can't handle a merge event in a group.")
+            return
+        }
+        let formattedMessage: String = {
+            let formatString = OWSLocalizedString(
+                "THREAD_MERGE_LEARN_MORE",
+                comment: "Shown after tapping a 'Learn More' button when multiple conversations for the same person have been merged into one. The first parameter is a phone number (eg +1 650-555-0100) and the second parameter is a name (eg John)."
+            )
+            let formattedPhoneNumber = PhoneNumber.bestEffortLocalizedPhoneNumber(withE164: phoneNumber)
+            let shortDisplayName = databaseStorage.read { tx in
+                return contactsManager.shortDisplayName(for: contactAddress, transaction: tx)
+            }
+            return String(format: formatString, formattedPhoneNumber, shortDisplayName)
+        }()
+        let customHeader: UIView = {
+            let imageView = UIImageView(image: UIImage(named: "merged-chat")!)
+            imageView.contentMode = .scaleAspectFit
+            imageView.autoSetDimensions(to: .square(88))
+
+            let stackView = UIStackView()
+            stackView.isLayoutMarginsRelativeArrangement = true
+            stackView.layoutMargins = UIEdgeInsets(top: 16, leading: 0, bottom: 0, trailing: 0)
+            stackView.axis = .vertical
+            stackView.alignment = .center
+            stackView.addArrangedSubview(imageView)
+            return stackView
+        }()
+        let actionSheet = ActionSheetController(message: formattedMessage)
+        actionSheet.customHeader = customHeader
+        actionSheet.addAction(ActionSheetAction(title: CommonStrings.okButton))
+        presentActionSheet(actionSheet)
     }
 }

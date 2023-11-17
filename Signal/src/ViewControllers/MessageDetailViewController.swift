@@ -194,7 +194,9 @@ class MessageDetailViewController: OWSTableViewController2 {
 
         contents.add(buildMessageSection())
 
-        if let editHistorySection = buildEditHistorySection() {
+        if
+            !message.wasRemotelyDeleted,
+            let editHistorySection = buildEditHistorySection() {
             contents.add(editHistorySection)
         }
 
@@ -1010,6 +1012,12 @@ extension MessageDetailViewController: CVComponentDelegate {
                              itemViewModel: CVItemViewModelImpl,
                              shouldAllowReply: Bool) {}
 
+    func didLongPressPaymentMessage(
+        _ cell: CVCell,
+        itemViewModel: CVItemViewModelImpl,
+        shouldAllowReply: Bool
+    ) { }
+
     // TODO:
     func didChangeLongPress(_ itemViewModel: CVItemViewModelImpl) {}
 
@@ -1114,6 +1122,8 @@ extension MessageDetailViewController: CVComponentDelegate {
         packView.present(from: self, animated: true)
     }
 
+    func didTapPayment(_ paymentModel: TSPaymentModel, displayName: String) { }
+
     func didTapGroupInviteLink(url: URL) {
         GroupInviteLinksUI.openGroupInviteLink(url, fromViewController: self)
     }
@@ -1173,6 +1183,9 @@ extension MessageDetailViewController: CVComponentDelegate {
     func didTapIndividualCall(_ call: TSCall) {}
 
     // TODO:
+    func didTapLearnMoreMissedCallFromBlockedContact(_ call: TSCall) {}
+
+    // TODO:
     func didTapGroupCall() {}
 
     // TODO:
@@ -1209,7 +1222,7 @@ extension MessageDetailViewController: CVComponentDelegate {
                                    newNameComponents: PersonNameComponents) {}
 
     // TODO:
-    func didTapPhoneNumberChange(uuid: UUID, phoneNumberOld: String, phoneNumberNew: String) {}
+    func didTapPhoneNumberChange(aci: Aci, phoneNumberOld: String, phoneNumberNew: String) {}
 
     func didTapViewOnceAttachment(_ interaction: TSInteraction) {
         guard let renderItem = renderItem else {
@@ -1229,6 +1242,11 @@ extension MessageDetailViewController: CVComponentDelegate {
     // TODO:
     func didTapUnknownThreadWarningContact() {}
     func didTapDeliveryIssueWarning(_ message: TSErrorMessage) {}
+
+    func didTapActivatePayments() {}
+    func didTapSendPayment() {}
+
+    func didTapThreadMergeLearnMore(phoneNumber: String) {}
 }
 
 extension MessageDetailViewController: UINavigationControllerDelegate {

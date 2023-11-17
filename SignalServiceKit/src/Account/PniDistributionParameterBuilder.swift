@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Curve25519Kit
 import LibSignalClient
 import SignalCoreKit
 
@@ -15,13 +14,13 @@ public enum PniDistribution {
 
     /// Parameters for distributing PNI information to linked devices.
     public struct Parameters {
-        let pniIdentityKey: Data
+        let pniIdentityKey: IdentityKey
         private(set) var devicePniSignedPreKeys: [String: SignalServiceKit.SignedPreKeyRecord] = [:]
         private(set) var devicePniPqLastResortPreKeys: [String: KyberPreKeyRecord] = [:]
         private(set) var pniRegistrationIds: [String: UInt32] = [:]
         private(set) var deviceMessages: [DeviceMessage] = []
 
-        fileprivate init(pniIdentityKey: Data) {
+        fileprivate init(pniIdentityKey: IdentityKey) {
             self.pniIdentityKey = pniIdentityKey
         }
 
@@ -34,7 +33,7 @@ public enum PniDistribution {
             localDevicePniPqLastResortPreKey: KyberPreKeyRecord,
             localDevicePniRegistrationId: UInt32
         ) -> Parameters {
-            var mock = Parameters(pniIdentityKey: pniIdentityKeyPair.publicKey)
+            var mock = Parameters(pniIdentityKey: pniIdentityKeyPair.keyPair.identityKey)
             mock.addLocalDevice(
                 localDeviceId: localDeviceId,
                 signedPreKey: localDevicePniSignedPreKey,
@@ -74,7 +73,7 @@ public enum PniDistribution {
 
         func requestParameters() -> [String: Any] {
             [
-                "pniIdentityKey": pniIdentityKey.prependKeyType().base64EncodedString(),
+                "pniIdentityKey": pniIdentityKey.serialize().asData.base64EncodedString(),
                 "devicePniSignedPrekeys": devicePniSignedPreKeys.mapValues { OWSRequestFactory.signedPreKeyRequestParameters($0) },
                 "devicePniPqLastResortPrekeys": devicePniPqLastResortPreKeys.mapValues { OWSRequestFactory.pqPreKeyRequestParameters($0) },
                 "deviceMessages": deviceMessages.map { $0.requestParameters() },
@@ -110,27 +109,27 @@ protocol PniDistributionParamaterBuilder {
 final class PniDistributionParameterBuilderImpl: PniDistributionParamaterBuilder {
     private let logger = PrefixedLogger(prefix: "PDPBI")
 
+    private let db: DB
     private let messageSender: Shims.MessageSender
     private let pniSignedPreKeyStore: SignalSignedPreKeyStore
     private let pniKyberPreKeyStore: SignalKyberPreKeyStore
+    private let registrationIdGenerator: RegistrationIdGenerator
     private let schedulers: Schedulers
-    private let db: DB
-    private let tsAccountManager: Shims.TSAccountManager
 
     init(
+        db: DB,
         messageSender: Shims.MessageSender,
         pniSignedPreKeyStore: SignalSignedPreKeyStore,
         pniKyberPreKeyStore: SignalKyberPreKeyStore,
-        schedulers: Schedulers,
-        db: DB,
-        tsAccountManager: Shims.TSAccountManager
+        registrationIdGenerator: RegistrationIdGenerator,
+        schedulers: Schedulers
     ) {
+        self.db = db
         self.messageSender = messageSender
         self.pniSignedPreKeyStore = pniSignedPreKeyStore
         self.pniKyberPreKeyStore = pniKyberPreKeyStore
+        self.registrationIdGenerator = registrationIdGenerator
         self.schedulers = schedulers
-        self.db = db
-        self.tsAccountManager = tsAccountManager
     }
 
     func buildPniDistributionParameters(
@@ -144,7 +143,7 @@ final class PniDistributionParameterBuilderImpl: PniDistributionParamaterBuilder
         localDevicePniPqLastResortPreKey: KyberPreKeyRecord,
         localDevicePniRegistrationId: UInt32
     ) -> Guarantee<PniDistribution.ParameterGenerationResult> {
-        var parameters = PniDistribution.Parameters(pniIdentityKey: localPniIdentityKeyPair.publicKey)
+        var parameters = PniDistribution.Parameters(pniIdentityKey: localPniIdentityKeyPair.keyPair.identityKey)
 
         // Include the signed pre key & registration ID for the current device.
         parameters.addLocalDevice(
@@ -239,7 +238,7 @@ final class PniDistributionParameterBuilderImpl: PniDistributionParamaterBuilder
                 signedBy: pniIdentityKeyPair
             )
 
-            let registrationId = tsAccountManager.generateRegistrationId()
+            let registrationId = registrationIdGenerator.generate()
 
             logger.info("Building device message for device with ID \(linkedDeviceId).")
 
@@ -305,23 +304,19 @@ final class PniDistributionParameterBuilderImpl: PniDistributionParamaterBuilder
             return .init(error: error)
         }
 
-        return firstly(on: schedulers.global()) { () throws -> DeviceMessage? in
-            // Important to wrap this in asynchronity, since it might make
-            // blocking network requests.
-            let deviceMessage: DeviceMessage? = try self.messageSender.buildDeviceMessage(
+        return Promise.wrapAsync {
+            return try await self.messageSender.buildDeviceMessage(
                 forMessagePlaintextContent: plaintextContent,
                 messageEncryptionStyle: .whisper,
                 recipientId: recipientId,
-                serviceId: recipientAci.untypedServiceId,
+                serviceId: recipientAci,
                 deviceId: recipientDeviceId,
                 isOnlineMessage: false,
                 isTransientSenderKeyDistributionMessage: false,
                 isStoryMessage: false,
                 isResendRequestMessage: false,
-                udSendingParamsProvider: nil // Sync messages do not use UD
+                sealedSenderParameters: nil // Sync messages do not use UD
             )
-
-            return deviceMessage
         }
     }
 }
@@ -331,12 +326,10 @@ final class PniDistributionParameterBuilderImpl: PniDistributionParamaterBuilder
 extension PniDistributionParameterBuilderImpl {
     enum Shims {
         typealias MessageSender = _PniDistributionParameterBuilder_MessageSender_Shim
-        typealias TSAccountManager = _PniDistributionParameterBuilder_TSAccountManager_Shim
     }
 
     enum Wrappers {
         typealias MessageSender = _PniDistributionParameterBuilder_MessageSender_Wrapper
-        typealias TSAccountManager = _PniDistributionParameterBuilder_TSAccountManager_Wrapper
     }
 }
 
@@ -347,14 +340,14 @@ protocol _PniDistributionParameterBuilder_MessageSender_Shim {
         forMessagePlaintextContent messagePlaintextContent: Data,
         messageEncryptionStyle: EncryptionStyle,
         recipientId: String,
-        serviceId: UntypedServiceId,
+        serviceId: ServiceId,
         deviceId: UInt32,
         isOnlineMessage: Bool,
         isTransientSenderKeyDistributionMessage: Bool,
         isStoryMessage: Bool,
         isResendRequestMessage: Bool,
-        udSendingParamsProvider: UDSendingParamsProvider?
-    ) throws -> DeviceMessage?
+        sealedSenderParameters: SealedSenderParameters?
+    ) async throws -> DeviceMessage?
 }
 
 class _PniDistributionParameterBuilder_MessageSender_Wrapper: _PniDistributionParameterBuilder_MessageSender_Shim {
@@ -368,15 +361,15 @@ class _PniDistributionParameterBuilder_MessageSender_Wrapper: _PniDistributionPa
         forMessagePlaintextContent messagePlaintextContent: Data,
         messageEncryptionStyle: EncryptionStyle,
         recipientId: String,
-        serviceId: UntypedServiceId,
+        serviceId: ServiceId,
         deviceId: UInt32,
         isOnlineMessage: Bool,
         isTransientSenderKeyDistributionMessage: Bool,
         isStoryMessage: Bool,
         isResendRequestMessage: Bool,
-        udSendingParamsProvider: UDSendingParamsProvider?
-    ) throws -> DeviceMessage? {
-        try messageSender.buildDeviceMessage(
+        sealedSenderParameters: SealedSenderParameters?
+    ) async throws -> DeviceMessage? {
+        try await messageSender.buildDeviceMessage(
             messagePlaintextContent: messagePlaintextContent,
             messageEncryptionStyle: messageEncryptionStyle,
             recipientId: recipientId,
@@ -386,25 +379,7 @@ class _PniDistributionParameterBuilder_MessageSender_Wrapper: _PniDistributionPa
             isTransientSenderKeyDistributionMessage: isTransientSenderKeyDistributionMessage,
             isStoryMessage: isStoryMessage,
             isResendRequestMessage: isResendRequestMessage,
-            udSendingParamsProvider: udSendingParamsProvider
+            sealedSenderParameters: sealedSenderParameters
         )
-    }
-}
-
-// MARK: TSAccountManager
-
-protocol _PniDistributionParameterBuilder_TSAccountManager_Shim {
-    func generateRegistrationId() -> UInt32
-}
-
-class _PniDistributionParameterBuilder_TSAccountManager_Wrapper: _PniDistributionParameterBuilder_TSAccountManager_Shim {
-    private let tsAccountManager: TSAccountManager
-
-    init(_ tsAccountManager: TSAccountManager) {
-        self.tsAccountManager = tsAccountManager
-    }
-
-    func generateRegistrationId() -> UInt32 {
-        return TSAccountManager.generateRegistrationId()
     }
 }

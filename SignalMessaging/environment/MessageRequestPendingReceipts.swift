@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
+import LibSignalClient
 import SignalServiceKit
 
 public class MessageRequestPendingReceipts: Dependencies, PendingReceiptRecorder {
@@ -76,7 +77,7 @@ public class MessageRequestPendingReceipts: Dependencies, PendingReceiptRecorder
 
     private func sendAnyReadyReceipts(threads: [TSThread], transaction: GRDBReadTransaction) throws {
         let pendingReadReceipts: [PendingReadReceiptRecord] = try threads.flatMap { thread -> [PendingReadReceiptRecord] in
-            guard !thread.hasPendingMessageRequest(transaction: transaction) else {
+            guard !thread.hasPendingMessageRequest(transaction: transaction.asAnyRead) else {
                 Logger.debug("aborting since there is still a pending message request for thread: \(thread.uniqueId)")
                 return []
             }
@@ -85,7 +86,7 @@ public class MessageRequestPendingReceipts: Dependencies, PendingReceiptRecorder
         }
 
         let pendingViewedReceipts: [PendingViewedReceiptRecord] = try threads.flatMap { thread -> [PendingViewedReceiptRecord] in
-            guard !thread.hasPendingMessageRequest(transaction: transaction) else {
+            guard !thread.hasPendingMessageRequest(transaction: transaction.asAnyRead) else {
                 Logger.debug("aborting since there is still a pending message request for thread: \(thread.uniqueId)")
                 return []
             }
@@ -109,7 +110,7 @@ public class MessageRequestPendingReceipts: Dependencies, PendingReceiptRecorder
 
     private func removeAnyReadyReceipts(threads: [TSThread], transaction: GRDBReadTransaction) throws {
         let pendingReadReceipts: [PendingReadReceiptRecord] = try threads.flatMap { thread -> [PendingReadReceiptRecord] in
-            guard !thread.hasPendingMessageRequest(transaction: transaction) else {
+            guard !thread.hasPendingMessageRequest(transaction: transaction.asAnyRead) else {
                 Logger.debug("aborting since there is still a pending message request for thread: \(thread.uniqueId)")
                 return []
             }
@@ -118,7 +119,7 @@ public class MessageRequestPendingReceipts: Dependencies, PendingReceiptRecorder
         }
 
         let pendingViewedReceipts: [PendingViewedReceiptRecord] = try threads.flatMap { thread -> [PendingViewedReceiptRecord] in
-            guard !thread.hasPendingMessageRequest(transaction: transaction) else {
+            guard !thread.hasPendingMessageRequest(transaction: transaction.asAnyRead) else {
                 Logger.debug("aborting since there is still a pending message request for thread: \(thread.uniqueId)")
                 return []
             }
@@ -150,29 +151,33 @@ public class MessageRequestPendingReceipts: Dependencies, PendingReceiptRecorder
 
         Logger.debug("Enqueuing read receipt for sender.")
         for receipt in pendingReadReceipts {
-            let address = SignalServiceAddress(uuidString: receipt.authorUuid, phoneNumber: receipt.authorPhoneNumber)
+            let address = SignalServiceAddress(aciString: receipt.authorAciString, phoneNumber: receipt.authorPhoneNumber)
             guard address.isValid else {
                 owsFailDebug("address was invalid")
                 continue
             }
-            outgoingReceiptManager.enqueueReadReceipt(for: address,
-                                                      timestamp: UInt64(receipt.messageTimestamp),
-                                                      messageUniqueId: receipt.messageUniqueId,
-                                                      transaction: transaction.asAnyWrite)
+            outgoingReceiptManager.enqueueReadReceipt(
+                for: address,
+                timestamp: UInt64(receipt.messageTimestamp),
+                messageUniqueId: receipt.messageUniqueId,
+                tx: transaction.asAnyWrite
+            )
         }
         try finder.delete(pendingReadReceipts: pendingReadReceipts, transaction: transaction)
 
         Logger.debug("Enqueuing viewed receipt for sender.")
         for receipt in pendingViewedReceipts {
-            let address = SignalServiceAddress(uuidString: receipt.authorUuid, phoneNumber: receipt.authorPhoneNumber)
+            let address = SignalServiceAddress(aciString: receipt.authorAciString, phoneNumber: receipt.authorPhoneNumber)
             guard address.isValid else {
                 owsFailDebug("address was invalid")
                 continue
             }
-            outgoingReceiptManager.enqueueViewedReceipt(for: address,
-                                                        timestamp: UInt64(receipt.messageTimestamp),
-                                                        messageUniqueId: receipt.messageUniqueId,
-                                                        transaction: transaction.asAnyWrite)
+            outgoingReceiptManager.enqueueViewedReceipt(
+                for: address,
+                timestamp: UInt64(receipt.messageTimestamp),
+                messageUniqueId: receipt.messageUniqueId,
+                tx: transaction.asAnyWrite
+            )
         }
         try finder.delete(pendingViewedReceipts: pendingViewedReceipts, transaction: transaction)
     }
@@ -182,7 +187,7 @@ public class MessageRequestPendingReceipts: Dependencies, PendingReceiptRecorder
 
 public class PendingReceiptFinder {
     public func recordPendingReadReceipt(for message: TSIncomingMessage, thread: TSThread, transaction: GRDBWriteTransaction) throws {
-        guard let threadId = thread.grdbId?.int64Value else {
+        guard let threadId = thread.sqliteRowId else {
             throw OWSAssertionError("threadId was unexpectedly nil")
         }
 
@@ -191,30 +196,30 @@ public class PendingReceiptFinder {
             messageTimestamp: Int64(message.timestamp),
             messageUniqueId: message.uniqueId,
             authorPhoneNumber: message.authorPhoneNumber,
-            authorUuid: message.authorUUID
+            authorAci: Aci.parseFrom(aciString: message.authorUUID)
         )
 
-        Logger.debug("pending read receipt: \(record)")
         try record.insert(transaction.database)
     }
 
     public func recordPendingViewedReceipt(for message: TSIncomingMessage, thread: TSThread, transaction: GRDBWriteTransaction) throws {
-        guard let threadId = thread.grdbId?.int64Value else {
+        guard let threadId = thread.sqliteRowId else {
             throw OWSAssertionError("threadId was unexpectedly nil")
         }
 
-        let record = PendingViewedReceiptRecord(threadId: threadId,
-                                                messageTimestamp: Int64(message.timestamp),
-                                                messageUniqueId: message.uniqueId,
-                                                authorPhoneNumber: message.authorPhoneNumber,
-                                                authorUuid: message.authorUUID)
+        let record = PendingViewedReceiptRecord(
+            threadId: threadId,
+            messageTimestamp: Int64(message.timestamp),
+            messageUniqueId: message.uniqueId,
+            authorPhoneNumber: message.authorPhoneNumber,
+            authorAci: Aci.parseFrom(aciString: message.authorUUID)
+        )
 
-        Logger.debug("pending viewed receipt: \(record)")
         try record.insert(transaction.database)
     }
 
     public func pendingReadReceipts(thread: TSThread, transaction: GRDBReadTransaction) throws -> [PendingReadReceiptRecord] {
-        guard let threadId = thread.grdbId?.int64Value else {
+        guard let threadId = thread.sqliteRowId else {
             throw OWSAssertionError("threadId was unexpectedly nil")
         }
 
@@ -226,7 +231,7 @@ public class PendingReceiptFinder {
     }
 
     public func pendingViewedReceipts(thread: TSThread, transaction: GRDBReadTransaction) throws -> [PendingViewedReceiptRecord] {
-        guard let threadId = thread.grdbId?.int64Value else {
+        guard let threadId = thread.sqliteRowId else {
             throw OWSAssertionError("threadId was unexpectedly nil")
         }
 

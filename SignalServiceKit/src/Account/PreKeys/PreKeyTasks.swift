@@ -3,21 +3,22 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import SignalCoreKit
 
 // MARK: - Public Structs
 
 public enum PreKeyTasks {
 
     public struct Context {
-        let accountManager: PreKey.Operation.Shims.AccountManager
         let dateProvider: DateProvider
         let db: DB
         let identityManager: PreKey.Operation.Shims.IdentityManager
+        let linkedDevicePniKeyManager: LinkedDevicePniKeyManager
         let messageProcessor: PreKey.Operation.Shims.MessageProcessor
         let protocolStoreManager: SignalProtocolStoreManager
         let schedulers: Schedulers
         let serviceClient: AccountServiceClient
+        let tsAccountManager: TSAccountManager
     }
 }
 
@@ -97,7 +98,8 @@ extension PreKeyTasks {
             )
 
             switch action {
-            case .refresh(_, let targets):
+            case .refresh(let identity, let targets):
+                PreKey.logger.info("[\(identity)] Refresh [\(targets)]")
                 bundlePromise = GenerateForRefresh
                     .init(
                         dateProvider: context.dateProvider,
@@ -110,7 +112,8 @@ extension PreKeyTasks {
                         targets: targets
                     )
                     .map(on: SyncScheduler()) { $0 }
-            case .rotate(_, let targets):
+            case .rotate(let identity, let targets):
+                PreKey.logger.info("[\(identity)] Rotate [\(targets)]")
                 bundlePromise = GenerateForRotation
                     .init(
                         context: generateContext,
@@ -122,10 +125,12 @@ extension PreKeyTasks {
                     )
                     .map(on: SyncScheduler()) { $0 }
             case .createOneTimePreKeys:
+                PreKey.logger.info("[\(action.identity)] Create one-time prekeys")
                 bundlePromise = CreateOneTimePreKeys(context: generateContext)
                     .runTask(identity: action.identity)
                     .map(on: SyncScheduler()) { $0 }
             case .createOrRotatePniKeys(let targets):
+                PreKey.logger.info("[PNI] Create or Rotate PNI [\(targets)]")
                 bundlePromise = GenerateForPNIRotation
                     .init(
                         context: generateContext,
@@ -133,12 +138,13 @@ extension PreKeyTasks {
                     )
                     .runTask(targets: targets)
                     .map(on: SyncScheduler()) { $0 }
-            case .legacy_create(_, let targets):
+            case .legacy_create(let identity, let targets):
+                PreKey.logger.info("[\(identity)] Legacy prekey operation [\(targets)]")
                 bundlePromise = Legacy_Generate
                     .init(
-                        accountManager: context.accountManager,
                         context: generateContext,
-                        messageProcessor: context.messageProcessor
+                        messageProcessor: context.messageProcessor,
+                        tsAccountManager: context.tsAccountManager
                     )
                     .runTask(
                         identity: action.identity,
@@ -147,9 +153,17 @@ extension PreKeyTasks {
             }
 
             return bundlePromise.then(on: globalQueue()) { (bundle: PreKeyUploadBundle) -> Promise<Void> in
-                return Upload(serviceClient: self.context.serviceClient)
-                    .runTask(bundle: bundle, auth: self.auth)
-                    .map(on: globalQueue()) {
+                return Upload(
+                    schedulers: self.context.schedulers,
+                    serviceClient: self.context.serviceClient
+                )
+                .runTask(bundle: bundle, auth: self.auth)
+                .map(on: globalQueue()) { uploadResult throws in
+                    switch uploadResult {
+                    case .skipped:
+                        PreKey.logger.info("[\(self.action.identity)] No keys to upload")
+                    case .success:
+                        PreKey.logger.info("[\(self.action.identity)] Successfully uploaded prekeys")
                         try PersistSuccesfulUpload(
                             dateProvider: self.context.dateProvider,
                             db: self.context.db,
@@ -157,15 +171,26 @@ extension PreKeyTasks {
                             signedPreKeyStore: self.signedPreKeyStore,
                             kyberPreKeyStore: self.kyberPreKeyStore
                         ).runTask(bundle: bundle)
-                    }
-                    .recover(on: globalQueue()) { error in
-                        IncrementFailureCount(
-                            db: self.context.db,
-                            signedPreKeyStore: self.signedPreKeyStore
-                        ).runTask(bundle: bundle, error: error)
-                        return Promise<Void>(error: error)
+                    case .incorrectIdentityKeyOnLinkedDevice:
+                        guard
+                            self.action.identity == .pni,
+                            bundle.identity == .pni
+                        else {
+                            throw OWSAssertionError("Expected to be a PNI operation!")
+                        }
+
+                        // We think we have an incorrect PNI identity key, which
+                        // we should record so we can handle it later.
+                        self.context.db.write { tx in
+                            self.context.linkedDevicePniKeyManager
+                                .recordSuspectedIssueWithPniIdentityKey(tx: tx)
+                        }
+                    case let .failure(error):
+                        PreKey.logger.info("[\(self.action.identity)] Failed to upload prekeys")
+                        throw error
                     }
                 }
+            }
         }
     }
 }

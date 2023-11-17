@@ -101,6 +101,7 @@ public final class ContactDiscoveryManagerImpl: NSObject, ContactDiscoveryManage
 
     public convenience init(
         db: DB,
+        recipientDatabaseTable: RecipientDatabaseTable,
         recipientFetcher: RecipientFetcher,
         recipientMerger: RecipientMerger,
         tsAccountManager: TSAccountManager,
@@ -110,6 +111,7 @@ public final class ContactDiscoveryManagerImpl: NSObject, ContactDiscoveryManage
         self.init(
             contactDiscoveryTaskQueue: ContactDiscoveryTaskQueueImpl(
                 db: db,
+                recipientDatabaseTable: recipientDatabaseTable,
                 recipientFetcher: recipientFetcher,
                 recipientMerger: recipientMerger,
                 tsAccountManager: tsAccountManager,

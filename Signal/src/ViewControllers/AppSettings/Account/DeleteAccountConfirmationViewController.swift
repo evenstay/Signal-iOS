@@ -282,8 +282,13 @@ class DeleteAccountConfirmationViewController: OWSTableViewController2 {
                 "DELETE_ACCOUNT_CONFIRMATION_ACTION_SHEEET_ACTION",
                 comment: "Title for the action sheet 'delete' action of the 'delete account confirmation' view controller."
             ),
-            proceedStyle: .destructive
-        ) { _ in
+            proceedStyle: .destructive,
+            proceedAction: { [weak self] _ in self?.deleteAccount() }
+        )
+    }
+
+    private func deleteAccount() {
+        Task {
             let overlayView = UIView()
             overlayView.backgroundColor = self.tableBackgroundColor.withAlphaComponent(0.9)
             overlayView.alpha = 0
@@ -301,14 +306,10 @@ class DeleteAccountConfirmationViewController: OWSTableViewController2 {
 
             progressView.startAnimating { overlayView.alpha = 1 }
 
-            firstly {
-                self.deleteSubscriptionIfNecessary()
-            }.then {
-                self.unregisterAccount()
-            }.done {
-                // We don't need to stop animating here because "resetAppData" exits the app.
-                SignalApp.resetAppDataWithUI()
-            }.catch { error in
+            do {
+                try await self.deleteSubscriptionIfNecessary()
+                try await self.unregisterAccount()
+            } catch {
                 owsFailDebug("Failed to unregister \(error)")
 
                 progressView.stopAnimating(success: false) {
@@ -328,31 +329,24 @@ class DeleteAccountConfirmationViewController: OWSTableViewController2 {
         }
     }
 
-    private func deleteSubscriptionIfNecessary() -> Promise<Void> {
+    private func deleteSubscriptionIfNecessary() async throws {
         let activeSubscriptionId = databaseStorage.read {
             SubscriptionManagerImpl.getSubscriberID(transaction: $0)
         }
-        if let activeSubscriptionId = activeSubscriptionId {
-            Logger.info("Found subscriber ID. Canceling subscription...")
-            return SubscriptionManagerImpl.cancelSubscription(for: activeSubscriptionId)
-        } else {
-            return Promise.value(())
+        guard let activeSubscriptionId else {
+            return
         }
+        Logger.info("Found subscriber ID. Canceling subscription...")
+        return try await SubscriptionManagerImpl.cancelSubscription(for: activeSubscriptionId).awaitable()
     }
 
-    private func unregisterAccount() -> Promise<Void> {
+    private func unregisterAccount() async throws {
         Logger.info("Unregistering...")
-        let (promise, future) = Promise<Void>.pending()
-        TSAccountManager.unregisterTextSecure {
-            future.resolve()
-        } failure: { error in
-            future.reject(error)
-        }
-        return promise
+        try await DependenciesBridge.shared.registrationStateChangeManager.unregisterFromService(auth: .implicit())
     }
 
     var hasEnteredLocalNumber: Bool {
-        guard let localNumber = TSAccountManager.localNumber else {
+        guard let localNumber = DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction?.phoneNumber else {
             owsFailDebug("local number unexpectedly nil")
             return false
         }
@@ -382,7 +376,7 @@ extension DeleteAccountConfirmationViewController: CountryCodeViewControllerDele
     }
 
     func populateDefaultCountryCode() {
-        guard let localNumber = TSAccountManager.localNumber else {
+        guard let localNumber = DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction?.phoneNumber else {
             return owsFailDebug("Local number unexpectedly nil")
         }
 

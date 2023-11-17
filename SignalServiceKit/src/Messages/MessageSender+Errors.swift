@@ -180,10 +180,10 @@ class MessageSenderNoSessionForTransientMessageError: NSObject, CustomNSError, I
 // MARK: -
 
 public class UntrustedIdentityError: NSObject, CustomNSError, IsRetryableProvider, UserErrorDescriptionProvider {
-    public let address: SignalServiceAddress
+    public let serviceId: ServiceId
 
-    init(address: SignalServiceAddress) {
-        self.address = address
+    init(serviceId: ServiceId) {
+        self.serviceId = serviceId
     }
 
     // NSError bridging: the domain of the error.
@@ -201,7 +201,7 @@ public class UntrustedIdentityError: NSObject, CustomNSError, IsRetryableProvide
             "FAILED_SENDING_BECAUSE_UNTRUSTED_IDENTITY_KEY",
             comment: "action sheet header when re-sending message which failed because of untrusted identity keys"
         )
-        return String(format: format, contactsManager.displayName(for: address))
+        return String(format: format, contactsManager.displayName(for: SignalServiceAddress(serviceId)))
     }
 
     // NSError bridging: the error code within the given domain.
@@ -210,6 +210,43 @@ public class UntrustedIdentityError: NSObject, CustomNSError, IsRetryableProvide
     /// Key will continue to be unaccepted, so no need to retry. It'll only
     /// cause us to hit the Pre-Key request rate limit.
     public var isRetryableProvider: Bool { false }
+}
+
+public class InvalidKeySignatureError: NSObject, CustomNSError, IsRetryableProvider, UserErrorDescriptionProvider {
+    public let serviceId: ServiceId
+    public let isTerminalFailure: Bool
+
+    init(serviceId: ServiceId, isTerminalFailure: Bool) {
+        self.serviceId = serviceId
+        self.isTerminalFailure = isTerminalFailure
+    }
+
+    // NSError bridging: the domain of the error.
+    public static var errorDomain: String { OWSSignalServiceKitErrorDomain }
+
+    public static var errorCode: Int { OWSErrorCode.invalidKeySignature.rawValue }
+
+    // NSError bridging: the error code within the given domain.
+    public var errorUserInfo: [String: Any] {
+        [NSLocalizedDescriptionKey: self.localizedDescription]
+    }
+
+    public var localizedDescription: String {
+        let format = OWSLocalizedString(
+            "FAILED_SENDING_BECAUSE_INVALID_KEY_SIGNATURE",
+            comment: "action sheet header when re-sending message which failed because of an invalid key signature"
+        )
+        return String(format: format, contactsManager.displayName(for: SignalServiceAddress(serviceId)))
+    }
+
+    // NSError bridging: the error code within the given domain.
+    public var errorCode: Int { Self.errorCode }
+
+    /// Key will continue to be invalidly signed, so no need to retry. It'll only
+    /// cause us to hit the Pre-Key request rate limit.
+    public var isRetryableProvider: Bool {
+        !isTerminalFailure
+    }
 }
 
 // MARK: -
@@ -384,7 +421,7 @@ public class AppDeregisteredError: NSObject, CustomNSError, IsRetryableProvider,
     }
 
     public var localizedDescription: String {
-        TSAccountManager.shared.isPrimaryDevice
+        DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isPrimaryDevice ?? true
             ? OWSLocalizedString("ERROR_SENDING_DEREGISTERED",
                                 comment: "Error indicating a send failure due to a deregistered application.")
             : OWSLocalizedString("ERROR_SENDING_DELINKED",
@@ -500,10 +537,10 @@ class MessageSendUnauthorizedError: NSObject, CustomNSError, IsRetryableProvider
 // MARK: -
 
 class MessageSendEncryptionError: NSObject, CustomNSError, IsRetryableProvider {
-    public let serviceId: UntypedServiceId
+    public let serviceId: ServiceId
     public let deviceId: UInt32
 
-    required init(serviceId: UntypedServiceId, deviceId: UInt32) {
+    required init(serviceId: ServiceId, deviceId: UInt32) {
         self.serviceId = serviceId
         self.deviceId = deviceId
     }

@@ -4,8 +4,6 @@
 //
 
 #import "TSInvalidIdentityKeySendingErrorMessage.h"
-#import "NSData+keyVersionByte.h"
-#import "OWSIdentityManager.h"
 #import "PreKeyBundle+jsonDict.h"
 #import "TSContactThread.h"
 #import "TSOutgoingMessage.h"
@@ -118,26 +116,6 @@ NS_ASSUME_NONNULL_BEGIN
 // clang-format on
 
 // --- CODE GENERATION MARKER
-
-- (void)throws_acceptNewIdentityKey
-{
-    // Shouldn't really get here, since we're no longer creating blocking SN changes.
-    // But there may still be some old unaccepted SN errors in the wild that need to be accepted.
-    OWSFailDebug(@"accepting new identity key is deprecated.");
-
-    NSData *_Nullable newIdentityKey = [self throws_newIdentityKey];
-    if (!newIdentityKey) {
-        OWSFailDebug(@"newIdentityKey is unexpectedly nil. Bad Prekey bundle?: %@", self.preKeyBundle);
-        return;
-    }
-
-    [[OWSIdentityManager shared] saveRemoteIdentity:newIdentityKey address:self.recipientAddress];
-}
-
-- (nullable NSData *)throws_newIdentityKey
-{
-    return [self.preKeyBundle.identityKey throws_removeKeyType];
-}
 
 - (SignalServiceAddress *)theirSignalAddress
 {

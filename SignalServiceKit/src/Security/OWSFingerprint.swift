@@ -3,24 +3,21 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 import CommonCrypto
+import LibSignalClient
 
 public class OWSFingerprint {
+    public let myAci: Aci
+    public let theirAci: Aci
 
-    public enum Source {
-        case aci(myAci: UntypedServiceId, theirAci: UntypedServiceId)
-        case e164(myE164: E164, theirE164: E164)
-    }
+    public let myAciIdentityKey: IdentityKey
+    public let theirAciIdentityKey: IdentityKey
 
-    public let source: Source
-    public let myIdentityKey: Data
-    public let theirIdentityKey: Data
-
-    private let hashIterations: UInt32
     private let myFingerprintData: Data
     private let theirFingerprintData: Data
-    private let theirName: String
+
+    private let hashIterations: UInt32
+    public let theirName: String
 
     /**
      * Formats numeric fingerprint, 3 lines in groups of 5 digits.
@@ -34,29 +31,29 @@ public class OWSFingerprint {
     }
 
     public init(
-        source: Source,
-        myIdentityKey: Data,
-        theirIdentityKey: Data,
+        myAci: Aci,
+        theirAci: Aci,
+        myAciIdentityKey: IdentityKey,
+        theirAciIdentityKey: IdentityKey,
         theirName: String,
         hashIterations: UInt32 = Constants.defaultHashIterations
     ) {
-        self.source = source
-        let myIdentityKey = myIdentityKey.prependKeyType()
-        self.myIdentityKey = myIdentityKey
-        let theirIdentityKey = theirIdentityKey.prependKeyType()
-        self.theirIdentityKey = theirIdentityKey
+        self.myAci = myAci
+        self.theirAci = theirAci
+        self.myAciIdentityKey = myAciIdentityKey
+        self.theirAciIdentityKey = theirAciIdentityKey
         self.hashIterations = hashIterations
         self.theirName = theirName
 
-        let (myStableSourceData, theirStableSourceData) = Self.stableData(for: source)
+        let (myStableSourceData, theirStableSourceData) = Self.stableData(myAci: myAci, theirAci: theirAci)
         self.myFingerprintData = Self.dataForStableAddress(
             myStableSourceData,
-            publicKey: myIdentityKey,
+            publicKey: myAciIdentityKey,
             hashIterations: hashIterations
         )
         self.theirFingerprintData = Self.dataForStableAddress(
             theirStableSourceData,
-            publicKey: theirIdentityKey,
+            publicKey: theirAciIdentityKey,
             hashIterations: hashIterations
         )
     }
@@ -208,19 +205,8 @@ public class OWSFingerprint {
 
     // MARK: - Private helpers
 
-    private static func stableData(for source: Source) -> (my: Data, their: Data) {
-        switch source {
-        case let .aci(myAci, theirAci):
-            return (my: myAci.uuidValue.data, their: theirAci.uuidValue.data)
-        case let .e164(myE164, theirE164):
-            guard
-                let myData = myE164.stringValue.data(using: .utf8),
-                let theirData = theirE164.stringValue.data(using: .utf8)
-            else {
-                owsFail("Unable to serialize e164")
-            }
-            return (my: myData, their: theirData)
-        }
+    private static func stableData(myAci: Aci, theirAci: Aci) -> (my: Data, their: Data) {
+        return (my: myAci.rawUUID.data, their: theirAci.rawUUID.data)
     }
 
     /**
@@ -235,8 +221,10 @@ public class OWSFingerprint {
      * @return
      *      All-number textual representation
      */
-    private static func dataForStableAddress(_ stableAddressData: Data, publicKey: Data, hashIterations: UInt32) -> Data {
-        var hash = Constants.hashingVersion.bigEndianData.suffix(2)
+    private static func dataForStableAddress(_ stableAddressData: Data, publicKey: IdentityKey, hashIterations: UInt32) -> Data {
+        let publicKey = publicKey.serialize().asData
+
+        var hash = Constants.hashingVersion.bigEndianData
         hash.append(publicKey)
         hash.append(stableAddressData)
 
@@ -248,11 +236,17 @@ public class OWSFingerprint {
                 owsFail("Oversize data")
             }
 
-            _ = digestData.withUnsafeMutableBytes { digestBytes in
-                hash.withUnsafeBytes { hashBytes in
-                    CC_SHA512(hashBytes, CC_LONG(hash.count), digestBytes)
+            digestData.withUnsafeMutableBytes({ mutableBufferPointer in
+                let bufferPointer = mutableBufferPointer.bindMemory(to: UInt8.self)
+                if let bufferAddress = bufferPointer.baseAddress {
+                    hash.withUnsafeBytes { hashBytesPointer in
+                        let hashPointer = hashBytesPointer.bindMemory(to: UInt8.self)
+                        if let hashAddress = hashPointer.baseAddress {
+                            CC_SHA512(hashAddress, CC_LONG(hash.count), bufferAddress)
+                        }
+                    }
                 }
-            }
+            })
             hash = digestData
         }
 
@@ -290,17 +284,11 @@ public class OWSFingerprint {
     }
 
     private var scannableFingerprintVersion: UInt32 {
-        switch source {
-        case .e164:
-            return Constants.e164ScannableFormatVersion
-        case .aci:
-            return Constants.aciScannableFormatVersion
-        }
+        return Constants.aciScannableFormatVersion
     }
 
     public enum Constants {
-        static let hashingVersion: UInt32 = 0
-        static let e164ScannableFormatVersion: UInt32 = 1
+        static let hashingVersion: UInt16 = 0
         static let aciScannableFormatVersion: UInt32 = 2
         public static let defaultHashIterations: UInt32 = 5200
     }

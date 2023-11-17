@@ -7,22 +7,12 @@ import Foundation
 import LibSignalClient
 import SignalCoreKit
 
-private struct MergePair<T> {
-    let fromValue: T
-    let intoValue: T
-
-    func map<Result>(block: (T) throws -> Result) rethrows -> MergePair<Result> {
-        return MergePair<Result>(
-            fromValue: try block(fromValue),
-            intoValue: try block(intoValue)
-        )
-    }
-}
-
-final class ThreadMerger: RecipientMergeObserver {
+final class ThreadMerger {
+    private let callRecordStore: CallRecordStore
     private let chatColorSettingStore: ChatColorSettingStore
     private let disappearingMessagesConfigurationManager: Shims.DisappearingMessagesConfigurationManager
     private let disappearingMessagesConfigurationStore: DisappearingMessagesConfigurationStore
+    private let interactionStore: InteractionStore
     private let pinnedThreadManager: Shims.PinnedThreadManager
     private let sdsThreadMerger: Shims.SDSThreadMerger
     private let threadAssociatedDataManager: Shims.ThreadAssociatedDataManager
@@ -33,9 +23,11 @@ final class ThreadMerger: RecipientMergeObserver {
     private let wallpaperStore: WallpaperStore
 
     init(
+        callRecordStore: CallRecordStore,
         chatColorSettingStore: ChatColorSettingStore,
         disappearingMessagesConfigurationManager: Shims.DisappearingMessagesConfigurationManager,
         disappearingMessagesConfigurationStore: DisappearingMessagesConfigurationStore,
+        interactionStore: InteractionStore,
         pinnedThreadManager: Shims.PinnedThreadManager,
         sdsThreadMerger: Shims.SDSThreadMerger,
         threadAssociatedDataManager: Shims.ThreadAssociatedDataManager,
@@ -45,9 +37,11 @@ final class ThreadMerger: RecipientMergeObserver {
         threadStore: ThreadStore,
         wallpaperStore: WallpaperStore
     ) {
+        self.callRecordStore = callRecordStore
         self.chatColorSettingStore = chatColorSettingStore
         self.disappearingMessagesConfigurationManager = disappearingMessagesConfigurationManager
         self.disappearingMessagesConfigurationStore = disappearingMessagesConfigurationStore
+        self.interactionStore = interactionStore
         self.pinnedThreadManager = pinnedThreadManager
         self.sdsThreadMerger = sdsThreadMerger
         self.threadAssociatedDataManager = threadAssociatedDataManager
@@ -58,7 +52,7 @@ final class ThreadMerger: RecipientMergeObserver {
         self.wallpaperStore = wallpaperStore
     }
 
-    private func mergeThread(_ thread: TSContactThread, into targetThread: TSContactThread, tx: DBWriteTransaction) {
+    private func mergeThread(_ thread: TSContactThread, into targetThread: TSContactThread, tx: DBWriteTransaction) -> Bool {
         let threadPair = MergePair<TSContactThread>(fromValue: thread, intoValue: targetThread)
         mergeDisappearingMessagesConfiguration(threadPair, tx: tx)
         mergePinnedThreads(threadPair, tx: tx)
@@ -66,10 +60,16 @@ final class ThreadMerger: RecipientMergeObserver {
         mergeThreadReplyInfo(threadPair, tx: tx)
         mergeChatColors(threadPair, tx: tx)
         mergeWallpaper(threadPair, tx: tx)
+        mergeCallRecords(threadPair, tx: tx)
         sdsThreadMerger.mergeThread(thread, into: targetThread, tx: tx)
+        let shouldInsertEvent = shouldInsertThreadMergeEvent(threadPair)
         targetThread.merge(from: thread)
         threadStore.updateThread(targetThread, tx: tx)
         threadRemover.remove(thread, tx: tx)
+        if shouldInsertEvent {
+            insertThreadMergeEvent(threadPair, tx: tx)
+        }
+        return shouldInsertEvent
         // TODO: [optional] Merge `lastVisibleInteractionStore` (we use `targetThread`s right now).
         // TODO: [optional] Merge BroadcastMediaMessageJobRecord (they are canceled right now).
         // TODO: [optional] Merge MessageSenderJobRecord (they are canceled right now).
@@ -196,72 +196,113 @@ final class ThreadMerger: RecipientMergeObserver {
         }
     }
 
-    private func mergeAllThreads(_ threadsToMerge: [TSContactThread], tx: DBWriteTransaction) {
+    private func mergeCallRecords(_ threadPair: MergePair<TSContactThread>, tx: DBWriteTransaction) {
+        guard
+            let fromThreadRowId = threadPair.fromValue.sqliteRowId,
+            let intoThreadRowId = threadPair.intoValue.sqliteRowId
+        else {
+            owsFailDebug("Failed to get SQLite row IDs for threads!")
+            return
+        }
+
+        callRecordStore.updateWithMergedThread(
+            fromThreadRowId: fromThreadRowId,
+            intoThreadRowId: intoThreadRowId,
+            tx: tx
+        )
+    }
+
+    private func shouldInsertThreadMergeEvent(_ threadPair: MergePair<TSContactThread>) -> Bool {
+        let isVisible = threadPair.map { $0.shouldThreadBeVisible }
+        return isVisible.intoValue && isVisible.fromValue
+    }
+
+    private func insertThreadMergeEvent(_ threadPair: MergePair<TSContactThread>, tx: DBWriteTransaction) {
+        // We want to show the phone number only in the specific, very standardized
+        // case where you have a conversation with the phone number/PNI and you
+        // merge it into a chat with the ACI. In all other cases, we show a generic
+        // thread merge event.
+        let mergedPhoneNumber: String? = {
+            guard let phoneNumber = threadPair.fromValue.contactPhoneNumber else {
+                return nil
+            }
+            guard Aci.parseFrom(aciString: threadPair.intoValue.contactUUID) != nil else {
+                return nil
+            }
+            return phoneNumber
+        }()
+        var userInfo = [InfoMessageUserInfoKey: Any]()
+        if let mergedPhoneNumber {
+            userInfo[.threadMergePhoneNumber] = mergedPhoneNumber
+        }
+        let message = TSInfoMessage(thread: threadPair.intoValue, messageType: .threadMerge, infoMessageUserInfo: userInfo)
+        interactionStore.insertInteraction(message, tx: tx)
+    }
+
+    private func mergeAllThreads(_ threadsToMerge: [TSContactThread], tx: DBWriteTransaction) -> Int {
         // We merge threads in pairs, starting at the end and going back to the
         // beginning. We order the threads in descending priority order, so this
         // approach ensures we merge lower priority threads (ie with just a phone
         // number) into higher priority threads (ie with a stable ACI). If we have
         // threads A, B, and C to merge, we'll merge C into B, and then we'll merge
         // B into A (where B has become a combination of B and C).
+        var threadMergeEventCount = 0
         let reversedThreadsToMerge = threadsToMerge.reversed()
         for (threadToMerge, mergeDestination) in zip(reversedThreadsToMerge, reversedThreadsToMerge.dropFirst()) {
-            mergeThread(threadToMerge, into: mergeDestination, tx: tx)
-        }
-    }
-
-    private func mergeThreads(aci: Aci, phoneNumber: E164, tx: DBWriteTransaction) {
-        // Fetch all the threads related to the new recipient. Because we don't
-        // have UNIQUE constraints on the TSThread table, there might be many
-        // duplicate threads that we need to merge. We fetch the ServiceId threads
-        // first to ensure we merge *into* one of those threads where possible.
-
-        var threadsToMerge = [TSContactThread]()
-
-        // We include all ServiceId threads in the merge.
-        threadsToMerge.append(contentsOf: threadStore.fetchContactThreads(serviceId: aci.untypedServiceId, tx: tx))
-
-        for thread in threadStore.fetchContactThreads(phoneNumber: phoneNumber.stringValue, tx: tx) {
-            if thread.contactUUID == nil {
-                // We only include phone number threads that don't already have some other
-                // ServiceId. (This check also excludes any threads that were included in
-                // `serviceIdThreads` because those must have a nonnil `contactUUID`.)
-                threadsToMerge.append(thread)
-            } else if thread.contactUUID == aci.serviceIdUppercaseString {
-                // This is already in `threadsToMerge`, so do nothing.
-            } else {
-                // If they do have some other UUID, we clear the phone number because we've
-                // just learned that that phone number has moved to another account.
-                thread.contactPhoneNumber = nil
-                threadStore.updateThread(thread, tx: tx)
-                Logger.info("Cleared outdated phone number for thread \(thread.uniqueId)")
+            if mergeThread(threadToMerge, into: mergeDestination, tx: tx) {
+                threadMergeEventCount += 1
             }
         }
+        return threadMergeEventCount
+    }
 
-        mergeAllThreads(threadsToMerge, tx: tx)
+    private func mergeThreads(for recipient: SignalRecipient, tx: DBWriteTransaction) -> Int {
+        // Fetch all the threads related to the new recipient. Because we don't
+        // have UNIQUE constraints on the TSThread table, there might be many
+        // duplicate threads that we need to merge. We fetch the ACI threads first
+        // to ensure we merge *into* one of those threads where possible.
+
+        let serviceId: ServiceId? = recipient.aci ?? recipient.pni
+        let threadsToMerge: [TSContactThread] = UniqueRecipientObjectMerger.fetchAndExpunge(
+            for: recipient,
+            serviceIdField: \.contactUUID,
+            phoneNumberField: \.contactPhoneNumber,
+            uniqueIdField: \.uniqueId,
+            fetchObjectsForServiceId: { threadStore.fetchContactThreads(serviceId: $0, tx: tx) },
+            fetchObjectsForPhoneNumber: { threadStore.fetchContactThreads(phoneNumber: $0.stringValue, tx: tx) },
+            updateObject: { threadStore.updateThread($0, tx: tx) }
+        )
+
+        let threadMergeEventCount = mergeAllThreads(threadsToMerge, tx: tx)
         if threadsToMerge.count >= 2 {
-            Logger.info("Merged \(threadsToMerge.count) threads for \(aci)")
+            Logger.info("Merged \(threadsToMerge.count) threads for \(serviceId?.logString ?? "nil")")
         }
 
-        // After we merge all threads, we're left with just one. Make sure that that thread has the new ACI/E164 pair.
+        // After we merge all threads, we're left with just one. Make sure that
+        // that thread has the new (ACI/PNI, Phone Number) pair.
         if let finalThread = threadsToMerge.first {
-            finalThread.contactUUID = aci.serviceIdUppercaseString
-            finalThread.contactPhoneNumber = phoneNumber.stringValue
+            finalThread.contactUUID = serviceId?.serviceIdUppercaseString
+            finalThread.contactPhoneNumber = recipient.phoneNumber
             threadStore.updateThread(finalThread, tx: tx)
         }
+
+        return threadMergeEventCount
     }
 
-    func willBreakAssociation(aci: Aci, phoneNumber: E164, transaction tx: DBWriteTransaction) {
-        mergeThreads(aci: aci, phoneNumber: phoneNumber, tx: tx)
+    func willBreakAssociation(for recipient: SignalRecipient, mightReplaceNonnilPhoneNumber: Bool, tx: DBWriteTransaction) {
+        _ = mergeThreads(for: recipient, tx: tx)
     }
 
-    func didLearnAssociation(mergedRecipient: MergedRecipient, transaction tx: DBWriteTransaction) {
-        mergeThreads(aci: mergedRecipient.aci, phoneNumber: mergedRecipient.newPhoneNumber, tx: tx)
+    func didLearnAssociation(mergedRecipient: MergedRecipient, tx: DBWriteTransaction) -> Int {
+        return mergeThreads(for: mergedRecipient.newRecipient, tx: tx)
     }
 }
 
 // MARK: - SDS Merges
 
-/// There are a bunch of types that can't be easily mocked out for testing purposes. Until they can be, this serves as a dumping ground for code that's skipped during unit tests.
+/// There are a bunch of types that can't be easily mocked out for testing
+/// purposes. Until they can be, this serves as a dumping ground for code
+/// that's skipped during unit tests.
 class _ThreadMerger_SDSThreadMergerWrapper: _ThreadMerger_SDSThreadMergerShim {
     func mergeThread(_ thread: TSContactThread, into targetThread: TSContactThread, tx: DBWriteTransaction) {
         let threadPair = MergePair<TSContactThread>(fromValue: thread, intoValue: targetThread)
@@ -286,7 +327,7 @@ class _ThreadMerger_SDSThreadMergerWrapper: _ThreadMerger_SDSThreadMergerShim {
     }
 
     private func mergeMediaGalleryItems(_ threadPair: MergePair<TSContactThread>, tx: SDSAnyWriteTransaction) {
-        let threadRowIds = threadPair.map { $0.grdbId!.int64Value }
+        let threadRowIds = threadPair.map { $0.sqliteRowId! }
         tx.unwrapGrdbWrite.execute(
             sql: """
                 UPDATE "media_gallery_items" SET "threadId" = ? WHERE "threadId" = ?
@@ -296,7 +337,7 @@ class _ThreadMerger_SDSThreadMergerWrapper: _ThreadMerger_SDSThreadMergerShim {
     }
 
     private func mergeReceiptsPendingMessageRequest(_ threadPair: MergePair<TSContactThread>, tx: SDSAnyWriteTransaction) {
-        let threadRowIds = threadPair.map { $0.grdbId!.int64Value }
+        let threadRowIds = threadPair.map { $0.sqliteRowId! }
         tx.unwrapGrdbWrite.execute(
             sql: """
                 UPDATE "\(PendingViewedReceiptRecord.databaseTableName)" SET "threadId" = ? WHERE "threadId" = ?
@@ -400,3 +441,103 @@ class _ThreadMerger_ThreadAssociatedDataManagerWrapper: _ThreadMerger_ThreadAsso
 protocol _ThreadMerger_SDSThreadMergerShim {
     func mergeThread(_ thread: TSContactThread, into targetThread: TSContactThread, tx: DBWriteTransaction)
 }
+
+// MARK: - Unit Tests
+
+#if TESTABLE_BUILD
+
+extension ThreadMerger {
+    private class MockCallRecordStore: CallRecordStore {
+        func updateWithMergedThread(fromThreadRowId fromRowId: Int64, intoThreadRowId intoRowId: Int64, tx: DBWriteTransaction) {}
+        func insert(callRecord: CallRecord, tx: DBWriteTransaction) -> Bool { owsFail("Not implemented!") }
+        func updateRecordStatusIfAllowed(callRecord: CallRecord, newCallStatus: CallRecord.CallStatus, tx: DBWriteTransaction) -> Bool { owsFail("Not implemented!") }
+        func fetch(callId: UInt64, threadRowId: Int64, tx: DBReadTransaction) -> CallRecord? { owsFail("Not implemented!") }
+        func fetch(interactionRowId: Int64, tx: DBReadTransaction) -> CallRecord? { owsFail("Not implemented!") }
+    }
+
+    static func forUnitTests(
+        interactionStore: InteractionStore = MockInteractionStore(),
+        keyValueStoreFactory: KeyValueStoreFactory = InMemoryKeyValueStoreFactory(),
+        threadAssociatedDataStore: MockThreadAssociatedDataStore = MockThreadAssociatedDataStore(),
+        threadStore: ThreadStore = MockThreadStore()
+    ) -> ThreadMerger {
+        let chatColorSettingStore = ChatColorSettingStore(keyValueStoreFactory: keyValueStoreFactory)
+        let disappearingMessagesConfigurationStore = MockDisappearingMessagesConfigurationStore()
+        let threadReplyInfoStore = ThreadReplyInfoStore(keyValueStoreFactory: keyValueStoreFactory)
+        let wallpaperStore = WallpaperStore(keyValueStoreFactory: keyValueStoreFactory, notificationScheduler: SyncScheduler())
+        let threadRemover = ThreadRemoverImpl(
+            chatColorSettingStore: chatColorSettingStore,
+            databaseStorage: ThreadRemover_MockDatabaseStorage(),
+            disappearingMessagesConfigurationStore: disappearingMessagesConfigurationStore,
+            fullTextSearchFinder: ThreadRemover_MockFullTextSearchFinder(),
+            interactionRemover: ThreadRemover_MockInteractionRemover(),
+            sdsThreadRemover: ThreadRemover_MockSDSThreadRemover(),
+            threadAssociatedDataStore: threadAssociatedDataStore,
+            threadReadCache: ThreadRemover_MockThreadReadCache(),
+            threadReplyInfoStore: threadReplyInfoStore,
+            threadStore: threadStore,
+            wallpaperStore: wallpaperStore
+        )
+        return ThreadMerger(
+            callRecordStore: MockCallRecordStore(),
+            chatColorSettingStore: chatColorSettingStore,
+            disappearingMessagesConfigurationManager: ThreadMerger_MockDisappearingMessagesConfigurationManager(disappearingMessagesConfigurationStore),
+            disappearingMessagesConfigurationStore: disappearingMessagesConfigurationStore,
+            interactionStore: interactionStore,
+            pinnedThreadManager: ThreadMerger_MockPinnedThreadManager(),
+            sdsThreadMerger: ThreadMerger_MockSDSThreadMerger(),
+            threadAssociatedDataManager: ThreadMerger_MockThreadAssociatedDataManager(threadAssociatedDataStore),
+            threadAssociatedDataStore: threadAssociatedDataStore,
+            threadRemover: threadRemover,
+            threadReplyInfoStore: threadReplyInfoStore,
+            threadStore: threadStore,
+            wallpaperStore: wallpaperStore
+        )
+    }
+}
+
+class ThreadMerger_MockPinnedThreadManager: ThreadMerger.Shims.PinnedThreadManager {
+    var pinnedThreadIds = [String]()
+    func fetchPinnedThreadIds(tx: DBReadTransaction) -> [String] { pinnedThreadIds }
+    func setPinnedThreadIds(_ pinnedThreadIds: [String], tx: DBWriteTransaction) { self.pinnedThreadIds = pinnedThreadIds }
+}
+
+class ThreadMerger_MockDisappearingMessagesConfigurationManager: ThreadMerger.Shims.DisappearingMessagesConfigurationManager {
+    private let store: MockDisappearingMessagesConfigurationStore
+    init(_ disappearingMessagesConfigurationStore: MockDisappearingMessagesConfigurationStore) {
+        self.store = disappearingMessagesConfigurationStore
+    }
+    func setToken(_ token: DisappearingMessageToken, for thread: TSContactThread, tx: DBWriteTransaction) {
+        self.store.set(token: token, for: .thread(thread), tx: tx)
+    }
+}
+
+class ThreadMerger_MockThreadAssociatedDataManager: ThreadMerger.Shims.ThreadAssociatedDataManager {
+    private let store: MockThreadAssociatedDataStore
+    init(_ threadAssociatedDataStore: MockThreadAssociatedDataStore) {
+        self.store = threadAssociatedDataStore
+    }
+    func updateValue(
+        _ threadAssociatedData: ThreadAssociatedData,
+        isArchived: Bool?,
+        isMarkedUnread: Bool?,
+        mutedUntilTimestamp: UInt64?,
+        audioPlaybackRate: Float?,
+        updateStorageService: Bool,
+        tx: DBWriteTransaction
+    ) {
+        self.store.values[threadAssociatedData.threadUniqueId] = ThreadAssociatedData(
+            threadUniqueId: threadAssociatedData.threadUniqueId,
+            isArchived: isArchived ?? threadAssociatedData.isArchived,
+            isMarkedUnread: isMarkedUnread ?? threadAssociatedData.isMarkedUnread,
+            mutedUntilTimestamp: mutedUntilTimestamp ?? threadAssociatedData.mutedUntilTimestamp,
+            audioPlaybackRate: audioPlaybackRate ?? threadAssociatedData.audioPlaybackRate
+        )
+    }
+}
+
+class ThreadMerger_MockSDSThreadMerger: ThreadMerger.Shims.SDSThreadMerger {
+    func mergeThread(_ thread: TSContactThread, into targetThread: TSContactThread, tx: DBWriteTransaction) {}
+}
+
+#endif

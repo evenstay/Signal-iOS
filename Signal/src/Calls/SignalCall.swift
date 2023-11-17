@@ -8,7 +8,8 @@ import SignalRingRTC
 import SignalServiceKit
 import SignalUI
 
-// All Observer methods will be invoked from the main thread.
+/// Represents an observer who will receive updates about a call happening on
+/// this device. See ``SignalCall``.
 public protocol CallObserver: AnyObject {
     func individualCallStateDidChange(_ call: SignalCall, state: CallState)
     func individualCallLocalVideoMuteDidChange(_ call: SignalCall, isVideoMuted: Bool)
@@ -47,6 +48,7 @@ public extension CallObserver {
     func callMessageSendFailedUntrustedIdentity(_ call: SignalCall) {}
 }
 
+/// Represents a call happening on this device.
 @objc
 public class SignalCall: NSObject, CallManagerCallReference {
     public let mode: Mode
@@ -243,7 +245,7 @@ public class SignalCall: NSObject, CallManagerCallReference {
 
         // Track the callInProgress restriction regardless; we use that for purposes other than rings.
         let hasActiveCallMessage = Self.databaseStorage.read { transaction -> Bool in
-            !GRDBInteractionFinder.unendedCallsForGroupThread(groupThread, transaction: transaction).isEmpty
+            !GroupCallInteractionFinder().unendedCallsForGroupThread(groupThread, transaction: transaction).isEmpty
         }
         if hasActiveCallMessage {
             // This info may be out of date, but the first peek will update it.
@@ -458,11 +460,45 @@ extension SignalCall: GroupCallDelegate {
         // TODO: Implement audio level handling for group calls.
     }
 
+    public func groupCall(onLowBandwidthForVideo groupCall: SignalRingRTC.GroupCall, recovered: Bool) {
+        // TODO: Implement handling of the "low outgoing bandwidth for video" notification.
+    }
+
+    public func groupCall(onReactions groupCall: SignalRingRTC.GroupCall, reactions: [SignalRingRTC.Reaction]) {
+        // TODO: Implement handling of reactions.
+    }
+
+    public func groupCall(onRaisedHands groupCall: SignalRingRTC.GroupCall, raisedHands: [UInt32]) {
+        // TODO: Implement handling of raise hand.
+    }
+
     public func groupCall(onPeekChanged groupCall: GroupCall) {
+        guard
+            let localAci = DependenciesBridge.shared.tsAccountManager
+                .localIdentifiersWithMaybeSneakyTransaction?.aci
+        else {
+            owsFailDebug("Peek changed for a group call, but we're not registered?")
+            return
+        }
+
         if let peekInfo = groupCall.peekInfo {
             // Note that we track this regardless of whether ringing is available.
             // There are other places that use this.
-            ringRestrictions.update(.callInProgress, present: peekInfo.deviceCount > 0)
+
+            let minDevicesToConsiderCallInProgress: UInt32 = {
+                if peekInfo.joinedMembers.contains(localAci.rawUUID) {
+                    // If we're joined, require us + someone else.
+                    return 2
+                } else {
+                    // Otherwise, anyone else in the call counts.
+                    return 1
+                }
+            }()
+
+            ringRestrictions.update(
+                .callInProgress,
+                present: peekInfo.deviceCountExcludingPendingDevices >= minDevicesToConsiderCallInProgress
+            )
         }
         observers.elements.forEach { $0.groupCallPeekChanged(self) }
     }
@@ -522,7 +558,7 @@ extension SignalCall: CallNotificationInfo {
 extension GroupCall {
     public var isFull: Bool {
         guard let peekInfo = peekInfo, let maxDevices = peekInfo.maxDevices else { return false }
-        return peekInfo.deviceCount >= maxDevices
+        return peekInfo.deviceCountExcludingPendingDevices >= maxDevices
     }
     public var maxDevices: UInt32? {
         guard let peekInfo = peekInfo, let maxDevices = peekInfo.maxDevices else { return nil }

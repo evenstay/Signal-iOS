@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import LibSignalClient
 
 @objc
 public enum SignalServiceError: Int, Error {
@@ -28,29 +29,40 @@ public protocol SignalServiceClient {
     func registerPreKeys(
         for identity: OWSIdentity,
         identityKey: IdentityKey,
-        signedPreKeyRecord: SignedPreKeyRecord?,
-        preKeyRecords: [PreKeyRecord]?,
+        signedPreKeyRecord: SignalServiceKit.SignedPreKeyRecord?,
+        preKeyRecords: [SignalServiceKit.PreKeyRecord]?,
         pqLastResortPreKeyRecord: KyberPreKeyRecord?,
         pqPreKeyRecords: [KyberPreKeyRecord]?,
         auth: ChatServiceAuth
     ) -> Promise<Void>
-    func setCurrentSignedPreKey(_ signedPreKey: SignedPreKeyRecord, for identity: OWSIdentity) -> Promise<Void>
+    func setCurrentSignedPreKey(_ signedPreKey: SignalServiceKit.SignedPreKeyRecord, for identity: OWSIdentity) -> Promise<Void>
     func requestUDSenderCertificate(uuidOnly: Bool) -> Promise<Data>
-    func updatePrimaryDeviceAccountAttributes() -> Promise<Void>
+    func updatePrimaryDeviceAccountAttributes(authedAccount: AuthedAccount) async throws -> AccountAttributes
     func getAccountWhoAmI() -> Promise<WhoAmIRequestFactory.Responses.WhoAmI>
     func requestStorageAuth(chatServiceAuth: ChatServiceAuth) -> Promise<(username: String, password: String)>
     func getRemoteConfig(auth: ChatServiceAuth) -> Promise<RemoteConfigResponse>
 
     // MARK: - Secondary Devices
 
-    func updateSecondaryDeviceCapabilities(hasBackedUpMasterKey: Bool) -> Promise<Void>
+    func updateSecondaryDeviceCapabilities(_ capabilities: AccountAttributes.Capabilities, authedAccount: AuthedAccount) async throws
+}
+
+extension SignalServiceClient {
+
+    public func updatePrimaryDeviceAccountAttributes() async throws -> AccountAttributes {
+        return try await updatePrimaryDeviceAccountAttributes(authedAccount: .implicit())
+    }
+
+    public func updateSecondaryDeviceCapabilities(_ capabilities: AccountAttributes.Capabilities) async throws {
+        try await updateSecondaryDeviceCapabilities(capabilities, authedAccount: .implicit())
+    }
 }
 
 // MARK: -
 
 public enum RemoteConfigItem {
-    case isEnabled(isEnabled: Bool)
-    case value(value: AnyObject)
+    case isEnabled(Bool)
+    case value(String)
 }
 
 public struct RemoteConfigResponse {
@@ -93,8 +105,8 @@ public class SignalServiceRestClient: NSObject, SignalServiceClient, Dependencie
     public func registerPreKeys(
         for identity: OWSIdentity,
         identityKey: IdentityKey,
-        signedPreKeyRecord: SignedPreKeyRecord?,
-        preKeyRecords: [PreKeyRecord]?,
+        signedPreKeyRecord: SignalServiceKit.SignedPreKeyRecord?,
+        preKeyRecords: [SignalServiceKit.PreKeyRecord]?,
         pqLastResortPreKeyRecord: KyberPreKeyRecord?,
         pqPreKeyRecords: [KyberPreKeyRecord]?,
         auth: ChatServiceAuth
@@ -113,7 +125,7 @@ public class SignalServiceRestClient: NSObject, SignalServiceClient, Dependencie
         return networkManager.makePromise(request: request).asVoid()
     }
 
-    public func setCurrentSignedPreKey(_ signedPreKey: SignedPreKeyRecord, for identity: OWSIdentity) -> Promise<Void> {
+    public func setCurrentSignedPreKey(_ signedPreKey: SignalServiceKit.SignedPreKeyRecord, for identity: OWSIdentity) -> Promise<Void> {
         Logger.debug("")
 
         let request = OWSRequestFactory.registerSignedPrekeyRequest(for: identity, signedPreKey: signedPreKey)
@@ -136,20 +148,24 @@ public class SignalServiceRestClient: NSObject, SignalServiceClient, Dependencie
         }
     }
 
-    public func updatePrimaryDeviceAccountAttributes() -> Promise<Void> {
-        guard tsAccountManager.isPrimaryDevice else {
-            return Promise(error: OWSAssertionError("only primary device should update account attributes"))
+    public func updatePrimaryDeviceAccountAttributes(authedAccount: AuthedAccount) async throws -> AccountAttributes {
+        guard DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isPrimaryDevice == true else {
+            throw OWSAssertionError("only primary device should update account attributes")
         }
 
-        let attributes = self.databaseStorage.write { transaction in
+        let attributes = await self.databaseStorage.awaitableWrite { transaction in
             return AccountAttributes.generateForPrimaryDevice(
                 fromDependencies: self,
                 svr: DependenciesBridge.shared.svr,
                 transaction: transaction
             )
         }
+
         let request = AccountAttributesRequestFactory.updatePrimaryDeviceAttributesRequest(attributes)
-        return networkManager.makePromise(request: request).asVoid()
+        request.setAuth(authedAccount.chatServiceAuth)
+        _ = try await networkManager.makePromise(request: request).awaitable()
+
+        return attributes
     }
 
     public func getAccountWhoAmI() -> Promise<WhoAmIRequestFactory.Responses.WhoAmI> {
@@ -223,7 +239,7 @@ public class SignalServiceRestClient: NSObject, SignalServiceClient, Dependencie
             }
 
             let deviceId: UInt32 = try parser.required(key: "deviceId")
-            let pni: UUID = try parser.required(key: "pni")
+            let pni = Pni(fromUUID: try parser.required(key: "pni"))
 
             return VerifySecondaryDeviceResponse(pni: pni, deviceId: deviceId)
         }.recover { error -> Promise<VerifySecondaryDeviceResponse> in
@@ -264,10 +280,10 @@ public class SignalServiceRestClient: NSObject, SignalServiceClient, Dependencie
                 let name: String = try itemParser.required(key: "name")
                 let isEnabled: Bool = try itemParser.required(key: "enabled")
 
-                if let value: AnyObject = try itemParser.optional(key: "value") {
-                    accum[name] = RemoteConfigItem.value(value: value)
+                if let value: String = try itemParser.optional(key: "value") {
+                    accum[name] = .value(value)
                 } else {
-                    accum[name] = RemoteConfigItem.isEnabled(isEnabled: isEnabled)
+                    accum[name] = .isEnabled(isEnabled)
                 }
 
                 return accum
@@ -279,15 +295,16 @@ public class SignalServiceRestClient: NSObject, SignalServiceClient, Dependencie
 
     // MARK: - Secondary Devices
 
-    public func updateSecondaryDeviceCapabilities(hasBackedUpMasterKey: Bool) -> Promise<Void> {
-        let request = OWSRequestFactory.updateSecondaryDeviceCapabilitiesRequest(withHasBackedUpMasterKey: hasBackedUpMasterKey)
-        return self.networkManager.makePromise(request: request).asVoid()
+    public func updateSecondaryDeviceCapabilities(_ capabilities: AccountAttributes.Capabilities, authedAccount: AuthedAccount) async throws {
+        let request = OWSRequestFactory.updateLinkedDeviceCapabilitiesRequest(for: capabilities)
+        request.setAuth(authedAccount.chatServiceAuth)
+        _ = try await networkManager.makePromise(request: request).awaitable()
     }
 }
 
 // MARK: -
 
 public struct VerifySecondaryDeviceResponse {
-    public let pni: UUID
+    public let pni: Pni
     public let deviceId: UInt32
 }

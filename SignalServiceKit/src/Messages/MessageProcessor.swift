@@ -139,11 +139,15 @@ public class MessageProcessor: NSObject {
         return AnyPromise(fetchingAndProcessingCompletePromise())
     }
 
-    public func fetchingAndProcessingCompletePromise() -> Promise<Void> {
+    public func fetchingAndProcessingCompletePromise(
+        suspensionBehavior: SuspensionBehavior = .alwaysWait
+    ) -> Promise<Void> {
         return firstly { () -> Promise<Void> in
-            Self.messageFetcherJob.fetchingCompletePromise()
+            if DebugFlags.internalLogging { Logger.info("[Scroll Perf Debug] fetchingCompletePromise") }
+            return Self.messageFetcherJob.fetchingCompletePromise()
         }.then { () -> Promise<Void> in
-            self.processingCompletePromise()
+            if DebugFlags.internalLogging { Logger.info("[Scroll Perf Debug] processingCompletePromise") }
+            return self.processingCompletePromise(suspensionBehavior: suspensionBehavior)
         }
     }
 
@@ -165,7 +169,7 @@ public class MessageProcessor: NSObject {
             SDSDatabaseStorage.shared.read { transaction in
                 // We may have legacy process jobs queued. We want to schedule them for
                 // processing immediately when we launch, so that we can drain the old queue.
-                let legacyProcessingJobRecords = AnyMessageContentJobFinder().allJobs(transaction: transaction)
+                let legacyProcessingJobRecords = LegacyMessageJobFinder().allJobs(transaction: transaction)
                 for jobRecord in legacyProcessingJobRecords {
                     let completion: (Error?) -> Void = { _ in
                         SDSDatabaseStorage.shared.write { jobRecord.anyRemove(transaction: $0) }
@@ -309,7 +313,7 @@ public class MessageProcessor: NSObject {
 
     private func drainPendingEnvelopes() {
         guard CurrentAppContext().shouldProcessIncomingMessages else { return }
-        guard tsAccountManager.isRegisteredAndReady else { return }
+        guard DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isRegistered else { return }
 
         guard Self.messagePipelineSupervisor.isMessageProcessingPermitted else { return }
 
@@ -354,10 +358,10 @@ public class MessageProcessor: NSObject {
             // This is only called via `drainPendingEnvelopes`, and that confirms that
             // we're registered. If we're registered, we must have `LocalIdentifiers`,
             // so this (generally) shouldn't fail.
-            guard let localIdentifiers = tsAccountManager.localIdentifiers(transaction: tx) else {
+            guard let localIdentifiers = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: tx.asV2Read) else {
                 return
             }
-            let localDeviceId = tsAccountManager.storedDeviceId(transaction: tx)
+            let localDeviceId = DependenciesBridge.shared.tsAccountManager.storedDeviceId(tx: tx.asV2Read)
 
             var remainingEnvelopes = batchEnvelopes
             while !remainingEnvelopes.isEmpty {
@@ -412,7 +416,6 @@ public class MessageProcessor: NSObject {
     }
 
     private func handle(combinedRequest: RelatedProcessingRequests, transaction: SDSAnyWriteTransaction) {
-        Logger.info("Process \(combinedRequest.processingRequests.count) related requests")
         // Efficiently handle delivery receipts for the same message by fetching the sent message only
         // once and only using one updateWith... to update the message with new recipient state.
         BatchingDeliveryReceiptContext.withDeferredUpdates(transaction: transaction) { context in
@@ -653,7 +656,8 @@ private struct ProcessingRequestBuilder {
         }
 
         if decryptedEnvelope.localIdentity == .pni {
-            NSObject.identityManager.setShouldSharePhoneNumber(with: sourceAddress, transaction: tx)
+            let identityManager = DependenciesBridge.shared.identityManager
+            identityManager.setShouldSharePhoneNumber(with: decryptedEnvelope.sourceAci, tx: tx.asV2Write)
         }
 
         switch processingStep(for: decryptedEnvelope, tx: tx) {
@@ -774,7 +778,9 @@ private struct ReceivedEnvelope {
                 return .serverReceipt(try ServerReceiptEnvelope(validatedEnvelope))
             case .identifiedSender(let cipherType):
                 return .decryptedMessage(
-                    try messageDecrypter.decryptIdentifiedEnvelope(validatedEnvelope, cipherType: cipherType, tx: tx)
+                    try messageDecrypter.decryptIdentifiedEnvelope(
+                        validatedEnvelope, cipherType: cipherType, localIdentifiers: localIdentifiers, tx: tx
+                    )
                 )
             case .unidentifiedSender:
                 return .decryptedMessage(

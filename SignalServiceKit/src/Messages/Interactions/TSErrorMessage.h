@@ -15,14 +15,18 @@ NS_ASSUME_NONNULL_BEGIN
 
 typedef NS_CLOSED_ENUM(int32_t, TSErrorMessageType) {
     TSErrorMessageNoSession,
-    // DEPRECATED: We no longer create TSErrorMessageWrongTrustedIdentityKey, but
-    // persisted legacy messages could exist indefinitely.
+    /// This case is deprecated, but persisted legacy messages could contain it
+    /// indefinitely.
     TSErrorMessageWrongTrustedIdentityKey,
     TSErrorMessageInvalidKeyException,
-    // unused
+    /// This case is deprecated, but persisted legacy messages could contain it
+    /// indefinitely.
     TSErrorMessageMissingKeyId,
+    /// This case is deprecated, but persisted legacy messages could contain it
+    /// indefinitely.
     TSErrorMessageInvalidMessage,
-    // unused
+    /// This case is deprecated, but persisted legacy messages could contain it
+    /// indefinitely.
     TSErrorMessageDuplicateMessage,
     TSErrorMessageInvalidVersion,
     TSErrorMessageNonBlockingIdentityChange,
@@ -33,12 +37,6 @@ typedef NS_CLOSED_ENUM(int32_t, TSErrorMessageType) {
 };
 
 extern NSUInteger TSErrorMessageSchemaVersion;
-
-@interface ThreadlessErrorMessage : NSObject <OWSPreviewText>
-
-+ (ThreadlessErrorMessage *)corruptedMessageInUnknownThread;
-
-@end
 
 #pragma mark -
 
@@ -56,6 +54,7 @@ extern NSUInteger TSErrorMessageSchemaVersion;
                             body:(nullable NSString *)body
                       bodyRanges:(nullable MessageBodyRanges *)bodyRanges
                     contactShare:(nullable OWSContact *)contactShare
+                       editState:(TSEditState)editState
                  expireStartedAt:(uint64_t)expireStartedAt
                        expiresAt:(uint64_t)expiresAt
                 expiresInSeconds:(unsigned int)expiresInSeconds
@@ -119,9 +118,6 @@ NS_DESIGNATED_INITIALIZER NS_SWIFT_NAME(init(grdbId:uniqueId:receivedAtTimestamp
 // clang-format on
 
 // --- CODE GENERATION MARKER
-
-+ (instancetype)corruptedMessageWithEnvelope:(SSKProtoEnvelope *)envelope
-                             withTransaction:(SDSAnyWriteTransaction *)transaction;
 
 + (instancetype)invalidVersionWithEnvelope:(SSKProtoEnvelope *)envelope
                            withTransaction:(SDSAnyWriteTransaction *)transaction;

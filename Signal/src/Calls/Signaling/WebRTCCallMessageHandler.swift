@@ -131,7 +131,7 @@ public class WebRTCCallMessageHandler: NSObject, OWSCallMessageHandler {
 
     public func receivedOpaque(
         _ opaque: SSKProtoCallMessageOpaque,
-        from caller: SignalServiceAddress,
+        from caller: AciObjC,
         sourceDevice: UInt32,
         serverReceivedTimestamp: UInt64,
         serverDeliveryTimestamp: UInt64,
@@ -144,19 +144,15 @@ public class WebRTCCallMessageHandler: NSObject, OWSCallMessageHandler {
             return owsFailDebug("Received opaque call message without data")
         }
 
-        guard let senderUuid = caller.uuid else {
-            return owsFailDebug("Received opaque call message from sender without UUID")
-        }
-
         var messageAgeSec: UInt64 = 0
         if serverReceivedTimestamp > 0 && serverDeliveryTimestamp >= serverReceivedTimestamp {
             messageAgeSec = (serverDeliveryTimestamp - serverReceivedTimestamp) / 1000
         }
 
-        let localDeviceId = Self.tsAccountManager.storedDeviceId(transaction: transaction)
+        let localDeviceId = DependenciesBridge.shared.tsAccountManager.storedDeviceId(tx: transaction.asV2Read)
 
         self.callService.callManager.receivedCallMessage(
-            senderUuid: senderUuid,
+            senderUuid: caller.rawUUID,
             senderDeviceId: sourceDevice,
             localDeviceId: localDeviceId,
             message: message,
@@ -171,7 +167,7 @@ public class WebRTCCallMessageHandler: NSObject, OWSCallMessageHandler {
         completion: @escaping () -> Void
     ) {
         Logger.info("Received group call update message for thread: \(groupThread.uniqueId) eraId: \(String(describing: updateMessage.eraID))")
-        callService.peekCallAndUpdateThread(
+        callService.peekGroupCallAndUpdateThread(
             groupThread,
             expectedEraId: updateMessage.eraID,
             triggerEventTimestamp: serverReceivedTimestamp,

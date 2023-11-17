@@ -567,6 +567,95 @@ extension TSInteraction {
                                        joinedMemberUuids: joinedMemberUuids,
                                        read: read)
 
+        case .incomingPaymentMessage:
+
+            let uniqueId: String = record.uniqueId
+            let receivedAtTimestamp: UInt64 = record.receivedAtTimestamp
+            let sortId: UInt64 = UInt64(recordId)
+            let timestamp: UInt64 = record.timestamp
+            let uniqueThreadId: String = record.threadUniqueId
+            let attachmentIdsSerialized: Data? = record.attachmentIds
+            let attachmentIds: [String] = try SDSDeserialization.unarchive(attachmentIdsSerialized, name: "attachmentIds")
+            let body: String? = record.body
+            let bodyRangesSerialized: Data? = record.bodyRanges
+            let bodyRanges: MessageBodyRanges? = try SDSDeserialization.optionalUnarchive(bodyRangesSerialized, name: "bodyRanges")
+            let contactShareSerialized: Data? = record.contactShare
+            let contactShare: OWSContact? = try SDSDeserialization.optionalUnarchive(contactShareSerialized, name: "contactShare")
+            guard let editState: TSEditState = record.editState else {
+               throw SDSError.missingRequiredField
+            }
+            let expireStartedAt: UInt64 = try SDSDeserialization.required(record.expireStartedAt, name: "expireStartedAt")
+            let expiresAt: UInt64 = try SDSDeserialization.required(record.expiresAt, name: "expiresAt")
+            let expiresInSeconds: UInt32 = try SDSDeserialization.required(record.expiresInSeconds, name: "expiresInSeconds")
+            let giftBadgeSerialized: Data? = record.giftBadge
+            let giftBadge: OWSGiftBadge? = try SDSDeserialization.optionalUnarchive(giftBadgeSerialized, name: "giftBadge")
+            let isGroupStoryReply: Bool = try SDSDeserialization.required(record.isGroupStoryReply, name: "isGroupStoryReply")
+            let isViewOnceComplete: Bool = try SDSDeserialization.required(record.isViewOnceComplete, name: "isViewOnceComplete")
+            let isViewOnceMessage: Bool = try SDSDeserialization.required(record.isViewOnceMessage, name: "isViewOnceMessage")
+            let linkPreviewSerialized: Data? = record.linkPreview
+            let linkPreview: OWSLinkPreview? = try SDSDeserialization.optionalUnarchive(linkPreviewSerialized, name: "linkPreview")
+            let messageStickerSerialized: Data? = record.messageSticker
+            let messageSticker: MessageSticker? = try SDSDeserialization.optionalUnarchive(messageStickerSerialized, name: "messageSticker")
+            let quotedMessageSerialized: Data? = record.quotedMessage
+            let quotedMessage: TSQuotedMessage? = try SDSDeserialization.optionalUnarchive(quotedMessageSerialized, name: "quotedMessage")
+            let storedShouldStartExpireTimer: Bool = try SDSDeserialization.required(record.storedShouldStartExpireTimer, name: "storedShouldStartExpireTimer")
+            let storyAuthorUuidString: String? = record.storyAuthorUuidString
+            let storyReactionEmoji: String? = record.storyReactionEmoji
+            let storyTimestamp: NSNumber? = SDSDeserialization.optionalNumericAsNSNumber(record.storyTimestamp, name: "storyTimestamp", conversion: { NSNumber(value: $0) })
+            let wasRemotelyDeleted: Bool = try SDSDeserialization.required(record.wasRemotelyDeleted, name: "wasRemotelyDeleted")
+            let authorPhoneNumber: String? = record.authorPhoneNumber
+            let authorUUID: String? = record.authorUUID
+            let read: Bool = try SDSDeserialization.required(record.read, name: "read")
+            let serverDeliveryTimestamp: UInt64 = try SDSDeserialization.required(record.serverDeliveryTimestamp, name: "serverDeliveryTimestamp")
+            let serverGuid: String? = record.serverGuid
+            let serverTimestamp: NSNumber? = SDSDeserialization.optionalNumericAsNSNumber(record.serverTimestamp, name: "serverTimestamp", conversion: { NSNumber(value: $0) })
+            let sourceDeviceId: UInt32 = try SDSDeserialization.required(record.sourceDeviceId, name: "sourceDeviceId")
+            let viewed: Bool = try SDSDeserialization.required(record.viewed, name: "viewed")
+            let wasReceivedByUD: Bool = try SDSDeserialization.required(record.wasReceivedByUD, name: "wasReceivedByUD")
+            let paymentCancellation: Data? = SDSDeserialization.optionalData(record.paymentCancellation, name: "paymentCancellation")
+            let paymentNotificationSerialized: Data? = record.paymentNotification
+            let paymentNotification: TSPaymentNotification? = try SDSDeserialization.optionalUnarchive(paymentNotificationSerialized, name: "paymentNotification")
+            let paymentRequest: Data? = SDSDeserialization.optionalData(record.paymentRequest, name: "paymentRequest")
+
+            return OWSIncomingPaymentMessage(grdbId: recordId,
+                                             uniqueId: uniqueId,
+                                             receivedAtTimestamp: receivedAtTimestamp,
+                                             sortId: sortId,
+                                             timestamp: timestamp,
+                                             uniqueThreadId: uniqueThreadId,
+                                             attachmentIds: attachmentIds,
+                                             body: body,
+                                             bodyRanges: bodyRanges,
+                                             contactShare: contactShare,
+                                             editState: editState,
+                                             expireStartedAt: expireStartedAt,
+                                             expiresAt: expiresAt,
+                                             expiresInSeconds: expiresInSeconds,
+                                             giftBadge: giftBadge,
+                                             isGroupStoryReply: isGroupStoryReply,
+                                             isViewOnceComplete: isViewOnceComplete,
+                                             isViewOnceMessage: isViewOnceMessage,
+                                             linkPreview: linkPreview,
+                                             messageSticker: messageSticker,
+                                             quotedMessage: quotedMessage,
+                                             storedShouldStartExpireTimer: storedShouldStartExpireTimer,
+                                             storyAuthorUuidString: storyAuthorUuidString,
+                                             storyReactionEmoji: storyReactionEmoji,
+                                             storyTimestamp: storyTimestamp,
+                                             wasRemotelyDeleted: wasRemotelyDeleted,
+                                             authorPhoneNumber: authorPhoneNumber,
+                                             authorUUID: authorUUID,
+                                             read: read,
+                                             serverDeliveryTimestamp: serverDeliveryTimestamp,
+                                             serverGuid: serverGuid,
+                                             serverTimestamp: serverTimestamp,
+                                             sourceDeviceId: sourceDeviceId,
+                                             viewed: viewed,
+                                             wasReceivedByUD: wasReceivedByUD,
+                                             paymentCancellation: paymentCancellation,
+                                             paymentNotification: paymentNotification,
+                                             paymentRequest: paymentRequest)
+
         case .outgoingPaymentMessage:
 
             let uniqueId: String = record.uniqueId
@@ -621,12 +710,10 @@ extension TSInteraction {
             guard let storedMessageState: TSOutgoingMessageState = record.storedMessageState else {
                throw SDSError.missingRequiredField
             }
-            let paymentCancellationSerialized: Data? = record.paymentCancellation
-            let paymentCancellation: TSPaymentCancellation? = try SDSDeserialization.optionalUnarchive(paymentCancellationSerialized, name: "paymentCancellation")
+            let paymentCancellation: Data? = SDSDeserialization.optionalData(record.paymentCancellation, name: "paymentCancellation")
             let paymentNotificationSerialized: Data? = record.paymentNotification
             let paymentNotification: TSPaymentNotification? = try SDSDeserialization.optionalUnarchive(paymentNotificationSerialized, name: "paymentNotification")
-            let paymentRequestSerialized: Data? = record.paymentRequest
-            let paymentRequest: TSPaymentRequest? = try SDSDeserialization.optionalUnarchive(paymentRequestSerialized, name: "paymentRequest")
+            let paymentRequest: Data? = SDSDeserialization.optionalData(record.paymentRequest, name: "paymentRequest")
 
             return OWSOutgoingPaymentMessage(grdbId: recordId,
                                              uniqueId: uniqueId,
@@ -668,6 +755,192 @@ extension TSInteraction {
                                              paymentCancellation: paymentCancellation,
                                              paymentNotification: paymentNotification,
                                              paymentRequest: paymentRequest)
+
+        case .paymentActivationRequestFinishedMessage:
+
+            let uniqueId: String = record.uniqueId
+            let receivedAtTimestamp: UInt64 = record.receivedAtTimestamp
+            let sortId: UInt64 = UInt64(recordId)
+            let timestamp: UInt64 = record.timestamp
+            let uniqueThreadId: String = record.threadUniqueId
+            let attachmentIdsSerialized: Data? = record.attachmentIds
+            let attachmentIds: [String] = try SDSDeserialization.unarchive(attachmentIdsSerialized, name: "attachmentIds")
+            let body: String? = record.body
+            let bodyRangesSerialized: Data? = record.bodyRanges
+            let bodyRanges: MessageBodyRanges? = try SDSDeserialization.optionalUnarchive(bodyRangesSerialized, name: "bodyRanges")
+            let contactShareSerialized: Data? = record.contactShare
+            let contactShare: OWSContact? = try SDSDeserialization.optionalUnarchive(contactShareSerialized, name: "contactShare")
+            guard let editState: TSEditState = record.editState else {
+               throw SDSError.missingRequiredField
+            }
+            let expireStartedAt: UInt64 = try SDSDeserialization.required(record.expireStartedAt, name: "expireStartedAt")
+            let expiresAt: UInt64 = try SDSDeserialization.required(record.expiresAt, name: "expiresAt")
+            let expiresInSeconds: UInt32 = try SDSDeserialization.required(record.expiresInSeconds, name: "expiresInSeconds")
+            let giftBadgeSerialized: Data? = record.giftBadge
+            let giftBadge: OWSGiftBadge? = try SDSDeserialization.optionalUnarchive(giftBadgeSerialized, name: "giftBadge")
+            let isGroupStoryReply: Bool = try SDSDeserialization.required(record.isGroupStoryReply, name: "isGroupStoryReply")
+            let isViewOnceComplete: Bool = try SDSDeserialization.required(record.isViewOnceComplete, name: "isViewOnceComplete")
+            let isViewOnceMessage: Bool = try SDSDeserialization.required(record.isViewOnceMessage, name: "isViewOnceMessage")
+            let linkPreviewSerialized: Data? = record.linkPreview
+            let linkPreview: OWSLinkPreview? = try SDSDeserialization.optionalUnarchive(linkPreviewSerialized, name: "linkPreview")
+            let messageStickerSerialized: Data? = record.messageSticker
+            let messageSticker: MessageSticker? = try SDSDeserialization.optionalUnarchive(messageStickerSerialized, name: "messageSticker")
+            let quotedMessageSerialized: Data? = record.quotedMessage
+            let quotedMessage: TSQuotedMessage? = try SDSDeserialization.optionalUnarchive(quotedMessageSerialized, name: "quotedMessage")
+            let storedShouldStartExpireTimer: Bool = try SDSDeserialization.required(record.storedShouldStartExpireTimer, name: "storedShouldStartExpireTimer")
+            let storyAuthorUuidString: String? = record.storyAuthorUuidString
+            let storyReactionEmoji: String? = record.storyReactionEmoji
+            let storyTimestamp: NSNumber? = SDSDeserialization.optionalNumericAsNSNumber(record.storyTimestamp, name: "storyTimestamp", conversion: { NSNumber(value: $0) })
+            let wasRemotelyDeleted: Bool = try SDSDeserialization.required(record.wasRemotelyDeleted, name: "wasRemotelyDeleted")
+            let customMessage: String? = record.customMessage
+            guard let groupMetaMessage: TSGroupMetaMessage = record.groupMetaMessage else {
+               throw SDSError.missingRequiredField
+            }
+            let hasLegacyMessageState: Bool = try SDSDeserialization.required(record.hasLegacyMessageState, name: "hasLegacyMessageState")
+            let hasSyncedTranscript: Bool = try SDSDeserialization.required(record.hasSyncedTranscript, name: "hasSyncedTranscript")
+            let isFromLinkedDevice: Bool = try SDSDeserialization.required(record.isFromLinkedDevice, name: "isFromLinkedDevice")
+            let isVoiceMessage: Bool = try SDSDeserialization.required(record.isVoiceMessage, name: "isVoiceMessage")
+            guard let legacyMessageState: TSOutgoingMessageState = record.legacyMessageState else {
+               throw SDSError.missingRequiredField
+            }
+            let legacyWasDelivered: Bool = try SDSDeserialization.required(record.legacyWasDelivered, name: "legacyWasDelivered")
+            let mostRecentFailureText: String? = record.mostRecentFailureText
+            let recipientAddressStatesSerialized: Data? = record.recipientAddressStates
+            let recipientAddressStates: [SignalServiceAddress: TSOutgoingMessageRecipientState]? = try SDSDeserialization.optionalUnarchive(recipientAddressStatesSerialized, name: "recipientAddressStates")
+            guard let storedMessageState: TSOutgoingMessageState = record.storedMessageState else {
+               throw SDSError.missingRequiredField
+            }
+
+            return OWSPaymentActivationRequestFinishedMessage(grdbId: recordId,
+                                                              uniqueId: uniqueId,
+                                                              receivedAtTimestamp: receivedAtTimestamp,
+                                                              sortId: sortId,
+                                                              timestamp: timestamp,
+                                                              uniqueThreadId: uniqueThreadId,
+                                                              attachmentIds: attachmentIds,
+                                                              body: body,
+                                                              bodyRanges: bodyRanges,
+                                                              contactShare: contactShare,
+                                                              editState: editState,
+                                                              expireStartedAt: expireStartedAt,
+                                                              expiresAt: expiresAt,
+                                                              expiresInSeconds: expiresInSeconds,
+                                                              giftBadge: giftBadge,
+                                                              isGroupStoryReply: isGroupStoryReply,
+                                                              isViewOnceComplete: isViewOnceComplete,
+                                                              isViewOnceMessage: isViewOnceMessage,
+                                                              linkPreview: linkPreview,
+                                                              messageSticker: messageSticker,
+                                                              quotedMessage: quotedMessage,
+                                                              storedShouldStartExpireTimer: storedShouldStartExpireTimer,
+                                                              storyAuthorUuidString: storyAuthorUuidString,
+                                                              storyReactionEmoji: storyReactionEmoji,
+                                                              storyTimestamp: storyTimestamp,
+                                                              wasRemotelyDeleted: wasRemotelyDeleted,
+                                                              customMessage: customMessage,
+                                                              groupMetaMessage: groupMetaMessage,
+                                                              hasLegacyMessageState: hasLegacyMessageState,
+                                                              hasSyncedTranscript: hasSyncedTranscript,
+                                                              isFromLinkedDevice: isFromLinkedDevice,
+                                                              isVoiceMessage: isVoiceMessage,
+                                                              legacyMessageState: legacyMessageState,
+                                                              legacyWasDelivered: legacyWasDelivered,
+                                                              mostRecentFailureText: mostRecentFailureText,
+                                                              recipientAddressStates: recipientAddressStates,
+                                                              storedMessageState: storedMessageState)
+
+        case .paymentActivationRequestMessage:
+
+            let uniqueId: String = record.uniqueId
+            let receivedAtTimestamp: UInt64 = record.receivedAtTimestamp
+            let sortId: UInt64 = UInt64(recordId)
+            let timestamp: UInt64 = record.timestamp
+            let uniqueThreadId: String = record.threadUniqueId
+            let attachmentIdsSerialized: Data? = record.attachmentIds
+            let attachmentIds: [String] = try SDSDeserialization.unarchive(attachmentIdsSerialized, name: "attachmentIds")
+            let body: String? = record.body
+            let bodyRangesSerialized: Data? = record.bodyRanges
+            let bodyRanges: MessageBodyRanges? = try SDSDeserialization.optionalUnarchive(bodyRangesSerialized, name: "bodyRanges")
+            let contactShareSerialized: Data? = record.contactShare
+            let contactShare: OWSContact? = try SDSDeserialization.optionalUnarchive(contactShareSerialized, name: "contactShare")
+            guard let editState: TSEditState = record.editState else {
+               throw SDSError.missingRequiredField
+            }
+            let expireStartedAt: UInt64 = try SDSDeserialization.required(record.expireStartedAt, name: "expireStartedAt")
+            let expiresAt: UInt64 = try SDSDeserialization.required(record.expiresAt, name: "expiresAt")
+            let expiresInSeconds: UInt32 = try SDSDeserialization.required(record.expiresInSeconds, name: "expiresInSeconds")
+            let giftBadgeSerialized: Data? = record.giftBadge
+            let giftBadge: OWSGiftBadge? = try SDSDeserialization.optionalUnarchive(giftBadgeSerialized, name: "giftBadge")
+            let isGroupStoryReply: Bool = try SDSDeserialization.required(record.isGroupStoryReply, name: "isGroupStoryReply")
+            let isViewOnceComplete: Bool = try SDSDeserialization.required(record.isViewOnceComplete, name: "isViewOnceComplete")
+            let isViewOnceMessage: Bool = try SDSDeserialization.required(record.isViewOnceMessage, name: "isViewOnceMessage")
+            let linkPreviewSerialized: Data? = record.linkPreview
+            let linkPreview: OWSLinkPreview? = try SDSDeserialization.optionalUnarchive(linkPreviewSerialized, name: "linkPreview")
+            let messageStickerSerialized: Data? = record.messageSticker
+            let messageSticker: MessageSticker? = try SDSDeserialization.optionalUnarchive(messageStickerSerialized, name: "messageSticker")
+            let quotedMessageSerialized: Data? = record.quotedMessage
+            let quotedMessage: TSQuotedMessage? = try SDSDeserialization.optionalUnarchive(quotedMessageSerialized, name: "quotedMessage")
+            let storedShouldStartExpireTimer: Bool = try SDSDeserialization.required(record.storedShouldStartExpireTimer, name: "storedShouldStartExpireTimer")
+            let storyAuthorUuidString: String? = record.storyAuthorUuidString
+            let storyReactionEmoji: String? = record.storyReactionEmoji
+            let storyTimestamp: NSNumber? = SDSDeserialization.optionalNumericAsNSNumber(record.storyTimestamp, name: "storyTimestamp", conversion: { NSNumber(value: $0) })
+            let wasRemotelyDeleted: Bool = try SDSDeserialization.required(record.wasRemotelyDeleted, name: "wasRemotelyDeleted")
+            let customMessage: String? = record.customMessage
+            guard let groupMetaMessage: TSGroupMetaMessage = record.groupMetaMessage else {
+               throw SDSError.missingRequiredField
+            }
+            let hasLegacyMessageState: Bool = try SDSDeserialization.required(record.hasLegacyMessageState, name: "hasLegacyMessageState")
+            let hasSyncedTranscript: Bool = try SDSDeserialization.required(record.hasSyncedTranscript, name: "hasSyncedTranscript")
+            let isFromLinkedDevice: Bool = try SDSDeserialization.required(record.isFromLinkedDevice, name: "isFromLinkedDevice")
+            let isVoiceMessage: Bool = try SDSDeserialization.required(record.isVoiceMessage, name: "isVoiceMessage")
+            guard let legacyMessageState: TSOutgoingMessageState = record.legacyMessageState else {
+               throw SDSError.missingRequiredField
+            }
+            let legacyWasDelivered: Bool = try SDSDeserialization.required(record.legacyWasDelivered, name: "legacyWasDelivered")
+            let mostRecentFailureText: String? = record.mostRecentFailureText
+            let recipientAddressStatesSerialized: Data? = record.recipientAddressStates
+            let recipientAddressStates: [SignalServiceAddress: TSOutgoingMessageRecipientState]? = try SDSDeserialization.optionalUnarchive(recipientAddressStatesSerialized, name: "recipientAddressStates")
+            guard let storedMessageState: TSOutgoingMessageState = record.storedMessageState else {
+               throw SDSError.missingRequiredField
+            }
+
+            return OWSPaymentActivationRequestMessage(grdbId: recordId,
+                                                      uniqueId: uniqueId,
+                                                      receivedAtTimestamp: receivedAtTimestamp,
+                                                      sortId: sortId,
+                                                      timestamp: timestamp,
+                                                      uniqueThreadId: uniqueThreadId,
+                                                      attachmentIds: attachmentIds,
+                                                      body: body,
+                                                      bodyRanges: bodyRanges,
+                                                      contactShare: contactShare,
+                                                      editState: editState,
+                                                      expireStartedAt: expireStartedAt,
+                                                      expiresAt: expiresAt,
+                                                      expiresInSeconds: expiresInSeconds,
+                                                      giftBadge: giftBadge,
+                                                      isGroupStoryReply: isGroupStoryReply,
+                                                      isViewOnceComplete: isViewOnceComplete,
+                                                      isViewOnceMessage: isViewOnceMessage,
+                                                      linkPreview: linkPreview,
+                                                      messageSticker: messageSticker,
+                                                      quotedMessage: quotedMessage,
+                                                      storedShouldStartExpireTimer: storedShouldStartExpireTimer,
+                                                      storyAuthorUuidString: storyAuthorUuidString,
+                                                      storyReactionEmoji: storyReactionEmoji,
+                                                      storyTimestamp: storyTimestamp,
+                                                      wasRemotelyDeleted: wasRemotelyDeleted,
+                                                      customMessage: customMessage,
+                                                      groupMetaMessage: groupMetaMessage,
+                                                      hasLegacyMessageState: hasLegacyMessageState,
+                                                      hasSyncedTranscript: hasSyncedTranscript,
+                                                      isFromLinkedDevice: isFromLinkedDevice,
+                                                      isVoiceMessage: isVoiceMessage,
+                                                      legacyMessageState: legacyMessageState,
+                                                      legacyWasDelivered: legacyWasDelivered,
+                                                      mostRecentFailureText: mostRecentFailureText,
+                                                      recipientAddressStates: recipientAddressStates,
+                                                      storedMessageState: storedMessageState)
 
         case .recoverableDecryptionPlaceholder:
 
@@ -1706,6 +1979,12 @@ extension TSInteraction: SDSModel {
         case let model as TSUnreadIndicatorInteraction:
             assert(type(of: model) == TSUnreadIndicatorInteraction.self)
             return TSUnreadIndicatorInteractionSerializer(model: model)
+        case let model as OWSPaymentActivationRequestMessage:
+            assert(type(of: model) == OWSPaymentActivationRequestMessage.self)
+            return OWSPaymentActivationRequestMessageSerializer(model: model)
+        case let model as OWSPaymentActivationRequestFinishedMessage:
+            assert(type(of: model) == OWSPaymentActivationRequestFinishedMessage.self)
+            return OWSPaymentActivationRequestFinishedMessageSerializer(model: model)
         case let model as OWSOutgoingPaymentMessage:
             assert(type(of: model) == OWSOutgoingPaymentMessage.self)
             return OWSOutgoingPaymentMessageSerializer(model: model)
@@ -1730,6 +2009,9 @@ extension TSInteraction: SDSModel {
         case let model as TSInfoMessage:
             assert(type(of: model) == TSInfoMessage.self)
             return TSInfoMessageSerializer(model: model)
+        case let model as OWSIncomingPaymentMessage:
+            assert(type(of: model) == OWSIncomingPaymentMessage.self)
+            return OWSIncomingPaymentMessageSerializer(model: model)
         case let model as TSIncomingMessage:
             assert(type(of: model) == TSIncomingMessage.self)
             return TSIncomingMessageSerializer(model: model)
@@ -1813,6 +2095,334 @@ extension TSInteraction: DeepCopyable {
                                                 sortId: sortId,
                                                 timestamp: timestamp,
                                                 uniqueThreadId: uniqueThreadId)
+        }
+
+        if let modelToCopy = self as? OWSPaymentActivationRequestMessage {
+            assert(type(of: modelToCopy) == OWSPaymentActivationRequestMessage.self)
+            let uniqueId: String = modelToCopy.uniqueId
+            let receivedAtTimestamp: UInt64 = modelToCopy.receivedAtTimestamp
+            let sortId: UInt64 = modelToCopy.sortId
+            let timestamp: UInt64 = modelToCopy.timestamp
+            let uniqueThreadId: String = modelToCopy.uniqueThreadId
+            // NOTE: If this generates build errors, you made need to
+            // implement DeepCopyable for this type in DeepCopy.swift.
+            let attachmentIds: [String] = try DeepCopies.deepCopy(modelToCopy.attachmentIds)
+            let body: String? = modelToCopy.body
+            // NOTE: If this generates build errors, you made need to
+            // modify DeepCopy.swift to support this type.
+            //
+            // That might mean:
+            //
+            // * Implement DeepCopyable for this type (e.g. a model).
+            // * Modify DeepCopies.deepCopy() to support this type (e.g. a collection).
+            let bodyRanges: MessageBodyRanges?
+            if let bodyRangesForCopy = modelToCopy.bodyRanges {
+               bodyRanges = try DeepCopies.deepCopy(bodyRangesForCopy)
+            } else {
+               bodyRanges = nil
+            }
+            // NOTE: If this generates build errors, you made need to
+            // modify DeepCopy.swift to support this type.
+            //
+            // That might mean:
+            //
+            // * Implement DeepCopyable for this type (e.g. a model).
+            // * Modify DeepCopies.deepCopy() to support this type (e.g. a collection).
+            let contactShare: OWSContact?
+            if let contactShareForCopy = modelToCopy.contactShare {
+               contactShare = try DeepCopies.deepCopy(contactShareForCopy)
+            } else {
+               contactShare = nil
+            }
+            let editState: TSEditState = modelToCopy.editState
+            let expireStartedAt: UInt64 = modelToCopy.expireStartedAt
+            let expiresAt: UInt64 = modelToCopy.expiresAt
+            let expiresInSeconds: UInt32 = modelToCopy.expiresInSeconds
+            // NOTE: If this generates build errors, you made need to
+            // modify DeepCopy.swift to support this type.
+            //
+            // That might mean:
+            //
+            // * Implement DeepCopyable for this type (e.g. a model).
+            // * Modify DeepCopies.deepCopy() to support this type (e.g. a collection).
+            let giftBadge: OWSGiftBadge?
+            if let giftBadgeForCopy = modelToCopy.giftBadge {
+               giftBadge = try DeepCopies.deepCopy(giftBadgeForCopy)
+            } else {
+               giftBadge = nil
+            }
+            let isGroupStoryReply: Bool = modelToCopy.isGroupStoryReply
+            let isViewOnceComplete: Bool = modelToCopy.isViewOnceComplete
+            let isViewOnceMessage: Bool = modelToCopy.isViewOnceMessage
+            // NOTE: If this generates build errors, you made need to
+            // modify DeepCopy.swift to support this type.
+            //
+            // That might mean:
+            //
+            // * Implement DeepCopyable for this type (e.g. a model).
+            // * Modify DeepCopies.deepCopy() to support this type (e.g. a collection).
+            let linkPreview: OWSLinkPreview?
+            if let linkPreviewForCopy = modelToCopy.linkPreview {
+               linkPreview = try DeepCopies.deepCopy(linkPreviewForCopy)
+            } else {
+               linkPreview = nil
+            }
+            // NOTE: If this generates build errors, you made need to
+            // modify DeepCopy.swift to support this type.
+            //
+            // That might mean:
+            //
+            // * Implement DeepCopyable for this type (e.g. a model).
+            // * Modify DeepCopies.deepCopy() to support this type (e.g. a collection).
+            let messageSticker: MessageSticker?
+            if let messageStickerForCopy = modelToCopy.messageSticker {
+               messageSticker = try DeepCopies.deepCopy(messageStickerForCopy)
+            } else {
+               messageSticker = nil
+            }
+            // NOTE: If this generates build errors, you made need to
+            // modify DeepCopy.swift to support this type.
+            //
+            // That might mean:
+            //
+            // * Implement DeepCopyable for this type (e.g. a model).
+            // * Modify DeepCopies.deepCopy() to support this type (e.g. a collection).
+            let quotedMessage: TSQuotedMessage?
+            if let quotedMessageForCopy = modelToCopy.quotedMessage {
+               quotedMessage = try DeepCopies.deepCopy(quotedMessageForCopy)
+            } else {
+               quotedMessage = nil
+            }
+            let storedShouldStartExpireTimer: Bool = modelToCopy.storedShouldStartExpireTimer
+            let storyAuthorUuidString: String? = modelToCopy.storyAuthorUuidString
+            let storyReactionEmoji: String? = modelToCopy.storyReactionEmoji
+            let storyTimestamp: NSNumber? = modelToCopy.storyTimestamp
+            let wasRemotelyDeleted: Bool = modelToCopy.wasRemotelyDeleted
+            let customMessage: String? = modelToCopy.customMessage
+            let groupMetaMessage: TSGroupMetaMessage = modelToCopy.groupMetaMessage
+            let hasLegacyMessageState: Bool = modelToCopy.hasLegacyMessageState
+            let hasSyncedTranscript: Bool = modelToCopy.hasSyncedTranscript
+            let isFromLinkedDevice: Bool = modelToCopy.isFromLinkedDevice
+            let isVoiceMessage: Bool = modelToCopy.isVoiceMessage
+            let legacyMessageState: TSOutgoingMessageState = modelToCopy.legacyMessageState
+            let legacyWasDelivered: Bool = modelToCopy.legacyWasDelivered
+            let mostRecentFailureText: String? = modelToCopy.mostRecentFailureText
+            // NOTE: If this generates build errors, you made need to
+            // modify DeepCopy.swift to support this type.
+            //
+            // That might mean:
+            //
+            // * Implement DeepCopyable for this type (e.g. a model).
+            // * Modify DeepCopies.deepCopy() to support this type (e.g. a collection).
+            let recipientAddressStates: [SignalServiceAddress: TSOutgoingMessageRecipientState]?
+            if let recipientAddressStatesForCopy = modelToCopy.recipientAddressStates {
+               recipientAddressStates = try DeepCopies.deepCopy(recipientAddressStatesForCopy)
+            } else {
+               recipientAddressStates = nil
+            }
+            let storedMessageState: TSOutgoingMessageState = modelToCopy.storedMessageState
+
+            return OWSPaymentActivationRequestMessage(grdbId: id,
+                                                      uniqueId: uniqueId,
+                                                      receivedAtTimestamp: receivedAtTimestamp,
+                                                      sortId: sortId,
+                                                      timestamp: timestamp,
+                                                      uniqueThreadId: uniqueThreadId,
+                                                      attachmentIds: attachmentIds,
+                                                      body: body,
+                                                      bodyRanges: bodyRanges,
+                                                      contactShare: contactShare,
+                                                      editState: editState,
+                                                      expireStartedAt: expireStartedAt,
+                                                      expiresAt: expiresAt,
+                                                      expiresInSeconds: expiresInSeconds,
+                                                      giftBadge: giftBadge,
+                                                      isGroupStoryReply: isGroupStoryReply,
+                                                      isViewOnceComplete: isViewOnceComplete,
+                                                      isViewOnceMessage: isViewOnceMessage,
+                                                      linkPreview: linkPreview,
+                                                      messageSticker: messageSticker,
+                                                      quotedMessage: quotedMessage,
+                                                      storedShouldStartExpireTimer: storedShouldStartExpireTimer,
+                                                      storyAuthorUuidString: storyAuthorUuidString,
+                                                      storyReactionEmoji: storyReactionEmoji,
+                                                      storyTimestamp: storyTimestamp,
+                                                      wasRemotelyDeleted: wasRemotelyDeleted,
+                                                      customMessage: customMessage,
+                                                      groupMetaMessage: groupMetaMessage,
+                                                      hasLegacyMessageState: hasLegacyMessageState,
+                                                      hasSyncedTranscript: hasSyncedTranscript,
+                                                      isFromLinkedDevice: isFromLinkedDevice,
+                                                      isVoiceMessage: isVoiceMessage,
+                                                      legacyMessageState: legacyMessageState,
+                                                      legacyWasDelivered: legacyWasDelivered,
+                                                      mostRecentFailureText: mostRecentFailureText,
+                                                      recipientAddressStates: recipientAddressStates,
+                                                      storedMessageState: storedMessageState)
+        }
+
+        if let modelToCopy = self as? OWSPaymentActivationRequestFinishedMessage {
+            assert(type(of: modelToCopy) == OWSPaymentActivationRequestFinishedMessage.self)
+            let uniqueId: String = modelToCopy.uniqueId
+            let receivedAtTimestamp: UInt64 = modelToCopy.receivedAtTimestamp
+            let sortId: UInt64 = modelToCopy.sortId
+            let timestamp: UInt64 = modelToCopy.timestamp
+            let uniqueThreadId: String = modelToCopy.uniqueThreadId
+            // NOTE: If this generates build errors, you made need to
+            // implement DeepCopyable for this type in DeepCopy.swift.
+            let attachmentIds: [String] = try DeepCopies.deepCopy(modelToCopy.attachmentIds)
+            let body: String? = modelToCopy.body
+            // NOTE: If this generates build errors, you made need to
+            // modify DeepCopy.swift to support this type.
+            //
+            // That might mean:
+            //
+            // * Implement DeepCopyable for this type (e.g. a model).
+            // * Modify DeepCopies.deepCopy() to support this type (e.g. a collection).
+            let bodyRanges: MessageBodyRanges?
+            if let bodyRangesForCopy = modelToCopy.bodyRanges {
+               bodyRanges = try DeepCopies.deepCopy(bodyRangesForCopy)
+            } else {
+               bodyRanges = nil
+            }
+            // NOTE: If this generates build errors, you made need to
+            // modify DeepCopy.swift to support this type.
+            //
+            // That might mean:
+            //
+            // * Implement DeepCopyable for this type (e.g. a model).
+            // * Modify DeepCopies.deepCopy() to support this type (e.g. a collection).
+            let contactShare: OWSContact?
+            if let contactShareForCopy = modelToCopy.contactShare {
+               contactShare = try DeepCopies.deepCopy(contactShareForCopy)
+            } else {
+               contactShare = nil
+            }
+            let editState: TSEditState = modelToCopy.editState
+            let expireStartedAt: UInt64 = modelToCopy.expireStartedAt
+            let expiresAt: UInt64 = modelToCopy.expiresAt
+            let expiresInSeconds: UInt32 = modelToCopy.expiresInSeconds
+            // NOTE: If this generates build errors, you made need to
+            // modify DeepCopy.swift to support this type.
+            //
+            // That might mean:
+            //
+            // * Implement DeepCopyable for this type (e.g. a model).
+            // * Modify DeepCopies.deepCopy() to support this type (e.g. a collection).
+            let giftBadge: OWSGiftBadge?
+            if let giftBadgeForCopy = modelToCopy.giftBadge {
+               giftBadge = try DeepCopies.deepCopy(giftBadgeForCopy)
+            } else {
+               giftBadge = nil
+            }
+            let isGroupStoryReply: Bool = modelToCopy.isGroupStoryReply
+            let isViewOnceComplete: Bool = modelToCopy.isViewOnceComplete
+            let isViewOnceMessage: Bool = modelToCopy.isViewOnceMessage
+            // NOTE: If this generates build errors, you made need to
+            // modify DeepCopy.swift to support this type.
+            //
+            // That might mean:
+            //
+            // * Implement DeepCopyable for this type (e.g. a model).
+            // * Modify DeepCopies.deepCopy() to support this type (e.g. a collection).
+            let linkPreview: OWSLinkPreview?
+            if let linkPreviewForCopy = modelToCopy.linkPreview {
+               linkPreview = try DeepCopies.deepCopy(linkPreviewForCopy)
+            } else {
+               linkPreview = nil
+            }
+            // NOTE: If this generates build errors, you made need to
+            // modify DeepCopy.swift to support this type.
+            //
+            // That might mean:
+            //
+            // * Implement DeepCopyable for this type (e.g. a model).
+            // * Modify DeepCopies.deepCopy() to support this type (e.g. a collection).
+            let messageSticker: MessageSticker?
+            if let messageStickerForCopy = modelToCopy.messageSticker {
+               messageSticker = try DeepCopies.deepCopy(messageStickerForCopy)
+            } else {
+               messageSticker = nil
+            }
+            // NOTE: If this generates build errors, you made need to
+            // modify DeepCopy.swift to support this type.
+            //
+            // That might mean:
+            //
+            // * Implement DeepCopyable for this type (e.g. a model).
+            // * Modify DeepCopies.deepCopy() to support this type (e.g. a collection).
+            let quotedMessage: TSQuotedMessage?
+            if let quotedMessageForCopy = modelToCopy.quotedMessage {
+               quotedMessage = try DeepCopies.deepCopy(quotedMessageForCopy)
+            } else {
+               quotedMessage = nil
+            }
+            let storedShouldStartExpireTimer: Bool = modelToCopy.storedShouldStartExpireTimer
+            let storyAuthorUuidString: String? = modelToCopy.storyAuthorUuidString
+            let storyReactionEmoji: String? = modelToCopy.storyReactionEmoji
+            let storyTimestamp: NSNumber? = modelToCopy.storyTimestamp
+            let wasRemotelyDeleted: Bool = modelToCopy.wasRemotelyDeleted
+            let customMessage: String? = modelToCopy.customMessage
+            let groupMetaMessage: TSGroupMetaMessage = modelToCopy.groupMetaMessage
+            let hasLegacyMessageState: Bool = modelToCopy.hasLegacyMessageState
+            let hasSyncedTranscript: Bool = modelToCopy.hasSyncedTranscript
+            let isFromLinkedDevice: Bool = modelToCopy.isFromLinkedDevice
+            let isVoiceMessage: Bool = modelToCopy.isVoiceMessage
+            let legacyMessageState: TSOutgoingMessageState = modelToCopy.legacyMessageState
+            let legacyWasDelivered: Bool = modelToCopy.legacyWasDelivered
+            let mostRecentFailureText: String? = modelToCopy.mostRecentFailureText
+            // NOTE: If this generates build errors, you made need to
+            // modify DeepCopy.swift to support this type.
+            //
+            // That might mean:
+            //
+            // * Implement DeepCopyable for this type (e.g. a model).
+            // * Modify DeepCopies.deepCopy() to support this type (e.g. a collection).
+            let recipientAddressStates: [SignalServiceAddress: TSOutgoingMessageRecipientState]?
+            if let recipientAddressStatesForCopy = modelToCopy.recipientAddressStates {
+               recipientAddressStates = try DeepCopies.deepCopy(recipientAddressStatesForCopy)
+            } else {
+               recipientAddressStates = nil
+            }
+            let storedMessageState: TSOutgoingMessageState = modelToCopy.storedMessageState
+
+            return OWSPaymentActivationRequestFinishedMessage(grdbId: id,
+                                                              uniqueId: uniqueId,
+                                                              receivedAtTimestamp: receivedAtTimestamp,
+                                                              sortId: sortId,
+                                                              timestamp: timestamp,
+                                                              uniqueThreadId: uniqueThreadId,
+                                                              attachmentIds: attachmentIds,
+                                                              body: body,
+                                                              bodyRanges: bodyRanges,
+                                                              contactShare: contactShare,
+                                                              editState: editState,
+                                                              expireStartedAt: expireStartedAt,
+                                                              expiresAt: expiresAt,
+                                                              expiresInSeconds: expiresInSeconds,
+                                                              giftBadge: giftBadge,
+                                                              isGroupStoryReply: isGroupStoryReply,
+                                                              isViewOnceComplete: isViewOnceComplete,
+                                                              isViewOnceMessage: isViewOnceMessage,
+                                                              linkPreview: linkPreview,
+                                                              messageSticker: messageSticker,
+                                                              quotedMessage: quotedMessage,
+                                                              storedShouldStartExpireTimer: storedShouldStartExpireTimer,
+                                                              storyAuthorUuidString: storyAuthorUuidString,
+                                                              storyReactionEmoji: storyReactionEmoji,
+                                                              storyTimestamp: storyTimestamp,
+                                                              wasRemotelyDeleted: wasRemotelyDeleted,
+                                                              customMessage: customMessage,
+                                                              groupMetaMessage: groupMetaMessage,
+                                                              hasLegacyMessageState: hasLegacyMessageState,
+                                                              hasSyncedTranscript: hasSyncedTranscript,
+                                                              isFromLinkedDevice: isFromLinkedDevice,
+                                                              isVoiceMessage: isVoiceMessage,
+                                                              legacyMessageState: legacyMessageState,
+                                                              legacyWasDelivered: legacyWasDelivered,
+                                                              mostRecentFailureText: mostRecentFailureText,
+                                                              recipientAddressStates: recipientAddressStates,
+                                                              storedMessageState: storedMessageState)
         }
 
         if let modelToCopy = self as? OWSOutgoingPaymentMessage {
@@ -1939,19 +2549,7 @@ extension TSInteraction: DeepCopyable {
                recipientAddressStates = nil
             }
             let storedMessageState: TSOutgoingMessageState = modelToCopy.storedMessageState
-            // NOTE: If this generates build errors, you made need to
-            // modify DeepCopy.swift to support this type.
-            //
-            // That might mean:
-            //
-            // * Implement DeepCopyable for this type (e.g. a model).
-            // * Modify DeepCopies.deepCopy() to support this type (e.g. a collection).
-            let paymentCancellation: TSPaymentCancellation?
-            if let paymentCancellationForCopy = modelToCopy.paymentCancellation {
-               paymentCancellation = try DeepCopies.deepCopy(paymentCancellationForCopy)
-            } else {
-               paymentCancellation = nil
-            }
+            let paymentCancellation: Data? = modelToCopy.paymentCancellation
             // NOTE: If this generates build errors, you made need to
             // modify DeepCopy.swift to support this type.
             //
@@ -1965,19 +2563,7 @@ extension TSInteraction: DeepCopyable {
             } else {
                paymentNotification = nil
             }
-            // NOTE: If this generates build errors, you made need to
-            // modify DeepCopy.swift to support this type.
-            //
-            // That might mean:
-            //
-            // * Implement DeepCopyable for this type (e.g. a model).
-            // * Modify DeepCopies.deepCopy() to support this type (e.g. a collection).
-            let paymentRequest: TSPaymentRequest?
-            if let paymentRequestForCopy = modelToCopy.paymentRequest {
-               paymentRequest = try DeepCopies.deepCopy(paymentRequestForCopy)
-            } else {
-               paymentRequest = nil
-            }
+            let paymentRequest: Data? = modelToCopy.paymentRequest
 
             return OWSOutgoingPaymentMessage(grdbId: id,
                                              uniqueId: uniqueId,
@@ -3199,6 +3785,172 @@ extension TSInteraction: DeepCopyable {
                                  messageType: messageType,
                                  read: read,
                                  unregisteredAddress: unregisteredAddress)
+        }
+
+        if let modelToCopy = self as? OWSIncomingPaymentMessage {
+            assert(type(of: modelToCopy) == OWSIncomingPaymentMessage.self)
+            let uniqueId: String = modelToCopy.uniqueId
+            let receivedAtTimestamp: UInt64 = modelToCopy.receivedAtTimestamp
+            let sortId: UInt64 = modelToCopy.sortId
+            let timestamp: UInt64 = modelToCopy.timestamp
+            let uniqueThreadId: String = modelToCopy.uniqueThreadId
+            // NOTE: If this generates build errors, you made need to
+            // implement DeepCopyable for this type in DeepCopy.swift.
+            let attachmentIds: [String] = try DeepCopies.deepCopy(modelToCopy.attachmentIds)
+            let body: String? = modelToCopy.body
+            // NOTE: If this generates build errors, you made need to
+            // modify DeepCopy.swift to support this type.
+            //
+            // That might mean:
+            //
+            // * Implement DeepCopyable for this type (e.g. a model).
+            // * Modify DeepCopies.deepCopy() to support this type (e.g. a collection).
+            let bodyRanges: MessageBodyRanges?
+            if let bodyRangesForCopy = modelToCopy.bodyRanges {
+               bodyRanges = try DeepCopies.deepCopy(bodyRangesForCopy)
+            } else {
+               bodyRanges = nil
+            }
+            // NOTE: If this generates build errors, you made need to
+            // modify DeepCopy.swift to support this type.
+            //
+            // That might mean:
+            //
+            // * Implement DeepCopyable for this type (e.g. a model).
+            // * Modify DeepCopies.deepCopy() to support this type (e.g. a collection).
+            let contactShare: OWSContact?
+            if let contactShareForCopy = modelToCopy.contactShare {
+               contactShare = try DeepCopies.deepCopy(contactShareForCopy)
+            } else {
+               contactShare = nil
+            }
+            let editState: TSEditState = modelToCopy.editState
+            let expireStartedAt: UInt64 = modelToCopy.expireStartedAt
+            let expiresAt: UInt64 = modelToCopy.expiresAt
+            let expiresInSeconds: UInt32 = modelToCopy.expiresInSeconds
+            // NOTE: If this generates build errors, you made need to
+            // modify DeepCopy.swift to support this type.
+            //
+            // That might mean:
+            //
+            // * Implement DeepCopyable for this type (e.g. a model).
+            // * Modify DeepCopies.deepCopy() to support this type (e.g. a collection).
+            let giftBadge: OWSGiftBadge?
+            if let giftBadgeForCopy = modelToCopy.giftBadge {
+               giftBadge = try DeepCopies.deepCopy(giftBadgeForCopy)
+            } else {
+               giftBadge = nil
+            }
+            let isGroupStoryReply: Bool = modelToCopy.isGroupStoryReply
+            let isViewOnceComplete: Bool = modelToCopy.isViewOnceComplete
+            let isViewOnceMessage: Bool = modelToCopy.isViewOnceMessage
+            // NOTE: If this generates build errors, you made need to
+            // modify DeepCopy.swift to support this type.
+            //
+            // That might mean:
+            //
+            // * Implement DeepCopyable for this type (e.g. a model).
+            // * Modify DeepCopies.deepCopy() to support this type (e.g. a collection).
+            let linkPreview: OWSLinkPreview?
+            if let linkPreviewForCopy = modelToCopy.linkPreview {
+               linkPreview = try DeepCopies.deepCopy(linkPreviewForCopy)
+            } else {
+               linkPreview = nil
+            }
+            // NOTE: If this generates build errors, you made need to
+            // modify DeepCopy.swift to support this type.
+            //
+            // That might mean:
+            //
+            // * Implement DeepCopyable for this type (e.g. a model).
+            // * Modify DeepCopies.deepCopy() to support this type (e.g. a collection).
+            let messageSticker: MessageSticker?
+            if let messageStickerForCopy = modelToCopy.messageSticker {
+               messageSticker = try DeepCopies.deepCopy(messageStickerForCopy)
+            } else {
+               messageSticker = nil
+            }
+            // NOTE: If this generates build errors, you made need to
+            // modify DeepCopy.swift to support this type.
+            //
+            // That might mean:
+            //
+            // * Implement DeepCopyable for this type (e.g. a model).
+            // * Modify DeepCopies.deepCopy() to support this type (e.g. a collection).
+            let quotedMessage: TSQuotedMessage?
+            if let quotedMessageForCopy = modelToCopy.quotedMessage {
+               quotedMessage = try DeepCopies.deepCopy(quotedMessageForCopy)
+            } else {
+               quotedMessage = nil
+            }
+            let storedShouldStartExpireTimer: Bool = modelToCopy.storedShouldStartExpireTimer
+            let storyAuthorUuidString: String? = modelToCopy.storyAuthorUuidString
+            let storyReactionEmoji: String? = modelToCopy.storyReactionEmoji
+            let storyTimestamp: NSNumber? = modelToCopy.storyTimestamp
+            let wasRemotelyDeleted: Bool = modelToCopy.wasRemotelyDeleted
+            let authorPhoneNumber: String? = modelToCopy.authorPhoneNumber
+            let authorUUID: String? = modelToCopy.authorUUID
+            let read: Bool = modelToCopy.wasRead
+            let serverDeliveryTimestamp: UInt64 = modelToCopy.serverDeliveryTimestamp
+            let serverGuid: String? = modelToCopy.serverGuid
+            let serverTimestamp: NSNumber? = modelToCopy.serverTimestamp
+            let sourceDeviceId: UInt32 = modelToCopy.sourceDeviceId
+            let viewed: Bool = modelToCopy.wasViewed
+            let wasReceivedByUD: Bool = modelToCopy.wasReceivedByUD
+            let paymentCancellation: Data? = modelToCopy.paymentCancellation
+            // NOTE: If this generates build errors, you made need to
+            // modify DeepCopy.swift to support this type.
+            //
+            // That might mean:
+            //
+            // * Implement DeepCopyable for this type (e.g. a model).
+            // * Modify DeepCopies.deepCopy() to support this type (e.g. a collection).
+            let paymentNotification: TSPaymentNotification?
+            if let paymentNotificationForCopy = modelToCopy.paymentNotification {
+               paymentNotification = try DeepCopies.deepCopy(paymentNotificationForCopy)
+            } else {
+               paymentNotification = nil
+            }
+            let paymentRequest: Data? = modelToCopy.paymentRequest
+
+            return OWSIncomingPaymentMessage(grdbId: id,
+                                             uniqueId: uniqueId,
+                                             receivedAtTimestamp: receivedAtTimestamp,
+                                             sortId: sortId,
+                                             timestamp: timestamp,
+                                             uniqueThreadId: uniqueThreadId,
+                                             attachmentIds: attachmentIds,
+                                             body: body,
+                                             bodyRanges: bodyRanges,
+                                             contactShare: contactShare,
+                                             editState: editState,
+                                             expireStartedAt: expireStartedAt,
+                                             expiresAt: expiresAt,
+                                             expiresInSeconds: expiresInSeconds,
+                                             giftBadge: giftBadge,
+                                             isGroupStoryReply: isGroupStoryReply,
+                                             isViewOnceComplete: isViewOnceComplete,
+                                             isViewOnceMessage: isViewOnceMessage,
+                                             linkPreview: linkPreview,
+                                             messageSticker: messageSticker,
+                                             quotedMessage: quotedMessage,
+                                             storedShouldStartExpireTimer: storedShouldStartExpireTimer,
+                                             storyAuthorUuidString: storyAuthorUuidString,
+                                             storyReactionEmoji: storyReactionEmoji,
+                                             storyTimestamp: storyTimestamp,
+                                             wasRemotelyDeleted: wasRemotelyDeleted,
+                                             authorPhoneNumber: authorPhoneNumber,
+                                             authorUUID: authorUUID,
+                                             read: read,
+                                             serverDeliveryTimestamp: serverDeliveryTimestamp,
+                                             serverGuid: serverGuid,
+                                             serverTimestamp: serverTimestamp,
+                                             sourceDeviceId: sourceDeviceId,
+                                             viewed: viewed,
+                                             wasReceivedByUD: wasReceivedByUD,
+                                             paymentCancellation: paymentCancellation,
+                                             paymentNotification: paymentNotification,
+                                             paymentRequest: paymentRequest)
         }
 
         if let modelToCopy = self as? TSIncomingMessage {

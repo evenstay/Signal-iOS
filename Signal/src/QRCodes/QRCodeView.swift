@@ -125,6 +125,10 @@ class QRCodeView: UIView {
             }
         }()
 
+        defer {
+            qrCodeView = qrCodeImageView
+        }
+
         // Don't antialias QR Codes.
         qrCodeImageView.layer.magnificationFilter = .nearest
         qrCodeImageView.layer.minificationFilter = .nearest
@@ -137,12 +141,21 @@ class QRCodeView: UIView {
             qrCodeImageView.autoPinToSquareAspectRatio()
 
             if useCircularWrapper {
-                qrCodeImageView.autoMatch(.height, to: .height, of: qrCodeWrapper, withMultiplier: 0.6)
+                qrCodeImageView.autoMatch(
+                    .height,
+                    to: .height,
+                    of: qrCodeWrapper,
+                    withMultiplier: Constants.circleToQRCodeSizeMultiplier
+                )
             } else {
                 qrCodeImageView.autoPinEdgesToSuperviewEdges()
             }
         case .error:
             qrCodeImageView.autoSetDimensions(to: .square(48))
         }
+    }
+
+    public enum Constants {
+        public static let circleToQRCodeSizeMultiplier: CGFloat = 0.6
     }
 }

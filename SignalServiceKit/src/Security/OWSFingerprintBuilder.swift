@@ -3,140 +3,61 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
+import LibSignalClient
 
 public class OWSFingerprintBuilder {
+    public struct FingerprintResult {
+        public let theirAci: Aci
+        public let theirRecipientIdentity: OWSRecipientIdentity
+        public let fingerprint: OWSFingerprint
+    }
 
-    private let accountManager: TSAccountManager
     private let contactsManager: ContactsManagerProtocol
+    private let identityManager: OWSIdentityManager
+    private let tsAccountManager: TSAccountManager
 
     public init(
-        accountManager: TSAccountManager,
-        contactsManager: ContactsManagerProtocol
+        contactsManager: ContactsManagerProtocol,
+        identityManager: OWSIdentityManager,
+        tsAccountManager: TSAccountManager
     ) {
-        self.accountManager = accountManager
         self.contactsManager = contactsManager
+        self.identityManager = identityManager
+        self.tsAccountManager = tsAccountManager
     }
 
-    public struct FingerprintResult {
-        public let fingerprints: [OWSFingerprint]
-        public let defaultIndex: Int
-    }
-
-    /**
-     * Builds fingerprints combining your current credentials with a specified identity key.
-     * You can use these to present a new identity key for verification.
-     *
-     * Building can fail if required information is missing; e.g. depending on flag state an ACI
-     * may be required and not having one (as happens when sending a message to someone's
-     * PNI before receiving a response) results in failure and returns nil.
-     * In these cases the user should be shown an error and told to retry once messages have been exchanged.
-     *
-     * If no identity key is provided, their most recently accepted identity key is used.
-     * If no identity key is available, returns nil.
-     */
+    /// Builds fingerprints combining your current credentials with a specified
+    /// identity key. You can use these to present a new identity key for
+    /// verification.
     public func fingerprints(
-        theirSignalAddress: SignalServiceAddress,
-        theirIdentityKey: Data?
+        theirAci: Aci,
+        theirRecipientIdentity: OWSRecipientIdentity,
+        tx: SDSAnyReadTransaction
     ) -> FingerprintResult? {
-        let theirIdentityKey: Data? = theirIdentityKey ?? OWSIdentityManager.shared.identityKey(for: theirSignalAddress)
-        guard let theirIdentityKey else {
-            owsFailDebug("Missing their identity key")
+        guard
+            let localIdentifiers = tsAccountManager.localIdentifiers(tx: tx.asV2Read),
+            let myAciIdentityKey = identityManager.identityKeyPair(for: .aci, tx: tx.asV2Read)?.keyPair.identityKey,
+            let theirAciIdentityKey = try? theirRecipientIdentity.identityKeyObject
+        else {
+            owsFailDebug("Missing local properties!")
             return nil
         }
-        let theirName = self.contactsManager.displayName(for: theirSignalAddress)
+        let myAci = localIdentifiers.aci
 
-        // PNI TODO: This should use the identity key associated with our PNI if we only have a PNI session with them.
-        guard let myIdentityKey = OWSIdentityManager.shared.identityKeyPair(for: .aci)?.publicKey else {
-            owsFailDebug("Missing local identity key")
-            return nil
-        }
+        let theirName = contactsManager.displayName(for: SignalServiceAddress(theirAci), transaction: tx)
 
-        if FeatureFlags.onlyAciSafetyNumbers {
-            guard let aciFingerprint = self.aciFingerprint(
-                theirSignalAddress: theirSignalAddress,
-                theirIdentityKey: theirIdentityKey,
-                myIdentityKey: myIdentityKey,
-                theirName: theirName
-            ) else {
-                owsFailDebug("Unable to build aci fingerprint")
-                return nil
-            }
-            return .init(fingerprints: [aciFingerprint], defaultIndex: 0)
-        } else {
-            // Need both.
-            guard
-                let aciFingerprint = self.aciFingerprint(
-                    theirSignalAddress: theirSignalAddress,
-                    theirIdentityKey: theirIdentityKey,
-                    myIdentityKey: myIdentityKey,
-                    theirName: theirName
-                )
-            else {
-                owsFailDebug("Unable to build aci fingerprint")
-                return nil
-            }
-            let e164Fingerprint = self.e164Fingerprint(
-                theirSignalAddress: theirSignalAddress,
-                theirIdentityKey: theirIdentityKey,
-                myIdentityKey: myIdentityKey,
-                theirName: theirName
-            )
-            if RemoteConfig.defaultToAciSafetyNumber {
-                // If we default to ACI safety number and don't have the e164,
-                // that's fine. Just show the aci one.
-                return .init(fingerprints: [e164Fingerprint, aciFingerprint].compacted(), defaultIndex: e164Fingerprint == nil ? 0 : 1)
-            }
-            // Otherwise, we want to default to the e164 one so we _require_ it.
-            guard let e164Fingerprint else {
-                owsFailDebug("Unable to build e164 fingerprint")
-                return nil
-            }
-            return .init(
-                fingerprints: [e164Fingerprint, aciFingerprint],
-                defaultIndex: 0
-            )
-        }
-    }
+        let aciFingerprint = OWSFingerprint(
+            myAci: myAci,
+            theirAci: theirAci,
+            myAciIdentityKey: myAciIdentityKey,
+            theirAciIdentityKey: theirAciIdentityKey,
+            theirName: theirName
+        )
 
-    private func aciFingerprint(
-        theirSignalAddress: SignalServiceAddress,
-        theirIdentityKey: Data,
-        myIdentityKey: Data,
-        theirName: String
-    ) -> OWSFingerprint? {
-        if
-            let myAci = accountManager.localAddress?.untypedServiceId,
-            // TODO(PNP): We should fail if this is a PNI and not an ACI.
-            let theirAci = theirSignalAddress.untypedServiceId
-        {
-            return OWSFingerprint(
-                source: .aci(myAci: myAci, theirAci: theirAci),
-                myIdentityKey: myIdentityKey,
-                theirIdentityKey: theirIdentityKey,
-                theirName: theirName
-            )
-        }
-        return nil
-    }
-
-    private func e164Fingerprint(
-        theirSignalAddress: SignalServiceAddress,
-        theirIdentityKey: Data,
-        myIdentityKey: Data,
-        theirName: String
-    ) -> OWSFingerprint? {
-        if
-            let myE164 = accountManager.localAddress?.e164,
-            let theirE164 = theirSignalAddress.e164
-        {
-            return OWSFingerprint(
-                source: .e164(myE164: myE164, theirE164: theirE164),
-                myIdentityKey: myIdentityKey,
-                theirIdentityKey: theirIdentityKey,
-                theirName: theirName
-            )
-        }
-        return nil
+        return FingerprintResult(
+            theirAci: theirAci,
+            theirRecipientIdentity: theirRecipientIdentity,
+            fingerprint: aciFingerprint
+        )
     }
 }

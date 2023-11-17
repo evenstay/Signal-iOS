@@ -10,7 +10,7 @@ import SignalUI
 
 #if USE_DEBUG_UI
 
-class DebugUIMisc: DebugUIPage, Dependencies {
+class DebugUIMisc: NSObject, DebugUIPage, Dependencies {
 
     let name = "Misc."
 
@@ -38,7 +38,7 @@ class DebugUIMisc: DebugUIPage, Dependencies {
                 OWSActionSheets.showConfirmationAlert(
                     title: "Re-register?",
                     message: "If you proceed, you will not lose any of your current messages, " +
-                        "but your account will be deactivated until you complete re-registration.",
+                    "but your account will be deactivated until you complete re-registration.",
                     proceedTitle: "Proceed",
                     proceedAction: { _ in
                         DebugUIMisc.reregister()
@@ -73,7 +73,7 @@ class DebugUIMisc: DebugUIPage, Dependencies {
                 SSKEnvironment.shared.contactsManagerImpl.requestSystemContactsOnce()
             }),
             OWSTableItem(title: "Cycle websockets", actionBlock: {
-                SSKEnvironment.shared.socketManager.cycleSocket()
+                DependenciesBridge.shared.socketManager.cycleSocket()
             }),
             OWSTableItem(title: "Flag database as corrupted", actionBlock: {
                 DebugUIMisc.showFlagDatabaseAsCorruptedUi()
@@ -103,7 +103,9 @@ class DebugUIMisc: DebugUIPage, Dependencies {
             }),
 
             OWSTableItem(title: "Update account attributes", actionBlock: {
-                TSAccountManager.shared.updateAccountAttributes()
+                Task {
+                    try? await DependenciesBridge.shared.accountAttributesUpdater.updateAccountAttributes(authedAccount: .implicit())
+                }
             }),
 
             OWSTableItem(title: "Check Prekeys", actionBlock: {
@@ -119,14 +121,6 @@ class DebugUIMisc: DebugUIPage, Dependencies {
             }),
             OWSTableItem(title: "Remove All Sessions", actionBlock: {
                 DebugUIMisc.removeAllSessions()
-            }),
-            OWSTableItem(title: "Fake PNI pre-key upload failures", actionBlock: {
-                guard let preKeyManagerImpl = DependenciesBridge.shared.preKeyManager as? PreKeyManagerImpl else {
-                    return
-                }
-                self.databaseStorage.asyncWrite { tx in
-                    preKeyManagerImpl.storeFakePreKeyUploadFailures(for: .pni, tx: tx.asV2Write)
-                }
             }),
             OWSTableItem(title: "Remove local PNI identity key", actionBlock: {
                 DebugUIMisc.removeLocalPniIdentityKey()
@@ -149,10 +143,6 @@ class DebugUIMisc: DebugUIPage, Dependencies {
 
             OWSTableItem(title: "Log SignalAccounts", actionBlock: {
                 DebugUIMisc.logSignalAccounts()
-            }),
-
-            OWSTableItem(title: "Log ContactThreads", actionBlock: {
-                DebugUIMisc.logContactThreads()
             }),
 
             OWSTableItem(title: "Clear Profile Key Credentials", actionBlock: {
@@ -187,8 +177,8 @@ class DebugUIMisc: DebugUIPage, Dependencies {
                 DebugUIMisc.showSpoilerAnimationTestController()
             }),
 
-            OWSTableItem(title: "Enable edit send beta prompt", actionBlock: {
-                DebugUIMisc.enableEditBetaPromptMessage()
+            OWSTableItem(title: "Enable edit send education prompt", actionBlock: {
+                DebugUIMisc.enableEditMessagePromptMessage()
             })
         ]
         return OWSTableSection(title: name, items: items)
@@ -361,7 +351,8 @@ class DebugUIMisc: DebugUIPage, Dependencies {
 
     private static func removeLocalPniIdentityKey() {
         databaseStorage.write { transaction in
-            identityManager.storeIdentityKeyPair(nil, for: .pni, transaction: transaction)
+            let identityManager = DependenciesBridge.shared.identityManager
+            identityManager.setIdentityKeyPair(nil, for: .pni, tx: transaction.asV2Write)
         }
     }
 
@@ -389,12 +380,12 @@ class DebugUIMisc: DebugUIPage, Dependencies {
     }
 
     private static func logLocalAccount() {
-        guard let localAddress = tsAccountManager.localAddress else {
+        guard let localAddress = DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction?.aciAddress else {
             owsFailDebug("Missing localAddress.")
             return
         }
-        if let uuid = localAddress.uuid {
-            Logger.verbose("localAddress uuid: \(uuid)")
+        if let serviceId = localAddress.serviceId {
+            Logger.verbose("localAddress serviceId: \(serviceId)")
         }
         if let phoneNumber = localAddress.phoneNumber {
             Logger.verbose("localAddress phoneNumber: \(phoneNumber)")
@@ -413,17 +404,6 @@ class DebugUIMisc: DebugUIPage, Dependencies {
         Self.databaseStorage.read { transaction in
             SignalAccount.anyEnumerate(transaction: transaction, batchingPreference: .batched(32)) { (signalAccount, _) in
                 Logger.verbose("SignalAccount: \(signalAccount.addressComponentsDescription)")
-            }
-        }
-    }
-
-    private static func logContactThreads() {
-        Self.databaseStorage.read { transaction in
-            TSContactThread.anyEnumerate(transaction: transaction, batchSize: 32) { (thread, _) in
-                guard let thread = thread as? TSContactThread else {
-                    return
-                }
-                Logger.verbose("TSContactThread: \(thread.addressComponentsDescription)")
             }
         }
     }
@@ -523,9 +503,9 @@ class DebugUIMisc: DebugUIPage, Dependencies {
         UIApplication.shared.frontmostViewController!.present(viewController, animated: true)
     }
 
-    private static func enableEditBetaPromptMessage() {
+    private static func enableEditMessagePromptMessage() {
         databaseStorage.write { tx in
-            DependenciesBridge.shared.editManager.setShouldShowEditSendBetaConfirmation(
+            DependenciesBridge.shared.editManager.setShouldShowEditSendConfirmation(
                 true,
                 tx: tx.asV2Write
             )

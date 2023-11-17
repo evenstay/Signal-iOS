@@ -167,8 +167,8 @@ public class CVLoadCoordinator: NSObject {
                                                name: ChatColors.chatColorsDidChangeNotification,
                                                object: nil)
         NotificationCenter.default.addObserver(self,
-                                               selector: #selector(phoneNumberDidChange),
-                                               name: SignalRecipient.phoneNumberDidChange,
+                                               selector: #selector(didLearnRecipientAssociation(notification:)),
+                                               name: .didLearnRecipientAssociation,
                                                object: nil)
         callService.addObserver(observer: self, syncStateImmediately: false)
     }
@@ -236,30 +236,9 @@ public class CVLoadCoordinator: NSObject {
     }
 
     @objc
-    private func phoneNumberDidChange(notification: Notification) {
+    private func didLearnRecipientAssociation(notification: Notification) {
         AssertIsOnMainThread()
-
-        var notificationAddressKeys = Set<String>()
-        if let phoneNumber = notification.userInfo?[SignalRecipient.notificationKeyPhoneNumber] as? String {
-            notificationAddressKeys.insert(phoneNumber)
-        }
-        if let uuid = notification.userInfo?[SignalRecipient.notificationKeyUUID] as? String {
-            notificationAddressKeys.insert(uuid)
-        }
-
-        var threadAddressKeys = Set<String>()
-        for address in thread.recipientAddressesWithSneakyTransaction {
-            if let uuidString = address.uuidString {
-                threadAddressKeys.insert(uuidString)
-            }
-            if let phoneNumber = address.phoneNumber {
-                threadAddressKeys.insert(phoneNumber)
-            }
-        }
-        let shouldReload = !notificationAddressKeys.isDisjoint(with: threadAddressKeys)
-        if shouldReload {
-            enqueueReloadWithoutCaches()
-        }
+        enqueueReloadWithoutCaches()
     }
 
     @objc
@@ -524,9 +503,7 @@ public class CVLoadCoordinator: NSObject {
         firstly {
             loader.loadPromise()
         }.then(on: DispatchQueue.main) { [weak self] (update: CVUpdate) -> Promise<Void> in
-            guard let self = self else {
-                throw OWSGenericError("Missing self.")
-            }
+            guard let self else { return .value(()) }
             return self.loadLandWhenSafePromise(update: update)
         }.ensure(on: DispatchQueue.main) { [weak self] in
             guard let self else { return }
@@ -556,7 +533,7 @@ public class CVLoadCoordinator: NSObject {
     private func loadLandWhenSafe(update: CVUpdate, loadFuture: Future<Void>) {
 
         guard let delegate = self.delegate else {
-            loadFuture.reject(OWSGenericError("Missing self or delegate."))
+            loadFuture.reject(OWSGenericError("Missing delegate."))
             return
         }
 
@@ -590,7 +567,11 @@ public class CVLoadCoordinator: NSObject {
             // its block than DispatchQueue.async() if the CPU is under
             // heavy load. That's desirable in this case.
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.001) { [weak self] in
-                self?.loadLandWhenSafe(update: update, loadFuture: loadFuture)
+                guard let self else {
+                    loadFuture.resolve()
+                    return
+                }
+                self.loadLandWhenSafe(update: update, loadFuture: loadFuture)
             }
             return
         }

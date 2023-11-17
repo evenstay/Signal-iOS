@@ -80,24 +80,10 @@ NS_ASSUME_NONNULL_BEGIN
     uint64_t messageTimestamp = (transcript.serverTimestamp > 0 ? transcript.serverTimestamp : transcript.timestamp);
     OWSAssertDebug(messageTimestamp > 0);
 
-    if (transcript.paymentRequest != nil) {
-        OWSLogInfo(@"Processing payment request from sync transcript.");
-        [self.paymentsHelper processReceivedTranscriptPaymentRequestWithThread:transcript.thread
-                                                                paymentRequest:transcript.paymentRequest
-                                                              messageTimestamp:messageTimestamp
-                                                                   transaction:transaction];
-        return;
-    } else if (transcript.paymentNotification != nil) {
+    if (transcript.paymentNotification != nil) {
         OWSLogInfo(@"Processing payment notification from sync transcript.");
         [self.paymentsHelper processReceivedTranscriptPaymentNotificationWithThread:transcript.thread
                                                                 paymentNotification:transcript.paymentNotification
-                                                                   messageTimestamp:messageTimestamp
-                                                                        transaction:transaction];
-        return;
-    } else if (transcript.paymentCancellation != nil) {
-        OWSLogInfo(@"Processing payment cancellation from sync transcript.");
-        [self.paymentsHelper processReceivedTranscriptPaymentCancellationWithThread:transcript.thread
-                                                                paymentCancellation:transcript.paymentCancellation
                                                                    messageTimestamp:messageTimestamp
                                                                         transaction:transaction];
         return;
@@ -123,12 +109,12 @@ NS_ASSUME_NONNULL_BEGIN
                               changeActionsProtoData:nil
                                 additionalRecipients:nil
                                    skippedRecipients:nil
-                                  storyAuthorAddress:transcript.storyAuthorAddress
+                                      storyAuthorAci:transcript.storyAuthorAci
                                       storyTimestamp:transcript.storyTimestamp
                                   storyReactionEmoji:nil
                                            giftBadge:transcript.giftBadge] buildWithTransaction:transaction];
 
-    LocalIdentifiersObjC *_Nullable localIdentifiers = [self.tsAccountManager localIdentifiersObjCWithTx:transaction];
+    LocalIdentifiersObjC *_Nullable localIdentifiers = [TSAccountManagerObjcBridge localIdentifiersWith:transaction];
     if (localIdentifiers == nil) {
         OWSFailDebug(@"Missing localIdentifiers.");
         return;
@@ -224,7 +210,7 @@ NS_ASSUME_NONNULL_BEGIN
     TSInteraction *message =
         [[OWSUnknownProtocolVersionMessage alloc] initWithThread:transcript.thread
                                                           sender:nil
-                                                 protocolVersion:transcript.requiredProtocolVersion.intValue];
+                                                 protocolVersion:transcript.requiredProtocolVersion.unsignedIntValue];
     [message anyInsertWithTransaction:transaction];
 }
 

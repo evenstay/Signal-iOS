@@ -64,9 +64,11 @@ public class PaymentsReconciliation: Dependencies {
         guard Self.paymentsHelper.arePaymentsEnabled else {
             return false
         }
-        guard AppReadiness.isAppReady,
-              CurrentAppContext().isMainAppAndActive,
-              Self.tsAccountManager.isRegisteredAndReady else {
+        guard
+            AppReadiness.isAppReady,
+            CurrentAppContext().isMainAppAndActive,
+            DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isRegistered
+        else {
             return false
         }
         guard shouldReconcileByDateWithSneakyTransaction() else {
@@ -412,10 +414,10 @@ public class PaymentsReconciliation: Dependencies {
                                               paymentState: paymentState,
                                               paymentAmount: paymentAmount,
                                               createdDate: createdDate,
-                                              addressUuidString: nil,
+                                              senderOrRecipientAci: nil,
                                               memoMessage: nil,
-                                              requestUuidString: nil,
                                               isUnread: true,
+                                              interactionUniqueId: nil,
                                               mobileCoin: mobileCoin)
 
             if let transaction = transaction as? SDSAnyWriteTransaction {
@@ -643,10 +645,10 @@ public class PaymentsReconciliation: Dependencies {
                                              paymentState: paymentState,
                                              paymentAmount: oldPaymentModel.paymentAmount,
                                              createdDate: oldPaymentModel.createdDate,
-                                             addressUuidString: nil,
+                                             senderOrRecipientAci: nil,
                                              memoMessage: nil,
-                                             requestUuidString: nil,
                                              isUnread: false,
+                                             interactionUniqueId: nil,
                                              mobileCoin: mobileCoin)
         do {
             try Self.paymentsHelper.tryToInsertPaymentModel(newPaymentModel, transaction: transaction)

@@ -5,6 +5,7 @@
 
 import Foundation
 import SignalMessaging
+import SignalServiceKit
 
 public class ThreadViewModel: NSObject {
     public let hasUnreadMessages: Bool
@@ -61,10 +62,10 @@ public class ThreadViewModel: NSObject {
             self.shortName = nil
         }
 
-        let unreadCount = InteractionFinder(threadUniqueId: thread.uniqueId).unreadCount(transaction: transaction.unwrapGrdbRead)
+        let unreadCount = InteractionFinder(threadUniqueId: thread.uniqueId).unreadCount(transaction: transaction)
         self.unreadCount = unreadCount
         self.hasUnreadMessages = associatedData.isMarkedUnread || unreadCount > 0
-        self.hasPendingMessageRequest = thread.hasPendingMessageRequest(transaction: transaction.unwrapGrdbRead)
+        self.hasPendingMessageRequest = thread.hasPendingMessageRequest(transaction: transaction)
 
         self.lastMessageForInbox = thread.lastInteractionForInbox(transaction: transaction)
 
@@ -94,19 +95,46 @@ public class ThreadViewModel: NSObject {
 public class ChatListInfo: Dependencies {
 
     public let lastMessageDate: Date?
+    public let lastMessageOutgoingStatus: MessageReceiptStatus?
     public let snippet: CLVSnippet
 
-    public init(thread: TSThread,
-                lastMessageForInbox: TSInteraction?,
-                hasPendingMessageRequest: Bool,
-                transaction: SDSAnyReadTransaction) {
+    public init(
+        thread: TSThread,
+        lastMessageForInbox: TSInteraction?,
+        hasPendingMessageRequest: Bool,
+        transaction: SDSAnyReadTransaction
+    ) {
 
         self.lastMessageDate = lastMessageForInbox?.timestampDate
+        self.lastMessageOutgoingStatus = { () -> MessageReceiptStatus? in
+            guard let outgoingMessage = lastMessageForInbox as? TSOutgoingMessage else {
+                return nil
+            }
+            if
+                let paymentMessage = outgoingMessage as? OWSPaymentMessage,
+                let receiptData = paymentMessage.paymentNotification?.mcReceiptData,
+                let paymentModel = PaymentFinder.paymentModels(
+                    forMcReceiptData: receiptData,
+                    transaction: transaction
+                ).first
+            {
+                return MessageRecipientStatusUtils.recipientStatus(
+                    outgoingMessage: outgoingMessage,
+                    paymentModel: paymentModel
+                )
+            } else {
+                return MessageRecipientStatusUtils.recipientStatus(
+                    outgoingMessage: outgoingMessage
+                )
+            }
+        }()
 
-        self.snippet = Self.buildCLVSnippet(thread: thread,
-                                           hasPendingMessageRequest: hasPendingMessageRequest,
-                                           lastMessageForInbox: lastMessageForInbox,
-                                           transaction: transaction)
+        self.snippet = Self.buildCLVSnippet(
+            thread: thread,
+            hasPendingMessageRequest: hasPendingMessageRequest,
+            lastMessageForInbox: lastMessageForInbox,
+            transaction: transaction
+        )
     }
 
     private static func buildCLVSnippet(

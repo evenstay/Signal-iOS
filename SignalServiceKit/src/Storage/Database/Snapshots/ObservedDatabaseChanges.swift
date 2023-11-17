@@ -12,6 +12,9 @@ public protocol DatabaseChanges: AnyObject {
     typealias RowId = Int64
 
     var threadUniqueIds: Set<UniqueId> { get }
+    /// Unique ids for threads that have been changed in a user-facing way
+    /// that should affect the chat list UI.
+    var threadUniqueIdsForChatListUpdate: Set<UniqueId> { get }
     var interactionUniqueIds: Set<UniqueId> { get }
     var storyMessageUniqueIds: Set<UniqueId> { get }
     var storyMessageRowIds: Set<RowId> { get }
@@ -98,11 +101,11 @@ class ObservedDatabaseChanges: NSObject {
 
     private var _collections: Set<String> = Set()
 
-    func append(collection: String) {
-        append(collections: [collection])
+    func insert(collection: String) {
+        formUnion(collections: [collection])
     }
 
-    func append(collections: Set<String>) {
+    func formUnion(collections: Set<String>) {
         #if TESTABLE_BUILD
         checkConcurrency()
         #endif
@@ -113,11 +116,11 @@ class ObservedDatabaseChanges: NSObject {
 
     private var _tableNames: Set<String> = Set()
 
-    func append(tableName: String) {
-        append(tableNames: [tableName])
+    func insert(tableName: String) {
+        formUnion(tableNames: [tableName])
     }
 
-    func append(tableNames: Set<String>) {
+    func formUnion(tableNames: Set<String>) {
         #if TESTABLE_BUILD
         checkConcurrency()
         #endif
@@ -129,156 +132,137 @@ class ObservedDatabaseChanges: NSObject {
 
     private var threads = ObservedModelChanges()
 
-    func append(thread: TSThread) {
+    func insert(thread: TSThread, shouldUpdateChatListUi: Bool = true) {
         #if TESTABLE_BUILD
         checkConcurrency()
         #endif
 
-        threads.append(model: thread)
+        threads.insert(
+            model: thread,
+            state: .init(
+                chatListUiUpdateRule: shouldUpdateChatListUi.asChatListUIUpdateRule
+            )
+        )
     }
 
-    func append(threadUniqueId: UniqueId) {
+    func insert(threadRowId: RowId) {
         #if TESTABLE_BUILD
         checkConcurrency()
         #endif
 
-        threads.append(uniqueId: threadUniqueId)
-    }
-
-    func append(threadUniqueIds: Set<UniqueId>) {
-        #if TESTABLE_BUILD
-        checkConcurrency()
-        #endif
-
-        threads.append(uniqueIds: threadUniqueIds)
-    }
-
-    func append(threadRowId: RowId) {
-        #if TESTABLE_BUILD
-        checkConcurrency()
-        #endif
-
-        threads.append(rowId: threadRowId)
-    }
-
-    func append(threadRowIds: Set<RowId>) {
-        #if TESTABLE_BUILD
-        checkConcurrency()
-        #endif
-
-        threads.append(rowIds: threadRowIds)
+        threads.insert(rowId: threadRowId)
     }
 
     // MARK: - Interactions
 
     private var interactions = ObservedModelChanges()
 
-    func append(interaction: TSInteraction) {
+    func insert(interaction: TSInteraction) {
         #if TESTABLE_BUILD
         checkConcurrency()
         #endif
 
-        interactions.append(model: interaction)
+        interactions.insert(model: interaction, state: .default)
     }
 
-    func append(interactionUniqueId: UniqueId) {
+    func insert(interactionUniqueId: UniqueId) {
         #if TESTABLE_BUILD
         checkConcurrency()
         #endif
 
-        interactions.append(uniqueId: interactionUniqueId)
+        interactions.insert(uniqueId: interactionUniqueId, state: .default)
     }
 
-    func append(interactionUniqueIds: Set<UniqueId>) {
+    func formUnion(interactionUniqueIds: Set<UniqueId>) {
         #if TESTABLE_BUILD
         checkConcurrency()
         #endif
 
-        interactions.append(uniqueIds: interactionUniqueIds)
+        interactions.formUnion(uniqueIds: interactionUniqueIds.asMergingDictWithUniformValue(.default))
     }
 
-    func append(interactionDeletedUniqueIds: Set<UniqueId>) {
+    func formUnion(interactionDeletedUniqueIds: Set<UniqueId>) {
         #if TESTABLE_BUILD
         checkConcurrency()
         #endif
 
-        interactions.append(deletedUniqueIds: interactionDeletedUniqueIds)
+        interactions.formUnion(deletedUniqueIds: interactionDeletedUniqueIds.asMergingDictWithUniformValue(.default))
     }
 
-    func append(interactionRowId: RowId) {
+    func insert(interactionRowId: RowId) {
         #if TESTABLE_BUILD
         checkConcurrency()
         #endif
 
-        interactions.append(rowId: interactionRowId)
+        interactions.insert(rowId: interactionRowId)
     }
 
-    func append(interactionRowIds: Set<RowId>) {
+    func formUnion(interactionRowIds: Set<RowId>) {
         #if TESTABLE_BUILD
         checkConcurrency()
         #endif
 
-        interactions.append(rowIds: interactionRowIds)
+        interactions.formUnion(rowIds: interactionRowIds)
     }
 
-    func append(deletedInteractionRowId: RowId) {
+    func insert(deletedInteractionRowId: RowId) {
         #if TESTABLE_BUILD
         checkConcurrency()
         #endif
 
-        interactions.append(deletedRowId: deletedInteractionRowId)
+        interactions.insert(deletedRowId: deletedInteractionRowId)
     }
 
     // MARK: - Stories
 
     private var storyMessages = ObservedModelChanges()
 
-    func append(storyMessage: StoryMessage) {
+    func insert(storyMessage: StoryMessage) {
         #if TESTABLE_BUILD
         checkConcurrency()
         #endif
 
-        storyMessages.append(model: storyMessage)
+        storyMessages.insert(model: storyMessage, state: .default)
     }
 
-    func append(storyMessageUniqueId: UniqueId) {
+    func insert(storyMessageUniqueId: UniqueId) {
         #if TESTABLE_BUILD
         checkConcurrency()
         #endif
 
-        storyMessages.append(uniqueId: storyMessageUniqueId)
+        storyMessages.insert(uniqueId: storyMessageUniqueId, state: .default)
     }
 
-    func append(storyMessageUniqueIds: Set<UniqueId>) {
+    func formUnion(storyMessageUniqueIds: Set<UniqueId>) {
         #if TESTABLE_BUILD
         checkConcurrency()
         #endif
 
-        storyMessages.append(uniqueIds: storyMessageUniqueIds)
+        storyMessages.formUnion(uniqueIds: storyMessageUniqueIds.asMergingDictWithUniformValue(.default))
     }
 
-    func append(storyMessageDeletedUniqueIds: Set<UniqueId>) {
+    func formUnion(storyMessageDeletedUniqueIds: Set<UniqueId>) {
         #if TESTABLE_BUILD
         checkConcurrency()
         #endif
 
-        storyMessages.append(deletedUniqueIds: storyMessageDeletedUniqueIds)
+        storyMessages.formUnion(deletedUniqueIds: storyMessageDeletedUniqueIds.asMergingDictWithUniformValue(.default))
     }
 
-    func append(storyMessageRowId: RowId) {
+    func insert(storyMessageRowId: RowId) {
         #if TESTABLE_BUILD
         checkConcurrency()
         #endif
 
-        storyMessages.append(rowId: storyMessageRowId)
+        storyMessages.insert(rowId: storyMessageRowId)
     }
 
-    func append(storyMessageRowIds: Set<RowId>) {
+    func formUnion(storyMessageRowIds: Set<RowId>) {
         #if TESTABLE_BUILD
         checkConcurrency()
         #endif
 
-        storyMessages.append(rowIds: storyMessageRowIds)
+        storyMessages.formUnion(rowIds: storyMessageRowIds)
     }
 
     // MARK: - Errors
@@ -303,14 +287,80 @@ class ObservedDatabaseChanges: NSObject {
 
 // MARK: -
 
+/// Whether we should update the chat list UI due to a database change.
+/// Merged together when multiple changes to the same identifier are collapsed
+/// together; e.g. two changes happen to the same thread unique id.
+private enum ChatListUIUpdateRule: Mergeable {
+    /// The caller did not specify whether the chat list needs updating
+    /// due to a change with the associated identifier.
+    /// Treated as requiring an update (the default), but when merging,
+    /// prefers an explicit setting. (e.g. undefined + update = update,
+    /// undefined + noUpdate = noUpdate).
+    case undefined
+    /// No UI update required due to the change with the associated identifier.
+    /// When merging multiple changes together, update + noUpdate = update.
+    case noUpdate
+    /// A UI update is explicitly required due to the change with the associated identifier.
+    /// When merging multiple changes together, update + noUpdate = update. 
+    case update
+
+    var shouldUpdate: Bool {
+        switch self {
+        case .undefined, .update:
+            return true
+        case .noUpdate:
+            return false
+        }
+    }
+
+    func merge(_ other: Self) -> Self {
+        switch (self, other) {
+        case (.update, _):
+            return .update
+        case (.undefined, _):
+            return other
+        case (.noUpdate, .update):
+            return .update
+        case (.noUpdate, .noUpdate), (.noUpdate, .undefined):
+            return .noUpdate
+        }
+    }
+}
+
+fileprivate extension Bool {
+    var asChatListUIUpdateRule: ChatListUIUpdateRule {
+        return self ? .update : .noUpdate
+    }
+}
+
+/// Track state related to a single model update, for example
+/// whether this model change should trigger chat list UI to update.
+private struct ObservedModelState: Mergeable {
+    var chatListUiUpdateRule: ChatListUIUpdateRule
+
+    // Add other fields here as new state needs to be tracked.
+
+    static var `default`: Self {
+        return Self.init(chatListUiUpdateRule: .undefined)
+    }
+
+    func merge(_ other: Self) -> Self {
+        return .init(
+            chatListUiUpdateRule: chatListUiUpdateRule.merge(other.chatListUiUpdateRule)
+        )
+    }
+}
+
+// MARK: -
+
 private struct ObservedModelChanges {
     typealias UniqueId = ObservedDatabaseChanges.UniqueId
     typealias RowId = ObservedDatabaseChanges.RowId
 
     private var _rowIds = Set<RowId>()
-    private var _uniqueIds = Set<UniqueId>()
+    private var _uniqueIds = MergingDict<UniqueId, ObservedModelState>()
     private var _deletedRowIds = Set<RowId>()
-    private var _deletedUniqueIds = Set<UniqueId>()
+    private var _deletedUniqueIds = MergingDict<UniqueId, ObservedModelState>()
     fileprivate var rowIdToUniqueIdMap = [RowId: UniqueId]()
 
     public var isEmpty: Bool {
@@ -321,8 +371,18 @@ private struct ObservedModelChanges {
                     rowIdToUniqueIdMap.isEmpty)
     }
 
-    mutating func append(model: SDSIdentifiableModel) {
-        _uniqueIds.insert(model.uniqueId)
+    mutating func merge(_ other: ObservedModelChanges) {
+        _rowIds.formUnion(other._rowIds)
+        _uniqueIds.formUnion(other._uniqueIds)
+        _deletedRowIds.formUnion(other._deletedRowIds)
+        _deletedUniqueIds.formUnion(other._deletedUniqueIds)
+        for (k, v) in other.rowIdToUniqueIdMap {
+            rowIdToUniqueIdMap[k] = v
+        }
+    }
+
+    mutating func insert(model: SDSIdentifiableModel, state: ObservedModelState) {
+        _uniqueIds.insert(model.uniqueId, state)
         guard let grdbId = model.grdbId else {
             owsFailDebug("Missing grdbId")
             return
@@ -332,33 +392,33 @@ private struct ObservedModelChanges {
         rowIdToUniqueIdMap[rowId] = model.uniqueId
     }
 
-    mutating func append(uniqueId: UniqueId) {
-        append(uniqueIds: [uniqueId])
+    mutating func insert(uniqueId: UniqueId, state: ObservedModelState) {
+        _uniqueIds.insert(uniqueId, state)
     }
 
-    mutating func append(uniqueIds: Set<UniqueId>) {
+    mutating func formUnion(uniqueIds: MergingDict<UniqueId, ObservedModelState>) {
         _uniqueIds.formUnion(uniqueIds)
     }
 
-    fileprivate mutating func append(deletedUniqueIds: Set<UniqueId>) {
+    fileprivate mutating func formUnion(deletedUniqueIds: MergingDict<UniqueId, ObservedModelState>) {
         _deletedUniqueIds.formUnion(deletedUniqueIds)
     }
 
-    mutating func append(rowId: RowId) {
+    mutating func insert(rowId: RowId) {
         #if TESTABLE_BUILD
         assert(rowId > 0)
         #endif
-        append(rowIds: [rowId])
+        formUnion(rowIds: [rowId])
     }
 
-    mutating func append(deletedRowId: RowId) {
+    mutating func insert(deletedRowId: RowId) {
         #if TESTABLE_BUILD
         assert(deletedRowId > 0)
         #endif
         _deletedRowIds.insert(deletedRowId)
     }
 
-    mutating func append(rowIds: Set<RowId>) {
+    mutating func formUnion(rowIds: Set<RowId>) {
         #if TESTABLE_BUILD
         for rowId in rowIds {
             assert(rowId > 0)
@@ -371,8 +431,8 @@ private struct ObservedModelChanges {
         assert(_rowIds.count >= _uniqueIds.count)
         return _rowIds
     }
-    var uniqueIds: Set<UniqueId> { _uniqueIds }
-    var deletedUniqueIds: Set<UniqueId> { _deletedUniqueIds }
+    var uniqueIds: MergingDict<UniqueId, ObservedModelState> { _uniqueIds }
+    var deletedUniqueIds: MergingDict<UniqueId, ObservedModelState> { _deletedUniqueIds }
     var deletedRowIds: Set<RowId> { _deletedRowIds }
 }
 
@@ -385,7 +445,15 @@ extension ObservedDatabaseChanges: DatabaseChanges {
         checkConcurrency()
         #endif
 
-        return threads.uniqueIds
+        return threads.uniqueIds.keys
+    }
+
+    var threadUniqueIdsForChatListUpdate: Set<UniqueId> {
+        #if TESTABLE_BUILD
+        checkConcurrency()
+        #endif
+
+        return threads.uniqueIds.keys(where: \.chatListUiUpdateRule.shouldUpdate)
     }
 
     var interactionUniqueIds: Set<UniqueId> {
@@ -393,7 +461,7 @@ extension ObservedDatabaseChanges: DatabaseChanges {
         checkConcurrency()
         #endif
 
-        return interactions.uniqueIds
+        return interactions.uniqueIds.keys
     }
 
     var storyMessageUniqueIds: Set<UniqueId> {
@@ -401,7 +469,7 @@ extension ObservedDatabaseChanges: DatabaseChanges {
         checkConcurrency()
         #endif
 
-        return storyMessages.uniqueIds
+        return storyMessages.uniqueIds.keys
     }
 
     var storyMessageRowIds: Set<RowId> {
@@ -417,7 +485,7 @@ extension ObservedDatabaseChanges: DatabaseChanges {
         checkConcurrency()
         #endif
 
-        return interactions.deletedUniqueIds
+        return interactions.deletedUniqueIds.keys
     }
 
     var storyMessageDeletedUniqueIds: Set<UniqueId> {
@@ -425,7 +493,7 @@ extension ObservedDatabaseChanges: DatabaseChanges {
         checkConcurrency()
         #endif
 
-        return storyMessages.deletedUniqueIds
+        return storyMessages.deletedUniqueIds.keys
     }
 
     var tableNames: Set<String> {
@@ -482,43 +550,91 @@ extension ObservedDatabaseChanges: DatabaseChanges {
         threadUniqueIds.contains(thread.uniqueId)
     }
 
-    func finalizePublishedState(db: Database) throws {
+    /// Finalizes the current set of changes, mapping any row Ids to uniqueIds by doing database lookups.
+    /// Then copies over final changes to a "committed" set of changes, using the provided lock to
+    /// guard updates.
+    func finalizePublishedStateAndCopyToCommittedChanges(
+        _ committedChanges: ObservedDatabaseChanges,
+        withLock lock: UnfairLock,
+        db: Database
+    ) {
+        do {
+            // finalizePublishedState() finalizes the state we're about to
+            // copy.
+            try finalizePublishedState(db: db)
+        } catch let error {
+            lock.withLock {
+                committedChanges.setLastError(error)
+            }
+            return
+        }
+
+        let interactions = self.interactions
+        let threads = self.threads
+        let storyMessages = self.storyMessages
+        let collections = self.collections
+        let tableNames = self.tableNames
+
+        lock.withLock {
+            committedChanges.interactions.merge(interactions)
+            committedChanges.threads.merge(threads)
+            committedChanges.storyMessages.merge(storyMessages)
+            committedChanges.formUnion(collections: collections)
+            committedChanges.formUnion(tableNames: tableNames)
+        }
+    }
+
+    private func finalizePublishedState(db: Database) throws {
         // We don't finalize everything, only state the views currently care about.
 
         // We need to convert all thread "row ids" to "unique ids".
-        threads.append(uniqueIds: try mapRowIdsToUniqueIds(db: db,
-                                                           rowIds: threads.rowIds,
-                                                           uniqueIds: threads.uniqueIds,
-                                                           rowIdToUniqueIdMap: threads.rowIdToUniqueIdMap,
-                                                           tableName: "\(ThreadRecord.databaseTableName)",
-                                                           uniqueIdColumnName: "\(threadColumn: .uniqueId)"))
+        threads.formUnion(
+            uniqueIds: try mapRowIdsToUniqueIds(
+                db: db,
+                rowIds: threads.rowIds,
+                uniqueIds: threads.uniqueIds,
+                rowIdToUniqueIdMap: threads.rowIdToUniqueIdMap,
+                tableName: "\(ThreadRecord.databaseTableName)",
+                uniqueIdColumnName: "\(threadColumn: .uniqueId)"
+            )
+        )
 
         // We need to convert all interaction "row ids" to "unique ids".
-        interactions.append(uniqueIds: try mapRowIdsToUniqueIds(db: db,
-                                                                rowIds: interactions.rowIds,
-                                                                uniqueIds: interactions.uniqueIds,
-                                                                rowIdToUniqueIdMap: interactions.rowIdToUniqueIdMap,
-                                                                tableName: "\(InteractionRecord.databaseTableName)",
-                                                                uniqueIdColumnName: "\(interactionColumn: .uniqueId)"))
+        interactions.formUnion(
+            uniqueIds: try mapRowIdsToUniqueIds(
+                db: db,
+                rowIds: interactions.rowIds,
+                uniqueIds: interactions.uniqueIds,
+                rowIdToUniqueIdMap: interactions.rowIdToUniqueIdMap,
+                tableName: "\(InteractionRecord.databaseTableName)",
+                uniqueIdColumnName: "\(interactionColumn: .uniqueId)"
+            )
+        )
 
         // We need to convert _deleted_ interaction "row ids" to "unique ids".
-        interactions.append(deletedUniqueIds: try mapRowIdsToUniqueIds(db: db,
-                                                                       rowIds: interactions.deletedRowIds,
-                                                                       uniqueIds: interactions.deletedUniqueIds,
-                                                                       rowIdToUniqueIdMap: interactions.rowIdToUniqueIdMap,
-                                                                       tableName: "\(InteractionRecord.databaseTableName)",
-                                                                       uniqueIdColumnName: "\(interactionColumn: .uniqueId)"))
+        interactions.formUnion(
+            deletedUniqueIds: try mapRowIdsToUniqueIds(
+                db: db,
+                rowIds: interactions.deletedRowIds,
+                uniqueIds: interactions.deletedUniqueIds,
+                rowIdToUniqueIdMap: interactions.rowIdToUniqueIdMap,
+                tableName: "\(InteractionRecord.databaseTableName)",
+                uniqueIdColumnName: "\(interactionColumn: .uniqueId)"
+            )
+        )
 
         // We need to convert db table names to "collections."
         mapTableNamesToCollections()
     }
 
-    private func mapRowIdsToUniqueIds(db: Database,
-                                      rowIds: Set<RowId>,
-                                      uniqueIds: Set<UniqueId>,
-                                      rowIdToUniqueIdMap: [RowId: UniqueId],
-                                      tableName: String,
-                                      uniqueIdColumnName: String) throws -> Set<String> {
+    private func mapRowIdsToUniqueIds(
+        db: Database,
+        rowIds: Set<RowId>,
+        uniqueIds: MergingDict<UniqueId, ObservedModelState>,
+        rowIdToUniqueIdMap: [RowId: UniqueId],
+        tableName: String,
+        uniqueIdColumnName: String
+    ) throws -> MergingDict<UniqueId, ObservedModelState> {
         AssertHasDatabaseChangeObserverLock()
 
         // We try to avoid the query below by leveraging the
@@ -531,7 +647,7 @@ extension ObservedDatabaseChanges: DatabaseChanges {
         var unresolvedRowIds = [RowId]()
         for rowId in rowIds {
             if let uniqueId = rowIdToUniqueIdMap[rowId] {
-                allUniqueIds.insert(uniqueId)
+                allUniqueIds.insert(uniqueId, .default)
             } else {
                 unresolvedRowIds.append(rowId)
             }
@@ -555,8 +671,8 @@ extension ObservedDatabaseChanges: DatabaseChanges {
         FROM \(tableName)
         WHERE rowid IN \(rowIdsSQL)
         """
-        let fetchedUniqueIds = try String.fetchAll(db, sql: mappingSql)
-        allUniqueIds.formUnion(fetchedUniqueIds)
+        let fetchedUniqueIds = try String.fetchSet(db, sql: mappingSql)
+        allUniqueIds.formUnion(fetchedUniqueIds.asMergingDictWithUniformValue(.default))
 
         guard allUniqueIds.count < DatabaseChangeObserver.kMaxIncrementalRowChanges else {
             throw DatabaseObserverError.changeTooLarge
@@ -597,7 +713,7 @@ extension ObservedDatabaseChanges: DatabaseChanges {
                 owsFailDebug("Unknown table: \(tableName)")
                 continue
             }
-            append(collection: collection)
+            insert(collection: collection)
         }
     }
 }
@@ -605,4 +721,15 @@ extension ObservedDatabaseChanges: DatabaseChanges {
 public protocol SDSIdentifiableModel {
     var uniqueId: String { get }
     var grdbId: NSNumber? { get }
+}
+
+private extension Set {
+
+    func asMergingDictWithUniformValue<V>(_ value: V) -> MergingDict<Element, V> {
+        var dict = MergingDict<Element, V>()
+        self.forEach {
+            dict.insert($0, value)
+        }
+        return dict
+    }
 }

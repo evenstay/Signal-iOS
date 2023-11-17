@@ -5,6 +5,7 @@
 
 import ContactsUI
 import LibSignalClient
+import SignalMessaging
 import SignalServiceKit
 import SignalUI
 
@@ -18,14 +19,7 @@ public enum ConversationSettingsPresentationMode: UInt {
 // MARK: -
 
 public protocol ConversationSettingsViewDelegate: AnyObject {
-
-    func conversationColorWasUpdated()
-
-    func conversationSettingsDidUpdate()
-
     func conversationSettingsDidRequestConversationSearch()
-
-    func popAllConversationSettingsViews(completion: (() -> Void)?)
 }
 
 // MARK: -
@@ -263,10 +257,14 @@ class ConversationSettingsViewController: OWSTableViewController2, BadgeCollecti
 
     // MARK: -
 
-    private(set) var groupMemberStateMap = [SignalServiceAddress: OWSVerificationState]()
+    private(set) var groupMemberStateMap = [SignalServiceAddress: VerificationState]()
     private(set) var sortedGroupMembers = [SignalServiceAddress]()
-    func updateGroupMembers(transaction: SDSAnyReadTransaction) {
-        guard let groupModel = currentGroupModel, !groupModel.isPlaceholder, let localAddress = tsAccountManager.localAddress else {
+    func updateGroupMembers(transaction tx: SDSAnyReadTransaction) {
+        guard
+            let groupModel = currentGroupModel,
+            !groupModel.isPlaceholder,
+            let localAddress = DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction?.aciAddress
+        else {
             groupMemberStateMap = [:]
             sortedGroupMembers = []
             return
@@ -275,14 +273,13 @@ class ConversationSettingsViewController: OWSTableViewController2, BadgeCollecti
         let groupMembership = groupModel.groupMembership
         let allMembers = groupMembership.fullMembers
         var allMembersSorted = [SignalServiceAddress]()
-        var verificationStateMap = [SignalServiceAddress: OWSVerificationState]()
+        var verificationStateMap = [SignalServiceAddress: VerificationState]()
 
+        let identityManager = DependenciesBridge.shared.identityManager
         for memberAddress in allMembers {
-            verificationStateMap[memberAddress] = self.identityManager.verificationState(for: memberAddress,
-                                                                                         transaction: transaction)
+            verificationStateMap[memberAddress] = identityManager.verificationState(for: memberAddress, tx: tx.asV2Read)
         }
-        allMembersSorted = self.contactsManagerImpl.sortSignalServiceAddresses(Array(allMembers),
-                                                                               transaction: transaction)
+        allMembersSorted = self.contactsManagerImpl.sortSignalServiceAddresses(Array(allMembers), transaction: tx)
 
         var membersToRender = [SignalServiceAddress]()
         if groupMembership.isFullMember(localAddress) {
@@ -408,8 +405,7 @@ class ConversationSettingsViewController: OWSTableViewController2, BadgeCollecti
             return
         }
         let contactAddress = contactThread.contactAddress
-        assert(contactAddress.isValid)
-        FingerprintViewController.present(from: self, address: contactAddress)
+        FingerprintViewController.present(for: contactAddress.aci, from: self)
     }
 
     func showColorAndWallpaperSettingsView() {
@@ -649,7 +645,7 @@ class ConversationSettingsViewController: OWSTableViewController2, BadgeCollecti
         guard let groupModelV2 = groupThread.groupModel as? TSGroupModelV2 else {
             return true
         }
-        guard let localAci = tsAccountManager.localIdentifiers?.aci else {
+        guard let localAci = DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction?.aci else {
             owsFailDebug("missing local address")
             return true
         }
@@ -667,7 +663,7 @@ class ConversationSettingsViewController: OWSTableViewController2, BadgeCollecti
         guard let groupModelV2 = groupThread.groupModel as? TSGroupModelV2 else {
             return []
         }
-        guard let localAddress = tsAccountManager.localAddress else {
+        guard let localAddress = DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction?.aciAddress else {
             owsFailDebug("missing local address")
             return []
         }
@@ -925,7 +921,7 @@ class ConversationSettingsViewController: OWSTableViewController2, BadgeCollecti
     func updateMutualGroupThreads() {
         guard let contactThread = thread as? TSContactThread else { return }
         databaseStorage.read { transaction in
-            self.hasGroupThreads = GRDBThreadFinder.existsGroupThread(transaction: transaction.unwrapGrdbRead)
+            self.hasGroupThreads = ThreadFinder().existsGroupThread(transaction: transaction)
             self.mutualGroupThreads = TSGroupThread.groupThreads(
                 with: contactThread.contactAddress,
                 transaction: transaction
@@ -1004,7 +1000,7 @@ class ConversationSettingsViewController: OWSTableViewController2, BadgeCollecti
         AssertIsOnMainThread()
 
         let attachments = notification.object as! [MediaGalleryManager.ChangedAttachmentInfo]
-        guard attachments.contains(where: { $0.threadGrdbId == thread.grdbId?.int64Value }) else {
+        guard attachments.contains(where: { $0.threadGrdbId == thread.sqliteRowId }) else {
             return
         }
 

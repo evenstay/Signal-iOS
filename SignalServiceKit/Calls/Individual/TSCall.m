@@ -37,6 +37,8 @@ NSString *NSStringFromCallType(RPRecentCallType callType)
             return @"RPRecentCallTypeIncomingBusyElsewhere";
         case RPRecentCallTypeIncomingMissedBecauseOfDoNotDisturb:
             return @"RPRecentCallTypeIncomingMissedBecauseOfDoNotDisturb";
+        case RPRecentCallTypeIncomingMissedBecauseBlockedSystemContact:
+            return @"RPRecentCallTypeIncomingMissedBecauseBlockedSystemContact";
     }
 }
 
@@ -48,7 +50,6 @@ NSUInteger TSCallCurrentSchemaVersion = 1;
 
 @property (nonatomic, readonly) NSUInteger callSchemaVersion;
 
-@property (nonatomic) RPRecentCallType callType;
 @property (nonatomic) TSRecentCallOfferType offerType;
 
 @end
@@ -77,6 +78,7 @@ NSUInteger TSCallCurrentSchemaVersion = 1;
         case RPRecentCallTypeIncomingMissed:
         case RPRecentCallTypeIncomingMissedBecauseOfChangedIdentity:
         case RPRecentCallTypeIncomingMissedBecauseOfDoNotDisturb:
+        case RPRecentCallTypeIncomingMissedBecauseBlockedSystemContact:
             _read = NO;
             break;
         default:
@@ -207,6 +209,10 @@ NSUInteger TSCallCurrentSchemaVersion = 1;
                     @"info message text in conversation view (use Apple's name for 'Do Not Disturb' on iOS 14 and "
                     @"older)");
             }
+        case RPRecentCallTypeIncomingMissedBecauseBlockedSystemContact:
+            return OWSLocalizedString(@"MISSED_CALL_BLOCKED_SYSTEM_CONTACT",
+                @"info message text in conversation view for when a call was dropped because the contact is blocked in "
+                @"iOS settings");
     }
 }
 
@@ -240,29 +246,6 @@ NSUInteger TSCallCurrentSchemaVersion = 1;
     [self anyUpdateCallWithTransaction:transaction block:^(TSCall *call) { call.read = YES; }];
 
     // Ignore `circumstance` - we never send read receipts for calls.
-}
-
-#pragma mark - Methods
-
-- (void)updateCallType:(RPRecentCallType)callType
-{
-    DatabaseStorageAsyncWrite(self.databaseStorage,
-        ^(SDSAnyWriteTransaction *transaction) { [self updateCallType:callType transaction:transaction]; });
-}
-
-- (void)updateCallType:(RPRecentCallType)callType transaction:(SDSAnyWriteTransaction *)transaction
-{
-    OWSAssertDebug(transaction);
-
-    OWSLogInfo(@"updating call type of call: %@ -> %@ with uniqueId: %@ which has timestamp: %llu",
-        NSStringFromCallType(_callType),
-        NSStringFromCallType(callType),
-        self.uniqueId,
-        self.timestamp);
-
-    [self anyUpdateCallWithTransaction:transaction block:^(TSCall *call) { call.callType = callType; }];
-
-    [CallRecord updateIfExistsForInteraction:self transaction:transaction];
 }
 
 @end

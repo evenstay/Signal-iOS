@@ -12,14 +12,6 @@ public class PreKeyManagerImpl: PreKeyManager {
         // How often we check prekey state on app activation.
         static let PreKeyCheckFrequencySeconds = (12 * kHourInterval)
 
-        // Maximum number of failures while updating signed prekeys
-        // before the message sending is disabled.
-        static let MaxPrekeyUpdateFailureCount = 5
-
-        // Maximum amount of time that can elapse without updating signed prekeys
-        // before the message sending is disabled.
-        static let SignedPreKeyUpdateFailureMaxFailureDuration = (10 * kDayInterval)
-
         // Maximum amount of time that can elapse without rotating signed prekeys
         // before the message sending is disabled.
         static let SignedPreKeyMaxRotationDuration = (14 * kDayInterval)
@@ -37,37 +29,27 @@ public class PreKeyManagerImpl: PreKeyManager {
         return queue
     }()
 
+    private let db: DB
+    private let identityManager: PreKey.Manager.Shims.IdentityManager
     private let messageProcessor: PreKey.Manager.Shims.MessageProcessor
     private let preKeyOperationFactory: PreKeyOperationFactory
     private let protocolStoreManager: SignalProtocolStoreManager
 
     init(
+        db: DB,
+        identityManager: PreKey.Manager.Shims.IdentityManager,
         messageProcessor: PreKey.Manager.Shims.MessageProcessor,
         preKeyOperationFactory: PreKeyOperationFactory,
         protocolStoreManager: SignalProtocolStoreManager
     ) {
+        self.db = db
+        self.identityManager = identityManager
         self.messageProcessor = messageProcessor
         self.preKeyOperationFactory = preKeyOperationFactory
         self.protocolStoreManager = protocolStoreManager
     }
 
-    private var lastPreKeyCheckTimestamp: Date?
-
-    private func legacy_needsSignedPreKeyRotation(identity: OWSIdentity, tx: DBReadTransaction) -> Bool {
-        let store = protocolStoreManager.signalProtocolStore(for: identity).signedPreKeyStore
-
-        // Only disable message sending if we have failed more than N times...
-        if store.getPreKeyUpdateFailureCount(tx: tx) < Constants.MaxPrekeyUpdateFailureCount {
-            return false
-        }
-
-        // ...over a period of at least M days.
-        guard let firstFailureDate = store.getFirstPreKeyUpdateFailureDate(tx: tx) else {
-            return false
-        }
-
-        return fabs(firstFailureDate.timeIntervalSinceNow) >= Constants.SignedPreKeyUpdateFailureMaxFailureDuration
-    }
+    @Atomic private var lastPreKeyCheckTimestamp: Date?
 
     private func needsSignedPreKeyRotation(identity: OWSIdentity, tx: DBReadTransaction) -> Bool {
         let store = protocolStoreManager.signalProtocolStore(for: identity).signedPreKeyStore
@@ -76,8 +58,7 @@ public class PreKeyManagerImpl: PreKeyManager {
             return true
         }
 
-        return lastSuccessDate.timeIntervalSinceNow >= Constants.SignedPreKeyMaxRotationDuration
-
+        return lastSuccessDate.addingTimeInterval(Constants.SignedPreKeyMaxRotationDuration) < Date()
     }
 
     private func needsLastResortPreKeyRotation(identity: OWSIdentity, tx: DBReadTransaction) -> Bool {
@@ -87,17 +68,24 @@ public class PreKeyManagerImpl: PreKeyManager {
             return true
         }
 
-        return lastSuccessDate.timeIntervalSinceNow >= Constants.SignedPreKeyMaxRotationDuration
+        return lastSuccessDate.addingTimeInterval(Constants.SignedPreKeyMaxRotationDuration) < Date()
     }
 
     public func isAppLockedDueToPreKeyUpdateFailures(tx: DBReadTransaction) -> Bool {
+        let shouldCheckPniState = hasPniIdentityKey(tx: tx)
         let needPreKeyRotation =
             needsSignedPreKeyRotation(identity: .aci, tx: tx)
-            || needsSignedPreKeyRotation(identity: .pni, tx: tx)
+            || (
+                shouldCheckPniState
+                && needsSignedPreKeyRotation(identity: .pni, tx: tx)
+            )
 
         let needLastResortKeyRotation =
             needsLastResortPreKeyRotation(identity: .aci, tx: tx)
-            || needsLastResortPreKeyRotation(identity: .pni, tx: tx)
+            || (
+                shouldCheckPniState
+                && needsLastResortPreKeyRotation(identity: .pni, tx: tx)
+            )
 
         return needPreKeyRotation || needLastResortKeyRotation
     }
@@ -135,24 +123,39 @@ public class PreKeyManagerImpl: PreKeyManager {
             return true
         }()
 
+        var operationCount = 0
+        let didSucceed = { [weak self] in
+            operationCount -= 1
+            guard operationCount == 0 else {
+                return
+            }
+            self?.refreshPreKeysDidSucceed()
+        }
+
+        PreKey.logger.info("Check prekeys (onetime = \(shouldRefreshOneTimePrekeys))")
         func addOperation(for identity: OWSIdentity) {
+            operationCount += 1
             let refreshOp = preKeyOperationFactory.refreshPreKeysOperation(
                 for: identity,
                 shouldRefreshOneTimePreKeys: shouldRefreshOneTimePrekeys,
                 shouldRefreshSignedPreKeys: true,
-                didSucceed: { [weak self] in self?.refreshPreKeysDidSucceed() }
+                didSucceed: didSucceed
             )
             refreshOp.addDependency(messageProcessingOperation)
             operations.append(refreshOp)
         }
 
         addOperation(for: .aci)
-        addOperation(for: .pni)
+        if hasPniIdentityKey(tx: tx) {
+            addOperation(for: .pni)
+        }
 
         Self.operationQueue.addOperations(operations, waitUntilFinished: false)
     }
 
     public func createPreKeysForRegistration() -> Promise<RegistrationPreKeyUploadBundles> {
+        cancelAllOperations()
+        PreKey.logger.info("Create registration prekeys")
         /// Note that we do not report a `refreshPreKeysDidSucceed, because this operation does not`
         /// generate one time prekeys, so we shouldn't mark the routine refresh as having been "checked".
         let (promise, future) = Promise<RegistrationPreKeyUploadBundles>.pending()
@@ -165,6 +168,8 @@ public class PreKeyManagerImpl: PreKeyManager {
         aciIdentityKeyPair: ECKeyPair,
         pniIdentityKeyPair: ECKeyPair
     ) -> Promise<RegistrationPreKeyUploadBundles> {
+        cancelAllOperations()
+        PreKey.logger.info("Create provisioning prekeys")
         /// Note that we do not report a `refreshPreKeysDidSucceed, because this operation does not`
         /// generate one time prekeys, so we shouldn't mark the routine refresh as having been "checked".
         let (promise, future) = Promise<RegistrationPreKeyUploadBundles>.pending()
@@ -181,6 +186,7 @@ public class PreKeyManagerImpl: PreKeyManager {
         _ bundles: RegistrationPreKeyUploadBundles,
         uploadDidSucceed: Bool
     ) -> Promise<Void> {
+        PreKey.logger.info("Finalize registration prekeys")
         let (promise, future) = Promise<Void>.pending()
         let operation = preKeyOperationFactory.finalizeRegistrationPreKeys(
             bundles,
@@ -192,39 +198,60 @@ public class PreKeyManagerImpl: PreKeyManager {
     }
 
     public func rotateOneTimePreKeysForRegistration(auth: ChatServiceAuth) -> Promise<Void> {
+        PreKey.logger.info("Rotate one-time prekeys for registration")
         let (aciPromise, aciFuture) = Promise<Void>.pending()
+
+        var operationCount = 2
+        let didSucceed = { [weak self] in
+            operationCount -= 1
+            guard operationCount == 0 else {
+                return
+            }
+            self?.refreshPreKeysDidSucceed()
+        }
+
         let aciOperation = preKeyOperationFactory.rotateOneTimePreKeysForRegistration(
             identity: .aci,
             auth: auth,
             future: aciFuture,
-            didSucceed: { [weak self] in self?.refreshPreKeysDidSucceed() }
+            didSucceed: didSucceed
         )
         let (pniPromise, pniFuture) = Promise<Void>.pending()
         let pniOperation = preKeyOperationFactory.rotateOneTimePreKeysForRegistration(
             identity: .pni,
             auth: auth,
             future: pniFuture,
-            didSucceed: { [weak self] in self?.refreshPreKeysDidSucceed() }
+            didSucceed: didSucceed
         )
         Self.operationQueue.addOperations([aciOperation, pniOperation], waitUntilFinished: false)
         return Promise.when(fulfilled: [aciPromise, pniPromise])
     }
 
     public func legacy_createPreKeys(auth: ChatServiceAuth) -> Promise<Void> {
+        PreKey.logger.info("Legacy prekey creation")
+        var operationCount = 2
+        let didSucceed = { [weak self] in
+            operationCount -= 1
+            guard operationCount == 0 else {
+                return
+            }
+            self?.refreshPreKeysDidSucceed()
+        }
         let aciOp = preKeyOperationFactory.legacy_createPreKeysOperation(
             for: .aci,
             auth: auth,
-            didSucceed: { [weak self] in self?.refreshPreKeysDidSucceed() }
+            didSucceed: didSucceed
         )
         let pniOp = preKeyOperationFactory.legacy_createPreKeysOperation(
             for: .pni,
             auth: auth,
-            didSucceed: { [weak self] in self?.refreshPreKeysDidSucceed() }
+            didSucceed: didSucceed
         )
         return runPreKeyOperations([aciOp, pniOp])
     }
 
     public func createOrRotatePNIPreKeys(auth: ChatServiceAuth) -> Promise<Void> {
+        PreKey.logger.info("Create or rotate PNI prekeys")
         let operation = preKeyOperationFactory.createOrRotatePNIPreKeysOperation(
             didSucceed: { [weak self] in self?.refreshPreKeysDidSucceed() }
         )
@@ -232,15 +259,32 @@ public class PreKeyManagerImpl: PreKeyManager {
     }
 
     public func rotateSignedPreKeys() -> Promise<Void> {
+        PreKey.logger.info("Rotate signed prekeys")
+        var operationCount = 0
+        let didSucceed = { [weak self] in
+            operationCount -= 1
+            guard operationCount == 0 else {
+                return
+            }
+            self?.refreshPreKeysDidSucceed()
+        }
+
+        operationCount += 1
         let aciOp = preKeyOperationFactory.rotateSignedPreKeyOperation(
             for: .aci,
-            didSucceed: { [weak self] in self?.refreshPreKeysDidSucceed() }
+            didSucceed: didSucceed
         )
-        let pniOp = preKeyOperationFactory.rotateSignedPreKeyOperation(
-            for: .pni,
-            didSucceed: { [weak self] in self?.refreshPreKeysDidSucceed() }
-        )
-        return runPreKeyOperations([aciOp, pniOp])
+        let shouldPerformPniOp = db.read(block: hasPniIdentityKey(tx:))
+        if shouldPerformPniOp {
+            operationCount += 1
+            let pniOp = preKeyOperationFactory.rotateSignedPreKeyOperation(
+                for: .pni,
+                didSucceed: didSucceed
+            )
+            return runPreKeyOperations([aciOp, pniOp])
+        } else {
+            return runPreKeyOperations([aciOp])
+        }
     }
 
     /// Refresh one-time pre-keys for the given identity, and optionally refresh
@@ -251,6 +295,7 @@ public class PreKeyManagerImpl: PreKeyManager {
         forIdentity identity: OWSIdentity,
         alsoRefreshSignedPreKey shouldRefreshSignedPreKey: Bool
     ) {
+        PreKey.logger.info("[\(identity)] Refresh onetime prekeys")
         let refreshOperation = preKeyOperationFactory.refreshPreKeysOperation(
             for: identity,
             shouldRefreshOneTimePreKeys: true,
@@ -259,6 +304,10 @@ public class PreKeyManagerImpl: PreKeyManager {
         )
 
         Self.operationQueue.addOperation(refreshOperation)
+    }
+
+    private func cancelAllOperations() {
+        Self.operationQueue.cancelAllOperations()
     }
 
     private func runPreKeyOperations(_ operations: [Operation]) -> Promise<Void> {
@@ -283,23 +332,58 @@ public class PreKeyManagerImpl: PreKeyManager {
         return promise
     }
 
+    /// If we don't have a PNI identity key, we should not run PNI operations.
+    /// If we try, they will fail, and we will count the joint pni+aci operation as failed.
+    private func hasPniIdentityKey(tx: DBReadTransaction) -> Bool {
+        return self.identityManager.identityKeyPair(for: .pni, tx: tx) != nil
+    }
+
     private class MessageProcessingOperation: OWSOperation {
+
+        private enum Error: Swift.Error {
+            case timeout
+            case cancelled
+        }
+
         let messageProcessorWrapper: PreKey.Manager.Shims.MessageProcessor
         public init(messageProcessor: PreKey.Manager.Shims.MessageProcessor) {
             self.messageProcessorWrapper = messageProcessor
         }
 
         public override func run() {
-            Logger.debug("")
+            PreKey.logger.info("Waiting for message processing to idle or complete.")
+            guard !isCancelled else {
+                PreKey.logger.info("Cancelled waiting for message processing")
+                self.reportError(Error.cancelled)
+                return
+            }
 
             firstly(on: DispatchQueue.global()) {
-                self.messageProcessorWrapper.fetchingAndProcessingCompletePromise()
+                self.waitForMessageProcessing(timeout: 3)
             }.done { _ in
-                Logger.verbose("Complete.")
+                PreKey.logger.verbose("Complete.")
                 self.reportSuccess()
             }.catch { error in
                 owsFailDebug("Error: \(error)")
                 self.reportError(SSKUnretryableError.messageProcessingFailed)
+            }
+        }
+
+        private func waitForMessageProcessing(timeout: TimeInterval) -> Promise<Void> {
+            guard !self.isCancelled else {
+                return Promise(error: Error.cancelled)
+            }
+
+            return firstly(on: DispatchQueue.global()) {
+                self.messageProcessorWrapper.fetchingAndProcessingCompletePromise().timeout(seconds: timeout)
+            }.timeout(seconds: timeout) {
+                return Error.timeout
+            }.recover { error in
+                if case Error.timeout = error {
+                    return self.waitForMessageProcessing(timeout: timeout)
+                } else {
+                    return Promise(error: SSKUnretryableError.messageProcessingFailed)
+                }
             }
         }
     }
@@ -310,17 +394,6 @@ public class PreKeyManagerImpl: PreKeyManager {
 #if TESTABLE_BUILD
 
 public extension PreKeyManagerImpl {
-
-    func storeFakePreKeyUploadFailures(for identity: OWSIdentity, tx: DBWriteTransaction) {
-        let store = protocolStoreManager.signalProtocolStore(for: identity).signedPreKeyStore
-        let firstFailureDate = Date(timeIntervalSinceNow: -Constants.SignedPreKeyUpdateFailureMaxFailureDuration)
-        store.setPrekeyUpdateFailureCount(
-            Constants.MaxPrekeyUpdateFailureCount,
-            firstFailureDate: firstFailureDate,
-            tx: tx
-        )
-    }
-
     func checkPreKeysImmediately(tx: DBReadTransaction) {
         checkPreKeys(shouldThrottle: false, tx: tx)
     }

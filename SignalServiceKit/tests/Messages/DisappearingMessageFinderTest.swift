@@ -23,7 +23,7 @@ final class DisappearingMessageFinderTest: SSKBaseTestSwift {
         SignalServiceAddress(phoneNumber: "+12225550123")
     }
 
-    private lazy var otherAddress = SignalServiceAddress(serviceId: FutureAci.randomForTesting(), phoneNumber: "+13335550198")
+    private lazy var otherAddress = SignalServiceAddress(serviceId: Aci.randomForTesting(), phoneNumber: "+13335550198")
 
     func thread(with transaction: SDSAnyWriteTransaction) -> TSThread {
         TSContactThread.getOrCreateThread(
@@ -215,23 +215,23 @@ final class DisappearingMessageFinderTest: SSKBaseTestSwift {
         write { transaction in
             // Mark outgoing message as "sent", "delivered" or "delivered and read" using production methods.
             expiringSentOutgoingMessage.update(
-                withSentRecipient: otherAddress.untypedServiceIdObjC!,
+                withSentRecipient: otherAddress.serviceIdObjC!,
                 wasSentByUD: false,
                 transaction: transaction
             )
             expiringDeliveredOutgoingMessage.update(
                 withDeliveredRecipient: otherAddress,
-                recipientDeviceId: 0,
+                deviceId: 0,
                 deliveryTimestamp: Date.ows_millisecondTimestamp(),
                 context: PassthroughDeliveryReceiptContext(),
-                transaction: transaction
+                tx: transaction
             )
             let nowMs = Date.ows_millisecondTimestamp()
             expiringDeliveredAndReadOutgoingMessage.update(
                 withReadRecipient: otherAddress,
-                recipientDeviceId: 0,
+                deviceId: 0,
                 readTimestamp: nowMs,
-                transaction: transaction
+                tx: transaction
             )
         }
 

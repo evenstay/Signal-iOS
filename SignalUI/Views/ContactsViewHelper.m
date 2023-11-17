@@ -12,21 +12,9 @@
 #import <SignalServiceKit/AppContext.h>
 #import <SignalServiceKit/Contact.h>
 #import <SignalServiceKit/PhoneNumber.h>
-#import <SignalServiceKit/TSAccountManager.h>
 #import <SignalUI/SignalUI-Swift.h>
 
 NS_ASSUME_NONNULL_BEGIN
-
-@interface ContactsViewHelper ()
-
-@property (nonatomic) NSHashTable<id<ContactsViewHelperObserver>> *observers;
-
-@property (nonatomic) NSDictionary<NSString *, SignalAccount *> *phoneNumberSignalAccountMap;
-@property (nonatomic) NSDictionary<NSUUID *, SignalAccount *> *uuidSignalAccountMap;
-
-@property (nonatomic) NSArray<SignalAccount *> *signalAccounts;
-
-@end
 
 #pragma mark -
 
@@ -89,6 +77,10 @@ NS_ASSUME_NONNULL_BEGIN
                                              selector:@selector(blockListDidChange:)
                                                  name:BlockingManager.blockListDidChange
                                                object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(hideListDidChange:)
+                                                 name:RecipientHidingManagerObjcBridge.hideListDidChange
+                                               object:nil];
 }
 
 - (void)signalAccountsDidChange:(NSNotification *)notification
@@ -112,20 +104,24 @@ NS_ASSUME_NONNULL_BEGIN
     [self.observers addObject:observer];
 }
 
-- (void)fireDidUpdateContacts
-{
-    OWSAssertIsOnMainThread();
-
-    for (id<ContactsViewHelperObserver> delegate in self.observers) {
-        [delegate contactsViewHelperDidUpdateContacts];
-    }
-}
-
 - (void)blockListDidChange:(NSNotification *)notification
 {
     OWSAssertIsOnMainThread();
     OWSAssertDebug(!CurrentAppContext().isNSE);
 
+    [self updateContacts];
+}
+
+- (void)hideListDidChange:(NSNotification *)notification
+{
+    OWSAssertIsOnMainThread();
+    OWSAssertDebug(!CurrentAppContext().isNSE);
+
+    /// Hiding a recipient who is a system contact or is someone you've
+    /// chatted with 1:1 updates the profile whitelist, which already
+    /// triggers a call to `updateContacts`. However, recipients who
+    /// do not fit into these categories need this other mechanism to
+    /// trigger `updateContacts`.
     [self updateContacts];
 }
 
@@ -139,8 +135,8 @@ NS_ASSUME_NONNULL_BEGIN
 
     SignalAccount *_Nullable signalAccount;
 
-    if (address.uuid) {
-        signalAccount = self.uuidSignalAccountMap[address.uuid];
+    if (address.serviceIdObjC) {
+        signalAccount = self.serviceIdSignalAccountMap[address.serviceIdObjC];
     }
 
     if (!signalAccount && address.phoneNumber) {
@@ -161,7 +157,7 @@ NS_ASSUME_NONNULL_BEGIN
 {
     OWSAssertDebug(!CurrentAppContext().isNSE);
 
-    return TSAccountManager.localAddress;
+    return [TSAccountManagerObjcBridge localAciAddressWithMaybeTransaction];
 }
 
 - (BOOL)hasUpdatedContactsAtLeastOnce
@@ -171,62 +167,6 @@ NS_ASSUME_NONNULL_BEGIN
     return self.contactsManagerImpl.hasLoadedSystemContacts;
 }
 
-- (void)updateContacts
-{
-    OWSAssertIsOnMainThread();
-    OWSAssertDebug(!CurrentAppContext().isNSE);
-
-    NSMutableDictionary<NSString *, SignalAccount *> *phoneNumberSignalAccountMap = [NSMutableDictionary new];
-    NSMutableDictionary<NSUUID *, SignalAccount *> *uuidSignalAccountMap = [NSMutableDictionary new];
-
-    __block NSArray<SignalAccount *> *systemContactSignalAccounts;
-    __block NSArray<SignalServiceAddress *> *signalConnectionAddresses;
-
-    [self.databaseStorage
-        readWithBlock:^(SDSAnyReadTransaction *transaction) {
-            // All "System Contact"s that we believe are registered.
-            systemContactSignalAccounts = [self.contactsManagerImpl unsortedSignalAccountsWithTransaction:transaction];
-
-            // All Signal Connections that we believe are registered. In theory, this
-            // should include your system contacts and the people you chat with.
-            signalConnectionAddresses =
-                [self.profileManagerImpl allWhitelistedRegisteredAddressesWithTransaction:transaction];
-        }
-                 file:__FILE__
-             function:__FUNCTION__
-                 line:__LINE__];
-
-    NSMutableArray<SignalAccount *> *accountsToProcess = [systemContactSignalAccounts mutableCopy];
-    for (SignalServiceAddress *address in signalConnectionAddresses) {
-        [accountsToProcess addObject:[[SignalAccount alloc] initWithAddress:address]];
-    }
-
-    NSMutableArray<SignalAccount *> *signalAccounts = [NSMutableArray new];
-    NSMutableSet<SignalServiceAddress *> *addressSet = [NSMutableSet new];
-    for (SignalAccount *signalAccount in accountsToProcess) {
-        if ([addressSet containsObject:signalAccount.recipientAddress]) {
-            OWSLogVerbose(@"Ignoring duplicate: %@", signalAccount.recipientAddress);
-            // We prefer the copy from contactsManager which will appear first in
-            // accountsToProcess; don't overwrite it.
-            continue;
-        }
-        [addressSet addObject:signalAccount.recipientAddress];
-        if (signalAccount.recipientPhoneNumber) {
-            phoneNumberSignalAccountMap[signalAccount.recipientPhoneNumber] = signalAccount;
-        }
-        if (signalAccount.recipientUUID) {
-            uuidSignalAccountMap[signalAccount.recipientUUID] = signalAccount;
-        }
-        [signalAccounts addObject:signalAccount];
-    }
-
-    self.phoneNumberSignalAccountMap = [phoneNumberSignalAccountMap copy];
-    self.uuidSignalAccountMap = [uuidSignalAccountMap copy];
-    self.signalAccounts = [self.contactsManagerImpl sortSignalAccountsWithSneakyTransaction:signalAccounts];
-
-    [self fireDidUpdateContacts];
-}
-
 - (NSArray<SignalAccount *> *)signalAccountsMatchingSearchString:(NSString *)searchText
                                                      transaction:(SDSAnyReadTransaction *)transaction
 {
@@ -234,7 +174,7 @@ NS_ASSUME_NONNULL_BEGIN
 
     // Check for matches against "Note to Self".
     NSMutableArray<SignalAccount *> *signalAccountsToSearch = [self.signalAccounts mutableCopy];
-    SignalAccount *selfAccount = [[SignalAccount alloc] initWithAddress:self.localAddress];
+    SignalAccount *selfAccount = [[SignalAccount alloc] initWithContact:nil address:self.localAddress];
     [signalAccountsToSearch addObject:selfAccount];
     return [self.fullTextSearcher filterSignalAccounts:signalAccountsToSearch
                                         withSearchText:searchText

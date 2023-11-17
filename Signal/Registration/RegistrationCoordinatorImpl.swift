@@ -392,7 +392,7 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
         return self.nextStep()
     }
 
-    public func setPhoneNumberDiscoverability(_ isDiscoverable: Bool) -> Guarantee<RegistrationStep> {
+    public func setPhoneNumberDiscoverability(_ phoneNumberDiscoverability: PhoneNumberDiscoverability) -> Guarantee<RegistrationStep> {
         Logger.info("")
         guard let accountIdentity = persistedState.accountIdentity else {
             owsFailBeta("Shouldn't be setting phone number discoverability prior to registration.")
@@ -401,7 +401,7 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
 
         updatePhoneNumberDiscoverability(
             accountIdentity: accountIdentity,
-            isDiscoverable: isDiscoverable
+            phoneNumberDiscoverability: phoneNumberDiscoverability
         )
 
         return self.nextStep()
@@ -411,7 +411,7 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
         givenName: String,
         familyName: String?,
         avatarData: Data?,
-        isDiscoverableByPhoneNumber: Bool
+        phoneNumberDiscoverability: PhoneNumberDiscoverability
     ) -> Guarantee<RegistrationStep> {
         Logger.info("")
 
@@ -424,7 +424,7 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
 
         updatePhoneNumberDiscoverability(
             accountIdentity: accountIdentity,
-            isDiscoverable: isDiscoverableByPhoneNumber
+            phoneNumberDiscoverability: phoneNumberDiscoverability
         )
 
         return self.nextStep()
@@ -501,7 +501,6 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
 
         // candidate credentials, which may not
         // be valid, or may not correspond with the current e164.
-        var kbsAuthCredentialCandidates: [KBSAuthCredential]?
         var svr2AuthCredentialCandidates: [SVR2AuthCredential]?
         var svrAuthCredential: SVRAuthCredential?
         // If we had SVR backups before registration even began.
@@ -539,7 +538,6 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
         // Every time we go through registration, we should back up our SVR master
         // secret's random bytes to SVR. Its safer to do this more than it is to do
         // it less, so keeping this state in memory.
-        var svrRemoteConfig: RemoteConfig.SVRConfiguration?
         var hasBackedUpToSVR = false
         var didSkipSVRBackup = false
         var shouldBackUpToSVR: Bool {
@@ -558,8 +556,7 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
         var registrationId: UInt32!
         var pniRegistrationId: UInt32!
         var isManualMessageFetchEnabled = false
-        var hasDefinedIsDiscoverableByPhoneNumber = false
-        var isDiscoverableByPhoneNumber = false
+        var phoneNumberDiscoverability: PhoneNumberDiscoverability?
 
         // OWSProfileManager state
         var profileKey: OWSAES256Key!
@@ -665,49 +662,30 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
                 case none
 
                 /// We tried to register and got reglocked; we have to
-                /// recover from SVR1/KBS with the credential given.
+                /// recover from SVR2 with the credential given.
                 case reglocked(credential: SVRAuthCredential, expirationDate: Date)
 
                 struct SVRAuthCredential: Codable, Equatable {
-                    let kbs: KBSAuthCredential?
+                    /// In a prior life, this object could contain either a KBS(SVR1) credential or an SVR2 credential.
+                    /// For backwards compatibility, therefore, the SVR2 credential might be nil.
                     let svr2: SVR2AuthCredential?
 
-                    private init(kbs: KBSAuthCredential?, svr2: SVR2AuthCredential?) {
-                        self.kbs = kbs
+                    private init(svr2: SVR2AuthCredential?) {
                         self.svr2 = svr2
-                    }
-
-                    init(kbs: KBSAuthCredential, svr2: SVR2AuthCredential) {
-                        self.kbs = kbs
-                        self.svr2 = svr2
-                    }
-
-                    init(kbs: KBSAuthCredential) {
-                        self.kbs = kbs
-                        self.svr2 = nil
                     }
 
                     init(svr2: SVR2AuthCredential) {
-                        self.kbs = nil
                         self.svr2 = svr2
                     }
 
                     #if TESTABLE_BUILD
-                    static func testOnly(kbs: KBSAuthCredential?, svr2: SVR2AuthCredential?) -> Self {
-                        return .init(kbs: kbs, svr2: svr2)
+                    static func testOnly(svr2: SVR2AuthCredential?) -> Self {
+                        return .init(svr2: svr2)
                     }
                     #endif
 
                     init(from decoder: Decoder) throws {
-                        // Initially this field held a raw KBSAuthCredential; try to
-                        // decode that first.
-                        if let rawKbs = try? KBSAuthCredential(from: decoder) {
-                            self.kbs = rawKbs
-                            self.svr2 = nil
-                            return
-                        }
                         let container = try decoder.container(keyedBy: CodingKeys.self)
-                        self.kbs = try container.decodeIfPresent(KBSAuthCredential.self, forKey: .kbs)
                         self.svr2 = try container.decodeIfPresent(SVR2AuthCredential.self, forKey: .svr2)
                     }
                 }
@@ -874,9 +852,9 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
             }
 
             loadSVRAuthCredentialCandidates(tx)
-            inMemoryState.isManualMessageFetchEnabled = deps.tsAccountManager.isManualMessageFetchEnabled(tx)
-            inMemoryState.registrationId = deps.tsAccountManager.getOrGenerateRegistrationId(tx)
-            inMemoryState.pniRegistrationId = deps.tsAccountManager.getOrGeneratePniRegistrationId(tx)
+            inMemoryState.isManualMessageFetchEnabled = deps.tsAccountManager.isManualMessageFetchEnabled(tx: tx)
+            inMemoryState.registrationId = deps.tsAccountManager.getOrGenerateAciRegistrationId(tx: tx)
+            inMemoryState.pniRegistrationId = deps.tsAccountManager.getOrGeneratePniRegistrationId(tx: tx)
 
             inMemoryState.allowUnrestrictedUD = deps.udManager.shouldAllowUnrestrictedAccessLocal(transaction: tx)
 
@@ -932,15 +910,14 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
                 deps.experienceManager.clearIntroducingPinsExperience(tx)
             }
 
-            deps.tsAccountManager.didRegister(
+            deps.registrationStateChangeManager.didRegisterPrimary(
                 e164: accountIdentity.e164,
-                aci: Aci(fromUUID: accountIdentity.aci),
-                pni: Pni(fromUUID: accountIdentity.pni),
+                aci: accountIdentity.aci,
+                pni: accountIdentity.pni,
                 authToken: accountIdentity.authPassword,
-                tx
+                tx: tx
             )
-            deps.tsAccountManager.setIsOnboarded(tx)
-            deps.tsAccountManager.setIsManualMessageFetchEnabled(inMemoryState.isManualMessageFetchEnabled, tx)
+            deps.tsAccountManager.setIsManualMessageFetchEnabled(inMemoryState.isManualMessageFetchEnabled, tx: tx)
         }
 
         func setupContactsAndFinish() -> Guarantee<RegistrationStep> {
@@ -1025,7 +1002,9 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
                     self.wipePersistedState(tx)
                 }
                 // Do any storage service backups we have pending.
-                self.deps.storageServiceManager.backupPendingChanges(authedAccount: accountIdentity.authedAccount)
+                self.deps.storageServiceManager.backupPendingChanges(
+                    authedDevice: accountIdentity.authedDevice(isPrimaryDevice: true)
+                )
                 return .value(.done)
             }
     }
@@ -1057,7 +1036,7 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
         /// We might have un-verified SVR auth credentials
         /// synced from another device; first we need to check them
         /// with the server and then potentially go to the svrAuthCredential path.
-        case svrAuthCredentialCandidates([SVR2AuthCredential], [KBSAuthCredential])
+        case svrAuthCredentialCandidates([SVR2AuthCredential])
         /// Verifying via SMS code using a `RegistrationSession`.
         /// Used as a fallback if the above paths are unavailable or fail.
         case session(RegistrationSession)
@@ -1116,12 +1095,14 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
                 // or proceed to reg recovery pw (if it succeeds) we must wipe this state.
                 return .svrAuthCredential(credential)
             }
-            if inMemoryState.svr2AuthCredentialCandidates?.isEmpty == false || inMemoryState.kbsAuthCredentialCandidates?.isEmpty == false {
+            if
+                let svr2AuthCredentialCandidates = inMemoryState.svr2AuthCredentialCandidates,
+                !svr2AuthCredentialCandidates.isEmpty
+            {
                 // If we have un-vetted candidates, try checking those first
                 // and then going to the svrAuthCredential path if one is valid.
                 return .svrAuthCredentialCandidates(
-                    inMemoryState.svr2AuthCredentialCandidates ?? [],
-                    inMemoryState.kbsAuthCredentialCandidates ?? []
+                    svr2AuthCredentialCandidates
                 )
             }
         }
@@ -1141,10 +1122,9 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
             return nextStepForRegRecoveryPasswordPath(regRecoveryPw: password)
         case .svrAuthCredential(let credential):
             return nextStepForSVRAuthCredentialPath(svrAuthCredential: credential)
-        case .svrAuthCredentialCandidates(let svr2Candidates, let kbsCandidates):
+        case .svrAuthCredentialCandidates(let svr2Candidates):
             return nextStepForSVRAuthCredentialCandidatesPath(
-                svr2AuthCredentialCandidates: svr2Candidates,
-                kbsAuthCredentialCandidates: kbsCandidates
+                svr2AuthCredentialCandidates: svr2Candidates
             )
         case .session(let session):
             return nextStepForSessionPath(session)
@@ -1307,7 +1287,6 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
                         // Its possible we tried svr2 and kbs has the right info, or vice versa, but this is all
                         // best effort anyway; just fall back to session-based registration.
                         deps.svrAuthCredentialStore.removeSVR2CredentialsForCurrentUser(tx)
-                        deps.svrAuthCredentialStore.removeKBSCredentialsForCurrentUser(tx)
                         // Clear the SVR master key locally; we failed reglock so we know its wrong
                         // and useless anyway.
                         deps.svr.clearKeys(transaction: tx)
@@ -1348,10 +1327,7 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
             db.write { tx in
                 // We do want to clear out any credentials permanently; we know we
                 // have to use the session path so credentials aren't helpful.
-                if let kbsCredential = inMemoryState.svrAuthCredential?.kbs {
-                    deps.svrAuthCredentialStore.deleteInvalidCredentials([kbsCredential], tx)
-                }
-                if let svr2Credential = inMemoryState.svrAuthCredential?.svr2 {
+                if let svr2Credential = inMemoryState.svrAuthCredential {
                     deps.svrAuthCredentialStore.deleteInvalidCredentials([svr2Credential], tx)
                 }
             }
@@ -1364,7 +1340,7 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
         case .retryAfter(let timeInterval):
             if timeInterval < Constants.autoRetryInterval {
                 return Guarantee
-                    .after(on: self.schedulers.sharedBackground, seconds: timeInterval)
+                    .after(on: self.schedulers.global(), seconds: timeInterval)
                     .then(on: self.schedulers.sync) { [weak self] in
                         guard let self else {
                             return unretainedSelfError()
@@ -1410,10 +1386,6 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
         if svr2AuthCredentialCandidates.isEmpty.negated {
             inMemoryState.svr2AuthCredentialCandidates = svr2AuthCredentialCandidates
         }
-        let kbsAuthCredentialCandidates: [KBSAuthCredential] = deps.svrAuthCredentialStore.getAuthCredentials(tx)
-        if kbsAuthCredentialCandidates.isEmpty.negated {
-            inMemoryState.kbsAuthCredentialCandidates = kbsAuthCredentialCandidates
-        }
     }
 
     private func wipeInMemoryStateToPreventSVRPathAttempts() {
@@ -1424,7 +1396,6 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
         // either so we shouldn't bother trying.
         inMemoryState.svrAuthCredential = nil
         inMemoryState.svr2AuthCredentialCandidates = nil
-        inMemoryState.kbsAuthCredentialCandidates = nil
     }
 
     // MARK: - SVR Auth Credential Pathway
@@ -1477,33 +1448,18 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
                         exitConfiguration: self.pinCodeEntryExitConfiguration()
                     )))
                 case .backupMissing:
-
-                    switch credential {
-                    case .svr2Only:
-                        // If we failed with just svr2, and we have kbs credentials,
-                        // try again but with kbs credentials available.
-                        guard
-                            let kbsAuthCredentialCandidates = self.inMemoryState.kbsAuthCredentialCandidates?.nilIfEmpty,
-                            let e164 = self.persistedState.e164
-                        else {
-                            fallthrough
+                    // If we are unable to talk to SVR, it got wiped and we can't
+                    // recover. Give it all up and wipe our SVR info.
+                    self.wipeInMemoryStateToPreventSVRPathAttempts()
+                    self.inMemoryState.pinFromUser = nil
+                    self.db.write { tx in
+                        self.updatePersistedState(tx) {
+                            $0.hasGivenUpTryingToRestoreWithSVR = true
                         }
-                        Logger.info("Checking KBS credential since we had SVR2 only.")
-                        return self.makeKBSAuthCredentialCheckRequest(kbsAuthCredentialCandidates: kbsAuthCredentialCandidates, e164: e164)
-                    case .both, .kbsOnly:
-                        // If we are unable to talk to SVR, it got wiped and we can't
-                        // recover. Give it all up and wipe our SVR info.
-                        self.wipeInMemoryStateToPreventSVRPathAttempts()
-                        self.inMemoryState.pinFromUser = nil
-                        self.db.write { tx in
-                            self.updatePersistedState(tx) {
-                                $0.hasGivenUpTryingToRestoreWithSVR = true
-                            }
-                        }
-                        return .value(.pinAttemptsExhaustedWithoutReglock(
-                            .init(mode: .restoringRegistrationRecoveryPassword)
-                        ))
                     }
+                    return .value(.pinAttemptsExhaustedWithoutReglock(
+                        .init(mode: .restoringRegistrationRecoveryPassword)
+                    ))
 
                 case .networkError:
                     if retriesLeft > 0 {
@@ -1513,37 +1469,11 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
                             retriesLeft: retriesLeft - 1
                         )
                     }
-                    return self.retryRestoreSVRMasterSecretWithKBSIfNeededForAuthCredentialPath(
-                        credential: credential,
-                        fallbackResult: .showErrorSheet(.networkError)
-                    )
+                    return .value(.showErrorSheet(.networkError))
                 case .genericError:
-                    return self.retryRestoreSVRMasterSecretWithKBSIfNeededForAuthCredentialPath(
-                        credential: credential,
-                        fallbackResult: .showErrorSheet(.genericError)
-                    )
+                    return .value(.showErrorSheet(.genericError))
                 }
             }
-    }
-
-    private func retryRestoreSVRMasterSecretWithKBSIfNeededForAuthCredentialPath(
-        credential: SVRAuthCredential,
-        fallbackResult: RegistrationStep
-    ) -> Guarantee<RegistrationStep> {
-        switch credential {
-        case .both, .kbsOnly:
-            return .value(fallbackResult)
-        case .svr2Only:
-            break
-        }
-        guard
-            let kbsAuthCredentialCandidates = inMemoryState.kbsAuthCredentialCandidates?.nilIfEmpty,
-            let e164 = persistedState.e164
-        else {
-            return .value(fallbackResult)
-        }
-        Logger.info("Checking KBS credential since we had SVR2 only.")
-        return makeKBSAuthCredentialCheckRequest(kbsAuthCredentialCandidates: kbsAuthCredentialCandidates, e164: e164)
     }
 
     private func loadLocalMasterKeyAndUpdateState(_ tx: DBWriteTransaction) {
@@ -1568,108 +1498,19 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
     // MARK: - SVR Auth Credential Candidates Pathway
 
     private func nextStepForSVRAuthCredentialCandidatesPath(
-        svr2AuthCredentialCandidates: [SVR2AuthCredential],
-        kbsAuthCredentialCandidates: [KBSAuthCredential]
+        svr2AuthCredentialCandidates: [SVR2AuthCredential]
     ) -> Guarantee<RegistrationStep> {
         guard let e164 = persistedState.e164 else {
             // If we haven't entered a phone number but we have auth
             // credential candidates to check, enter it now.
             return .value(.phoneNumberEntry(phoneNumberEntryState()))
         }
-        if !svr2AuthCredentialCandidates.isEmpty {
-            return makeSVR2AuthCredentialCheckRequest(
-                svr2AuthCredentialCandidates: svr2AuthCredentialCandidates,
-                e164: e164
-            )
-        } else {
-            return makeKBSAuthCredentialCheckRequest(
-                kbsAuthCredentialCandidates: kbsAuthCredentialCandidates,
-                e164: e164
-            )
-        }
+        return makeSVR2AuthCredentialCheckRequest(
+            svr2AuthCredentialCandidates: svr2AuthCredentialCandidates,
+            e164: e164
+        )
     }
 
-    /// This call is KBS specific; not generic to SVR 1 or 2.
-    private func makeKBSAuthCredentialCheckRequest(
-        kbsAuthCredentialCandidates: [KBSAuthCredential],
-        e164: E164,
-        retriesLeft: Int = Constants.networkErrorRetries
-    ) -> Guarantee<RegistrationStep> {
-        return Service.makeKBSAuthCheckRequest(
-            e164: e164,
-            candidateCredentials: kbsAuthCredentialCandidates,
-            signalService: deps.signalService,
-            schedulers: schedulers
-        ).then(on: schedulers.main) { [weak self] response in
-            guard let self else {
-                return unretainedSelfError()
-            }
-            return self.handleKBSAuthCredentialCheckResponse(
-                response,
-                kbsAuthCredentialCandidates: kbsAuthCredentialCandidates,
-                e164: e164,
-                retriesLeft: retriesLeft
-            )
-        }
-    }
-
-    private func handleKBSAuthCredentialCheckResponse(
-        _ response: Service.KBSAuthCheckResponse,
-        kbsAuthCredentialCandidates: [KBSAuthCredential],
-        e164: E164,
-        retriesLeft: Int
-    ) -> Guarantee<RegistrationStep> {
-        var matchedCredential: KBSAuthCredential?
-        var credentialsToDelete = [KBSAuthCredential]()
-        switch response {
-        case .networkError:
-            if retriesLeft > 0 {
-                return makeKBSAuthCredentialCheckRequest(
-                    kbsAuthCredentialCandidates: kbsAuthCredentialCandidates,
-                    e164: e164,
-                    retriesLeft: retriesLeft - 1
-                )
-            }
-            self.inMemoryState.kbsAuthCredentialCandidates = nil
-            return self.nextStep()
-        case .genericError:
-            // If we failed to verify, wipe the candidates so we don't try again
-            // and keep going.
-            self.inMemoryState.kbsAuthCredentialCandidates = nil
-            return self.nextStep()
-        case .success(let response):
-            for candidate in kbsAuthCredentialCandidates {
-                let result: RegistrationServiceResponses.KBSAuthCheckResponse.Result? = response.result(for: candidate)
-                switch result {
-                case .match:
-                    matchedCredential = candidate
-                case .notMatch:
-                    // Still valid, keep it around but don't use it.
-                    continue
-                case .invalid, .none:
-                    credentialsToDelete.append(candidate)
-                }
-            }
-        }
-        // Wipe the candidates so we don't re-check them.
-        self.inMemoryState.kbsAuthCredentialCandidates = nil
-        // If this is nil, the next time we call `nextStepForSVRAuthCredentialPath`
-        // will just return an empty promise.
-        switch inMemoryState.svrAuthCredential {
-        case .none, .kbsOnly:
-            self.inMemoryState.svrAuthCredential = matchedCredential.map { .kbsOnly($0) }
-        case .svr2Only(let svr2Credential), .both(_, let svr2Credential):
-            if let matchedCredential {
-                self.inMemoryState.svrAuthCredential = .both(matchedCredential, svr2Credential)
-            }
-        }
-        self.db.write { tx in
-            self.deps.svrAuthCredentialStore.deleteInvalidCredentials(credentialsToDelete, tx)
-        }
-        return self.nextStep()
-    }
-
-    /// This call is SVR2 specific; not generic to SVR 1 or 2.
     private func makeSVR2AuthCredentialCheckRequest(
         svr2AuthCredentialCandidates: [SVR2AuthCredential],
         e164: E164,
@@ -1735,15 +1576,8 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
         self.inMemoryState.svr2AuthCredentialCandidates = nil
         // If this is nil, the next time we call `nextStepForSVRAuthCredentialPath`
         // will just return an empty promise.
-        switch inMemoryState.svrAuthCredential {
-        case .none, .svr2Only:
-            self.inMemoryState.svrAuthCredential = matchedCredential.map { .svr2Only($0) }
-        case .kbsOnly(let kbsCredential), .both(let kbsCredential, _):
-            if let matchedCredential {
-                self.inMemoryState.svrAuthCredential = .both(kbsCredential, matchedCredential)
-            }
-        }
-        self.inMemoryState.svrAuthCredential = matchedCredential.map { .svr2Only($0) }
+
+        self.inMemoryState.svrAuthCredential = matchedCredential
         self.db.write { tx in
             self.deps.svrAuthCredentialStore.deleteInvalidCredentials(credentialsToDelete, tx)
         }
@@ -1757,10 +1591,7 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
         case .none:
             break
         case let .reglocked(svrAuthCredential, reglockExpirationDate):
-            guard let orchestratedCredential = OrchestratingSVRAuthCredential.from(
-                kbs: svrAuthCredential.kbs,
-                svr2: svrAuthCredential.svr2
-            ) else {
+            guard let svrAuthCredential = svrAuthCredential.svr2 else {
                 // If we don't have a useable credential, we are stuck.
                 db.write { tx in
                     self.updatePersistedSessionState(session: session, tx) {
@@ -1773,7 +1604,7 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
                 return restoreSVRMasterSecretForSessionPathReglock(
                     session: session,
                     pin: pinFromUser,
-                    svrAuthCredential: orchestratedCredential,
+                    svrAuthCredential: svrAuthCredential,
                     reglockExpirationDate: reglockExpirationDate
                 )
             } else {
@@ -2043,8 +1874,10 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
                 // If we have already exhausted our SVR backup attempts, we are stuck.
                 db.write { tx in
                     // May as well store credentials, anyway.
-                    reglockFailure.kbsAuthCredential.map { deps.svrAuthCredentialStore.storeAuthCredentialForCurrentUsername($0, tx) }
-                    reglockFailure.svr2AuthCredential.map { deps.svrAuthCredentialStore.storeAuthCredentialForCurrentUsername($0, tx) }
+                    deps.svrAuthCredentialStore.storeAuthCredentialForCurrentUsername(
+                        reglockFailure.svr2AuthCredential,
+                        tx
+                    )
                     self.updatePersistedSessionState(session: sessionFromBeforeRequest, tx) {
                         $0.reglockState = .waitingTimeout(expirationDate: reglockExpirationDate)
                     }
@@ -2063,8 +1896,10 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
                 // that means the whole thing is stuck. wait out the reglock.
                 db.write { tx in
                     // May as well store credentials, anyway.
-                    reglockFailure.kbsAuthCredential.map { deps.svrAuthCredentialStore.storeAuthCredentialForCurrentUsername($0, tx) }
-                    reglockFailure.svr2AuthCredential.map { deps.svrAuthCredentialStore.storeAuthCredentialForCurrentUsername($0, tx) }
+                    deps.svrAuthCredentialStore.storeAuthCredentialForCurrentUsername(
+                        reglockFailure.svr2AuthCredential,
+                        tx
+                    )
                     self.updatePersistedSessionState(session: sessionFromBeforeRequest, tx) {
                         $0.reglockState = .waitingTimeout(expirationDate: reglockExpirationDate)
                     }
@@ -2075,33 +1910,14 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
                 return nextStep()
 
             case .none, .v1:
-                let jointCredential: PersistedState.SessionState.ReglockState.SVRAuthCredential
-                let kbsAuthCredential = reglockFailure.kbsAuthCredential
-                let svr2AuthCredential = reglockFailure.svr2AuthCredential
-                if let kbsAuthCredential, let svr2AuthCredential {
-                    jointCredential = .init(kbs: kbsAuthCredential, svr2: svr2AuthCredential)
-                } else if let kbsAuthCredential {
-                    jointCredential = .init(kbs: kbsAuthCredential)
-                } else if let svr2AuthCredential {
-                    jointCredential = .init(svr2: svr2AuthCredential)
-                } else {
-                    // If we have no credentials we can use, we are stuck. wait out the reglock.
-                    db.write { tx in
-                        self.updatePersistedSessionState(session: sessionFromBeforeRequest, tx) {
-                            $0.reglockState = .waitingTimeout(expirationDate: reglockExpirationDate)
-                        }
-                        self.updatePersistedState(tx) {
-                            $0.e164WithKnownReglockEnabled = sessionFromBeforeRequest.e164
-                        }
-                    }
-                    return nextStep()
-                }
+                let persistedCredential = PersistedState.SessionState.ReglockState.SVRAuthCredential(
+                    svr2: reglockFailure.svr2AuthCredential
+                )
                 db.write { tx in
-                    reglockFailure.kbsAuthCredential.map { deps.svrAuthCredentialStore.storeAuthCredentialForCurrentUsername($0, tx) }
-                    reglockFailure.svr2AuthCredential.map { deps.svrAuthCredentialStore.storeAuthCredentialForCurrentUsername($0, tx) }
+                    deps.svrAuthCredentialStore.storeAuthCredentialForCurrentUsername(reglockFailure.svr2AuthCredential, tx)
                     self.updatePersistedSessionState(session: sessionFromBeforeRequest, tx) {
                         $0.reglockState = .reglocked(
-                            credential: jointCredential,
+                            credential: persistedCredential,
                             expirationDate: reglockExpirationDate
                         )
                     }
@@ -2122,7 +1938,7 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
         case .retryAfter(let timeInterval):
             if timeInterval < Constants.autoRetryInterval {
                 return Guarantee
-                    .after(on: schedulers.sharedBackground, seconds: timeInterval)
+                    .after(on: schedulers.global(), seconds: timeInterval)
                     .then(on: schedulers.sync) { [weak self] in
                         guard let self else {
                             return unretainedSelfError()
@@ -2160,7 +1976,7 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
         retriesLeft: Int = Constants.networkErrorRetries
     ) -> Guarantee<RegistrationStep> {
         return deps.pushRegistrationManager.requestPushToken()
-            .then(on: schedulers.sharedBackground) { [weak self] tokenResult -> Guarantee<RegistrationStep> in
+            .then(on: schedulers.global()) { [weak self] tokenResult -> Guarantee<RegistrationStep> in
                 guard let strongSelf = self else {
                     return unretainedSelfError()
                 }
@@ -2204,7 +2020,7 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
                     case .retryAfter(let timeInterval):
                         if timeInterval < Constants.autoRetryInterval {
                             return Guarantee
-                                .after(on: strongSelf.schedulers.sharedBackground, seconds: timeInterval)
+                                .after(on: strongSelf.schedulers.global(), seconds: timeInterval)
                                 .then(on: strongSelf.schedulers.sync) { [weak self] in
                                     guard let self else {
                                         return unretainedSelfError()
@@ -2303,7 +2119,7 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
                 if let timeInterval, timeInterval < Constants.autoRetryInterval {
                     self.db.write { self.processSession(session, $0) }
                     return Guarantee
-                        .after(on: self.schedulers.sharedBackground, seconds: timeInterval)
+                        .after(on: self.schedulers.global(), seconds: timeInterval)
                         .then(on: self.schedulers.sync) { [weak self] in
                             guard let self else {
                                 return unretainedSelfError()
@@ -2463,8 +2279,8 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
             return deps.pushRegistrationManager
                 .receivePreAuthChallengeToken()
                 .map { $0 }
-                .nilTimeout(on: schedulers.sharedBackground, seconds: timeout)
-                .then(on: schedulers.sharedBackground) { [weak self] (challengeToken: String?) -> Guarantee<RegistrationStep> in
+                .nilTimeout(on: schedulers.global(), seconds: timeout)
+                .then(on: schedulers.global()) { [weak self] (challengeToken: String?) -> Guarantee<RegistrationStep> in
                     guard let self else {
                         return unretainedSelfError()
                     }
@@ -2693,7 +2509,7 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
                 self.db.write { self.processSession(session, $0) }
                 if let timeInterval = session.nextVerificationAttempt, timeInterval < Constants.autoRetryInterval {
                     return Guarantee
-                        .after(on: self.schedulers.sharedBackground, seconds: timeInterval)
+                        .after(on: self.schedulers.global(), seconds: timeInterval)
                         .then(on: self.schedulers.sync) { [weak self] in
                             guard let self else {
                                 return unretainedSelfError()
@@ -2812,11 +2628,7 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
             break
         case .changingNumber:
             // Change number is different; we do a limited number of operations and then finalize.
-            guard let svrRemoteConfig = inMemoryState.svrRemoteConfig else {
-                return syncRemoteConfig(accountIdentity)
-            }
-
-            if let stepGuarantee = performSVRBackupStepsIfNeeded(accountIdentity: accountIdentity, svrRemoteConfig: svrRemoteConfig) {
+            if let stepGuarantee = performSVRBackupStepsIfNeeded(accountIdentity: accountIdentity) {
                 return stepGuarantee
             }
 
@@ -2886,11 +2698,7 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
                 }
         }
 
-        guard let svrRemoteConfig = inMemoryState.svrRemoteConfig else {
-            return self.syncRemoteConfig(accountIdentity)
-        }
-
-        if let stepGuarantee = performSVRBackupStepsIfNeeded(accountIdentity: accountIdentity, svrRemoteConfig: svrRemoteConfig) {
+        if let stepGuarantee = performSVRBackupStepsIfNeeded(accountIdentity: accountIdentity) {
             return stepGuarantee
         }
 
@@ -2930,14 +2738,14 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
 
             return .value(.setupProfile(RegistrationProfileState(
                 e164: accountIdentity.e164,
-                isDiscoverableByPhoneNumber: inMemoryState.isDiscoverableByPhoneNumber
+                phoneNumberDiscoverability: inMemoryState.phoneNumberDiscoverability.orDefault
             )))
         }
 
-        if !inMemoryState.hasDefinedIsDiscoverableByPhoneNumber, FeatureFlags.phoneNumberDiscoverability {
+        if inMemoryState.phoneNumberDiscoverability == nil, FeatureFlags.phoneNumberPrivacy {
             return .value(.phoneNumberDiscoverability(RegistrationPhoneNumberDiscoverabilityState(
                 e164: accountIdentity.e164,
-                isDiscoverableByPhoneNumber: inMemoryState.isDiscoverableByPhoneNumber
+                phoneNumberDiscoverability: inMemoryState.phoneNumberDiscoverability.orDefault
             )))
         }
 
@@ -2986,7 +2794,7 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
                                 return .value(.showErrorSheet(.genericError))
                             }
                             strongSelf.db.write { tx in
-                                strongSelf.deps.tsAccountManager.setIsManualMessageFetchEnabled(true, tx)
+                                strongSelf.deps.tsAccountManager.setIsManualMessageFetchEnabled(true, tx: tx)
                                 strongSelf.updatePersistedState(tx) {
                                     // Say that we synced push tokens so that we skip this step hereafter.
                                     $0.legacy_didSyncPushTokens = true
@@ -3012,49 +2820,11 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
             }
     }
 
-    private func syncRemoteConfig(
-        _ accountIdentity: AccountIdentity,
-        retriesLeft: Int = Constants.networkErrorRetries
-    ) -> Guarantee<RegistrationStep> {
-        Logger.info("")
-
-        return deps.remoteConfig.refreshRemoteConfig(account: accountIdentity.authedAccount)
-            .then(on: schedulers.main) { [weak self] config in
-                guard let strongSelf = self else {
-                    return unretainedSelfError()
-                }
-                strongSelf.inMemoryState.svrRemoteConfig = config
-                return strongSelf.nextStep()
-            }
-            .recover(on: schedulers.main) { [weak self] error -> Guarantee<RegistrationStep> in
-                guard let strongSelf = self else {
-                    return unretainedSelfError()
-                }
-                if error.isNetworkFailureOrTimeout {
-                    if retriesLeft > 0 {
-                        return strongSelf.syncRemoteConfig(
-                            accountIdentity,
-                            retriesLeft: retriesLeft - 1
-                        )
-                    } else {
-                        return .value(.showErrorSheet(.networkError))
-                    }
-                } else if error.isPostRegDeregisteredError {
-                    return strongSelf.becameDeregisteredBeforeCompleting(accountIdentity: accountIdentity)
-                }
-                return .value(.showErrorSheet(.genericError))
-            }
-    }
-
     // returns nil if no steps needed.
     private func performSVRBackupStepsIfNeeded(
-        accountIdentity: AccountIdentity,
-        svrRemoteConfig: RemoteConfig.SVRConfiguration
+        accountIdentity: AccountIdentity
     ) -> Guarantee<RegistrationStep>? {
         Logger.info("")
-
-        // Set remote configuration so we back up to the right place.
-        (deps.svr as? OrchestratingSVRImpl)?.setRemoteConfiguration(svrRemoteConfig)
 
         let isRestoringPinBackup: Bool = (
             accountIdentity.hasPreviouslyUsedSVR &&
@@ -3234,7 +3004,8 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
     private func restoreFromStorageService(
         accountIdentity: AccountIdentity
     ) -> Guarantee<RegistrationStep> {
-        return deps.accountManager.performInitialStorageServiceRestore(authedAccount: accountIdentity.authedAccount)
+        let authedDevice = accountIdentity.authedDevice(isPrimaryDevice: true)
+        return deps.accountManager.performInitialStorageServiceRestore(authedDevice: authedDevice)
             .then(on: schedulers.sync) { [weak self] in
                 guard let self else {
                     return unretainedSelfError()
@@ -3305,8 +3076,8 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
         inMemoryState.udAccessKey = udAccessKey
         inMemoryState.hasProfileName = deps.profileManager.hasProfileName
         db.read { tx in
-            inMemoryState.hasDefinedIsDiscoverableByPhoneNumber = deps.tsAccountManager.hasDefinedIsDiscoverableByPhoneNumber(tx)
-            inMemoryState.isDiscoverableByPhoneNumber = deps.tsAccountManager.isDiscoverableByPhoneNumber(tx)
+            inMemoryState.phoneNumberDiscoverability =
+                deps.phoneNumberDiscoverabilityManager.phoneNumberDiscoverability(tx: tx)
         }
     }
 
@@ -3324,19 +3095,19 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
             )
     }
 
-    private func updatePhoneNumberDiscoverability(accountIdentity: AccountIdentity, isDiscoverable: Bool) {
+    private func updatePhoneNumberDiscoverability(accountIdentity: AccountIdentity, phoneNumberDiscoverability: PhoneNumberDiscoverability) {
         Logger.info("")
 
-        self.inMemoryState.hasDefinedIsDiscoverableByPhoneNumber = true
-        self.inMemoryState.isDiscoverableByPhoneNumber = isDiscoverable
+        self.inMemoryState.phoneNumberDiscoverability = phoneNumberDiscoverability
 
         db.write { tx in
-            // We will update storage service at the end of registration.
-            deps.tsAccountManager.setIsDiscoverableByPhoneNumber(
-                true,
+            // We will update attributes & storage service at the end of registration.
+            deps.phoneNumberDiscoverabilityManager.setPhoneNumberDiscoverability(
+                phoneNumberDiscoverability,
+                updateAccountAttributes: false,
                 updateStorageService: false,
                 authedAccount: accountIdentity.authedAccount,
-                tx
+                tx: tx
             )
         }
     }
@@ -3356,7 +3127,7 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
 
         // Creating a high strust signal recipient for oneself
         // must happen in a transaction initiated off the main thread.
-        return firstly(on: schedulers.sharedBackground) { [weak self] () -> FinalizeChangeNumberResult in
+        return firstly(on: schedulers.global()) { [weak self] () -> FinalizeChangeNumberResult in
             guard let strongSelf = self else {
                 return .unretainedSelf
             }
@@ -3375,7 +3146,7 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
                     Logger.info(
                         """
                         Recording new phone number
-                        localAci: \(changeNumberState.localAci.uuidString),
+                        localAci: \(changeNumberState.localAci),
                         localE164: \(changeNumberState.oldE164.stringValue),
                         serviceAci: \(accountIdentity.aci),
                         servicePni: \(accountIdentity.pni),
@@ -3385,11 +3156,11 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
 
                     // We do these here, and not in export state, so that we don't risk
                     // syncing out-of-date state to storage service.
-                    strongSelf.deps.tsAccountManager.updateLocalPhoneNumber(
-                        e164: accountIdentity.e164,
-                        aci: Aci(fromUUID: accountIdentity.aci),
-                        pni: Pni(fromUUID: accountIdentity.pni),
-                        tx
+                    strongSelf.deps.registrationStateChangeManager.didUpdateLocalPhoneNumber(
+                        accountIdentity.e164,
+                        aci: accountIdentity.aci,
+                        pni: accountIdentity.pni,
+                        tx: tx
                     )
                     // Make sure we update our local account.
                     strongSelf.deps.storageServiceManager.recordPendingLocalAccountUpdates()
@@ -3440,10 +3211,12 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
         case .reRegistering(let state):
             if persistedState.hasResetForReRegistration.negated {
                 db.write { tx in
-                    deps.tsAccountManager.resetForReregistration(
-                        e164: state.e164,
-                        aci: Aci(fromUUID: state.aci),
-                        tx
+                    let isPrimaryDevice = deps.tsAccountManager.registrationState(tx: tx).isPrimaryDevice ?? true
+                    deps.registrationStateChangeManager.resetForReregistration(
+                        localPhoneNumber: state.e164,
+                        localAci: state.aci,
+                        wasPrimaryDevice: isPrimaryDevice,
+                        tx: tx
                     )
                     updatePersistedState(tx) {
                         $0.hasResetForReRegistration = true
@@ -3483,7 +3256,7 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
                 self.inMemoryState.isManualMessageFetchEnabled = isManualMessageFetchEnabled
                 if isManualMessageFetchEnabled {
                     self.db.write { tx in
-                        self.deps.tsAccountManager.setIsManualMessageFetchEnabled(true, tx)
+                        self.deps.tsAccountManager.setIsManualMessageFetchEnabled(true, tx: tx)
                     }
                 }
                 let accountAttributes = self.makeAccountAttributes(
@@ -3659,12 +3432,12 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
         return deps.changeNumberPniManager
             .generatePniIdentity(
                 forNewE164: e164,
-                localAci: Aci(fromUUID: changeNumberState.localAci),
+                localAci: changeNumberState.localAci,
                 localAccountId: changeNumberState.localAccountId,
                 localDeviceId: changeNumberState.localDeviceId,
                 localUserAllDeviceIds: changeNumberState.localUserAllDeviceIds
             )
-            .then(on: schedulers.sharedBackground) { [weak self] pniResult -> Guarantee<ChangeNumberResult> in
+            .then(on: schedulers.global()) { [weak self] pniResult -> Guarantee<ChangeNumberResult> in
                 guard let strongSelf = self else {
                     return .value(.unretainedSelf)
                 }
@@ -3742,7 +3515,7 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
         return Service
             .makeWhoAmIRequest(
                 auth: ChatServiceAuth.explicit(
-                    aci: changeNumberState.localAci,
+                    aci: AciObjC(changeNumberState.localAci),
                     password: changeNumberState.oldAuthToken
                 ),
                 signalService: deps.signalService,
@@ -3896,7 +3669,7 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
             twofaMode: twoFAMode,
             registrationRecoveryPassword: inMemoryState.regRecoveryPw,
             encryptedDeviceName: nil, // This class only deals in primary devices, which have no name
-            discoverableByPhoneNumber: inMemoryState.isDiscoverableByPhoneNumber,
+            discoverableByPhoneNumber: inMemoryState.phoneNumberDiscoverability,
             hasSVRBackups: hasSVRBackups
         )
     }
@@ -3913,8 +3686,8 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
     }
 
     struct AccountIdentity: Codable {
-        let aci: UUID
-        let pni: UUID
+        @AciUuid var aci: Aci
+        @PniUuid var pni: Pni
         let e164: E164
         let hasPreviouslyUsedSVR: Bool
 
@@ -3924,15 +3697,25 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
         let authPassword: String
 
         var authUsername: String {
-            return aci.uuidString
+            return aci.serviceIdString
         }
 
         var authedAccount: AuthedAccount {
             return AuthedAccount.explicit(aci: aci, pni: pni, e164: e164, authPassword: authPassword)
         }
 
+        func authedDevice(isPrimaryDevice: Bool) -> AuthedDevice {
+            return .explicit(AuthedDevice.Explicit(
+                aci: aci,
+                phoneNumber: e164,
+                pni: pni,
+                isPrimaryDevice: isPrimaryDevice,
+                authPassword: authPassword
+            ))
+        }
+
         var chatServiceAuth: ChatServiceAuth {
-            return ChatServiceAuth.explicit(aci: aci, password: authPassword)
+            return ChatServiceAuth.explicit(aci: AciObjC(aci), password: authPassword)
         }
     }
 

@@ -9,7 +9,14 @@ import SignalUI
 
 class OutgoingDeviceTransferProgressViewController: DeviceTransferBaseViewController {
 
-    override var requiresDismissConfirmation: Bool { TSAccountManager.shared.isTransferInProgress }
+    override var requiresDismissConfirmation: Bool {
+        switch DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction {
+        case .transferringLinkedOutgoing, .transferringPrimaryOutgoing:
+            return true
+        default:
+            return false
+        }
+    }
 
     let progressView: TransferProgressView
     init(progress: Progress) {
@@ -91,6 +98,13 @@ extension OutgoingDeviceTransferProgressViewController: DeviceTransferServiceObs
                 text: OWSLocalizedString("DEVICE_TRANSFER_ERROR_GENERIC",
                                         comment: "An error indicating that something went wrong with the transfer and it could not complete")
             )
+        case .backgroundedDevice:
+            progressView.renderError(
+                text: OWSLocalizedString(
+                    "DEVICE_TRANSFER_ERROR_BACKGROUNDED",
+                    comment: "An error indicating that the other device closed signal mid-transfer and it could not complete"
+                )
+            )
         case .cancel:
             // User initiated, nothing to do
             break
@@ -109,5 +123,9 @@ extension OutgoingDeviceTransferProgressViewController: DeviceTransferServiceObs
         case .modeMismatch:
             owsFailDebug("this should never happen")
         }
+    }
+
+    func deviceTransferServiceDidRequestAppRelaunch() {
+        owsFail("Relaunch not supported for outgoing transfer; only on the receiving device during transfer")
     }
 }

@@ -34,7 +34,7 @@ public struct UsernameQuerier {
             recipientFetcher: DependenciesBridge.shared.recipientFetcher,
             schedulers: DependenciesBridge.shared.schedulers,
             storageServiceManager: deps.storageServiceManager,
-            tsAccountManager: deps.tsAccountManager,
+            tsAccountManager: DependenciesBridge.shared.tsAccountManager,
             usernameApiClient: DependenciesBridge.shared.usernameApiClient,
             usernameLinkManager: DependenciesBridge.shared.usernameLinkManager,
             usernameLookupManager: DependenciesBridge.shared.usernameLookupManager
@@ -76,7 +76,7 @@ public struct UsernameQuerier {
         onSuccess: @escaping (Aci) -> Void
     ) {
         if
-            let localAci = tsAccountManager.localIdentifiers(transaction: tx)?.aci,
+            let localAci = tsAccountManager.localIdentifiers(tx: tx.asV2Read)?.aci,
             let localLink = localUsernameManager.usernameState(tx: tx.asV2Read).usernameLink,
             localLink == link
         {
@@ -132,7 +132,7 @@ public struct UsernameQuerier {
         onSuccess: @escaping (Aci) -> Void
     ) {
         if
-            let localAci = tsAccountManager.localIdentifiers(transaction: tx)?.aci,
+            let localAci = tsAccountManager.localIdentifiers(tx: tx.asV2Read)?.aci,
             let localUsername = localUsernameManager.usernameState(tx: tx.asV2Read).username,
             localUsername.caseInsensitiveCompare(username) == .orderedSame
         {
@@ -222,7 +222,7 @@ public struct UsernameQuerier {
         username: String,
         tx: SDSAnyWriteTransaction
     ) {
-        let recipient = recipientFetcher.fetchOrCreate(serviceId: aci.untypedServiceId, tx: tx.asV2Write)
+        let recipient = recipientFetcher.fetchOrCreate(serviceId: aci, tx: tx.asV2Write)
         recipient.markAsRegisteredAndSave(tx: tx)
 
         let isUsernameBestIdentifier = Usernames.BetterIdentifierChecker.assembleByQuerying(

@@ -32,13 +32,13 @@ class DebugUISessionState: DebugUIPage, Dependencies {
                 OWSTableItem(title: "Delete All Sessions", actionBlock: {
                     self.databaseStorage.write { transaction in
                         let sessionStore = DependenciesBridge.shared.signalProtocolStoreManager.signalProtocolStore(for: .aci).sessionStore
-                        sessionStore.deleteAllSessions(for: contactThread.contactAddress, tx: transaction.asV2Write)
+                        sessionStore.deleteAllSessions(for: contactThread.contactAddress.serviceId!, tx: transaction.asV2Write)
                     }
                 }),
                 OWSTableItem(title: "Archive All Sessions", actionBlock: {
                     self.databaseStorage.write { transaction in
                         let sessionStore = DependenciesBridge.shared.signalProtocolStoreManager.signalProtocolStore(for: .aci).sessionStore
-                        sessionStore.archiveAllSessions(for: contactThread.contactAddress, tx: transaction.asV2Write)
+                        sessionStore.archiveAllSessions(for: contactThread.contactAddress.serviceId!, tx: transaction.asV2Write)
                     }
                 }),
                 OWSTableItem(title: "Send Session Reset", actionBlock: {
@@ -64,11 +64,10 @@ class DebugUISessionState: DebugUIPage, Dependencies {
         }
 
         items += [
-            OWSTableItem(title: "Clear Session and Identity Store", actionBlock: {
+            OWSTableItem(title: "Clear Session Store", actionBlock: {
                 self.databaseStorage.write { transaction in
                     let sessionStore = DependenciesBridge.shared.signalProtocolStoreManager.signalProtocolStore(for: .aci).sessionStore
                     sessionStore.resetSessionStore(tx: transaction.asV2Write)
-                    OWSIdentityManager.shared.clearIdentityState(transaction)
                 }
             }),
             OWSTableItem(title: "Clear Sender Key Store", actionBlock: {
@@ -84,19 +83,23 @@ class DebugUISessionState: DebugUIPage, Dependencies {
     // MARK: -
 
     private static func toggleKeyChange(for thread: TSContactThread) {
+        guard let serviceId = thread.contactAddress.serviceId else {
+            return
+        }
         Logger.error("Flipping identity Key. Flip again to return.")
 
-        let identityManager = OWSIdentityManager.shared
-        let address = thread.contactAddress
+        let identityManager = DependenciesBridge.shared.identityManager
 
-        guard let currentKey = identityManager.identityKey(for: address) else { return }
+        databaseStorage.write { tx in
+            guard let currentKey = identityManager.identityKey(for: SignalServiceAddress(serviceId), tx: tx.asV2Read) else { return }
 
-        var flippedKey = Data(count: currentKey.count)
-        for i in 0..<flippedKey.count {
-            flippedKey[i] = currentKey[i] ^ 0xFF
+            var flippedKey = Data(count: currentKey.count)
+            for i in 0..<flippedKey.count {
+                flippedKey[i] = currentKey[i] ^ 0xFF
+            }
+            owsAssertDebug(flippedKey.count == currentKey.count)
+            identityManager.saveIdentityKey(flippedKey, for: serviceId, tx: tx.asV2Write)
         }
-        owsAssertDebug(flippedKey.count == currentKey.count)
-        identityManager.saveRemoteIdentity(flippedKey, address: address)
     }
 
     private static func updateIdentityVerificationForThread(_ thread: TSThread) {
@@ -129,7 +132,8 @@ class DebugUISessionState: DebugUIPage, Dependencies {
     }
 
     private static func updateIdentityVerificationForAddress(_ address: SignalServiceAddress) {
-        guard let identity = OWSIdentityManager.shared.recipientIdentity(for: address) else {
+        let identityManager = DependenciesBridge.shared.identityManager
+        guard let identity = databaseStorage.read(block: { tx in identityManager.recipientIdentity(for: address, tx: tx.asV2Read) }) else {
             owsFailDebug("No identity for address \(address)")
             return
         }
@@ -139,17 +143,25 @@ class DebugUISessionState: DebugUIPage, Dependencies {
         let stateSelection = ActionSheetController(title: "Select a verification state", message: message)
         stateSelection.addAction(OWSActionSheets.cancelAction)
 
-        let allStates: [OWSVerificationState] = [ .verified, .default, .noLongerVerified ]
+        let allStates: [VerificationState] = [
+            .verified,
+            .implicit(isAcknowledged: false),
+            .implicit(isAcknowledged: true),
+            .noLongerVerified
+        ]
         allStates.forEach { state in
             stateSelection.addAction(ActionSheetAction(
-                title: OWSVerificationStateToString(state),
+                title: "\(state)",
                 handler: { _ in
-                    OWSIdentityManager.shared.setVerificationState(
-                        state,
-                        identityKey: identity.identityKey,
-                        address: address,
-                        isUserInitiatedChange: false
-                    )
+                    databaseStorage.write { tx in
+                        _ = identityManager.setVerificationState(
+                            state,
+                            of: identity.identityKey,
+                            for: address,
+                            isUserInitiatedChange: false,
+                            tx: tx.asV2Write
+                        )
+                    }
                 }
             ))
         }

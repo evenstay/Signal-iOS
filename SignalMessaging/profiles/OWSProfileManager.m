@@ -20,7 +20,6 @@
 #import <SignalServiceKit/OWSUpload.h>
 #import <SignalServiceKit/OWSUserProfile.h>
 #import <SignalServiceKit/SignalServiceKit-Swift.h>
-#import <SignalServiceKit/TSAccountManager.h>
 #import <SignalServiceKit/TSGroupThread.h>
 #import <SignalServiceKit/TSThread.h>
 #import <SignalServiceKit/UIImage+OWS.h>
@@ -29,7 +28,6 @@ NS_ASSUME_NONNULL_BEGIN
 
 const NSUInteger kOWSProfileManager_MaxAvatarDiameterPixels = 1024;
 NSString *const kNSNotificationKey_UserProfileWriter = @"kNSNotificationKey_UserProfileWriter";
-static NSString *const kLastGroupProfileKeyCheckTimestampKey = @"lastGroupProfileKeyCheckTimestamp";
 
 @interface OWSProfileManager ()
 
@@ -38,8 +36,6 @@ static NSString *const kLastGroupProfileKeyCheckTimestampKey = @"lastGroupProfil
 
 @property (nonatomic, readonly) AtomicUInt *profileAvatarDataLoadCounter;
 @property (nonatomic, readonly) AtomicUInt *profileAvatarImageLoadCounter;
-
-@property (nonatomic, readonly) SDSKeyValueStore *metadataStore;
 
 @property (nonatomic, readonly) id<RecipientHidingManager> recipientHidingManager;
 
@@ -100,7 +96,7 @@ static NSString *const kLastGroupProfileKeyCheckTimestampKey = @"lastGroupProfil
 
     _whitelistedPhoneNumbersStore =
         [[SDSKeyValueStore alloc] initWithCollection:@"kOWSProfileManager_UserWhitelistCollection"];
-    _whitelistedUUIDsStore =
+    _whitelistedServiceIdsStore =
         [[SDSKeyValueStore alloc] initWithCollection:@"kOWSProfileManager_UserUUIDWhitelistCollection"];
     _whitelistedGroupsStore =
         [[SDSKeyValueStore alloc] initWithCollection:@"kOWSProfileManager_GroupWhitelistCollection"];
@@ -110,16 +106,19 @@ static NSString *const kLastGroupProfileKeyCheckTimestampKey = @"lastGroupProfil
     OWSSingletonAssert();
 
     AppReadinessRunNowOrWhenAppDidBecomeReadySync(^{
-        if (CurrentAppContext().isMainApp && !CurrentAppContext().isRunningTests
-            && TSAccountManager.shared.isRegistered) {
+        if (CurrentAppContext().isMainApp && !CurrentAppContext().isRunningTests &&
+            [TSAccountManagerObjcBridge isRegisteredWithMaybeTransaction]) {
             [self logLocalAvatarStatus];
             [self fetchLocalUsersProfileWithAuthedAccount:AuthedAccount.implicit];
         }
     });
 
     AppReadinessRunNowOrWhenAppDidBecomeReadyAsync(^{
-        if (TSAccountManager.shared.isRegistered) {
+        if ([TSAccountManagerObjcBridge isRegisteredPrimaryDeviceWithMaybeTransaction]) {
             [self rotateLocalProfileKeyIfNecessary];
+        }
+
+        if ([TSAccountManagerObjcBridge isRegisteredWithMaybeTransaction]) {
             [self updateProfileOnServiceIfNecessaryWithAuthedAccount:AuthedAccount.implicit];
             [OWSProfileManager updateStorageServiceIfNecessary];
         }
@@ -152,7 +151,7 @@ static NSString *const kLastGroupProfileKeyCheckTimestampKey = @"lastGroupProfil
 {
     OWSAssertDebug(CurrentAppContext().isMainApp);
     OWSAssertDebug(!CurrentAppContext().isRunningTests);
-    OWSAssertDebug(TSAccountManager.shared.isRegistered);
+    OWSAssertDebug([TSAccountManagerObjcBridge isRegisteredWithMaybeTransaction]);
 
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         [self logLocalAvatarStatus:self.localUserProfile label:@"cached copy"];
@@ -433,7 +432,7 @@ static NSString *const kLastGroupProfileKeyCheckTimestampKey = @"lastGroupProfil
     if (authAddress != nil) {
         localAddress = authAddress;
     } else {
-        localAddress = self.tsAccountManager.localAddress;
+        localAddress = [TSAccountManagerObjcBridge localAciAddressWithMaybeTransaction];
     }
     if (!localAddress.isValid) {
         return;
@@ -448,7 +447,12 @@ static NSString *const kLastGroupProfileKeyCheckTimestampKey = @"lastGroupProfil
 
 - (AnyPromise *)fetchLocalUsersProfilePromiseWithAuthedAccount:(AuthedAccount *)authedAccount
 {
-    ServiceIdObjC *_Nullable localAci = self.tsAccountManager.localAddress.serviceIdObjC;
+    LocalIdentifiersObjC *_Nullable localIdentifiers =
+        [TSAccountManagerObjcBridge localIdentifiersWithMaybeTransaction];
+    if (!localIdentifiers) {
+        return [AnyPromise promiseWithError:OWSErrorMakeAssertionError(@"Missing local address.")];
+    }
+    ServiceIdObjC *localAci = localIdentifiers.aci;
     if (![localAci isKindOfClass:[AciObjC class]]) {
         return [AnyPromise promiseWithError:OWSErrorMakeAssertionError(@"Missing local address.")];
     }
@@ -472,75 +476,9 @@ static NSString *const kLastGroupProfileKeyCheckTimestampKey = @"lastGroupProfil
     return [groupId hexadecimalString];
 }
 
-- (void)rotateLocalProfileKeyIfNecessary {
-    if (CurrentAppContext().isNSE) {
-        return;
-    }
-    if (!self.tsAccountManager.isRegisteredPrimaryDevice) {
-        OWSAssertDebug(self.tsAccountManager.isRegistered);
-        OWSLogVerbose(@"Not rotating profile key on non-primary device");
-        return;
-    }
-
-    [self rotateLocalProfileKeyIfNecessaryWithSuccess:^{} failure:^(NSError *error) {}];
-}
-
-- (void)rotateLocalProfileKeyIfNecessaryWithSuccess:(dispatch_block_t)success
-                                            failure:(ProfileManagerFailureBlock)failure {
-    OWSAssertDebug(AppReadiness.isAppReady);
-
-    if (!self.tsAccountManager.isRegistered) {
-        OWSFailDebug(@"tsAccountManager.isRegistered was unexpectedly false");
-        success();
-        return;
-    }
-
-    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-        __block NSArray<NSString *> *victimPhoneNumbers = @[];
-        __block NSArray<NSString *> *victimUUIDs = @[];
-        __block NSArray<NSData *> *victimGroupIds = @[];
-        __block NSDate *lastGroupProfileKeyCheckTimestamp = nil;
-        [self.databaseStorage
-            readWithBlock:^(SDSAnyReadTransaction *transaction) {
-                victimPhoneNumbers = [self blockedPhoneNumbersInWhitelistWithTransaction:transaction];
-                victimUUIDs = [self blockedUUIDsInWhitelistWithTransaction:transaction];
-                victimGroupIds = [self blockedGroupIDsInWhitelistWithTransaction:transaction];
-                lastGroupProfileKeyCheckTimestamp = [self.metadataStore getDate:kLastGroupProfileKeyCheckTimestampKey
-                                                                    transaction:transaction];
-            }
-                     file:__FILE__
-                 function:__FUNCTION__
-                     line:__LINE__];
-
-        NSUInteger victimCount = 0;
-        victimCount += victimPhoneNumbers.count;
-        victimCount += victimUUIDs.count;
-        victimCount += victimGroupIds.count;
-        if (victimCount == 0) {
-            // No need to rotate the profile key.
-            if (self.tsAccountManager.isPrimaryDevice) {
-                // But if it's been more than a week since we checked that our groups are up to date, schedule that.
-                if (lastGroupProfileKeyCheckTimestamp == nil
-                    || -lastGroupProfileKeyCheckTimestamp.timeIntervalSinceNow > kWeekInterval) {
-                    DatabaseStorageWrite(self.databaseStorage, ^(SDSAnyWriteTransaction *transaction) {
-                        [self.groupsV2 scheduleAllGroupsV2ForProfileKeyUpdateWithTransaction:transaction];
-                        [self.metadataStore setDate:[NSDate date]
-                                                key:kLastGroupProfileKeyCheckTimestampKey
-                                        transaction:transaction];
-                    });
-                    [self.groupsV2 processProfileKeyUpdates];
-                }
-            }
-            return success();
-        }
-
-        [self rotateProfileKeyWithIntersectingPhoneNumbers:victimPhoneNumbers
-                                         intersectingUUIDs:victimUUIDs
-                                      intersectingGroupIds:victimGroupIds
-                                             authedAccount:AuthedAccount.implicit]
-            .done(^(id value) { success(); })
-            .catch(^(NSError *error) { failure(error); });
-    });
+- (void)forceRotateLocalProfileKeyForGroupDepartureWithTransaction:(SDSAnyWriteTransaction *)transaction
+{
+    [self forceRotateLocalProfileKeyForGroupDepartureObjcWithTx:transaction];
 }
 
 #pragma mark - Profile Whitelist
@@ -551,11 +489,11 @@ static NSString *const kLastGroupProfileKeyCheckTimestampKey = @"lastGroupProfil
 
     DatabaseStorageAsyncWrite(self.databaseStorage, ^(SDSAnyWriteTransaction *transaction) {
         [self.whitelistedPhoneNumbersStore removeAllWithTransaction:transaction];
-        [self.whitelistedUUIDsStore removeAllWithTransaction:transaction];
+        [self.whitelistedServiceIdsStore removeAllWithTransaction:transaction];
         [self.whitelistedGroupsStore removeAllWithTransaction:transaction];
         
         OWSAssertDebug(0 == [self.whitelistedPhoneNumbersStore numberOfKeysWithTransaction:transaction]);
-        OWSAssertDebug(0 == [self.whitelistedUUIDsStore numberOfKeysWithTransaction:transaction]);
+        OWSAssertDebug(0 == [self.whitelistedServiceIdsStore numberOfKeysWithTransaction:transaction]);
         OWSAssertDebug(0 == [self.whitelistedGroupsStore numberOfKeysWithTransaction:transaction]);
     });
 }
@@ -589,10 +527,10 @@ static NSString *const kLastGroupProfileKeyCheckTimestampKey = @"lastGroupProfil
             OWSLogError(@"\t profile whitelist user phone number: %@", key);
         }
         OWSLogError(@"%@: %lu",
-            self.whitelistedUUIDsStore.collection,
-            (unsigned long)[self.whitelistedUUIDsStore numberOfKeysWithTransaction:transaction]);
-        for (NSString *key in [self.whitelistedUUIDsStore allKeysWithTransaction:transaction]) {
-            OWSLogError(@"\t profile whitelist user uuid: %@", key);
+            self.whitelistedServiceIdsStore.collection,
+            (unsigned long)[self.whitelistedServiceIdsStore numberOfKeysWithTransaction:transaction]);
+        for (NSString *key in [self.whitelistedServiceIdsStore allKeysWithTransaction:transaction]) {
+            OWSLogError(@"\t profile whitelist user service id: %@", key);
         }
         OWSLogError(@"%@: %lu",
             self.whitelistedGroupsStore.collection,
@@ -613,9 +551,8 @@ static NSString *const kLastGroupProfileKeyCheckTimestampKey = @"lastGroupProfil
                              transaction:transaction
                               completion:nil];
     });
-    [self.tsAccountManager updateAccountAttributes].catch(^(NSError *error) {
-        OWSLogError(@"Error: %@.", error);
-    });
+    [AccountAttributesUpdaterObjcBridge updateAccountAttributes].catch(
+        ^(NSError *error) { OWSLogError(@"Error: %@.", error); });
 }
 
 - (void)setLocalProfileKey:(OWSAES256Key *)key
@@ -654,6 +591,11 @@ static NSString *const kLastGroupProfileKeyCheckTimestampKey = @"lastGroupProfil
                                 completion:nil];
 }
 
+- (void)normalizeRecipientInProfileWhitelist:(SignalRecipient *)recipient tx:(SDSAnyWriteTransaction *)tx
+{
+    [self swift_normalizeRecipientInProfileWhitelist:recipient tx:tx];
+}
+
 - (void)addUserToProfileWhitelist:(SignalServiceAddress *)address
                 userProfileWriter:(UserProfileWriter)userProfileWriter
                       transaction:(SDSAnyWriteTransaction *)transaction
@@ -661,10 +603,7 @@ static NSString *const kLastGroupProfileKeyCheckTimestampKey = @"lastGroupProfil
     OWSAssertDebug(address.isValid);
     OWSAssertDebug(transaction);
 
-    NSSet *addressesToAdd = [self addressesNotBlockedOrInWhitelist:@[ address ] transaction:transaction];
-    [self addConfirmedUnwhitelistedAddresses:addressesToAdd
-                           userProfileWriter:userProfileWriter
-                                 transaction:transaction];
+    [self addUsersToProfileWhitelist:@[ address ] userProfileWriter:userProfileWriter transaction:transaction];
 }
 
 - (void)addUsersToProfileWhitelist:(NSArray<SignalServiceAddress *> *)addresses
@@ -676,11 +615,6 @@ static NSString *const kLastGroupProfileKeyCheckTimestampKey = @"lastGroupProfil
 
     NSSet<SignalServiceAddress *> *addressesToAdd = [self addressesNotBlockedOrInWhitelist:addresses
                                                                                transaction:transaction];
-
-    if (addressesToAdd.count < 1) {
-        return;
-    }
-
     [self addConfirmedUnwhitelistedAddresses:addressesToAdd
                            userProfileWriter:userProfileWriter
                                  transaction:transaction];
@@ -729,42 +663,20 @@ static NSString *const kLastGroupProfileKeyCheckTimestampKey = @"lastGroupProfil
 }
 
 - (NSSet<SignalServiceAddress *> *)addressesNotBlockedOrInWhitelist:(NSArray<SignalServiceAddress *> *)addresses
-                                                        transaction:(SDSAnyReadTransaction *)transaction
+                                                        transaction:(SDSAnyReadTransaction *)tx
 {
     OWSAssertDebug(addresses);
 
     NSMutableSet<SignalServiceAddress *> *notBlockedOrInWhitelist = [NSMutableSet new];
 
     for (SignalServiceAddress *address in addresses) {
-
         // If the address is blocked, we don't want to include it
-        if ([self.blockingManager isAddressBlocked:address transaction:transaction]
-            || (SSKFeatureFlags.recipientHiding &&
-                [RecipientHidingManagerObjcBridge isHiddenAddress:address tx:transaction])) {
+        if ([self.blockingManager isAddressBlocked:address transaction:tx] ||
+            [RecipientHidingManagerObjcBridge isHiddenAddress:address tx:tx]) {
             continue;
         }
 
-        // We want to include both the UUID and the phone number in the white list.
-        // It's possible we white listed one but not both, so we check each.
-
-        BOOL notInWhitelist = NO;
-        if (address.uuidString) {
-            BOOL currentlyWhitelisted = [self.whitelistedUUIDsStore hasValueForKey:address.uuidString
-                                                                       transaction:transaction];
-            if (!currentlyWhitelisted) {
-                notInWhitelist = YES;
-            }
-        }
-
-        if (address.phoneNumber) {
-            BOOL currentlyWhitelisted = [self.whitelistedPhoneNumbersStore hasValueForKey:address.phoneNumber
-                                                                              transaction:transaction];
-            if (!currentlyWhitelisted) {
-                notInWhitelist = YES;
-            }
-        }
-
-        if (notInWhitelist) {
+        if (![self isAddressInWhitelist:address tx:tx]) {
             [notBlockedOrInWhitelist addObject:address];
         }
     }
@@ -773,36 +685,14 @@ static NSString *const kLastGroupProfileKeyCheckTimestampKey = @"lastGroupProfil
 }
 
 - (NSSet<SignalServiceAddress *> *)addressesInWhitelist:(NSArray<SignalServiceAddress *> *)addresses
-                                            transaction:(SDSAnyReadTransaction *)transaction
+                                            transaction:(SDSAnyReadTransaction *)tx
 {
     OWSAssertDebug(addresses);
 
     NSMutableSet<SignalServiceAddress *> *whitelistedAddresses = [NSMutableSet new];
 
     for (SignalServiceAddress *address in addresses) {
-
-        // We only consider an address whitelisted if either the UUID and phone
-        // number are represented. It's possible we white listed one but not both,
-        // so we check each.
-
-        BOOL isInWhitelist = NO;
-        if (address.uuidString) {
-            BOOL currentlyWhitelisted = [self.whitelistedUUIDsStore hasValueForKey:address.uuidString
-                                                                       transaction:transaction];
-            if (currentlyWhitelisted) {
-                isInWhitelist = YES;
-            }
-        }
-
-        if (address.phoneNumber) {
-            BOOL currentlyWhitelisted = [self.whitelistedPhoneNumbersStore hasValueForKey:address.phoneNumber
-                                                                              transaction:transaction];
-            if (currentlyWhitelisted) {
-                isInWhitelist = YES;
-            }
-        }
-
-        if (isInWhitelist) {
+        if ([self isAddressInWhitelist:address tx:tx]) {
             [whitelistedAddresses addObject:address];
         }
     }
@@ -810,9 +700,26 @@ static NSString *const kLastGroupProfileKeyCheckTimestampKey = @"lastGroupProfil
     return [whitelistedAddresses copy];
 }
 
+- (BOOL)isAddressInWhitelist:(SignalServiceAddress *)address tx:(SDSAnyReadTransaction *)tx
+{
+    if (address.serviceIdUppercaseString) {
+        if ([self.whitelistedServiceIdsStore hasValueForKey:address.serviceIdUppercaseString transaction:tx]) {
+            return YES;
+        }
+    }
+
+    if (address.phoneNumber) {
+        if ([self.whitelistedPhoneNumbersStore hasValueForKey:address.phoneNumber transaction:tx]) {
+            return YES;
+        }
+    }
+
+    return NO;
+}
+
 - (void)removeConfirmedWhitelistedAddresses:(NSSet<SignalServiceAddress *> *)addressesToRemove
                           userProfileWriter:(UserProfileWriter)userProfileWriter
-                                transaction:(SDSAnyWriteTransaction *)transaction
+                                transaction:(SDSAnyWriteTransaction *)tx
 {
     if (addressesToRemove.count == 0) {
         // Do nothing.
@@ -820,21 +727,23 @@ static NSString *const kLastGroupProfileKeyCheckTimestampKey = @"lastGroupProfil
     }
 
     for (SignalServiceAddress *address in addressesToRemove) {
-        if (address.uuidString) {
-            [self.whitelistedUUIDsStore removeValueForKey:address.uuidString transaction:transaction];
+        // Historically we put both the ACI and phone number into their respective
+        // stores. We currently save only the best identifier, but we should still
+        // try and remove both to handle these historical cases.
+        if (address.serviceIdUppercaseString) {
+            [self.whitelistedServiceIdsStore removeValueForKey:address.serviceIdUppercaseString transaction:tx];
         }
-
         if (address.phoneNumber) {
-            [self.whitelistedPhoneNumbersStore removeValueForKey:address.phoneNumber transaction:transaction];
+            [self.whitelistedPhoneNumbersStore removeValueForKey:address.phoneNumber transaction:tx];
         }
 
-        TSThread *_Nullable thread = [TSContactThread getThreadWithContactAddress:address transaction:transaction];
+        TSThread *_Nullable thread = [TSContactThread getThreadWithContactAddress:address transaction:tx];
         if (thread) {
-            [self.databaseStorage touchThread:thread shouldReindex:NO transaction:transaction];
+            [self.databaseStorage touchThread:thread shouldReindex:NO transaction:tx];
         }
     }
 
-    [transaction addSyncCompletion:^{
+    [tx addSyncCompletion:^{
         // Mark the removed whitelisted addresses for update
         if (shouldUpdateStorageServiceForUserProfileWriter(userProfileWriter)) {
             [self.storageServiceManagerObjc recordPendingUpdatesWithUpdatedAddresses:addressesToRemove.allObjects];
@@ -854,7 +763,7 @@ static NSString *const kLastGroupProfileKeyCheckTimestampKey = @"lastGroupProfil
 
 - (void)addConfirmedUnwhitelistedAddresses:(NSSet<SignalServiceAddress *> *)addressesToAdd
                          userProfileWriter:(UserProfileWriter)userProfileWriter
-                               transaction:(SDSAnyWriteTransaction *)transaction
+                               transaction:(SDSAnyWriteTransaction *)tx
 {
     if (addressesToAdd.count == 0) {
         // Do nothing.
@@ -862,21 +771,23 @@ static NSString *const kLastGroupProfileKeyCheckTimestampKey = @"lastGroupProfil
     }
 
     for (SignalServiceAddress *address in addressesToAdd) {
-        if (address.uuidString) {
-            [self.whitelistedUUIDsStore setBool:YES key:address.uuidString transaction:transaction];
+        ServiceIdObjC *serviceId = address.serviceIdObjC;
+
+        if ([serviceId isKindOfClass:[AciObjC class]]) {
+            [self.whitelistedServiceIdsStore setBool:YES key:serviceId.serviceIdUppercaseString transaction:tx];
+        } else if (address.phoneNumber) {
+            [self.whitelistedPhoneNumbersStore setBool:YES key:address.phoneNumber transaction:tx];
+        } else if ([serviceId isKindOfClass:[PniObjC class]]) {
+            [self.whitelistedServiceIdsStore setBool:YES key:serviceId.serviceIdUppercaseString transaction:tx];
         }
 
-        if (address.phoneNumber) {
-            [self.whitelistedPhoneNumbersStore setBool:YES key:address.phoneNumber transaction:transaction];
-        }
-
-        TSThread *_Nullable thread = [TSContactThread getThreadWithContactAddress:address transaction:transaction];
+        TSThread *_Nullable thread = [TSContactThread getThreadWithContactAddress:address transaction:tx];
         if (thread) {
-            [self.databaseStorage touchThread:thread shouldReindex:NO transaction:transaction];
+            [self.databaseStorage touchThread:thread shouldReindex:NO transaction:tx];
         }
     }
 
-    [transaction addSyncCompletion:^{
+    [tx addSyncCompletion:^{
         // Mark the new whitelisted addresses for update
         if (shouldUpdateStorageServiceForUserProfileWriter(userProfileWriter)) {
             [self.storageServiceManagerObjc recordPendingUpdatesWithUpdatedAddresses:addressesToAdd.allObjects];
@@ -894,25 +805,16 @@ static NSString *const kLastGroupProfileKeyCheckTimestampKey = @"lastGroupProfil
     }];
 }
 
-- (BOOL)isUserInProfileWhitelist:(SignalServiceAddress *)address transaction:(SDSAnyReadTransaction *)transaction
+- (BOOL)isUserInProfileWhitelist:(SignalServiceAddress *)address transaction:(SDSAnyReadTransaction *)tx
 {
     OWSAssertDebug(address.isValid);
 
-    if ([self.blockingManager isAddressBlocked:address transaction:transaction]
-        || (SSKFeatureFlags.recipientHiding &&
-            [RecipientHidingManagerObjcBridge isHiddenAddress:address tx:transaction])) {
+    if ([self.blockingManager isAddressBlocked:address transaction:tx]
+        || ([RecipientHidingManagerObjcBridge isHiddenAddress:address tx:tx])) {
         return NO;
     }
 
-    BOOL result = NO;
-    if (address.uuidString) {
-        result = [self.whitelistedUUIDsStore hasValueForKey:address.uuidString transaction:transaction];
-    }
-
-    if (!result && address.phoneNumber) {
-        result = [self.whitelistedPhoneNumbersStore hasValueForKey:address.phoneNumber transaction:transaction];
-    }
-    return result;
+    return [self isAddressInWhitelist:address tx:tx];
 }
 
 - (void)addGroupIdToProfileWhitelist:(NSData *)groupId
@@ -1132,68 +1034,33 @@ static NSString *const kLastGroupProfileKeyCheckTimestampKey = @"lastGroupProfil
                 transaction:transaction];
 }
 
-- (void)setProfileKeyData:(NSData *)profileKeyData
-               forAddress:(SignalServiceAddress *)addressParam
-      onlyFillInIfMissing:(BOOL)onlyFillInIfMissing
-        userProfileWriter:(UserProfileWriter)userProfileWriter
-            authedAccount:(AuthedAccount *)authedAccount
-              transaction:(SDSAnyWriteTransaction *)transaction
-{
-    SignalServiceAddress *address = [OWSUserProfile resolveUserProfileAddress:addressParam];
-
-    OWSAES256Key *_Nullable profileKey = [OWSAES256Key keyWithData:profileKeyData];
-    if (profileKey == nil) {
-        OWSFailDebug(@"Failed to make profile key for key data");
-        return;
-    }
-
-    OWSUserProfile *userProfile = [OWSUserProfile getOrBuildUserProfileForAddress:address
-                                                                    authedAccount:authedAccount
-                                                                      transaction:transaction];
-    OWSAssertDebug(userProfile);
-
-    if (onlyFillInIfMissing && userProfile.profileKey != nil) {
-        return;
-    }
-
-    if (userProfile.profileKey && [userProfile.profileKey.keyData isEqual:profileKey.keyData]) {
-        // Ignore redundant update.
-        return;
-    }
-
-    ServiceIdObjC *serviceId = addressParam.serviceIdObjC;
-    if ([serviceId isKindOfClass:[AciObjC class]]) {
-        // Whenever a user's profile key changes, we need to fetch a new
-        // profile key credential for them.
-        [self.versionedProfiles clearProfileKeyCredentialForServiceId:(AciObjC *)serviceId transaction:transaction];
-    }
-
-    [userProfile updateWithProfileKey:profileKey
-                    userProfileWriter:userProfileWriter
-                        authedAccount:authedAccount
-                          transaction:transaction
-                           completion:^{
-                               dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-                                   // If this is the profile for the local user, we always want to defer to local state
-                                   // so skip the update profile for address call.
-                                   if ([OWSUserProfile isLocalProfileAddress:address] ||
-                                       [authedAccount isAddressForLocalUser:address]) {
-                                       return;
-                                   }
-                                   [self.udManager setUnidentifiedAccessMode:UnidentifiedAccessModeUnknown
-                                                                     address:address];
-                                   [self fetchProfileForAddress:address authedAccount:authedAccount];
-                               });
-                           }];
-}
-
-- (void)fillInMissingProfileKeys:(NSDictionary<SignalServiceAddress *, NSData *> *)profileKeys
-               userProfileWriter:(UserProfileWriter)userProfileWriter
-                   authedAccount:(AuthedAccount *)authedAccount
+- (void)fillInProfileKeysForAllProfileKeys:(NSDictionary<SignalServiceAddress *, NSData *> *)allProfileKeys
+                  authoritativeProfileKeys:(NSDictionary<SignalServiceAddress *, NSData *> *)authoritativeProfileKeys
+                         userProfileWriter:(UserProfileWriter)userProfileWriter
+                             authedAccount:(AuthedAccount *)authedAccount
 {
     DatabaseStorageAsyncWrite(self.databaseStorage, ^(SDSAnyWriteTransaction *transaction) {
-        for (SignalServiceAddress *address in profileKeys) {
-            NSData *_Nullable profileKeyData = profileKeys[address];
+        for (SignalServiceAddress *address in authoritativeProfileKeys) {
+            NSData *_Nullable profileKeyData = allProfileKeys[address];
+            if (profileKeyData == nil) {
+                OWSFailDebug(@"Missing profileKeyData.");
+                continue;
+            }
+            [self setProfileKeyData:profileKeyData
+                         forAddress:address
+                onlyFillInIfMissing:NO
+                  userProfileWriter:userProfileWriter
+                      authedAccount:authedAccount
+                        transaction:transaction];
+        }
+
+        for (SignalServiceAddress *address in allProfileKeys) {
+            if (authoritativeProfileKeys[address] != nil) {
+                // We already stored this profile key as an
+                // authoritative one.
+                continue;
+            }
+            NSData *_Nullable profileKeyData = allProfileKeys[address];
             if (profileKeyData == nil) {
                 OWSFailDebug(@"Missing profileKeyData.");
                 continue;
@@ -1277,17 +1144,6 @@ static NSString *const kLastGroupProfileKeyCheckTimestampKey = @"lastGroupProfil
                                   transaction:(SDSAnyReadTransaction *)transaction
 {
     return [self profileKeyForAddress:address transaction:transaction].keyData;
-}
-
-- (BOOL)recipientAddressIsStoriesCapable:(nonnull SignalServiceAddress *)address
-                             transaction:(nonnull SDSAnyReadTransaction *)transaction
-{
-    OWSUserProfile *_Nullable userProfile = [OWSUserProfile getUserProfileForAddress:address transaction:transaction];
-    if (userProfile == nil) {
-        return NO;
-    } else {
-        return userProfile.isStoriesCapable;
-    }
 }
 
 - (nullable OWSAES256Key *)profileKeyForAddress:(SignalServiceAddress *)address
@@ -1435,10 +1291,9 @@ static NSString *const kLastGroupProfileKeyCheckTimestampKey = @"lastGroupProfil
     return userProfile.avatarUrlPath;
 }
 
-- (NSArray<SignalServiceAddress *> *)allWhitelistedRegisteredAddressesWithTransaction:
-    (SDSAnyReadTransaction *)transaction
+- (NSArray<SignalServiceAddress *> *)allWhitelistedRegisteredAddressesWithTx:(SDSAnyReadTransaction *)tx
 {
-    return [self objc_allWhitelistedRegisteredAddressesWithTransaction:transaction];
+    return [self objc_allWhitelistedRegisteredAddressesWithTx:tx];
 }
 
 - (nullable NSString *)profileBioForDisplayForAddress:(SignalServiceAddress *)address
@@ -1622,8 +1477,6 @@ static NSString *const kLastGroupProfileKeyCheckTimestampKey = @"lastGroupProfil
           optionalAvatarFileUrl:(nullable NSURL *)optionalAvatarFileUrl
                   profileBadges:(nullable NSArray<OWSUserProfileBadgeInfo *> *)profileBadges
                   lastFetchDate:(NSDate *)lastFetchDate
-               isStoriesCapable:(BOOL)isStoriesCapable
-           canReceiveGiftBadges:(BOOL)canReceiveGiftBadges
                    isPniCapable:(BOOL)isPniCapable
               userProfileWriter:(UserProfileWriter)userProfileWriter
                   authedAccount:(AuthedAccount *)authedAccount
@@ -1653,8 +1506,6 @@ static NSString *const kLastGroupProfileKeyCheckTimestampKey = @"lastGroupProfil
                                                                       transaction:writeTx];
     if (!userProfile.profileKey) {
         [userProfile updateWithLastFetchDate:lastFetchDate
-                            isStoriesCapable:isStoriesCapable
-                        canReceiveGiftBadges:canReceiveGiftBadges
                                 isPniCapable:isPniCapable
                            userProfileWriter:userProfileWriter
                                authedAccount:authedAccount
@@ -1668,8 +1519,6 @@ static NSString *const kLastGroupProfileKeyCheckTimestampKey = @"lastGroupProfil
                            avatarUrlPath:avatarUrlPath
                           avatarFileName:optionalAvatarFileUrl.lastPathComponent
                            lastFetchDate:lastFetchDate
-                        isStoriesCapable:isStoriesCapable
-                    canReceiveGiftBadges:canReceiveGiftBadges
                             isPniCapable:isPniCapable
                        userProfileWriter:userProfileWriter
                            authedAccount:authedAccount
@@ -1683,8 +1532,6 @@ static NSString *const kLastGroupProfileKeyCheckTimestampKey = @"lastGroupProfil
                                   badges:profileBadges
                            avatarUrlPath:avatarUrlPath
                            lastFetchDate:lastFetchDate
-                        isStoriesCapable:isStoriesCapable
-                    canReceiveGiftBadges:canReceiveGiftBadges
                             isPniCapable:isPniCapable
                        userProfileWriter:userProfileWriter
                            authedAccount:authedAccount
@@ -1819,6 +1666,11 @@ static NSString *const kLastGroupProfileKeyCheckTimestampKey = @"lastGroupProfil
                            userProfileWriter:UserProfileWriter_MetadataUpdate
                                authedAccount:authedAccount
                                  transaction:transaction];
+}
+
+- (void)rotateProfileKeyUponRecipientHideWithTx:(nonnull SDSAnyWriteTransaction *)tx
+{
+    [self rotateProfileKeyUponRecipientHideObjCWithTx:tx];
 }
 
 #pragma mark - Notifications

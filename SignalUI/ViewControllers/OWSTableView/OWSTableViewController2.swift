@@ -738,7 +738,9 @@ extension OWSTableViewController2: UITableViewDataSource, UITableViewDelegate, O
     }
 
     public func buildHeaderTextView(forSection section: OWSTableSection) -> UITextView {
-        buildHeaderTextView(withDeepInsets: section.hasBackground)
+        let textView = buildHeaderTextView(withDeepInsets: section.hasBackground)
+        textView.delegate = section.headerTextViewDelegate
+        return textView
     }
 
     public func buildHeaderTextView(withDeepInsets: Bool) -> UITextView {
@@ -752,7 +754,9 @@ extension OWSTableViewController2: UITableViewDataSource, UITableViewDelegate, O
     }
 
     public func buildFooterTextView(forSection section: OWSTableSection) -> UITextView {
-        buildFooterTextView(withDeepInsets: section.hasBackground)
+        let textView = buildFooterTextView(withDeepInsets: section.hasBackground)
+        textView.delegate = section.footerTextViewDelegate
+        return textView
     }
 
     public func buildFooterTextView(withDeepInsets: Bool) -> UITextView {
@@ -855,9 +859,9 @@ extension OWSTableViewController2: UITableViewDataSource, UITableViewDelegate, O
             owsAssertDebug(customHeaderHeight > 0 || customHeaderHeight == automaticDimension)
             return customHeaderHeight
         } else if let headerTitle = section.headerTitle, !headerTitle.isEmpty {
-            // Get around a bug sizing UITextView in iOS 16 by manually sizing instead
+            // Get around a bug sizing UITextView in iOS 16/17 by manually sizing instead
             // of relying on UITableView.automaticDimension
-            if #available(iOS 17, *) { owsFailDebug("Canary to check if this has been fixed") }
+            if #available(iOS 18, *) { owsFailDebug("Canary to check if this has been fixed") }
             let insets = headerTextContainerInsets(for: section)
             // Reuse sizing code for CVText even though we aren't using a CVText here.
             let height = CVText.measureLabel(
@@ -873,9 +877,9 @@ extension OWSTableViewController2: UITableViewDataSource, UITableViewDelegate, O
             ).height
             return height + insets.totalHeight
         } else if let headerTitle = section.headerAttributedTitle, !headerTitle.isEmpty {
-            // Get around a bug sizing UITextView in iOS 16 by manually sizing instead
+            // Get around a bug sizing UITextView in iOS 16/17 by manually sizing instead
             // of relying on UITableView.automaticDimension
-            if #available(iOS 17, *) { owsFailDebug("Canary to check if this has been fixed") }
+            if #available(iOS 18, *) { owsFailDebug("Canary to check if this has been fixed") }
             let insets = headerTextContainerInsets(for: section)
             // Reuse sizing code for CVText even though we aren't using a CVText here.
             let height = CVText.measureLabel(
@@ -908,9 +912,9 @@ extension OWSTableViewController2: UITableViewDataSource, UITableViewDelegate, O
             owsAssertDebug(customFooterHeight > 0 || customFooterHeight == automaticDimension)
             return customFooterHeight
         } else if let footerTitle = section.footerTitle, !footerTitle.isEmpty {
-            // Get around a bug sizing UITextView in iOS 16 by manually sizing instead
+            // Get around a bug sizing UITextView in iOS 16/17 by manually sizing instead
             // of relying on UITableView.automaticDimension
-            if #available(iOS 17, *) { owsFailDebug("Canary to check if this has been fixed") }
+            if #available(iOS 18, *) { owsFailDebug("Canary to check if this has been fixed") }
             let insets = footerTextContainerInsets(for: section)
             // Reuse sizing code for CVText even though we aren't using a CVText here.
             let height = CVText.measureLabel(
@@ -926,9 +930,9 @@ extension OWSTableViewController2: UITableViewDataSource, UITableViewDelegate, O
             ).height
             return height + insets.totalHeight
         } else if let footerTitle = section.footerAttributedTitle, !footerTitle.isEmpty {
-            // Get around a bug sizing UITextView in iOS 16 by manually sizing instead
+            // Get around a bug sizing UITextView in iOS 16/17 by manually sizing instead
             // of relying on UITableView.automaticDimension
-            if #available(iOS 17, *) { owsFailDebug("Canary to check if this has been fixed") }
+            if #available(iOS 18, *) { owsFailDebug("Canary to check if this has been fixed") }
             let insets = footerTextContainerInsets(for: section)
             // Reuse sizing code for CVText even though we aren't using a CVText here.
             let height = CVText.measureLabel(
@@ -1119,7 +1123,7 @@ extension OWSTableViewController2: UITableViewDataSource, UITableViewDelegate, O
         }
     }
 
-    public func scrollViewDidScroll(_ scrollView: UIScrollView) {
+    open func scrollViewDidScroll(_ scrollView: UIScrollView) {
         updateNavbarStyling()
     }
 
@@ -1171,7 +1175,6 @@ extension OWSTableViewController2: UITableViewDataSource, UITableViewDelegate, O
 
     public func tableView(_ tableView: UITableView, contextMenuConfigurationForRowAt indexPath: IndexPath, point: CGPoint) -> UIContextMenuConfiguration? {
         if
-            FeatureFlags.recipientHiding,
             let item = self.item(for: indexPath),
             let contextMenuActionProvider = item.contextMenuActionProvider
         {

@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import SignalCoreKit
 
 public extension SDSAnyReadTransaction {
     /// Bridging from a SDS transaction to a DB transaction can be done at the seams;
@@ -78,26 +79,6 @@ public class SDSDB: DB {
         self.databaseStorage = databaseStorage
     }
 
-    // MARK: - API
-
-    public func read(
-        file: String = #file,
-        function: String = #function,
-        line: Int = #line,
-        block: (DBReadTransaction) -> Void
-    ) {
-        databaseStorage.read(file: file, function: function, line: line, block: {block(ReadTx($0))})
-    }
-
-    public func write(
-        file: String = #file,
-        function: String = #function,
-        line: Int = #line,
-        block: (DBWriteTransaction) -> Void
-    ) {
-        databaseStorage.write(file: file, function: function, line: line, block: {block(WriteTx($0))})
-    }
-
     // MARK: Async Methods
 
     public func asyncRead(
@@ -122,27 +103,19 @@ public class SDSDB: DB {
         databaseStorage.asyncWrite(file: file, function: function, line: line, block: {block(WriteTx($0))}, completionQueue: completionQueue, completion: completion)
     }
 
+    // MARK: Awaitable Methods
+
+    public func awaitableWrite<T>(
+        file: String = #file,
+        function: String = #function,
+        line: Int = #line,
+        block: @escaping (DBWriteTransaction) throws -> T
+    ) async rethrows -> T {
+        return try await databaseStorage.awaitableWrite(file: file, function: function, line: line, block: {try block(WriteTx($0))})
+    }
+
     // MARK: Promises
 
-    public func readPromise(
-        file: String = #file,
-        function: String = #function,
-        line: Int = #line,
-        _ block: @escaping (DBReadTransaction) -> Void
-    ) -> AnyPromise {
-        return databaseStorage.readPromise(file: file, function: function, line: line, {block(ReadTx($0))})
-    }
-
-    public func readPromise<T>(
-        file: String = #file,
-        function: String = #function,
-        line: Int = #line,
-        _ block: @escaping (DBReadTransaction) -> T
-    ) -> Promise<T> {
-        return databaseStorage.read(.promise, file: file, function: function, line: line, {block(ReadTx($0))})
-    }
-
-    // throws version
     public func readPromise<T>(
         file: String = #file,
         function: String = #function,
@@ -152,25 +125,6 @@ public class SDSDB: DB {
         return databaseStorage.read(.promise, file: file, function: function, line: line, {try block(ReadTx($0))})
     }
 
-    public func writePromise(
-        file: String = #file,
-        function: String = #function,
-        line: Int = #line,
-        _ block: @escaping (DBWriteTransaction) -> Void
-    ) -> AnyPromise {
-        return AnyPromise(databaseStorage.write(.promise, file: file, function: function, line: line, {block(WriteTx($0))}))
-    }
-
-    public func writePromise<T>(
-        file: String = #file,
-        function: String = #function,
-        line: Int = #line,
-        _ block: @escaping (DBWriteTransaction) -> T
-    ) -> Promise<T> {
-        return databaseStorage.write(.promise, file: file, function: function, line: line, {block(WriteTx($0))})
-    }
-
-    // throws version
     public func writePromise<T>(
         file: String = #file,
         function: String = #function,
@@ -186,18 +140,8 @@ public class SDSDB: DB {
         file: String = #file,
         function: String = #function,
         line: Int = #line,
-        block: (DBReadTransaction) -> T
-    ) -> T {
-        return databaseStorage.read(file: file, function: function, line: line, block: {block(ReadTx($0))})
-    }
-
-    // throws version
-    public func read<T>(
-        file: String = #file,
-        function: String = #function,
-        line: Int = #line,
         block: (DBReadTransaction) throws -> T
-    ) throws -> T {
+    ) rethrows -> T {
         return try databaseStorage.read(file: file, function: function, line: line, block: {try block(ReadTx($0))})
     }
 
@@ -205,22 +149,56 @@ public class SDSDB: DB {
         file: String = #file,
         function: String = #function,
         line: Int = #line,
-        block: (DBWriteTransaction) -> T
-    ) -> T {
-        return databaseStorage.write(file: file, function: function, line: line, block: {block(WriteTx($0))})
+        block: (DBWriteTransaction) throws -> T
+    ) rethrows -> T {
+        return try databaseStorage.write(file: file, function: function, line: line, block: {try block(WriteTx($0))})
     }
 
-    // throws version
-    public func write<T>(
-        file: String = #file,
-        function: String = #function,
-        line: Int = #line,
-        block: (DBWriteTransaction) throws -> T
-    ) throws -> T {
-        return try databaseStorage.write(file: file, function: function, line: line, block: {try block(WriteTx($0))})
+    // MARK: - Observation
+
+    public func appendDbChangeDelegate(_ dbChangeDelegate: DBChangeDelegate) {
+        self.databaseStorage.appendDatabaseChangeDelegate(DBChangeDelegateWrapper(dbChangeDelegate))
     }
 }
 
 extension SDSAnyWriteTransaction {
     var asRead: SDSAnyReadTransaction { self }
+}
+
+private class DBChangeDelegateWrapper: NSObject, DatabaseChangeDelegate {
+
+    /// Retains a strong reference to self intentionally, to avoid observation being lost when this object
+    /// is deallocated.
+    /// This reference is released if we ever find the dbChangeDelegate has been deallocated.
+    /// This isn't perfect, as this object can persist indefinitely if no callbacks happen, but presumably
+    /// the DatabaseChangeDelegate itself checks for deallocation on callbacks so...is it any worse?
+    private var strongSelf: Any?
+    private weak var dbChangeDelegate: DBChangeDelegate?
+
+    init(_ dbChangeDelegate: DBChangeDelegate) {
+        self.dbChangeDelegate = dbChangeDelegate
+        super.init()
+        strongSelf = self
+    }
+
+    func databaseChangesDidUpdate(databaseChanges: DatabaseChanges) {
+        checkRetain()
+    }
+
+    func databaseChangesDidUpdateExternally() {
+        checkRetain()?.dbChangesDidUpdateExternally()
+    }
+
+    func databaseChangesDidReset() {
+        checkRetain()
+    }
+
+    @discardableResult
+    private func checkRetain() -> DBChangeDelegate? {
+        guard let dbChangeDelegate else {
+            strongSelf = nil
+            return nil
+        }
+        return dbChangeDelegate
+    }
 }

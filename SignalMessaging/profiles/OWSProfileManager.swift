@@ -51,7 +51,7 @@ public extension OWSProfileManager {
             case .explicit(let info):
                 localAci = info.localIdentifiers.aci
             case .implicit:
-                guard let implicitLocalAci = TSAccountManager.shared.localIdentifiers?.aci else {
+                guard let implicitLocalAci = DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction?.aci else {
                     throw OWSAssertionError("missing local address")
                 }
                 localAci = implicitLocalAci
@@ -125,70 +125,173 @@ public extension OWSProfileManager {
 
     @objc
     @available(swift, obsoleted: 1.0)
-    func objc_allWhitelistedRegisteredAddresses(transaction: SDSAnyReadTransaction) -> [SignalServiceAddress] {
+    func objc_allWhitelistedRegisteredAddresses(tx: SDSAnyReadTransaction) -> [SignalServiceAddress] {
         var addresses = Set<SignalServiceAddress>()
-        for uuid in whitelistedUUIDsStore.allKeys(transaction: transaction) {
-            addresses.insert(SignalServiceAddress(uuidString: uuid))
+        for serviceIdString in whitelistedServiceIdsStore.allKeys(transaction: tx) {
+            addresses.insert(SignalServiceAddress(serviceIdString: serviceIdString))
         }
-        for phoneNumber in whitelistedPhoneNumbersStore.allKeys(transaction: transaction) {
+        for phoneNumber in whitelistedPhoneNumbersStore.allKeys(transaction: tx) {
             addresses.insert(SignalServiceAddress(phoneNumber: phoneNumber))
         }
 
         return Array(
-            AnySignalRecipientFinder().signalRecipients(for: Array(addresses), transaction: transaction)
+            SignalRecipientFinder().signalRecipients(for: Array(addresses), tx: tx)
                 .lazy.filter { $0.isRegistered }.map { $0.address }
         )
     }
 
     @objc
-    @available(swift, obsoleted: 1.0)
-    func rotateProfileKey(
-        intersectingPhoneNumbers: [String],
-        intersectingUUIDs: [String],
-        intersectingGroupIds: [Data],
-        authedAccount: AuthedAccount
-    ) -> AnyPromise {
-        return AnyPromise(rotateProfileKey(
-            intersectingPhoneNumbers: intersectingPhoneNumbers,
-            intersectingUUIDs: intersectingUUIDs,
-            intersectingGroupIds: intersectingGroupIds,
-            authedAccount: authedAccount
+    internal func rotateLocalProfileKeyIfNecessary() {
+        DispatchQueue.global().async {
+            self.databaseStorage.write { tx in
+                self.rotateProfileKeyIfNecessary(tx: tx)
+            }
+        }
+    }
+
+    private func rotateProfileKeyIfNecessary(tx: SDSAnyWriteTransaction) {
+        if CurrentAppContext().isNSE || !AppReadiness.isAppReady {
+            return
+        }
+
+        let tsRegistrationState = DependenciesBridge.shared.tsAccountManager.registrationState(tx: tx.asV2Read)
+        guard
+            tsRegistrationState.isRegisteredPrimaryDevice
+        else {
+            owsFailDebug("Not rotating profile key on unregistered and/or non-primary device")
+            return
+        }
+
+        let lastGroupProfileKeyCheckTimestamp = self.lastGroupProfileKeyCheckTimestamp(tx: tx)
+        let triggers = [
+            self.blocklistRotationTriggerIfNeeded(tx: tx),
+            self.recipientHidingTriggerIfNeeded(tx: tx),
+            self.leaveGroupTriggerIfNeeded(tx: tx)
+        ].compacted()
+
+        guard !triggers.isEmpty else {
+            // No need to rotate the profile key.
+            if tsRegistrationState.isPrimaryDevice ?? true {
+                // But if it's been more than a week since we checked that our groups are up to date, schedule that.
+                if -(lastGroupProfileKeyCheckTimestamp?.timeIntervalSinceNow ?? 0) > kWeekInterval {
+                    self.groupsV2.scheduleAllGroupsV2ForProfileKeyUpdate(transaction: tx)
+                    self.setLastGroupProfileKeyCheckTimestamp(tx: tx)
+                    tx.addAsyncCompletionOffMain {
+                        self.groupsV2.processProfileKeyUpdates()
+                    }
+                }
+            }
+            return
+        }
+
+        tx.addAsyncCompletionOffMain {
+            self.rotateProfileKey(triggers: triggers, authedAccount: AuthedAccount.implicit())
+        }
+    }
+
+    private enum RotateProfileKeyTrigger {
+        /// We need to rotate because one or more whitelist members is also on the blocklist.
+        /// Those members may be phone numbers, ACIs, PNIs, or groupIds, which are provided.
+        /// Once rotation is complete, these members should be removed from the whitelist;
+        /// their presence in the whitelist _and_ blocklist is what durably determines a rotation
+        /// is needed, so prematurely removing them and then failing to rotate means we won't retry.
+        case blocklistChange(BlocklistChange)
+
+        struct BlocklistChange {
+            let phoneNumbers: [String]
+            let serviceIds: [ServiceId]
+            let groupIds: [Data]
+        }
+
+        /// When we hide a recipient, we immediately update the whitelist and asynchronously
+        /// do a rotation. The date is when we set this trigger; if we _started_ a rotation
+        /// after this date, the condition is satisfied when the rotation completes. Otherwise
+        /// a rotation is needed.
+        case recipientHiding(Date)
+
+        /// When we leave a group, that group had a hidden/blocked recipient, and we have no
+        /// other groups in common with that recipient, we rotate (so they lose access to our latest
+        /// profile key).
+        /// The date is when we set this trigger; if we _started_ a rotation after this date, the
+        /// condition is satisfied when the rotation completes. Otherwise a rotation is needed.
+        case leftGroupWithHiddenOrBlockedRecipient(Date)
+    }
+
+    private func blocklistRotationTriggerIfNeeded(tx: SDSAnyReadTransaction) -> RotateProfileKeyTrigger? {
+        let victimPhoneNumbers = self.blockedPhoneNumbersInWhitelist(tx: tx)
+        let victimServiceIds = self.blockedServiceIdsInWhitelist(tx: tx)
+        let victimGroupIds = self.blockedGroupIDsInWhitelist(tx: tx)
+
+        if victimPhoneNumbers.isEmpty, victimServiceIds.isEmpty, victimGroupIds.isEmpty {
+            // No need to rotate the profile key.
+            return nil
+        }
+        return .blocklistChange(.init(
+            phoneNumbers: victimPhoneNumbers,
+            serviceIds: victimServiceIds,
+            groupIds: victimGroupIds
         ))
     }
 
-    func rotateProfileKey(
-        intersectingPhoneNumbers: [String],
-        intersectingUUIDs: [String],
-        intersectingGroupIds: [Data],
+    private func recipientHidingTriggerIfNeeded(tx: SDSAnyReadTransaction) -> RotateProfileKeyTrigger? {
+        // If it's not nil, we should rotate. After rotating, we always write nil (if it succeeded),
+        // so presence is the only trigger.
+        // The actual date value is only used to disambiguate if a _new_ trigger got added while rotating.
+        guard let triggerDate = self.recipientHidingTriggerTimestamp(tx: tx) else {
+            return nil
+        }
+        return .recipientHiding(triggerDate)
+    }
+
+    private func leaveGroupTriggerIfNeeded(tx: SDSAnyReadTransaction) -> RotateProfileKeyTrigger? {
+        // If it's not nil, we should rotate. After rotating, we always write nil (if it succeeded),
+        // so presence is the only trigger.
+        // The actual date value is only used to disambiguate if a _new_ trigger got added while rotating.
+        guard let triggerDate = self.leaveGroupTriggerTimestamp(tx: tx) else {
+            return nil
+        }
+        return .leftGroupWithHiddenOrBlockedRecipient(triggerDate)
+    }
+
+    @discardableResult
+    private func rotateProfileKey(
+        triggers: [RotateProfileKeyTrigger],
         authedAccount: AuthedAccount
     ) -> Promise<Void> {
-        guard tsAccountManager.isRegisteredPrimaryDevice else {
+        guard !isRotatingProfileKey else {
+            return .value(())
+        }
+
+        guard DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isRegisteredPrimaryDevice else {
             return Promise(error: OWSAssertionError("tsAccountManager.isRegistered was unexpectedly false"))
         }
 
+        isRotatingProfileKey = true
+        var needsAnotherRotation = false
+
+        let rotationStartDate = Date()
+
         Logger.info("Beginning profile key rotation.")
 
-        // The order of operations here is very important to prevent races
-        // between when we rotate our profile key and reupload our profile.
-        // It's essential we avoid a case where other devices are operating
-        // with a *new* profile key that we have yet to upload a profile for.
+        // The order of operations here is very important to prevent races between
+        // when we rotate our profile key and reupload our profile. It's essential
+        // we avoid a case where other devices are operating with a *new* profile
+        // key that we have yet to upload a profile for.
 
         return firstly(on: DispatchQueue.global()) { () -> Promise<OWSAES256Key> in
             Logger.info("Reuploading profile with new profile key")
 
-            // We re-upload our local profile with the new profile key
-            // *before* we persist it. This is safe, because versioned
-            // profiles allow other clients to continue using our old
-            // profile key with the old version of our profile. It is
-            // possible this operation will fail, in which case we will
-            // try to rotate your profile key again on the next app
-            // launch or blocklist change and continue to use the old
-            // profile key.
+            // We re-upload our local profile with the new profile key *before* we
+            // persist it. This is safe, because versioned profiles allow other clients
+            // to continue using our old profile key with the old version of our
+            // profile. It is possible this operation will fail, in which case we will
+            // try to rotate your profile key again on the next app launch or blocklist
+            // change and continue to use the old profile key.
 
             let newProfileKey = OWSAES256Key.generateRandom()
             return self.reuploadLocalProfilePromise(unsavedRotatedProfileKey: newProfileKey, authedAccount: authedAccount).map { newProfileKey }
         }.then(on: DispatchQueue.global()) { newProfileKey -> Promise<Void> in
-            guard let localAci = self.tsAccountManager.localIdentifiers?.aci else {
+            guard let localAci = DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction?.aci else {
                 throw OWSAssertionError("Missing localAci.")
             }
 
@@ -202,68 +305,138 @@ public extension OWSProfileManager {
                     transaction: transaction
                 )
 
-                // Whenever a user's profile key changes, we need to fetch a new
-                // profile key credential for them.
+                // Whenever a user's profile key changes, we need to fetch a new profile
+                // key credential for them.
                 self.versionedProfiles.clearProfileKeyCredential(for: AciObjC(localAci), transaction: transaction)
 
-                // We schedule the updates here but process them below using processProfileKeyUpdates.
-                // It's more efficient to process them after the intermediary steps are done.
+                // We schedule the updates here but process them below using
+                // processProfileKeyUpdates. It's more efficient to process them after the
+                // intermediary steps are done.
                 self.groupsV2.scheduleAllGroupsV2ForProfileKeyUpdate(transaction: transaction)
 
-                // It's absolutely essential that these values are persisted in the same transaction
-                // in which we persist our new profile key, since storing them is what marks the
-                // profile key rotation as "complete" (removing newly blocked users from the whitelist).
-                self.whitelistedPhoneNumbersStore.removeValues(
-                    forKeys: intersectingPhoneNumbers,
-                    transaction: transaction
-                )
-                self.whitelistedUUIDsStore.removeValues(
-                    forKeys: intersectingUUIDs,
-                    transaction: transaction
-                )
-                self.whitelistedGroupsStore.removeValues(
-                    forKeys: intersectingGroupIds.map { self.groupKey(forGroupId: $0) },
-                    transaction: transaction
-                )
+                triggers.forEach { trigger in
+                    switch trigger {
+                    case .blocklistChange(let values):
+                        self.didRotateProfileKeyFromBlocklistTrigger(values, tx: transaction)
+                    case .recipientHiding(let triggerDate):
+                        needsAnotherRotation = needsAnotherRotation || self.didRotateProfileKeyFromHidingTrigger(
+                            rotationStartDate: rotationStartDate,
+                            triggerDate: triggerDate,
+                            tx: transaction
+                        )
+                    case .leftGroupWithHiddenOrBlockedRecipient(let triggerDate):
+                        needsAnotherRotation = needsAnotherRotation || self.didRotateProfileKeyFromLeaveGroupTrigger(
+                            rotationStartDate: rotationStartDate,
+                            triggerDate: triggerDate,
+                            tx: transaction
+                        )
+                    }
+                }
             }
         }.then(on: DispatchQueue.global()) { () -> Promise<Void> in
             Logger.info("Updating account attributes after profile key rotation.")
-            return self.tsAccountManager.updateAccountAttributes()
+            return Promise.wrapAsync {
+                try await DependenciesBridge.shared.accountAttributesUpdater.updateAccountAttributes(authedAccount: authedAccount)
+            }
         }.done(on: DispatchQueue.global()) {
             Logger.info("Completed profile key rotation.")
             self.groupsV2.processProfileKeyUpdates()
+        }.ensure {
+            self.isRotatingProfileKey = false
+            if needsAnotherRotation {
+                self.rotateLocalProfileKeyIfNecessary()
+            }
         }
     }
 
-    @objc
-    func blockedPhoneNumbersInWhitelist(transaction readTx: SDSAnyReadTransaction) -> [String] {
-        let allWhitelistedNumbers = whitelistedPhoneNumbersStore.allKeys(transaction: readTx)
+    private func didRotateProfileKeyFromBlocklistTrigger(
+        _ trigger: RotateProfileKeyTrigger.BlocklistChange,
+        tx: SDSAnyWriteTransaction
+    ) {
+        // It's absolutely essential that these values are persisted in the same transaction
+        // in which we persist our new profile key, since storing them is what marks the
+        // profile key rotation as "complete" (removing newly blocked users from the whitelist).
+        self.whitelistedPhoneNumbersStore.removeValues(
+            forKeys: trigger.phoneNumbers,
+            transaction: tx
+        )
+        self.whitelistedServiceIdsStore.removeValues(
+            forKeys: trigger.serviceIds.map { $0.serviceIdUppercaseString },
+            transaction: tx
+        )
+        self.whitelistedGroupsStore.removeValues(
+            forKeys: trigger.groupIds.map { self.groupKey(forGroupId: $0) },
+            transaction: tx
+        )
+    }
+
+    // Returns true if another rotation is needed.
+    private func didRotateProfileKeyFromHidingTrigger(
+        rotationStartDate: Date,
+        triggerDate: Date,
+        tx: SDSAnyWriteTransaction
+    ) -> Bool {
+        // Fetch the latest trigger date, it might have changed if we triggered
+        // a rotation again.
+        guard let latestTriggerDate = self.recipientHidingTriggerTimestamp(tx: tx) else {
+            // If it's been wiped, we are good to go.
+            return false
+        }
+        if rotationStartDate > latestTriggerDate {
+            // We can wipe; we started rotating after the trigger came in.
+            self.setRecipientHidingTriggerTimestamp(nil, tx: tx)
+            return false
+        }
+        // We need another rotation.
+        return true
+    }
+
+    // Returns true if another rotation is needed.
+    private func didRotateProfileKeyFromLeaveGroupTrigger(
+        rotationStartDate: Date,
+        triggerDate: Date,
+        tx: SDSAnyWriteTransaction
+    ) -> Bool {
+        // Fetch the latest trigger date, it might have changed if we triggered
+        // a rotation again.
+        guard let latestTriggerDate = self.leaveGroupTriggerTimestamp(tx: tx) else {
+            // If it's been wiped, we are good to go.
+            return false
+        }
+        if rotationStartDate > latestTriggerDate {
+            // We can wipe; we started rotating after the trigger came in.
+            self.setLeaveGroupTriggerTimestamp(nil, tx: tx)
+            return false
+        }
+        // We need another rotation.
+        return true
+    }
+
+    private func blockedPhoneNumbersInWhitelist(tx: SDSAnyReadTransaction) -> [String] {
+        let allWhitelistedNumbers = whitelistedPhoneNumbersStore.allKeys(transaction: tx)
 
         return allWhitelistedNumbers.filter { candidate in
             let address = SignalServiceAddress(phoneNumber: candidate)
-            // TODO recipientHiding: something similar to be done for hiding?
-            return blockingManager.isAddressBlocked(address, transaction: readTx)
+            return blockingManager.isAddressBlocked(address, transaction: tx)
         }
     }
 
-    @objc
-    func blockedUUIDsInWhitelist(transaction readTx: SDSAnyReadTransaction) -> [String] {
-        let allWhitelistedUUIDs = whitelistedUUIDsStore.allKeys(transaction: readTx)
+    private func blockedServiceIdsInWhitelist(tx: SDSAnyReadTransaction) -> [ServiceId] {
+        let allWhitelistedServiceIds = whitelistedServiceIdsStore.allKeys(transaction: tx).compactMap {
+            try? ServiceId.parseFrom(serviceIdString: $0)
+        }
 
-        return allWhitelistedUUIDs.filter { candidate in
-            let address = SignalServiceAddress(uuidString: candidate)
-            // TODO recipientHiding: something similar to be done for hiding?
-            return blockingManager.isAddressBlocked(address, transaction: readTx)
+        return allWhitelistedServiceIds.filter { candidate in
+            return blockingManager.isAddressBlocked(SignalServiceAddress(candidate), transaction: tx)
         }
     }
 
-    @objc
-    func blockedGroupIDsInWhitelist(transaction readTx: SDSAnyReadTransaction) -> [Data] {
-        let allWhitelistedGroupKeys = whitelistedGroupsStore.allKeys(transaction: readTx)
+    private func blockedGroupIDsInWhitelist(tx: SDSAnyReadTransaction) -> [Data] {
+        let allWhitelistedGroupKeys = whitelistedGroupsStore.allKeys(transaction: tx)
 
         return allWhitelistedGroupKeys.lazy
             .compactMap { self.groupIdForGroupKey($0) }
-            .filter { blockingManager.isGroupIdBlocked($0, transaction: readTx) }
+            .filter { blockingManager.isGroupIdBlocked($0, transaction: tx) }
     }
 
     private func groupIdForGroupKey(_ groupKey: String) -> Data? {
@@ -274,6 +447,58 @@ public extension OWSProfileManager {
         } else {
             owsFailDebug("Parsed group id has unexpected length: \(groupId.hexadecimalString) (\(groupId.count))")
             return nil
+        }
+    }
+
+    @objc
+    func swift_normalizeRecipientInProfileWhitelist(_ recipient: SignalRecipient, tx: SDSAnyWriteTransaction) {
+        Self.swift_normalizeRecipientInProfileWhitelist(
+            recipient,
+            serviceIdStore: whitelistedServiceIdsStore,
+            phoneNumberStore: whitelistedPhoneNumbersStore,
+            tx: tx.asV2Write
+        )
+    }
+
+    static func swift_normalizeRecipientInProfileWhitelist(
+        _ recipient: SignalRecipient,
+        serviceIdStore: KeyValueStore,
+        phoneNumberStore: KeyValueStore,
+        tx: DBWriteTransaction
+    ) {
+        // First, we figure out which identifiers are whitelisted.
+        let orderedIdentifiers: [(store: KeyValueStore, key: String, isInWhitelist: Bool)] = [
+            (serviceIdStore, recipient.aci?.serviceIdUppercaseString),
+            (phoneNumberStore, recipient.phoneNumber),
+            (serviceIdStore, recipient.pni?.serviceIdUppercaseString)
+        ].compactMap { (store, key) -> (KeyValueStore, String, Bool)? in
+            guard let key else { return nil }
+            return (store, key, store.hasValue(key, transaction: tx))
+        }
+
+        guard let preferredIdentifier = orderedIdentifiers.first else {
+            return
+        }
+
+        // If any identifier is in the whitelist, make sure the preferred
+        // identifier is in the whitelist.
+        let isAnyInWhitelist = orderedIdentifiers.contains(where: { $0.isInWhitelist })
+        if isAnyInWhitelist {
+            if !preferredIdentifier.isInWhitelist {
+                preferredIdentifier.store.setBool(true, key: preferredIdentifier.key, transaction: tx)
+            }
+        } else {
+            if preferredIdentifier.isInWhitelist {
+                preferredIdentifier.store.removeValue(forKey: preferredIdentifier.key, transaction: tx)
+            }
+        }
+
+        // Always remove all the other identifiers from the whitelist. If the user
+        // should be in the whitelist, we add the preferred identifier above.
+        for remainingIdentifier in orderedIdentifiers.dropFirst() {
+            if remainingIdentifier.isInWhitelist {
+                remainingIdentifier.store.removeValue(forKey: remainingIdentifier.key, transaction: tx)
+            }
         }
     }
 }
@@ -317,12 +542,13 @@ public extension OWSProfileManager {
     }
 
     class func updateStorageServiceIfNecessary() {
-        guard CurrentAppContext().isMainApp,
-              !CurrentAppContext().isRunningTests,
-              tsAccountManager.isRegisteredAndReady,
-              tsAccountManager.isRegisteredPrimaryDevice else {
-                  return
-              }
+        guard
+            CurrentAppContext().isMainApp,
+            !CurrentAppContext().isRunningTests,
+            DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isRegisteredPrimaryDevice
+        else {
+              return
+          }
 
         let hasUpdated = databaseStorage.read { transaction in
             storageServiceStore.getBool(Self.hasUpdatedStorageServiceKey,
@@ -352,20 +578,67 @@ public extension OWSProfileManager {
     private static let hasUpdatedStorageServiceKey = "hasUpdatedStorageServiceKey"
 }
 
+// MARK: - Other User's Profiles
+
+extension OWSProfileManager {
+    @objc
+    func setProfileKeyData(
+        _ profileKeyData: Data,
+        forAddress addressParam: SignalServiceAddress,
+        onlyFillInIfMissing: Bool,
+        userProfileWriter: UserProfileWriter,
+        authedAccount: AuthedAccount,
+        transaction tx: SDSAnyWriteTransaction
+    ) {
+        let address = OWSUserProfile.resolve(addressParam)
+
+        guard let profileKey = OWSAES256Key(data: profileKeyData) else {
+            owsFailDebug("Invalid profile key data.")
+            return
+        }
+
+        let userProfile = OWSUserProfile.getOrBuildUserProfile(for: address, authedAccount: authedAccount, transaction: tx)
+
+        if onlyFillInIfMissing, userProfile.profileKey != nil {
+            return
+        }
+
+        if profileKey.keyData == userProfile.profileKey?.keyData {
+            return
+        }
+
+        if let addressAci = addressParam.serviceId as? Aci {
+            // Whenever a user's profile key changes, we need to fetch a new
+            // profile key credential for them.
+            versionedProfiles.clearProfileKeyCredential(for: AciObjC(addressAci), transaction: tx)
+        }
+
+        // If this is the profile for the local user, we always want to defer to local state
+        // so skip the update profile for address call.
+        let isLocalAddress = OWSUserProfile.isLocalProfileAddress(address) || authedAccount.isAddressForLocalUser(address)
+        if !isLocalAddress, let serviceId = address.serviceId {
+            udManager.setUnidentifiedAccessMode(.unknown, for: serviceId, tx: tx)
+            tx.addAsyncCompletionOffMain {
+                self.fetchProfile(for: address, authedAccount: authedAccount)
+            }
+        }
+
+        userProfile.update(
+            profileKey: profileKey,
+            userProfileWriter: userProfileWriter,
+            authedAccount: authedAccount,
+            transaction: tx,
+            completion: nil
+        )
+    }
+}
+
 // MARK: - Bulk Fetching
 
 extension OWSProfileManager {
     func fullNames(for addresses: [SignalServiceAddress], transaction: SDSAnyReadTransaction) -> [String?] {
         return getUserProfiles(for: addresses, transaction: transaction).map {
             $0?.fullName
-        }
-    }
-
-    @objc(userProfilesForAddresses:transaction:)
-    func getUserProfilesObjC(for addresses: [SignalServiceAddress],
-                             transaction: SDSAnyReadTransaction) -> [OWSMaybeUserProfile] {
-        return getUserProfiles(for: addresses, transaction: transaction).map { maybeProfile -> OWSMaybeUserProfile in
-            maybeProfile ?? NSNull()
         }
     }
 
@@ -447,7 +720,7 @@ extension OWSProfileManager {
         guard AppReadiness.isAppReady else {
             return .notReady
         }
-        guard tsAccountManager.isRegisteredAndReady else {
+        guard DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isRegistered else {
             return .notReady
         }
         guard !profileManagerImpl.isUpdatingProfileOnService else {
@@ -494,7 +767,10 @@ extension OWSProfileManager {
         guard avatarRepairNeeded() else {
             return
         }
-        guard TSAccountManager.shared.isPrimaryDevice, self.localProfileAvatarData() != nil else {
+        guard
+            DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isPrimaryDevice ?? false,
+            self.localProfileAvatarData() != nil
+        else {
             clearAvatarRepairNeeded()
             return
         }
@@ -632,7 +908,8 @@ extension OWSProfileManager {
         //
         // NOTE: We also inform the desktop in the failure case,
         //       since that _may have_ affected service state.
-        if self.tsAccountManager.isRegisteredPrimaryDevice {
+        let tsRegistrationState = DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction
+        if tsRegistrationState.isRegisteredPrimaryDevice {
             firstly {
                 self.syncManager.syncLocalContact()
             }.catch { error in
@@ -642,7 +919,7 @@ extension OWSProfileManager {
 
         // Notify all our devices that the profile has changed.
         // Older linked devices may not handle this message.
-        if tsAccountManager.isRegisteredAndReady {
+        if tsRegistrationState.isRegistered {
             self.syncManager.sendFetchLatestProfileSyncMessage()
         }
 
@@ -785,6 +1062,90 @@ extension OWSProfileManager {
         }
         self.settingsStore.removeValue(forKey: kPendingProfileUpdateKey, transaction: transaction)
         return true
+    }
+}
+
+internal extension OWSProfileManager {
+
+    /// Rotates the local profile key. Intended specifically
+    /// for the use case of recipient hiding.
+    ///
+    /// - Parameter tx: The transaction to use for this operation.
+    @objc
+    func rotateProfileKeyUponRecipientHideObjC(tx: SDSAnyWriteTransaction) {
+        let tsRegistrationState = DependenciesBridge.shared.tsAccountManager.registrationState(tx: tx.asV2Read)
+        guard tsRegistrationState.isRegistered else {
+            OWSLogger.verbose("[Recipient Hiding] Not rotating profile key on unregistered device.")
+            return
+        }
+        guard tsRegistrationState.isPrimaryDevice ?? false else {
+            OWSLogger.verbose("[Recipient Hiding] Not rotating profile key on non-primary device.")
+            return
+        }
+        // We schedule in the NSE by writing state; the actual rotation
+        // will bail early, though.
+        self.setRecipientHidingTriggerTimestamp(Date(), tx: tx)
+        self.rotateProfileKeyIfNecessary(tx: tx)
+    }
+
+    @objc
+    func forceRotateLocalProfileKeyForGroupDepartureObjc(tx: SDSAnyWriteTransaction) {
+        let tsRegistrationState = DependenciesBridge.shared.tsAccountManager.registrationState(tx: tx.asV2Read)
+        guard tsRegistrationState.isRegistered else {
+            OWSLogger.verbose("Not rotating profile key on unregistered device.")
+            return
+        }
+        guard tsRegistrationState.isPrimaryDevice ?? false else {
+            OWSLogger.verbose("Not rotating profile key on non-primary device.")
+            return
+        }
+        // We schedule in the NSE by writing state; the actual rotation
+        // will bail early, though.
+        self.setLeaveGroupTriggerTimestamp(Date(), tx: tx)
+        self.rotateProfileKeyIfNecessary(tx: tx)
+    }
+}
+
+// MARK: - Profile Key Rotation Metadata
+
+fileprivate extension OWSProfileManager {
+
+    private static let kLastGroupProfileKeyCheckTimestampKey = "lastGroupProfileKeyCheckTimestamp"
+
+    func lastGroupProfileKeyCheckTimestamp(tx: SDSAnyReadTransaction) -> Date? {
+        return self.metadataStore.getDate(Self.kLastGroupProfileKeyCheckTimestampKey, transaction: tx)
+    }
+
+    func setLastGroupProfileKeyCheckTimestamp(tx: SDSAnyWriteTransaction) {
+        return self.metadataStore.setDate(Date(), key: Self.kLastGroupProfileKeyCheckTimestampKey, transaction: tx)
+    }
+
+    private static let recipientHidingTriggerTimestampKey = "recipientHidingTriggerTimestampKey"
+
+    func recipientHidingTriggerTimestamp(tx: SDSAnyReadTransaction) -> Date? {
+        return self.metadataStore.getDate(Self.recipientHidingTriggerTimestampKey, transaction: tx)
+    }
+
+    func setRecipientHidingTriggerTimestamp(_ date: Date?, tx: SDSAnyWriteTransaction) {
+        guard let date else {
+            self.metadataStore.removeValue(forKey: Self.recipientHidingTriggerTimestampKey, transaction: tx)
+            return
+        }
+        return self.metadataStore.setDate(date, key: Self.recipientHidingTriggerTimestampKey, transaction: tx)
+    }
+
+    private static let leaveGroupTriggerTimestampKey = "leaveGroupTriggerTimestampKey"
+
+    func leaveGroupTriggerTimestamp(tx: SDSAnyReadTransaction) -> Date? {
+        return self.metadataStore.getDate(Self.leaveGroupTriggerTimestampKey, transaction: tx)
+    }
+
+    func setLeaveGroupTriggerTimestamp(_ date: Date?, tx: SDSAnyWriteTransaction) {
+        guard let date else {
+            self.metadataStore.removeValue(forKey: Self.leaveGroupTriggerTimestampKey, transaction: tx)
+            return
+        }
+        return self.metadataStore.setDate(date, key: Self.leaveGroupTriggerTimestampKey, transaction: tx)
     }
 }
 

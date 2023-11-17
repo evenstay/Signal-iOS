@@ -5,6 +5,7 @@
 
 import Foundation
 import SignalMessaging
+import SignalServiceKit
 import SignalRingRTC
 import SignalUI
 
@@ -105,7 +106,7 @@ class GroupCallViewController: UIViewController {
 
     @discardableResult
     class func presentLobby(thread: TSGroupThread, videoMuted: Bool = false) -> Bool {
-        guard tsAccountManager.isOnboarded else {
+        guard DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isRegistered else {
             Logger.warn("aborting due to user not being onboarded.")
             OWSActionSheets.showActionSheet(title: OWSLocalizedString(
                 "YOU_MUST_COMPLETE_ONBOARDING_BEFORE_PROCEEDING",
@@ -615,7 +616,7 @@ extension GroupCallViewController: CallViewControllerWindowReference {
 
     var remoteVideoAddress: SignalServiceAddress {
         guard let firstMember = groupCall.remoteDeviceStates.sortedByAddedTime.first else {
-            return tsAccountManager.localAddress!
+            return DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction!.aciAddress
         }
         return firstMember.address
     }
@@ -671,7 +672,7 @@ extension GroupCallViewController: CallViewControllerWindowReference {
         }
     }
 
-    private func safetyNumberMismatchAddresses() -> [SignalServiceAddress] {
+    private func safetyNumberMismatchAddresses(untrustedThreshold: Date?) -> [SignalServiceAddress] {
         databaseStorage.read { transaction in
             let addressesToCheck: [SignalServiceAddress]
             if groupCall.localDeviceState.joinState == .notJoined {
@@ -682,13 +683,18 @@ extension GroupCallViewController: CallViewControllerWindowReference {
                 addressesToCheck = groupCall.remoteDeviceStates.map { $0.value.address }
             }
 
+            let identityManager = DependenciesBridge.shared.identityManager
             return addressesToCheck.filter { memberAddress in
-                identityManager.untrustedIdentityForSending(to: memberAddress, transaction: transaction) != nil
+                identityManager.untrustedIdentityForSending(
+                    to: memberAddress,
+                    untrustedThreshold: untrustedThreshold,
+                    tx: transaction.asV2Read
+                ) != nil
             }
         }
     }
 
-    func resolveSafetyNumberMismatch() {
+    fileprivate func resolveSafetyNumberMismatch() {
         let resendMediaKeysAndResetMismatch = { [unowned self] in
             self.groupCall.resendMediaKeys()
             self.hasUnresolvedSafetyNumberMismatch = false
@@ -704,7 +710,7 @@ extension GroupCallViewController: CallViewControllerWindowReference {
                 }
             }
         } else {
-            let unresolvedAddresses = safetyNumberMismatchAddresses()
+            let unresolvedAddresses = safetyNumberMismatchAddresses(untrustedThreshold: nil)
             guard !unresolvedAddresses.isEmpty else {
                 // Spurious warning, maybe from delayed callbacks.
                 resendMediaKeysAndResetMismatch()
@@ -720,9 +726,10 @@ extension GroupCallViewController: CallViewControllerWindowReference {
         }
     }
 
-    func presentSafetyNumberChangeSheetIfNecessary(completion: @escaping (Bool) -> Void) {
+    fileprivate func presentSafetyNumberChangeSheetIfNecessary(untrustedThreshold: Date? = nil, completion: @escaping (Bool) -> Void) {
         let localDeviceHasNotJoined = groupCall.localDeviceState.joinState == .notJoined
-        let addressesToAlert = safetyNumberMismatchAddresses()
+        let newUntrustedThreshold = Date()
+        let addressesToAlert = safetyNumberMismatchAddresses(untrustedThreshold: untrustedThreshold)
 
         // There are no unverified addresses that we're currently concerned about. No need to show a sheet
         guard !addressesToAlert.isEmpty else { return completion(true) }
@@ -754,8 +761,12 @@ extension GroupCallViewController: CallViewControllerWindowReference {
             confirmationText: approveText,
             cancelText: denyText,
             theme: .translucentDark
-        ) { didApprove in
-            completion(didApprove)
+        ) { [weak self] didApprove in
+            if let self, didApprove {
+                self.presentSafetyNumberChangeSheetIfNecessary(untrustedThreshold: newUntrustedThreshold, completion: completion)
+            } else {
+                completion(false)
+            }
         }
         sheet.allowsDismissal = localDeviceHasNotJoined
         present(sheet, animated: true, completion: nil)

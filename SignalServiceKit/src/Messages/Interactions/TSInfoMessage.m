@@ -22,10 +22,17 @@ const InfoMessageUserInfoKey InfoMessageUserInfoKeyGroupUpdateSourceAddress
 const InfoMessageUserInfoKey InfoMessageUserInfoKeyUpdaterKnownToBeLocalUser
     = @"InfoMessageUserInfoKeyUpdaterWasLocalUser";
 const InfoMessageUserInfoKey InfoMessageUserInfoKeyProfileChanges = @"InfoMessageUserInfoKeyProfileChanges";
-const InfoMessageUserInfoKey InfoMessageUserInfoKeyChangePhoneNumberUuid
+const InfoMessageUserInfoKey InfoMessageUserInfoKeyChangePhoneNumberAciString
     = @"InfoMessageUserInfoKeyChangePhoneNumberUuid";
 const InfoMessageUserInfoKey InfoMessageUserInfoKeyChangePhoneNumberOld = @"InfoMessageUserInfoKeyChangePhoneNumberOld";
 const InfoMessageUserInfoKey InfoMessageUserInfoKeyChangePhoneNumberNew = @"InfoMessageUserInfoKeyChangePhoneNumberNew";
+const InfoMessageUserInfoKey InfoMessageUserInfoKeyPaymentActivationRequestSenderAci
+    = @"InfoMessageUserInfoKeyPaymentActivationRequestSenderAci";
+const InfoMessageUserInfoKey InfoMessageUserInfoKeyPaymentActivatedAci = @"InfoMessageUserInfoKeyPaymentActivatedAci";
+const InfoMessageUserInfoKey InfoMessageUserInfoKeyThreadMergePhoneNumber
+    = @"InfoMessageUserInfoKeyThreadMergePhoneNumber";
+const InfoMessageUserInfoKey InfoMessageUserInfoKeySessionSwitchoverPhoneNumber
+    = @"InfoMessageUserInfoKeySessionSwitchoverPhoneNumber";
 
 NSUInteger TSInfoMessageSchemaVersion = 2;
 
@@ -287,29 +294,46 @@ NSUInteger TSInfoMessageSchemaVersion = 2;
         case TSInfoMessageProfileUpdate:
             return [self profileChangeDescriptionWithTransaction:transaction];
         case TSInfoMessagePhoneNumberChange: {
-            NSString *_Nullable uuidString = self.infoMessageUserInfo[InfoMessageUserInfoKeyChangePhoneNumberUuid];
-            if (uuidString == nil) {
+            NSString *_Nullable aciString = self.infoMessageUserInfo[InfoMessageUserInfoKeyChangePhoneNumberAciString];
+            if (aciString == nil) {
                 OWSFailDebug(@"Invalid info message");
                 return @"";
             }
-            NSUUID *_Nullable uuid = [[NSUUID alloc] initWithUUIDString:uuidString];
-            if (uuid == nil) {
+            AciObjC *aci = [[AciObjC alloc] initWithAciString:aciString];
+            if (aci == nil) {
                 OWSFailDebug(@"Invalid info message");
                 return @"";
             }
-            SignalServiceAddress *address = [[SignalServiceAddress alloc] initWithUuid:uuid];
+            SignalServiceAddress *address = [[SignalServiceAddress alloc] initWithServiceIdObjC:aci];
             NSString *userName = [self.contactsManager displayNameForAddress:address transaction:transaction];
 
             NSString *format = OWSLocalizedString(@"INFO_MESSAGE_USER_CHANGED_PHONE_NUMBER_FORMAT",
                 @"Indicates that another user has changed their phone number. Embeds: {{ the user's name}}".);
             return [NSString stringWithFormat:format, userName];
         }
-        case TSInfoMessageContactHidden:
+        case TSInfoMessageRecipientHidden: {
             /// This does not control whether to show the info message in the chat
             /// preview. To control that, see ``TSInteraction.shouldAppearInInbox``.
-            return OWSLocalizedString(@"INFO_MESSAGE_CONTACT_REMOVED",
-                @"Indicates that the recipient has been removed from the current user's contacts and that messaging "
-                @"them will re-add them.");
+            SignalServiceAddress *address = [TSContactThread contactAddressFromThreadId:self.uniqueThreadId
+                                                                            transaction:transaction];
+            if ([RecipientHidingManagerObjcBridge isHiddenAddress:address tx:transaction]) {
+                return OWSLocalizedString(@"INFO_MESSAGE_CONTACT_REMOVED",
+                    @"Indicates that the recipient has been removed from the current user's contacts and that "
+                    @"messaging them will re-add them.");
+            } else {
+                return OWSLocalizedString(@"INFO_MESSAGE_CONTACT_REINSTATED",
+                    @"Indicates that a previously-removed recipient has been added back to the current user's "
+                    @"contacts.");
+            }
+        }
+        case TSInfoMessagePaymentsActivationRequest:
+            return [self paymentsActivationRequestDescriptionWithTransaction:transaction];
+        case TSInfoMessagePaymentsActivated:
+            return [self paymentsActivatedDescriptionWithTransaction:transaction];
+        case TSInfoMessageThreadMerge:
+            return [self threadMergeDescriptionWithTx:transaction];
+        case TSInfoMessageSessionSwitchover:
+            return [self sessionSwitchoverDescriptionWithTx:transaction];
     }
 
     OWSFailDebug(@"Unknown info message type");
@@ -335,7 +359,11 @@ NSUInteger TSInfoMessageSchemaVersion = 2;
         case TSInfoMessageSyncedThread:
         case TSInfoMessageProfileUpdate:
         case TSInfoMessagePhoneNumberChange:
-        case TSInfoMessageContactHidden:
+        case TSInfoMessageRecipientHidden:
+        case TSInfoMessagePaymentsActivationRequest:
+        case TSInfoMessagePaymentsActivated:
+        case TSInfoMessageThreadMerge:
+        case TSInfoMessageSessionSwitchover:
             return NO;
         case TSInfoMessageUserJoinedSignal:
             // In the conversation list, we want conversations with an unread "new user" notification to

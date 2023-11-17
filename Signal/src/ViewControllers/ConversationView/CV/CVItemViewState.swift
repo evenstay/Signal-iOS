@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
+import LibSignalClient
 import SignalMessaging
 import SignalServiceKit
 import SignalUI
@@ -256,8 +257,20 @@ struct CVItemModelBuilder: CVItemBuilding, Dependencies {
             let isTruncatedTextVisible = viewStateSnapshot.textExpansion.isTextExpanded(interactionId: interactionId)
             return !isTruncatedTextVisible
         }()
-        itemViewState.footerState = CVComponentFooter.buildState(interaction: interaction,
-                                                                 hasTapForMore: hasTapForMore)
+
+        if let paymentMessage = interaction as? OWSPaymentMessage {
+            itemViewState.footerState = CVComponentFooter.buildPaymentState(
+                interaction: interaction,
+                paymentNotification: paymentMessage.paymentNotification,
+                hasTapForMore: hasTapForMore,
+                transaction: transaction
+            )
+        } else {
+            itemViewState.footerState = CVComponentFooter.buildState(
+                interaction: interaction,
+                hasTapForMore: hasTapForMore
+            )
+        }
 
         if let giftBadge = item.componentState.giftBadge {
             itemViewState.giftBadgeState = CVComponentGiftBadge.buildViewState(giftBadge)
@@ -664,14 +677,20 @@ struct CVItemModelBuilder: CVItemBuilding, Dependencies {
                 return
             }
             switch infoMessage.messageType {
-            case .verificationStateChange, .typeGroupUpdate:
+            case .verificationStateChange, .typeGroupUpdate, .threadMerge, .sessionSwitchover:
                 return // never collapse
             case .phoneNumberChange:
                 // Only collapse if the previous message was a change number for the same user
-                guard case .phoneNumberChange = previousInfoMessage.messageType,
-                let previousMessageUuid = previousInfoMessage.infoMessageUserInfo?[.changePhoneNumberUuid] as? String,
-                let currentMessageUuid = infoMessage.infoMessageUserInfo?[.changePhoneNumberUuid] as? String else { return }
-                previousItem.itemViewState.shouldCollapseSystemMessageAction = previousMessageUuid != currentMessageUuid
+                guard
+                    case .phoneNumberChange = previousInfoMessage.messageType,
+                    let previousAciString = previousInfoMessage.infoMessageUserInfo?[.changePhoneNumberAciString] as? String,
+                    let previousAci = Aci.parseFrom(aciString: previousAciString),
+                    let currentAciString = infoMessage.infoMessageUserInfo?[.changePhoneNumberAciString] as? String,
+                    let currentAci = Aci.parseFrom(aciString: currentAciString)
+                else {
+                    return
+                }
+                previousItem.itemViewState.shouldCollapseSystemMessageAction = previousAci == currentAci
             default:
                 // always collapse matching types
                 previousItem.itemViewState.shouldCollapseSystemMessageAction
@@ -691,11 +710,13 @@ private extension MessageLoader {
     var shouldShowThreadDetails: Bool {
         !canLoadOlder
     }
+
     func shouldShowUnknownThreadWarning(thread: TSThread, transaction: SDSAnyReadTransaction) -> Bool {
         !canLoadOlder && NSObject.contactsManagerImpl.shouldShowUnknownThreadWarning(thread: thread, transaction: transaction)
     }
+
     func shouldShowDefaultDisappearingMessageTimer(thread: TSThread, transaction: SDSAnyReadTransaction) -> Bool {
-        GRDBThreadFinder.shouldSetDefaultDisappearingMessageTimer(thread: thread, transaction: transaction.unwrapGrdbRead)
+        ThreadFinder().shouldSetDefaultDisappearingMessageTimer(thread: thread, transaction: transaction)
     }
 }
 
@@ -751,28 +772,28 @@ private class ItemBuilder {
 // MARK: -
 
 class DisplayNameCache: Dependencies {
-    private var shortDisplayNameCache = [UUID: String]()
+    private var shortDisplayNameCache = [ServiceId: String]()
 
     func shortDisplayName(address: SignalServiceAddress, transaction: SDSAnyReadTransaction) -> String {
-        if let uuid = address.uuid, let value = shortDisplayNameCache[uuid] {
+        if let serviceId = address.serviceId, let value = shortDisplayNameCache[serviceId] {
             return value
         }
         let value = contactsManager.shortDisplayName(for: address, transaction: transaction)
-        if let uuid = address.uuid {
-            shortDisplayNameCache[uuid] = value
+        if let serviceId = address.serviceId {
+            shortDisplayNameCache[serviceId] = value
         }
         return value
     }
 
-    private var displayNameCache = [UUID: String]()
+    private var displayNameCache = [ServiceId: String]()
 
     func displayName(address: SignalServiceAddress, transaction: SDSAnyReadTransaction) -> String {
-        if let uuid = address.uuid, let value = displayNameCache[uuid] {
+        if let serviceId = address.serviceId, let value = displayNameCache[serviceId] {
             return value
         }
         let value = contactsManager.displayName(for: address, transaction: transaction)
-        if let uuid = address.uuid {
-            displayNameCache[uuid] = value
+        if let serviceId = address.serviceId {
+            displayNameCache[serviceId] = value
         }
         return value
     }

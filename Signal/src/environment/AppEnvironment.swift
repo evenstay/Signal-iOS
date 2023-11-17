@@ -87,21 +87,38 @@ public class AppEnvironment: NSObject {
         }
 
         AppReadiness.runNowOrWhenAppDidBecomeReadyAsync {
+            let isPrimaryDevice = self.databaseStorage.read { tx -> Bool in
+                return DependenciesBridge.shared.tsAccountManager.registrationState(tx: tx.asV2Read).isPrimaryDevice ?? true
+            }
+
             let db = DependenciesBridge.shared.db
             let learnMyOwnPniManager = DependenciesBridge.shared.learnMyOwnPniManager
+            let linkedDevicePniKeyManager = DependenciesBridge.shared.linkedDevicePniKeyManager
             let pniHelloWorldManager = DependenciesBridge.shared.pniHelloWorldManager
             let schedulers = DependenciesBridge.shared.schedulers
 
-            learnMyOwnPniManager.learnMyOwnPniIfNecessary()
-                .done(on: schedulers.global()) { () -> Void in
+            if isPrimaryDevice {
+                firstly(on: schedulers.sync) { () -> Promise<Void> in
+                    learnMyOwnPniManager.learnMyOwnPniIfNecessary()
+                }
+                .done(on: schedulers.global()) {
                     db.write { tx in
                         pniHelloWorldManager.sayHelloWorldIfNecessary(tx: tx)
                     }
                 }
                 .cauterize()
+            } else {
+                db.read { tx in
+                    linkedDevicePniKeyManager.validateLocalPniIdentityKeyIfNecessary(tx: tx)
+                }
+            }
+
+            db.asyncWrite { tx in
+                DependenciesBridge.shared.masterKeySyncManager.runStartupJobs(tx: tx)
+            }
         }
 
         // Hang certain singletons on SMEnvironment too.
-        SMEnvironment.shared.lightweightCallManagerRef = callServiceRef
+        SMEnvironment.shared.lightweightGroupCallManagerRef = callServiceRef
     }
 }

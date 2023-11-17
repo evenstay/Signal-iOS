@@ -4,13 +4,14 @@
 //
 
 import Foundation
+import SignalCoreKit
 
 public enum AccountAttributesRequestFactory {
 
     public static func updatePrimaryDeviceAttributesRequest(_ attributes: AccountAttributes) -> TSRequest {
         // If you are updating capabilities for a secondary device, use `updateSecondaryDeviceCapabilities` instead
         owsAssert(
-            TSAccountManager.shared.isPrimaryDevice,
+            DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isPrimaryDevice ?? true,
             "Trying to set primary device attributes from secondary/linked device"
         )
 

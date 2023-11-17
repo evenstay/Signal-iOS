@@ -51,6 +51,9 @@ class ImageEditorModel: NSObject {
     private var undoStack = [ImageEditorOperation]()
     private var redoStack = [ImageEditorOperation]()
 
+    typealias StickerImageCache = LRUCache<String, ThreadSafeCacheHandle<UIImage>>
+    var stickerViewCache = StickerImageCache(maxSize: 16, shouldEvacuateInBackground: true)
+
     var blurredSourceImage: CGImage?
 
     var color = ColorPickerBarColor.defaultColor()
@@ -253,7 +256,7 @@ class ImageEditorModel: NSObject {
 
         let temporaryFilePaths = self.temporaryFilePaths
 
-        DispatchQueue.global(qos: .background).async {
+        DispatchQueue.sharedUtility.async {
             for filePath in temporaryFilePaths {
                 guard OWSFileSystem.deleteFile(filePath) else {
                     Logger.error("Could not delete temp file: \(filePath)")

@@ -199,6 +199,13 @@ public class CVComponentSystemMessage: CVComponentBase, CVRootComponent {
                     } else {
                         button.backgroundColor = Theme.conversationButtonBackgroundColor
                     }
+
+                    switch action.action {
+                    case .didTapActivatePayments, .didTapSendPayment:
+                        button.layer.borderColor = Theme.outlineColor.cgColor
+                        button.layer.borderWidth = 1.5
+                    default: break
+                    }
                 }
                 button.contentEdgeInsets = buttonContentEdgeInsets
                 button.layer.cornerRadius = actionButtonSize.height / 2
@@ -778,7 +785,13 @@ extension CVComponentSystemMessage {
                 return Theme.iconImage(.profile16)
             case .phoneNumberChange:
                 return Theme.iconImage(.phone16)
-            case .contactHidden:
+            case .recipientHidden:
+                return Theme.iconImage(.info16)
+            case .paymentsActivationRequest, .paymentsActivated:
+                return Theme.iconImage(.settingsPayments)
+            case .threadMerge:
+                return Theme.iconImage(.merge16)
+            case .sessionSwitchover:
                 return Theme.iconImage(.info16)
             }
         } else if let call = interaction as? TSCall {
@@ -1255,7 +1268,7 @@ extension CVComponentSystemMessage {
              .verificationStateChange,
              .userJoinedSignal,
              .syncedThread,
-             .contactHidden:
+             .recipientHidden:
             return nil
         case .profileUpdate:
             guard let profileChangeAddress = infoMessage.profileChangeAddress else {
@@ -1299,8 +1312,8 @@ extension CVComponentSystemMessage {
         case .phoneNumberChange:
             guard
                 let userInfo = infoMessage.infoMessageUserInfo,
-                let uuidString = userInfo[.changePhoneNumberUuid] as? String,
-                let uuid = UUID(uuidString: uuidString),
+                let aciString = userInfo[.changePhoneNumberAciString] as? String,
+                let aci = Aci.parseFrom(aciString: aciString),
                 let phoneNumberOld = userInfo[.changePhoneNumberOld] as? String,
                 let phoneNumberNew = userInfo[.changePhoneNumberNew] as? String
             else {
@@ -1323,11 +1336,54 @@ extension CVComponentSystemMessage {
                 return nil
             }
 
-            return Action(title: OWSLocalizedString("UPDATE_CONTACT_ACTION", comment: "Action sheet item"),
-                          accessibilityIdentifier: "update_contact",
-                          action: .didTapPhoneNumberChange(uuid: uuid,
-                                                           phoneNumberOld: phoneNumberOld,
-                                                           phoneNumberNew: phoneNumberNew))
+            return Action(
+                title: OWSLocalizedString("UPDATE_CONTACT_ACTION", comment: "Action sheet item"),
+                accessibilityIdentifier: "update_contact",
+                action: .didTapPhoneNumberChange(aci: aci, phoneNumberOld: phoneNumberOld, phoneNumberNew: phoneNumberNew)
+            )
+        case .paymentsActivationRequest:
+            if
+                infoMessage.isIncomingPaymentsActivationRequest(transaction),
+                !paymentsHelperSwift.arePaymentsEnabled(tx: transaction)
+            {
+                return CVMessageAction(
+                    title: OWSLocalizedString(
+                        "SETTINGS_PAYMENTS_OPT_IN_ACTIVATE_BUTTON",
+                        comment: "Label for 'activate' button in the 'payments opt-in' view in the app settings."
+                    ),
+                    accessibilityIdentifier: "activate_payments",
+                    action: .didTapActivatePayments
+                )
+            } else {
+                return nil
+            }
+        case .paymentsActivated:
+            if infoMessage.isIncomingPaymentsActivated(transaction) {
+                return CVMessageAction(
+                    title: OWSLocalizedString(
+                        "SETTINGS_PAYMENTS_SEND_PAYMENT",
+                        comment: "Label for 'send payment' button in the payment settings."
+                    ),
+                    accessibilityIdentifier: "send_payment",
+                    action: .didTapSendPayment
+                )
+            } else {
+                return nil
+            }
+        case .threadMerge:
+            guard
+                let userInfo = infoMessage.infoMessageUserInfo,
+                let phoneNumber = userInfo[.threadMergePhoneNumber] as? String
+            else {
+                return nil
+            }
+            return CVMessageAction(
+                title: CommonStrings.learnMore,
+                accessibilityIdentifier: "learn_more",
+                action: .didTapThreadMergeLearnMore(phoneNumber: phoneNumber)
+            )
+        case .sessionSwitchover:
+            return nil
         }
     }
 
@@ -1338,7 +1394,7 @@ extension CVComponentSystemMessage {
         // TODO: Respect -canCall from ConversationViewController
 
         let hasPendingMessageRequest = {
-            thread.hasPendingMessageRequest(transaction: transaction.unwrapGrdbRead)
+            thread.hasPendingMessageRequest(transaction: transaction)
         }
 
         switch call.callType {
@@ -1367,6 +1423,15 @@ extension CVComponentSystemMessage {
                                                    comment: "Label for button that lets users call a contact again."),
                           accessibilityIdentifier: "call_again",
                           action: .didTapIndividualCall(call: call))
+        case .incomingMissedBecauseBlockedSystemContact:
+            guard !blockingManager.isThreadBlocked(thread, transaction: transaction) else {
+                return nil
+            }
+            return Action(
+                title: CommonStrings.learnMore,
+                accessibilityIdentifier: "learn_more_call_blocked_system_contact",
+                action: .didTapLearnMoreMissedCallFromBlockedContact(call: call)
+            )
         case .outgoingIncomplete,
              .incomingIncomplete:
             return nil

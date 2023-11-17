@@ -62,15 +62,15 @@ class PaymentsTest: SignalBaseTest {
     }
 
     func test_paymentAddressSigning() {
-        let identityKeyPair = Curve25519.generateKeyPair()
+        let identityKeyPair = ECKeyPair.generateKeyPair()
         let publicAddressData = Randomness.generateRandomBytes(256)
         let signatureData = try! TSPaymentAddress.sign(identityKeyPair: identityKeyPair,
                                                        publicAddressData: publicAddressData)
-        XCTAssertTrue(TSPaymentAddress.verifySignature(publicIdentityKeyData: identityKeyPair.publicKey,
+        XCTAssertTrue(TSPaymentAddress.verifySignature(identityKey: identityKeyPair.keyPair.identityKey,
                                                        publicAddressData: publicAddressData,
                                                        signatureData: signatureData))
         let fakeSignatureData = Randomness.generateRandomBytes(Int32(signatureData.count))
-        XCTAssertFalse(TSPaymentAddress.verifySignature(publicIdentityKeyData: identityKeyPair.publicKey,
+        XCTAssertFalse(TSPaymentAddress.verifySignature(identityKey: identityKeyPair.keyPair.identityKey,
                                                         publicAddressData: publicAddressData,
                                                         signatureData: fakeSignatureData))
     }

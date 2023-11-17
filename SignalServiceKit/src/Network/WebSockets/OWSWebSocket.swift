@@ -461,14 +461,17 @@ public class OWSWebSocket: NSObject {
         }
         let hasSuccessStatus = 200 <= responseStatus && responseStatus <= 299
         if hasSuccessStatus {
-            requestInfo.didSucceed(status: Int(responseStatus),
-                                   headers: headers,
-                                   bodyData: responseData)
+            requestInfo.didSucceed(
+                status: Int(responseStatus),
+                headers: headers,
+                bodyData: responseData
+            )
         } else {
-            requestInfo.didFail(responseStatus: Int(responseStatus),
-                                responseHeaders: headers,
-                                responseError: nil,
-                                responseData: responseData)
+            requestInfo.didFail(
+                responseStatus: Int(responseStatus),
+                responseHeaders: headers,
+                responseData: responseData
+            )
         }
 
         // We may have been holding the websocket open, waiting for this response.
@@ -630,8 +633,8 @@ public class OWSWebSocket: NSObject {
             // UD socket is unauthenticated.
             return nil
         case .identified:
-            let login = tsAccountManager.storedServerUsername ?? ""
-            let password = tsAccountManager.storedServerAuthToken ?? ""
+            let login = DependenciesBridge.shared.tsAccountManager.storedServerUsernameWithMaybeTransaction ?? ""
+            let password = DependenciesBridge.shared.tsAccountManager.storedServerAuthTokenWithMaybeTransaction ?? ""
             owsAssertDebug(login.nilIfEmpty != nil)
             owsAssertDebug(password.nilIfEmpty != nil)
             return [
@@ -679,7 +682,7 @@ public class OWSWebSocket: NSObject {
             return .closed(reason: "!isAppReady")
         }
 
-        guard tsAccountManager.isRegisteredAndReady else {
+        guard DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isRegistered else {
             return .closed(reason: "!isRegisteredAndReady")
         }
 
@@ -1108,16 +1111,18 @@ private class SocketRequestInfo {
         didFail(error: OWSHTTPError.networkFailure(requestUrl: requestUrl))
     }
 
-    public func didFail(responseStatus: Int,
-                        responseHeaders: OWSHttpHeaders,
-                        responseError: Error?,
-                        responseData: Data?) {
-        let error = HTTPUtils.preprocessMainServiceHTTPError(request: request,
-                                                             requestUrl: requestUrl,
-                                                             responseStatus: responseStatus,
-                                                             responseHeaders: responseHeaders,
-                                                             responseError: responseError,
-                                                             responseData: responseData)
+    public func didFail(
+        responseStatus: Int,
+        responseHeaders: OWSHttpHeaders,
+        responseData: Data?
+    ) {
+        let error = HTTPUtils.preprocessMainServiceHTTPError(
+            request: request,
+            requestUrl: requestUrl,
+            responseStatus: responseStatus,
+            responseHeaders: responseHeaders,
+            responseData: responseData
+        )
         didFail(error: error)
     }
 
@@ -1129,8 +1134,7 @@ private class SocketRequestInfo {
             return false
         case .incomplete(_, let failure):
             DispatchQueue.global().async {
-                let statusCode = error.httpStatusCode ?? 0
-                Logger.warn("didFail, status: \(statusCode), error: \(error)")
+                Logger.warn("\(error)")
 
                 let error = error as! OWSHTTPError
                 let socketFailure = OWSHTTPErrorWrapper(error: error)
@@ -1158,7 +1162,9 @@ extension OWSWebSocket: SSKWebSocketDelegate {
 
         if webSocketType == .identified {
             // If socket opens, we know we're not de-registered.
-            tsAccountManager.isDeregistered = false
+            DependenciesBridge.shared.db.write { tx in
+                DependenciesBridge.shared.registrationStateChangeManager.setIsDeregisteredOrDelinked(false, tx: tx)
+            }
         }
 
         outageDetection.reportConnectionSuccess()
@@ -1180,7 +1186,9 @@ extension OWSWebSocket: SSKWebSocketDelegate {
         self.currentWebSocket = nil
 
         if webSocketType == .identified, case WebSocketError.httpError(statusCode: 403, _) = error {
-            tsAccountManager.isDeregistered = true
+            DependenciesBridge.shared.db.write { tx in
+                DependenciesBridge.shared.registrationStateChangeManager.setIsDeregisteredOrDelinked(true, tx: tx)
+            }
         }
 
         if shouldSocketBeOpen {

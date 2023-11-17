@@ -39,7 +39,7 @@ protocol ConversationInputToolbarDelegate: AnyObject {
 
     func cameraButtonPressed()
 
-    func galleryButtonPressed()
+    func photosButtonPressed()
 
     func gifButtonPressed()
 
@@ -1066,8 +1066,8 @@ public class ConversationInputToolbar: UIView, LinkPreviewViewDraftDelegate, Quo
 
     var draftReply: ThreadReplyInfo? {
         guard let quotedReply else { return nil }
-        guard let serviceId = quotedReply.authorAddress.untypedServiceId else { return nil }
-        return ThreadReplyInfo(timestamp: quotedReply.timestamp, author: serviceId)
+        guard let aci = quotedReply.authorAddress.aci else { return nil }
+        return ThreadReplyInfo(timestamp: quotedReply.timestamp, author: aci)
     }
 
     func quotedReplyPreviewDidPressCancel(_ preview: QuotedReplyPreview) {
@@ -1118,7 +1118,9 @@ public class ConversationInputToolbar: UIView, LinkPreviewViewDraftDelegate, Quo
     private func updateInputLinkPreview() {
         AssertIsOnMainThread()
 
-        linkPreviewFetcher.update(messageBodyForSending?.text ?? "", enableIfEmpty: true)
+        let messageBody = messageBodyForSending
+            ?? .init(text: "", ranges: .empty)
+        linkPreviewFetcher.update(messageBody, enableIfEmpty: true)
     }
 
     private func updateLinkPreviewView() {
@@ -1809,6 +1811,18 @@ public class ConversationInputToolbar: UIView, LinkPreviewViewDraftDelegate, Quo
     private(set) var isMeasuringKeyboardHeight = false
     private var hasMeasuredKeyboardHeight = false
 
+    // Workaround for keyboard & chat flashing when switching between keyboards on iOS 17.
+    // When swithing keyboards sometimes! we get "keyboard will show" notification
+    // with keyboard frame being slightly (45 dp) shorter, immediately followed by another
+    // notification with previous (correct) keyboard frame.
+    //
+    // Because this does not always happen and because this does not happen on a Simulator
+    // I concluded this is an iOS 17 bug.
+    //
+    // In the future it might be better to implement different keyboard managing
+    // by making UIViewController a first responder and vending input bar as `inputView`.
+    private(set) var isSwitchingKeyboard = false
+
     private enum KeyboardType {
         case system
         case sticker
@@ -1849,8 +1863,7 @@ public class ConversationInputToolbar: UIView, LinkPreviewViewDraftDelegate, Quo
         if let attachmentKeyboard = _attachmentKeyboard {
             return attachmentKeyboard
         }
-        let keyboard = AttachmentKeyboard()
-        keyboard.delegate = self
+        let keyboard = AttachmentKeyboard(delegate: self)
         keyboard.registerWithView(self)
         _attachmentKeyboard = keyboard
         return keyboard
@@ -1897,9 +1910,14 @@ public class ConversationInputToolbar: UIView, LinkPreviewViewDraftDelegate, Quo
         ensureButtonVisibility(withAnimation: animated, doLayout: true)
 
         if isInputViewFirstResponder {
+            isSwitchingKeyboard = true
             // If any keyboard is presented, make sure the correct
             // keyboard is presented.
             beginEditingMessage()
+
+            DispatchQueue.main.async {
+                self.isSwitchingKeyboard = false
+            }
         } else {
             // Make sure neither keyboard is presented.
             endEditingMessage()
@@ -2151,14 +2169,19 @@ extension ConversationInputToolbar: ConversationTextViewToolbarDelegate {
     }
 }
 
-extension ConversationInputToolbar: StickerKeyboardDelegate {
-
+extension ConversationInputToolbar: StickerPickerDelegate {
     public func didSelectSticker(stickerInfo: StickerInfo) {
         AssertIsOnMainThread()
         Logger.verbose("")
         inputToolbarDelegate?.sendSticker(stickerInfo)
     }
 
+    public var storyStickerConfiguration: SignalUI.StoryStickerConfiguration {
+        .hide
+    }
+}
+
+extension ConversationInputToolbar: StickerPacksToolbarDelegate {
     public func presentManageStickersView() {
         AssertIsOnMainThread()
         Logger.verbose("")
@@ -2172,8 +2195,8 @@ extension ConversationInputToolbar: AttachmentKeyboardDelegate {
         inputToolbarDelegate?.didSelectRecentPhoto(asset: asset, attachment: attachment)
     }
 
-    func didTapGalleryButton() {
-        inputToolbarDelegate?.galleryButtonPressed()
+    func didTapPhotos() {
+        inputToolbarDelegate?.photosButtonPressed()
     }
 
     func didTapCamera() {

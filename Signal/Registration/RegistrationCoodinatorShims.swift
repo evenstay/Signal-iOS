@@ -22,8 +22,6 @@ extension RegistrationCoordinatorImpl {
         public typealias ProfileManager = _RegistrationCoordinator_ProfileManagerShim
         public typealias PushRegistrationManager = _RegistrationCoordinator_PushRegistrationManagerShim
         public typealias ReceiptManager = _RegistrationCoordinator_ReceiptManagerShim
-        public typealias RemoteConfig = _RegistrationCoordinator_RemoteConfigShim
-        public typealias TSAccountManager = _RegistrationCoordinator_TSAccountManagerShim
         public typealias UDManager = _RegistrationCoordinator_UDManagerShim
     }
     public enum Wrappers {
@@ -37,8 +35,6 @@ extension RegistrationCoordinatorImpl {
         public typealias ProfileManager = _RegistrationCoordinator_ProfileManagerWrapper
         public typealias PushRegistrationManager = _RegistrationCoordinator_PushRegistrationManagerWrapper
         public typealias ReceiptManager = _RegistrationCoordinator_ReceiptManagerWrapper
-        public typealias RemoteConfig = _RegistrationCoordinator_RemoteConfigWrapper
-        public typealias TSAccountManager = _RegistrationCoordinator_TSAccountManagerWrapper
         public typealias UDManager = _RegistrationCoordinator_UDManagerWrapper
     }
 }
@@ -47,7 +43,7 @@ extension RegistrationCoordinatorImpl {
 
 public protocol _RegistrationCoordinator_AccountManagerShim {
 
-    func performInitialStorageServiceRestore(authedAccount: AuthedAccount) -> Promise<Void>
+    func performInitialStorageServiceRestore(authedDevice: AuthedDevice) -> Promise<Void>
 }
 
 public class _RegistrationCoordinator_AccountManagerWrapper: _RegistrationCoordinator_AccountManagerShim {
@@ -55,8 +51,8 @@ public class _RegistrationCoordinator_AccountManagerWrapper: _RegistrationCoordi
     private let manager: AccountManager
     public init(_ manager: AccountManager) { self.manager = manager }
 
-    public func performInitialStorageServiceRestore(authedAccount: AuthedAccount) -> Promise<Void> {
-        return manager.performInitialStorageServiceRestore(authedAccount: authedAccount)
+    public func performInitialStorageServiceRestore(authedDevice: AuthedDevice) -> Promise<Void> {
+        return manager.performInitialStorageServiceRestore(authedDevice: authedDevice)
     }
 }
 
@@ -350,19 +346,22 @@ public class _RegistrationCoordinator_PushRegistrationManagerWrapper: _Registrat
         auth: ChatServiceAuth
     ) -> Guarantee<Registration.SyncPushTokensResult> {
         let job = SyncPushTokensJob(mode: .forceUpload, auth: auth)
-        return job.run()
-            .map(on: SyncScheduler()) { return .success }
-            .recover(on: SyncScheduler()) { error -> Guarantee<Registration.SyncPushTokensResult> in
+        return Guarantee.wrapAsync {
+            do {
+                try await job.run()
+                return .success
+            } catch {
                 if error.isNetworkFailureOrTimeout {
-                    return .value(.networkError)
+                    return .networkError
                 }
                 switch error {
                 case PushRegistrationError.pushNotSupported(let description):
-                    return .value(.pushUnsupported(description: description))
+                    return .pushUnsupported(description: description)
                 default:
-                    return .value(.genericError(error))
+                    return .genericError(error)
                 }
             }
+        }
     }
 }
 
@@ -385,159 +384,6 @@ public class _RegistrationCoordinator_ReceiptManagerWrapper: _RegistrationCoordi
 
     public func setAreStoryViewedReceiptsEnabled(_ areEnabled: Bool, _ tx: DBWriteTransaction) {
         StoryManager.setAreViewReceiptsEnabled(areEnabled, transaction: SDSDB.shimOnlyBridge(tx))
-    }
-}
-
-// MARK: - RemoteConfig
-
-public protocol _RegistrationCoordinator_RemoteConfigShim {
-
-    func refreshRemoteConfig(account: AuthedAccount) -> Promise<RemoteConfig.SVRConfiguration>
-}
-
-public class _RegistrationCoordinator_RemoteConfigWrapper: _RegistrationCoordinator_RemoteConfigShim {
-
-    private let remoteConfig: RemoteConfigManager
-    public init(_ remoteConfig: RemoteConfigManager) { self.remoteConfig = remoteConfig }
-
-    public func refreshRemoteConfig(account: AuthedAccount) -> Promise<RemoteConfig.SVRConfiguration> {
-        return firstly(on: DispatchQueue.main) { [remoteConfig] in
-            return remoteConfig.refresh(account: account)
-        }.map(on: SyncScheduler(), \.svrConfiguration)
-    }
-}
-
-// MARK: - TSAccountManager
-
-public protocol _RegistrationCoordinator_TSAccountManagerShim {
-
-    func isManualMessageFetchEnabled(_ transaction: DBReadTransaction) -> Bool
-    func setIsManualMessageFetchEnabled(_ isEnabled: Bool, _ transaction: DBWriteTransaction)
-
-    func getOrGenerateRegistrationId(_ transaction: DBWriteTransaction) -> UInt32
-    func getOrGeneratePniRegistrationId(_ transaction: DBWriteTransaction) -> UInt32
-
-    func hasDefinedIsDiscoverableByPhoneNumber(_ transaction: DBReadTransaction) -> Bool
-    func isDiscoverableByPhoneNumber(_ transaction: DBReadTransaction) -> Bool
-    func setIsDiscoverableByPhoneNumber(
-        _ isDiscoverable: Bool,
-        updateStorageService: Bool,
-        authedAccount: AuthedAccount,
-        _ transaction: DBWriteTransaction
-    )
-
-    func resetForReregistration(
-        e164: E164,
-        aci: Aci,
-        _ tx: DBWriteTransaction
-    )
-
-    func didRegister(
-        e164: E164,
-        aci: Aci,
-        pni: Pni,
-        authToken: String,
-        _ tx: DBWriteTransaction
-    )
-
-    func updateLocalPhoneNumber(
-        e164: E164,
-        aci: Aci,
-        pni: Pni,
-        _ tx: DBWriteTransaction
-    )
-
-    func setIsOnboarded(_ tx: DBWriteTransaction)
-}
-
-public class _RegistrationCoordinator_TSAccountManagerWrapper: _RegistrationCoordinator_TSAccountManagerShim {
-
-    private let manager: TSAccountManager
-    public init(_ manager: TSAccountManager) { self.manager = manager }
-
-    public func hasDefinedIsDiscoverableByPhoneNumber(_ transaction: DBReadTransaction) -> Bool {
-        return manager.hasDefinedIsDiscoverableByPhoneNumber(with: SDSDB.shimOnlyBridge(transaction))
-    }
-
-    public func setIsManualMessageFetchEnabled(_ isEnabled: Bool, _ transaction: DBWriteTransaction) {
-        manager.setIsManualMessageFetchEnabled(isEnabled, transaction: SDSDB.shimOnlyBridge(transaction))
-    }
-
-    public func isManualMessageFetchEnabled(_ transaction: DBReadTransaction) -> Bool {
-        return manager.isManualMessageFetchEnabled(SDSDB.shimOnlyBridge(transaction))
-    }
-
-    public func getOrGenerateRegistrationId(_ transaction: DBWriteTransaction) -> UInt32 {
-        return manager.getOrGenerateRegistrationId(transaction: SDSDB.shimOnlyBridge(transaction))
-    }
-
-    public func getOrGeneratePniRegistrationId(_ transaction: DBWriteTransaction) -> UInt32 {
-        return manager.getOrGeneratePniRegistrationId(transaction: SDSDB.shimOnlyBridge(transaction))
-    }
-
-    public func isDiscoverableByPhoneNumber(_ transaction: DBReadTransaction) -> Bool {
-        return manager.isDiscoverableByPhoneNumber(with: SDSDB.shimOnlyBridge(transaction))
-    }
-
-    public func setIsDiscoverableByPhoneNumber(
-        _ isDiscoverable: Bool,
-        updateStorageService: Bool,
-        authedAccount: AuthedAccount,
-        _ transaction: DBWriteTransaction
-    ) {
-        manager.setIsDiscoverableByPhoneNumber(
-            isDiscoverable,
-            updateStorageService: updateStorageService,
-            authedAccount: authedAccount,
-            transaction: SDSDB.shimOnlyBridge(transaction)
-        )
-    }
-
-    public func resetForReregistration(
-        e164: E164,
-        aci: Aci,
-        _ tx: DBWriteTransaction
-    ) {
-        manager.resetForReregistration(
-            withLocalPhoneNumber: .init(e164),
-            localAci: AciObjC(aci),
-            wasPrimaryDevice: true,
-            transaction: SDSDB.shimOnlyBridge(tx)
-        )
-    }
-
-    public func didRegister(
-        e164: E164,
-        aci: Aci,
-        pni: Pni,
-        authToken: String,
-        _ tx: DBWriteTransaction
-    ) {
-        manager.didRegisterPrimary(
-            withE164: E164ObjC(e164),
-            aci: AciObjC(aci),
-            pni: PniObjC(pni),
-            authToken: authToken,
-            transaction: SDSDB.shimOnlyBridge(tx)
-        )
-    }
-
-    public func updateLocalPhoneNumber(
-        e164: E164,
-        aci: Aci,
-        pni: Pni,
-        _ tx: DBWriteTransaction
-    ) {
-        manager.updateLocalPhoneNumber(
-            E164ObjC(e164),
-            aci: AciObjC(aci),
-            pni: PniObjC(pni),
-            transaction: SDSDB.shimOnlyBridge(tx)
-        )
-    }
-
-    public func setIsOnboarded(_ tx: DBWriteTransaction) {
-        manager.setIsOnboarded(true, transaction: SDSDB.shimOnlyBridge(tx))
     }
 }
 

@@ -341,19 +341,6 @@ message DataMessage {
       // }
     }
 
-    message RequestId {
-      // @required
-      optional string uuid = 1;
-    }
-
-    message Request {
-      // @required
-      optional RequestId requestId = 1;
-      // @required
-      optional Amount    amount    = 2;
-      optional string    note      = 3;
-    }
-
     message Notification {
       message MobileCoin {
         // @required
@@ -365,21 +352,25 @@ message DataMessage {
         optional MobileCoin mobileCoin = 1;
       // }
 
-      // Optional, Refers to the PaymentRequest message, if any.
-      optional string    note          = 2;
-      optional RequestId requestId     = 1003;
+      optional string note = 2;
+      reserved /*requestId*/ 1003;
     }
 
-    message Cancellation {
-      // @required
-      optional RequestId requestId = 1;
+    message Activation {
+      enum Type {
+        REQUEST = 0;
+        ACTIVATED = 1;
+      }
+
+      optional Type type = 1;
     }
 
     // oneof commented out
     // oneof Item {
       optional Notification notification = 1;
-      optional Request      request      = 1002;
-      optional Cancellation cancellation = 1003;
+      optional Activation   activation = 2;
+      reserved /*request*/ 1002;
+      reserved /*cancellation*/ 1003;
     // }
   }
 
@@ -566,6 +557,7 @@ message SyncMessage {
 
   message Keys {
     optional bytes storageService = 1;
+    optional bytes master         = 2;
   }
 
   message MessageRequestResponse {
@@ -609,6 +601,7 @@ message SyncMessage {
       UNKNOWN_TYPE = 0;
       AUDIO_CALL   = 1;
       VIDEO_CALL   = 2;
+      GROUP_CALL   = 3;
     }
 
     enum Direction {

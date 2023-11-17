@@ -281,8 +281,8 @@ extension SendMessageFlow {
             pushViewController(approvalView, animated: true)
         case .contactShare(let oldContactShare):
             let newContactShare = oldContactShare.copyForResending()
-            let approvalView = ContactShareApprovalViewController(contactShare: newContactShare)
-            approvalView.delegate = self
+            let approvalView = ContactShareViewController(contactShare: newContactShare)
+            approvalView.shareDelegate = self
             pushViewController(approvalView, animated: true)
         case .media(let signalAttachmentProviders, let messageBody):
             let options: AttachmentApprovalViewControllerOptions = .hasCancel
@@ -293,6 +293,7 @@ extension SendMessageFlow {
             let approvalViewController = AttachmentApprovalViewController(options: options, attachmentApprovalItems: attachmentApprovalItems)
             approvalViewController.approvalDelegate = self
             approvalViewController.approvalDataSource = self
+            approvalViewController.stickerSheetDelegate = self
             approvalViewController.setMessageBody(messageBody, txProvider: DependenciesBridge.shared.db.readTxProvider)
 
             pushViewController(approvalViewController, animated: true)
@@ -518,19 +519,17 @@ extension SendMessageFlow: TextApprovalViewControllerDelegate {
 
 // MARK: -
 
-extension SendMessageFlow: ContactShareApprovalViewControllerDelegate {
-    func approveContactShare(_ approveContactShare: ContactShareApprovalViewController,
-                             didApproveContactShare contactShare: ContactShareViewModel) {
+extension SendMessageFlow: ContactShareViewControllerDelegate {
 
+    func contactShareViewController(_ viewController: ContactShareViewController, didApproveContactShare contactShare: ContactShareViewModel) {
         send(approvedContent: .contactShare(contactShare: contactShare))
     }
 
-    func approveContactShare(_ approveContactShare: ContactShareApprovalViewController,
-                             didCancelContactShare contactShare: ContactShareViewModel) {
+    func contactShareViewControllerDidCancel(_ viewController: ContactShareViewController) {
         fireCancelled()
     }
 
-    func contactApprovalCustomTitle(_ contactApproval: ContactShareApprovalViewController) -> String? {
+    func titleForContactShareViewController(_ viewController: ContactShareViewController) -> String? {
         switch flowType {
         case .`default`:
             return nil
@@ -539,7 +538,7 @@ extension SendMessageFlow: ContactShareApprovalViewControllerDelegate {
         }
     }
 
-    func contactApprovalRecipientsDescription(_ contactApproval: ContactShareApprovalViewController) -> String? {
+    func recipientsDescriptionForContactShareViewController(_ viewController: ContactShareViewController) -> String? {
         let conversations = selectedConversations
         guard conversations.count > 0 else {
             return nil
@@ -547,7 +546,7 @@ extension SendMessageFlow: ContactShareApprovalViewControllerDelegate {
         return conversations.map { $0.titleWithSneakyTransaction }.joined(separator: ", ")
     }
 
-    func contactApprovalMode(_ contactApproval: ContactShareApprovalViewController) -> ApprovalMode {
+    func approvalModeForContactShareViewController(_ viewController: ContactShareViewController) -> ApprovalMode {
         return .send
     }
 }
@@ -602,6 +601,16 @@ extension SendMessageFlow: AttachmentApprovalViewControllerDataSource {
 
     func attachmentApprovalMentionCacheInvalidationKey() -> String {
         return "\(mentionCandidates.hashValue)"
+    }
+}
+
+// MARK: - StickerPickerSheetDelegate
+
+extension SendMessageFlow: StickerPickerSheetDelegate {
+    func makeManageStickersViewController() -> UIViewController {
+        let manageStickersView = ManageStickersViewController()
+        let navigationController = OWSNavigationController(rootViewController: manageStickersView)
+        return navigationController
     }
 }
 

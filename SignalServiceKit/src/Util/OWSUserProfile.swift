@@ -76,6 +76,10 @@ public class OWSUserProfileBadgeInfo: NSObject, SDSSwiftSerializable {
     }
 }
 
+extension OWSUserProfile {
+    public var serviceId: ServiceId? { recipientUUID.flatMap { try? ServiceId.parseFrom(serviceIdString: $0) } }
+}
+
 @objc
 public extension OWSUserProfile {
 
@@ -266,21 +270,119 @@ public extension OWSUserProfile {
     /// The profile can affect how accounts, recipients, contact threads, and
     /// group threads are indexed, so we need to re-index them whenever the
     /// profile changes.
-    func reindexAssociatedModels(transaction: SDSAnyWriteTransaction) {
-        if let signalAccount = AnySignalAccountFinder().signalAccount(for: address, transaction: transaction) {
-            FullTextSearchFinder.modelWasUpdated(model: signalAccount, transaction: transaction)
+    func reindexAssociatedModels(transaction tx: SDSAnyWriteTransaction) {
+        if let signalAccount = SignalAccountFinder().signalAccount(for: address, tx: tx) {
+            FullTextSearchFinder.modelWasUpdated(model: signalAccount, transaction: tx)
         }
 
-        if let signalRecipient = AnySignalRecipientFinder().signalRecipient(for: address, transaction: transaction) {
-            FullTextSearchFinder.modelWasUpdated(model: signalRecipient, transaction: transaction)
+        if let signalRecipient = SignalRecipientFinder().signalRecipient(for: address, tx: tx) {
+            FullTextSearchFinder.modelWasUpdated(model: signalRecipient, transaction: tx)
         }
 
-        if let contactThread = TSContactThread.getWithContactAddress(address, transaction: transaction) {
-            FullTextSearchFinder.modelWasUpdated(model: contactThread, transaction: transaction)
+        if let contactThread = TSContactThread.getWithContactAddress(address, transaction: tx) {
+            FullTextSearchFinder.modelWasUpdated(model: contactThread, transaction: tx)
         }
 
-        TSGroupMember.enumerateGroupMembers(for: address, transaction: transaction) { groupMember, _ in
-            FullTextSearchFinder.modelWasUpdated(model: groupMember, transaction: transaction)
+        TSGroupMember.enumerateGroupMembers(for: address, transaction: tx) { groupMember, _ in
+            FullTextSearchFinder.modelWasUpdated(model: groupMember, transaction: tx)
+        }
+    }
+
+    // MARK: - Fetching & Creating
+
+    @objc(getOrBuildUserProfileForAddress:authedAccount:transaction:)
+    class func getOrBuildUserProfile(
+        for address: SignalServiceAddress,
+        authedAccount: AuthedAccount,
+        transaction tx: SDSAnyWriteTransaction
+    ) -> OWSUserProfile {
+        let address = resolve(address.withNormalizedPhoneNumber())
+        owsAssertDebug(address.isValid)
+
+        // If we already have a profile for this address, return it.
+        if let userProfile = fetchNormalizeAndPruneUserProfiles(normalizedAddress: address, tx: tx) {
+            return userProfile
+        }
+
+        // Otherwise, create & return a new profile for this address.
+        let userProfile = OWSUserProfile(address: address)
+        if address.phoneNumber == kLocalProfileInvariantPhoneNumber {
+            userProfile.update(
+                profileKey: OWSAES256Key.generateRandom(),
+                userProfileWriter: .localUser,
+                authedAccount: authedAccount,
+                transaction: tx,
+                completion: nil
+            )
+        }
+        return userProfile
+    }
+
+    /// Ensures there's a single profile for a given recipient.
+    ///
+    /// We should only have one UserProfile for each SignalRecipient. However,
+    /// it's possible that duplicates may exist. This method will find and
+    /// remove duplicates.
+    private class func fetchNormalizeAndPruneUserProfiles(
+        normalizedAddress: SignalServiceAddress,
+        tx: SDSAnyWriteTransaction
+    ) -> OWSUserProfile? {
+        let userProfiles = userProfileFinder.fetchUserProfiles(matchingAnyComponentOf: normalizedAddress, tx: tx)
+
+        var matchingProfiles = [OWSUserProfile]()
+        for userProfile in userProfiles {
+            let matchesAddress: Bool = {
+                if let userProfileServiceIdString = userProfile.recipientUUID {
+                    // If the UserProfile has a ServiceId, then so must normalizedAddress.
+                    return userProfileServiceIdString == normalizedAddress.serviceIdUppercaseString
+                } else if let userProfilePhoneNumber = userProfile.recipientPhoneNumber {
+                    // If the UserProfile doesn't have a ServiceId, then it can match just the phone number.
+                    return userProfilePhoneNumber == normalizedAddress.phoneNumber
+                }
+                return false
+            }()
+
+            if matchesAddress {
+                matchingProfiles.append(userProfile)
+            } else {
+                // Non-matching profiles must have some other `ServiceId` and a matching
+                // phone number. This is outdated information that we should update.
+                owsAssertDebug(userProfile.recipientUUID != nil)
+                owsAssertDebug(userProfile.recipientPhoneNumber != nil)
+                owsAssertDebug(userProfile.recipientPhoneNumber == normalizedAddress.phoneNumber)
+                userProfile.recipientPhoneNumber = nil
+                userProfile.anyOverwritingUpdate(transaction: tx)
+            }
+        }
+        // Get rid of any duplicates -- these shouldn't exist.
+        for redundantProfile in matchingProfiles.dropFirst() {
+            redundantProfile.anyRemove(transaction: tx)
+        }
+        if let chosenProfile = matchingProfiles.first {
+            updateAddressIfNeeded(userProfile: chosenProfile, newAddress: normalizedAddress, tx: tx)
+            return chosenProfile
+        }
+        return nil
+    }
+
+    private class func updateAddressIfNeeded(
+        userProfile: OWSUserProfile,
+        newAddress: SignalServiceAddress,
+        tx: SDSAnyWriteTransaction
+    ) {
+        var didUpdate = false
+        let newServiceIdString = newAddress.serviceIdUppercaseString
+        if userProfile.recipientUUID != newServiceIdString {
+            userProfile.recipientUUID = newServiceIdString
+            didUpdate = true
+        }
+        let newPhoneNumber = newAddress.phoneNumber
+        if userProfile.recipientPhoneNumber != newPhoneNumber {
+            userProfile.recipientPhoneNumber = newPhoneNumber
+            didUpdate = true
+        }
+        if didUpdate {
+            userProfile.anyOverwritingUpdate(transaction: tx)
         }
     }
 }
@@ -371,11 +473,6 @@ public class UserProfileChanges: NSObject {
     public var profileKey: OptionalProfileKeyValue?
     @objc
     public var badges: [OWSUserProfileBadgeInfo]?
-
-    @objc
-    public var isStoriesCapable: BoolValue?
-    @objc
-    public var canReceiveGiftBadges: BoolValue?
     @objc
     public var isPniCapable: BoolValue?
 
@@ -440,7 +537,7 @@ public extension OWSUserProfile {
         )
     }
 
-    @objc(updateWithGivenName:familyName:bio:bioEmoji:badges:avatarUrlPath:lastFetchDate:isStoriesCapable:canReceiveGiftBadges:isPniCapable:userProfileWriter:authedAccount:transaction:completion:)
+    @objc(updateWithGivenName:familyName:bio:bioEmoji:badges:avatarUrlPath:lastFetchDate:isPniCapable:userProfileWriter:authedAccount:transaction:completion:)
     func update(
         givenName: String?,
         familyName: String?,
@@ -449,8 +546,6 @@ public extension OWSUserProfile {
         badges: [OWSUserProfileBadgeInfo],
         avatarUrlPath: String?,
         lastFetchDate: Date,
-        isStoriesCapable: Bool,
-        canReceiveGiftBadges: Bool,
         isPniCapable: Bool,
         userProfileWriter: UserProfileWriter,
         authedAccount: AuthedAccount,
@@ -465,9 +560,6 @@ public extension OWSUserProfile {
         changes.badges = badges
         changes.avatarUrlPath = .init(avatarUrlPath)
         changes.lastFetchDate = .init(lastFetchDate)
-
-        changes.isStoriesCapable = .init(isStoriesCapable)
-        changes.canReceiveGiftBadges = .init(canReceiveGiftBadges)
         changes.isPniCapable = .init(isPniCapable)
 
         apply(
@@ -479,7 +571,7 @@ public extension OWSUserProfile {
         )
     }
 
-    @objc(updateWithGivenName:familyName:bio:bioEmoji:badges:avatarUrlPath:avatarFileName:lastFetchDate:isStoriesCapable:canReceiveGiftBadges:isPniCapable:userProfileWriter:authedAccount:transaction:completion:)
+    @objc(updateWithGivenName:familyName:bio:bioEmoji:badges:avatarUrlPath:avatarFileName:lastFetchDate:isPniCapable:userProfileWriter:authedAccount:transaction:completion:)
     func update(
         givenName: String?,
         familyName: String?,
@@ -489,8 +581,6 @@ public extension OWSUserProfile {
         avatarUrlPath: String?,
         avatarFileName: String?,
         lastFetchDate: Date,
-        isStoriesCapable: Bool,
-        canReceiveGiftBadges: Bool,
         isPniCapable: Bool,
         userProfileWriter: UserProfileWriter,
         authedAccount: AuthedAccount,
@@ -506,9 +596,6 @@ public extension OWSUserProfile {
         changes.avatarUrlPath = .init(avatarUrlPath)
         changes.avatarFileName = .init(avatarFileName)
         changes.lastFetchDate = .init(lastFetchDate)
-
-        changes.isStoriesCapable = .init(isStoriesCapable)
-        changes.canReceiveGiftBadges = .init(canReceiveGiftBadges)
         changes.isPniCapable = .init(isPniCapable)
 
         apply(
@@ -552,7 +639,6 @@ public extension OWSUserProfile {
         changes.familyName = .init(nil)
         changes.bio = .init(nil)
         changes.bioEmoji = .init(nil)
-        // builder.isStoriesCapable = .init(nil)
         changes.avatarUrlPath = .init(nil)
         changes.avatarFileName = .init(nil)
         // builder.lastFetchDate = .init(nil)
@@ -608,16 +694,12 @@ public extension OWSUserProfile {
     }
 
     func update(
-        isStoriesCapable: Bool,
-        canReceiveGiftBadges: Bool,
         isPniCapable: Bool,
         userProfileWriter: UserProfileWriter,
         authedAccount: AuthedAccount,
         transaction: SDSAnyWriteTransaction
     ) {
         let changes = UserProfileChanges()
-        changes.isStoriesCapable = .init(isStoriesCapable)
-        changes.canReceiveGiftBadges = .init(canReceiveGiftBadges)
         changes.isPniCapable = .init(isPniCapable)
         apply(
             changes,
@@ -630,8 +712,6 @@ public extension OWSUserProfile {
 
     func update(
         lastFetchDate: Date,
-        isStoriesCapable: Bool,
-        canReceiveGiftBadges: Bool,
         isPniCapable: Bool,
         userProfileWriter: UserProfileWriter,
         authedAccount: AuthedAccount,
@@ -639,9 +719,6 @@ public extension OWSUserProfile {
     ) {
         let changes = UserProfileChanges()
         changes.lastFetchDate = .init(lastFetchDate)
-
-        changes.isStoriesCapable = .init(isStoriesCapable)
-        changes.canReceiveGiftBadges = .init(canReceiveGiftBadges)
         changes.isPniCapable = .init(isPniCapable)
 
         apply(

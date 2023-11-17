@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Curve25519Kit
 import LibSignalClient
 
 // MARK: - ChangePhoneNumberPniManager protocol
@@ -99,31 +98,32 @@ class ChangePhoneNumberPniManagerImpl: ChangePhoneNumberPniManager {
 
     private let logger: PrefixedLogger = .init(prefix: "[CNPNI]")
 
-    private let schedulers: Schedulers
-    private let pniDistributionParameterBuilder: PniDistributionParamaterBuilder
-
     private let identityManager: Shims.IdentityManager
-    private let preKeyManager: Shims.PreKeyManager
+    private let pniDistributionParameterBuilder: PniDistributionParamaterBuilder
     private let pniSignedPreKeyStore: SignalSignedPreKeyStore
     private let pniKyberPreKeyStore: SignalKyberPreKeyStore
-    private let tsAccountManager: Shims.TSAccountManager
+    private let preKeyManager: Shims.PreKeyManager
+    private let registrationIdGenerator: RegistrationIdGenerator
+    private let schedulers: Schedulers
+    private let tsAccountManager: TSAccountManager
 
     init(
-        schedulers: Schedulers,
-        pniDistributionParameterBuilder: PniDistributionParamaterBuilder,
         identityManager: Shims.IdentityManager,
-        preKeyManager: Shims.PreKeyManager,
+        pniDistributionParameterBuilder: PniDistributionParamaterBuilder,
         pniSignedPreKeyStore: SignalSignedPreKeyStore,
         pniKyberPreKeyStore: SignalKyberPreKeyStore,
-        tsAccountManager: Shims.TSAccountManager
+        preKeyManager: Shims.PreKeyManager,
+        registrationIdGenerator: RegistrationIdGenerator,
+        schedulers: Schedulers,
+        tsAccountManager: TSAccountManager
     ) {
-        self.schedulers = schedulers
-        self.pniDistributionParameterBuilder = pniDistributionParameterBuilder
-
         self.identityManager = identityManager
-        self.preKeyManager = preKeyManager
+        self.pniDistributionParameterBuilder = pniDistributionParameterBuilder
         self.pniSignedPreKeyStore = pniSignedPreKeyStore
         self.pniKyberPreKeyStore = pniKyberPreKeyStore
+        self.preKeyManager = preKeyManager
+        self.registrationIdGenerator = registrationIdGenerator
+        self.schedulers = schedulers
         self.tsAccountManager = tsAccountManager
     }
 
@@ -150,7 +150,7 @@ class ChangePhoneNumberPniManagerImpl: ChangePhoneNumberPniManager {
             pniIdentityKeyPair: pniIdentityKeyPair,
             localDevicePniSignedPreKeyRecord: pniSignedPreKeyStore.generateSignedPreKey(signedBy: pniIdentityKeyPair),
             localDevicePniPqLastResortPreKeyRecord: localDevicePniPqLastResortPreKeyRecord,
-            localDevicePniRegistrationId: tsAccountManager.generateRegistrationId()
+            localDevicePniRegistrationId: registrationIdGenerator.generate()
         )
 
         return firstly(on: schedulers.sync) { () -> Guarantee<PniDistribution.ParameterGenerationResult> in
@@ -185,10 +185,10 @@ class ChangePhoneNumberPniManagerImpl: ChangePhoneNumberPniManager {
 
         // Store pending state in the right places
 
-        identityManager.storeIdentityKeyPair(
+        identityManager.setIdentityKeyPair(
             pendingState.pniIdentityKeyPair,
             for: .pni,
-            transaction: transaction
+            tx: transaction
         )
 
         if let newPqLastResortPreKeyRecord = pendingState.localDevicePniPqLastResortPreKeyRecord {
@@ -206,8 +206,8 @@ class ChangePhoneNumberPniManagerImpl: ChangePhoneNumberPniManager {
         )
 
         tsAccountManager.setPniRegistrationId(
-            newRegistrationId: pendingState.localDevicePniRegistrationId,
-            transaction: transaction
+            pendingState.localDevicePniRegistrationId,
+            tx: transaction
         )
 
         // Followup tasks

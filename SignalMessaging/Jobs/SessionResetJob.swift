@@ -19,7 +19,6 @@ public class SessionResetJobQueue: JobQueue {
     public var jobRecordLabel: String {
         return type(of: self).jobRecordLabel
     }
-    public static let maxRetries: UInt = 10
     public let requiresInternet: Bool = true
     public var isEnabled: Bool { CurrentAppContext().isMainApp }
     public var runningOperations = AtomicArray<SessionResetOperation>()
@@ -65,12 +64,11 @@ public class SessionResetOperation: OWSOperation, DurableOperation {
     // MARK: DurableOperation
 
     public let jobRecord: SessionResetJobRecord
-
     weak public var durableOperationDelegate: SessionResetJobQueue?
 
-    public var operation: OWSOperation {
-        return self
-    }
+    public var operation: OWSOperation { return self }
+
+    public let maxRetries: UInt = 10
 
     // MARK: 
 
@@ -94,8 +92,6 @@ public class SessionResetOperation: OWSOperation, DurableOperation {
         if firstAttempt {
             self.databaseStorage.write { transaction in
                 Logger.info("archiving sessions for recipient: \(self.recipientAddress)")
-                // PNI TODO: should this archive PNI sessions as well, or should that be a parameter of the job?
-                // Do we ever need a SessionResetJob for a PNI session?
                 DependenciesBridge.shared.signalProtocolStoreManager.signalProtocolStore(for: .aci).sessionStore.archiveAllSessions(
                     for: self.recipientAddress,
                     tx: transaction.asV2Write
@@ -120,7 +116,6 @@ public class SessionResetOperation: OWSOperation, DurableOperation {
                 // Archive the just-created session since the recipient should delete their corresponding
                 // session upon receiving and decrypting our EndSession message.
                 // Otherwise if we send another message before them, they won't have the session to decrypt it.
-                // PNI TODO: same as above
                 DependenciesBridge.shared.signalProtocolStoreManager.signalProtocolStore(for: .aci).sessionStore.archiveAllSessions(
                     for: self.recipientAddress,
                     tx: transaction.asV2Write
@@ -168,7 +163,6 @@ public class SessionResetOperation: OWSOperation, DurableOperation {
             // Archive the just-created session since the recipient should delete their corresponding
             // session upon receiving and decrypting our EndSession message.
             // Otherwise if we send another message before them, they won't have the session to decrypt it.
-            // PNI TODO: same as above
             DependenciesBridge.shared.signalProtocolStoreManager.signalProtocolStore(for: .aci).sessionStore.archiveAllSessions(
                 for: self.recipientAddress,
                 tx: transaction.asV2Write

@@ -62,6 +62,14 @@ extension ConversationViewController: ConversationInputToolbarDelegate {
     }
 
     private func tryToSendTextMessage(_ messageBody: MessageBody, updateKeyboardState: Bool) {
+        tryToSendTextMessage(
+            messageBody,
+            updateKeyboardState: updateKeyboardState,
+            untrustedThreshold: Date().addingTimeInterval(-OWSIdentityManagerImpl.Constants.defaultUntrustedInterval)
+        )
+    }
+
+    private func tryToSendTextMessage(_ messageBody: MessageBody, updateKeyboardState: Bool, untrustedThreshold: Date) {
         AssertIsOnMainThread()
 
         guard hasViewWillAppearEverBegun else {
@@ -76,18 +84,20 @@ extension ConversationViewController: ConversationInputToolbarDelegate {
         guard !isBlockedConversation() else {
             showUnblockConversationUI { [weak self] isBlocked in
                 if !isBlocked {
-                    self?.tryToSendTextMessage(messageBody, updateKeyboardState: false)
+                    self?.tryToSendTextMessage(messageBody, updateKeyboardState: false, untrustedThreshold: untrustedThreshold)
                 }
             }
             return
         }
 
+        let newUntrustedThreshold = Date()
         let didShowSNAlert = showSafetyNumberConfirmationIfNecessary(
-            confirmationText: SafetyNumberStrings.confirmSendButton
+            confirmationText: SafetyNumberStrings.confirmSendButton,
+            untrustedThreshold: untrustedThreshold
         ) { [weak self] didConfirmIdentity in
             guard let self = self else { return }
             if didConfirmIdentity {
-                self.tryToSendTextMessage(messageBody, updateKeyboardState: false)
+                self.tryToSendTextMessage(messageBody, updateKeyboardState: false, untrustedThreshold: newUntrustedThreshold)
             }
         }
         if didShowSNAlert {
@@ -101,29 +111,29 @@ extension ConversationViewController: ConversationInputToolbarDelegate {
         let didAddToProfileWhitelist = ThreadUtil.addThreadToProfileWhitelistIfEmptyOrPendingRequestAndSetDefaultTimerWithSneakyTransaction(thread)
 
         if inputToolbar.editTarget != nil {
-            let shouldShowBetaAlert = Self.databaseStorage.read { transaction in
-                context.editManager.shouldShowEditSendBetaConfirmation(tx: transaction.asV2Read)
+            let shouldShowEditMessageAlert = Self.databaseStorage.read { transaction in
+                context.editManager.shouldShowEditSendConfirmation(tx: transaction.asV2Read)
             }
 
-            if shouldShowBetaAlert {
+            if shouldShowEditMessageAlert {
                 OWSActionSheets.showConfirmationAlert(
                     title: OWSLocalizedString(
-                        "EDIT_MESSAGE_SEND_BETA_MESSAGE_TITLE",
+                        "EDIT_MESSAGE_SEND_MESSAGE_TITLE",
                         comment: "Edit Send Beta prompt title"
                     ),
                     message: OWSLocalizedString(
-                        "EDIT_MESSAGE_SEND_BETA_MESSAGE_BODY",
+                        "EDIT_MESSAGE_SEND_MESSAGE_BODY",
                         comment: "Edit Send Beta prompt body"
                     ),
                     proceedTitle: OWSLocalizedString(
-                        "EDIT_MESSAGE_SEND_BETA_MESSAGE_CONFIRM",
+                        "EDIT_MESSAGE_SEND_MESSAGE_CONFIRM",
                         comment: "Label to confirm sending an edit"
                     )
                 ) { _ in
                     Self.databaseStorage.write { transaction in
-                        self.context.editManager.setShouldShowEditSendBetaConfirmation(false, tx: transaction.asV2Write)
+                        self.context.editManager.setShouldShowEditSendConfirmation(false, tx: transaction.asV2Write)
                     }
-                    self.tryToSendTextMessage(messageBody, updateKeyboardState: false)
+                    self.tryToSendTextMessage(messageBody, updateKeyboardState: false, untrustedThreshold: newUntrustedThreshold)
                 }
                 return
             }
@@ -318,8 +328,8 @@ extension ConversationViewController: ConversationInputToolbarDelegate {
                 }
 
                 let replyInfo: ThreadReplyInfoObjC?
-                if let quotedReply, let serviceId = quotedReply.authorAddress.untypedServiceId {
-                    replyInfo = ThreadReplyInfoObjC(ThreadReplyInfo(timestamp: quotedReply.timestamp, author: serviceId))
+                if let quotedReply, let aci = quotedReply.authorAddress.aci {
+                    replyInfo = ThreadReplyInfoObjC(ThreadReplyInfo(timestamp: quotedReply.timestamp, author: aci))
                 } else {
                     replyInfo = nil
                 }
@@ -368,14 +378,21 @@ extension ConversationViewController: ConversationInputToolbarDelegate {
         if quotedReply?.timestamp != persistedQuotedReply?.timestamp {
             return true
         }
-        if quotedReply?.authorAddress.untypedServiceId != persistedQuotedReply?.author {
+        if quotedReply?.authorAddress.aci != persistedQuotedReply?.author {
             return true
         }
         return false
     }
 
-    public func tryToSendAttachments(_ attachments: [SignalAttachment],
-                                     messageBody: MessageBody?) {
+    public func tryToSendAttachments(_ attachments: [SignalAttachment], messageBody: MessageBody?) {
+        tryToSendAttachments(
+            attachments,
+            messageBody: messageBody,
+            untrustedThreshold: Date().addingTimeInterval(-OWSIdentityManagerImpl.Constants.defaultUntrustedInterval)
+        )
+    }
+
+    private func tryToSendAttachments(_ attachments: [SignalAttachment], messageBody: MessageBody?, untrustedThreshold: Date) {
         AssertIsOnMainThread()
 
         guard hasViewWillAppearEverBegun else {
@@ -391,16 +408,19 @@ extension ConversationViewController: ConversationInputToolbarDelegate {
             if self.isBlockedConversation() {
                 self.showUnblockConversationUI { [weak self] isBlocked in
                     if !isBlocked {
-                        self?.tryToSendAttachments(attachments, messageBody: messageBody)
+                        self?.tryToSendAttachments(attachments, messageBody: messageBody, untrustedThreshold: untrustedThreshold)
                     }
                 }
                 return
             }
 
+            let newUntrustedThreshold = Date()
             let didShowSNAlert = self.showSafetyNumberConfirmationIfNecessary(
-                confirmationText: SafetyNumberStrings.confirmSendButton) { [weak self] didConfirmIdentity in
+                confirmationText: SafetyNumberStrings.confirmSendButton,
+                untrustedThreshold: untrustedThreshold
+            ) { [weak self] didConfirmIdentity in
                 if didConfirmIdentity {
-                    self?.tryToSendAttachments(attachments, messageBody: messageBody)
+                    self?.tryToSendAttachments(attachments, messageBody: messageBody, untrustedThreshold: newUntrustedThreshold)
                 }
             }
             if didShowSNAlert {
@@ -450,7 +470,7 @@ extension ConversationViewController: ConversationInputToolbarDelegate {
         takePictureOrVideo()
     }
 
-    public func galleryButtonPressed() {
+    public func photosButtonPressed() {
         AssertIsOnMainThread()
 
         chooseFromLibrary()
@@ -487,12 +507,6 @@ extension ConversationViewController: ConversationInputToolbarDelegate {
     public func paymentButtonPressed() {
         AssertIsOnMainThread()
 
-        showSendPaymentUI(paymentRequestModel: nil)
-    }
-
-    public func showSendPaymentUI(paymentRequestModel: TSPaymentRequestModel?) {
-        AssertIsOnMainThread()
-
         guard let contactThread = thread as? TSContactThread else {
             owsFailDebug("Not a contact thread.")
             return
@@ -511,12 +525,13 @@ extension ConversationViewController: ConversationInputToolbarDelegate {
             return
         }
 
-        SendPaymentViewController.presentFromConversationView(self,
-                                                              delegate: self,
-                                                              recipientAddress: contactThread.contactAddress,
-                                                              paymentRequestModel: paymentRequestModel,
-                                                              initialPaymentAmount: nil,
-                                                              isOutgoingTransfer: false)
+        SendPaymentViewController.presentFromConversationView(
+            self,
+            delegate: self,
+            recipientAddress: contactThread.contactAddress,
+            initialPaymentAmount: nil,
+            isOutgoingTransfer: false
+        )
     }
 
     public func didSelectRecentPhoto(asset: PHAsset, attachment: SignalAttachment) {
@@ -573,10 +588,13 @@ public extension ConversationViewController {
             return
         }
 
-        let modal = AttachmentApprovalViewController.wrappedInNavController(attachments: attachments,
-                                                                            initialMessageBody: inputToolbar.messageBodyForSending,
-                                                                            approvalDelegate: self,
-                                                                            approvalDataSource: self)
+        let modal = AttachmentApprovalViewController.wrappedInNavController(
+            attachments: attachments,
+            initialMessageBody: inputToolbar.messageBodyForSending,
+            approvalDelegate: self,
+            approvalDataSource: self,
+            stickerSheetDelegate: self
+        )
         presentFullScreen(modal, animated: true)
     }
 }
@@ -594,8 +612,8 @@ fileprivate extension ConversationViewController {
         contactsViewHelper.checkSharingAuthorization(
             purpose: .share,
             authorizedBehavior: .runAction({
-                let contactsPicker = ContactsPicker(allowsMultipleSelection: false, subtitleCellType: .none)
-                contactsPicker.contactsPickerDelegate = self
+                let contactsPicker = ContactPickerViewController(allowsMultipleSelection: false, subtitleCellType: .none)
+                contactsPicker.delegate = self
                 contactsPicker.title = OWSLocalizedString(
                     "CONTACT_PICKER_TITLE",
                     comment: "navbar title for contact picker when sharing a contact"
@@ -949,5 +967,15 @@ extension ConversationViewController: SendMediaNavDataSource {
 
     func sendMediaNavMentionCacheInvalidationKey() -> String {
         return thread.uniqueId
+    }
+}
+
+// MARK: - StickerPickerSheetDelegate
+
+extension ConversationViewController: StickerPickerSheetDelegate {
+    public func makeManageStickersViewController() -> UIViewController {
+        let manageStickersView = ManageStickersViewController()
+        let navigationController = OWSNavigationController(rootViewController: manageStickersView)
+        return navigationController
     }
 }

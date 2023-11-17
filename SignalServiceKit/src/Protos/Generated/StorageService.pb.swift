@@ -347,9 +347,14 @@ struct StorageServiceProtos_ContactRecord {
     set {_uniqueStorage()._aci = newValue}
   }
 
-  var serviceE164: String {
-    get {return _storage._serviceE164}
-    set {_uniqueStorage()._serviceE164 = newValue}
+  var e164: String {
+    get {return _storage._e164}
+    set {_uniqueStorage()._e164 = newValue}
+  }
+
+  var pni: String {
+    get {return _storage._pni}
+    set {_uniqueStorage()._pni = newValue}
   }
 
   var profileKey: Data {
@@ -432,6 +437,11 @@ struct StorageServiceProtos_ContactRecord {
     set {_uniqueStorage()._systemNickname = newValue}
   }
 
+  var hidden: Bool {
+    get {return _storage._hidden}
+    set {_uniqueStorage()._hidden = newValue}
+  }
+
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
   enum IdentityState: SwiftProtobuf.Enum {
@@ -490,16 +500,6 @@ struct StorageServiceProtos_GroupV1Record {
 
   /// @required
   var id: Data = Data()
-
-  var blocked: Bool = false
-
-  var whitelisted: Bool = false
-
-  var archived: Bool = false
-
-  var markedUnread: Bool = false
-
-  var mutedUntilTimestamp: UInt64 = 0
 
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -759,19 +759,19 @@ struct StorageServiceProtos_AccountRecord {
 
   enum PhoneNumberSharingMode: SwiftProtobuf.Enum {
     typealias RawValue = Int
-    case everybody // = 0
-    case contactsOnly // = 1
+    case unknown // = 0
+    case everybody // = 1
     case nobody // = 2
     case UNRECOGNIZED(Int)
 
     init() {
-      self = .everybody
+      self = .unknown
     }
 
     init?(rawValue: Int) {
       switch rawValue {
-      case 0: self = .everybody
-      case 1: self = .contactsOnly
+      case 0: self = .unknown
+      case 1: self = .everybody
       case 2: self = .nobody
       default: self = .UNRECOGNIZED(rawValue)
       }
@@ -779,8 +779,8 @@ struct StorageServiceProtos_AccountRecord {
 
     var rawValue: Int {
       switch self {
-      case .everybody: return 0
-      case .contactsOnly: return 1
+      case .unknown: return 0
+      case .everybody: return 1
       case .nobody: return 2
       case .UNRECOGNIZED(let i): return i
       }
@@ -959,8 +959,8 @@ struct StorageServiceProtos_AccountRecord {
 extension StorageServiceProtos_AccountRecord.PhoneNumberSharingMode: CaseIterable {
   // The compiler won't synthesize support with the UNRECOGNIZED case.
   static var allCases: [StorageServiceProtos_AccountRecord.PhoneNumberSharingMode] = [
+    .unknown,
     .everybody,
-    .contactsOnly,
     .nobody,
   ]
 }
@@ -1459,7 +1459,8 @@ extension StorageServiceProtos_ContactRecord: SwiftProtobuf.Message, SwiftProtob
   static let protoMessageName: String = _protobuf_package + ".ContactRecord"
   static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
     1: .same(proto: "aci"),
-    2: .same(proto: "serviceE164"),
+    2: .same(proto: "e164"),
+    15: .same(proto: "pni"),
     3: .same(proto: "profileKey"),
     4: .same(proto: "identityKey"),
     5: .same(proto: "identityState"),
@@ -1476,11 +1477,13 @@ extension StorageServiceProtos_ContactRecord: SwiftProtobuf.Message, SwiftProtob
     17: .same(proto: "systemGivenName"),
     18: .same(proto: "systemFamilyName"),
     19: .same(proto: "systemNickname"),
+    20: .same(proto: "hidden"),
   ]
 
   fileprivate class _StorageClass {
     var _aci: String = String()
-    var _serviceE164: String = String()
+    var _e164: String = String()
+    var _pni: String = String()
     var _profileKey: Data = Data()
     var _identityKey: Data = Data()
     var _identityState: StorageServiceProtos_ContactRecord.IdentityState = .default
@@ -1497,6 +1500,7 @@ extension StorageServiceProtos_ContactRecord: SwiftProtobuf.Message, SwiftProtob
     var _systemGivenName: String = String()
     var _systemFamilyName: String = String()
     var _systemNickname: String = String()
+    var _hidden: Bool = false
 
     static let defaultInstance = _StorageClass()
 
@@ -1504,7 +1508,8 @@ extension StorageServiceProtos_ContactRecord: SwiftProtobuf.Message, SwiftProtob
 
     init(copying source: _StorageClass) {
       _aci = source._aci
-      _serviceE164 = source._serviceE164
+      _e164 = source._e164
+      _pni = source._pni
       _profileKey = source._profileKey
       _identityKey = source._identityKey
       _identityState = source._identityState
@@ -1521,6 +1526,7 @@ extension StorageServiceProtos_ContactRecord: SwiftProtobuf.Message, SwiftProtob
       _systemGivenName = source._systemGivenName
       _systemFamilyName = source._systemFamilyName
       _systemNickname = source._systemNickname
+      _hidden = source._hidden
     }
   }
 
@@ -1540,7 +1546,7 @@ extension StorageServiceProtos_ContactRecord: SwiftProtobuf.Message, SwiftProtob
         // enabled. https://github.com/apple/swift-protobuf/issues/1034
         switch fieldNumber {
         case 1: try { try decoder.decodeSingularStringField(value: &_storage._aci) }()
-        case 2: try { try decoder.decodeSingularStringField(value: &_storage._serviceE164) }()
+        case 2: try { try decoder.decodeSingularStringField(value: &_storage._e164) }()
         case 3: try { try decoder.decodeSingularBytesField(value: &_storage._profileKey) }()
         case 4: try { try decoder.decodeSingularBytesField(value: &_storage._identityKey) }()
         case 5: try { try decoder.decodeSingularEnumField(value: &_storage._identityState) }()
@@ -1553,10 +1559,12 @@ extension StorageServiceProtos_ContactRecord: SwiftProtobuf.Message, SwiftProtob
         case 12: try { try decoder.decodeSingularBoolField(value: &_storage._markedUnread) }()
         case 13: try { try decoder.decodeSingularUInt64Field(value: &_storage._mutedUntilTimestamp) }()
         case 14: try { try decoder.decodeSingularBoolField(value: &_storage._hideStory) }()
+        case 15: try { try decoder.decodeSingularStringField(value: &_storage._pni) }()
         case 16: try { try decoder.decodeSingularUInt64Field(value: &_storage._unregisteredAtTimestamp) }()
         case 17: try { try decoder.decodeSingularStringField(value: &_storage._systemGivenName) }()
         case 18: try { try decoder.decodeSingularStringField(value: &_storage._systemFamilyName) }()
         case 19: try { try decoder.decodeSingularStringField(value: &_storage._systemNickname) }()
+        case 20: try { try decoder.decodeSingularBoolField(value: &_storage._hidden) }()
         default: break
         }
       }
@@ -1568,8 +1576,8 @@ extension StorageServiceProtos_ContactRecord: SwiftProtobuf.Message, SwiftProtob
       if !_storage._aci.isEmpty {
         try visitor.visitSingularStringField(value: _storage._aci, fieldNumber: 1)
       }
-      if !_storage._serviceE164.isEmpty {
-        try visitor.visitSingularStringField(value: _storage._serviceE164, fieldNumber: 2)
+      if !_storage._e164.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._e164, fieldNumber: 2)
       }
       if !_storage._profileKey.isEmpty {
         try visitor.visitSingularBytesField(value: _storage._profileKey, fieldNumber: 3)
@@ -1607,6 +1615,9 @@ extension StorageServiceProtos_ContactRecord: SwiftProtobuf.Message, SwiftProtob
       if _storage._hideStory != false {
         try visitor.visitSingularBoolField(value: _storage._hideStory, fieldNumber: 14)
       }
+      if !_storage._pni.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._pni, fieldNumber: 15)
+      }
       if _storage._unregisteredAtTimestamp != 0 {
         try visitor.visitSingularUInt64Field(value: _storage._unregisteredAtTimestamp, fieldNumber: 16)
       }
@@ -1619,6 +1630,9 @@ extension StorageServiceProtos_ContactRecord: SwiftProtobuf.Message, SwiftProtob
       if !_storage._systemNickname.isEmpty {
         try visitor.visitSingularStringField(value: _storage._systemNickname, fieldNumber: 19)
       }
+      if _storage._hidden != false {
+        try visitor.visitSingularBoolField(value: _storage._hidden, fieldNumber: 20)
+      }
     }
     try unknownFields.traverse(visitor: &visitor)
   }
@@ -1629,7 +1643,8 @@ extension StorageServiceProtos_ContactRecord: SwiftProtobuf.Message, SwiftProtob
         let _storage = _args.0
         let rhs_storage = _args.1
         if _storage._aci != rhs_storage._aci {return false}
-        if _storage._serviceE164 != rhs_storage._serviceE164 {return false}
+        if _storage._e164 != rhs_storage._e164 {return false}
+        if _storage._pni != rhs_storage._pni {return false}
         if _storage._profileKey != rhs_storage._profileKey {return false}
         if _storage._identityKey != rhs_storage._identityKey {return false}
         if _storage._identityState != rhs_storage._identityState {return false}
@@ -1646,6 +1661,7 @@ extension StorageServiceProtos_ContactRecord: SwiftProtobuf.Message, SwiftProtob
         if _storage._systemGivenName != rhs_storage._systemGivenName {return false}
         if _storage._systemFamilyName != rhs_storage._systemFamilyName {return false}
         if _storage._systemNickname != rhs_storage._systemNickname {return false}
+        if _storage._hidden != rhs_storage._hidden {return false}
         return true
       }
       if !storagesAreEqual {return false}
@@ -1667,11 +1683,6 @@ extension StorageServiceProtos_GroupV1Record: SwiftProtobuf.Message, SwiftProtob
   static let protoMessageName: String = _protobuf_package + ".GroupV1Record"
   static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
     1: .same(proto: "id"),
-    2: .same(proto: "blocked"),
-    3: .same(proto: "whitelisted"),
-    4: .same(proto: "archived"),
-    5: .same(proto: "markedUnread"),
-    6: .same(proto: "mutedUntilTimestamp"),
   ]
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
@@ -1681,11 +1692,6 @@ extension StorageServiceProtos_GroupV1Record: SwiftProtobuf.Message, SwiftProtob
       // enabled. https://github.com/apple/swift-protobuf/issues/1034
       switch fieldNumber {
       case 1: try { try decoder.decodeSingularBytesField(value: &self.id) }()
-      case 2: try { try decoder.decodeSingularBoolField(value: &self.blocked) }()
-      case 3: try { try decoder.decodeSingularBoolField(value: &self.whitelisted) }()
-      case 4: try { try decoder.decodeSingularBoolField(value: &self.archived) }()
-      case 5: try { try decoder.decodeSingularBoolField(value: &self.markedUnread) }()
-      case 6: try { try decoder.decodeSingularUInt64Field(value: &self.mutedUntilTimestamp) }()
       default: break
       }
     }
@@ -1695,31 +1701,11 @@ extension StorageServiceProtos_GroupV1Record: SwiftProtobuf.Message, SwiftProtob
     if !self.id.isEmpty {
       try visitor.visitSingularBytesField(value: self.id, fieldNumber: 1)
     }
-    if self.blocked != false {
-      try visitor.visitSingularBoolField(value: self.blocked, fieldNumber: 2)
-    }
-    if self.whitelisted != false {
-      try visitor.visitSingularBoolField(value: self.whitelisted, fieldNumber: 3)
-    }
-    if self.archived != false {
-      try visitor.visitSingularBoolField(value: self.archived, fieldNumber: 4)
-    }
-    if self.markedUnread != false {
-      try visitor.visitSingularBoolField(value: self.markedUnread, fieldNumber: 5)
-    }
-    if self.mutedUntilTimestamp != 0 {
-      try visitor.visitSingularUInt64Field(value: self.mutedUntilTimestamp, fieldNumber: 6)
-    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
   static func ==(lhs: StorageServiceProtos_GroupV1Record, rhs: StorageServiceProtos_GroupV1Record) -> Bool {
     if lhs.id != rhs.id {return false}
-    if lhs.blocked != rhs.blocked {return false}
-    if lhs.whitelisted != rhs.whitelisted {return false}
-    if lhs.archived != rhs.archived {return false}
-    if lhs.markedUnread != rhs.markedUnread {return false}
-    if lhs.mutedUntilTimestamp != rhs.mutedUntilTimestamp {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -1856,7 +1842,7 @@ extension StorageServiceProtos_AccountRecord: SwiftProtobuf.Message, SwiftProtob
     var _proxiedLinkPreviews: Bool = false
     var _noteToSelfMarkedUnread: Bool = false
     var _linkPreviews: Bool = false
-    var _phoneNumberSharingMode: StorageServiceProtos_AccountRecord.PhoneNumberSharingMode = .everybody
+    var _phoneNumberSharingMode: StorageServiceProtos_AccountRecord.PhoneNumberSharingMode = .unknown
     var _notDiscoverableByPhoneNumber: Bool = false
     var _pinnedConversations: [StorageServiceProtos_AccountRecord.PinnedConversation] = []
     var _preferContactAvatars: Bool = false
@@ -2010,7 +1996,7 @@ extension StorageServiceProtos_AccountRecord: SwiftProtobuf.Message, SwiftProtob
       if _storage._linkPreviews != false {
         try visitor.visitSingularBoolField(value: _storage._linkPreviews, fieldNumber: 11)
       }
-      if _storage._phoneNumberSharingMode != .everybody {
+      if _storage._phoneNumberSharingMode != .unknown {
         try visitor.visitSingularEnumField(value: _storage._phoneNumberSharingMode, fieldNumber: 12)
       }
       if _storage._notDiscoverableByPhoneNumber != false {
@@ -2125,8 +2111,8 @@ extension StorageServiceProtos_AccountRecord: SwiftProtobuf.Message, SwiftProtob
 
 extension StorageServiceProtos_AccountRecord.PhoneNumberSharingMode: SwiftProtobuf._ProtoNameProviding {
   static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
-    0: .same(proto: "EVERYBODY"),
-    1: .same(proto: "CONTACTS_ONLY"),
+    0: .same(proto: "UNKNOWN"),
+    1: .same(proto: "EVERYBODY"),
     2: .same(proto: "NOBODY"),
   ]
 }

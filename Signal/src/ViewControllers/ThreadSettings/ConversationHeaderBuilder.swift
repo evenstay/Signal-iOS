@@ -5,6 +5,7 @@
 
 import Foundation
 import SignalMessaging
+import SignalServiceKit
 import SignalUI
 import UIKit
 
@@ -196,10 +197,8 @@ struct ConversationHeaderBuilder: Dependencies {
             }
         }
 
-        let isVerified = identityManager.verificationState(
-            for: recipientAddress,
-            transaction: transaction
-        ) == .verified
+        let identityManager = DependenciesBridge.shared.identityManager
+        let isVerified = identityManager.verificationState(for: recipientAddress, tx: transaction.asV2Read) == .verified
         if isVerified {
             let subtitle = NSMutableAttributedString()
             subtitle.appendTemplatedImage(named: "check-extra-small", font: .dynamicTypeSubheadlineClamped)
@@ -425,14 +424,13 @@ struct ConversationHeaderBuilder: Dependencies {
 
     func buildThreadNameLabel() -> UILabel {
         let label = UILabel()
-        label.text = delegate.threadName(
+        label.attributedText = delegate.threadAttributedString(
             renderLocalUserAsNoteToSelf: options.contains(.renderLocalUserAsNoteToSelf),
             transaction: transaction
         )
-        label.textColor = Theme.primaryTextColor
-        // TODO: See if design really wants this custom font size.
-        label.font = UIFont.semiboldFont(ofSize: UIFont.dynamicTypeTitle1Clamped.pointSize * (13/14))
-        label.lineBreakMode = .byTruncatingTail
+        label.numberOfLines = 0
+        label.textAlignment = .center
+        label.lineBreakMode = .byWordWrapping
         return label
     }
 
@@ -536,6 +534,30 @@ extension ConversationHeaderDelegate {
         }
 
         return threadName
+    }
+
+    func threadAttributedString(renderLocalUserAsNoteToSelf: Bool, transaction: SDSAnyReadTransaction) -> NSAttributedString {
+        let threadName = threadName(renderLocalUserAsNoteToSelf: renderLocalUserAsNoteToSelf, transaction: transaction)
+        let font = UIFont.semiboldFont(ofSize: UIFont.dynamicTypeTitle1Clamped.pointSize * (13/14))
+
+        let attributedString = NSMutableAttributedString(string: threadName, attributes: [
+            .foregroundColor: Theme.primaryTextColor,
+            .font: font,
+        ])
+
+        if thread.isNoteToSelf {
+            attributedString.append(" ")
+            let verifiedBadgeImage = Theme.iconImage(.official)
+            let verifiedBadgeAttachment = NSAttributedString.with(
+                image: verifiedBadgeImage,
+                font: .dynamicTypeTitle3,
+                centerVerticallyRelativeTo: font,
+                heightReference: .pointSize
+            )
+            attributedString.append(verifiedBadgeAttachment)
+        }
+
+        return attributedString
     }
 
     func startCall(withVideo: Bool) {

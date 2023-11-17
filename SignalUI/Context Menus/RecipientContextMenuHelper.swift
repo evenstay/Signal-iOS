@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
+import LibSignalClient
 import SignalMessaging
 import SignalServiceKit
 
@@ -49,7 +50,7 @@ class RecipientContextMenuHelper {
             }
             let localAddress: SignalServiceAddress? = self.databaseStorage.read { [weak self] tx in
                 guard let self else { return nil }
-                return self.accountManager.localAddress(with: tx)
+                return self.accountManager.localIdentifiers(tx: tx.asV2Read)?.aciAddress
             }
             guard
                 let localAddress,
@@ -86,10 +87,25 @@ class RecipientContextMenuHelper {
             image: UIImage(named: "minus-circle")
         ) { [weak self] _ in
             guard let self else { return }
-            self.displayHideRecipientActionSheet(
-                address: address,
-                fromViewController: fromViewController
-            )
+            if let e164 = address.e164, self.isSystemContact(e164: e164) {
+                self.displayViewContactActionSheet(
+                    address: address,
+                    e164: e164,
+                    fromViewController: fromViewController
+                )
+            } else {
+                self.displayHideRecipientActionSheet(
+                    address: address,
+                    fromViewController: fromViewController
+                )
+            }
+        }
+    }
+
+    /// Whether the given `e164` corresponds with a system contact.
+    private func isSystemContact(e164: E164) -> Bool {
+        return databaseStorage.read { tx in
+            contactsManager.isSystemContact(phoneNumber: e164.stringValue, transaction: tx)
         }
     }
 
@@ -138,7 +154,7 @@ class RecipientContextMenuHelper {
             return
         }
         let (localAddress, recipientDisplayName) = databaseStorage.read { tx in
-            let localAddress = accountManager.localAddress(with: tx)
+            let localAddress = accountManager.localIdentifiers(tx: tx.asV2Read)?.aciAddress
             let recipientDisplayName = contactsManager.displayName(
                 for: address,
                 transaction: tx
@@ -213,10 +229,123 @@ class RecipientContextMenuHelper {
         fromViewController.presentActionSheet(actionSheet)
     }
 
+    /// Displays an action sheet letting the user know that
+    /// they cannot remove the indicated recipient without
+    /// first removing them from their system contacts.
+    ///
+    /// - Parameter address: Address of the recipient to hide.
+    /// - Parameter e164: Phone number of the recipient to hide.
+    /// - Parameter fromViewController: The view controller from which to present the action sheet.
+    private func displayViewContactActionSheet(
+        address: SignalServiceAddress,
+        e164: E164,
+        fromViewController: UIViewController
+    ) {
+        let (
+            isPrimaryDevice,
+            localAddress,
+            recipientDisplayName
+        ) = databaseStorage.read { tx in
+            let localAddress = accountManager.localIdentifiers(tx: tx.asV2Read)?.aciAddress
+            let recipientDisplayName = contactsManager.displayName(
+                for: address,
+                transaction: tx
+            ).formattedForActionSheetTitle()
+            return (
+                accountManager.registrationState(tx: tx.asV2Read).isPrimaryDevice ?? true,
+                localAddress,
+                recipientDisplayName
+            )
+        }
+        guard
+            let localAddress,
+            !localAddress.isEqualToAddress(address) else
+        {
+            owsFailDebug("Remove recipient option should not have been shown in context menu for Note to Self, so we shouldn't be able to get here.")
+            return
+        }
+        let actionSheetTitle = String(
+            format: OWSLocalizedString(
+                "HIDE_RECIPIENT_IMPASS_BECAUSE_SYSTEM_CONTACT_ACTION_SHEET_TITLE",
+                comment: "A format for the 'unable to remove user' action sheet title. Embeds {{the removed user's name or phone number}}."
+            ),
+            recipientDisplayName
+        )
+
+        let actionSheetMessage: String
+        let removeAction: ActionSheetAction?
+        if isPrimaryDevice {
+            actionSheetMessage = OWSLocalizedString(
+                "HIDE_RECIPIENT_IMPASS_BECAUSE_SYSTEM_CONTACT_ACTION_SHEET_EXPLANATION",
+                comment: "An explanation of why the user cannot be removed."
+            )
+            removeAction = ActionSheetAction(
+                title: OWSLocalizedString("VIEW_CONTACT_BUTTON", comment: "Button label for the 'View Contact' button"),
+                handler: { [weak self] _ in
+                    guard let self else { return }
+                    self.displayDeleteContactViewController(
+                        e164: e164,
+                        serviceId: address.serviceId,
+                        fromViewController: fromViewController
+                    )
+                }
+            )
+        } else {
+            actionSheetMessage = OWSLocalizedString(
+                "HIDE_RECIPIENT_IMPOSSIBLE_BECAUSE_SYSTEM_CONTACT_ACTION_SHEET_EXPLANATION",
+                comment: "An explanation of why the user cannot be removed on a linked device."
+            )
+            removeAction = nil
+        }
+
+        let actionSheet = ActionSheetController(
+            title: actionSheetTitle,
+            message: actionSheetMessage
+        )
+
+        if let removeAction {
+            actionSheet.addAction(removeAction)
+        }
+        actionSheet.addAction(ActionSheetAction(
+            title: CommonStrings.okayButton,
+            style: .cancel
+        ))
+        fromViewController.presentActionSheet(actionSheet)
+    }
+
+    /// Displays a view controller with a simplified contact
+    /// view and the option to delete this contact.
+    ///
+    /// - Parameter e164: The phone number of the contact to
+    ///   potentially be deleted.
+    /// - Parameter fromViewController: The view controller
+    ///   from which to present this contact deletion view
+    ///   controller.
+    private func displayDeleteContactViewController(
+        e164: E164,
+        serviceId: ServiceId?,
+        fromViewController: UIViewController
+    ) {
+        let deleteContactViewController = DeleteSystemContactViewController(
+            e164: e164,
+            serviceId: serviceId,
+            viewControllerPresentingToast: fromViewController,
+            contactsManager: contactsManager,
+            databaseStorage: databaseStorage,
+            recipientHidingManager: recipientHidingManager,
+            tsAccountManager: accountManager
+        )
+        let navigationController = OWSNavigationController()
+        navigationController.setViewControllers([deleteContactViewController], animated: false)
+        fromViewController.presentFormSheet(navigationController, animated: true)
+    }
+
     /// Displays a toast confirming the successful hide of a recipient.
     ///
     /// - Parameter fromViewController: The view controller from which to
     ///   present the toast.
+    /// - Parameter displayName: The the display name of the user who has
+    ///   been hidden.
     private func displaySuccessToast(
         fromViewController: UIViewController,
         displayName: String

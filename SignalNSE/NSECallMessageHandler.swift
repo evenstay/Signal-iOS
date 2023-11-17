@@ -168,7 +168,7 @@ public class NSECallMessageHandler: NSObject, OWSCallMessageHandler {
 
     public func receivedOpaque(
         _ opaque: SSKProtoCallMessageOpaque,
-        from caller: SignalServiceAddress,
+        from caller: AciObjC,
         sourceDevice: UInt32,
         serverReceivedTimestamp: UInt64,
         serverDeliveryTimestamp: UInt64,
@@ -184,7 +184,7 @@ public class NSECallMessageHandler: NSObject, OWSCallMessageHandler {
         completion: @escaping () -> Void
     ) {
         NSELogger.uncorrelated.info("Received group call update for thread \(groupThread.uniqueId)")
-        lightweightCallManager?.peekCallAndUpdateThread(
+        lightweightGroupCallManager?.peekGroupCallAndUpdateThread(
             groupThread,
             expectedEraId: updateMessage.eraID,
             triggerEventTimestamp: serverReceivedTimestamp,

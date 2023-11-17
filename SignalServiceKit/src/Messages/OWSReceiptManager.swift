@@ -21,26 +21,29 @@ struct ReceiptForLinkedDevice: Codable {
         self.timestamp = timestamp
     }
 
-    var asLinkedDeviceReadReceipt: OWSLinkedDeviceReadReceipt {
+    var asLinkedDeviceReadReceipt: OWSLinkedDeviceReadReceipt? {
+        guard let senderAci = senderAddress.aci else { return nil }
         return OWSLinkedDeviceReadReceipt(
-            senderAddress: senderAddress,
+            senderAci: AciObjC(senderAci),
             messageUniqueId: messageUniqueId,
             messageIdTimestamp: messageIdTimestamp,
-            readTimestamp: timestamp)
+            readTimestamp: timestamp
+        )
     }
 
-    var asLinkedDeviceViewedReceipt: OWSLinkedDeviceViewedReceipt {
+    var asLinkedDeviceViewedReceipt: OWSLinkedDeviceViewedReceipt? {
+        guard let senderAci = senderAddress.aci else { return nil }
         return OWSLinkedDeviceViewedReceipt(
-            senderAddress: senderAddress,
+            senderAci: AciObjC(senderAci),
             messageUniqueId: messageUniqueId,
             messageIdTimestamp: messageIdTimestamp,
-            viewedTimestamp: timestamp)
+            viewedTimestamp: timestamp
+        )
     }
 }
 
 // MARK: -
 
-@objc
 public extension OWSReceiptManager {
 
     private var toLinkedDevicesReadReceiptMapStore: SDSKeyValueStore {
@@ -51,6 +54,7 @@ public extension OWSReceiptManager {
         return SDSKeyValueStore(collection: "OWSReceiptManager.toLinkedDevicesViewedReceiptMapStore")
     }
 
+    @objc
     func processReceiptsForLinkedDevices(completion: @escaping () -> Void) {
         let didWork = databaseStorage.write { transaction -> Bool in
             let readReceiptsForLinkedDevices: [ReceiptForLinkedDevice]
@@ -73,24 +77,26 @@ public extension OWSReceiptManager {
                 return false
             }
 
-            guard let thread = TSAccountManager.getOrCreateLocalThread(transaction: transaction) else {
+            guard let thread = TSContactThread.getOrCreateLocalThread(transaction: transaction) else {
                 owsFailDebug("Missing thread.")
                 return false
             }
 
             if !readReceiptsForLinkedDevices.isEmpty {
-                let receiptsForMessage = readReceiptsForLinkedDevices.map { $0.asLinkedDeviceReadReceipt }
-                let message = OWSReadReceiptsForLinkedDevicesMessage(thread: thread, readReceipts: receiptsForMessage, transaction: transaction)
-
-                self.sskJobQueues.messageSenderJobQueue.add(message: message.asPreparer, transaction: transaction)
+                let readReceiptsToSend = readReceiptsForLinkedDevices.compactMap { $0.asLinkedDeviceReadReceipt }
+                if !readReceiptsToSend.isEmpty {
+                    let message = OWSReadReceiptsForLinkedDevicesMessage(thread: thread, readReceipts: readReceiptsToSend, transaction: transaction)
+                    self.sskJobQueues.messageSenderJobQueue.add(message: message.asPreparer, transaction: transaction)
+                }
                 self.toLinkedDevicesReadReceiptMapStore.removeAll(transaction: transaction)
             }
 
             if !viewedReceiptsForLinkedDevices.isEmpty {
-                let receiptsForMessage = viewedReceiptsForLinkedDevices.map { $0.asLinkedDeviceViewedReceipt }
-                let message = OWSViewedReceiptsForLinkedDevicesMessage(thread: thread, viewedReceipts: receiptsForMessage, transaction: transaction)
-
-                self.sskJobQueues.messageSenderJobQueue.add(message: message.asPreparer, transaction: transaction)
+                let viewedReceiptsToSend = viewedReceiptsForLinkedDevices.compactMap { $0.asLinkedDeviceViewedReceipt }
+                if !viewedReceiptsToSend.isEmpty {
+                    let message = OWSViewedReceiptsForLinkedDevicesMessage(thread: thread, viewedReceipts: viewedReceiptsToSend, transaction: transaction)
+                    self.sskJobQueues.messageSenderJobQueue.add(message: message.asPreparer, transaction: transaction)
+                }
                 self.toLinkedDevicesViewedReceiptMapStore.removeAll(transaction: transaction)
             }
 
@@ -113,6 +119,7 @@ public extension OWSReceiptManager {
         }
     }
 
+    @objc
     func enqueueLinkedDeviceReadReceipt(forMessage message: TSIncomingMessage,
                                         transaction: SDSAnyWriteTransaction) {
         let threadUniqueId = message.uniqueThreadId
@@ -142,6 +149,7 @@ public extension OWSReceiptManager {
         }
     }
 
+    @objc
     func enqueueLinkedDeviceViewedReceipt(forIncomingMessage message: TSIncomingMessage,
                                           transaction: SDSAnyWriteTransaction) {
 
@@ -153,10 +161,11 @@ public extension OWSReceiptManager {
         )
     }
 
+    @objc
     func enqueueLinkedDeviceViewedReceipt(forOutgoingMessage message: TSOutgoingMessage,
                                           transaction: SDSAnyWriteTransaction) {
 
-        guard let localAddress = self.tsAccountManager.localAddress(with: transaction) else {
+        guard let localAddress = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: transaction.asV2Read)?.aciAddress else {
             owsFailDebug("no local address")
             return
         }
@@ -169,6 +178,7 @@ public extension OWSReceiptManager {
         )
     }
 
+    @objc
     func enqueueLinkedDeviceReadReceipt(
         forStoryMessage message: StoryMessage,
         transaction: SDSAnyWriteTransaction
@@ -199,6 +209,7 @@ public extension OWSReceiptManager {
         }
     }
 
+    @objc
     func enqueueLinkedDeviceViewedReceipt(
         forStoryMessage message: StoryMessage,
         transaction: SDSAnyWriteTransaction
@@ -216,6 +227,7 @@ public extension OWSReceiptManager {
         )
     }
 
+    @objc
     func enqueueSenderViewedReceipt(
         forStoryMessage message: StoryMessage,
         transaction: SDSAnyWriteTransaction
@@ -233,7 +245,7 @@ public extension OWSReceiptManager {
             for: message.authorAddress,
             timestamp: message.timestamp,
             messageUniqueId: message.uniqueId,
-            transaction: transaction
+            tx: transaction
         )
     }
 
@@ -266,7 +278,6 @@ public extension OWSReceiptManager {
         }
     }
 
-    @nonobjc
     private func processReceiptsFromLinkedDevice<T>(
         _ receiptProtos: [T],
         senderAci: KeyPath<T, String?>,
@@ -302,7 +313,7 @@ public extension OWSReceiptManager {
             let messages = interactions.compactMap({ $0 as? TSMessage }).filter {
                 switch $0 {
                 case is TSOutgoingMessage:
-                    return senderAci == tsAccountManager.localIdentifiers(transaction: tx)?.aci
+                    return senderAci == DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: tx.asV2Read)?.aci
                 case let incomingMessage as TSIncomingMessage:
                     return senderAci == incomingMessage.authorAddress.serviceId
                 default:
@@ -378,7 +389,7 @@ public extension OWSReceiptManager {
             let hasMessagesToMarkRead = self.databaseStorage.read { transaction in
                 return interactionFinder.hasMessagesToMarkRead(
                     beforeSortId: sortId,
-                    transaction: transaction.unwrapGrdbRead
+                    transaction: transaction
                 )
             }
             guard hasMessagesToMarkRead else {
@@ -387,7 +398,7 @@ public extension OWSReceiptManager {
                 return
             }
 
-            let localAddress = self.tsAccountManager.localAddress
+            let localAci = DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction?.aci
             let readTimestamp = Date.ows_millisecondTimestamp()
             let maxBatchSize = 500
 
@@ -407,7 +418,7 @@ public extension OWSReceiptManager {
                 batchQuotaRemaining = maxBatchSize
                 self.databaseStorage.write { transaction in
                     var cursor = interactionFinder.fetchUnreadMessages(beforeSortId: sortId,
-                                                                       transaction: transaction.unwrapGrdbRead)
+                                                                       transaction: transaction)
                     do {
                         while batchQuotaRemaining > 0, let readItem = try cursor.next() {
                             readItem.markAsRead(atTimestamp: readTimestamp,
@@ -433,17 +444,19 @@ public extension OWSReceiptManager {
                     var receiptsForMessage: [OWSLinkedDeviceReadReceipt] = []
                     var cursor = interactionFinder.fetchMessagesWithUnreadReactions(
                         beforeSortId: sortId,
-                        transaction: transaction.unwrapGrdbRead)
+                        transaction: transaction)
 
                     do {
                         while batchQuotaRemaining > 0, let message = try cursor.next() {
                             message.markUnreadReactionsAsRead(transaction: transaction)
 
-                            if let localAddress = localAddress {
-                                let receipt = OWSLinkedDeviceReadReceipt(senderAddress: localAddress,
-                                                                         messageUniqueId: message.uniqueId,
-                                                                         messageIdTimestamp: message.timestamp,
-                                                                         readTimestamp: readTimestamp)
+                            if let localAci {
+                                let receipt = OWSLinkedDeviceReadReceipt(
+                                    senderAci: AciObjC(localAci),
+                                    messageUniqueId: message.uniqueId,
+                                    messageIdTimestamp: message.timestamp,
+                                    readTimestamp: readTimestamp
+                                )
                                 receiptsForMessage.append(receipt)
                             }
 
@@ -480,7 +493,7 @@ public extension OWSReceiptManager {
         var readUniqueIds = [String]()
         let interactionFinder = InteractionFinder(threadUniqueId: thread.uniqueId)
         var cursor = interactionFinder.fetchUnreadMessages(beforeSortId: sortId,
-                                                           transaction: transaction.unwrapGrdbRead)
+                                                           transaction: transaction)
         do {
             while let readItem = try cursor.next() {
                 readItem.markAsRead(atTimestamp: readTimestamp,
@@ -577,7 +590,7 @@ public extension OWSReceiptManager {
     }
 
     private func linkedDeviceReceiptCircumstance(for thread: TSThread, tx: SDSAnyReadTransaction) -> OWSReceiptCircumstance {
-        if thread.hasPendingMessageRequest(transaction: tx.unwrapGrdbRead) {
+        if thread.hasPendingMessageRequest(transaction: tx) {
             return .onLinkedDeviceWhilePendingMessageRequest
         } else {
             return .onLinkedDevice
@@ -671,10 +684,10 @@ extension OWSReceiptManager {
                 for message in messages {
                     message.update(
                         withDeliveredRecipient: SignalServiceAddress(recipientServiceId.wrappedValue),
-                        recipientDeviceId: recipientDeviceId,
+                        deviceId: recipientDeviceId,
                         deliveryTimestamp: deliveryTimestamp,
                         context: context,
-                        transaction: tx
+                        tx: tx
                     )
                 }
                 return true
@@ -690,7 +703,7 @@ extension OWSReceiptManager {
     /// might arrive after the receipts.
     @objc
     func processReadReceipts(
-        from recipientServiceId: UntypedServiceIdObjC,
+        from recipientAci: AciObjC,
         recipientDeviceId: UInt32,
         sentTimestamps: [NSNumber],
         readTimestamp: UInt64,
@@ -705,10 +718,10 @@ extension OWSReceiptManager {
                 // from us in that thread. Or maybe this state should hang on the thread?
                 for message in messages {
                     message.update(
-                        withReadRecipient: SignalServiceAddress(recipientServiceId.wrappedValue),
-                        recipientDeviceId: recipientDeviceId,
+                        withReadRecipient: SignalServiceAddress(recipientAci.wrappedValue),
+                        deviceId: recipientDeviceId,
                         readTimestamp: readTimestamp,
-                        transaction: tx
+                        tx: tx
                     )
                 }
                 return true
@@ -736,9 +749,9 @@ extension OWSReceiptManager {
                     for message in messages {
                         message.update(
                             withViewedRecipient: SignalServiceAddress(recipientAci.wrappedAciValue),
-                            recipientDeviceId: recipientDeviceId,
+                            deviceId: recipientDeviceId,
                             viewedTimestamp: viewedTimestamp,
-                            transaction: tx
+                            tx: tx
                         )
                     }
                 } else {
@@ -746,7 +759,7 @@ extension OWSReceiptManager {
                 }
                 return true
             }
-            let localAci = tsAccountManager.localIdentifiers(transaction: tx)!.aci
+            let localAci = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: tx.asV2Read)!.aci
             let storyMessage = StoryFinder.story(timestamp: sentTimestamp, author: localAci, transaction: tx)
             if let storyMessage {
                 if StoryManager.areViewReceiptsEnabled {

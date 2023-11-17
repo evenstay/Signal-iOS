@@ -5,6 +5,7 @@
 
 import Foundation
 import GRDB
+import SignalCoreKit
 
 @available(swift, obsoleted: 1.0)
 @objcMembers
@@ -87,14 +88,11 @@ public extension OWSDevice {
         transaction: SDSAnyReadTransaction
     ) -> String {
         if let encryptedName = self.encryptedName {
-            if let identityKeyPair = identityManager.identityKeyPair(
-                for: .aci,
-                transaction: transaction
-            ) {
+            if let identityKeyPair = identityManager.identityKeyPair(for: .aci, tx: transaction.asV2Read) {
                 do {
                     return try DeviceNames.decryptDeviceName(
                         base64String: encryptedName,
-                        identityKeyPair: identityKeyPair
+                        identityKeyPair: identityKeyPair.keyPair
                     )
                 } catch let error {
                     Logger.error("Failed to decrypt device name: \(error). Is this a legacy device name?")

@@ -5,7 +5,7 @@
 
 import UIKit
 
-class ImageEditorTextItem: ImageEditorItem {
+final class ImageEditorTextItem: ImageEditorItem, ImageEditorTransformable {
 
     let text: String
 
@@ -112,17 +112,19 @@ class ImageEditorTextItem: ImageEditorItem {
         super.init(itemType: .text)
     }
 
-    private init(itemId: String,
-                 text: String,
-                 color: ColorPickerBarColor,
-                 fontSize: CGFloat,
-                 textStyle: MediaTextView.TextStyle,
-                 decorationStyle: MediaTextView.DecorationStyle,
-                 fontReferenceImageWidth: CGFloat,
-                 unitCenter: ImageEditorSample,
-                 unitWidth: CGFloat,
-                 rotationRadians: CGFloat,
-                 scaling: CGFloat) {
+    init(
+        itemId: String,
+        text: String,
+        color: ColorPickerBarColor,
+        fontSize: CGFloat,
+        textStyle: MediaTextView.TextStyle,
+        decorationStyle: MediaTextView.DecorationStyle,
+        fontReferenceImageWidth: CGFloat,
+        unitCenter: ImageEditorSample,
+        unitWidth: CGFloat,
+        rotationRadians: CGFloat,
+        scaling: CGFloat
+    ) {
         self.text = text
         self.color = color
         self.fontSize = fontSize

@@ -44,7 +44,9 @@ class SubscriptionTest: XCTestCase {
             "active": true,
             "cancelAtPeriodEnd": false,
             "status": "active",
-            "processor": "STRIPE"
+            "processor": "STRIPE",
+            "paymentMethod": "CARD",
+            "paymentProcessing": false
         ]
     }()
 
@@ -314,6 +316,16 @@ class SubscriptionManagerDonationConfigurationTest: XCTestCase {
             try DonationConfiguration.from(configurationServiceResponse: missingSubscriptionLevel),
             throwsParseError: .missingAmountForLevel(LevelFixtures.levelOne)
         )
+    }
+
+    func testParseConfigWithUnrecognizedPaymentMethod() throws {
+        let unexpectedPaymentMethod = DonationConfigurationFixtures.withDefaults(
+            currenciesJson: CurrencyFixtures.withDefaults(
+                supportedPaymentMethods: CurrencyFixtures.supportedPaymentMethods + ["cash money"]
+            )
+        )
+
+        _ = try DonationConfiguration.from(configurationServiceResponse: unexpectedPaymentMethod)
     }
 
     // MARK: Utilities

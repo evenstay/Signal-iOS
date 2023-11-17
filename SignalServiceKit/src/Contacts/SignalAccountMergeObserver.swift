@@ -7,9 +7,9 @@ import Foundation
 import LibSignalClient
 
 class SignalAccountMergeObserver: RecipientMergeObserver {
-    func willBreakAssociation(aci: Aci, phoneNumber: E164, transaction: DBWriteTransaction) {}
+    func willBreakAssociation(for recipient: SignalRecipient, mightReplaceNonnilPhoneNumber: Bool, tx: DBWriteTransaction) {}
 
-    func didLearnAssociation(mergedRecipient: MergedRecipient, transaction tx: DBWriteTransaction) {
+    func didLearnAssociation(mergedRecipient: MergedRecipient, tx: DBWriteTransaction) {
         // SignalAccounts are "merged" differently than most other types because
         // the source of truth is phone number. The source of truth is the phone
         // number because a SignalAccount can be thought of as "a system contact
@@ -56,13 +56,16 @@ class SignalAccountMergeObserver: RecipientMergeObserver {
 
         let tx = SDSDB.shimOnlyBridge(tx)
 
+        let oldPhoneNumber = mergedRecipient.oldRecipient?.phoneNumber
+        let newPhoneNumber = mergedRecipient.newRecipient.phoneNumber
+
         // The oldPhoneNumber is now associated with nothing. We should delete the
         // SignalAccount if it exists because we no longer have a ServiceId for
         // that phone number, and so we won't believe anyone is registered at that
         // phone number. If someone still is registered, we'll learn about it
         // during the next contact intersection, at which point we'll create a new
         // SignalAccount. In the above example, we are deleting SA1 entirely.
-        if let oldPhoneNumber = mergedRecipient.oldPhoneNumber, let orphanedAccount = fetch(for: oldPhoneNumber, tx: tx) {
+        if let oldPhoneNumber, oldPhoneNumber != newPhoneNumber, let orphanedAccount = fetch(for: oldPhoneNumber, tx: tx) {
             orphanedAccount.anyRemove(transaction: tx)
         }
 
@@ -70,14 +73,24 @@ class SignalAccountMergeObserver: RecipientMergeObserver {
         // associated with ACI_B. We should update the SignalAccount to ACI_A since
         // that's the ServiceId that's now associated with that system contact. In
         // the above example, we are replacing the ServiceId for SA2.
-        if let claimedAccount = fetch(for: mergedRecipient.newPhoneNumber.stringValue, tx: tx) {
-            claimedAccount.recipientUUID = mergedRecipient.aci.serviceIdUppercaseString
-            claimedAccount.anyOverwritingUpdate(transaction: tx)
+        if let newPhoneNumber, let claimedAccount = fetch(for: newPhoneNumber, tx: tx) {
+            let oldServiceId = claimedAccount.recipientServiceId
+            let newServiceId = mergedRecipient.newRecipient.aci ?? mergedRecipient.newRecipient.pni
+            // We prefer to use ACIs instead of PNIs. If we're processing an update
+            // that adds a PNI to a SignalRecipient whose ACI we already know, that ACI
+            // should be on the SignalAccount, and there's no reason to change it.
+            //
+            // If for some reason the ServiceId on the SignalAccount is wrong
+            // (unexpectedly an ACI, the wrong PNI, etc.), `newServiceId` will contain
+            // the correct value (the one that `buildSignalAccounts` uses).
+            if let newServiceId, newServiceId != oldServiceId {
+                claimedAccount.updateServiceId(newServiceId, tx: tx)
+            }
         }
     }
 
     private func fetch(for phoneNumber: String, tx: SDSAnyReadTransaction) -> SignalAccount? {
-        let phoneNumberOnlyAddress = SignalServiceAddress(uuid: nil, phoneNumber: phoneNumber, ignoreCache: true)
-        return AnySignalAccountFinder().signalAccount(for: phoneNumberOnlyAddress, transaction: tx)
+        let phoneNumberOnlyAddress = SignalServiceAddress(serviceId: nil, phoneNumber: phoneNumber, ignoreCache: true)
+        return SignalAccountFinder().signalAccount(for: phoneNumberOnlyAddress, tx: tx)
     }
 }

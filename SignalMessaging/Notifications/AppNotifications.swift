@@ -26,7 +26,6 @@ public enum AppNotificationCategory: CaseIterable {
     case incomingReactionWithActions_CanReply
     case incomingReactionWithActions_CannotReply
     case infoOrErrorMessage
-    case threadlessErrorMessage
     case incomingCall
     case missedCallWithActions
     case missedCallWithoutActions
@@ -34,6 +33,8 @@ public enum AppNotificationCategory: CaseIterable {
     case internalError
     case incomingMessageGeneric
     case incomingGroupStoryReply
+    case failedStorySend
+    case transferRelaunch
     case deregistration
 }
 
@@ -44,18 +45,21 @@ public enum AppNotificationAction: String, CaseIterable {
     case markAsRead
     case reply
     case showThread
+    case showMyStories
     case reactWithThumbsUp
     case showCallLobby
     case submitDebugLogs
     case reregister
+    case showChatList
 }
 
 public struct AppNotificationUserInfoKey {
     public static let threadId = "Signal.AppNotificationsUserInfoKey.threadId"
     public static let messageId = "Signal.AppNotificationsUserInfoKey.messageId"
     public static let reactionId = "Signal.AppNotificationsUserInfoKey.reactionId"
+    public static let storyMessageId = "Signal.AppNotificationsUserInfoKey.storyMessageId"
     public static let storyTimestamp = "Signal.AppNotificationsUserInfoKey.storyTimestamp"
-    public static let callBackUuid = "Signal.AppNotificationsUserInfoKey.callBackUuid"
+    public static let callBackAciString = "Signal.AppNotificationsUserInfoKey.callBackUuid"
     public static let callBackPhoneNumber = "Signal.AppNotificationsUserInfoKey.callBackPhoneNumber"
     public static let localCallId = "Signal.AppNotificationsUserInfoKey.localCallId"
     public static let isMissedCall = "Signal.AppNotificationsUserInfoKey.isMissedCall"
@@ -79,8 +83,6 @@ extension AppNotificationCategory {
             return "Signal.AppNotificationCategory.incomingReactionWithActionsNoReply"
         case .infoOrErrorMessage:
             return "Signal.AppNotificationCategory.infoOrErrorMessage"
-        case .threadlessErrorMessage:
-            return "Signal.AppNotificationCategory.threadlessErrorMessage"
         case .incomingCall:
             return "Signal.AppNotificationCategory.incomingCall"
         case .missedCallWithActions:
@@ -95,6 +97,10 @@ extension AppNotificationCategory {
             return "Signal.AppNotificationCategory.incomingMessageGeneric"
         case .incomingGroupStoryReply:
             return "Signal.AppNotificationCategory.incomingGroupStoryReply"
+        case .failedStorySend:
+            return "Signal.AppNotificationCategory.failedStorySend"
+        case .transferRelaunch:
+            return "Signal.AppNotificationCategory.transferRelaunch"
         case .deregistration:
             return "Signal.AppNotificationCategory.authErrorLogout"
         }
@@ -119,8 +125,6 @@ extension AppNotificationCategory {
             return []
         case .infoOrErrorMessage:
             return []
-        case .threadlessErrorMessage:
-            return []
         case .incomingCall:
             return [.answerCall, .declineCall]
         case .missedCallWithActions:
@@ -135,6 +139,10 @@ extension AppNotificationCategory {
             return []
         case .incomingGroupStoryReply:
             return [.reply]
+        case .failedStorySend:
+            return []
+        case .transferRelaunch:
+            return []
         case .deregistration:
             return []
         }
@@ -156,6 +164,8 @@ extension AppNotificationAction {
             return "Signal.AppNotifications.Action.reply"
         case .showThread:
             return "Signal.AppNotifications.Action.showThread"
+        case .showMyStories:
+            return "Signal.AppNotifications.Action.showMyStories"
         case .reactWithThumbsUp:
             return "Signal.AppNotifications.Action.reactWithThumbsUp"
         case .showCallLobby:
@@ -164,6 +174,8 @@ extension AppNotificationAction {
             return "Signal.AppNotifications.Action.submitDebugLogs"
         case .reregister:
             return "Signal.AppNotifications.Action.reregister"
+        case .showChatList:
+            return "Signal.AppNotifications.Action.showChatList"
         }
     }
 }
@@ -183,8 +195,8 @@ extension UserNotificationPresenter {
 
 // MARK: -
 
-public class NotificationPresenter: NSObject, NotificationsProtocol {
-    private let presenter = UserNotificationPresenter()
+public class NotificationPresenter: NSObject, NotificationsProtocolSwift {
+    private let presenter = UserNotificationPresenter(notifyQueue: NotificationPresenter.notificationQueue)
 
     public override init() {
         super.init()
@@ -470,8 +482,8 @@ public class NotificationPresenter: NSObject, NotificationsProtocol {
         var userInfo: [String: Any] = [
             AppNotificationUserInfoKey.threadId: thread.uniqueId
         ]
-        if let uuid = remoteAddress.uuid {
-            userInfo[AppNotificationUserInfoKey.callBackUuid] = uuid.uuidString
+        if let aci = remoteAddress.aci {
+            userInfo[AppNotificationUserInfoKey.callBackAciString] = aci.serviceIdUppercaseString
         }
         if let phoneNumber = remoteAddress.phoneNumber {
             userInfo[AppNotificationUserInfoKey.callBackPhoneNumber] = phoneNumber
@@ -496,32 +508,34 @@ public class NotificationPresenter: NSObject, NotificationsProtocol {
 
             guard
                 let storyTimestamp = incomingMessage.storyTimestamp?.uint64Value,
-                let storyAuthorAddress = incomingMessage.storyAuthorAddress,
-                let storyAuthorUuidString = storyAuthorAddress.uuidString
-            else { return false }
+                let storyAuthorAci = incomingMessage.storyAuthorAci?.wrappedAciValue
+            else {
+                return false
+            }
+
+            let localAci = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: transaction.asV2Read)?.aci
 
             // Always notify for replies to group stories you sent
-            if storyAuthorAddress.isLocalAddress { return true }
+            if storyAuthorAci == localAci { return true }
 
             // Always notify if you have been @mentioned
             if
-                let mentionedUuids = incomingMessage.bodyRanges?.mentions.values,
-                let localUuid = tsAccountManager.localUuid,
-                mentionedUuids.contains(where: { $0 == localUuid }) {
+                let mentionedAcis = incomingMessage.bodyRanges?.mentions.values,
+                mentionedAcis.contains(where: { $0 == localAci }) {
                 return true
             }
 
             // Notify people who did not author the story if they've previously replied to it
             return InteractionFinder.hasLocalUserReplied(
                 storyTimestamp: storyTimestamp,
-                storyAuthorUuidString: storyAuthorUuidString,
+                storyAuthorAci: storyAuthorAci,
                 transaction: transaction
             )
         }
 
         guard thread.isGroupThread else { return false }
 
-        guard let localAddress = TSAccountManager.localAddress else {
+        guard let localAddress = DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction?.aciAddress else {
             owsFailDebug("Missing local address")
             return false
         }
@@ -620,7 +634,7 @@ public class NotificationPresenter: NSObject, NotificationsProtocol {
         }
 
         let notificationBody: String = {
-            if thread.hasPendingMessageRequest(transaction: transaction.unwrapGrdbRead) {
+            if thread.hasPendingMessageRequest(transaction: transaction) {
                 return NotificationStrings.incomingMessageRequestNotification
             }
 
@@ -635,9 +649,9 @@ public class NotificationPresenter: NSObject, NotificationsProtocol {
         // Don't reply from lockscreen if anyone in this conversation is
         // "no longer verified".
         var didIdentityChange = false
+        let identityManager = DependenciesBridge.shared.identityManager
         for address in thread.recipientAddresses(with: transaction) {
-            if self.identityManager.verificationState(for: address,
-                                                      transaction: transaction) == .noLongerVerified {
+            if identityManager.verificationState(for: address, tx: transaction.asV2Read) == .noLongerVerified {
                 didIdentityChange = true
                 break
             }
@@ -689,8 +703,13 @@ public class NotificationPresenter: NSObject, NotificationsProtocol {
 
             if let editTarget {
                 self.presenter.replaceNotification(messageId: editTarget.uniqueId) { didReplaceNotification in
-                    guard didReplaceNotification else { return }
-                    notify()
+                    guard didReplaceNotification else {
+                        completion()
+                        return
+                    }
+                    Self.notificationQueue.async {
+                        notify()
+                    }
                 }
             } else {
                notify()
@@ -768,9 +787,9 @@ public class NotificationPresenter: NSObject, NotificationsProtocol {
         // Don't reply from lockscreen if anyone in this conversation is
         // "no longer verified".
         var didIdentityChange = false
+        let identityManager = DependenciesBridge.shared.identityManager
         for address in thread.recipientAddresses(with: transaction) {
-            if self.identityManager.verificationState(for: address,
-                                                      transaction: transaction) == .noLongerVerified {
+            if identityManager.verificationState(for: address, tx: transaction.asV2Read) == .noLongerVerified {
                 didIdentityChange = true
                 break
             }
@@ -1046,20 +1065,118 @@ public class NotificationPresenter: NSObject, NotificationsProtocol {
         }
     }
 
-    public func notifyUser(forThreadlessErrorMessage errorMessage: ThreadlessErrorMessage,
-                           transaction: SDSAnyWriteTransaction) {
-        let notificationBody = errorMessage.previewText(transaction: transaction)
+    public func notifyUser(
+        forFailedStorySend storyMessage: StoryMessage,
+        to thread: TSThread,
+        transaction: SDSAnyWriteTransaction
+    ) {
+        let storyName = StoryManager.storyName(for: thread)
+        let conversationIdentifier = thread.uniqueId + "_failedStorySend"
+
+        let handle = INPersonHandle(value: nil, type: .unknown)
+        let image = thread.intentStoryAvatarImage(tx: transaction)
+        let person: INPerson = {
+            if #available(iOS 15, *) {
+                return INPerson(
+                    personHandle: handle,
+                    nameComponents: nil,
+                    displayName: storyName,
+                    image: image,
+                    contactIdentifier: nil,
+                    customIdentifier: nil,
+                    isMe: false,
+                    suggestionType: .none
+                )
+            } else {
+                return INPerson(
+                    personHandle: handle,
+                    nameComponents: nil,
+                    displayName: storyName,
+                    image: image,
+                    contactIdentifier: nil,
+                    customIdentifier: nil,
+                    isMe: false
+                )
+            }
+        }()
+
+        let sendMessageIntent: INSendMessageIntent
+        if #available(iOS 14, *) {
+            sendMessageIntent = INSendMessageIntent(
+                recipients: nil,
+                outgoingMessageType: .outgoingMessageText,
+                content: nil,
+                speakableGroupName: INSpeakableString(spokenPhrase: storyName),
+                conversationIdentifier: conversationIdentifier,
+                serviceName: nil,
+                sender: person
+            )
+        } else {
+            sendMessageIntent = INSendMessageIntent(
+                recipients: nil,
+                content: nil,
+                speakableGroupName: INSpeakableString(spokenPhrase: storyName),
+                conversationIdentifier: conversationIdentifier,
+                serviceName: nil,
+                sender: person
+            )
+        }
+        let interaction = INInteraction(intent: sendMessageIntent, response: nil)
+        interaction.direction = .outgoing
+        let notificationTitle = storyName
+        let notificationBody = OWSLocalizedString(
+            "STORY_SEND_FAILED_NOTIFICATION_BODY",
+            comment: "Body for notification shown when a story fails to send."
+        )
+        let threadIdentifier = thread.uniqueId
+        let storyMessageId = storyMessage.uniqueId
 
         performNotificationActionInAsyncCompletion(transaction: transaction) { completion in
-            self.presenter.notify(category: .threadlessErrorMessage,
-                                title: nil,
-                                body: notificationBody,
-                                threadIdentifier: nil,
-                                userInfo: [:],
-                                interaction: nil,
-                                sound: self.requestGlobalSound(),
-                                completion: completion)
+            self.presenter.notify(
+                category: .failedStorySend,
+                title: notificationTitle,
+                body: notificationBody,
+                threadIdentifier: threadIdentifier,
+                userInfo: [
+                    AppNotificationUserInfoKey.defaultAction: AppNotificationAction.showMyStories.rawValue,
+                    AppNotificationUserInfoKey.storyMessageId: storyMessageId
+                ],
+                interaction: interaction,
+                sound: self.requestGlobalSound(),
+                completion: completion
+            )
         }
+    }
+
+    public func notifyUserToRelaunchAfterTransfer(completion: (() -> Void)? = nil) {
+        let notificationBody = OWSLocalizedString(
+            "TRANSFER_RELAUNCH_NOTIFICATION",
+            comment: "Notification prompting the user to relaunch Signal after a device transfer completed."
+        )
+        performNotificationActionAsync { innerCompletion in
+            self.presenter.notify(
+                category: .transferRelaunch,
+                title: nil,
+                body: notificationBody,
+                threadIdentifier: nil,
+                userInfo: [
+                    AppNotificationUserInfoKey.defaultAction: AppNotificationAction.showChatList.rawValue
+                ],
+                interaction: nil,
+                // Use a default sound so we don't read from
+                // the db (which doesn't work until we relaunch)
+                sound: .standard(.note),
+                forceBeforeRegistered: true,
+                completion: {
+                    innerCompletion()
+                    completion?()
+                }
+            )
+        }
+    }
+
+    public func notifyUserOfDeregistration(tx: DBWriteTransaction) {
+        notifyUserOfDeregistration(transaction: SDSDB.shimOnlyBridge(tx))
     }
 
     public func notifyUserOfDeregistration(transaction: SDSAnyWriteTransaction) {
@@ -1112,6 +1229,13 @@ public class NotificationPresenter: NSObject, NotificationsProtocol {
     public func cancelNotificationsForMissedCalls(threadUniqueId: String) {
         performNotificationActionAsync { completion in
             self.presenter.cancelNotificationsForMissedCalls(withThreadUniqueId: threadUniqueId, completion: completion)
+        }
+    }
+
+    public func cancelNotifications(for storyMessage: StoryMessage) {
+        let storyMessageId = storyMessage.uniqueId
+        performNotificationActionAsync { completion in
+            self.presenter.cancelNotificationsForStoryMessage(withUniqueId: storyMessageId, completion: completion)
         }
     }
 

@@ -67,7 +67,9 @@ public protocol VersionedProfilesSwift: VersionedProfiles {
     func didFetchProfile(
         profile: SignalServiceProfile,
         profileRequest: VersionedProfileRequest
-    )
+    ) async
+
+    func clearProfileKeyCredentials(tx: DBWriteTransaction)
 }
 
 // MARK: -
@@ -78,6 +80,7 @@ public class MockVersionedProfiles: NSObject, VersionedProfilesSwift, VersionedP
                                           transaction: SDSAnyWriteTransaction) {}
 
     public func clearProfileKeyCredentials(transaction: SDSAnyWriteTransaction) {}
+    public func clearProfileKeyCredentials(tx: DBWriteTransaction) {}
 
     public func versionedProfileRequest(
         for aci: Aci,
@@ -87,8 +90,7 @@ public class MockVersionedProfiles: NSObject, VersionedProfilesSwift, VersionedP
         owsFail("Not implemented.")
     }
 
-    public func didFetchProfile(profile: SignalServiceProfile,
-                                profileRequest: VersionedProfileRequest) {}
+    public func didFetchProfile(profile: SignalServiceProfile, profileRequest: VersionedProfileRequest) async {}
 
     public func updateProfilePromise(
         profileGivenName: String?,

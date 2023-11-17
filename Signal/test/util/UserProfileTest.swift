@@ -9,13 +9,15 @@ import XCTest
 @testable import SignalServiceKit
 
 class UserProfileTest: SignalBaseTest {
-    private lazy var localAddress = CommonGenerator.address()
-
     override func setUp() {
         super.setUp()
         // Create local account.
-        tsAccountManager.registerForTests(withLocalNumber: localAddress.phoneNumber!,
-                                          uuid: localAddress.uuid!)
+        databaseStorage.write { tx in
+            (DependenciesBridge.shared.registrationStateChangeManager as! RegistrationStateChangeManagerImpl).registerForTests(
+                localIdentifiers: .forUnitTests,
+                tx: tx.asV2Write
+            )
+        }
     }
 
     func testUserProfileForAci() {
@@ -35,10 +37,6 @@ class UserProfileTest: SignalBaseTest {
     }
 
     func testUserProfileForPni() throws {
-        guard FeatureFlags.phoneNumberIdentifiers else {
-            throw XCTSkip("Can't run this test until `SignalServiceAddress`es can be constructed by default with a PNI.")
-        }
-
         let pni = Pni.randomForTesting()
         let address = SignalServiceAddress(pni)
         write { transaction in

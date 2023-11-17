@@ -18,6 +18,9 @@ public class LocalIdentifiersObjC: NSObject {
 
     @objc
     public var aciAddress: SignalServiceAddress { wrappedValue.aciAddress }
+
+    @objc
+    public var phoneNumber: String { wrappedValue.phoneNumber }
 }
 
 public class LocalIdentifiers {
@@ -54,10 +57,6 @@ public class LocalIdentifiers {
         return serviceId == aci || serviceId == pni
     }
 
-    public func contains(serviceId: UntypedServiceId) -> Bool {
-        return serviceId == aci.untypedServiceId || serviceId == pni?.untypedServiceId
-    }
-
     /// Checks if `phoneNumber` refers to ourself.
     public func contains(phoneNumber: E164) -> Bool {
         return contains(phoneNumber: phoneNumber.stringValue)
@@ -83,6 +82,19 @@ public class LocalIdentifiers {
         // own identifiers.)
         if let phoneNumber = address.phoneNumber {
             return contains(phoneNumber: phoneNumber)
+        }
+        return false
+    }
+
+    public func containsAnyOf(aci: Aci?, phoneNumber: E164?, pni: Pni?) -> Bool {
+        if let aci, self.aci == aci {
+            return true
+        }
+        if let phoneNumber, self.phoneNumber == phoneNumber.stringValue {
+            return true
+        }
+        if let pni, self.pni == pni {
+            return true
         }
         return false
     }

@@ -9,11 +9,8 @@ import Foundation
 
 @objc(OWSFakeStorageServiceManager)
 public class FakeStorageServiceManager: NSObject, StorageServiceManager {
-    public func recordPendingDeletions(deletedGroupV1Ids: [Data]) {}
-
     public func recordPendingUpdates(updatedAccountIds: [AccountId]) {}
     public func recordPendingUpdates(updatedAddresses: [SignalServiceAddress]) {}
-    public func recordPendingUpdates(updatedGroupV1Ids: [Data]) {}
     public func recordPendingUpdates(updatedGroupV2MasterKeys: [Data]) {}
     public func recordPendingUpdates(updatedStoryDistributionListIds: [Data]) {}
     public func recordPendingUpdates(groupModel: TSGroupModel) {}
@@ -21,9 +18,9 @@ public class FakeStorageServiceManager: NSObject, StorageServiceManager {
 
     public func setLocalIdentifiers(_ localIdentifiers: LocalIdentifiersObjC) {}
 
-    public func backupPendingChanges(authedAccount: AuthedAccount) {}
-    public func restoreOrCreateManifestIfNecessary(authedAccount: AuthedAccount) -> AnyPromise {
-        AnyPromise(Promise.value(()))
+    public func backupPendingChanges(authedDevice: AuthedDevice) {}
+    public func restoreOrCreateManifestIfNecessary(authedDevice: AuthedDevice) -> Promise<Void> {
+        Promise.value(())
     }
 
     public func waitForPendingRestores() -> AnyPromise { AnyPromise(Promise.value(())) }

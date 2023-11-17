@@ -4,8 +4,9 @@
 //
 
 import Foundation
-import SignalServiceKit
 import LibSignalClient
+
+#if TESTABLE_BUILD
 
 internal class MockSignalProtocolStore: SignalProtocolStore {
     public var sessionStore: SignalSessionStore { mockSessionStore }
@@ -20,19 +21,20 @@ internal class MockSignalProtocolStore: SignalProtocolStore {
 }
 
 class MockSessionStore: SignalSessionStore {
-    func containsActiveSession(for serviceId: UntypedServiceId, deviceId: Int32, tx: DBReadTransaction) -> Bool { false }
-    func containsActiveSession(forAccountId accountId: String, deviceId: Int32, tx: DBReadTransaction) -> Bool { false }
+    func mightContainSession(for recipient: SignalRecipient, tx: DBReadTransaction) -> Bool { false }
+    func mergeRecipient(_ recipient: SignalRecipient, into targetRecipient: SignalRecipient, tx: DBWriteTransaction) { }
+    func archiveAllSessions(for serviceId: ServiceId, tx: DBWriteTransaction) { }
     func archiveAllSessions(for address: SignalServiceAddress, tx: DBWriteTransaction) { }
-    func archiveAllSessions(forAccountId accountId: String, tx: DBWriteTransaction) { }
-    func archiveSession(for address: SignalServiceAddress, deviceId: Int32, tx: DBWriteTransaction) { }
-    func loadSession(for address: SignalServiceAddress, deviceId: Int32, tx: DBReadTransaction) throws -> LibSignalClient.SessionRecord? { nil }
-    func loadSession(for address: LibSignalClient.ProtocolAddress, context: LibSignalClient.StoreContext) throws -> LibSignalClient.SessionRecord? { nil }
+    func archiveSession(for serviceId: ServiceId, deviceId: UInt32, tx: DBWriteTransaction) { }
+    func loadSession(for serviceId: ServiceId, deviceId: UInt32, tx: DBReadTransaction) throws -> LibSignalClient.SessionRecord? { nil }
+    func loadSession(for address: ProtocolAddress, context: StoreContext) throws -> LibSignalClient.SessionRecord? { nil }
     func resetSessionStore(tx: DBWriteTransaction) { }
-    func deleteAllSessions(for address: SignalServiceAddress, tx: DBWriteTransaction) { }
+    func deleteAllSessions(for serviceId: ServiceId, tx: DBWriteTransaction) { }
+    func deleteAllSessions(for recipientId: AccountId, tx: DBWriteTransaction) { }
     func removeAll(tx: DBWriteTransaction) { }
     func printAll(tx: DBReadTransaction) { }
-    func loadExistingSessions(for addresses: [LibSignalClient.ProtocolAddress], context: LibSignalClient.StoreContext) throws -> [LibSignalClient.SessionRecord] { [] }
-    func storeSession(_ record: LibSignalClient.SessionRecord, for address: LibSignalClient.ProtocolAddress, context: LibSignalClient.StoreContext) throws { }
+    func loadExistingSessions(for addresses: [ProtocolAddress], context: StoreContext) throws -> [LibSignalClient.SessionRecord] { [] }
+    func storeSession(_ record: LibSignalClient.SessionRecord, for address: ProtocolAddress, context: StoreContext) throws { }
 }
 
 public class MockPreKeyStore: SignalPreKeyStore {
@@ -60,7 +62,7 @@ public class MockPreKeyStore: SignalPreKeyStore {
     }
 
     internal func generatePreKeyRecord() -> SignalServiceKit.PreKeyRecord {
-        let keyPair = Curve25519.generateKeyPair()
+        let keyPair = ECKeyPair.generateKeyPair()
         let record = SignalServiceKit.PreKeyRecord(
             id: preKeyId,
             keyPair: keyPair,
@@ -136,7 +138,7 @@ internal class MockSignalSignedPreKeyStore: SignalSignedPreKeyStore {
     }
 
     func generateRandomSignedRecord() -> SignalServiceKit.SignedPreKeyRecord {
-        let identityKeyPair = Curve25519.generateKeyPair()
+        let identityKeyPair = ECKeyPair.generateKeyPair()
         return self.generateSignedPreKey(signedBy: identityKeyPair)
     }
 
@@ -166,11 +168,6 @@ internal class MockSignalSignedPreKeyStore: SignalSignedPreKeyStore {
         tx: SignalServiceKit.DBWriteTransaction
     ) {}
 
-    func incrementPreKeyUpdateFailureCount(tx: DBWriteTransaction) { }
-    internal func getPreKeyUpdateFailureCount(tx: DBReadTransaction) -> Int32 { 0 }
-    internal func getFirstPreKeyUpdateFailureDate(tx: DBReadTransaction) -> Date? { nil }
-    internal func clearPreKeyUpdateFailureCount(tx: DBWriteTransaction) { }
-
     // MARK: - Testing
 
     func removeAll(tx: DBWriteTransaction) {
@@ -195,7 +192,7 @@ internal class MockSignalSignedPreKeyStore: SignalSignedPreKeyStore {
 internal class MockKyberPreKeyStore: SignalKyberPreKeyStore {
 
     private(set) var nextKeyId: Int32 = 0
-    var identityKeyPair = Curve25519.generateKeyPair()
+    var identityKeyPair = ECKeyPair.generateKeyPair()
     var dateProvider: DateProvider
 
     private(set) var lastPreKeyRotation: Date?
@@ -240,7 +237,7 @@ internal class MockKyberPreKeyStore: SignalKyberPreKeyStore {
     func generateKyberPreKey(signedBy keyPair: ECKeyPair, isLastResort: Bool) throws -> SignalServiceKit.KyberPreKeyRecord {
 
         let keyPair = KEMKeyPair.generate()
-        let signature = try Ed25519.sign(Data(keyPair.publicKey.serialize()), with: identityKeyPair)
+        let signature = Data(identityKeyPair.keyPair.privateKey.generateSignature(message: Data(keyPair.publicKey.serialize())))
 
         let record = SignalServiceKit.KyberPreKeyRecord(
             nextKeyId,
@@ -256,7 +253,7 @@ internal class MockKyberPreKeyStore: SignalKyberPreKeyStore {
         let keyId = self.nextKeyId
         self.nextKeyId += 1
         let keyPair = KEMKeyPair.generate()
-        let signature = try Ed25519.sign(Data(keyPair.publicKey.serialize()), with: identityKeyPair)
+        let signature = Data(identityKeyPair.keyPair.privateKey.generateSignature(message: Data(keyPair.publicKey.serialize())))
         return try LibSignalClient.KyberPreKeyRecord(
             id: UInt32(bitPattern: keyId),
             timestamp: Date().ows_millisecondsSince1970,
@@ -301,3 +298,5 @@ internal class MockKyberPreKeyStore: SignalKyberPreKeyStore {
 
     func removeAll(tx: DBWriteTransaction) { }
 }
+
+#endif

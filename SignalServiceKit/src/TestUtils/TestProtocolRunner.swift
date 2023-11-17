@@ -19,8 +19,8 @@ public struct TestProtocolRunner {
     public func initializePreKeys(senderClient: TestSignalClient,
                                   recipientClient: TestSignalClient,
                                   transaction: SDSAnyWriteTransaction) throws {
-        _ = OWSAccountIdFinder.ensureAccountId(forAddress: senderClient.address, transaction: transaction)
-        _ = OWSAccountIdFinder.ensureAccountId(forAddress: recipientClient.address, transaction: transaction)
+        senderClient.ensureRecipientId(tx: transaction)
+        recipientClient.ensureRecipientId(tx: transaction)
 
         let bobPreKey = PrivateKey.generate()
         let bobSignedPreKey = PrivateKey.generate()
@@ -127,17 +127,15 @@ public struct TestProtocolRunner {
 }
 
 public typealias SignalE164Identifier = String
-public typealias SignalUUIDIdentifier = String
 public typealias SignalAccountIdentifier = String
 
 /// Represents a Signal installation, it can represent the local client or
 /// a remote client.
 public protocol TestSignalClient {
     var identityKeyPair: ECKeyPair { get }
-    var identityKey: IdentityKey { get }
+    var identityKey: Data { get }
     var e164Identifier: SignalE164Identifier? { get }
-    var uuidIdentifier: SignalUUIDIdentifier { get }
-    var uuid: UUID { get }
+    var serviceId: ServiceId { get }
     var deviceId: UInt32 { get }
     var address: SignalServiceAddress { get }
     var protocolAddress: ProtocolAddress { get }
@@ -150,24 +148,20 @@ public protocol TestSignalClient {
 }
 
 public extension TestSignalClient {
-    var identityKey: IdentityKey {
+    var identityKey: Data {
         return identityKeyPair.publicKey
     }
 
-    var uuidIdentifier: SignalUUIDIdentifier {
-        return uuid.uuidString
-    }
-
     var address: SignalServiceAddress {
-        return SignalServiceAddress(uuid: uuid, phoneNumber: e164Identifier)
+        return SignalServiceAddress(serviceId: serviceId, phoneNumber: e164Identifier)
     }
 
     var protocolAddress: ProtocolAddress {
-        return try! ProtocolAddress(name: uuidIdentifier, deviceId: deviceId)
+        return ProtocolAddress(serviceId, deviceId: deviceId)
     }
 
-    func accountId(transaction: SDSAnyWriteTransaction) -> String {
-        return OWSAccountIdFinder.ensureAccountId(forAddress: address, transaction: transaction)
+    func ensureRecipientId(tx: SDSAnyWriteTransaction) {
+        _ = DependenciesBridge.shared.recipientFetcher.fetchOrCreate(serviceId: serviceId, tx: tx.asV2Write)
     }
 }
 
@@ -182,7 +176,7 @@ public struct FakeSignalClient: TestSignalClient {
     public var kyberPreKeyStore: KyberPreKeyStore { return protocolStore }
 
     public let e164Identifier: SignalE164Identifier?
-    public let uuid: UUID
+    public let serviceId: ServiceId
     public let protocolStore: InMemorySignalProtocolStore
 
     public var deviceId = UInt32(1)
@@ -191,18 +185,23 @@ public struct FakeSignalClient: TestSignalClient {
     }
 
     public static func generate() -> FakeSignalClient {
-
-        return FakeSignalClient(e164Identifier: CommonGenerator.e164(),
-                                uuid: UUID(),
-                                protocolStore: InMemorySignalProtocolStore(identity: .generate(), registrationId: 1))
+        return FakeSignalClient(
+            e164Identifier: CommonGenerator.e164(),
+            serviceId: Aci.randomForTesting(),
+            protocolStore: InMemorySignalProtocolStore(identity: .generate(), registrationId: 1)
+        )
     }
 
-    public static func generate(e164Identifier: SignalE164Identifier? = nil,
-                                uuid: UUID? = nil,
-                                deviceID: UInt32? = nil) -> FakeSignalClient {
-        var result = FakeSignalClient(e164Identifier: e164Identifier,
-                                      uuid: uuid ?? UUID(),
-                                      protocolStore: InMemorySignalProtocolStore(identity: .generate(), registrationId: 1))
+    public static func generate(
+        e164Identifier: SignalE164Identifier? = nil,
+        aci: Aci? = nil,
+        deviceID: UInt32? = nil
+    ) -> FakeSignalClient {
+        var result = FakeSignalClient(
+            e164Identifier: e164Identifier,
+            serviceId: aci ?? Aci.randomForTesting(),
+            protocolStore: InMemorySignalProtocolStore(identity: .generate(), registrationId: 1)
+        )
         if let deviceID = deviceID {
             result.deviceId = deviceID
         }
@@ -220,22 +219,26 @@ public struct LocalSignalClient: TestSignalClient {
         self.identity = identity
         self.protocolStore = SignalProtocolStoreImpl(
             for: identity,
-            keyValueStoreFactory: InMemoryKeyValueStoreFactory()
+            keyValueStoreFactory: DependenciesBridge.shared.keyValueStoreFactory,
+            recipientIdFinder: DependenciesBridge.shared.recipientIdFinder
         )
     }
 
     public var identityKeyPair: ECKeyPair {
-        return SSKEnvironment.shared.identityManager.identityKeyPair(for: identity)!
+        return SSKEnvironment.shared.databaseStorage.read { tx in
+            return DependenciesBridge.shared.identityManager.identityKeyPair(for: identity, tx: tx.asV2Read)!
+        }
     }
 
     public var e164Identifier: SignalE164Identifier? {
-        return TSAccountManager.localNumber
+        return DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction?.phoneNumber
     }
 
-    public var uuid: UUID {
+    public var serviceId: ServiceId {
+        let localIdentifiers = DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction!
         switch identity {
-        case .aci: return TSAccountManager.shared.localUuid!
-        case .pni: return TSAccountManager.shared.localPni!
+        case .aci: return localIdentifiers.aci
+        case .pni: return localIdentifiers.pni!
         }
     }
 
@@ -259,16 +262,17 @@ public struct LocalSignalClient: TestSignalClient {
 
     public var identityKeyStore: IdentityKeyStore {
         return SSKEnvironment.shared.databaseStorage.read { transaction in
-            return try! SSKEnvironment.shared.identityManager.store(for: identity, transaction: transaction)
+            return try! DependenciesBridge.shared.identityManager.libSignalStore(for: identity, tx: transaction.asV2Read)
         }
     }
 
     public func linkedDevice(deviceID: UInt32) -> FakeSignalClient {
-        return FakeSignalClient(e164Identifier: e164Identifier,
-                                uuid: uuid,
-                                protocolStore: InMemorySignalProtocolStore(identity: identityKeyPair.identityKeyPair,
-                                                                           registrationId: 1),
-                                deviceId: deviceID)
+        return FakeSignalClient(
+            e164Identifier: e164Identifier,
+            serviceId: serviceId,
+            protocolStore: InMemorySignalProtocolStore(identity: identityKeyPair.identityKeyPair, registrationId: 1),
+            deviceId: deviceID
+        )
     }
 }
 

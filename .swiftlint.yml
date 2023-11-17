@@ -7,7 +7,9 @@ excluded:
 - Signal/src/util/Emoji/EmojiWithSkinTones+String.swift
 disabled_rules:
 - block_based_kvo
+- control_statement
 - cyclomatic_complexity
+- empty_enum_arguments
 - file_length
 - for_where
 - force_cast
@@ -20,11 +22,12 @@ disabled_rules:
 - nesting
 - no_fallthrough_only
 - notification_center_detachment
+- opening_brace
 - todo
+- trailing_comma
 - type_body_length
 - unneeded_synthesized_initializer
 - unused_closure_parameter
-- trailing_comma
 opt_in_rules:
 - attributes
 - comma_inheritance

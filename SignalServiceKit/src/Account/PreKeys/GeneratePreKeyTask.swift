@@ -167,16 +167,16 @@ extension PreKeyTasks {
     /// ALWAYS changes the targeted keys (regardless of current key state)
     internal class Legacy_Generate: GenerateBase {
 
-        private let accountManager: PreKey.Operation.Shims.AccountManager
         private let messageProcessor: PreKey.Operation.Shims.MessageProcessor
+        private let tsAccountManager: TSAccountManager
 
         internal init(
-            accountManager: PreKey.Operation.Shims.AccountManager,
             context: Generate.Context,
-            messageProcessor: PreKey.Operation.Shims.MessageProcessor
+            messageProcessor: PreKey.Operation.Shims.MessageProcessor,
+            tsAccountManager: TSAccountManager
         ) {
-            self.accountManager = accountManager
             self.messageProcessor = messageProcessor
+            self.tsAccountManager = tsAccountManager
             super.init(context: context)
         }
 
@@ -187,7 +187,7 @@ extension PreKeyTasks {
             let messageProcessingPromise: Promise<Void>
 
             // Legacy code was reliant on this check. To be removed soon.
-            if context.db.read(block: accountManager.isRegisteredAndReady(tx:)) {
+            if context.db.read(block: tsAccountManager.registrationState(tx:)).isRegistered {
                 messageProcessingPromise = messageProcessor.fetchingAndProcessingCompletePromise()
             } else {
                 messageProcessingPromise = .value(())
@@ -308,8 +308,15 @@ extension PreKeyTasks {
 
             return messageProcessor.fetchingAndProcessingCompletePromise()
                 .then(on: context.scheduler) { () -> Promise<PreKey.Operation.Target> in
-                    return self.serviceClient.getPreKeysCount(for: identity)
-                        .map(on: self.context.scheduler) { (ecCount: Int, pqCount: Int) -> PreKey.Operation.Target in
+                    let prekeyServerCountPromise: Promise<(ecCount: Int?, pqCount: Int?)>
+                    if unfilteredTargets.contains(target: .oneTimePreKey) || unfilteredTargets.contains(target: .oneTimePqPreKey) {
+                        prekeyServerCountPromise = self.serviceClient.getPreKeysCount(for: identity).map(on: SyncScheduler()) { $0 }
+                    } else {
+                        // No need to fetch prekey counts.
+                        prekeyServerCountPromise = .value((nil, nil))
+                    }
+                    return prekeyServerCountPromise
+                        .map(on: self.context.scheduler) { (ecCount: Int?, pqCount: Int?) -> PreKey.Operation.Target in
                             return self.filterToNecessaryTargets(
                                 identity: identity,
                                 unfilteredTargets: unfilteredTargets,
@@ -318,6 +325,7 @@ extension PreKeyTasks {
                             )
                         }
                 }.map(on: context.scheduler) { targets in
+                    PreKey.logger.info("[\(identity)] Refresh(filtered): [\(targets)]")
                     return try self.createPartialBundle(
                         identity: identity,
                         identityKeyPair: identityKeyPair,
@@ -329,8 +337,8 @@ extension PreKeyTasks {
         private func filterToNecessaryTargets(
             identity: OWSIdentity,
             unfilteredTargets: PreKey.Operation.Target,
-            ecPreKeyRecordCount: Int,
-            pqPreKeyRecordCount: Int
+            ecPreKeyRecordCount: Int?,
+            pqPreKeyRecordCount: Int?
         ) -> PreKey.Operation.Target {
             let (currentSignedPreKey, currentLastResortPqPreKey) = context.db.read { tx in
                 let signedPreKey = context.signedPreKeyStore.currentSignedPreKey(tx: tx)
@@ -343,12 +351,20 @@ extension PreKeyTasks {
             return unfilteredTargets.targets.reduce(into: []) { value, target in
                 switch target {
                 case .oneTimePreKey:
+                    guard let ecPreKeyRecordCount else {
+                        Logger.warn("Did not fetch prekey count, aborting.")
+                        return
+                    }
                     if ecPreKeyRecordCount < Constants.EphemeralPreKeysMinimumCount {
                         value.insert(target: target)
                     } else {
                         Logger.info("Available \(identity) keys sufficient: \(ecPreKeyRecordCount)")
                     }
                 case .oneTimePqPreKey:
+                    guard let pqPreKeyRecordCount else {
+                        Logger.warn("Did not fetch pq prekey count, aborting.")
+                        return
+                    }
                     if pqPreKeyRecordCount < Constants.PqPreKeysMinimumCount {
                         value.insert(target: target)
                     } else {

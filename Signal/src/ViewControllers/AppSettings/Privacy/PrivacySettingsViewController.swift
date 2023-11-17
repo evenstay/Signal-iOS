@@ -34,9 +34,7 @@ class PrivacySettingsViewController: OWSTableViewController2 {
 
         let whoCanSection = OWSTableSection()
 
-        if FeatureFlags.phoneNumberSharing ||
-            (FeatureFlags.phoneNumberDiscoverability &&
-             tsAccountManager.isPrimaryDevice) {
+        if FeatureFlags.phoneNumberPrivacy {
             whoCanSection.add(.disclosureItem(
                 withText: OWSLocalizedString(
                     "SETTINGS_PHONE_NUMBER_PRIVACY_TITLE",

@@ -58,20 +58,15 @@ public class FeatureFlags: BaseFlags {
 
     public static let choochoo = build.includes(.internal)
 
-    @objc
-    public static let phoneNumberSharing = build.includes(.internal)
-
-    @objc
-    public static let phoneNumberDiscoverability = build.includes(.internal)
-
-    @objc
-    public static let phoneNumberIdentifiers = false
+    public static let phoneNumberPrivacy = build.includes(.internal)
 
     @objc
     public static let usernames = build.includes(.internal)
 
     @objc
     public static let linkedPhones = build.includes(.internal)
+
+    public static let preRegDeviceTransfer = build.includes(.dev)
 
     // We keep this feature flag around as we may want to
     // ship a build that disables the dependency on KBS
@@ -84,15 +79,14 @@ public class FeatureFlags: BaseFlags {
     public static let supportAnimatedStickers_Lottie = false
 
     @objc
-    public static let paymentsRequests = false
-
-    @objc
     public static let paymentsScrubDetails = false
 
     @objc
     public static let deprecateREST = false
 
     public static let isPrerelease = build.includes(.beta)
+
+    public static let allowSEPADonations = build.includes(.internal)
 
     @objc
     public static var notificationServiceExtension: Bool {
@@ -122,15 +116,11 @@ public class FeatureFlags: BaseFlags {
         }
     }
 
-    /// If true, _only_ aci safety numbers will be displayed, and e164 safety numbers will not
-    /// be displayed.
-    public static let onlyAciSafetyNumbers = false
+    public static let editMessageSend = true
 
-    public static let editMessageSend = build.includes(.beta)
+    public static let doNotSendGroupChangeMessagesOnProfileKeyRotation = false
 
-    /// If true, we will enable recipient hiding, which is like a lighter form of blocking.
-    @objc
-    public static let recipientHiding = false
+    public static let cloudBackupFileAlpha = build.includes(.internal)
 }
 
 // MARK: -
@@ -166,12 +156,9 @@ extension FeatureFlags {
             LocalizationNotNeeded("Debug")
             #elseif TESTABLE_BUILD
             LocalizationNotNeeded("Testable build")
-            #elseif RELEASE
+            #else
             // RELEASE can be inferred from the lack of configuration. This will only be hit if the outer #if is removed.
             nil
-            #else
-            owsFailDebug("Invalid configuration")
-            return "*"
             #endif
         }()
 
@@ -403,12 +390,6 @@ public class DebugFlags: BaseFlags {
     )
 
     @objc
-    public static let deviceTransferPreserveOldDevice = false
-
-    @objc
-    public static let deviceTransferThrowAway = false
-
-    @objc
     public static func logFlags() {
         let logFlag = { (prefix: String, key: String, value: Any?) in
             if let flag = value as? TestableFlag {
@@ -513,6 +494,8 @@ public class TestableFlag: NSObject {
         if affectsCapabilities {
             updateCapabilities()
         }
+
+        toggleHandler?(value)
     }
 
     @objc
@@ -530,7 +513,9 @@ public class TestableFlag: NSObject {
 
     private func updateCapabilities() {
         firstly(on: DispatchQueue.global()) { () -> Promise<Void> in
-            TSAccountManager.shared.updateAccountAttributes().asVoid()
+            return Promise.wrapAsync {
+                try await DependenciesBridge.shared.accountAttributesUpdater.updateAccountAttributes(authedAccount: .implicit())
+            }
         }.done {
             Logger.info("")
         }.catch { error in

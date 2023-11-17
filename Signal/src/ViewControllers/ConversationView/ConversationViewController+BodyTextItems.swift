@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import LibSignalClient
 import MessageUI
 import SignalCoreKit
 import SignalMessaging
@@ -33,7 +34,7 @@ extension ConversationViewController {
     public func didTapBodyTextItem(_ item: CVTextLabel.Item) {
         AssertIsOnMainThread()
 
-        guard tsAccountManager.isRegisteredAndReady else {
+        guard DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isRegistered else {
             return
         }
 
@@ -63,7 +64,7 @@ extension ConversationViewController {
                 didTapEmail(dataItem: dataItem)
             }
         case .mention(let mentionItem):
-            didTapOrLongPressMention(mentionItem.mentionUUID)
+            didTapOrLongPressMention(mentionItem.mentionAci)
         case .unrevealedSpoiler(let unrevealedSpoilerItem):
             didTapOrLongPressUnrevealedSpoiler(unrevealedSpoilerItem)
         case .referencedUser(let referencedUserItem):
@@ -74,7 +75,7 @@ extension ConversationViewController {
     public func didLongPressBodyTextItem(_ item: CVTextLabel.Item) {
         AssertIsOnMainThread()
 
-        guard tsAccountManager.isRegisteredAndReady else {
+        guard DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isRegistered else {
             return
         }
 
@@ -100,7 +101,7 @@ extension ConversationViewController {
                 didLongPressEmail(dataItem: dataItem)
             }
         case .mention(let mentionItem):
-            didTapOrLongPressMention(mentionItem.mentionUUID)
+            didTapOrLongPressMention(mentionItem.mentionAci)
         case .unrevealedSpoiler(let unrevealedSpoilerItem):
             didTapOrLongPressUnrevealedSpoiler(unrevealedSpoilerItem)
         case .referencedUser(let referencedUserItem):
@@ -413,10 +414,10 @@ extension ConversationViewController {
     }
 
     // For now, taps and long presses on mentions do the same thing.
-    private func didTapOrLongPressMention(_ mentionUuid: UUID) {
+    private func didTapOrLongPressMention(_ mentionAci: Aci) {
         AssertIsOnMainThread()
 
-        showMemberActionSheet(forAddress: SignalServiceAddress(uuid: mentionUuid), withHapticFeedback: true)
+        showMemberActionSheet(forAddress: SignalServiceAddress(mentionAci), withHapticFeedback: true)
     }
 
     // Taps and long presses do the same thing.

@@ -59,7 +59,7 @@ public struct AccountAttributes: Codable {
     public let encryptedDeviceName: String?
 
     /// Whether the user has opted to allow their account to be discoverable by phone number.
-    public let discoverableByPhoneNumber: Bool?
+    public let discoverableByPhoneNumber: Bool
 
     public let capabilities: Capabilities
 
@@ -94,7 +94,7 @@ public struct AccountAttributes: Codable {
         twofaMode: TwoFactorAuthMode,
         registrationRecoveryPassword: String?,
         encryptedDeviceName: String?,
-        discoverableByPhoneNumber: Bool?,
+        discoverableByPhoneNumber: PhoneNumberDiscoverability?,
         hasSVRBackups: Bool
     ) {
         self.isManualMessageFetchEnabled = isManualMessageFetchEnabled
@@ -115,33 +115,30 @@ public struct AccountAttributes: Codable {
         }
         self.registrationRecoveryPassword = registrationRecoveryPassword
         self.encryptedDeviceName = encryptedDeviceName
-        self.discoverableByPhoneNumber = discoverableByPhoneNumber
+        self.discoverableByPhoneNumber = discoverableByPhoneNumber.orAccountAttributeDefault.isDiscoverable
         self.capabilities = Capabilities(hasSVRBackups: hasSVRBackups)
     }
 
     public struct Capabilities: Codable {
-        public let gv2 = true
-        public let gv2_2 = true
-        public let gv2_3 = true
         public let transfer = true
-        public let announcementGroup = true
-        public let senderKey = true
-        public let stories = true
-        public let canReceiveGiftBadges = true
         public let hasSVRBackups: Bool
-        public let changeNumber = true
+        public let pni = true
+        public let paymentActivation = true
 
         public enum CodingKeys: String, CodingKey {
-            case gv2
-            case gv2_2 = "gv2-2"
-            case gv2_3 = "gv2-3"
             case transfer
-            case announcementGroup
-            case senderKey
-            case stories
-            case canReceiveGiftBadges = "giftBadges"
             case hasSVRBackups = "storage"
-            case changeNumber
+            case pni
+            case paymentActivation
+        }
+
+        public init(hasSVRBackups: Bool) {
+            self.hasSVRBackups = hasSVRBackups
+        }
+
+        var requestParameters: [String: NSNumber] {
+            let jsonData = try! JSONEncoder().encode(self)
+            return try! JSONSerialization.jsonObject(with: jsonData) as! [String: NSNumber]
         }
     }
 }

@@ -462,7 +462,7 @@ public class OWSAttachmentDownloads: NSObject {
             return !Self.profileManager.isThread(inProfileWhitelist: thread, transaction: tx)
         }
 
-        return GRDBThreadFinder.hasPendingMessageRequest(thread: thread, transaction: tx.unwrapGrdbRead)
+        return ThreadFinder().hasPendingMessageRequest(thread: thread, transaction: tx)
     }
 
     private func isDownloadBlockedByAutoDownloadSettings(
@@ -827,8 +827,8 @@ public extension OWSAttachmentDownloads {
         var attachmentStreams = [TSAttachmentStream]()
 
         do {
-            let finder = GRDBInteractionFinder(threadUniqueId: thread.uniqueId)
-            try finder.enumerateMessagesWithAttachments(transaction: transaction.unwrapGrdbRead) { (message, _) in
+            let finder = InteractionFinder(threadUniqueId: thread.uniqueId)
+            try finder.enumerateMessagesWithAttachments(transaction: transaction) { (message, _) in
                 let (promise, future) = Promise<Void>.pending()
                 promises.append(promise)
                 self.enqueueDownloadOfAttachments(forMessageId: message.uniqueId,

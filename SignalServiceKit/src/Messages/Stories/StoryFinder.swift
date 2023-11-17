@@ -10,7 +10,7 @@ import LibSignalClient
 @objc
 public class StoryFinder: NSObject {
     public static func unviewedSenderCount(transaction: SDSAnyReadTransaction) -> Int {
-        let ownAciClause = tsAccountManager.localIdentifiers(transaction: transaction).map {
+        let ownAciClause = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: transaction.asV2Read).map {
             "AND \(StoryContextAssociatedData.columnName(.contactAci)) IS NOT '\($0.aci.serviceIdUppercaseString)'"
         } ?? ""
         let sql = """
@@ -191,7 +191,7 @@ public class StoryFinder: NSObject {
         }
     }
 
-    public static func enumerateStoriesForContext(_ context: StoryContext, transaction: SDSAnyReadTransaction, block: @escaping (StoryMessage, UnsafeMutablePointer<ObjCBool>) -> Void) {
+    public static func enumerateStoriesForContext(_ context: StoryContext, transaction: SDSAnyReadTransaction, block: (StoryMessage, UnsafeMutablePointer<ObjCBool>) -> Void) {
 
         guard let contextQuery = context.query else { return }
 
@@ -204,6 +204,31 @@ public class StoryFinder: NSObject {
 
         do {
             let cursor = try StoryMessage.fetchCursor(transaction.unwrapGrdbRead.database, sql: sql)
+            while let message = try cursor.next() {
+                var stop: ObjCBool = false
+                block(message, &stop)
+                if stop.boolValue {
+                    return
+                }
+            }
+        } catch {
+            owsFailDebug("error: \(error)")
+        }
+    }
+
+    public static func enumerateStories(
+        fromSender senderAci: Aci,
+        tx: SDSAnyReadTransaction,
+        block: (StoryMessage, UnsafeMutablePointer<ObjCBool>) -> Void
+    ) {
+        let sql = """
+            SELECT *
+            FROM \(StoryMessage.databaseTableName)
+            WHERE \(StoryMessage.columnName(.authorAci)) = ?
+        """
+
+        do {
+            let cursor = try StoryMessage.fetchCursor(tx.unwrapGrdbRead.database, sql: sql, arguments: [senderAci.rawUUID.uuidString])
             while let message = try cursor.next() {
                 var stop: ObjCBool = false
                 block(message, &stop)

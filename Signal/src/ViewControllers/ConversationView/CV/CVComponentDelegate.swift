@@ -54,6 +54,12 @@ public protocol CVComponentDelegate: AnyObject, AudioMessageViewDelegate {
                              itemViewModel: CVItemViewModelImpl,
                              shouldAllowReply: Bool)
 
+    func didLongPressPaymentMessage(
+        _ cell: CVCell,
+        itemViewModel: CVItemViewModelImpl,
+        shouldAllowReply: Bool
+    )
+
     func didChangeLongPress(_ itemViewModel: CVItemViewModelImpl)
 
     func didEndLongPress(_ itemViewModel: CVItemViewModelImpl)
@@ -100,6 +106,8 @@ public protocol CVComponentDelegate: AnyObject, AudioMessageViewDelegate {
     func didTapAddToContacts(contactShare: ContactShareViewModel)
 
     func didTapStickerPack(_ stickerPackInfo: StickerPackInfo)
+
+    func didTapPayment(_ paymentModel: TSPaymentModel, displayName: String)
 
     func didTapGroupInviteLink(url: URL)
 
@@ -171,6 +179,8 @@ public protocol CVComponentDelegate: AnyObject, AudioMessageViewDelegate {
 
     func didTapIndividualCall(_ call: TSCall)
 
+    func didTapLearnMoreMissedCallFromBlockedContact(_ call: TSCall)
+
     func didTapGroupCall()
 
     func didTapPendingOutgoingMessage(_ message: TSOutgoingMessage)
@@ -193,9 +203,7 @@ public protocol CVComponentDelegate: AnyObject, AudioMessageViewDelegate {
 
     func didTapUpdateSystemContact(_ address: SignalServiceAddress,
                                    newNameComponents: PersonNameComponents)
-    func didTapPhoneNumberChange(uuid: UUID,
-                                 phoneNumberOld: String,
-                                 phoneNumberNew: String)
+    func didTapPhoneNumberChange(aci: Aci, phoneNumberOld: String, phoneNumberNew: String)
 
     func didTapViewOnceAttachment(_ interaction: TSInteraction)
 
@@ -204,6 +212,11 @@ public protocol CVComponentDelegate: AnyObject, AudioMessageViewDelegate {
     func didTapUnknownThreadWarningGroup()
     func didTapUnknownThreadWarningContact()
     func didTapDeliveryIssueWarning(_ message: TSErrorMessage)
+
+    func didTapActivatePayments()
+    func didTapSendPayment()
+
+    func didTapThreadMergeLearnMore(phoneNumber: String)
 }
 
 // MARK: -
@@ -232,8 +245,9 @@ struct CVMessageAction: Equatable {
         case didTapBlockRequest(groupModel: TSGroupModelV2, requesterName: String, requesterAci: Aci)
         case didTapShowUpgradeAppUI
         case didTapUpdateSystemContact(address: SignalServiceAddress, newNameComponents: PersonNameComponents)
-        case didTapPhoneNumberChange(uuid: UUID, phoneNumberOld: String, phoneNumberNew: String)
+        case didTapPhoneNumberChange(aci: Aci, phoneNumberOld: String, phoneNumberNew: String)
         case didTapIndividualCall(call: TSCall)
+        case didTapLearnMoreMissedCallFromBlockedContact(call: TSCall)
         case didTapGroupCall
         case didTapSendMessage(contactShare: ContactShareViewModel)
         case didTapSendInvite(contactShare: ContactShareViewModel)
@@ -241,6 +255,9 @@ struct CVMessageAction: Equatable {
         case didTapUnknownThreadWarningGroup
         case didTapUnknownThreadWarningContact
         case didTapDeliveryIssueWarning(errorMessage: TSErrorMessage)
+        case didTapActivatePayments
+        case didTapSendPayment
+        case didTapThreadMergeLearnMore(phoneNumber: String)
 
         func perform(delegate: CVComponentDelegate) {
             switch self {
@@ -272,10 +289,12 @@ struct CVMessageAction: Equatable {
                 delegate.didTapShowUpgradeAppUI()
             case .didTapUpdateSystemContact(let address, let newNameComponents):
                 delegate.didTapUpdateSystemContact(address, newNameComponents: newNameComponents)
-            case .didTapPhoneNumberChange(let uuid, let phoneNumberOld, let phoneNumberNew):
-                delegate.didTapPhoneNumberChange(uuid: uuid, phoneNumberOld: phoneNumberOld, phoneNumberNew: phoneNumberNew)
+            case .didTapPhoneNumberChange(let aci, let phoneNumberOld, let phoneNumberNew):
+                delegate.didTapPhoneNumberChange(aci: aci, phoneNumberOld: phoneNumberOld, phoneNumberNew: phoneNumberNew)
             case .didTapIndividualCall(let call):
                 delegate.didTapIndividualCall(call)
+            case .didTapLearnMoreMissedCallFromBlockedContact(let call):
+                delegate.didTapLearnMoreMissedCallFromBlockedContact(call)
             case .didTapGroupCall:
                 delegate.didTapGroupCall()
             case .didTapSendMessage(let contactShare):
@@ -290,6 +309,12 @@ struct CVMessageAction: Equatable {
                 delegate.didTapUnknownThreadWarningContact()
             case .didTapDeliveryIssueWarning(let errorMessage):
                 delegate.didTapDeliveryIssueWarning(errorMessage)
+            case .didTapActivatePayments:
+                delegate.didTapActivatePayments()
+            case .didTapSendPayment:
+                delegate.didTapSendPayment()
+            case .didTapThreadMergeLearnMore(let phoneNumber):
+                delegate.didTapThreadMergeLearnMore(phoneNumber: phoneNumber)
             }
         }
     }

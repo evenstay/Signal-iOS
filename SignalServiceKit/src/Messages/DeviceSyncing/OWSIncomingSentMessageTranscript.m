@@ -4,7 +4,6 @@
 //
 
 #import "OWSIncomingSentMessageTranscript.h"
-#import "OWSContact.h"
 #import "OWSMessageManager.h"
 #import "TSContactThread.h"
 #import "TSGroupModel.h"
@@ -166,7 +165,7 @@ NS_ASSUME_NONNULL_BEGIN
         _quotedMessage = [TSQuotedMessage quotedMessageForDataMessage:_dataMessage
                                                                thread:_thread
                                                           transaction:transaction];
-        _contact = [OWSContacts contactForDataMessage:_dataMessage transaction:transaction];
+        _contact = [OWSContact contactForDataMessage:_dataMessage transaction:transaction];
 
         NSError *linkPreviewError;
         _linkPreview = [OWSLinkPreview buildValidatedLinkPreviewWithDataMessage:_dataMessage
@@ -193,17 +192,15 @@ NS_ASSUME_NONNULL_BEGIN
 
         TSPaymentModels *_Nullable paymentModels = [TSPaymentModels parsePaymentProtosInDataMessage:_dataMessage
                                                                                              thread:_thread];
-        _paymentRequest = paymentModels.request;
         _paymentNotification = paymentModels.notification;
-        _paymentCancellation = paymentModels.cancellation;
 
         if (_dataMessage.storyContext != nil && _dataMessage.storyContext.hasSentTimestamp
             && _dataMessage.storyContext.hasAuthorAci) {
             _storyTimestamp = @(_dataMessage.storyContext.sentTimestamp);
-            _storyAuthorAddress = [[SignalServiceAddress alloc] initWithAciString:_dataMessage.storyContext.authorAci];
+            _storyAuthorAci = [[AciObjC alloc] initWithAciString:_dataMessage.storyContext.authorAci];
 
-            if (!_storyAuthorAddress.isValid) {
-                OWSFailDebug(@"Discarding story reply transcript with invalid address %@", _storyAuthorAddress);
+            if (!_storyAuthorAci) {
+                OWSFailDebug(@"Discarding story reply transcript with invalid aci");
                 return nil;
             }
         }
@@ -214,10 +211,6 @@ NS_ASSUME_NONNULL_BEGIN
         NSMutableArray<ServiceIdObjC *> *udRecipients = [NSMutableArray new];
         for (SSKProtoSyncMessageSentUnidentifiedDeliveryStatus *statusProto in sentProto.unidentifiedStatus) {
             ServiceIdObjC *serviceId = [ServiceIdObjC parseFromServiceIdString:statusProto.destinationServiceID];
-            if (!SSKFeatureFlags.phoneNumberIdentifiers && [serviceId isKindOfClass:[PniObjC class]]) {
-                OWSFailDebug(@"Delivery status proto has PNI.");
-                continue;
-            }
             if (serviceId == nil) {
                 OWSFailDebug(@"Delivery status proto is missing destination.");
                 continue;

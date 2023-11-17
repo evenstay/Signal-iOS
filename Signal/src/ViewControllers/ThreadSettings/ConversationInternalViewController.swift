@@ -43,9 +43,9 @@ public class ConversationInternalViewController: OWSTableViewController2 {
             if let contactThread = thread as? TSContactThread {
                 let address = contactThread.contactAddress
 
-                section.add(.copyableItem(label: "UUID",
-                                          value: address.uuid?.uuidString,
-                                          accessibilityIdentifier: "uuid"))
+                section.add(.copyableItem(label: "ServiceId",
+                                          value: address.serviceIdString,
+                                          accessibilityIdentifier: "serviceId"))
 
                 section.add(.copyableItem(label: "Phone Number",
                                           value: address.phoneNumber,
@@ -56,20 +56,11 @@ public class ConversationInternalViewController: OWSTableViewController2 {
                                           value: profileKey?.hexadecimalString,
                                           accessibilityIdentifier: "profile_key"))
 
-                let identityKey = identityManager.recipientIdentity(for: address,
-                                                                    transaction: transaction)?.identityKey
+                let identityManager = DependenciesBridge.shared.identityManager
+                let identityKey = identityManager.recipientIdentity(for: address, tx: transaction.asV2Read)?.identityKey
                 section.add(.copyableItem(label: "Identity Key",
                                           value: identityKey?.hexadecimalString,
                                           accessibilityIdentifier: "identity_key"))
-
-                var canReceiveGiftBadgesString: String
-                if let profile = profileManager.getUserProfile(for: address, transaction: transaction) {
-                    canReceiveGiftBadgesString = profile.canReceiveGiftBadges ? "Yes" : "No"
-                } else {
-                    canReceiveGiftBadgesString = "Profile not found!"
-                }
-                section.add(.label(withText: String(format: "Can Receive Gift Badges? %@",
-                                                    canReceiveGiftBadgesString)))
 
                 let arePaymentsEnabled = paymentsHelper.arePaymentsEnabled(for: address,
                                                                      transaction: transaction)
@@ -101,7 +92,7 @@ public class ConversationInternalViewController: OWSTableViewController2 {
             sessionSection.add(.actionItem(withText: "Delete Session") {
                 self.databaseStorage.write { transaction in
                     let aciStore = DependenciesBridge.shared.signalProtocolStoreManager.signalProtocolStore(for: .aci)
-                    aciStore.sessionStore.deleteAllSessions(for: address, tx: transaction.asV2Write)
+                    aciStore.sessionStore.deleteAllSessions(for: address.serviceId!, tx: transaction.asV2Write)
                 }
             })
 

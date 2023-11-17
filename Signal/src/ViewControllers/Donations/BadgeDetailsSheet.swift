@@ -164,15 +164,24 @@ class BadgeDetailsSheet: OWSTableSheetViewController {
     private func didTapDonate() {
         dismiss(animated: true) {
             if DonationUtilities.canDonateInAnyWay(
-                localNumber: Self.tsAccountManager.localNumber
+                localNumber: DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction?.phoneNumber
             ) {
                 let frontVc = { CurrentAppContext().frontmostViewController() }
 
                 let donateVc = DonateViewController(preferredDonateMode: .oneTime) { finishResult in
                     switch finishResult {
-                    case let .completedDonation(donateSheet, thanksSheet):
+                    case let .completedDonation(donateSheet, receiptCredentialSuccessMode):
                         donateSheet.dismiss(animated: true) {
-                            frontVc()?.present(thanksSheet, animated: true)
+                            guard
+                                let frontVc = frontVc(),
+                                let badgeThanksSheetPresenter = BadgeThanksSheetPresenter.loadWithSneakyTransaction(
+                                    successMode: receiptCredentialSuccessMode
+                                )
+                            else { return }
+
+                            badgeThanksSheetPresenter.presentBadgeThanksAndClearSuccess(
+                                fromViewController: frontVc
+                            )
                         }
                     case let .monthlySubscriptionCancelled(donateSheet, toastText):
                         donateSheet.dismiss(animated: true) {

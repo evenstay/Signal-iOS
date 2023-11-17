@@ -9,24 +9,24 @@ import SignalMessaging
 import SignalUI
 
 protocol RecentPhotosDelegate: AnyObject {
-    var isMediaLibraryAccessGranted: Bool { get }
-    var isMediaLibraryAccessLimited: Bool { get }
     func didSelectRecentPhoto(asset: PHAsset, attachment: SignalAttachment)
 }
 
 class RecentPhotosCollectionView: UICollectionView {
-    let maxRecentPhotos = 96
-    let spaceBetweenRows: CGFloat = 6
 
-    var isReadyForPhotoLibraryAccess: Bool {
-        return recentPhotosDelegate?.isMediaLibraryAccessGranted == true
-    }
+    static let maxRecentPhotos = 96
+    static let itemSpacing: CGFloat = 12
 
-    var hasPhotos: Bool {
-        guard isReadyForPhotoLibraryAccess else { return false }
-        return collectionContents.assetCount > 0
-    }
     weak var recentPhotosDelegate: RecentPhotosDelegate?
+
+    var mediaLibraryAuthorizationStatus: PHAuthorizationStatus = .notDetermined {
+        didSet {
+            guard oldValue != mediaLibraryAuthorizationStatus else { return }
+            DispatchQueue.main.async {
+                self.reloadUIOnMediaLibraryAuthorizationStatusChange()
+            }
+        }
+    }
 
     private var fetchingAttachmentIndex: IndexPath? {
         didSet {
@@ -49,73 +49,257 @@ class RecentPhotosCollectionView: UICollectionView {
         return library
     }()
     private lazy var collection = photoLibrary.defaultPhotoAlbum()
-    private lazy var collectionContents = collection.contents(ascending: false, limit: maxRecentPhotos)
+    private lazy var collectionContents = collection.contents(ascending: false, limit: RecentPhotosCollectionView.maxRecentPhotos)
 
-    var itemSize: CGSize = .zero {
+    // Cell Sizing
+
+    private static let initialCellSize: CGSize = .square(50)
+
+    private var cellSize: CGSize = initialCellSize {
         didSet {
-            guard oldValue != itemSize else { return }
-            updateLayout()
+            guard oldValue != cellSize else { return }
+
+            photoMediaSize = PhotoMediaSize(thumbnailSize: cellSize * UIScreen.main.scale)
+
+            // Replacing the collection view layout is the only reliable way
+            // to change cell size when `collectionView(_:layout:sizeForItemAt:)` is implemented.
+            // That delegate method is necessary to allow custom size for "manage access" helper UI.
+            setCollectionViewLayout(RecentPhotosCollectionView.collectionViewLayout(itemSize: cellSize), animated: false)
+            reloadData() // Needed in order to reload photos with better quality on size change.
+        }
+    }
+    private var limitedAccessViewCellSizeCache: [CGFloat: CGSize] = [:]
+
+    private var lastKnownHeight: CGFloat = 0
+
+    override var bounds: CGRect {
+        didSet {
+            let height = frame.height
+            guard height != lastKnownHeight, height > 0 else { return }
+
+            lastKnownHeight = height
+            recalculateCellSize()
         }
     }
 
-    private var photoMediaSize: PhotoMediaSize {
-        let size = PhotoMediaSize()
-        size.thumbnailSize = itemSize
-        return size
+    private func recalculateCellSize() {
+        guard lastKnownHeight > 0 else { return }
+
+        if lastKnownHeight > 250 {
+            cellSize = CGSize(square: 0.5 * (lastKnownHeight - RecentPhotosCollectionView.itemSpacing))
+        // Otherwise, assume the recent photos take up the full height of the collection view.
+        } else {
+            cellSize = CGSize(square: lastKnownHeight)
+        }
     }
 
-    private let collectionViewFlowLayout = RTLEnabledCollectionViewFlowLayout()
+    private var photoMediaSize = PhotoMediaSize(thumbnailSize: initialCellSize * UIScreen.main.scale)
+
+    private static func collectionViewLayout(itemSize: CGSize) -> UICollectionViewFlowLayout {
+        let layout = RTLEnabledCollectionViewFlowLayout()
+        layout.scrollDirection = .horizontal
+        layout.minimumLineSpacing = itemSpacing
+        layout.minimumInteritemSpacing = itemSpacing
+        layout.itemSize = itemSize
+        return layout
+    }
 
     init() {
-        super.init(frame: .zero, collectionViewLayout: collectionViewFlowLayout)
+        let layout = RecentPhotosCollectionView.collectionViewLayout(itemSize: RecentPhotosCollectionView.initialCellSize)
+        super.init(frame: .zero, collectionViewLayout: layout)
 
         dataSource = self
         delegate = self
-        showsHorizontalScrollIndicator = false
-
-        contentInset = UIEdgeInsets(top: 0, leading: 6, bottom: 0, trailing: 6)
 
         backgroundColor = .clear
-
+        showsHorizontalScrollIndicator = false
+        let horizontalInset = OWSTableViewController2.defaultHOuterMargin
+        contentInset = UIEdgeInsets(top: 0, leading: horizontalInset, bottom: 0, trailing: horizontalInset)
         register(RecentPhotoCell.self, forCellWithReuseIdentifier: RecentPhotoCell.reuseIdentifier)
-        register(SelectMorePhotosCell.self, forCellWithReuseIdentifier: SelectMorePhotosCell.reuseIdentifier)
-
-        collectionViewFlowLayout.scrollDirection = .horizontal
-        collectionViewFlowLayout.minimumLineSpacing = 6
-        collectionViewFlowLayout.minimumInteritemSpacing = spaceBetweenRows
-
-        updateLayout()
-    }
-
-    private func updateLayout() {
-        AssertIsOnMainThread()
-
-        // We don't want to do anything until media library permission is granted.
-        guard isReadyForPhotoLibraryAccess else { return }
-        guard itemSize.height > 0, itemSize.width > 0 else { return }
-
-        collectionViewFlowLayout.itemSize = itemSize
-        collectionViewFlowLayout.invalidateLayout()
-
-        reloadData()
+        register(UICollectionViewCell.self, forCellWithReuseIdentifier: "SelectMorePhotosCell")
     }
 
     required init?(coder aDecoder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
+
+    // Presentation Animations
+
+    func prepareForPresentation() {
+        UIView.performWithoutAnimation {
+            self.alpha = 0
+        }
+    }
+
+    func performPresentationAnimation() {
+        UIView.animate(withDuration: 0.3) {
+            self.alpha = 1
+        }
+    }
+
+    // Background view
+
+    private var hasPhotos: Bool {
+        guard hasAccessToPhotos else { return false }
+        return collectionContents.assetCount > 0
+    }
+
+    private var hasAccessToPhotos: Bool {
+        guard #available(iOS 14, *) else {
+            return mediaLibraryAuthorizationStatus == .authorized
+        }
+        return [.authorized, .limited].contains(mediaLibraryAuthorizationStatus)
+    }
+
+    private var isAccessToPhotosLimited: Bool {
+        guard #available(iOS 14, *) else { return false }
+        return mediaLibraryAuthorizationStatus == .limited
+    }
+
+    private func reloadUIOnMediaLibraryAuthorizationStatusChange() {
+        guard hasPhotos else {
+            backgroundView = noPhotosBackgroundView()
+            reloadData()
+            return
+        }
+        backgroundView = nil
+        reloadData()
+    }
+
+    private func noPhotosBackgroundView() -> UIView {
+        let contentView: UIView
+        if !hasAccessToPhotos {
+            contentView = noAccessToPhotosView()
+        } else if isAccessToPhotosLimited {
+            contentView = limitedAccessView()
+        } else {
+            contentView = noPhotosView()
+        }
+
+        let view = UIView()
+        view.addSubview(contentView)
+        contentView.autoPinHeightToSuperviewMargins(relation: .lessThanOrEqual)
+        contentView.autoCenterInSuperview()
+        contentView.widthAnchor.constraint(lessThanOrEqualTo: view.layoutMarginsGuide.widthAnchor, multiplier: 0.75).isActive = true
+        return view
+    }
+
+    private func noPhotosView() -> UIView {
+        let titleLabel = titleLabel(text: OWSLocalizedString(
+            "ATTACHMENT_KEYBOARD_NO_MEDIA_TITLE",
+            comment: "First block of text in chat attachment panel when there's no recent photos to show."
+        ))
+        let bodyLabel = textLabel(text: OWSLocalizedString(
+            "ATTACHMENT_KEYBOARD_NO_MEDIA_BODY",
+            comment: "Second block of text in chat attachment panel when there's no recent photos to show."
+        ))
+        let stackView = UIStackView(arrangedSubviews: [ titleLabel, bodyLabel ])
+        stackView.axis = .vertical
+        stackView.alignment = .center
+        stackView.spacing = 4
+        return stackView
+    }
+
+    private func limitedAccessView() -> UIView {
+        let textLabel = textLabel(text: OWSLocalizedString(
+            "ATTACHMENT_KEYBOARD_LIMITED_ACCESS",
+            comment: "Text in chat attachment panel when Signal only has access to some photos/videos."
+        ))
+        let button = button(title: OWSLocalizedString(
+            "ATTACHMENT_KEYBOARD_BUTTON_MANAGE",
+            comment: "Button in chat attachment panel that allows to select photos/videos Signal has access to."
+        ))
+        button.block = {
+            guard #available(iOS 14, *),
+                let frontmostVC = CurrentAppContext().frontmostViewController() else { return }
+            PHPhotoLibrary.shared().presentLimitedLibraryPicker(from: frontmostVC)
+        }
+        let stackView = UIStackView(arrangedSubviews: [ textLabel, button ])
+        stackView.axis = .vertical
+        stackView.spacing = 16
+        stackView.alignment = .center
+        return stackView
+    }
+
+    private func noAccessToPhotosView() -> UIView {
+        let textLabel = textLabel(text: OWSLocalizedString(
+            "ATTACHMENT_KEYBOARD_NO_PHOTO_ACCESS",
+            comment: "Text in chat attachment panel explaining that user needs to give Signal permission to access photos."
+        ))
+        let button = button(title: OWSLocalizedString(
+            "ATTACHMENT_KEYBOARD_OPEN_SETTINGS",
+            comment: "Button in chat attachment panel to let user open Settings app and give Signal persmission to access photos."
+        ))
+        button.block = {
+            let openAppSettingsUrl = URL(string: UIApplication.openSettingsURLString)!
+            UIApplication.shared.open(openAppSettingsUrl)
+        }
+        let stackView = UIStackView(arrangedSubviews: [ textLabel, button ])
+        stackView.axis = .vertical
+        stackView.spacing = 16
+        stackView.alignment = .center
+        return stackView
+    }
+
+    private func titleLabel(text: String) -> UILabel {
+        let label = UILabel()
+        label.font = .dynamicTypeHeadlineClamped
+        label.textColor = Theme.isDarkThemeEnabled ? .ows_gray20 : UIColor(rgbHex: 0x434343).withAlphaComponent(0.8)
+        label.textAlignment = .center
+        label.numberOfLines = 2
+        label.text = text
+        return label
+    }
+
+    private func textLabel(text: String) -> UILabel {
+        let label = UILabel()
+        label.font = .dynamicTypeSubheadlineClamped
+        label.lineBreakMode = .byWordWrapping
+        label.textColor = Theme.isDarkThemeEnabled ? .ows_gray25 : .ows_blackAlpha50
+        label.textAlignment = .center
+        label.numberOfLines = 0
+        label.text = text
+        return label
+    }
+
+    private func button(title: String) -> OWSButton {
+        let button = OWSButton()
+
+        let backgroundColor = Theme.isDarkThemeEnabled ? UIColor(white: 1, alpha: 0.16) : UIColor(white: 0, alpha: 0.08)
+        button.setBackgroundImage(UIImage(color: backgroundColor), for: .normal)
+
+        let highlightedBgColor = Theme.isDarkThemeEnabled ? UIColor(white: 1, alpha: 0.26) : UIColor(white: 0, alpha: 0.18)
+        button.setBackgroundImage(UIImage(color: highlightedBgColor), for: .highlighted)
+
+        button.contentEdgeInsets = UIEdgeInsets(top: 7, leading: 16, bottom: 7, trailing: 16)
+        button.heightAnchor.constraint(greaterThanOrEqualToConstant: 32).isActive = true
+        button.layer.masksToBounds = true
+        button.layer.cornerRadius = 16
+
+        button.setTitle(title, for: .normal)
+        button.setTitleColor(Theme.isDarkThemeEnabled ? .ows_gray05 : .black, for: .normal)
+        button.titleLabel?.font = .dynamicTypeSubheadlineClamped.semibold()
+        return button
+    }
 }
 
 extension RecentPhotosCollectionView: PhotoLibraryDelegate {
+
     func photoLibraryDidChange(_ photoLibrary: PhotoLibrary) {
-        collectionContents = collection.contents(ascending: false, limit: maxRecentPhotos)
+        let hadPhotos = hasPhotos
+        collectionContents = collection.contents(ascending: false, limit: RecentPhotosCollectionView.maxRecentPhotos)
         reloadData()
+        if hasPhotos != hadPhotos {
+            reloadUIOnMediaLibraryAuthorizationStatusChange()
+        }
     }
 }
 
 // MARK: - UICollectionViewDelegate
 
-extension RecentPhotosCollectionView: UICollectionViewDelegate {
-    public func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
+extension RecentPhotosCollectionView: UICollectionViewDelegate, UICollectionViewDelegateFlowLayout {
+
+    func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
         guard fetchingAttachmentIndex == nil else { return }
 
         guard indexPath.row < collectionContents.assetCount else {
@@ -137,30 +321,85 @@ extension RecentPhotosCollectionView: UICollectionViewDelegate {
             OWSActionSheets.showActionSheet(title: OWSLocalizedString("IMAGE_PICKER_FAILED_TO_PROCESS_ATTACHMENTS", comment: "alert title"))
         }
     }
+
+    func collectionView(_ collectionView: UICollectionView, layout collectionViewLayout: UICollectionViewLayout, sizeForItemAt indexPath: IndexPath) -> CGSize {
+
+        // Custom size for "manage access" cell.
+        guard indexPath.row < collectionContents.assetCount else {
+            let defaultCellSize = cellSize
+            guard defaultCellSize.isNonEmpty else { return .zero }
+
+            let cellHeight = defaultCellSize.height
+            if let cachedSize = limitedAccessViewCellSizeCache[cellHeight] {
+                return cachedSize
+            }
+
+            let cellMargin: CGFloat = 8
+            let view = limitedAccessView()
+
+            // I couldn't figure out how to make `systemLayoutSizeFitting()` work for multi-line text.
+            // Size (width) that method returns is always for text being one line.
+            // Therefore the logic is as follows:
+            // 1. Check if UI fits standard cell width.
+            // 2a. If it does - all good and we use default cell size.
+            // 2b. If it doesn't - we calculate size (width) with default cell size being restricted.
+            //     Unfortunately in this case width is always for one line of text like I mentioned above.
+            // If you read this and have some free time - feel free to attempt to fix.
+            let size = view.systemLayoutSizeFitting(
+                CGSize(width: defaultCellSize.width - 2*cellMargin, height: .greatestFiniteMagnitude),
+                withHorizontalFittingPriority: .required,
+                verticalFittingPriority: .fittingSizeLevel
+            )
+            let cellWidth: CGFloat
+            if size.height > cellHeight {
+                view.addConstraint(view.heightAnchor.constraint(equalToConstant: cellHeight))
+
+                let widerSize = view.systemLayoutSizeFitting(.square(.greatestFiniteMagnitude))
+                cellWidth = widerSize.width + 2*cellMargin
+            } else {
+                cellWidth = defaultCellSize.width
+            }
+            let cellSize = CGSize(width: cellWidth, height: cellHeight)
+            limitedAccessViewCellSizeCache[cellHeight] = cellSize
+            return cellSize
+        }
+
+        return cellSize
+    }
 }
 
 // MARK: - UICollectionViewDataSource
 
 extension RecentPhotosCollectionView: UICollectionViewDataSource {
 
-    public func numberOfSections(in collectionView: UICollectionView) -> Int {
+    func numberOfSections(in collectionView: UICollectionView) -> Int {
+        guard hasPhotos else { return 0 }
         return 1
     }
 
-    public func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection sectionIdx: Int) -> Int {
-        guard isReadyForPhotoLibraryAccess else { return 0 }
-        return collectionContents.assetCount + (recentPhotosDelegate?.isMediaLibraryAccessLimited == true ? 1 : 0)
+    func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection sectionIdx: Int) -> Int {
+        guard hasPhotos else { return 0 }
+
+        var cellCount = collectionContents.assetCount
+        if isAccessToPhotosLimited {
+            cellCount += 1
+        }
+        return cellCount
     }
 
-    public func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
+    func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
         guard indexPath.row < collectionContents.assetCount else {
             // If the index is beyond the asset count, we should be rendering the "select more photos" prompt.
-            owsAssertDebug(recentPhotosDelegate?.isMediaLibraryAccessLimited == true)
+            owsAssertDebug(isAccessToPhotosLimited)
 
-            guard let cell = collectionView.dequeueReusableCell(withReuseIdentifier: SelectMorePhotosCell.reuseIdentifier, for: indexPath) as? SelectMorePhotosCell else {
-                owsFail("cell was unexpectedly nil")
+            let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "SelectMorePhotosCell", for: indexPath)
+            if cell.contentView.subviews.isEmpty {
+                let limitedAccessView = limitedAccessView()
+                cell.contentView.addSubview(limitedAccessView)
+                limitedAccessView.autoVCenterInSuperview()
+                limitedAccessView.autoPinHeightToSuperview(relation: .lessThanOrEqual)
+                limitedAccessView.autoPinWidthToSuperviewMargins()
             }
-
             return cell
         }
 
@@ -179,110 +418,25 @@ extension RecentPhotosCollectionView: UICollectionViewDataSource {
     }
 }
 
-private class SelectMorePhotosCell: UICollectionViewCell {
-
-    static let reuseIdentifier = "SelectMorePhotosCell"
-
-    override init(frame: CGRect) {
-
-        super.init(frame: frame)
-
-        clipsToBounds = true
-        layer.cornerRadius = 4
-        backgroundColor = Theme.washColor
-
-        // There's very little space for text here, so we stick with
-        // a fixed font size.
-        let fixedFont = UIFont.systemFont(ofSize: 13)
-
-        let titleLabel = UILabel()
-        titleLabel.numberOfLines = 0
-        titleLabel.lineBreakMode = .byWordWrapping
-        titleLabel.textAlignment = .center
-        titleLabel.font = fixedFont.semibold()
-        titleLabel.textColor = Theme.primaryTextColor
-        titleLabel.text = OWSLocalizedString(
-            "IMAGE_PICKER_CHANGE_PHOTOS_TITLE",
-            comment: "Title show that the user has granted limited access to their photos and can change that in the Settings app."
-        )
-
-        let explanationLabel = UILabel()
-        explanationLabel.numberOfLines = 0
-        explanationLabel.lineBreakMode = .byWordWrapping
-        explanationLabel.textAlignment = .center
-        explanationLabel.font = fixedFont
-        explanationLabel.textColor = Theme.secondaryTextAndIconColor
-        explanationLabel.text = OWSLocalizedString(
-            "IMAGE_PICKER_CHANGE_PHOTOS_EXPLANATION",
-            comment: "Explanation showing that the user has granted limited access to their photos and can change that in the Settings app."
-        )
-
-        let button = OWSFlatButton()
-        button.useDefaultCornerRadius()
-        button.setTitle(
-            title: OWSLocalizedString(
-                "IMAGE_PICKER_CHANGE_PHOTOS",
-                comment: "Button that will present a view for the user to change the photos Signal has access to."
-            ),
-            font: fixedFont,
-            titleColor: .ows_white
-        )
-        button.contentEdgeInsets = UIEdgeInsets(top: 5, leading: 12, bottom: 5, trailing: 12)
-        button.setBackgroundColors(upColor: .ows_accentBlue)
-
-        let buttonContainer = UIView()
-        buttonContainer.addSubview(button)
-        button.autoPinEdge(toSuperviewEdge: .top, withInset: 4)
-        button.autoPinEdge(toSuperviewEdge: .bottom, withInset: 4)
-        button.autoHCenterInSuperview()
-        button.autoMatch(.width, to: .width, of: buttonContainer, withOffset: 0, relation: .lessThanOrEqual)
-        button.setPressedBlock {
-            guard #available(iOS 14, *),
-                let frontmostVC = CurrentAppContext().frontmostViewController() else { return }
-            PHPhotoLibrary.shared().presentLimitedLibraryPicker(from: frontmostVC)
-        }
-
-        let topSpacer = UIView.vStretchingSpacer()
-        let bottomSpacer = UIView.vStretchingSpacer()
-
-        let stackView = UIStackView(arrangedSubviews: [topSpacer, titleLabel, explanationLabel, buttonContainer, bottomSpacer])
-        stackView.axis = .vertical
-        stackView.spacing = 4
-        stackView.isLayoutMarginsRelativeArrangement = true
-        stackView.layoutMargins = UIEdgeInsets(top: 12, leading: 12, bottom: 12, trailing: 12)
-
-        topSpacer.autoMatch(.height, to: .height, of: bottomSpacer)
-
-        contentView.addSubview(stackView)
-        stackView.autoPinEdgesToSuperviewEdges()
-    }
-
-    @available(*, unavailable, message: "Unimplemented")
-    required public init?(coder aDecoder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-}
-
 private class RecentPhotoCell: UICollectionViewCell {
 
     static let reuseIdentifier = "RecentPhotoCell"
 
-    let imageView = UIImageView()
+    private let imageView = UIImageView()
     private var contentTypeBadgeView: UIImageView?
     private var durationLabel: UILabel?
     private var durationLabelBackground: UIView?
-    let loadingIndicator = UIActivityIndicatorView(style: .large)
+    private let loadingIndicator = UIActivityIndicatorView(style: .large)
 
-    var item: PhotoGridItem?
+    private var item: PhotoGridItem?
 
     override init(frame: CGRect) {
 
         super.init(frame: frame)
 
-        imageView.contentMode = .scaleAspectFill
         clipsToBounds = true
-        layer.cornerRadius = 4
 
+        imageView.contentMode = .scaleAspectFill
         contentView.addSubview(imageView)
         imageView.autoPinEdgesToSuperviewEdges()
 
@@ -296,8 +450,26 @@ private class RecentPhotoCell: UICollectionViewCell {
     }
 
     @available(*, unavailable, message: "Unimplemented")
-    required public init?(coder aDecoder: NSCoder) {
+    required init?(coder aDecoder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+
+    override var frame: CGRect {
+        didSet {
+            updateCornerRadius()
+        }
+    }
+
+    override var bounds: CGRect {
+        didSet {
+            updateCornerRadius()
+        }
+    }
+
+    private func updateCornerRadius() {
+        let cellSize = min(bounds.width, bounds.height)
+        guard cellSize > 0 else { return }
+        layer.cornerRadius = (cellSize * 13 / 84).rounded()
     }
 
     override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
@@ -309,7 +481,7 @@ private class RecentPhotoCell: UICollectionViewCell {
         }
     }
 
-    var image: UIImage? {
+    private var image: UIImage? {
         get { return imageView.image }
         set {
             imageView.image = newValue
@@ -318,8 +490,8 @@ private class RecentPhotoCell: UICollectionViewCell {
     }
 
     private static func durationLabelFont() -> UIFont {
-        let fontDescriptor = UIFontDescriptor.preferredFontDescriptor(withTextStyle: .caption1)
-        return UIFont.semiboldFont(ofSize: max(12, fontDescriptor.pointSize))
+        let fontDescriptor = UIFontDescriptor.preferredFontDescriptor(withTextStyle: .footnote)
+        return UIFont.semiboldFont(ofSize: max(13, fontDescriptor.pointSize))
     }
 
     private func setContentTypeBadge(image: UIImage?) {
@@ -331,8 +503,8 @@ private class RecentPhotoCell: UICollectionViewCell {
         if contentTypeBadgeView == nil {
             let contentTypeBadgeView = UIImageView()
             contentView.addSubview(contentTypeBadgeView)
-            contentTypeBadgeView.autoPinEdge(toSuperviewEdge: .trailing, withInset: 4)
-            contentTypeBadgeView.autoPinEdge(toSuperviewEdge: .bottom, withInset: 4)
+            contentTypeBadgeView.autoPinEdge(toSuperviewEdge: .trailing, withInset: 12)
+            contentTypeBadgeView.autoPinEdge(toSuperviewEdge: .bottom, withInset: 12)
             self.contentTypeBadgeView = contentTypeBadgeView
         }
         contentTypeBadgeView?.isHidden = false
@@ -373,8 +545,8 @@ private class RecentPhotoCell: UICollectionViewCell {
 
         if durationLabel.superview == nil {
             contentView.addSubview(durationLabel)
-            durationLabel.autoPinEdge(toSuperviewEdge: .trailing, withInset: 6)
-            durationLabel.autoPinEdge(toSuperviewEdge: .bottom, withInset: 4)
+            durationLabel.autoPinEdge(toSuperviewEdge: .trailing, withInset: 12)
+            durationLabel.autoPinEdge(toSuperviewEdge: .bottom, withInset: 12)
         }
         if durationLabelBackground.superview == nil {
             contentView.insertSubview(durationLabelBackground, belowSubview: durationLabel)
@@ -390,7 +562,7 @@ private class RecentPhotoCell: UICollectionViewCell {
         durationLabel.sizeToFit()
     }
 
-    public func configure(item: PhotoGridItem, isLoading: Bool) {
+    func configure(item: PhotoGridItem, isLoading: Bool) {
         self.item = item
 
         image = item.asyncThumbnail { [weak self] image in
@@ -410,7 +582,7 @@ private class RecentPhotoCell: UICollectionViewCell {
         if isLoading { startLoading() }
     }
 
-    override public func prepareForReuse() {
+    override func prepareForReuse() {
         super.prepareForReuse()
 
         item = nil
@@ -418,11 +590,11 @@ private class RecentPhotoCell: UICollectionViewCell {
         stopLoading()
     }
 
-    func startLoading() {
+    private func startLoading() {
         loadingIndicator.startAnimating()
     }
 
-    func stopLoading() {
+    private func stopLoading() {
         loadingIndicator.stopAnimating()
     }
 }

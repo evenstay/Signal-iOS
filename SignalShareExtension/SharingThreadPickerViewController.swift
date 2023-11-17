@@ -158,11 +158,11 @@ extension SharingThreadPickerViewController {
             approvalView.delegate = self
 
         } else if isContactShare {
-            guard let cnContact = Contact.cnContact(withVCardData: firstAttachment.data),
-                  let contactShareRecord = OWSContacts.contact(forSystemContact: cnContact) else {
+            guard let cnContact = Contact.cnContact(withVCardData: firstAttachment.data) else {
                 throw OWSAssertionError("Missing or invalid contact data for contact share attachment")
             }
 
+            let contactShareRecord = OWSContact(cnContact: cnContact)
             var avatarImageData = contactsManager.avatarData(forCNContactId: cnContact.identifier)
 
             if avatarImageData == nil {
@@ -178,9 +178,9 @@ extension SharingThreadPickerViewController {
             }
 
             let contactShare = ContactShareViewModel(contactShareRecord: contactShareRecord, avatarImageData: avatarImageData)
-            let approvalView = ContactShareApprovalViewController(contactShare: contactShare)
+            let approvalView = ContactShareViewController(contactShare: contactShare)
             approvalVC = approvalView
-            approvalView.delegate = self
+            approvalView.shareDelegate = self
 
         } else {
             let approvalItems = attachments.map { AttachmentApprovalItem(attachment: $0, canSave: false) }
@@ -460,14 +460,22 @@ extension SharingThreadPickerViewController {
         let failureTitle = OWSLocalizedString("SHARE_EXTENSION_SENDING_FAILURE_TITLE", comment: "Alert title")
 
         if let untrustedIdentityError = error as? UntrustedIdentityError {
-            let untrustedAddress = untrustedIdentityError.address
-            let failureFormat = OWSLocalizedString("SHARE_EXTENSION_FAILED_SENDING_BECAUSE_UNTRUSTED_IDENTITY_FORMAT",
-                                                  comment: "alert body when sharing file failed because of untrusted/changed identity keys")
-            let displayName = self.contactsManager.displayName(for: untrustedAddress)
+            let untrustedServiceId = untrustedIdentityError.serviceId
+            let failureFormat = OWSLocalizedString(
+                "SHARE_EXTENSION_FAILED_SENDING_BECAUSE_UNTRUSTED_IDENTITY_FORMAT",
+                comment: "alert body when sharing file failed because of untrusted/changed identity keys"
+            )
+            let displayName = self.contactsManager.displayName(for: SignalServiceAddress(untrustedServiceId))
             let failureMessage = String(format: failureFormat, displayName)
 
             let actionSheet = ActionSheetController(title: failureTitle, message: failureMessage)
             actionSheet.addAction(cancelAction)
+
+            // Capture the identity key before showing the prompt about it.
+            let identityKey = databaseStorage.read { tx in
+                let identityManager = DependenciesBridge.shared.identityManager
+                return identityManager.identityKey(for: SignalServiceAddress(untrustedServiceId), tx: tx.asV2Read)
+            }
 
             let confirmAction = ActionSheetAction(
                 title: SafetyNumberStrings.confirmSendButton,
@@ -477,34 +485,27 @@ extension SharingThreadPickerViewController {
 
                 // Confirm Identity
                 self.databaseStorage.write { transaction in
-                    let verificationState = self.identityManager.verificationState(
-                        for: untrustedAddress,
-                        transaction: transaction
+                    let identityManager = DependenciesBridge.shared.identityManager
+                    let verificationState = identityManager.verificationState(
+                        for: SignalServiceAddress(untrustedServiceId),
+                        tx: transaction.asV2Write
                     )
                     switch verificationState {
-                    case .default:
-                        // If we learned of a changed SN during send, then we've already recorded the new identity
-                        // and there's nothing else we need to do for the resend to succeed.
-                        // We don't want to redundantly set status to "default" because we would create a
-                        // "You marked Alice as unverified" notice, which wouldn't make sense if Alice was never
-                        // marked as "Verified".
-                        Logger.info("recipient has acceptable verification status. Next send will succeed.")
-                    case .noLongerVerified:
-                        Logger.info("marked recipient: \(untrustedAddress) as default verification status.")
-                        guard let indentityKey = self.identityManager.identityKey(
-                            for: untrustedAddress,
-                            transaction: transaction
-                        ) else { return owsFailDebug("missing identity key") }
-
-                        self.identityManager.setVerificationState(
-                            .default,
-                            identityKey: indentityKey,
-                            address: untrustedAddress,
-                            isUserInitiatedChange: true,
-                            transaction: transaction
-                        )
                     case .verified:
                         owsFailDebug("Unexpected state")
+                    case .noLongerVerified, .implicit(isAcknowledged: _):
+                        Logger.info("marked recipient: \(untrustedServiceId) as default verification status.")
+                        guard let identityKey else {
+                            owsFailDebug("Can't be untrusted unless there's already an identity key.")
+                            return
+                        }
+                        _ = identityManager.setVerificationState(
+                            .implicit(isAcknowledged: true),
+                            of: identityKey,
+                            for: SignalServiceAddress(untrustedServiceId),
+                            isUserInitiatedChange: true,
+                            tx: transaction.asV2Write
+                        )
                     }
                 }
 
@@ -646,24 +647,22 @@ extension SharingThreadPickerViewController: TextApprovalViewControllerDelegate 
 
 // MARK: -
 
-extension SharingThreadPickerViewController: ContactShareApprovalViewControllerDelegate {
-    func approveContactShare(_ approveContactShare: ContactShareApprovalViewController,
-                             didApproveContactShare contactShare: ContactShareViewModel) {
-        approvedContactShare = contactShare
+extension SharingThreadPickerViewController: ContactShareViewControllerDelegate {
 
+    func contactShareViewController(_ viewController: ContactShareViewController, didApproveContactShare contactShare: ContactShareViewModel) {
+        approvedContactShare = contactShare
         send()
     }
 
-    func approveContactShare(_ approveContactShare: ContactShareApprovalViewController,
-                             didCancelContactShare contactShare: ContactShareViewModel) {
+    func contactShareViewControllerDidCancel(_ viewController: ContactShareViewController) {
         shareViewDelegate?.shareViewWasCancelled()
     }
 
-    func contactApprovalCustomTitle(_ contactApproval: ContactShareApprovalViewController) -> String? {
+    func titleForContactShareViewController(_ viewController: ContactShareViewController) -> String? {
         return nil
     }
 
-    func contactApprovalRecipientsDescription(_ contactApproval: ContactShareApprovalViewController) -> String? {
+    func recipientsDescriptionForContactShareViewController(_ viewController: ContactShareViewController) -> String? {
         let conversations = selectedConversations
         guard conversations.count > 0 else {
             return nil
@@ -671,7 +670,7 @@ extension SharingThreadPickerViewController: ContactShareApprovalViewControllerD
         return conversations.map { $0.titleWithSneakyTransaction }.joined(separator: ", ")
     }
 
-    func contactApprovalMode(_ contactApproval: ContactShareApprovalViewController) -> ApprovalMode {
+    func approvalModeForContactShareViewController(_ viewController: ContactShareViewController) -> SignalUI.ApprovalMode {
         return .send
     }
 }

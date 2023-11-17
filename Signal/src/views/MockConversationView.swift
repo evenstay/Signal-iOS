@@ -77,7 +77,7 @@ class MockConversationView: UIView {
 
     private let thread = MockThread(
         // Use a v5 UUID that's in a separate namespace from ACIs/PNIs.
-        contactAddress: SignalServiceAddress(UntypedServiceId(uuidString: "00000000-0000-5000-8000-000000000000")!)
+        contactAddress: SignalServiceAddress(try! ServiceId.parseFrom(serviceIdString: "00000000-0000-5000-8000-000000000000"))
     )
 
     override var frame: CGRect {
@@ -248,20 +248,6 @@ private class MockOutgoingMessage: TSOutgoingMessage {
         owsFailDebug("shouldn't save mock message")
     }
 
-    class MockOutgoingMessageRecipientState: TSOutgoingMessageRecipientState {
-        override var state: OWSOutgoingMessageRecipientState {
-            return OWSOutgoingMessageRecipientState.sent
-        }
-
-        override var deliveryTimestamp: NSNumber? {
-            return NSNumber(value: NSDate.ows_millisecondTimeStamp())
-        }
-
-        override var readTimestamp: NSNumber? {
-            return NSNumber(value: NSDate.ows_millisecondTimeStamp())
-        }
-    }
-
     override var messageState: TSOutgoingMessageState { .sent }
 
     override func readRecipientAddresses() -> [SignalServiceAddress] {
@@ -270,7 +256,11 @@ private class MockOutgoingMessage: TSOutgoingMessage {
     }
 
     override func recipientState(for recipientAddress: SignalServiceAddress) -> TSOutgoingMessageRecipientState? {
-        return MockOutgoingMessageRecipientState()
+        let result = TSOutgoingMessageRecipientState()!
+        result.state = .sent
+        result.deliveryTimestamp = NSNumber(value: NSDate.ows_millisecondTimeStamp())
+        result.readTimestamp = NSNumber(value: NSDate.ows_millisecondTimeStamp())
+        return result
     }
 }
 
@@ -407,6 +397,8 @@ extension MockConversationView: CVComponentDelegate {
 
     func didTapIndividualCall(_ call: TSCall) {}
 
+    func didTapLearnMoreMissedCallFromBlockedContact(_ call: TSCall) {}
+
     func didTapGroupCall() {}
 
     func didTapPendingOutgoingMessage(_ message: TSOutgoingMessage) {}
@@ -434,7 +426,7 @@ extension MockConversationView: CVComponentDelegate {
     func didTapUpdateSystemContact(_ address: SignalServiceAddress,
                                    newNameComponents: PersonNameComponents) {}
 
-    func didTapPhoneNumberChange(uuid: UUID, phoneNumberOld: String, phoneNumberNew: String) {}
+    func didTapPhoneNumberChange(aci: Aci, phoneNumberOld: String, phoneNumberNew: String) {}
 
     func didTapViewOnceAttachment(_ interaction: TSInteraction) {}
 
@@ -443,4 +435,17 @@ extension MockConversationView: CVComponentDelegate {
     func didTapUnknownThreadWarningGroup() {}
     func didTapUnknownThreadWarningContact() {}
     func didTapDeliveryIssueWarning(_ message: TSErrorMessage) {}
+
+    func didLongPressPaymentMessage(
+        _ cell: CVCell,
+        itemViewModel: CVItemViewModelImpl,
+        shouldAllowReply: Bool
+    ) { }
+
+    func didTapPayment(_ paymentModel: TSPaymentModel, displayName: String) { }
+
+    func didTapActivatePayments() {}
+    func didTapSendPayment() {}
+
+    func didTapThreadMergeLearnMore(phoneNumber: String) {}
 }

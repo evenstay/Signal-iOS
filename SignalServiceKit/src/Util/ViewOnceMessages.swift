@@ -43,7 +43,8 @@ public class ViewOnceMessages: NSObject {
         // Find all view-once messages which are not yet complete.
         // Complete messages if necessary.
         databaseStorage.write { (transaction) in
-            let messages = AnyViewOnceMessageFinder().allMessagesWithViewOnceMessage(transaction: transaction)
+            let messages = ViewOnceMessageFinder()
+                .allMessagesWithViewOnceMessage(transaction: transaction)
             for message in messages {
                 completeIfNecessary(message: message, transaction: transaction)
             }
@@ -131,7 +132,7 @@ public class ViewOnceMessages: NSObject {
             owsFailDebug("Could not send sync message; no local number.")
             return
         }
-        guard let thread = TSAccountManager.getOrCreateLocalThread(transaction: transaction) else {
+        guard let thread = TSContactThread.getOrCreateLocalThread(transaction: transaction) else {
             owsFailDebug("Missing thread.")
             return
         }
@@ -146,7 +147,7 @@ public class ViewOnceMessages: NSObject {
 
         if let incomingMessage = message as? TSIncomingMessage {
             let circumstance: OWSReceiptCircumstance =
-                thread.hasPendingMessageRequest(transaction: transaction.unwrapGrdbWrite)
+                thread.hasPendingMessageRequest(transaction: transaction)
                 ? .onThisDeviceWhilePendingMessageRequest
                 : .onThisDevice
             incomingMessage.markAsViewed(
@@ -158,14 +159,12 @@ public class ViewOnceMessages: NSObject {
         }
     }
 
-    @objc(OWSViewOnceSyncMessageProcessingResult)
-    public enum ViewOnceSyncMessageProcessingResult: Int, Error {
-        case associatedMessageMissing
+    public enum ViewOnceSyncMessageProcessingResult {
+        case associatedMessageMissing(senderAci: Aci, associatedMessageTimestamp: UInt64)
         case invalidSyncMessage
         case success
     }
 
-    @objc
     public class func processIncomingSyncMessage(
         _ message: SSKProtoSyncMessageViewOnceOpen,
         envelope: SSKProtoEnvelope,
@@ -209,7 +208,7 @@ public class ViewOnceMessages: NSObject {
             return .invalidSyncMessage
         }
         guard interactions.count > 0 else {
-            return .associatedMessageMissing
+            return .associatedMessageMissing(senderAci: messageSender, associatedMessageTimestamp: messageIdTimestamp)
         }
         if interactions.count > 1 {
             owsFailDebug("More than one message from the same sender with the same timestamp found.")
@@ -232,7 +231,7 @@ public class ViewOnceMessages: NSObject {
         if let incomingMessage = message as? TSIncomingMessage {
             return incomingMessage.authorAddress
         } else if message as? TSOutgoingMessage != nil {
-            guard let localAddress = tsAccountManager.localAddress else {
+            guard let localAddress = DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction?.aciAddress else {
                 owsFailDebug("Could not process sync message; no local number.")
                 return nil
             }
@@ -248,76 +247,48 @@ public class ViewOnceMessages: NSObject {
 
 // MARK: -
 
-public protocol ViewOnceMessageFinder {
-    associatedtype ReadTransaction
-
-    typealias EnumerateTSMessageBlock = (TSMessage, UnsafeMutablePointer<ObjCBool>) -> Void
-
-    func allMessagesWithViewOnceMessage(transaction: ReadTransaction) -> [TSMessage]
-    func enumerateAllIncompleteViewOnceMessages(transaction: ReadTransaction, block: @escaping EnumerateTSMessageBlock)
-}
-
-// MARK: -
-
-extension ViewOnceMessageFinder {
-
-    public func allMessagesWithViewOnceMessage(transaction: ReadTransaction) -> [TSMessage] {
+private class ViewOnceMessageFinder {
+    public func allMessagesWithViewOnceMessage(transaction: SDSAnyReadTransaction) -> [TSMessage] {
         var result: [TSMessage] = []
-        self.enumerateAllIncompleteViewOnceMessages(transaction: transaction) { message, _ in
+        self.enumerateAllIncompleteViewOnceMessages(transaction: transaction) { message in
             result.append(message)
         }
         return result
     }
-}
 
-// MARK: -
-
-public class AnyViewOnceMessageFinder {
-    lazy var grdbAdapter = GRDBViewOnceMessageFinder()
-}
-
-// MARK: -
-
-extension AnyViewOnceMessageFinder: ViewOnceMessageFinder {
-    public func enumerateAllIncompleteViewOnceMessages(transaction: SDSAnyReadTransaction, block: @escaping EnumerateTSMessageBlock) {
-        switch transaction.readTransaction {
-        case .grdbRead(let grdbRead):
-            grdbAdapter.enumerateAllIncompleteViewOnceMessages(transaction: grdbRead, block: block)
-        }
-    }
-}
-
-// MARK: -
-
-class GRDBViewOnceMessageFinder: ViewOnceMessageFinder {
-    func enumerateAllIncompleteViewOnceMessages(transaction: GRDBReadTransaction, block: @escaping EnumerateTSMessageBlock) {
-
+    private func enumerateAllIncompleteViewOnceMessages(
+        transaction: SDSAnyReadTransaction,
+        block: (TSMessage) -> Void
+    ) {
         let sql = """
-        SELECT * FROM \(InteractionRecord.databaseTableName)
-        WHERE \(interactionColumn: .isViewOnceMessage) IS NOT NULL
-        AND \(interactionColumn: .isViewOnceMessage) == TRUE
-        AND \(interactionColumn: .isViewOnceComplete) IS NOT NULL
-        AND \(interactionColumn: .isViewOnceComplete) == FALSE
+            SELECT *
+            FROM \(InteractionRecord.databaseTableName)
+            WHERE \(interactionColumn: .isViewOnceMessage) IS NOT NULL
+            AND \(interactionColumn: .isViewOnceMessage) == TRUE
+            AND \(interactionColumn: .isViewOnceComplete) IS NOT NULL
+            AND \(interactionColumn: .isViewOnceComplete) == FALSE
         """
+        let cursor = TSInteraction.grdbFetchCursor(
+            sql: sql,
+            transaction: transaction.unwrapGrdbRead
+        )
 
-        let cursor = TSInteraction.grdbFetchCursor(sql: sql,
-                                                   transaction: transaction)
-        var stop: ObjCBool = false
         // GRDB TODO make cursor.next fail hard to remove this `try!`
         while let next = try! cursor.next() {
             guard let message = next as? TSMessage else {
                 owsFailDebug("expecting message but found: \(next)")
                 return
             }
-            guard message.isViewOnceMessage,
-                !message.isViewOnceComplete else {
-                    owsFailDebug("expecting incomplete view-once message but found: \(message)")
-                    return
-            }
-            block(message, &stop)
-            if stop.boolValue {
+
+            guard
+                message.isViewOnceMessage,
+                !message.isViewOnceComplete
+            else {
+                owsFailDebug("expecting incomplete view-once message but found: \(message)")
                 return
             }
+
+            block(message)
         }
     }
 }

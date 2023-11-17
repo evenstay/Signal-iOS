@@ -12,6 +12,7 @@
 @class OWSUserProfileBadgeInfo;
 @class SDSAnyReadTransaction;
 @class SDSAnyWriteTransaction;
+@class SignalRecipient;
 
 @protocol SSKMaybeString;
 
@@ -90,10 +91,11 @@ typedef NS_ENUM(NSUInteger, UserProfileWriter) {
                                           transaction:(SDSAnyReadTransaction *)transaction;
 - (nullable NSURL *)writeAvatarDataToFile:(NSData *)avatarData NS_SWIFT_NAME(writeAvatarDataToFile(_:));
 
-- (void)fillInMissingProfileKeys:(NSDictionary<SignalServiceAddress *, NSData *> *)profileKeys
-               userProfileWriter:(UserProfileWriter)userProfileWriter
-                   authedAccount:(AuthedAccount *)authedAccount
-    NS_SWIFT_NAME(fillInMissingProfileKeys(_:userProfileWriter:authedAccount:));
+- (void)fillInProfileKeysForAllProfileKeys:(NSDictionary<SignalServiceAddress *, NSData *> *)allProfileKeys
+                  authoritativeProfileKeys:(NSDictionary<SignalServiceAddress *, NSData *> *)authoritativeProfileKeys
+                         userProfileWriter:(UserProfileWriter)userProfileWriter
+                             authedAccount:(AuthedAccount *)authedAccount
+    NS_SWIFT_NAME(fillInProfileKeys(allProfileKeys:authoritativeProfileKeys:userProfileWriter:authedAccount:));
 
 - (void)setProfileGivenName:(nullable NSString *)firstName
                  familyName:(nullable NSString *)lastName
@@ -111,6 +113,10 @@ typedef NS_ENUM(NSUInteger, UserProfileWriter) {
                 transaction:(SDSAnyWriteTransaction *)transaction;
 
 - (BOOL)isUserInProfileWhitelist:(SignalServiceAddress *)address transaction:(SDSAnyReadTransaction *)transaction;
+
+- (void)normalizeRecipientInProfileWhitelist:(SignalRecipient *)recipient
+                                          tx:(SDSAnyWriteTransaction *)tx
+    NS_SWIFT_NAME(normalizeRecipientInProfileWhitelist(_:tx:));
 
 - (BOOL)isThreadInProfileWhitelist:(TSThread *)thread transaction:(SDSAnyReadTransaction *)transaction;
 
@@ -146,11 +152,9 @@ typedef NS_ENUM(NSUInteger, UserProfileWriter) {
 
 - (void)fetchProfileForAddress:(SignalServiceAddress *)address authedAccount:(AuthedAccount *)authedAccount;
 
-// Profile fetches will make a best effort
-// to download and decrypt avatar data,
-// but optionalAvatarFileUrl may
-// not be populated due to network failures,
-// decryption errors, service issues, etc.
+// Profile fetches will make a best effort to download and decrypt avatar
+// data, but optionalAvatarFileUrl may not be populated due to network
+// failures, decryption errors, service issues, etc.
 - (void)updateProfileForAddress:(SignalServiceAddress *)address
                       givenName:(nullable NSString *)givenName
                      familyName:(nullable NSString *)familyName
@@ -160,15 +164,10 @@ typedef NS_ENUM(NSUInteger, UserProfileWriter) {
           optionalAvatarFileUrl:(nullable NSURL *)optionalAvatarFileUrl
                   profileBadges:(nullable NSArray<OWSUserProfileBadgeInfo *> *)profileBadges
                   lastFetchDate:(NSDate *)lastFetchDate
-               isStoriesCapable:(BOOL)isStoriesCapable
-           canReceiveGiftBadges:(BOOL)canReceiveGiftBadges
                    isPniCapable:(BOOL)isPniCapable
               userProfileWriter:(UserProfileWriter)userProfileWriter
                   authedAccount:(AuthedAccount *)authedAccount
                     transaction:(SDSAnyWriteTransaction *)writeTx;
-
-- (BOOL)recipientAddressIsStoriesCapable:(SignalServiceAddress *)address
-                             transaction:(SDSAnyReadTransaction *)transaction;
 
 - (void)warmCaches;
 
@@ -190,8 +189,24 @@ typedef NS_ENUM(NSUInteger, UserProfileWriter) {
 
 - (nullable ModelReadCacheSizeLease *)leaseCacheSize:(NSInteger)size;
 
-- (NSArray<SignalServiceAddress *> *)allWhitelistedRegisteredAddressesWithTransaction:
-    (SDSAnyReadTransaction *)transaction;
+- (NSArray<SignalServiceAddress *> *)allWhitelistedRegisteredAddressesWithTx:(SDSAnyReadTransaction *)tx
+    NS_SWIFT_NAME(allWhitelistedRegisteredAddresses(tx:));
+
+/**
+ * Rotates the local profile key. Intended specifically for the
+ * use case of recipient hiding.
+ *
+ * @param tx The transaction to use for this operation.
+ */
+- (void)rotateProfileKeyUponRecipientHideWithTx:(SDSAnyWriteTransaction *)tx;
+
+/// Rotating the profile key is expensive, and should be done as infrequently as possible.
+/// You probably want `rotateLocalProfileKeyIfNecessary` which checks for whether
+/// a rotation is necessary given whitelist/blocklist and other conditions.
+/// This method exists solely for when we leave a group that had a blocked user in it; when we call
+/// this we already determined we need a rotation based on _group+blocked_ state and will
+/// force a rotation independently of whitelist state.
+- (void)forceRotateLocalProfileKeyForGroupDepartureWithTransaction:(SDSAnyWriteTransaction *)transaction;
 
 @end
 

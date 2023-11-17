@@ -90,7 +90,7 @@ public extension ThreadUtil {
     @discardableResult
     class func enqueueMessage(withContactShare contactShare: OWSContact, thread: TSThread) -> TSOutgoingMessage {
         AssertIsOnMainThread()
-        assert(contactShare.ows_isValid())
+        assert(contactShare.isValid)
 
         let builder = TSOutgoingMessageBuilder(thread: thread)
         builder.contactShare = contactShare
@@ -185,7 +185,7 @@ public extension ThreadUtil {
 
 extension ThreadUtil {
     private static func shouldSetUniversalTimer(for thread: TSThread, tx: SDSAnyReadTransaction) -> Bool {
-        GRDBThreadFinder.shouldSetDefaultDisappearingMessageTimer(thread: thread, transaction: tx.unwrapGrdbRead)
+        ThreadFinder().shouldSetDefaultDisappearingMessageTimer(thread: thread, transaction: tx)
     }
 
     private static func setUniversalTimer(for thread: TSThread, tx: SDSAnyWriteTransaction) {
@@ -201,7 +201,7 @@ extension ThreadUtil {
     }
 
     private static func shouldAddThreadToProfileWhitelist(_ thread: TSThread, tx: SDSAnyReadTransaction) -> Bool {
-        let hasPendingMessageRequest = thread.hasPendingMessageRequest(transaction: tx.unwrapGrdbRead)
+        let hasPendingMessageRequest = thread.hasPendingMessageRequest(transaction: tx)
 
         // If we're creating this thread or we have a pending message request,
         // any action we trigger should share our profile.
@@ -305,7 +305,7 @@ extension TSThread {
     public func generateSendMessageIntent(context: IntentContext, transaction: SDSAnyReadTransaction) -> INSendMessageIntent? {
         guard SSKPreferences.areIntentDonationsEnabled(transaction: transaction) else { return nil }
 
-        guard let localAddress = tsAccountManager.localAddress else {
+        guard let localAddress = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: transaction.asV2Read)?.aciAddress else {
             owsFailDebug("Missing local address")
             return nil
         }
@@ -432,7 +432,7 @@ extension TSThread {
             handle = INPersonHandle(value: phoneNumber, type: .phoneNumber, label: nil)
             suggestionType = .none
         } else {
-            handle = INPersonHandle(value: recipient.uuidString, type: .unknown, label: nil)
+            handle = INPersonHandle(value: recipient.serviceIdUppercaseString, type: .unknown, label: nil)
             suggestionType = .instantMessageAddress
         }
 
@@ -449,6 +449,23 @@ extension TSThread {
     // The NSE cannot read the device scale, so we rely on a cached scale to correctly calculate
     // the appropriate pixel size for our avatars.
     private static let intentAvatarDiameterPixels: CGFloat = 56 * preferences.cachedDeviceScale
+
+    public func intentStoryAvatarImage(tx: SDSAnyReadTransaction) -> INImage? {
+        if let storyThread = self as? TSPrivateStoryThread {
+            if storyThread.isMyStory {
+                guard let localAddress = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: tx.asV2Read)?.aciAddress else {
+                    Logger.warn("Missing local address")
+                    return nil
+                }
+                return intentRecipientAvatarImage(recipient: localAddress, transaction: tx)
+            } else {
+                let rawImage = UIImage(named: "custom-story-light-36")
+                return rawImage?.pngData().map(INImage.init(imageData:))
+            }
+        } else {
+            return intentThreadAvatarImage(transaction: tx)
+        }
+    }
 
     private func intentRecipientAvatarImage(recipient: SignalServiceAddress, transaction: SDSAnyReadTransaction) -> INImage? {
         // Generate avatar

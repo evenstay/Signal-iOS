@@ -4,6 +4,7 @@
 //
 
 #import <Foundation/Foundation.h>
+#import <SignalServiceKit/OWSIdentity.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -11,8 +12,6 @@ NS_ASSUME_NONNULL_BEGIN
 @class SDSAnyReadTransaction;
 @class SDSAnyWriteTransaction;
 @class SignedPreKeyRecord;
-
-typedef NS_ENUM(uint8_t, OWSIdentity);
 
 @interface SSKSignedPreKeyStore : NSObject
 
@@ -37,8 +36,6 @@ typedef NS_ENUM(uint8_t, OWSIdentity);
 
 #pragma mark -
 
-+ (SignedPreKeyRecord *)generateSignedPreKeySignedWithIdentityKey:(ECKeyPair *)identityKeyPair
-    NS_SWIFT_NAME(generateSignedPreKey(signedBy:));
 - (SignedPreKeyRecord *)generateRandomSignedRecord;
 
 - (nullable SignedPreKeyRecord *)currentSignedPreKey;
@@ -49,17 +46,6 @@ typedef NS_ENUM(uint8_t, OWSIdentity);
 - (nullable NSNumber *)currentSignedPrekeyIdWithTransaction:(SDSAnyReadTransaction *)transaction;
 
 - (void)setCurrentSignedPrekeyId:(int)value transaction:(SDSAnyWriteTransaction *)transaction;
-
-#pragma mark - Prekey update failures
-
-- (int)prekeyUpdateFailureCountWithTransaction:(SDSAnyReadTransaction *)transaction
-    NS_SWIFT_NAME(prekeyUpdateFailureCount(transaction:));
-- (nullable NSDate *)firstPrekeyUpdateFailureDateWithTransaction:(SDSAnyReadTransaction *)transaction
-    NS_SWIFT_NAME(firstPrekeyUpdateFailureDate(transaction:));
-- (NSInteger)incrementPrekeyUpdateFailureCountWithTransaction:(SDSAnyWriteTransaction *)transaction
-    NS_SWIFT_NAME(incrementPrekeyUpdateFailureCount(transaction:));
-- (void)clearPrekeyUpdateFailureCountWithTransaction:(SDSAnyWriteTransaction *)transaction
-    NS_SWIFT_NAME(clearPrekeyUpdateFailureCount(transaction:));
 
 #pragma mark - Prekey rotation tracking
 - (void)setLastSuccessfulPreKeyRotationDate:(NSDate *)date transaction:(SDSAnyWriteTransaction *)transaction;
@@ -72,9 +58,6 @@ typedef NS_ENUM(uint8_t, OWSIdentity);
 
 #if TESTABLE_BUILD
 - (void)removeAll:(SDSAnyWriteTransaction *)transaction;
-- (void)setPrekeyUpdateFailureCount:(NSInteger)count
-                   firstFailureDate:(NSDate *)firstFailureDate
-                        transaction:(SDSAnyWriteTransaction *)transaction;
 #endif
 
 @end

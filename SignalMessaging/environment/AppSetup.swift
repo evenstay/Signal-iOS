@@ -17,7 +17,7 @@ public class AppSetup {
         mobileCoinHelper: MobileCoinHelper,
         webSocketFactory: WebSocketFactory,
         callMessageHandler: OWSCallMessageHandler,
-        notificationPresenter: NotificationsProtocol
+        notificationPresenter: NotificationsProtocolSwift
     ) -> AppSetup.DatabaseContinuation {
         configureUnsatisfiableConstraintLogging()
 
@@ -48,19 +48,32 @@ public class AppSetup {
 
         // MARK: DependenciesBridge
 
+        let recipientDatabaseTable = RecipientDatabaseTableImpl()
+        let recipientFetcher = RecipientFetcherImpl(recipientDatabaseTable: recipientDatabaseTable)
+        let recipientIdFinder = RecipientIdFinder(recipientDatabaseTable: recipientDatabaseTable, recipientFetcher: recipientFetcher)
+
         let accountServiceClient = AccountServiceClient()
-        let aciSignalProtocolStore = SignalProtocolStoreImpl(for: .aci, keyValueStoreFactory: keyValueStoreFactory)
+        let aciSignalProtocolStore = SignalProtocolStoreImpl(
+            for: .aci,
+            keyValueStoreFactory: keyValueStoreFactory,
+            recipientIdFinder: recipientIdFinder
+        )
+        let blockingManager = BlockingManager()
         let dateProvider = Date.provider
         let groupsV2 = GroupsV2Impl()
-        let identityManager = OWSIdentityManager(databaseStorage: databaseStorage)
         let messageProcessor = MessageProcessor()
         let messageSender = MessageSender()
         let modelReadCaches = ModelReadCaches(factory: ModelReadCacheFactory())
         let networkManager = NetworkManager()
         let ows2FAManager = OWS2FAManager()
-        let pniSignalProtocolStore = SignalProtocolStoreImpl(for: .pni, keyValueStoreFactory: keyValueStoreFactory)
+        let pniSignalProtocolStore = SignalProtocolStoreImpl(
+            for: .pni,
+            keyValueStoreFactory: keyValueStoreFactory,
+            recipientIdFinder: recipientIdFinder
+        )
         let profileManager = OWSProfileManager(databaseStorage: databaseStorage)
         let receiptManager = OWSReceiptManager()
+        let senderKeyStore = SenderKeyStore()
         let signalProtocolStoreManager = SignalProtocolStoreManagerImpl(
             aciProtocolStore: aciSignalProtocolStore,
             pniProtocolStore: pniSignalProtocolStore
@@ -69,29 +82,40 @@ public class AppSetup {
         let signalServiceAddressCache = SignalServiceAddressCache()
         let storageServiceManager = StorageServiceManagerImpl.shared
         let syncManager = OWSSyncManager(default: ())
-        let tsAccountManager = TSAccountManager()
+        let udManager = OWSUDManagerImpl()
+        let versionedProfiles = VersionedProfilesImpl()
+        let sskJobQueues = SSKJobQueues()
 
-        let dependenciesBridge = DependenciesBridge.setupSingleton(
+        let dependenciesBridge = DependenciesBridge.setUpSingleton(
             accountServiceClient: accountServiceClient,
+            appContext: appContext,
             appVersion: appVersion,
+            blockingManager: blockingManager,
             databaseStorage: databaseStorage,
             dateProvider: dateProvider,
             groupsV2: groupsV2,
-            identityManager: identityManager,
+            jobQueues: sskJobQueues,
+            keyValueStoreFactory: keyValueStoreFactory,
             messageProcessor: messageProcessor,
             messageSender: messageSender,
             modelReadCaches: modelReadCaches,
             networkManager: networkManager,
             notificationsManager: notificationPresenter,
             ows2FAManager: ows2FAManager,
+            paymentsEvents: paymentsEvents,
             profileManager: profileManager,
             receiptManager: receiptManager,
+            recipientDatabaseTable: recipientDatabaseTable,
+            recipientFetcher: recipientFetcher,
+            recipientIdFinder: recipientIdFinder,
+            senderKeyStore: senderKeyStore,
             signalProtocolStoreManager: signalProtocolStoreManager,
             signalService: signalService,
             signalServiceAddressCache: signalServiceAddressCache,
             storageServiceManager: storageServiceManager,
             syncManager: syncManager,
-            tsAccountManager: tsAccountManager,
+            udManager: udManager,
+            versionedProfiles: versionedProfiles,
             websocketFactory: webSocketFactory
         )
 
@@ -104,23 +128,20 @@ public class AppSetup {
 
         // MARK: SSK environment properties
 
-        let appExpiry = DependenciesBridge.shared.appExpiry
+        let appExpiry = dependenciesBridge.appExpiry
         let contactsManager = OWSContactsManager(swiftValues: .makeWithValuesFromDependenciesBridge())
         let linkPreviewManager = OWSLinkPreviewManager()
         let pendingReceiptRecorder = MessageRequestPendingReceipts()
         let messageManager = OWSMessageManager()
-        let blockingManager = BlockingManager()
         let remoteConfigManager = ServiceRemoteConfigManager(
             appExpiry: appExpiry,
             db: DependenciesBridge.shared.db,
-            keyValueStoreFactory: DependenciesBridge.shared.keyValueStoreFactory,
-            tsAccountManager: tsAccountManager,
+            keyValueStoreFactory: dependenciesBridge.keyValueStoreFactory,
+            tsAccountManager: dependenciesBridge.tsAccountManager,
             serviceClient: SignalServiceRestClient.shared
         )
-        let udManager = OWSUDManagerImpl()
         let messageDecrypter = OWSMessageDecrypter()
         let groupsV2MessageProcessor = GroupsV2MessageProcessor()
-        let socketManager = SocketManager(appExpiry: appExpiry, db: DependenciesBridge.shared.db)
         let disappearingMessagesJob = OWSDisappearingMessagesJob()
         let outgoingReceiptManager = OWSOutgoingReceiptManager()
         let reachabilityManager = SSKReachabilityManagerImpl()
@@ -130,25 +151,27 @@ public class AppSetup {
         let sskPreferences = SSKPreferences()
         let groupV2Updates = GroupV2UpdatesImpl()
         let messageFetcherJob = MessageFetcherJob()
-        let bulkProfileFetch = BulkProfileFetch()
-        let versionedProfiles = VersionedProfilesImpl()
+        let bulkProfileFetch = BulkProfileFetch(
+            databaseStorage: databaseStorage,
+            reachabilityManager: reachabilityManager,
+            tsAccountManager: dependenciesBridge.tsAccountManager
+        )
         let earlyMessageManager = EarlyMessageManager()
         let messagePipelineSupervisor = MessagePipelineSupervisor()
         let paymentsHelper = PaymentsHelperImpl()
         let paymentsCurrencies = PaymentsCurrenciesImpl()
         let spamChallengeResolver = SpamChallengeResolver()
-        let senderKeyStore = SenderKeyStore()
         let phoneNumberUtil = PhoneNumberUtil()
         let legacyChangePhoneNumber = LegacyChangePhoneNumber()
         let subscriptionManager = SubscriptionManagerImpl()
         let systemStoryManager = SystemStoryManager()
         let remoteMegaphoneFetcher = RemoteMegaphoneFetcher()
-        let sskJobQueues = SSKJobQueues()
         let contactDiscoveryManager = ContactDiscoveryManagerImpl(
             db: dependenciesBridge.db,
+            recipientDatabaseTable: dependenciesBridge.recipientDatabaseTable,
             recipientFetcher: dependenciesBridge.recipientFetcher,
             recipientMerger: dependenciesBridge.recipientMerger,
-            tsAccountManager: tsAccountManager,
+            tsAccountManager: dependenciesBridge.tsAccountManager,
             udManager: udManager,
             websocketFactory: webSocketFactory
         )
@@ -174,15 +197,12 @@ public class AppSetup {
             networkManager: networkManager,
             messageManager: messageManager,
             blockingManager: blockingManager,
-            identityManager: identityManager,
             remoteConfigManager: remoteConfigManager,
             aciSignalProtocolStore: aciSignalProtocolStore,
             pniSignalProtocolStore: pniSignalProtocolStore,
             udManager: udManager,
             messageDecrypter: messageDecrypter,
             groupsV2MessageProcessor: groupsV2MessageProcessor,
-            socketManager: socketManager,
-            tsAccountManager: tsAccountManager,
             ows2FAManager: ows2FAManager,
             disappearingMessagesJob: disappearingMessagesJob,
             receiptManager: receiptManager,
@@ -336,24 +356,46 @@ extension AppSetup.FinalContinuation {
     private func setUpLocalIdentifiers(willResumeInProgressRegistration: Bool) -> Bool {
         let databaseStorage = sskEnvironment.databaseStorageRef
         let storageServiceManager = sskEnvironment.storageServiceManagerRef
-        let tsAccountManager = sskEnvironment.tsAccountManagerRef
+        let tsAccountManager = DependenciesBridge.shared.tsAccountManager
 
         let updateLocalIdentifiers: (LocalIdentifiersObjC) -> Void = { [weak storageServiceManager] localIdentifiers in
             storageServiceManager?.setLocalIdentifiers(localIdentifiers)
         }
 
-        // If we're not registered, listen for when we become registered. If we are
-        // registered, listen for when we learn about our PNI or change our number.
-        tsAccountManager.didStoreLocalNumber = updateLocalIdentifiers
-
-        if tsAccountManager.isOnboarded && !willResumeInProgressRegistration {
-            let localIdentifiers = databaseStorage.read { tsAccountManager.localIdentifiers(transaction: $0) }
+        if
+            tsAccountManager.registrationStateWithMaybeSneakyTransaction.isRegistered
+            && !willResumeInProgressRegistration
+        {
+            let localIdentifiers = databaseStorage.read { tsAccountManager.localIdentifiers(tx: $0.asV2Read) }
             guard let localIdentifiers else {
                 return false
             }
             updateLocalIdentifiers(LocalIdentifiersObjC(localIdentifiers))
+            // We are fully registered, and we're not in the middle of registration, so
+            // ensure discoverability is configured.
+            setUpDefaultDiscoverability()
         }
 
         return true
+    }
+
+    private func setUpDefaultDiscoverability() {
+        let databaseStorage = sskEnvironment.databaseStorageRef
+        let phoneNumberDiscoverabilityManager = DependenciesBridge.shared.phoneNumberDiscoverabilityManager
+        let tsAccountManager = DependenciesBridge.shared.tsAccountManager
+
+        if databaseStorage.read(block: { tsAccountManager.phoneNumberDiscoverability(tx: $0.asV2Read) }) != nil {
+            return
+        }
+
+        databaseStorage.write { tx in
+            phoneNumberDiscoverabilityManager.setPhoneNumberDiscoverability(
+                PhoneNumberDiscoverabilityManager.Constants.discoverabilityDefault,
+                updateAccountAttributes: true,
+                updateStorageService: true,
+                authedAccount: .implicit(),
+                tx: tx.asV2Write
+            )
+        }
     }
 }

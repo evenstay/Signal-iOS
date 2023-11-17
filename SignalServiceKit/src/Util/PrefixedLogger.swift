@@ -7,15 +7,23 @@ import Foundation
 
 open class PrefixedLogger {
     private let prefix: String
-    private let suffix: String
+    private var suffix: String
 
     public init(prefix: String, suffix: String? = nil) {
         self.prefix = prefix
         self.suffix = suffix ?? ""
     }
 
+    public func suffixed(with extraSuffix: String) -> PrefixedLogger {
+        return PrefixedLogger(
+            prefix: prefix,
+            suffix: suffix + extraSuffix
+        )
+    }
+
     open func verbose(
         _ logString: @autoclosure () -> String,
+        flushImmediately: Bool = false,
         file: String = #file,
         function: String = #function,
         line: Int = #line
@@ -26,10 +34,13 @@ open class PrefixedLogger {
             function: function,
             line: line
         )
+
+        if flushImmediately { flush() }
     }
 
     open func debug(
         _ logString: @autoclosure () -> String,
+        flushImmediately: Bool = false,
         file: String = #file,
         function: String = #function,
         line: Int = #line
@@ -40,10 +51,13 @@ open class PrefixedLogger {
             function: function,
             line: line
         )
+
+        if flushImmediately { flush() }
     }
 
     open func info(
         _ logString: @autoclosure () -> String,
+        flushImmediately: Bool = false,
         file: String = #file,
         function: String = #function,
         line: Int = #line
@@ -54,10 +68,13 @@ open class PrefixedLogger {
             function: function,
             line: line
         )
+
+        if flushImmediately { flush() }
     }
 
     open func warn(
         _ logString: @autoclosure () -> String,
+        flushImmediately: Bool = false,
         file: String = #file,
         function: String = #function,
         line: Int = #line
@@ -68,10 +85,13 @@ open class PrefixedLogger {
             function: function,
             line: line
         )
+
+        if flushImmediately { flush() }
     }
 
     open func error(
         _ logString: @autoclosure () -> String,
+        flushImmediately: Bool = false,
         file: String = #file,
         function: String = #function,
         line: Int = #line
@@ -82,6 +102,8 @@ open class PrefixedLogger {
             function: function,
             line: line
         )
+
+        if flushImmediately { flush() }
     }
 
     open func flush() {

@@ -47,7 +47,7 @@ final public class IndividualCallService: NSObject {
         call.individualCall.createOrUpdateCallInteractionAsync(callType: .outgoingIncomplete)
 
         // Get the current local device Id, must be valid for lifetime of the call.
-        let localDeviceId = tsAccountManager.storedDeviceId
+        let localDeviceId = DependenciesBridge.shared.tsAccountManager.storedDeviceIdWithMaybeTransaction
 
         do {
             try callManager.placeCall(call: call, callMediaType: call.individualCall.offerMediaType.asCallMediaType, localDevice: localDeviceId)
@@ -168,13 +168,13 @@ final public class IndividualCallService: NSObject {
         }
     }
 
-    private func getIdentityKeys(thread: TSContactThread, transaction: SDSAnyReadTransaction) -> CallIdentityKeys? {
-        guard let localIdentityKey = self.identityManager.identityKeyPair(for: .aci,
-                                                                          transaction: transaction)?.publicKey else {
+    private func getIdentityKeys(thread: TSContactThread, transaction tx: SDSAnyReadTransaction) -> CallIdentityKeys? {
+        let identityManager = DependenciesBridge.shared.identityManager
+        guard let localIdentityKey = identityManager.identityKeyPair(for: .aci, tx: tx.asV2Read)?.publicKey else {
             owsFailDebug("missing localIdentityKey")
             return nil
         }
-        guard let contactIdentityKey = self.identityManager.identityKey(for: thread.contactAddress, transaction: transaction) else {
+        guard let contactIdentityKey = identityManager.identityKey(for: thread.contactAddress, tx: tx.asV2Read) else {
             owsFailDebug("missing contactIdentityKey")
             return nil
         }
@@ -216,8 +216,8 @@ final public class IndividualCallService: NSObject {
 
         BenchEventStart(title: "Incoming Call Connection", eventId: "call-\(newCall.localId)")
 
-        guard tsAccountManager.isOnboarded(transaction: transaction) else {
-            Logger.warn("user is not onboarded, skipping call.")
+        guard DependenciesBridge.shared.tsAccountManager.registrationState(tx: transaction.asV2Read).isRegistered else {
+            Logger.warn("user is not registered, skipping call.")
             newCall.individualCall.createOrUpdateCallInteraction(callType: .incomingMissed, transaction: transaction)
 
             newCall.individualCall.state = .localFailure
@@ -226,24 +226,33 @@ final public class IndividualCallService: NSObject {
             return
         }
 
-        if let untrustedIdentity = self.identityManager.untrustedIdentityForSending(to: thread.contactAddress,
-                                                                                    transaction: transaction) {
+        let identityManager = DependenciesBridge.shared.identityManager
+        if let untrustedIdentity = identityManager.untrustedIdentityForSending(
+            to: thread.contactAddress,
+            untrustedThreshold: nil,
+            tx: transaction.asV2Read
+        ) {
             Logger.warn("missed a call due to untrusted identity: \(newCall)")
 
             switch untrustedIdentity.verificationState {
-            case .verified:
+            case .verified, .defaultAcknowledged:
                 owsFailDebug("shouldn't have missed a call due to untrusted identity if the identity is verified")
                 let sentAtTimestamp = Date(millisecondsSince1970: newCall.individualCall.sentAtTimestamp)
-                self.notificationPresenter.presentMissedCall(newCall,
-                                                             caller: thread.contactAddress,
-                                                             sentAt: sentAtTimestamp)
+                self.notificationPresenter.presentMissedCall(
+                    newCall,
+                    caller: thread.contactAddress,
+                    sentAt: sentAtTimestamp
+                )
             case .default:
-                self.notificationPresenter.presentMissedCallBecauseOfNewIdentity(call: newCall,
-                                                                                 caller: thread.contactAddress)
+                self.notificationPresenter.presentMissedCallBecauseOfNewIdentity(
+                    call: newCall,
+                    caller: thread.contactAddress
+                )
             case .noLongerVerified:
                 self.notificationPresenter.presentMissedCallBecauseOfNoLongerVerifiedIdentity(
                     call: newCall,
-                    caller: thread.contactAddress)
+                    caller: thread.contactAddress
+                )
             }
 
             newCall.individualCall.createOrUpdateCallInteraction(callType: .incomingMissedBecauseOfChangedIdentity, transaction: transaction)
@@ -268,7 +277,7 @@ final public class IndividualCallService: NSObject {
             Logger.info("Ignoring call offer from \(thread.contactAddress) due to insufficient permissions.")
 
             // Send the need permission message to the caller, so they know why we rejected their call.
-            let localDeviceId = tsAccountManager.storedDeviceId(transaction: transaction)
+            let localDeviceId = DependenciesBridge.shared.tsAccountManager.storedDeviceId(tx: transaction.asV2Read)
             callManager(
                 callManager,
                 shouldSendHangup: callId,
@@ -316,8 +325,8 @@ final public class IndividualCallService: NSObject {
         }
 
         // Get the current local device Id, must be valid for lifetime of the call.
-        let localDeviceId = tsAccountManager.storedDeviceId(transaction: transaction)
-        let isPrimaryDevice = tsAccountManager.isPrimaryDevice(transaction: transaction)
+        let localDeviceId = DependenciesBridge.shared.tsAccountManager.storedDeviceId(tx: transaction.asV2Read)
+        let isPrimaryDevice = DependenciesBridge.shared.tsAccountManager.registrationState(tx: transaction.asV2Read).isPrimaryDevice ?? true
 
         do {
             try callManager.receivedOffer(call: newCall,
@@ -648,7 +657,7 @@ final public class IndividualCallService: NSObject {
 
             if let callType = call.individualCall.callType {
                 switch callType {
-                case .outgoingMissed, .incomingDeclined, .incomingMissed, .incomingMissedBecauseOfChangedIdentity, .incomingAnsweredElsewhere, .incomingDeclinedElsewhere, .incomingBusyElsewhere, .incomingMissedBecauseOfDoNotDisturb:
+                case .outgoingMissed, .incomingDeclined, .incomingMissed, .incomingMissedBecauseOfChangedIdentity, .incomingAnsweredElsewhere, .incomingDeclinedElsewhere, .incomingBusyElsewhere, .incomingMissedBecauseOfDoNotDisturb, .incomingMissedBecauseBlockedSystemContact:
                     // already handled and ended, don't update the call record.
                     break
                 case .incomingIncomplete, .incoming:
@@ -985,6 +994,8 @@ final public class IndividualCallService: NSObject {
         switch error {
         case .doNotDisturbEnabled?:
             callType = .incomingMissedBecauseOfDoNotDisturb
+        case .contactIsBlocked:
+            callType = .incomingMissedBecauseBlockedSystemContact
         default:
             if call.individualCall?.direction == .outgoing {
                 callType = .outgoingMissed
@@ -1003,7 +1014,7 @@ final public class IndividualCallService: NSObject {
             callService.callUIAdapter.reportMissedCall(call)
         case .outgoingIncomplete, .incomingDeclined, .incomingDeclinedElsewhere, .incomingAnsweredElsewhere:
             break
-        case .incomingMissedBecauseOfChangedIdentity, .outgoingMissed, .outgoing, .incomingBusyElsewhere, .incomingMissedBecauseOfDoNotDisturb:
+        case .incomingMissedBecauseOfChangedIdentity, .outgoingMissed, .outgoing, .incomingBusyElsewhere, .incomingMissedBecauseOfDoNotDisturb, .incomingMissedBecauseBlockedSystemContact:
             owsFailDebug("unexpected RPRecentCallType: \(String(describing: oldCallType))")
         @unknown default:
             owsFailDebug("unknown RPRecentCallType: \(String(describing: oldCallType))")

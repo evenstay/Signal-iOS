@@ -3,9 +3,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import XCTest
 import Contacts
+import LibSignalClient
+import XCTest
 
+@testable import SignalMessaging
 @testable import SignalServiceKit
 
 class ContactStreamTest: SignalBaseTest {
@@ -14,22 +16,23 @@ class ContactStreamTest: SignalBaseTest {
 
     override func setUp() {
         super.setUp()
-
-        // ensure local client has necessary "registered" state
-        let localE164Identifier = "+13235551234"
-        let localUUID = UUID(uuidString: "83DF967A-5CBD-43EB-AE9A-571A930F78D6")!
-        tsAccountManager.registerForTests(withLocalNumber: localE164Identifier, uuid: localUUID)
+        Self.databaseStorage.write { tx in
+            (DependenciesBridge.shared.registrationStateChangeManager as! RegistrationStateChangeManagerImpl).registerForTests(
+                localIdentifiers: .forUnitTests,
+                tx: tx.asV2Write
+            )
+        }
     }
 
     // MARK: -
 
-    let outputContactSyncData = "GwoMKzEzMjMxMTExMTExEgdBbGljZS0xQABYADMSB0FsaWNlLTJAAEokMzFjZTE0MTItOWEyOC00ZTZmLWI0ZWUtMjIyMjIyMjIyMjIyWABBCgwrMTMyMTMzMzMzMzMSB0FsaWNlLTNAAEokMWQ0YWIwNDUtODhmYi00YzRlLTlmNmEtMzMzMzMzMzMzMzMzWAA="
+    let outputContactSyncData = "GQoMKzEzMjMxMTExMTExEgdBbGljZS0xQAAxEgdBbGljZS0yQABKJDMxY2UxNDEyLTlhMjgtNGU2Zi1iNGVlLTIyMjIyMjIyMjIyMj8KDCsxMzIxMzMzMzMzMxIHQWxpY2UtM0AASiQxZDRhYjA0NS04OGZiLTRjNGUtOWY2YS0zMzMzMzMzMzMzMzM="
 
     func test_writeContactSync() throws {
         let signalAccounts = [
-            SignalAccount(address: .init(phoneNumber: "+13231111111")),
-            SignalAccount(address: .init(uuidString: "31ce1412-9a28-4e6f-b4ee-222222222222")),
-            SignalAccount(address: .init(uuidString: "1d4ab045-88fb-4c4e-9f6a-333333333333", phoneNumber: "+13213333333"))
+            SignalAccount(address: SignalServiceAddress(phoneNumber: "+13231111111")),
+            SignalAccount(address: SignalServiceAddress(aciString: "31ce1412-9a28-4e6f-b4ee-222222222222")),
+            SignalAccount(address: SignalServiceAddress(aciString: "1d4ab045-88fb-4c4e-9f6a-333333333333", phoneNumber: "+13213333333"))
         ]
 
         let streamData = try buildContactSyncData(signalAccounts: signalAccounts)
@@ -61,11 +64,7 @@ class ContactStreamTest: SignalBaseTest {
             let contact = contacts[0]
             XCTAssertEqual("+13231111111", contact.phoneNumber?.stringValue)
             XCTAssertNil(contact.aci)
-            XCTAssertNil(contact.verifiedProto)
-            XCTAssertNil(contact.profileKey)
-            XCTAssertEqual(false, contact.isBlocked)
             XCTAssertEqual(0, contact.expireTimer)
-            XCTAssertEqual(false, contact.isArchived)
             XCTAssertNil(contact.inboxSortOrder)
         }
 
@@ -73,11 +72,7 @@ class ContactStreamTest: SignalBaseTest {
             let contact = contacts[1]
             XCTAssertNil(contact.phoneNumber)
             XCTAssertEqual("31CE1412-9A28-4E6F-B4EE-222222222222", contact.aci?.serviceIdUppercaseString)
-            XCTAssertNil(contact.verifiedProto)
-            XCTAssertNil(contact.profileKey)
-            XCTAssertEqual(false, contact.isBlocked)
             XCTAssertEqual(0, contact.expireTimer)
-            XCTAssertEqual(false, contact.isArchived)
             XCTAssertNil(contact.inboxSortOrder)
         }
 
@@ -85,11 +80,7 @@ class ContactStreamTest: SignalBaseTest {
             let contact = contacts[2]
             XCTAssertEqual("+13213333333", contact.phoneNumber?.stringValue)
             XCTAssertEqual("1D4AB045-88FB-4C4E-9F6A-333333333333", contact.aci?.serviceIdUppercaseString)
-            XCTAssertNil(contact.verifiedProto)
-            XCTAssertNil(contact.profileKey)
-            XCTAssertEqual(false, contact.isBlocked)
             XCTAssertEqual(0, contact.expireTimer)
-            XCTAssertEqual(false, contact.isArchived)
             XCTAssertNil(contact.inboxSortOrder)
         }
     }
@@ -98,7 +89,8 @@ class ContactStreamTest: SignalBaseTest {
         let contactsManager = TestContactsManager()
         let dataOutputStream = OutputStream(toMemory: ())
         dataOutputStream.open()
-        let contactsOutputStream = OWSContactsOutputStream(outputStream: dataOutputStream)
+        defer { dataOutputStream.close() }
+        let contactOutputStream = ContactOutputStream(outputStream: dataOutputStream)
 
         for signalAccount in signalAccounts {
             let contactFactory = ContactFactory()
@@ -110,19 +102,14 @@ class ContactStreamTest: SignalBaseTest {
 
             signalAccount.replaceContactForTests(try contactFactory.build())
 
-            contactsOutputStream.write(signalAccount,
-                                       recipientIdentity: nil,
-                                       profileKeyData: nil,
-                                       contactsManager: contactsManager,
-                                       disappearingMessagesConfiguration: nil,
-                                       isArchived: false,
-                                       inboxPosition: nil,
-                                       isBlocked: false)
-        }
-
-        dataOutputStream.close()
-        guard !contactsOutputStream.hasError else {
-            throw OWSAssertionError("contactsOutputStream.hasError")
+            try contactOutputStream.writeContact(
+                aci: signalAccount.recipientServiceId as? Aci,
+                phoneNumber: E164(signalAccount.recipientPhoneNumber),
+                signalAccount: signalAccount,
+                disappearingMessagesConfiguration: nil,
+                inboxPosition: nil,
+                isBlocked: false
+            )
         }
 
         return dataOutputStream.property(forKey: .dataWrittenToMemoryStreamKey) as! Data

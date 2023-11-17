@@ -89,7 +89,7 @@ public class GRDBSchemaMigrator: NSObject {
             // which won't work because migrations use a barrier block to prevent observing database state
             // before migration.
             try grdbStorageAdapter.read { transaction in
-                _ = self.tsAccountManager.localAddress(with: transaction.asAnyRead)
+                _ = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: transaction.asAnyRead.asV2Read)?.aciAddress
             }
 
             // Finally, do data migrations.
@@ -231,6 +231,14 @@ public class GRDBSchemaMigrator: NSObject {
         case threadReplyEditTarget
         case addHiddenRecipientsTable
         case editRecordReadState
+        case addPaymentModelInteractionUniqueId
+        case addPaymentsActivationRequestModel
+        case addRecipientPniColumn
+        case deletePhoneNumberAccessStore
+        case dropOldAndCreateNewCallRecordTable
+        case fixUniqueConstraintOnCallRecord
+        case addTimestampToCallRecord
+        case addPaymentMethodToJobRecords
 
         // NOTE: Every time we add a migration id, consider
         // incrementing grdbSchemaVersionLatest.
@@ -286,10 +294,11 @@ public class GRDBSchemaMigrator: NSObject {
         case dataMigration_scheduleStorageServiceUpdateForSystemContacts
         case dataMigration_removeLinkedDeviceSystemContacts
         case dataMigration_reindexSignalAccounts
+        case dataMigration_ensureLocalDeviceId
     }
 
     public static let grdbSchemaVersionDefault: UInt = 0
-    public static let grdbSchemaVersionLatest: UInt = 57
+    public static let grdbSchemaVersionLatest: UInt = 60
 
     // An optimization for new users, we have the first migration import the latest schema
     // and mark any other migrations as "already run".
@@ -1478,9 +1487,9 @@ public class GRDBSchemaMigrator: NSObject {
 
         migrator.registerMigration(.tunedConversationLoadIndices) { transaction in
             // These two indices are hyper-tuned for queries used to fetch the conversation load window. Specifically:
-            // - GRDBInteractionFinder.count(excludingPlaceholders:transaction:)
-            // - GRDBInteractionFinder.distanceFromLatest(interactionUniqueId:excludingPlaceholders:transaction:)
-            // - GRDBInteractionFinder.enumerateInteractions(range:excludingPlaceholders:transaction:block:)
+            // - InteractionFinder.count(excludingPlaceholders:transaction:)
+            // - InteractionFinder.distanceFromLatest(interactionUniqueId:excludingPlaceholders:transaction:)
+            // - InteractionFinder.enumerateInteractions(range:excludingPlaceholders:transaction:block:)
             //
             // These indices are partial, covering and as small as possible. The columns selected appear
             // redundant, but this is to avoid the SQLite query planner from selecting a less-optimal,
@@ -2061,7 +2070,7 @@ public class GRDBSchemaMigrator: NSObject {
                 UPDATE model_SSKJobRecord
                 SET \(JobRecord.columnName(.paymentProcessor)) = 'STRIPE'
                 WHERE \(JobRecord.columnName(.recordType)) = \(SendGiftBadgeJobRecord.recordType)
-                OR \(JobRecord.columnName(.recordType)) = \(ReceiptCredentialRedemptionJobRecord.recordType)
+                OR \(JobRecord.columnName(.recordType)) = \(SubscriptionReceiptCredentialRedemptionJobRecord.recordType)
             """
             try transaction.database.execute(sql: populateSql)
 
@@ -2284,10 +2293,157 @@ public class GRDBSchemaMigrator: NSObject {
             return .success(())
         }
 
+        migrator.registerMigration(.addHiddenRecipientsTable) { transaction in
+            try transaction.database.create(table: HiddenRecipient.databaseTableName) { table in
+                table.column(HiddenRecipient.CodingKeys.recipientId.stringValue, .integer)
+                    .primaryKey()
+                    .notNull()
+                table.foreignKey(
+                    ["recipientId"],
+                    references: "model_SignalRecipient",
+                    columns: ["id"],
+                    onDelete: .cascade
+                )
+            }
+            return .success(())
+        }
+
         migrator.registerMigration(.editRecordReadState) { tx in
             try tx.database.alter(table: "EditRecord") { table in
                 table.add(column: "read", .boolean).notNull().defaults(to: false)
             }
+            return .success(())
+        }
+
+        migrator.registerMigration(.addPaymentModelInteractionUniqueId) { tx in
+            try tx.database.alter(table: "model_TSPaymentModel") { table in
+                table.add(column: "interactionUniqueId", .text)
+            }
+            return .success(())
+        }
+
+        migrator.registerMigration(.addPaymentsActivationRequestModel) { tx in
+            try tx.database.create(table: "TSPaymentsActivationRequestModel") { table in
+                table.autoIncrementedPrimaryKey("id")
+                    .notNull()
+                table.column("threadUniqueId", .text)
+                    .notNull()
+                table.column("senderAci", .blob)
+                    .notNull()
+            }
+            try tx.database.create(
+                index: "index_TSPaymentsActivationRequestModel_on_threadUniqueId",
+                on: "TSPaymentsActivationRequestModel",
+                columns: ["threadUniqueId"]
+            )
+            return .success(())
+        }
+
+        migrator.registerMigration(.addRecipientPniColumn) { transaction in
+            try transaction.database.alter(table: "model_SignalRecipient") { table in
+                table.add(column: "pni", .text)
+            }
+            try transaction.database.create(
+                index: "index_signal_recipients_on_pni",
+                on: "model_SignalRecipient",
+                columns: ["pni"],
+                options: [.unique]
+            )
+            return .success(())
+        }
+
+        migrator.registerMigration(.deletePhoneNumberAccessStore) { tx in
+            try tx.database.execute(sql: """
+                DELETE FROM "keyvalue" WHERE "collection" = 'kUnidentifiedAccessCollection'
+            """)
+            return .success(())
+        }
+
+        /// Create the "Call Record" table.
+        ///
+        /// We had a table for this previously, which we dropped in favor of
+        /// this newer version.
+        migrator.registerMigration(.dropOldAndCreateNewCallRecordTable) { tx in
+            try tx.database.drop(index: "index_call_record_on_interaction_unique_id")
+            try tx.database.drop(table: "model_CallRecord")
+
+            try tx.database.create(table: "CallRecord") { (table: TableDefinition) in
+                table.column("id", .integer).primaryKey().notNull()
+                table.column("callId", .text).notNull().unique()
+                table.column("interactionRowId", .integer).notNull().unique()
+                    .references("model_TSInteraction", column: "id", onDelete: .cascade)
+                table.column("threadRowId", .integer).notNull()
+                    .references("model_TSThread", column: "id", onDelete: .restrict)
+                table.column("type", .integer).notNull()
+                table.column("direction", .integer).notNull()
+                table.column("status", .integer).notNull()
+            }
+
+            // Note that because `callId` and `interactionRowId` are UNIQUE
+            // SQLite will automatically create an index on each of them.
+
+            return .success(())
+        }
+
+        /// Fix a UNIQUE constraint on the "Call Record" table.
+        ///
+        /// We previously had a UNIQUE constraint on the `callId` column, which
+        /// wasn't quite right. Instead, we want a UNIQUE constraint on
+        /// `(callId, threadRowId)`, to mitigate against call ID collision.
+        ///
+        /// Since the call record table was just added recently, we can drop it
+        /// and recreate it with the new UNIQUE constraint, via an explicit
+        /// index.
+        migrator.registerMigration(.fixUniqueConstraintOnCallRecord) { tx in
+            try tx.database.drop(table: "CallRecord")
+
+            try tx.database.create(table: "CallRecord") { (table: TableDefinition) in
+                table.column("id", .integer).primaryKey().notNull()
+                table.column("callId", .text).notNull()
+                table.column("interactionRowId", .integer).notNull().unique()
+                    .references("model_TSInteraction", column: "id", onDelete: .cascade)
+                table.column("threadRowId", .integer).notNull()
+                    .references("model_TSThread", column: "id", onDelete: .restrict)
+                table.column("type", .integer).notNull()
+                table.column("direction", .integer).notNull()
+                table.column("status", .integer).notNull()
+            }
+
+            try tx.database.create(
+                index: "index_call_record_on_callId_and_threadId",
+                on: "CallRecord",
+                columns: ["callId", "threadRowId"],
+                options: [.unique]
+            )
+
+            // Note that because `threadRowId` and `interactionRowId` are UNIQUE
+            // SQLite will automatically create an index on each of them.
+
+            return .success(())
+        }
+
+        /// Add a timestamp column to call records. Delete any records created
+        /// prior, since we don't need them at the time of migration and we
+        /// really want timestamps to be populated in the future.
+        migrator.registerMigration(.addTimestampToCallRecord) { tx in
+            try tx.database.execute(sql: """
+                DELETE FROM CallRecord
+            """)
+
+            try tx.database.alter(table: "CallRecord") { table in
+                table.add(column: "timestamp", .integer).notNull()
+            }
+
+            return .success(())
+        }
+
+        /// During subscription receipt credential redemption, we now need to
+        /// know the payment method used, if possible.
+        migrator.registerMigration(.addPaymentMethodToJobRecords) { tx in
+            try tx.database.alter(table: "model_SSKJobRecord") { table in
+                table.add(column: "paymentMethod", .text)
+            }
+
             return .success(())
         }
 
@@ -2305,10 +2461,7 @@ public class GRDBSchemaMigrator: NSObject {
         }
 
         migrator.registerMigration(.dataMigration_markOnboardedUsers_v2) { transaction in
-            if TSAccountManager.shared.isRegistered(transaction: transaction.asAnyWrite) {
-                Logger.info("marking existing user as onboarded")
-                TSAccountManager.shared.setIsOnboarded(true, transaction: transaction.asAnyWrite)
-            }
+            // No-op; this state is not read anywhere that matters.
             return .success(())
         }
 
@@ -2343,7 +2496,7 @@ public class GRDBSchemaMigrator: NSObject {
                 return .success(())
             }
 
-            let maxId = GRDBInteractionFinder.maxRowId(transaction: transaction)
+            let maxId = InteractionFinder.maxRowId(transaction: transaction.asAnyRead)
             SSKPreferences.setMessageRequestInteractionIdEpoch(maxId, transaction: transaction)
             return .success(())
         }
@@ -2443,7 +2596,11 @@ public class GRDBSchemaMigrator: NSObject {
 
         migrator.registerMigration(.dataMigration_populateGroupMember) { transaction in
             let cursor = TSThread.grdbFetchCursor(
-                sql: "SELECT * FROM \(ThreadRecord.databaseTableName) WHERE \(threadColumn: .recordType) = \(SDSRecordType.groupThread.rawValue)",
+                sql: """
+                    SELECT *
+                    FROM \(ThreadRecord.databaseTableName)
+                    WHERE \(threadColumn: .recordType) = \(SDSRecordType.groupThread.rawValue)
+                """,
                 transaction: transaction
             )
 
@@ -2460,7 +2617,10 @@ public class GRDBSchemaMigrator: NSObject {
                     // not been populated yet at this point in time. We want to record
                     // as close to a fully qualified address as we can in the database,
                     // so defer to the address from the signal recipient (if one exists)
-                    let recipient = GRDBSignalRecipientFinder().signalRecipient(for: address, transaction: transaction)
+                    let recipient = SignalRecipientFinder().signalRecipient(
+                        for: address,
+                        tx: transaction.asAnyRead
+                    )
                     let memberAddress = recipient?.address ?? address
 
                     guard TSGroupMember.groupMember(
@@ -2474,9 +2634,12 @@ public class GRDBSchemaMigrator: NSObject {
                         return
                     }
 
-                    let latestInteraction = interactionFinder.latestInteraction(from: memberAddress, transaction: transaction.asAnyWrite)
+                    let latestInteraction = interactionFinder.latestInteraction(
+                        from: memberAddress,
+                        transaction: transaction.asAnyWrite
+                    )
                     let memberRecord = TSGroupMember(
-                        serviceId: memberAddress.untypedServiceId,
+                        serviceId: memberAddress.serviceId,
                         phoneNumber: memberAddress.phoneNumber,
                         groupThreadId: groupThread.uniqueId,
                         lastInteractionTimestamp: latestInteraction?.timestamp ?? 0
@@ -2594,7 +2757,7 @@ public class GRDBSchemaMigrator: NSObject {
         }
 
         migrator.registerMigration(.dataMigration_syncGroupStories) { transaction in
-            for thread in AnyThreadFinder().storyThreads(includeImplicitGroupThreads: false, transaction: transaction.asAnyRead) {
+            for thread in ThreadFinder().storyThreads(includeImplicitGroupThreads: false, transaction: transaction.asAnyRead) {
                 guard let thread = thread as? TSGroupThread else { continue }
                 self.storageServiceManager.recordPendingUpdates(groupModel: thread.groupModel)
             }
@@ -2681,7 +2844,7 @@ public class GRDBSchemaMigrator: NSObject {
             // We only want to do this if we are the primary device, since only
             // the primary device's system contacts are synced.
 
-            guard tsAccountManager.isPrimaryDevice else {
+            guard DependenciesBridge.shared.tsAccountManager.registrationState(tx: transaction.asAnyRead.asV2Read).isPrimaryDevice ?? false else {
                 return .success(())
             }
 
@@ -2704,7 +2867,7 @@ public class GRDBSchemaMigrator: NSObject {
         }
 
         migrator.registerMigration(.dataMigration_removeLinkedDeviceSystemContacts) { transaction in
-            guard !tsAccountManager.isPrimaryDevice else {
+            guard DependenciesBridge.shared.tsAccountManager.registrationState(tx: transaction.asAnyRead.asV2Read).isPrimaryDevice != true else {
                 return .success(())
             }
 
@@ -2755,17 +2918,40 @@ public class GRDBSchemaMigrator: NSObject {
             return .success(())
         }
 
-        migrator.registerMigration(.addHiddenRecipientsTable) { transaction in
-            try transaction.database.create(table: HiddenRecipient.databaseTableName) { table in
-                table.column(HiddenRecipient.CodingKeys.recipientId.stringValue, .integer)
-                    .primaryKey()
-                    .notNull()
-                table.foreignKey(
-                    ["recipientId"],
-                    references: "model_SignalRecipient",
-                    columns: ["id"],
-                    onDelete: .cascade
-                )
+        migrator.registerMigration(.dataMigration_ensureLocalDeviceId) { tx in
+            let localAciSql = """
+                SELECT VALUE FROM keyvalue
+                WHERE collection = 'TSStorageUserAccountCollection'
+                    AND KEY = 'TSStorageRegisteredUUIDKey'
+            """
+            if
+                let localAciArchive = try Data.fetchOne(tx.database, sql: localAciSql),
+                let object = try? NSKeyedUnarchiver.unarchiveTopLevelObjectWithData(localAciArchive),
+                object is String
+            {
+                // If we have an aci, we must be registered.
+                let localDeviceIdSql = """
+                    SELECT * FROM keyvalue
+                        WHERE collection = 'TSStorageUserAccountCollection'
+                            AND KEY = 'TSAccountManager_DeviceId'
+                """
+                let localDeviceId = try Row.fetchOne(tx.database, sql: localDeviceIdSql)
+                if localDeviceId == nil {
+                    // If we don't have a device id written, put the primary device id.
+                    let deviceIdToInsert: UInt32 = 1
+                    let archiveData = try NSKeyedArchiver.archivedData(
+                        withRootObject: NSNumber(value: deviceIdToInsert),
+                        requiringSecureCoding: false
+                    )
+                    try tx.database.execute(
+                        sql: """
+                            INSERT OR REPLACE INTO keyvalue
+                                (KEY,collection,VALUE)
+                                VALUES ('TSAccountManager_DeviceId','TSStorageUserAccountCollection',?)
+                        """,
+                        arguments: [archiveData]
+                    )
+                }
             }
             return .success(())
         }

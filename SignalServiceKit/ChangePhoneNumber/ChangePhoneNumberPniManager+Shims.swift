@@ -3,21 +3,17 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Curve25519Kit
-
 extension ChangePhoneNumberPniManagerImpl {
     enum Shims {
         typealias IdentityManager = _ChangePhoneNumberPniManager_IdentityManagerShim
         typealias PreKeyManager = _ChangePhoneNumberPniManager_PreKeyManagerShim
         typealias SignedPreKeyStore = _ChangePhoneNumberPniManager_SignedPreKeyStoreShim
-        typealias TSAccountManager = _ChangePhoneNumberPniManager_TSAccountManagerShim
     }
 
     enum Wrappers {
         typealias IdentityManager = _ChangePhoneNumberPniManager_IdentityManagerWrapper
         typealias PreKeyManager = _ChangePhoneNumberPniManager_PreKeyManagerWrapper
         typealias SignedPreKeyStore = _ChangePhoneNumberPniManager_SignedPreKeyStoreWrapper
-        typealias TSAccountManager = _ChangePhoneNumberPniManager_TSAccountManagerWrapper
     }
 }
 
@@ -26,10 +22,10 @@ extension ChangePhoneNumberPniManagerImpl {
 protocol _ChangePhoneNumberPniManager_IdentityManagerShim {
     func generateNewIdentityKeyPair() -> ECKeyPair
 
-    func storeIdentityKeyPair(
+    func setIdentityKeyPair(
         _ keyPair: ECKeyPair?,
         for identity: OWSIdentity,
-        transaction: DBWriteTransaction
+        tx: DBWriteTransaction
     )
 }
 
@@ -50,15 +46,6 @@ protocol _ChangePhoneNumberPniManager_SignedPreKeyStoreShim {
     )
 }
 
-protocol _ChangePhoneNumberPniManager_TSAccountManagerShim {
-    func generateRegistrationId() -> UInt32
-
-    func setPniRegistrationId(
-        newRegistrationId: UInt32,
-        transaction: DBWriteTransaction
-    )
-}
-
 // MARK: - Wrappers
 
 class _ChangePhoneNumberPniManager_IdentityManagerWrapper: _ChangePhoneNumberPniManager_IdentityManagerShim {
@@ -72,16 +59,12 @@ class _ChangePhoneNumberPniManager_IdentityManagerWrapper: _ChangePhoneNumberPni
         identityManager.generateNewIdentityKeyPair()
     }
 
-    func storeIdentityKeyPair(
+    func setIdentityKeyPair(
         _ keyPair: ECKeyPair?,
         for identity: OWSIdentity,
-        transaction: DBWriteTransaction
+        tx: DBWriteTransaction
     ) {
-        identityManager.storeIdentityKeyPair(
-            keyPair,
-            for: identity,
-            transaction: SDSDB.shimOnlyBridge(transaction)
-        )
+        identityManager.setIdentityKeyPair(keyPair, for: identity, tx: tx)
     }
 }
 
@@ -116,28 +99,6 @@ class _ChangePhoneNumberPniManager_SignedPreKeyStoreWrapper: _ChangePhoneNumberP
         signedPreKeyStore.storeSignedPreKeyAsAcceptedAndCurrent(
             signedPreKeyId: signedPreKeyId,
             signedPreKeyRecord: signedPreKeyRecord,
-            transaction: SDSDB.shimOnlyBridge(transaction)
-        )
-    }
-}
-
-class _ChangePhoneNumberPniManager_TSAccountManagerWrapper: _ChangePhoneNumberPniManager_TSAccountManagerShim {
-    private let tsAccountManager: TSAccountManager
-
-    init(_ tsAccountManager: TSAccountManager) {
-        self.tsAccountManager = tsAccountManager
-    }
-
-    func generateRegistrationId() -> UInt32 {
-        return TSAccountManager.generateRegistrationId()
-    }
-
-    func setPniRegistrationId(
-        newRegistrationId: UInt32,
-        transaction: DBWriteTransaction
-    ) {
-        tsAccountManager.setPniRegistrationId(
-            newRegistrationId: newRegistrationId,
             transaction: SDSDB.shimOnlyBridge(transaction)
         )
     }

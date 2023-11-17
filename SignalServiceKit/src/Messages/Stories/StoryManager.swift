@@ -47,7 +47,7 @@ public class StoryManager: NSObject {
         }
 
         guard !blockingManager.isAddressBlocked(SignalServiceAddress(author), transaction: transaction) else {
-            Logger.warn("Dropping story message with timestamp \(timestamp) from blocked author \(author)")
+            Logger.warn("Dropping story message with timestamp \(timestamp) from blocked or hidden author \(author)")
             return
         }
 
@@ -121,7 +121,6 @@ public class StoryManager: NSObject {
         earlyMessageManager.applyPendingMessages(for: message, transaction: transaction)
     }
 
-    @objc
     public class func processStoryMessageTranscript(
         _ proto: SSKProtoSyncMessageSent,
         transaction: SDSAnyWriteTransaction
@@ -131,7 +130,7 @@ public class StoryManager: NSObject {
 
         let existingStory = StoryFinder.story(
             timestamp: proto.timestamp,
-            author: tsAccountManager.localIdentifiers(transaction: transaction)!.aci,
+            author: DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: transaction.asV2Read)!.aci,
             transaction: transaction
         )
 
@@ -159,6 +158,46 @@ public class StoryManager: NSObject {
             earlyMessageManager.applyPendingMessages(for: message, transaction: transaction)
         } else {
             owsFailDebug("Ignoring sync transcript for story with timestamp \(proto.timestamp)")
+        }
+    }
+
+    public class func deleteAllStories(forSender senderAci: Aci, tx: SDSAnyWriteTransaction) {
+        StoryFinder.enumerateStories(fromSender: senderAci, tx: tx) { storyMessage, _ in
+            storyMessage.anyRemove(transaction: tx)
+        }
+    }
+
+    /// Removes a given address from any TSPrivateStoryThread(s) that have it as an _explicit_ address, whether by exclusion or
+    /// inclusion.
+    public class func removeAddressFromAllPrivateStoryThreads(_ address: SignalServiceAddress, tx: SDSAnyWriteTransaction) {
+        // We don't have a mapping from recipient to the set of TSPrivateStoryThreads they
+        // are a part of, so the best we can do is index over all of them and find
+        // the recipient if present. If this becomes an issue, we can consider adding such a lookup table.
+        // In practice, since private story threads are generated exclusively by the user themselves,
+        // and explicit memberships are a subset, the count is going to be very low.
+        ThreadFinder().storyThreads(
+            includeImplicitGroupThreads: false,
+            transaction: tx
+        ).forEach { thread in
+            guard let storyThread = thread as? TSPrivateStoryThread else {
+                return
+            }
+            switch storyThread.storyViewMode {
+            case .default, .disabled:
+                return
+            case .explicit, .blockList:
+                var finalAddresses = storyThread.addresses
+                finalAddresses.removeAll(where: { $0 == address })
+                if finalAddresses.count != storyThread.addresses.count {
+                    // Remove the recipient from the private story thread.
+                    storyThread.updateWithStoryViewMode(
+                        storyThread.storyViewMode,
+                        addresses: finalAddresses,
+                        updateStorageService: true,
+                        transaction: tx
+                    )
+                }
+            }
         }
     }
 
@@ -257,7 +296,7 @@ public class StoryManager: NSObject {
         // See if the context has been recently active
 
         let pinnedThreads = PinnedThreadManager.pinnedThreads(transaction: transaction)
-        let recentlyInteractedThreads = AnyThreadFinder().threadsWithRecentInteractions(limit: recentContextAutomaticDownloadLimit, transaction: transaction)
+        let recentlyInteractedThreads = ThreadFinder().threadsWithRecentInteractions(limit: recentContextAutomaticDownloadLimit, transaction: transaction)
         let recentlyViewedContexts = StoryFinder.associatedDatasWithRecentlyViewedStories(
             limit: Int(recentContextAutomaticDownloadLimit),
             transaction: transaction
@@ -336,6 +375,19 @@ extension StoryManager {
 
     public static func buildStoryHeaders() -> [String: String] {
         ["X-Signal-Receive-Stories": areStoriesEnabled ? "true" : "false"]
+    }
+
+    // MARK: - Story Thread Name
+
+    public static func storyName(for thread: TSThread) -> String {
+        if let groupThread = thread as? TSGroupThread {
+            return groupThread.groupNameOrDefault
+        } else if let story = thread as? TSPrivateStoryThread {
+            return story.name
+        } else {
+            owsFailDebug("Unexpected thread type \(type(of: thread))")
+            return ""
+        }
     }
 }
 

@@ -4,7 +4,6 @@
 //
 
 #import "OWSRecipientIdentity.h"
-#import "OWSIdentityManager.h"
 #import <SignalCoreKit/Cryptography.h>
 #import <SignalServiceKit/SignalServiceKit-Swift.h>
 
@@ -19,6 +18,8 @@ NSString *OWSVerificationStateToString(OWSVerificationState verificationState)
             return @"OWSVerificationStateVerified";
         case OWSVerificationStateNoLongerVerified:
             return @"OWSVerificationStateNoLongerVerified";
+        case OWSVerificationStateDefaultAcknowledged:
+            return @"OWSVerificationStateDefaultAcknowledged";
     }
 }
 
@@ -26,6 +27,7 @@ static SSKProtoVerifiedState OWSVerificationStateToProtoState(OWSVerificationSta
 {
     switch (verificationState) {
         case OWSVerificationStateDefault:
+        case OWSVerificationStateDefaultAcknowledged:
             return SSKProtoVerifiedStateDefault;
         case OWSVerificationStateVerified:
             return SSKProtoVerifiedStateVerified;
@@ -39,7 +41,7 @@ SSKProtoVerified *_Nullable BuildVerifiedProtoWithAddress(SignalServiceAddress *
     OWSVerificationState verificationState,
     NSUInteger paddingBytesLength)
 {
-    OWSCAssertDebug(identityKey.length == kIdentityKeyLength);
+    OWSCAssertDebug(identityKey.length == OWSIdentityManagerObjCBridge.identityKeyLength);
     OWSCAssertDebug(address.isValid);
     // we only sync user's marking as un/verified. Never sync the conflicted state, the sibling device
     // will figure that out on it's own.
@@ -172,6 +174,18 @@ NSUInteger const RecipientIdentitySchemaVersion = 1;
                              block:^(OWSRecipientIdentity *_Nonnull obj) {
                                  obj.verificationState = verificationState;
                              }];
+}
+
+- (BOOL)wasIdentityVerified
+{
+    switch (self.verificationState) {
+        case OWSVerificationStateVerified:
+        case OWSVerificationStateNoLongerVerified:
+            return YES;
+        case OWSVerificationStateDefault:
+        case OWSVerificationStateDefaultAcknowledged:
+            return NO;
+    }
 }
 
 #pragma mark - debug

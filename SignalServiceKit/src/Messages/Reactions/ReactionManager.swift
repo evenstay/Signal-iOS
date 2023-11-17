@@ -71,7 +71,7 @@ public class ReactionManager: NSObject {
 
         Logger.info("Sending reaction, isRemoving: \(isRemoving)")
 
-        guard let localAci = tsAccountManager.localIdentifiers(transaction: tx)?.aci else {
+        guard let localAci = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: tx.asV2Read)?.aci else {
             throw OWSAssertionError("missing local address")
         }
 
@@ -181,7 +181,7 @@ public class ReactionManager: NSObject {
                 )
 
                 // If this is a reaction to a message we sent, notify the user.
-                let localAci = tsAccountManager.localIdentifiers(transaction: transaction)?.aci
+                let localAci = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: transaction.asV2Read)?.aci
                 if let reaction, let message = message as? TSOutgoingMessage, reactor != localAci {
                     self.notificationsManager.notifyUser(
                         forReaction: reaction,
@@ -211,7 +211,7 @@ public class ReactionManager: NSObject {
                     owsFailDebug("Should not be possible to show a reaction message for system story")
                 }
 
-                builder.storyAuthorAddress = storyMessage.authorAddress
+                builder.storyAuthorAci = AciObjC(storyMessage.authorAci)
 
                 // Group story replies do not follow the thread DM timer, instead they
                 // disappear automatically when their parent story disappears.
@@ -220,7 +220,7 @@ public class ReactionManager: NSObject {
 
             let message: TSMessage
 
-            let localAci = tsAccountManager.localIdentifiers(transaction: transaction)?.aci
+            let localAci = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: transaction.asV2Read)?.aci
             if reactor == localAci {
                 let builder = TSOutgoingMessageBuilder(thread: thread)
                 populateStoryContext(on: builder)

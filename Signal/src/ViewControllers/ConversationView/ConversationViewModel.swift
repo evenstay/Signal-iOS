@@ -13,7 +13,7 @@ class ConversationViewModel {
     let unreadMentionMessageIds: [String]
 
     static func load(for thread: TSThread, tx: SDSAnyReadTransaction) -> ConversationViewModel {
-        let groupCallInProgress = GRDBInteractionFinder.unendedCallsForGroupThread(thread, transaction: tx)
+        let groupCallInProgress = GroupCallInteractionFinder().unendedCallsForGroupThread(thread, transaction: tx)
             .filter { $0.joinedMemberAddresses.count > 0 }
             .count > 0
 
@@ -26,10 +26,10 @@ class ConversationViewModel {
         }
 
         let unreadMentionMessageIds = MentionFinder.messagesMentioning(
-            address: NSObject.tsAccountManager.localAddress!,
+            aci: DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: tx.asV2Read)!.aci,
             in: thread,
             includeReadMessages: false,
-            transaction: tx.unwrapGrdbRead
+            tx: tx
         ).map { $0.uniqueId }
 
         return ConversationViewModel(
@@ -53,16 +53,16 @@ class ConversationViewModel {
     }
 
     private static func shouldShowVerifiedBadge(for thread: TSThread, tx: SDSAnyReadTransaction) -> Bool {
-        let identityManager = NSObject.identityManager
+        let identityManager = DependenciesBridge.shared.identityManager
         switch thread {
         case let groupThread as TSGroupThread:
             if groupThread.groupModel.groupMembers.isEmpty {
                 return false
             }
-            return !identityManager.groupContainsUnverifiedMember(groupThread.uniqueId, transaction: tx)
+            return !identityManager.groupContainsUnverifiedMember(groupThread.uniqueId, tx: tx.asV2Read)
 
         case let contactThread as TSContactThread:
-            return identityManager.verificationState(for: contactThread.contactAddress, transaction: tx) == .verified
+            return identityManager.verificationState(for: contactThread.contactAddress, tx: tx.asV2Read) == .verified
 
         default:
             owsFailDebug("Showing conversation for unexpected thread type.")

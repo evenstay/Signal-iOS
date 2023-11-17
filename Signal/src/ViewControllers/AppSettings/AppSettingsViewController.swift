@@ -30,7 +30,7 @@ class AppSettingsViewController: OWSTableViewController2 {
         updateHasExpiredGiftBadge()
         updateTableContents()
 
-        if let localAddress = tsAccountManager.localAddress {
+        if let localAddress = DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction?.aciAddress {
             bulkProfileFetch.fetchProfile(address: localAddress)
         }
 
@@ -51,7 +51,7 @@ class AppSettingsViewController: OWSTableViewController2 {
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(subscriptionStateDidChange),
-            name: SubscriptionManagerImpl.SubscriptionJobQueueDidFinishJobNotification,
+            name: SubscriptionReceiptCredentialRedemptionOperation.DidSucceedNotification,
             object: nil
         )
 
@@ -142,7 +142,7 @@ class AppSettingsViewController: OWSTableViewController2 {
                 self?.navigationController?.pushViewController(vc, animated: true)
             }
         ))
-        if self.tsAccountManager.isPrimaryDevice {
+        if DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isPrimaryDevice == true {
             section1.add(.disclosureItem(
                 icon: .settingsLinkedDevices,
                 name: OWSLocalizedString("LINKED_DEVICES_TITLE", comment: "Menu item and navbar title for the device manager"),
@@ -267,12 +267,6 @@ class AppSettingsViewController: OWSTableViewController2 {
                     nameLabel.setCompressionResistanceHigh()
                     subviews.append(nameLabel)
 
-                    let betaIcon = UIImage(named: Theme.isDarkThemeEnabled ? "beta-dark-24" : "beta-light-24")
-                    let betaIconView = UIImageView(image: betaIcon)
-                    betaIconView.setCompressionResistanceHorizontalHigh()
-                    subviews.append(UIView.spacer(withWidth: 8))
-                    subviews.append(betaIconView)
-
                     subviews.append(UIView.hStretchingSpacer())
 
                     let unreadPaymentsCount = Self.databaseStorage.read { transaction in
@@ -395,7 +389,7 @@ class AppSettingsViewController: OWSTableViewController2 {
             localUserDisplayMode: .asUser
         )
 
-        if let localAddress = tsAccountManager.localAddress {
+        if let localAddress = DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction?.aciAddress {
             avatarImageView.updateWithSneakyTransactionIfNecessary { config in
                 config.dataSource = .address(localAddress)
             }
@@ -444,7 +438,7 @@ class AppSettingsViewController: OWSTableViewController2 {
 
         addSubtitleLabel(text: OWSUserProfile.bioForDisplay(bio: snapshot.bio, bioEmoji: snapshot.bioEmoji))
 
-        if let phoneNumber = tsAccountManager.localNumber {
+        if let phoneNumber = DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction?.phoneNumber {
             addSubtitleLabel(
                 text: PhoneNumber.bestEffortFormatPartialUserSpecifiedText(toLookLikeAPhoneNumber: phoneNumber),
                 isLast: true
@@ -504,29 +498,10 @@ class AppSettingsViewController: OWSTableViewController2 {
     }
 
     private func didTapDonate() {
-        let vc: UIViewController
-        if DonationSettingsViewController.hasAnythingToShowWithSneakyTransaction() {
-            vc = DonationSettingsViewController()
-        } else if DonationUtilities.canDonateInAnyWay(localNumber: tsAccountManager.localNumber) {
-            vc = DonateViewController(preferredDonateMode: .oneTime) { finishResult in
-                let frontVc = { CurrentAppContext().frontmostViewController() }
-                switch finishResult {
-                case let .completedDonation(donateSheet, thanksSheet):
-                    donateSheet.dismiss(animated: true) {
-                        frontVc()?.present(thanksSheet, animated: true)
-                    }
-                case let .monthlySubscriptionCancelled(donateSheet, toastText):
-                    donateSheet.dismiss(animated: true) {
-                        frontVc()?.presentToast(text: toastText)
-                    }
-                }
-            }
-        } else {
-            DonationViewsUtil.openDonateWebsite()
-            return
-        }
-
-        navigationController?.pushViewController(vc, animated: true)
+        navigationController?.pushViewController(
+            DonationSettingsViewController(),
+            animated: true
+        )
     }
 }
 

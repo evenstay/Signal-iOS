@@ -35,15 +35,15 @@ public class FakeAccountServiceClient: AccountServiceClient {
         return Promise { $0.resolve() }
     }
 
-    public override func updatePrimaryDeviceAccountAttributes() -> Promise<Void> {
-        return Promise { $0.resolve() }
+    public override func updatePrimaryDeviceAccountAttributes() async throws -> AccountAttributes {
+        throw OWSGenericError("Not implemented.")
     }
 
     public override func getAccountWhoAmI() -> Promise<WhoAmIRequestFactory.Responses.WhoAmI> {
         return Promise {
             $0.resolve(WhoAmIRequestFactory.Responses.WhoAmI(
-                aci: FutureAci.randomForTesting().uuidValue,
-                pni: FuturePni.randomForTesting().uuidValue,
+                aci: Aci.randomForTesting(),
+                pni: Pni.randomForTesting(),
                 e164: E164("+17735550199")!,
                 usernameHash: nil
             ))

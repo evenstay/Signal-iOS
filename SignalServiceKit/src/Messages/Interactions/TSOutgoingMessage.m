@@ -6,10 +6,8 @@
 #import "TSOutgoingMessage.h"
 #import "AppReadiness.h"
 #import "MessageSender.h"
-#import "OWSContact.h"
 #import "OWSOutgoingSyncMessage.h"
 #import "ProtoUtils.h"
-#import "TSAccountManager.h"
 #import "TSAttachmentStream.h"
 #import "TSContactThread.h"
 #import "TSGroupThread.h"
@@ -73,11 +71,6 @@ NSString *NSStringForOutgoingMessageRecipientState(OWSOutgoingMessageRecipientSt
 
 @interface TSOutgoingMessageRecipientState ()
 
-@property (atomic) OWSOutgoingMessageRecipientState state;
-@property (atomic, nullable) NSNumber *deliveryTimestamp;
-@property (atomic, nullable) NSNumber *readTimestamp;
-@property (atomic, nullable) NSNumber *viewedTimestamp;
-@property (atomic, nullable) NSNumber *errorCode;
 @property (atomic) BOOL wasSentByUD;
 
 @end
@@ -104,8 +97,6 @@ NSUInteger const TSOutgoingMessageSchemaVersion = 1;
 @property (nonatomic, readonly) TSOutgoingMessageState legacyMessageState;
 @property (nonatomic, readonly) BOOL legacyWasDelivered;
 @property (nonatomic, readonly) BOOL hasLegacyMessageState;
-@property (atomic, nullable)
-    NSDictionary<SignalServiceAddress *, TSOutgoingMessageRecipientState *> *recipientAddressStates;
 
 // This property is only intended to be used by GRDB queries.
 @property (nonatomic, readonly) TSOutgoingMessageState storedMessageState;
@@ -309,8 +300,9 @@ NSUInteger const TSOutgoingMessageSchemaVersion = 1;
     NSMutableSet<SignalServiceAddress *> *recipientAddresses = [NSMutableSet new];
     if ([self isKindOfClass:[OWSOutgoingSyncMessage class]]) {
         // 1. Sync messages should only be sent to linked devices.
-        OWSAssertDebug(TSAccountManager.localAddress);
-        [recipientAddresses addObject:TSAccountManager.localAddress];
+        SignalServiceAddress *localAddress = [TSAccountManagerObjcBridge localAciAddressWith:transaction];
+        OWSAssertDebug(localAddress);
+        [recipientAddresses addObject:localAddress];
     } else {
         // 2. Most messages should only be sent to the current members of the group.
         [recipientAddresses addObjectsFromArray:[thread recipientAddressesWithTransaction:transaction]];
@@ -511,6 +503,7 @@ NSUInteger const TSOutgoingMessageSchemaVersion = 1;
     return OWSInteractionType_OutgoingMessage;
 }
 
+// MCR: Check what calls this method and if it needs to be changed.
 - (NSArray<SignalServiceAddress *> *)recipientAddresses
 {
     return self.recipientAddressStates.allKeys;
@@ -587,6 +580,7 @@ NSUInteger const TSOutgoingMessageSchemaVersion = 1;
     }]].count;
 }
 
+// MCR: Check what calls this and if it needs to be changed.
 - (nullable TSOutgoingMessageRecipientState *)recipientStateForAddress:(SignalServiceAddress *)address
 {
     OWSAssertDebug(address.isValid);
@@ -667,14 +661,14 @@ NSUInteger const TSOutgoingMessageSchemaVersion = 1;
                                             }];
 }
 
-- (void)updateWithSentRecipient:(UntypedServiceIdObjC *)serviceId
+- (void)updateWithSentRecipient:(ServiceIdObjC *)serviceId
                     wasSentByUD:(BOOL)wasSentByUD
                     transaction:(SDSAnyWriteTransaction *)transaction
 {
     OWSAssertDebug(serviceId);
     OWSAssertDebug(transaction);
 
-    SignalServiceAddress *recipientAddress = [[SignalServiceAddress alloc] initWithUntypedServiceIdObjC:serviceId];
+    SignalServiceAddress *recipientAddress = [[SignalServiceAddress alloc] initWithServiceIdObjC:serviceId];
     [self anyUpdateOutgoingMessageWithTransaction:transaction
                                             block:^(TSOutgoingMessage *message) {
                                                 TSOutgoingMessageRecipientState *_Nullable recipientState
@@ -738,119 +732,6 @@ NSUInteger const TSOutgoingMessageSchemaVersion = 1;
         }
         recipientState.errorCode = @(error.code);
     }];
-}
-
-- (void)updateWithDeliveredRecipient:(SignalServiceAddress *)recipientAddress
-                   recipientDeviceId:(uint32_t)deviceId
-                   deliveryTimestamp:(uint64_t)deliveryTimestamp
-                             context:(id<DeliveryReceiptContext>)context
-                         transaction:(SDSAnyWriteTransaction *)transaction
-{
-    OWSAssertDebug(recipientAddress.isValid);
-    OWSAssertDebug(transaction);
-
-    // Ignore receipts for messages that have been deleted.
-    // They are no longer relevant to this message.
-    if (self.wasRemotelyDeleted) {
-        return;
-    }
-
-    // Note that this relies on the Message Send Log, so we have to execute it first.
-    [self maybeClearShouldSharePhoneNumberForRecipient:recipientAddress
-                                     recipientDeviceId:deviceId
-                                           transaction:transaction];
-
-    [self clearMessageSendLogEntryForRecipient:recipientAddress deviceId:deviceId tx:transaction];
-
-    [context
-        addUpdateForMessage:self
-                transaction:transaction
-                     update:^(TSOutgoingMessage *message) {
-                         TSOutgoingMessageRecipientState *_Nullable recipientState
-                             = message.recipientAddressStates[recipientAddress];
-                         if (!recipientState) {
-                             OWSFailDebug(@"Missing recipient state for delivered recipient: %@", recipientAddress);
-                             return;
-                         }
-                         if (recipientState.state != OWSOutgoingMessageRecipientStateSent) {
-                             OWSLogWarn(@"marking unsent message as delivered.");
-                         }
-                         recipientState.state = OWSOutgoingMessageRecipientStateSent;
-                         recipientState.deliveryTimestamp = @(deliveryTimestamp);
-                         recipientState.errorCode = nil;
-                     }];
-}
-
-- (void)updateWithReadRecipient:(SignalServiceAddress *)recipientAddress
-              recipientDeviceId:(uint32_t)deviceId
-                  readTimestamp:(uint64_t)readTimestamp
-                    transaction:(SDSAnyWriteTransaction *)transaction
-{
-    OWSAssertDebug(recipientAddress.isValid);
-    OWSAssertDebug(transaction);
-
-    // Ignore receipts for messages that have been deleted.
-    // They are no longer relevant to this message.
-    if (self.wasRemotelyDeleted) {
-        return;
-    }
-
-    // This is only really necessary for delivery receipts, but while we're here with
-    // an open write transaction, might as well double check we've cleared it.
-    [self clearMessageSendLogEntryForRecipient:recipientAddress deviceId:deviceId tx:transaction];
-
-    [self anyUpdateOutgoingMessageWithTransaction:transaction
-                                            block:^(TSOutgoingMessage *message) {
-                                                TSOutgoingMessageRecipientState *_Nullable recipientState
-                                                    = message.recipientAddressStates[recipientAddress];
-                                                if (!recipientState) {
-                                                    OWSFailDebug(@"Missing recipient state for delivered recipient: %@",
-                                                        recipientAddress);
-                                                    return;
-                                                }
-                                                if (recipientState.state != OWSOutgoingMessageRecipientStateSent) {
-                                                    OWSLogWarn(@"marking unsent message as delivered.");
-                                                }
-                                                recipientState.state = OWSOutgoingMessageRecipientStateSent;
-                                                recipientState.readTimestamp = @(readTimestamp);
-                                                recipientState.errorCode = nil;
-                                            }];
-}
-
-- (void)updateWithViewedRecipient:(SignalServiceAddress *)recipientAddress
-                recipientDeviceId:(uint32_t)deviceId
-                  viewedTimestamp:(uint64_t)viewedTimestamp
-                      transaction:(SDSAnyWriteTransaction *)transaction
-{
-    OWSAssertDebug(recipientAddress.isValid);
-    OWSAssertDebug(transaction);
-
-    // Ignore receipts for messages that have been deleted.
-    // They are no longer relevant to this message.
-    if (self.wasRemotelyDeleted) {
-        return;
-    }
-
-    // This is only really necessary for delivery receipts, but while we're here with
-    // an open write transaction, might as well double check we've cleared it.
-    [self clearMessageSendLogEntryForRecipient:recipientAddress deviceId:deviceId tx:transaction];
-
-    [self anyUpdateOutgoingMessageWithTransaction:transaction
-                                            block:^(TSOutgoingMessage *message) {
-                                                TSOutgoingMessageRecipientState *_Nullable recipientState
-                                                    = message.recipientAddressStates[recipientAddress];
-                                                if (!recipientState) {
-                                                    OWSFailDebug(@"Missing recipient state for delivered recipient: %@",
-                                                        recipientAddress);
-                                                    return;
-                                                }
-                                                if (recipientState.state != OWSOutgoingMessageRecipientStateSent) {
-                                                    OWSLogWarn(@"marking unsent message as delivered.");
-                                                }
-                                                recipientState.state = OWSOutgoingMessageRecipientStateSent;
-                                                recipientState.viewedTimestamp = @(viewedTimestamp);
-                                                recipientState.errorCode = nil;
-                                            }];
 }
 
 - (void)updateWithWasSentFromLinkedDeviceWithUDRecipients:(nullable NSArray<ServiceIdObjC *> *)udRecipients
@@ -937,20 +818,6 @@ NSUInteger const TSOutgoingMessageSchemaVersion = 1;
                                                   [message setIsFromLinkedDevice:YES];
                                               }
                                           }];
-}
-
-- (nullable NSNumber *)firstRecipientReadTimestamp
-{
-    NSNumber *result = nil;
-    for (TSOutgoingMessageRecipientState *recipientState in self.recipientAddressStates.allValues) {
-        if (!recipientState.readTimestamp) {
-            continue;
-        }
-        if (!result || (result.unsignedLongLongValue > recipientState.readTimestamp.unsignedLongLongValue)) {
-            result = recipientState.readTimestamp;
-        }
-    }
-    return result;
 }
 
 - (void)updateWithRecipientAddressStates:
@@ -1128,8 +995,7 @@ NSUInteger const TSOutgoingMessageSchemaVersion = 1;
 
     // Contact Share
     if (self.contactShare) {
-        SSKProtoDataMessageContact *_Nullable contactProto = [OWSContacts protoForContact:self.contactShare
-                                                                              transaction:transaction];
+        SSKProtoDataMessageContact *_Nullable contactProto = [self.contactShare protoWithTransaction:transaction];
         if (contactProto) {
             [builder addContact:contactProto];
         } else {

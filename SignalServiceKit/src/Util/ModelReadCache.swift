@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import SignalCoreKit
 
 #if TESTABLE_BUILD
 protocol ModelCache {
@@ -437,11 +438,11 @@ class ModelReadCache<KeyType: Hashable & Equatable, ValueType>: Dependencies, Ca
         guard let address = cacheKey.key as? SignalServiceAddress else {
             return true
         }
-        if address.uuid != nil {
+        if address.serviceId != nil {
             return true
         }
         if address.phoneNumber == kLocalProfileInvariantPhoneNumber {
-            owsAssertDebug(address.uuid == nil)
+            owsAssertDebug(address.serviceId == nil)
             return true
         }
         return false
@@ -674,15 +675,15 @@ public class SignalAccountReadCache: NSObject {
     typealias ValueType = SignalAccount
 
     private class Adapter: ModelCacheAdapter<KeyType, ValueType> {
-        private let accountFinder = AnySignalAccountFinder()
+        private let accountFinder = SignalAccountFinder()
 
-        override func read(key: KeyType, transaction: SDSAnyReadTransaction) -> ValueType? {
-            accountFinder.signalAccount(for: key, transaction: transaction)
+        override func read(key: KeyType, transaction tx: SDSAnyReadTransaction) -> ValueType? {
+            accountFinder.signalAccount(for: key, tx: tx)
         }
 
         override func read(keys: [SignalAccountReadCache.KeyType],
-                           transaction: SDSAnyReadTransaction) -> [SignalAccountReadCache.ValueType?] {
-            accountFinder.signalAccounts(for: keys, transaction: transaction)
+                           transaction tx: SDSAnyReadTransaction) -> [SignalAccountReadCache.ValueType?] {
+            accountFinder.signalAccounts(for: keys, tx: tx)
         }
 
         override func key(forValue value: ValueType) -> KeyType {
@@ -740,67 +741,6 @@ public class SignalAccountReadCache: NSObject {
     @objc
     public func leaseCacheSize(_ size: Int) -> ModelReadCacheSizeLease {
         return ModelReadCacheSizeLease(size, model: cache)
-    }
-}
-
-// MARK: -
-
-@objc
-public class SignalRecipientReadCache: NSObject {
-    typealias KeyType = SignalServiceAddress
-    typealias ValueType = SignalRecipient
-
-    private class Adapter: ModelCacheAdapter<KeyType, ValueType> {
-        private let recipientFinder = AnySignalRecipientFinder()
-
-        override func read(key: KeyType, transaction: SDSAnyReadTransaction) -> ValueType? {
-            recipientFinder.signalRecipient(for: key, transaction: transaction)
-        }
-
-        override func key(forValue value: ValueType) -> KeyType {
-            value.address
-        }
-
-        override func cacheKey(forKey key: KeyType) -> ModelCacheKey<KeyType> {
-            ModelCacheKey(key: key)
-        }
-
-        override func copy(value: ValueType) throws -> ValueType {
-            // We don't need to use a deepCopy for SignalRecipient.
-            guard let modelCopy = value.copy() as? SignalRecipient else {
-                throw OWSAssertionError("Copy failed.")
-            }
-            return modelCopy
-        }
-    }
-
-    private let cache: ModelReadCache<KeyType, ValueType>
-    private let adapter = Adapter(cacheName: "SignalRecipient", cacheCountLimit: 256, cacheCountLimitNSE: 32)
-
-    @objc
-    public init(_ factory: ModelReadCacheFactory) {
-        cache = factory.create(mode: .read, adapter: adapter)
-    }
-
-    @objc(getSignalRecipientForAddress:transaction:)
-    public func getSignalRecipient(address: SignalServiceAddress, transaction: SDSAnyReadTransaction) -> SignalRecipient? {
-        let cacheKey = adapter.cacheKey(forKey: address)
-        return cache.getValue(for: cacheKey, transaction: transaction)
-    }
-
-    @objc(didRemoveSignalRecipient:transaction:)
-    public func didRemove(signalRecipient: SignalRecipient, transaction: SDSAnyWriteTransaction) {
-        cache.didRemove(value: signalRecipient, transaction: transaction)
-    }
-
-    @objc(didInsertOrUpdateSignalRecipient:transaction:)
-    public func didInsertOrUpdate(signalRecipient: SignalRecipient, transaction: SDSAnyWriteTransaction) {
-        cache.didInsertOrUpdate(value: signalRecipient, transaction: transaction)
-    }
-
-    @objc(didReadSignalRecipient:transaction:)
-    public func didReadSignalRecipient(_ signalRecipient: SignalRecipient, transaction: SDSAnyReadTransaction) {
-        cache.didRead(value: signalRecipient, transaction: transaction)
     }
 }
 
@@ -1099,7 +1039,6 @@ public class ModelReadCaches: NSObject {
     public init(factory: ModelReadCacheFactory) {
         userProfileReadCache = UserProfileReadCache(factory)
         signalAccountReadCache = SignalAccountReadCache(factory)
-        signalRecipientReadCache = SignalRecipientReadCache(factory)
         threadReadCache = ThreadReadCache(factory)
         interactionReadCache = InteractionReadCache(factory)
         attachmentReadCache = AttachmentReadCache(factory)
@@ -1118,8 +1057,6 @@ public class ModelReadCaches: NSObject {
     @objc
     public let signalAccountReadCache: SignalAccountReadCache
     @objc
-    public let signalRecipientReadCache: SignalRecipientReadCache
-    @objc
     public let threadReadCache: ThreadReadCache
     @objc
     public let interactionReadCache: InteractionReadCache
@@ -1132,7 +1069,7 @@ public class ModelReadCaches: NSObject {
     fileprivate static let evacuateAllModelCaches = Notification.Name("EvacuateAllModelCaches")
 
     @objc
-    func evacuateAllCaches() {
+    public func evacuateAllCaches() {
         NotificationCenter.default.post(name: Self.evacuateAllModelCaches, object: nil)
     }
 }

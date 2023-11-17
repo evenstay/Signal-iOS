@@ -15,11 +15,11 @@ class MessageDecryptionTest: SSKBaseTestSwift {
     let remoteE164Identifier = "+14715355555"
     lazy var remoteClient: TestSignalClient = FakeSignalClient.generate(e164Identifier: remoteE164Identifier)
 
-    let localClient = LocalSignalClient()
-    let localPniClient = LocalSignalClient(identity: .pni)
+    private lazy var localClient = LocalSignalClient()
+    private lazy var localPniClient = LocalSignalClient(identity: .pni)
     let runner = TestProtocolRunner()
 
-    let sealedSenderTrustRoot = Curve25519.generateKeyPair()
+    let sealedSenderTrustRoot = IdentityKeyPair.generate()
 
     private var fakeMessageSender: FakeMessageSender {
         MockSSKEnvironment.shared.messageSender as! FakeMessageSender
@@ -31,12 +31,22 @@ class MessageDecryptionTest: SSKBaseTestSwift {
         super.setUp()
 
         // ensure local client has necessary "registered" state
+        let identityManager = DependenciesBridge.shared.identityManager
         identityManager.generateAndPersistNewIdentityKey(for: .aci)
         identityManager.generateAndPersistNewIdentityKey(for: .pni)
-        tsAccountManager.registerForTests(withLocalNumber: localE164Identifier, uuid: localAci, pni: localPni)
+        databaseStorage.write { tx in
+            (DependenciesBridge.shared.registrationStateChangeManager as! RegistrationStateChangeManagerImpl).registerForTests(
+                localIdentifiers: .init(
+                    aci: .init(fromUUID: localAci),
+                    pni: .init(fromUUID: localPni),
+                    e164: .init(localE164Identifier)!
+                ),
+                tx: tx.asV2Write
+            )
+        }
 
         (notificationsManager as! NoopNotificationsManager).expectErrors = true
-        (udManager as! OWSUDManagerImpl).trustRoot = try! sealedSenderTrustRoot.ecPublicKey()
+        (udManager as! OWSUDManagerImpl).trustRoot = sealedSenderTrustRoot.publicKey
     }
 
     // MARK: - Tests
@@ -94,10 +104,12 @@ class MessageDecryptionTest: SSKBaseTestSwift {
 
             if type == .unidentifiedSender {
                 let senderCert = SMKSecretSessionCipherTest.createCertificateFor(
-                    trustRoot: sealedSenderTrustRoot.identityKeyPair,
-                    senderAddress: try! SealedSenderAddress(e164: remoteClient.e164Identifier,
-                                                            uuidString: remoteClient.uuidIdentifier,
-                                                            deviceId: remoteClient.deviceId),
+                    trustRoot: sealedSenderTrustRoot,
+                    senderAddress: try! SealedSenderAddress(
+                        e164: remoteClient.e164Identifier,
+                        aci: remoteClient.serviceId as! Aci,
+                        deviceId: remoteClient.deviceId
+                    ),
                     identityKey: remoteClient.identityKeyPair.identityKeyPair.publicKey,
                     expirationTimestamp: 13337)
                 let usmc = try! UnidentifiedSenderMessageContent(ciphertext,
@@ -110,7 +122,7 @@ class MessageDecryptionTest: SSKBaseTestSwift {
                                                                          context: transaction)))
                 envelopeBuilder.setServerTimestamp(13336)
             } else {
-                envelopeBuilder.setSourceServiceID(remoteClient.uuidIdentifier)
+                envelopeBuilder.setSourceServiceID(remoteClient.serviceId.serviceIdString)
                 envelopeBuilder.setSourceDevice(remoteClient.deviceId)
                 envelopeBuilder.setContent(Data(ciphertext.serialize()))
             }
@@ -119,7 +131,7 @@ class MessageDecryptionTest: SSKBaseTestSwift {
 
             prepareForDecryption(localProtocolStore, transaction)
 
-            let localIdentifiers = tsAccountManager.localIdentifiers(transaction: transaction)!
+            let localIdentifiers = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: transaction.asV2Read)!
             let decryptedEnvelope: Result<DecryptedIncomingEnvelope, Error> = Result {
                 let validatedEnvelope = try ValidatedIncomingEnvelope(envelope, localIdentifiers: localIdentifiers)
                 switch validatedEnvelope.kind {
@@ -129,13 +141,14 @@ class MessageDecryptionTest: SSKBaseTestSwift {
                     return try messageDecrypter.decryptUnidentifiedSenderEnvelope(
                         validatedEnvelope,
                         localIdentifiers: localIdentifiers,
-                        localDeviceId: tsAccountManager.storedDeviceId(transaction: transaction),
+                        localDeviceId: DependenciesBridge.shared.tsAccountManager.storedDeviceId(tx: transaction.asV2Read),
                         tx: transaction
                     )
                 case .identifiedSender(let cipherType):
                     return try messageDecrypter.decryptIdentifiedEnvelope(
                         validatedEnvelope,
                         cipherType: cipherType,
+                        localIdentifiers: localIdentifiers,
                         tx: transaction
                     )
                 }
@@ -202,7 +215,7 @@ class MessageDecryptionTest: SSKBaseTestSwift {
     func testDecryptPreKeyPniWithAciDestinationUuid() {
         expectDecryptionFailure(type: .prekeyBundle,
                                 destinationIdentity: .pni,
-                                destinationServiceId: Aci(fromUUID: localClient.uuid)) { error in
+                                destinationServiceId: localClient.serviceId) { error in
             if let error = error as? OWSError {
                 let underlyingError = error.errorUserInfo[NSUnderlyingErrorKey]
                 if case SSKSignedPreKeyStore.Error.noPreKeyWithId(_)? = underlyingError {

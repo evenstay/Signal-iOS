@@ -423,7 +423,17 @@ public class FullTextSearcher: NSObject {
                 assert(signalContactMap[signalAccount.recipientAddress] == nil)
                 signalContactMap[signalAccount.recipientAddress] = searchResult
             case let signalRecipient as SignalRecipient:
-                guard signalRecipient.isRegistered else {
+                guard
+                    signalRecipient.isRegistered,
+                    !DependenciesBridge.shared.recipientHidingManager.isHiddenAddress(
+                        signalRecipient.address,
+                        tx: transaction.asV2Read
+                    ),
+                    !blockingManager.isAddressBlocked(
+                        signalRecipient.address,
+                        transaction: transaction
+                    )
+                else {
                     return
                 }
                 let signalAccount = SignalAccount.transientSignalAccount(forSignalRecipient: signalRecipient)
@@ -457,7 +467,7 @@ public class FullTextSearcher: NSObject {
             }
         }
 
-        if let localAddress = TSAccountManager.localAddress {
+        if let localAddress = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: transaction.asV2Read)?.aciAddress {
             if matchesNoteToSelf(searchText: searchText, transaction: transaction) {
                 if signalContactMap[localAddress] == nil {
                     let localAccount = SignalAccount(address: localAddress)
@@ -572,7 +582,7 @@ public class FullTextSearcher: NSObject {
             }
         }
 
-        if let localAddress = TSAccountManager.localAddress {
+        if let localAddress = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: transaction.asV2Read)?.aciAddress {
             if matchesNoteToSelf(searchText: searchText, transaction: transaction) {
                 if signalContactMap[localAddress] == nil {
                     let localAccount = SignalAccount(address: localAddress)
@@ -619,11 +629,11 @@ public class FullTextSearcher: NSObject {
             // Filter out users with whom we've never had contact.
             return true
         }
-        return thread.hasPendingMessageRequest(transaction: transaction.unwrapGrdbRead)
+        return thread.hasPendingMessageRequest(transaction: transaction)
     }
 
     func matchesNoteToSelf(searchText: String, transaction: SDSAnyReadTransaction) -> Bool {
-        guard let localAddress = TSAccountManager.localAddress else {
+        guard let localAddress = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: transaction.asV2Read)?.aciAddress else {
             return false
         }
         let noteToSelfText = self.conversationIndexingString(address: localAddress, transaction: transaction)
@@ -675,10 +685,8 @@ public class FullTextSearcher: NSObject {
         }
 
         let getMentionedMessages: (SignalServiceAddress) -> [TSMessage] = { address in
-            return MentionFinder.messagesMentioning(
-                address: address,
-                transaction: transaction.unwrapGrdbRead
-            )
+            guard let aci = address.aci else { return [] }
+            return MentionFinder.messagesMentioning(aci: aci, tx: transaction)
         }
 
         func appendMessage(_ message: TSMessage, snippet: CVTextValue?) {
@@ -904,7 +912,10 @@ public class FullTextSearcher: NSObject {
         }
 
         if matchesNoteToSelf(searchText: searchText, transaction: transaction) {
-            if let localAddress = TSAccountManager.localAddress, contactsMap[localAddress] == nil {
+            if
+                let localAddress = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: transaction.asV2Read)?.aciAddress,
+                contactsMap[localAddress] == nil
+            {
                 let localAccount = SignalAccount(address: localAddress)
                 let localResult = ContactSearchResult(signalAccount: localAccount, transaction: transaction)
                 contactsMap[localAddress] = localResult
@@ -915,7 +926,19 @@ public class FullTextSearcher: NSObject {
 
         // Only show contacts which were not included in an existing 1:1 conversation.
         var otherContacts: [ContactSearchResult] = contactsMap.values.filter {
-            !existingConversationAddresses.contains($0.recipientAddress)
+            guard
+                !DependenciesBridge.shared.recipientHidingManager.isHiddenAddress(
+                    $0.recipientAddress,
+                    tx: transaction.asV2Read
+                ),
+                !blockingManager.isAddressBlocked(
+                    $0.recipientAddress,
+                    transaction: transaction
+                )
+            else {
+                return false
+            }
+            return !existingConversationAddresses.contains($0.recipientAddress)
         }
 
         // Order the conversation and message results in reverse chronological order.
@@ -975,14 +998,10 @@ public class FullTextSearcher: NSObject {
 
                 appendMessage(message)
             case let recipient as SignalRecipient:
-                guard thread.recipientAddresses(with: transaction).contains(recipient.address) || recipient.address.isLocalAddress else {
+                guard let aci = recipient.aci else {
                     return
                 }
-                let messagesMentioningAccount = MentionFinder.messagesMentioning(
-                    address: recipient.address,
-                    in: thread,
-                    transaction: transaction.unwrapGrdbRead
-                )
+                let messagesMentioningAccount = MentionFinder.messagesMentioning(aci: aci, in: thread, tx: transaction)
                 messagesMentioningAccount.forEach { appendMessage($0) }
             default:
                 owsFailDebug("Unexpected match of type \(type(of: match))")

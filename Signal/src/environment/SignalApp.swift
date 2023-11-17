@@ -30,7 +30,7 @@ public class SignalApp: NSObject {
     }
 
     private func warmCachesAsync() {
-        DispatchQueue.sharedBackground.async {
+        DispatchQueue.sharedUtility.async {
             InstrumentsMonitor.measure(category: "appstart", parent: "caches", name: "warmEmojiCache") {
                 Emoji.warmAvailableCache()
             }
@@ -213,6 +213,20 @@ extension SignalApp {
         }
     }
 
+    @objc
+    func showMyStories(animated: Bool) {
+        AssertIsOnMainThread()
+
+        guard let conversationSplitViewController else {
+            owsFailDebug("No conversationSplitViewController")
+            return
+        }
+
+        Logger.info("")
+
+        conversationSplitViewController.showMyStoriesController(animated: animated)
+    }
+
     func snapshotSplitViewController(afterScreenUpdates: Bool) -> UIView? {
         return conversationSplitViewController?.view?.snapshotView(afterScreenUpdates: afterScreenUpdates)
     }
@@ -229,10 +243,15 @@ extension SignalApp {
                 fromViewController: fromVC,
                 canCancel: true,
                 backgroundBlock: { _ in
-                    SignalApp.resetAppData()
+                    SignalApp.resetAppDataAndExit()
                 }
             )
         }
+    }
+
+    static func resetAppDataAndExit() {
+        resetAppData()
+        exit(0)
     }
 
     static func resetAppData() {
@@ -250,11 +269,37 @@ extension SignalApp {
             OWSFileSystem.deleteContents(ofDirectory: OWSFileSystem.cachesDirectoryPath())
             OWSFileSystem.deleteContents(ofDirectory: OWSTemporaryDirectory())
             OWSFileSystem.deleteContents(ofDirectory: NSTemporaryDirectory())
-            AppDelegate.updateApplicationShortcutItems(isRegisteredAndReady: false)
+            AppDelegate.updateApplicationShortcutItems(isRegistered: false)
         }
 
         DebugLogger.shared().wipeLogsAlways(appContext: CurrentAppContext() as! MainAppContext)
-        exit(0)
+    }
+
+    static func showTransferCompleteAndExit() {
+        DispatchQueue.main.async {
+            let actionSheet = ActionSheetController(
+                title: OWSLocalizedString(
+                    "OUTGOING_TRANSFER_COMPLETE_TITLE",
+                    comment: "Title for action sheet shown when device transfer completes"
+                ),
+                message: OWSLocalizedString(
+                    "OUTGOING_TRANSFER_COMPLETE_MESSAGE",
+                    comment: "Message for action sheet shown when device transfer completes"
+                )
+            )
+            actionSheet.addAction(.init(
+                title: OWSLocalizedString(
+                    "OUTGOING_TRANSFER_COMPLETE_EXIT_ACTION",
+                    comment: "Button for action sheet shown when device transfer completes; quits the Signal app immediately (does not automatically relaunch, but the user may choose to relaunch)."
+                ),
+                style: .destructive,
+                handler: { _ in
+                    exit(0)
+                }
+            ))
+            actionSheet.isCancelable = false
+            CurrentAppContext().frontmostViewController()?.present(actionSheet, animated: true)
+        }
     }
 }
 

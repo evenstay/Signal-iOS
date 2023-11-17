@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import LibSignalClient
 import SignalCoreKit
 
 #if TESTABLE_BUILD
@@ -143,7 +144,7 @@ public class OutgoingMessageFactory: NSObject, Factory {
                                                 changeActionsProtoData: changeActionsProtoDataBuilder(),
                                                 additionalRecipients: additionalRecipientsBuilder(),
                                                 skippedRecipients: skippedRecipientsBuilder(),
-                                                storyAuthorAddress: storyAuthorAddressBuilder(),
+                                                storyAuthorAci: storyAuthorAciBuilder(),
                                                 storyTimestamp: storyTimestampBuilder(),
                                                 storyReactionEmoji: storyReactionEmojiBuilder(),
                                                 giftBadge: giftBadgeBuilder()).build(transaction: transaction)
@@ -247,7 +248,7 @@ public class OutgoingMessageFactory: NSObject, Factory {
     }
 
     @objc
-    public var storyAuthorAddressBuilder: () -> SignalServiceAddress? = {
+    public var storyAuthorAciBuilder: () -> AciObjC? = {
         return nil
     }
 
@@ -323,10 +324,11 @@ public class IncomingMessageFactory: NSObject, Factory {
             serverGuid: serverGuidBuilder(),
             wasReceivedByUD: wasReceivedByUDBuilder(),
             isViewOnceMessage: isViewOnceMessageBuilder(),
-            storyAuthorAddress: storyAuthorAddressBuilder(),
+            storyAuthorAci: storyAuthorAciBuilder(),
             storyTimestamp: storyTimestampBuilder(),
             storyReactionEmoji: storyReactionEmojiBuilder(),
-            giftBadge: giftBadgeBuilder()
+            giftBadge: giftBadgeBuilder(),
+            paymentNotification: paymentNotificationBuilder()
         )
         let item = builder.build()
         item.anyInsert(transaction: transaction)
@@ -439,7 +441,7 @@ public class IncomingMessageFactory: NSObject, Factory {
     }
 
     @objc
-    public var storyAuthorAddressBuilder: () -> SignalServiceAddress? = {
+    public var storyAuthorAciBuilder: () -> AciObjC? = {
         nil
     }
 
@@ -455,6 +457,11 @@ public class IncomingMessageFactory: NSObject, Factory {
 
     @objc
     public var giftBadgeBuilder: () -> OWSGiftBadge? = {
+        return nil
+    }
+
+    @objc
+    public var paymentNotificationBuilder: () -> TSPaymentNotification? = {
         return nil
     }
 }
@@ -736,8 +743,11 @@ public class CommonGenerator: NSObject {
     }
 
     @objc
-    static public func address(hasUUID: Bool = true, hasPhoneNumber: Bool = true) -> SignalServiceAddress {
-        return SignalServiceAddress(uuid: hasUUID ? UUID() : nil, phoneNumber: hasPhoneNumber ? e164() : nil)
+    static public func address(hasAci: Bool = true, hasPhoneNumber: Bool = true) -> SignalServiceAddress {
+        return SignalServiceAddress(
+            serviceId: hasAci ? Aci.randomForTesting() : nil,
+            phoneNumber: hasPhoneNumber ? e164() : nil
+        )
     }
 
     @objc

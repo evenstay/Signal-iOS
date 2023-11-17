@@ -15,7 +15,7 @@ extension DeviceTransferService: MCNearbyServiceBrowserDelegate {
     }
 
     func browser(_ browser: MCNearbyServiceBrowser, didNotStartBrowsingForPeers error: Swift.Error) {
-        Logger.error("Failed to start browsing for peers \(error)")
+        Logger.warn("Failed to start browsing for peers \(error)")
     }
 
     func browser(_ browser: MCNearbyServiceBrowser, lostPeer peerId: MCPeerID) {}
@@ -33,51 +33,54 @@ extension DeviceTransferService: MCNearbyServiceAdvertiserDelegate {
     }
 
     func advertiser(_ advertiser: MCNearbyServiceAdvertiser, didNotStartAdvertisingPeer error: Swift.Error) {
-        Logger.error("Failed to start advertising for peers \(error)")
+        Logger.warn("Failed to start advertising for peers \(error)")
     }
 }
 
 extension DeviceTransferService: MCSessionDelegate {
     func session(_ session: MCSession, peer peerId: MCPeerID, didChange state: MCSessionState) {
-        Logger.debug("Connection to \(peerId) did change: \(state.rawValue)")
+        // dispatch to main ASAP to free up the session's private thread to receive more bytes.
+        DispatchQueue.main.async {
+            Logger.debug("Connection to \(peerId) did change: \(state.rawValue)")
 
-        switch transferState {
-        case .outgoing(let newDevicePeerId, _, _, let transferredFiles, let progress):
-            // We only care about state changes for the device we're sending to.
-            guard peerId == newDevicePeerId else { return }
+            switch self.transferState {
+            case .outgoing(let newDevicePeerId, _, _, let transferredFiles, let progress):
+                // We only care about state changes for the device we're sending to.
+                guard peerId == newDevicePeerId else { return }
 
-            Logger.info("Connection to new device did change: \(state.rawValue)")
+                Logger.info("Connection to new device did change: \(state.rawValue)")
 
-            switch state {
-            case .connected:
-                notifyObservers { $0.deviceTransferServiceDidStartTransfer(progress: progress) }
+                switch state {
+                case .connected:
+                    self.notifyObservers { $0.deviceTransferServiceDidStartTransfer(progress: progress) }
 
-                // Only send the files if we haven't yet sent the manifest.
-                guard !transferredFiles.contains(DeviceTransferService.manifestIdentifier) else { return }
+                    // Only send the files if we haven't yet sent the manifest.
+                    guard !transferredFiles.contains(DeviceTransferService.manifestIdentifier) else { return }
 
-                do {
-                    try sendManifest().done {
-                        try self.sendAllFiles()
-                    }.catch { error in
+                    do {
+                        try self.sendManifest().done {
+                            try self.sendAllFiles()
+                        }.catch { error in
+                            self.failTransfer(.assertion, "Failed to send manifest to new device \(error)")
+                        }
+                    } catch {
                         self.failTransfer(.assertion, "Failed to send manifest to new device \(error)")
                     }
-                } catch {
-                    failTransfer(.assertion, "Failed to send manifest to new device \(error)")
+                case .connecting:
+                    break
+                case .notConnected:
+                    self.failTransfer(.assertion, "Lost connection to new device")
+                @unknown default:
+                    self.failTransfer(.assertion, "Unexpected connection state: \(state.rawValue)")
                 }
-            case .connecting:
-                break
-            case .notConnected:
-                failTransfer(.assertion, "Lost connection to new device")
-            @unknown default:
-                failTransfer(.assertion, "Unexpected connection state: \(state.rawValue)")
-            }
-        case .incoming(let oldDevicePeerId, _, _, _, _):
-            // We only care about state changes for the device we're receiving from.
-            guard peerId == oldDevicePeerId else { return }
+            case .incoming(let oldDevicePeerId, _, _, _, _):
+                // We only care about state changes for the device we're receiving from.
+                guard peerId == oldDevicePeerId else { return }
 
-            if state == .notConnected { failTransfer(.assertion, "Lost connection to old device") }
-        case .idle:
-            break
+                if state == .notConnected { self.failTransfer(.assertion, "Lost connection to old device") }
+            case .idle:
+                break
+            }
         }
     }
 
@@ -90,7 +93,12 @@ extension DeviceTransferService: MCSessionDelegate {
                 return owsFailDebug("Ignoring data from unexpected peer \(peerId)")
             }
 
-            guard data == DeviceTransferService.doneMessage else {
+            switch data {
+            case DeviceTransferService.backgroundAppMessage:
+                return failTransfer(.backgroundedDevice, "Received terminate message")
+            case DeviceTransferService.doneMessage:
+                break
+            default:
                 return failTransfer(.assertion, "Received unexpected data")
             }
 
@@ -102,16 +110,20 @@ extension DeviceTransferService: MCSessionDelegate {
             // When the old device receives the done message from the new device,
             // it can be confident that the transfer has completed successfully and
             // clear out all data from this device. This will crash the app.
-            if !DebugFlags.deviceTransferPreserveOldDevice {
-                SignalApp.resetAppData()
-            }
+            SignalApp.resetAppData()
+            SignalApp.showTransferCompleteAndExit()
 
         case .incoming(let oldDevicePeerId, _, let receivedFileIds, let skippedFileIds, _):
             guard peerId == oldDevicePeerId else {
                 return owsFailDebug("Ignoring data from unexpected peer \(peerId)")
             }
 
-            guard data == DeviceTransferService.doneMessage else {
+            switch data {
+            case DeviceTransferService.backgroundAppMessage:
+                return failTransfer(.backgroundedDevice, "Received backgrounded message")
+            case DeviceTransferService.doneMessage:
+                break
+            default:
                 return failTransfer(.assertion, "Received unexpected data")
             }
 
@@ -159,19 +171,34 @@ extension DeviceTransferService: MCSessionDelegate {
                 owsFail("Restore failed. Will try again on next launch. Error: \(error)")
             }
 
-            firstly(on: DispatchQueue.main) { () -> Guarantee<Void> in
+            firstly(on: DispatchQueue.main) { () -> Guarantee<SDSDatabaseStorage.TransferredDbReloadResult> in
                 // A successful restoration means we've updated our database path.
                 // Extensions will learn of this through NSUserDefaults KVO and exit ASAP
-                self.databaseStorage.reloadAsMainDatabase()
-            }.then(on: DispatchQueue.main) { () -> Guarantee<Void> in
-                self.finalizeRestorationIfNecessary()
-            }.done(on: DispatchQueue.main) {
+                self.databaseStorage.reloadTransferredDatabase()
+            }.then(on: DispatchQueue.main) { (dbResult) -> Guarantee<Bool> in
+                switch dbResult {
+                case .success:
+                    Logger.info("Somehow succeeded reloading db? Crashing anyway.")
+                    fallthrough
+                case .relaunchRequired:
+                    Logger.info("Transfer complete but db cache failed, relaunching.")
+                    self.notifyObservers { $0.deviceTransferServiceDidRequestAppRelaunch() }
+                    return Guarantee.value(false)
+                case .failedMigration(let error), .unknownError(let error):
+                    // Just crash, something horrible has gone wrong.
+                    owsFail("Hard failure reloading db: \(error.grdbErrorForLogging)")
+                }
+                return self.finalizeRestorationIfNecessary().map { true }
+            }.done(on: DispatchQueue.main) { success in
+                guard success else {
+                    return
+                }
                 // After transfer our push token has changed, update it.
                 SyncPushTokensJob.run(mode: .forceUpload)
                 SignalApp.shared.showConversationSplitView()
             }
 
-            stopTransfer()
+            stopTransfer(notifyRegState: false)
         }
     }
 
@@ -336,7 +363,7 @@ extension DeviceTransferService: MCSessionDelegate {
         guard case .outgoing(let newDevicePeerId, let expectedCertificateHash, _, _, _) = transferState else {
             // Accept all connections if we're not doing an outgoing transfer AND we aren't yet registered.
             // Registered devices can only ever perform outgoing transfers.
-            certificateIsTrusted = !tsAccountManager.isRegistered
+            certificateIsTrusted = !DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isRegistered
             return
         }
 

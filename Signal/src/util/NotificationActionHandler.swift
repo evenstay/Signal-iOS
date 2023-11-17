@@ -68,6 +68,8 @@ public class NotificationActionHandler: Dependencies {
             return try reply(userInfo: userInfo, replyText: textInputResponse.userText)
         case .showThread:
             return try showThread(userInfo: userInfo)
+        case .showMyStories:
+            return showMyStories()
         case .reactWithThumbsUp:
             return try reactWithThumbsUp(userInfo: userInfo)
         case .showCallLobby:
@@ -76,6 +78,9 @@ public class NotificationActionHandler: Dependencies {
             return submitDebugLogs()
         case .reregister:
             return reregister()
+        case .showChatList:
+            // No need to do anything.
+            return .value(())
         }
     }
 
@@ -95,9 +100,9 @@ public class NotificationActionHandler: Dependencies {
     }
 
     private class func callBack(userInfo: [AnyHashable: Any]) throws -> Promise<Void> {
-        let uuidString = userInfo[AppNotificationUserInfoKey.callBackUuid] as? String
+        let aciString = userInfo[AppNotificationUserInfoKey.callBackAciString] as? String
         let phoneNumber = userInfo[AppNotificationUserInfoKey.callBackPhoneNumber] as? String
-        let address = SignalServiceAddress(uuidString: uuidString, phoneNumber: phoneNumber)
+        let address = SignalServiceAddress(aciString: aciString, phoneNumber: phoneNumber)
         guard address.isValid else {
             throw OWSAssertionError("Missing or invalid address.")
         }
@@ -134,7 +139,7 @@ public class NotificationActionHandler: Dependencies {
         }.then(on: DispatchQueue.global()) { (notificationMessage: NotificationMessage) -> Promise<Void> in
             let thread = notificationMessage.thread
             let interaction = notificationMessage.interaction
-            guard let incomingMessage = interaction as? TSIncomingMessage else {
+            guard (interaction is TSOutgoingMessage) || (interaction is TSIncomingMessage) else {
                 throw OWSAssertionError("Unexpected interaction type.")
             }
 
@@ -144,11 +149,14 @@ public class NotificationActionHandler: Dependencies {
                     builder.messageBody = replyText
 
                     // If we're replying to a group story reply, keep the reply within that context.
-                    if notificationMessage.isGroupStoryReply,
-                       let storyTimestamp = incomingMessage.storyTimestamp,
-                       let storyAuthorAddress = incomingMessage.storyAuthorAddress {
+                    if
+                        let incomingMessage = interaction as? TSIncomingMessage,
+                        notificationMessage.isGroupStoryReply,
+                        let storyTimestamp = incomingMessage.storyTimestamp,
+                        let storyAuthorAci = incomingMessage.storyAuthorAci
+                    {
                         builder.storyTimestamp = storyTimestamp
-                        builder.storyAuthorAddress = storyAuthorAddress
+                        builder.storyAuthorAci = storyAuthorAci
                     } else {
                         // We only use the thread's DM timer for normal messages & 1:1 story
                         // replies -- group story replies last for the lifetime of the story.
@@ -179,6 +187,15 @@ public class NotificationActionHandler: Dependencies {
                 self.showGroupStoryReplyThread(notificationMessage: notificationMessage)
             } else {
                 self.showThread(notificationMessage: notificationMessage)
+            }
+        }
+    }
+
+    private class func showMyStories() -> Promise<Void> {
+        return Promise { future in
+            AppReadiness.runNowOrWhenMainAppDidBecomeReadyAsync {
+                SignalApp.shared.showMyStories(animated: UIApplication.shared.applicationState == .active)
+                future.resolve()
             }
         }
     }
@@ -344,7 +361,7 @@ public class NotificationActionHandler: Dependencies {
                     storyMessage = nil
                 }
 
-                let hasPendingMessageRequest = thread.hasPendingMessageRequest(transaction: transaction.unwrapGrdbRead)
+                let hasPendingMessageRequest = thread.hasPendingMessageRequest(transaction: transaction)
 
                 return NotificationMessage(
                     thread: thread,

@@ -15,7 +15,8 @@ class ChangePhoneNumberPniManagerTest: XCTestCase {
     private var preKeyManagerMock: PreKeyManagerMock!
     private var signedPreKeyStoreMock: MockSignalSignedPreKeyStore!
     private var kyberPreKeyStoreMock: MockKyberPreKeyStore!
-    private var tsAccountManagerMock: TSAccountManagerMock!
+    private var registrationIdGeneratorMock: MockRegistrationIdGenerator!
+    private var tsAccountManagerMock: MockTSAccountManager!
 
     private var schedulers: TestSchedulers!
     private var db: MockDB!
@@ -28,6 +29,7 @@ class ChangePhoneNumberPniManagerTest: XCTestCase {
         preKeyManagerMock = .init()
         kyberPreKeyStoreMock = .init(dateProvider: Date.provider)
         signedPreKeyStoreMock = .init()
+        registrationIdGeneratorMock = .init()
         tsAccountManagerMock = .init()
 
         schedulers = TestSchedulers(scheduler: TestScheduler())
@@ -36,12 +38,13 @@ class ChangePhoneNumberPniManagerTest: XCTestCase {
         db = .init()
 
         changeNumberPniManager = ChangePhoneNumberPniManagerImpl(
-            schedulers: schedulers,
-            pniDistributionParameterBuilder: pniDistributionParameterBuilderMock,
             identityManager: identityManagerMock,
-            preKeyManager: preKeyManagerMock,
+            pniDistributionParameterBuilder: pniDistributionParameterBuilderMock,
             pniSignedPreKeyStore: signedPreKeyStoreMock,
             pniKyberPreKeyStore: kyberPreKeyStoreMock,
+            preKeyManager: preKeyManagerMock,
+            registrationIdGenerator: registrationIdGeneratorMock,
+            schedulers: schedulers,
             tsAccountManager: tsAccountManagerMock
         )
     }
@@ -61,14 +64,14 @@ class ChangePhoneNumberPniManagerTest: XCTestCase {
         XCTAssertEqual(e164, pendingState.newE164)
 
         XCTAssertEqual(identityManagerMock.generatedKeyPairs.count, 1)
-        XCTAssertEqual(identityManagerMock.generatedKeyPairs.first?.publicKey, parameters.pniIdentityKey)
+        XCTAssertEqual(identityManagerMock.generatedKeyPairs.first?.keyPair.identityKey, parameters.pniIdentityKey)
         XCTAssertEqual(identityManagerMock.generatedKeyPairs.first, pendingState.pniIdentityKeyPair)
 
         XCTAssertEqual(signedPreKeyStoreMock.generatedSignedPreKeys.count, 1)
         XCTAssertEqual(signedPreKeyStoreMock.generatedSignedPreKeys.first, pendingState.localDevicePniSignedPreKeyRecord)
 
-        XCTAssertEqual(tsAccountManagerMock.generatedRegistrationIds.count, 1)
-        XCTAssertEqual(tsAccountManagerMock.generatedRegistrationIds.first, pendingState.localDevicePniRegistrationId)
+        XCTAssertEqual(registrationIdGeneratorMock.generatedRegistrationIds.count, 1)
+        XCTAssertEqual(registrationIdGeneratorMock.generatedRegistrationIds.first, pendingState.localDevicePniRegistrationId)
 
         XCTAssertEqual(pniDistributionParameterBuilderMock.buildRequestedForDeviceIds, [[1, 2, 3]])
         XCTAssertTrue(pniDistributionParameterBuilderMock.buildOutcomes.isEmpty)
@@ -88,7 +91,7 @@ class ChangePhoneNumberPniManagerTest: XCTestCase {
 
         XCTAssertEqual(identityManagerMock.generatedKeyPairs.count, 1)
         XCTAssertEqual(signedPreKeyStoreMock.generatedSignedPreKeys.count, 1)
-        XCTAssertEqual(tsAccountManagerMock.generatedRegistrationIds.count, 1)
+        XCTAssertEqual(registrationIdGeneratorMock.generatedRegistrationIds.count, 1)
 
         XCTAssertEqual(pniDistributionParameterBuilderMock.buildRequestedForDeviceIds, [[1, 2, 3]])
         XCTAssertTrue(pniDistributionParameterBuilderMock.buildOutcomes.isEmpty)
@@ -128,7 +131,7 @@ class ChangePhoneNumberPniManagerTest: XCTestCase {
         )
 
         XCTAssertEqual(
-            tsAccountManagerMock.storedPniRegistrationId,
+            tsAccountManagerMock.pniRegistrationIdMock(),
             pendingState.localDevicePniRegistrationId
         )
 
@@ -188,15 +191,15 @@ private class IdentityManagerMock: ChangePhoneNumberPniManagerImpl.Shims.Identit
     var storedKeyPairs: [OWSIdentity: ECKeyPair] = [:]
 
     func generateNewIdentityKeyPair() -> ECKeyPair {
-        let keyPair = Curve25519.generateKeyPair()
+        let keyPair = ECKeyPair.generateKeyPair()
         generatedKeyPairs.append(keyPair)
         return keyPair
     }
 
-    func storeIdentityKeyPair(
+    func setIdentityKeyPair(
         _ keyPair: ECKeyPair?,
         for identity: OWSIdentity,
-        transaction _: DBWriteTransaction
+        tx _: DBWriteTransaction
     ) {
         storedKeyPairs[identity] = keyPair
     }
@@ -258,25 +261,5 @@ private class PniDistributionParameterBuilderMock: PniDistributionParamaterBuild
         case .failure:
             return .value(.failure)
         }
-    }
-}
-
-// MARK: TSAccountManager
-
-private class TSAccountManagerMock: ChangePhoneNumberPniManagerImpl.Shims.TSAccountManager {
-    var generatedRegistrationIds: [UInt32] = []
-    var storedPniRegistrationId: UInt32?
-
-    func generateRegistrationId() -> UInt32 {
-        let registrationId = UInt32.random(in: 0..<100)
-        generatedRegistrationIds.append(registrationId)
-        return registrationId
-    }
-
-    func setPniRegistrationId(
-        newRegistrationId: UInt32,
-        transaction: DBWriteTransaction
-    ) {
-        storedPniRegistrationId = newRegistrationId
     }
 }

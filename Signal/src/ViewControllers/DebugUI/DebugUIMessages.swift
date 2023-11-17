@@ -2489,16 +2489,8 @@ class DebugUIMessages: DebugUIPage, Dependencies {
             thread: thread,
             label: "Name & Number",
             contact: { _ in
-                let contact = OWSContact()!
-                contact.name = {
-                    let name = OWSContactName()!
-                    name.givenName = "Alice"
-                    return name
-                }()
-                let phoneNumber = OWSContactPhoneNumber()!
-                phoneNumber.phoneType = .home
-                phoneNumber.phoneNumber = "+13213214321"
-                contact.phoneNumbers = [ phoneNumber ]
+                let contact = OWSContact(name: OWSContactName(givenName: "Alice"))
+                contact.phoneNumbers = [ OWSContactPhoneNumber(type: .home, phoneNumber: "+13213214321") ]
                 return contact
             }
         ))
@@ -2507,95 +2499,73 @@ class DebugUIMessages: DebugUIPage, Dependencies {
             thread: thread,
             label: "Name & Email",
             contact: { _ in
-                let contact = OWSContact()!
-                contact.name = {
-                    let name = OWSContactName()!
-                    name.givenName = "Bob"
-                    return name
-                }()
-                let email = OWSContactEmail()!
-                email.emailType = .home
-                email.email = "a@b.com"
-                contact.emails = [ email ]
+                let contact = OWSContact(name: OWSContactName(givenName: "Bob"))
+                contact.emails = [ OWSContactEmail(type: .home, email: "a@b.com") ]
                 return contact
             }
         ))
 
-        actions.append(fakeContactShareMessageAction(
-            thread: thread,
-            label: "Complicated",
-            contact: { transaction in
-                let contact = OWSContact()!
-                contact.name = {
-                    let name = OWSContactName()!
-                    name.givenName = "Alice"
-                    name.familyName = "Carol"
-                    name.middleName = "Bob"
-                    name.namePrefix = "Ms."
-                    name.nameSuffix = "Esq."
-                    name.organizationName = "Falafel Hut"
-                    return name
-                }()
+        actions.append(
+            fakeContactShareMessageAction(
+                thread: thread,
+                label: "Complicated",
+                contact: { transaction in
+                    let contact = OWSContact(name: OWSContactName(
+                        givenName: "Alice",
+                        familyName: "Carol",
+                        namePrefix: "Ms.",
+                        nameSuffix: "Esq.",
+                        middleName: "Bob",
+                        organizationName: "Falafel Hut"
+                    ))
 
-                let phoneNumber1 = OWSContactPhoneNumber()!
-                phoneNumber1.phoneType = .home
-                phoneNumber1.phoneNumber = "+13213215555"
-                let phoneNumber2 = OWSContactPhoneNumber()!
-                phoneNumber2.phoneType = .custom
-                phoneNumber2.label = "Carphone"
-                phoneNumber2.phoneNumber = "+13332226666"
-                contact.phoneNumbers = [ phoneNumber1, phoneNumber2 ]
+                    contact.phoneNumbers = [
+                        OWSContactPhoneNumber(type: .home, phoneNumber: "+13213215555"),
+                        OWSContactPhoneNumber(type: .custom, label: "Carphone", phoneNumber: "+13332226666")
+                    ]
 
-                let emails = (0..<16).map { i in
-                    let email = OWSContactEmail()!
-                    email.emailType = .home
-                    email.email = String(format: "a%zd@b.com", i)
-                    return email
+                    contact.emails = (0..<16).map { OWSContactEmail(type: .home, email: String(format: "a%zd@b.com", $0)) }
+
+                    let address1 = OWSContactAddress(
+                        type: .home,
+                        street: "123 home st.",
+                        pobox: nil,
+                        neighborhood: "round the bend.",
+                        city: "homeville",
+                        region: "HO",
+                        postcode: "12345",
+                        country: "USA"
+                    )
+                    let address2 = OWSContactAddress(
+                        type: .custom,
+                        label: "Otra casa",
+                        street: "123 casa calle",
+                        pobox: "caja 123",
+                        neighborhood: nil,
+                        city: "barrio norte",
+                        region: "AB",
+                        postcode: "53421",
+                        country: "MX"
+                    )
+                    contact.addresses = [ address1, address2 ]
+
+                    let avatarImage = AvatarBuilder.buildRandomAvatar(diameterPoints: 200)!
+                    contact.saveAvatarImage(avatarImage, transaction: transaction)
+
+                    return contact
                 }
-                contact.emails = emails
-
-                let address1 = OWSContactAddress()!
-                address1.addressType = .home
-                address1.street = "123 home st."
-                address1.neighborhood = "round the bend."
-                address1.city = "homeville"
-                address1.region = "HO"
-                address1.postcode = "12345"
-                address1.country = "USA"
-                let address2 = OWSContactAddress()!
-                address2.addressType = .custom
-                address2.label = "Otra casa"
-                address2.pobox = "caja 123"
-                address2.street = "123 casa calle"
-                address2.city = "barrio norte"
-                address2.region = "AB"
-                address2.postcode = "53421"
-                address2.country = "MX"
-                contact.addresses = [ address1, address2 ]
-
-                let avatarImage = AvatarBuilder.buildRandomAvatar(diameterPoints: 200)!
-                contact.saveAvatarImage(avatarImage, transaction: transaction)
-
-                return contact
-            }
-        ))
+            )
+        )
 
         actions.append(fakeContactShareMessageAction(
             thread: thread,
             label: "Long values",
             contact: { _ in
-                let contact = OWSContact()!
-                contact.name = {
-                    let name = OWSContactName()!
-                    name.givenName = "Bobasdjasdlkjasldkjas"
-                    name.familyName = "Bobasdjasdlkjasldkjas"
-                    return name
-                }()
-
-                let email = OWSContactEmail()!
-                email.emailType = .mobile
-                email.email = "asdlakjsaldkjasldkjasdlkjasdlkjasdlkajsa@b.com"
-                contact.emails = [ email ]
+                let contact = OWSContact(name: OWSContactName(
+                    givenName: "Bobasdjasdlkjasldkjas",
+                    familyName: "Bobasdjasdlkjasldkjas"
+                ))
+                contact.emails = [ OWSContactEmail(type: .mobile, email: "asdlakjsaldkjasldkjasdlkjasdlkjasdlkajsa@b.com") ]
                 return contact
             }
         ))
@@ -2604,17 +2574,8 @@ class DebugUIMessages: DebugUIPage, Dependencies {
             thread: thread,
             label: "System Contact w/o Signal",
             contact: { _ in
-                let contact = OWSContact()!
-                contact.name = {
-                    let name = OWSContactName()!
-                    name.givenName = "Add Me To Your Contacts"
-                    return name
-                }()
-
-                let phoneNumber = OWSContactPhoneNumber()!
-                phoneNumber.phoneType = .work
-                phoneNumber.phoneNumber = "+32460205391"
-                contact.phoneNumbers = [ phoneNumber ]
+                let contact = OWSContact(name: OWSContactName(givenName: "Add Me To Your Contacts"))
+                contact.phoneNumbers = [ OWSContactPhoneNumber(type: .work, phoneNumber: "+32460205391") ]
                 return contact
             }
         ))
@@ -2623,16 +2584,8 @@ class DebugUIMessages: DebugUIPage, Dependencies {
             thread: thread,
             label: "System Contact w. Signal",
             contact: { _ in
-                let contact = OWSContact()!
-                contact.name = {
-                    let name = OWSContactName()!
-                    name.givenName = "Add Me To Your Contacts"
-                    return name
-                }()
-                let phoneNumber = OWSContactPhoneNumber()!
-                phoneNumber.phoneType = .work
-                phoneNumber.phoneNumber = "+32460205392"
-                contact.phoneNumbers = [ phoneNumber ]
+                let contact = OWSContact(name: OWSContactName(givenName: "Add Me To Your Contacts"))
+                contact.phoneNumbers = [ OWSContactPhoneNumber(type: .work, phoneNumber: "+32460205392") ]
                 return contact
             }
         ))
@@ -3218,19 +3171,10 @@ class DebugUIMessages: DebugUIPage, Dependencies {
             TSErrorMessage.missingSession(with: createEnvelopeForThread(thread), with: transaction),
             TSErrorMessage.invalidKeyException(with: createEnvelopeForThread(thread), with: transaction),
             TSErrorMessage.invalidVersion(with: createEnvelopeForThread(thread), with: transaction),
-            TSErrorMessage.corruptedMessage(with: createEnvelopeForThread(thread), with: transaction),
 
             TSErrorMessage.nonblockingIdentityChange(in: thread, address: incomingSenderAddress, wasIdentityVerified: false),
             TSErrorMessage.nonblockingIdentityChange(in: thread, address: incomingSenderAddress, wasIdentityVerified: true)
         ]
-
-        if let blockingSNChangeMessage = TSInvalidIdentityKeyReceivingErrorMessage.untrustedKey(
-            with: createEnvelopeForThread(thread),
-            fakeSourceE164: "+13215550123",
-            with: transaction
-        ) {
-            results.append(blockingSNChangeMessage)
-        }
 
         return results
     }
@@ -3289,19 +3233,19 @@ class DebugUIMessages: DebugUIPage, Dependencies {
                 let outgoingMessage = outgoingMessageBuilder.build(transaction: transaction)
                 outgoingMessage.anyInsert(transaction: transaction)
                 outgoingMessage.update(withFakeMessageState: .sent, transaction: transaction)
-                outgoingMessage.update(withSentRecipient: UntypedServiceIdObjC(incomingSenderAci.untypedServiceId), wasSentByUD: false, transaction: transaction)
+                outgoingMessage.update(withSentRecipient: ServiceIdObjC.wrapValue(incomingSenderAci), wasSentByUD: false, transaction: transaction)
                 outgoingMessage.update(
                     withDeliveredRecipient: SignalServiceAddress(incomingSenderAci),
-                    recipientDeviceId: 0,
+                    deviceId: 0,
                     deliveryTimestamp: timestamp,
                     context: PassthroughDeliveryReceiptContext(),
-                    transaction: transaction
+                    tx: transaction
                 )
                 outgoingMessage.update(
                     withReadRecipient: SignalServiceAddress(incomingSenderAci),
-                    recipientDeviceId: 0,
+                    deviceId: 0,
                     readTimestamp: timestamp,
-                    transaction: transaction
+                    tx: transaction
                 )
             }
         }
@@ -3343,7 +3287,7 @@ class DebugUIMessages: DebugUIPage, Dependencies {
         }
 
         let envelopeBuilder = try! fakeService.envelopeBuilder(fromSenderClient: senderClient)
-        envelopeBuilder.setSourceServiceID(senderClient.uuidIdentifier)
+        envelopeBuilder.setSourceServiceID(senderClient.serviceId.serviceIdString)
         let envelopeData = try! envelopeBuilder.buildSerializedData()
         messageProcessor.processReceivedEnvelopeData(
             envelopeData,
@@ -3354,7 +3298,7 @@ class DebugUIMessages: DebugUIPage, Dependencies {
 
     private static func createUUIDGroup() {
         let uuidMembers = (0...3).map { _ in CommonGenerator.address(hasPhoneNumber: false) }
-        let members = uuidMembers + [TSAccountManager.localAddress!]
+        let members = uuidMembers + [DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction!.aciAddress]
         let groupName = "UUID Group"
 
         _ = GroupManager.localCreateNewGroup(members: members, name: groupName, disappearingMessageToken: .disabledToken, shouldSendMessage: true)
@@ -3563,62 +3507,6 @@ class DebugUIMessages: DebugUIPage, Dependencies {
         }
     }
 
-    private static func deleteLastMessages(_ count: UInt, inThread thread: TSThread, transaction: SDSAnyWriteTransaction) {
-        Logger.info("deleteLastMessages")
-
-        var interactionIds = [String]()
-        let interactionFinder = InteractionFinder(threadUniqueId: thread.uniqueId)
-        do {
-            try interactionFinder.enumerateInteractionIds(transaction: transaction) { interactionId, stop in
-                interactionIds.append(interactionId)
-                if interactionIds.count >= count {
-                    stop.pointee = true
-                }
-            }
-        } catch {
-            owsFailDebug("Error: \(error)")
-            return
-        }
-
-        for interactionId in interactionIds {
-            guard let interaction = TSInteraction.anyFetch(uniqueId: interactionId, transaction: transaction) else {
-                owsFailDebug("Couldn't load interaction.")
-                continue
-            }
-            interaction.anyRemove(transaction: transaction)
-        }
-    }
-
-    private static func deleteRandomRecentMessages(_ count: UInt, inThread thread: TSThread, transaction: SDSAnyWriteTransaction) {
-        Logger.info("deleteRandomRecentMessages: \(count)")
-
-        let recentMessageCount: Int = 10
-        let interactionFinder = InteractionFinder(threadUniqueId: thread.uniqueId)
-        var interactionIds = [String]()
-        do {
-            try interactionFinder.enumerateInteractionIds(transaction: transaction) { interactionId, stop in
-                interactionIds.append(interactionId)
-                if interactionIds.count >= recentMessageCount {
-                    stop.pointee = true
-                }
-            }
-        } catch {
-            owsFailDebug("Error: \(error)")
-            return
-        }
-
-        for _ in 0..<count {
-            guard let randomIndex = interactionIds.indices.randomElement() else { break }
-
-            let interactionId = interactionIds.remove(at: randomIndex)
-            guard let interaction = TSInteraction.anyFetch(uniqueId: interactionId, transaction: transaction) else {
-                owsFailDebug("Couldn't load interaction.")
-                continue
-            }
-            interaction.anyRemove(transaction: transaction)
-        }
-    }
-
     private static func insertAndDeleteNewOutgoingMessages(_ count: UInt, inThread thread: TSThread, transaction: SDSAnyWriteTransaction) {
         Logger.info("insertAndDeleteNewOutgoingMessages: \(count)")
 
@@ -3762,7 +3650,7 @@ class DebugUIMessages: DebugUIPage, Dependencies {
         member: SignalServiceAddress,
         completion: @escaping (TSGroupThread) -> Void
     ) {
-        let members = [ member, TSAccountManager.localAddress! ]
+        let members = [ member, DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction!.aciAddress ]
         GroupManager.localCreateNewGroup(
             members: members,
             disappearingMessageToken: .disabledToken,
@@ -3918,12 +3806,6 @@ class DebugUIMessages: DebugUIPage, Dependencies {
                 deleteRandomMessages(messageCount, inThread: thread, transaction: transaction)
             }, { transaction in
                 let messageCount = UInt.random(in: 1...4)
-                deleteLastMessages(messageCount, inThread: thread, transaction: transaction)
-            }, { transaction in
-                let messageCount = UInt.random(in: 1...4)
-                deleteRandomRecentMessages(messageCount, inThread: thread, transaction: transaction)
-            }, { transaction in
-                let messageCount = UInt.random(in: 1...4)
                 insertAndDeleteNewOutgoingMessages(messageCount, inThread: thread, transaction: transaction)
             }, { transaction in
                 let messageCount = UInt.random(in: 1...4)
@@ -3992,10 +3874,10 @@ class DebugUIMessages: DebugUIPage, Dependencies {
                 owsAssertDebug(address.isValid)
                 message.update(
                     withDeliveredRecipient: address,
-                    recipientDeviceId: 0,
+                    deviceId: 0,
                     deliveryTimestamp: Date.ows_millisecondTimestamp(),
                     context: PassthroughDeliveryReceiptContext(),
-                    transaction: transaction
+                    tx: transaction
                 )
             }
         }
@@ -4005,9 +3887,9 @@ class DebugUIMessages: DebugUIPage, Dependencies {
                 owsAssertDebug(address.isValid)
                 message.update(
                     withReadRecipient: address,
-                    recipientDeviceId: 0,
+                    deviceId: 0,
                     readTimestamp: Date.ows_millisecondTimestamp(),
-                    transaction: transaction
+                    tx: transaction
                 )
             }
         }
@@ -4276,7 +4158,7 @@ class DebugUIMessages: DebugUIPage, Dependencies {
         if let contactThread = thread as? TSContactThread {
             return contactThread.contactAddress
         } else if let groupThread = thread as? TSGroupThread {
-            guard let localAddress = Self.tsAccountManager.localAddress else {
+            guard let localAddress = DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction?.aciAddress else {
                 owsFailDebug("Missing localAddress.")
                 return nil
             }
@@ -4301,7 +4183,7 @@ class DebugUIMessages: DebugUIPage, Dependencies {
                 wasReceivedByUD: false,
                 serverDeliveryTimestamp: 0,
                 shouldDiscardVisibleMessages: false,
-                localIdentifiers: tsAccountManager.localIdentifiers(transaction: tx)!,
+                localIdentifiers: DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: tx.asV2Read)!,
                 tx: tx
             )
         }

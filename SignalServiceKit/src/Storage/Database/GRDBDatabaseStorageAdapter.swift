@@ -104,7 +104,7 @@ public class GRDBDatabaseStorageAdapter: NSObject {
         return storage.pool
     }
 
-    init(databaseFileUrl: URL) {
+    init(databaseFileUrl: URL) throws {
         self.databaseFileUrl = databaseFileUrl
 
         do {
@@ -122,7 +122,7 @@ public class GRDBDatabaseStorageAdapter: NSObject {
                 userDefaults: CurrentAppContext().appUserDefaults(),
                 error: error
             )
-            owsFail("\(error.grdbErrorForLogging)")
+            throw error
         }
 
         super.init()
@@ -162,8 +162,7 @@ public class GRDBDatabaseStorageAdapter: NSObject {
             OWSUserProfile.table,
             TestModel.table,
             IncomingGroupsV2MessageJob.table,
-            TSPaymentModel.table,
-            TSPaymentRequestModel.table
+            TSPaymentModel.table
         ]
     }
 
@@ -186,7 +185,6 @@ public class GRDBDatabaseStorageAdapter: NSObject {
             ExperienceUpgrade.self,
             CancelledGroupRing.self,
             CdsPreviousE164.self,
-            CallRecord.self,
             SpamReportingTokenRecord.self,
             UsernameLookupRecord.self,
             JobRecord.self,
@@ -194,7 +192,9 @@ public class GRDBDatabaseStorageAdapter: NSObject {
             SignalAccount.self,
             EditRecord.self,
             SignalRecipient.self,
-            HiddenRecipient.self
+            HiddenRecipient.self,
+            TSPaymentsActivationRequestModel.self,
+            CallRecord.self
         ]
     }
 
@@ -767,7 +767,6 @@ extension GRDBDatabaseStorageAdapter: SDSDatabaseStorageAdapter {
                     try database.checkpoint(.truncate)
 
                     // If the checkpoint succeeded, wait N writes before performing another checkpoint.
-                    Logger.verbose("Checkpoint succeeded")
                     let currentTimestamp = CheckpointState.currentTimestamp()
                     checkpointState.update { mutableState in
                         mutableState.budget = 32
@@ -908,7 +907,6 @@ private struct GRDBStorage {
             // sleep N milliseconds
             let millis = 25
             usleep(useconds_t(millis * 1000))
-            Logger.verbose("retryCount: \(retryCount)")
             let accumulatedWaitMs = millis * (retryCount + 1)
             if accumulatedWaitMs > 0, (accumulatedWaitMs % 250) == 0 {
                 Logger.warn("Database busy for \(accumulatedWaitMs)ms")
@@ -917,7 +915,6 @@ private struct GRDBStorage {
             // Only time out during checkpoints, not writes.
             if let checkpointTimeout = self.checkpointTimeout {
                 if accumulatedWaitMs > checkpointTimeout {
-                    Logger.warn("Aborting busy retry.")
                     return false
                 }
                 return true

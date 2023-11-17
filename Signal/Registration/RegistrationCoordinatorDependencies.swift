@@ -19,18 +19,19 @@ public struct RegistrationCoordinatorDependencies {
     public let messagePipelineSupervisor: RegistrationCoordinatorImpl.Shims.MessagePipelineSupervisor
     public let messageProcessor: RegistrationCoordinatorImpl.Shims.MessageProcessor
     public let ows2FAManager: RegistrationCoordinatorImpl.Shims.OWS2FAManager
+    public let phoneNumberDiscoverabilityManager: PhoneNumberDiscoverabilityManager
     public let preKeyManager: PreKeyManager
     public let profileManager: RegistrationCoordinatorImpl.Shims.ProfileManager
     public let pushRegistrationManager: RegistrationCoordinatorImpl.Shims.PushRegistrationManager
     public let receiptManager: RegistrationCoordinatorImpl.Shims.ReceiptManager
-    public let remoteConfig: RegistrationCoordinatorImpl.Shims.RemoteConfig
+    public let registrationStateChangeManager: RegistrationStateChangeManager
     public let schedulers: Schedulers
     public let sessionManager: RegistrationSessionManager
     public let signalService: OWSSignalServiceProtocol
     public let storageServiceManager: StorageServiceManager
     public let svr: SecureValueRecovery
     public let svrAuthCredentialStore: SVRAuthCredentialStorage
-    public let tsAccountManager: RegistrationCoordinatorImpl.Shims.TSAccountManager
+    public let tsAccountManager: TSAccountManager
     public let udManager: RegistrationCoordinatorImpl.Shims.UDManager
 
     public static func from(_ object: NSObject) -> RegistrationCoordinatorDependencies {
@@ -47,18 +48,19 @@ public struct RegistrationCoordinatorDependencies {
             messagePipelineSupervisor: RegistrationCoordinatorImpl.Wrappers.MessagePipelineSupervisor(object.messagePipelineSupervisor),
             messageProcessor: RegistrationCoordinatorImpl.Wrappers.MessageProcessor(object.messageProcessor),
             ows2FAManager: RegistrationCoordinatorImpl.Wrappers.OWS2FAManager(object.ows2FAManager),
+            phoneNumberDiscoverabilityManager: DependenciesBridge.shared.phoneNumberDiscoverabilityManager,
             preKeyManager: DependenciesBridge.shared.preKeyManager,
             profileManager: RegistrationCoordinatorImpl.Wrappers.ProfileManager(object.profileManager),
             pushRegistrationManager: RegistrationCoordinatorImpl.Wrappers.PushRegistrationManager(object.pushRegistrationManager),
             receiptManager: RegistrationCoordinatorImpl.Wrappers.ReceiptManager(object.receiptManager),
-            remoteConfig: RegistrationCoordinatorImpl.Wrappers.RemoteConfig(object.remoteConfigManager),
+            registrationStateChangeManager: DependenciesBridge.shared.registrationStateChangeManager,
             schedulers: DependenciesBridge.shared.schedulers,
             sessionManager: DependenciesBridge.shared.registrationSessionManager,
             signalService: object.signalService,
             storageServiceManager: object.storageServiceManager,
             svr: DependenciesBridge.shared.svr,
             svrAuthCredentialStore: DependenciesBridge.shared.svrCredentialStorage,
-            tsAccountManager: RegistrationCoordinatorImpl.Wrappers.TSAccountManager(object.tsAccountManager),
+            tsAccountManager: DependenciesBridge.shared.tsAccountManager,
             udManager: RegistrationCoordinatorImpl.Wrappers.UDManager(object.udManager)
         )
     }

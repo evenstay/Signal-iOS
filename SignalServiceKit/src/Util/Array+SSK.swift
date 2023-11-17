@@ -16,6 +16,31 @@ public extension Array where Element == String? {
     }
 }
 
+extension Array {
+    func removingDuplicates<T: Hashable>(uniquingElementsBy uniqueValue: (Element) -> T) -> [Element] {
+        var result = [Element]()
+        var uniqueValues = Set<T>()
+        for element in self {
+            guard uniqueValues.insert(uniqueValue(element)).inserted else {
+                continue
+            }
+            result.append(element)
+        }
+        return result
+    }
+}
+
+extension Array {
+    mutating func removeFirst(where predicate: (Element) throws -> Bool) rethrows -> Element? {
+        guard let index = try firstIndex(where: predicate) else {
+            return nil
+        }
+        let result = self[index]
+        remove(at: index)
+        return result
+    }
+}
+
 public extension Array where Element == SSKMaybeString {
     var sequenceWithNils: AnySequence<String?> {
         return AnySequence(lazy.map { $0.stringOrNil })

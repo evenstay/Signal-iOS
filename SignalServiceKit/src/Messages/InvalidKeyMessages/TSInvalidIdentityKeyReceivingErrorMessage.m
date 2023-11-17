@@ -5,8 +5,6 @@
 
 #import "TSInvalidIdentityKeyReceivingErrorMessage.h"
 #import "AxolotlExceptions.h"
-#import "NSData+keyVersionByte.h"
-#import "OWSIdentityManager.h"
 #import "OWSMessageManager.h"
 #import "TSContactThread.h"
 #import <SignalServiceKit/SignalServiceKit-Swift.h>
@@ -36,51 +34,6 @@ NS_ASSUME_NONNULL_BEGIN
 {
     return [super initWithCoder:coder];
 }
-
-#ifdef TESTABLE_BUILD
-// We no longer create these messages, but they might exist on legacy clients so it's useful to be able to
-// create them with the debug UI
-+ (nullable instancetype)untrustedKeyWithEnvelope:(SSKProtoEnvelope *)envelope
-                                   fakeSourceE164:(NSString *)fakeSourceE164
-                                  withTransaction:(SDSAnyWriteTransaction *)transaction
-{
-    TSContactThread *contactThread = [TSContactThread getOrCreateThreadWithContactAddress:envelope.sourceAddress
-                                                                              transaction:transaction];
-
-    // Legit usage of senderTimestamp, references message which failed to decrypt
-    TSInvalidIdentityKeyReceivingErrorMessage *errorMessage =
-        [[self alloc] initForUnknownIdentityKeyWithTimestamp:envelope.timestamp
-                                                      thread:contactThread
-                                              fakeSourceE164:fakeSourceE164
-                                            incomingEnvelope:envelope];
-    return errorMessage;
-}
-
-- (nullable instancetype)initForUnknownIdentityKeyWithTimestamp:(uint64_t)timestamp
-                                                         thread:(TSThread *)thread
-                                                 fakeSourceE164:fakeSourceE164
-                                               incomingEnvelope:(SSKProtoEnvelope *)envelope
-{
-    TSErrorMessageBuilder *builder =
-        [TSErrorMessageBuilder errorMessageBuilderWithThread:thread errorType:TSErrorMessageWrongTrustedIdentityKey];
-    builder.timestamp = timestamp;
-    self = [super initErrorMessageWithBuilder:builder];
-    if (!self) {
-        return self;
-    }
-
-    NSError *error;
-    _envelopeData = [envelope serializedDataAndReturnError:&error];
-    if (!_envelopeData || error != nil) {
-        OWSFailDebug(@"failure: envelope data failed with error: %@", error);
-        return nil;
-    }
-
-    _authorId = fakeSourceE164;
-
-    return self;
-}
-#endif
 
 // --- CODE GENERATION MARKER
 
@@ -183,6 +136,17 @@ NS_ASSUME_NONNULL_BEGIN
     return _envelope;
 }
 
+- (BOOL)acceptNewIdentityKeyWithError:(NSError **)error
+{
+    @try {
+        [self throws_acceptNewIdentityKey];
+        return YES;
+    } @catch (NSException *exception) {
+        *error = OWSErrorMakeAssertionError(@"Error: %@", exception.debugDescription);
+        return NO;
+    }
+}
+
 - (void)throws_acceptNewIdentityKey
 {
     OWSAssertIsOnMainThread();
@@ -198,8 +162,14 @@ NS_ASSUME_NONNULL_BEGIN
         return;
     }
 
+    ServiceIdObjC *_Nullable serviceId = self.envelope.sourceAddress.serviceIdObjC;
+    if (!serviceId) {
+        OWSFailDebug(@"Couldn't extract ServiceId to accept");
+        return;
+    }
+
     DatabaseStorageWrite(self.databaseStorage, ^(SDSAnyWriteTransaction *tx) {
-        [self.identityManager saveRemoteIdentity:newKey address:self.envelope.sourceAddress transaction:tx];
+        [OWSIdentityManagerObjCBridge saveIdentityKey:newKey forServiceId:serviceId transaction:tx];
     });
 
     __block NSArray<TSInvalidIdentityKeyReceivingErrorMessage *> *_Nullable messagesToDecrypt;

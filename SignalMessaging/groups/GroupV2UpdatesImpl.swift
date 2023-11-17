@@ -43,7 +43,7 @@ public class GroupV2UpdatesImpl: Dependencies {
     // On launch, we refresh a few randomly-selected groups.
     private func autoRefreshGroupOnLaunch() {
         guard CurrentAppContext().isMainApp,
-              tsAccountManager.isRegisteredAndReady,
+              DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isRegistered,
               reachabilityManager.isReachable,
               !CurrentAppContext().isRunningTests else {
             return
@@ -166,7 +166,7 @@ extension GroupV2UpdatesImpl: GroupV2UpdatesSwift {
         guard groupThread.groupModel.groupsVersion == .V2 else {
             throw OWSAssertionError("Invalid groupsVersion.")
         }
-        guard let localIdentifiers = tsAccountManager.localIdentifiers(transaction: transaction) else {
+        guard let localIdentifiers = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: transaction.asV2Read) else {
             throw OWSAssertionError("Not registered.")
         }
         let changedGroupModel = try GroupsV2IncomingChanges.applyChangesToGroupModel(
@@ -189,7 +189,11 @@ extension GroupV2UpdatesImpl: GroupV2UpdatesSwift {
             transaction: transaction
         ).groupThread
 
-        GroupManager.storeProfileKeysFromGroupProtos(changedGroupModel.profileKeys)
+        let authoritativeProfileKeys = changedGroupModel.profileKeys.filter { $0.key == changedGroupModel.changeAuthor }
+        GroupManager.storeProfileKeysFromGroupProtos(
+            allProfileKeysByAci: changedGroupModel.profileKeys,
+            authoritativeProfileKeysByAci: authoritativeProfileKeys
+        )
 
         guard let updatedGroupModel = updatedGroupThread.groupModel as? TSGroupModelV2 else {
             throw OWSAssertionError("Invalid group model.")
@@ -272,6 +276,7 @@ extension GroupV2UpdatesImpl: GroupV2UpdatesSwift {
         groupModelOptions: TSGroupModelOptions
     ) -> Promise<TSGroupThread> {
 
+        if DebugFlags.internalLogging { Logger.info("[Scroll Perf Debug] tryToRefreshV2GroupThread") }
         let isThrottled = { () -> Bool in
             guard groupUpdateMode.shouldThrottle else {
                 return false
@@ -633,7 +638,7 @@ private extension GroupV2UpdatesImpl {
         groupModelOptions: TSGroupModelOptions
     ) -> Promise<TSGroupThread> {
         return databaseStorage.write(.promise) { (transaction: SDSAnyWriteTransaction) throws -> TSGroupThread in
-            guard let localIdentifiers = Self.tsAccountManager.localIdentifiers(transaction: transaction) else {
+            guard let localIdentifiers = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: transaction.asV2Read) else {
                 throw OWSAssertionError("Missing localIdentifiers.")
             }
 
@@ -657,6 +662,7 @@ private extension GroupV2UpdatesImpl {
             }
 
             var profileKeysByAci = [Aci: Data]()
+            var authoritativeProfileKeysByAci = [Aci: Data]()
             for (index, groupChange) in groupChanges.enumerated() {
                 if let upToRevision = upToRevision {
                     let changeRevision = groupChange.revision
@@ -678,6 +684,7 @@ private extension GroupV2UpdatesImpl {
                         groupChange: groupChange,
                         isFirstChange: index == 0,
                         profileKeysByAci: &profileKeysByAci,
+                        authoritativeProfileKeysByAci: &authoritativeProfileKeysByAci,
                         localIdentifiers: localIdentifiers,
                         transaction: transaction
                     )
@@ -696,7 +703,10 @@ private extension GroupV2UpdatesImpl {
                 }
             }
 
-            GroupManager.storeProfileKeysFromGroupProtos(profileKeysByAci)
+            GroupManager.storeProfileKeysFromGroupProtos(
+                allProfileKeysByAci: profileKeysByAci,
+                authoritativeProfileKeysByAci: authoritativeProfileKeysByAci
+            )
 
             if
                 let localUserWasAddedBy = localUserWasAddedBy,
@@ -814,6 +824,7 @@ private extension GroupV2UpdatesImpl {
         groupChange: GroupV2Change,
         isFirstChange: Bool,
         profileKeysByAci: inout [Aci: Data],
+        authoritativeProfileKeysByAci: inout [Aci: Data],
         localIdentifiers: LocalIdentifiers,
         transaction: SDSAnyWriteTransaction
     ) throws -> ApplySingleChangeFromServiceResult? {
@@ -937,6 +948,13 @@ private extension GroupV2UpdatesImpl {
             transaction: transaction
         ).groupThread
 
+        if
+            let groupUpdateSourceAci = groupUpdateSource as? Aci,
+            let groupUpdateProfileKey = newProfileKeys[groupUpdateSourceAci]
+        {
+            authoritativeProfileKeysByAci[groupUpdateSourceAci] = groupUpdateProfileKey
+        }
+
         // Merge known profile keys, always taking latest.
         profileKeysByAci.merge(newProfileKeys) { (_, latest) in latest }
 
@@ -1003,7 +1021,7 @@ private extension GroupV2UpdatesImpl {
         let localProfileKey = profileManager.localProfileKey()
 
         return databaseStorage.write(.promise) { (transaction: SDSAnyWriteTransaction) throws -> TSGroupThread in
-            guard let localIdentifiers = Self.tsAccountManager.localIdentifiers(transaction: transaction) else {
+            guard let localIdentifiers = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: transaction.asV2Read) else {
                 throw OWSAssertionError("Missing localIdentifiers.")
             }
             let localAci = localIdentifiers.aci
@@ -1039,7 +1057,10 @@ private extension GroupV2UpdatesImpl {
                 transaction: transaction
             )
 
-            GroupManager.storeProfileKeysFromGroupProtos(groupV2Snapshot.profileKeys)
+            GroupManager.storeProfileKeysFromGroupProtos(
+                allProfileKeysByAci: groupV2Snapshot.profileKeys,
+                authoritativeProfileKeysByAci: nil
+            )
 
             // If the group state includes a stale profile key for the
             // local user, schedule an update to fix that.

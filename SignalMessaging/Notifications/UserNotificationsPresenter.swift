@@ -60,6 +60,10 @@ public class UserNotificationConfig {
                                                     title: CallStrings.showThreadButtonTitle,
                                                     options: [],
                                                     systemImage: "bubble.left.and.bubble.right")
+        case .showMyStories:
+            // Currently, .showMyStories is only used as a default action.
+            owsFailDebug("Show my stories not supported as a UNNotificationAction")
+            return nil
         case .reactWithThumbsUp:
             return notificationActionWithIdentifier(action.identifier,
                                                     title: MessageStrings.reactWithThumbsUpNotificationAction,
@@ -76,6 +80,10 @@ public class UserNotificationConfig {
         case .reregister:
             // Currently, .reregister is only used as a default action.
             owsFailDebug("Reregister is not supported as a UNNotificationAction")
+            return nil
+        case .showChatList:
+            // Currently, .showChatList is only used as a default action.
+            owsFailDebug("ShowChatList is not supported as a UNNotificationAction")
             return nil
         }
     }
@@ -140,7 +148,10 @@ class UserNotificationPresenter: Dependencies {
     // avoid notifying a user on their phone while a conversation is actively happening on desktop.
     let kNotificationDelayForRemoteRead: TimeInterval = 20
 
-    init() {
+    private let notifyQueue: DispatchQueue
+
+    init(notifyQueue: DispatchQueue) {
+        self.notifyQueue = notifyQueue
         SwiftSingletons.register(self)
     }
 
@@ -174,10 +185,13 @@ class UserNotificationPresenter: Dependencies {
         interaction: INInteraction?,
         sound: Sound?,
         replacingIdentifier: String? = nil,
+        forceBeforeRegistered: Bool = false,
         completion: NotificationActionCompletion?
     ) {
-        guard tsAccountManager.isOnboarded else {
-            Logger.info("suppressing notification since user hasn't yet completed onboarding.")
+        dispatchPrecondition(condition: .onQueue(notifyQueue))
+
+        guard forceBeforeRegistered || DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isRegistered else {
+            Logger.info("suppressing notification since user hasn't yet completed registration.")
             completion?()
             return
         }
@@ -302,11 +316,11 @@ class UserNotificationPresenter: Dependencies {
     private func shouldPresentNotification(category: AppNotificationCategory, userInfo: [AnyHashable: Any]) -> Bool {
         switch category {
         case .incomingMessageFromNoLongerVerifiedIdentity,
-             .threadlessErrorMessage,
              .incomingCall,
              .missedCallWithActions,
              .missedCallWithoutActions,
              .missedCallFromNoLongerVerifiedIdentity,
+             .transferRelaunch,
              .deregistration:
             // Always show these notifications
             return true
@@ -356,6 +370,13 @@ class UserNotificationPresenter: Dependencies {
             // Show notifications any time we're not currently showing the group reply sheet for that story
             return notificationStoryTimestamp != storyGroupReply.storyMessage.timestamp
                 || notificationThreadId != storyGroupReply.threadUniqueId
+        case .failedStorySend:
+            guard StoryManager.areStoriesEnabled else { return false }
+
+            guard CurrentAppContext().isMainAppAndActive else { return true }
+
+            // Show notifications any time we're not currently showing the my stories screen.
+            return !(CurrentAppContext().frontmostViewController() is FailedStorySendDisplayController)
         case .incomingMessageGeneric:
             owsFailDebug(".incomingMessageGeneric should never check shouldPresentNotification().")
             return true
@@ -393,8 +414,12 @@ class UserNotificationPresenter: Dependencies {
         cancel(cancellation: .missedCalls(inThreadWithUniqueId: threadId), completion: completion)
     }
 
+    func cancelNotificationsForStoryMessage(withUniqueId storyMessageUniqueId: String, completion: @escaping NotificationActionCompletion) {
+        cancel(cancellation: .storyMessage(storyMessageUniqueId), completion: completion)
+    }
+
     func clearAllNotifications() {
-        Logger.warn("Clearing all notifications")
+        Logger.info("Clearing all notifications")
 
         Self.notificationCenter.removeAllPendingNotificationRequests()
         Self.notificationCenter.removeAllDeliveredNotifications()
@@ -405,6 +430,7 @@ class UserNotificationPresenter: Dependencies {
         case messageIds(Set<String>)
         case reactionId(String)
         case missedCalls(inThreadWithUniqueId: String)
+        case storyMessage(String)
     }
 
     private func getNotificationsRequests(completion: @escaping ([UNNotificationRequest]) -> Void) {
@@ -458,6 +484,13 @@ class UserNotificationPresenter: Dependencies {
                     (request.content.userInfo[AppNotificationUserInfoKey.isMissedCall] as? Bool) == true,
                     let requestThreadId = request.content.userInfo[AppNotificationUserInfoKey.threadId] as? String,
                     threadUniqueId == requestThreadId
+                {
+                    return true
+                }
+            case .storyMessage(let storyMessageUniqueId):
+                if
+                    let requestStoryMessageId = request.content.userInfo[AppNotificationUserInfoKey.storyMessageId] as? String,
+                    requestStoryMessageId == storyMessageUniqueId
                 {
                     return true
                 }

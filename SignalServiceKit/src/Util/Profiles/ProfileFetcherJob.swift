@@ -61,8 +61,6 @@ private struct ProfileFetchOptions {
 @objc
 public class ProfileFetcherJob: NSObject {
 
-    private static let queueCluster = GCDQueueCluster(label: "org.signal.profile-fetch", concurrency: 5)
-
     private static var fetchDateMap = LRUCache<ServiceId, Date>(maxSize: 256)
 
     private let serviceId: ServiceId
@@ -117,27 +115,29 @@ public class ProfileFetcherJob: NSObject {
             shouldUpdateStore: shouldUpdateStore,
             authedAccount: authedAccount
         )
-        return ProfileFetcherJob(serviceId: serviceId, options: options).runAsPromise()
+        return Promise.wrapAsync { try await ProfileFetcherJob(serviceId: serviceId, options: options).run() }
     }
 
     @objc
     public class func fetchProfile(address: SignalServiceAddress, ignoreThrottling: Bool, authedAccount: AuthedAccount = .implicit()) {
-        return _fetchProfile(serviceId: address.serviceId, ignoreThrottling: ignoreThrottling, authedAccount: authedAccount)
+        Task { await _fetchProfile(serviceId: address.serviceId, ignoreThrottling: ignoreThrottling, authedAccount: authedAccount) }
     }
 
     @objc
     public class func fetchProfile(serviceId: ServiceIdObjC, ignoreThrottling: Bool, authedAccount: AuthedAccount = .implicit()) {
-        return _fetchProfile(serviceId: serviceId.wrappedValue, ignoreThrottling: ignoreThrottling, authedAccount: authedAccount)
+        Task { await _fetchProfile(serviceId: serviceId.wrappedValue, ignoreThrottling: ignoreThrottling, authedAccount: authedAccount) }
     }
 
-    private class func _fetchProfile(serviceId: ServiceId?, ignoreThrottling: Bool, authedAccount: AuthedAccount) {
-        let options = ProfileFetchOptions(ignoreThrottling: ignoreThrottling, authedAccount: authedAccount)
-        firstly { () -> Promise<FetchedProfile> in
+    private class func _fetchProfile(serviceId: ServiceId?, ignoreThrottling: Bool, authedAccount: AuthedAccount) async {
+        do {
             guard let serviceId else {
-                return Promise(error: ProfileFetchError.missing)
+                throw ProfileFetchError.missing
             }
-            return ProfileFetcherJob(serviceId: serviceId, options: options).runAsPromise()
-        }.catch { error in
+            try await ProfileFetcherJob(
+                serviceId: serviceId,
+                options: ProfileFetchOptions(ignoreThrottling: ignoreThrottling, authedAccount: authedAccount)
+            ).run()
+        } catch {
             if error.isNetworkFailureOrTimeout {
                 Logger.warn("Error: \(error)")
             } else {
@@ -145,7 +145,7 @@ public class ProfileFetcherJob: NSObject {
                 case ProfileFetchError.missing:
                     Logger.warn("Error: \(error)")
                 case ProfileFetchError.unauthorized:
-                    if self.tsAccountManager.isRegisteredAndReady {
+                    if DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isRegistered {
                         owsFailDebug("Error: \(error)")
                     } else {
                         Logger.warn("Error: \(error)")
@@ -164,33 +164,27 @@ public class ProfileFetcherJob: NSObject {
 
     // MARK: -
 
-    private func runAsPromise() -> Promise<FetchedProfile> {
-        return DispatchQueue.main.async(.promise) {
-            self.addBackgroundTask()
-        }.then(on: Self.queueCluster.next()) { _ in
-            self.requestProfile()
-        }.then(on: Self.queueCluster.next()) { fetchedProfile in
-            firstly { () -> Promise<Void> in
-                if self.options.shouldUpdateStore {
-                    return self.updateProfile(
-                        fetchedProfile: fetchedProfile,
-                        authedAccount: self.options.authedAccount
-                    )
-                }
-                return .value(())
-            }.map(on: Self.queueCluster.next()) { _ in
-                return fetchedProfile
-            }
+    @discardableResult
+    private func run() async throws -> FetchedProfile {
+        let backgroundTask = addBackgroundTask()
+        defer {
+            backgroundTask.end()
         }
+
+        let fetchedProfile = try await requestProfile()
+        if options.shouldUpdateStore {
+            try await updateProfile(fetchedProfile: fetchedProfile, authedAccount: options.authedAccount)
+        }
+        return fetchedProfile
     }
 
-    private func requestProfile() -> Promise<FetchedProfile> {
+    private func requestProfile() async throws -> FetchedProfile {
 
         guard !options.mainAppOnly || CurrentAppContext().isMainApp else {
             // We usually only refresh profiles in the MainApp to decrease the
             // chance of missed SN notifications in the AppExtension for our users
             // who choose not to verify contacts.
-            return Promise(error: ProfileFetchError.notMainApp)
+            throw ProfileFetchError.notMainApp
         }
 
         // Check throttling _before_ possible retries.
@@ -202,7 +196,7 @@ public class ProfileFetcherJob: NSObject {
                 // Throttle less in debug to make it easier to test problems
                 // with our fetching logic.
                 guard lastTimeInterval > Self.throttledProfileFetchFrequency else {
-                    return Promise(error: ProfileFetchError.throttled)
+                    throw ProfileFetchError.throttled
                 }
             }
         }
@@ -211,68 +205,49 @@ public class ProfileFetcherJob: NSObject {
             recordLastFetchDate()
         }
 
-        return requestProfileWithRetries()
+        return try await requestProfileWithRetries()
     }
 
     private static var throttledProfileFetchFrequency: TimeInterval {
         kMinuteInterval * 2.0
     }
 
-    private func requestProfileWithRetries(retryCount: Int = 0) -> Promise<FetchedProfile> {
-        let serviceId = self.serviceId
-
-        let (promise, future) = Promise<FetchedProfile>.pending()
-        firstly {
-            requestProfileAttempt()
-        }.done(on: Self.queueCluster.next()) { fetchedProfile in
-            future.resolve(fetchedProfile)
-        }.catch(on: Self.queueCluster.next()) { error in
+    private func requestProfileWithRetries(retryCount: Int = 0) async throws -> FetchedProfile {
+        do {
+            return try await requestProfileAttempt()
+        } catch {
             if error.httpStatusCode == 401 {
-                return future.reject(ProfileFetchError.unauthorized)
+                throw ProfileFetchError.unauthorized
             }
             if error.httpStatusCode == 404 {
-                return future.reject(ProfileFetchError.missing)
+                throw ProfileFetchError.missing
             }
             if error.httpStatusCode == 413 || error.httpStatusCode == 429 {
-                return future.reject(ProfileFetchError.rateLimit)
+                throw ProfileFetchError.rateLimit
             }
 
             switch error {
             case ProfileFetchError.throttled, ProfileFetchError.notMainApp:
                 // These errors should only be thrown at a higher level.
                 owsFailDebug("Unexpected error: \(error)")
-                future.reject(error)
-                return
-            case SignalServiceProfile.ValidationError.invalidIdentityKey:
-                owsFailDebug("skipping updateProfile retry. Invalid profile for: \(serviceId) error: \(error)")
-                future.reject(error)
-                return
+                throw error
             case let error as SignalServiceProfile.ValidationError:
                 // This should not be retried.
                 owsFailDebug("skipping updateProfile retry. Invalid profile for: \(serviceId) error: \(error)")
-                future.reject(error)
-                return
+                throw error
             default:
                 let maxRetries = 3
                 guard retryCount < maxRetries else {
                     Logger.warn("failed to get profile with error: \(error)")
-                    future.reject(error)
-                    return
+                    throw error
                 }
 
-                firstly {
-                    self.requestProfileWithRetries(retryCount: retryCount + 1)
-                }.done(on: Self.queueCluster.next()) { fetchedProfile in
-                    future.resolve(fetchedProfile)
-                }.catch(on: Self.queueCluster.next()) { error in
-                    future.reject(error)
-                }
+                return try await requestProfileWithRetries(retryCount: retryCount + 1)
             }
         }
-        return promise
     }
 
-    private func requestProfileAttempt() -> Promise<FetchedProfile> {
+    private func requestProfileAttempt() async throws -> FetchedProfile {
         let serviceId = self.serviceId
 
         let udAccess: OWSUDAccess?
@@ -280,7 +255,7 @@ public class ProfileFetcherJob: NSObject {
             // Don't use UD for "self" profile fetches.
             udAccess = nil
         } else {
-            udAccess = udManager.udAccess(forAddress: SignalServiceAddress(serviceId), requireSyncAccess: false)
+            udAccess = databaseStorage.read { tx in udManager.udAccess(for: serviceId, tx: tx) }
         }
 
         var currentVersionedProfileRequest: VersionedProfileRequest?
@@ -313,31 +288,26 @@ public class ProfileFetcherJob: NSObject {
                     )
                 }
             },
-            udAuthFailureBlock: {
-                // Do nothing
-            },
-            serviceId: serviceId.untypedServiceId,
+            serviceId: serviceId,
             udAccess: udAccess,
             authedAccount: self.options.authedAccount,
             options: [.allowIdentifiedFallback, .isProfileFetch]
         )
 
-        return firstly {
-            return requestMaker.makeRequest()
-        }.map(on: Self.queueCluster.next()) { (result: RequestMakerResult) -> FetchedProfile in
-            let profile = try SignalServiceProfile(serviceId: serviceId, responseObject: result.responseJson)
+        let result = try await requestMaker.makeRequest().awaitable()
 
-            // If we sent a versioned request, store the credential that was returned.
-            if let versionedProfileRequest = currentVersionedProfileRequest {
-                // This calls databaseStorage.write { }
-                self.versionedProfilesSwift.didFetchProfile(profile: profile, profileRequest: versionedProfileRequest)
-            }
+        let profile = try SignalServiceProfile(serviceId: serviceId, responseObject: result.responseJson)
 
-            return self.fetchedProfile(
-                for: profile,
-                profileKeyFromVersionedRequest: currentVersionedProfileRequest?.profileKey
-            )
+        // If we sent a versioned request, store the credential that was returned.
+        if let versionedProfileRequest = currentVersionedProfileRequest {
+            // This calls databaseStorage.write { }
+            await versionedProfilesSwift.didFetchProfile(profile: profile, profileRequest: versionedProfileRequest)
         }
+
+        return fetchedProfile(
+            for: profile,
+            profileKeyFromVersionedRequest: currentVersionedProfileRequest?.profileKey
+        )
     }
 
     private func isFetchForLocalAccount(authedAccount: AuthedAccount) -> Bool {
@@ -346,7 +316,7 @@ public class ProfileFetcherJob: NSObject {
         case .explicit(let info):
             localIdentifiers = info.localIdentifiers
         case .implicit:
-            guard let implicitLocalIdentifiers = tsAccountManager.localIdentifiers else {
+            guard let implicitLocalIdentifiers = DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction else {
                 owsFailDebug("Fetching without localIdentifiers.")
                 return false
             }
@@ -379,32 +349,26 @@ public class ProfileFetcherJob: NSObject {
     private func updateProfile(
         fetchedProfile: FetchedProfile,
         authedAccount: AuthedAccount
-    ) -> Promise<Void> {
-        firstly {
-            // Before we update the profile, try to download and decrypt the avatar
-            // data, if necessary.
-            downloadAvatarIfNeeded(fetchedProfile, authedAccount: authedAccount)
-        }.then(on: Self.queueCluster.next()) { localAvatarUrlIfDownloaded in
-            self.updateProfile(
-                fetchedProfile: fetchedProfile,
-                localAvatarUrlIfDownloaded: localAvatarUrlIfDownloaded,
-                authedAccount: authedAccount
-            )
-        }
+    ) async throws {
+        await updateProfile(
+            fetchedProfile: fetchedProfile,
+            localAvatarUrlIfDownloaded: try await downloadAvatarIfNeeded(fetchedProfile, authedAccount: authedAccount),
+            authedAccount: authedAccount
+        )
     }
 
     private func downloadAvatarIfNeeded(
         _ fetchedProfile: FetchedProfile,
         authedAccount: AuthedAccount
-    ) -> Promise<URL?> {
+    ) async throws -> URL? {
         guard let newAvatarUrlPath = fetchedProfile.profile.avatarUrlPath else {
             // If profile has no avatar, we don't need to download the avatar.
-            return Promise.value(nil)
+            return nil
         }
         guard let profileKey = fetchedProfile.profileKey else {
             // If we don't have a profile key for this user, don't bother downloading
             // their avatar - we can't decrypt it.
-            return Promise.value(nil)
+            return nil
         }
         let profileAddress = SignalServiceAddress(fetchedProfile.profile.serviceId)
         let didAlreadyDownloadAvatar = databaseStorage.read { transaction -> Bool in
@@ -420,25 +384,14 @@ public class ProfileFetcherJob: NSObject {
             )
         }
         if didAlreadyDownloadAvatar {
-            Logger.verbose("Skipping avatar data download; already downloaded.")
-            return Promise.value(nil)
+            return nil
         }
-        return firstly {
-            profileManager.downloadAndDecryptProfileAvatar(
+        let anyAvatarData: Any?
+        do {
+            anyAvatarData = try await profileManager.downloadAndDecryptProfileAvatar(
                 forProfileAddress: profileAddress, avatarUrlPath: newAvatarUrlPath, profileKey: profileKey
-            )
-        }.map(on: Self.queueCluster.next()) { (anyAvatarData: Any?) in
-            guard let avatarData = anyAvatarData as? Data else {
-                throw OWSAssertionError("Unexpected result.")
-            }
-            return avatarData
-        }.map(on: DispatchQueue.global()) { (avatarData: Data) -> URL? in
-            if avatarData.isEmpty {
-                return nil
-            } else {
-                return self.profileManager.writeAvatarDataToFile(avatarData)
-            }
-        }.recover(on: Self.queueCluster.next()) { error -> Promise<URL?> in
+            ).asAny().awaitable()
+        } catch {
             Logger.warn("Error: \(error)")
             if error.isNetworkFailureOrTimeout, profileAddress.isLocalAddress {
                 // Fetches and local profile updates can conflict. To avoid these conflicts
@@ -456,17 +409,19 @@ public class ProfileFetcherJob: NSObject {
             //   afterward). This might be due to a race with an update that is in
             //   flight. We should eventually recover since profile updates are
             //   durable.
-            return Promise.value(nil)
+            return nil
         }
+        guard let avatarData = anyAvatarData as? Data else {
+            throw OWSAssertionError("Unexpected result.")
+        }
+        return avatarData.isEmpty ? nil : profileManager.writeAvatarDataToFile(avatarData)
     }
 
-    // TODO: This method can cause many database writes.
-    //       Perhaps we can use a single transaction?
     private func updateProfile(
         fetchedProfile: FetchedProfile,
         localAvatarUrlIfDownloaded: URL?,
         authedAccount: AuthedAccount
-    ) -> Promise<Void> {
+    ) async {
         let profile = fetchedProfile.profile
         let serviceId = profile.serviceId
 
@@ -508,14 +463,14 @@ public class ProfileFetcherJob: NSObject {
             )
         }
 
-        // This calls databaseStorage.asyncWrite { }
-        Self.updateUnidentifiedAccess(
-            address: SignalServiceAddress(serviceId),
-            verifier: profile.unidentifiedAccessVerifier,
-            hasUnrestrictedAccess: profile.hasUnrestrictedUnidentifiedAccess
-        )
+        await databaseStorage.awaitableWrite { transaction in
+            Self.updateUnidentifiedAccess(
+                serviceId: serviceId,
+                verifier: profile.unidentifiedAccessVerifier,
+                hasUnrestrictedAccess: profile.hasUnrestrictedUnidentifiedAccess,
+                tx: transaction
+            )
 
-        return databaseStorage.write(.promise) { transaction in
             // First, we add ensure we have a copy of any new badge in our badge store
             let badgeModels = fetchedProfile.profile.badges.map { $0.1 }
             let persistedBadgeIds: [String] = badgeModels.compactMap {
@@ -544,83 +499,58 @@ public class ProfileFetcherJob: NSObject {
                 optionalAvatarFileUrl: localAvatarUrlIfDownloaded,
                 profileBadges: profileBadgeMetadata,
                 lastFetch: Date(),
-                isStoriesCapable: profile.isStoriesCapable,
-                canReceiveGiftBadges: profile.canReceiveGiftBadges,
                 isPniCapable: profile.isPniCapable,
                 userProfileWriter: .profileFetch,
                 authedAccount: authedAccount,
                 transaction: transaction
             )
 
-            self.verifyIdentityUpToDate(
-                address: SignalServiceAddress(serviceId),
-                latestIdentityKey: profile.identityKey,
-                transaction: transaction
-            )
+            let identityManager = DependenciesBridge.shared.identityManager
+            identityManager.saveIdentityKey(profile.identityKey, for: serviceId, tx: transaction.asV2Write)
 
             self.paymentsHelper.setArePaymentsEnabled(
-                for: SignalServiceAddress(serviceId),
+                for: ServiceIdObjC.wrapValue(serviceId),
                 hasPaymentsEnabled: paymentAddress != nil,
                 transaction: transaction
             )
-
-            if self.isFetchForLocalAccount(authedAccount: authedAccount) {
-                self.legacyChangePhoneNumber.setLocalUserSupportsChangePhoneNumber(
-                    profile.supportsChangeNumber,
-                    transaction: transaction
-                )
-            }
         }
     }
 
-    private static func updateUnidentifiedAccess(address: SignalServiceAddress,
-                                                 verifier: Data?,
-                                                 hasUnrestrictedAccess: Bool) {
-        guard let verifier = verifier else {
-            // If there is no verifier, at least one of this user's devices
-            // do not support UD.
-            udManager.setUnidentifiedAccessMode(.disabled, address: address)
-            return
-        }
-
-        if hasUnrestrictedAccess {
-            udManager.setUnidentifiedAccessMode(.unrestricted, address: address)
-            return
-        }
-
-        guard let udAccessKey = udManager.udAccessKey(forAddress: address) else {
-            udManager.setUnidentifiedAccessMode(.disabled, address: address)
-            return
-        }
-
-        let dataToVerify = Data(count: 32)
-        guard let expectedVerifier = Cryptography.computeSHA256HMAC(dataToVerify, key: udAccessKey.keyData) else {
-            owsFailDebug("could not compute verification")
-            udManager.setUnidentifiedAccessMode(.disabled, address: address)
-            return
-        }
-
-        guard expectedVerifier.ows_constantTimeIsEqual(to: verifier) else {
-            Logger.verbose("verifier mismatch, new profile key?")
-            udManager.setUnidentifiedAccessMode(.disabled, address: address)
-            return
-        }
-
-        udManager.setUnidentifiedAccessMode(.enabled, address: address)
-    }
-
-    private func verifyIdentityUpToDate(
-        address: SignalServiceAddress,
-        latestIdentityKey: Data,
-        transaction: SDSAnyWriteTransaction
+    private static func updateUnidentifiedAccess(
+        serviceId: ServiceId,
+        verifier: Data?,
+        hasUnrestrictedAccess: Bool,
+        tx: SDSAnyWriteTransaction
     ) {
-        if self.identityManager.saveRemoteIdentity(
-            latestIdentityKey,
-            address: address,
-            transaction: transaction
-        ) {
-            Logger.info("updated identity key with fetched profile for recipient: \(address)")
-        }
+        let unidentifiedAccessMode: UnidentifiedAccessMode = {
+            guard let verifier else {
+                // If there is no verifier, at least one of this user's devices
+                // do not support UD.
+                return .disabled
+            }
+
+            if hasUnrestrictedAccess {
+                return .unrestricted
+            }
+
+            guard let udAccessKey = udManager.udAccessKey(for: serviceId, tx: tx) else {
+                return .disabled
+            }
+
+            let dataToVerify = Data(count: 32)
+            guard let expectedVerifier = Cryptography.computeSHA256HMAC(dataToVerify, key: udAccessKey.keyData) else {
+                owsFailDebug("could not compute verification")
+                return .disabled
+            }
+
+            guard expectedVerifier.ows_constantTimeIsEqual(to: verifier) else {
+                Logger.verbose("verifier mismatch, new profile key?")
+                return .disabled
+            }
+
+            return .enabled
+        }()
+        udManager.setUnidentifiedAccessMode(unidentifiedAccessMode, for: serviceId, tx: tx)
     }
 
     private func lastFetchDate() -> Date? {
@@ -631,8 +561,8 @@ public class ProfileFetcherJob: NSObject {
         ProfileFetcherJob.fetchDateMap[serviceId] = Date()
     }
 
-    private func addBackgroundTask() {
-        backgroundTask = OWSBackgroundTask(label: "\(#function)", completionBlock: { [weak self] status in
+    private func addBackgroundTask() -> OWSBackgroundTask {
+        return OWSBackgroundTask(label: "\(#function)", completionBlock: { [weak self] status in
             AssertIsOnMainThread()
 
             guard status == .expired else {
@@ -654,7 +584,7 @@ public struct DecryptedProfile: Dependencies {
     public let bio: String?
     public let bioEmoji: String?
     public let paymentAddressData: Data?
-    public let publicIdentityKey: Data
+    public let identityKey: IdentityKey
 }
 
 // MARK: -
@@ -695,13 +625,14 @@ public struct FetchedProfile {
         if let paymentAddressEncrypted = profile.paymentAddressEncrypted {
             paymentAddressData = OWSUserProfile.decrypt(profileData: paymentAddressEncrypted, profileKey: profileKey)
         }
-        let publicIdentityKey = profile.identityKey
-        return DecryptedProfile(givenName: givenName,
-                                familyName: familyName,
-                                bio: bio,
-                                bioEmoji: bioEmoji,
-                                paymentAddressData: paymentAddressData,
-                                publicIdentityKey: publicIdentityKey)
+        return DecryptedProfile(
+            givenName: givenName,
+            familyName: familyName,
+            bio: bio,
+            bioEmoji: bioEmoji,
+            paymentAddressData: paymentAddressData,
+            identityKey: profile.identityKey
+        )
     }
 }
 
@@ -728,44 +659,11 @@ public extension DecryptedProfile {
                 return nil
             }
             let proto = try SSKProtoPaymentAddress(serializedData: paymentAddressDataWithoutLength)
-            let paymentAddress = try TSPaymentAddress.fromProto(proto, publicIdentityKey: publicIdentityKey)
+            let paymentAddress = try TSPaymentAddress.fromProto(proto, identityKey: identityKey)
             return paymentAddress
         } catch {
             owsFailDebug("Error: \(error)")
             return nil
-        }
-    }
-}
-
-// MARK: -
-
-// A simple mechanism for distributing workload across multiple serial queues.
-// Allows concurrency while avoiding thread explosion.
-//
-// TODO: Move this to DispatchQueue+OWS.swift if we adopt it elsewhere.
-public class GCDQueueCluster {
-    private static let unfairLock = UnfairLock()
-
-    private let queues: [DispatchQueue]
-
-    private let counter = AtomicUInt(0)
-
-    public required init(label: String, concurrency: UInt) {
-        if concurrency < 1 {
-            owsFailDebug("Invalid concurrency.")
-        }
-        let concurrency = max(1, concurrency)
-        var queues = [DispatchQueue]()
-        for index in 0..<concurrency {
-            queues.append(DispatchQueue(label: label + ".\(index)"))
-        }
-        self.queues = queues
-    }
-
-    public func next() -> DispatchQueue {
-        Self.unfairLock.withLock {
-            let index = Int(counter.increment() % UInt(queues.count))
-            return queues[index]
         }
     }
 }

@@ -4,7 +4,6 @@
 //
 
 #import "TSGroupThread.h"
-#import "TSAccountManager.h"
 #import "TSAttachmentStream.h"
 #import <SignalCoreKit/NSData+OWS.h>
 #import <SignalServiceKit/SignalServiceKit-Swift.h>
@@ -111,6 +110,22 @@ lastVisibleSortIdOnScreenPercentageObsolete:lastVisibleSortIdOnScreenPercentageO
     return self;
 }
 
+#ifdef TESTABLE_BUILD
+
+- (instancetype)initWithGroupModelForTests:(TSGroupModel *)groupModel
+{
+    self = [super init];
+    if (!self) {
+        return self;
+    }
+
+    _groupModel = groupModel;
+
+    return self;
+}
+
+#endif
+
 + (nullable instancetype)fetchWithGroupId:(NSData *)groupId transaction:(SDSAnyReadTransaction *)transaction
 {
     OWSAssertDebug(groupId.length > 0);
@@ -126,7 +141,7 @@ lastVisibleSortIdOnScreenPercentageObsolete:lastVisibleSortIdOnScreenPercentageO
         return @[];
     }
 
-    [groupMembers removeObject:TSAccountManager.localAddress];
+    [groupMembers removeObject:[TSAccountManagerObjcBridge localAciAddressWith:transaction]];
 
     return [groupMembers copy];
 }
@@ -141,7 +156,14 @@ lastVisibleSortIdOnScreenPercentageObsolete:lastVisibleSortIdOnScreenPercentageO
     return OWSLocalizedString(@"NEW_GROUP_DEFAULT_TITLE", @"");
 }
 
-- (void)updateWithGroupModel:(TSGroupModel *)newGroupModel transaction:(SDSAnyWriteTransaction *)transaction
+- (void)updateWithGroupModel:(TSGroupModel *)groupModel transaction:(SDSAnyWriteTransaction *)transaction
+{
+    [self updateWithGroupModel:groupModel shouldUpdateChatListUi:YES transaction:transaction];
+}
+
+- (void)updateWithGroupModel:(TSGroupModel *)newGroupModel
+      shouldUpdateChatListUi:(BOOL)shouldUpdateChatListUi
+                 transaction:(SDSAnyWriteTransaction *)transaction
 {
     OWSAssertDebug(newGroupModel);
     OWSAssertDebug(transaction);
@@ -178,7 +200,10 @@ lastVisibleSortIdOnScreenPercentageObsolete:lastVisibleSortIdOnScreenPercentageO
     [self updateGroupMemberRecordsWithTransaction:transaction];
 
     // We only need to re-index the group if the group name changed.
-    [SDSDatabaseStorage.shared touchThread:self shouldReindex:didNameChange transaction:transaction];
+    [SDSDatabaseStorage.shared touchThread:self
+                             shouldReindex:didNameChange
+                    shouldUpdateChatListUi:shouldUpdateChatListUi
+                               transaction:transaction];
 
     if (didAvatarChange) {
         [transaction addAsyncCompletionOnMain:^{ [self fireAvatarChangedNotification]; }];
@@ -214,30 +239,6 @@ lastVisibleSortIdOnScreenPercentageObsolete:lastVisibleSortIdOnScreenPercentageO
 
     // We used to update the group member records here, but there are many updates that don't touch membership.
     // Now it's done explicitly where we update the group model, and not for other updates.
-}
-
-- (void)updateWithInsertedMessage:(TSInteraction *)message transaction:(SDSAnyWriteTransaction *)transaction
-{
-    [super updateWithInsertedMessage:message transaction:transaction];
-
-    SignalServiceAddress *_Nullable senderAddress;
-    if ([message isKindOfClass:[TSOutgoingMessage class]]) {
-        senderAddress = self.tsAccountManager.localAddress;
-    } else if ([message isKindOfClass:[TSIncomingMessage class]]) {
-        TSIncomingMessage *incomingMessage = (TSIncomingMessage *)message;
-        senderAddress = incomingMessage.authorAddress;
-    }
-
-    if (senderAddress) {
-        TSGroupMember *_Nullable groupMember = [TSGroupMember groupMemberForAddress:senderAddress
-                                                                    inGroupThreadId:self.uniqueId
-                                                                        transaction:transaction];
-        if (groupMember) {
-            [groupMember updateWithLastInteractionTimestamp:message.timestamp transaction:transaction];
-        } else {
-            OWSFailDebug(@"Unexpectedly missing group member record");
-        }
-    }
 }
 
 - (void)anyDidInsertWithTransaction:(SDSAnyWriteTransaction *)transaction

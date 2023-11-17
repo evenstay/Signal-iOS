@@ -25,6 +25,9 @@ public class TSIncomingMessageBuilder: TSMessageBuilder {
     @objc
     public var wasReceivedByUD = false
 
+    @objc
+    public var paymentNotification: TSPaymentNotification?
+
     public required init(thread: TSThread,
                          timestamp: UInt64? = nil,
                          authorAci: Aci? = nil,
@@ -46,10 +49,11 @@ public class TSIncomingMessageBuilder: TSMessageBuilder {
                          serverGuid: String? = nil,
                          wasReceivedByUD: Bool = false,
                          isViewOnceMessage: Bool = false,
-                         storyAuthorAddress: SignalServiceAddress? = nil,
+                         storyAuthorAci: Aci? = nil,
                          storyTimestamp: UInt64? = nil,
                          storyReactionEmoji: String? = nil,
-                         giftBadge: OWSGiftBadge? = nil) {
+                         giftBadge: OWSGiftBadge? = nil,
+                         paymentNotification: TSPaymentNotification? = nil) {
 
         super.init(thread: thread,
                    timestamp: timestamp,
@@ -65,7 +69,7 @@ public class TSIncomingMessageBuilder: TSMessageBuilder {
                    messageSticker: messageSticker,
                    isViewOnceMessage: isViewOnceMessage,
                    read: read,
-                   storyAuthorAddress: storyAuthorAddress,
+                   storyAuthorAci: storyAuthorAci.map { AciObjC($0) },
                    storyTimestamp: storyTimestamp,
                    storyReactionEmoji: storyReactionEmoji,
                    giftBadge: giftBadge)
@@ -76,6 +80,7 @@ public class TSIncomingMessageBuilder: TSMessageBuilder {
         self.serverDeliveryTimestamp = serverDeliveryTimestamp
         self.serverGuid = serverGuid
         self.wasReceivedByUD = wasReceivedByUD
+        self.paymentNotification = paymentNotification
     }
 
     @objc
@@ -112,10 +117,11 @@ public class TSIncomingMessageBuilder: TSMessageBuilder {
                               serverGuid: String?,
                               wasReceivedByUD: Bool,
                               isViewOnceMessage: Bool,
-                              storyAuthorAddress: SignalServiceAddress?,
+                              storyAuthorAci: AciObjC?,
                               storyTimestamp: NSNumber?,
                               storyReactionEmoji: String?,
-                              giftBadge: OWSGiftBadge?) -> TSIncomingMessageBuilder {
+                              giftBadge: OWSGiftBadge?,
+                              paymentNotification: TSPaymentNotification?) -> TSIncomingMessageBuilder {
         return TSIncomingMessageBuilder(thread: thread,
                                         timestamp: timestamp,
                                         authorAci: authorAci?.wrappedAciValue,
@@ -134,10 +140,11 @@ public class TSIncomingMessageBuilder: TSMessageBuilder {
                                         serverGuid: serverGuid,
                                         wasReceivedByUD: wasReceivedByUD,
                                         isViewOnceMessage: isViewOnceMessage,
-                                        storyAuthorAddress: storyAuthorAddress,
+                                        storyAuthorAci: storyAuthorAci?.wrappedAciValue,
                                         storyTimestamp: storyTimestamp?.uint64Value,
                                         storyReactionEmoji: storyReactionEmoji,
-                                        giftBadge: giftBadge)
+                                        giftBadge: giftBadge,
+                                        paymentNotification: paymentNotification)
     }
 
     private var hasBuilt = false
@@ -148,6 +155,13 @@ public class TSIncomingMessageBuilder: TSMessageBuilder {
             owsFailDebug("Don't build more than once.")
         }
         hasBuilt = true
+
+        if let paymentNotification {
+            return OWSIncomingPaymentMessage(
+                initIncomingMessageWithBuilder: self,
+                paymentNotification: paymentNotification
+            )
+        }
 
         return TSIncomingMessage(incomingMessageWithBuilder: self)
     }

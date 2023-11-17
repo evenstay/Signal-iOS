@@ -40,7 +40,9 @@
       buildConfiguration = "Debug"
       selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
-      shouldUseLaunchSchemeArgsEnv = "NO">
+      shouldUseLaunchSchemeArgsEnv = "NO"
+      codeCoverageEnabled = "YES"
+      onlyGenerateCoverageForSpecifiedTargets = "YES">
       <MacroExpansion>
          <BuildableReference
             BuildableIdentifier = "primary"
@@ -57,6 +59,15 @@
             isEnabled = "YES">
          </EnvironmentVariable>
       </EnvironmentVariables>
+      <CodeCoverageTargets>
+         <BuildableReference
+            BuildableIdentifier = "primary"
+            BlueprintIdentifier = "F9C5C896289451B900548EEE"
+            BuildableName = "SignalServiceKit.framework"
+            BlueprintName = "SignalServiceKit"
+            ReferencedContainer = "container:Signal.xcodeproj">
+         </BuildableReference>
+      </CodeCoverageTargets>
       <Testables>
          <TestableReference
             skipped = "NO">
@@ -75,16 +86,6 @@
                BlueprintIdentifier = "5C9F6BA9ADC4724B2612C9F20FBE2076"
                BuildableName = "SignalCoreKit-Unit-Tests.xctest"
                BlueprintName = "SignalCoreKit-Unit-Tests"
-               ReferencedContainer = "container:Pods/Pods.xcodeproj">
-            </BuildableReference>
-         </TestableReference>
-         <TestableReference
-            skipped = "NO">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "78DE33AED82B26B4B8D899CC403003AF"
-               BuildableName = "Curve25519Kit-Unit-Tests.xctest"
-               BlueprintName = "Curve25519Kit-Unit-Tests"
                ReferencedContainer = "container:Pods/Pods.xcodeproj">
             </BuildableReference>
          </TestableReference>
@@ -159,6 +160,11 @@
             key = "OS_ACTIVITY_MODE"
             value = "disable"
             isEnabled = "YES">
+         </EnvironmentVariable>
+         <EnvironmentVariable
+            key = "USE_STAGING"
+            value = "1"
+            isEnabled = "NO">
          </EnvironmentVariable>
          <EnvironmentVariable
             key = "UBSAN_OPTIONS"

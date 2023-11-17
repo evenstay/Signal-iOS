@@ -14,12 +14,15 @@ extension ConversationViewController {
 
         self.title = nil
 
-        // If the user is in the system contacts, show a badge
-        headerView.titleIcon = (
-            conversationViewModel.isSystemContact
-            ? UIImage(imageLiteralResourceName: "person-circle-compact")
-            : nil
-        )
+        if conversationViewModel.isSystemContact {
+            headerView.titleIcon = UIImage(imageLiteralResourceName: "person-circle-compact")
+            headerView.titleIconSize = 20
+        } else if thread.isNoteToSelf {
+            headerView.titleIcon = Theme.iconImage(.official)
+            headerView.titleIconSize = 16
+        } else {
+            headerView.titleIcon = nil
+        }
 
         let attributedName = NSAttributedString(
             string: threadViewModel.name,
@@ -274,10 +277,11 @@ extension ConversationViewController {
                 withTimestamp: draftReply.timestamp,
                 filter: { candidate in
                     if let incoming = candidate as? TSIncomingMessage {
-                        return incoming.authorAddress.untypedServiceId == draftReply.author
+                        return incoming.authorAddress.aci == draftReply.author
                     }
                     if candidate is TSOutgoingMessage {
-                        return tsAccountManager.localIdentifiers(transaction: transaction)?.aci.untypedServiceId == draftReply.author
+                        return DependenciesBridge.shared.tsAccountManager
+                            .localIdentifiers(tx: transaction.asV2Read)?.aci == draftReply.author
                     }
                     return false
                 },

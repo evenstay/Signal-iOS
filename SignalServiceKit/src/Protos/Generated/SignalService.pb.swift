@@ -2143,24 +2143,14 @@ struct SignalServiceProtos_DataMessage {
     /// Clears the value of `notification`. Subsequent reads from it will return its default value.
     mutating func clearNotification() {self._notification = nil}
 
-    var request: SignalServiceProtos_DataMessage.Payment.Request {
-      get {return _request ?? SignalServiceProtos_DataMessage.Payment.Request()}
-      set {_request = newValue}
+    var activation: SignalServiceProtos_DataMessage.Payment.Activation {
+      get {return _activation ?? SignalServiceProtos_DataMessage.Payment.Activation()}
+      set {_activation = newValue}
     }
-    /// Returns true if `request` has been explicitly set.
-    var hasRequest: Bool {return self._request != nil}
-    /// Clears the value of `request`. Subsequent reads from it will return its default value.
-    mutating func clearRequest() {self._request = nil}
-
-    /// }
-    var cancellation: SignalServiceProtos_DataMessage.Payment.Cancellation {
-      get {return _cancellation ?? SignalServiceProtos_DataMessage.Payment.Cancellation()}
-      set {_cancellation = newValue}
-    }
-    /// Returns true if `cancellation` has been explicitly set.
-    var hasCancellation: Bool {return self._cancellation != nil}
-    /// Clears the value of `cancellation`. Subsequent reads from it will return its default value.
-    mutating func clearCancellation() {self._cancellation = nil}
+    /// Returns true if `activation` has been explicitly set.
+    var hasActivation: Bool {return self._activation != nil}
+    /// Clears the value of `activation`. Subsequent reads from it will return its default value.
+    mutating func clearActivation() {self._activation = nil}
 
     var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -2209,71 +2199,6 @@ struct SignalServiceProtos_DataMessage {
       fileprivate var _mobileCoin: SignalServiceProtos_DataMessage.Payment.Amount.MobileCoin? = nil
     }
 
-    struct RequestId {
-      // SwiftProtobuf.Message conformance is added in an extension below. See the
-      // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
-      // methods supported on all messages.
-
-      /// @required
-      var uuid: String {
-        get {return _uuid ?? String()}
-        set {_uuid = newValue}
-      }
-      /// Returns true if `uuid` has been explicitly set.
-      var hasUuid: Bool {return self._uuid != nil}
-      /// Clears the value of `uuid`. Subsequent reads from it will return its default value.
-      mutating func clearUuid() {self._uuid = nil}
-
-      var unknownFields = SwiftProtobuf.UnknownStorage()
-
-      init() {}
-
-      fileprivate var _uuid: String? = nil
-    }
-
-    struct Request {
-      // SwiftProtobuf.Message conformance is added in an extension below. See the
-      // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
-      // methods supported on all messages.
-
-      /// @required
-      var requestID: SignalServiceProtos_DataMessage.Payment.RequestId {
-        get {return _requestID ?? SignalServiceProtos_DataMessage.Payment.RequestId()}
-        set {_requestID = newValue}
-      }
-      /// Returns true if `requestID` has been explicitly set.
-      var hasRequestID: Bool {return self._requestID != nil}
-      /// Clears the value of `requestID`. Subsequent reads from it will return its default value.
-      mutating func clearRequestID() {self._requestID = nil}
-
-      /// @required
-      var amount: SignalServiceProtos_DataMessage.Payment.Amount {
-        get {return _amount ?? SignalServiceProtos_DataMessage.Payment.Amount()}
-        set {_amount = newValue}
-      }
-      /// Returns true if `amount` has been explicitly set.
-      var hasAmount: Bool {return self._amount != nil}
-      /// Clears the value of `amount`. Subsequent reads from it will return its default value.
-      mutating func clearAmount() {self._amount = nil}
-
-      var note: String {
-        get {return _note ?? String()}
-        set {_note = newValue}
-      }
-      /// Returns true if `note` has been explicitly set.
-      var hasNote: Bool {return self._note != nil}
-      /// Clears the value of `note`. Subsequent reads from it will return its default value.
-      mutating func clearNote() {self._note = nil}
-
-      var unknownFields = SwiftProtobuf.UnknownStorage()
-
-      init() {}
-
-      fileprivate var _requestID: SignalServiceProtos_DataMessage.Payment.RequestId? = nil
-      fileprivate var _amount: SignalServiceProtos_DataMessage.Payment.Amount? = nil
-      fileprivate var _note: String? = nil
-    }
-
     struct Notification {
       // SwiftProtobuf.Message conformance is added in an extension below. See the
       // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
@@ -2290,7 +2215,6 @@ struct SignalServiceProtos_DataMessage {
       /// Clears the value of `mobileCoin`. Subsequent reads from it will return its default value.
       mutating func clearMobileCoin() {self._mobileCoin = nil}
 
-      /// Optional, Refers to the PaymentRequest message, if any.
       var note: String {
         get {return _note ?? String()}
         set {_note = newValue}
@@ -2299,15 +2223,6 @@ struct SignalServiceProtos_DataMessage {
       var hasNote: Bool {return self._note != nil}
       /// Clears the value of `note`. Subsequent reads from it will return its default value.
       mutating func clearNote() {self._note = nil}
-
-      var requestID: SignalServiceProtos_DataMessage.Payment.RequestId {
-        get {return _requestID ?? SignalServiceProtos_DataMessage.Payment.RequestId()}
-        set {_requestID = newValue}
-      }
-      /// Returns true if `requestID` has been explicitly set.
-      var hasRequestID: Bool {return self._requestID != nil}
-      /// Clears the value of `requestID`. Subsequent reads from it will return its default value.
-      mutating func clearRequestID() {self._requestID = nil}
 
       var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -2337,36 +2252,59 @@ struct SignalServiceProtos_DataMessage {
 
       fileprivate var _mobileCoin: SignalServiceProtos_DataMessage.Payment.Notification.MobileCoin? = nil
       fileprivate var _note: String? = nil
-      fileprivate var _requestID: SignalServiceProtos_DataMessage.Payment.RequestId? = nil
     }
 
-    struct Cancellation {
+    struct Activation {
       // SwiftProtobuf.Message conformance is added in an extension below. See the
       // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
       // methods supported on all messages.
 
-      /// @required
-      var requestID: SignalServiceProtos_DataMessage.Payment.RequestId {
-        get {return _requestID ?? SignalServiceProtos_DataMessage.Payment.RequestId()}
-        set {_requestID = newValue}
+      var type: SignalServiceProtos_DataMessage.Payment.Activation.TypeEnum {
+        get {return _type ?? .request}
+        set {_type = newValue}
       }
-      /// Returns true if `requestID` has been explicitly set.
-      var hasRequestID: Bool {return self._requestID != nil}
-      /// Clears the value of `requestID`. Subsequent reads from it will return its default value.
-      mutating func clearRequestID() {self._requestID = nil}
+      /// Returns true if `type` has been explicitly set.
+      var hasType: Bool {return self._type != nil}
+      /// Clears the value of `type`. Subsequent reads from it will return its default value.
+      mutating func clearType() {self._type = nil}
 
       var unknownFields = SwiftProtobuf.UnknownStorage()
 
+      enum TypeEnum: SwiftProtobuf.Enum {
+        typealias RawValue = Int
+        case request // = 0
+        case activated // = 1
+
+        init() {
+          self = .request
+        }
+
+        init?(rawValue: Int) {
+          switch rawValue {
+          case 0: self = .request
+          case 1: self = .activated
+          default: return nil
+          }
+        }
+
+        var rawValue: Int {
+          switch self {
+          case .request: return 0
+          case .activated: return 1
+          }
+        }
+
+      }
+
       init() {}
 
-      fileprivate var _requestID: SignalServiceProtos_DataMessage.Payment.RequestId? = nil
+      fileprivate var _type: SignalServiceProtos_DataMessage.Payment.Activation.TypeEnum? = nil
     }
 
     init() {}
 
     fileprivate var _notification: SignalServiceProtos_DataMessage.Payment.Notification? = nil
-    fileprivate var _request: SignalServiceProtos_DataMessage.Payment.Request? = nil
-    fileprivate var _cancellation: SignalServiceProtos_DataMessage.Payment.Cancellation? = nil
+    fileprivate var _activation: SignalServiceProtos_DataMessage.Payment.Activation? = nil
   }
 
   struct StoryContext {
@@ -2449,6 +2387,10 @@ extension SignalServiceProtos_DataMessage.Contact.Email.TypeEnum: CaseIterable {
 }
 
 extension SignalServiceProtos_DataMessage.Contact.PostalAddress.TypeEnum: CaseIterable {
+  // Support synthesized by the compiler.
+}
+
+extension SignalServiceProtos_DataMessage.Payment.Activation.TypeEnum: CaseIterable {
   // Support synthesized by the compiler.
 }
 
@@ -3328,11 +3270,21 @@ struct SignalServiceProtos_SyncMessage {
     /// Clears the value of `storageService`. Subsequent reads from it will return its default value.
     mutating func clearStorageService() {self._storageService = nil}
 
+    var master: Data {
+      get {return _master ?? Data()}
+      set {_master = newValue}
+    }
+    /// Returns true if `master` has been explicitly set.
+    var hasMaster: Bool {return self._master != nil}
+    /// Clears the value of `master`. Subsequent reads from it will return its default value.
+    mutating func clearMaster() {self._master = nil}
+
     var unknownFields = SwiftProtobuf.UnknownStorage()
 
     init() {}
 
     fileprivate var _storageService: Data? = nil
+    fileprivate var _master: Data? = nil
   }
 
   struct MessageRequestResponse {
@@ -3597,6 +3549,7 @@ struct SignalServiceProtos_SyncMessage {
       case unknownType // = 0
       case audioCall // = 1
       case videoCall // = 2
+      case groupCall // = 3
 
       init() {
         self = .unknownType
@@ -3607,6 +3560,7 @@ struct SignalServiceProtos_SyncMessage {
         case 0: self = .unknownType
         case 1: self = .audioCall
         case 2: self = .videoCall
+        case 3: self = .groupCall
         default: return nil
         }
       }
@@ -3616,6 +3570,7 @@ struct SignalServiceProtos_SyncMessage {
         case .unknownType: return 0
         case .audioCall: return 1
         case .videoCall: return 2
+        case .groupCall: return 3
         }
       }
 
@@ -4579,11 +4534,10 @@ extension SignalServiceProtos_DataMessage.GroupCallUpdate: @unchecked Sendable {
 extension SignalServiceProtos_DataMessage.Payment: @unchecked Sendable {}
 extension SignalServiceProtos_DataMessage.Payment.Amount: @unchecked Sendable {}
 extension SignalServiceProtos_DataMessage.Payment.Amount.MobileCoin: @unchecked Sendable {}
-extension SignalServiceProtos_DataMessage.Payment.RequestId: @unchecked Sendable {}
-extension SignalServiceProtos_DataMessage.Payment.Request: @unchecked Sendable {}
 extension SignalServiceProtos_DataMessage.Payment.Notification: @unchecked Sendable {}
 extension SignalServiceProtos_DataMessage.Payment.Notification.MobileCoin: @unchecked Sendable {}
-extension SignalServiceProtos_DataMessage.Payment.Cancellation: @unchecked Sendable {}
+extension SignalServiceProtos_DataMessage.Payment.Activation: @unchecked Sendable {}
+extension SignalServiceProtos_DataMessage.Payment.Activation.TypeEnum: @unchecked Sendable {}
 extension SignalServiceProtos_DataMessage.StoryContext: @unchecked Sendable {}
 extension SignalServiceProtos_DataMessage.GiftBadge: @unchecked Sendable {}
 extension SignalServiceProtos_NullMessage: @unchecked Sendable {}
@@ -6750,8 +6704,7 @@ extension SignalServiceProtos_DataMessage.Payment: SwiftProtobuf.Message, SwiftP
   static let protoMessageName: String = SignalServiceProtos_DataMessage.protoMessageName + ".Payment"
   static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
     1: .same(proto: "notification"),
-    1002: .same(proto: "request"),
-    1003: .same(proto: "cancellation"),
+    2: .same(proto: "activation"),
   ]
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
@@ -6761,8 +6714,7 @@ extension SignalServiceProtos_DataMessage.Payment: SwiftProtobuf.Message, SwiftP
       // enabled. https://github.com/apple/swift-protobuf/issues/1034
       switch fieldNumber {
       case 1: try { try decoder.decodeSingularMessageField(value: &self._notification) }()
-      case 1002: try { try decoder.decodeSingularMessageField(value: &self._request) }()
-      case 1003: try { try decoder.decodeSingularMessageField(value: &self._cancellation) }()
+      case 2: try { try decoder.decodeSingularMessageField(value: &self._activation) }()
       default: break
       }
     }
@@ -6776,19 +6728,15 @@ extension SignalServiceProtos_DataMessage.Payment: SwiftProtobuf.Message, SwiftP
     try { if let v = self._notification {
       try visitor.visitSingularMessageField(value: v, fieldNumber: 1)
     } }()
-    try { if let v = self._request {
-      try visitor.visitSingularMessageField(value: v, fieldNumber: 1002)
-    } }()
-    try { if let v = self._cancellation {
-      try visitor.visitSingularMessageField(value: v, fieldNumber: 1003)
+    try { if let v = self._activation {
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 2)
     } }()
     try unknownFields.traverse(visitor: &visitor)
   }
 
   static func ==(lhs: SignalServiceProtos_DataMessage.Payment, rhs: SignalServiceProtos_DataMessage.Payment) -> Bool {
     if lhs._notification != rhs._notification {return false}
-    if lhs._request != rhs._request {return false}
-    if lhs._cancellation != rhs._cancellation {return false}
+    if lhs._activation != rhs._activation {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -6866,96 +6814,11 @@ extension SignalServiceProtos_DataMessage.Payment.Amount.MobileCoin: SwiftProtob
   }
 }
 
-extension SignalServiceProtos_DataMessage.Payment.RequestId: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
-  static let protoMessageName: String = SignalServiceProtos_DataMessage.Payment.protoMessageName + ".RequestId"
-  static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
-    1: .same(proto: "uuid"),
-  ]
-
-  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
-    while let fieldNumber = try decoder.nextFieldNumber() {
-      // The use of inline closures is to circumvent an issue where the compiler
-      // allocates stack space for every case branch when no optimizations are
-      // enabled. https://github.com/apple/swift-protobuf/issues/1034
-      switch fieldNumber {
-      case 1: try { try decoder.decodeSingularStringField(value: &self._uuid) }()
-      default: break
-      }
-    }
-  }
-
-  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
-    // The use of inline closures is to circumvent an issue where the compiler
-    // allocates stack space for every if/case branch local when no optimizations
-    // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
-    // https://github.com/apple/swift-protobuf/issues/1182
-    try { if let v = self._uuid {
-      try visitor.visitSingularStringField(value: v, fieldNumber: 1)
-    } }()
-    try unknownFields.traverse(visitor: &visitor)
-  }
-
-  static func ==(lhs: SignalServiceProtos_DataMessage.Payment.RequestId, rhs: SignalServiceProtos_DataMessage.Payment.RequestId) -> Bool {
-    if lhs._uuid != rhs._uuid {return false}
-    if lhs.unknownFields != rhs.unknownFields {return false}
-    return true
-  }
-}
-
-extension SignalServiceProtos_DataMessage.Payment.Request: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
-  static let protoMessageName: String = SignalServiceProtos_DataMessage.Payment.protoMessageName + ".Request"
-  static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
-    1: .same(proto: "requestId"),
-    2: .same(proto: "amount"),
-    3: .same(proto: "note"),
-  ]
-
-  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
-    while let fieldNumber = try decoder.nextFieldNumber() {
-      // The use of inline closures is to circumvent an issue where the compiler
-      // allocates stack space for every case branch when no optimizations are
-      // enabled. https://github.com/apple/swift-protobuf/issues/1034
-      switch fieldNumber {
-      case 1: try { try decoder.decodeSingularMessageField(value: &self._requestID) }()
-      case 2: try { try decoder.decodeSingularMessageField(value: &self._amount) }()
-      case 3: try { try decoder.decodeSingularStringField(value: &self._note) }()
-      default: break
-      }
-    }
-  }
-
-  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
-    // The use of inline closures is to circumvent an issue where the compiler
-    // allocates stack space for every if/case branch local when no optimizations
-    // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
-    // https://github.com/apple/swift-protobuf/issues/1182
-    try { if let v = self._requestID {
-      try visitor.visitSingularMessageField(value: v, fieldNumber: 1)
-    } }()
-    try { if let v = self._amount {
-      try visitor.visitSingularMessageField(value: v, fieldNumber: 2)
-    } }()
-    try { if let v = self._note {
-      try visitor.visitSingularStringField(value: v, fieldNumber: 3)
-    } }()
-    try unknownFields.traverse(visitor: &visitor)
-  }
-
-  static func ==(lhs: SignalServiceProtos_DataMessage.Payment.Request, rhs: SignalServiceProtos_DataMessage.Payment.Request) -> Bool {
-    if lhs._requestID != rhs._requestID {return false}
-    if lhs._amount != rhs._amount {return false}
-    if lhs._note != rhs._note {return false}
-    if lhs.unknownFields != rhs.unknownFields {return false}
-    return true
-  }
-}
-
 extension SignalServiceProtos_DataMessage.Payment.Notification: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = SignalServiceProtos_DataMessage.Payment.protoMessageName + ".Notification"
   static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
     1: .same(proto: "mobileCoin"),
     2: .same(proto: "note"),
-    1003: .same(proto: "requestId"),
   ]
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
@@ -6966,7 +6829,6 @@ extension SignalServiceProtos_DataMessage.Payment.Notification: SwiftProtobuf.Me
       switch fieldNumber {
       case 1: try { try decoder.decodeSingularMessageField(value: &self._mobileCoin) }()
       case 2: try { try decoder.decodeSingularStringField(value: &self._note) }()
-      case 1003: try { try decoder.decodeSingularMessageField(value: &self._requestID) }()
       default: break
       }
     }
@@ -6983,16 +6845,12 @@ extension SignalServiceProtos_DataMessage.Payment.Notification: SwiftProtobuf.Me
     try { if let v = self._note {
       try visitor.visitSingularStringField(value: v, fieldNumber: 2)
     } }()
-    try { if let v = self._requestID {
-      try visitor.visitSingularMessageField(value: v, fieldNumber: 1003)
-    } }()
     try unknownFields.traverse(visitor: &visitor)
   }
 
   static func ==(lhs: SignalServiceProtos_DataMessage.Payment.Notification, rhs: SignalServiceProtos_DataMessage.Payment.Notification) -> Bool {
     if lhs._mobileCoin != rhs._mobileCoin {return false}
     if lhs._note != rhs._note {return false}
-    if lhs._requestID != rhs._requestID {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -7034,10 +6892,10 @@ extension SignalServiceProtos_DataMessage.Payment.Notification.MobileCoin: Swift
   }
 }
 
-extension SignalServiceProtos_DataMessage.Payment.Cancellation: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
-  static let protoMessageName: String = SignalServiceProtos_DataMessage.Payment.protoMessageName + ".Cancellation"
+extension SignalServiceProtos_DataMessage.Payment.Activation: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = SignalServiceProtos_DataMessage.Payment.protoMessageName + ".Activation"
   static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
-    1: .same(proto: "requestId"),
+    1: .same(proto: "type"),
   ]
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
@@ -7046,7 +6904,7 @@ extension SignalServiceProtos_DataMessage.Payment.Cancellation: SwiftProtobuf.Me
       // allocates stack space for every case branch when no optimizations are
       // enabled. https://github.com/apple/swift-protobuf/issues/1034
       switch fieldNumber {
-      case 1: try { try decoder.decodeSingularMessageField(value: &self._requestID) }()
+      case 1: try { try decoder.decodeSingularEnumField(value: &self._type) }()
       default: break
       }
     }
@@ -7057,17 +6915,24 @@ extension SignalServiceProtos_DataMessage.Payment.Cancellation: SwiftProtobuf.Me
     // allocates stack space for every if/case branch local when no optimizations
     // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
     // https://github.com/apple/swift-protobuf/issues/1182
-    try { if let v = self._requestID {
-      try visitor.visitSingularMessageField(value: v, fieldNumber: 1)
+    try { if let v = self._type {
+      try visitor.visitSingularEnumField(value: v, fieldNumber: 1)
     } }()
     try unknownFields.traverse(visitor: &visitor)
   }
 
-  static func ==(lhs: SignalServiceProtos_DataMessage.Payment.Cancellation, rhs: SignalServiceProtos_DataMessage.Payment.Cancellation) -> Bool {
-    if lhs._requestID != rhs._requestID {return false}
+  static func ==(lhs: SignalServiceProtos_DataMessage.Payment.Activation, rhs: SignalServiceProtos_DataMessage.Payment.Activation) -> Bool {
+    if lhs._type != rhs._type {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
+}
+
+extension SignalServiceProtos_DataMessage.Payment.Activation.TypeEnum: SwiftProtobuf._ProtoNameProviding {
+  static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
+    0: .same(proto: "REQUEST"),
+    1: .same(proto: "ACTIVATED"),
+  ]
 }
 
 extension SignalServiceProtos_DataMessage.StoryContext: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
@@ -8094,6 +7959,7 @@ extension SignalServiceProtos_SyncMessage.Keys: SwiftProtobuf.Message, SwiftProt
   static let protoMessageName: String = SignalServiceProtos_SyncMessage.protoMessageName + ".Keys"
   static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
     1: .same(proto: "storageService"),
+    2: .same(proto: "master"),
   ]
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
@@ -8103,6 +7969,7 @@ extension SignalServiceProtos_SyncMessage.Keys: SwiftProtobuf.Message, SwiftProt
       // enabled. https://github.com/apple/swift-protobuf/issues/1034
       switch fieldNumber {
       case 1: try { try decoder.decodeSingularBytesField(value: &self._storageService) }()
+      case 2: try { try decoder.decodeSingularBytesField(value: &self._master) }()
       default: break
       }
     }
@@ -8116,11 +7983,15 @@ extension SignalServiceProtos_SyncMessage.Keys: SwiftProtobuf.Message, SwiftProt
     try { if let v = self._storageService {
       try visitor.visitSingularBytesField(value: v, fieldNumber: 1)
     } }()
+    try { if let v = self._master {
+      try visitor.visitSingularBytesField(value: v, fieldNumber: 2)
+    } }()
     try unknownFields.traverse(visitor: &visitor)
   }
 
   static func ==(lhs: SignalServiceProtos_SyncMessage.Keys, rhs: SignalServiceProtos_SyncMessage.Keys) -> Bool {
     if lhs._storageService != rhs._storageService {return false}
+    if lhs._master != rhs._master {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -8381,6 +8252,7 @@ extension SignalServiceProtos_SyncMessage.CallEvent.TypeEnum: SwiftProtobuf._Pro
     0: .same(proto: "UNKNOWN_TYPE"),
     1: .same(proto: "AUDIO_CALL"),
     2: .same(proto: "VIDEO_CALL"),
+    3: .same(proto: "GROUP_CALL"),
   ]
 }
 

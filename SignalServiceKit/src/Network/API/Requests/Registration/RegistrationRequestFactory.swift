@@ -169,33 +169,6 @@ public enum RegistrationRequestFactory {
         return result
     }
 
-    // MARK: - KBS Auth Check
-
-    public static func kbsAuthCredentialCheckRequest(
-        e164: E164,
-        credentials: [KBSAuthCredential]
-    ) -> TSRequest {
-        owsAssertDebug(!credentials.isEmpty)
-
-        let urlPathComponents = URLPathComponents(
-            ["v1", "backup", "auth", "check"]
-        )
-        var urlComponents = URLComponents()
-        urlComponents.percentEncodedPath = urlPathComponents.percentEncoded
-        let url = urlComponents.url!
-
-        let parameters: [String: Any] = [
-            "number": e164.stringValue,
-            "passwords": credentials.map {
-                "\($0.credential.username):\($0.credential.password)"
-            }
-        ]
-
-        let result = TSRequest(url: url, method: "POST", parameters: parameters)
-        result.shouldHaveAuthorizationHeaders = false
-        return result
-    }
-
     // MARK: - SVR2 Auth Check
 
     public static func svr2AuthCredentialCheckRequest(
@@ -287,8 +260,8 @@ public enum RegistrationRequestFactory {
         var parameters: [String: Any] = [
             "accountAttributes": accountAttributesDict,
             "skipDeviceTransfer": skipDeviceTransfer,
-            "aciIdentityKey": prekeyBundles.aci.identityKeyPair.publicKey.prependKeyType().base64EncodedStringWithoutPadding(),
-            "pniIdentityKey": prekeyBundles.pni.identityKeyPair.publicKey.prependKeyType().base64EncodedStringWithoutPadding(),
+            "aciIdentityKey": prekeyBundles.aci.identityKeyPair.keyPair.publicKey.serialize().asData.base64EncodedStringWithoutPadding(),
+            "pniIdentityKey": prekeyBundles.pni.identityKeyPair.keyPair.publicKey.serialize().asData.base64EncodedStringWithoutPadding(),
             "aciSignedPreKey": OWSRequestFactory.signedPreKeyRequestParameters(prekeyBundles.aci.signedPreKey),
             "pniSignedPreKey": OWSRequestFactory.signedPreKeyRequestParameters(prekeyBundles.pni.signedPreKey),
             "aciPqLastResortPreKey": OWSRequestFactory.pqPreKeyRequestParameters(prekeyBundles.aci.lastResortPreKey),

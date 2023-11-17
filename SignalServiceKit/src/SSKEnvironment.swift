@@ -24,14 +24,12 @@ public class SSKEnvironment: NSObject {
     private(set) public var messageSenderRef: MessageSender
     private(set) public var networkManagerRef: NetworkManager
     private(set) public var paymentsHelperRef: PaymentsHelperSwift
-    private(set) public var tsAccountManagerRef: TSAccountManager
     private(set) public var groupsV2Ref: GroupsV2Swift
     #else
     public let contactsManagerRef: ContactsManagerProtocol
     public let messageSenderRef: MessageSender
     public let networkManagerRef: NetworkManager
     public let paymentsHelperRef: PaymentsHelperSwift
-    public let tsAccountManagerRef: TSAccountManager
     public let groupsV2Ref: GroupsV2Swift
     #endif
 
@@ -40,12 +38,10 @@ public class SSKEnvironment: NSObject {
     public let profileManagerRef: ProfileManagerProtocol
     public let messageManagerRef: OWSMessageManager
     public let blockingManagerRef: BlockingManager
-    public let identityManagerRef: OWSIdentityManager
     public let remoteConfigManagerRef: RemoteConfigManager
     public let udManagerRef: OWSUDManager
     public let messageDecrypterRef: OWSMessageDecrypter
     public let groupsV2MessageProcessorRef: GroupsV2MessageProcessor
-    public let socketManagerRef: SocketManager
     public let ows2FAManagerRef: OWS2FAManager
     public let disappearingMessagesJobRef: OWSDisappearingMessagesJob
     public let receiptManagerRef: OWSReceiptManager
@@ -100,15 +96,12 @@ public class SSKEnvironment: NSObject {
         networkManager: NetworkManager,
         messageManager: OWSMessageManager,
         blockingManager: BlockingManager,
-        identityManager: OWSIdentityManager,
         remoteConfigManager: RemoteConfigManager,
         aciSignalProtocolStore: SignalProtocolStore,
         pniSignalProtocolStore: SignalProtocolStore,
         udManager: OWSUDManager,
         messageDecrypter: OWSMessageDecrypter,
         groupsV2MessageProcessor: GroupsV2MessageProcessor,
-        socketManager: SocketManager,
-        tsAccountManager: TSAccountManager,
         ows2FAManager: OWS2FAManager,
         disappearingMessagesJob: OWSDisappearingMessagesJob,
         receiptManager: OWSReceiptManager,
@@ -161,15 +154,12 @@ public class SSKEnvironment: NSObject {
         self.networkManagerRef = networkManager
         self.messageManagerRef = messageManager
         self.blockingManagerRef = blockingManager
-        self.identityManagerRef = identityManager
         self.remoteConfigManagerRef = remoteConfigManager
         self.aciSignalProtocolStoreRef = aciSignalProtocolStore
         self.pniSignalProtocolStoreRef = pniSignalProtocolStore
         self.udManagerRef = udManager
         self.messageDecrypterRef = messageDecrypter
         self.groupsV2MessageProcessorRef = groupsV2MessageProcessor
-        self.socketManagerRef = socketManager
-        self.tsAccountManagerRef = tsAccountManager
         self.ows2FAManagerRef = ows2FAManager
         self.disappearingMessagesJobRef = disappearingMessagesJob
         self.receiptManagerRef = receiptManager
@@ -231,11 +221,11 @@ public class SSKEnvironment: NSObject {
             InstrumentsMonitor.measure(category: "appstart", parent: "caches", name: name, block: action)
         }
         warmCachesForObject("signalProxy", SignalProxy.warmCaches)
-        warmCachesForObject("tsAccountManager", tsAccountManager.warmCaches)
+        warmCachesForObject("newTSAccountManager", DependenciesBridge.shared.tsAccountManager.warmCaches)
+        warmCachesForObject("fixLocalRecipient", fixLocalRecipientIfNeeded)
         warmCachesForObject("signalServiceAddressCache", signalServiceAddressCache.warmCaches)
         warmCachesForObject("signalService", signalService.warmCaches)
         warmCachesForObject("remoteConfigManager", remoteConfigManager.warmCaches)
-        warmCachesForObject("udManager", udManager.warmCaches)
         warmCachesForObject("blockingManager", blockingManager.warmCaches)
         warmCachesForObject("profileManager", profileManager.warmCaches)
         warmCachesForObject("receiptManager", receiptManager.prepareCachedValues)
@@ -255,6 +245,29 @@ public class SSKEnvironment: NSObject {
         NotificationCenter.default.post(name: SSKEnvironment.warmCachesNotification, object: nil)
     }
 
+    /// Ensures the local SignalRecipient is correct.
+    ///
+    /// This primarily serves to ensure the local SignalRecipient has its own
+    /// Pni (a one-time migration), but it also helps ensure that the value is
+    /// always consistent with TSAccountManager's values.
+    private func fixLocalRecipientIfNeeded() {
+        databaseStorage.write { tx in
+            guard let localIdentifiers = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: tx.asV2Read) else {
+                return  // Not registered yet.
+            }
+            guard let phoneNumber = E164(localIdentifiers.phoneNumber) else {
+                return  // Registered with an invalid phone number.
+            }
+            let recipientMerger = DependenciesBridge.shared.recipientMerger
+            _ = recipientMerger.applyMergeForLocalAccount(
+                aci: localIdentifiers.aci,
+                phoneNumber: phoneNumber,
+                pni: localIdentifiers.pni,
+                tx: tx.asV2Write
+            )
+        }
+    }
+
     #if TESTABLE_BUILD
 
     public func setContactsManagerForUnitTests(_ contactsManager: ContactsManagerProtocol) {
@@ -271,10 +284,6 @@ public class SSKEnvironment: NSObject {
 
     public func setPaymentsHelperForUnitTests(_ paymentsHelper: PaymentsHelperSwift) {
         self.paymentsHelperRef = paymentsHelper
-    }
-
-    public func setTsAccountManagerForUnitTests(_ tsAccountManager: TSAccountManager) {
-        self.tsAccountManagerRef = tsAccountManager
     }
 
     @objc
