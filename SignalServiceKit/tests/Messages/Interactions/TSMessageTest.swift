@@ -6,7 +6,7 @@
 @testable import SignalServiceKit
 import XCTest
 
-class TSMessageTest: SSKBaseTestSwift {
+class TSMessageTest: SSKBaseTest {
     private var thread: TSThread!
 
     override func setUp() {
@@ -20,7 +20,7 @@ class TSMessageTest: SSKBaseTestSwift {
         builder.timestamp = 1
         builder.expiresInSeconds = 100
 
-        let message = builder.buildWithSneakyTransaction()
+        let message = databaseStorage.read { builder.build(transaction: $0) }
         XCTAssertEqual(0, message.expiresAt)
     }
 
@@ -33,7 +33,7 @@ class TSMessageTest: SSKBaseTestSwift {
         builder.expiresInSeconds = expirationSeconds
         builder.expireStartedAt = now
 
-        let message = builder.buildWithSneakyTransaction()
+        let message = databaseStorage.read { builder.build(transaction: $0) }
         XCTAssertEqual(now + UInt64(expirationSeconds * 1000), message.expiresAt)
     }
 
@@ -43,13 +43,13 @@ class TSMessageTest: SSKBaseTestSwift {
         do {
             let builder = TSOutgoingMessageBuilder.outgoingMessageBuilder(thread: self.thread)
             builder.timestamp = now - kMinuteInMs
-            let message = builder.buildWithSneakyTransaction()
+            let message = databaseStorage.read { builder.build(transaction: $0) }
 
             XCTAssert(message.canBeRemotelyDeleted)
         }
 
         do {
-            let builder = TSIncomingMessageBuilder.incomingMessageBuilder(thread: self.thread)
+            let builder: TSIncomingMessageBuilder = .withDefaultValues(thread: self.thread)
             builder.timestamp = now - kMinuteInMs
             let message = builder.build()
 
@@ -59,8 +59,9 @@ class TSMessageTest: SSKBaseTestSwift {
         do {
             let builder = TSOutgoingMessageBuilder.outgoingMessageBuilder(thread: self.thread)
             builder.timestamp = now - kMinuteInMs
-            let message = builder.buildWithSneakyTransaction()
+            let message = databaseStorage.read { builder.build(transaction: $0) }
             self.databaseStorage.write { transaction in
+                message.anyInsert(transaction: transaction)
                 message.updateWithRemotelyDeletedAndRemoveRenderableContent(with: transaction)
             }
 
@@ -71,7 +72,7 @@ class TSMessageTest: SSKBaseTestSwift {
             let builder = TSOutgoingMessageBuilder.outgoingMessageBuilder(thread: self.thread)
             builder.timestamp = now - kMinuteInMs
             builder.giftBadge = OWSGiftBadge()
-            let message = builder.buildWithSneakyTransaction()
+            let message = databaseStorage.read { builder.build(transaction: $0) }
 
             XCTAssertFalse(message.canBeRemotelyDeleted)
         }
@@ -79,7 +80,7 @@ class TSMessageTest: SSKBaseTestSwift {
         do {
             let builder = TSOutgoingMessageBuilder.outgoingMessageBuilder(thread: self.thread)
             builder.timestamp = now + kMinuteInMs
-            let message = builder.buildWithSneakyTransaction()
+            let message = databaseStorage.read { builder.build(transaction: $0) }
 
             XCTAssertTrue(message.canBeRemotelyDeleted)
         }
@@ -87,7 +88,7 @@ class TSMessageTest: SSKBaseTestSwift {
         do {
             let builder = TSOutgoingMessageBuilder.outgoingMessageBuilder(thread: self.thread)
             builder.timestamp = now + (25 * kHourInMs)
-            let message = builder.buildWithSneakyTransaction()
+            let message = databaseStorage.read { builder.build(transaction: $0) }
 
             XCTAssertTrue(message.canBeRemotelyDeleted)
         }
@@ -95,7 +96,7 @@ class TSMessageTest: SSKBaseTestSwift {
         do {
             let builder = TSOutgoingMessageBuilder.outgoingMessageBuilder(thread: self.thread)
             builder.timestamp = now - (25 * kHourInMs)
-            let message = builder.buildWithSneakyTransaction()
+            let message = databaseStorage.read { builder.build(transaction: $0) }
 
             XCTAssertFalse(message.canBeRemotelyDeleted)
         }

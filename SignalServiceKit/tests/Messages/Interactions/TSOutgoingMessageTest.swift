@@ -8,7 +8,7 @@ import XCTest
 
 @testable import SignalServiceKit
 
-class TSOutgoingMessageTest: SSKBaseTestSwift {
+class TSOutgoingMessageTest: SSKBaseTest {
     private var identityManager: OWSIdentityManager { DependenciesBridge.shared.identityManager }
 
     override func setUp() {
@@ -46,7 +46,7 @@ class TSOutgoingMessageTest: SSKBaseTestSwift {
 
             XCTAssertFalse(message.shouldStartExpireTimer())
 
-            message.update(withSentRecipient: ServiceIdObjC.wrapValue(otherAci), wasSentByUD: false, transaction: transaction)
+            message.updateWithSentRecipient(otherAci, wasSentByUD: false, transaction: transaction)
 
             XCTAssertFalse(message.shouldStartExpireTimer())
         }
@@ -64,7 +64,7 @@ class TSOutgoingMessageTest: SSKBaseTestSwift {
 
             XCTAssertFalse(message.shouldStartExpireTimer())
 
-            message.update(withSentRecipient: ServiceIdObjC.wrapValue(otherAci), wasSentByUD: false, transaction: transaction)
+            message.updateWithSentRecipient(otherAci, wasSentByUD: false, transaction: transaction)
 
             XCTAssertTrue(message.shouldStartExpireTimer())
         }
@@ -92,6 +92,7 @@ class TSOutgoingMessageTest: SSKBaseTestSwift {
             let messageBuilder = TSOutgoingMessageBuilder.outgoingMessageBuilder(thread: thread, messageBody: nil)
             messageBuilder.timestamp = 100
             let message = messageBuilder.build(transaction: transaction)
+            message.anyInsert(transaction: transaction)
             let messageData = message.buildPlainTextData(thread, transaction: transaction)!
             let content = try! SSKProtoContent(serializedData: messageData)
             XCTAssertNil(content.pniSignatureMessage)
@@ -108,6 +109,7 @@ class TSOutgoingMessageTest: SSKBaseTestSwift {
             let messageBuilder = TSOutgoingMessageBuilder.outgoingMessageBuilder(thread: thread, messageBody: nil)
             messageBuilder.timestamp = 100
             let message = messageBuilder.build(transaction: transaction)
+            message.anyInsert(transaction: transaction)
             let messageData = message.buildPlainTextData(thread, transaction: transaction)!
             let content = try! SSKProtoContent(serializedData: messageData)
 
@@ -132,9 +134,10 @@ class TSOutgoingMessageTest: SSKBaseTestSwift {
             let messageBuilder = TSOutgoingMessageBuilder.outgoingMessageBuilder(thread: thread, messageBody: nil)
             messageBuilder.timestamp = Date.ows_millisecondTimestamp()
             let message = messageBuilder.build(transaction: transaction)
+            message.anyInsert(transaction: transaction)
             let messageData = message.buildPlainTextData(thread, transaction: transaction)!
 
-            message.update(withSentRecipient: ServiceIdObjC.wrapValue(otherAci), wasSentByUD: true, transaction: transaction)
+            message.updateWithSentRecipient(otherAci, wasSentByUD: true, transaction: transaction)
 
             let messageSendLog = SSKEnvironment.shared.messageSendLogRef
             let payloadId = messageSendLog.recordPayload(messageData, for: message, tx: transaction)!
@@ -171,9 +174,10 @@ class TSOutgoingMessageTest: SSKBaseTestSwift {
             let messageBuilder = TSOutgoingMessageBuilder.outgoingMessageBuilder(thread: thread, messageBody: nil)
             messageBuilder.timestamp = Date.ows_millisecondTimestamp()
             let message = messageBuilder.build(transaction: transaction)
+            message.anyInsert(transaction: transaction)
             let messageData = message.buildPlainTextData(thread, transaction: transaction)!
 
-            message.update(withSentRecipient: ServiceIdObjC.wrapValue(otherAci), wasSentByUD: true, transaction: transaction)
+            message.updateWithSentRecipient(otherAci, wasSentByUD: true, transaction: transaction)
 
             let messageSendLog = SSKEnvironment.shared.messageSendLogRef
             let payloadId = messageSendLog.recordPayload(messageData, for: message, tx: transaction)!
@@ -229,9 +233,10 @@ class TSOutgoingMessageTest: SSKBaseTestSwift {
             let messageBuilder = TSOutgoingMessageBuilder.outgoingMessageBuilder(thread: thread, messageBody: nil)
             messageBuilder.timestamp = Date.ows_millisecondTimestamp()
             let message = messageBuilder.build(transaction: transaction)
+            message.anyInsert(transaction: transaction)
             let messageData = message.buildPlainTextData(thread, transaction: transaction)!
 
-            message.update(withSentRecipient: ServiceIdObjC.wrapValue(otherAci), wasSentByUD: false, transaction: transaction)
+            message.updateWithSentRecipient(otherAci, wasSentByUD: false, transaction: transaction)
 
             let messageSendLog = SSKEnvironment.shared.messageSendLogRef
             let payloadId = messageSendLog.recordPayload(messageData, for: message, tx: transaction)!
@@ -268,9 +273,10 @@ class TSOutgoingMessageTest: SSKBaseTestSwift {
             let messageBuilder = TSOutgoingMessageBuilder.outgoingMessageBuilder(thread: thread, messageBody: nil)
             messageBuilder.timestamp = Date.ows_millisecondTimestamp()
             let message = messageBuilder.build(transaction: transaction)
+            message.anyInsert(transaction: transaction)
             let messageData = message.buildPlainTextData(thread, transaction: transaction)!
 
-            message.update(withSentRecipient: ServiceIdObjC.wrapValue(otherAci), wasSentByUD: true, transaction: transaction)
+            message.updateWithSentRecipient(otherAci, wasSentByUD: true, transaction: transaction)
 
             let messageSendLog = SSKEnvironment.shared.messageSendLogRef
             let payloadId = messageSendLog.recordPayload(messageData, for: message, tx: transaction)!
@@ -311,9 +317,10 @@ class TSOutgoingMessageTest: SSKBaseTestSwift {
             let messageBuilder = TSOutgoingMessageBuilder.outgoingMessageBuilder(thread: thread, messageBody: nil)
             messageBuilder.timestamp = Date.ows_millisecondTimestamp()
             message = messageBuilder.build(transaction: transaction)
+            message.anyInsert(transaction: transaction)
             let messageData = message.buildPlainTextData(thread, transaction: transaction)!
 
-            message.update(withSentRecipient: ServiceIdObjC.wrapValue(otherAci), wasSentByUD: true, transaction: transaction)
+            message.updateWithSentRecipient(otherAci, wasSentByUD: true, transaction: transaction)
 
             let messageSendLog = SSKEnvironment.shared.messageSendLogRef
             let payloadId = messageSendLog.recordPayload(messageData, for: message, tx: transaction)!
@@ -333,7 +340,7 @@ class TSOutgoingMessageTest: SSKBaseTestSwift {
             (DependenciesBridge.shared.registrationStateChangeManager as! RegistrationStateChangeManagerImpl).registerForTests(
                 localIdentifiers: .init(
                     aci: aci,
-                    pni: .init(fromUUID: .init()),
+                    pni: Pni.randomForTesting(),
                     e164: .init("+17775550199")!
                 ),
                 tx: tx.asV2Write

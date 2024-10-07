@@ -22,7 +22,7 @@ extension SSKPreKeyStore {
     }
 }
 
-class SSKPreKeyStoreTests: SSKBaseTestSwift {
+class SSKPreKeyStoreTests: SSKBaseTest {
 
     private var aciPreKeyStore: SSKPreKeyStore!
     private var pniPreKeyStore: SSKPreKeyStore!
@@ -34,7 +34,7 @@ class SSKPreKeyStoreTests: SSKBaseTestSwift {
     }
 
     func testGeneratingAndStoringPreKeys() {
-        let generatedKeys = aciPreKeyStore.generatePreKeyRecords()
+        let generatedKeys = databaseStorage.write { aciPreKeyStore.generatePreKeyRecords(transaction: $0) }
         XCTAssertEqual(generatedKeys.count, 100)
 
         aciPreKeyStore.storePreKeyRecords(generatedKeys)
@@ -56,7 +56,7 @@ class SSKPreKeyStoreTests: SSKBaseTestSwift {
     }
 
     func testRemovingPreKeys() {
-        let generatedKeys = aciPreKeyStore.generatePreKeyRecords()
+        let generatedKeys = databaseStorage.write { aciPreKeyStore.generatePreKeyRecords(transaction: $0) }
         XCTAssertEqual(generatedKeys.count, 100)
 
         aciPreKeyStore.storePreKeyRecords(generatedKeys)

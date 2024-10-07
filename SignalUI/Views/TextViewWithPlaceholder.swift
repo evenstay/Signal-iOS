@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import UIKit
 
 public protocol TextViewWithPlaceholderDelegate: AnyObject {
     /// A method invoked by the text field when its cursor/selection changed without any change
@@ -16,6 +17,12 @@ public protocol TextViewWithPlaceholderDelegate: AnyObject {
 
     /// A method invoked by the text field whenever the user tries to insert new text
     func textView(_ textView: TextViewWithPlaceholder, uiTextView: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool
+}
+
+public extension TextViewWithPlaceholderDelegate {
+    func textView(_ textView: TextViewWithPlaceholder, uiTextView: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool {
+        return true
+    }
 }
 
 // MARK: -
@@ -44,6 +51,14 @@ public class TextViewWithPlaceholder: UIView {
         set {
             textView.text = newValue
             textViewDidChange(textView)
+        }
+    }
+
+    public var textContainerInset: UIEdgeInsets {
+        get { textView.textContainerInset }
+        set {
+            textView.textContainerInset = newValue
+            placeholderTextView.textContainerInset = newValue
         }
     }
 
@@ -89,6 +104,7 @@ public class TextViewWithPlaceholder: UIView {
 
     private func buildTextView() -> UITextView {
         let textView = UITextView()
+        textView.disableAiWritingTools()
         textView.isScrollEnabled = false
         textView.backgroundColor = .clear
 
@@ -140,7 +156,7 @@ public class TextViewWithPlaceholder: UIView {
 
     @objc
     private func applyTheme() {
-        placeholderTextView.textColor = Theme.placeholderColor
+        placeholderTextView.textColor = .placeholderText
         textView.textColor = Theme.primaryTextColor
     }
 

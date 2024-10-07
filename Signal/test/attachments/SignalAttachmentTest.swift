@@ -5,27 +5,27 @@
 
 import XCTest
 import CoreServices
-@testable import SignalMessaging
 import SignalServiceKit
+import UniformTypeIdentifiers
 
 class SignalAttachmentTest: SignalBaseTest {
     // MARK: - Utilities
 
     func testMetadataStrippingDoesNotChangeOrientation(url: URL) throws {
-        let size = NSData.imageSize(forFilePath: url.path, mimeType: "image/jpeg")
+        let size = Data.imageSize(forFilePath: url.path, mimeType: "image/jpeg")
 
-        let dataSource = try DataSourcePath.dataSource(with: url, shouldDeleteOnDeallocation: false)
+        let dataSource = try DataSourcePath(fileUrl: url, shouldDeleteOnDeallocation: false)
         let attachment = SignalAttachment.attachment(
             dataSource: dataSource,
-            dataUTI: kUTTypeJPEG as String
+            dataUTI: UTType.jpeg.identifier
         )
-        let newSize = (attachment.data as NSData).imageMetadata(withPath: nil, mimeType: "image/jpeg").pixelSize
+        let newSize = attachment.data.imageMetadata(withPath: nil, mimeType: "image/jpeg").pixelSize
 
         XCTAssertEqual(newSize, size, "image dimensions changed for \(url.lastPathComponent)")
     }
 
     private func pngChunks(data: Data) throws -> [PngChunker.Chunk] {
-        let chunker = try PngChunker(data: data)
+        let chunker = try PngChunker(source: data)
         var result = [PngChunker.Chunk]()
         while let chunk = try chunker.next() {
             result.append(chunk)
@@ -52,7 +52,7 @@ class SignalAttachmentTest: SignalBaseTest {
     func testRemoveMetadataFromPng() throws {
         let testBundle = Bundle(for: Self.self)
         let url = testBundle.url(forResource: "test-png-with-metadata", withExtension: "png")!
-        let dataSource = try DataSourcePath.dataSource(with: url, shouldDeleteOnDeallocation: false)
+        let dataSource = try DataSourcePath(fileUrl: url, shouldDeleteOnDeallocation: false)
         XCTAssertEqual(
             try pngChunkTypes(data: dataSource.data),
             ["IHDR", "PLTE", "sRGB", "tIME", "tEXt", "IDAT", "IEND"],
@@ -61,7 +61,7 @@ class SignalAttachmentTest: SignalBaseTest {
 
         let attachment = SignalAttachment.attachment(
             dataSource: dataSource,
-            dataUTI: kUTTypePNG as String
+            dataUTI: UTType.png.identifier
         )
 
         XCTAssertEqual(
@@ -95,11 +95,11 @@ class SignalAttachmentTest: SignalBaseTest {
             (try pngChunkTypes(data: pngData)).contains("tEXt"),
             "Test is not set up correctly. Fixture doesn't have the expected chunks"
         )
-        let dataSource = DataSourceValue.dataSource(with: pngData, fileExtension: "png")
+        let dataSource = DataSourceValue(pngData, fileExtension: "png")
 
         let attachment = SignalAttachment.attachment(
             dataSource: dataSource,
-            dataUTI: kUTTypePNG as String
+            dataUTI: UTType.png.identifier
         )
 
         XCTAssert(

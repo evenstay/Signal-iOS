@@ -5,10 +5,8 @@
 
 import Foundation
 import PassKit
-import SignalCoreKit
-import SignalMessaging
-import SignalUI
 import SignalServiceKit
+import SignalUI
 
 extension DonateViewController {
     /// Handle Apple Pay authorization for a one-time payment.
@@ -39,15 +37,15 @@ extension DonateViewController {
                 for: .applePay(payment: payment)
             )
         }.done(on: DispatchQueue.main) { confirmedIntent -> Void in
-            owsAssert(
+            owsPrecondition(
                 confirmedIntent.redirectToUrl == nil,
                 "[Donations] There shouldn't be a 3DS redirect for Apple Pay"
             )
 
             wrappedCompletion(.init(status: .success, errors: nil))
 
-            SubscriptionManagerImpl.requestAndRedeemReceipt(
-                boostPaymentIntentId: confirmedIntent.intentId,
+            let redemptionJob = SubscriptionManagerImpl.requestAndRedeemReceipt(
+                boostPaymentIntentId: confirmedIntent.paymentIntentId,
                 amount: amount,
                 paymentProcessor: .stripe,
                 paymentMethod: .applePay
@@ -55,9 +53,7 @@ extension DonateViewController {
 
             DonationViewsUtil.wrapPromiseInProgressView(
                 from: self,
-                promise: DonationViewsUtil.waitForSubscriptionJob(
-                    paymentMethod: .applePay
-                )
+                promise: DonationViewsUtil.waitForRedemptionJob(redemptionJob, paymentMethod: .applePay)
             ).done(on: DispatchQueue.main) {
                 self.didCompleteDonation(
                     receiptCredentialSuccessMode: .oneTimeBoost

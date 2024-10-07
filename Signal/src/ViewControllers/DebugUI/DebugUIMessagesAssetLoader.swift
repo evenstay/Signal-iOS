@@ -27,21 +27,20 @@ class DebugUIMessagesAssetLoader {
     private(set) var prepare: ((@escaping Completion) -> Void)?
 
     private(set) var filePath: String?
-    var labelEmoji: String { TSAttachment.emoji(forMimeType: mimeType) }
 
     // MARK: - Public
 
     static let jpegInstance: DebugUIMessagesAssetLoader = .fakeAssetLoaderWithUrl(
         "https://s3.amazonaws.com/ows-data/example_attachment_media/random-jpg.JPG",
-        mimeType: OWSMimeTypeImageJpeg
+        mimeType: MimeType.imageJpeg.rawValue
     )
     static let gifInstance: DebugUIMessagesAssetLoader = .fakeAssetLoaderWithUrl(
         "https://s3.amazonaws.com/ows-data/example_attachment_media/random-gif.gif",
-        mimeType: OWSMimeTypeImageGif
+        mimeType: MimeType.imageGif.rawValue
     )
     static let largeGifInstance: DebugUIMessagesAssetLoader = .fakeAssetLoaderWithUrl(
         "https://i.giphy.com/media/LTw0F3GAdaao8/source.gif",
-        mimeType: OWSMimeTypeImageGif
+        mimeType: MimeType.imageGif.rawValue
     )
     static let mp3Instance: DebugUIMessagesAssetLoader = .fakeAssetLoaderWithUrl(
         "https://s3.amazonaws.com/ows-data/example_attachment_media/random-mp3.mp3",
@@ -93,11 +92,11 @@ class DebugUIMessagesAssetLoader {
     }
     static let mediumFilesizePngInstance: DebugUIMessagesAssetLoader = .fakeNoisePngAssetLoaderWithImageSize(1000)
 
-    static let tinyPdfInstance: DebugUIMessagesAssetLoader = .fakeRandomAssetLoaderWithDataLength(256, mimeType: "application/pdf")!
-    static let largePdfInstance: DebugUIMessagesAssetLoader = .fakeRandomAssetLoaderWithDataLength(4 * 1024 * 1024, mimeType: "application/pdf")!
+    static let tinyPdfInstance: DebugUIMessagesAssetLoader = .fakeRandomAssetLoaderWithDataLength(256, mimeType: MimeType.applicationPdf.rawValue)!
+    static let largePdfInstance: DebugUIMessagesAssetLoader = .fakeRandomAssetLoaderWithDataLength(4 * 1024 * 1024, mimeType: MimeType.applicationPdf.rawValue)!
 
-    static let missingPngInstance: DebugUIMessagesAssetLoader = .fakeMissingAssetLoaderWithMimeType(OWSMimeTypeImagePng)!
-    static let missingPdfInstance: DebugUIMessagesAssetLoader = .fakeMissingAssetLoaderWithMimeType("application/pdf")!
+    static let missingPngInstance: DebugUIMessagesAssetLoader = .fakeMissingAssetLoaderWithMimeType(MimeType.imagePng.rawValue)!
+    static let missingPdfInstance: DebugUIMessagesAssetLoader = .fakeMissingAssetLoaderWithMimeType(MimeType.applicationPdf.rawValue)!
     static let oversizeTextInstance: DebugUIMessagesAssetLoader = .fakeOversizeTextAssetLoader(text: nil)
     static func oversizeTextInstance(text: String) -> DebugUIMessagesAssetLoader {
         return .fakeOversizeTextAssetLoader(text: text)
@@ -107,25 +106,24 @@ class DebugUIMessagesAssetLoader {
         _ assetLoaders: [DebugUIMessagesAssetLoader],
         completion: @escaping Completion
     ) {
-        var promises = [AnyPromise]()
+        var promises = [Promise<Void>]()
 
         assetLoaders.forEach { assetLoader in
             // Use chained promises to make the code more readable.
-            let promise = AnyPromise { future in
+            let promise = Promise<Void> { future in
                 assetLoader.prepare!({ result in
                     switch result {
                     case .success:
-                        future.resolve(value: Void())
-
+                        future.resolve(())
                     case .failure(let error):
-                        future.reject(error: error)
+                        future.reject(error)
                     }
                 })
             }
             promises.append(promise)
         }
 
-        AnyPromise.when(resolved: promises)
+        Promise.when(resolved: promises)
             .done { _ in
                 completion(.success(()))
             }.catch { error in
@@ -206,7 +204,7 @@ class DebugUIMessagesAssetLoader {
         owsAssertDebug(imageSize.isNonEmpty)
         owsAssertDebug(!label.isEmpty)
 
-        let assetLoader = DebugUIMessagesAssetLoader(filename: "image.png", mimeType: OWSMimeTypeImagePng)
+        let assetLoader = DebugUIMessagesAssetLoader(filename: "image.png", mimeType: MimeType.imagePng.rawValue)
         assetLoader.prepare = { [weak assetLoader] completion in
             assetLoader?.ensurePngAssetLoaded(
                 imageSize: imageSize,
@@ -260,7 +258,7 @@ class DebugUIMessagesAssetLoader {
     private static func fakeNoisePngAssetLoaderWithImageSize(_ imageSize: UInt) -> DebugUIMessagesAssetLoader {
         owsAssertDebug(imageSize > 0)
 
-        let assetLoader = DebugUIMessagesAssetLoader(filename: "image.png", mimeType: OWSMimeTypeImagePng)
+        let assetLoader = DebugUIMessagesAssetLoader(filename: "image.png", mimeType: MimeType.imagePng.rawValue)
         assetLoader.prepare = { [weak assetLoader] completion in
             assetLoader?.ensureNoisePngAssetLoaded(imageSize: imageSize, completion: completion)
         }
@@ -387,7 +385,7 @@ class DebugUIMessagesAssetLoader {
         owsAssertDebug(dataLength > 0)
         owsAssertDebug(!mimeType.isEmpty)
 
-        guard let fileExtension = MIMETypeUtil.fileExtension(forMIMEType: mimeType) else {
+        guard let fileExtension = MimeTypeUtil.fileExtensionForMimeType(mimeType) else {
             owsFailDebug("Invalid mime type: \(mimeType)")
             return nil
         }
@@ -406,12 +404,12 @@ class DebugUIMessagesAssetLoader {
             return
         }
 
-        guard let fileExtension = MIMETypeUtil.fileExtension(forMIMEType: mimeType) else {
+        guard let fileExtension = MimeTypeUtil.fileExtensionForMimeType(mimeType) else {
             completion(.failure(DebugUIError.invalidMimeType))
             return
         }
 
-        let data = Randomness.generateRandomBytes(Int32(dataLength))
+        let data = Randomness.generateRandomBytes(dataLength)
         owsAssertDebug(data.count > 0)
 
         let filePath = OWSFileSystem.temporaryFilePath(fileExtension: fileExtension)
@@ -427,7 +425,7 @@ class DebugUIMessagesAssetLoader {
     // MARK: -
 
     private static func fakeMissingAssetLoaderWithMimeType(_ mimeType: String) -> DebugUIMessagesAssetLoader? {
-        guard let fileExtension = MIMETypeUtil.fileExtension(forMIMEType: mimeType) else {
+        guard let fileExtension = MimeTypeUtil.fileExtensionForMimeType(mimeType) else {
             owsFailDebug("Invalid mime type: \(mimeType)")
             return nil
         }
@@ -445,7 +443,7 @@ class DebugUIMessagesAssetLoader {
             return
         }
 
-        guard let fileExtension = MIMETypeUtil.fileExtension(forMIMEType: mimeType) else {
+        guard let fileExtension = MimeTypeUtil.fileExtensionForMimeType(mimeType) else {
             completion(.failure(DebugUIError.invalidMimeType))
             return
         }
@@ -479,7 +477,7 @@ lorem, in rhoncus nisi.\n\n
     }
 
     private static func fakeOversizeTextAssetLoader(text: String?) -> DebugUIMessagesAssetLoader {
-        let assetLoader = DebugUIMessagesAssetLoader(filename: "attachment.txt", mimeType: OWSMimeTypeOversizeTextMessage)
+        let assetLoader = DebugUIMessagesAssetLoader(filename: "attachment.txt", mimeType: MimeType.textXSignalPlain.rawValue)
         assetLoader.prepare = { [weak assetLoader] completion in
             assetLoader?.ensureOversizeTextAssetLoaded(text: text, completion: completion)
         }

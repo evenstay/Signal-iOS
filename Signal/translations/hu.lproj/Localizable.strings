@@ -25,6 +25,9 @@
 /* Accessibility label for stickers. */
 "ACCESSIBILITY_LABEL_STICKER" = "Matrica";
 
+/* Accessibility label for stickers. Embeds {{ name of top emoji the sticker resembles }} */
+"ACCESSIBILITY_LABEL_STICKER_FORMAT" = "A(z) %1$@ jelhez hasonló matrica";
+
 /* Accessibility label for a voice memo. */
 "ACCESSIBILITY_LABEL_VOICE_MEMO" = "Hangüzenet";
 
@@ -64,9 +67,6 @@
 /* Users can request a report of their account data. This is the title on the screen where they do this. */
 "ACCOUNT_DATA_REPORT_TITLE" = "Fiókadataid";
 
-/* Label for 'voice call' button in contact view. */
-"ACTION_AUDIO_CALL" = "Signal hívás";
-
 /* Label for 'invite' button in contact view. */
 "ACTION_INVITE" = "Meghívás Signalba";
 
@@ -78,6 +78,9 @@
 
 /* Label for 'video call' button in contact view. */
 "ACTION_VIDEO_CALL" = "Videóhívás";
+
+/* Label for 'voice call' button in contact view. */
+"ACTION_VOICE_CALL" = "Signal hívás";
 
 /* The title for the 'add group members' view. */
 "ADD_GROUP_MEMBERS_VIEW_TITLE" = "Tagok hozzáadása";
@@ -119,7 +122,7 @@
 "ALERT_ACTION_ACKNOWLEDGE" = "Rendben";
 
 /* Format string for delivery issue sheet message. Embeds {{ sender name }}. */
-"ALERT_DELIVERY_ISSUE_MESSAGE_FORMAT" = "Nem sikerült kézbesíteni egy %1$@ által részedre küldött üzenetet, matricát, reakciót, olvasási nyugtát vagy médiafájlt ebben a csevegésben.";
+"ALERT_DELIVERY_ISSUE_MESSAGE_FORMAT" = "Nem sikerült kézbesíteni egy %1$@ által részedre küldött üzenetet, matricát, reakciót, olvasási nyugtát vagy médiafájlt.";
 
 /* Title for delivery issue sheet */
 "ALERT_DELIVERY_ISSUE_TITLE" = "Kézbesítési probléma";
@@ -139,7 +142,7 @@
 /* The label for the 'save' button in action sheets. */
 "ALERT_SAVE" = "Mentés";
 
-/* Message for UI  warning about an unknown contact thread. */
+/* Message for UI warning about an unknown contact thread. */
 "ALERT_UNKNOWN_THREAD_WARNING_CONTACT_MESSAGE" = "Nincsenek közös csoportjaid ezzel a személlyel. Ellenőrizd a kérelmet figyelmesen mielőtt elfogadod, hogy elkerüld a nem kívánt üzeneteket.";
 
 /* Message for UI warning about an unknown group thread. */
@@ -183,9 +186,6 @@
 
 /* Title for the view of all your signal connections */
 "ALL_SIGNAL_CONNECTIONS_TITLE" = "Összes Névjegy";
-
-/* notification action */
-"ANSWER_CALL_BUTTON_TITLE" = "Válasz";
 
 /* notification body */
 "APN_Message" = "Új üzenet érkezett";
@@ -292,14 +292,14 @@
 /* Apple Pay donation error for decline failures where the payment cannot be authorized. */
 "APPLE_PAY_DONATION_ERROR_PAYMENT_CANNOT_BE_AUTHORIZED" = "Ellenőrizd, hogy a fizetési beállításaid az Apple Payben aktuálisak -e. Ha nem, kérjük frissítsd és próbáld újra.";
 
-/* Name of application */
-"APPLICATION_NAME" = "Signal";
-
 /* On the iOS home screen, if you tap and hold the Signal icon, this shortcut will appear. Tapping it will let users send a new message. You may want to refer to similar behavior in other iOS apps, such as Messages, for equivalent strings. */
 "APPLICATION_SHORTCUT_NEW_MESSAGE" = "Új üzenet";
 
 /* Label for the archive button for conversations list view */
 "ARCHIVE_ACTION" = "Archiválás";
+
+/* Button to try to join a call. The admin may need to approve the request before the user can join. */
+"ASK_TO_JOIN_CALL" = "Küldj csatlakozási kérelmet";
 
 /* One of the choices for pre-defined aspect ratio of a photo in media editor. */
 "ASPECT_RATIO_ORIGINAL" = "Eredeti";
@@ -430,9 +430,6 @@
 /* Short text label for a gif attachment, used for thread preview and on the lock screen */
 "ATTACHMENT_TYPE_GIF" = "GIF";
 
-/* Short text label for an image attachment, used for thread preview and on the lock screen */
-"ATTACHMENT_TYPE_IMAGE" = "Kép";
-
 /* Short text label for a photo attachment, used for thread preview and on the lock screen */
 "ATTACHMENT_TYPE_PHOTO" = "Kép";
 
@@ -444,9 +441,6 @@
 
 /* A string indicating that an audio message is playing. */
 "AUDIO_ACTIVITY_PLAYBACK_NAME_AUDIO_MESSAGE" = "Hangfájlüzenet";
-
-/* Accessibility label for placing an audio call */
-"AUDIO_CALL_LABEL" = "Hanghívás";
 
 /* action sheet button title to enable built in speaker during a call */
 "AUDIO_ROUTE_BUILT_IN_SPEAKER" = "Hangszóró";
@@ -503,22 +497,19 @@
 "BADGE_EXPIRED_LEARN_MORE_LINK" = "Tudj meg többet!";
 
 /* Title for subscription on the badge expiration sheet. */
-"BADGE_EXPIRED_SUBSCRIPTION_TITLE" = "Monthly Donation Canceled";
+"BADGE_EXPIRED_SUBSCRIPTION_TITLE" = "Havi adományozás törölve";
 
 /* String explaining to the user on a badge expiry sheet that their subscription badge has expired because the renewal payment failed. Embeds {{ a specific, already-localized string describing the payment failure }}. Will have a 'learn more' link appended, when it is rendered. */
-"BADGE_SUBSCRIPTION_EXPIRED_BECAUSE_OF_CHARGE_FAILURE_BODY_FORMAT" = "Your recurring monthly donation has ended. %1$@\n\nWithout an active subscription your badge will no longer be visible on your profile.";
-
-/* Body of the sheet shown when your subscription is canceled due to inactivity. Embeds {{ the name of the badge }}. Will have a 'learn more' link appended, when it is rendered. */
-"BADGE_SUBSCRIPTION_EXPIRED_BECAUSE_OF_INACTIVITY_BODY_FORMAT" = "A rendszeres havi támogatásod automatikusan kikapcsolásra került, mert túl sokáig voltál inaktív. A(z) %1$@ jelvényed már nem látható a profilodon.\n\nTermészetesen továbbra is használhatod a Signalt, de az alkalmazás támogatásához és a jelvényed újraaktiválásához adományoznod kell.";
+"BADGE_SUBSCRIPTION_EXPIRED_BECAUSE_OF_CHARGE_FAILURE_BODY_FORMAT" = "A rendszeres havi adományod törlésre került. %1$@\n\nA jelvényed már nem látható a profilodon.";
 
 /* Body for a sheet explaining that a bank transfer donation is complete, and that you have received a badge. */
-"BADGE_THANKS_BANK_DONATION_COMPLETE_BODY" = "Your bank transfer was received. You can choose to display this badge on your profile to show off your support.";
+"BADGE_THANKS_BANK_DONATION_COMPLETE_BODY" = "Banki átutalásod megérkezett. Dönthetsz úgy, hogy megjeleníted ezt a jelvényt a profilodban, hogy jelezd a támogatásod.";
 
 /* Title for a sheet explaining that a bank transfer donation is complete, and that you have received a badge. */
-"BADGE_THANKS_BANK_DONATION_COMPLETE_TITLE" = "Donation Complete";
+"BADGE_THANKS_BANK_DONATION_COMPLETE_TITLE" = "Az adományozás kész";
 
 /* When you make a donation to Signal, you will receive a badge. A thank-you sheet appears when this happens. This is the body text on that sheet. */
-"BADGE_THANKS_BODY" = "You can choose to display this badge on your profile to show off your support.";
+"BADGE_THANKS_BODY" = "Dönthetsz úgy, hogy megjeleníted ezt a jelvényt a profilodban, hogy jelezd a támogatásod.";
 
 /* Label prompting the user to display the new badge on their profile on the badge thank you sheet. */
 "BADGE_THANKS_DISPLAY_ON_PROFILE_LABEL" = "Megjelenítés profilképen";
@@ -533,22 +524,22 @@
 "BADGE_THANKS_TOGGLE_FOOTER" = "Ha egynél több jelvényed van, választhatsz, hogy melyiket tűzöd ki a profilképedre.";
 
 /* On the bank donation screen, show a link below the input form to show help about finding account info. */
-"BANK_DONATION_FOOTER_FIND_ACCOUNT_INFO" = "Find Account Info";
+"BANK_DONATION_FOOTER_FIND_ACCOUNT_INFO" = "Fiókadatok megkeresése";
 
 /* On the bank transfer donation screen, a small amount of information text is shown. This is that text. It should (1) instruct users to enter their bank information (2) tell them that Signal does not collect or store their personal information. */
-"BANK_DONATION_SUBHEADER_TEXT" = "Enter your bank details. Signal does not collect or store your personal information.";
+"BANK_DONATION_SUBHEADER_TEXT" = "Add meg a banki adataid. A Signal nem gyűjti és nem tárolja a személyes adataidat.";
 
 /* Users can donate to Signal with a bank account. We are required to show them a mandate with information about bank transfers. This is a label for a button to agree to the mandate. */
-"BANK_MANDATE_AGREE" = "Agree";
+"BANK_MANDATE_AGREE" = "Elfogad";
 
 /* Users can donate to Signal with a bank account. We are required to show them a mandate with information about bank transfers. This is a label for a button that shows more of the mandate if it is not all visible. */
-"BANK_MANDATE_READ_MORE" = "Read More";
+"BANK_MANDATE_READ_MORE" = "Koppints a teljeshez";
 
 /* Users can donate to Signal with a bank account. We are required to show them a mandate with information about bank transfers. This is a subtitle about the payment processor Stripe above that mandate. */
-"BANK_MANDATE_SUBTITLE" = "Stripe processes donations made to Signal. Signal does not collect or store your personal information.";
+"BANK_MANDATE_SUBTITLE" = "A Stripe feldolgozza a Signalnak adott adományokat. A Signal nem gyűjti és nem tárolja a személyes adataidat.";
 
 /* Users can donate to Signal with a bank account. We are required to show them a mandate with information about bank transfers. This is the title above that mandate. */
-"BANK_MANDATE_TITLE" = "Bank Transfer";
+"BANK_MANDATE_TITLE" = "Banki átutalás";
 
 /* Accessibility label for banner close button */
 "BANNER_CLOSE_ACCESSIBILITY_LABEL" = "Tájékoztató bezárása";
@@ -691,9 +682,6 @@
 /* Label for button that lets users call a contact again. */
 "CALL_AGAIN_BUTTON_TITLE" = "Újrahívás";
 
-/* notification body */
-"CALL_AUDIO_INCOMING_NOTIFICATION_BODY" = "📞 Bejövő hanghívás…";
-
 /* notification body for a missed call in the last 24 hours. Embeds {{time}}, e.g. '3:30 PM'. */
 "CALL_AUDIO_MISSED_24_HOURS_NOTIFICATION_BODY_FORMAT" = "📞 Nem fogadott hanghívás ekkor: %1$@";
 
@@ -721,14 +709,74 @@
 /* label for button shown when an incoming call rings */
 "CALL_CONTROLS_INCOMING_DECLINE" = "elutasít";
 
-/* Body for the repeating notification shown while an incoming group call is ringing, if the user has chosen not to include contact names in notifications */
-"CALL_GROUP_INCOMING_NOTIFICATION_BODY_ANONYMOUS" = "📹 Bejövő csoportos hívás…";
+/* Button to open a screen to edit the name of a Call Link. Also used as the title of that screen once it opens. */
+"CALL_LINK_ADD_NAME" = "Hívásnév megadása";
 
-/* Body for the repeating notification shown while an incoming group call is ringing. Embeds {{caller name}} */
-"CALL_GROUP_INCOMING_NOTIFICATION_BODY_FORMAT" = "📹 %1$@ hívja a csoportot…";
+/* Button to copy a Call Link to the clipboard. */
+"CALL_LINK_COPY" = "Link másolása";
+
+/* Navigation bar title for the sheet used to create & configure a Call Link. */
+"CALL_LINK_CREATE" = "Híváshivatkozás létrehozása";
+
+/* Description of sheet presented when call link creation fails. */
+"CALL_LINK_CREATION_FAILURE_SHEET_DESCRIPTION" = "A híváslinket nem sikerült létrehozni. Ellenőrizd az internetkapcsolatot, és próbáld újra.";
+
+/* Title of sheet presented when call link creation or update fails. */
+"CALL_LINK_CREATION_OR_UPDATE_FAILURE_SHEET_TITLE" = "Hálózati hiba";
+
+/* Button to open a screen to edit the name of a Call Link. Also used as the title of that screen once it opens. */
+"CALL_LINK_EDIT_NAME" = "Hívás nevének szerkesztése";
+
+/* Description of sheet presented when joining call from call link sheet fails. */
+"CALL_LINK_JOIN_CALL_FAILURE_SHEET_DESCRIPTION" = "Nem sikerült csatlakozni a híváshoz. Ellenőrizd az internetkapcsolatot, és próbáld újra.";
+
+/* Button on an action sheet to approve a request to join a call link. */
+"CALL_LINK_JOIN_REQUEST_APPROVE_BUTTON" = "Approve Entry";
+
+/* Button on an action sheet to deny a request to join a call link. */
+"CALL_LINK_JOIN_REQUEST_DENY_BUTTON" = "Deny Entry";
+
+/* Tappable label that appears below a user's name on a toast when they request to join a call link. */
+"CALL_LINK_JOIN_REQUEST_PROMPT" = "Would like to join…";
+
+/* Shown in a message bubble when you send a call link in a Signal chat */
+"CALL_LINK_LINK_PREVIEW_DESCRIPTION" = "Ezzel a hivatkozással csatlakozhatsz egy Signal-híváshoz";
+
+/* Text that appears on a toast in a call lobby before joining a call link informing the user what information will be shared with other call members when they have phone number sharing turned off. */
+"CALL_LINK_LOBBY_SHARING_INFO_PHONE_NUMBER_SHARING_OFF" = "Anyone who joins this call via the link will see your name and photo.";
+
+/* Text that appears on a toast in a call lobby before joining a call link informing the user what information will be shared with other call members when they have phone number sharing turned on. */
+"CALL_LINK_LOBBY_SHARING_INFO_PHONE_NUMBER_SHARING_ON" = "Anyone who joins this call via the link will see your name, photo, and phone number.";
+
+/* Title for button to approve all requests to join a call. */
+"CALL_LINK_REQUEST_SHEET_APPROVE_ALL_BUTTON" = "Összes jóváhagyása";
+
+/* Title for button to deny all requests to join a call. */
+"CALL_LINK_REQUEST_SHEET_DENY_ALL_BUTTON" = "Összes elutasítása";
+
+/* Header for the sheet displaying a list of requests to join a call. */
+"CALL_LINK_REQUEST_SHEET_HEADER" = "Csatlakozni szeretne a híváshoz";
+
+/* Name of a toggle switch to enable/disable admin approval for joining a Call Link. */
+"CALL_LINK_REQUIRE_APPROVAL" = "Adminisztrátori jóváhagyás szükséges";
+
+/* Button to open UI to share a Call Link with someone on Signal. */
+"CALL_LINK_SHARE_VIA_SIGNAL" = "Hivatkozás megosztása a Signalon keresztül";
+
+/* Button to open the system share sheet to share a Call Link. */
+"CALL_LINK_SHARE_VIA_SYSTEM" = "Link megosztása";
+
+/* Description of sheet presented when call link update fails. */
+"CALL_LINK_UPDATE_FAILURE_SHEET_DESCRIPTION" = "A híváslink nem frissíthető. Ellenőrizd az internetkapcsolatot, és próbáld újra.";
+
+/* Label on button for lowering hand in call. */
+"CALL_LOWER_HAND_BUTTON_LABEL" = "Kéz letétele";
 
 /* notification body */
 "CALL_MISSED_BECAUSE_OF_IDENTITY_CHANGE_NOTIFICATION_BODY" = "Nem fogadott hívás. A hívó biztonsági azonosítója megváltozott.";
+
+/* Label on button for raising hand in call. */
+"CALL_RAISE_HAND_BUTTON_LABEL" = "Kéz felemelése";
 
 /* Button to return to the current call */
 "CALL_RETURN_BUTTON" = "Vissza a híváshoz";
@@ -736,8 +784,8 @@
 /* Call setup status label after outgoing call times out */
 "CALL_SCREEN_STATUS_NO_ANSWER" = "Sikertelen hívás";
 
-/* embeds {{Call Status}} in call screen label. For ongoing calls, {{Call Status}} is a seconds timer like 01:23, otherwise {{Call Status}} is a short text like 'Ringing', 'Busy', or 'Failed Call' */
-"CALL_STATUS_FORMAT" = "Signal %1$@";
+/* Button to start a call */
+"CALL_START_BUTTON" = "Hívás indítása";
 
 /* Label for call button for alert offering to call a user. */
 "CALL_USER_ALERT_CALL_BUTTON" = "Hívás";
@@ -747,9 +795,6 @@
 
 /* Title for alert offering to call a user. */
 "CALL_USER_ALERT_TITLE" = "Hívás?";
-
-/* notification body */
-"CALL_VIDEO_INCOMING_NOTIFICATION_BODY" = "📹 Bejövő videóhívás…";
 
 /* notification body for a missed call in the last 24 hours. Embeds {{time}}, e.g. '3:30 PM'. */
 "CALL_VIDEO_MISSED_24_HOURS_NOTIFICATION_BODY_FORMAT" = "📹 Nem fogadott videóhívás: %1$@";
@@ -763,7 +808,7 @@
 /* notification body for a missed call from the last week. Embeds {{weekday}}, e.g. 'Monday'. */
 "CALL_VIDEO_MISSED_WEEK_NOTIFICATION_BODY_FORMAT" = "📹 Nem fogadott videóhívás (%1$@)";
 
-/* label for accepting incoming video calls as audio  only */
+/* label for accepting incoming video calls as audio only */
 "CALL_VIEW_ACCEPT_INCOMING_CALL_AUDIO_ONLY_LABEL" = "Válasz videó nélkül";
 
 /* label for accepting incoming calls */
@@ -778,6 +823,12 @@
 /* Accessibility label for hang up call */
 "CALL_VIEW_HANGUP_LABEL" = "Hívás befejezése";
 
+/* Accessibility label for leaving a call */
+"CALL_VIEW_LEAVE_CALL_LABEL" = "Kilépés a hívásból";
+
+/* Accessibility label for the More button in the Call Controls row. */
+"CALL_VIEW_MORE_LABEL" = "Tovább";
+
 /* Accessibility label for muting the microphone */
 "CALL_VIEW_MUTE_LABEL" = "Némítás";
 
@@ -787,11 +838,17 @@
 /* Accessibility label to toggle front- vs. rear-facing camera */
 "CALL_VIEW_SWITCH_CAMERA_DIRECTION" = "Kamera váltás";
 
-/* Accessibility label to switch to audio only */
-"CALL_VIEW_SWITCH_TO_AUDIO_LABEL" = "Váltás hanghívásra";
+/* Accessibility label for turning off the camera */
+"CALL_VIEW_TURN_VIDEO_OFF_LABEL" = "Kamera kikapcsolása";
 
-/* Accessibility label to switch to video call */
-"CALL_VIEW_SWITCH_TO_VIDEO_LABEL" = "Váltás videóhívásra";
+/* Accessibility label for turning on the camera */
+"CALL_VIEW_TURN_VIDEO_ON_LABEL" = "Kamera bekapcsolása";
+
+/* Accessibility label for unmuting the microphone */
+"CALL_VIEW_UNMUTE_LABEL" = "Ném. feloldása";
+
+/* Shown in the header below the name of the call while waiting for the host to allow you to enter the call. */
+"CALL_WAITING_TO_BE_LET_IN" = "Beengedésre vár…";
 
 /* notification action */
 "CALLBACK_BUTTON_TITLE" = "Visszahívás";
@@ -804,6 +861,84 @@
 
 /* The generic name used for group calls if CallKit privacy is enabled */
 "CALLKIT_ANONYMOUS_GROUP_NAME" = "Signal Csoport";
+
+/* Title for the calls list view. */
+"CALLS_LIST_TITLE" = "Hívások";
+
+/* Label for an entry in the Calls Tab describing a call as incoming. */
+"CALLS_TAB_CALL_DIRECTION_LABEL_INCOMING" = "Bejövő";
+
+/* Label for an entry in the Calls Tab describing a call as missed. */
+"CALLS_TAB_CALL_DIRECTION_LABEL_MISSED" = "Nem fogadott";
+
+/* Label for an entry in the Calls Tab describing a call as outgoing. */
+"CALLS_TAB_CALL_DIRECTION_LABEL_OUTGOING" = "Kimenő";
+
+/* Title for a row in the Calls Tab that represents multiple calls that have been coalesced together. Embeds {{ a title describing the coalesced calls }}, {{ the number of coalesced calls }}. */
+"CALLS_TAB_COALESCED_CALLS_TITLE_FORMAT" = "%1$@ (%2$@)";
+
+/* Title for a button allowing the user to delete all the calls from the Calls Tab. */
+"CALLS_TAB_DELETE_ALL_CALLS_BUTTON_TITLE" = "Törlés";
+
+/* Message for a prompt confirming that the user wants to delete all the calls from the Calls Tab. */
+"CALLS_TAB_DELETE_ALL_CALLS_PROMPT_MESSAGE" = "Ezzel véglegesen törlöd az összes híváselőzményt.";
+
+/* Title for a prompt confirming that the user wants to delete all the calls from the Calls Tab. */
+"CALLS_TAB_DELETE_ALL_CALLS_PROMPT_TITLE" = "Híváselőzmények törlése?";
+
+/* Title for a long-press context menu action to delete a call, triggered from a call in the Calls Tab. */
+"CALLS_TAB_DELETE_CALL_ACTION_TITLE" = "Törlés";
+
+/* An option in a segmented control in the Calls Tab allowing the user to select the filter option 'all calls'; i.e., 'unfiltered'. */
+"CALLS_TAB_FILTER_PICKER_OPTION_ALL" = "Összes";
+
+/* An option in a segmented control in the Calls Tab allowing the user to select the filter option 'missed calls'. */
+"CALLS_TAB_FILTER_PICKER_OPTION_MISSED" = "Nem fogadott";
+
+/* Title for an action, either long-press context menu or swipe, offering to take the user to the chat associated with a call in the Calls Tab. */
+"CALLS_TAB_GO_TO_CHAT_ACTION_TITLE" = "Ugrás a csevegésre";
+
+/* Title for a button offering to let the user join an ongoing call, associated with a call in the Calls Tab. */
+"CALLS_TAB_JOIN_CALL_BUTTON_TITLE" = "Belépés";
+
+/* Title for a long-press context menu action to join a video call, triggered from a call in the Calls Tab. */
+"CALLS_TAB_JOIN_VIDEO_CALL_ACTION_TITLE" = "Csatlakozás videóhíváshoz";
+
+/* Title for a long-press context menu action to join a voice call, triggered from a call in the Calls Tab. */
+"CALLS_TAB_JOIN_VOICE_CALL_ACTION_TITLE" = "Csatlakozás a hanghíváshoz";
+
+/* Label explaining that the user has no missed calls, so their Calls Tab is empty. */
+"CALLS_TAB_NO_MISSED_CALLS_LABEL" = "Nincs nem fogadott hívás";
+
+/* Label explaining that the user has no recent calls, so their Calls Tab is empty. */
+"CALLS_TAB_NO_RECENT_CALLS_LABEL" = "Nincs legutóbbi hívás";
+
+/* Label suggesting that the user start a call, shown when their Calls Tab is empty. */
+"CALLS_TAB_NO_RECENT_CALLS_SUGGESTION_LABEL" = "Először hívd fel egy ismerősöd";
+
+/* Title for a long-press context menu action to return to a call the user is actively participating in, triggered from a call in the Calls Tab. */
+"CALLS_TAB_RETURN_TO_CALL_ACTION_TITLE" = "Vissza a híváshoz";
+
+/* Title for a button offering to let the user return to an ongoing call they're already in, associated with a call in the Calls Tab. */
+"CALLS_TAB_RETURN_TO_CALL_BUTTON_TITLE" = "Vissza";
+
+/* Label for a view explaining that no search results were found in the Calls Tab. Embeds {{ the search term }}. */
+"CALLS_TAB_SEARCH_NO_RESULTS_FOUND_LABEL_FORMAT" = "Nincs találat a kifejezésre: '%1$@'";
+
+/* Title for a long-press context menu action to select a call, triggered from a call in the Calls Tab. */
+"CALLS_TAB_SELECT_CALL_ACTION_TITLE" = "Kiválasztás";
+
+/* Title for a button allowing the user to select one or more calls, from the Calls Tab. */
+"CALLS_TAB_SELECT_CALLS_BUTTON_TITLE" = "Kiválasztás";
+
+/* Title for a long-press context menu action to start a video call, triggered from a call in the Calls Tab. */
+"CALLS_TAB_START_VIDEO_CALL_ACTION_TITLE" = "Videóhívás";
+
+/* Title for a long-press context menu action to start a voice call, triggered from a call in the Calls Tab. */
+"CALLS_TAB_START_VOICE_CALL_ACTION_TITLE" = "Hanghívás";
+
+/* Title for a long-press context menu action to view info about a call, triggered from a call in the Calls Tab. */
+"CALLS_TAB_VIEW_CALL_INFO_ACTION_TITLE" = "Részletek";
 
 /* Accessibility hint describing what you can do with the camera button */
 "CAMERA_BUTTON_HINT" = "Készíts egy képet és küldd el";
@@ -917,16 +1052,16 @@
 "CHANGE_AVATAR_BUTTON_LABEL" = "Fotó szerkesztése";
 
 /* Error indicating that the user's old and new phone numbers are identical. */
-"CHANGE_PHONE_NUMBER_IDENTICAL_PHONE_NUMBERS_ALERT_MESSAGE" = "Az új számod nem egyezhet a régivel. Kérlek adj meg egy új számot a változtatáshoz.";
+"CHANGE_PHONE_NUMBER_IDENTICAL_PHONE_NUMBERS_ALERT_MESSAGE" = "Az új számod nem egyezhet a régivel. A módosításhoz, kérjük, adj meg egy új számot.";
 
 /* Error indicating that the user's old phone number was not entered correctly. */
 "CHANGE_PHONE_NUMBER_INCORRECT_OLD_PHONE_NUMBER_ALERT_MESSAGE" = "A megadott szám nem egyezik a fiókodhoz tartozó telefonszámmal.";
 
 /* Error indicating that the user's new phone number is not valid. */
-"CHANGE_PHONE_NUMBER_INVALID_PHONE_NUMBER_ALERT_MESSAGE_NEW" = "Érvénytelen új telefonszám. Adj meg egy valós telefonszámot a változtatáshoz.";
+"CHANGE_PHONE_NUMBER_INVALID_PHONE_NUMBER_ALERT_MESSAGE_NEW" = "Érvénytelen új telefonszám. A módosításhoz, kérjük, adj meg egy valós telefonszámot.";
 
 /* Error indicating that the user's old phone number is not valid. */
-"CHANGE_PHONE_NUMBER_INVALID_PHONE_NUMBER_ALERT_MESSAGE_OLD" = "Érvénytelen régi telefonszám. Adj meg egy valós telefonszámot a változtatáshoz.";
+"CHANGE_PHONE_NUMBER_INVALID_PHONE_NUMBER_ALERT_MESSAGE_OLD" = "Érvénytelen régi telefonszám. A módosításhoz, kérjük, adj meg egy valós telefonszámot.";
 
 /* The incoming bubble text when setting a chat color. */
 "CHAT_COLOR_INCOMING_MESSAGE" = "Íme a csevegési szín előnézete.";
@@ -961,8 +1096,17 @@
 /* Tooltip highlighting the auto chat color option. */
 "CHAT_COLORS_AUTO_TOOLTIP" = "Háttérképhez passzoló automatikus színválasztás";
 
+/* Title for context menu action to disable chat list filter (e.g., Filter by Unread) */
+"CHAT_LIST_CLEAR_FILTER_MENU_ACTION" = "Szűrő törlése";
+
 /* Title for the chat list's default mode. */
 "CHAT_LIST_TITLE_INBOX" = "Csevegések";
+
+/* Title for context menu action to enable Filter by Unread */
+"CHAT_LIST_UNREAD_FILTER_MENU_ACTION" = "Szűrés Olvasatlan szerint";
+
+/* Message displayed on chat list when Filter by Unread is enabled but no unread chats are available */
+"CHAT_LIST_UNREAD_FILTER_NO_CHATS" = "Nincs olvasatlan csevegés";
 
 /* Title for the color & wallpaper settings view. */
 "COLOR_AND_WALLPAPER_SETTINGS_TITLE" = "Csevegés színe és háttérkép";
@@ -987,6 +1131,21 @@
 
 /* Table section header for username search when composing a new message */
 "COMPOSE_MESSAGE_USERNAME_SEARCH_SECTION_TITLE" = "Keresés felhasználónév alapján";
+
+/* Menu action to display limited contact picker. */
+"COMPOSE_SCREEN_LIMITED_CONTACTS_ACTION_MANAGE" = "További névjegyek kiválasztása";
+
+/* Menu action visit app contact permission in settings. */
+"COMPOSE_SCREEN_LIMITED_CONTACTS_ACTION_SETTINGS" = "Ugrás Beállításokhoz";
+
+/* Multi-line label explaining why compose-screen contact picker may be missing contacts. */
+"COMPOSE_SCREEN_LIMITED_CONTACTS_CTA" = "Kezelés";
+
+/* Multi-line label explaining why compose-screen contact picker is empty. */
+"COMPOSE_SCREEN_LIMITED_CONTACTS_PERMISSION" = "A Signal korlátozott hozzáféréssel rendelkezik a rendszernévjegyekhez";
+
+/* Button to open settings from an empty compose-screen contact picker. */
+"COMPOSE_SCREEN_MISSING_CONTACTS_CTA" = "Beállítok megnyitása";
 
 /* Multi-line label explaining why compose-screen contact picker is empty. */
 "COMPOSE_SCREEN_MISSING_CONTACTS_PERMISSION" = "Engedélyezd a kontaktokhoz való hozzáférést az iOS Beállításokban, hogy lásd kik Signal felhasználók közülük.";
@@ -1014,6 +1173,27 @@
 
 /* Button text */
 "CONFIRM_LINK_NEW_DEVICE_ACTION" = "Új Készülék Társítása";
+
+/* Indicates that the user has blocked the other account. Embeds {{name}} */
+"CONTACT_ABOUT_SHEET_BLOCKED_USER_FORMAT" = "%1$@ letiltva";
+
+/* Indicates that another account is in the user's system contacts. Embeds {{name}} */
+"CONTACT_ABOUT_SHEET_CONNECTION_IN_SYSTEM_CONTACTS" = "%1$@ szerepel a telefonod névjegyei között";
+
+/* Indicates that the user has no messages with the other account. Embeds {{name}} */
+"CONTACT_ABOUT_SHEET_NO_DIRECT_MESSAGES" = "Nincs közvetlen üzenet %1$@ felhasználóval";
+
+/* Indicates that the user has a pending request with the other account. Embeds {{name}} */
+"CONTACT_ABOUT_SHEET_PENDING_REQUEST" = "Függő üzenetkérés";
+
+/* Message for a tooltip that appears above a parenthesized name for another user, indicating that that name is the name the other user set for themself. Embeds {{name}} */
+"CONTACT_ABOUT_SHEET_SECONDARY_NAME_TOOLTIP_MESSAGE" = "A(z) „ %1$@” az a profilnév, amelyet ez a személy beállított magának a Signalban.";
+
+/* A label indicating a user is a signal connection. */
+"CONTACT_ABOUT_SHEET_SIGNAL_CONNECTION_LABEL" = "Signal Névjegyek";
+
+/* The title for a contact 'about' sheet. */
+"CONTACT_ABOUT_SHEET_TITLE" = "Névjegy";
 
 /* Label for a contact's postal address. */
 "CONTACT_ADDRESS" = "Cím";
@@ -1048,13 +1228,31 @@
 /* Label for the 'organization' field of a contact. */
 "CONTACT_FIELD_ORGANIZATION" = "Szervezet";
 
+/* Title for a view showing the note that has been set for a profile. */
+"CONTACT_NOTE_TITLE" = "Megjegyzés";
+
+/* Body for contact permission action sheet */
+"CONTACT_PERMISSION_ACTION_SHEET_2_BODY" = "Ismerősök keresése a Signalban:";
+
+/* First step for contact permission action sheet */
+"CONTACT_PERMISSION_ACTION_SHEET_2_STEP_ONE" = "Koppints a \"Beállításokhoz\" címkére lent";
+
+/* Third step for contact permission action sheet */
+"CONTACT_PERMISSION_ACTION_SHEET_2_STEP_THREE" = "Add meg az engedélyt";
+
+/* Second step for contact permission action sheet */
+"CONTACT_PERMISSION_ACTION_SHEET_2_STEP_TWO" = "Koppints a „Névjegyek” lehetőségre";
+
+/* Title for contact permission action sheet */
+"CONTACT_PERMISSION_ACTION_SHEET_2_TITLE" = "Hozzáférés engedélyezése a névjegyekhez";
+
 /* Body for contact permission action sheet */
 "CONTACT_PERMISSION_ACTION_SHEET_BODY" = "A névjegyek nevének és fotójának megjelenítéséhez a csevegéseidben:";
 
 /* First step for contact permission action sheet */
 "CONTACT_PERMISSION_ACTION_SHEET_STEP_ONE" = "Koppints az \"Ugrás Beállításokhoz\" címkére lent";
 
-/* Third step for contact permission action sheet */
+/* Second step for contact permission action sheet */
 "CONTACT_PERMISSION_ACTION_SHEET_STEP_TWO" = "\"Kontaktok\" bekapcsolása";
 
 /* Title for contact permission action sheet */
@@ -1064,13 +1262,13 @@
 "CONTACT_PERMISSION_NOT_NOW_ACTION" = "Később";
 
 /* Action text for contact permission reminder megaphone */
-"CONTACT_PERMISSION_REMINDER_MEGAPHONE_ACTION" = "Bekapcsolás";
+"CONTACT_PERMISSION_REMINDER_MEGAPHONE_ACTION" = "Hozzáférés engedélyezése";
 
 /* Body for contact permission reminder megaphone */
-"CONTACT_PERMISSION_REMINDER_MEGAPHONE_BODY" = "Jelenítsd meg névjegyeid nevét és fotóit a csevegéseidben.";
+"CONTACT_PERMISSION_REMINDER_MEGAPHONE_BODY" = "Engedélyezd a hozzáférést a névjegyeidhez, hogy gyorsan megtaláld őket a Signalban.";
 
 /* Title for contact permission reminder megaphone */
-"CONTACT_PERMISSION_REMINDER_MEGAPHONE_TITLE" = "Kontaktok bekapcsolása?";
+"CONTACT_PERMISSION_REMINDER_MEGAPHONE_TITLE" = "Névjegyek keresése a Signalban";
 
 /* Label for a contact's phone number. */
 "CONTACT_PHONE" = "Telefonszám";
@@ -1093,8 +1291,11 @@
 /* Error indicating that an invalid contact cannot be shared. */
 "CONTACT_SHARE_INVALID_CONTACT" = "Helytelen kontakt";
 
-/* Error indicating that at least one contact field must be selected before sharing a contact. */
-"CONTACT_SHARE_NO_FIELDS_SELECTED" = "Nincs kontakt kiválasztva.";
+/* Alert body when contacts disabled while trying to share a contact. */
+"CONTACT_SHARING_NO_ACCESS_BODY" = "A Signalnak hozzá kell férnie a névjegyeidhez. Menj az iOS beállításokba és kapcsold be a névjegyeket. A névjegyeid titkosítva vannak, és nem láthatók a Signal számára.";
+
+/* Alert title when contacts disabled while trying to share a contact. */
+"CONTACT_SHARING_NO_ACCESS_TITLE" = "Kontaktokhoz hozzáférés engedélyezése";
 
 /* Button text to initiate an email to signal support staff */
 "CONTACT_SUPPORT" = "Segítségkérés";
@@ -1208,7 +1409,7 @@
 "CONTEXT_MENU_STOP_SPEAKING_MESSAGE" = "Leállítás";
 
 /* Message for the 'conversation delete confirmation' alert. */
-"CONVERSATION_DELETE_CONFIRMATION_ALERT_MESSAGE" = "A csevegés ezen az eszközön törlésre kerül.";
+"CONVERSATION_DELETE_CONFIRMATION_ALERT_MESSAGE" = "Ez a csevegés minden kapcsolt eszközödön törlésre kerül.";
 
 /* Title for the 'conversation delete confirmation' alert. */
 "CONVERSATION_DELETE_CONFIRMATION_ALERT_TITLE" = "Törlöd a csevegést?";
@@ -1262,22 +1463,13 @@
 "CONVERSATION_SETTINGS_ADD_TO_EXISTING_CONTACT" = "Hozzáadás meglevő kontakthoz";
 
 /* button in conversation settings view. */
-"CONVERSATION_SETTINGS_ADD_TO_SYSTEM_CONTACTS" = "Telefon névjegyekhez adás";
+"CONVERSATION_SETTINGS_ADD_TO_SYSTEM_CONTACTS" = "Hozzáadás a telefonos névjegyekhez";
 
-/* Label indicating that only administrators can update the group's attributes: name, avatar, etc. */
-"CONVERSATION_SETTINGS_ATTRIBUTES_ACCESS_ADMINISTRATOR" = "Adminok";
-
-/* Label indicating that all group members can update the group's attributes: name, avatar, etc. */
-"CONVERSATION_SETTINGS_ATTRIBUTES_ACCESS_MEMBER" = "Összes";
-
-/* Label indicating that no member can update the group's attributes: name, avatar, etc. */
-"CONVERSATION_SETTINGS_ATTRIBUTES_ACCESS_NONE" = "Letiltva";
+/* Header title for the section showing all media in conversation settings */
+"CONVERSATION_SETTINGS_ALL_MEDIA_HEADER" = "Minden média";
 
 /* Footer for the 'attributes access' section in conversation settings view. */
 "CONVERSATION_SETTINGS_ATTRIBUTES_ACCESS_SECTION_FOOTER" = "Add meg, hogy ki szerkeszthesse a csoportnevet, az avatárt, a csoportleírást és az eltűnő üzenetek időzítőjét.";
-
-/* Button to start a audio call */
-"CONVERSATION_SETTINGS_AUDIO_CALL_BUTTON" = "hang";
 
 /* Footer string for a contact's badges in conversation settings */
 "CONVERSATION_SETTINGS_BADGES_FOOTER" = "Szerezz kitűzőket profilképedre a Signal anyagi támogatásával. Koppints az egyik kitűzőre a további tudnivalókért.";
@@ -1285,20 +1477,29 @@
 /* Header title for a contact's badges in conversation settings */
 "CONVERSATION_SETTINGS_BADGES_HEADER" = "Jelvények";
 
-/* Footer text for the 'block and leave' section of contact conversation settings view. */
-"CONVERSATION_SETTINGS_BLOCK_AND_LEAVE_SECTION_CONTACT_FOOTER" = "Többé nem kapsz üzeneteket vagy frissítéseket ettől a felhasználótól.";
-
-/* Footer text for the 'block and leave' section of group conversation settings view. */
-"CONVERSATION_SETTINGS_BLOCK_AND_LEAVE_SECTION_FOOTER" = "Többé nem kapsz üzeneteket és frissítéseket ebből a csoportból.";
-
 /* Label for 'block group' action in conversation settings view. */
 "CONVERSATION_SETTINGS_BLOCK_GROUP" = "Csoport letiltása";
 
 /* Label for 'block user' action in conversation settings view. */
 "CONVERSATION_SETTINGS_BLOCK_USER" = "Felhasználó letiltása";
 
-/* Label for the 'edit' button in conversation settings view. */
-"CONVERSATION_SETTINGS_EDIT" = "Szerkesztés";
+/* A label indicating that a call was an incoming video call */
+"CONVERSATION_SETTINGS_CALL_DETAILS_INCOMING_VIDEO_CALL" = "Bejövő videóhívás";
+
+/* A label indicating that a call was an incoming voice call */
+"CONVERSATION_SETTINGS_CALL_DETAILS_INCOMING_VOICE_CALL" = "Bejövő hanghívás";
+
+/* A label indicating that a call was an missed video call */
+"CONVERSATION_SETTINGS_CALL_DETAILS_MISSED_VIDEO_CALL" = "Nem fogadott videóhívás";
+
+/* A label indicating that a call was an missed voice call */
+"CONVERSATION_SETTINGS_CALL_DETAILS_MISSED_VOICE_CALL" = "Nem fogadott hanghívás";
+
+/* A label indicating that a call was an outgoing video call */
+"CONVERSATION_SETTINGS_CALL_DETAILS_OUTGOING_VIDEO_CALL" = "Kimenő videóhívás";
+
+/* A label indicating that a call was an outgoing voice call */
+"CONVERSATION_SETTINGS_CALL_DETAILS_OUTGOING_VOICE_CALL" = "Kimenő hanghívás";
 
 /* Label for 'edit attributes access' action in conversation settings view. */
 "CONVERSATION_SETTINGS_EDIT_ATTRIBUTES_ACCESS" = "Csoport infó szerkesztése";
@@ -1402,6 +1603,9 @@
 /* Format for title for 'remove from group' confirmation alert. Embeds {user to remove from the group}. */
 "CONVERSATION_SETTINGS_REMOVE_FROM_GROUP_TITLE_FORMAT" = "Eltávolítod %1$@ felhasználót a csoportból?";
 
+/* Label for 'report spam' action in conversation settings view. */
+"CONVERSATION_SETTINGS_REPORT_SPAM" = "Kéretlen üzenet jelentése";
+
 /* Label for 'revoke group admin' button in conversation settings view. */
 "CONVERSATION_SETTINGS_REVOKE_GROUP_ADMIN_BUTTON" = "Admin jog elvétele";
 
@@ -1438,6 +1642,9 @@
 /* Indicates that user is in the system contacts list. */
 "CONVERSATION_SETTINGS_VIEW_IS_SYSTEM_CONTACT" = "Kontakt részletek";
 
+/* Button to start a voice call */
+"CONVERSATION_SETTINGS_VOICE_CALL_BUTTON" = "hang";
+
 /* Message shown in conversation view that offers to add an unknown user to your phone's contacts. */
 "CONVERSATION_VIEW_ADD_TO_CONTACTS_OFFER" = "Hozzáadás a kontaktokhoz";
 
@@ -1465,14 +1672,14 @@
 /* No comment provided by engineer. */
 "COUNTRYCODE_SELECT_TITLE" = "Válassz országhívószámot";
 
-/* Body text for an interactive in-app prompt to set up a Signal username. */
-"CREATE_USERNAME_MEGAPHONE_BODY" = "A felhasználónevek segítségével mások üzenetet küldhetnek neked anélkül, hogy szükségük lenne a telefonszámodra.";
+/* Label for button that enables you to make a new call link. */
+"CREATE_CALL_LINK_LABEL" = "Híváshivatkozás létrehozása";
 
-/* Title for a button in an interactive in-app prompt to set up a Signal username, which will start a create-username flow. */
-"CREATE_USERNAME_MEGAPHONE_SET_UP_BUTTON_TITLE" = "Beállítás";
+/* Body text for an interactive in-app prompt to set up a Signal username. */
+"CREATE_USERNAME_MEGAPHONE_BODY" = "Bemutatjuk a telefonszám-védelmet, az opcionális felhasználóneveket és a hivatkozásokat.";
 
 /* Title for an interactive in-app prompt to set up a Signal username. */
-"CREATE_USERNAME_MEGAPHONE_TITLE" = "Állítsd be a Signal-felhasználóneved";
+"CREATE_USERNAME_MEGAPHONE_TITLE" = "Új csatlakozási módok";
 
 /* Credit/debit card donation error for decline failures where the card has expired. */
 "CREDIT_OR_DEBIT_CARD_DONATION_ERROR_EXPIRED_CARD" = "A kártyád érvényessége lejárt. Ellenőrizd, hogy a kártyaadatok helyesek-e, és próbáld újra.";
@@ -1625,10 +1832,10 @@
 "DEBUG_LOG_INFO_BUTTON" = "Bővebben a hibanaplóról";
 
 /* info message text in conversation view */
-"DECLINED_AUDIO_CALL" = "Elutasítottál egy hanghívást";
+"DECLINED_VIDEO_CALL" = "Elutasítottál egy videóhívást";
 
 /* info message text in conversation view */
-"DECLINED_VIDEO_CALL" = "Elutasítottál egy videóhívást";
+"DECLINED_VOICE_CALL" = "Elutasítottál egy hanghívást";
 
 /* Title for the action sheet 'delete' action of the 'delete account confirmation' view controller. */
 "DELETE_ACCOUNT_CONFIRMATION_ACTION_SHEEET_ACTION" = "Fiók törlése";
@@ -1676,7 +1883,7 @@
 "DELETE_CONTACT_ACTION_SHEET_BUTTON" = "Törlés";
 
 /* An explanation of what happens in Signal when you remove a system contact. */
-"DELETE_CONTACT_ACTION_SHEET_EXPLANATION" = "Ez a személy törlésre kerül a Rendszernévjegyek közül. Nem fogod látni ezt a személyt keresés közben. Ha a jövőben üzenetet küld neked, felkérést kapsz.";
+"DELETE_CONTACT_ACTION_SHEET_EXPLANATION" = "Ez a személy törlésre kerül a telefon névjegyei közül. Nem fogod látni ezt a személyt keresés közben. Ha a jövőben üzenetet küld neked, felkérést kapsz.";
 
 /* Title of action sheet confirming the user wants to delete a system contact. */
 "DELETE_CONTACT_ACTION_SHEET_TITLE" = "Törlöd a névjegyet és eltávolítod a listáról?";
@@ -1686,6 +1893,27 @@
 
 /* Toast message confirming the system contact was deleted. Embeds {{The name of the user who was deleted.}}. */
 "DELETE_CONTACT_CONFIRMATION_TOAST" = "%1$@ törölve a Névjegyek közül és eltávolítva.";
+
+/* Title for an action sheet button explaining that a message will be deleted. */
+"DELETE_FOR_ME_NOTE_TO_SELF_ACTION_SHEET_BUTTON_TITLE" = "Törlés";
+
+/* Header text for an action sheet confirming deleting a message in Note to Self. */
+"DELETE_FOR_ME_NOTE_TO_SELF_ACTION_SHEET_HEADER" = "Törlöd az üzenetet?";
+
+/* Subheader for an action sheet explaining that a Note to Self deleted on this device will be deleted on the user's other devices as well. */
+"DELETE_FOR_ME_NOTE_TO_SELF_LINKED_DEVICES_PRESENT_ACTION_SHEET_SUBHEADER" = "Ez az üzenet minden eszközödön törlésre kerül.";
+
+/* Label for a button in an info sheet confirming that deletes are now synced across devices. */
+"DELETE_FOR_ME_SYNC_MESSAGE_INFO_SHEET_BUTTON" = "Rendben";
+
+/* Subtitle for an info sheet explaining that deletes are now synced across devices. */
+"DELETE_FOR_ME_SYNC_MESSAGE_INFO_SHEET_SUBTITLE" = "Amikor üzeneteket vagy csevegéseket törölsz, azok a telefonodról és az összes kapcsolt eszközről is törlésre kerülnek.";
+
+/* Title for an info sheet explaining that deletes are now synced across devices. */
+"DELETE_FOR_ME_SYNC_MESSAGE_INFO_SHEET_TITLE" = "A törlés mostantól az összes eszközödön szinkronizálva van";
+
+/* Label indicating a user who deleted their account. */
+"DELETED_USER" = "Fiók törlése";
 
 /* Notification warning the user that they have been de-registered. */
 "DEREGISTRATION_NOTIFICATION" = "Kijelentkeztél a Signalból ezen a készüléken.";
@@ -1858,6 +2086,12 @@
 /* The unit for a number of weeks */
 "DISAPPEARING_MESSAGES_WEEKS" = "hét";
 
+/* Message/subtitle for confirmation prompt when discarding a draft before editing a message */
+"DISCARD_DRAFT_CONFIRMATION_MESSAGE" = "Ez a művelet nem vonható vissza.";
+
+/* Title for confirmation prompt when discarding a draft before editing a message */
+"DISCARD_DRAFT_CONFIRMATION_TITLE" = "Piszkozat elvetése?";
+
 /* Short text to dismiss current modal / actionsheet / screen */
 "DISMISS_BUTTON_TEXT" = "Elvetés";
 
@@ -1874,13 +2108,13 @@
 "DOMAIN_FRONTING_COUNTRY_VIEW_SECTION_HEADER" = "Cenzúramegkerülés innen";
 
 /* Users can donate to Signal with a credit or debit card. This is the heading on that screen, telling them how much they'll donate. Embeds {{formatted amount of money}}, such as \"$20\". */
-"DONATE_BUTTON" = "Donate %1$@";
+"DONATE_BUTTON" = "%1$@ adományozása";
 
 /* Users can donate to Signal with a credit or debit card. This is the heading on that screen, telling them how much they'll donate every month. Embeds {{formatted amount of money}}, such as \"$20\". */
-"DONATE_BUTTON_MONTHLY" = "Donate %1$@/month";
+"DONATE_BUTTON_MONTHLY" = "Adományozz %1$@/hónap összeget";
 
 /* When users make donations, they can choose which payment method they want to use. This is the text on the button that lets them choose to pay with bank transfer. */
-"DONATE_CHOOSE_BANK_TRANSFER_AS_PAYMENT_METHOD" = "Bank Transfer";
+"DONATE_CHOOSE_BANK_TRANSFER_AS_PAYMENT_METHOD" = "Banki átutalás";
 
 /* When users make donations, they can choose which payment method they want to use. This is the text on the button that lets them choose to pay with credit or debit card. */
 "DONATE_CHOOSE_CREDIT_OR_DEBIT_CARD_AS_PAYMENT_METHOD" = "Hitel- vagy betéti kártya";
@@ -1892,7 +2126,7 @@
 "DONATE_CHOOSE_PAYMENT_METHOD_SHEET_SUBTITLE_FOR_MONTHLY_DONATION" = "Szerezd meg a(z) %1$@-jelvényt";
 
 /* When users make one-time donations, they see a sheet that lets them pick a payment method. It also tells them what they'll be doing when they pay: receive a badge for a month. This is the subtitle on that sheet. Embeds {{localized badge name}}, such as \"Boost\". */
-"DONATE_CHOOSE_PAYMENT_METHOD_SHEET_SUBTITLE_FOR_ONE_TIME_DONATION" = "Get the %1$@ badge for 30 days";
+"DONATE_CHOOSE_PAYMENT_METHOD_SHEET_SUBTITLE_FOR_ONE_TIME_DONATION" = "Szerezd meg a(z) %1$@ jelvényt 30 napra";
 
 /* When users make donations on a friend's behalf, they see a sheet that lets them pick a payment method. This is the title on that sheet. Embeds {{amount of money}}, such as \"$5\". */
 "DONATE_CHOOSE_PAYMENT_METHOD_SHEET_TITLE_FOR_DONATION_ON_BEHALF_OF_A_FRIEND" = "%1$@ adomány a Signalnak";
@@ -1912,17 +2146,26 @@
 /* If a donation badge has been sent, indicates that it's expired and can no longer be redeemed. This is shown in the chat. */
 "DONATE_ON_BEHALF_OF_A_FRIEND_CHAT_EXPIRED" = "Lejárt";
 
+/* Message in an alert presented when the user tries to make a donation, but already has an iDEAL donation that is currently awaiting approval. */
+"DONATE_SCREEN_ERROR_MESSAGE_APPROVE_IDEAL_DONATION_BEFORE_MAKING_ANOTHER_DONATION" = "iDEAL-adományod feldolgozása még folyamatban van. Még mielőtt újabb adományt adnál, a fizetés jóváhagyásához ellenőrizd a banki alkalmazást.";
+
+/* Message in an alert presented when the user tries to update their recurring donation, but already has a recurring donation that is currently awaiting authorization. */
+"DONATE_SCREEN_ERROR_MESSAGE_BANK_PAYMENT_AWAITING_AUTHORIZATION" = "iDEAL-adományod feldolgozása még folyamatban van. Még mielőtt újabb adományt adnál, a fizetés jóváhagyásához ellenőrizd a banki alkalmazást.";
+
 /* Message in an alert presented when the user tries to make a donation, but already has a donation that is currently processing via bank payment. */
-"DONATE_SCREEN_ERROR_MESSAGE_BANK_PAYMENT_PLEASE_WAIT_BEFORE_MAKING_ANOTHER_DONATION" = "Bank transfers usually take 1 business day to process. Please wait until this donation completes before making another donation.";
+"DONATE_SCREEN_ERROR_MESSAGE_BANK_PAYMENT_PLEASE_WAIT_BEFORE_MAKING_ANOTHER_DONATION" = "A banki átutalások feldolgozása általában 1 munkanapot vesz igénybe. Mielőtt újra adományoznál, kérjük, várd meg, amíg a fizetés teljesül.";
 
 /* Message in an alert presented when the user tries to update their recurring donation, but already has a recurring donation that is currently processing via bank payment. */
-"DONATE_SCREEN_ERROR_MESSAGE_BANK_PAYMENT_PLEASE_WAIT_BEFORE_UPDATING_YOUR_SUBSCRIPTION" = "Bank transfers usually take 1 business day to process. Please wait until this donation completes before updating your subscription.";
+"DONATE_SCREEN_ERROR_MESSAGE_BANK_PAYMENT_PLEASE_WAIT_BEFORE_UPDATING_YOUR_SUBSCRIPTION" = "A banki átutalások feldolgozása általában 1 munkanapot vesz igénybe. Mielőtt frissíted az előfizetésedet, kérjük, várd meg, amíg a fizetés teljesül.";
+
+/* Message for an alert shown when the user tries to donate via bank transfer, but the amount they want to donate is too large. Embeds {{ the maximum allowed donation amount }}. */
+"DONATE_SCREEN_ERROR_MESSAGE_FORMAT_BANK_TRANSFER_AMOUNT_TOO_LARGE" = "Legfeljebb %1$@ összeget küldhetsz banki átutalással. Próbálkozz másik összeggel vagy fizetési móddal.";
 
 /* Message in an alert presented when the user tries to make a donation, but already has a donation that is currently processing via non-bank payment. */
-"DONATE_SCREEN_ERROR_MESSAGE_PLEASE_WAIT_BEFORE_MAKING_ANOTHER_DONATION" = "Your donation is still being processed. This can take a few minutes depending on your connection. Please wait until this donation completes before making another donation.";
+"DONATE_SCREEN_ERROR_MESSAGE_PLEASE_WAIT_BEFORE_MAKING_ANOTHER_DONATION" = "Az adományod feldolgozása még folyamatban van. Ez a kapcsolattól függően néhány percig is eltarthat. Mielőtt újra adományoznál, kérjük, várd meg, amíg a fizetés teljesül.";
 
 /* Message in an alert presented when the user tries to update their recurring donation, but already has a recurring donation that is currently processing via non-bank payment. */
-"DONATE_SCREEN_ERROR_MESSAGE_PLEASE_WAIT_BEFORE_UPDATING_YOUR_SUBSCRIPTION" = "Your donation is still being processed. This can take a few minutes depending on your connection. Please wait until this donation completes before updating your subscription.";
+"DONATE_SCREEN_ERROR_MESSAGE_PLEASE_WAIT_BEFORE_UPDATING_YOUR_SUBSCRIPTION" = "Az adományod feldolgozása még folyamatban van. Ez a kapcsolattól függően néhány percig is eltarthat. Mielőtt frissíted az előfizetésedet, kérjük, várd meg, amíg a fizetés teljesül.";
 
 /* If the user tries to donate to Signal but no amount is selected, this error message is shown. */
 "DONATE_SCREEN_ERROR_NO_AMOUNT_SELECTED" = "Válassz egy adomány összeget!";
@@ -1930,11 +2173,17 @@
 /* If the user tries to donate to Signal but they've entered an amount that's too small, this error message is shown. Embeds {{currency string}}, such as \"$5\". */
 "DONATE_SCREEN_ERROR_SELECT_A_LARGER_AMOUNT_FORMAT" = "A minimális adomány összege: %1$@.";
 
+/* Title for an alert presented when the user tries to make a donation, but already has a donation that is currently awaiting authorization. */
+"DONATE_SCREEN_ERROR_TITLE_BANK_PAYMENT_AWAITING_AUTHORIZATION" = "Az adomány engedélyezésre vár";
+
 /* Title for an alert presented when the user tries to make a donation, but already has a donation that is currently processing via bank payment. */
-"DONATE_SCREEN_ERROR_TITLE_BANK_PAYMENT_YOU_HAVE_A_DONATION_PENDING" = "You have a donation pending";
+"DONATE_SCREEN_ERROR_TITLE_BANK_PAYMENT_YOU_HAVE_A_DONATION_PENDING" = "Van egy függőben lévő adományod";
+
+/* Title for an alert shown when the user tries to donate via bank transfer, but the amount they want to donate is too large. */
+"DONATE_SCREEN_ERROR_TITLE_BANK_TRANSFER_AMOUNT_TOO_LARGE" = "Az adomány összege túl magas";
 
 /* Title for an alert presented when the user tries to make a donation, but already has a donation that is currently processing via non-bank payment. */
-"DONATE_SCREEN_ERROR_TITLE_YOU_HAVE_A_PAYMENT_PROCESSING" = "You have a donation processing";
+"DONATE_SCREEN_ERROR_TITLE_YOU_HAVE_A_PAYMENT_PROCESSING" = "Adomány feldolgozás alatt";
 
 /* On the donation screen, you can choose between one-time and monthly donations. This is the text on the picker for one-time donations. */
 "DONATE_SCREEN_MONTHLY_CHOICE" = "Havi";
@@ -1958,25 +2207,25 @@
 "DONATE_SCREEN_UPDATE_MONTHLY_SUBSCRIPTION_BUTTON" = "Előfizetés módosítása";
 
 /* Message for a sheet explaining that a donation via bank payment has failed. Embeds {{ a specific, already-localized string describing the payment failure }}. */
-"DONATION_BADGE_ISSUE_SHEET_BANK_PAYMENT_FAILED_MESSAGE" = "We’re having trouble processing your bank transfer. %1$@";
+"DONATION_BADGE_ISSUE_SHEET_BANK_PAYMENT_FAILED_MESSAGE" = "Problémába ütköztünk a banki átutalás feldolgozása során. %1$@";
 
 /* Title for a sheet explaining that a donation via bank payment has failed. */
-"DONATION_BADGE_ISSUE_SHEET_BANK_PAYMENT_FAILED_TITLE" = "Donation Couldn’t Be Processed";
+"DONATION_BADGE_ISSUE_SHEET_BANK_PAYMENT_FAILED_TITLE" = "Az adományt nem sikerült feldolgozni";
 
 /* Title for a sheet explaining that a donation via bank payment is pending. */
-"DONATION_BADGE_ISSUE_SHEET_BANK_PAYMENT_PROCESSING_TITLE" = "Donation Pending";
+"DONATION_BADGE_ISSUE_SHEET_BANK_PAYMENT_PROCESSING_TITLE" = "Adomány függőben";
 
 /* Message for a sheet explaining that a one-time donation via bank payment is pending, and how that will affect the user's badge. Embeds {{ the name of the badge }}. Will have a 'learn more' link appended, when it is rendered. */
-"DONATION_BADGE_ISSUE_SHEET_ONE_TIME_BANK_PAYMENT_PROCESSING_MESSAGE" = "Your one-time donation is pending. You’ll be able to display the %1$@ badge on your profile when your donation is received.\n\nBank transfers usually take 1 business day to process.";
+"DONATION_BADGE_ISSUE_SHEET_ONE_TIME_BANK_PAYMENT_PROCESSING_MESSAGE" = "Egyszeri adományod függőben van. Amikor az adományod megérkezik, megjelenítheted a(z) %1$@ jelvényt a profilodban.\n\nA banki átutalások feldolgozása általában 1 munkanapot vesz igénybe.";
 
 /* Message for a sheet explaining that a recurring donation via bank payment is pending, and how that will affect the user's badge. Embeds {{ the name of the badge }}. Will have a 'learn more' link appended, when it is rendered. */
-"DONATION_BADGE_ISSUE_SHEET_RECURRING_BANK_PAYMENT_PROCESSING_MESSAGE" = "Your monthly donation is pending. You’ll be able to display the %1$@ badge on your profile when your donation is received.\n\nBank transfers usually take 1 business day to process.";
+"DONATION_BADGE_ISSUE_SHEET_RECURRING_BANK_PAYMENT_PROCESSING_MESSAGE" = "Havi adományod függőben van. Amikor az adományod megérkezik, megjelenítheted a(z) %1$@ jelvényt a profilodban.\n\nA banki átutalások feldolgozása általában 1 munkanapot vesz igénybe.";
 
 /* Title for a button asking the user to renew their subscription, because it has expired. */
-"DONATION_BADGE_ISSUE_SHEET_RENEW_SUBSCRIPTION_BUTTON_TITLE" = "Renew Subscription";
+"DONATION_BADGE_ISSUE_SHEET_RENEW_SUBSCRIPTION_BUTTON_TITLE" = "Előfizetés megújítása";
 
 /* Title for a button asking the user to try their donation again, because something went wrong. */
-"DONATION_BADGE_ISSUE_SHEET_TRY_AGAIN_BUTTON_TITLE" = "Try Again";
+"DONATION_BADGE_ISSUE_SHEET_TRY_AGAIN_BUTTON_TITLE" = "Újrapróbálkozás";
 
 /* When donating on behalf of a friend, a badge will be sent. This shows how long the badge lasts. Embeds {{formatted duration}}. */
 "DONATION_FOR_A_FRIEND_ROW_DURATION" = "Lejárat: %1$@";
@@ -2122,6 +2371,15 @@
 /* Text at the bottom of the donation receipts list, telling users that receipts might not be available */
 "DONATION_RECEIPTS_MIGHT_BE_MISSING_IF_YOU_REINSTALLED" = "Ha újratelepítetted a Signalt, korábbi adományaid nyugtái nem lesznek elérhetőek.";
 
+/* Error message displayed if something goes wrong with 3DSecure/iDEAL payment authorization.  This will be encountered if the user cancels the webview before authrizing the payment. */
+"DONATION_REDIRECT_ERROR_CANCELLED_MESSAGE" = "Fizetés törölve. Próbáld újra!";
+
+/* Error message displayed if something goes wrong with 3DSecure/iDEAL payment authorization.  This will be encountered if the callback is in an unexpected format. */
+"DONATION_REDIRECT_ERROR_INVALID_RESPONSE_MESSAGE" = "Érvénytelen fizetési válasz. Próbáld újra!";
+
+/* Error message displayed if something goes wrong with 3DSecure/iDEAL payment authorization.  This will be encountered if the user denies the payment. */
+"DONATION_REDIRECT_ERROR_PAYMENT_DENIED_MESSAGE" = "Fizetés megtagadva. Próbáld újra!";
+
 /* On the donation settings screen, tapping this button will take the user to a screen where they can donate. */
 "DONATION_SCREEN_DONATE_BUTTON" = "Támogatás";
 
@@ -2134,44 +2392,71 @@
 /* On donation screens, a small amount of information text is shown. This is the title for that text. */
 "DONATION_SCREENS_HEADER_TITLE" = "Az adatok védelme fontosabb a profitnál.";
 
+/* Button title confirming the user wants to begin a new donation. */
+"DONATION_SETTINGS_CANCEL_DONATION_AWAITING_AUTHORIZATION_DONATE_ACTION" = "Támogatás";
+
+/* Prompt confirming the user wants to abandon the current donation flow and start a new donation. */
+"DONATION_SETTINGS_CANCEL_DONATION_AWAITING_AUTHORIZATION_MESSAGE" = "A folytatással törlöd a legutóbbi adományod. Nem számítunk fel díjat, de láthatod a fizetési kérelmet a banki alkalmazásban, amíg nem intézkedsz. Biztosan új adományt szeretnél adni?";
+
 /* Title for an action in an action sheet asking the user to renew a subscription that has failed to renew. */
-"DONATION_SETTINGS_MY_SUPPORT_ACTION_SHEET_ACTION_TITLE_RENEW_SUBSCRIPTION" = "Renew Subscription";
+"DONATION_SETTINGS_MY_SUPPORT_ACTION_SHEET_ACTION_TITLE_RENEW_SUBSCRIPTION" = "Előfizetés megújítása";
 
 /* Title for an action in an action sheet asking the user to try again, in reference to a donation that failed. */
-"DONATION_SETTINGS_MY_SUPPORT_ACTION_SHEET_ACTION_TITLE_TRY_AGAIN" = "Try Again";
+"DONATION_SETTINGS_MY_SUPPORT_ACTION_SHEET_ACTION_TITLE_TRY_AGAIN" = "Újrapróbálkozás";
+
+/* Prompt the user asking if they want to keep the current in-flight, but unauthorized donation, or try again. */
+"DONATION_SETTINGS_MY_SUPPORT_BANK_PAYMENT_AWAITING_AUTHORIZATION_MESSAGE" = "iDEAL adományodat nem sikerült megerősíteni. Az adomány jóváhagyásához ellenőrizd a banki alkalmazásodat, vagy próbálkozz újra.";
 
 /* Message for an alert explaining that a one-time payment made via bank transfer is being processed. */
-"DONATION_SETTINGS_MY_SUPPORT_BANK_PAYMENT_PROCESSING_MESSAGE" = "Your bank transfer is pending. Bank transfers usually take 1 business day to process.";
+"DONATION_SETTINGS_MY_SUPPORT_BANK_PAYMENT_PROCESSING_MESSAGE" = "A banki átutalásod függőben van. A banki átutalások feldolgozása általában 1 munkanapot vesz igénybe.";
 
 /* Title for an alert explaining that a one-time payment made via bank transfer is being processed. */
-"DONATION_SETTINGS_MY_SUPPORT_BANK_PAYMENT_PROCESSING_TITLE" = "Donation Pending";
+"DONATION_SETTINGS_MY_SUPPORT_BANK_PAYMENT_PROCESSING_TITLE" = "Adomány függőben";
 
 /* Message shown in a sheet explaining that the user's donation has failed because payment failed. Embeds {{ a specific, already-localized string describing the payment failure reason }}. */
-"DONATION_SETTINGS_MY_SUPPORT_DONATION_FAILED_ALERT_MESSAGE_FORMAT" = "We’re having trouble processing your donation. %1$@";
+"DONATION_SETTINGS_MY_SUPPORT_DONATION_FAILED_ALERT_MESSAGE_FORMAT" = "Problémába ütköztünk az adományod feldolgozása során. %1$@";
 
 /* Title for a sheet explaining that a payment failed. */
-"DONATION_SETTINGS_MY_SUPPORT_DONATION_FAILED_ALERT_TITLE" = "Error Processing Donation";
+"DONATION_SETTINGS_MY_SUPPORT_DONATION_FAILED_ALERT_TITLE" = "Hiba történt az adomány feldolgozása közben";
+
+/* Title for a sheet explaining that a payment needs confirmation. */
+"DONATION_SETTINGS_MY_SUPPORT_DONATION_UNCONFIMRED_ALERT_TITLE" = "Nem sikerült megerősíteni az adományt";
+
+/* Message shown in a sheet explaining that the user's iDEAL one-time donation coultn't be processed. */
+"DONATION_SETTINGS_MY_SUPPORT_IDEAL_ONE_TIME_DONATION_FAILED_MESSAGE" = "Egyszeri iDEAL-adományodat nem sikerült feldolgozni. Próbáld újra egy másik fizetési eszközzel, vagy keresd fel bankodat további információért!";
+
+/* Title for a sheet explaining that a payment needs confirmation. */
+"DONATION_SETTINGS_MY_SUPPORT_IDEAL_ONE_TIME_DONATION_NOT_CONFIRMED_MESSAGE_FORMAT" = "Egyszeri %1$@ iDEAL-adományodat nem sikerült megerősíteni. Az iDEAL-adományod jóváhagyásához ellenőrizd a banki alkalmazásodat.";
+
+/* Message shown in a sheet explaining that the user's iDEAL recurring monthly donation coultn't be processed. */
+"DONATION_SETTINGS_MY_SUPPORT_IDEAL_RECURRING_SUBSCRIPTION_FAILED_MESSAGE" = "A rendszerben ismétlődő havi iDEAL-adományodat nem sikerült feldolgozni. Próbáld újra egy másik fizetési móddal, vagy keresd fel a bankodat további információért!";
+
+/* Message shown in a sheet explaining that the user's iDEAL recurring monthly donation hasn't been confirmed. Embeds {{ formatted current amount }}. */
+"DONATION_SETTINGS_MY_SUPPORT_IDEAL_RECURRING_SUBSCRIPTION_NOT_CONFIRMED_MESSAGE_FORMAT" = "Ismétlődő %1$@ havi iDEAL-adományodat nem sikerült megerősíteni. Az iDEAL-adományod jóváhagyásához ellenőrizd a banki alkalmazásodat.";
 
 /* Message shown in a sheet explaining that the user's recurring subscription has ended because payment failed. Embeds {{ a specific, already-localized string describing the failure reason }}. */
-"DONATION_SETTINGS_MY_SUPPORT_RECURRING_SUBSCRIPTION_LAPSED_CHARGE_FAILURE_ALERT_MESSAGE_FORMAT" = "Your recurring monthly donation has ended. %1$@";
+"DONATION_SETTINGS_MY_SUPPORT_RECURRING_SUBSCRIPTION_LAPSED_CHARGE_FAILURE_ALERT_MESSAGE_FORMAT" = "Az ismétlődő havi adományozásod befejeződött. %1$@";
 
 /* Title for a sheet explaining that the user's recurring subscription has ended because payment failed. */
-"DONATION_SETTINGS_MY_SUPPORT_RECURRING_SUBSCRIPTION_LAPSED_TITLE" = "Monthly Donation Canceled";
+"DONATION_SETTINGS_MY_SUPPORT_RECURRING_SUBSCRIPTION_LAPSED_TITLE" = "Havi adományozás törölve";
 
 /* A label describing a donation payment that was made via bank transfer, which is still processing and has not completed. */
-"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_BANK_PAYMENT_PROCESSING" = "Donation Pending";
+"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_BANK_PAYMENT_PROCESSING" = "Adomány függőben";
 
 /* A label describing a donation payment that was made by a method other than bank transfer (such as by credit card), which is still processing and has not completed. */
-"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_NON_BANK_PAYMENT_PROCESSING" = "Processing Donation...";
+"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_NON_BANK_PAYMENT_PROCESSING" = "Adomány feldolgozása...";
 
 /* A label describing a donation payment that has failed to process. */
-"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_PAYMENT_FAILED" = "Error Processing Donation";
+"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_PAYMENT_FAILED" = "Hiba történt az adomány feldolgozása közben";
 
 /* A label describing a recurring monthly donation that used to be active, but has now been canceled because it failed to renew. */
-"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_SUBSCRIPTION_LAPSED" = "Monthly Donation Canceled";
+"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_SUBSCRIPTION_LAPSED" = "Havi adományozás törölve";
+
+/* A label describing a donation payment that has requires authorization. */
+"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_WAITING_FOR_AUTHORIZATION" = "Várakozás az engedélyre";
 
 /* A string describing the amount and currency of a one-time payment. Embeds {{ the amount, formatted as a currency }}. */
-"DONATION_SETTINGS_ONE_TIME_AMOUNT_FORMAT" = "%1$@ one-time";
+"DONATION_SETTINGS_ONE_TIME_AMOUNT_FORMAT" = "Egyszeri %1$@";
 
 /* Title for the \"donate for a friend\" button on the donation view. */
 "DONATION_VIEW_DONATE_ON_BEHALF_OF_A_FRIEND" = "Adomány egy ismerősnek";
@@ -2180,7 +2465,7 @@
 "DONATION_VIEW_DONATION_TO_SIGNAL" = "Adomány a Signal számára";
 
 /* Title for the 'Donor FAQ' button on the donation screen */
-"DONATION_VIEW_DONOR_FAQ" = "Donor FAQ";
+"DONATION_VIEW_DONOR_FAQ" = "Adományozás GYIK";
 
 /* Text that's shown when the donation view fails to load data, probably due to network failure */
 "DONATION_VIEW_LOAD_FAILED" = "Hálózati hiba. Ellenőrizd a hálózati kapcsolatot és próbáld újra!";
@@ -2205,6 +2490,12 @@
 
 /* Label for the currency picker button in donation views */
 "DONATIONS_CURRENCY_PICKER_LABEL" = "Pénznem";
+
+/* Message for Double Tap to Edit sheet show on first interaction */
+"DOUBLE_TAP_TO_EDIT_ALERT_MESSAGE" = "Üzenet szerkesztéséhez koppints gyorsan kétszer az üzenetre. Az üzeneteidet az elküldésük után 24 óráig szerkesztheted.";
+
+/* Title for Double Tap to Edit sheet show on first interaction */
+"DOUBLE_TAP_TO_EDIT_ALERT_TITLE" = "Szerkesztéshez koppints duplán";
 
 /* Alert body for when the user has just tried to edit a contacts after declining to give Signal contacts permissions */
 "EDIT_CONTACT_WITHOUT_CONTACTS_PERMISSION_ALERT_BODY" = "Hozzáférés az iOS Beállításokban adható.";
@@ -2236,15 +2527,6 @@
 /* Short name for edit menu item to copy contents of media message. */
 "EDIT_ITEM_COPY_ACTION" = "Másolás";
 
-/* Edit Send Beta prompt body */
-"EDIT_MESSAGE_SEND_MESSAGE_BODY" = "Ha szerkesztesz egy üzenetet, azt csak azok láthatják, akik a Signal béta legújabb verzióját használják. Ők látni fogják, hogy szerkesztettél egy üzenetet.";
-
-/* Label to confirm sending an edit */
-"EDIT_MESSAGE_SEND_MESSAGE_CONFIRM" = "Küldés";
-
-/* Edit Send Beta prompt title */
-"EDIT_MESSAGE_SEND_MESSAGE_TITLE" = "Üzenet szerkesztése";
-
 /* Error message to display to user when a message is too old to edit */
 "EDIT_MESSAGE_SEND_MESSAGE_TOO_OLD_ERROR" = "A módosításokat csak az üzenet elküldésétől számított 24 órán belül lehet alkalmazni.";
 
@@ -2252,7 +2534,7 @@
 "EDIT_MESSAGE_SEND_MESSAGE_UNKNOWN_ERROR" = "EDIT_MESSAGE_SEND_MESSAGE_UNKNOWN_ERROR";
 
 /* body of email sent to contacts when inviting to install Signal. Embeds {{link to install Signal}} and {{link to the Signal home page}} */
-"EMAIL_INVITE_BODY" = "Szia!\n\nÚjabban privát csevegéseimet a Signal üzenetküldő alkalmazással bonyolítom iPhone-on. Örülnék, ha te is telepítenéd, így biztosak lehetünk benne, hogy amit írunk, vagy mondunk a telefonba, az köztünk marad.\n\nA Signal elérhető iPhone és Android telefonokra is innen: %1$@\n\nA Signal az ismert csevegőprogramokhoz hasonlóan működik: küldhetünk képeket, videókat, hívhatjuk egymást, csoportos csevegést indíthatunk. A legjobb, hogy a fentiekbe senkinek, még a Signal fejlesztőinek sincs semmilyen betekintési, belehallgatási lehetősége.\n\nHa érdekel a készítő gárda (az Open Whisper Systems), vagy hogy kik is az emberek, akik a Signal fejlesztését végzik, akkor látogass el ide: %2$@";
+"EMAIL_INVITE_BODY" = "Hey,\n\nLately I've been using Signal to keep the chats on my iPhone private. I'd like you to install it too, so we can be confident that only you and I can read our messages or hear our calls.\n\nSignal is available for iPhones and Android. Get it here: %1$@\n\nSignal works like your existing messaging app. We can send pictures and video, make calls, and start group chats. The best part is, no one else can see any of it, not even the people who make Signal!\n\nYou can read more about Signal here: %2$@";
 
 /* subject of email sent to contacts when inviting to install Signal */
 "EMAIL_INVITE_SUBJECT" = "Váltsunk Signalra!";
@@ -2303,7 +2585,7 @@
 "END_CALL_RESPONDER_IS_BUSY" = "Foglalt";
 
 /* Call setup status label */
-"END_CALL_UNCATEGORIZED_FAILURE" = "Sikertelen hívás.";
+"END_CALL_UNCATEGORIZED_FAILURE" = "A hívás sikertelen";
 
 /* Error indicating that a message could not be forwarded. */
 "ERROR_COULD_NOT_FORWARD_MESSAGES_1" = "Sikertelen továbbítás.";
@@ -2364,6 +2646,9 @@
 
 /* Error message indicating that attachment download(s) failed. */
 "ERROR_MESSAGE_ATTACHMENT_DOWNLOAD_FAILED" = "Melléklet letöltése sikertelen.";
+
+/* Error message indicating that attachment upload(s) failed. */
+"ERROR_MESSAGE_ATTACHMENT_UPLOAD_FAILED" = "A csatolmány feltöltése sikertelen.";
 
 /* Error message for a decryption failure. Embeds {{sender short name}}. */
 "ERROR_MESSAGE_DECRYPTION_FAILURE" = "Egy üzenet %1$@ ismerősödtől nem érkezett meg";
@@ -2465,10 +2750,22 @@
 "FEATURED_BADGE_SETTINGS_TITLE" = "Kitűzött jelvény";
 
 /* Users can choose to learn more about how to find account info, which will open a sheet with additional information. This is the body of that sheet. */
-"FIND_ACCOUNT_INFO_SHEET_BODY" = "Look for your IBAN at the top of your bank statement. IBAN numbers contain up to 34 characters. The name you enter should match your full name on your bank account. Contact your bank for more information.";
+"FIND_ACCOUNT_INFO_SHEET_BODY" = "Keresd meg az IBAN-számod a bankszámlakivonat tetején. Az IBAN-számok legfeljebb 34 karaktert tartalmazhatnak. A megadott névnek meg kell egyeznie a bankszámládon szereplő teljes névvel. További információért fordulj a bankodhoz.";
 
 /* Users can choose to learn more about how to find account info, which will open a sheet with additional information. This is the title of that sheet. */
-"FIND_ACCOUNT_INFO_SHEET_TITLE" = "Find Your Account Information";
+"FIND_ACCOUNT_INFO_SHEET_TITLE" = "Keresd meg a fiókadataidat";
+
+/* A footer below the username text field describing what should be entered */
+"FIND_BY_USERNAME_FOOTER" = "Adj meg egy felhasználónevet, amelyet egy pont és a hozzá tartozó számsor követ.";
+
+/* A placeholder value for the text field for finding an account by their username */
+"FIND_BY_USERNAME_PLACEHOLDER" = "Felhasználónév";
+
+/* A button below the username text field which opens a username QR code scanner */
+"FIND_BY_USERNAME_SCAN_QR_CODE_BUTTON" = "QR kód beolvasása";
+
+/* Title for the view for finding accounts by their username */
+"FIND_BY_USERNAME_TITLE" = "Keresés felhasználónév alapján";
 
 /* Button that marks user as verified after a successful fingerprint scan. */
 "FINGERPRINT_SCAN_VERIFY_BUTTON" = "Megjelölés Ellenőrzöttként";
@@ -2478,6 +2775,9 @@
 
 /* Accessibility label for finishing new group */
 "FINISH_GROUP_CREATION_LABEL" = "Csoport létrehozásának befejezése";
+
+/* Tooltip notifying users that the flip camera button moved to the picture-in-picture view of themselves in a call */
+"FLIP_CAMERA_BUTTON_MOVED_TO_PIP_TOOLTIP" = "A Flip Camera átkerült ide. Koppints a videódra a kipróbáláshoz";
 
 /* Label and title for 'contact forwarding' views. */
 "FORWARD_CONTACT" = "Kontakt továbbítása";
@@ -2522,10 +2822,10 @@
 "GET_STARTED_CARD_APPEARANCE" = "Megjelenés";
 
 /* 'Get Started' button direction users to avatar builder */
-"GET_STARTED_CARD_AVATAR_BUILDER" = "Fotó hozzáadása";
+"GET_STARTED_CARD_AVATAR_BUILDER" = "Képfeltöltés";
 
 /* 'Get Started' button directing users to invite friends */
-"GET_STARTED_CARD_INVITE_FRIENDS" = "Barátok meghívása";
+"GET_STARTED_CARD_INVITE_FRIENDS" = "Meghívás";
 
 /* 'Get Started' button directing users to create a group */
 "GET_STARTED_CARD_NEW_GROUP" = "Új csoport";
@@ -2638,6 +2938,21 @@
 /* Button to leave a group call */
 "GROUP_CALL_LEAVE_BUTTON" = "Kilépés a hívásból";
 
+/* Title for the section of the group call member list which displays the list of all members in the call. */
+"GROUP_CALL_MEMBER_LIST_IN_CALL_SECTION_HEADER" = "Hívásban";
+
+/* Title for the section of the group call member list which displays the list of members with their hand raised. */
+"GROUP_CALL_MEMBER_LIST_RAISED_HANDS_SECTION_HEADER" = "Felemelt kezek";
+
+/* A count of members in a given group call member list section, displayed after the header. */
+"GROUP_CALL_MEMBER_LIST_SECTION_HEADER_MEMBER_COUNT" = "(%1$d)";
+
+/* Title for a button on the group members sheet for sharing that call's link. */
+"GROUP_CALL_MEMBER_LIST_SHARE_CALL_LINK_BUTTON" = "Híváslink megosztása";
+
+/* Title for the sheet showing the group call members list */
+"GROUP_CALL_MEMBER_LIST_TITLE" = "Call Info";
+
 /* String displayed in cell when media from a user can't be displayed in group call grid. Embeds {user's name} */
 "GROUP_CALL_MISSING_MEDIA_KEYS_FORMAT" = "%1$@ hang és kép adása nem megjeleníthető";
 
@@ -2649,9 +2964,6 @@
 
 /* Text explaining that you are the only person currently in the group call */
 "GROUP_CALL_NO_ONE_HERE" = "Nincs itt senki";
-
-/* Text explaining to the user that nobody has joined this call yet. */
-"GROUP_CALL_NOBODY_IS_IN_YET" = "Még senki nincs ebben a hívásban.";
 
 /* Copy explaining that a user has joined the group call. Embeds {member name} */
 "GROUP_CALL_NOTIFICATION_ONE_JOINED_FORMAT" = "%1$@ belépett a hívásba";
@@ -2674,6 +2986,27 @@
 /* Text indicating that the user has lost their connection to the call and we are reconnecting. */
 "GROUP_CALL_RECONNECTING" = "Újracsatlakozás";
 
+/* Label for a button to block a member from a group call. */
+"GROUP_CALL_REMOVE_MEMBER_CONFIRMATION_ACTION_SHEET_BLOCK_ACTION" = "Block from Call";
+
+/* Label for the button to confirm removing a member from a group call. */
+"GROUP_CALL_REMOVE_MEMBER_CONFIRMATION_ACTION_SHEET_REMOVE_ACTION" = "Remove";
+
+/* Title for action sheet confirming removal of a member from a group call. embeds {{ name }} */
+"GROUP_CALL_REMOVE_MEMBER_CONFIRMATION_ACTION_SHEET_TITLE" = "Remove %1$@ from the call?";
+
+/* The title of an alert when you've been removed from a group call. */
+"GROUP_CALL_REMOVED" = "Eltávolítva a hívásból";
+
+/* The message of an alert when you've been removed from a group call. */
+"GROUP_CALL_REMOVED_MESSAGE" = "Valaki eltávolított téged a hívásból.";
+
+/* The title of an alert when tried to join a call using a link but the admin rejected your request. */
+"GROUP_CALL_REQUEST_DENIED" = "Csatlakozási kérelem elutasítva";
+
+/* The message of an alert when tried to join a call using a link but the admin rejected your request. */
+"GROUP_CALL_REQUEST_DENIED_MESSAGE" = "A híváshoz való csatlakozási kérelmedet elutasították.";
+
 /* notification body when you join a group call and an already-joined participant has an untrusted safety number */
 "GROUP_CALL_SAFETY_NUMBER_CHANGE_AT_JOIN_BODY" = "A hívás egyik résztvevőjének biztonsági száma megváltozott. Koppints a megtekintéshez.";
 
@@ -2688,9 +3021,6 @@
 
 /* Toast view text informing user about swiping to speaker view */
 "GROUP_CALL_SPEAKER_VIEW_TOAST" = "Nézetváltás felfelé suhintással";
-
-/* Button to start a group call */
-"GROUP_CALL_START_BUTTON" = "Hívás indítása";
 
 /* Tooltip highlighting group calls. */
 "GROUP_CALL_START_TOOLTIP" = "Csoporthívás indítás itt";
@@ -2732,7 +3062,7 @@
 "GROUP_CREATED_BY_LOCAL_USER" = "Létrehoztad a csoportot.";
 
 /* Message indicating that group was created by another user. Embeds {{remote user name}}. */
-"GROUP_CREATED_BY_REMOTE_USER_FORMAT" = "%1$@ hozzáadott a csoporthoz.";
+"GROUP_CREATED_BY_REMOTE_USER_FORMAT" = "%1$@ létrehozta a csoportot.";
 
 /* Message indicating that group was created by an unknown user. */
 "GROUP_CREATED_BY_UNKNOWN_USER" = "Csoport létrehozva.";
@@ -2754,42 +3084,6 @@
 
 /* Title for the group description view. Embeds {{ the number of characters that can be added to the description without hitting the length limit }}. */
 "GROUP_DESCRIPTION_VIEW_TITLE_FORMAT" = "Csoportleírás (%1$@)";
-
-/* Message indicating that 1 invalid invite was added to the group. */
-"GROUP_INVALID_INVITES_ADDED_1" = "Egy érvénytelen meghívó érkezett.";
-
-/* Message indicating that 1 invalid invite was added by the local user. */
-"GROUP_INVALID_INVITES_ADDED_BY_LOCAL_USER_1" = "Egy érvénytelen meghívót küldtél.";
-
-/* Message indicating that multiple invalid invites were added by the local user. */
-"GROUP_INVALID_INVITES_ADDED_BY_LOCAL_USER_N" = "Több érvénytelen meghívót küldtél.";
-
-/* Message indicating that 1 invalid invite was added by another user. Embeds {{remote user name}}. */
-"GROUP_INVALID_INVITES_ADDED_BY_REMOTE_USER_FORMAT_1" = "%1$@ egy érvénytelen meghívót küldött.";
-
-/* Message indicating that multiple invalid invites were added by another user. Embeds {{remote user name}}. */
-"GROUP_INVALID_INVITES_ADDED_BY_REMOTE_USER_FORMAT_N" = "%1$@ több érvénytelen meghívót küldött.";
-
-/* Message indicating that multiple invalid invites were added to the group. */
-"GROUP_INVALID_INVITES_ADDED_N" = "Több érvénytelen meghívó érkezett.";
-
-/* Message indicating that 1 invalid invite was revoked. */
-"GROUP_INVALID_INVITES_REMOVED_1" = "Egy érvénytelen meghívó visszavonásra került.";
-
-/* Message indicating that 1 invalid invite was revoked by the local user. */
-"GROUP_INVALID_INVITES_REMOVED_BY_LOCAL_USER_1" = "Visszavontál egy érvénytelen meghívót.";
-
-/* Message indicating that multiple invalid invites were revoked by the local user. */
-"GROUP_INVALID_INVITES_REMOVED_BY_LOCAL_USER_N" = "Visszavontál érvénytelen meghívókat.";
-
-/* Message indicating that 1 invalid invite was revoked by another user. Embeds {{remote user name}}. */
-"GROUP_INVALID_INVITES_REMOVED_BY_REMOTE_USER_FORMAT_1" = "%1$@ visszavont egy érvénytelen meghívót.";
-
-/* Message indicating that multiple invalid invites were revoked by another user. Embeds {{remote user name}}. */
-"GROUP_INVALID_INVITES_REMOVED_BY_REMOTE_USER_FORMAT_N" = "%1$@ érvénytelen meghívókat vont vissza.";
-
-/* Message indicating that multiple invalid invites were revoked. */
-"GROUP_INVALID_INVITES_REMOVED_N" = "Érvénytelen meghívók kerültek visszavonásra.";
 
 /* Message indicating that the group invite link was disabled. */
 "GROUP_INVITE_LINK_DISABLED" = "A megosztható csoporthivatkozás ki lett kapcsolva.";
@@ -2889,6 +3183,12 @@
 
 /* Message text for the 'group invite link' action sheet. */
 "GROUP_LINK_ACTION_SHEET_VIEW_MESSAGE" = "Szeretnél belépni a csoportba? Ezzel profilod láthatóvá is válik.";
+
+/* Label for the 'request to join' button in the 'group invite link' action sheet. */
+"GROUP_LINK_ACTION_SHEET_VIEW_REQUEST_TO_JOIN_BUTTON" = "Request to Join";
+
+/* Message text for the 'group invite link' action sheet, if the user will be requesting to join. */
+"GROUP_LINK_ACTION_SHEET_VIEW_REQUEST_TO_JOIN_MESSAGE" = "An admin of this group must approve your request before you can join this group. When you request to join, your name and photo will be shared with its members.";
 
 /* Error message the attempt to request to join the group failed due to network connectivity. */
 "GROUP_LINK_COULD_NOT_REQUEST_TO_JOIN_GROUP_DUE_TO_NETWORK_ERROR_MESSAGE" = "Ellenőrizd az internetkapcsolatodat, majd próbálkozz újra.";
@@ -3049,12 +3349,6 @@
 /* Title for the 'members' section of the 'group members' view. */
 "GROUP_MEMBERS_SECTION_TITLE_MEMBERS" = "Tagok";
 
-/* Button to allow user to review known name collisions in group membership */
-"GROUP_MEMBERSHIP_NAME_COLLISION_BANNER_REVIEW_BUTTON" = "Koppints az áttekintéshez";
-
-/* A header string above a group member's contact info */
-"GROUP_MEMBERSHIP_NAME_COLLISION_MEMBER_HEADER" = "Tag";
-
 /* A title string for a view that allows a user to review name collisions in group membership */
 "GROUP_MEMBERSHIP_NAME_COLLISION_TITLE" = "Tagok áttekintése";
 
@@ -3118,6 +3412,9 @@
 /* Message indicating that a remote user was removed from the group by the local user. Embeds {{remote user name}}. */
 "GROUP_REMOTE_USER_REMOVED_BY_LOCAL_USER_FORMAT" = "Eltávolítottad a csoportból %1$@ felhasználót.";
 
+/* Message indicating that a remote user was removed from the group by an unknown user. Embeds {{remote user name}}. */
+"GROUP_REMOTE_USER_REMOVED_BY_UNKNOWN_USER_FORMAT" = "%1$@ már nem a csoport tagja";
+
 /* Message indicating that the remote user was removed from the group. Embeds {{ %1$@ user who removed the user, %2$@ user who was removed}}. */
 "GROUP_REMOTE_USER_REMOVED_FROM_GROUP_BY_REMOTE_USER_FORMAT" = "%1$@ eltávolította a csoportból %2$@ felhasználót.";
 
@@ -3126,6 +3423,9 @@
 
 /* Message indicating that a remote user's request to join the group was approved by another user. Embeds {{ %1$@ requesting user name, %2$@ approving user name }}. */
 "GROUP_REMOTE_USER_REQUEST_APPROVED_BY_REMOTE_USER_FORMAT" = "%2$@ jóváhagyott egy csoport belépési igényt tőle: %1$@.";
+
+/* Message indicating that a remote user's request to join the group was approved by an unknown user. Embeds {{ %1$@ requesting user name }}. */
+"GROUP_REMOTE_USER_REQUEST_APPROVED_BY_UNKNOWN_USER_FORMAT" = "%1$@ csatlakozási igénye jóvá lett hagyva.";
 
 /* Message indicating that a remote user cancelled their request to join the group. Embeds {{ the name of the requesting user }}. */
 "GROUP_REMOTE_USER_REQUEST_CANCELLED_BY_REMOTE_USER_FORMAT" = "%1$@ visszavonta csoport belépési igényét.";
@@ -3240,6 +3540,9 @@
 
 /* Message indicating that the group was migrated. */
 "GROUP_WAS_MIGRATED" = "Ez a csoport új típusú csoporttá lett alakítva.";
+
+/* Message indicating that the local user was invited after the group was migrated. */
+"GROUP_WAS_MIGRATED_LOCAL_USER_INVITED" = "Nem tudtak közvetlenül az új típusú csoporthoz adni, ezért meghívót kaptál.";
 
 /* Message indicating that the local user left the group. */
 "GROUP_YOU_LEFT" = "Elhagytad a csoportot.";
@@ -3385,6 +3688,18 @@
 /* Title 'Read All' button in the toolbar of the ChatList if multi-section is active. */
 "HOME_VIEW_TOOLBAR_READ_ALL" = "Mind olvasott";
 
+/* Label for both bank chooser header and the bank form field on the iDEAL payment detail page. */
+"IDEAL_DONATION_CHOOSE_YOUR_BANK_LABEL" = "Válaszd ki a bankot";
+
+/* Fallback title confirming recurring donation with bank. */
+"IDEAL_DONATION_CONFIRM_DONATION_TITLE" = "Erősítsd meg az adományod";
+
+/* Message confirming recurring donation with bank. This message confirms with the user that they will see a small confirmation charge with their bank before the donation. */
+"IDEAL_DONATION_CONFIRM_DONATION_WITH_BANK_MESSAGE" = "Az ismétlődő adományozás beállításához koppints a Tovább gombra és erősítsd meg a 0,01 eurós terhelést a bankodnál. Ez automatikusan visszatérítésre kerül, és lehetővé teszi, hogy a havi %1$@ adományodat levonják a számládról.";
+
+/* Title confirming recurring donation with bank. */
+"IDEAL_DONATION_CONFIRM_DONATION_WITH_BANK_TITLE" = "Erősítsd meg az adományod a(z) %1$@ banknál";
+
 /* The image editor hint that you can draw blur */
 "IMAGE_EDITOR_BLUR_HINT" = "Rajzolj bárhová az elhomályosításhoz";
 
@@ -3404,13 +3719,13 @@
 "IN_CALL_CONNECTING" = "Csatlakozás…";
 
 /* Call screen label when call was canceled on this device because the call recipient answered on another device. */
-"IN_CALL_ENDED_BECAUSE_ANSWERED_ELSEWHERE" = "Fogadva egy másik eszközön.";
+"IN_CALL_ENDED_BECAUSE_ANSWERED_ELSEWHERE" = "Felvett egy másik eszközön";
 
 /* Call screen label when call was canceled on this device because the call recipient has a call in progress on another device. */
-"IN_CALL_ENDED_BECAUSE_BUSY_ELSEWHERE" = "Elmulasztott, mert hívás volt folyamatban egy másik eszközön.";
+"IN_CALL_ENDED_BECAUSE_BUSY_ELSEWHERE" = "Nem fogadott, mert hívás volt folyamatban egy másik eszközön";
 
 /* Call screen label when call was canceled on this device because the call recipient declined on another device. */
-"IN_CALL_ENDED_BECAUSE_DECLINED_ELSEWHERE" = "Elutasítva egy másik eszközön.";
+"IN_CALL_ENDED_BECAUSE_DECLINED_ELSEWHERE" = "Elutasított egy másik eszközön";
 
 /* Call setup status label */
 "IN_CALL_RECONNECTING" = "Újracsatlakozás…";
@@ -3430,6 +3745,15 @@
 /* Call setup status label */
 "IN_CALL_TERMINATED" = "Hívás vége";
 
+/* Title for a button in an in-app megaphone about a user's inactive linked device, indicating the user doesn't want to be reminded. */
+"INACTIVE_LINKED_DEVICE_REMINDER_MEGAPHONE_DONT_REMIND_ME_BUTTON" = "Ne emlékeztessen";
+
+/* Title for a button in an in-app megaphone about a user's inactive linked device, temporarily dismissing the megaphone. */
+"INACTIVE_LINKED_DEVICE_REMINDER_MEGAPHONE_GOT IT_BUTTON" = "Rendben";
+
+/* Title for an in-app megaphone about a user's inactive linked device. */
+"INACTIVE_LINKED_DEVICE_REMINDER_MEGAPHONE_TITLE" = "Inaktív kapcsolt eszköz";
+
 /* Label reminding the user that they are in archive mode, and that muted chats remain archived when they receive a new message. */
 "INBOX_VIEW_ARCHIVE_MODE_MUTED_CHATS_REMINDER" = "A némítva archivált csevegések új üzenet érkezésekor továbbra is archiválva maradnak.";
 
@@ -3440,16 +3764,37 @@
 "INBOX_VIEW_EMPTY_INBOX" = "Még üres a csevegéslista.\nKezdésként üzenj egy barátodnak.";
 
 /* info message text in conversation view */
-"INCOMING_AUDIO_CALL" = "Bejövő hanghívás";
+"INCOMING_VIDEO_CALL" = "Bejövő videóhívás";
 
 /* info message text in conversation view */
-"INCOMING_VIDEO_CALL" = "Bejövő videóhívás";
+"INCOMING_VOICE_CALL" = "Bejövő hanghívás";
+
+/* An info message inserted into the chat when you accept a message request, in a 1:1 or group chat. */
+"INFO_MESSAGE_ACCEPTED_MESSAGE_REQUEST" = "Elfogadtad az felkérést csevegésre.";
+
+/* Header for an action sheet providing options in response to an accepted 1:1 message request. Embeds {{ the name of your chat partner }}. */
+"INFO_MESSAGE_ACCEPTED_MESSAGE_REQUEST_OPTIONS_ACTION_SHEET_HEADER_CONTACT" = "Elfogadtad %1$@ üzenetkérését. Ha ez hiba volt, alább választhatsz egy műveletet.";
+
+/* Header for an action sheet providing options in response to an accepted group message request. */
+"INFO_MESSAGE_ACCEPTED_MESSAGE_REQUEST_OPTIONS_ACTION_SHEET_HEADER_GROUP" = "Elfogadtál egy felkérést csevegésre ettől a csoporttól. Ha ez hiba volt, alább választhatsz egy műveletet.";
+
+/* Title for a button shown alongside an info message indicating you accepted a message request. */
+"INFO_MESSAGE_ACCEPTED_MESSAGE_REQUEST_OPTIONS_BUTTON" = "Opciók";
+
+/* An info message inserted into a group chat when you block the group. */
+"INFO_MESSAGE_BLOCKED_GROUP" = "Letiltottad ezt a csoportot.";
+
+/* An info message inserted into a 1:1 chat when you block another user. */
+"INFO_MESSAGE_BLOCKED_OTHER_USER" = "Letiltottad ezt a személyt.";
 
 /* Indicates that a previously-removed recipient has been added back to the current user's contacts. */
 "INFO_MESSAGE_CONTACT_REINSTATED" = "Ez a személy visszakerült a Signal névjegylistájába.";
 
 /* Indicates that the recipient has been removed from the current user's contacts and that messaging them will re-add them. */
 "INFO_MESSAGE_CONTACT_REMOVED" = "Eltávolítottad ezt a személyt a Signal névjegylistájáról, azonban ha üzenetet küldesz neki, újra hozzáadod.";
+
+/* When you start a chat with someone and then later learn their profile name, we insert an in-chat message with this string to record the identifier you originally used to contact them. Embeds {{ the identifier, either a phone number or a username }}. */
+"INFO_MESSAGE_LEARNED_PROFILE_KEY" = "Elkezdtél csevegni %1$@ felhasználóval.";
 
 /* Shown when a user activates payments from a chat */
 "INFO_MESSAGE_PAYMENTS_ACTIVATED" = "Aktiváltad a Kifizetéseket.";
@@ -3463,8 +3808,23 @@
 /* Shown when requesting a user activates payments. Embeds: {{ the user's name}} */
 "INFO_MESSAGE_PAYMENTS_ACTIVATION_REQUEST_SENT" = "Kérelmet küldtél %1$@ részére a Kifizetések aktiválására";
 
+/* Shown when a user reports a conversation as spam. */
+"INFO_MESSAGE_REPORTED_SPAM" = "Megjelölve kéretlen üzenetként";
+
+/* Body message of the alert shown when a user taps on 'learn more' via the spam info message. */
+"INFO_MESSAGE_REPORTED_SPAM_LEARN_MORE_MESSAGE" = "A Signal értesítést kap arról, hogy ez a személy esetleg kéretlen üzeneteket küldözget. A Signal nem látja a csevegések tartalmát.";
+
+/* Title of the alert shown when a user taps on 'learn more' via the spam info message. */
+"INFO_MESSAGE_REPORTED_SPAM_LEARN_MORE_TITLE" = "Jelentve kéretlen üzenetként";
+
 /* Shown in inbox and conversation after syncing as a placeholder indicating why your message history is missing. */
-"INFO_MESSAGE_SYNCED_THREAD" = "You can send or receive synchronized messages from your phone or iPad.  For your security, chat history isn't transferred to new linked devices.";
+"INFO_MESSAGE_SYNCED_THREAD" = "A biztonságod érdekében a csevegési előzmények nem kerülnek áthelyezésre a kapcsolt eszközeidre.";
+
+/* An info message inserted into a group chat when you unblock the group. */
+"INFO_MESSAGE_UNBLOCKED_GROUP" = "Feloldottad ennek a csoportnak a letiltását.";
+
+/* An info message inserted into a 1:1 chat when you unblock another user. */
+"INFO_MESSAGE_UNBLOCKED_OTHER_USER" = "Feloldottad ennek a személynek a letiltását.";
 
 /* Indicates that another user has changed their phone number. Embeds: {{ the user's name}} */
 "INFO_MESSAGE_USER_CHANGED_PHONE_NUMBER_FORMAT" = "%1$@ megváltoztatta a telefonszámát.";
@@ -3504,6 +3864,9 @@
 
 /* Label for the cell that presents the 'invite contacts' workflow. */
 "INVITE_FRIENDS_CONTACT_TABLE_BUTTON" = "Barátok meghívása";
+
+/* Header label above a section for more options for adding contacts */
+"INVITE_FRIENDS_CONTACT_TABLE_HEADER" = "Tovább";
 
 /* Search */
 "INVITE_FRIENDS_PICKER_SEARCHBAR_PLACEHOLDER" = "Keresés";
@@ -3611,31 +3974,22 @@
 "LINK_NEW_DEVICE_SUBTITLE" = "Olvasd be a QR kódot egy új eszköz párosításához.";
 
 /* Navigation title when scanning QR code to add new device. */
-"LINK_NEW_DEVICE_TITLE" = "Új Készülék Társítása";
+"LINK_NEW_DEVICE_TITLE" = "Új eszköz összekapcsolása";
 
 /* Label for link previews with an unknown host. */
 "LINK_PREVIEW_UNKNOWN_DOMAIN" = "Link előnézet";
 
 /* Shown in an alert when trying to edit a contact. */
-"LINKED_DEVICE_CONTACTS_NOT_ALLOWED" = "A rendszernévjegyek kezelése már nem érhető el iPaden. Ha Signal Névjegyeket szeretnél hozzáadni a rendszernévjegyekhez, nyisd meg a Signalt a telefonodon.";
+"LINKED_DEVICE_CONTACTS_NOT_ALLOWED" = "A telefon névjegyeinek kezelése már nem érhető el iPaden. Ha Signal Névjegyeket szeretnél hozzáadni a telefon névjegyeihez, nyisd meg a Signalt a telefonodon.";
 
 /* Shown in a banner when you tap the 'New Chat' icon at the top of the list of chats. */
-"LINKED_DEVICE_MANAGE_CONTACTS_BANNER" = "Az iPad már nem támogatja a rendszernévjegyek kezelését. Ez az eszköz továbbra is szinkronizálja a telefonodon megtalálható Signal-névjegylistán végrehajtott módosításokat.";
+"LINKED_DEVICE_MANAGE_CONTACTS_BANNER" = "Az iPad már nem támogatja a telefonos névjegyek kezelését. Ez az eszköz továbbra is szinkronizálja a telefonodon megtalálható Signal-névjegylistán végrehajtott módosításokat.";
 
 /* A button shown in a banner when you tap the 'New Chat' icon at the top of the list of chats. Tapping it opens a website with more details. */
 "LINKED_DEVICE_MANAGE_CONTACTS_LEARN_MORE" = "Tudj meg többet";
 
 /* Menu item and navbar title for the device manager */
 "LINKED_DEVICES_TITLE" = "Társított eszközök";
-
-/* Label for the 'give access' button in the 'onboarding permissions' view. */
-"LINKED_ONBOARDING_PERMISSIONS_ENABLE_PERMISSIONS_BUTTON" = "Értesítések engedélyezése";
-
-/* Explanation in the 'onboarding permissions' view. */
-"LINKED_ONBOARDING_PERMISSIONS_EXPLANATION" = "Az értesítések engedélyezésével tudni fogsz az új üzenetek érkezéséről, a hívásokról, valamint a beszélgetésekben történt változásokról.";
-
-/* Title of the 'onboarding permissions' view. */
-"LINKED_ONBOARDING_PERMISSIONS_TITLE" = "Értesítések engedélyezése";
 
 /* Alert Title */
 "LINKING_DEVICE_FAILED_TITLE" = "Készülék társítása sikertelen";
@@ -3901,13 +4255,22 @@
 /* Context menu message preview accessibility label */
 "MESSAGE_PREVIEW" = "Üzenet előnézet";
 
+/* Sheet option for blocking a chat. In this case, the sheet appears when the user taps a button attached to a 'message request accepted' info message in-chat. */
+"MESSAGE_REQUEST_ACCEPTED_INFO_MESSAGE_SHEET_OPTION_BLOCK" = "Letiltás";
+
+/* Sheet option for deleting a chat. In this case, the sheet appears when the user taps a button attached to a 'message request accepted' info message in-chat. */
+"MESSAGE_REQUEST_ACCEPTED_INFO_MESSAGE_SHEET_OPTION_DELETE" = "Csevegés törlése";
+
+/* Sheet option for reporting a chat as spam. In this case, the sheet appears when the user taps a button attached to a 'message request accepted' info message in-chat. */
+"MESSAGE_REQUEST_ACCEPTED_INFO_MESSAGE_SHEET_OPTION_SPAM" = "Kéretlen üzenet jelentése";
+
 /* Action sheet action to confirm blocking a thread via a message request. */
 "MESSAGE_REQUEST_BLOCK_ACTION" = "Letiltás";
 
 /* Action sheet action to confirm blocking and deleting a thread via a message request. */
 "MESSAGE_REQUEST_BLOCK_AND_DELETE_ACTION" = "Letiltás és törlés";
 
-/* Action sheet action to confirm blocking and report spam for a thread via a message request. */
+/* Action sheet action to confirm blocking and reporting spam for a thread via a message request. */
 "MESSAGE_REQUEST_BLOCK_AND_REPORT_SPAM_ACTION" = "Kéretlen üzenet bejelentése és tiltása";
 
 /* Action sheet message to confirm blocking a conversation via a message request. */
@@ -3941,16 +4304,10 @@
 "MESSAGE_REQUEST_LEAVE_AND_DELETE_GROUP_TITLE" = "Csoport törlése és elhagyása?";
 
 /* Banner label notifying user that a new message is from a user with the same name as an existing contact */
-"MESSAGE_REQUEST_NAME_COLLISON_BANNER_LABEL" = "Légy óvatos a csevegési felkérésekkel. A Signal talált egy újabb kontaktot azonos névvel.";
-
-/* A header string above a known contact's contact info */
-"MESSAGE_REQUEST_NAME_COLLISON_CONTACT_HEADER" = "Saját profil";
+"MESSAGE_REQUEST_NAME_COLLISION_BANNER_LABEL" = "Ennek a személynek ugyanaz a neve, mint egy másik névjegynek";
 
 /* A header string informing the user about name collisions in a message request */
 "MESSAGE_REQUEST_NAME_COLLISON_HEADER" = "Ha nem vagy benne biztos, hogy kitől is érkezett a kérés, akkor tekintsd át az alábbi kontaktokat döntés előtt!";
-
-/* A header string above the requester's contact info */
-"MESSAGE_REQUEST_NAME_COLLISON_REQUESTER_HEADER" = "Kérés";
 
 /* A title string for a view that allows a user to review name collisions for an incoming message request */
 "MESSAGE_REQUEST_NAME_COLLISON_TITLE" = "Kérések áttekintése";
@@ -3958,8 +4315,17 @@
 /* A button that updates a known contact's information to resolve a name collision */
 "MESSAGE_REQUEST_NAME_COLLISON_UPDATE_CONTACT_ACTION" = "Profil frissítése";
 
-/* Button to allow user to review known name collisions with an incoming message request */
-"MESSAGE_REQUEST_REVIEW_NAME_COLLISION" = "Kérések áttekintése";
+/* Action sheet message to confirm reporting a conversation as spam via a message request. */
+"MESSAGE_REQUEST_REPORT_CONVERSATION_MESSAGE" = "A Signal értesítést kap arról, hogy ez a személy esetleg kéretlen üzeneteket küldözget. A Signal nem látja a csevegések tartalmát.";
+
+/* Action sheet title to confirm reporting a conversation as spam via a message request. */
+"MESSAGE_REQUEST_REPORT_CONVERSATION_TITLE" = "Kéretlen üzenet jelentése?";
+
+/* Action sheet action to confirm reporting a conversation as spam via a message request. */
+"MESSAGE_REQUEST_REPORT_SPAM_ACTION" = "Kéretlen üzenet jelentése";
+
+/* String indicating that spam has been reported. */
+"MESSAGE_REQUEST_SPAM_REPORTED" = "Megjelölve kéretlen üzenetként.";
 
 /* String indicating that spam has been reported and the chat has been blocked. */
 "MESSAGE_REQUEST_SPAM_REPORTED_AND_BLOCKED" = "Megjelölve kéretlen üzenetként és letiltva.";
@@ -4002,6 +4368,9 @@
 
 /* A prompt asking if the user wants to accept a conversation invite from a person whom they previously removed. Embeds {{contact name}}. */
 "MESSAGE_REQUEST_VIEW_REMOVED_CONTACT_PROMPT_FORMAT" = "Engedélyezed, hogy %1$@ üzenetet küldjön neked, és megosztod vele a neved és a fényképed? A múltban eltávolítottad ezt a személyt.";
+
+/* incoming message request button text which reports a conversation as spam */
+"MESSAGE_REQUEST_VIEW_REPORT_BUTTON" = "Jelentés…";
 
 /* A button used to unlock a blocked conversation. */
 "MESSAGE_REQUEST_VIEW_UNBLOCK_BUTTON" = "Tiltás feloldása";
@@ -4072,9 +4441,6 @@
 /* Indicator that separates read from unread messages. */
 "MESSAGES_VIEW_UNREAD_INDICATOR" = "Új üzenetek";
 
-/* info message text in conversation view */
-"MISSED_AUDIO_CALL" = "Nem fogadott hanghívás";
-
 /* info message text in conversation view for when a call was dropped because the contact is blocked in iOS settings */
 "MISSED_CALL_BLOCKED_SYSTEM_CONTACT" = "Nem fogadott hívás a telefon beállításaiban letiltott névjegytől";
 
@@ -4087,14 +4453,14 @@
 /* Title for sheet shown when the user taps a missed call from a contact blocked in iOS settings. Embeds {{ Contact's name }} */
 "MISSED_CALL_BLOCKED_SYSTEM_SETTINGS_SHEET_TITLE" = "%1$@ le van tiltva a telefon beállításaiban";
 
-/* info message text in conversation view (use Apple's name for 'Do Not Disturb' on iOS 14 and older) */
-"MISSED_CALL_DO_NOT_DISTURB" = "Nem fogadott hívás „Ne zavarjanak” módban";
-
 /* info message text in conversation view (use Apple's name for 'Focus') */
 "MISSED_CALL_FOCUS_MODE" = "Nem fogadott hívás „Fókusz” módban";
 
 /* info message text in conversation view */
 "MISSED_VIDEO_CALL" = "Nem fogadott videóhívás";
+
+/* info message text in conversation view */
+"MISSED_VOICE_CALL" = "Nem fogadott hanghívás";
 
 /* Alert body */
 "MISSING_CAMERA_PERMISSION_MESSAGE" = "Videóhívások indításához az iOS beállításokban kamera hozzáférés adása szükséges a Signal alkalmazás számára.";
@@ -4119,6 +4485,9 @@
 
 /* A recovery suggestion shown as the body of an alert when try to link a new device & the user is already at the limit. */
 "MULTIDEVICE_PAIRING_MAX_RECOVERY" = "Elérted a maximum társítható eszközök számát. Szüntesd meg az egyik eszköz társítását, majd próbálkozz újra.";
+
+/* Text for a toast confirming that the mic has been muted for a call. */
+"MUTE_CONFIRMATION_TOAST_LABEL" = "Mikrofon ki";
 
 /* Badge indicating that the user is muted. */
 "MUTED_BADGE" = "Némítva";
@@ -4153,8 +4522,8 @@
 /* Prompt to add to your story */
 "MY_STORY_TAP_TO_ADD" = "A hozzáadáshoz koppints";
 
-/* Format string describing a recent profile name change that led to a name collision. Embeds {{ %1$@ old profile name }} and {{ %2$@ current profile name }} */
-"NAME_COLLISION_RECENT_CHANGE_FORMAT_STRING" = "Nemrég megváltoztatta profilnevét erről: %1$@ erre: %2$@.";
+/* Format string describing a recent profile name change that led to a name collision. Embeds {{ %1$@ current name, which may be a profile name or an address book name }}, {{ %2$@ old profile name }}, and {{ %3$@ current profile name }} */
+"NAME_COLLISION_RECENT_CHANGE_FORMAT_STRING" = "%1$@ a közelmúltban megváltoztatta a profilnevét %2$@ névről %3$@ névre";
 
 /* A button to skip a view. */
 "NAVIGATION_ITEM_SKIP_BUTTON" = "Kihagyás";
@@ -4171,8 +4540,29 @@
 /* String representing both wifi and cellular interfaces */
 "NETWORK_INTERFACE_SET_WIFI_CELLULAR" = "Wi-Fi és Mobiladat";
 
+/* Accessibility hint describing the action of the new call button on the Calls Tab */
+"NEW_CALL_HINT" = "Válassz ki egy névjegyet vagy csoportot, amellyel új hívást szeretnél indítani.";
+
+/* Accessibility label for the new call button on the Calls Tab */
+"NEW_CALL_LABEL" = "Új hívás";
+
+/* Title for a long-press context menu action to message a given recipient or group, triggered from a recipient in the New Call contact picker */
+"NEW_CALL_MESSAGE_ACTION_TITLE" = "Üzenet";
+
+/* Title for the contact picker that allows new calls to be started */
+"NEW_CALL_TITLE" = "Új hívás";
+
+/* Title for a long-press context menu action to start a video call, triggered from a recipient in the New Call contact picker */
+"NEW_CALL_VIDEO_CALL_ACTION_TITLE" = "Videóhívás";
+
+/* Title for a long-press context menu action to start a voice call, triggered from a recipient in the New Call contact picker */
+"NEW_CALL_VOICE_CALL_ACTION_TITLE" = "Hanghívás";
+
 /* A label the cell that lets you add a new member to a group. */
 "NEW_CONVERSATION_FIND_BY_PHONE_NUMBER" = "Keresés telefonszám alapján";
+
+/* A label for the cell that lets you add a new member by their username */
+"NEW_CONVERSATION_FIND_BY_USERNAME" = "Keresés felhasználónév alapján";
 
 /* Label for the 'create new group' button. */
 "NEW_GROUP_BUTTON" = "Új csoport";
@@ -4213,11 +4603,8 @@
 /* Title for the 'new group story' view */
 "NEW_GROUP_STORY_VIEW_CONTROLLER_TITLE" = "Csoport kiválasztása";
 
-/* A label for the 'add by phone number' button in the 'new non-contact conversation' view */
-"NEW_NONCONTACT_CONVERSATION_VIEW_BUTTON" = "Keresés";
-
 /* Title for the 'new non-contact conversation' view. */
-"NEW_NONCONTACT_CONVERSATION_VIEW_TITLE" = "Keresés";
+"NEW_NONCONTACT_CONVERSATION_VIEW_TITLE" = "Keresés telefonszám alapján";
 
 /* Title for the 'new private story' confirmation view */
 "NEW_PRIVATE_STORY_CONFIRM_TITLE" = "Történet címe";
@@ -4261,8 +4648,35 @@
 /* Title for the new story sheet */
 "NEW_STORY_SHEET_TITLE" = "Történet típusának kiválasztása";
 
+/* Title for the table cell in conversation settings for presenting the profile nickname editor. */
+"NICKNAME_BUTTON_TITLE" = "Becenév";
+
+/* The message for a prompt confirming that the user wants to delete the nickname and note. */
+"NICKNAME_EDITOR_DELETE_CONFIRMATION_MESSAGE" = "Ezzel véglegesen törli ezt a becenevet és jegyzetet.";
+
+/* The title for a prompt confirming that the user wants to delete the nickname and note. */
+"NICKNAME_EDITOR_DELETE_CONFIRMATION_TITLE" = "Becenév törlése?";
+
+/* The description below the title on the profile nickname editor view. */
+"NICKNAME_EDITOR_DESCRIPTION" = "A beceneveket és megjegyzéseket a rendszer Signal és végpontok közötti titkosítással tárolja. Ezek csak számodra láthatók.";
+
+/* Placeholder text it the text field for the family name in the profile nickname editor. */
+"NICKNAME_EDITOR_FAMILY_NAME_PLACEHOLDER" = "Vezetéknév";
+
+/* Placeholder text it the text field for the given name in the profile nickname editor. */
+"NICKNAME_EDITOR_GIVEN_NAME_PLACEHOLDER" = "Keresztnév";
+
+/* Placeholder text it the text box for the note in the profile nickname editor. */
+"NICKNAME_EDITOR_NOTE_PLACEHOLDER" = "Megjegyzés";
+
+/* The title for the profile nickname editor view. */
+"NICKNAME_EDITOR_TITLE" = "Becenév";
+
 /* Label for a button that lets users search for contacts by phone number */
 "NO_CONTACTS_SEARCH_BY_PHONE_NUMBER" = "Kontaktok keresése telefonszám alapján";
+
+/* Label for a button that lets users search for contacts by username */
+"NO_CONTACTS_SEARCH_BY_USERNAME" = "Névjegyek keresése felhasználónév alapján";
 
 /* A string describing that the user has no groups in common with another user */
 "NO_GROUPS_IN_COMMON" = "Nincsenek közös csoportok";
@@ -4305,6 +4719,12 @@
 
 /* Title for notification permission reminder megaphone */
 "NOTIFICATION_PERMISSION_REMINDER_MEGAPHONE_TITLE" = "Értesítések bekapcsolása?";
+
+/* Shown as the body of an alert when notifications can't be shown due to an error. */
+"NOTIFICATIONS_ERROR_MESSAGE" = "Ha nem kapod meg a Signal-értesítéseket, indítsd újra %1$@ készülékedet.";
+
+/* Shown as the title of an alert when notifications can't be shown due to an error. */
+"NOTIFICATIONS_ERROR_TITLE" = "Nem jeleníthetők meg az értesítések";
 
 /* No comment provided by engineer. */
 "NOTIFICATIONS_FOOTER_WARNING" = "Művelet lehet \"Olvasottnak jelöl\", \"Válasz\" és \"Visszahívás\".";
@@ -4364,7 +4784,7 @@
 "ONBOARDING_MODE_SWITCH_BUTTON_REGISTERING" = "iPhone társítása";
 
 /* explanation to the user they're switching from linking to registering flow */
-"ONBOARDING_MODE_SWITCH_EXPLANATION_PROVISIONING" = "Az \"iPad regisztrálása\" menüponttal egy új Signal fiókot hozhatsz létre, vagy mozgathatsz át egy meglevőt erre az eszközre. Ez a művelet a többi meglevő eszközödön letiltja ezzel a telefonszámmal korábban regisztrált Signal fiókjaidat.";
+"ONBOARDING_MODE_SWITCH_EXPLANATION_PROVISIONING" = "Az „iPad regisztrálása” menüponttal egy új Signal-fiókot hozhatsz létre, vagy mozgathatsz át egy meglevőt erre az eszközre. Ez a művelet a többi meglevő eszközödön letiltja ezzel a telefonszámmal korábban regisztrált Signal fiókjaidat.";
 
 /* explanation to the user they're switching from registering to linking flow */
 "ONBOARDING_MODE_SWITCH_EXPLANATION_REGISTERING" = "Az \"iPhone társítása\" menüponttal egy meglevő fiókhoz társíthatod készüléked. Telefon társítása jelenleg nem ajánlott, mivel jelentősen lekorlátozza az alkalmazás képességeit (mint pl. a hang és videóhívás).";
@@ -4381,17 +4801,26 @@
 /* warning to the user that linking a phone is not recommended */
 "ONBOARDING_MODE_SWITCH_WARNING_REGISTERING" = "Ezen iPhone társítása nem javasolt - erősen korlátozná az alkalmazás teljeskörű működését.";
 
-/* Label for the 'give access' button in the 'onboarding permissions' view. */
-"ONBOARDING_PERMISSIONS_ENABLE_PERMISSIONS_BUTTON" = "Jogosultságok engedélyezése";
+/* Description of the 'Contacts' permission in the 'onboarding permissions' view. */
+"ONBOARDING_PERMISSIONS_CONTACTS_DESCRIPTION" = "Találj olyan személyeket, akiket ismersz. A névjegyeid titkosítva vannak, és nem láthatók a Signal számára.";
 
-/* Explanation in the 'onboarding permissions' view. */
-"ONBOARDING_PERMISSIONS_EXPLANATION" = "Az értesítések és a kapcsolatok engedélyezésével láthatod mikor érkeznek az üzenetek, és segít ismerősöket találni. A kapcsolatok titkosítottak, így a Signal szolgáltatás nem látja őket.";
+/* Title introducing the 'Contacts' permission in the 'onboarding permissions' view. */
+"ONBOARDING_PERMISSIONS_CONTACTS_TITLE" = "Kontaktok";
+
+/* Description of the 'Notifications' permission in the 'onboarding permissions' view. */
+"ONBOARDING_PERMISSIONS_NOTIFICATIONS_DESCRIPTION" = "Fogadj értesítést, ha új üzeneteid érkeznek.";
+
+/* Title introducing the 'Notifications' permission in the 'onboarding permissions' view. */
+"ONBOARDING_PERMISSIONS_NOTIFICATIONS_TITLE" = "Értesítések";
+
+/* Preamble of the 'onboarding permissions' view. */
+"ONBOARDING_PERMISSIONS_PREAMBLE" = "A Signal a következő engedélyeket szeretné kérni.";
 
 /* Title of the 'onboarding permissions' view. */
 "ONBOARDING_PERMISSIONS_TITLE" = "Jogosultságok engedélyezése";
 
 /* Explanation of the 'onboarding phone number discoverability' view. Embeds {user phone number} */
-"ONBOARDING_PHONE_NUMBER_DISCOVERABILITY_EXPLANATION_FORMAT" = "Válassz, hogy az alábbi telefonszámod alapján ki találhat meg Signalon: %1$@";
+"ONBOARDING_PHONE_NUMBER_DISCOVERABILITY_EXPLANATION_FORMAT" = "Válassz, hogy a(z) %1$@ telefonszámod alapján ki találhat meg Signalon";
 
 /* Title of the 'onboarding phone number discoverability' view. */
 "ONBOARDING_PHONE_NUMBER_DISCOVERABILITY_TITLE" = "Ki találhat meg telefonszámod alapján?";
@@ -4403,7 +4832,7 @@
 "ONBOARDING_PHONE_NUMBER_RATE_LIMIT_WARNING_FORMAT" = "Kérlek várj egy pár percet mielőtt újra megpróbálnád. (%1$@)";
 
 /* Label indicating that the phone number is invalid in the 'onboarding phone number' view. */
-"ONBOARDING_PHONE_NUMBER_VALIDATION_WARNING" = "Érvénytelen telefonszám. Adj meg egy valós telefonszámot a regisztrációhoz.";
+"ONBOARDING_PHONE_NUMBER_VALIDATION_WARNING" = "Érvénytelen telefonszám. A regisztrációhoz, kérjük, adj meg egy valós telefonszámot.";
 
 /* Explanation of the 'onboarding pin attempts exhausted' view when reglock is disabled. */
 "ONBOARDING_PIN_ATTEMPTS_EXHAUSTED_EXPLANATION" = "Kifogytál a PIN megadási lehetőségekből, de továbbra is hozzáférhetsz Signal fiókodhoz, amennyiben létrehozol egy új PIN-t. A magánszférád védelmének és saját biztonságod érdekében fiókod csak a mentett profilbeállítások nélkül állítható vissza.";
@@ -4493,13 +4922,10 @@
 "OUTDATED_PAYMENT_CLIENT_REMINDER_TEXT" = "A fizetések további használatához frissítsd a Signalt. Előfordulhat, hogy az egyenleged nem naprakész.";
 
 /* info message text in conversation view */
-"OUTGOING_AUDIO_CALL" = "Kimenő hanghívás";
-
-/* info message text in conversation view */
-"OUTGOING_MISSED_AUDIO_CALL" = "Nem fogadott hanghívás";
-
-/* info message text in conversation view */
 "OUTGOING_MISSED_VIDEO_CALL" = "Nem fogadott videóhívás";
+
+/* info message text in conversation view */
+"OUTGOING_MISSED_VOICE_CALL" = "Nem fogadott hanghívás";
 
 /* Button for action sheet shown when device transfer completes; quits the Signal app immediately (does not automatically relaunch, but the user may choose to relaunch). */
 "OUTGOING_TRANSFER_COMPLETE_EXIT_ACTION" = "Kilépés a Signalból";
@@ -4513,11 +4939,14 @@
 /* info message text in conversation view */
 "OUTGOING_VIDEO_CALL" = "Kimenő videóhívás";
 
+/* info message text in conversation view */
+"OUTGOING_VOICE_CALL" = "Kimenő hanghívás";
+
 /* Header title for bank payment details screen */
-"PAYMENT_DETAILS_BANK_TITLE" = "Bank Transfer";
+"PAYMENT_DETAILS_BANK_TITLE" = "Banki átutalás";
 
 /* Header title for card payment details screen */
-"PAYMENT_DETAILS_CARD_TITLE" = "Credit or Debit Card";
+"PAYMENT_DETAILS_CARD_TITLE" = "Hitel- vagy betéti kártya";
 
 /* Format for indicator of a payment amount converted to fiat currency with the freshness of the conversion rate. Embeds: {{ %1$@ the payment amount, %2$@ the freshness of the currency conversion rate }}. */
 "PAYMENTS_CURRENCY_CONVERSION_FRESHNESS_FORMAT" = "%1$@ @ %2$@";
@@ -4583,6 +5012,9 @@
 "PAYMENTS_LOCK_FIRST_TIME_ACTION_SHEET_MESSAGE_FACEID" = "Adj hozzá egy további biztonsági réteget, és kérj Face ID-t a pénzküldéshez.";
 
 /* First time payments suggest payments lock message */
+"PAYMENTS_LOCK_FIRST_TIME_ACTION_SHEET_MESSAGE_OPTICID" = "Adj hozzá egy további biztonsági réteget, és kérj Optic ID-t a pénzküldéshez.";
+
+/* First time payments suggest payments lock message */
 "PAYMENTS_LOCK_FIRST_TIME_ACTION_SHEET_MESSAGE_PASSCODE" = "Adj hozzá egy további biztonsági réteget, és kérj jelkódot a pénzküldéshez.";
 
 /* First time payments suggest payments lock message */
@@ -4596,6 +5028,9 @@
 
 /* Affirmative action title to enable payments lock */
 "PAYMENTS_LOCK_FIRST_TIME_AFFIRMATIVE_ACTION_FACEID" = "Face ID bekapcsolása a küldéshez";
+
+/* Affirmative action title to enable payments lock */
+"PAYMENTS_LOCK_FIRST_TIME_AFFIRMATIVE_ACTION_OPTICID" = "A küldéshez Optic ID szükséges";
 
 /* Affirmative action title to enable payments lock */
 "PAYMENTS_LOCK_FIRST_TIME_AFFIRMATIVE_ACTION_PASSCODE" = "A küldéshez meg kell adnod a telefon jelkódját";
@@ -4883,13 +5318,13 @@
 "PHONE_NUMBER_DISCOVERABILITY_EVERYBODY" = "Mindenki";
 
 /* A user friendly description of the 'everybody' phone number discoverability mode. */
-"PHONE_NUMBER_DISCOVERABILITY_EVERYBODY_DESCRIPTION" = "Bárki, akinek a névjegyei között szerepel a telefonszámod, névjegyként fog látni téged a Signalon. Mások pedig a telefonszámodon keresztül érhetnek el téged, amikor új csevegést vagy csoportot indítanak.";
+"PHONE_NUMBER_DISCOVERABILITY_EVERYBODY_DESCRIPTION" = "Bárki, aki tudja a telefonszámodat, látni fogja, hogy használod a Signalt, és csevegést kezdeményezhet veled.";
 
 /* A user friendly name for the 'nobody' phone number discoverability mode. */
 "PHONE_NUMBER_DISCOVERABILITY_NOBODY" = "Senki";
 
 /* A user friendly description of the 'nobody' phone number discoverability mode. */
-"PHONE_NUMBER_DISCOVERABILITY_NOBODY_DESCRIPTION" = "A Signalon senki nem fog megtalálni a telefonszámod alapján.";
+"PHONE_NUMBER_DISCOVERABILITY_NOBODY_DESCRIPTION" = "Senki sem láthatja, hogy használod a Signalt, hacsak nem küldesz valakinek üzenetet, vagy nem folytatsz csevegést valakivel.";
 
 /* A format for a label showing an example phone number. Embeds {{the example phone number}}. */
 "PHONE_NUMBER_EXAMPLE_FORMAT" = "Például: %1$@";
@@ -4898,16 +5333,16 @@
 "PHONE_NUMBER_SHARING_EVERYBODY" = "Mindenki";
 
 /* A user friendly description of the 'everybody' phone number sharing mode. */
-"PHONE_NUMBER_SHARING_EVERYBODY_DESCRIPTION" = "Telefonszámod látható lesz az ismerősök és csoportok számára, akikkel üzenetet váltasz. Azoknál, akinél szerepelsz készülékük kontaktlistájában, megjelensz Signal kontakjaik között is.";
+"PHONE_NUMBER_SHARING_EVERYBODY_DESCRIPTION" = "A telefonszámod az összes olyan személy vagy csoport számára látható lesz, akinek üzenetet küldesz.";
 
 /* A user friendly name for the 'nobody' phone number sharing mode. */
 "PHONE_NUMBER_SHARING_NOBODY" = "Senki";
 
-/* A user friendly description of the 'nobody' phone number sharing mode. */
-"PHONE_NUMBER_SHARING_NOBODY_DESCRIPTION" = "Telefonszámodat Signalban senki nem láthatja.";
+/* A user-friendly description of the 'nobody' phone number sharing mode when phone number discovery is set to 'everybody'. */
+"PHONE_NUMBER_SHARING_NOBODY_DESCRIPTION_DISCOVERABILITY_EVERYBODY" = "A telefonszámod nem lesz látható senki számára, kivéve, ha az illető elmentette azt a telefonja névjegyzékébe.";
 
-/* Format for phone number label with an index. Embeds {{Phone number label (e.g. 'home')}} and {{index, e.g. 2}}. */
-"PHONE_NUMBER_TYPE_AND_INDEX_NAME_FORMAT" = "%1$@ %2$@";
+/* A user-friendly description of the 'nobody' phone number sharing mode when phone number discovery is set to 'nobody'. */
+"PHONE_NUMBER_SHARING_NOBODY_DESCRIPTION_DISCOVERABILITY_NOBODY" = "A telefonszámod nem lesz látható senki számára.";
 
 /* Label for 'Home' phone numbers. */
 "PHONE_NUMBER_TYPE_HOME" = "Otthoni";
@@ -4933,9 +5368,6 @@
 /* Label for 'Pager' phone numbers. */
 "PHONE_NUMBER_TYPE_PAGER" = "Csipogó";
 
-/* Label used when we don't what kind of phone number it is (e.g. mobile/work/home). */
-"PHONE_NUMBER_TYPE_UNKNOWN" = "Telefonszám";
-
 /* Label for 'Work' phone numbers. */
 "PHONE_NUMBER_TYPE_WORK" = "Munkahelyi";
 
@@ -4950,6 +5382,15 @@
 
 /* alert title */
 "PHOTO_CAPTURE_UNABLE_TO_INITIALIZE_CAMERA" = "Kamerabeállítás sikertelen";
+
+/* Button label for opening the chat on a sheet presented from photo capture view indicating that a username QR code was found. */
+"PHOTO_CAPTURE_USERNAME_QR_CODE_FOUND_CTA" = "Ugrás a csevegéshez";
+
+/* Message for a sheet presented from photo capture view indicating that a username QR code was found. Embeds {{username}}. */
+"PHOTO_CAPTURE_USERNAME_QR_CODE_FOUND_MESSAGE_FORMAT" = "Csevegés kezdeményezése „%1$@” felhasználóval";
+
+/* Title for sheet presented from photo capture view indicating that a username QR code was found. Embeds {{username}}. */
+"PHOTO_CAPTURE_USERNAME_QR_CODE_FOUND_TITLE_FORMAT" = "Megtaláltuk: %1$@";
 
 /* alert title, generic error preventing user from capturing a video that is too long */
 "PHOTO_CAPTURE_VIDEO_SIZE_ERROR" = "A videó túl hosszú.";
@@ -5213,10 +5654,10 @@
 "PROFILE_BIO_VIEW_TITLE_FORMAT" = "Rólam (%1$@)";
 
 /* The copy rendered in a conversation when someone in your address book changes their profile name. Embeds {contact name}, {old profile name}, {new profile name} */
-"PROFILE_NAME_CHANGE_SYSTEM_CONTACT_FORMAT" = "%1$@ megváltoztatta a nevét erről: %2$@, erre: %3$@.";
+"PROFILE_NAME_CHANGE_SYSTEM_CONTACT_FORMAT" = "%1$@ megváltoztatta a profilnevét %2$@ névről %3$@ névre.";
 
 /* The copy rendered in a conversation when someone not in your address book changes their profile name. Embeds {old profile name}, {new profile name} */
-"PROFILE_NAME_CHANGE_SYSTEM_NONCONTACT_FORMAT" = "%1$@ megváltoztatta a profilnevét erre: %2$@.";
+"PROFILE_NAME_CHANGE_SYSTEM_NONCONTACT_FORMAT" = "%1$@ megváltoztatta a profilnevét %2$@ névre.";
 
 /* Title for the profile name view. */
 "PROFILE_NAME_VIEW_TITLE" = "Neved";
@@ -5228,16 +5669,16 @@
 "PROFILE_SETTINGS_NAME_PLACEHOLDER" = "Név";
 
 /* A message explaining that something is wrong with the username, on a sheet allowing the user to resolve the issue. */
-"PROFILE_SETTINGS_USERNAME_CORRUPTED_RESOLUTION_CONFIRMATION_ALERT_MESSAGE" = "Valami hiba történt a felhasználóneveddel, már nincs hozzárendelve a fiókodhoz.";
-
-/* Title for an action sheet button allowing users to create a new username when their current one is corrupted. */
-"PROFILE_SETTINGS_USERNAME_CORRUPTED_RESOLUTION_CREATE_NEW_USERNAME_ACTION_TITLE" = "Felhasználónév létrehozása";
+"PROFILE_SETTINGS_USERNAME_CORRUPTED_RESOLUTION_CONFIRMATION_ALERT_MESSAGE" = "Valami hiba történt a felhasználóneveddel, már nincs hozzárendelve a fiókodhoz. Megpróbálhatod újra beállítani, vagy választhatsz egy újat.";
 
 /* Title for an action sheet button allowing users to delete their corrupted username. */
 "PROFILE_SETTINGS_USERNAME_CORRUPTED_RESOLUTION_DELETE_USERNAME_ACTION_TITLE" = "Felhasználónév törlése";
 
+/* Title for an action sheet button allowing users to fix their username when their current one is corrupted. */
+"PROFILE_SETTINGS_USERNAME_CORRUPTED_RESOLUTION_FIX_ACTION_TITLE" = "Javítás most";
+
 /* A message asking the user if they are sure they want to remove their username and explaining what will happen. Embeds {{ the user's current username }}. */
-"PROFILE_SETTINGS_USERNAME_DELETION_CONFIRMATION_ALERT_MESSAGE_FORMAT" = "Ezzel eltávolítod a felhasználóneved, és érvénytelenné teszed a QR-kódot és a hivatkozást. A(z) „ %1$@ ” név elérhető lesz más felhasználók számára. Biztos vagy benne?";
+"PROFILE_SETTINGS_USERNAME_DELETION_CONFIRMATION_ALERT_MESSAGE_FORMAT" = "Ezzel eltávolítod a felhasználóneved, és érvénytelenné teszed a QR-kódot és a hivatkozást. A(z) %1$@ név elérhető lesz más felhasználók számára. Biztos vagy benne?";
 
 /* The title of an action sheet button that will delete a user's username. */
 "PROFILE_SETTINGS_USERNAME_DELETION_USERNAME_ACTION_TITLE" = "Felhasználónév törlése";
@@ -5270,10 +5711,16 @@
 "PROFILE_VIEW_NO_CONNECTION" = "A profil frissítéséhez aktív internetkapcsolat szükséges.";
 
 /* Description of the user profile. */
-"PROFILE_VIEW_PROFILE_DESCRIPTION" = "A profilod végpontok közt titkosítva kerül továbbításra. Névjegyeid számára akkor lesz látható, mikor új csevegést kezdeményezel vagy fogadsz el.";
+"PROFILE_VIEW_PROFILE_DESCRIPTION" = "A profilod és a módosításai azok számára lesznek láthatók, akiknek üzenetet küldesz, valamint, akik a névjegyeid és a csoportjaid között vannak.";
 
 /* Title for the profile view. */
 "PROFILE_VIEW_TITLE" = "Profil";
+
+/* Footer below the usernames section of the profile settings explaining username visibility. */
+"PROFILE_VIEW_USERNAME_DESCRIPTION" = "A felhasználóneved, a QR-kódod és a hivatkozásod nem látható a profilodban. Csak olyanokkal oszd meg a felhasználónevedet, akikben megbízol.";
+
+/* Footer below the usernames section of the profile settings when a username has not been set. */
+"PROFILE_VIEW_USERNAME_UNSET_DESCRIPTION" = "Az emberek mostantól üzenetet küldhetnek neked az opcionális felhasználóneveden keresztül, így nem kell megadnod a telefonszámodat.";
 
 /* The title for the address of the signal proxy */
 "PROXY_ADDRESS" = "Proxy cím";
@@ -5340,6 +5787,18 @@
 
 /* Indicates this message is a quoted reply to a video file. */
 "QUOTED_REPLY_TYPE_VIDEO" = "Videó";
+
+/* Label for a button to lower your raised hand in a call. */
+"RAISED_HANDS_LOWER_HAND_BUTTON" = "Letétel";
+
+/* A message appearing on the call view's raised hands toast indicating that another named member has raised their hand. */
+"RAISED_HANDS_TOAST_SINGLE_HAND_MESSAGE" = "%1$@ felemelted a kezed";
+
+/* A compact member count on the call view's raised hands toast indicating that you and a number of other users raised a hand. Embeds {{number of other users}} */
+"RAISED_HANDS_TOAST_YOU_PLUS_OTHERS_COUNT" = "Te + %1$d";
+
+/* A message appearing on the call view's raised hands toast indicating that you raised your own hand. */
+"RAISED_HANDS_TOAST_YOUR_HAND_MESSAGE" = "Felemelted a kezed";
 
 /* The header used to indicate All reactions to a given message. Embeds {{number of reactions}} */
 "REACTION_DETAIL_ALL_FORMAT" = "Összes · %1$@";
@@ -5558,13 +6017,13 @@
 "REGISTRATION_VERIFICATION_ERROR_INVALID_VERIFICATION_CODE" = "Az általad megadott kód érvénytelen. Kérjük, küldd el újra a kódot, és próbáld újra.";
 
 /* Message of alert indicating that users needs to enter a valid phone number to register. */
-"REGISTRATION_VIEW_INVALID_PHONE_NUMBER_ALERT_MESSAGE" = "Adj meg egy valós telefonszámot a regisztrációhoz.";
+"REGISTRATION_VIEW_INVALID_PHONE_NUMBER_ALERT_MESSAGE" = "A regisztrációhoz, kérjük, adj meg egy valós telefonszámot.";
 
 /* Title of alert indicating that users needs to enter a valid phone number to register. */
 "REGISTRATION_VIEW_INVALID_PHONE_NUMBER_ALERT_TITLE" = "Hibás telefonszám";
 
 /* Message for confirmation alert during phone number registration. */
-"REGISTRATION_VIEW_PHONE_NUMBER_CONFIRMATION_ALERT_MESSAGE" = "Az ellenőrző kód erre a számra kerül kiküldésre. Helyes a fenti telefonszámod?";
+"REGISTRATION_VIEW_PHONE_NUMBER_CONFIRMATION_ALERT_MESSAGE" = "Az ellenőrző kód erre a számra kerül kiküldésre. Helyes a fenti telefonszám?";
 
 /* Title for confirmation alert during phone number registration. Embeds {{phone number}}. */
 "REGISTRATION_VIEW_PHONE_NUMBER_CONFIRMATION_ALERT_TITLE_FORMAT" = "Szám megerősítés: %1$@";
@@ -5581,14 +6040,17 @@
 /* Error message when sending a verification code via voice call failed, but resending via sms might succeed. */
 "REGISTRATION_VOICE_CODE_FAILED_TRY_SMS_ERROR" = "Nem sikerült ellenőrző kódot küldenünk hanghíváson keresztül. Inkább SMS-ben próbáld meg megkapni a kódot.";
 
-/* notification action */
-"REJECT_CALL_BUTTON_TITLE" = "Elutasít";
-
 /* No comment provided by engineer. */
 "RELAY_REGISTERED_ERROR_RECOVERY" = "A regisztrálni kívánt telefonszám már regisztrálva lett egy másik szerveren. Vond vissza a regisztrációdat innen, és próbáld meg újra.";
 
+/* Button below the warning to fix a corrupted username. */
+"REMINDER_VIEW_USERNAME_CORRUPTED_FIX_BUTTON" = "Javítás most";
+
 /* Label warning the user that something is wrong with their username. */
 "REMINDER_VIEW_USERNAME_CORRUPTED_WARNING" = "Valami hiba történt a felhasználóneveddel, már nincs hozzárendelve a fiókodhoz. Megpróbálhatod újra beállítani, vagy választhatsz egy újat.";
+
+/* Button below the warning to fix a username link. */
+"REMINDER_VIEW_USERNAME_LINK_CORRUPTED_FIX_BUTTON" = "Javítás most";
 
 /* Label warning the user that something is wrong with their username link. */
 "REMINDER_VIEW_USERNAME_LINK_CORRUPTED_WARNING" = "Hiba történt a felhasználónevedhez tartozó QR-kóddal és a hivatkozással, ezért azok már nem érvényesek. Hozz létre egy új hivatkozást és oszd meg másokkal.";
@@ -5616,6 +6078,12 @@
 
 /* Button to return to current group call */
 "RETURN_CALL_PILL_BUTTON" = "Vissza";
+
+/* Text for a toast confirming that ringing has been turned off for a call. */
+"RING_OFF_CONFIRMATION_TOAST_LABEL" = "Csengés ki";
+
+/* Text for a toast confirming that ringing has been turned on for a call. */
+"RING_ON_CONFIRMATION_TOAST_LABEL" = "Csengés be";
 
 /* button title to confirm adding a recipient when their safety number has recently changed */
 "SAFETY_NUMBER_CHANGED_CONFIRM_ADD_MEMBER_ACTION" = "Így is hozzáadom";
@@ -5646,6 +6114,48 @@
 
 /* Action sheet heading */
 "SAFETY_NUMBERS_ACTIONSHEET_TITLE" = "Biztonsági azonosítód megváltozott a következő ismerősöddel: %1$@. Érdemes lenne leellenőrizni.";
+
+/* Title for Safety Tips button in thread details. */
+"SAFETY_TIPS_BUTTON_ACTION_TITLE" = "Biztonsági tippek";
+
+/* Message contents for the crypto safety tip. */
+"SAFETY_TIPS_CRYPTO_BODY" = "Ha valaki, akit nem ismersz, kriptopénzről (például Bitcoinról) vagy pénzügyi lehetőséggel kapcsolatban küld üzenetet, legyél óvatos – valószínűleg kéretlen levélszemetet kaptál.";
+
+/* Message title describing the crypto safety tip. */
+"SAFETY_TIPS_CRYPTO_TITLE" = "Kripto- vagy pénzzel kapcsolatos átverések";
+
+/* Message contents for the safety tip concerning fake businesses. */
+"SAFETY_TIPS_FAKE_BUSINESS_BODY" = "Legyél óvatos, ha vállalkozások vagy kormányzati szervek lépnek kapcsolatba veled. Az adóhivatalokat, futárszolgálatokat stb. érintő üzenetek kéretlen üzenetek lehetnek.";
+
+/* Message title describing the safety tip about unknown or fake businesses. */
+"SAFETY_TIPS_FAKE_BUSINESS_TITLE" = "Hamis vállalkozások és intézmények";
+
+/* Message describing safety tips for group conversations. */
+"SAFETY_TIPS_GROUPS_HEADER_MESSAGE" = "Gondosan nézd át ezt a felkérést. Egyetlen ismerősöd vagy csevegőpartnered sincs ebben a csoportban. Íme néhány dolog, amire érdemes odafigyelni:";
+
+/* Title for Safety Tips education screen. */
+"SAFETY_TIPS_HEADER_TITLE" = "Biztonsági tippek";
+
+/* Message describing safety tips for 1:1 conversations. */
+"SAFETY_TIPS_INDIVIDUAL_HEADER_MESSAGE" = "Legyél óvatos, amikor ismeretlen emberek üzenetkéréseit fogadod el. Vigyázz:";
+
+/* Message contents for the unknown links in messages safety tip. */
+"SAFETY_TIPS_MESSAGE_LINKS_BODY" = "Legyél óvatos az ismeretlen személyektől érkező, weboldalakra mutató hivatkozásokat tartalmazó üzenetekkel. Soha ne látogass el olyan emberek hivatkozásaira, akikben nem bízol meg.";
+
+/* Message title describing the safety tip about unknown links in messages. */
+"SAFETY_TIPS_MESSAGE_LINKS_TITLE" = "Üzenetek hivatkozásokkal";
+
+/* Button that will show the next safety tip. */
+"SAFETY_TIPS_NEXT_TIP_BUTTON" = "Tovább";
+
+/* Button that will show the previous safety tip. */
+"SAFETY_TIPS_PREVIOUS_TIP_BUTTON" = "Előző";
+
+/* Message contents for the vague message safety tip. */
+"SAFETY_TIPS_VAGUE_MESSAGE_BODY" = "A kéretlen üzenetek küldői gyakran egy olyan egyszerű üzenettel indítanak, mint például „Szia”, hogy magukhoz vonzzanak téged. Ha válaszolsz, lehet, hogy továbbmennek.";
+
+/* Message title describing the safety tip about vague messages. */
+"SAFETY_TIPS_VAGUE_MESSAGE_TITLE" = "Homályos vagy irreleváns üzenetek";
 
 /* label presented once scanning (camera) view is visible. */
 "SCAN_CODE_INSTRUCTIONS" = "Szkenneld be a QR kódot ismerősöd készülékén.";
@@ -5807,49 +6317,49 @@
 "SENT_MEDIA_QUALITY_STANDARD" = "Normál";
 
 /* Users can donate to Signal with a bank account. This is the label for email field on that screen. */
-"SEPA_DONATION_EMAIL_LABEL" = "Email";
+"SEPA_DONATION_EMAIL_LABEL" = "E-mail";
 
 /* Users can donate to Signal with a bank account. This is placeholder text for the email field before the user starts typing. */
-"SEPA_DONATION_EMAIL_PLACEHOLDER" = "Email Address";
+"SEPA_DONATION_EMAIL_PLACEHOLDER" = "E-mail-cím";
 
 /* SEPA bank account donation error for insufficient funds. */
-"SEPA_DONATION_ERROR_INSUFFICIENT_FUNDS" = "The bank account provided has insufficient funds to complete this purchase, try again or contact your bank for more information.";
+"SEPA_DONATION_ERROR_INSUFFICIENT_FUNDS" = "A megadott bankszámlán nincs elegendő fedezet a vásárlás befejezéséhez. Próbálkozz újra, vagy fordulj a bankodhoz további információért.";
 
 /* SEPA bank account donation error for missing or incorrect mandate information. */
-"SEPA_DONATION_ERROR_NOT_AUTHORIZED" = "An error occurred while processing this payment, please try again.";
+"SEPA_DONATION_ERROR_NOT_AUTHORIZED" = "Hiba történt a fizetés feldolgozása közben. Kérjük, próbáld újra.";
 
 /* SEPA bank account donation error for the account details not being able to be processed. */
-"SEPA_DONATION_ERROR_NOT_PROCESSED" = "The bank details provided could not be processed, contact your bank for more information.";
+"SEPA_DONATION_ERROR_NOT_PROCESSED" = "A megadott banki adatokat nem tudtuk feldolgozni. További információért fordulj a bankodhoz.";
 
 /* SEPA bank account donation error for unspecified decline failures. */
-"SEPA_DONATION_ERROR_OTHER" = "Verify your bank details are correct and try again. If the problem continues, contact your bank.";
+"SEPA_DONATION_ERROR_OTHER" = "Ellenőrizd, hogy a banki adatok helyesek-e, és próbáld újra. Ha a probléma továbbra is fennáll, fordulj a bankodhoz.";
 
 /* SEPA bank account donation error for the payment not being authorizing by the account holder. */
-"SEPA_DONATION_ERROR_PAYMENT_NOT_AUTHORIZED" = "This payment was revoked by the account holder and could not be processed. You haven’t been charged.";
+"SEPA_DONATION_ERROR_PAYMENT_NOT_AUTHORIZED" = "Ezt a fizetést a számlabirtokos visszavonta, és nem sikerült feldolgozni. A számládat nem terhelték meg.";
 
 /* Users can donate to Signal with a bank account. If their internation bank account number (IBAN) contains characters other than letters and numbers, this error will be shown. Try to use a short string to make space in the UI. */
-"SEPA_DONATION_IBAN_INVALID_CHARACTERS_ERROR" = "IBAN can only contain A-Z and 0-9";
+"SEPA_DONATION_IBAN_INVALID_CHARACTERS_ERROR" = "Az IBAN kizárólag A-Z-ig tartalmazhat betűket és 0-9-ig számokat";
 
 /* Users can donate to Signal with a bank account. If their internation bank account number (IBAN) does not pass validation, this error will be shown. Try to use a short string to make space in the UI. */
-"SEPA_DONATION_IBAN_INVALID_CHECK_ERROR" = "Invalid IBAN number";
+"SEPA_DONATION_IBAN_INVALID_CHECK_ERROR" = "Érvénytelen IBAN-szám";
 
 /* Users can donate to Signal with a bank account. If their internation bank account number (IBAN) has an unsupported country code, this error will be shown. Try to use a short string to make space in the UI. */
-"SEPA_DONATION_IBAN_INVALID_COUNTRY_ERROR" = "IBAN country code is not supported";
+"SEPA_DONATION_IBAN_INVALID_COUNTRY_ERROR" = "Az IBAN-országkód nem támogatott";
 
 /* Users can donate to Signal with a bank account. This is the label for IBAN (internation bank account number) field on that screen. */
 "SEPA_DONATION_IBAN_LABEL" = "IBAN";
 
 /* Users can donate to Signal with a bank account. If their internation bank account number (IBAN) is too long, this error will be shown. Try to use a short string to make space in the UI. */
-"SEPA_DONATION_IBAN_TOO_LONG_ERROR" = "IBAN is too long";
+"SEPA_DONATION_IBAN_TOO_LONG_ERROR" = "Az IBAN túl hosszú";
 
 /* Users can donate to Signal with a bank account. If their internation bank account number (IBAN) is too long, this error will be shown. Try to use a short string to make space in the UI. */
-"SEPA_DONATION_IBAN_TOO_SHORT_ERROR" = "IBAN is too short";
+"SEPA_DONATION_IBAN_TOO_SHORT_ERROR" = "Az IBAN túl rövid";
 
 /* Users can donate to Signal with a bank account. This is the label for name field on that screen. */
-"SEPA_DONATION_NAME_LABEL" = "Name";
+"SEPA_DONATION_NAME_LABEL" = "Név";
 
 /* Users can donate to Signal with a bank account. This is placeholder text for the name field before the user starts typing. */
-"SEPA_DONATION_NAME_PLACEHOLDER" = "Name on Bank Account";
+"SEPA_DONATION_NAME_PLACEHOLDER" = "Név a bankszámlán";
 
 /* Description for the session refresh alert */
 "SESSION_REFRESH_ALERT_MESSAGE" = "A Signal végpontok közti titkosítást használ, és nagy ritkán újra be kell állítania a két végpont közti adatkapcsolatot. Ennek nincs hatása a biztonságra, de előfordulhat, hogy pont ezalatt nem kaptál meg egy üzenetet ettől a névjegytől. Ilyenkor az újraküldés kérése ajánlott.";
@@ -5936,10 +6446,10 @@
 "SETTINGS_APPEARANCE_APP_ICON" = "Alkalmazásikon";
 
 /* Footer for avatar section in appearance settings */
-"SETTINGS_APPEARANCE_AVATAR_FOOTER" = "Telefon kontaktokban tárolt profilképek használata.";
+"SETTINGS_APPEARANCE_AVATAR_FOOTER" = "A telefonos névjegyek képeinek megjelenítése, ha elérhetők.";
 
 /* Title for switch to toggle preference between contact and profile avatars */
-"SETTINGS_APPEARANCE_AVATAR_PREFERENCE_LABEL" = "Profilképek telefon kontaktokból";
+"SETTINGS_APPEARANCE_AVATAR_PREFERENCE_LABEL" = "Telefonos névjegyek képeinek használata";
 
 /* The title for the theme section in the appearance settings. */
 "SETTINGS_APPEARANCE_THEME_TITLE" = "Téma";
@@ -5978,7 +6488,7 @@
 "SETTINGS_CHANGE_PHONE_NUMBER_CONFIRM_BUTTON" = "Szám változtatása";
 
 /* Format for the description text in the 'change phone number splash' view. Embeds: {{ %1$@ the old phone number, %2$@ the new phone number }}. */
-"SETTINGS_CHANGE_PHONE_NUMBER_CONFIRM_DESCRIPTION_FORMAT" = "Telefonszámod megváltoztatására készülsz erről: %1$@ erre: %2$@.\n\nMielőtt nekikezdenénk, kérjük ellenőrizd, hogy a megfelelő számot adtad-e meg!";
+"SETTINGS_CHANGE_PHONE_NUMBER_CONFIRM_DESCRIPTION_FORMAT" = "Telefonszámod megváltoztatására készülsz, %1$@ telefonszámról %2$@ telefonszámra.\n\nMielőtt nekikezdenénk, kérjük, ellenőrizd, hogy a megfelelő számot adtad-e meg.";
 
 /* Label for the 'country code' row in the 'change phone number' settings. */
 "SETTINGS_CHANGE_PHONE_NUMBER_COUNTRY_CODE_FIELD" = "Országkód";
@@ -6323,7 +6833,7 @@
 "SETTINGS_PAYMENTS_PASSPHRASE_DISCARD_CONFIRMATION_BUTTON" = "Helyreállítási kifejezés mentésének kihagyása";
 
 /* Message of confirmation alert when discarding recovery phrase. */
-"SETTINGS_PAYMENTS_PASSPHRASE_DISCARD_CONFIRMATION_MESSAGE" = "A helyreállítási kifejezés lehetővé teszi az egyenleged helyreállítását a legrosszabb forgatókönyv esetén. Azt javasoljuk, hogy mindenképp mentsd el.";
+"SETTINGS_PAYMENTS_PASSPHRASE_DISCARD_CONFIRMATION_MESSAGE" = "Your recovery phrase lets you restore your balance in a worst-case scenario. We strongly recommend you save it.";
 
 /* Title of confirmation alert when discarding recovery phrase. */
 "SETTINGS_PAYMENTS_PASSPHRASE_DISCARD_CONFIRMATION_TITLE" = "Folytatás mentés nélkül?";
@@ -6400,6 +6910,9 @@
 /* Double reminder action sheet title in Payments Lock Prompt view for Face ID. */
 "SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_DOUBLE_REMINDER_TITLE_FACEID" = "Kihagyod a Face ID engedélyezését?";
 
+/* Double reminder action sheet title in Payments Lock Prompt view for Optic ID. */
+"SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_DOUBLE_REMINDER_TITLE_OPTICID" = "Kihagyod az Optic ID engedélyezését?";
+
 /* Double reminder action sheet title in Payments Lock Prompt view for Passcode. */
 "SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_DOUBLE_REMINDER_TITLE_PASSCODE" = "Kihagyod a jelkód engedélyezését?";
 
@@ -6409,6 +6922,9 @@
 /* Enable Button title in Payments Lock Prompt view for Face ID. */
 "SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_ENABLE_BUTTON_FACEID" = "Face ID használata";
 
+/* Enable Button title in Payments Lock Prompt view for Optic ID. */
+"SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_ENABLE_BUTTON_OPTICID" = "Optic ID használata";
+
 /* Enable Button title in Payments Lock Prompt view for Passcode. */
 "SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_ENABLE_BUTTON_PASSCODE" = "Jelkód használata";
 
@@ -6417,6 +6933,9 @@
 
 /* Explanation of 'payments lock' with Face ID in the 'payments lock prompt' view shown after payments activation. */
 "SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_EXPLANATION_FACEID" = "A Face ID engedélyezésével megakadályozhatod, hogy bárki hozzáférjen a pénzedhez a telefonodon keresztül. Ezt az opciót a Beállításokban kikapcsolhatod.";
+
+/* Explanation of 'payments lock' with Optic ID in the 'payments lock prompt' view shown after payments activation. */
+"SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_EXPLANATION_OPTICID" = "Az Optic ID engedélyezésével megakadályozhatod, hogy bárki hozzáférjen a pénzedhez a telefonodon keresztül. Ezt az opciót a Beállításokban kikapcsolhatod.";
 
 /* Explanation of 'payments lock' with passcode in the 'payments lock prompt' view shown after payments activation. */
 "SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_EXPLANATION_PASSCODE" = "Jelkód használatával megakadályozhatod, hogy bárki hozzáférjen a pénzedhez a telefonodon keresztül. Ezt az opciót a Beállításokban kikapcsolhatod.";
@@ -6459,9 +6978,6 @@
 
 /* Label for the current balance in the 'deactivate payments' settings. */
 "SETTINGS_PAYMENTS_REMAINING_BALANCE" = "Maradék egyenleg";
-
-/* Label for the 'remove payments details' button in the app settings. */
-"SETTINGS_PAYMENTS_REMOVE_BUTTON" = "Eltávolítás";
 
 /* Label for 'restore payments' button in the payments settings. */
 "SETTINGS_PAYMENTS_RESTORE_PAYMENTS_BUTTON" = "Fizetési fiók helyreállítása";
@@ -6534,6 +7050,9 @@
 
 /* Caption for footer label beneath the payments lock privacy toggle for faceid biometry. */
 "SETTINGS_PAYMENTS_SECURITY_DETAIL_FACEID" = "Az átutaláshoz Face ID szükséges.";
+
+/* Caption for footer label beneath the payments lock privacy toggle for opticid biometry */
+"SETTINGS_PAYMENTS_SECURITY_DETAIL_OPTICID" = "Az átutaláshoz Optic ID szükséges.";
 
 /* Caption for footer label beneath the payments lock privacy toggle for a biometry type that is a passcode. */
 "SETTINGS_PAYMENTS_SECURITY_DETAIL_PASSCODE" = "Az átutaláshoz a telefonod jelkódja szükséges.";
@@ -6637,6 +7156,15 @@
 /* Label for the payments wallet address. */
 "SETTINGS_PAYMENTS_WALLET_ADDRESS_LABEL" = "A tárcád címe";
 
+/* A toast that displays when the user attempts to set discoverability to 'nobody' when their phone number sharing is set to 'everybody', which is not allowed. */
+"SETTINGS_PHONE_NUMBER_DISCOVERABILITY_DISABLED_TOAST" = "A beállítás módosításához állítsd a „Ki láthatja a telefonszámomat” „Senki” lehetőségre.";
+
+/* The description for a sheet asking for confirmation that the user wants to set their phone number discoverability to 'nobody'. */
+"SETTINGS_PHONE_NUMBER_DISCOVERABILITY_NOBODY_CONFIRMATION_DESCRIPTION" = "A „Ki találhat meg a számom alapján” beállítása „Senki” opcióra nehezebbé teszi az emberek számára, hogy megtaláljanak téged a Signalon.";
+
+/* The title for a sheet asking for confirmation that the user wants to set their phone number discoverability to 'nobody'. */
+"SETTINGS_PHONE_NUMBER_DISCOVERABILITY_NOBODY_CONFIRMATION_TITLE" = "Biztos vagy benne?";
+
 /* The title for the phone number discoverability setting section. */
 "SETTINGS_PHONE_NUMBER_DISCOVERABILITY_TITLE" = "Ki találhat meg a telefonszámom szerint";
 
@@ -6734,6 +7262,9 @@
 "SETTINGS_SECURITY_DETAIL_FACEID" = "Face ID használata a Signal feloldásához.";
 
 /* Section footer */
+"SETTINGS_SECURITY_DETAIL_OPTICID" = "A Signal feloldásához használd az Optic ID-t.";
+
+/* Section footer */
 "SETTINGS_SECURITY_DETAIL_PASSCODE" = "Jelkód használata a Signal feloldásához.";
 
 /* Section footer */
@@ -6751,9 +7282,6 @@
 /* Setting for enabling & disabling iOS contact sharing. */
 "SETTINGS_SHARING_SUGGESTIONS" = "Kontaktmegosztás engedélyezése iOS-en";
 
-/* Footer for setting for enabling & disabling contact sharing with iOS. */
-"SETTINGS_SHARING_SUGGESTIONS_FOOTER" = "Az iOS hozzáférhet a Signal-névjegyeidhez és csevegéseidhez olyan funkciók eléréséhez, mint például a megosztási javaslatok.";
-
 /* Footer for setting for enabling & disabling contact and notification sharing with iOS. */
 "SETTINGS_SHARING_SUGGESTIONS_NOTIFICATIONS_FOOTER" = "Az iOS hozzáférhet a Signal-névjegyeidhez és csevegéseidhez olyan funkciók eléréséhez, mint például a megosztási javaslatok vagy az értesítések.";
 
@@ -6761,7 +7289,7 @@
 "SETTINGS_TWO_FACTOR_AUTH_SWITCH_LABEL" = "Regisztrációs zár";
 
 /* Footer for the 'two factor auth' section of the privacy settings when Signal PINs are available. */
-"SETTINGS_TWO_FACTOR_PINS_AUTH_FOOTER" = "Telefonszámod újraregisztrációját Signal PIN kódod megadásához kötheted.";
+"SETTINGS_TWO_FACTOR_PINS_AUTH_FOOTER" = "Telefonszámod újraregisztrációját Signal PIN-kódod megadásához kötheted.";
 
 /* Label for the 'typing indicators' setting. */
 "SETTINGS_TYPING_INDICATORS" = "Gépelés mutatása";
@@ -6829,6 +7357,9 @@
 /* notification action */
 "SHOW_THREAD_BUTTON_TITLE" = "Csevegés mutatása";
 
+/* Shown in the header when the user hasn't provided a custom name for a call. */
+"SIGNAL_CALL" = "Signal hívás";
+
 /* body sent to contacts when inviting to Install Signal */
 "SMS_INVITE_BODY" = "Szia, használd te is a Signalt! Innen telepítheted:";
 
@@ -6864,6 +7395,12 @@
 
 /* Title for the captcha view controller */
 "SPAM_CAPTCHA_VIEW_CONTROLLER" = "Ellenőrzés befejezése";
+
+/* Text for a toast confirming that the speakerphone has been turned off for a call. */
+"SPEAKERPHONE_OFF_CONFIRMATION_TOAST_LABEL" = "Hangszóró kikapcsolva";
+
+/* Text for a toast confirming that the speakerphone has been turned on for a call. */
+"SPEAKERPHONE_ON_CONFIRMATION_TOAST_LABEL" = "Hangszóró bekapcsolva";
 
 /* The name for the sticker category 'Featured' */
 "STICKER_CATEGORY_FEATURED_NAME" = "Kiemelt";
@@ -7090,8 +7627,11 @@
 /* inbox and notification text for a reaction to a story authored by the local user. Embeds {{reaction emoji}} */
 "STORY_REACTION_LOCAL_AUTHOR_PREVIEW_FORMAT" = "Így reagált a Történetedre: %1$@";
 
-/* quote text for a reaction to a story. Embeds {{reaction emoji}} */
-"STORY_REACTION_QUOTE_FORMAT" = "Így reagált egy Történetre: %1$@";
+/* quote text for a reaction to a story by the user (the header on the bubble says \"You\"). Embeds {{reaction emoji}} */
+"STORY_REACTION_QUOTE_FORMAT_SECOND_PERSON" = "Így reagált egy történetre: %1$@";
+
+/* quote text for a reaction to a story by some other user (the header on the bubble says their name, e.g. \"Bob\"). Embeds {{reaction emoji}} */
+"STORY_REACTION_QUOTE_FORMAT_THIRD_PERSON" = "Így reagált egy történetre: %1$@";
 
 /* inbox and notification text for a reaction to a story authored by another user. Embeds {{ %1$@ reaction emoji, %2$@ story author name }} */
 "STORY_REACTION_REMOTE_AUTHOR_PREVIEW_FORMAT" = "Így reagált %1$@ Történetére: %1$@";
@@ -7099,8 +7639,11 @@
 /* Button for replying to a story with no existing replies. */
 "STORY_REPLY_BUTTON" = "Válasz";
 
-/* Text indicating a story has been reacted to */
-"STORY_REPLY_REACTION" = "Reagált a Történetre";
+/* Text indicating you reacted to a story (the header on the bubble says \"You\") */
+"STORY_REPLY_REACTION_SECOND_PERSON" = "Reagált a történetre";
+
+/* Text indicating someone else reacted to a story (the header on the bubble says their name, e.g. \"Bob\") */
+"STORY_REPLY_REACTION_THIRD_PERSON" = "Reagált a történetre";
 
 /* placeholder text for replying to a story */
 "STORY_REPLY_TEXT_FIELD_PLACEHOLDER" = "Válasz";
@@ -7154,7 +7697,7 @@
 "STORY_SETTINGS_LEARN_MORE_SHEET_BULLET_2" = "Elfogadtál tőlük egy felkérést";
 
 /* Third bullet point for the explainer sheet for signal connections */
-"STORY_SETTINGS_LEARN_MORE_SHEET_BULLET_3" = "Szerepelnek a Névjegyeid között";
+"STORY_SETTINGS_LEARN_MORE_SHEET_BULLET_3" = "Szerepelnek a telefonod névjegyei között";
 
 /* Footer for the explainer sheet for signal connections */
 "STORY_SETTINGS_LEARN_MORE_SHEET_FOOTER" = "A Névjegyeid megtekinthetik a neved, a profilképed, valamint a „Történeteim” szekcióba posztoltakat, kivéve, ha kifejezetten elrejtetted azokat előlük.";
@@ -7192,8 +7735,8 @@
 /* Text indicating that the user has views turned off */
 "STORY_VIEWS_OFF" = "Megtekintések kikapcsolva";
 
-/* Toast indicating that the user has copied their subscriber ID. */
-"SUBSCRIPTION_SUBSCRIBER_ID_COPIED_TO_CLIPBOARD" = "Előfizető azonosítója a vágólapra másolva";
+/* Toast indicating that the user has copied their subscriber ID. (Externally referred to as donor ID) */
+"SUBSCRIPTION_SUBSCRIBER_ID_COPIED_TO_CLIPBOARD" = "Adományozói azonosító átmásolva a vágólapra";
 
 /* Alert body after verifying privacy with {{other user's name}} */
 "SUCCESSFUL_VERIFICATION_DESCRIPTION" = "Biztonsági azonosítód %1$@ ismerősöddel egyezik. Megjelölheted Ellenőrzöttként.";
@@ -7273,20 +7816,23 @@
 /* Action sheet title for Couldn't Add Badge sheet */
 "SUSTAINER_VIEW_CANT_ADD_BADGE_TITLE" = "Kitűző hozzáadása sikertelen.";
 
+/* Action sheet title for Error Authorizing Payment sheet */
+"SUSTAINER_VIEW_ERROR_AUTHORIZING_PAYMENT_TITLE" = "Hiba a fizetés engedélyezése során";
+
 /* Action sheet title for Error Processing Payment sheet */
-"SUSTAINER_VIEW_ERROR_PROCESSING_PAYMENT_TITLE" = "Error Processing Donation";
+"SUSTAINER_VIEW_ERROR_PROCESSING_PAYMENT_TITLE" = "Hiba történt az adomány feldolgozása közben";
 
 /* Pricing text for sustainer view badges, embeds {{price}} */
 "SUSTAINER_VIEW_PRICING" = "%1$@/hó";
 
 /* Loading indicator on the sustainer view */
-"SUSTAINER_VIEW_PROCESSING_PAYMENT" = "Processing donation...";
+"SUSTAINER_VIEW_PROCESSING_PAYMENT" = "Adomány feldolgozása...";
 
 /* Renewal date text for sustainer view level, embeds {{renewal date}} */
 "SUSTAINER_VIEW_RENEWAL" = "Megújul %1$@";
 
 /* Action sheet message for Still Processing Badge sheet */
-"SUSTAINER_VIEW_STILL_PROCESSING_BADGE_MESSAGE" = "Your donation is still being processed. This can take a few minutes depending on your connection.";
+"SUSTAINER_VIEW_STILL_PROCESSING_BADGE_MESSAGE" = "Az adományod feldolgozása még folyamatban van. Ez a kapcsolattól függően néhány percig is eltarthat.";
 
 /* Toast indicating that the subscription has been cancelled */
 "SUSTAINER_VIEW_SUBSCRIPTION_CANCELLED" = "Előfizetésed törlése került";
@@ -7453,9 +7999,6 @@
 /* Message shown in conversation view that offers to block an unknown user. */
 "UNKNOWN_CONTACT_BLOCK_OFFER" = "Ez a felhasználó nem szerepel a névjegyeid között. Szeretnéd letiltani?";
 
-/* Displayed if for some reason we can't determine a contacts phone number *or* name */
-"UNKNOWN_CONTACT_NAME" = "Ismeretlen kontakt";
-
 /* Info message recorded in conversation history when local user receives an unknown message from a linked device and needs to upgrade. */
 "UNKNOWN_PROTOCOL_VERSION_NEED_TO_UPGRADE_FROM_LINKED_DEVICE" = "Az egyik eszközödről olyan üzenetet küldtél, melyet nem lehet feldolgozni vagy megjeleníteni ezen az eszközön, mivel olyan funkciót tartalmaz, mely csak a Signal egy újabb verziójában érhető el.";
 
@@ -7507,6 +8050,9 @@
 /* Alert title when unlinking device fails */
 "UNLINKING_FAILED_ALERT_TITLE" = "A Signal nem tudja megszüntetni a társítást a készülékeddel.";
 
+/* Text for a toast confirming that the mic has been unmuted for a call. */
+"UNMUTE_CONFIRMATION_TOAST_LABEL" = "Mikrofon be";
+
 /* Pressing this button un-pins a thread */
 "UNPIN_ACTION" = "Felold";
 
@@ -7543,17 +8089,29 @@
 /* Explanation of when you should use a signal proxy */
 "USE_PROXY_EXPLANATION" = "Csak abban az esetben használj proxy-t, ha nem lehet a Signalhoz csatlakozni se mobilnet, se Wi-Fi használatával.";
 
-/* Description of how to update discovery */
-"USERNAME_DISCOVERY_DESCRIPTION" = "Kapcsold ki a telefonszám alapján történő elérés lehetőségét a Beállítások > Adatvédelem > Telefonszám > Ki láthatja a telefonszámomat? menüpontban, hogy a felhasználóneved legyen az elsődleges módja annak, hogy mások kapcsolatba léphessenek veled.";
+/* Description of username links and QR codes on the username education sheet */
+"USERNAME_EDUCATION_LINK_DESCRIPTION" = "A felhasználónevek egyedi QR-kóddal és hivatkozással rendelkeznek, amelyet megoszthatsz a barátaiddal, hogy gyorsan cseveghess velük.";
 
-/* Description of username discriminator digits */
-"USERNAME_DISCRIMINATOR_DESCRIPTION" = "A felhasználónevek számjegyekkel vannak párosítva, és nem kerülnek megosztásra a profilodon";
+/* Title for the username links and QR codes section on the username education sheet */
+"USERNAME_EDUCATION_LINK_TITLE" = "QR kódok és linkek";
+
+/* Description of phone number privacy on the username education sheet */
+"USERNAME_EDUCATION_PRIVACY_DESCRIPTION" = "A telefonszámod többé nem látható a Csevegésekben. Ha a telefonszámodat elmentette egy ismerősöd a névjegyei közé, ő továbbra is látni fogja.";
+
+/* Title for phone number privacy section of the username education sheet */
+"USERNAME_EDUCATION_PRIVACY_TITLE" = "Telefonszám-védelem";
+
+/* Label for the 'set up' button on the username education sheet */
+"USERNAME_EDUCATION_SET_UP_BUTTON" = "Állítsd be a felhasználónevedet";
 
 /* Title to set up signal username */
-"USERNAME_EDUCATION_TITLE" = "Állítsd be a Signal-felhasználóneved";
+"USERNAME_EDUCATION_TITLE" = "Új csatlakozási módok";
 
-/* Description of username link */
-"USERNAME_LINK_DESCRIPTION" = "Minden felhasználónévhez tartozik egy egyedi hivatkozás, amelyet megoszthatsz az ismerőseiddel, hogy csevegést kezdeményezhessenek veled";
+/* Description of usernames on the username education sheet */
+"USERNAME_EDUCATION_USERNAME_DESCRIPTION" = "Az emberek mostantól üzenetet küldhetnek neked az opcionális felhasználóneveden keresztül, így nem kell megadnod a telefonszámodat. A felhasználónevek nem láthatók a profilokon.";
+
+/* Title for usernames section on the username education sheet */
+"USERNAME_EDUCATION_USERNAME_TITLE" = "Felhasználónevek";
 
 /* A title for a view that allows you to pick a color for a QR code for your username link. */
 "USERNAME_LINK_QR_CODE_COLOR_PICKER_VIEW_TITLE_COLOR" = "Szín";
@@ -7564,14 +8122,17 @@
 /* Text for a label explaining what the username link and QR code give others access to. */
 "USERNAME_LINK_QR_CODE_VIEW_DISCLAIMER_LABEL" = "Csak olyanokkal oszd meg a QR-kódod és a hivatkozást, akikben megbízol. Ha megosztod, mások láthatják a felhasználóneved, és csevegést kezdeményezhetnek veled.";
 
+/* Text presented in an action sheet notifying the user their qr code and link are not set. */
+"USERNAME_LINK_QR_CODE_VIEW_LINK_NOT_SET" = "A QR-kód és a hivatkozás nincs beállítva. Ellenőrizd a hálózati kapcsolatot, és próbáld újra!";
+
 /* Title for a button that allows users to reset their username link and QR code. */
 "USERNAME_LINK_QR_CODE_VIEW_RESET_BUTTON_TITLE" = "Visszaállítás";
 
 /* A message explaining what will happen if the user resets their QR code. */
-"USERNAME_LINK_QR_CODE_VIEW_RESET_SHEET_MESSAGE" = "Ha visszaállítod a QR-kódod, a meglévő QR-kód és hivatkozás többé nem fog működni.";
+"USERNAME_LINK_QR_CODE_VIEW_RESET_SHEET_MESSAGE" = "Ha visszaállítod a QR-kódodat és a hivatkozásodat, a meglévő QR-kód és hivatkozás többé nem fog működni.";
 
-/* A label indicating that the username link is being reset. */
-"USERNAME_LINK_QR_CODE_VIEW_RESETTING_LINK_LABEL" = "Hivatkozás visszaállítása…";
+/* Text presenting an action sheet notifying the user their QR code and link were reset. */
+"USERNAME_LINK_QR_CODE_VIEW_RESET_SUCCESSFUL" = "A QR-kódod és a hivatkozásod visszaállításra került, és egy új QR-kódot és linket hoztunk létre.";
 
 /* Title for a button to share your username link QR code. Lowercase styling is intentional. */
 "USERNAME_LINK_QR_CODE_VIEW_SHARE_BUTTON" = "Megosztás";
@@ -7585,6 +8146,9 @@
 /* Text presented in a toast notifying the user that their username was copied to the system clipboard. */
 "USERNAME_LINK_QR_CODE_VIEW_USERNAME_COPIED" = "Felhasználónév másolva";
 
+/* Text presented in a toast notifying the user that their username link was copied to the system clipboard. */
+"USERNAME_LINK_QR_CODE_VIEW_USERNAME_LINK_COPIED" = "Hivatkozás másolva";
+
 /* Text providing instructions on how to use the username link QR code scanning. */
 "USERNAME_LINK_SCAN_QR_CODE_INSTRUCTIONS_LABEL" = "Olvasd be a QR-kódot a névjegyed készülékén.";
 
@@ -7593,6 +8157,9 @@
 
 /* Text describing what you can do with a username link, on a sheet for sharing it. */
 "USERNAME_LINK_SHARE_SHEET_HEADER" = "A hivatkozás birtokában bárki megtekintheti a felhasználóneved, és csevegést kezdeményezhet veled. Csak olyanokkal oszd meg, akikben megbízol.";
+
+/* Title for a button to open a sheet for copying and sharing your username link. */
+"USERNAME_LINK_SHEET_BUTTON" = "link";
 
 /* Subtitle for a tooltip describing ways to share your username. */
 "USERNAME_LINK_TOOLTIP_SUBTITLE" = "A profilodhoz tartozó egyedi QR kód vagy link megosztásával más felhasználók csevegést kezdeményezhetnek veled.";
@@ -7613,25 +8180,34 @@
 "USERNAME_LOOKUP_LINK_NO_LONGER_VALID_MESSAGE" = "Az ehhez a felhasználónévhez tartozó hivatkozás már nem érvényes.";
 
 /* A message indicating that the given username is not associated with a registered Signal account. Embeds {{ a username }}. */
-"USERNAME_LOOKUP_NOT_FOUND_MESSAGE_FORMAT" = "%1$@ nem Signal felhasználó. Kérjük, ellenőrizd a felhasználónevet, majd próbáld újra.";
+"USERNAME_LOOKUP_NOT_FOUND_MESSAGE_FORMAT" = "%1$@ nem Signal-felhasználó. Kérjük, ellenőrizd a felhasználónevet, majd próbáld újra.";
 
 /* Title for an action sheet indicating that the given username is not associated with a registered Signal account. */
 "USERNAME_LOOKUP_NOT_FOUND_TITLE" = "Nincs ilyen felhasználó";
 
+/* Instructions that appear below the username QR code on a sharable exported image. */
+"USERNAME_QR_CODE_EXPORT_INSTRUCTIONS" = "Olvasd be ezt a QR-kódot a telefonoddal és csevegj velem a Signalban.";
+
+/* A message in a toast informing the user their username, link, and QR code have successfully been reset. Embeds {{ the user's new username }}. */
+"USERNAME_RESET_SUCCESSFUL_TOAST" = "A QR-kódod és hivatkozásod visszaállításra került, a felhasználóneved pedig %1$@";
+
 /* An error message shown when the user has typed a username that starts with a digit, which is invalid. */
-"USERNAME_SELECTION_CANNOT_START_WITH_DIGIT_ERROR_MESSAGE" = "A felhasználónév nem kezdődhet számmal.";
+"USERNAME_SELECTION_CANNOT_START_WITH_DIGIT_ERROR_MESSAGE" = "A felhasználónév nem kezdődhet számmal";
 
 /* A message explaining the side effects of changing your username. */
 "USERNAME_SELECTION_CHANGE_USERNAME_CONFIRMATION_MESSAGE" = "A felhasználónév módosítása visszaállítja a meglévő QR-kódot és hivatkozást. Biztos vagy benne?";
 
 /* Footer text below a text field in which users type their desired username, which explains how usernames work. Embeds a {{ \"learn more\" link. }}. */
-"USERNAME_SELECTION_EXPLANATION_FOOTER_FORMAT" = "A felhasználónevek segítségével mások üzenetet küldhetnek neked anélkül, hogy szükségük lenne a telefonszámodra. Számjegyekkel vannak párosítva, hogy segítsenek megőrizni a címed privát jellegét. %1$@";
+"USERNAME_SELECTION_EXPLANATION_FOOTER_FORMAT" = "A felhasználónevek mindig egy számsorral párosulnak. %1$@";
 
 /* When the user has entered text into a text field for setting their username, a header displays the username text. This string is shown in the header when the text field is empty. */
 "USERNAME_SELECTION_HEADER_TEXT_FOR_PLACEHOLDER" = "Válaszd ki a felhasználóneved";
 
 /* An error message shown when the user has typed a username that has invalid characters. The character ranges \"a-z\", \"0-9\", \"_\" should not be translated, as they are literal. */
 "USERNAME_SELECTION_INVALID_CHARACTERS_ERROR_MESSAGE" = "A felhasználónevek csak az alábbi karaktereket tartalmazhatják: a-z, 0-9, _";
+
+/* An error message shown when the user has typed an invalid discriminator for their username. */
+"USERNAME_SELECTION_INVALID_DISCRIMINATOR_ERROR_MESSAGE" = "Érvénytelen felhasználónév, adj meg legalább 2 számjegyet";
 
 /* The message of a sheet that pops up when the user taps \"Learn More\" in text that explains how usernames work. This message help explain that the automatically-generated numeric suffix of their username helps keep their username private, to avoid them being contacted by people by whom they don't want to be contacted. */
 "USERNAME_SELECTION_LEARN_MORE_ACTION_SHEET_MESSAGE" = "Ezek a számok segítenek megőrizni a felhasználóneved privát jellegét, hogy elkerüld a nem kívánt üzeneteket. Csak azokkal az emberekkel és csoportokkal oszd meg a felhasználóneved, akikkel csevegni szeretnél. Ha módosítod a felhasználóneved, új számsort kapsz.";
@@ -7642,14 +8218,20 @@
 /* An error message shown when the user wants to set their username to an unavailable value. */
 "USERNAME_SELECTION_NOT_AVAILABLE_ERROR_MESSAGE" = "Ez a felhasználónév nem érhető el";
 
+/* An error message shown when the user has attempted too many username reservations. */
+"USERNAME_SELECTION_RESERVATION_RATE_LIMITED_ERROR_MESSAGE" = "Túl sok kísérlet történt, kérjük, próbáld meg újra később";
+
 /* The placeholder for a text field into which users can type their desired username. */
 "USERNAME_SELECTION_TEXT_FIELD_PLACEHOLDER" = "Felhasználónév";
 
 /* The title for the username selection view. */
 "USERNAME_SELECTION_TITLE" = "Felhasználónév";
 
-/* An error message shown when the user has typed a username that is below the minimum character limit. Embeds {{ %1$@ the minimum character count }}. */
-"USERNAME_SELECTION_TOO_SHORT_ERROR_MESSAGE" = "A felhasználónév minimális hossza %1$@ karakter.";
+/* An error message shown when the user has typed '00' as their discriminator for their username. */
+"USERNAME_SELECTION_ZERO_DISCRIMINATOR_ERROR_MESSAGE" = "Ez a szám nem lehet 00. Írj be egy számjegyet 1 és 9 között";
+
+/* An error message indicating that a usernames-related requeset failed because of a network error. */
+"USERNAMES_REMOTE_MUTATION_ERROR_DESCRIPTION" = "A felhasználónevek csak akkor frissíthetők, ha csatlakozva vagy az internetre.";
 
 /* error label near a field */
 "VALIDATION_ERROR_CANNOT_BE_BLANK" = "Az eszköz név megadása kötelező";
@@ -7679,7 +8261,7 @@
 "VERIFY_PRIVACY_MULTIPLE" = "Biztonsági azonosítók áttekintése";
 
 /* Instructions for verifying your safety number. Embeds {{contact's name}} */
-"VERIFY_SAFETY_NUMBER_INSTRUCTIONS" = "To verify end-to-end encryption with %1$@, compare the numbers above with their device. You can also scan the code on their device.";
+"VERIFY_SAFETY_NUMBER_INSTRUCTIONS" = "A végpontok közötti titkosítás ellenőrzéséhez %1$@ felhasználóval, hasonlítsd össze a fent látható számokat az ő készülékén megjelenő számokkal. A kódot a készülékeden is beolvashatod.";
 
 /* Toast alert text shown when tapping on a video that cannot be played. */
 "VIDEO_BROKEN" = "A videó nem játszható le";
@@ -7705,6 +8287,9 @@
 /* View the story of a group or user */
 "VIEW_STORY" = "Történet megtekintése";
 
+/* Accessibility label for placing a voice call */
+"VOICE_CALL_LABEL" = "Hanghívás";
+
 /* Indicates how to cancel a voice message. */
 "VOICE_MESSAGE_CANCEL_INSTRUCTIONS" = "Elvetés csúsztatással";
 
@@ -7716,6 +8301,9 @@
 
 /* Activity indicator title, shown upon returning to the device manager, until you complete the provisioning process on desktop */
 "WAITING_TO_COMPLETE_DEVICE_LINK_TEXT" = "Fejezd be a telepítést a Signal Desktop -ban.";
+
+/* Accessibility label for gradient wallpaper swatch, naming the two colors in the gradient. {{ Embeds the names of the two colors in the gradient }} */
+"WALLPAPER_GRADIENT_COLORS_ACCESSIBILITY_LABEL" = "Átmenet %1$@ és %2$@ színnel";
 
 /* Placeholder text for header of the wallpaper mini preview */
 "WALLPAPER_MINI_PREVIEW_CONTACT_NAME" = "Kontakt név";

@@ -4,8 +4,9 @@
 //
 
 import CoreServices
-import SignalMessaging
+import SignalServiceKit
 import SignalUI
+import UniformTypeIdentifiers
 
 class AvatarSettingsViewController: OWSTableViewController2 {
     let context: AvatarContext
@@ -80,15 +81,6 @@ class AvatarSettingsViewController: OWSTableViewController2 {
         updateTableContents()
     }
 
-    @objc
-    private func didTapCancel() {
-        guard state.isNew else { return dismiss(animated: true) }
-        OWSActionSheets.showPendingChangesActionSheet(discardAction: { [weak self] in
-            self?.dismiss(animated: true)
-        })
-    }
-
-    @objc
     private func didTapDone() {
         defer { dismiss(animated: true) }
 
@@ -102,7 +94,7 @@ class AvatarSettingsViewController: OWSTableViewController2 {
             }
             guard let newAvatar = avatarBuilder.avatarImage(
                 model: model,
-                diameterPixels: kOWSProfileManager_MaxAvatarDiameterPixels
+                diameterPixels: OWSProfileManager.maxAvatarDiameterPixels
             ) else {
                 owsFailDebug("Failed to generate new avatar.")
                 return
@@ -197,15 +189,18 @@ class AvatarSettingsViewController: OWSTableViewController2 {
     }
 
     private func updateNavigation() {
-        navigationItem.leftBarButtonItem = .init(barButtonSystemItem: .cancel, target: self, action: #selector(didTapCancel))
+        navigationItem.leftBarButtonItem = .cancelButton(
+            dismissingFrom: self,
+            hasUnsavedChanges: { [weak self] in self?.state.isNew }
+        )
 
         if state.isNew {
-            navigationItem.rightBarButtonItem = UIBarButtonItem(
+            navigationItem.rightBarButtonItem = .button(
                 title: CommonStrings.setButton,
                 style: .done,
-                target: self,
-                action: #selector(didTapDone),
-                accessibilityIdentifier: "set_button"
+                action: { [weak self] in
+                    self?.didTapDone()
+                }
             )
         } else {
             navigationItem.rightBarButtonItem = nil
@@ -340,7 +335,7 @@ class AvatarSettingsViewController: OWSTableViewController2 {
                         picker.delegate = self
                         picker.allowsEditing = false
                         picker.sourceType = .camera
-                        picker.mediaTypes = [kUTTypeImage as String]
+                        picker.mediaTypes = [UTType.image.identifier]
                         self.present(picker, animated: true)
                     }
                 }
@@ -358,7 +353,7 @@ class AvatarSettingsViewController: OWSTableViewController2 {
                         let picker = OWSImagePickerController()
                         picker.delegate = self
                         picker.sourceType = .photoLibrary
-                        picker.mediaTypes = [kUTTypeImage as String]
+                        picker.mediaTypes = [UTType.image.identifier]
                         self.present(picker, animated: true)
                     }
                 }

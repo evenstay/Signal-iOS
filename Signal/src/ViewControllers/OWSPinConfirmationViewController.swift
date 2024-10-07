@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
-import SignalUI
+import SignalServiceKit
+public import SignalUI
 
 public class PinConfirmationViewController: OWSViewController {
 
@@ -63,7 +63,7 @@ public class PinConfirmationViewController: OWSViewController {
         super.viewDidAppear(animated)
 
         // For now, the design only allows for portrait layout on non-iPads
-        if !UIDevice.current.isIPad && CurrentAppContext().interfaceOrientation != .portrait {
+        if !UIDevice.current.isIPad && view.window?.windowScene?.interfaceOrientation != .portrait {
             UIDevice.current.ows_setOrientation(.portrait)
         }
     }
@@ -249,12 +249,12 @@ public class PinConfirmationViewController: OWSViewController {
 
         OWS2FAManager.shared.verifyPin(pin) { success in
             guard success else {
-                guard OWS2FAManager.shared.needsLegacyPinMigration(), pin.count > kLegacyTruncated2FAv1PinLength else {
+                guard OWS2FAManager.shared.needsLegacyPinMigration, pin.count > kLegacyTruncated2FAv1PinLength else {
                     self.validationState = .mismatch
                     return
                 }
                 // We have a legacy pin that may have been truncated to 16 characters.
-                let truncatedPinCode = pin.substring(to: Int(kLegacyTruncated2FAv1PinLength))
+                let truncatedPinCode = String(pin.prefix(Int(kLegacyTruncated2FAv1PinLength)))
                 self.verifyAndDismissOnSuccess(truncatedPinCode)
                 return
             }

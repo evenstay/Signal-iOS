@@ -8,25 +8,26 @@ import LibSignalClient
 
 extension SVR2 {
     public enum Shims {
-        public typealias AppReadiness = _SVR2_AppReadinessShim
+        public typealias AppContext = _SVR2_AppContextShim
         public typealias OWS2FAManager = _SVR2_OWS2FAManagerShim
     }
     public enum Wrappers {
-        public typealias AppReadiness = _SVR2_AppReadinessWrapper
+        public typealias AppContext = _SVR2_AppContextWrapper
         public typealias OWS2FAManager = _SVR2_OWS2FAManagerWrapper
     }
 }
 
-public protocol _SVR2_AppReadinessShim {
-    func runNowOrWhenMainAppDidBecomeReadyAsync(_ block: @escaping () -> Void)
+public protocol _SVR2_AppContextShim {
+
+    var isMainApp: Bool { get }
 }
 
-public class _SVR2_AppReadinessWrapper: _SVR2_AppReadinessShim {
+public class _SVR2_AppContextWrapper: _SVR2_AppContextShim {
 
     public init() {}
 
-    public func runNowOrWhenMainAppDidBecomeReadyAsync(_ block: @escaping () -> Void) {
-        AppReadiness.runNowOrWhenMainAppDidBecomeReadyAsync(block)
+    public var isMainApp: Bool {
+        return CurrentAppContext().isMainApp
     }
 }
 
@@ -42,7 +43,7 @@ public class _SVR2_OWS2FAManagerWrapper: SVR2.Shims.OWS2FAManager {
     public init(_ manager: OWS2FAManager) { self.manager = manager }
 
     public func pinCode(transaction: DBReadTransaction) -> String? {
-        return manager.pinCode(with: SDSDB.shimOnlyBridge(transaction))
+        return manager.pinCode(transaction: SDSDB.shimOnlyBridge(transaction))
     }
 
     public func markDisabled(transaction: DBWriteTransaction) {
@@ -88,7 +89,7 @@ internal class SVR2ClientWrapperImpl: SVR2ClientWrapper {
         private var encryptionKey: Data { Data(pinHash.encryptionKey) }
 
         func encryptMasterKey(_ masterKey: Data) throws -> Data {
-            let (iv, cipherText) = try Cryptography.encryptSHA256HMACSIV(data: masterKey, key: encryptionKey)
+            let (iv, cipherText) = try Sha256HmacSiv.encrypt(data: masterKey, key: encryptionKey)
             if iv.count != 16 || cipherText.count != 32 {
                 throw SVR.SVRError.assertion
             }
@@ -102,7 +103,7 @@ internal class SVR2ClientWrapperImpl: SVR2ClientWrapper {
             let startIndex: Int = encryptedMasterKey.startIndex
             let ivRange = startIndex...(startIndex + 15)
             let cipherRange = (startIndex + 16)...(startIndex + 47)
-            let masterKey = try Cryptography.decryptSHA256HMACSIV(
+            let masterKey = try Sha256HmacSiv.decrypt(
                 iv: encryptedMasterKey[ivRange],
                 cipherText: encryptedMasterKey[cipherRange],
                 key: encryptionKey
@@ -129,15 +130,15 @@ internal class SVR2ClientWrapperImpl: SVR2ClientWrapper {
 
 extension SVR2 {
     enum Mocks {
-        typealias AppReadiness = _SVR2_AppReadinessMock
+        typealias AppContext = _SVR2_AppContextMock
     }
 }
 
-internal class _SVR2_AppReadinessMock: _SVR2_AppReadinessShim {
+internal class _SVR2_AppContextMock: _SVR2_AppContextShim {
 
     init() {}
 
-    func runNowOrWhenMainAppDidBecomeReadyAsync(_ block: @escaping () -> Void) {}
+    var isMainApp: Bool { true }
 }
 
 internal class MockSVR2ClientWrapper: SVR2ClientWrapper {

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalServiceKit
+public import SignalServiceKit
 
 public protocol TextApprovalViewControllerDelegate: AnyObject {
 
@@ -27,7 +27,7 @@ public class TextApprovalViewController: OWSViewController, BodyRangesTextViewDe
     // MARK: - Properties
 
     private let initialMessageBody: MessageBody
-    private let linkPreviewFetcher: LinkPreviewFetcher
+    private let linkPreviewFetchState: LinkPreviewFetchState
 
     private let textView = BodyRangesTextView()
     private let footerView = ApprovalFooterView()
@@ -49,16 +49,17 @@ public class TextApprovalViewController: OWSViewController, BodyRangesTextViewDe
 
     // MARK: - Initializers
 
-    required public init(messageBody: MessageBody) {
+    public init(messageBody: MessageBody) {
         self.initialMessageBody = messageBody
-        self.linkPreviewFetcher = LinkPreviewFetcher(
-            linkPreviewManager: Self.linkPreviewManager,
-            schedulers: DependenciesBridge.shared.schedulers
+        self.linkPreviewFetchState = LinkPreviewFetchState(
+            db: DependenciesBridge.shared.db,
+            linkPreviewFetcher: SUIEnvironment.shared.linkPreviewFetcher,
+            linkPreviewSettingStore: DependenciesBridge.shared.linkPreviewSettingStore
         )
 
         super.init()
 
-        self.linkPreviewFetcher.onStateChange = { [weak self] in self?.updateLinkPreviewView() }
+        self.linkPreviewFetchState.onStateChange = { [weak self] in self?.updateLinkPreviewView() }
     }
 
     // MARK: - UIViewController
@@ -85,7 +86,10 @@ public class TextApprovalViewController: OWSViewController, BodyRangesTextViewDe
                                                           comment: "Title for the 'message approval' dialog.")
         }
 
-        self.navigationItem.leftBarButtonItem = UIBarButtonItem(barButtonSystemItem: .cancel, target: self, action: #selector(cancelPressed))
+        self.navigationItem.leftBarButtonItem = .cancelButton { [weak self] in
+            guard let self else { return }
+            self.delegate?.textApprovalDidCancel(self)
+        }
 
         footerView.delegate = self
 
@@ -123,18 +127,24 @@ public class TextApprovalViewController: OWSViewController, BodyRangesTextViewDe
     }()
 
     private func updateLinkPreviewText() {
-        linkPreviewFetcher.update(textView.messageBodyForSending)
+        linkPreviewFetchState.update(textView.messageBodyForSending)
     }
 
     private func updateLinkPreviewView() {
-        switch linkPreviewFetcher.currentState {
+        switch linkPreviewFetchState.currentState {
         case .none, .failed:
             linkPreviewView.isHidden = true
         case .loading:
             linkPreviewView.configureForNonCVC(state: LinkPreviewLoading(linkType: .preview), isDraft: true)
             linkPreviewView.isHidden = false
         case .loaded(let linkPreviewDraft):
-            linkPreviewView.configureForNonCVC(state: LinkPreviewDraft(linkPreviewDraft: linkPreviewDraft), isDraft: true)
+            let state: LinkPreviewState
+            if let _ = CallLink(url: linkPreviewDraft.url) {
+                state = LinkPreviewCallLink(previewType: .draft(linkPreviewDraft))
+            } else {
+                state = LinkPreviewDraft(linkPreviewDraft: linkPreviewDraft)
+            }
+            linkPreviewView.configureForNonCVC(state: state, isDraft: true)
             linkPreviewView.isHidden = false
         }
     }
@@ -162,13 +172,6 @@ public class TextApprovalViewController: OWSViewController, BodyRangesTextViewDe
         textView.setMessageBody(self.initialMessageBody, txProvider: DependenciesBridge.shared.db.readTxProvider)
         textView.contentInset = UIEdgeInsets(top: 0.0, left: 0.0, bottom: 0.0, right: 0.0)
         textView.textContainerInset = UIEdgeInsets(top: 10.0, left: 10.0, bottom: 10.0, right: 10.0)
-    }
-
-    // MARK: - Event Handlers
-
-    @objc
-    private func cancelPressed(sender: UIButton) {
-        delegate?.textApprovalDidCancel(self)
     }
 
     // MARK: - UITextViewDelegate
@@ -214,7 +217,7 @@ public class TextApprovalViewController: OWSViewController, BodyRangesTextViewDe
 
 extension TextApprovalViewController: ApprovalFooterDelegate {
     public func approvalFooterDelegateDidRequestProceed(_ approvalFooterView: ApprovalFooterView) {
-        let linkPreviewDraft = linkPreviewFetcher.linkPreviewDraftIfLoaded
+        let linkPreviewDraft = linkPreviewFetchState.linkPreviewDraftIfLoaded
         delegate?.textApproval(self, didApproveMessage: self.textView.messageBodyForSending, linkPreviewDraft: linkPreviewDraft)
     }
 
@@ -274,6 +277,6 @@ extension TextApprovalViewController: InputAccessoryViewPlaceholderDelegate {
 
 extension TextApprovalViewController: LinkPreviewViewDraftDelegate {
     public func linkPreviewDidCancel() {
-        linkPreviewFetcher.disable()
+        linkPreviewFetchState.disable()
     }
 }

@@ -5,19 +5,20 @@
 
 import Foundation
 import SignalServiceKit
-import SignalMessaging
 
 class NSEEnvironment: Dependencies {
+    let appReadiness: AppReadinessSetter
     let appContext: NSEContext
 
     init() {
         self.appContext = NSEContext()
-        SetCurrentAppContext(self.appContext, false)
+        SetCurrentAppContext(self.appContext)
+        appReadiness = AppReadinessImpl()
     }
 
     // MARK: -
 
-    var processingMessageCounter = AtomicUInt(0)
+    var processingMessageCounter = AtomicUInt(0, lock: .sharedGlobal)
     var isProcessingMessages: Bool {
         processingMessageCounter.get() > 0
     }
@@ -35,19 +36,15 @@ class NSEEnvironment: Dependencies {
             // we only notify the caller once and avoid any races that may
             // occur between the notification observer and the dispatch
             // after block.
-            let hasCalledBack = AtomicBool(false)
-
-            if DebugFlags.internalLogging {
-                logger.info("Requesting main app to handle incoming message.")
-            }
+            let hasCalledBack = AtomicBool(false, lock: .sharedGlobal)
 
             // Listen for an indication that the main app is going to handle
             // this notification. If the main app is active we don't want to
             // process any messages here.
-            let token = DarwinNotificationCenter.addObserver(for: .mainAppHandledNotification, queue: Self.mainAppDarwinQueue) { token in
+            let token = DarwinNotificationCenter.addObserver(name: .mainAppHandledNotification, queue: Self.mainAppDarwinQueue) { token in
                 guard hasCalledBack.tryToSetFlag() else { return }
 
-                if DarwinNotificationCenter.isValidObserver(token) {
+                if DarwinNotificationCenter.isValid(token) {
                     DarwinNotificationCenter.removeObserver(token)
                 }
 
@@ -60,7 +57,7 @@ class NSEEnvironment: Dependencies {
 
             // Notify the main app that we received new content to process.
             // If it's running, it will notify us so we can bail out.
-            DarwinNotificationCenter.post(.nseDidReceiveNotification)
+            DarwinNotificationCenter.postNotification(name: .nseDidReceiveNotification)
 
             // The main app should notify us nearly instantaneously if it's
             // going to process this notification so we only wait a fraction
@@ -68,12 +65,8 @@ class NSEEnvironment: Dependencies {
             Self.mainAppDarwinQueue.asyncAfter(deadline: DispatchTime.now() + 0.010) {
                 guard hasCalledBack.tryToSetFlag() else { return }
 
-                if DarwinNotificationCenter.isValidObserver(token) {
+                if DarwinNotificationCenter.isValid(token) {
                     DarwinNotificationCenter.removeObserver(token)
-                }
-
-                if DebugFlags.internalLogging {
-                    logger.info("Did timeout.")
                 }
 
                 // If we haven't called back yet and removed the observer token,
@@ -84,10 +77,10 @@ class NSEEnvironment: Dependencies {
         }
     }
 
-    private var mainAppLaunchObserverToken = DarwinNotificationInvalidObserver
+    private var mainAppLaunchObserverToken = DarwinNotificationCenter.invalidObserverToken
     func listenForMainAppLaunch(logger: NSELogger) {
-        guard !DarwinNotificationCenter.isValidObserver(mainAppLaunchObserverToken) else { return }
-        mainAppLaunchObserverToken = DarwinNotificationCenter.addObserver(for: .mainAppLaunched, queue: .global(), using: { _ in
+        guard !DarwinNotificationCenter.isValid(mainAppLaunchObserverToken) else { return }
+        mainAppLaunchObserverToken = DarwinNotificationCenter.addObserver(name: .mainAppLaunched, queue: .global(), block: { _ in
             // If we're currently processing messages we want to commit
             // suicide to ensure that we don't try and process messages
             // while the main app is running. If we're not processing
@@ -106,43 +99,56 @@ class NSEEnvironment: Dependencies {
 
     // MARK: - Setup
 
-    /// Called for each notification the NSE receives.
-    ///
-    /// Will be invoked multiple times in the same NSE process.
-    func setUpBeforeCheckingForFirstDeviceUnlock(logger: NSELogger) {
-        AssertIsOnMainThread()
-
-        let debugLogger = DebugLogger.shared()
-        debugLogger.enableTTYLoggingIfNeeded()
-        debugLogger.setUpFileLoggingIfNeeded(appContext: appContext, canLaunchInBackground: true)
-    }
-
     private var didStartAppSetup = false
+    private var didFinishDatabaseSetup = false
 
     /// Called for each notification the NSE receives.
     ///
     /// Will be invoked multiple times in the same NSE process.
-    func setUpAfterCheckingForFirstDeviceUnlock(logger: NSELogger) {
-        logger.info("", flushImmediately: true)
+    @MainActor
+    func setUp(logger: NSELogger) throws {
+        let debugLogger = DebugLogger.shared
 
-        if didStartAppSetup {
+        // Do this every time in case the setting is changed.
+        debugLogger.setUpFileLoggingIfNeeded(appContext: appContext, canLaunchInBackground: true)
+
+        if !didStartAppSetup {
+            debugLogger.enableTTYLoggingIfNeeded()
+            DebugLogger.registerLibsignal()
+            DebugLogger.registerRingRTC()
+            didStartAppSetup = true
+        }
+
+        logger.info(
+            "pid: \(ProcessInfo.processInfo.processIdentifier), memoryUsage: \(LocalDevice.memoryUsageString)",
+            flushImmediately: true
+        )
+
+        if didFinishDatabaseSetup {
             return
         }
-        didStartAppSetup = true
 
-        Cryptography.seedRandom()
+        let keychainStorage = KeychainStorageImpl(isUsingProductionService: TSConstants.isUsingProductionService)
+        let databaseStorage = try SDSDatabaseStorage(
+            appReadiness: appReadiness,
+            databaseFileUrl: SDSDatabaseStorage.grdbDatabaseFileUrl,
+            keychainStorage: keychainStorage
+        )
+        databaseStorage.grdbStorage.setUpDatabasePathKVO()
+
+        didFinishDatabaseSetup = true
 
         let databaseContinuation = AppSetup().start(
             appContext: CurrentAppContext(),
-            appVersion: AppVersionImpl.shared,
+            appReadiness: appReadiness,
+            databaseStorage: databaseStorage,
             paymentsEvents: PaymentsEventsAppExtension(),
             mobileCoinHelper: MobileCoinHelperMinimal(),
-            webSocketFactory: WebSocketFactoryNative(),
             callMessageHandler: NSECallMessageHandler(),
-            notificationPresenter: NotificationPresenter()
+            currentCallProvider: CurrentCallNoOpProvider(),
+            notificationPresenter: NotificationPresenterImpl(),
+            incrementalTSAttachmentMigrator: NoOpIncrementalMessageTSAttachmentMigrator()
         )
-
-        SMEnvironment.shared.lightweightGroupCallManagerRef = LightweightGroupCallManager()
 
         databaseContinuation.prepareDatabase().done(on: DispatchQueue.main) { finalSetupContinuation in
             switch finalSetupContinuation.finish(willResumeInProgressRegistration: false) {
@@ -156,31 +162,15 @@ class NSEEnvironment: Dependencies {
 
         logger.info("completed.")
 
-        OWSAnalytics.appLaunchDidBegin()
-
         listenForMainAppLaunch(logger: logger)
     }
 
-    func verifyDBKeysAvailable(logger: NSELogger) -> UNNotificationContent? {
-        guard !StorageCoordinator.hasGrdbFile || !GRDBDatabaseStorageAdapter.isKeyAccessible else { return nil }
-
-        logger.info("Database password is not accessible, posting generic notification.")
-
-        let content = UNMutableNotificationContent()
-        let notificationFormat = OWSLocalizedString(
-            "NOTIFICATION_BODY_PHONE_LOCKED_FORMAT",
-            comment: "Lock screen notification text presented after user powers on their device without unlocking. Embeds {{device model}} (either 'iPad' or 'iPhone')"
-        )
-        content.body = String(format: notificationFormat, UIDevice.current.localizedModel)
-        return content
-    }
-
+    @MainActor
     private func setAppIsReady() {
-        AssertIsOnMainThread()
-        owsAssert(!AppReadiness.isAppReady)
+        owsPrecondition(!appReadiness.isAppReady)
 
         // Note that this does much more than set a flag; it will also run all deferred blocks.
-        AppReadiness.setAppIsReady()
+        appReadiness.setAppIsReady()
 
         AppVersionImpl.shared.nseLaunchDidComplete()
     }

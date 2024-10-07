@@ -6,7 +6,6 @@
 import Foundation
 import SignalUI
 import SignalServiceKit
-import SignalMessaging
 
 class DonateChoosePaymentMethodSheet: OWSTableSheetViewController {
     enum DonationMode {
@@ -92,10 +91,6 @@ class DonateChoosePaymentMethodSheet: OWSTableSheetViewController {
         super.init()
     }
 
-    required init() {
-        owsFail("init() has not been implemented")
-    }
-
     // MARK: - Updating table contents
 
     public override func updateTableContents(shouldReload: Bool = true) {
@@ -163,6 +158,8 @@ class DonateChoosePaymentMethodSheet: OWSTableSheetViewController {
             return createPaypalButton()
         case .sepa:
             return createSEPAButton()
+        case .ideal:
+            return createIDEALButton()
         }
     }
 
@@ -244,6 +241,29 @@ class DonateChoosePaymentMethodSheet: OWSTableSheetViewController {
         return sepaButton
     }
 
+    private func createIDEALButton() -> OWSButton {
+        let idealButton = OWSButton(title: "iDEAL") { [weak self] in
+            guard let self else { return }
+            self.didChoosePaymentMethod(self, .ideal)
+        }
+
+        guard let image = UIImage(named: "logo_ideal") else {
+            owsFail("Bank asset not found")
+        }
+        idealButton.setImage(image, for: .normal)
+        idealButton.setPaddingBetweenImageAndText(
+            to: 8,
+            isRightToLeft: CurrentAppContext().isRTL
+        )
+        idealButton.setTitleColor(.ows_black, for: .normal)
+        idealButton.layer.cornerRadius = 12
+        idealButton.backgroundColor = .ows_white
+        idealButton.dimsWhenHighlighted = true
+        idealButton.titleLabel?.font = .dynamicTypeBody.semibold()
+
+        return idealButton
+    }
+
     private func updateBottom() {
         let paymentButtonContainerView: UIView = {
             let paymentMethods: [DonationPaymentMethod]
@@ -256,9 +276,11 @@ class DonateChoosePaymentMethodSheet: OWSTableSheetViewController {
                     .creditOrDebitCard,
                     .paypal,
                     .sepa,
+                    .ideal
                 ]
             } else {
                 paymentMethods = [
+                    .ideal,
                     .creditOrDebitCard,
                     .paypal,
                     .applePay,
@@ -270,7 +292,7 @@ class DonateChoosePaymentMethodSheet: OWSTableSheetViewController {
                 .filter(supportedPaymentMethods.contains)
                 .map(createButtonFor(paymentMethod:))
 
-            owsAssert(!paymentMethodButtons.isEmpty, "Expected at least one payment method")
+            owsPrecondition(!paymentMethodButtons.isEmpty, "Expected at least one payment method")
 
             let stackView = UIStackView(arrangedSubviews: paymentMethodButtons)
             stackView.axis = .vertical

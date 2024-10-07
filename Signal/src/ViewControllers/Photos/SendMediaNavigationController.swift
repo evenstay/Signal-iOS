@@ -4,7 +4,7 @@
 //
 
 import Photos
-import SignalMessaging
+import SignalServiceKit
 import SignalUI
 
 protocol SendMediaNavDelegate: AnyObject {
@@ -90,10 +90,13 @@ class SendMediaNavigationController: OWSNavigationController {
         return navController
     }
 
-    class func showingApprovalWithPickedLibraryMedia(asset: PHAsset,
-                                                     attachment: SignalAttachment,
-                                                     delegate: SendMediaNavDelegate,
-                                                     dataSource: SendMediaNavDataSource) -> SendMediaNavigationController {
+    class func showingApprovalWithPickedLibraryMedia(
+        asset: PHAsset,
+        attachment: SignalAttachment,
+        options: AttachmentApprovalViewControllerOptions = .init(),
+        delegate: SendMediaNavDelegate,
+        dataSource: SendMediaNavDataSource
+    ) -> SendMediaNavigationController {
         let navController = SendMediaNavigationController()
         navController.sendMediaNavDelegate = delegate
         navController.sendMediaNavDataSource = dataSource
@@ -105,11 +108,15 @@ class SendMediaNavigationController: OWSNavigationController {
 
         navController.setViewControllers([navController.mediaLibraryViewController], animated: false)
 
+        var options = options
+        options.insert(.canAddMore)
+        options.insert(.hasCancel)
+
         // Since we're starting on the approval view, include cancel to allow the user to immediately dismiss.
         // If they choose to add more, `hasCancel` will go away and they'll enter the normal gallery flow.
         navController.pushApprovalViewController(
             attachmentApprovalItems: [approvalItem],
-            options: [.canAddMore, .hasCancel],
+            options: options,
             animated: false
         )
 
@@ -269,7 +276,6 @@ extension SendMediaNavigationController: PhotoCaptureViewControllerDelegate {
         ows_askForMediaLibraryPermissions { isGranted in
             guard isGranted else { return }
 
-            BenchEventStart(title: "Show-Media-Library", eventId: "Show-Media-Library")
             let presentedViewController = OWSNavigationController(rootViewController: self.mediaLibraryViewController)
             self.presentFullScreen(presentedViewController, animated: true)
         }
@@ -364,6 +370,25 @@ extension SendMediaNavigationController: ImagePickerGridControllerDelegate {
                     switch result {
                     case .success(let attachmentApprovalItems):
                         Logger.debug("built all attachments")
+
+                        for item in attachmentApprovalItems {
+                            switch item.attachment.error {
+                            case nil:
+                                continue
+                            case .fileSizeTooLarge:
+                                OWSActionSheets.showActionSheet(
+                                    title: OWSLocalizedString(
+                                        "ATTACHMENT_ERROR_FILE_SIZE_TOO_LARGE",
+                                        comment: "Attachment error message for attachments whose data exceed file size limits"
+                                    )
+                                )
+                                return
+                            default:
+                                OWSActionSheets.showActionSheet(title: OWSLocalizedString("IMAGE_PICKER_FAILED_TO_PROCESS_ATTACHMENTS", comment: "alert title"))
+                                return
+                            }
+                        }
+
                         self.pushApprovalViewController(attachmentApprovalItems: attachmentApprovalItems, animated: true)
                     case .failure:
                         // Do nothing.

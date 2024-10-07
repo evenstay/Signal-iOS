@@ -25,6 +25,9 @@
 /* Accessibility label for stickers. */
 "ACCESSIBILITY_LABEL_STICKER" = "Стикер";
 
+/* Accessibility label for stickers. Embeds {{ name of top emoji the sticker resembles }} */
+"ACCESSIBILITY_LABEL_STICKER_FORMAT" = "Стикер, похожий на %1$@";
+
 /* Accessibility label for a voice memo. */
 "ACCESSIBILITY_LABEL_VOICE_MEMO" = "Голосовое сообщение";
 
@@ -64,9 +67,6 @@
 /* Users can request a report of their account data. This is the title on the screen where they do this. */
 "ACCOUNT_DATA_REPORT_TITLE" = "Данные вашей учётной записи";
 
-/* Label for 'voice call' button in contact view. */
-"ACTION_AUDIO_CALL" = "Звонок Signal";
-
 /* Label for 'invite' button in contact view. */
 "ACTION_INVITE" = "Пригласить в Signal";
 
@@ -79,8 +79,11 @@
 /* Label for 'video call' button in contact view. */
 "ACTION_VIDEO_CALL" = "Видеозвонок";
 
+/* Label for 'voice call' button in contact view. */
+"ACTION_VOICE_CALL" = "Звонок Signal";
+
 /* The title for the 'add group members' view. */
-"ADD_GROUP_MEMBERS_VIEW_TITLE" = "Добавлять участников";
+"ADD_GROUP_MEMBERS_VIEW_TITLE" = "Добавить участников";
 
 /* Message shown in conversation view that offers to share your profile with a group. */
 "ADD_GROUP_TO_PROFILE_WHITELIST_OFFER" = "Вы хотите открыть свой профиль этой группе?";
@@ -139,7 +142,7 @@
 /* The label for the 'save' button in action sheets. */
 "ALERT_SAVE" = "Сохранить";
 
-/* Message for UI  warning about an unknown contact thread. */
+/* Message for UI warning about an unknown contact thread. */
 "ALERT_UNKNOWN_THREAD_WARNING_CONTACT_MESSAGE" = "У вас нет общих групп с этим человеком. Внимательно проверяйте запросы перед тем, как принимать их, чтобы избежать нежелательных сообщений.";
 
 /* Message for UI warning about an unknown group thread. */
@@ -183,9 +186,6 @@
 
 /* Title for the view of all your signal connections */
 "ALL_SIGNAL_CONNECTIONS_TITLE" = "Все контакты";
-
-/* notification action */
-"ANSWER_CALL_BUTTON_TITLE" = "Ответить";
 
 /* notification body */
 "APN_Message" = "У вас могут быть новые сообщения";
@@ -292,14 +292,14 @@
 /* Apple Pay donation error for decline failures where the payment cannot be authorized. */
 "APPLE_PAY_DONATION_ERROR_PAYMENT_CANNOT_BE_AUTHORIZED" = "Проверьте, что ваш способ оплаты актуален в Apple Pay. Если это не так, обновите его и попробуйте ещё раз.";
 
-/* Name of application */
-"APPLICATION_NAME" = "Signal";
-
 /* On the iOS home screen, if you tap and hold the Signal icon, this shortcut will appear. Tapping it will let users send a new message. You may want to refer to similar behavior in other iOS apps, such as Messages, for equivalent strings. */
 "APPLICATION_SHORTCUT_NEW_MESSAGE" = "Новое сообщение";
 
 /* Label for the archive button for conversations list view */
 "ARCHIVE_ACTION" = "Архивировать";
+
+/* Button to try to join a call. The admin may need to approve the request before the user can join. */
+"ASK_TO_JOIN_CALL" = "Попросить присоединиться к звонку";
 
 /* One of the choices for pre-defined aspect ratio of a photo in media editor. */
 "ASPECT_RATIO_ORIGINAL" = "Оригинальное";
@@ -430,9 +430,6 @@
 /* Short text label for a gif attachment, used for thread preview and on the lock screen */
 "ATTACHMENT_TYPE_GIF" = "GIF";
 
-/* Short text label for an image attachment, used for thread preview and on the lock screen */
-"ATTACHMENT_TYPE_IMAGE" = "Изображение";
-
 /* Short text label for a photo attachment, used for thread preview and on the lock screen */
 "ATTACHMENT_TYPE_PHOTO" = "Фото";
 
@@ -444,9 +441,6 @@
 
 /* A string indicating that an audio message is playing. */
 "AUDIO_ACTIVITY_PLAYBACK_NAME_AUDIO_MESSAGE" = "Аудио-сообщение";
-
-/* Accessibility label for placing an audio call */
-"AUDIO_CALL_LABEL" = "Голосовой звонок";
 
 /* action sheet button title to enable built in speaker during a call */
 "AUDIO_ROUTE_BUILT_IN_SPEAKER" = "Громкая связь";
@@ -503,22 +497,19 @@
 "BADGE_EXPIRED_LEARN_MORE_LINK" = "Узнать больше.";
 
 /* Title for subscription on the badge expiration sheet. */
-"BADGE_EXPIRED_SUBSCRIPTION_TITLE" = "Monthly Donation Canceled";
+"BADGE_EXPIRED_SUBSCRIPTION_TITLE" = "Ежемесячное пожертвование отменено";
 
 /* String explaining to the user on a badge expiry sheet that their subscription badge has expired because the renewal payment failed. Embeds {{ a specific, already-localized string describing the payment failure }}. Will have a 'learn more' link appended, when it is rendered. */
-"BADGE_SUBSCRIPTION_EXPIRED_BECAUSE_OF_CHARGE_FAILURE_BODY_FORMAT" = "Your recurring monthly donation has ended. %1$@\n\nWithout an active subscription your badge will no longer be visible on your profile.";
-
-/* Body of the sheet shown when your subscription is canceled due to inactivity. Embeds {{ the name of the badge }}. Will have a 'learn more' link appended, when it is rendered. */
-"BADGE_SUBSCRIPTION_EXPIRED_BECAUSE_OF_INACTIVITY_BODY_FORMAT" = "Ваше пожертвование, повторяющееся ежемесячно, было автоматически отменено, потому что вы были неактивны слишком долго. Ваш значок «%1$@» больше не виден в вашем профиле.\n\nВы можете продолжать использовать Signal, но чтобы поддержать приложение и заново активировать значок, сделайте пожертвование сейчас.";
+"BADGE_SUBSCRIPTION_EXPIRED_BECAUSE_OF_CHARGE_FAILURE_BODY_FORMAT" = "Ваше пожертвование, повторяющееся ежемесячно, было отменено. %1$@\n\nВаш значок больше не будет виден в вашем профиле.";
 
 /* Body for a sheet explaining that a bank transfer donation is complete, and that you have received a badge. */
-"BADGE_THANKS_BANK_DONATION_COMPLETE_BODY" = "Your bank transfer was received. You can choose to display this badge on your profile to show off your support.";
+"BADGE_THANKS_BANK_DONATION_COMPLETE_BODY" = "Ваш банковский перевод получен. Вы можете показать этот значок в профиле и продемонстрировать свою поддержку.";
 
 /* Title for a sheet explaining that a bank transfer donation is complete, and that you have received a badge. */
-"BADGE_THANKS_BANK_DONATION_COMPLETE_TITLE" = "Donation Complete";
+"BADGE_THANKS_BANK_DONATION_COMPLETE_TITLE" = "Пожертвование получено";
 
 /* When you make a donation to Signal, you will receive a badge. A thank-you sheet appears when this happens. This is the body text on that sheet. */
-"BADGE_THANKS_BODY" = "You can choose to display this badge on your profile to show off your support.";
+"BADGE_THANKS_BODY" = "Вы можете показать этот значок в профиле и продемонстрировать свою поддержку.";
 
 /* Label prompting the user to display the new badge on their profile on the badge thank you sheet. */
 "BADGE_THANKS_DISPLAY_ON_PROFILE_LABEL" = "Показывать в профиле";
@@ -533,22 +524,22 @@
 "BADGE_THANKS_TOGGLE_FOOTER" = "Когда у вас больше одного значка, вы можете выбрать главный значок, который другие люди будут видеть в вашем профиле.";
 
 /* On the bank donation screen, show a link below the input form to show help about finding account info. */
-"BANK_DONATION_FOOTER_FIND_ACCOUNT_INFO" = "Find Account Info";
+"BANK_DONATION_FOOTER_FIND_ACCOUNT_INFO" = "Найти информацию о счёте";
 
 /* On the bank transfer donation screen, a small amount of information text is shown. This is that text. It should (1) instruct users to enter their bank information (2) tell them that Signal does not collect or store their personal information. */
-"BANK_DONATION_SUBHEADER_TEXT" = "Enter your bank details. Signal does not collect or store your personal information.";
+"BANK_DONATION_SUBHEADER_TEXT" = "Введите ваши банковские реквизиты. Signal не собирает и не хранит вашу личную информацию.";
 
 /* Users can donate to Signal with a bank account. We are required to show them a mandate with information about bank transfers. This is a label for a button to agree to the mandate. */
-"BANK_MANDATE_AGREE" = "Agree";
+"BANK_MANDATE_AGREE" = "Соглашаюсь";
 
 /* Users can donate to Signal with a bank account. We are required to show them a mandate with information about bank transfers. This is a label for a button that shows more of the mandate if it is not all visible. */
-"BANK_MANDATE_READ_MORE" = "Read More";
+"BANK_MANDATE_READ_MORE" = "Читать далее";
 
 /* Users can donate to Signal with a bank account. We are required to show them a mandate with information about bank transfers. This is a subtitle about the payment processor Stripe above that mandate. */
-"BANK_MANDATE_SUBTITLE" = "Stripe processes donations made to Signal. Signal does not collect or store your personal information.";
+"BANK_MANDATE_SUBTITLE" = "Stripe обрабатывает пожертвования, сделанные в пользу Signal. Signal не собирает и не хранит вашу личную информацию.";
 
 /* Users can donate to Signal with a bank account. We are required to show them a mandate with information about bank transfers. This is the title above that mandate. */
-"BANK_MANDATE_TITLE" = "Bank Transfer";
+"BANK_MANDATE_TITLE" = "Банковский перевод";
 
 /* Accessibility label for banner close button */
 "BANNER_CLOSE_ACCESSIBILITY_LABEL" = "Закрыть баннер";
@@ -674,7 +665,7 @@
 "BUTTON_SHARE" = "Поделиться";
 
 /* Label for the 'start' button. */
-"BUTTON_START" = "Начало";
+"BUTTON_START" = "Начать";
 
 /* Label for the 'submit' button. */
 "BUTTON_SUBMIT" = "Отправить";
@@ -690,9 +681,6 @@
 
 /* Label for button that lets users call a contact again. */
 "CALL_AGAIN_BUTTON_TITLE" = "Позвонить снова";
-
-/* notification body */
-"CALL_AUDIO_INCOMING_NOTIFICATION_BODY" = "📞 Входящий аудиозвонок…";
 
 /* notification body for a missed call in the last 24 hours. Embeds {{time}}, e.g. '3:30 PM'. */
 "CALL_AUDIO_MISSED_24_HOURS_NOTIFICATION_BODY_FORMAT" = "📞 Пропущенный аудиозвонок в %1$@";
@@ -721,14 +709,74 @@
 /* label for button shown when an incoming call rings */
 "CALL_CONTROLS_INCOMING_DECLINE" = "отклонить";
 
-/* Body for the repeating notification shown while an incoming group call is ringing, if the user has chosen not to include contact names in notifications */
-"CALL_GROUP_INCOMING_NOTIFICATION_BODY_ANONYMOUS" = "📹 Входящий групповой звонок…";
+/* Button to open a screen to edit the name of a Call Link. Also used as the title of that screen once it opens. */
+"CALL_LINK_ADD_NAME" = "Добавить имя звонка";
 
-/* Body for the repeating notification shown while an incoming group call is ringing. Embeds {{caller name}} */
-"CALL_GROUP_INCOMING_NOTIFICATION_BODY_FORMAT" = "📹 %1$@ звонит в группу...";
+/* Button to copy a Call Link to the clipboard. */
+"CALL_LINK_COPY" = "Копировать ссылку";
+
+/* Navigation bar title for the sheet used to create & configure a Call Link. */
+"CALL_LINK_CREATE" = "Создать ссылку для звонка";
+
+/* Description of sheet presented when call link creation fails. */
+"CALL_LINK_CREATION_FAILURE_SHEET_DESCRIPTION" = "Не удалось создать ссылку на звонок. Проверьте ваше подключение к интернету и попробуйте ещё раз.";
+
+/* Title of sheet presented when call link creation or update fails. */
+"CALL_LINK_CREATION_OR_UPDATE_FAILURE_SHEET_TITLE" = "Ошибка сети";
+
+/* Button to open a screen to edit the name of a Call Link. Also used as the title of that screen once it opens. */
+"CALL_LINK_EDIT_NAME" = "Изменить имя звонка";
+
+/* Description of sheet presented when joining call from call link sheet fails. */
+"CALL_LINK_JOIN_CALL_FAILURE_SHEET_DESCRIPTION" = "Не удалось присоединиться к звонку. Проверьте ваше подключение к интернету и попробуйте ещё раз.";
+
+/* Button on an action sheet to approve a request to join a call link. */
+"CALL_LINK_JOIN_REQUEST_APPROVE_BUTTON" = "Approve Entry";
+
+/* Button on an action sheet to deny a request to join a call link. */
+"CALL_LINK_JOIN_REQUEST_DENY_BUTTON" = "Deny Entry";
+
+/* Tappable label that appears below a user's name on a toast when they request to join a call link. */
+"CALL_LINK_JOIN_REQUEST_PROMPT" = "Would like to join…";
+
+/* Shown in a message bubble when you send a call link in a Signal chat */
+"CALL_LINK_LINK_PREVIEW_DESCRIPTION" = "Используйте эту ссылку, чтобы присоединиться к звонку Signal";
+
+/* Text that appears on a toast in a call lobby before joining a call link informing the user what information will be shared with other call members when they have phone number sharing turned off. */
+"CALL_LINK_LOBBY_SHARING_INFO_PHONE_NUMBER_SHARING_OFF" = "Anyone who joins this call via the link will see your name and photo.";
+
+/* Text that appears on a toast in a call lobby before joining a call link informing the user what information will be shared with other call members when they have phone number sharing turned on. */
+"CALL_LINK_LOBBY_SHARING_INFO_PHONE_NUMBER_SHARING_ON" = "Anyone who joins this call via the link will see your name, photo, and phone number.";
+
+/* Title for button to approve all requests to join a call. */
+"CALL_LINK_REQUEST_SHEET_APPROVE_ALL_BUTTON" = "Одобрить все";
+
+/* Title for button to deny all requests to join a call. */
+"CALL_LINK_REQUEST_SHEET_DENY_ALL_BUTTON" = "Отклонить все";
+
+/* Header for the sheet displaying a list of requests to join a call. */
+"CALL_LINK_REQUEST_SHEET_HEADER" = "Запросы на участие в этом звонке";
+
+/* Name of a toggle switch to enable/disable admin approval for joining a Call Link. */
+"CALL_LINK_REQUIRE_APPROVAL" = "Требуется одобрение администратора";
+
+/* Button to open UI to share a Call Link with someone on Signal. */
+"CALL_LINK_SHARE_VIA_SIGNAL" = "Поделиться ссылкой через Signal";
+
+/* Button to open the system share sheet to share a Call Link. */
+"CALL_LINK_SHARE_VIA_SYSTEM" = "Поделиться ссылкой";
+
+/* Description of sheet presented when call link update fails. */
+"CALL_LINK_UPDATE_FAILURE_SHEET_DESCRIPTION" = "Не удалось обновить ссылку на звонок. Проверьте ваше подключение к интернету и попробуйте ещё раз.";
+
+/* Label on button for lowering hand in call. */
+"CALL_LOWER_HAND_BUTTON_LABEL" = "Опустить руку";
 
 /* notification body */
 "CALL_MISSED_BECAUSE_OF_IDENTITY_CHANGE_NOTIFICATION_BODY" = "☎️ Звонок пропущен, так как код безопасности звонившего изменился.";
+
+/* Label on button for raising hand in call. */
+"CALL_RAISE_HAND_BUTTON_LABEL" = "Поднять руку";
 
 /* Button to return to the current call */
 "CALL_RETURN_BUTTON" = "Вернуться к звонку";
@@ -736,8 +784,8 @@
 /* Call setup status label after outgoing call times out */
 "CALL_SCREEN_STATUS_NO_ANSWER" = "Нет ответа";
 
-/* embeds {{Call Status}} in call screen label. For ongoing calls, {{Call Status}} is a seconds timer like 01:23, otherwise {{Call Status}} is a short text like 'Ringing', 'Busy', or 'Failed Call' */
-"CALL_STATUS_FORMAT" = "Signal %1$@";
+/* Button to start a call */
+"CALL_START_BUTTON" = "Начать звонок";
 
 /* Label for call button for alert offering to call a user. */
 "CALL_USER_ALERT_CALL_BUTTON" = "Позвонить";
@@ -747,9 +795,6 @@
 
 /* Title for alert offering to call a user. */
 "CALL_USER_ALERT_TITLE" = "Позвонить?";
-
-/* notification body */
-"CALL_VIDEO_INCOMING_NOTIFICATION_BODY" = "📹 Входящий видеозвонок…";
 
 /* notification body for a missed call in the last 24 hours. Embeds {{time}}, e.g. '3:30 PM'. */
 "CALL_VIDEO_MISSED_24_HOURS_NOTIFICATION_BODY_FORMAT" = "📹 Пропущенный видеозвонок в %1$@";
@@ -763,7 +808,7 @@
 /* notification body for a missed call from the last week. Embeds {{weekday}}, e.g. 'Monday'. */
 "CALL_VIDEO_MISSED_WEEK_NOTIFICATION_BODY_FORMAT" = "📹 Пропущенный видеозвонок в %1$@";
 
-/* label for accepting incoming video calls as audio  only */
+/* label for accepting incoming video calls as audio only */
 "CALL_VIEW_ACCEPT_INCOMING_CALL_AUDIO_ONLY_LABEL" = "Ответить без видео";
 
 /* label for accepting incoming calls */
@@ -778,6 +823,12 @@
 /* Accessibility label for hang up call */
 "CALL_VIEW_HANGUP_LABEL" = "Завершить звонок";
 
+/* Accessibility label for leaving a call */
+"CALL_VIEW_LEAVE_CALL_LABEL" = "Покинуть звонок";
+
+/* Accessibility label for the More button in the Call Controls row. */
+"CALL_VIEW_MORE_LABEL" = "Больше";
+
 /* Accessibility label for muting the microphone */
 "CALL_VIEW_MUTE_LABEL" = "Откл. звук";
 
@@ -787,11 +838,17 @@
 /* Accessibility label to toggle front- vs. rear-facing camera */
 "CALL_VIEW_SWITCH_CAMERA_DIRECTION" = "Переключить направление камеры";
 
-/* Accessibility label to switch to audio only */
-"CALL_VIEW_SWITCH_TO_AUDIO_LABEL" = "Переключиться на аудиозвонок";
+/* Accessibility label for turning off the camera */
+"CALL_VIEW_TURN_VIDEO_OFF_LABEL" = "Отключить камеру";
 
-/* Accessibility label to switch to video call */
-"CALL_VIEW_SWITCH_TO_VIDEO_LABEL" = "Переключиться на видеозвонок";
+/* Accessibility label for turning on the camera */
+"CALL_VIEW_TURN_VIDEO_ON_LABEL" = "Включить камеру";
+
+/* Accessibility label for unmuting the microphone */
+"CALL_VIEW_UNMUTE_LABEL" = "Вкл. уведомл.";
+
+/* Shown in the header below the name of the call while waiting for the host to allow you to enter the call. */
+"CALL_WAITING_TO_BE_LET_IN" = "Ожидание добавления…";
 
 /* notification action */
 "CALLBACK_BUTTON_TITLE" = "Перезвонить";
@@ -804,6 +861,84 @@
 
 /* The generic name used for group calls if CallKit privacy is enabled */
 "CALLKIT_ANONYMOUS_GROUP_NAME" = "Группа Signal";
+
+/* Title for the calls list view. */
+"CALLS_LIST_TITLE" = "Звонки";
+
+/* Label for an entry in the Calls Tab describing a call as incoming. */
+"CALLS_TAB_CALL_DIRECTION_LABEL_INCOMING" = "Входящие";
+
+/* Label for an entry in the Calls Tab describing a call as missed. */
+"CALLS_TAB_CALL_DIRECTION_LABEL_MISSED" = "Пропущенные";
+
+/* Label for an entry in the Calls Tab describing a call as outgoing. */
+"CALLS_TAB_CALL_DIRECTION_LABEL_OUTGOING" = "Исходящие";
+
+/* Title for a row in the Calls Tab that represents multiple calls that have been coalesced together. Embeds {{ a title describing the coalesced calls }}, {{ the number of coalesced calls }}. */
+"CALLS_TAB_COALESCED_CALLS_TITLE_FORMAT" = "%1$@ (%2$@)";
+
+/* Title for a button allowing the user to delete all the calls from the Calls Tab. */
+"CALLS_TAB_DELETE_ALL_CALLS_BUTTON_TITLE" = "Удалить";
+
+/* Message for a prompt confirming that the user wants to delete all the calls from the Calls Tab. */
+"CALLS_TAB_DELETE_ALL_CALLS_PROMPT_MESSAGE" = "Вся история звонков будет безвозвратно удалена.";
+
+/* Title for a prompt confirming that the user wants to delete all the calls from the Calls Tab. */
+"CALLS_TAB_DELETE_ALL_CALLS_PROMPT_TITLE" = "Очистить историю звонков?";
+
+/* Title for a long-press context menu action to delete a call, triggered from a call in the Calls Tab. */
+"CALLS_TAB_DELETE_CALL_ACTION_TITLE" = "Удалить";
+
+/* An option in a segmented control in the Calls Tab allowing the user to select the filter option 'all calls'; i.e., 'unfiltered'. */
+"CALLS_TAB_FILTER_PICKER_OPTION_ALL" = "Все";
+
+/* An option in a segmented control in the Calls Tab allowing the user to select the filter option 'missed calls'. */
+"CALLS_TAB_FILTER_PICKER_OPTION_MISSED" = "Пропущенные";
+
+/* Title for an action, either long-press context menu or swipe, offering to take the user to the chat associated with a call in the Calls Tab. */
+"CALLS_TAB_GO_TO_CHAT_ACTION_TITLE" = "Перейти к чату";
+
+/* Title for a button offering to let the user join an ongoing call, associated with a call in the Calls Tab. */
+"CALLS_TAB_JOIN_CALL_BUTTON_TITLE" = "Войти";
+
+/* Title for a long-press context menu action to join a video call, triggered from a call in the Calls Tab. */
+"CALLS_TAB_JOIN_VIDEO_CALL_ACTION_TITLE" = "Присоединиться к видеозвонку";
+
+/* Title for a long-press context menu action to join a voice call, triggered from a call in the Calls Tab. */
+"CALLS_TAB_JOIN_VOICE_CALL_ACTION_TITLE" = "Присоединиться к аудиозвонку";
+
+/* Label explaining that the user has no missed calls, so their Calls Tab is empty. */
+"CALLS_TAB_NO_MISSED_CALLS_LABEL" = "Нет пропущенных звонков";
+
+/* Label explaining that the user has no recent calls, so their Calls Tab is empty. */
+"CALLS_TAB_NO_RECENT_CALLS_LABEL" = "Нет недавних звонков";
+
+/* Label suggesting that the user start a call, shown when their Calls Tab is empty. */
+"CALLS_TAB_NO_RECENT_CALLS_SUGGESTION_LABEL" = "Начните со звонка другу";
+
+/* Title for a long-press context menu action to return to a call the user is actively participating in, triggered from a call in the Calls Tab. */
+"CALLS_TAB_RETURN_TO_CALL_ACTION_TITLE" = "Вернуться к звонку";
+
+/* Title for a button offering to let the user return to an ongoing call they're already in, associated with a call in the Calls Tab. */
+"CALLS_TAB_RETURN_TO_CALL_BUTTON_TITLE" = "Вернуться";
+
+/* Label for a view explaining that no search results were found in the Calls Tab. Embeds {{ the search term }}. */
+"CALLS_TAB_SEARCH_NO_RESULTS_FOUND_LABEL_FORMAT" = "Не найдено результатов для «%1$@»";
+
+/* Title for a long-press context menu action to select a call, triggered from a call in the Calls Tab. */
+"CALLS_TAB_SELECT_CALL_ACTION_TITLE" = "Выбрать";
+
+/* Title for a button allowing the user to select one or more calls, from the Calls Tab. */
+"CALLS_TAB_SELECT_CALLS_BUTTON_TITLE" = "Выбрать";
+
+/* Title for a long-press context menu action to start a video call, triggered from a call in the Calls Tab. */
+"CALLS_TAB_START_VIDEO_CALL_ACTION_TITLE" = "Видеозвонок";
+
+/* Title for a long-press context menu action to start a voice call, triggered from a call in the Calls Tab. */
+"CALLS_TAB_START_VOICE_CALL_ACTION_TITLE" = "Голосовой звонок";
+
+/* Title for a long-press context menu action to view info about a call, triggered from a call in the Calls Tab. */
+"CALLS_TAB_VIEW_CALL_INFO_ACTION_TITLE" = "Информация";
 
 /* Accessibility hint describing what you can do with the camera button */
 "CAMERA_BUTTON_HINT" = "Сделать фотографию и отправить её";
@@ -961,8 +1096,17 @@
 /* Tooltip highlighting the auto chat color option. */
 "CHAT_COLORS_AUTO_TOOLTIP" = "«Авто» выбирает цвет, соответствующий обоям";
 
+/* Title for context menu action to disable chat list filter (e.g., Filter by Unread) */
+"CHAT_LIST_CLEAR_FILTER_MENU_ACTION" = "Очистить фильтр";
+
 /* Title for the chat list's default mode. */
 "CHAT_LIST_TITLE_INBOX" = "Чаты";
+
+/* Title for context menu action to enable Filter by Unread */
+"CHAT_LIST_UNREAD_FILTER_MENU_ACTION" = "Отфильтровать по непрочитанным";
+
+/* Message displayed on chat list when Filter by Unread is enabled but no unread chats are available */
+"CHAT_LIST_UNREAD_FILTER_NO_CHATS" = "Нет непрочитанных чатов";
 
 /* Title for the color & wallpaper settings view. */
 "COLOR_AND_WALLPAPER_SETTINGS_TITLE" = "Цвет и обои чата";
@@ -987,6 +1131,21 @@
 
 /* Table section header for username search when composing a new message */
 "COMPOSE_MESSAGE_USERNAME_SEARCH_SECTION_TITLE" = "Поиск по имени пользователя";
+
+/* Menu action to display limited contact picker. */
+"COMPOSE_SCREEN_LIMITED_CONTACTS_ACTION_MANAGE" = "Выберите больше контактов";
+
+/* Menu action visit app contact permission in settings. */
+"COMPOSE_SCREEN_LIMITED_CONTACTS_ACTION_SETTINGS" = "Перейти в Настройки";
+
+/* Multi-line label explaining why compose-screen contact picker may be missing contacts. */
+"COMPOSE_SCREEN_LIMITED_CONTACTS_CTA" = "Управлять";
+
+/* Multi-line label explaining why compose-screen contact picker is empty. */
+"COMPOSE_SCREEN_LIMITED_CONTACTS_PERMISSION" = "Signal имеет ограниченный доступ к вашим системным контактам";
+
+/* Button to open settings from an empty compose-screen contact picker. */
+"COMPOSE_SCREEN_MISSING_CONTACTS_CTA" = "Открыть настройки";
 
 /* Multi-line label explaining why compose-screen contact picker is empty. */
 "COMPOSE_SCREEN_MISSING_CONTACTS_PERMISSION" = "Вы можете разрешить доступ к контактам в приложении «Настройки», чтобы видеть, какие из ваших контактов являются пользователями Signal.";
@@ -1014,6 +1173,27 @@
 
 /* Button text */
 "CONFIRM_LINK_NEW_DEVICE_ACTION" = "Привязать новое устройство";
+
+/* Indicates that the user has blocked the other account. Embeds {{name}} */
+"CONTACT_ABOUT_SHEET_BLOCKED_USER_FORMAT" = "%1$@ заблокирован(-а)";
+
+/* Indicates that another account is in the user's system contacts. Embeds {{name}} */
+"CONTACT_ABOUT_SHEET_CONNECTION_IN_SYSTEM_CONTACTS" = "%1$@ есть в контактах вашего телефона";
+
+/* Indicates that the user has no messages with the other account. Embeds {{name}} */
+"CONTACT_ABOUT_SHEET_NO_DIRECT_MESSAGES" = "Обмена сообщениями с %1$@ не было";
+
+/* Indicates that the user has a pending request with the other account. Embeds {{name}} */
+"CONTACT_ABOUT_SHEET_PENDING_REQUEST" = "Запрос на сообщение ожидает";
+
+/* Message for a tooltip that appears above a parenthesized name for another user, indicating that that name is the name the other user set for themself. Embeds {{name}} */
+"CONTACT_ABOUT_SHEET_SECONDARY_NAME_TOOLTIP_MESSAGE" = "«%1$@» — это имя профиля, которое данный человек установил для себя в Signal.";
+
+/* A label indicating a user is a signal connection. */
+"CONTACT_ABOUT_SHEET_SIGNAL_CONNECTION_LABEL" = "Контакт Signal";
+
+/* The title for a contact 'about' sheet. */
+"CONTACT_ABOUT_SHEET_TITLE" = "О контакте";
 
 /* Label for a contact's postal address. */
 "CONTACT_ADDRESS" = "Адрес";
@@ -1048,13 +1228,31 @@
 /* Label for the 'organization' field of a contact. */
 "CONTACT_FIELD_ORGANIZATION" = "Организация";
 
+/* Title for a view showing the note that has been set for a profile. */
+"CONTACT_NOTE_TITLE" = "Заметка";
+
+/* Body for contact permission action sheet */
+"CONTACT_PERMISSION_ACTION_SHEET_2_BODY" = "Чтобы найти знакомых в Signal:";
+
+/* First step for contact permission action sheet */
+"CONTACT_PERMISSION_ACTION_SHEET_2_STEP_ONE" = "Нажмите «Перейти в Настройки» ниже";
+
+/* Third step for contact permission action sheet */
+"CONTACT_PERMISSION_ACTION_SHEET_2_STEP_THREE" = "Включите разрешение";
+
+/* Second step for contact permission action sheet */
+"CONTACT_PERMISSION_ACTION_SHEET_2_STEP_TWO" = "Нажмите «Контакты»";
+
+/* Title for contact permission action sheet */
+"CONTACT_PERMISSION_ACTION_SHEET_2_TITLE" = "Разрешить доступ к контактам";
+
 /* Body for contact permission action sheet */
 "CONTACT_PERMISSION_ACTION_SHEET_BODY" = "Чтобы видеть имена и фото контактов в своих чатах:";
 
 /* First step for contact permission action sheet */
 "CONTACT_PERMISSION_ACTION_SHEET_STEP_ONE" = "Нажмите «Перейти в Настройки» ниже";
 
-/* Third step for contact permission action sheet */
+/* Second step for contact permission action sheet */
 "CONTACT_PERMISSION_ACTION_SHEET_STEP_TWO" = "Включите «Контакты»";
 
 /* Title for contact permission action sheet */
@@ -1064,13 +1262,13 @@
 "CONTACT_PERMISSION_NOT_NOW_ACTION" = "Не сейчас";
 
 /* Action text for contact permission reminder megaphone */
-"CONTACT_PERMISSION_REMINDER_MEGAPHONE_ACTION" = "Включить";
+"CONTACT_PERMISSION_REMINDER_MEGAPHONE_ACTION" = "Разрешить доступ";
 
 /* Body for contact permission reminder megaphone */
-"CONTACT_PERMISSION_REMINDER_MEGAPHONE_BODY" = "Чтобы видеть имена и фото контактов в своих чатах.";
+"CONTACT_PERMISSION_REMINDER_MEGAPHONE_BODY" = "Разрешите доступ к своим контактам, чтобы быстро найти их в Signal.";
 
 /* Title for contact permission reminder megaphone */
-"CONTACT_PERMISSION_REMINDER_MEGAPHONE_TITLE" = "Включить Контакты?";
+"CONTACT_PERMISSION_REMINDER_MEGAPHONE_TITLE" = "Найти контакты в Signal";
 
 /* Label for a contact's phone number. */
 "CONTACT_PHONE" = "Телефон";
@@ -1093,8 +1291,11 @@
 /* Error indicating that an invalid contact cannot be shared. */
 "CONTACT_SHARE_INVALID_CONTACT" = "Недопустимый контакт.";
 
-/* Error indicating that at least one contact field must be selected before sharing a contact. */
-"CONTACT_SHARE_NO_FIELDS_SELECTED" = "Ни одно из полей контакта не выбрано.";
+/* Alert body when contacts disabled while trying to share a contact. */
+"CONTACT_SHARING_NO_ACCESS_BODY" = "Signal необходим доступ к вашим контактам. Зайдите в Настройки iOS и включите контакты. Ваши контакты зашифрованы и не видны Signal.";
+
+/* Alert title when contacts disabled while trying to share a contact. */
+"CONTACT_SHARING_NO_ACCESS_TITLE" = "Разрешите доступ к контактам";
 
 /* Button text to initiate an email to signal support staff */
 "CONTACT_SUPPORT" = "Связаться с поддержкой";
@@ -1208,7 +1409,7 @@
 "CONTEXT_MENU_STOP_SPEAKING_MESSAGE" = "Остановить";
 
 /* Message for the 'conversation delete confirmation' alert. */
-"CONVERSATION_DELETE_CONFIRMATION_ALERT_MESSAGE" = "Этот чат будет удалён с этого устройства.";
+"CONVERSATION_DELETE_CONFIRMATION_ALERT_MESSAGE" = "Этот чат будет удалён со всех ваших устройств.";
 
 /* Title for the 'conversation delete confirmation' alert. */
 "CONVERSATION_DELETE_CONFIRMATION_ALERT_TITLE" = "Удалить чат?";
@@ -1256,28 +1457,19 @@
 "CONVERSATION_SETTINGS" = "Настройки чата";
 
 /* Label for 'add members' button in conversation settings view. */
-"CONVERSATION_SETTINGS_ADD_MEMBERS" = "Добавлять участников";
+"CONVERSATION_SETTINGS_ADD_MEMBERS" = "Добавить участников";
 
 /* Label for 'new contact' button in conversation settings view. */
 "CONVERSATION_SETTINGS_ADD_TO_EXISTING_CONTACT" = "Добавить в существующий контакт";
 
 /* button in conversation settings view. */
-"CONVERSATION_SETTINGS_ADD_TO_SYSTEM_CONTACTS" = "Добавить в системные Контакты";
+"CONVERSATION_SETTINGS_ADD_TO_SYSTEM_CONTACTS" = "Добавить в контакты телефона";
 
-/* Label indicating that only administrators can update the group's attributes: name, avatar, etc. */
-"CONVERSATION_SETTINGS_ATTRIBUTES_ACCESS_ADMINISTRATOR" = "Администраторы";
-
-/* Label indicating that all group members can update the group's attributes: name, avatar, etc. */
-"CONVERSATION_SETTINGS_ATTRIBUTES_ACCESS_MEMBER" = "Все";
-
-/* Label indicating that no member can update the group's attributes: name, avatar, etc. */
-"CONVERSATION_SETTINGS_ATTRIBUTES_ACCESS_NONE" = "Отключена";
+/* Header title for the section showing all media in conversation settings */
+"CONVERSATION_SETTINGS_ALL_MEDIA_HEADER" = "Все медиафайлы";
 
 /* Footer for the 'attributes access' section in conversation settings view. */
 "CONVERSATION_SETTINGS_ATTRIBUTES_ACCESS_SECTION_FOOTER" = "Выберите, кто может редактировать имя, фото, описание и время исчезновения сообщений группы.";
-
-/* Button to start a audio call */
-"CONVERSATION_SETTINGS_AUDIO_CALL_BUTTON" = "аудио";
 
 /* Footer string for a contact's badges in conversation settings */
 "CONVERSATION_SETTINGS_BADGES_FOOTER" = "Получайте значки для своего профиля, поддерживая Signal. Нажмите на значок, чтобы узнать больше.";
@@ -1285,20 +1477,29 @@
 /* Header title for a contact's badges in conversation settings */
 "CONVERSATION_SETTINGS_BADGES_HEADER" = "Значки";
 
-/* Footer text for the 'block and leave' section of contact conversation settings view. */
-"CONVERSATION_SETTINGS_BLOCK_AND_LEAVE_SECTION_CONTACT_FOOTER" = "Вы больше не будете получать сообщения и обновления от этого пользователя.";
-
-/* Footer text for the 'block and leave' section of group conversation settings view. */
-"CONVERSATION_SETTINGS_BLOCK_AND_LEAVE_SECTION_FOOTER" = "Вы больше не будете получать сообщения и обновления от этой группы.";
-
 /* Label for 'block group' action in conversation settings view. */
 "CONVERSATION_SETTINGS_BLOCK_GROUP" = "Заблокировать группу";
 
 /* Label for 'block user' action in conversation settings view. */
 "CONVERSATION_SETTINGS_BLOCK_USER" = "Заблокировать пользователя";
 
-/* Label for the 'edit' button in conversation settings view. */
-"CONVERSATION_SETTINGS_EDIT" = "Изменить";
+/* A label indicating that a call was an incoming video call */
+"CONVERSATION_SETTINGS_CALL_DETAILS_INCOMING_VIDEO_CALL" = "Входящий видеозвонок";
+
+/* A label indicating that a call was an incoming voice call */
+"CONVERSATION_SETTINGS_CALL_DETAILS_INCOMING_VOICE_CALL" = "Входящий голосовой звонок";
+
+/* A label indicating that a call was an missed video call */
+"CONVERSATION_SETTINGS_CALL_DETAILS_MISSED_VIDEO_CALL" = "Пропущенный видеозвонок";
+
+/* A label indicating that a call was an missed voice call */
+"CONVERSATION_SETTINGS_CALL_DETAILS_MISSED_VOICE_CALL" = "Пропущенный голосовой звонок";
+
+/* A label indicating that a call was an outgoing video call */
+"CONVERSATION_SETTINGS_CALL_DETAILS_OUTGOING_VIDEO_CALL" = "Исходящий видеозвонок";
+
+/* A label indicating that a call was an outgoing voice call */
+"CONVERSATION_SETTINGS_CALL_DETAILS_OUTGOING_VOICE_CALL" = "Исходящий голосовой звонок";
 
 /* Label for 'edit attributes access' action in conversation settings view. */
 "CONVERSATION_SETTINGS_EDIT_ATTRIBUTES_ACCESS" = "Редактировать информацию группы";
@@ -1340,7 +1541,7 @@
 "CONVERSATION_SETTINGS_MENTIONS_LABEL" = "Упоминания";
 
 /* Button to message the chat */
-"CONVERSATION_SETTINGS_MESSAGE_BUTTON" = "Сообщение";
+"CONVERSATION_SETTINGS_MESSAGE_BUTTON" = "сообщение";
 
 /* Title for the mute action sheet */
 "CONVERSATION_SETTINGS_MUTE_ACTION_SHEET_TITLE" = "Отключить звуки чата на…";
@@ -1402,6 +1603,9 @@
 /* Format for title for 'remove from group' confirmation alert. Embeds {user to remove from the group}. */
 "CONVERSATION_SETTINGS_REMOVE_FROM_GROUP_TITLE_FORMAT" = "Удалить %1$@ из группы?";
 
+/* Label for 'report spam' action in conversation settings view. */
+"CONVERSATION_SETTINGS_REPORT_SPAM" = "Сообщить о спаме";
+
 /* Label for 'revoke group admin' button in conversation settings view. */
 "CONVERSATION_SETTINGS_REVOKE_GROUP_ADMIN_BUTTON" = "Удалить как администратора";
 
@@ -1438,6 +1642,9 @@
 /* Indicates that user is in the system contacts list. */
 "CONVERSATION_SETTINGS_VIEW_IS_SYSTEM_CONTACT" = "Информация контакта";
 
+/* Button to start a voice call */
+"CONVERSATION_SETTINGS_VOICE_CALL_BUTTON" = "аудио";
+
 /* Message shown in conversation view that offers to add an unknown user to your phone's contacts. */
 "CONVERSATION_VIEW_ADD_TO_CONTACTS_OFFER" = "Добавить в контакты";
 
@@ -1465,14 +1672,14 @@
 /* No comment provided by engineer. */
 "COUNTRYCODE_SELECT_TITLE" = "Выберите код страны";
 
-/* Body text for an interactive in-app prompt to set up a Signal username. */
-"CREATE_USERNAME_MEGAPHONE_BODY" = "Имена пользователей позволяют другим пользователям отправлять вам сообщения без вашего номера телефона.";
+/* Label for button that enables you to make a new call link. */
+"CREATE_CALL_LINK_LABEL" = "Создать ссылку для звонка";
 
-/* Title for a button in an interactive in-app prompt to set up a Signal username, which will start a create-username flow. */
-"CREATE_USERNAME_MEGAPHONE_SET_UP_BUTTON_TITLE" = "Настроить";
+/* Body text for an interactive in-app prompt to set up a Signal username. */
+"CREATE_USERNAME_MEGAPHONE_BODY" = "Представляем конфиденциальность номеров телефона, дополнительные имена пользователя и ссылки.";
 
 /* Title for an interactive in-app prompt to set up a Signal username. */
-"CREATE_USERNAME_MEGAPHONE_TITLE" = "Настройте своё имя пользователя Signal";
+"CREATE_USERNAME_MEGAPHONE_TITLE" = "Новые способы связи";
 
 /* Credit/debit card donation error for decline failures where the card has expired. */
 "CREDIT_OR_DEBIT_CARD_DONATION_ERROR_EXPIRED_CARD" = "Срок действия вашей карты истёк. Проверьте правильность данных вашей карты и попробуйте ещё раз.";
@@ -1625,10 +1832,10 @@
 "DEBUG_LOG_INFO_BUTTON" = "Информация о журналах отладки";
 
 /* info message text in conversation view */
-"DECLINED_AUDIO_CALL" = "Вы отклонили голосовой звонок";
+"DECLINED_VIDEO_CALL" = "Вы отклонили видеозвонок";
 
 /* info message text in conversation view */
-"DECLINED_VIDEO_CALL" = "Вы отклонили видеозвонок";
+"DECLINED_VOICE_CALL" = "Вы отклонили голосовой звонок";
 
 /* Title for the action sheet 'delete' action of the 'delete account confirmation' view controller. */
 "DELETE_ACCOUNT_CONFIRMATION_ACTION_SHEEET_ACTION" = "Удалить учётную запись";
@@ -1676,7 +1883,7 @@
 "DELETE_CONTACT_ACTION_SHEET_BUTTON" = "Удалить";
 
 /* An explanation of what happens in Signal when you remove a system contact. */
-"DELETE_CONTACT_ACTION_SHEET_EXPLANATION" = "Этот человек будет удалён из списка контактов вашей системы. Этот человек не будет показываться при поиске. Если он напишет вам, вы получите запрос на переписку.";
+"DELETE_CONTACT_ACTION_SHEET_EXPLANATION" = "Этот человек будет удалён из списка контактов вашего телефона. Этот человек не будет показываться при поиске. Если он напишет вам, вы получите запрос на переписку.";
 
 /* Title of action sheet confirming the user wants to delete a system contact. */
 "DELETE_CONTACT_ACTION_SHEET_TITLE" = "Удалить контакт и убрать его из вашего списка?";
@@ -1687,11 +1894,32 @@
 /* Toast message confirming the system contact was deleted. Embeds {{The name of the user who was deleted.}}. */
 "DELETE_CONTACT_CONFIRMATION_TOAST" = "%1$@ удалён(-на) из контактов и из списка.";
 
+/* Title for an action sheet button explaining that a message will be deleted. */
+"DELETE_FOR_ME_NOTE_TO_SELF_ACTION_SHEET_BUTTON_TITLE" = "Удалить";
+
+/* Header text for an action sheet confirming deleting a message in Note to Self. */
+"DELETE_FOR_ME_NOTE_TO_SELF_ACTION_SHEET_HEADER" = "Удалить сообщение?";
+
+/* Subheader for an action sheet explaining that a Note to Self deleted on this device will be deleted on the user's other devices as well. */
+"DELETE_FOR_ME_NOTE_TO_SELF_LINKED_DEVICES_PRESENT_ACTION_SHEET_SUBHEADER" = "Это сообщение будет удалено со всех ваших устройств.";
+
+/* Label for a button in an info sheet confirming that deletes are now synced across devices. */
+"DELETE_FOR_ME_SYNC_MESSAGE_INFO_SHEET_BUTTON" = "Понятно";
+
+/* Subtitle for an info sheet explaining that deletes are now synced across devices. */
+"DELETE_FOR_ME_SYNC_MESSAGE_INFO_SHEET_SUBTITLE" = "При удалении сообщений или чатов они будут удаляться с вашего телефона и со всех связанных устройств.";
+
+/* Title for an info sheet explaining that deletes are now synced across devices. */
+"DELETE_FOR_ME_SYNC_MESSAGE_INFO_SHEET_TITLE" = "Удаление теперь происходит синхронно на всех ваших устройствах";
+
+/* Label indicating a user who deleted their account. */
+"DELETED_USER" = "Удалённая учётная запись";
+
 /* Notification warning the user that they have been de-registered. */
 "DEREGISTRATION_NOTIFICATION" = "Ваш сеанс работы с Signal на этом устройстве был завершён.";
 
 /* Label for button that lets users re-register using the same phone number. */
-"DEREGISTRATION_REREGISTER_WITH_SAME_PHONE_NUMBER" = "Повторно зарегистрировать этот номер";
+"DEREGISTRATION_REREGISTER_WITH_SAME_PHONE_NUMBER" = "Повторно зарегистрировать этот номер телефона";
 
 /* Label warning the user that they have been de-registered. */
 "DEREGISTRATION_WARNING" = "Это устройство больше не зарегистрировано. Это может быть вызвано тем, что вы зарегистрировали свой номер телефона в Signal на другом устройстве.";
@@ -1858,6 +2086,12 @@
 /* The unit for a number of weeks */
 "DISAPPEARING_MESSAGES_WEEKS" = "недели";
 
+/* Message/subtitle for confirmation prompt when discarding a draft before editing a message */
+"DISCARD_DRAFT_CONFIRMATION_MESSAGE" = "Это действие не может быть отменено.";
+
+/* Title for confirmation prompt when discarding a draft before editing a message */
+"DISCARD_DRAFT_CONFIRMATION_TITLE" = "Удалить черновик?";
+
 /* Short text to dismiss current modal / actionsheet / screen */
 "DISMISS_BUTTON_TEXT" = "Закрыть";
 
@@ -1874,13 +2108,13 @@
 "DOMAIN_FRONTING_COUNTRY_VIEW_SECTION_HEADER" = "Местоположение обхода цензуры";
 
 /* Users can donate to Signal with a credit or debit card. This is the heading on that screen, telling them how much they'll donate. Embeds {{formatted amount of money}}, such as \"$20\". */
-"DONATE_BUTTON" = "Donate %1$@";
+"DONATE_BUTTON" = "Пожертвовать %1$@";
 
 /* Users can donate to Signal with a credit or debit card. This is the heading on that screen, telling them how much they'll donate every month. Embeds {{formatted amount of money}}, such as \"$20\". */
-"DONATE_BUTTON_MONTHLY" = "Donate %1$@/month";
+"DONATE_BUTTON_MONTHLY" = "Жертвовать %1$@/месяц";
 
 /* When users make donations, they can choose which payment method they want to use. This is the text on the button that lets them choose to pay with bank transfer. */
-"DONATE_CHOOSE_BANK_TRANSFER_AS_PAYMENT_METHOD" = "Bank Transfer";
+"DONATE_CHOOSE_BANK_TRANSFER_AS_PAYMENT_METHOD" = "Банковский перевод";
 
 /* When users make donations, they can choose which payment method they want to use. This is the text on the button that lets them choose to pay with credit or debit card. */
 "DONATE_CHOOSE_CREDIT_OR_DEBIT_CARD_AS_PAYMENT_METHOD" = "Кредитная или дебетовая карта";
@@ -1892,7 +2126,7 @@
 "DONATE_CHOOSE_PAYMENT_METHOD_SHEET_SUBTITLE_FOR_MONTHLY_DONATION" = "Получите значок «%1$@»";
 
 /* When users make one-time donations, they see a sheet that lets them pick a payment method. It also tells them what they'll be doing when they pay: receive a badge for a month. This is the subtitle on that sheet. Embeds {{localized badge name}}, such as \"Boost\". */
-"DONATE_CHOOSE_PAYMENT_METHOD_SHEET_SUBTITLE_FOR_ONE_TIME_DONATION" = "Get the %1$@ badge for 30 days";
+"DONATE_CHOOSE_PAYMENT_METHOD_SHEET_SUBTITLE_FOR_ONE_TIME_DONATION" = "Получите значок %1$@ на 30 дней";
 
 /* When users make donations on a friend's behalf, they see a sheet that lets them pick a payment method. This is the title on that sheet. Embeds {{amount of money}}, such as \"$5\". */
 "DONATE_CHOOSE_PAYMENT_METHOD_SHEET_TITLE_FOR_DONATION_ON_BEHALF_OF_A_FRIEND" = "Пожертвование Signal %1$@";
@@ -1912,17 +2146,26 @@
 /* If a donation badge has been sent, indicates that it's expired and can no longer be redeemed. This is shown in the chat. */
 "DONATE_ON_BEHALF_OF_A_FRIEND_CHAT_EXPIRED" = "Истёк";
 
+/* Message in an alert presented when the user tries to make a donation, but already has an iDEAL donation that is currently awaiting approval. */
+"DONATE_SCREEN_ERROR_MESSAGE_APPROVE_IDEAL_DONATION_BEFORE_MAKING_ANOTHER_DONATION" = "Ваше пожертвование через iDEAL всё ещё обрабатывается. Проверьте в своем банковском приложении подтверждение платежа, прежде чем сделать очередное пожертвование.";
+
+/* Message in an alert presented when the user tries to update their recurring donation, but already has a recurring donation that is currently awaiting authorization. */
+"DONATE_SCREEN_ERROR_MESSAGE_BANK_PAYMENT_AWAITING_AUTHORIZATION" = "Ваше пожертвование через iDEAL всё ещё обрабатывается. Проверьте в своем банковском приложении подтверждение платежа, прежде чем сделать очередное пожертвование.";
+
 /* Message in an alert presented when the user tries to make a donation, but already has a donation that is currently processing via bank payment. */
-"DONATE_SCREEN_ERROR_MESSAGE_BANK_PAYMENT_PLEASE_WAIT_BEFORE_MAKING_ANOTHER_DONATION" = "Bank transfers usually take 1 business day to process. Please wait until this donation completes before making another donation.";
+"DONATE_SCREEN_ERROR_MESSAGE_BANK_PAYMENT_PLEASE_WAIT_BEFORE_MAKING_ANOTHER_DONATION" = "Обработка банковских переводов обычно занимает 1 рабочий день. Пожалуйста, дождитесь завершения обработки пожертвования, прежде чем обновлять подписку.";
 
 /* Message in an alert presented when the user tries to update their recurring donation, but already has a recurring donation that is currently processing via bank payment. */
-"DONATE_SCREEN_ERROR_MESSAGE_BANK_PAYMENT_PLEASE_WAIT_BEFORE_UPDATING_YOUR_SUBSCRIPTION" = "Bank transfers usually take 1 business day to process. Please wait until this donation completes before updating your subscription.";
+"DONATE_SCREEN_ERROR_MESSAGE_BANK_PAYMENT_PLEASE_WAIT_BEFORE_UPDATING_YOUR_SUBSCRIPTION" = "Обработка банковских переводов обычно занимает 1 рабочий день. Пожалуйста, дождитесь завершения обработки пожертвования, прежде чем обновлять подписку.";
+
+/* Message for an alert shown when the user tries to donate via bank transfer, but the amount they want to donate is too large. Embeds {{ the maximum allowed donation amount }}. */
+"DONATE_SCREEN_ERROR_MESSAGE_FORMAT_BANK_TRANSFER_AMOUNT_TOO_LARGE" = "Вы можете отправить банковским переводом до %1$@. Попробуйте другую сумму или другой способ оплаты.";
 
 /* Message in an alert presented when the user tries to make a donation, but already has a donation that is currently processing via non-bank payment. */
-"DONATE_SCREEN_ERROR_MESSAGE_PLEASE_WAIT_BEFORE_MAKING_ANOTHER_DONATION" = "Your donation is still being processed. This can take a few minutes depending on your connection. Please wait until this donation completes before making another donation.";
+"DONATE_SCREEN_ERROR_MESSAGE_PLEASE_WAIT_BEFORE_MAKING_ANOTHER_DONATION" = "Ваше пожертвование всё ещё обрабатывается. Это может занять несколько минут в зависимости от вашего соединения. Пожалуйста, дождитесь завершения обработки пожертвования, прежде чем обновлять подписку.";
 
 /* Message in an alert presented when the user tries to update their recurring donation, but already has a recurring donation that is currently processing via non-bank payment. */
-"DONATE_SCREEN_ERROR_MESSAGE_PLEASE_WAIT_BEFORE_UPDATING_YOUR_SUBSCRIPTION" = "Your donation is still being processed. This can take a few minutes depending on your connection. Please wait until this donation completes before updating your subscription.";
+"DONATE_SCREEN_ERROR_MESSAGE_PLEASE_WAIT_BEFORE_UPDATING_YOUR_SUBSCRIPTION" = "Ваше пожертвование всё ещё обрабатывается. Это может занять несколько минут в зависимости от вашего соединения. Пожалуйста, дождитесь завершения обработки пожертвования, прежде чем обновлять подписку.";
 
 /* If the user tries to donate to Signal but no amount is selected, this error message is shown. */
 "DONATE_SCREEN_ERROR_NO_AMOUNT_SELECTED" = "Выберите сумму пожертвования.";
@@ -1930,11 +2173,17 @@
 /* If the user tries to donate to Signal but they've entered an amount that's too small, this error message is shown. Embeds {{currency string}}, such as \"$5\". */
 "DONATE_SCREEN_ERROR_SELECT_A_LARGER_AMOUNT_FORMAT" = "Минимальная сумма пожертвования составляет %1$@.";
 
+/* Title for an alert presented when the user tries to make a donation, but already has a donation that is currently awaiting authorization. */
+"DONATE_SCREEN_ERROR_TITLE_BANK_PAYMENT_AWAITING_AUTHORIZATION" = "Пожертвование ожидает авторизации";
+
 /* Title for an alert presented when the user tries to make a donation, but already has a donation that is currently processing via bank payment. */
-"DONATE_SCREEN_ERROR_TITLE_BANK_PAYMENT_YOU_HAVE_A_DONATION_PENDING" = "You have a donation pending";
+"DONATE_SCREEN_ERROR_TITLE_BANK_PAYMENT_YOU_HAVE_A_DONATION_PENDING" = "Ваше пожертвование на рассмотрении";
+
+/* Title for an alert shown when the user tries to donate via bank transfer, but the amount they want to donate is too large. */
+"DONATE_SCREEN_ERROR_TITLE_BANK_TRANSFER_AMOUNT_TOO_LARGE" = "Сумма пожертвования слишком велика";
 
 /* Title for an alert presented when the user tries to make a donation, but already has a donation that is currently processing via non-bank payment. */
-"DONATE_SCREEN_ERROR_TITLE_YOU_HAVE_A_PAYMENT_PROCESSING" = "You have a donation processing";
+"DONATE_SCREEN_ERROR_TITLE_YOU_HAVE_A_PAYMENT_PROCESSING" = "Ваше пожертвование обрабатывается";
 
 /* On the donation screen, you can choose between one-time and monthly donations. This is the text on the picker for one-time donations. */
 "DONATE_SCREEN_MONTHLY_CHOICE" = "Ежемесячно";
@@ -1958,25 +2207,25 @@
 "DONATE_SCREEN_UPDATE_MONTHLY_SUBSCRIPTION_BUTTON" = "Обновить подписку";
 
 /* Message for a sheet explaining that a donation via bank payment has failed. Embeds {{ a specific, already-localized string describing the payment failure }}. */
-"DONATION_BADGE_ISSUE_SHEET_BANK_PAYMENT_FAILED_MESSAGE" = "We’re having trouble processing your bank transfer. %1$@";
+"DONATION_BADGE_ISSUE_SHEET_BANK_PAYMENT_FAILED_MESSAGE" = "У нас возникли проблемы с обработкой вашего банковского перевода. %1$@";
 
 /* Title for a sheet explaining that a donation via bank payment has failed. */
-"DONATION_BADGE_ISSUE_SHEET_BANK_PAYMENT_FAILED_TITLE" = "Donation Couldn’t Be Processed";
+"DONATION_BADGE_ISSUE_SHEET_BANK_PAYMENT_FAILED_TITLE" = "Не удалось обработать пожертвование";
 
 /* Title for a sheet explaining that a donation via bank payment is pending. */
-"DONATION_BADGE_ISSUE_SHEET_BANK_PAYMENT_PROCESSING_TITLE" = "Donation Pending";
+"DONATION_BADGE_ISSUE_SHEET_BANK_PAYMENT_PROCESSING_TITLE" = "Пожертвование на рассмотрении";
 
 /* Message for a sheet explaining that a one-time donation via bank payment is pending, and how that will affect the user's badge. Embeds {{ the name of the badge }}. Will have a 'learn more' link appended, when it is rendered. */
-"DONATION_BADGE_ISSUE_SHEET_ONE_TIME_BANK_PAYMENT_PROCESSING_MESSAGE" = "Your one-time donation is pending. You’ll be able to display the %1$@ badge on your profile when your donation is received.\n\nBank transfers usually take 1 business day to process.";
+"DONATION_BADGE_ISSUE_SHEET_ONE_TIME_BANK_PAYMENT_PROCESSING_MESSAGE" = "Ваше разовое пожертвование на рассмотрении. После получения пожертвования вы сможете показать в своем профиле значок %1$@.\n\nОбработка банковских переводов обычно занимает 1 рабочий день.";
 
 /* Message for a sheet explaining that a recurring donation via bank payment is pending, and how that will affect the user's badge. Embeds {{ the name of the badge }}. Will have a 'learn more' link appended, when it is rendered. */
-"DONATION_BADGE_ISSUE_SHEET_RECURRING_BANK_PAYMENT_PROCESSING_MESSAGE" = "Your monthly donation is pending. You’ll be able to display the %1$@ badge on your profile when your donation is received.\n\nBank transfers usually take 1 business day to process.";
+"DONATION_BADGE_ISSUE_SHEET_RECURRING_BANK_PAYMENT_PROCESSING_MESSAGE" = "Ваше ежемесячное пожертвование на рассмотрении. После получения пожертвования вы сможете показать в своем профиле значок %1$@.\n\nОбработка банковских переводов обычно занимает 1 рабочий день.";
 
 /* Title for a button asking the user to renew their subscription, because it has expired. */
-"DONATION_BADGE_ISSUE_SHEET_RENEW_SUBSCRIPTION_BUTTON_TITLE" = "Renew Subscription";
+"DONATION_BADGE_ISSUE_SHEET_RENEW_SUBSCRIPTION_BUTTON_TITLE" = "Продлить подписку";
 
 /* Title for a button asking the user to try their donation again, because something went wrong. */
-"DONATION_BADGE_ISSUE_SHEET_TRY_AGAIN_BUTTON_TITLE" = "Try Again";
+"DONATION_BADGE_ISSUE_SHEET_TRY_AGAIN_BUTTON_TITLE" = "Попробовать ещё раз";
 
 /* When donating on behalf of a friend, a badge will be sent. This shows how long the badge lasts. Embeds {{formatted duration}}. */
 "DONATION_FOR_A_FRIEND_ROW_DURATION" = "Действует %1$@";
@@ -2122,6 +2371,15 @@
 /* Text at the bottom of the donation receipts list, telling users that receipts might not be available */
 "DONATION_RECEIPTS_MIGHT_BE_MISSING_IF_YOU_REINSTALLED" = "Если вы переустановили Signal, квитанции о ранее сделанных пожертвованиях не будут доступны.";
 
+/* Error message displayed if something goes wrong with 3DSecure/iDEAL payment authorization.  This will be encountered if the user cancels the webview before authrizing the payment. */
+"DONATION_REDIRECT_ERROR_CANCELLED_MESSAGE" = "Платёж отменён. Пожалуйста, попробуйте ещё раз.";
+
+/* Error message displayed if something goes wrong with 3DSecure/iDEAL payment authorization.  This will be encountered if the callback is in an unexpected format. */
+"DONATION_REDIRECT_ERROR_INVALID_RESPONSE_MESSAGE" = "Недействительный ответ на платёж. Пожалуйста, попробуйте ещё раз.";
+
+/* Error message displayed if something goes wrong with 3DSecure/iDEAL payment authorization.  This will be encountered if the user denies the payment. */
+"DONATION_REDIRECT_ERROR_PAYMENT_DENIED_MESSAGE" = "Платёж отклонён. Пожалуйста, попробуйте ещё раз.";
+
 /* On the donation settings screen, tapping this button will take the user to a screen where they can donate. */
 "DONATION_SCREEN_DONATE_BUTTON" = "Пожертвовать";
 
@@ -2134,44 +2392,71 @@
 /* On donation screens, a small amount of information text is shown. This is the title for that text. */
 "DONATION_SCREENS_HEADER_TITLE" = "Конфиденциальность превыше прибыли";
 
+/* Button title confirming the user wants to begin a new donation. */
+"DONATION_SETTINGS_CANCEL_DONATION_AWAITING_AUTHORIZATION_DONATE_ACTION" = "Пожертвовать";
+
+/* Prompt confirming the user wants to abandon the current donation flow and start a new donation. */
+"DONATION_SETTINGS_CANCEL_DONATION_AWAITING_AUTHORIZATION_MESSAGE" = "Продолжение отменит ваше недавнее пожертвование. Средства списаны не будут, но вы можете видеть запрос на платеж в своем банковском приложении, пока не предпримете действий. Вы действительно хотите сделать новое пожертвование?";
+
 /* Title for an action in an action sheet asking the user to renew a subscription that has failed to renew. */
-"DONATION_SETTINGS_MY_SUPPORT_ACTION_SHEET_ACTION_TITLE_RENEW_SUBSCRIPTION" = "Renew Subscription";
+"DONATION_SETTINGS_MY_SUPPORT_ACTION_SHEET_ACTION_TITLE_RENEW_SUBSCRIPTION" = "Продлить подписку";
 
 /* Title for an action in an action sheet asking the user to try again, in reference to a donation that failed. */
-"DONATION_SETTINGS_MY_SUPPORT_ACTION_SHEET_ACTION_TITLE_TRY_AGAIN" = "Try Again";
+"DONATION_SETTINGS_MY_SUPPORT_ACTION_SHEET_ACTION_TITLE_TRY_AGAIN" = "Попробовать ещё раз";
+
+/* Prompt the user asking if they want to keep the current in-flight, but unauthorized donation, or try again. */
+"DONATION_SETTINGS_MY_SUPPORT_BANK_PAYMENT_AWAITING_AUTHORIZATION_MESSAGE" = "Ваше пожертвование через iDEAL не удалось подтвердить. Проверьте ваше банковское приложение, чтобы одобрить ваше пожертвование, или попробуйте ещё раз.";
 
 /* Message for an alert explaining that a one-time payment made via bank transfer is being processed. */
-"DONATION_SETTINGS_MY_SUPPORT_BANK_PAYMENT_PROCESSING_MESSAGE" = "Your bank transfer is pending. Bank transfers usually take 1 business day to process.";
+"DONATION_SETTINGS_MY_SUPPORT_BANK_PAYMENT_PROCESSING_MESSAGE" = "Ваш банковский перевод находится на рассмотрении. Обработка банковских переводов обычно занимает 1 рабочий день.";
 
 /* Title for an alert explaining that a one-time payment made via bank transfer is being processed. */
-"DONATION_SETTINGS_MY_SUPPORT_BANK_PAYMENT_PROCESSING_TITLE" = "Donation Pending";
+"DONATION_SETTINGS_MY_SUPPORT_BANK_PAYMENT_PROCESSING_TITLE" = "Пожертвование на рассмотрении";
 
 /* Message shown in a sheet explaining that the user's donation has failed because payment failed. Embeds {{ a specific, already-localized string describing the payment failure reason }}. */
-"DONATION_SETTINGS_MY_SUPPORT_DONATION_FAILED_ALERT_MESSAGE_FORMAT" = "We’re having trouble processing your donation. %1$@";
+"DONATION_SETTINGS_MY_SUPPORT_DONATION_FAILED_ALERT_MESSAGE_FORMAT" = "У нас возникли проблемы с обработкой вашего пожертвования. %1$@";
 
 /* Title for a sheet explaining that a payment failed. */
-"DONATION_SETTINGS_MY_SUPPORT_DONATION_FAILED_ALERT_TITLE" = "Error Processing Donation";
+"DONATION_SETTINGS_MY_SUPPORT_DONATION_FAILED_ALERT_TITLE" = "Ошибка обработки пожертвования";
+
+/* Title for a sheet explaining that a payment needs confirmation. */
+"DONATION_SETTINGS_MY_SUPPORT_DONATION_UNCONFIMRED_ALERT_TITLE" = "Не удалось подтвердить пожертвование";
+
+/* Message shown in a sheet explaining that the user's iDEAL one-time donation coultn't be processed. */
+"DONATION_SETTINGS_MY_SUPPORT_IDEAL_ONE_TIME_DONATION_FAILED_MESSAGE" = "Не удалось обработать ваше разовое пожертвование через iDEAL. Попробуйте другой способ оплаты или свяжитесь со своим банком для получения дополнительной информации.";
+
+/* Title for a sheet explaining that a payment needs confirmation. */
+"DONATION_SETTINGS_MY_SUPPORT_IDEAL_ONE_TIME_DONATION_NOT_CONFIRMED_MESSAGE_FORMAT" = "Ваше разовое пожертвование на %1$@ через iDEAL не удалось подтвердить. Проверьте в своём банковском приложении подтверждение пожертвования через iDEAL.";
+
+/* Message shown in a sheet explaining that the user's iDEAL recurring monthly donation coultn't be processed. */
+"DONATION_SETTINGS_MY_SUPPORT_IDEAL_RECURRING_SUBSCRIPTION_FAILED_MESSAGE" = "Ваше пожертвование через iDEAL, повторяющееся ежемесячно, не удалось обработать. Попробуйте другой способ оплаты или свяжитесь со своим банком для получения дополнительной информации.";
+
+/* Message shown in a sheet explaining that the user's iDEAL recurring monthly donation hasn't been confirmed. Embeds {{ formatted current amount }}. */
+"DONATION_SETTINGS_MY_SUPPORT_IDEAL_RECURRING_SUBSCRIPTION_NOT_CONFIRMED_MESSAGE_FORMAT" = "Ваше пожертвование на %1$@ через iDEAL, повторяющееся ежемесячно, не удалось обработать. Проверьте в своём банковском приложении подтверждение пожертвования через iDEAL.";
 
 /* Message shown in a sheet explaining that the user's recurring subscription has ended because payment failed. Embeds {{ a specific, already-localized string describing the failure reason }}. */
-"DONATION_SETTINGS_MY_SUPPORT_RECURRING_SUBSCRIPTION_LAPSED_CHARGE_FAILURE_ALERT_MESSAGE_FORMAT" = "Your recurring monthly donation has ended. %1$@";
+"DONATION_SETTINGS_MY_SUPPORT_RECURRING_SUBSCRIPTION_LAPSED_CHARGE_FAILURE_ALERT_MESSAGE_FORMAT" = "Ваше пожертвование, повторяющееся ежемесячно, прекращено. %1$@";
 
 /* Title for a sheet explaining that the user's recurring subscription has ended because payment failed. */
-"DONATION_SETTINGS_MY_SUPPORT_RECURRING_SUBSCRIPTION_LAPSED_TITLE" = "Monthly Donation Canceled";
+"DONATION_SETTINGS_MY_SUPPORT_RECURRING_SUBSCRIPTION_LAPSED_TITLE" = "Ежемесячное пожертвование отменено";
 
 /* A label describing a donation payment that was made via bank transfer, which is still processing and has not completed. */
-"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_BANK_PAYMENT_PROCESSING" = "Donation Pending";
+"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_BANK_PAYMENT_PROCESSING" = "Пожертвование на рассмотрении";
 
 /* A label describing a donation payment that was made by a method other than bank transfer (such as by credit card), which is still processing and has not completed. */
-"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_NON_BANK_PAYMENT_PROCESSING" = "Processing Donation...";
+"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_NON_BANK_PAYMENT_PROCESSING" = "Обрабатываем пожертвование...";
 
 /* A label describing a donation payment that has failed to process. */
-"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_PAYMENT_FAILED" = "Error Processing Donation";
+"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_PAYMENT_FAILED" = "Ошибка обработки пожертвования";
 
 /* A label describing a recurring monthly donation that used to be active, but has now been canceled because it failed to renew. */
-"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_SUBSCRIPTION_LAPSED" = "Monthly Donation Canceled";
+"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_SUBSCRIPTION_LAPSED" = "Ежемесячное пожертвование отменено";
+
+/* A label describing a donation payment that has requires authorization. */
+"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_WAITING_FOR_AUTHORIZATION" = "Ожидание авторизации";
 
 /* A string describing the amount and currency of a one-time payment. Embeds {{ the amount, formatted as a currency }}. */
-"DONATION_SETTINGS_ONE_TIME_AMOUNT_FORMAT" = "%1$@ one-time";
+"DONATION_SETTINGS_ONE_TIME_AMOUNT_FORMAT" = "Разовое на %1$@";
 
 /* Title for the \"donate for a friend\" button on the donation view. */
 "DONATION_VIEW_DONATE_ON_BEHALF_OF_A_FRIEND" = "Пожертвовать за друга";
@@ -2180,7 +2465,7 @@
 "DONATION_VIEW_DONATION_TO_SIGNAL" = "Пожертвование Signal";
 
 /* Title for the 'Donor FAQ' button on the donation screen */
-"DONATION_VIEW_DONOR_FAQ" = "Donor FAQ";
+"DONATION_VIEW_DONOR_FAQ" = "ЧаВо о пожертвованиях";
 
 /* Text that's shown when the donation view fails to load data, probably due to network failure */
 "DONATION_VIEW_LOAD_FAILED" = "Ошибка сети. Проверьте ваше подключение к интернету и попробуйте ещё раз.";
@@ -2205,6 +2490,12 @@
 
 /* Label for the currency picker button in donation views */
 "DONATIONS_CURRENCY_PICKER_LABEL" = "Валюта";
+
+/* Message for Double Tap to Edit sheet show on first interaction */
+"DOUBLE_TAP_TO_EDIT_ALERT_MESSAGE" = "Быстро нажмите дважды на свои сообщения, чтобы отредактировать их. Вы можете изменять свои сообщения в течение 24 часов после их отправки.";
+
+/* Title for Double Tap to Edit sheet show on first interaction */
+"DOUBLE_TAP_TO_EDIT_ALERT_TITLE" = "Нажмите дважды для изменения";
 
 /* Alert body for when the user has just tried to edit a contacts after declining to give Signal contacts permissions */
 "EDIT_CONTACT_WITHOUT_CONTACTS_PERMISSION_ALERT_BODY" = "Вы можете предоставить доступ в приложении «Настройки».";
@@ -2236,15 +2527,6 @@
 /* Short name for edit menu item to copy contents of media message. */
 "EDIT_ITEM_COPY_ACTION" = "Копировать";
 
-/* Edit Send Beta prompt body */
-"EDIT_MESSAGE_SEND_MESSAGE_BODY" = "Если вы отредактируете сообщение, это увидят только те, кто пользуется последними версиями Signal. Они увидят, что вы отредактировали сообщение.";
-
-/* Label to confirm sending an edit */
-"EDIT_MESSAGE_SEND_MESSAGE_CONFIRM" = "Отправить";
-
-/* Edit Send Beta prompt title */
-"EDIT_MESSAGE_SEND_MESSAGE_TITLE" = "Редактировать сообщение";
-
 /* Error message to display to user when a message is too old to edit */
 "EDIT_MESSAGE_SEND_MESSAGE_TOO_OLD_ERROR" = "Изменения могут быть внесены только в течение 24 часов с момента отправки этого сообщения.";
 
@@ -2252,7 +2534,7 @@
 "EDIT_MESSAGE_SEND_MESSAGE_UNKNOWN_ERROR" = "EDIT_MESSAGE_SEND_MESSAGE_UNKNOWN_ERROR";
 
 /* body of email sent to contacts when inviting to install Signal. Embeds {{link to install Signal}} and {{link to the Signal home page}} */
-"EMAIL_INVITE_BODY" = "Привет!\n\nВ последнее время я использую Signal для сохранения конфиденциальности своих чатов на iPhone. Предлагаю установить это приложение и тебе, чтобы мы могли быть уверены, что только мы с тобой можем читать наши сообщения или слышать наши звонки.\n\nSignal доступен для iPhone и Android. Скачай его здесь: %1$@\n\nSignal работает так же, как мессенджер, который ты уже используешь. Мы можем отправлять картинки и видео, делать звонки и создавать групповые чаты. И главное — никто, кроме нас, не может видеть ничего из этого, даже разработчики Signal!\n\nПодробнее об Open Whisper Systems, разработчиках Signal, тут: %2$@";
+"EMAIL_INVITE_BODY" = "Hey,\n\nLately I've been using Signal to keep the chats on my iPhone private. I'd like you to install it too, so we can be confident that only you and I can read our messages or hear our calls.\n\nSignal is available for iPhones and Android. Get it here: %1$@\n\nSignal works like your existing messaging app. We can send pictures and video, make calls, and start group chats. The best part is, no one else can see any of it, not even the people who make Signal!\n\nYou can read more about Signal here: %2$@";
 
 /* subject of email sent to contacts when inviting to install Signal */
 "EMAIL_INVITE_SUBJECT" = "Давай перейдем на Signal";
@@ -2303,7 +2585,7 @@
 "END_CALL_RESPONDER_IS_BUSY" = "Занято";
 
 /* Call setup status label */
-"END_CALL_UNCATEGORIZED_FAILURE" = "Звонок не удался.";
+"END_CALL_UNCATEGORIZED_FAILURE" = "Звонок не удался";
 
 /* Error indicating that a message could not be forwarded. */
 "ERROR_COULD_NOT_FORWARD_MESSAGES_1" = "Не удалось переслать сообщение";
@@ -2364,6 +2646,9 @@
 
 /* Error message indicating that attachment download(s) failed. */
 "ERROR_MESSAGE_ATTACHMENT_DOWNLOAD_FAILED" = "Не удалось скачать вложение.";
+
+/* Error message indicating that attachment upload(s) failed. */
+"ERROR_MESSAGE_ATTACHMENT_UPLOAD_FAILED" = "Не удалось загрузить вложение.";
 
 /* Error message for a decryption failure. Embeds {{sender short name}}. */
 "ERROR_MESSAGE_DECRYPTION_FAILURE" = "Не удалось доставить сообщение от %1$@";
@@ -2465,10 +2750,22 @@
 "FEATURED_BADGE_SETTINGS_TITLE" = "Главный значок";
 
 /* Users can choose to learn more about how to find account info, which will open a sheet with additional information. This is the body of that sheet. */
-"FIND_ACCOUNT_INFO_SHEET_BODY" = "Look for your IBAN at the top of your bank statement. IBAN numbers contain up to 34 characters. The name you enter should match your full name on your bank account. Contact your bank for more information.";
+"FIND_ACCOUNT_INFO_SHEET_BODY" = "Найдите номер IBAN в верхней части банковской выписки. Номер IBAN содержит до 34 символов. Введённое вами имя должно совпадать с полным именем, указанным в вашем банковском счёте. Свяжитесь со своим банком для получения дополнительной информации.";
 
 /* Users can choose to learn more about how to find account info, which will open a sheet with additional information. This is the title of that sheet. */
-"FIND_ACCOUNT_INFO_SHEET_TITLE" = "Find Your Account Information";
+"FIND_ACCOUNT_INFO_SHEET_TITLE" = "Найти информацию о вашем счёте";
+
+/* A footer below the username text field describing what should be entered */
+"FIND_BY_USERNAME_FOOTER" = "Введите имя пользователя, затем точку и набор принадлежащих ему цифр.";
+
+/* A placeholder value for the text field for finding an account by their username */
+"FIND_BY_USERNAME_PLACEHOLDER" = "Имя пользователя";
+
+/* A button below the username text field which opens a username QR code scanner */
+"FIND_BY_USERNAME_SCAN_QR_CODE_BUTTON" = "Сканировать QR-код";
+
+/* Title for the view for finding accounts by their username */
+"FIND_BY_USERNAME_TITLE" = "Поиск по имени пользователя";
 
 /* Button that marks user as verified after a successful fingerprint scan. */
 "FINGERPRINT_SCAN_VERIFY_BUTTON" = "Подтвердить";
@@ -2478,6 +2775,9 @@
 
 /* Accessibility label for finishing new group */
 "FINISH_GROUP_CREATION_LABEL" = "Завершить создание группы";
+
+/* Tooltip notifying users that the flip camera button moved to the picture-in-picture view of themselves in a call */
+"FLIP_CAMERA_BUTTON_MOVED_TO_PIP_TOOLTIP" = "Флип-камера была перемещена сюда. Нажмите на ваше видео, чтобы попробовать её в действии";
 
 /* Label and title for 'contact forwarding' views. */
 "FORWARD_CONTACT" = "Переслать контакт";
@@ -2522,10 +2822,10 @@
 "GET_STARTED_CARD_APPEARANCE" = "Внешний вид";
 
 /* 'Get Started' button direction users to avatar builder */
-"GET_STARTED_CARD_AVATAR_BUILDER" = "Добавить фото";
+"GET_STARTED_CARD_AVATAR_BUILDER" = "Доб. фото";
 
 /* 'Get Started' button directing users to invite friends */
-"GET_STARTED_CARD_INVITE_FRIENDS" = "Пригласить друзей";
+"GET_STARTED_CARD_INVITE_FRIENDS" = "Звать друзей";
 
 /* 'Get Started' button directing users to create a group */
 "GET_STARTED_CARD_NEW_GROUP" = "Новая группа";
@@ -2638,6 +2938,21 @@
 /* Button to leave a group call */
 "GROUP_CALL_LEAVE_BUTTON" = "Покинуть звонок";
 
+/* Title for the section of the group call member list which displays the list of all members in the call. */
+"GROUP_CALL_MEMBER_LIST_IN_CALL_SECTION_HEADER" = "В звонке";
+
+/* Title for the section of the group call member list which displays the list of members with their hand raised. */
+"GROUP_CALL_MEMBER_LIST_RAISED_HANDS_SECTION_HEADER" = "Подняли руку";
+
+/* A count of members in a given group call member list section, displayed after the header. */
+"GROUP_CALL_MEMBER_LIST_SECTION_HEADER_MEMBER_COUNT" = "(%1$d)";
+
+/* Title for a button on the group members sheet for sharing that call's link. */
+"GROUP_CALL_MEMBER_LIST_SHARE_CALL_LINK_BUTTON" = "Поделиться ссылкой на звонок";
+
+/* Title for the sheet showing the group call members list */
+"GROUP_CALL_MEMBER_LIST_TITLE" = "Call Info";
+
 /* String displayed in cell when media from a user can't be displayed in group call grid. Embeds {user's name} */
 "GROUP_CALL_MISSING_MEDIA_KEYS_FORMAT" = "Невозможно получать аудио и видео от %1$@";
 
@@ -2649,9 +2964,6 @@
 
 /* Text explaining that you are the only person currently in the group call */
 "GROUP_CALL_NO_ONE_HERE" = "Здесь нет никого, кроме вас";
-
-/* Text explaining to the user that nobody has joined this call yet. */
-"GROUP_CALL_NOBODY_IS_IN_YET" = "В этом звонке ещё никого нет.";
 
 /* Copy explaining that a user has joined the group call. Embeds {member name} */
 "GROUP_CALL_NOTIFICATION_ONE_JOINED_FORMAT" = "%1$@ присоединился(-лась) к звонку";
@@ -2674,6 +2986,27 @@
 /* Text indicating that the user has lost their connection to the call and we are reconnecting. */
 "GROUP_CALL_RECONNECTING" = "Переподключаемся";
 
+/* Label for a button to block a member from a group call. */
+"GROUP_CALL_REMOVE_MEMBER_CONFIRMATION_ACTION_SHEET_BLOCK_ACTION" = "Block from Call";
+
+/* Label for the button to confirm removing a member from a group call. */
+"GROUP_CALL_REMOVE_MEMBER_CONFIRMATION_ACTION_SHEET_REMOVE_ACTION" = "Remove";
+
+/* Title for action sheet confirming removal of a member from a group call. embeds {{ name }} */
+"GROUP_CALL_REMOVE_MEMBER_CONFIRMATION_ACTION_SHEET_TITLE" = "Remove %1$@ from the call?";
+
+/* The title of an alert when you've been removed from a group call. */
+"GROUP_CALL_REMOVED" = "Удалён(-на) из звонка";
+
+/* The message of an alert when you've been removed from a group call. */
+"GROUP_CALL_REMOVED_MESSAGE" = "Кто-то удалил вас из звонка.";
+
+/* The title of an alert when tried to join a call using a link but the admin rejected your request. */
+"GROUP_CALL_REQUEST_DENIED" = "Запрос на присоединение отклонён";
+
+/* The message of an alert when tried to join a call using a link but the admin rejected your request. */
+"GROUP_CALL_REQUEST_DENIED_MESSAGE" = "Ваш запрос на присоединение к этому звонку был отклонён.";
+
 /* notification body when you join a group call and an already-joined participant has an untrusted safety number */
 "GROUP_CALL_SAFETY_NUMBER_CHANGE_AT_JOIN_BODY" = "У участника вызова изменился код безопасности. Нажмите, чтобы посмотреть.";
 
@@ -2688,9 +3021,6 @@
 
 /* Toast view text informing user about swiping to speaker view */
 "GROUP_CALL_SPEAKER_VIEW_TOAST" = "Проведите вверх, чтобы изменить вид";
-
-/* Button to start a group call */
-"GROUP_CALL_START_BUTTON" = "Начать звонок";
 
 /* Tooltip highlighting group calls. */
 "GROUP_CALL_START_TOOLTIP" = "Нажмите здесь, чтобы начать групповой звонок";
@@ -2732,7 +3062,7 @@
 "GROUP_CREATED_BY_LOCAL_USER" = "Вы создали группу.";
 
 /* Message indicating that group was created by another user. Embeds {{remote user name}}. */
-"GROUP_CREATED_BY_REMOTE_USER_FORMAT" = "%1$@ добавил(-а) вас в группу.";
+"GROUP_CREATED_BY_REMOTE_USER_FORMAT" = "%1$@ создал(-а) группу.";
 
 /* Message indicating that group was created by an unknown user. */
 "GROUP_CREATED_BY_UNKNOWN_USER" = "Группа была создана.";
@@ -2754,42 +3084,6 @@
 
 /* Title for the group description view. Embeds {{ the number of characters that can be added to the description without hitting the length limit }}. */
 "GROUP_DESCRIPTION_VIEW_TITLE_FORMAT" = "Описание группы (%1$@)";
-
-/* Message indicating that 1 invalid invite was added to the group. */
-"GROUP_INVALID_INVITES_ADDED_1" = "Было добавлено недействительное приглашение.";
-
-/* Message indicating that 1 invalid invite was added by the local user. */
-"GROUP_INVALID_INVITES_ADDED_BY_LOCAL_USER_1" = "Вы добавили недействительное приглашение.";
-
-/* Message indicating that multiple invalid invites were added by the local user. */
-"GROUP_INVALID_INVITES_ADDED_BY_LOCAL_USER_N" = "Вы добавили недействительные приглашения.";
-
-/* Message indicating that 1 invalid invite was added by another user. Embeds {{remote user name}}. */
-"GROUP_INVALID_INVITES_ADDED_BY_REMOTE_USER_FORMAT_1" = "%1$@ добавил(-а) недействительное приглашение.";
-
-/* Message indicating that multiple invalid invites were added by another user. Embeds {{remote user name}}. */
-"GROUP_INVALID_INVITES_ADDED_BY_REMOTE_USER_FORMAT_N" = "%1$@ добавил(-а) недействительные приглашения.";
-
-/* Message indicating that multiple invalid invites were added to the group. */
-"GROUP_INVALID_INVITES_ADDED_N" = "Были добавлены недействительные приглашения.";
-
-/* Message indicating that 1 invalid invite was revoked. */
-"GROUP_INVALID_INVITES_REMOVED_1" = "Было отозвано недействительное приглашение.";
-
-/* Message indicating that 1 invalid invite was revoked by the local user. */
-"GROUP_INVALID_INVITES_REMOVED_BY_LOCAL_USER_1" = "Вы отозвали недействительное приглашение.";
-
-/* Message indicating that multiple invalid invites were revoked by the local user. */
-"GROUP_INVALID_INVITES_REMOVED_BY_LOCAL_USER_N" = "Вы отозвали недействительные приглашения.";
-
-/* Message indicating that 1 invalid invite was revoked by another user. Embeds {{remote user name}}. */
-"GROUP_INVALID_INVITES_REMOVED_BY_REMOTE_USER_FORMAT_1" = "%1$@ отозвал(-а) недействительное приглашение.";
-
-/* Message indicating that multiple invalid invites were revoked by another user. Embeds {{remote user name}}. */
-"GROUP_INVALID_INVITES_REMOVED_BY_REMOTE_USER_FORMAT_N" = "%1$@ отозвал(-а) недействительные приглашения.";
-
-/* Message indicating that multiple invalid invites were revoked. */
-"GROUP_INVALID_INVITES_REMOVED_N" = "Недействительные приглашения были отозваны.";
 
 /* Message indicating that the group invite link was disabled. */
 "GROUP_INVITE_LINK_DISABLED" = "Ссылка на группу была отключена.";
@@ -2890,6 +3184,12 @@
 /* Message text for the 'group invite link' action sheet. */
 "GROUP_LINK_ACTION_SHEET_VIEW_MESSAGE" = "Вы хотите присоединиться к этой группе и открыть своё имя и фото её участникам?";
 
+/* Label for the 'request to join' button in the 'group invite link' action sheet. */
+"GROUP_LINK_ACTION_SHEET_VIEW_REQUEST_TO_JOIN_BUTTON" = "Request to Join";
+
+/* Message text for the 'group invite link' action sheet, if the user will be requesting to join. */
+"GROUP_LINK_ACTION_SHEET_VIEW_REQUEST_TO_JOIN_MESSAGE" = "An admin of this group must approve your request before you can join this group. When you request to join, your name and photo will be shared with its members.";
+
 /* Error message the attempt to request to join the group failed due to network connectivity. */
 "GROUP_LINK_COULD_NOT_REQUEST_TO_JOIN_GROUP_DUE_TO_NETWORK_ERROR_MESSAGE" = "Пожалуйста, убедитесь, что вы онлайн, и попробуйте снова.";
 
@@ -2972,7 +3272,7 @@
 "GROUP_LINK_VIEW_TITLE" = "Ссылка на группу";
 
 /* Message indicating that the local user was added to the group by another user. Embeds {{remote user name}}. */
-"GROUP_LOCAL_USER_ADDED_TO_GROUP_BY_REMOTE_USER_FORMAT" = "%1$@ добавил(-а) вас.";
+"GROUP_LOCAL_USER_ADDED_TO_GROUP_BY_REMOTE_USER_FORMAT" = "%1$@ добавил(-а) вас в группу.";
 
 /* Message indicating that the local user was granted administrator role. */
 "GROUP_LOCAL_USER_GRANTED_ADMINISTRATOR" = "Вы теперь администратор.";
@@ -3049,14 +3349,8 @@
 /* Title for the 'members' section of the 'group members' view. */
 "GROUP_MEMBERS_SECTION_TITLE_MEMBERS" = "Участники";
 
-/* Button to allow user to review known name collisions in group membership */
-"GROUP_MEMBERSHIP_NAME_COLLISION_BANNER_REVIEW_BUTTON" = "Нажмите, чтобы проверить";
-
-/* A header string above a group member's contact info */
-"GROUP_MEMBERSHIP_NAME_COLLISION_MEMBER_HEADER" = "Участник";
-
 /* A title string for a view that allows a user to review name collisions in group membership */
-"GROUP_MEMBERSHIP_NAME_COLLISION_TITLE" = "Проверьте участников";
+"GROUP_MEMBERSHIP_NAME_COLLISION_TITLE" = "Проверить участников";
 
 /* Placeholder text for 'group name' field. */
 "GROUP_NAME_PLACEHOLDER" = "Имя группы (обязательно)";
@@ -3118,6 +3412,9 @@
 /* Message indicating that a remote user was removed from the group by the local user. Embeds {{remote user name}}. */
 "GROUP_REMOTE_USER_REMOVED_BY_LOCAL_USER_FORMAT" = "Вы удалили %1$@.";
 
+/* Message indicating that a remote user was removed from the group by an unknown user. Embeds {{remote user name}}. */
+"GROUP_REMOTE_USER_REMOVED_BY_UNKNOWN_USER_FORMAT" = "%1$@ больше не состоит в группе";
+
 /* Message indicating that the remote user was removed from the group. Embeds {{ %1$@ user who removed the user, %2$@ user who was removed}}. */
 "GROUP_REMOTE_USER_REMOVED_FROM_GROUP_BY_REMOTE_USER_FORMAT" = "%1$@ удалил(-а) %2$@.";
 
@@ -3126,6 +3423,9 @@
 
 /* Message indicating that a remote user's request to join the group was approved by another user. Embeds {{ %1$@ requesting user name, %2$@ approving user name }}. */
 "GROUP_REMOTE_USER_REQUEST_APPROVED_BY_REMOTE_USER_FORMAT" = "%2$@ принял(-а) запрос на присоединение к группе от %1$@.";
+
+/* Message indicating that a remote user's request to join the group was approved by an unknown user. Embeds {{ %1$@ requesting user name }}. */
+"GROUP_REMOTE_USER_REQUEST_APPROVED_BY_UNKNOWN_USER_FORMAT" = "Запрос на присоединение к группе от %1$@ был принят.";
 
 /* Message indicating that a remote user cancelled their request to join the group. Embeds {{ the name of the requesting user }}. */
 "GROUP_REMOTE_USER_REQUEST_CANCELLED_BY_REMOTE_USER_FORMAT" = "%1$@ отменил(-а) свой запрос на присоединение к группе.";
@@ -3240,6 +3540,9 @@
 
 /* Message indicating that the group was migrated. */
 "GROUP_WAS_MIGRATED" = "Эта группа была обновлена до Новой группы.";
+
+/* Message indicating that the local user was invited after the group was migrated. */
+"GROUP_WAS_MIGRATED_LOCAL_USER_INVITED" = "Вас невозможно было добавить в Новую группу, поэтому вы получили приглашение присоединиться.";
 
 /* Message indicating that the local user left the group. */
 "GROUP_YOU_LEFT" = "Вы покинули группу.";
@@ -3385,6 +3688,18 @@
 /* Title 'Read All' button in the toolbar of the ChatList if multi-section is active. */
 "HOME_VIEW_TOOLBAR_READ_ALL" = "Все прочитаны";
 
+/* Label for both bank chooser header and the bank form field on the iDEAL payment detail page. */
+"IDEAL_DONATION_CHOOSE_YOUR_BANK_LABEL" = "Выберите свой банк";
+
+/* Fallback title confirming recurring donation with bank. */
+"IDEAL_DONATION_CONFIRM_DONATION_TITLE" = "Подтвердить пожертвование";
+
+/* Message confirming recurring donation with bank. This message confirms with the user that they will see a small confirmation charge with their bank before the donation. */
+"IDEAL_DONATION_CONFIRM_DONATION_WITH_BANK_MESSAGE" = "Для настройки регулярного пожертвования нажмите «Продолжить», чтобы подтвердить списание средств в размере 0,01 евро в вашем банке. Эта сумма будет автоматически возвращена, и это позволит списывать с вашего счёта пожертвование в размере %1$@ в месяц.";
+
+/* Title confirming recurring donation with bank. */
+"IDEAL_DONATION_CONFIRM_DONATION_WITH_BANK_TITLE" = "Подтвердить пожертвование через %1$@";
+
 /* The image editor hint that you can draw blur */
 "IMAGE_EDITOR_BLUR_HINT" = "Зарисуйте участок, чтобы размыть его";
 
@@ -3404,13 +3719,13 @@
 "IN_CALL_CONNECTING" = "Подключаемся…";
 
 /* Call screen label when call was canceled on this device because the call recipient answered on another device. */
-"IN_CALL_ENDED_BECAUSE_ANSWERED_ELSEWHERE" = "Принят на другом устройстве.";
+"IN_CALL_ENDED_BECAUSE_ANSWERED_ELSEWHERE" = "Принят на другом устройстве";
 
 /* Call screen label when call was canceled on this device because the call recipient has a call in progress on another device. */
-"IN_CALL_ENDED_BECAUSE_BUSY_ELSEWHERE" = "Пропущен, потому что идёт звонок на другом устройстве.";
+"IN_CALL_ENDED_BECAUSE_BUSY_ELSEWHERE" = "Пропущен, потому что идёт звонок на другом устройстве";
 
 /* Call screen label when call was canceled on this device because the call recipient declined on another device. */
-"IN_CALL_ENDED_BECAUSE_DECLINED_ELSEWHERE" = "Отклонён на другом устройстве.";
+"IN_CALL_ENDED_BECAUSE_DECLINED_ELSEWHERE" = "Отклонён на другом устройстве";
 
 /* Call setup status label */
 "IN_CALL_RECONNECTING" = "Переподключаемся…";
@@ -3428,7 +3743,16 @@
 "IN_CALL_SECURING" = "Связь установлена. Включаем защиту…";
 
 /* Call setup status label */
-"IN_CALL_TERMINATED" = "Звонок завершен.";
+"IN_CALL_TERMINATED" = "Звонок завершён";
+
+/* Title for a button in an in-app megaphone about a user's inactive linked device, indicating the user doesn't want to be reminded. */
+"INACTIVE_LINKED_DEVICE_REMINDER_MEGAPHONE_DONT_REMIND_ME_BUTTON" = "Не напоминать";
+
+/* Title for a button in an in-app megaphone about a user's inactive linked device, temporarily dismissing the megaphone. */
+"INACTIVE_LINKED_DEVICE_REMINDER_MEGAPHONE_GOT IT_BUTTON" = "Понятно";
+
+/* Title for an in-app megaphone about a user's inactive linked device. */
+"INACTIVE_LINKED_DEVICE_REMINDER_MEGAPHONE_TITLE" = "Неактивное связанное устройство";
 
 /* Label reminding the user that they are in archive mode, and that muted chats remain archived when they receive a new message. */
 "INBOX_VIEW_ARCHIVE_MODE_MUTED_CHATS_REMINDER" = "Архивированные чаты с отключённым звуком будут оставаться архивированными, даже если будет получено новое сообщение.";
@@ -3440,16 +3764,37 @@
 "INBOX_VIEW_EMPTY_INBOX" = "Ещё нет чатов.\nОтправьте другу своё первое сообщение.";
 
 /* info message text in conversation view */
-"INCOMING_AUDIO_CALL" = "Входящий голосовой звонок";
+"INCOMING_VIDEO_CALL" = "Входящий видеозвонок";
 
 /* info message text in conversation view */
-"INCOMING_VIDEO_CALL" = "Входящий видеозвонок";
+"INCOMING_VOICE_CALL" = "Входящий голосовой звонок";
+
+/* An info message inserted into the chat when you accept a message request, in a 1:1 or group chat. */
+"INFO_MESSAGE_ACCEPTED_MESSAGE_REQUEST" = "Вы приняли запрос на общение.";
+
+/* Header for an action sheet providing options in response to an accepted 1:1 message request. Embeds {{ the name of your chat partner }}. */
+"INFO_MESSAGE_ACCEPTED_MESSAGE_REQUEST_OPTIONS_ACTION_SHEET_HEADER_CONTACT" = "Вы приняли запрос на сообщение от %1$@. Если это было сделано по ошибке, вы можете выбрать действие ниже.";
+
+/* Header for an action sheet providing options in response to an accepted group message request. */
+"INFO_MESSAGE_ACCEPTED_MESSAGE_REQUEST_OPTIONS_ACTION_SHEET_HEADER_GROUP" = "Вы приняли запрос на общение от этой группы. Если это было сделано по ошибке, вы можете выбрать действие ниже.";
+
+/* Title for a button shown alongside an info message indicating you accepted a message request. */
+"INFO_MESSAGE_ACCEPTED_MESSAGE_REQUEST_OPTIONS_BUTTON" = "Варианты";
+
+/* An info message inserted into a group chat when you block the group. */
+"INFO_MESSAGE_BLOCKED_GROUP" = "Вы заблокировали эту группу.";
+
+/* An info message inserted into a 1:1 chat when you block another user. */
+"INFO_MESSAGE_BLOCKED_OTHER_USER" = "Вы заблокировали этого человека.";
 
 /* Indicates that a previously-removed recipient has been added back to the current user's contacts. */
 "INFO_MESSAGE_CONTACT_REINSTATED" = "Этот человек был снова добавлен в ваш список контактов Signal.";
 
 /* Indicates that the recipient has been removed from the current user's contacts and that messaging them will re-add them. */
 "INFO_MESSAGE_CONTACT_REMOVED" = "Вы удалили этого человека из списка контактов Signal. Отправив ему сообщение, вы добавите его обратно.";
+
+/* When you start a chat with someone and then later learn their profile name, we insert an in-chat message with this string to record the identifier you originally used to contact them. Embeds {{ the identifier, either a phone number or a username }}. */
+"INFO_MESSAGE_LEARNED_PROFILE_KEY" = "Вы начали этот чат с %1$@.";
 
 /* Shown when a user activates payments from a chat */
 "INFO_MESSAGE_PAYMENTS_ACTIVATED" = "Вы активировали платежи.";
@@ -3463,8 +3808,23 @@
 /* Shown when requesting a user activates payments. Embeds: {{ the user's name}} */
 "INFO_MESSAGE_PAYMENTS_ACTIVATION_REQUEST_SENT" = "Вы отправили %1$@ запрос на активацию платежей.";
 
+/* Shown when a user reports a conversation as spam. */
+"INFO_MESSAGE_REPORTED_SPAM" = "Было сообщено о спаме";
+
+/* Body message of the alert shown when a user taps on 'learn more' via the spam info message. */
+"INFO_MESSAGE_REPORTED_SPAM_LEARN_MORE_MESSAGE" = "Signal был уведомлен о том, что этот человек может рассылать спам. Signal не видит содержимое чатов.";
+
+/* Title of the alert shown when a user taps on 'learn more' via the spam info message. */
+"INFO_MESSAGE_REPORTED_SPAM_LEARN_MORE_TITLE" = "Было сообщено о спаме";
+
 /* Shown in inbox and conversation after syncing as a placeholder indicating why your message history is missing. */
-"INFO_MESSAGE_SYNCED_THREAD" = "You can send or receive synchronized messages from your phone or iPad.  For your security, chat history isn't transferred to new linked devices.";
+"INFO_MESSAGE_SYNCED_THREAD" = "Для вашей безопасности история чата не переносится на новые привязанные устройства.";
+
+/* An info message inserted into a group chat when you unblock the group. */
+"INFO_MESSAGE_UNBLOCKED_GROUP" = "Вы разблокировали эту группу.";
+
+/* An info message inserted into a 1:1 chat when you unblock another user. */
+"INFO_MESSAGE_UNBLOCKED_OTHER_USER" = "Вы разблокировали этого человека.";
 
 /* Indicates that another user has changed their phone number. Embeds: {{ the user's name}} */
 "INFO_MESSAGE_USER_CHANGED_PHONE_NUMBER_FORMAT" = "%1$@ изменил(-а) свой номер телефона.";
@@ -3504,6 +3864,9 @@
 
 /* Label for the cell that presents the 'invite contacts' workflow. */
 "INVITE_FRIENDS_CONTACT_TABLE_BUTTON" = "Пригласите друзей в Signal";
+
+/* Header label above a section for more options for adding contacts */
+"INVITE_FRIENDS_CONTACT_TABLE_HEADER" = "Больше";
 
 /* Search */
 "INVITE_FRIENDS_PICKER_SEARCHBAR_PLACEHOLDER" = "Поиск";
@@ -3617,25 +3980,16 @@
 "LINK_PREVIEW_UNKNOWN_DOMAIN" = "Предпросмотр ссылки";
 
 /* Shown in an alert when trying to edit a contact. */
-"LINKED_DEVICE_CONTACTS_NOT_ALLOWED" = "Управление системными контактами больше не поддерживается на iPad. Чтобы добавить контакты Signal к системным контактам, откройте Signal на телефоне.";
+"LINKED_DEVICE_CONTACTS_NOT_ALLOWED" = "Управление контактами телефона больше не поддерживается на iPad. Чтобы добавить контакты Signal к контактам телефона, откройте Signal на телефоне.";
 
 /* Shown in a banner when you tap the 'New Chat' icon at the top of the list of chats. */
-"LINKED_DEVICE_MANAGE_CONTACTS_BANNER" = "Управление системными контактами больше не поддерживается на iPad. Это устройство будет продолжать синхронизировать любые изменения в списке контактов из Signal на вашем телефоне.";
+"LINKED_DEVICE_MANAGE_CONTACTS_BANNER" = "Управление контактами телефона больше не поддерживается на iPad. Это устройство будет продолжать синхронизировать любые изменения в списке контактов из Signal на вашем телефоне.";
 
 /* A button shown in a banner when you tap the 'New Chat' icon at the top of the list of chats. Tapping it opens a website with more details. */
 "LINKED_DEVICE_MANAGE_CONTACTS_LEARN_MORE" = "Узнать больше";
 
 /* Menu item and navbar title for the device manager */
 "LINKED_DEVICES_TITLE" = "Привязанные устройства";
-
-/* Label for the 'give access' button in the 'onboarding permissions' view. */
-"LINKED_ONBOARDING_PERMISSIONS_ENABLE_PERMISSIONS_BUTTON" = "Разрешить уведомления";
-
-/* Explanation in the 'onboarding permissions' view. */
-"LINKED_ONBOARDING_PERMISSIONS_EXPLANATION" = "Разрешение уведомлений позволяет вам узнавать о получении сообщений, звонков или информации о новых действиях в разговорах.";
-
-/* Title of the 'onboarding permissions' view. */
-"LINKED_ONBOARDING_PERMISSIONS_TITLE" = "Разрешить уведомления";
 
 /* Alert Title */
 "LINKING_DEVICE_FAILED_TITLE" = "Не удалось привязать устройство";
@@ -3887,10 +4241,10 @@
 "MESSAGE_METADATA_VIEW_NEVER_DISAPPEARS" = "Никогда";
 
 /* Label for the 'received date & time' field of the 'message metadata' view. */
-"MESSAGE_METADATA_VIEW_RECEIVED_DATE_TIME" = "Полученные";
+"MESSAGE_METADATA_VIEW_RECEIVED_DATE_TIME" = "Получено";
 
 /* Label for the 'sent date & time' field of the 'message metadata' view. */
-"MESSAGE_METADATA_VIEW_SENT_DATE_TIME" = "Отправленные";
+"MESSAGE_METADATA_VIEW_SENT_DATE_TIME" = "Отправлено";
 
 /* Label for the original filename of any attachment in the 'message metadata' view. */
 "MESSAGE_METADATA_VIEW_SOURCE_FILENAME" = "Имя файла";
@@ -3901,13 +4255,22 @@
 /* Context menu message preview accessibility label */
 "MESSAGE_PREVIEW" = "Предпросмотр сообщения";
 
+/* Sheet option for blocking a chat. In this case, the sheet appears when the user taps a button attached to a 'message request accepted' info message in-chat. */
+"MESSAGE_REQUEST_ACCEPTED_INFO_MESSAGE_SHEET_OPTION_BLOCK" = "Заблокировать";
+
+/* Sheet option for deleting a chat. In this case, the sheet appears when the user taps a button attached to a 'message request accepted' info message in-chat. */
+"MESSAGE_REQUEST_ACCEPTED_INFO_MESSAGE_SHEET_OPTION_DELETE" = "Удалить чат";
+
+/* Sheet option for reporting a chat as spam. In this case, the sheet appears when the user taps a button attached to a 'message request accepted' info message in-chat. */
+"MESSAGE_REQUEST_ACCEPTED_INFO_MESSAGE_SHEET_OPTION_SPAM" = "Сообщить о спаме";
+
 /* Action sheet action to confirm blocking a thread via a message request. */
 "MESSAGE_REQUEST_BLOCK_ACTION" = "Заблокировать";
 
 /* Action sheet action to confirm blocking and deleting a thread via a message request. */
 "MESSAGE_REQUEST_BLOCK_AND_DELETE_ACTION" = "Заблокировать и удалить";
 
-/* Action sheet action to confirm blocking and report spam for a thread via a message request. */
+/* Action sheet action to confirm blocking and reporting spam for a thread via a message request. */
 "MESSAGE_REQUEST_BLOCK_AND_REPORT_SPAM_ACTION" = "Сообщить о спаме и заблокировать";
 
 /* Action sheet message to confirm blocking a conversation via a message request. */
@@ -3941,25 +4304,28 @@
 "MESSAGE_REQUEST_LEAVE_AND_DELETE_GROUP_TITLE" = "Удалить и покинуть группу?";
 
 /* Banner label notifying user that a new message is from a user with the same name as an existing contact */
-"MESSAGE_REQUEST_NAME_COLLISON_BANNER_LABEL" = "Внимательно проверяйте запросы. Signal нашёл другого контакта с тем же именем.";
-
-/* A header string above a known contact's contact info */
-"MESSAGE_REQUEST_NAME_COLLISON_CONTACT_HEADER" = "Ваш контакт";
+"MESSAGE_REQUEST_NAME_COLLISION_BANNER_LABEL" = "У этого человека такое же имя, как и у другого контакта";
 
 /* A header string informing the user about name collisions in a message request */
 "MESSAGE_REQUEST_NAME_COLLISON_HEADER" = "Если вы не уверены, от кого этот запрос, просмотрите участников ниже и примите меры.";
 
-/* A header string above the requester's contact info */
-"MESSAGE_REQUEST_NAME_COLLISON_REQUESTER_HEADER" = "Запросить";
-
 /* A title string for a view that allows a user to review name collisions for an incoming message request */
-"MESSAGE_REQUEST_NAME_COLLISON_TITLE" = "Проверьте запрос";
+"MESSAGE_REQUEST_NAME_COLLISON_TITLE" = "Проверить запрос";
 
 /* A button that updates a known contact's information to resolve a name collision */
 "MESSAGE_REQUEST_NAME_COLLISON_UPDATE_CONTACT_ACTION" = "Обновить контакт";
 
-/* Button to allow user to review known name collisions with an incoming message request */
-"MESSAGE_REQUEST_REVIEW_NAME_COLLISION" = "Проверьте запрос";
+/* Action sheet message to confirm reporting a conversation as spam via a message request. */
+"MESSAGE_REQUEST_REPORT_CONVERSATION_MESSAGE" = "Signal будет уведомлен о том, что этот человек может рассылать спам. Signal не видит содержимое чатов.";
+
+/* Action sheet title to confirm reporting a conversation as spam via a message request. */
+"MESSAGE_REQUEST_REPORT_CONVERSATION_TITLE" = "Сообщить о спаме?";
+
+/* Action sheet action to confirm reporting a conversation as spam via a message request. */
+"MESSAGE_REQUEST_REPORT_SPAM_ACTION" = "Сообщить о спаме";
+
+/* String indicating that spam has been reported. */
+"MESSAGE_REQUEST_SPAM_REPORTED" = "Было сообщено о спаме.";
 
 /* String indicating that spam has been reported and the chat has been blocked. */
 "MESSAGE_REQUEST_SPAM_REPORTED_AND_BLOCKED" = "Было сообщено о спаме, и пользователь был заблокирован.";
@@ -4002,6 +4368,9 @@
 
 /* A prompt asking if the user wants to accept a conversation invite from a person whom they previously removed. Embeds {{contact name}}. */
 "MESSAGE_REQUEST_VIEW_REMOVED_CONTACT_PROMPT_FORMAT" = "Разрешить %1$@ отправлять вам сообщения и открыть ваше имя и фото этому человеку? Ранее вы удалили этого человека.";
+
+/* incoming message request button text which reports a conversation as spam */
+"MESSAGE_REQUEST_VIEW_REPORT_BUTTON" = "Сообщить…";
 
 /* A button used to unlock a blocked conversation. */
 "MESSAGE_REQUEST_VIEW_UNBLOCK_BUTTON" = "Разблокировать";
@@ -4072,9 +4441,6 @@
 /* Indicator that separates read from unread messages. */
 "MESSAGES_VIEW_UNREAD_INDICATOR" = "Новые сообщения";
 
-/* info message text in conversation view */
-"MISSED_AUDIO_CALL" = "Пропущенный голосовой звонок";
-
 /* info message text in conversation view for when a call was dropped because the contact is blocked in iOS settings */
 "MISSED_CALL_BLOCKED_SYSTEM_CONTACT" = "Пропущенный звонок от контакта, заблокированного в настройках телефона";
 
@@ -4087,14 +4453,14 @@
 /* Title for sheet shown when the user taps a missed call from a contact blocked in iOS settings. Embeds {{ Contact's name }} */
 "MISSED_CALL_BLOCKED_SYSTEM_SETTINGS_SHEET_TITLE" = "%1$@ заблокирован(-а) в настройках телефона";
 
-/* info message text in conversation view (use Apple's name for 'Do Not Disturb' on iOS 14 and older) */
-"MISSED_CALL_DO_NOT_DISTURB" = "Пропущенный вызов при включённом режиме «Не беспокоить»";
-
 /* info message text in conversation view (use Apple's name for 'Focus') */
 "MISSED_CALL_FOCUS_MODE" = "Пропущенный вызов при включённой функции «Фокусирование»";
 
 /* info message text in conversation view */
 "MISSED_VIDEO_CALL" = "Пропущенный видеозвонок";
+
+/* info message text in conversation view */
+"MISSED_VOICE_CALL" = "Пропущенный голосовой звонок";
 
 /* Alert body */
 "MISSING_CAMERA_PERMISSION_MESSAGE" = "Вы можете разрешить доступ к камере в приложении «Настройки», чтобы совершать видеозвонки в Signal.";
@@ -4119,6 +4485,9 @@
 
 /* A recovery suggestion shown as the body of an alert when try to link a new device & the user is already at the limit. */
 "MULTIDEVICE_PAIRING_MAX_RECOVERY" = "Вы достигли максимального количества устройств, которые в настоящее время можно связать с вашей учётной записью. Пожалуйста, удалите одно из устройств и повторите попытку.";
+
+/* Text for a toast confirming that the mic has been muted for a call. */
+"MUTE_CONFIRMATION_TOAST_LABEL" = "Микрофон выключен";
 
 /* Badge indicating that the user is muted. */
 "MUTED_BADGE" = "Без звука";
@@ -4153,8 +4522,8 @@
 /* Prompt to add to your story */
 "MY_STORY_TAP_TO_ADD" = "Нажмите, чтобы добавить";
 
-/* Format string describing a recent profile name change that led to a name collision. Embeds {{ %1$@ old profile name }} and {{ %2$@ current profile name }} */
-"NAME_COLLISION_RECENT_CHANGE_FORMAT_STRING" = "Недавно изменил(-а) своё имя профиля с %1$@ на %2$@.";
+/* Format string describing a recent profile name change that led to a name collision. Embeds {{ %1$@ current name, which may be a profile name or an address book name }}, {{ %2$@ old profile name }}, and {{ %3$@ current profile name }} */
+"NAME_COLLISION_RECENT_CHANGE_FORMAT_STRING" = "%1$@ недавно изменил(-а) своё имя профиля с %2$@ на %3$@";
 
 /* A button to skip a view. */
 "NAVIGATION_ITEM_SKIP_BUTTON" = "Пропустить";
@@ -4171,8 +4540,29 @@
 /* String representing both wifi and cellular interfaces */
 "NETWORK_INTERFACE_SET_WIFI_CELLULAR" = "Wi-Fi и сотовые данные";
 
+/* Accessibility hint describing the action of the new call button on the Calls Tab */
+"NEW_CALL_HINT" = "Выберите контакт или группу для начала нового звонка.";
+
+/* Accessibility label for the new call button on the Calls Tab */
+"NEW_CALL_LABEL" = "Новый звонок";
+
+/* Title for a long-press context menu action to message a given recipient or group, triggered from a recipient in the New Call contact picker */
+"NEW_CALL_MESSAGE_ACTION_TITLE" = "Сообщение";
+
+/* Title for the contact picker that allows new calls to be started */
+"NEW_CALL_TITLE" = "Новый звонок";
+
+/* Title for a long-press context menu action to start a video call, triggered from a recipient in the New Call contact picker */
+"NEW_CALL_VIDEO_CALL_ACTION_TITLE" = "Видеозвонок";
+
+/* Title for a long-press context menu action to start a voice call, triggered from a recipient in the New Call contact picker */
+"NEW_CALL_VOICE_CALL_ACTION_TITLE" = "Голосовой звонок";
+
 /* A label the cell that lets you add a new member to a group. */
 "NEW_CONVERSATION_FIND_BY_PHONE_NUMBER" = "Найти по номеру телефона";
+
+/* A label for the cell that lets you add a new member by their username */
+"NEW_CONVERSATION_FIND_BY_USERNAME" = "Поиск по имени пользователя";
 
 /* Label for the 'create new group' button. */
 "NEW_GROUP_BUTTON" = "Новая группа";
@@ -4213,11 +4603,8 @@
 /* Title for the 'new group story' view */
 "NEW_GROUP_STORY_VIEW_CONTROLLER_TITLE" = "Выберите группу";
 
-/* A label for the 'add by phone number' button in the 'new non-contact conversation' view */
-"NEW_NONCONTACT_CONVERSATION_VIEW_BUTTON" = "Поиск";
-
 /* Title for the 'new non-contact conversation' view. */
-"NEW_NONCONTACT_CONVERSATION_VIEW_TITLE" = "Найти пользователя";
+"NEW_NONCONTACT_CONVERSATION_VIEW_TITLE" = "Найти по номеру телефона";
 
 /* Title for the 'new private story' confirmation view */
 "NEW_PRIVATE_STORY_CONFIRM_TITLE" = "Назовите историю";
@@ -4261,8 +4648,35 @@
 /* Title for the new story sheet */
 "NEW_STORY_SHEET_TITLE" = "Выберите тип истории";
 
+/* Title for the table cell in conversation settings for presenting the profile nickname editor. */
+"NICKNAME_BUTTON_TITLE" = "Никнейм";
+
+/* The message for a prompt confirming that the user wants to delete the nickname and note. */
+"NICKNAME_EDITOR_DELETE_CONFIRMATION_MESSAGE" = "Этот никнейм и заметка будут навсегда удалены.";
+
+/* The title for a prompt confirming that the user wants to delete the nickname and note. */
+"NICKNAME_EDITOR_DELETE_CONFIRMATION_TITLE" = "Удалить никнейм?";
+
+/* The description below the title on the profile nickname editor view. */
+"NICKNAME_EDITOR_DESCRIPTION" = "Никнеймы и заметки сохраняются в Signal и защищаются сквозным шифрованием. Они видны только вам.";
+
+/* Placeholder text it the text field for the family name in the profile nickname editor. */
+"NICKNAME_EDITOR_FAMILY_NAME_PLACEHOLDER" = "Фамилия";
+
+/* Placeholder text it the text field for the given name in the profile nickname editor. */
+"NICKNAME_EDITOR_GIVEN_NAME_PLACEHOLDER" = "Имя";
+
+/* Placeholder text it the text box for the note in the profile nickname editor. */
+"NICKNAME_EDITOR_NOTE_PLACEHOLDER" = "Заметка";
+
+/* The title for the profile nickname editor view. */
+"NICKNAME_EDITOR_TITLE" = "Никнейм";
+
 /* Label for a button that lets users search for contacts by phone number */
 "NO_CONTACTS_SEARCH_BY_PHONE_NUMBER" = "Поиск контактов по номеру телефона";
+
+/* Label for a button that lets users search for contacts by username */
+"NO_CONTACTS_SEARCH_BY_USERNAME" = "Поиск контакта по имени пользователя";
 
 /* A string describing that the user has no groups in common with another user */
 "NO_GROUPS_IN_COMMON" = "Нет общих групп";
@@ -4305,6 +4719,12 @@
 
 /* Title for notification permission reminder megaphone */
 "NOTIFICATION_PERMISSION_REMINDER_MEGAPHONE_TITLE" = "Включить уведомления?";
+
+/* Shown as the body of an alert when notifications can't be shown due to an error. */
+"NOTIFICATIONS_ERROR_MESSAGE" = "Перезапустите ваш %1$@, если не получаете уведомления от Signal.";
+
+/* Shown as the title of an alert when notifications can't be shown due to an error. */
+"NOTIFICATIONS_ERROR_TITLE" = "Не удалось отобразить уведомления";
 
 /* No comment provided by engineer. */
 "NOTIFICATIONS_FOOTER_WARNING" = "Действия включают «Прочитано», «Ответить» и «Перезвонить».";
@@ -4381,11 +4801,20 @@
 /* warning to the user that linking a phone is not recommended */
 "ONBOARDING_MODE_SWITCH_WARNING_REGISTERING" = "Привязка вашего iPhone не рекомендована и ограничит основную функциональность.";
 
-/* Label for the 'give access' button in the 'onboarding permissions' view. */
-"ONBOARDING_PERMISSIONS_ENABLE_PERMISSIONS_BUTTON" = "Включите разрешения";
+/* Description of the 'Contacts' permission in the 'onboarding permissions' view. */
+"ONBOARDING_PERMISSIONS_CONTACTS_DESCRIPTION" = "Найдите людей, которых вы знаете. Ваши контакты зашифрованы и не видны Signal.";
 
-/* Explanation in the 'onboarding permissions' view. */
-"ONBOARDING_PERMISSIONS_EXPLANATION" = "Разрешения уведомлений и контактов позволяют вам узнавать, когда приходят сообщения, и помогают найти людей, которых вы знаете. Контакты шифруются, так что сервис Signal не может их видеть.";
+/* Title introducing the 'Contacts' permission in the 'onboarding permissions' view. */
+"ONBOARDING_PERMISSIONS_CONTACTS_TITLE" = "Контакты";
+
+/* Description of the 'Notifications' permission in the 'onboarding permissions' view. */
+"ONBOARDING_PERMISSIONS_NOTIFICATIONS_DESCRIPTION" = "Получать уведомления о новых сообщениях.";
+
+/* Title introducing the 'Notifications' permission in the 'onboarding permissions' view. */
+"ONBOARDING_PERMISSIONS_NOTIFICATIONS_TITLE" = "Уведомления";
+
+/* Preamble of the 'onboarding permissions' view. */
+"ONBOARDING_PERMISSIONS_PREAMBLE" = "Signal хотел бы запросить следующие разрешения.";
 
 /* Title of the 'onboarding permissions' view. */
 "ONBOARDING_PERMISSIONS_TITLE" = "Включите разрешения";
@@ -4493,13 +4922,10 @@
 "OUTDATED_PAYMENT_CLIENT_REMINDER_TEXT" = "Обновите Signal, чтобы и дальше использовать платежи. Ваш баланс может быть неактуальным.";
 
 /* info message text in conversation view */
-"OUTGOING_AUDIO_CALL" = "Исходящий голосовой звонок";
-
-/* info message text in conversation view */
-"OUTGOING_MISSED_AUDIO_CALL" = "Неотвеченный голосовой звонок";
-
-/* info message text in conversation view */
 "OUTGOING_MISSED_VIDEO_CALL" = "Неотвеченный видеозвонок";
+
+/* info message text in conversation view */
+"OUTGOING_MISSED_VOICE_CALL" = "Неотвеченный голосовой звонок";
 
 /* Button for action sheet shown when device transfer completes; quits the Signal app immediately (does not automatically relaunch, but the user may choose to relaunch). */
 "OUTGOING_TRANSFER_COMPLETE_EXIT_ACTION" = "Покинуть Signal";
@@ -4513,11 +4939,14 @@
 /* info message text in conversation view */
 "OUTGOING_VIDEO_CALL" = "Исходящий видеозвонок";
 
+/* info message text in conversation view */
+"OUTGOING_VOICE_CALL" = "Исходящий голосовой звонок";
+
 /* Header title for bank payment details screen */
-"PAYMENT_DETAILS_BANK_TITLE" = "Bank Transfer";
+"PAYMENT_DETAILS_BANK_TITLE" = "Банковский перевод";
 
 /* Header title for card payment details screen */
-"PAYMENT_DETAILS_CARD_TITLE" = "Credit or Debit Card";
+"PAYMENT_DETAILS_CARD_TITLE" = "Кредитная или дебетовая карта";
 
 /* Format for indicator of a payment amount converted to fiat currency with the freshness of the conversion rate. Embeds: {{ %1$@ the payment amount, %2$@ the freshness of the currency conversion rate }}. */
 "PAYMENTS_CURRENCY_CONVERSION_FRESHNESS_FORMAT" = "%1$@ в %2$@";
@@ -4583,6 +5012,9 @@
 "PAYMENTS_LOCK_FIRST_TIME_ACTION_SHEET_MESSAGE_FACEID" = "Добавьте дополнительный уровень безопасности и требование Face ID для перевода средств.";
 
 /* First time payments suggest payments lock message */
+"PAYMENTS_LOCK_FIRST_TIME_ACTION_SHEET_MESSAGE_OPTICID" = "Добавьте дополнительный уровень безопасности и требование Optic ID для перевода средств.";
+
+/* First time payments suggest payments lock message */
 "PAYMENTS_LOCK_FIRST_TIME_ACTION_SHEET_MESSAGE_PASSCODE" = "Добавьте дополнительный уровень безопасности и требование ввода кода доступа для перевода средств.";
 
 /* First time payments suggest payments lock message */
@@ -4596,6 +5028,9 @@
 
 /* Affirmative action title to enable payments lock */
 "PAYMENTS_LOCK_FIRST_TIME_AFFIRMATIVE_ACTION_FACEID" = "Для отправки требуется Face ID";
+
+/* Affirmative action title to enable payments lock */
+"PAYMENTS_LOCK_FIRST_TIME_AFFIRMATIVE_ACTION_OPTICID" = "Для отправки требуется Optic ID";
 
 /* Affirmative action title to enable payments lock */
 "PAYMENTS_LOCK_FIRST_TIME_AFFIRMATIVE_ACTION_PASSCODE" = "Требуется ввод кода доступа вашего телефона для перевода";
@@ -4883,13 +5318,13 @@
 "PHONE_NUMBER_DISCOVERABILITY_EVERYBODY" = "Все";
 
 /* A user friendly description of the 'everybody' phone number discoverability mode. */
-"PHONE_NUMBER_DISCOVERABILITY_EVERYBODY_DESCRIPTION" = "Любой, у кого есть в контактах ваш номер телефона, будет видеть вас в качестве контакта в Signal. Другие смогут найти вас по вашему номеру в поиске, когда начнут новый чат или создадут группу.";
+"PHONE_NUMBER_DISCOVERABILITY_EVERYBODY_DESCRIPTION" = "Любой, у кого есть ваш номер телефона, будет видеть, что вы в Signal, и сможет начать с вами чат.";
 
 /* A user friendly name for the 'nobody' phone number discoverability mode. */
 "PHONE_NUMBER_DISCOVERABILITY_NOBODY" = "Никто";
 
 /* A user friendly description of the 'nobody' phone number discoverability mode. */
-"PHONE_NUMBER_DISCOVERABILITY_NOBODY_DESCRIPTION" = "Никто не сможет найти вас в Signal по вашему номеру телефона.";
+"PHONE_NUMBER_DISCOVERABILITY_NOBODY_DESCRIPTION" = "Никто не сможет увидеть, что вы в Signal, если только вы не отправите этому человеку сообщение или не продолжите с ним чат.";
 
 /* A format for a label showing an example phone number. Embeds {{the example phone number}}. */
 "PHONE_NUMBER_EXAMPLE_FORMAT" = "Например: %1$@";
@@ -4898,16 +5333,16 @@
 "PHONE_NUMBER_SHARING_EVERYBODY" = "Все";
 
 /* A user friendly description of the 'everybody' phone number sharing mode. */
-"PHONE_NUMBER_SHARING_EVERYBODY_DESCRIPTION" = "Ваш номер телефона будет виден людям и группам, которым вы отправляете сообщения. Люди, у которых есть ваш номер в телефонных контактах, также увидят его в Signal.";
+"PHONE_NUMBER_SHARING_EVERYBODY_DESCRIPTION" = "Ваш номер телефона будет виден людям и группам, которым вы отправляете сообщения.";
 
 /* A user friendly name for the 'nobody' phone number sharing mode. */
 "PHONE_NUMBER_SHARING_NOBODY" = "Никто";
 
-/* A user friendly description of the 'nobody' phone number sharing mode. */
-"PHONE_NUMBER_SHARING_NOBODY_DESCRIPTION" = "Никто не будет видеть ваш номер телефона в Signal.";
+/* A user-friendly description of the 'nobody' phone number sharing mode when phone number discovery is set to 'everybody'. */
+"PHONE_NUMBER_SHARING_NOBODY_DESCRIPTION_DISCOVERABILITY_EVERYBODY" = "Ваш номер телефона никому не будет виден, если только он не сохранен в контактах телефона пользователя.";
 
-/* Format for phone number label with an index. Embeds {{Phone number label (e.g. 'home')}} and {{index, e.g. 2}}. */
-"PHONE_NUMBER_TYPE_AND_INDEX_NAME_FORMAT" = "%1$@ %2$@";
+/* A user-friendly description of the 'nobody' phone number sharing mode when phone number discovery is set to 'nobody'. */
+"PHONE_NUMBER_SHARING_NOBODY_DESCRIPTION_DISCOVERABILITY_NOBODY" = "Ваш номер телефона никому не будет виден.";
 
 /* Label for 'Home' phone numbers. */
 "PHONE_NUMBER_TYPE_HOME" = "Домашний";
@@ -4933,9 +5368,6 @@
 /* Label for 'Pager' phone numbers. */
 "PHONE_NUMBER_TYPE_PAGER" = "Пейджер";
 
-/* Label used when we don't what kind of phone number it is (e.g. mobile/work/home). */
-"PHONE_NUMBER_TYPE_UNKNOWN" = "Телефон";
-
 /* Label for 'Work' phone numbers. */
 "PHONE_NUMBER_TYPE_WORK" = "Рабочий";
 
@@ -4950,6 +5382,15 @@
 
 /* alert title */
 "PHOTO_CAPTURE_UNABLE_TO_INITIALIZE_CAMERA" = "Не удалось настроить камеру.";
+
+/* Button label for opening the chat on a sheet presented from photo capture view indicating that a username QR code was found. */
+"PHOTO_CAPTURE_USERNAME_QR_CODE_FOUND_CTA" = "Перейти к чату";
+
+/* Message for a sheet presented from photo capture view indicating that a username QR code was found. Embeds {{username}}. */
+"PHOTO_CAPTURE_USERNAME_QR_CODE_FOUND_MESSAGE_FORMAT" = "Начать чат с «%1$@»";
+
+/* Title for sheet presented from photo capture view indicating that a username QR code was found. Embeds {{username}}. */
+"PHOTO_CAPTURE_USERNAME_QR_CODE_FOUND_TITLE_FORMAT" = "Найдено: %1$@";
 
 /* alert title, generic error preventing user from capturing a video that is too long */
 "PHOTO_CAPTURE_VIDEO_SIZE_ERROR" = "Видео слишком длинное.";
@@ -5228,13 +5669,13 @@
 "PROFILE_SETTINGS_NAME_PLACEHOLDER" = "Имя";
 
 /* A message explaining that something is wrong with the username, on a sheet allowing the user to resolve the issue. */
-"PROFILE_SETTINGS_USERNAME_CORRUPTED_RESOLUTION_CONFIRMATION_ALERT_MESSAGE" = "Что-то пошло не так с вашим именем пользователя, оно больше не закреплено за вашей учётной записью.";
-
-/* Title for an action sheet button allowing users to create a new username when their current one is corrupted. */
-"PROFILE_SETTINGS_USERNAME_CORRUPTED_RESOLUTION_CREATE_NEW_USERNAME_ACTION_TITLE" = "Создать имя пользователя";
+"PROFILE_SETTINGS_USERNAME_CORRUPTED_RESOLUTION_CONFIRMATION_ALERT_MESSAGE" = "Что-то пошло не так с вашим именем пользователя, оно больше не закреплено за вашей учётной записью. Вы можете попробовать установить его снова или выбрать новое.";
 
 /* Title for an action sheet button allowing users to delete their corrupted username. */
 "PROFILE_SETTINGS_USERNAME_CORRUPTED_RESOLUTION_DELETE_USERNAME_ACTION_TITLE" = "Удалить имя пользователя";
+
+/* Title for an action sheet button allowing users to fix their username when their current one is corrupted. */
+"PROFILE_SETTINGS_USERNAME_CORRUPTED_RESOLUTION_FIX_ACTION_TITLE" = "Исправить сейчас";
 
 /* A message asking the user if they are sure they want to remove their username and explaining what will happen. Embeds {{ the user's current username }}. */
 "PROFILE_SETTINGS_USERNAME_DELETION_CONFIRMATION_ALERT_MESSAGE_FORMAT" = "Это приведёт к удалению имени пользователя и отключению QR-кода и ссылки. Имя пользователя «%1$@» будет доступно для других желающих. Вы уверены?";
@@ -5270,10 +5711,16 @@
 "PROFILE_VIEW_NO_CONNECTION" = "Профиль может быть обновлён только когда есть подключение к интернету.";
 
 /* Description of the user profile. */
-"PROFILE_VIEW_PROFILE_DESCRIPTION" = "Ваш профиль защищён сквозным шифрованием. Ваш профиль и его изменения будут видны вашим контактам, а также другим людям, когда вы начинаете или принимаете новые чаты.";
+"PROFILE_VIEW_PROFILE_DESCRIPTION" = "Ваш профиль и изменения в нём будут видны людям, которым вы отправляете сообщения, вашим контактам и группам.";
 
 /* Title for the profile view. */
 "PROFILE_VIEW_TITLE" = "Профиль";
+
+/* Footer below the usernames section of the profile settings explaining username visibility. */
+"PROFILE_VIEW_USERNAME_DESCRIPTION" = "Ваше имя пользователя, QR-код и ссылка не видны в вашем профиле. Делитесь вашим именем пользователя только с теми, кому доверяете.";
+
+/* Footer below the usernames section of the profile settings when a username has not been set. */
+"PROFILE_VIEW_USERNAME_UNSET_DESCRIPTION" = "Теперь люди могут писать вам сообщения, используя выбранное вами имя пользователя, поэтому вам не нужно делиться вашим номером телефона.";
 
 /* The title for the address of the signal proxy */
 "PROXY_ADDRESS" = "Адрес прокси";
@@ -5340,6 +5787,18 @@
 
 /* Indicates this message is a quoted reply to a video file. */
 "QUOTED_REPLY_TYPE_VIDEO" = "Видео";
+
+/* Label for a button to lower your raised hand in a call. */
+"RAISED_HANDS_LOWER_HAND_BUTTON" = "Опустить";
+
+/* A message appearing on the call view's raised hands toast indicating that another named member has raised their hand. */
+"RAISED_HANDS_TOAST_SINGLE_HAND_MESSAGE" = "%1$@ подняли руку";
+
+/* A compact member count on the call view's raised hands toast indicating that you and a number of other users raised a hand. Embeds {{number of other users}} */
+"RAISED_HANDS_TOAST_YOU_PLUS_OTHERS_COUNT" = "Вы + %1$d";
+
+/* A message appearing on the call view's raised hands toast indicating that you raised your own hand. */
+"RAISED_HANDS_TOAST_YOUR_HAND_MESSAGE" = "Вы подняли руку";
 
 /* The header used to indicate All reactions to a given message. Embeds {{number of reactions}} */
 "REACTION_DETAIL_ALL_FORMAT" = "Все · %1$@";
@@ -5581,14 +6040,17 @@
 /* Error message when sending a verification code via voice call failed, but resending via sms might succeed. */
 "REGISTRATION_VOICE_CODE_FAILED_TRY_SMS_ERROR" = "Мы не смогли отправить вам код проверки через аудиозвонок. Попробуйте получить код с помощью sms.";
 
-/* notification action */
-"REJECT_CALL_BUTTON_TITLE" = "Отклонить";
-
 /* No comment provided by engineer. */
 "RELAY_REGISTERED_ERROR_RECOVERY" = "Номер телефона, который вы пытаетесь зарегистрировать, уже зарегистрирован на другом сервере. Пожалуйста, отмените регистрацию там и попробуйте заново.";
 
+/* Button below the warning to fix a corrupted username. */
+"REMINDER_VIEW_USERNAME_CORRUPTED_FIX_BUTTON" = "Исправить сейчас";
+
 /* Label warning the user that something is wrong with their username. */
 "REMINDER_VIEW_USERNAME_CORRUPTED_WARNING" = "Что-то пошло не так с вашим именем пользователя, оно больше не закреплено за вашей учётной записью. Вы можете попробовать установить его снова или выбрать новое.";
+
+/* Button below the warning to fix a username link. */
+"REMINDER_VIEW_USERNAME_LINK_CORRUPTED_FIX_BUTTON" = "Исправить сейчас";
 
 /* Label warning the user that something is wrong with their username link. */
 "REMINDER_VIEW_USERNAME_LINK_CORRUPTED_WARNING" = "Что-то пошло не так с QR-кодом и ссылкой на ваше имя пользователя, они больше не действительны. Создайте новую ссылку, чтобы делиться ею с другими.";
@@ -5616,6 +6078,12 @@
 
 /* Button to return to current group call */
 "RETURN_CALL_PILL_BUTTON" = "Вернуться";
+
+/* Text for a toast confirming that ringing has been turned off for a call. */
+"RING_OFF_CONFIRMATION_TOAST_LABEL" = "Звонки отключены";
+
+/* Text for a toast confirming that ringing has been turned on for a call. */
+"RING_ON_CONFIRMATION_TOAST_LABEL" = "Звонки включены";
 
 /* button title to confirm adding a recipient when their safety number has recently changed */
 "SAFETY_NUMBER_CHANGED_CONFIRM_ADD_MEMBER_ACTION" = "Всё равно добавить";
@@ -5646,6 +6114,48 @@
 
 /* Action sheet heading */
 "SAFETY_NUMBERS_ACTIONSHEET_TITLE" = "Ваш код безопасности с %1$@ изменился. Возможно, вам стоит его подтвердить.";
+
+/* Title for Safety Tips button in thread details. */
+"SAFETY_TIPS_BUTTON_ACTION_TITLE" = "Советы по безопасности";
+
+/* Message contents for the crypto safety tip. */
+"SAFETY_TIPS_CRYPTO_BODY" = "Если кто-то, кого вы не знаете, присылает сообщения о криптовалюте (например, биткоине) или финансовых возможностях, будьте осторожны — скорее всего, это спам.";
+
+/* Message title describing the crypto safety tip. */
+"SAFETY_TIPS_CRYPTO_TITLE" = "Мошенничество с криптовалютой или деньгами";
+
+/* Message contents for the safety tip concerning fake businesses. */
+"SAFETY_TIPS_FAKE_BUSINESS_BODY" = "Будьте осторожны с компаниями или госучреждениями, которые связываются с вами. Сообщения, связанные с налоговыми органами, курьерами и т. д., могут быть спамом.";
+
+/* Message title describing the safety tip about unknown or fake businesses. */
+"SAFETY_TIPS_FAKE_BUSINESS_TITLE" = "Фальшивые предприятия и учреждения";
+
+/* Message describing safety tips for group conversations. */
+"SAFETY_TIPS_GROUPS_HEADER_MESSAGE" = "Внимательно проверяйте этот запрос. Ни один из ваших контактов или людей, с которыми вы общаетесь в чате, не является участником этой группы. Вот несколько моментов, на которые следует обратить внимание:";
+
+/* Title for Safety Tips education screen. */
+"SAFETY_TIPS_HEADER_TITLE" = "Советы по безопасности";
+
+/* Message describing safety tips for 1:1 conversations. */
+"SAFETY_TIPS_INDIVIDUAL_HEADER_MESSAGE" = "Будьте осторожны, принимая запросы на сообщения от незнакомых людей. Остерегайтесь:";
+
+/* Message contents for the unknown links in messages safety tip. */
+"SAFETY_TIPS_MESSAGE_LINKS_BODY" = "Будьте осторожны с сообщениями от незнакомых людей, которые содержат ссылки на веб-сайты. Никогда не переходите по ссылкам, полученным от людей, которым вы не доверяете.";
+
+/* Message title describing the safety tip about unknown links in messages. */
+"SAFETY_TIPS_MESSAGE_LINKS_TITLE" = "Сообщения со ссылками";
+
+/* Button that will show the next safety tip. */
+"SAFETY_TIPS_NEXT_TIP_BUTTON" = "Далее";
+
+/* Button that will show the previous safety tip. */
+"SAFETY_TIPS_PREVIOUS_TIP_BUTTON" = "Назад";
+
+/* Message contents for the vague message safety tip. */
+"SAFETY_TIPS_VAGUE_MESSAGE_BODY" = "Спамеры часто начинают с простого сообщения, например «Привет», чтобы привлечь вас. Если вы ответите, они могут завлечь вас ещё больше.";
+
+/* Message title describing the safety tip about vague messages. */
+"SAFETY_TIPS_VAGUE_MESSAGE_TITLE" = "Подозрительные или неуместные сообщения";
 
 /* label presented once scanning (camera) view is visible. */
 "SCAN_CODE_INSTRUCTIONS" = "Просканируйте QR-код на устройстве собеседника.";
@@ -5810,46 +6320,46 @@
 "SEPA_DONATION_EMAIL_LABEL" = "Email";
 
 /* Users can donate to Signal with a bank account. This is placeholder text for the email field before the user starts typing. */
-"SEPA_DONATION_EMAIL_PLACEHOLDER" = "Email Address";
+"SEPA_DONATION_EMAIL_PLACEHOLDER" = "Адрес электронной почты";
 
 /* SEPA bank account donation error for insufficient funds. */
-"SEPA_DONATION_ERROR_INSUFFICIENT_FUNDS" = "The bank account provided has insufficient funds to complete this purchase, try again or contact your bank for more information.";
+"SEPA_DONATION_ERROR_INSUFFICIENT_FUNDS" = "На вашем счёте недостаточно средств, чтобы завершить эту покупку. Попробуйте ещё раз или свяжитесь со своим банком для получения дополнительной информации.";
 
 /* SEPA bank account donation error for missing or incorrect mandate information. */
-"SEPA_DONATION_ERROR_NOT_AUTHORIZED" = "An error occurred while processing this payment, please try again.";
+"SEPA_DONATION_ERROR_NOT_AUTHORIZED" = "Произошла ошибка при обработке платежа. Пожалуйста, попробуйте ещё раз.";
 
 /* SEPA bank account donation error for the account details not being able to be processed. */
-"SEPA_DONATION_ERROR_NOT_PROCESSED" = "The bank details provided could not be processed, contact your bank for more information.";
+"SEPA_DONATION_ERROR_NOT_PROCESSED" = "Указанные банковские реквизиты не могут быть обработаны. Обратитесь в свой банк для получения дополнительной информации.";
 
 /* SEPA bank account donation error for unspecified decline failures. */
-"SEPA_DONATION_ERROR_OTHER" = "Verify your bank details are correct and try again. If the problem continues, contact your bank.";
+"SEPA_DONATION_ERROR_OTHER" = "Проверьте правильность ваших банковских реквизитов и попробуйте ещё раз. Если проблема не решается, свяжитесь со своим банком.";
 
 /* SEPA bank account donation error for the payment not being authorizing by the account holder. */
-"SEPA_DONATION_ERROR_PAYMENT_NOT_AUTHORIZED" = "This payment was revoked by the account holder and could not be processed. You haven’t been charged.";
+"SEPA_DONATION_ERROR_PAYMENT_NOT_AUTHORIZED" = "Данный платёж был отозван владельцем счёта и не был обработан. Средства не были списаны.";
 
 /* Users can donate to Signal with a bank account. If their internation bank account number (IBAN) contains characters other than letters and numbers, this error will be shown. Try to use a short string to make space in the UI. */
-"SEPA_DONATION_IBAN_INVALID_CHARACTERS_ERROR" = "IBAN can only contain A-Z and 0-9";
+"SEPA_DONATION_IBAN_INVALID_CHARACTERS_ERROR" = "IBAN может содержать только буквы A-Z и цифры 0-9";
 
 /* Users can donate to Signal with a bank account. If their internation bank account number (IBAN) does not pass validation, this error will be shown. Try to use a short string to make space in the UI. */
-"SEPA_DONATION_IBAN_INVALID_CHECK_ERROR" = "Invalid IBAN number";
+"SEPA_DONATION_IBAN_INVALID_CHECK_ERROR" = "Неверный номер IBAN";
 
 /* Users can donate to Signal with a bank account. If their internation bank account number (IBAN) has an unsupported country code, this error will be shown. Try to use a short string to make space in the UI. */
-"SEPA_DONATION_IBAN_INVALID_COUNTRY_ERROR" = "IBAN country code is not supported";
+"SEPA_DONATION_IBAN_INVALID_COUNTRY_ERROR" = "Код страны IBAN не поддерживается";
 
 /* Users can donate to Signal with a bank account. This is the label for IBAN (internation bank account number) field on that screen. */
 "SEPA_DONATION_IBAN_LABEL" = "IBAN";
 
 /* Users can donate to Signal with a bank account. If their internation bank account number (IBAN) is too long, this error will be shown. Try to use a short string to make space in the UI. */
-"SEPA_DONATION_IBAN_TOO_LONG_ERROR" = "IBAN is too long";
+"SEPA_DONATION_IBAN_TOO_LONG_ERROR" = "IBAN слишком длинный";
 
 /* Users can donate to Signal with a bank account. If their internation bank account number (IBAN) is too long, this error will be shown. Try to use a short string to make space in the UI. */
-"SEPA_DONATION_IBAN_TOO_SHORT_ERROR" = "IBAN is too short";
+"SEPA_DONATION_IBAN_TOO_SHORT_ERROR" = "IBAN слишком короткий";
 
 /* Users can donate to Signal with a bank account. This is the label for name field on that screen. */
-"SEPA_DONATION_NAME_LABEL" = "Name";
+"SEPA_DONATION_NAME_LABEL" = "Имя";
 
 /* Users can donate to Signal with a bank account. This is placeholder text for the name field before the user starts typing. */
-"SEPA_DONATION_NAME_PLACEHOLDER" = "Name on Bank Account";
+"SEPA_DONATION_NAME_PLACEHOLDER" = "Имя владельца банковского счёта";
 
 /* Description for the session refresh alert */
 "SESSION_REFRESH_ALERT_MESSAGE" = "Signal использует сквозное шифрование, и ему иногда бывает нужно обновить сессию вашего чата. Это не затрагивает безопасность чата, но вы могли пропустить сообщение от этого собеседника. Вы можете попросить его отправить сообщение заново.";
@@ -5936,10 +6446,10 @@
 "SETTINGS_APPEARANCE_APP_ICON" = "Значок приложения";
 
 /* Footer for avatar section in appearance settings */
-"SETTINGS_APPEARANCE_AVATAR_FOOTER" = "Отображать фотографии системных контактов, если они доступны.";
+"SETTINGS_APPEARANCE_AVATAR_FOOTER" = "Отображать фотографии контактов телефона, если они доступны.";
 
 /* Title for switch to toggle preference between contact and profile avatars */
-"SETTINGS_APPEARANCE_AVATAR_PREFERENCE_LABEL" = "Фотографии системных контактов";
+"SETTINGS_APPEARANCE_AVATAR_PREFERENCE_LABEL" = "Фотографии контактов телефона";
 
 /* The title for the theme section in the appearance settings. */
 "SETTINGS_APPEARANCE_THEME_TITLE" = "Тема";
@@ -5960,7 +6470,7 @@
 "SETTINGS_BLOCK_LIST_NO_SEARCH_RESULTS" = "Поиск не дал результатов";
 
 /* Label for the block list section of the settings view */
-"SETTINGS_BLOCK_LIST_TITLE" = "Пользователь заблокирован";
+"SETTINGS_BLOCK_LIST_TITLE" = "Заблокированные пользователи";
 
 /* Table cell label */
 "SETTINGS_CALLING_HIDES_IP_ADDRESS_PREFERENCE_TITLE" = "Всегда ретранслировать звонки";
@@ -6083,7 +6593,7 @@
 "SETTINGS_DONATE" = "Поддержите Signal";
 
 /* Title for help button and help pages in app settings. */
-"SETTINGS_HELP" = "Помощь";
+"SETTINGS_HELP" = "Поддержка";
 
 /* Settings table view cell label */
 "SETTINGS_INVITE_TITLE" = "Пригласить друзей";
@@ -6323,7 +6833,7 @@
 "SETTINGS_PAYMENTS_PASSPHRASE_DISCARD_CONFIRMATION_BUTTON" = "Пропустить фразу для восстановления";
 
 /* Message of confirmation alert when discarding recovery phrase. */
-"SETTINGS_PAYMENTS_PASSPHRASE_DISCARD_CONFIRMATION_MESSAGE" = "Фраза для восстановления позволит вам восстановить ваши средства, если что-нибудь случится. Мы настоятельно рекомендуем вам сохранить её.";
+"SETTINGS_PAYMENTS_PASSPHRASE_DISCARD_CONFIRMATION_MESSAGE" = "Your recovery phrase lets you restore your balance in a worst-case scenario. We strongly recommend you save it.";
 
 /* Title of confirmation alert when discarding recovery phrase. */
 "SETTINGS_PAYMENTS_PASSPHRASE_DISCARD_CONFIRMATION_TITLE" = "Продолжить без сохранения?";
@@ -6400,6 +6910,9 @@
 /* Double reminder action sheet title in Payments Lock Prompt view for Face ID. */
 "SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_DOUBLE_REMINDER_TITLE_FACEID" = "Пропустить включение Face ID?";
 
+/* Double reminder action sheet title in Payments Lock Prompt view for Optic ID. */
+"SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_DOUBLE_REMINDER_TITLE_OPTICID" = "Пропустить включение Optic ID?";
+
 /* Double reminder action sheet title in Payments Lock Prompt view for Passcode. */
 "SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_DOUBLE_REMINDER_TITLE_PASSCODE" = "Пропустить включение ввода кода доступа?";
 
@@ -6409,6 +6922,9 @@
 /* Enable Button title in Payments Lock Prompt view for Face ID. */
 "SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_ENABLE_BUTTON_FACEID" = "Используйте Face ID";
 
+/* Enable Button title in Payments Lock Prompt view for Optic ID. */
+"SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_ENABLE_BUTTON_OPTICID" = "Использовать Optic ID";
+
 /* Enable Button title in Payments Lock Prompt view for Passcode. */
 "SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_ENABLE_BUTTON_PASSCODE" = "Использовать код доступа";
 
@@ -6417,6 +6933,9 @@
 
 /* Explanation of 'payments lock' with Face ID in the 'payments lock prompt' view shown after payments activation. */
 "SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_EXPLANATION_FACEID" = "Предотвратите доступ человека, завладевшего вашим телефоном, к вашим денежным средствам, включив функцию Face ID. Вы можете отключить эту опцию в настройках.";
+
+/* Explanation of 'payments lock' with Optic ID in the 'payments lock prompt' view shown after payments activation. */
+"SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_EXPLANATION_OPTICID" = "Помогите предотвратить доступ к вашим денежным средствам в случае, когда ваш телефон оказался в чужих руках, включив Optic ID. Вы можете отключить эту опцию в настройках.";
 
 /* Explanation of 'payments lock' with passcode in the 'payments lock prompt' view shown after payments activation. */
 "SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_EXPLANATION_PASSCODE" = "Предотвратите доступ человека, завладевшего вашим телефоном, к вашим денежным средствам с помощью кода доступа. Вы можете отключить эту опцию в настройках.";
@@ -6459,9 +6978,6 @@
 
 /* Label for the current balance in the 'deactivate payments' settings. */
 "SETTINGS_PAYMENTS_REMAINING_BALANCE" = "Оставшиеся средства";
-
-/* Label for the 'remove payments details' button in the app settings. */
-"SETTINGS_PAYMENTS_REMOVE_BUTTON" = "Удалить";
 
 /* Label for 'restore payments' button in the payments settings. */
 "SETTINGS_PAYMENTS_RESTORE_PAYMENTS_BUTTON" = "Восстановить платежный аккаунт";
@@ -6534,6 +7050,9 @@
 
 /* Caption for footer label beneath the payments lock privacy toggle for faceid biometry. */
 "SETTINGS_PAYMENTS_SECURITY_DETAIL_FACEID" = "Для перевода средств требуется Face ID.";
+
+/* Caption for footer label beneath the payments lock privacy toggle for opticid biometry */
+"SETTINGS_PAYMENTS_SECURITY_DETAIL_OPTICID" = "Для перевода средств требуется Optic ID.";
 
 /* Caption for footer label beneath the payments lock privacy toggle for a biometry type that is a passcode. */
 "SETTINGS_PAYMENTS_SECURITY_DETAIL_PASSCODE" = "Требуется ввод кода доступа вашего телефона для перевода средств.";
@@ -6637,6 +7156,15 @@
 /* Label for the payments wallet address. */
 "SETTINGS_PAYMENTS_WALLET_ADDRESS_LABEL" = "Адрес вашего кошелька";
 
+/* A toast that displays when the user attempts to set discoverability to 'nobody' when their phone number sharing is set to 'everybody', which is not allowed. */
+"SETTINGS_PHONE_NUMBER_DISCOVERABILITY_DISABLED_TOAST" = "Чтобы изменить эту настройку, установите для параметра «Кто может видеть мой номер» значение «Никто».";
+
+/* The description for a sheet asking for confirmation that the user wants to set their phone number discoverability to 'nobody'. */
+"SETTINGS_PHONE_NUMBER_DISCOVERABILITY_NOBODY_CONFIRMATION_DESCRIPTION" = "Если вы установите для параметра «Кто может найти меня по номеру» значение «Никто», найти вас в Signal будет сложнее.";
+
+/* The title for a sheet asking for confirmation that the user wants to set their phone number discoverability to 'nobody'. */
+"SETTINGS_PHONE_NUMBER_DISCOVERABILITY_NOBODY_CONFIRMATION_TITLE" = "Вы уверены?";
+
 /* The title for the phone number discoverability setting section. */
 "SETTINGS_PHONE_NUMBER_DISCOVERABILITY_TITLE" = "Кто может найти меня по номеру?";
 
@@ -6734,6 +7262,9 @@
 "SETTINGS_SECURITY_DETAIL_FACEID" = "Использовать Face ID для разблокирования Signal.";
 
 /* Section footer */
+"SETTINGS_SECURITY_DETAIL_OPTICID" = "Использовать Optic ID для разблокирования Signal.";
+
+/* Section footer */
 "SETTINGS_SECURITY_DETAIL_PASSCODE" = "Использовать код-пароль вашего устройства iOS для разблокирования Signal.";
 
 /* Section footer */
@@ -6750,9 +7281,6 @@
 
 /* Setting for enabling & disabling iOS contact sharing. */
 "SETTINGS_SHARING_SUGGESTIONS" = "Делиться контактами с iOS";
-
-/* Footer for setting for enabling & disabling contact sharing with iOS. */
-"SETTINGS_SHARING_SUGGESTIONS_FOOTER" = "Предоставить iOS доступ к контактам и чатам Signal для таких функций, как предложения поделиться.";
 
 /* Footer for setting for enabling & disabling contact and notification sharing with iOS. */
 "SETTINGS_SHARING_SUGGESTIONS_NOTIFICATIONS_FOOTER" = "Предоставить iOS доступ к контактам и чатам Signal для таких функций, как предложения поделиться и уведомления.";
@@ -6829,6 +7357,9 @@
 /* notification action */
 "SHOW_THREAD_BUTTON_TITLE" = "Показать чат";
 
+/* Shown in the header when the user hasn't provided a custom name for a call. */
+"SIGNAL_CALL" = "Звонок Signal";
+
 /* body sent to contacts when inviting to Install Signal */
 "SMS_INVITE_BODY" = "Предлагаю установить Signal! Вот ссылка:";
 
@@ -6864,6 +7395,12 @@
 
 /* Title for the captcha view controller */
 "SPAM_CAPTCHA_VIEW_CONTROLLER" = "Пройдите проверку";
+
+/* Text for a toast confirming that the speakerphone has been turned off for a call. */
+"SPEAKERPHONE_OFF_CONFIRMATION_TOAST_LABEL" = "Звук выключен";
+
+/* Text for a toast confirming that the speakerphone has been turned on for a call. */
+"SPEAKERPHONE_ON_CONFIRMATION_TOAST_LABEL" = "Звук включён";
 
 /* The name for the sticker category 'Featured' */
 "STICKER_CATEGORY_FEATURED_NAME" = "Избранные";
@@ -7090,8 +7627,11 @@
 /* inbox and notification text for a reaction to a story authored by the local user. Embeds {{reaction emoji}} */
 "STORY_REACTION_LOCAL_AUTHOR_PREVIEW_FORMAT" = "Отреагировал(-а) %1$@ на вашу историю";
 
-/* quote text for a reaction to a story. Embeds {{reaction emoji}} */
-"STORY_REACTION_QUOTE_FORMAT" = "Отреагировал(-а) %1$@ на историю";
+/* quote text for a reaction to a story by the user (the header on the bubble says \"You\"). Embeds {{reaction emoji}} */
+"STORY_REACTION_QUOTE_FORMAT_SECOND_PERSON" = "Отреагировал(-а) %1$@ на историю";
+
+/* quote text for a reaction to a story by some other user (the header on the bubble says their name, e.g. \"Bob\"). Embeds {{reaction emoji}} */
+"STORY_REACTION_QUOTE_FORMAT_THIRD_PERSON" = "Отреагировал(-а) %1$@ на историю";
 
 /* inbox and notification text for a reaction to a story authored by another user. Embeds {{ %1$@ reaction emoji, %2$@ story author name }} */
 "STORY_REACTION_REMOTE_AUTHOR_PREVIEW_FORMAT" = "Отреагировал(-а) %1$@ на историю %2$@";
@@ -7099,8 +7639,11 @@
 /* Button for replying to a story with no existing replies. */
 "STORY_REPLY_BUTTON" = "Ответить";
 
-/* Text indicating a story has been reacted to */
-"STORY_REPLY_REACTION" = "Отреагировал(-а) на историю";
+/* Text indicating you reacted to a story (the header on the bubble says \"You\") */
+"STORY_REPLY_REACTION_SECOND_PERSON" = "Отреагировал(-а) на историю";
+
+/* Text indicating someone else reacted to a story (the header on the bubble says their name, e.g. \"Bob\") */
+"STORY_REPLY_REACTION_THIRD_PERSON" = "Отреагировал(-а) на историю";
 
 /* placeholder text for replying to a story */
 "STORY_REPLY_TEXT_FIELD_PLACEHOLDER" = "Ответить";
@@ -7154,7 +7697,7 @@
 "STORY_SETTINGS_LEARN_MORE_SHEET_BULLET_2" = "Приняв запрос на общение";
 
 /* Third bullet point for the explainer sheet for signal connections */
-"STORY_SETTINGS_LEARN_MORE_SHEET_BULLET_3" = "Имея их в своих системных контактах";
+"STORY_SETTINGS_LEARN_MORE_SHEET_BULLET_3" = "Имея их в своих контактах телефона";
 
 /* Footer for the explainer sheet for signal connections */
 "STORY_SETTINGS_LEARN_MORE_SHEET_FOOTER" = "Ваши контакты могут видеть ваше имя и фото, а также то, что вы посылаете в «Мою историю», если вы не скроете её от них.";
@@ -7192,8 +7735,8 @@
 /* Text indicating that the user has views turned off */
 "STORY_VIEWS_OFF" = "Просмотры отключены";
 
-/* Toast indicating that the user has copied their subscriber ID. */
-"SUBSCRIPTION_SUBSCRIBER_ID_COPIED_TO_CLIPBOARD" = "Идентификатор подписчика был скопирован в буфер обмена.";
+/* Toast indicating that the user has copied their subscriber ID. (Externally referred to as donor ID) */
+"SUBSCRIPTION_SUBSCRIBER_ID_COPIED_TO_CLIPBOARD" = "Идентификатор донора был скопирован в буфер обмена";
 
 /* Alert body after verifying privacy with {{other user's name}} */
 "SUCCESSFUL_VERIFICATION_DESCRIPTION" = "Ваш код безопасности с %1$@ совпал. Вы можете отметить этот контакт как подтверждённый.";
@@ -7273,20 +7816,23 @@
 /* Action sheet title for Couldn't Add Badge sheet */
 "SUSTAINER_VIEW_CANT_ADD_BADGE_TITLE" = "Не удалось добавить значок";
 
+/* Action sheet title for Error Authorizing Payment sheet */
+"SUSTAINER_VIEW_ERROR_AUTHORIZING_PAYMENT_TITLE" = "Ошибка авторизации платежа";
+
 /* Action sheet title for Error Processing Payment sheet */
-"SUSTAINER_VIEW_ERROR_PROCESSING_PAYMENT_TITLE" = "Error Processing Donation";
+"SUSTAINER_VIEW_ERROR_PROCESSING_PAYMENT_TITLE" = "Ошибка обработки пожертвования";
 
 /* Pricing text for sustainer view badges, embeds {{price}} */
 "SUSTAINER_VIEW_PRICING" = "%1$@/месяц";
 
 /* Loading indicator on the sustainer view */
-"SUSTAINER_VIEW_PROCESSING_PAYMENT" = "Processing donation...";
+"SUSTAINER_VIEW_PROCESSING_PAYMENT" = "Обработка пожертвования...";
 
 /* Renewal date text for sustainer view level, embeds {{renewal date}} */
 "SUSTAINER_VIEW_RENEWAL" = "Продлится %1$@";
 
 /* Action sheet message for Still Processing Badge sheet */
-"SUSTAINER_VIEW_STILL_PROCESSING_BADGE_MESSAGE" = "Your donation is still being processed. This can take a few minutes depending on your connection.";
+"SUSTAINER_VIEW_STILL_PROCESSING_BADGE_MESSAGE" = "Ваше пожертвование всё ещё обрабатывается. Это может занять несколько минут в зависимости от вашего соединения.";
 
 /* Toast indicating that the subscription has been cancelled */
 "SUSTAINER_VIEW_SUBSCRIPTION_CANCELLED" = "Ваша подписка была отменена";
@@ -7453,9 +7999,6 @@
 /* Message shown in conversation view that offers to block an unknown user. */
 "UNKNOWN_CONTACT_BLOCK_OFFER" = "Пользователя нет в вашем списке контактов. Заблокировать его?";
 
-/* Displayed if for some reason we can't determine a contacts phone number *or* name */
-"UNKNOWN_CONTACT_NAME" = "Неизвестный контакт";
-
 /* Info message recorded in conversation history when local user receives an unknown message from a linked device and needs to upgrade. */
 "UNKNOWN_PROTOCOL_VERSION_NEED_TO_UPGRADE_FROM_LINKED_DEVICE" = "Одно из ваших устройств отправило сообщение, которое не может быть обработано или отображено, поскольку оно использует новую функцию Signal.";
 
@@ -7507,6 +8050,9 @@
 /* Alert title when unlinking device fails */
 "UNLINKING_FAILED_ALERT_TITLE" = "Signal не смог отвязать ваше устройство.";
 
+/* Text for a toast confirming that the mic has been unmuted for a call. */
+"UNMUTE_CONFIRMATION_TOAST_LABEL" = "Микрофон включён";
+
 /* Pressing this button un-pins a thread */
 "UNPIN_ACTION" = "Открепить";
 
@@ -7543,17 +8089,29 @@
 /* Explanation of when you should use a signal proxy */
 "USE_PROXY_EXPLANATION" = "Используйте прокси, только если вы не можете подключиться к Signal через мобильные данные или Wi-Fi.";
 
-/* Description of how to update discovery */
-"USERNAME_DISCOVERY_DESCRIPTION" = "Выключите функцию обнаружения номера телефона в разделе Настройки > Конфиденциальность > Номер телефона > Кто может найти мой номер, чтобы использовать ваше имя пользователя в качестве основного способа связи с вами.";
+/* Description of username links and QR codes on the username education sheet */
+"USERNAME_EDUCATION_LINK_DESCRIPTION" = "Именам пользователей присваивается уникальная ссылка, которой вы можете поделиться с друзьями, чтобы они могли начать чат с вами.";
 
-/* Description of username discriminator digits */
-"USERNAME_DISCRIMINATOR_DESCRIPTION" = "Имя пользователя состоит из набора цифр и не указывается в профиле";
+/* Title for the username links and QR codes section on the username education sheet */
+"USERNAME_EDUCATION_LINK_TITLE" = "QR-коды и ссылки";
+
+/* Description of phone number privacy on the username education sheet */
+"USERNAME_EDUCATION_PRIVACY_DESCRIPTION" = "Ваш номер телефона больше не будет виден в чатах. Если ваш номер сохранён в контактах друга, он всё равно его увидит.";
+
+/* Title for phone number privacy section of the username education sheet */
+"USERNAME_EDUCATION_PRIVACY_TITLE" = "Конфиденциальность номера телефона";
+
+/* Label for the 'set up' button on the username education sheet */
+"USERNAME_EDUCATION_SET_UP_BUTTON" = "Настройте своё имя пользователя";
 
 /* Title to set up signal username */
-"USERNAME_EDUCATION_TITLE" = "Настройте своё имя пользователя Signal";
+"USERNAME_EDUCATION_TITLE" = "Новые способы связи";
 
-/* Description of username link */
-"USERNAME_LINK_DESCRIPTION" = "Каждому имени пользователя присвоена уникальная ссылка, которой вы можете поделиться со своими друзьями, чтобы они могли начать чат с вами";
+/* Description of usernames on the username education sheet */
+"USERNAME_EDUCATION_USERNAME_DESCRIPTION" = "Теперь люди могут писать вам сообщения, используя выбранное вами имя пользователя, поэтому вам не нужно делиться вашим номером телефона. Имена пользователей не видны в вашем профиле.";
+
+/* Title for usernames section on the username education sheet */
+"USERNAME_EDUCATION_USERNAME_TITLE" = "Имена пользователей";
 
 /* A title for a view that allows you to pick a color for a QR code for your username link. */
 "USERNAME_LINK_QR_CODE_COLOR_PICKER_VIEW_TITLE_COLOR" = "Цвет";
@@ -7564,14 +8122,17 @@
 /* Text for a label explaining what the username link and QR code give others access to. */
 "USERNAME_LINK_QR_CODE_VIEW_DISCLAIMER_LABEL" = "Передавайте ваш QR-код и ссылку только тем людям, которым вы доверяете. При передаче другие смогут увидеть ваше имя пользователя и начать чат с вами.";
 
+/* Text presented in an action sheet notifying the user their qr code and link are not set. */
+"USERNAME_LINK_QR_CODE_VIEW_LINK_NOT_SET" = "QR-код и ссылка не установлены. Проверьте ваше подключение к интернету и попробуйте ещё раз.";
+
 /* Title for a button that allows users to reset their username link and QR code. */
 "USERNAME_LINK_QR_CODE_VIEW_RESET_BUTTON_TITLE" = "Сбросить";
 
 /* A message explaining what will happen if the user resets their QR code. */
-"USERNAME_LINK_QR_CODE_VIEW_RESET_SHEET_MESSAGE" = "При сбросе QR-кода существующий QR-код и ссылка перестанут работать.";
+"USERNAME_LINK_QR_CODE_VIEW_RESET_SHEET_MESSAGE" = "При сбросе QR-кода и ссылки ваш существующий QR-код и ссылка перестанут работать.";
 
-/* A label indicating that the username link is being reset. */
-"USERNAME_LINK_QR_CODE_VIEW_RESETTING_LINK_LABEL" = "Сброс ссылки...";
+/* Text presenting an action sheet notifying the user their QR code and link were reset. */
+"USERNAME_LINK_QR_CODE_VIEW_RESET_SUCCESSFUL" = "Ваш QR-код и ссылка были сброшены, и были созданы новый QR-код и ссылка.";
 
 /* Title for a button to share your username link QR code. Lowercase styling is intentional. */
 "USERNAME_LINK_QR_CODE_VIEW_SHARE_BUTTON" = "Поделиться";
@@ -7585,6 +8146,9 @@
 /* Text presented in a toast notifying the user that their username was copied to the system clipboard. */
 "USERNAME_LINK_QR_CODE_VIEW_USERNAME_COPIED" = "Имя пользователя скопировано";
 
+/* Text presented in a toast notifying the user that their username link was copied to the system clipboard. */
+"USERNAME_LINK_QR_CODE_VIEW_USERNAME_LINK_COPIED" = "Ссылка скопирована";
+
 /* Text providing instructions on how to use the username link QR code scanning. */
 "USERNAME_LINK_SCAN_QR_CODE_INSTRUCTIONS_LABEL" = "Просканируйте QR-код на устройстве собеседника.";
 
@@ -7593,6 +8157,9 @@
 
 /* Text describing what you can do with a username link, on a sheet for sharing it. */
 "USERNAME_LINK_SHARE_SHEET_HEADER" = "Любой, у кого есть эта ссылка, может видеть ваше имя пользователя и начать чат с вами. Делитесь информацией только с теми, кому доверяете.";
+
+/* Title for a button to open a sheet for copying and sharing your username link. */
+"USERNAME_LINK_SHEET_BUTTON" = "ссылка";
 
 /* Subtitle for a tooltip describing ways to share your username. */
 "USERNAME_LINK_TOOLTIP_SUBTITLE" = "Позвольте другим начать чат с вами, поделившись вашим уникальным QR-кодом или ссылкой.";
@@ -7618,20 +8185,29 @@
 /* Title for an action sheet indicating that the given username is not associated with a registered Signal account. */
 "USERNAME_LOOKUP_NOT_FOUND_TITLE" = "Пользователь не найден";
 
+/* Instructions that appear below the username QR code on a sharable exported image. */
+"USERNAME_QR_CODE_EXPORT_INSTRUCTIONS" = "Просканируйте этот QR-код с помощью вашего телефона, чтобы начать чат со мной в Signal.";
+
+/* A message in a toast informing the user their username, link, and QR code have successfully been reset. Embeds {{ the user's new username }}. */
+"USERNAME_RESET_SUCCESSFUL_TOAST" = "Ваш QR-код и ссылка были сброшены, а ваше имя пользователя — %1$@";
+
 /* An error message shown when the user has typed a username that starts with a digit, which is invalid. */
-"USERNAME_SELECTION_CANNOT_START_WITH_DIGIT_ERROR_MESSAGE" = "Имя пользователя не может начинаться с цифры.";
+"USERNAME_SELECTION_CANNOT_START_WITH_DIGIT_ERROR_MESSAGE" = "Имя пользователя не может начинаться с цифры";
 
 /* A message explaining the side effects of changing your username. */
 "USERNAME_SELECTION_CHANGE_USERNAME_CONFIRMATION_MESSAGE" = "При изменении имени пользователя ваши существующие QR-код и ссылка будут сброшены. Вы уверены?";
 
 /* Footer text below a text field in which users type their desired username, which explains how usernames work. Embeds a {{ \"learn more\" link. }}. */
-"USERNAME_SELECTION_EXPLANATION_FOOTER_FORMAT" = "Имена пользователей позволяют другим пользователям отправлять вам сообщения без вашего номера телефона. Они соединены с набором цифр, чтобы сохранить ваш адрес в тайне. %1$@";
+"USERNAME_SELECTION_EXPLANATION_FOOTER_FORMAT" = "Именам пользователей всегда придан набор цифр. %1$@";
 
 /* When the user has entered text into a text field for setting their username, a header displays the username text. This string is shown in the header when the text field is empty. */
 "USERNAME_SELECTION_HEADER_TEXT_FOR_PLACEHOLDER" = "Выберите ваше имя пользователя";
 
 /* An error message shown when the user has typed a username that has invalid characters. The character ranges \"a-z\", \"0-9\", \"_\" should not be translated, as they are literal. */
-"USERNAME_SELECTION_INVALID_CHARACTERS_ERROR_MESSAGE" = "Имена пользователей могут содержать только a-z, 0-9 и _.";
+"USERNAME_SELECTION_INVALID_CHARACTERS_ERROR_MESSAGE" = "Имена пользователей могут содержать только a-z, 0-9 и _";
+
+/* An error message shown when the user has typed an invalid discriminator for their username. */
+"USERNAME_SELECTION_INVALID_DISCRIMINATOR_ERROR_MESSAGE" = "Неверное имя пользователя, введите минимум 2 цифры";
 
 /* The message of a sheet that pops up when the user taps \"Learn More\" in text that explains how usernames work. This message help explain that the automatically-generated numeric suffix of their username helps keep their username private, to avoid them being contacted by people by whom they don't want to be contacted. */
 "USERNAME_SELECTION_LEARN_MORE_ACTION_SHEET_MESSAGE" = "Эти цифры помогают сохранить ваше имя пользователя в тайне и избежать нежелательных сообщений. Делитесь своим именем пользователя только с теми людьми и группами, с которыми вы хотели бы общаться. Если вы измените имя пользователя, вы получите новый набор цифр.";
@@ -7642,14 +8218,20 @@
 /* An error message shown when the user wants to set their username to an unavailable value. */
 "USERNAME_SELECTION_NOT_AVAILABLE_ERROR_MESSAGE" = "Это имя пользователя недоступно.";
 
+/* An error message shown when the user has attempted too many username reservations. */
+"USERNAME_SELECTION_RESERVATION_RATE_LIMITED_ERROR_MESSAGE" = "Сделано слишком много попыток. Пожалуйста, попробуйте ещё раз позже";
+
 /* The placeholder for a text field into which users can type their desired username. */
 "USERNAME_SELECTION_TEXT_FIELD_PLACEHOLDER" = "Имя пользователя";
 
 /* The title for the username selection view. */
 "USERNAME_SELECTION_TITLE" = "Имя пользователя";
 
-/* An error message shown when the user has typed a username that is below the minimum character limit. Embeds {{ %1$@ the minimum character count }}. */
-"USERNAME_SELECTION_TOO_SHORT_ERROR_MESSAGE" = "Имя пользователя должно содержать как минимум %1$@ символа(-ов).";
+/* An error message shown when the user has typed '00' as their discriminator for their username. */
+"USERNAME_SELECTION_ZERO_DISCRIMINATOR_ERROR_MESSAGE" = "Этот номер не может быть 00. Введите цифру от 1 до 9";
+
+/* An error message indicating that a usernames-related requeset failed because of a network error. */
+"USERNAMES_REMOTE_MUTATION_ERROR_DESCRIPTION" = "Имена пользователя могут быть обновлены, только когда есть подключение к Интернету.";
 
 /* error label near a field */
 "VALIDATION_ERROR_CANNOT_BE_BLANK" = "Имя устройства не может быть пустым";
@@ -7679,7 +8261,7 @@
 "VERIFY_PRIVACY_MULTIPLE" = "Проверить коды безопасности";
 
 /* Instructions for verifying your safety number. Embeds {{contact's name}} */
-"VERIFY_SAFETY_NUMBER_INSTRUCTIONS" = "To verify end-to-end encryption with %1$@, compare the numbers above with their device. You can also scan the code on their device.";
+"VERIFY_SAFETY_NUMBER_INSTRUCTIONS" = "Чтобы подтвердить ваше сквозное шифрование с %1$@, сравните цифры, указанные выше, с устройством собеседника. Вы также можете отсканировать код на вашем устройстве.";
 
 /* Toast alert text shown when tapping on a video that cannot be played. */
 "VIDEO_BROKEN" = "Это видео не может быть воспроизведено";
@@ -7705,6 +8287,9 @@
 /* View the story of a group or user */
 "VIEW_STORY" = "Просмотреть историю";
 
+/* Accessibility label for placing a voice call */
+"VOICE_CALL_LABEL" = "Голосовой звонок";
+
 /* Indicates how to cancel a voice message. */
 "VOICE_MESSAGE_CANCEL_INSTRUCTIONS" = "Проведите для отмены";
 
@@ -7716,6 +8301,9 @@
 
 /* Activity indicator title, shown upon returning to the device manager, until you complete the provisioning process on desktop */
 "WAITING_TO_COMPLETE_DEVICE_LINK_TEXT" = "Продолжите настройку в Signal Desktop.";
+
+/* Accessibility label for gradient wallpaper swatch, naming the two colors in the gradient. {{ Embeds the names of the two colors in the gradient }} */
+"WALLPAPER_GRADIENT_COLORS_ACCESSIBILITY_LABEL" = "Переход цвета: %1$@ и %2$@";
 
 /* Placeholder text for header of the wallpaper mini preview */
 "WALLPAPER_MINI_PREVIEW_CONTACT_NAME" = "Имя контакта";

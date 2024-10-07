@@ -6,17 +6,17 @@
 import GRDB
 import LibSignalClient
 import UIKit
-import SignalMessaging
+public import SignalServiceKit
 
-public protocol ConversationAvatarViewDelegate: AnyObject {
+// swiftlint:disable:next class_delegate_protocol
+public protocol ConversationAvatarViewDelegate: UIViewController {
     func didTapBadge()
 
     func presentStoryViewController()
     func presentAvatarViewController()
 }
 
-public extension ConversationAvatarViewDelegate where Self: UIViewController {
-
+public extension ConversationAvatarViewDelegate {
     func didTapAvatar(_ configuration: ConversationAvatarView.Configuration) {
         if configuration.hasStoriesToDisplay {
             let actionSheet = ActionSheetController()
@@ -42,7 +42,7 @@ public extension ConversationAvatarViewDelegate where Self: UIViewController {
 
 public class ConversationAvatarView: UIView, CVView, PrimaryImageView {
 
-    public required init(
+    public init(
         sizeClass: Configuration.SizeClass = .customDiameter(0),
         localUserDisplayMode: LocalUserDisplayMode,
         badged: Bool = true,
@@ -290,7 +290,6 @@ public class ConversationAvatarView: UIView, CVView, PrimaryImageView {
         AssertIsOnMainThread()
 
         guard nextModelGeneration.get() > currentModelGeneration else { return }
-        Logger.debug("Updating model using dataSource: \(configuration.dataSource?.description ?? "nil")")
         guard let dataSource = configuration.dataSource else {
             updateViewContent(avatarImage: nil, primaryBadgeImage: nil)
             return
@@ -343,7 +342,7 @@ public class ConversationAvatarView: UIView, CVView, PrimaryImageView {
     // `nextModelGeneration` can be read on a background thread, so it needs to be atomic.
     // All updates are performed on the main thread.
     private var currentModelGeneration: UInt = 0
-    private var nextModelGeneration = AtomicUInt(0)
+    private var nextModelGeneration = AtomicUInt(0, lock: .sharedGlobal)
     @discardableResult
     private func setNeedsModelUpdate() -> UInt { nextModelGeneration.increment() }
 
@@ -362,13 +361,11 @@ public class ConversationAvatarView: UIView, CVView, PrimaryImageView {
 
         Self.serialQueue.async { [weak self] in
             guard let self = self, self.nextModelGeneration.get() == generationAtEnqueue else {
-                Logger.info("Model generation updated while performing async model update. Dropping results.")
                 return
             }
 
             let (updatedAvatar, updatedBadge) = Self.databaseStorage.read { transaction -> (UIImage?, UIImage?) in
                 guard self.nextModelGeneration.get() == generationAtEnqueue else {
-                    // will be logged below
                     return (nil, nil)
                 }
 
@@ -379,7 +376,6 @@ public class ConversationAvatarView: UIView, CVView, PrimaryImageView {
 
             DispatchQueue.main.async {
                 guard self.nextModelGeneration.get() == generationAtEnqueue else {
-                    Logger.info("Model generation updated while performing async model update. Dropping results.")
                     return
                 }
                 self.updateViewContent(avatarImage: updatedAvatar, primaryBadgeImage: updatedBadge)
@@ -497,7 +493,7 @@ public class ConversationAvatarView: UIView, CVView, PrimaryImageView {
         return tapGestureRecognizer
     }()
 
-    public weak var interactionDelegate: (ConversationAvatarViewDelegate & UIViewController)? {
+    public weak var interactionDelegate: (any ConversationAvatarViewDelegate)? {
         didSet {
             if interactionDelegate != nil, oldValue == nil {
                 avatarView.addGestureRecognizer(avatarTapGestureRecognizer)
@@ -544,12 +540,12 @@ public class ConversationAvatarView: UIView, CVView, PrimaryImageView {
             if dataSource.contactAddress?.isLocalAddress == true {
                 NotificationCenter.default.addObserver(self,
                                                        selector: #selector(localUsersProfileDidChange(notification:)),
-                                                       name: .localProfileDidChange,
+                                                       name: UserProfileNotifications.localProfileDidChange,
                                                        object: nil)
             } else {
                 NotificationCenter.default.addObserver(self,
                                                        selector: #selector(otherUsersProfileDidChange(notification:)),
-                                                       name: .otherUsersProfileDidChange,
+                                                       name: UserProfileNotifications.otherUsersProfileDidChange,
                                                        object: nil)
             }
 
@@ -683,7 +679,7 @@ public class ConversationAvatarView: UIView, CVView, PrimaryImageView {
     @objc
     private func otherUsersProfileDidChange(notification: Notification) {
         AssertIsOnMainThread()
-        guard let changedAddress = notification.userInfo?[kNSNotificationKey_ProfileAddress] as? SignalServiceAddress, changedAddress.isValid else {
+        guard let changedAddress = notification.userInfo?[UserProfileNotifications.profileAddressKey] as? SignalServiceAddress, changedAddress.isValid else {
             owsFailDebug("changedAddress was unexpectedly nil")
             return
         }
@@ -822,10 +818,6 @@ public enum ConversationAvatarDataSource: Equatable, Dependencies, CustomStringC
     // TODO: Badges — Should this be async?
     fileprivate func fetchBadge(configuration: ConversationAvatarView.Configuration, transaction: SDSAnyReadTransaction?) -> UIImage? {
         guard configuration.addBadgeIfApplicable else { return nil }
-        guard RemoteConfig.donorBadgeDisplay else {
-            Logger.warn("Ignoring badge request. Badge flag currently disabled")
-            return nil
-        }
         guard configuration.sizeClass.badgeDiameter >= 16 else {
             // We never want to show a badge <= 16pts
             Logger.warn("Skipping badge request for badge with diameter of \(configuration.sizeClass.badgeDiameter)")
@@ -850,13 +842,7 @@ public enum ConversationAvatarDataSource: Equatable, Dependencies, CustomStringC
         }
 
         let primaryBadge: ProfileBadge? = performWithTransaction(transaction) {
-            let userProfile: OWSUserProfile?
-            if targetAddress.isLocalAddress {
-                // TODO: Badges — Expose badge info about local user profile on OWSUserProfile
-                userProfile = OWSProfileManager.shared.localUserProfile()
-            } else {
-                userProfile = UserProfileFinder().userProfile(for: targetAddress, transaction: $0)
-            }
+            let userProfile = profileManager.getUserProfile(for: targetAddress, transaction: $0)
             return userProfile?.primaryBadge?.fetchBadgeContent(transaction: $0)
         }
         guard let badgeAssets = primaryBadge?.assets else { return nil }

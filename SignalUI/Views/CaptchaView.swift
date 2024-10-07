@@ -4,7 +4,7 @@
 //
 
 import Foundation
-import WebKit
+public import WebKit
 import SignalServiceKit
 
 public protocol CaptchaViewDelegate: NSObjectProtocol {
@@ -71,7 +71,6 @@ public class CaptchaView: UIView {
 
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.allowsBackForwardNavigationGestures = false
-        webView.customUserAgent = OWSURLSession.userAgentHeaderValueSignalIos
         webView.allowsLinkPreview = false
         webView.scrollView.contentInset = .zero
         webView.layoutMargins = .zero
@@ -111,66 +110,34 @@ public class CaptchaView: UIView {
 }
 
 extension CaptchaView: WKNavigationDelegate {
-    public func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
-        Logger.verbose("navigationAction: \(String(describing: navigationAction.request.url))")
-
+    public func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction) async -> WKNavigationActionPolicy {
         guard let url: URL = navigationAction.request.url else {
             owsFailDebug("Missing URL.")
-            decisionHandler(.cancel)
-            return
+            return .cancel
         }
+
         if url.scheme == "signalcaptcha" {
-            decisionHandler(.cancel)
-            DispatchQueue.main.async {
-                self.parseCaptchaResult(url: url)
-            }
-            return
+            parseCaptchaResult(url: url)
+            return .cancel
         }
 
         // Loading the Captcha content involves a series of actions.
-        decisionHandler(.allow)
+        return .allow
     }
 
-    public func webView(_ webView: WKWebView, decidePolicyFor navigationResponse: WKNavigationResponse, decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void) {
-        Logger.verbose("navigationResponse: \(String(describing: navigationResponse))")
-
-        decisionHandler(.allow)
-    }
-
-    public func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
-        Logger.verbose("navigation: \(String(describing: navigation))")
-    }
-
-    public func webView(_ webView: WKWebView, didReceiveServerRedirectForProvisionalNavigation navigation: WKNavigation!) {
-        Logger.verbose("navigation: \(String(describing: navigation))")
+    public func webView(_ webView: WKWebView, decidePolicyFor navigationResponse: WKNavigationResponse) async -> WKNavigationResponsePolicy {
+        .allow
     }
 
     public func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
-        Logger.verbose("navigation: \(String(describing: navigation)), error: \(error)")
-        DispatchQueue.main.async {
-            self.delegate?.captchaViewDidFailToCompleteCaptcha(self)
-        }
-    }
-
-    public func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
-        Logger.verbose("navigation: \(String(describing: navigation))")
-    }
-
-    public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        Logger.verbose("navigation: \(String(describing: navigation))")
+        delegate?.captchaViewDidFailToCompleteCaptcha(self)
     }
 
     public func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
-        Logger.verbose("navigation: \(String(describing: navigation)), error: \(error)")
-        DispatchQueue.main.async {
-            self.delegate?.captchaViewDidFailToCompleteCaptcha(self)
-        }
+        delegate?.captchaViewDidFailToCompleteCaptcha(self)
     }
 
     public func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
-        Logger.verbose("")
-        DispatchQueue.main.async {
-            self.delegate?.captchaViewDidFailToCompleteCaptcha(self)
-        }
+        delegate?.captchaViewDidFailToCompleteCaptcha(self)
     }
 }

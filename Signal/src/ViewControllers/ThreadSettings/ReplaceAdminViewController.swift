@@ -19,8 +19,8 @@ class ReplaceAdminViewController: OWSTableViewController2 {
 
     private let candidates: Set<SignalServiceAddress>
 
-    required init(candidates: Set<SignalServiceAddress>,
-                  replaceAdminViewControllerDelegate: ReplaceAdminViewControllerDelegate) {
+    init(candidates: Set<SignalServiceAddress>,
+         replaceAdminViewControllerDelegate: ReplaceAdminViewControllerDelegate) {
         assert(!candidates.isEmpty)
 
         self.candidates = candidates
@@ -47,8 +47,8 @@ class ReplaceAdminViewController: OWSTableViewController2 {
 
         let section = OWSTableSection()
 
-        let sortedCandidates = databaseStorage.read { transaction in
-            self.contactsManagerImpl.sortSignalServiceAddresses(Array(self.candidates), transaction: transaction)
+        let sortedCandidates = databaseStorage.read { tx in
+            self.contactsManagerImpl.sortSignalServiceAddresses(self.candidates, transaction: tx)
         }
         for address in sortedCandidates {
             section.add(OWSTableItem(

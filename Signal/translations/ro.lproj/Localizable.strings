@@ -25,6 +25,9 @@
 /* Accessibility label for stickers. */
 "ACCESSIBILITY_LABEL_STICKER" = "Autocolant";
 
+/* Accessibility label for stickers. Embeds {{ name of top emoji the sticker resembles }} */
+"ACCESSIBILITY_LABEL_STICKER_FORMAT" = "Autocolant similar cu %1$@";
+
 /* Accessibility label for a voice memo. */
 "ACCESSIBILITY_LABEL_VOICE_MEMO" = "Mesaj vocal";
 
@@ -64,9 +67,6 @@
 /* Users can request a report of their account data. This is the title on the screen where they do this. */
 "ACCOUNT_DATA_REPORT_TITLE" = "Datele contului tău";
 
-/* Label for 'voice call' button in contact view. */
-"ACTION_AUDIO_CALL" = "Apel Signal";
-
 /* Label for 'invite' button in contact view. */
 "ACTION_INVITE" = "Invită pe Signal";
 
@@ -78,6 +78,9 @@
 
 /* Label for 'video call' button in contact view. */
 "ACTION_VIDEO_CALL" = "Apel Video";
+
+/* Label for 'voice call' button in contact view. */
+"ACTION_VOICE_CALL" = "Apel Signal";
 
 /* The title for the 'add group members' view. */
 "ADD_GROUP_MEMBERS_VIEW_TITLE" = "Adaugă membri";
@@ -119,7 +122,7 @@
 "ALERT_ACTION_ACKNOWLEDGE" = "Am înțeles";
 
 /* Format string for delivery issue sheet message. Embeds {{ sender name }}. */
-"ALERT_DELIVERY_ISSUE_MESSAGE_FORMAT" = "Un mesaj, autocolant, reacție, confirmare de citire, sau fișier media de la %1$@ nu s-a putut livra în această conversație.";
+"ALERT_DELIVERY_ISSUE_MESSAGE_FORMAT" = "Un mesaj, autocolant, reacție, confirmare de citire, sau fișier media nu a putut fi livrat de la %1$@ în această conversație.";
 
 /* Title for delivery issue sheet */
 "ALERT_DELIVERY_ISSUE_TITLE" = "Problemă de livrare";
@@ -139,7 +142,7 @@
 /* The label for the 'save' button in action sheets. */
 "ALERT_SAVE" = "Salvează";
 
-/* Message for UI  warning about an unknown contact thread. */
+/* Message for UI warning about an unknown contact thread. */
 "ALERT_UNKNOWN_THREAD_WARNING_CONTACT_MESSAGE" = "Nu ai grupuri în comun cu această persoană. Examinează cu atenție solicitările înainte de a accepta pentru a evita mesajele nedorite.";
 
 /* Message for UI warning about an unknown group thread. */
@@ -183,9 +186,6 @@
 
 /* Title for the view of all your signal connections */
 "ALL_SIGNAL_CONNECTIONS_TITLE" = "Toate conexiunile";
-
-/* notification action */
-"ANSWER_CALL_BUTTON_TITLE" = "Răspunde";
 
 /* notification body */
 "APN_Message" = "S-ar putea să ai mesaje noi";
@@ -292,14 +292,14 @@
 /* Apple Pay donation error for decline failures where the payment cannot be authorized. */
 "APPLE_PAY_DONATION_ERROR_PAYMENT_CANNOT_BE_AUTHORIZED" = "Verifică dacă metoda ta de plată este actualizată în Apple Pay. Dacă nu, actualizează-o și încearcă din nou.";
 
-/* Name of application */
-"APPLICATION_NAME" = "Signal";
-
 /* On the iOS home screen, if you tap and hold the Signal icon, this shortcut will appear. Tapping it will let users send a new message. You may want to refer to similar behavior in other iOS apps, such as Messages, for equivalent strings. */
 "APPLICATION_SHORTCUT_NEW_MESSAGE" = "Mesaj nou";
 
 /* Label for the archive button for conversations list view */
 "ARCHIVE_ACTION" = "Arhivează";
+
+/* Button to try to join a call. The admin may need to approve the request before the user can join. */
+"ASK_TO_JOIN_CALL" = "Cere să te alături apelului";
 
 /* One of the choices for pre-defined aspect ratio of a photo in media editor. */
 "ASPECT_RATIO_ORIGINAL" = "Original";
@@ -430,9 +430,6 @@
 /* Short text label for a gif attachment, used for thread preview and on the lock screen */
 "ATTACHMENT_TYPE_GIF" = "GIF";
 
-/* Short text label for an image attachment, used for thread preview and on the lock screen */
-"ATTACHMENT_TYPE_IMAGE" = "Imagine";
-
 /* Short text label for a photo attachment, used for thread preview and on the lock screen */
 "ATTACHMENT_TYPE_PHOTO" = "Poză";
 
@@ -444,9 +441,6 @@
 
 /* A string indicating that an audio message is playing. */
 "AUDIO_ACTIVITY_PLAYBACK_NAME_AUDIO_MESSAGE" = "Mesaj Audio";
-
-/* Accessibility label for placing an audio call */
-"AUDIO_CALL_LABEL" = "Apel vocal";
 
 /* action sheet button title to enable built in speaker during a call */
 "AUDIO_ROUTE_BUILT_IN_SPEAKER" = "Difuzor";
@@ -503,22 +497,19 @@
 "BADGE_EXPIRED_LEARN_MORE_LINK" = "Află mai multe.";
 
 /* Title for subscription on the badge expiration sheet. */
-"BADGE_EXPIRED_SUBSCRIPTION_TITLE" = "Monthly Donation Canceled";
+"BADGE_EXPIRED_SUBSCRIPTION_TITLE" = "Donație lunară anulată";
 
 /* String explaining to the user on a badge expiry sheet that their subscription badge has expired because the renewal payment failed. Embeds {{ a specific, already-localized string describing the payment failure }}. Will have a 'learn more' link appended, when it is rendered. */
-"BADGE_SUBSCRIPTION_EXPIRED_BECAUSE_OF_CHARGE_FAILURE_BODY_FORMAT" = "Your recurring monthly donation has ended. %1$@\n\nWithout an active subscription your badge will no longer be visible on your profile.";
-
-/* Body of the sheet shown when your subscription is canceled due to inactivity. Embeds {{ the name of the badge }}. Will have a 'learn more' link appended, when it is rendered. */
-"BADGE_SUBSCRIPTION_EXPIRED_BECAUSE_OF_INACTIVITY_BODY_FORMAT" = "Donația ta lunară recurentă a fost anulată automat deoarece ai fost inactiv/ă pentru o perioadă lungă de timp. Insigna ta %1$@ nu mai este vizibilă pe profilul tău.\n\nPoți folosi în continuare Signal dar pentru a sprijini aplicația și pentru a-ți reactiva insigna, reînnoiește acum.";
+"BADGE_SUBSCRIPTION_EXPIRED_BECAUSE_OF_CHARGE_FAILURE_BODY_FORMAT" = "Donația ta lunară recurentă a fost anulată. %1$@\n\nInsigna ta nu va mai fi vizibilă pe profilul tău.";
 
 /* Body for a sheet explaining that a bank transfer donation is complete, and that you have received a badge. */
-"BADGE_THANKS_BANK_DONATION_COMPLETE_BODY" = "Your bank transfer was received. You can choose to display this badge on your profile to show off your support.";
+"BADGE_THANKS_BANK_DONATION_COMPLETE_BODY" = "Transferul tău bancar a fost primit. Poți alege să afișezi această insignă pe profilul tău pentru a-ți demonstra sprijinul.";
 
 /* Title for a sheet explaining that a bank transfer donation is complete, and that you have received a badge. */
-"BADGE_THANKS_BANK_DONATION_COMPLETE_TITLE" = "Donation Complete";
+"BADGE_THANKS_BANK_DONATION_COMPLETE_TITLE" = "Donație finalizată";
 
 /* When you make a donation to Signal, you will receive a badge. A thank-you sheet appears when this happens. This is the body text on that sheet. */
-"BADGE_THANKS_BODY" = "You can choose to display this badge on your profile to show off your support.";
+"BADGE_THANKS_BODY" = "Poți alege să afișezi această insignă pe profilul tău pentru a-ți demonstra sprijinul.";
 
 /* Label prompting the user to display the new badge on their profile on the badge thank you sheet. */
 "BADGE_THANKS_DISPLAY_ON_PROFILE_LABEL" = "Afișează la profil";
@@ -533,22 +524,22 @@
 "BADGE_THANKS_TOGGLE_FOOTER" = "Atunci când ai mai mult de o insignă, poți alege una pe care să o afișezi pentru ca ceilalți să o vadă pe profilul tău.";
 
 /* On the bank donation screen, show a link below the input form to show help about finding account info. */
-"BANK_DONATION_FOOTER_FIND_ACCOUNT_INFO" = "Find Account Info";
+"BANK_DONATION_FOOTER_FIND_ACCOUNT_INFO" = "Găsește informații despre cont";
 
 /* On the bank transfer donation screen, a small amount of information text is shown. This is that text. It should (1) instruct users to enter their bank information (2) tell them that Signal does not collect or store their personal information. */
-"BANK_DONATION_SUBHEADER_TEXT" = "Enter your bank details. Signal does not collect or store your personal information.";
+"BANK_DONATION_SUBHEADER_TEXT" = "Introdu detaliile tale bancare. Signal nu colectează sau păstrează informațiile personale.";
 
 /* Users can donate to Signal with a bank account. We are required to show them a mandate with information about bank transfers. This is a label for a button to agree to the mandate. */
-"BANK_MANDATE_AGREE" = "Agree";
+"BANK_MANDATE_AGREE" = "De acord";
 
 /* Users can donate to Signal with a bank account. We are required to show them a mandate with information about bank transfers. This is a label for a button that shows more of the mandate if it is not all visible. */
-"BANK_MANDATE_READ_MORE" = "Read More";
+"BANK_MANDATE_READ_MORE" = "Citește mai mult";
 
 /* Users can donate to Signal with a bank account. We are required to show them a mandate with information about bank transfers. This is a subtitle about the payment processor Stripe above that mandate. */
-"BANK_MANDATE_SUBTITLE" = "Stripe processes donations made to Signal. Signal does not collect or store your personal information.";
+"BANK_MANDATE_SUBTITLE" = "Stripe procesează donațiile făcute către Signal. Signal nu colectează sau păstrează informațiile personale.";
 
 /* Users can donate to Signal with a bank account. We are required to show them a mandate with information about bank transfers. This is the title above that mandate. */
-"BANK_MANDATE_TITLE" = "Bank Transfer";
+"BANK_MANDATE_TITLE" = "Transfer bancar";
 
 /* Accessibility label for banner close button */
 "BANNER_CLOSE_ACCESSIBILITY_LABEL" = "Închide notificarea";
@@ -691,9 +682,6 @@
 /* Label for button that lets users call a contact again. */
 "CALL_AGAIN_BUTTON_TITLE" = "Sună din nou";
 
-/* notification body */
-"CALL_AUDIO_INCOMING_NOTIFICATION_BODY" = "📞 Se primește un apel vocal…";
-
 /* notification body for a missed call in the last 24 hours. Embeds {{time}}, e.g. '3:30 PM'. */
 "CALL_AUDIO_MISSED_24_HOURS_NOTIFICATION_BODY_FORMAT" = "📞 Apel vocal nepreluat la %1$@";
 
@@ -721,14 +709,74 @@
 /* label for button shown when an incoming call rings */
 "CALL_CONTROLS_INCOMING_DECLINE" = "respinge";
 
-/* Body for the repeating notification shown while an incoming group call is ringing, if the user has chosen not to include contact names in notifications */
-"CALL_GROUP_INCOMING_NOTIFICATION_BODY_ANONYMOUS" = "📹 Apel de group…";
+/* Button to open a screen to edit the name of a Call Link. Also used as the title of that screen once it opens. */
+"CALL_LINK_ADD_NAME" = "Adaugă numele apelului";
 
-/* Body for the repeating notification shown while an incoming group call is ringing. Embeds {{caller name}} */
-"CALL_GROUP_INCOMING_NOTIFICATION_BODY_FORMAT" = "📹 %1$@ sună grupul…";
+/* Button to copy a Call Link to the clipboard. */
+"CALL_LINK_COPY" = "Copiază Link";
+
+/* Navigation bar title for the sheet used to create & configure a Call Link. */
+"CALL_LINK_CREATE" = "Creează un link de apel";
+
+/* Description of sheet presented when call link creation fails. */
+"CALL_LINK_CREATION_FAILURE_SHEET_DESCRIPTION" = "Linkul apelului nu a putut fi creat. Verifică conexiunea la internet a telefonului și încearcă din nou.";
+
+/* Title of sheet presented when call link creation or update fails. */
+"CALL_LINK_CREATION_OR_UPDATE_FAILURE_SHEET_TITLE" = "Eroare de rețea";
+
+/* Button to open a screen to edit the name of a Call Link. Also used as the title of that screen once it opens. */
+"CALL_LINK_EDIT_NAME" = "Editează numele apelului";
+
+/* Description of sheet presented when joining call from call link sheet fails. */
+"CALL_LINK_JOIN_CALL_FAILURE_SHEET_DESCRIPTION" = "Nu ai putut să te conectezi la apel. Verifică conexiunea la internet a telefonului și încearcă din nou.";
+
+/* Button on an action sheet to approve a request to join a call link. */
+"CALL_LINK_JOIN_REQUEST_APPROVE_BUTTON" = "Approve Entry";
+
+/* Button on an action sheet to deny a request to join a call link. */
+"CALL_LINK_JOIN_REQUEST_DENY_BUTTON" = "Deny Entry";
+
+/* Tappable label that appears below a user's name on a toast when they request to join a call link. */
+"CALL_LINK_JOIN_REQUEST_PROMPT" = "Would like to join…";
+
+/* Shown in a message bubble when you send a call link in a Signal chat */
+"CALL_LINK_LINK_PREVIEW_DESCRIPTION" = "Folosește acest link pentru a te alătura unui Apel Signal";
+
+/* Text that appears on a toast in a call lobby before joining a call link informing the user what information will be shared with other call members when they have phone number sharing turned off. */
+"CALL_LINK_LOBBY_SHARING_INFO_PHONE_NUMBER_SHARING_OFF" = "Anyone who joins this call via the link will see your name and photo.";
+
+/* Text that appears on a toast in a call lobby before joining a call link informing the user what information will be shared with other call members when they have phone number sharing turned on. */
+"CALL_LINK_LOBBY_SHARING_INFO_PHONE_NUMBER_SHARING_ON" = "Anyone who joins this call via the link will see your name, photo, and phone number.";
+
+/* Title for button to approve all requests to join a call. */
+"CALL_LINK_REQUEST_SHEET_APPROVE_ALL_BUTTON" = "Aprob";
+
+/* Title for button to deny all requests to join a call. */
+"CALL_LINK_REQUEST_SHEET_DENY_ALL_BUTTON" = "Nu aprob";
+
+/* Header for the sheet displaying a list of requests to join a call. */
+"CALL_LINK_REQUEST_SHEET_HEADER" = "Solicitări de participare la apel";
+
+/* Name of a toggle switch to enable/disable admin approval for joining a Call Link. */
+"CALL_LINK_REQUIRE_APPROVAL" = "Necesită aprobarea administratorului";
+
+/* Button to open UI to share a Call Link with someone on Signal. */
+"CALL_LINK_SHARE_VIA_SIGNAL" = "Trimite linkul prin Signal";
+
+/* Button to open the system share sheet to share a Call Link. */
+"CALL_LINK_SHARE_VIA_SYSTEM" = "Distribuie adresa";
+
+/* Description of sheet presented when call link update fails. */
+"CALL_LINK_UPDATE_FAILURE_SHEET_DESCRIPTION" = "Linkul apelului nu a putut fi actualizat. Verifică conexiunea la internet a telefonului și încearcă din nou.";
+
+/* Label on button for lowering hand in call. */
+"CALL_LOWER_HAND_BUTTON_LABEL" = "Coboară mâna";
 
 /* notification body */
 "CALL_MISSED_BECAUSE_OF_IDENTITY_CHANGE_NOTIFICATION_BODY" = "☎️ Apel ratat deoarece numărul de siguranță al apelantului s-a schimbat.";
+
+/* Label on button for raising hand in call. */
+"CALL_RAISE_HAND_BUTTON_LABEL" = "Ridică mâna";
 
 /* Button to return to the current call */
 "CALL_RETURN_BUTTON" = "Întoarce-te la apel";
@@ -736,8 +784,8 @@
 /* Call setup status label after outgoing call times out */
 "CALL_SCREEN_STATUS_NO_ANSWER" = "Nici un răspuns";
 
-/* embeds {{Call Status}} in call screen label. For ongoing calls, {{Call Status}} is a seconds timer like 01:23, otherwise {{Call Status}} is a short text like 'Ringing', 'Busy', or 'Failed Call' */
-"CALL_STATUS_FORMAT" = "Signal %1$@";
+/* Button to start a call */
+"CALL_START_BUTTON" = "Începe apelul";
 
 /* Label for call button for alert offering to call a user. */
 "CALL_USER_ALERT_CALL_BUTTON" = "Apelează";
@@ -747,9 +795,6 @@
 
 /* Title for alert offering to call a user. */
 "CALL_USER_ALERT_TITLE" = "Apelezi?";
-
-/* notification body */
-"CALL_VIDEO_INCOMING_NOTIFICATION_BODY" = "📹 Apel de intrare video…";
 
 /* notification body for a missed call in the last 24 hours. Embeds {{time}}, e.g. '3:30 PM'. */
 "CALL_VIDEO_MISSED_24_HOURS_NOTIFICATION_BODY_FORMAT" = "📞 Apel video nepreluat la %1$@";
@@ -763,7 +808,7 @@
 /* notification body for a missed call from the last week. Embeds {{weekday}}, e.g. 'Monday'. */
 "CALL_VIDEO_MISSED_WEEK_NOTIFICATION_BODY_FORMAT" = "📞 Apel video nepreluat %1$@";
 
-/* label for accepting incoming video calls as audio  only */
+/* label for accepting incoming video calls as audio only */
 "CALL_VIEW_ACCEPT_INCOMING_CALL_AUDIO_ONLY_LABEL" = "Răspunde fără video";
 
 /* label for accepting incoming calls */
@@ -778,6 +823,12 @@
 /* Accessibility label for hang up call */
 "CALL_VIEW_HANGUP_LABEL" = "Închide apelul";
 
+/* Accessibility label for leaving a call */
+"CALL_VIEW_LEAVE_CALL_LABEL" = "Părăsește apelul";
+
+/* Accessibility label for the More button in the Call Controls row. */
+"CALL_VIEW_MORE_LABEL" = "Mai multe";
+
 /* Accessibility label for muting the microphone */
 "CALL_VIEW_MUTE_LABEL" = "Mut";
 
@@ -787,11 +838,17 @@
 /* Accessibility label to toggle front- vs. rear-facing camera */
 "CALL_VIEW_SWITCH_CAMERA_DIRECTION" = "Schimbă direcția camerei";
 
-/* Accessibility label to switch to audio only */
-"CALL_VIEW_SWITCH_TO_AUDIO_LABEL" = "Treci la apel vocal";
+/* Accessibility label for turning off the camera */
+"CALL_VIEW_TURN_VIDEO_OFF_LABEL" = "Oprește camera";
 
-/* Accessibility label to switch to video call */
-"CALL_VIEW_SWITCH_TO_VIDEO_LABEL" = "Schimbă la apel video";
+/* Accessibility label for turning on the camera */
+"CALL_VIEW_TURN_VIDEO_ON_LABEL" = "Pornește camera";
+
+/* Accessibility label for unmuting the microphone */
+"CALL_VIEW_UNMUTE_LABEL" = "Activare sunet";
+
+/* Shown in the header below the name of the call while waiting for the host to allow you to enter the call. */
+"CALL_WAITING_TO_BE_LET_IN" = "Așteaptă să fie lăsat să intre…";
 
 /* notification action */
 "CALLBACK_BUTTON_TITLE" = "Apelează Înapoi";
@@ -804,6 +861,84 @@
 
 /* The generic name used for group calls if CallKit privacy is enabled */
 "CALLKIT_ANONYMOUS_GROUP_NAME" = "Grup Signal";
+
+/* Title for the calls list view. */
+"CALLS_LIST_TITLE" = "Apeluri";
+
+/* Label for an entry in the Calls Tab describing a call as incoming. */
+"CALLS_TAB_CALL_DIRECTION_LABEL_INCOMING" = "Primite";
+
+/* Label for an entry in the Calls Tab describing a call as missed. */
+"CALLS_TAB_CALL_DIRECTION_LABEL_MISSED" = "Pierdute";
+
+/* Label for an entry in the Calls Tab describing a call as outgoing. */
+"CALLS_TAB_CALL_DIRECTION_LABEL_OUTGOING" = "Trimise";
+
+/* Title for a row in the Calls Tab that represents multiple calls that have been coalesced together. Embeds {{ a title describing the coalesced calls }}, {{ the number of coalesced calls }}. */
+"CALLS_TAB_COALESCED_CALLS_TITLE_FORMAT" = "%1$@ (%2$@)";
+
+/* Title for a button allowing the user to delete all the calls from the Calls Tab. */
+"CALLS_TAB_DELETE_ALL_CALLS_BUTTON_TITLE" = "Eliminare";
+
+/* Message for a prompt confirming that the user wants to delete all the calls from the Calls Tab. */
+"CALLS_TAB_DELETE_ALL_CALLS_PROMPT_MESSAGE" = "Se va șterge definitiv tot istoricul apelurilor.";
+
+/* Title for a prompt confirming that the user wants to delete all the calls from the Calls Tab. */
+"CALLS_TAB_DELETE_ALL_CALLS_PROMPT_TITLE" = "Ștergi istoricul apelurilor?";
+
+/* Title for a long-press context menu action to delete a call, triggered from a call in the Calls Tab. */
+"CALLS_TAB_DELETE_CALL_ACTION_TITLE" = "Șterge";
+
+/* An option in a segmented control in the Calls Tab allowing the user to select the filter option 'all calls'; i.e., 'unfiltered'. */
+"CALLS_TAB_FILTER_PICKER_OPTION_ALL" = "Toate";
+
+/* An option in a segmented control in the Calls Tab allowing the user to select the filter option 'missed calls'. */
+"CALLS_TAB_FILTER_PICKER_OPTION_MISSED" = "Pierdute";
+
+/* Title for an action, either long-press context menu or swipe, offering to take the user to the chat associated with a call in the Calls Tab. */
+"CALLS_TAB_GO_TO_CHAT_ACTION_TITLE" = "Arată conversația";
+
+/* Title for a button offering to let the user join an ongoing call, associated with a call in the Calls Tab. */
+"CALLS_TAB_JOIN_CALL_BUTTON_TITLE" = "Alătură-te";
+
+/* Title for a long-press context menu action to join a video call, triggered from a call in the Calls Tab. */
+"CALLS_TAB_JOIN_VIDEO_CALL_ACTION_TITLE" = "Alătură-te apelului video";
+
+/* Title for a long-press context menu action to join a voice call, triggered from a call in the Calls Tab. */
+"CALLS_TAB_JOIN_VOICE_CALL_ACTION_TITLE" = "Alătură-te apelului vocal";
+
+/* Label explaining that the user has no missed calls, so their Calls Tab is empty. */
+"CALLS_TAB_NO_MISSED_CALLS_LABEL" = "Nu există apeluri pierdute";
+
+/* Label explaining that the user has no recent calls, so their Calls Tab is empty. */
+"CALLS_TAB_NO_RECENT_CALLS_LABEL" = "Nu există apeluri recente";
+
+/* Label suggesting that the user start a call, shown when their Calls Tab is empty. */
+"CALLS_TAB_NO_RECENT_CALLS_SUGGESTION_LABEL" = "Începe prin a suna un prieten";
+
+/* Title for a long-press context menu action to return to a call the user is actively participating in, triggered from a call in the Calls Tab. */
+"CALLS_TAB_RETURN_TO_CALL_ACTION_TITLE" = "Întoarce-te la apel";
+
+/* Title for a button offering to let the user return to an ongoing call they're already in, associated with a call in the Calls Tab. */
+"CALLS_TAB_RETURN_TO_CALL_BUTTON_TITLE" = "Întoarce-te";
+
+/* Label for a view explaining that no search results were found in the Calls Tab. Embeds {{ the search term }}. */
+"CALLS_TAB_SEARCH_NO_RESULTS_FOUND_LABEL_FORMAT" = "Nu s-au găsit rezultate pentru '%1$@'";
+
+/* Title for a long-press context menu action to select a call, triggered from a call in the Calls Tab. */
+"CALLS_TAB_SELECT_CALL_ACTION_TITLE" = "Selectează";
+
+/* Title for a button allowing the user to select one or more calls, from the Calls Tab. */
+"CALLS_TAB_SELECT_CALLS_BUTTON_TITLE" = "Selectează";
+
+/* Title for a long-press context menu action to start a video call, triggered from a call in the Calls Tab. */
+"CALLS_TAB_START_VIDEO_CALL_ACTION_TITLE" = "Apel Video";
+
+/* Title for a long-press context menu action to start a voice call, triggered from a call in the Calls Tab. */
+"CALLS_TAB_START_VOICE_CALL_ACTION_TITLE" = "Apel vocal";
+
+/* Title for a long-press context menu action to view info about a call, triggered from a call in the Calls Tab. */
+"CALLS_TAB_VIEW_CALL_INFO_ACTION_TITLE" = "Informații";
 
 /* Accessibility hint describing what you can do with the camera button */
 "CAMERA_BUTTON_HINT" = "Fă o poză și trimite-o";
@@ -961,8 +1096,17 @@
 /* Tooltip highlighting the auto chat color option. */
 "CHAT_COLORS_AUTO_TOOLTIP" = "Potrivirea automată a culorii cu imaginea de fundal";
 
+/* Title for context menu action to disable chat list filter (e.g., Filter by Unread) */
+"CHAT_LIST_CLEAR_FILTER_MENU_ACTION" = "Șterge Filtru";
+
 /* Title for the chat list's default mode. */
 "CHAT_LIST_TITLE_INBOX" = "Conversații";
+
+/* Title for context menu action to enable Filter by Unread */
+"CHAT_LIST_UNREAD_FILTER_MENU_ACTION" = "Filtrează după Necitite";
+
+/* Message displayed on chat list when Filter by Unread is enabled but no unread chats are available */
+"CHAT_LIST_UNREAD_FILTER_NO_CHATS" = "Fără conversații necitite";
 
 /* Title for the color & wallpaper settings view. */
 "COLOR_AND_WALLPAPER_SETTINGS_TITLE" = "Culoare conversație și fundal";
@@ -987,6 +1131,21 @@
 
 /* Table section header for username search when composing a new message */
 "COMPOSE_MESSAGE_USERNAME_SEARCH_SECTION_TITLE" = "Caută după nume de utilizator";
+
+/* Menu action to display limited contact picker. */
+"COMPOSE_SCREEN_LIMITED_CONTACTS_ACTION_MANAGE" = "Selectează Mai multe persoane de contact";
+
+/* Menu action visit app contact permission in settings. */
+"COMPOSE_SCREEN_LIMITED_CONTACTS_ACTION_SETTINGS" = "Mergi la Setări";
+
+/* Multi-line label explaining why compose-screen contact picker may be missing contacts. */
+"COMPOSE_SCREEN_LIMITED_CONTACTS_CTA" = "Administrează";
+
+/* Multi-line label explaining why compose-screen contact picker is empty. */
+"COMPOSE_SCREEN_LIMITED_CONTACTS_PERMISSION" = "Signal are acces limitat la contactele tale din telefon";
+
+/* Button to open settings from an empty compose-screen contact picker. */
+"COMPOSE_SCREEN_MISSING_CONTACTS_CTA" = "Deschide Setările";
 
 /* Multi-line label explaining why compose-screen contact picker is empty. */
 "COMPOSE_SCREEN_MISSING_CONTACTS_PERMISSION" = "Poți activa accesul la contacte din aplicația iOS Setări pentru a putea vedea care dintre contactele tale sunt utilizatori Signal.";
@@ -1014,6 +1173,27 @@
 
 /* Button text */
 "CONFIRM_LINK_NEW_DEVICE_ACTION" = "Asociază un Dispozitiv Nou";
+
+/* Indicates that the user has blocked the other account. Embeds {{name}} */
+"CONTACT_ABOUT_SHEET_BLOCKED_USER_FORMAT" = "%1$@ este blocat";
+
+/* Indicates that another account is in the user's system contacts. Embeds {{name}} */
+"CONTACT_ABOUT_SHEET_CONNECTION_IN_SYSTEM_CONTACTS" = "%1$@ se află în contactele tale din telefon";
+
+/* Indicates that the user has no messages with the other account. Embeds {{name}} */
+"CONTACT_ABOUT_SHEET_NO_DIRECT_MESSAGES" = "Fără mesaje directe cu %1$@";
+
+/* Indicates that the user has a pending request with the other account. Embeds {{name}} */
+"CONTACT_ABOUT_SHEET_PENDING_REQUEST" = "Solicitare mesaj în așteptare";
+
+/* Message for a tooltip that appears above a parenthesized name for another user, indicating that that name is the name the other user set for themself. Embeds {{name}} */
+"CONTACT_ABOUT_SHEET_SECONDARY_NAME_TOOLTIP_MESSAGE" = "„%1$@“ este numele de profil pe care această persoană și l-a setat în Signal.";
+
+/* A label indicating a user is a signal connection. */
+"CONTACT_ABOUT_SHEET_SIGNAL_CONNECTION_LABEL" = "Conexiunea Signal";
+
+/* The title for a contact 'about' sheet. */
+"CONTACT_ABOUT_SHEET_TITLE" = "Despre";
 
 /* Label for a contact's postal address. */
 "CONTACT_ADDRESS" = "Adresă";
@@ -1048,13 +1228,31 @@
 /* Label for the 'organization' field of a contact. */
 "CONTACT_FIELD_ORGANIZATION" = "Organizație";
 
+/* Title for a view showing the note that has been set for a profile. */
+"CONTACT_NOTE_TITLE" = "Notă";
+
+/* Body for contact permission action sheet */
+"CONTACT_PERMISSION_ACTION_SHEET_2_BODY" = "Ca să găsești persoane pe care le cunoști pe Signal:";
+
+/* First step for contact permission action sheet */
+"CONTACT_PERMISSION_ACTION_SHEET_2_STEP_ONE" = "Apăsă pe \"Navigați la Setări\" mai jos";
+
+/* Third step for contact permission action sheet */
+"CONTACT_PERMISSION_ACTION_SHEET_2_STEP_THREE" = "Activează permisiunea";
+
+/* Second step for contact permission action sheet */
+"CONTACT_PERMISSION_ACTION_SHEET_2_STEP_TWO" = "Atinge „Contacte”";
+
+/* Title for contact permission action sheet */
+"CONTACT_PERMISSION_ACTION_SHEET_2_TITLE" = "Permite accesul la contacte";
+
 /* Body for contact permission action sheet */
 "CONTACT_PERMISSION_ACTION_SHEET_BODY" = "Pentru a vedea numele și fotografiile contactelor tale în conversații:";
 
 /* First step for contact permission action sheet */
 "CONTACT_PERMISSION_ACTION_SHEET_STEP_ONE" = "Apasă pe \"Mergi la Setări” mai jos";
 
-/* Third step for contact permission action sheet */
+/* Second step for contact permission action sheet */
 "CONTACT_PERMISSION_ACTION_SHEET_STEP_TWO" = "Activează „Contacte”";
 
 /* Title for contact permission action sheet */
@@ -1064,13 +1262,13 @@
 "CONTACT_PERMISSION_NOT_NOW_ACTION" = "Nu acum";
 
 /* Action text for contact permission reminder megaphone */
-"CONTACT_PERMISSION_REMINDER_MEGAPHONE_ACTION" = "Activează";
+"CONTACT_PERMISSION_REMINDER_MEGAPHONE_ACTION" = "Permite accesul";
 
 /* Body for contact permission reminder megaphone */
-"CONTACT_PERMISSION_REMINDER_MEGAPHONE_BODY" = "Afișează numele și fotografiile contactelor tale în conversații.";
+"CONTACT_PERMISSION_REMINDER_MEGAPHONE_BODY" = "Permite accesul la contactele tale, pentru a le găsi rapid pe Signal.";
 
 /* Title for contact permission reminder megaphone */
-"CONTACT_PERMISSION_REMINDER_MEGAPHONE_TITLE" = "Activezi Contacte?";
+"CONTACT_PERMISSION_REMINDER_MEGAPHONE_TITLE" = "Găsește contacte pe Signal";
 
 /* Label for a contact's phone number. */
 "CONTACT_PHONE" = "Telefon";
@@ -1093,8 +1291,11 @@
 /* Error indicating that an invalid contact cannot be shared. */
 "CONTACT_SHARE_INVALID_CONTACT" = "Contact invalid.";
 
-/* Error indicating that at least one contact field must be selected before sharing a contact. */
-"CONTACT_SHARE_NO_FIELDS_SELECTED" = "Nici un câmp al contactului nu a fost selectat.";
+/* Alert body when contacts disabled while trying to share a contact. */
+"CONTACT_SHARING_NO_ACCESS_BODY" = "Signal are nevoie de acces la contactele tale. Accesează Setările iOS și activează Contacte. Contactele tale sunt criptate și nu sunt vizibile pentru serviciul Signal.";
+
+/* Alert title when contacts disabled while trying to share a contact. */
+"CONTACT_SHARING_NO_ACCESS_TITLE" = "Permite accesul la contacte";
 
 /* Button text to initiate an email to signal support staff */
 "CONTACT_SUPPORT" = "Contactează suportul";
@@ -1208,7 +1409,7 @@
 "CONTEXT_MENU_STOP_SPEAKING_MESSAGE" = "Stop";
 
 /* Message for the 'conversation delete confirmation' alert. */
-"CONVERSATION_DELETE_CONFIRMATION_ALERT_MESSAGE" = "Această conversație va fi ștearsă de pe acest dispozitiv.";
+"CONVERSATION_DELETE_CONFIRMATION_ALERT_MESSAGE" = "Această conversație va fi ștearsă de pe toate dispozitivele tale asociate.";
 
 /* Title for the 'conversation delete confirmation' alert. */
 "CONVERSATION_DELETE_CONFIRMATION_ALERT_TITLE" = "Șterg Conversația?";
@@ -1262,22 +1463,13 @@
 "CONVERSATION_SETTINGS_ADD_TO_EXISTING_CONTACT" = "Adaugă la contactul existent";
 
 /* button in conversation settings view. */
-"CONVERSATION_SETTINGS_ADD_TO_SYSTEM_CONTACTS" = "Adaugă la contactele de sistem";
+"CONVERSATION_SETTINGS_ADD_TO_SYSTEM_CONTACTS" = "Adaugă la Contacte telefonice";
 
-/* Label indicating that only administrators can update the group's attributes: name, avatar, etc. */
-"CONVERSATION_SETTINGS_ATTRIBUTES_ACCESS_ADMINISTRATOR" = "Administratori";
-
-/* Label indicating that all group members can update the group's attributes: name, avatar, etc. */
-"CONVERSATION_SETTINGS_ATTRIBUTES_ACCESS_MEMBER" = "Toate";
-
-/* Label indicating that no member can update the group's attributes: name, avatar, etc. */
-"CONVERSATION_SETTINGS_ATTRIBUTES_ACCESS_NONE" = "Dezactivat";
+/* Header title for the section showing all media in conversation settings */
+"CONVERSATION_SETTINGS_ALL_MEDIA_HEADER" = "Toate Fișierele Media";
 
 /* Footer for the 'attributes access' section in conversation settings view. */
 "CONVERSATION_SETTINGS_ATTRIBUTES_ACCESS_SECTION_FOOTER" = "Alege cine poate edita numele grupului, poza, descrierea și perioada pentru dispariția mesajelor.";
-
-/* Button to start a audio call */
-"CONVERSATION_SETTINGS_AUDIO_CALL_BUTTON" = "audio";
 
 /* Footer string for a contact's badges in conversation settings */
 "CONVERSATION_SETTINGS_BADGES_FOOTER" = "Poți obține insigne pentru profilul tău susținând Signal. Atinge o insignă pentru a afla mai multe.";
@@ -1285,20 +1477,29 @@
 /* Header title for a contact's badges in conversation settings */
 "CONVERSATION_SETTINGS_BADGES_HEADER" = "Insigne";
 
-/* Footer text for the 'block and leave' section of contact conversation settings view. */
-"CONVERSATION_SETTINGS_BLOCK_AND_LEAVE_SECTION_CONTACT_FOOTER" = "Nu vei mai putea primi mesaje sau actualizări de la acest utilizator.";
-
-/* Footer text for the 'block and leave' section of group conversation settings view. */
-"CONVERSATION_SETTINGS_BLOCK_AND_LEAVE_SECTION_FOOTER" = "Nu vei mai putea primi mesaje sau actualizări de la acest grup.";
-
 /* Label for 'block group' action in conversation settings view. */
 "CONVERSATION_SETTINGS_BLOCK_GROUP" = "Blochează grupul";
 
 /* Label for 'block user' action in conversation settings view. */
 "CONVERSATION_SETTINGS_BLOCK_USER" = "Blochează utilizator";
 
-/* Label for the 'edit' button in conversation settings view. */
-"CONVERSATION_SETTINGS_EDIT" = "Editează";
+/* A label indicating that a call was an incoming video call */
+"CONVERSATION_SETTINGS_CALL_DETAILS_INCOMING_VIDEO_CALL" = "Apel de intrare video";
+
+/* A label indicating that a call was an incoming voice call */
+"CONVERSATION_SETTINGS_CALL_DETAILS_INCOMING_VOICE_CALL" = "Apel de intrare vocal";
+
+/* A label indicating that a call was an missed video call */
+"CONVERSATION_SETTINGS_CALL_DETAILS_MISSED_VIDEO_CALL" = "Apel video nepreluat";
+
+/* A label indicating that a call was an missed voice call */
+"CONVERSATION_SETTINGS_CALL_DETAILS_MISSED_VOICE_CALL" = "Apel vocal nepreluat";
+
+/* A label indicating that a call was an outgoing video call */
+"CONVERSATION_SETTINGS_CALL_DETAILS_OUTGOING_VIDEO_CALL" = "Apel de ieșire video";
+
+/* A label indicating that a call was an outgoing voice call */
+"CONVERSATION_SETTINGS_CALL_DETAILS_OUTGOING_VOICE_CALL" = "Apel de ieșire vocal";
 
 /* Label for 'edit attributes access' action in conversation settings view. */
 "CONVERSATION_SETTINGS_EDIT_ATTRIBUTES_ACCESS" = "Editare informații despre grup";
@@ -1402,6 +1603,9 @@
 /* Format for title for 'remove from group' confirmation alert. Embeds {user to remove from the group}. */
 "CONVERSATION_SETTINGS_REMOVE_FROM_GROUP_TITLE_FORMAT" = "Elimină pe %1$@ din grup?";
 
+/* Label for 'report spam' action in conversation settings view. */
+"CONVERSATION_SETTINGS_REPORT_SPAM" = "Raportează spam";
+
 /* Label for 'revoke group admin' button in conversation settings view. */
 "CONVERSATION_SETTINGS_REVOKE_GROUP_ADMIN_BUTTON" = "Elimină ca administrator";
 
@@ -1438,6 +1642,9 @@
 /* Indicates that user is in the system contacts list. */
 "CONVERSATION_SETTINGS_VIEW_IS_SYSTEM_CONTACT" = "Detalii contact";
 
+/* Button to start a voice call */
+"CONVERSATION_SETTINGS_VOICE_CALL_BUTTON" = "voce";
+
 /* Message shown in conversation view that offers to add an unknown user to your phone's contacts. */
 "CONVERSATION_VIEW_ADD_TO_CONTACTS_OFFER" = "Adaugă la contacte";
 
@@ -1465,14 +1672,14 @@
 /* No comment provided by engineer. */
 "COUNTRYCODE_SELECT_TITLE" = "Alege codul țării";
 
-/* Body text for an interactive in-app prompt to set up a Signal username. */
-"CREATE_USERNAME_MEGAPHONE_BODY" = "Numele de utilizator ajută alte persoane să îți dea mesaj fără să aibă nevoie de numărul tău de telefon.";
+/* Label for button that enables you to make a new call link. */
+"CREATE_CALL_LINK_LABEL" = "Creează un Link de Apel";
 
-/* Title for a button in an interactive in-app prompt to set up a Signal username, which will start a create-username flow. */
-"CREATE_USERNAME_MEGAPHONE_SET_UP_BUTTON_TITLE" = "Stabilește";
+/* Body text for an interactive in-app prompt to set up a Signal username. */
+"CREATE_USERNAME_MEGAPHONE_BODY" = "Introducerea confidențialității numărului de telefon, nume de utilizator și link-uri opționale.";
 
 /* Title for an interactive in-app prompt to set up a Signal username. */
-"CREATE_USERNAME_MEGAPHONE_TITLE" = "Stabilește-ți numele de utilizator Signal";
+"CREATE_USERNAME_MEGAPHONE_TITLE" = "Noi moduri de conectare";
 
 /* Credit/debit card donation error for decline failures where the card has expired. */
 "CREDIT_OR_DEBIT_CARD_DONATION_ERROR_EXPIRED_CARD" = "Cardul tău a expirat. Verifică dacă detaliile cardului sunt corecte și încearcă din nou.";
@@ -1625,10 +1832,10 @@
 "DEBUG_LOG_INFO_BUTTON" = "Informații despre jurnalele de depanare";
 
 /* info message text in conversation view */
-"DECLINED_AUDIO_CALL" = "Ai respins un apel vocal";
+"DECLINED_VIDEO_CALL" = "Ai respins un apel video";
 
 /* info message text in conversation view */
-"DECLINED_VIDEO_CALL" = "Ai respins un apel video";
+"DECLINED_VOICE_CALL" = "Ai respins un apel vocal";
 
 /* Title for the action sheet 'delete' action of the 'delete account confirmation' view controller. */
 "DELETE_ACCOUNT_CONFIRMATION_ACTION_SHEEET_ACTION" = "Ștergere Cont";
@@ -1676,7 +1883,7 @@
 "DELETE_CONTACT_ACTION_SHEET_BUTTON" = "Șterge";
 
 /* An explanation of what happens in Signal when you remove a system contact. */
-"DELETE_CONTACT_ACTION_SHEET_EXPLANATION" = "Această persoană va fi ștearsă din agendă. Nu vei vedea această persoană când cauți. O să primești o cerere de mesaj dacă îți trimite un mesaj în viitor.";
+"DELETE_CONTACT_ACTION_SHEET_EXPLANATION" = "Această persoană va fi eliminată din agendă. Nu vei vedea această persoană când cauți. O să primești o cerere de mesaj dacă îți trimite un mesaj în viitor.";
 
 /* Title of action sheet confirming the user wants to delete a system contact. */
 "DELETE_CONTACT_ACTION_SHEET_TITLE" = "Ștergi Contactul și elimini din listă?";
@@ -1686,6 +1893,27 @@
 
 /* Toast message confirming the system contact was deleted. Embeds {{The name of the user who was deleted.}}. */
 "DELETE_CONTACT_CONFIRMATION_TOAST" = "%1$@ a fost șters din agenda ta și eliminat.";
+
+/* Title for an action sheet button explaining that a message will be deleted. */
+"DELETE_FOR_ME_NOTE_TO_SELF_ACTION_SHEET_BUTTON_TITLE" = "Șterge";
+
+/* Header text for an action sheet confirming deleting a message in Note to Self. */
+"DELETE_FOR_ME_NOTE_TO_SELF_ACTION_SHEET_HEADER" = "Șterg mesajul?";
+
+/* Subheader for an action sheet explaining that a Note to Self deleted on this device will be deleted on the user's other devices as well. */
+"DELETE_FOR_ME_NOTE_TO_SELF_LINKED_DEVICES_PRESENT_ACTION_SHEET_SUBHEADER" = "Aceste mesaje vor fi eliminate de pe toate dispozitivele tale.";
+
+/* Label for a button in an info sheet confirming that deletes are now synced across devices. */
+"DELETE_FOR_ME_SYNC_MESSAGE_INFO_SHEET_BUTTON" = "Am înțeles";
+
+/* Subtitle for an info sheet explaining that deletes are now synced across devices. */
+"DELETE_FOR_ME_SYNC_MESSAGE_INFO_SHEET_SUBTITLE" = "Atunci când elimini mesaje, conținut media sau conversații acestea vor fi șterse de pe telefon și de pe toate dispozitivele conectate.";
+
+/* Title for an info sheet explaining that deletes are now synced across devices. */
+"DELETE_FOR_ME_SYNC_MESSAGE_INFO_SHEET_TITLE" = "Eliminarea este acum sincronizată pe toate dispozitivele tale";
+
+/* Label indicating a user who deleted their account. */
+"DELETED_USER" = "Cont șters";
 
 /* Notification warning the user that they have been de-registered. */
 "DEREGISTRATION_NOTIFICATION" = "Te-am deconectat din Signal pe acest dispozitiv.";
@@ -1858,6 +2086,12 @@
 /* The unit for a number of weeks */
 "DISAPPEARING_MESSAGES_WEEKS" = "săptămâni";
 
+/* Message/subtitle for confirmation prompt when discarding a draft before editing a message */
+"DISCARD_DRAFT_CONFIRMATION_MESSAGE" = "Această acțiune este ireversibilă.";
+
+/* Title for confirmation prompt when discarding a draft before editing a message */
+"DISCARD_DRAFT_CONFIRMATION_TITLE" = "Renunți la schiță?";
+
 /* Short text to dismiss current modal / actionsheet / screen */
 "DISMISS_BUTTON_TEXT" = "Revocare";
 
@@ -1874,13 +2108,13 @@
 "DOMAIN_FRONTING_COUNTRY_VIEW_SECTION_HEADER" = "Locație ocolire cenzură";
 
 /* Users can donate to Signal with a credit or debit card. This is the heading on that screen, telling them how much they'll donate. Embeds {{formatted amount of money}}, such as \"$20\". */
-"DONATE_BUTTON" = "Donate %1$@";
+"DONATE_BUTTON" = "Donează %1$@";
 
 /* Users can donate to Signal with a credit or debit card. This is the heading on that screen, telling them how much they'll donate every month. Embeds {{formatted amount of money}}, such as \"$20\". */
-"DONATE_BUTTON_MONTHLY" = "Donate %1$@/month";
+"DONATE_BUTTON_MONTHLY" = "Donează %1$@/lună";
 
 /* When users make donations, they can choose which payment method they want to use. This is the text on the button that lets them choose to pay with bank transfer. */
-"DONATE_CHOOSE_BANK_TRANSFER_AS_PAYMENT_METHOD" = "Bank Transfer";
+"DONATE_CHOOSE_BANK_TRANSFER_AS_PAYMENT_METHOD" = "Transfer bancar";
 
 /* When users make donations, they can choose which payment method they want to use. This is the text on the button that lets them choose to pay with credit or debit card. */
 "DONATE_CHOOSE_CREDIT_OR_DEBIT_CARD_AS_PAYMENT_METHOD" = "Card de credit sau debit";
@@ -1892,7 +2126,7 @@
 "DONATE_CHOOSE_PAYMENT_METHOD_SHEET_SUBTITLE_FOR_MONTHLY_DONATION" = "Obține insigna %1$@";
 
 /* When users make one-time donations, they see a sheet that lets them pick a payment method. It also tells them what they'll be doing when they pay: receive a badge for a month. This is the subtitle on that sheet. Embeds {{localized badge name}}, such as \"Boost\". */
-"DONATE_CHOOSE_PAYMENT_METHOD_SHEET_SUBTITLE_FOR_ONE_TIME_DONATION" = "Get the %1$@ badge for 30 days";
+"DONATE_CHOOSE_PAYMENT_METHOD_SHEET_SUBTITLE_FOR_ONE_TIME_DONATION" = "Obține insigna %1$@ timp de 30 de zile";
 
 /* When users make donations on a friend's behalf, they see a sheet that lets them pick a payment method. This is the title on that sheet. Embeds {{amount of money}}, such as \"$5\". */
 "DONATE_CHOOSE_PAYMENT_METHOD_SHEET_TITLE_FOR_DONATION_ON_BEHALF_OF_A_FRIEND" = "Donație către Signal %1$@";
@@ -1912,17 +2146,26 @@
 /* If a donation badge has been sent, indicates that it's expired and can no longer be redeemed. This is shown in the chat. */
 "DONATE_ON_BEHALF_OF_A_FRIEND_CHAT_EXPIRED" = "Expirat";
 
+/* Message in an alert presented when the user tries to make a donation, but already has an iDEAL donation that is currently awaiting approval. */
+"DONATE_SCREEN_ERROR_MESSAGE_APPROVE_IDEAL_DONATION_BEFORE_MAKING_ANOTHER_DONATION" = "Donația ta iDEAL este încă în procesare. Verifică aplicația bancară pentru a-ți aproba plata înainte de a face o altă donație.";
+
+/* Message in an alert presented when the user tries to update their recurring donation, but already has a recurring donation that is currently awaiting authorization. */
+"DONATE_SCREEN_ERROR_MESSAGE_BANK_PAYMENT_AWAITING_AUTHORIZATION" = "Donația ta iDEAL este încă în procesare. Verifică aplicația bancară pentru a-ți aproba plata înainte de a face o altă donație.";
+
 /* Message in an alert presented when the user tries to make a donation, but already has a donation that is currently processing via bank payment. */
-"DONATE_SCREEN_ERROR_MESSAGE_BANK_PAYMENT_PLEASE_WAIT_BEFORE_MAKING_ANOTHER_DONATION" = "Bank transfers usually take 1 business day to process. Please wait until this donation completes before making another donation.";
+"DONATE_SCREEN_ERROR_MESSAGE_BANK_PAYMENT_PLEASE_WAIT_BEFORE_MAKING_ANOTHER_DONATION" = "Procesarea transferurilor bancare durează de obicei 1 zi lucrătoare. Așteaptă până la finalizarea acestei plăți înainte de a face o altă donație.";
 
 /* Message in an alert presented when the user tries to update their recurring donation, but already has a recurring donation that is currently processing via bank payment. */
-"DONATE_SCREEN_ERROR_MESSAGE_BANK_PAYMENT_PLEASE_WAIT_BEFORE_UPDATING_YOUR_SUBSCRIPTION" = "Bank transfers usually take 1 business day to process. Please wait until this donation completes before updating your subscription.";
+"DONATE_SCREEN_ERROR_MESSAGE_BANK_PAYMENT_PLEASE_WAIT_BEFORE_UPDATING_YOUR_SUBSCRIPTION" = "Procesarea transferurilor bancare durează de obicei 1 zi lucrătoare. Așteaptă până la finalizarea acestei plăți înainte de a-ți actualiza abonamentul.";
+
+/* Message for an alert shown when the user tries to donate via bank transfer, but the amount they want to donate is too large. Embeds {{ the maximum allowed donation amount }}. */
+"DONATE_SCREEN_ERROR_MESSAGE_FORMAT_BANK_TRANSFER_AMOUNT_TOO_LARGE" = "Poți trimite până la %1$@ prin transfer bancar. Încearcă o sumă diferită sau o metodă de plată diferită.";
 
 /* Message in an alert presented when the user tries to make a donation, but already has a donation that is currently processing via non-bank payment. */
-"DONATE_SCREEN_ERROR_MESSAGE_PLEASE_WAIT_BEFORE_MAKING_ANOTHER_DONATION" = "Your donation is still being processed. This can take a few minutes depending on your connection. Please wait until this donation completes before making another donation.";
+"DONATE_SCREEN_ERROR_MESSAGE_PLEASE_WAIT_BEFORE_MAKING_ANOTHER_DONATION" = "Donația ta este încă în procesare. Ceea ce poate dura câteva minute, în funcție de conexiunea ta. Așteaptă până la finalizarea acestei plăți înainte de a face o altă donație.";
 
 /* Message in an alert presented when the user tries to update their recurring donation, but already has a recurring donation that is currently processing via non-bank payment. */
-"DONATE_SCREEN_ERROR_MESSAGE_PLEASE_WAIT_BEFORE_UPDATING_YOUR_SUBSCRIPTION" = "Your donation is still being processed. This can take a few minutes depending on your connection. Please wait until this donation completes before updating your subscription.";
+"DONATE_SCREEN_ERROR_MESSAGE_PLEASE_WAIT_BEFORE_UPDATING_YOUR_SUBSCRIPTION" = "Donația ta este încă în procesare. Ceea ce poate dura câteva minute, în funcție de conexiunea ta. Așteaptă până la finalizarea acestei plăți înainte de a-ți actualiza abonamentul.";
 
 /* If the user tries to donate to Signal but no amount is selected, this error message is shown. */
 "DONATE_SCREEN_ERROR_NO_AMOUNT_SELECTED" = "Selectează o sumă de donat.";
@@ -1930,11 +2173,17 @@
 /* If the user tries to donate to Signal but they've entered an amount that's too small, this error message is shown. Embeds {{currency string}}, such as \"$5\". */
 "DONATE_SCREEN_ERROR_SELECT_A_LARGER_AMOUNT_FORMAT" = "Suma minimă pe care o poți dona este %1$@.";
 
+/* Title for an alert presented when the user tries to make a donation, but already has a donation that is currently awaiting authorization. */
+"DONATE_SCREEN_ERROR_TITLE_BANK_PAYMENT_AWAITING_AUTHORIZATION" = "Donație în așteptarea autorizării";
+
 /* Title for an alert presented when the user tries to make a donation, but already has a donation that is currently processing via bank payment. */
-"DONATE_SCREEN_ERROR_TITLE_BANK_PAYMENT_YOU_HAVE_A_DONATION_PENDING" = "You have a donation pending";
+"DONATE_SCREEN_ERROR_TITLE_BANK_PAYMENT_YOU_HAVE_A_DONATION_PENDING" = "Ai o donație în așteptare";
+
+/* Title for an alert shown when the user tries to donate via bank transfer, but the amount they want to donate is too large. */
+"DONATE_SCREEN_ERROR_TITLE_BANK_TRANSFER_AMOUNT_TOO_LARGE" = "Suma donației este prea mare";
 
 /* Title for an alert presented when the user tries to make a donation, but already has a donation that is currently processing via non-bank payment. */
-"DONATE_SCREEN_ERROR_TITLE_YOU_HAVE_A_PAYMENT_PROCESSING" = "You have a donation processing";
+"DONATE_SCREEN_ERROR_TITLE_YOU_HAVE_A_PAYMENT_PROCESSING" = "Ai o donație care se procesează";
 
 /* On the donation screen, you can choose between one-time and monthly donations. This is the text on the picker for one-time donations. */
 "DONATE_SCREEN_MONTHLY_CHOICE" = "Lunar";
@@ -1958,25 +2207,25 @@
 "DONATE_SCREEN_UPDATE_MONTHLY_SUBSCRIPTION_BUTTON" = "Actualizare Abonament";
 
 /* Message for a sheet explaining that a donation via bank payment has failed. Embeds {{ a specific, already-localized string describing the payment failure }}. */
-"DONATION_BADGE_ISSUE_SHEET_BANK_PAYMENT_FAILED_MESSAGE" = "We’re having trouble processing your bank transfer. %1$@";
+"DONATION_BADGE_ISSUE_SHEET_BANK_PAYMENT_FAILED_MESSAGE" = "Întâmpinăm probleme la procesarea transferului tău bancar. %1$@";
 
 /* Title for a sheet explaining that a donation via bank payment has failed. */
-"DONATION_BADGE_ISSUE_SHEET_BANK_PAYMENT_FAILED_TITLE" = "Donation Couldn’t Be Processed";
+"DONATION_BADGE_ISSUE_SHEET_BANK_PAYMENT_FAILED_TITLE" = "Donația nu a putut fi procesată";
 
 /* Title for a sheet explaining that a donation via bank payment is pending. */
-"DONATION_BADGE_ISSUE_SHEET_BANK_PAYMENT_PROCESSING_TITLE" = "Donation Pending";
+"DONATION_BADGE_ISSUE_SHEET_BANK_PAYMENT_PROCESSING_TITLE" = "Donație în așteptare";
 
 /* Message for a sheet explaining that a one-time donation via bank payment is pending, and how that will affect the user's badge. Embeds {{ the name of the badge }}. Will have a 'learn more' link appended, when it is rendered. */
-"DONATION_BADGE_ISSUE_SHEET_ONE_TIME_BANK_PAYMENT_PROCESSING_MESSAGE" = "Your one-time donation is pending. You’ll be able to display the %1$@ badge on your profile when your donation is received.\n\nBank transfers usually take 1 business day to process.";
+"DONATION_BADGE_ISSUE_SHEET_ONE_TIME_BANK_PAYMENT_PROCESSING_MESSAGE" = "Donația ta unică este în așteptare. Vei putea afișa insigna %1$@ pe profilul tău când va fi primită donația.\n\nProcesarea transferurilor bancare durează de obicei 1 zi lucrătoare.";
 
 /* Message for a sheet explaining that a recurring donation via bank payment is pending, and how that will affect the user's badge. Embeds {{ the name of the badge }}. Will have a 'learn more' link appended, when it is rendered. */
-"DONATION_BADGE_ISSUE_SHEET_RECURRING_BANK_PAYMENT_PROCESSING_MESSAGE" = "Your monthly donation is pending. You’ll be able to display the %1$@ badge on your profile when your donation is received.\n\nBank transfers usually take 1 business day to process.";
+"DONATION_BADGE_ISSUE_SHEET_RECURRING_BANK_PAYMENT_PROCESSING_MESSAGE" = "Donația ta lunară este în așteptare. Vei putea afișa insigna %1$@ pe profilul tău când va fi primită donația.\n\nProcesarea transferurilor bancare durează de obicei 1 zi lucrătoare.";
 
 /* Title for a button asking the user to renew their subscription, because it has expired. */
-"DONATION_BADGE_ISSUE_SHEET_RENEW_SUBSCRIPTION_BUTTON_TITLE" = "Renew Subscription";
+"DONATION_BADGE_ISSUE_SHEET_RENEW_SUBSCRIPTION_BUTTON_TITLE" = "Reînnoiește abonamentul";
 
 /* Title for a button asking the user to try their donation again, because something went wrong. */
-"DONATION_BADGE_ISSUE_SHEET_TRY_AGAIN_BUTTON_TITLE" = "Try Again";
+"DONATION_BADGE_ISSUE_SHEET_TRY_AGAIN_BUTTON_TITLE" = "Încearcă din nou";
 
 /* When donating on behalf of a friend, a badge will be sent. This shows how long the badge lasts. Embeds {{formatted duration}}. */
 "DONATION_FOR_A_FRIEND_ROW_DURATION" = "Durează %1$@";
@@ -2122,6 +2371,15 @@
 /* Text at the bottom of the donation receipts list, telling users that receipts might not be available */
 "DONATION_RECEIPTS_MIGHT_BE_MISSING_IF_YOU_REINSTALLED" = "Dacă ai reinstalat Signal, bonurile fiscale ale donațiilor precedente nu vor mai fi disponibile.";
 
+/* Error message displayed if something goes wrong with 3DSecure/iDEAL payment authorization.  This will be encountered if the user cancels the webview before authrizing the payment. */
+"DONATION_REDIRECT_ERROR_CANCELLED_MESSAGE" = "Plată anulată. Te rugăm, încearcă din nou.";
+
+/* Error message displayed if something goes wrong with 3DSecure/iDEAL payment authorization.  This will be encountered if the callback is in an unexpected format. */
+"DONATION_REDIRECT_ERROR_INVALID_RESPONSE_MESSAGE" = "Răspuns de plată nevalid. Încearcă din nou, te rugăm.";
+
+/* Error message displayed if something goes wrong with 3DSecure/iDEAL payment authorization.  This will be encountered if the user denies the payment. */
+"DONATION_REDIRECT_ERROR_PAYMENT_DENIED_MESSAGE" = "Plată refuzată. Te rugăm să încerci din nou.";
+
 /* On the donation settings screen, tapping this button will take the user to a screen where they can donate. */
 "DONATION_SCREEN_DONATE_BUTTON" = "Donează";
 
@@ -2134,44 +2392,71 @@
 /* On donation screens, a small amount of information text is shown. This is the title for that text. */
 "DONATION_SCREENS_HEADER_TITLE" = "Confidențialitate mai presus de profit";
 
+/* Button title confirming the user wants to begin a new donation. */
+"DONATION_SETTINGS_CANCEL_DONATION_AWAITING_AUTHORIZATION_DONATE_ACTION" = "Donează";
+
+/* Prompt confirming the user wants to abandon the current donation flow and start a new donation. */
+"DONATION_SETTINGS_CANCEL_DONATION_AWAITING_AUTHORIZATION_MESSAGE" = "Dacă continui, donația ta recentă va fi anulată. Nu veți fi taxat/ă, dar este posibil să vezi solicitarea de plată în aplicația ta bancară până când iei măsuri. Sigur vrei să faci o nouă donație?";
+
 /* Title for an action in an action sheet asking the user to renew a subscription that has failed to renew. */
-"DONATION_SETTINGS_MY_SUPPORT_ACTION_SHEET_ACTION_TITLE_RENEW_SUBSCRIPTION" = "Renew Subscription";
+"DONATION_SETTINGS_MY_SUPPORT_ACTION_SHEET_ACTION_TITLE_RENEW_SUBSCRIPTION" = "Reînnoiește abonamentul";
 
 /* Title for an action in an action sheet asking the user to try again, in reference to a donation that failed. */
-"DONATION_SETTINGS_MY_SUPPORT_ACTION_SHEET_ACTION_TITLE_TRY_AGAIN" = "Try Again";
+"DONATION_SETTINGS_MY_SUPPORT_ACTION_SHEET_ACTION_TITLE_TRY_AGAIN" = "Încearcă din nou";
+
+/* Prompt the user asking if they want to keep the current in-flight, but unauthorized donation, or try again. */
+"DONATION_SETTINGS_MY_SUPPORT_BANK_PAYMENT_AWAITING_AUTHORIZATION_MESSAGE" = "Donația ta iDEAL nu a putut fi confirmată. Verifică-ți aplicația bancară pentru a-ți aproba donația sau încearcă din nou.";
 
 /* Message for an alert explaining that a one-time payment made via bank transfer is being processed. */
-"DONATION_SETTINGS_MY_SUPPORT_BANK_PAYMENT_PROCESSING_MESSAGE" = "Your bank transfer is pending. Bank transfers usually take 1 business day to process.";
+"DONATION_SETTINGS_MY_SUPPORT_BANK_PAYMENT_PROCESSING_MESSAGE" = "Transferul tău bancar este în așteptare. Procesarea transferurilor bancare durează de obicei 1 zi lucrătoare.";
 
 /* Title for an alert explaining that a one-time payment made via bank transfer is being processed. */
-"DONATION_SETTINGS_MY_SUPPORT_BANK_PAYMENT_PROCESSING_TITLE" = "Donation Pending";
+"DONATION_SETTINGS_MY_SUPPORT_BANK_PAYMENT_PROCESSING_TITLE" = "Donație în așteptare";
 
 /* Message shown in a sheet explaining that the user's donation has failed because payment failed. Embeds {{ a specific, already-localized string describing the payment failure reason }}. */
-"DONATION_SETTINGS_MY_SUPPORT_DONATION_FAILED_ALERT_MESSAGE_FORMAT" = "We’re having trouble processing your donation. %1$@";
+"DONATION_SETTINGS_MY_SUPPORT_DONATION_FAILED_ALERT_MESSAGE_FORMAT" = "Întâmpinăm probleme la procesarea donației tale. %1$@";
 
 /* Title for a sheet explaining that a payment failed. */
-"DONATION_SETTINGS_MY_SUPPORT_DONATION_FAILED_ALERT_TITLE" = "Error Processing Donation";
+"DONATION_SETTINGS_MY_SUPPORT_DONATION_FAILED_ALERT_TITLE" = "Eroare la procesarea donației";
+
+/* Title for a sheet explaining that a payment needs confirmation. */
+"DONATION_SETTINGS_MY_SUPPORT_DONATION_UNCONFIMRED_ALERT_TITLE" = "Nu s-a putut confirma donația";
+
+/* Message shown in a sheet explaining that the user's iDEAL one-time donation coultn't be processed. */
+"DONATION_SETTINGS_MY_SUPPORT_IDEAL_ONE_TIME_DONATION_FAILED_MESSAGE" = "Donația ta unică iDEAL nu a putut fi procesată. Încearcă o altă metodă de plată sau ia legătura cu banca ta pentru mai multe informații.";
+
+/* Title for a sheet explaining that a payment needs confirmation. */
+"DONATION_SETTINGS_MY_SUPPORT_IDEAL_ONE_TIME_DONATION_NOT_CONFIRMED_MESSAGE_FORMAT" = "Donația ta unică iDEAL de %1$@ nu a putut fi confirmată. Verifică-ți aplicația bancară pentru a-ți aproba donația iDEAL.";
+
+/* Message shown in a sheet explaining that the user's iDEAL recurring monthly donation coultn't be processed. */
+"DONATION_SETTINGS_MY_SUPPORT_IDEAL_RECURRING_SUBSCRIPTION_FAILED_MESSAGE" = "Donația ta lunară recurentă iDEAL nu a putut fi procesată. Încearcă o altă metodă de plată sau ia legătura cu banca ta pentru mai multe informații.";
+
+/* Message shown in a sheet explaining that the user's iDEAL recurring monthly donation hasn't been confirmed. Embeds {{ formatted current amount }}. */
+"DONATION_SETTINGS_MY_SUPPORT_IDEAL_RECURRING_SUBSCRIPTION_NOT_CONFIRMED_MESSAGE_FORMAT" = "Donația ta iDEAL lunară de %1$@ nu a putut fi confirmată. Verifică-ți aplicația bancară pentru a-ți aproba donația iDEAL.";
 
 /* Message shown in a sheet explaining that the user's recurring subscription has ended because payment failed. Embeds {{ a specific, already-localized string describing the failure reason }}. */
-"DONATION_SETTINGS_MY_SUPPORT_RECURRING_SUBSCRIPTION_LAPSED_CHARGE_FAILURE_ALERT_MESSAGE_FORMAT" = "Your recurring monthly donation has ended. %1$@";
+"DONATION_SETTINGS_MY_SUPPORT_RECURRING_SUBSCRIPTION_LAPSED_CHARGE_FAILURE_ALERT_MESSAGE_FORMAT" = "Donația ta lunară recurentă s-a încheiat. %1$@";
 
 /* Title for a sheet explaining that the user's recurring subscription has ended because payment failed. */
-"DONATION_SETTINGS_MY_SUPPORT_RECURRING_SUBSCRIPTION_LAPSED_TITLE" = "Monthly Donation Canceled";
+"DONATION_SETTINGS_MY_SUPPORT_RECURRING_SUBSCRIPTION_LAPSED_TITLE" = "Donație lunară anulată";
 
 /* A label describing a donation payment that was made via bank transfer, which is still processing and has not completed. */
-"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_BANK_PAYMENT_PROCESSING" = "Donation Pending";
+"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_BANK_PAYMENT_PROCESSING" = "Donație în așteptare";
 
 /* A label describing a donation payment that was made by a method other than bank transfer (such as by credit card), which is still processing and has not completed. */
-"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_NON_BANK_PAYMENT_PROCESSING" = "Processing Donation...";
+"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_NON_BANK_PAYMENT_PROCESSING" = "Se procesează donația…";
 
 /* A label describing a donation payment that has failed to process. */
-"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_PAYMENT_FAILED" = "Error Processing Donation";
+"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_PAYMENT_FAILED" = "Eroare la procesarea donației";
 
 /* A label describing a recurring monthly donation that used to be active, but has now been canceled because it failed to renew. */
-"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_SUBSCRIPTION_LAPSED" = "Monthly Donation Canceled";
+"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_SUBSCRIPTION_LAPSED" = "Donație lunară anulată";
+
+/* A label describing a donation payment that has requires authorization. */
+"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_WAITING_FOR_AUTHORIZATION" = "În așteptarea autorizației";
 
 /* A string describing the amount and currency of a one-time payment. Embeds {{ the amount, formatted as a currency }}. */
-"DONATION_SETTINGS_ONE_TIME_AMOUNT_FORMAT" = "%1$@ one-time";
+"DONATION_SETTINGS_ONE_TIME_AMOUNT_FORMAT" = "%1$@ o singură dată";
 
 /* Title for the \"donate for a friend\" button on the donation view. */
 "DONATION_VIEW_DONATE_ON_BEHALF_OF_A_FRIEND" = "Donează pentru un Prieten";
@@ -2180,7 +2465,7 @@
 "DONATION_VIEW_DONATION_TO_SIGNAL" = "Donație pentru Signal";
 
 /* Title for the 'Donor FAQ' button on the donation screen */
-"DONATION_VIEW_DONOR_FAQ" = "Donor FAQ";
+"DONATION_VIEW_DONOR_FAQ" = "Întrebări frecvente ale donatorilor";
 
 /* Text that's shown when the donation view fails to load data, probably due to network failure */
 "DONATION_VIEW_LOAD_FAILED" = "Eroare de rețea. Verifică-ți conexiunea și încearcă din nou.";
@@ -2205,6 +2490,12 @@
 
 /* Label for the currency picker button in donation views */
 "DONATIONS_CURRENCY_PICKER_LABEL" = "Monedă";
+
+/* Message for Double Tap to Edit sheet show on first interaction */
+"DOUBLE_TAP_TO_EDIT_ALERT_MESSAGE" = "Atinge rapid de două ori mesajele pentru a le edita. Poți edita mesajele până la 24 de ore după ce au fost trimise.";
+
+/* Title for Double Tap to Edit sheet show on first interaction */
+"DOUBLE_TAP_TO_EDIT_ALERT_TITLE" = "Atinge de două ori pentru a edita";
 
 /* Alert body for when the user has just tried to edit a contacts after declining to give Signal contacts permissions */
 "EDIT_CONTACT_WITHOUT_CONTACTS_PERMISSION_ALERT_BODY" = "Poți permite accesul din aplicația iOS Setări.";
@@ -2236,15 +2527,6 @@
 /* Short name for edit menu item to copy contents of media message. */
 "EDIT_ITEM_COPY_ACTION" = "Copiază";
 
-/* Edit Send Beta prompt body */
-"EDIT_MESSAGE_SEND_MESSAGE_BODY" = "Dacă editezi un mesaj, acesta va fi vizibil numai pentru persoanele care au cea mai recentă versiune de Signal beta. Ei vor putea să vadă că ai editat un mesaj.";
-
-/* Label to confirm sending an edit */
-"EDIT_MESSAGE_SEND_MESSAGE_CONFIRM" = "Trimite";
-
-/* Edit Send Beta prompt title */
-"EDIT_MESSAGE_SEND_MESSAGE_TITLE" = "Editează Mesajul";
-
 /* Error message to display to user when a message is too old to edit */
 "EDIT_MESSAGE_SEND_MESSAGE_TOO_OLD_ERROR" = "Editările se pot face numai în termen de 3 de ore de la trimiterea acestui mesaj.";
 
@@ -2252,7 +2534,7 @@
 "EDIT_MESSAGE_SEND_MESSAGE_UNKNOWN_ERROR" = "EDIT_MESSAGE_SEND_MESSAGE_UNKNOWN_ERROR";
 
 /* body of email sent to contacts when inviting to install Signal. Embeds {{link to install Signal}} and {{link to the Signal home page}} */
-"EMAIL_INVITE_BODY" = "Hei,\n\nRecent am început să folosesc Signal pentru a-mi păstra conversațiile private pe iPhone. Aș dori să-ți instalezi și tu aplicația, ca să fim siguri că numai noi doi putem citi mesajele sau să ascultăm apelurile.\n\nSignal este disponibil pentru iPhone și Android. Obține-l de aici:%1$@\n\nSignal funcționează ca și aplicația ta curentă de mesagerie. Putem trimite poze și video-uri, putem suna, și putem începe chat-uri de grup. Cea mai bună parte este că nimeni altcineva nu poate vedea toate acestea, nici măcar oamenii care dezvoltă Signal!\n\nPoți afla mai multe despre Open Whisper Systems, oamenii care dezvoltă Signal, aici: %2$@";
+"EMAIL_INVITE_BODY" = "Hey,\n\nLately I've been using Signal to keep the chats on my iPhone private. I'd like you to install it too, so we can be confident that only you and I can read our messages or hear our calls.\n\nSignal is available for iPhones and Android. Get it here: %1$@\n\nSignal works like your existing messaging app. We can send pictures and video, make calls, and start group chats. The best part is, no one else can see any of it, not even the people who make Signal!\n\nYou can read more about Signal here: %2$@";
 
 /* subject of email sent to contacts when inviting to install Signal */
 "EMAIL_INVITE_SUBJECT" = "Hai să folosim Signal";
@@ -2303,7 +2585,7 @@
 "END_CALL_RESPONDER_IS_BUSY" = "Ocupat";
 
 /* Call setup status label */
-"END_CALL_UNCATEGORIZED_FAILURE" = "Apel Eșuat.";
+"END_CALL_UNCATEGORIZED_FAILURE" = "Apel eșuat";
 
 /* Error indicating that a message could not be forwarded. */
 "ERROR_COULD_NOT_FORWARD_MESSAGES_1" = "Mesajul nu a putut fi redirecționat.";
@@ -2364,6 +2646,9 @@
 
 /* Error message indicating that attachment download(s) failed. */
 "ERROR_MESSAGE_ATTACHMENT_DOWNLOAD_FAILED" = "Descărcarea atașamentului a eșuat.";
+
+/* Error message indicating that attachment upload(s) failed. */
+"ERROR_MESSAGE_ATTACHMENT_UPLOAD_FAILED" = "Încărcarea atașamentului a eșuat.";
 
 /* Error message for a decryption failure. Embeds {{sender short name}}. */
 "ERROR_MESSAGE_DECRYPTION_FAILURE" = "Un mesaj de la %1$@ nu a putut fi livrat";
@@ -2465,10 +2750,22 @@
 "FEATURED_BADGE_SETTINGS_TITLE" = "Insignă principală";
 
 /* Users can choose to learn more about how to find account info, which will open a sheet with additional information. This is the body of that sheet. */
-"FIND_ACCOUNT_INFO_SHEET_BODY" = "Look for your IBAN at the top of your bank statement. IBAN numbers contain up to 34 characters. The name you enter should match your full name on your bank account. Contact your bank for more information.";
+"FIND_ACCOUNT_INFO_SHEET_BODY" = "Caută IBAN-ul contului tău în partea de sus a extrasului bancar. Numerele IBAN conțin până la 34 de caractere. Numele pe care îl introduci trebuie să corespundă cu numele tău complet aferent contului tău bancar. Contactează banca pentru mai multe informații.";
 
 /* Users can choose to learn more about how to find account info, which will open a sheet with additional information. This is the title of that sheet. */
-"FIND_ACCOUNT_INFO_SHEET_TITLE" = "Find Your Account Information";
+"FIND_ACCOUNT_INFO_SHEET_TITLE" = "Găsește informațiile despre contul tău";
+
+/* A footer below the username text field describing what should be entered */
+"FIND_BY_USERNAME_FOOTER" = "Introdu un nume de utilizator urmat de un punct și setul său de cifre.";
+
+/* A placeholder value for the text field for finding an account by their username */
+"FIND_BY_USERNAME_PLACEHOLDER" = "Nume utilizator";
+
+/* A button below the username text field which opens a username QR code scanner */
+"FIND_BY_USERNAME_SCAN_QR_CODE_BUTTON" = "Scanează Codul QR";
+
+/* Title for the view for finding accounts by their username */
+"FIND_BY_USERNAME_TITLE" = "Caută după nume de utilizator";
 
 /* Button that marks user as verified after a successful fingerprint scan. */
 "FINGERPRINT_SCAN_VERIFY_BUTTON" = "Marchează ca verificat";
@@ -2478,6 +2775,9 @@
 
 /* Accessibility label for finishing new group */
 "FINISH_GROUP_CREATION_LABEL" = "Grupul a fost creat";
+
+/* Tooltip notifying users that the flip camera button moved to the picture-in-picture view of themselves in a call */
+"FLIP_CAMERA_BUTTON_MOVED_TO_PIP_TOOLTIP" = "Butonul Schimbă camera a fost mutat aici, atinge videoclipul pentru a-l încerca";
 
 /* Label and title for 'contact forwarding' views. */
 "FORWARD_CONTACT" = "Redirecționează contactul";
@@ -2522,10 +2822,10 @@
 "GET_STARTED_CARD_APPEARANCE" = "Aspect";
 
 /* 'Get Started' button direction users to avatar builder */
-"GET_STARTED_CARD_AVATAR_BUILDER" = "Adăugare poză";
+"GET_STARTED_CARD_AVATAR_BUILDER" = "Adaugă poză";
 
 /* 'Get Started' button directing users to invite friends */
-"GET_STARTED_CARD_INVITE_FRIENDS" = "Invită prieteni";
+"GET_STARTED_CARD_INVITE_FRIENDS" = "Invită";
 
 /* 'Get Started' button directing users to create a group */
 "GET_STARTED_CARD_NEW_GROUP" = "Grup nou";
@@ -2638,6 +2938,21 @@
 /* Button to leave a group call */
 "GROUP_CALL_LEAVE_BUTTON" = "Părăsește apelul";
 
+/* Title for the section of the group call member list which displays the list of all members in the call. */
+"GROUP_CALL_MEMBER_LIST_IN_CALL_SECTION_HEADER" = "În apel";
+
+/* Title for the section of the group call member list which displays the list of members with their hand raised. */
+"GROUP_CALL_MEMBER_LIST_RAISED_HANDS_SECTION_HEADER" = "Mâini ridicate";
+
+/* A count of members in a given group call member list section, displayed after the header. */
+"GROUP_CALL_MEMBER_LIST_SECTION_HEADER_MEMBER_COUNT" = "(%1$d)";
+
+/* Title for a button on the group members sheet for sharing that call's link. */
+"GROUP_CALL_MEMBER_LIST_SHARE_CALL_LINK_BUTTON" = "Distribuie linkul apelului";
+
+/* Title for the sheet showing the group call members list */
+"GROUP_CALL_MEMBER_LIST_TITLE" = "Call Info";
+
 /* String displayed in cell when media from a user can't be displayed in group call grid. Embeds {user's name} */
 "GROUP_CALL_MISSING_MEDIA_KEYS_FORMAT" = "Nu-l poți auzi sau vedea pe %1$@";
 
@@ -2649,9 +2964,6 @@
 
 /* Text explaining that you are the only person currently in the group call */
 "GROUP_CALL_NO_ONE_HERE" = "Nu este nimeni aici";
-
-/* Text explaining to the user that nobody has joined this call yet. */
-"GROUP_CALL_NOBODY_IS_IN_YET" = "Nimeni nu este în acest apel încă.";
 
 /* Copy explaining that a user has joined the group call. Embeds {member name} */
 "GROUP_CALL_NOTIFICATION_ONE_JOINED_FORMAT" = "%1$@ s-a alăturat apelului";
@@ -2674,6 +2986,27 @@
 /* Text indicating that the user has lost their connection to the call and we are reconnecting. */
 "GROUP_CALL_RECONNECTING" = "Se reconectează";
 
+/* Label for a button to block a member from a group call. */
+"GROUP_CALL_REMOVE_MEMBER_CONFIRMATION_ACTION_SHEET_BLOCK_ACTION" = "Block from Call";
+
+/* Label for the button to confirm removing a member from a group call. */
+"GROUP_CALL_REMOVE_MEMBER_CONFIRMATION_ACTION_SHEET_REMOVE_ACTION" = "Remove";
+
+/* Title for action sheet confirming removal of a member from a group call. embeds {{ name }} */
+"GROUP_CALL_REMOVE_MEMBER_CONFIRMATION_ACTION_SHEET_TITLE" = "Remove %1$@ from the call?";
+
+/* The title of an alert when you've been removed from a group call. */
+"GROUP_CALL_REMOVED" = "Eliminat din apel";
+
+/* The message of an alert when you've been removed from a group call. */
+"GROUP_CALL_REMOVED_MESSAGE" = "Cineva te-a exclus din apel.";
+
+/* The title of an alert when tried to join a call using a link but the admin rejected your request. */
+"GROUP_CALL_REQUEST_DENIED" = "Solicitarea de alăturare a fost respinsă";
+
+/* The message of an alert when tried to join a call using a link but the admin rejected your request. */
+"GROUP_CALL_REQUEST_DENIED_MESSAGE" = "Solicitarea ta de a participa la acest apel a fost respinsă.";
+
 /* notification body when you join a group call and an already-joined participant has an untrusted safety number */
 "GROUP_CALL_SAFETY_NUMBER_CHANGE_AT_JOIN_BODY" = "Un participant la apel are o schimbare la numărul de siguranță. Atinge ca să vezi.";
 
@@ -2688,9 +3021,6 @@
 
 /* Toast view text informing user about swiping to speaker view */
 "GROUP_CALL_SPEAKER_VIEW_TOAST" = "Glisează în sus pentru a schimba ecranul";
-
-/* Button to start a group call */
-"GROUP_CALL_START_BUTTON" = "Începe apelul";
 
 /* Tooltip highlighting group calls. */
 "GROUP_CALL_START_TOOLTIP" = "Atinge aici pentru a începe un apel de grup";
@@ -2732,7 +3062,7 @@
 "GROUP_CREATED_BY_LOCAL_USER" = "Ai creat grupul.";
 
 /* Message indicating that group was created by another user. Embeds {{remote user name}}. */
-"GROUP_CREATED_BY_REMOTE_USER_FORMAT" = "%1$@ te-a adăugat la grup.";
+"GROUP_CREATED_BY_REMOTE_USER_FORMAT" = "%1$@ a creat grupul.";
 
 /* Message indicating that group was created by an unknown user. */
 "GROUP_CREATED_BY_UNKNOWN_USER" = "Grupul a fost creat.";
@@ -2754,42 +3084,6 @@
 
 /* Title for the group description view. Embeds {{ the number of characters that can be added to the description without hitting the length limit }}. */
 "GROUP_DESCRIPTION_VIEW_TITLE_FORMAT" = "Descriere grup (%1$@)";
-
-/* Message indicating that 1 invalid invite was added to the group. */
-"GROUP_INVALID_INVITES_ADDED_1" = "O invitație invalidă a fost adăugată.";
-
-/* Message indicating that 1 invalid invite was added by the local user. */
-"GROUP_INVALID_INVITES_ADDED_BY_LOCAL_USER_1" = "Ai adăugat o invitație invalidă.";
-
-/* Message indicating that multiple invalid invites were added by the local user. */
-"GROUP_INVALID_INVITES_ADDED_BY_LOCAL_USER_N" = "Ai adăugat invitații invalide.";
-
-/* Message indicating that 1 invalid invite was added by another user. Embeds {{remote user name}}. */
-"GROUP_INVALID_INVITES_ADDED_BY_REMOTE_USER_FORMAT_1" = "%1$@ a adăugat o invitație invalidă.";
-
-/* Message indicating that multiple invalid invites were added by another user. Embeds {{remote user name}}. */
-"GROUP_INVALID_INVITES_ADDED_BY_REMOTE_USER_FORMAT_N" = "%1$@ a adăugat invitații invalide.";
-
-/* Message indicating that multiple invalid invites were added to the group. */
-"GROUP_INVALID_INVITES_ADDED_N" = "Au fost adăugate invitații invalide.";
-
-/* Message indicating that 1 invalid invite was revoked. */
-"GROUP_INVALID_INVITES_REMOVED_1" = "O invitație invalidă a fost revocată.";
-
-/* Message indicating that 1 invalid invite was revoked by the local user. */
-"GROUP_INVALID_INVITES_REMOVED_BY_LOCAL_USER_1" = "Ai revocat o invitație invalidă.";
-
-/* Message indicating that multiple invalid invites were revoked by the local user. */
-"GROUP_INVALID_INVITES_REMOVED_BY_LOCAL_USER_N" = "Ai revocat invitațiile invalide.";
-
-/* Message indicating that 1 invalid invite was revoked by another user. Embeds {{remote user name}}. */
-"GROUP_INVALID_INVITES_REMOVED_BY_REMOTE_USER_FORMAT_1" = "%1$@ a revocat o invitație invalidă.";
-
-/* Message indicating that multiple invalid invites were revoked by another user. Embeds {{remote user name}}. */
-"GROUP_INVALID_INVITES_REMOVED_BY_REMOTE_USER_FORMAT_N" = "%1$@ a revocat invitațiile invalide.";
-
-/* Message indicating that multiple invalid invites were revoked. */
-"GROUP_INVALID_INVITES_REMOVED_N" = "Invitațiile invalide au fost revocate.";
 
 /* Message indicating that the group invite link was disabled. */
 "GROUP_INVITE_LINK_DISABLED" = "Linkul grupului a fost dezactivat.";
@@ -2890,6 +3184,12 @@
 /* Message text for the 'group invite link' action sheet. */
 "GROUP_LINK_ACTION_SHEET_VIEW_MESSAGE" = "Vrei să te alături acestui grup și să partajezi numele și fotografia ta cu membrii săi?";
 
+/* Label for the 'request to join' button in the 'group invite link' action sheet. */
+"GROUP_LINK_ACTION_SHEET_VIEW_REQUEST_TO_JOIN_BUTTON" = "Request to Join";
+
+/* Message text for the 'group invite link' action sheet, if the user will be requesting to join. */
+"GROUP_LINK_ACTION_SHEET_VIEW_REQUEST_TO_JOIN_MESSAGE" = "An admin of this group must approve your request before you can join this group. When you request to join, your name and photo will be shared with its members.";
+
 /* Error message the attempt to request to join the group failed due to network connectivity. */
 "GROUP_LINK_COULD_NOT_REQUEST_TO_JOIN_GROUP_DUE_TO_NETWORK_ERROR_MESSAGE" = "Te rugăm să verifici dacă ești online și încearcă din nou.";
 
@@ -2972,7 +3272,7 @@
 "GROUP_LINK_VIEW_TITLE" = "Link grup";
 
 /* Message indicating that the local user was added to the group by another user. Embeds {{remote user name}}. */
-"GROUP_LOCAL_USER_ADDED_TO_GROUP_BY_REMOTE_USER_FORMAT" = "%1$@ te-a adăugat.";
+"GROUP_LOCAL_USER_ADDED_TO_GROUP_BY_REMOTE_USER_FORMAT" = "%1$@ te-a adăugat la grup.";
 
 /* Message indicating that the local user was granted administrator role. */
 "GROUP_LOCAL_USER_GRANTED_ADMINISTRATOR" = "Ești acum administrator.";
@@ -3049,12 +3349,6 @@
 /* Title for the 'members' section of the 'group members' view. */
 "GROUP_MEMBERS_SECTION_TITLE_MEMBERS" = "Membri";
 
-/* Button to allow user to review known name collisions in group membership */
-"GROUP_MEMBERSHIP_NAME_COLLISION_BANNER_REVIEW_BUTTON" = "Atinge pentru examinare";
-
-/* A header string above a group member's contact info */
-"GROUP_MEMBERSHIP_NAME_COLLISION_MEMBER_HEADER" = "Membru";
-
 /* A title string for a view that allows a user to review name collisions in group membership */
 "GROUP_MEMBERSHIP_NAME_COLLISION_TITLE" = "Revizuire membri";
 
@@ -3118,6 +3412,9 @@
 /* Message indicating that a remote user was removed from the group by the local user. Embeds {{remote user name}}. */
 "GROUP_REMOTE_USER_REMOVED_BY_LOCAL_USER_FORMAT" = "Ai eliminat pe %1$@.";
 
+/* Message indicating that a remote user was removed from the group by an unknown user. Embeds {{remote user name}}. */
+"GROUP_REMOTE_USER_REMOVED_BY_UNKNOWN_USER_FORMAT" = "%1$@ nu mai face parte din grup";
+
 /* Message indicating that the remote user was removed from the group. Embeds {{ %1$@ user who removed the user, %2$@ user who was removed}}. */
 "GROUP_REMOTE_USER_REMOVED_FROM_GROUP_BY_REMOTE_USER_FORMAT" = "%1$@ a eliminat pe %2$@.";
 
@@ -3126,6 +3423,9 @@
 
 /* Message indicating that a remote user's request to join the group was approved by another user. Embeds {{ %1$@ requesting user name, %2$@ approving user name }}. */
 "GROUP_REMOTE_USER_REQUEST_APPROVED_BY_REMOTE_USER_FORMAT" = "%2$@ a aprobat o cerere de alăturare la grup de la %1$@.";
+
+/* Message indicating that a remote user's request to join the group was approved by an unknown user. Embeds {{ %1$@ requesting user name }}. */
+"GROUP_REMOTE_USER_REQUEST_APPROVED_BY_UNKNOWN_USER_FORMAT" = "O cerere de alăturare la grup de la %1$@ a fost aprobată.";
 
 /* Message indicating that a remote user cancelled their request to join the group. Embeds {{ the name of the requesting user }}. */
 "GROUP_REMOTE_USER_REQUEST_CANCELLED_BY_REMOTE_USER_FORMAT" = "%1$@ și-a anulat solicitarea de a se alătura grupului.";
@@ -3240,6 +3540,9 @@
 
 /* Message indicating that the group was migrated. */
 "GROUP_WAS_MIGRATED" = "Acest grup a fost actualizat la Noul Grup.";
+
+/* Message indicating that the local user was invited after the group was migrated. */
+"GROUP_WAS_MIGRATED_LOCAL_USER_INVITED" = "Nu ai putut fi adăugat la noul grup și ai fost invitat/ă să te înscrii.";
 
 /* Message indicating that the local user left the group. */
 "GROUP_YOU_LEFT" = "Ai părăsit grupul.";
@@ -3385,6 +3688,18 @@
 /* Title 'Read All' button in the toolbar of the ChatList if multi-section is active. */
 "HOME_VIEW_TOOLBAR_READ_ALL" = "Citește tot";
 
+/* Label for both bank chooser header and the bank form field on the iDEAL payment detail page. */
+"IDEAL_DONATION_CHOOSE_YOUR_BANK_LABEL" = "Alege-ți banca";
+
+/* Fallback title confirming recurring donation with bank. */
+"IDEAL_DONATION_CONFIRM_DONATION_TITLE" = "Confirmă-ți donația";
+
+/* Message confirming recurring donation with bank. This message confirms with the user that they will see a small confirmation charge with their bank before the donation. */
+"IDEAL_DONATION_CONFIRM_DONATION_WITH_BANK_MESSAGE" = "Pentru a configura donația recurentă, atinge Continuă, pentru a confirma o taxă de 0,01 € la banca ta. Aceasta va fi rambursată automat și va permite ca donația ta de %1$@/lună să fie debitată din contul tău.";
+
+/* Title confirming recurring donation with bank. */
+"IDEAL_DONATION_CONFIRM_DONATION_WITH_BANK_TITLE" = "Confirmă-ți donația cu %1$@";
+
 /* The image editor hint that you can draw blur */
 "IMAGE_EDITOR_BLUR_HINT" = "Desenează oriunde pentru a estompa";
 
@@ -3404,13 +3719,13 @@
 "IN_CALL_CONNECTING" = "Se conectează…";
 
 /* Call screen label when call was canceled on this device because the call recipient answered on another device. */
-"IN_CALL_ENDED_BECAUSE_ANSWERED_ELSEWHERE" = "Apel acceptat pe alt dispozitiv.";
+"IN_CALL_ENDED_BECAUSE_ANSWERED_ELSEWHERE" = "Apel acceptat pe alt dispozitiv";
 
 /* Call screen label when call was canceled on this device because the call recipient has a call in progress on another device. */
-"IN_CALL_ENDED_BECAUSE_BUSY_ELSEWHERE" = "Apel pierdut deoarece un apel este în progres pe alt dispozitiv.";
+"IN_CALL_ENDED_BECAUSE_BUSY_ELSEWHERE" = "Apel pierdut deoarece un apel este în progres pe alt dispozitiv";
 
 /* Call screen label when call was canceled on this device because the call recipient declined on another device. */
-"IN_CALL_ENDED_BECAUSE_DECLINED_ELSEWHERE" = "Apel respins pe alt dispozitiv.";
+"IN_CALL_ENDED_BECAUSE_DECLINED_ELSEWHERE" = "Apel respins pe alt dispozitiv";
 
 /* Call setup status label */
 "IN_CALL_RECONNECTING" = "Se reconectează…";
@@ -3428,7 +3743,16 @@
 "IN_CALL_SECURING" = "Apel preluat. Securizare în curs…";
 
 /* Call setup status label */
-"IN_CALL_TERMINATED" = "Apel Terminat.";
+"IN_CALL_TERMINATED" = "Apel încheiat";
+
+/* Title for a button in an in-app megaphone about a user's inactive linked device, indicating the user doesn't want to be reminded. */
+"INACTIVE_LINKED_DEVICE_REMINDER_MEGAPHONE_DONT_REMIND_ME_BUTTON" = "Nu îmi reaminti";
+
+/* Title for a button in an in-app megaphone about a user's inactive linked device, temporarily dismissing the megaphone. */
+"INACTIVE_LINKED_DEVICE_REMINDER_MEGAPHONE_GOT IT_BUTTON" = "Am înțeles";
+
+/* Title for an in-app megaphone about a user's inactive linked device. */
+"INACTIVE_LINKED_DEVICE_REMINDER_MEGAPHONE_TITLE" = "Dispozitiv conectat, inactiv";
 
 /* Label reminding the user that they are in archive mode, and that muted chats remain archived when they receive a new message. */
 "INBOX_VIEW_ARCHIVE_MODE_MUTED_CHATS_REMINDER" = "Conversațiile pe silențios arhivate vor rămâne arhivate atunci când sosește un mesaj nou.";
@@ -3440,16 +3764,37 @@
 "INBOX_VIEW_EMPTY_INBOX" = "Nicio conversație încă.\nÎncepe prin a trimite un mesaj unui prieten.";
 
 /* info message text in conversation view */
-"INCOMING_AUDIO_CALL" = "Apel de intrare vocal";
+"INCOMING_VIDEO_CALL" = "Apel de intrare video";
 
 /* info message text in conversation view */
-"INCOMING_VIDEO_CALL" = "Apel de intrare video";
+"INCOMING_VOICE_CALL" = "Apel de intrare vocal";
+
+/* An info message inserted into the chat when you accept a message request, in a 1:1 or group chat. */
+"INFO_MESSAGE_ACCEPTED_MESSAGE_REQUEST" = "Ai acceptat solicitarea de mesaj.";
+
+/* Header for an action sheet providing options in response to an accepted 1:1 message request. Embeds {{ the name of your chat partner }}. */
+"INFO_MESSAGE_ACCEPTED_MESSAGE_REQUEST_OPTIONS_ACTION_SHEET_HEADER_CONTACT" = "Ai acceptat o solicitare de mesaj de la %1$@. Dacă a fost o greșeală, poți alege o acțiune mai jos.";
+
+/* Header for an action sheet providing options in response to an accepted group message request. */
+"INFO_MESSAGE_ACCEPTED_MESSAGE_REQUEST_OPTIONS_ACTION_SHEET_HEADER_GROUP" = "Ai acceptat o solicitare de mesaj de la acest grup. Dacă a fost o greșeală, poți alege o acțiune mai jos.";
+
+/* Title for a button shown alongside an info message indicating you accepted a message request. */
+"INFO_MESSAGE_ACCEPTED_MESSAGE_REQUEST_OPTIONS_BUTTON" = "Opțiuni";
+
+/* An info message inserted into a group chat when you block the group. */
+"INFO_MESSAGE_BLOCKED_GROUP" = "Ai blocat acest grup.";
+
+/* An info message inserted into a 1:1 chat when you block another user. */
+"INFO_MESSAGE_BLOCKED_OTHER_USER" = "Ai blocat această persoană.";
 
 /* Indicates that a previously-removed recipient has been added back to the current user's contacts. */
 "INFO_MESSAGE_CONTACT_REINSTATED" = "Această persoană a fost adăugată înapoi în lista ta de contacte Signal.";
 
 /* Indicates that the recipient has been removed from the current user's contacts and that messaging them will re-add them. */
 "INFO_MESSAGE_CONTACT_REMOVED" = "Ai eliminat această persoană din lista ta de persoane de contact Signal, trimiterea de mesaje o va adăuga înapoi.";
+
+/* When you start a chat with someone and then later learn their profile name, we insert an in-chat message with this string to record the identifier you originally used to contact them. Embeds {{ the identifier, either a phone number or a username }}. */
+"INFO_MESSAGE_LEARNED_PROFILE_KEY" = "Ai început această conversație cu %1$@.";
 
 /* Shown when a user activates payments from a chat */
 "INFO_MESSAGE_PAYMENTS_ACTIVATED" = "Ai activat Plăți.";
@@ -3463,8 +3808,23 @@
 /* Shown when requesting a user activates payments. Embeds: {{ the user's name}} */
 "INFO_MESSAGE_PAYMENTS_ACTIVATION_REQUEST_SENT" = "I-ai trimis lui %1$@ o cerere de activare a Plăților.";
 
+/* Shown when a user reports a conversation as spam. */
+"INFO_MESSAGE_REPORTED_SPAM" = "Raportat ca spam";
+
+/* Body message of the alert shown when a user taps on 'learn more' via the spam info message. */
+"INFO_MESSAGE_REPORTED_SPAM_LEARN_MORE_MESSAGE" = "Signal a fost notificat că această persoană ar putea trimite spam. Signal nu poate vedea conținutul niciunei conversații.";
+
+/* Title of the alert shown when a user taps on 'learn more' via the spam info message. */
+"INFO_MESSAGE_REPORTED_SPAM_LEARN_MORE_TITLE" = "Spam raportat";
+
 /* Shown in inbox and conversation after syncing as a placeholder indicating why your message history is missing. */
-"INFO_MESSAGE_SYNCED_THREAD" = "You can send or receive synchronized messages from your phone or iPad.  For your security, chat history isn't transferred to new linked devices.";
+"INFO_MESSAGE_SYNCED_THREAD" = "Pentru securitatea ta, istoricul conversației nu este transferat pe noile dispozitive asociate.";
+
+/* An info message inserted into a group chat when you unblock the group. */
+"INFO_MESSAGE_UNBLOCKED_GROUP" = "Ai deblocat acest grup.";
+
+/* An info message inserted into a 1:1 chat when you unblock another user. */
+"INFO_MESSAGE_UNBLOCKED_OTHER_USER" = "Ai deblocat această persoană.";
 
 /* Indicates that another user has changed their phone number. Embeds: {{ the user's name}} */
 "INFO_MESSAGE_USER_CHANGED_PHONE_NUMBER_FORMAT" = "%1$@ și-a schimbat numărul de telefon.";
@@ -3504,6 +3864,9 @@
 
 /* Label for the cell that presents the 'invite contacts' workflow. */
 "INVITE_FRIENDS_CONTACT_TABLE_BUTTON" = "Invită-ți prietenii la Signal";
+
+/* Header label above a section for more options for adding contacts */
+"INVITE_FRIENDS_CONTACT_TABLE_HEADER" = "Mai multe";
 
 /* Search */
 "INVITE_FRIENDS_PICKER_SEARCHBAR_PLACEHOLDER" = "Căutare";
@@ -3611,7 +3974,7 @@
 "LINK_NEW_DEVICE_SUBTITLE" = "Scanează Codul QR pentru a conecta un dispozitiv nou.";
 
 /* Navigation title when scanning QR code to add new device. */
-"LINK_NEW_DEVICE_TITLE" = "Asociază un Dispozitiv Nou";
+"LINK_NEW_DEVICE_TITLE" = "Asociază un dispozitiv nou";
 
 /* Label for link previews with an unknown host. */
 "LINK_PREVIEW_UNKNOWN_DOMAIN" = "Previzualizare Link";
@@ -3627,15 +3990,6 @@
 
 /* Menu item and navbar title for the device manager */
 "LINKED_DEVICES_TITLE" = "Dispozitive asociate";
-
-/* Label for the 'give access' button in the 'onboarding permissions' view. */
-"LINKED_ONBOARDING_PERMISSIONS_ENABLE_PERMISSIONS_BUTTON" = "Permite notificările";
-
-/* Explanation in the 'onboarding permissions' view. */
-"LINKED_ONBOARDING_PERMISSIONS_EXPLANATION" = "Permiterea notificărilor te ajută să știi când primești mesaje, apeluri sau actualizări despre o nouă activitate de conversație.";
-
-/* Title of the 'onboarding permissions' view. */
-"LINKED_ONBOARDING_PERMISSIONS_TITLE" = "Permite notificările";
 
 /* Alert Title */
 "LINKING_DEVICE_FAILED_TITLE" = "Asocierea Dispozitivului a Eșuat";
@@ -3901,13 +4255,22 @@
 /* Context menu message preview accessibility label */
 "MESSAGE_PREVIEW" = "Previzualizare mesaj";
 
+/* Sheet option for blocking a chat. In this case, the sheet appears when the user taps a button attached to a 'message request accepted' info message in-chat. */
+"MESSAGE_REQUEST_ACCEPTED_INFO_MESSAGE_SHEET_OPTION_BLOCK" = "Blochează";
+
+/* Sheet option for deleting a chat. In this case, the sheet appears when the user taps a button attached to a 'message request accepted' info message in-chat. */
+"MESSAGE_REQUEST_ACCEPTED_INFO_MESSAGE_SHEET_OPTION_DELETE" = "Șterge conversația";
+
+/* Sheet option for reporting a chat as spam. In this case, the sheet appears when the user taps a button attached to a 'message request accepted' info message in-chat. */
+"MESSAGE_REQUEST_ACCEPTED_INFO_MESSAGE_SHEET_OPTION_SPAM" = "Raportează spam";
+
 /* Action sheet action to confirm blocking a thread via a message request. */
 "MESSAGE_REQUEST_BLOCK_ACTION" = "Blochează";
 
 /* Action sheet action to confirm blocking and deleting a thread via a message request. */
 "MESSAGE_REQUEST_BLOCK_AND_DELETE_ACTION" = "Blochează și șterge";
 
-/* Action sheet action to confirm blocking and report spam for a thread via a message request. */
+/* Action sheet action to confirm blocking and reporting spam for a thread via a message request. */
 "MESSAGE_REQUEST_BLOCK_AND_REPORT_SPAM_ACTION" = "Raportează spam și blochează";
 
 /* Action sheet message to confirm blocking a conversation via a message request. */
@@ -3941,16 +4304,10 @@
 "MESSAGE_REQUEST_LEAVE_AND_DELETE_GROUP_TITLE" = "Șterge și părăsește grupul?";
 
 /* Banner label notifying user that a new message is from a user with the same name as an existing contact */
-"MESSAGE_REQUEST_NAME_COLLISON_BANNER_LABEL" = "Revizuiește solicitările cu mare atenție. Signal a găsit un alt contact cu același nume.";
-
-/* A header string above a known contact's contact info */
-"MESSAGE_REQUEST_NAME_COLLISON_CONTACT_HEADER" = "Contactul tău";
+"MESSAGE_REQUEST_NAME_COLLISION_BANNER_LABEL" = "Această persoană are același nume cu o altă persoană de contact";
 
 /* A header string informing the user about name collisions in a message request */
 "MESSAGE_REQUEST_NAME_COLLISON_HEADER" = "Dacă nu ești sigur de la cine provine solicitarea, consultă persoanele de contact de mai jos și ia o decizie.";
-
-/* A header string above the requester's contact info */
-"MESSAGE_REQUEST_NAME_COLLISON_REQUESTER_HEADER" = "Solicitare";
 
 /* A title string for a view that allows a user to review name collisions for an incoming message request */
 "MESSAGE_REQUEST_NAME_COLLISON_TITLE" = "Revizuire solicitări";
@@ -3958,8 +4315,17 @@
 /* A button that updates a known contact's information to resolve a name collision */
 "MESSAGE_REQUEST_NAME_COLLISON_UPDATE_CONTACT_ACTION" = "Actualizează contactul";
 
-/* Button to allow user to review known name collisions with an incoming message request */
-"MESSAGE_REQUEST_REVIEW_NAME_COLLISION" = "Revizuire solicitări";
+/* Action sheet message to confirm reporting a conversation as spam via a message request. */
+"MESSAGE_REQUEST_REPORT_CONVERSATION_MESSAGE" = "Signal va fi notificat că această persoană poate trimite spam. Signal nu poate vedea conținutul niciunei conversații.";
+
+/* Action sheet title to confirm reporting a conversation as spam via a message request. */
+"MESSAGE_REQUEST_REPORT_CONVERSATION_TITLE" = "Raportezi spam-ul?";
+
+/* Action sheet action to confirm reporting a conversation as spam via a message request. */
+"MESSAGE_REQUEST_REPORT_SPAM_ACTION" = "Raportează spam";
+
+/* String indicating that spam has been reported. */
+"MESSAGE_REQUEST_SPAM_REPORTED" = "Raportat ca spam.";
 
 /* String indicating that spam has been reported and the chat has been blocked. */
 "MESSAGE_REQUEST_SPAM_REPORTED_AND_BLOCKED" = "Raportat ca spam și blocat.";
@@ -4002,6 +4368,9 @@
 
 /* A prompt asking if the user wants to accept a conversation invite from a person whom they previously removed. Embeds {{contact name}}. */
 "MESSAGE_REQUEST_VIEW_REMOVED_CONTACT_PROMPT_FORMAT" = "Îi permiți utilizatorului %1$@ să-ți dea mesaj și îi trimiți numele și fotografia ta? Ai eliminat această persoan în trecut.";
+
+/* incoming message request button text which reports a conversation as spam */
+"MESSAGE_REQUEST_VIEW_REPORT_BUTTON" = "Raportează…";
 
 /* A button used to unlock a blocked conversation. */
 "MESSAGE_REQUEST_VIEW_UNBLOCK_BUTTON" = "Deblochează";
@@ -4072,9 +4441,6 @@
 /* Indicator that separates read from unread messages. */
 "MESSAGES_VIEW_UNREAD_INDICATOR" = "Mesaje noi";
 
-/* info message text in conversation view */
-"MISSED_AUDIO_CALL" = "Apel vocal nepreluat";
-
 /* info message text in conversation view for when a call was dropped because the contact is blocked in iOS settings */
 "MISSED_CALL_BLOCKED_SYSTEM_CONTACT" = "Apel pierdut de la un contact blocat în setările telefonului";
 
@@ -4087,14 +4453,14 @@
 /* Title for sheet shown when the user taps a missed call from a contact blocked in iOS settings. Embeds {{ Contact's name }} */
 "MISSED_CALL_BLOCKED_SYSTEM_SETTINGS_SHEET_TITLE" = "%1$@ este blocat/ă și în Setările telefonului";
 
-/* info message text in conversation view (use Apple's name for 'Do Not Disturb' on iOS 14 and older) */
-"MISSED_CALL_DO_NOT_DISTURB" = "Apel ratat în timp ce era activat Nu Deranja";
-
 /* info message text in conversation view (use Apple's name for 'Focus') */
 "MISSED_CALL_FOCUS_MODE" = "Apel ratat în timp ce era activat Concentrare";
 
 /* info message text in conversation view */
 "MISSED_VIDEO_CALL" = "Apel video nepreluat";
+
+/* info message text in conversation view */
+"MISSED_VOICE_CALL" = "Apel vocal nepreluat";
 
 /* Alert body */
 "MISSING_CAMERA_PERMISSION_MESSAGE" = "Poți permite accesul la cameră din aplicația iOS Setări pentru a putea realiza apeluri video în Signal.";
@@ -4119,6 +4485,9 @@
 
 /* A recovery suggestion shown as the body of an alert when try to link a new device & the user is already at the limit. */
 "MULTIDEVICE_PAIRING_MAX_RECOVERY" = "Ai ajuns la numărul maxim de dispozitive pe care le poți asocia la contul tău. Te rog elimină un dispozitiv și încearcă din nou.";
+
+/* Text for a toast confirming that the mic has been muted for a call. */
+"MUTE_CONFIRMATION_TOAST_LABEL" = "Microfon dezactivat";
 
 /* Badge indicating that the user is muted. */
 "MUTED_BADGE" = "Fără sunet";
@@ -4153,8 +4522,8 @@
 /* Prompt to add to your story */
 "MY_STORY_TAP_TO_ADD" = "Atinge ca să adaugi";
 
-/* Format string describing a recent profile name change that led to a name collision. Embeds {{ %1$@ old profile name }} and {{ %2$@ current profile name }} */
-"NAME_COLLISION_RECENT_CHANGE_FORMAT_STRING" = "Recent și-au schimbat numele profilului din %1$@ în %2$@.";
+/* Format string describing a recent profile name change that led to a name collision. Embeds {{ %1$@ current name, which may be a profile name or an address book name }}, {{ %2$@ old profile name }}, and {{ %3$@ current profile name }} */
+"NAME_COLLISION_RECENT_CHANGE_FORMAT_STRING" = "%1$@ și-a schimbat recent numele de profil de la %2$@ la %3$@";
 
 /* A button to skip a view. */
 "NAVIGATION_ITEM_SKIP_BUTTON" = "Omite";
@@ -4171,8 +4540,29 @@
 /* String representing both wifi and cellular interfaces */
 "NETWORK_INTERFACE_SET_WIFI_CELLULAR" = "Wi-Fi și date mobile";
 
+/* Accessibility hint describing the action of the new call button on the Calls Tab */
+"NEW_CALL_HINT" = "Alege un contact sau un grup și începe un nou apel.";
+
+/* Accessibility label for the new call button on the Calls Tab */
+"NEW_CALL_LABEL" = "Apel nou";
+
+/* Title for a long-press context menu action to message a given recipient or group, triggered from a recipient in the New Call contact picker */
+"NEW_CALL_MESSAGE_ACTION_TITLE" = "Mesaj";
+
+/* Title for the contact picker that allows new calls to be started */
+"NEW_CALL_TITLE" = "Apel nou";
+
+/* Title for a long-press context menu action to start a video call, triggered from a recipient in the New Call contact picker */
+"NEW_CALL_VIDEO_CALL_ACTION_TITLE" = "Apel Video";
+
+/* Title for a long-press context menu action to start a voice call, triggered from a recipient in the New Call contact picker */
+"NEW_CALL_VOICE_CALL_ACTION_TITLE" = "Apel vocal";
+
 /* A label the cell that lets you add a new member to a group. */
 "NEW_CONVERSATION_FIND_BY_PHONE_NUMBER" = "Găsește după numărul de telefon";
+
+/* A label for the cell that lets you add a new member by their username */
+"NEW_CONVERSATION_FIND_BY_USERNAME" = "Caută după nume de utilizator";
 
 /* Label for the 'create new group' button. */
 "NEW_GROUP_BUTTON" = "Grup nou";
@@ -4213,11 +4603,8 @@
 /* Title for the 'new group story' view */
 "NEW_GROUP_STORY_VIEW_CONTROLLER_TITLE" = "Alege Grupul";
 
-/* A label for the 'add by phone number' button in the 'new non-contact conversation' view */
-"NEW_NONCONTACT_CONVERSATION_VIEW_BUTTON" = "Căutare";
-
 /* Title for the 'new non-contact conversation' view. */
-"NEW_NONCONTACT_CONVERSATION_VIEW_TITLE" = "Caută utilizator";
+"NEW_NONCONTACT_CONVERSATION_VIEW_TITLE" = "Găsește după numărul de telefon";
 
 /* Title for the 'new private story' confirmation view */
 "NEW_PRIVATE_STORY_CONFIRM_TITLE" = "Numele Poveștii";
@@ -4261,8 +4648,35 @@
 /* Title for the new story sheet */
 "NEW_STORY_SHEET_TITLE" = "Alege Tipul Poveștii";
 
+/* Title for the table cell in conversation settings for presenting the profile nickname editor. */
+"NICKNAME_BUTTON_TITLE" = "Pseudonim";
+
+/* The message for a prompt confirming that the user wants to delete the nickname and note. */
+"NICKNAME_EDITOR_DELETE_CONFIRMATION_MESSAGE" = "Prin această acțiune, vei șterge permanent acest pseudonim și nota.";
+
+/* The title for a prompt confirming that the user wants to delete the nickname and note. */
+"NICKNAME_EDITOR_DELETE_CONFIRMATION_TITLE" = "Ștergi pseudonimul?";
+
+/* The description below the title on the profile nickname editor view. */
+"NICKNAME_EDITOR_DESCRIPTION" = "Poreclele & notele sunt stocate cu Signal și criptate de la un capăt la altul. Sunt vizibile doar pentru tine.";
+
+/* Placeholder text it the text field for the family name in the profile nickname editor. */
+"NICKNAME_EDITOR_FAMILY_NAME_PLACEHOLDER" = "Nume";
+
+/* Placeholder text it the text field for the given name in the profile nickname editor. */
+"NICKNAME_EDITOR_GIVEN_NAME_PLACEHOLDER" = "Prenume";
+
+/* Placeholder text it the text box for the note in the profile nickname editor. */
+"NICKNAME_EDITOR_NOTE_PLACEHOLDER" = "Notă";
+
+/* The title for the profile nickname editor view. */
+"NICKNAME_EDITOR_TITLE" = "Pseudonim";
+
 /* Label for a button that lets users search for contacts by phone number */
 "NO_CONTACTS_SEARCH_BY_PHONE_NUMBER" = "Găsește contacte după numărul de telefon";
+
+/* Label for a button that lets users search for contacts by username */
+"NO_CONTACTS_SEARCH_BY_USERNAME" = "Caută contacte după nume de utilizator";
 
 /* A string describing that the user has no groups in common with another user */
 "NO_GROUPS_IN_COMMON" = "Nu există grupuri în comun";
@@ -4305,6 +4719,12 @@
 
 /* Title for notification permission reminder megaphone */
 "NOTIFICATION_PERMISSION_REMINDER_MEGAPHONE_TITLE" = "Activezi notificările?";
+
+/* Shown as the body of an alert when notifications can't be shown due to an error. */
+"NOTIFICATIONS_ERROR_MESSAGE" = "Repornește dispozitivul %1$@ dacă nu primești notificări de la Signal.";
+
+/* Shown as the title of an alert when notifications can't be shown due to an error. */
+"NOTIFICATIONS_ERROR_TITLE" = "Notificările nu s-au putut afișa";
 
 /* No comment provided by engineer. */
 "NOTIFICATIONS_FOOTER_WARNING" = "Acțiuni includ \"Marchează ca Citit\", \"Răspunde\" și \"Apelează Înapoi.\"";
@@ -4381,11 +4801,20 @@
 /* warning to the user that linking a phone is not recommended */
 "ONBOARDING_MODE_SWITCH_WARNING_REGISTERING" = "Asocierea iPhone-ului tău nu este recomandată și va limita funcții de bază.";
 
-/* Label for the 'give access' button in the 'onboarding permissions' view. */
-"ONBOARDING_PERMISSIONS_ENABLE_PERMISSIONS_BUTTON" = "Activare permisiuni";
+/* Description of the 'Contacts' permission in the 'onboarding permissions' view. */
+"ONBOARDING_PERMISSIONS_CONTACTS_DESCRIPTION" = "Găsește oameni pe care îi cunoști. Contactele tale sunt criptate și nu sunt vizibile pentru serviciul Signal.";
 
-/* Explanation in the 'onboarding permissions' view. */
-"ONBOARDING_PERMISSIONS_EXPLANATION" = "Activarea notificărilor și a contactelor îți permite să vezi când sosesc mesaje și te ajută să găsești persoane pe care le cunoști. Contactele sunt criptate, astfel încât serviciul Signal nu le poate vedea.";
+/* Title introducing the 'Contacts' permission in the 'onboarding permissions' view. */
+"ONBOARDING_PERMISSIONS_CONTACTS_TITLE" = "Contacte";
+
+/* Description of the 'Notifications' permission in the 'onboarding permissions' view. */
+"ONBOARDING_PERMISSIONS_NOTIFICATIONS_DESCRIPTION" = "Primește notificări când sosesc mesaje noi.";
+
+/* Title introducing the 'Notifications' permission in the 'onboarding permissions' view. */
+"ONBOARDING_PERMISSIONS_NOTIFICATIONS_TITLE" = "Notificări";
+
+/* Preamble of the 'onboarding permissions' view. */
+"ONBOARDING_PERMISSIONS_PREAMBLE" = "Signal ar dori să solicite următoarele permisiuni.";
 
 /* Title of the 'onboarding permissions' view. */
 "ONBOARDING_PERMISSIONS_TITLE" = "Activare permisiuni";
@@ -4493,13 +4922,10 @@
 "OUTDATED_PAYMENT_CLIENT_REMINDER_TEXT" = "Actualizează Signal ca să continui să folosești plăți. Soldul este posibil să nu fie actualizat.";
 
 /* info message text in conversation view */
-"OUTGOING_AUDIO_CALL" = "Apel de ieșire vocal";
-
-/* info message text in conversation view */
-"OUTGOING_MISSED_AUDIO_CALL" = "Apel vocal nepreluat";
-
-/* info message text in conversation view */
 "OUTGOING_MISSED_VIDEO_CALL" = "Apel video nepreluat";
+
+/* info message text in conversation view */
+"OUTGOING_MISSED_VOICE_CALL" = "Apel vocal nepreluat";
 
 /* Button for action sheet shown when device transfer completes; quits the Signal app immediately (does not automatically relaunch, but the user may choose to relaunch). */
 "OUTGOING_TRANSFER_COMPLETE_EXIT_ACTION" = "Ieșire din Signal";
@@ -4513,11 +4939,14 @@
 /* info message text in conversation view */
 "OUTGOING_VIDEO_CALL" = "Apel de ieșire video";
 
+/* info message text in conversation view */
+"OUTGOING_VOICE_CALL" = "Apel de ieșire vocal";
+
 /* Header title for bank payment details screen */
-"PAYMENT_DETAILS_BANK_TITLE" = "Bank Transfer";
+"PAYMENT_DETAILS_BANK_TITLE" = "Transfer bancar";
 
 /* Header title for card payment details screen */
-"PAYMENT_DETAILS_CARD_TITLE" = "Credit or Debit Card";
+"PAYMENT_DETAILS_CARD_TITLE" = "Card de credit sau debit";
 
 /* Format for indicator of a payment amount converted to fiat currency with the freshness of the conversion rate. Embeds: {{ %1$@ the payment amount, %2$@ the freshness of the currency conversion rate }}. */
 "PAYMENTS_CURRENCY_CONVERSION_FRESHNESS_FORMAT" = "%1$@ la %2$@";
@@ -4583,6 +5012,9 @@
 "PAYMENTS_LOCK_FIRST_TIME_ACTION_SHEET_MESSAGE_FACEID" = "Adaugă un nivel suplimentar de securitate și solicită ID facial pentru trimiterea de fonduri.";
 
 /* First time payments suggest payments lock message */
+"PAYMENTS_LOCK_FIRST_TIME_ACTION_SHEET_MESSAGE_OPTICID" = "Adaugă un nivel suplimentar de securitate și solicită ID Optic pentru trimiterea de fonduri.";
+
+/* First time payments suggest payments lock message */
 "PAYMENTS_LOCK_FIRST_TIME_ACTION_SHEET_MESSAGE_PASSCODE" = "Adaugă un nivel suplimentar de securitate și solicită un cod pentru trimiterea de fonduri.";
 
 /* First time payments suggest payments lock message */
@@ -4596,6 +5028,9 @@
 
 /* Affirmative action title to enable payments lock */
 "PAYMENTS_LOCK_FIRST_TIME_AFFIRMATIVE_ACTION_FACEID" = "Solicită ID facial pentru a trimite";
+
+/* Affirmative action title to enable payments lock */
+"PAYMENTS_LOCK_FIRST_TIME_AFFIRMATIVE_ACTION_OPTICID" = "Solicită ID Optic pentru a trimite";
 
 /* Affirmative action title to enable payments lock */
 "PAYMENTS_LOCK_FIRST_TIME_AFFIRMATIVE_ACTION_PASSCODE" = "Solicită codul telefonului tău ca să trimiți";
@@ -4883,13 +5318,13 @@
 "PHONE_NUMBER_DISCOVERABILITY_EVERYBODY" = "Toată lumea";
 
 /* A user friendly description of the 'everybody' phone number discoverability mode. */
-"PHONE_NUMBER_DISCOVERABILITY_EVERYBODY_DESCRIPTION" = "Oricine are numărul tău de telefon în agendar lor te va vedea ca un contact pe Signal. Alte persoane vor putea să te apeleze pe numărul de telefon când încep o nouă conversație sau un nou grup.";
+"PHONE_NUMBER_DISCOVERABILITY_EVERYBODY_DESCRIPTION" = "Oricine are numărul tău de telefon va vedea că ești pe Signal și poate începe conversații cu tine.";
 
 /* A user friendly name for the 'nobody' phone number discoverability mode. */
 "PHONE_NUMBER_DISCOVERABILITY_NOBODY" = "Nimeni";
 
 /* A user friendly description of the 'nobody' phone number discoverability mode. */
-"PHONE_NUMBER_DISCOVERABILITY_NOBODY_DESCRIPTION" = "Nimeni de pe Signal nu va putea să te găsească cu numărul de telefon.";
+"PHONE_NUMBER_DISCOVERABILITY_NOBODY_DESCRIPTION" = "Nimeni nu va putea să vadă că ești pe Signal decât dacă îi trimiți un mesaj sau dacă ai o conversație existentă cu acesta.";
 
 /* A format for a label showing an example phone number. Embeds {{the example phone number}}. */
 "PHONE_NUMBER_EXAMPLE_FORMAT" = "Exemplu: %1$@";
@@ -4898,16 +5333,16 @@
 "PHONE_NUMBER_SHARING_EVERYBODY" = "Toată lumea";
 
 /* A user friendly description of the 'everybody' phone number sharing mode. */
-"PHONE_NUMBER_SHARING_EVERYBODY_DESCRIPTION" = "Numărul tău de telefon va fi vizibil pentru persoanele și grupurile către care trimiți mesaje. Persoanele care au numărul tău de telefon în lista lor de contacte îl vor vedea și pe Signal.";
+"PHONE_NUMBER_SHARING_EVERYBODY_DESCRIPTION" = "Numărul tău de telefon va fi vizibil pentru toate persoanele și grupurile cărora le trimiți mesaje.";
 
 /* A user friendly name for the 'nobody' phone number sharing mode. */
 "PHONE_NUMBER_SHARING_NOBODY" = "Nimeni";
 
-/* A user friendly description of the 'nobody' phone number sharing mode. */
-"PHONE_NUMBER_SHARING_NOBODY_DESCRIPTION" = "Nimeni nu va vedea numărul tău de telefon pe Signal.";
+/* A user-friendly description of the 'nobody' phone number sharing mode when phone number discovery is set to 'everybody'. */
+"PHONE_NUMBER_SHARING_NOBODY_DESCRIPTION_DISCOVERABILITY_EVERYBODY" = "Numărul tău de telefon nu va fi vizibil nimănui, cu excepția cazului în care acesta este salvat în contactele telefonului său.";
 
-/* Format for phone number label with an index. Embeds {{Phone number label (e.g. 'home')}} and {{index, e.g. 2}}. */
-"PHONE_NUMBER_TYPE_AND_INDEX_NAME_FORMAT" = "%1$@ %2$@";
+/* A user-friendly description of the 'nobody' phone number sharing mode when phone number discovery is set to 'nobody'. */
+"PHONE_NUMBER_SHARING_NOBODY_DESCRIPTION_DISCOVERABILITY_NOBODY" = "Numărul tău de telefon nu va fi vizibil pentru nimeni.";
 
 /* Label for 'Home' phone numbers. */
 "PHONE_NUMBER_TYPE_HOME" = "Acasă";
@@ -4933,9 +5368,6 @@
 /* Label for 'Pager' phone numbers. */
 "PHONE_NUMBER_TYPE_PAGER" = "Pager";
 
-/* Label used when we don't what kind of phone number it is (e.g. mobile/work/home). */
-"PHONE_NUMBER_TYPE_UNKNOWN" = "Telefon";
-
 /* Label for 'Work' phone numbers. */
 "PHONE_NUMBER_TYPE_WORK" = "Serviciu";
 
@@ -4950,6 +5382,15 @@
 
 /* alert title */
 "PHOTO_CAPTURE_UNABLE_TO_INITIALIZE_CAMERA" = "Eroare la configurarea camerei.";
+
+/* Button label for opening the chat on a sheet presented from photo capture view indicating that a username QR code was found. */
+"PHOTO_CAPTURE_USERNAME_QR_CODE_FOUND_CTA" = "Mergi la conversație";
+
+/* Message for a sheet presented from photo capture view indicating that a username QR code was found. Embeds {{username}}. */
+"PHOTO_CAPTURE_USERNAME_QR_CODE_FOUND_MESSAGE_FORMAT" = "Începe o conversație cu \"%1$@\"";
+
+/* Title for sheet presented from photo capture view indicating that a username QR code was found. Embeds {{username}}. */
+"PHOTO_CAPTURE_USERNAME_QR_CODE_FOUND_TITLE_FORMAT" = "%1$@ a fost găsit";
 
 /* alert title, generic error preventing user from capturing a video that is too long */
 "PHOTO_CAPTURE_VIDEO_SIZE_ERROR" = "Videoclip prea lung.";
@@ -5228,13 +5669,13 @@
 "PROFILE_SETTINGS_NAME_PLACEHOLDER" = "Nume";
 
 /* A message explaining that something is wrong with the username, on a sheet allowing the user to resolve the issue. */
-"PROFILE_SETTINGS_USERNAME_CORRUPTED_RESOLUTION_CONFIRMATION_ALERT_MESSAGE" = "Ceva nu a funcționat corect cu numele tău de utilizator, nu mai este atribuit contului tău.";
-
-/* Title for an action sheet button allowing users to create a new username when their current one is corrupted. */
-"PROFILE_SETTINGS_USERNAME_CORRUPTED_RESOLUTION_CREATE_NEW_USERNAME_ACTION_TITLE" = "Creați un nume de utilizator";
+"PROFILE_SETTINGS_USERNAME_CORRUPTED_RESOLUTION_CONFIRMATION_ALERT_MESSAGE" = "Ceva nu a funcționat corect cu numele tău de utilizator, nu mai este atribuit contului tău. Poți încerca să îl stabilești din nou sau să alegi unul nou.";
 
 /* Title for an action sheet button allowing users to delete their corrupted username. */
 "PROFILE_SETTINGS_USERNAME_CORRUPTED_RESOLUTION_DELETE_USERNAME_ACTION_TITLE" = "Șterge Numele de Utilizator";
+
+/* Title for an action sheet button allowing users to fix their username when their current one is corrupted. */
+"PROFILE_SETTINGS_USERNAME_CORRUPTED_RESOLUTION_FIX_ACTION_TITLE" = "Repară acum";
 
 /* A message asking the user if they are sure they want to remove their username and explaining what will happen. Embeds {{ the user's current username }}. */
 "PROFILE_SETTINGS_USERNAME_DELETION_CONFIRMATION_ALERT_MESSAGE_FORMAT" = "Aceasta îți va elimina numele de utilizator și va dezactiva codul QR și linkul. „ %1$@ ” va fi disponibil pentru a fi revendicat de alții. Ești sigur?";
@@ -5270,10 +5711,16 @@
 "PROFILE_VIEW_NO_CONNECTION" = "Profilul poate fi actualizat doar când ești conectat la internet.";
 
 /* Description of the user profile. */
-"PROFILE_VIEW_PROFILE_DESCRIPTION" = "Profilul tău este criptat integral. Profilul și modificările sale vor fi vizibile pentru contactele tale, atunci când inițiezi sau accepți conversații noi.";
+"PROFILE_VIEW_PROFILE_DESCRIPTION" = "Profilul și schimbările tale vor fi vizibile pentru persoanele cărora le dai mesaj, pentru contacte și grupuri.";
 
 /* Title for the profile view. */
 "PROFILE_VIEW_TITLE" = "Profil";
+
+/* Footer below the usernames section of the profile settings explaining username visibility. */
+"PROFILE_VIEW_USERNAME_DESCRIPTION" = "Numele tău de utilizator, codul QR și linkul nu sunt vizibile în profilul tău. Distribuie numele de utilizator numai persoanelor în care ai încredere.";
+
+/* Footer below the usernames section of the profile settings when a username has not been set. */
+"PROFILE_VIEW_USERNAME_UNSET_DESCRIPTION" = "Acum, oamenii îți pot trimite mesaje folosind numele tău de utilizator opțional, astfel încât să nu fie nevoie să dai numărul tău de telefon.";
 
 /* The title for the address of the signal proxy */
 "PROXY_ADDRESS" = "Adresă proxy";
@@ -5340,6 +5787,18 @@
 
 /* Indicates this message is a quoted reply to a video file. */
 "QUOTED_REPLY_TYPE_VIDEO" = "Video";
+
+/* Label for a button to lower your raised hand in a call. */
+"RAISED_HANDS_LOWER_HAND_BUTTON" = "Coboară";
+
+/* A message appearing on the call view's raised hands toast indicating that another named member has raised their hand. */
+"RAISED_HANDS_TOAST_SINGLE_HAND_MESSAGE" = "%1$@ ai ridicat mâna";
+
+/* A compact member count on the call view's raised hands toast indicating that you and a number of other users raised a hand. Embeds {{number of other users}} */
+"RAISED_HANDS_TOAST_YOU_PLUS_OTHERS_COUNT" = "Tu +%1$d";
+
+/* A message appearing on the call view's raised hands toast indicating that you raised your own hand. */
+"RAISED_HANDS_TOAST_YOUR_HAND_MESSAGE" = "Ai ridicat mâna";
 
 /* The header used to indicate All reactions to a given message. Embeds {{number of reactions}} */
 "REACTION_DETAIL_ALL_FORMAT" = "Toate· %1$@";
@@ -5581,14 +6040,17 @@
 /* Error message when sending a verification code via voice call failed, but resending via sms might succeed. */
 "REGISTRATION_VOICE_CODE_FAILED_TRY_SMS_ERROR" = "Nu ți-am putut trimite un cod de verificare prin apel vocal. Încearcă să primești codul prin sms.";
 
-/* notification action */
-"REJECT_CALL_BUTTON_TITLE" = "Respinge";
-
 /* No comment provided by engineer. */
 "RELAY_REGISTERED_ERROR_RECOVERY" = "Numărul de telefon pe care încerci să-l înregistrezi a fost deja înregistrat pe alt server, te rog anulează înregistrarea de pe acel server și încearcă din nou.";
 
+/* Button below the warning to fix a corrupted username. */
+"REMINDER_VIEW_USERNAME_CORRUPTED_FIX_BUTTON" = "Repară acum";
+
 /* Label warning the user that something is wrong with their username. */
 "REMINDER_VIEW_USERNAME_CORRUPTED_WARNING" = "Ceva nu a funcționat corect cu numele tău de utilizator, nu mai este atribuit contului tău. Poți încerca să îl stabilești din nou sau să alegi unul nou.";
+
+/* Button below the warning to fix a username link. */
+"REMINDER_VIEW_USERNAME_LINK_CORRUPTED_FIX_BUTTON" = "Repară acum";
 
 /* Label warning the user that something is wrong with their username link. */
 "REMINDER_VIEW_USERNAME_LINK_CORRUPTED_WARNING" = "Ceva nu a funcționat corect cu numele tău de utilizator, nu mai este valid. Creează un link nou pe care să îl distribui altora.";
@@ -5616,6 +6078,12 @@
 
 /* Button to return to current group call */
 "RETURN_CALL_PILL_BUTTON" = "Întoarce-te";
+
+/* Text for a toast confirming that ringing has been turned off for a call. */
+"RING_OFF_CONFIRMATION_TOAST_LABEL" = "Sunet de apel dezactivat";
+
+/* Text for a toast confirming that ringing has been turned on for a call. */
+"RING_ON_CONFIRMATION_TOAST_LABEL" = "Sunet de apel activat";
 
 /* button title to confirm adding a recipient when their safety number has recently changed */
 "SAFETY_NUMBER_CHANGED_CONFIRM_ADD_MEMBER_ACTION" = "Adaugă Oricum";
@@ -5646,6 +6114,48 @@
 
 /* Action sheet heading */
 "SAFETY_NUMBERS_ACTIONSHEET_TITLE" = "Numărul tău de siguranță pentru %1$@ s-a schimbat. S-ar putea să dorești să-l verifici.";
+
+/* Title for Safety Tips button in thread details. */
+"SAFETY_TIPS_BUTTON_ACTION_TITLE" = "Sfaturi de siguranță";
+
+/* Message contents for the crypto safety tip. */
+"SAFETY_TIPS_CRYPTO_BODY" = "Dacă cineva pe care nu îl cunoști îți trimite mesaje despre criptomonede (cum ar fi Bitcoin) sau despre o oportunitate financiară, ai grijă—este foarte probabil că este vorba de spam.";
+
+/* Message title describing the crypto safety tip. */
+"SAFETY_TIPS_CRYPTO_TITLE" = "Escrocherii cu cripto sau bani";
+
+/* Message contents for the safety tip concerning fake businesses. */
+"SAFETY_TIPS_FAKE_BUSINESS_BODY" = "Ai grijă la companiile sau agențiile guvernamentale care te contactează. Mesajele care implică agențiile fiscale, curierii și multe altele pot fi spam.";
+
+/* Message title describing the safety tip about unknown or fake businesses. */
+"SAFETY_TIPS_FAKE_BUSINESS_TITLE" = "Companii și instituții false";
+
+/* Message describing safety tips for group conversations. */
+"SAFETY_TIPS_GROUPS_HEADER_MESSAGE" = "Examinează cu atenție această solicitare. Niciunul dintre contactele tale sau din persoanele cu care discuți nu se află în acest grup. Iată câteva lucruri la care trebuie să ai grijă:";
+
+/* Title for Safety Tips education screen. */
+"SAFETY_TIPS_HEADER_TITLE" = "Sfaturi de siguranță";
+
+/* Message describing safety tips for 1:1 conversations. */
+"SAFETY_TIPS_INDIVIDUAL_HEADER_MESSAGE" = "Ai grijă când accepți cereri de mesaje de la persoane pe care nu le cunoști. Ai grijă la:";
+
+/* Message contents for the unknown links in messages safety tip. */
+"SAFETY_TIPS_MESSAGE_LINKS_BODY" = "Ai grijă la mesajele de la persoane necunoscute care au linkuri către site-uri web. Nu vizita niciodată link-uri de la persoane în care nu ai încredere.";
+
+/* Message title describing the safety tip about unknown links in messages. */
+"SAFETY_TIPS_MESSAGE_LINKS_TITLE" = "Mesaje cu linkuri";
+
+/* Button that will show the next safety tip. */
+"SAFETY_TIPS_NEXT_TIP_BUTTON" = "Următorul";
+
+/* Button that will show the previous safety tip. */
+"SAFETY_TIPS_PREVIOUS_TIP_BUTTON" = "Înapoi";
+
+/* Message contents for the vague message safety tip. */
+"SAFETY_TIPS_VAGUE_MESSAGE_BODY" = "Spammerii încep adesea cu un mesaj simplu, cum ar fi \"Bună\", pentru a te atrage. Dacă răspunzi, este posibil să te apeleze în continuare.";
+
+/* Message title describing the safety tip about vague messages. */
+"SAFETY_TIPS_VAGUE_MESSAGE_TITLE" = "Mesaje vagi sau irelevante";
 
 /* label presented once scanning (camera) view is visible. */
 "SCAN_CODE_INSTRUCTIONS" = "Scanează Codul QR de pe dispozitivul contactului tău.";
@@ -5684,7 +6194,7 @@
 "SCREEN_LOCK_UNLOCK_SIGNAL" = "Deblochează Signal";
 
 /* Placeholder text indicating the user can search for contacts by name, username, or phone number. */
-"SEARCH_BY_NAME_OR_USERNAME_OR_NUMBER_PLACEHOLDER_TEXT" = "Nume, nume utilizator sau număr de telefon";
+"SEARCH_BY_NAME_OR_USERNAME_OR_NUMBER_PLACEHOLDER_TEXT" = "Nume, nume de utilizator sau număr de telefon";
 
 /* Placeholder text indicating the user can search for contacts by name or phone number. */
 "SEARCH_BYNAMEORNUMBER_PLACEHOLDER_TEXT" = "Caută dupa nume sau număr";
@@ -5807,49 +6317,49 @@
 "SENT_MEDIA_QUALITY_STANDARD" = "Standard";
 
 /* Users can donate to Signal with a bank account. This is the label for email field on that screen. */
-"SEPA_DONATION_EMAIL_LABEL" = "Email";
+"SEPA_DONATION_EMAIL_LABEL" = "E-mail";
 
 /* Users can donate to Signal with a bank account. This is placeholder text for the email field before the user starts typing. */
-"SEPA_DONATION_EMAIL_PLACEHOLDER" = "Email Address";
+"SEPA_DONATION_EMAIL_PLACEHOLDER" = "Adresa de e-mail";
 
 /* SEPA bank account donation error for insufficient funds. */
-"SEPA_DONATION_ERROR_INSUFFICIENT_FUNDS" = "The bank account provided has insufficient funds to complete this purchase, try again or contact your bank for more information.";
+"SEPA_DONATION_ERROR_INSUFFICIENT_FUNDS" = "Contul bancar furnizat are fonduri insuficiente pentru a finaliza această achiziție, încearcă din nou sau contactează banca pentru mai multe informații.";
 
 /* SEPA bank account donation error for missing or incorrect mandate information. */
-"SEPA_DONATION_ERROR_NOT_AUTHORIZED" = "An error occurred while processing this payment, please try again.";
+"SEPA_DONATION_ERROR_NOT_AUTHORIZED" = "A apărut o eroare la procesarea acestei plăți, te rugăm să încerci din nou.";
 
 /* SEPA bank account donation error for the account details not being able to be processed. */
-"SEPA_DONATION_ERROR_NOT_PROCESSED" = "The bank details provided could not be processed, contact your bank for more information.";
+"SEPA_DONATION_ERROR_NOT_PROCESSED" = "Detaliile bancare furnizate nu au putut fi procesate, contactează banca pentru mai multe informații.";
 
 /* SEPA bank account donation error for unspecified decline failures. */
-"SEPA_DONATION_ERROR_OTHER" = "Verify your bank details are correct and try again. If the problem continues, contact your bank.";
+"SEPA_DONATION_ERROR_OTHER" = "Verifică dacă detaliile cardului sunt corecte și încearcă din nou. Dacă problema continuă, contactează-ți banca.";
 
 /* SEPA bank account donation error for the payment not being authorizing by the account holder. */
-"SEPA_DONATION_ERROR_PAYMENT_NOT_AUTHORIZED" = "This payment was revoked by the account holder and could not be processed. You haven’t been charged.";
+"SEPA_DONATION_ERROR_PAYMENT_NOT_AUTHORIZED" = "Această plată a fost revocată de titularul contului și nu a putut fi procesată. Nu ai fost taxat/ă.";
 
 /* Users can donate to Signal with a bank account. If their internation bank account number (IBAN) contains characters other than letters and numbers, this error will be shown. Try to use a short string to make space in the UI. */
-"SEPA_DONATION_IBAN_INVALID_CHARACTERS_ERROR" = "IBAN can only contain A-Z and 0-9";
+"SEPA_DONATION_IBAN_INVALID_CHARACTERS_ERROR" = "IBAN poate conține doar AZ și 0-9";
 
 /* Users can donate to Signal with a bank account. If their internation bank account number (IBAN) does not pass validation, this error will be shown. Try to use a short string to make space in the UI. */
-"SEPA_DONATION_IBAN_INVALID_CHECK_ERROR" = "Invalid IBAN number";
+"SEPA_DONATION_IBAN_INVALID_CHECK_ERROR" = "Număr IBAN nevalid";
 
 /* Users can donate to Signal with a bank account. If their internation bank account number (IBAN) has an unsupported country code, this error will be shown. Try to use a short string to make space in the UI. */
-"SEPA_DONATION_IBAN_INVALID_COUNTRY_ERROR" = "IBAN country code is not supported";
+"SEPA_DONATION_IBAN_INVALID_COUNTRY_ERROR" = "Codul țării IBAN nu este acceptat";
 
 /* Users can donate to Signal with a bank account. This is the label for IBAN (internation bank account number) field on that screen. */
 "SEPA_DONATION_IBAN_LABEL" = "IBAN";
 
 /* Users can donate to Signal with a bank account. If their internation bank account number (IBAN) is too long, this error will be shown. Try to use a short string to make space in the UI. */
-"SEPA_DONATION_IBAN_TOO_LONG_ERROR" = "IBAN is too long";
+"SEPA_DONATION_IBAN_TOO_LONG_ERROR" = "IBAN-ul este prea lung";
 
 /* Users can donate to Signal with a bank account. If their internation bank account number (IBAN) is too long, this error will be shown. Try to use a short string to make space in the UI. */
-"SEPA_DONATION_IBAN_TOO_SHORT_ERROR" = "IBAN is too short";
+"SEPA_DONATION_IBAN_TOO_SHORT_ERROR" = "IBAN-ul este prea scurt";
 
 /* Users can donate to Signal with a bank account. This is the label for name field on that screen. */
-"SEPA_DONATION_NAME_LABEL" = "Name";
+"SEPA_DONATION_NAME_LABEL" = "Nume";
 
 /* Users can donate to Signal with a bank account. This is placeholder text for the name field before the user starts typing. */
-"SEPA_DONATION_NAME_PLACEHOLDER" = "Name on Bank Account";
+"SEPA_DONATION_NAME_PLACEHOLDER" = "Nume pe contul bancar";
 
 /* Description for the session refresh alert */
 "SESSION_REFRESH_ALERT_MESSAGE" = "Signal folosește criptarea integrală și câteodată va avea nevoie să reîmprospăteze sesiunile de conversație. Acest lucru nu va afecta securitatea conversațiilor dar s-ar putea să fi ratat un mesaj de la acest contact și ai putea să-l rogi să-l retrimită.";
@@ -5936,10 +6446,10 @@
 "SETTINGS_APPEARANCE_APP_ICON" = "Pictograma Aplicației";
 
 /* Footer for avatar section in appearance settings */
-"SETTINGS_APPEARANCE_AVATAR_FOOTER" = "Afișează fotografiile contactelor din sistem dacă sunt disponibile.";
+"SETTINGS_APPEARANCE_AVATAR_FOOTER" = "Afișează fotografiile de contact ale telefonului, dacă sunt disponibile.";
 
 /* Title for switch to toggle preference between contact and profile avatars */
-"SETTINGS_APPEARANCE_AVATAR_PREFERENCE_LABEL" = "Folosește fotografiile contactelor din sistem";
+"SETTINGS_APPEARANCE_AVATAR_PREFERENCE_LABEL" = "Utilizează fotografii de contact telefonic";
 
 /* The title for the theme section in the appearance settings. */
 "SETTINGS_APPEARANCE_THEME_TITLE" = "Temă";
@@ -6323,7 +6833,7 @@
 "SETTINGS_PAYMENTS_PASSPHRASE_DISCARD_CONFIRMATION_BUTTON" = "Sari peste fraza de recuperare";
 
 /* Message of confirmation alert when discarding recovery phrase. */
-"SETTINGS_PAYMENTS_PASSPHRASE_DISCARD_CONFIRMATION_MESSAGE" = "Fraza ta de recuperare te ajută să restaurezi soldul în cazul în care se întâmplă o problemă. Îți recomandăm cu tărie să o salvezi.";
+"SETTINGS_PAYMENTS_PASSPHRASE_DISCARD_CONFIRMATION_MESSAGE" = "Your recovery phrase lets you restore your balance in a worst-case scenario. We strongly recommend you save it.";
 
 /* Title of confirmation alert when discarding recovery phrase. */
 "SETTINGS_PAYMENTS_PASSPHRASE_DISCARD_CONFIRMATION_TITLE" = "Continui Fără Să Salvezi?";
@@ -6400,6 +6910,9 @@
 /* Double reminder action sheet title in Payments Lock Prompt view for Face ID. */
 "SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_DOUBLE_REMINDER_TITLE_FACEID" = "Sari peste activarea ID-ul facial?";
 
+/* Double reminder action sheet title in Payments Lock Prompt view for Optic ID. */
+"SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_DOUBLE_REMINDER_TITLE_OPTICID" = "Omiți activarea ID-ului optic?";
+
 /* Double reminder action sheet title in Payments Lock Prompt view for Passcode. */
 "SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_DOUBLE_REMINDER_TITLE_PASSCODE" = "Sari peste activarea codului?";
 
@@ -6409,6 +6922,9 @@
 /* Enable Button title in Payments Lock Prompt view for Face ID. */
 "SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_ENABLE_BUTTON_FACEID" = "Folosește ID facial";
 
+/* Enable Button title in Payments Lock Prompt view for Optic ID. */
+"SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_ENABLE_BUTTON_OPTICID" = "Folosește ID Optic";
+
 /* Enable Button title in Payments Lock Prompt view for Passcode. */
 "SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_ENABLE_BUTTON_PASSCODE" = "Folosește Codul";
 
@@ -6417,6 +6933,9 @@
 
 /* Explanation of 'payments lock' with Face ID in the 'payments lock prompt' view shown after payments activation. */
 "SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_EXPLANATION_FACEID" = "Ajută-ne să împiedicăm o persoană care are telefonul tău să-ți acceseze fondurile adăugând un alt nivel de securitate. Poți să dezactivezi această opțiune din Setări.";
+
+/* Explanation of 'payments lock' with Optic ID in the 'payments lock prompt' view shown after payments activation. */
+"SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_EXPLANATION_OPTICID" = "Ajută-ne să împiedicăm o persoană care are telefonul tău să-ți acceseze fondurile activând ID Optic. Poți să dezactivezi această opțiune din Setări.";
 
 /* Explanation of 'payments lock' with passcode in the 'payments lock prompt' view shown after payments activation. */
 "SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_EXPLANATION_PASSCODE" = "Ajută-ne să împiedicăm o persoană care are telefonul tău să-ți acceseze fondurile adăugând un alt nivel de securitate. Poți să dezactivezi această opțiune din Setări.";
@@ -6459,9 +6978,6 @@
 
 /* Label for the current balance in the 'deactivate payments' settings. */
 "SETTINGS_PAYMENTS_REMAINING_BALANCE" = "Sold rămas";
-
-/* Label for the 'remove payments details' button in the app settings. */
-"SETTINGS_PAYMENTS_REMOVE_BUTTON" = "Elimină";
 
 /* Label for 'restore payments' button in the payments settings. */
 "SETTINGS_PAYMENTS_RESTORE_PAYMENTS_BUTTON" = "Restaurează contul de plăți";
@@ -6534,6 +7050,9 @@
 
 /* Caption for footer label beneath the payments lock privacy toggle for faceid biometry. */
 "SETTINGS_PAYMENTS_SECURITY_DETAIL_FACEID" = "Este necesar ID-ul facial pentru a transfera fonduri.";
+
+/* Caption for footer label beneath the payments lock privacy toggle for opticid biometry */
+"SETTINGS_PAYMENTS_SECURITY_DETAIL_OPTICID" = "Solicită ID Optic pentru a transfera fonduri.";
 
 /* Caption for footer label beneath the payments lock privacy toggle for a biometry type that is a passcode. */
 "SETTINGS_PAYMENTS_SECURITY_DETAIL_PASSCODE" = "Solicită codul telefonului ca să transferi fonduri.";
@@ -6637,6 +7156,15 @@
 /* Label for the payments wallet address. */
 "SETTINGS_PAYMENTS_WALLET_ADDRESS_LABEL" = "Adresa portofelului tău";
 
+/* A toast that displays when the user attempts to set discoverability to 'nobody' when their phone number sharing is set to 'everybody', which is not allowed. */
+"SETTINGS_PHONE_NUMBER_DISCOVERABILITY_DISABLED_TOAST" = "Pentru a schimba această setare, setează „Cine poate vedea numărul meu” la „Nimeni”.";
+
+/* The description for a sheet asking for confirmation that the user wants to set their phone number discoverability to 'nobody'. */
+"SETTINGS_PHONE_NUMBER_DISCOVERABILITY_NOBODY_CONFIRMATION_DESCRIPTION" = "Dacă setezi \"Cine mă poate găsi după număr\" la \"Nimeni\", oamenii te vor găsi mai greu pe Signal.";
+
+/* The title for a sheet asking for confirmation that the user wants to set their phone number discoverability to 'nobody'. */
+"SETTINGS_PHONE_NUMBER_DISCOVERABILITY_NOBODY_CONFIRMATION_TITLE" = "Ești sigur?";
+
 /* The title for the phone number discoverability setting section. */
 "SETTINGS_PHONE_NUMBER_DISCOVERABILITY_TITLE" = "Cine mă poate găsi după număr";
 
@@ -6734,6 +7262,9 @@
 "SETTINGS_SECURITY_DETAIL_FACEID" = "Folosiți Face ID pentru a debloca Signal.";
 
 /* Section footer */
+"SETTINGS_SECURITY_DETAIL_OPTICID" = "Folosește ID Optic pentru a debloca Signal.";
+
+/* Section footer */
 "SETTINGS_SECURITY_DETAIL_PASSCODE" = "Folosiți codul de acces al dispozitivului pentru a debloca Signal.";
 
 /* Section footer */
@@ -6750,9 +7281,6 @@
 
 /* Setting for enabling & disabling iOS contact sharing. */
 "SETTINGS_SHARING_SUGGESTIONS" = "Partajează contacte cu iOS";
-
-/* Footer for setting for enabling & disabling contact sharing with iOS. */
-"SETTINGS_SHARING_SUGGESTIONS_FOOTER" = "Permiteți accesul iOS la contactele și conversațiile Signal pentru funcții precum sugestii de partajare.";
 
 /* Footer for setting for enabling & disabling contact and notification sharing with iOS. */
 "SETTINGS_SHARING_SUGGESTIONS_NOTIFICATIONS_FOOTER" = "Permiteți accesul iOS la contactele si conversațiile Signal pentru funcții precum sugestii de partajare și notificări.";
@@ -6829,6 +7357,9 @@
 /* notification action */
 "SHOW_THREAD_BUTTON_TITLE" = "Afișează conversația";
 
+/* Shown in the header when the user hasn't provided a custom name for a call. */
+"SIGNAL_CALL" = "Apel Signal";
+
 /* body sent to contacts when inviting to Install Signal */
 "SMS_INVITE_BODY" = "Te invit să instalezi Signal! Uite linkul:";
 
@@ -6864,6 +7395,12 @@
 
 /* Title for the captcha view controller */
 "SPAM_CAPTCHA_VIEW_CONTROLLER" = "Finalizați verificarea";
+
+/* Text for a toast confirming that the speakerphone has been turned off for a call. */
+"SPEAKERPHONE_OFF_CONFIRMATION_TOAST_LABEL" = "Difuzor oprit";
+
+/* Text for a toast confirming that the speakerphone has been turned on for a call. */
+"SPEAKERPHONE_ON_CONFIRMATION_TOAST_LABEL" = "Difuzor pornit";
 
 /* The name for the sticker category 'Featured' */
 "STICKER_CATEGORY_FEATURED_NAME" = "Promovate";
@@ -7090,8 +7627,11 @@
 /* inbox and notification text for a reaction to a story authored by the local user. Embeds {{reaction emoji}} */
 "STORY_REACTION_LOCAL_AUTHOR_PREVIEW_FORMAT" = "A reacționat cu %1$@ la povestea ta";
 
-/* quote text for a reaction to a story. Embeds {{reaction emoji}} */
-"STORY_REACTION_QUOTE_FORMAT" = "A reacționat cu %1$@ la o poveste";
+/* quote text for a reaction to a story by the user (the header on the bubble says \"You\"). Embeds {{reaction emoji}} */
+"STORY_REACTION_QUOTE_FORMAT_SECOND_PERSON" = "A reacționat cu %1$@ la o poveste";
+
+/* quote text for a reaction to a story by some other user (the header on the bubble says their name, e.g. \"Bob\"). Embeds {{reaction emoji}} */
+"STORY_REACTION_QUOTE_FORMAT_THIRD_PERSON" = "A reacționat cu %1$@ la o poveste";
 
 /* inbox and notification text for a reaction to a story authored by another user. Embeds {{ %1$@ reaction emoji, %2$@ story author name }} */
 "STORY_REACTION_REMOTE_AUTHOR_PREVIEW_FORMAT" = "A reacționat cu %1$@ la povestea lui %2$@";
@@ -7099,8 +7639,11 @@
 /* Button for replying to a story with no existing replies. */
 "STORY_REPLY_BUTTON" = "Răspunde";
 
-/* Text indicating a story has been reacted to */
-"STORY_REPLY_REACTION" = "Ai reacționat la poveste";
+/* Text indicating you reacted to a story (the header on the bubble says \"You\") */
+"STORY_REPLY_REACTION_SECOND_PERSON" = "Ai reacționat la poveste";
+
+/* Text indicating someone else reacted to a story (the header on the bubble says their name, e.g. \"Bob\") */
+"STORY_REPLY_REACTION_THIRD_PERSON" = "Ai reacționat la poveste";
 
 /* placeholder text for replying to a story */
 "STORY_REPLY_TEXT_FIELD_PLACEHOLDER" = "Răspunde";
@@ -7154,7 +7697,7 @@
 "STORY_SETTINGS_LEARN_MORE_SHEET_BULLET_2" = "Acceptă o solicitare de mesaj";
 
 /* Third bullet point for the explainer sheet for signal connections */
-"STORY_SETTINGS_LEARN_MORE_SHEET_BULLET_3" = "Să îi ai în contactele tale de sistem";
+"STORY_SETTINGS_LEARN_MORE_SHEET_BULLET_3" = "Să existe în contactele tale din telefon";
 
 /* Footer for the explainer sheet for signal connections */
 "STORY_SETTINGS_LEARN_MORE_SHEET_FOOTER" = "Conexiunile tale poți să-ți vadă numele și fotografia și ceea ce trimiți către „Povestea mea“ decât dacă nu le ascunzi.";
@@ -7192,8 +7735,8 @@
 /* Text indicating that the user has views turned off */
 "STORY_VIEWS_OFF" = "Fără vizualizări";
 
-/* Toast indicating that the user has copied their subscriber ID. */
-"SUBSCRIPTION_SUBSCRIBER_ID_COPIED_TO_CLIPBOARD" = "ID-ul abonatului a fost copiat în clipboard";
+/* Toast indicating that the user has copied their subscriber ID. (Externally referred to as donor ID) */
+"SUBSCRIPTION_SUBSCRIBER_ID_COPIED_TO_CLIPBOARD" = "ID-ul donatorului a fost copiat în clipboard";
 
 /* Alert body after verifying privacy with {{other user's name}} */
 "SUCCESSFUL_VERIFICATION_DESCRIPTION" = "Numărul tău de siguranța cu %1$@ se potrivește. Poți marca acest contact ca fiind verificat.";
@@ -7273,20 +7816,23 @@
 /* Action sheet title for Couldn't Add Badge sheet */
 "SUSTAINER_VIEW_CANT_ADD_BADGE_TITLE" = "Nu s-a putut adăuga insigna";
 
+/* Action sheet title for Error Authorizing Payment sheet */
+"SUSTAINER_VIEW_ERROR_AUTHORIZING_PAYMENT_TITLE" = "Eroare la autorizarea plății";
+
 /* Action sheet title for Error Processing Payment sheet */
-"SUSTAINER_VIEW_ERROR_PROCESSING_PAYMENT_TITLE" = "Error Processing Donation";
+"SUSTAINER_VIEW_ERROR_PROCESSING_PAYMENT_TITLE" = "Eroare la procesarea donației";
 
 /* Pricing text for sustainer view badges, embeds {{price}} */
 "SUSTAINER_VIEW_PRICING" = "%1$@/lună";
 
 /* Loading indicator on the sustainer view */
-"SUSTAINER_VIEW_PROCESSING_PAYMENT" = "Processing donation...";
+"SUSTAINER_VIEW_PROCESSING_PAYMENT" = "Se procesează donația…";
 
 /* Renewal date text for sustainer view level, embeds {{renewal date}} */
 "SUSTAINER_VIEW_RENEWAL" = "Reînnoire: %1$@";
 
 /* Action sheet message for Still Processing Badge sheet */
-"SUSTAINER_VIEW_STILL_PROCESSING_BADGE_MESSAGE" = "Your donation is still being processed. This can take a few minutes depending on your connection.";
+"SUSTAINER_VIEW_STILL_PROCESSING_BADGE_MESSAGE" = "Donația ta este încă în procesare. Ceea ce poate dura câteva minute, în funcție de conexiunea ta.";
 
 /* Toast indicating that the subscription has been cancelled */
 "SUSTAINER_VIEW_SUBSCRIPTION_CANCELLED" = "Abonamentul tău a fost anulat.";
@@ -7453,9 +7999,6 @@
 /* Message shown in conversation view that offers to block an unknown user. */
 "UNKNOWN_CONTACT_BLOCK_OFFER" = "Utilizatorul nu este în lista ta de contacte. Vrei să-l blochezi?";
 
-/* Displayed if for some reason we can't determine a contacts phone number *or* name */
-"UNKNOWN_CONTACT_NAME" = "Contact Necunoscut";
-
 /* Info message recorded in conversation history when local user receives an unknown message from a linked device and needs to upgrade. */
 "UNKNOWN_PROTOCOL_VERSION_NEED_TO_UPGRADE_FROM_LINKED_DEVICE" = "Unul dintre dispozitivele tale a trimis un mesaj ce nu poate fi procesat sau afișat aici deoarece utilizează o nouă funcționalitate Signal.";
 
@@ -7507,6 +8050,9 @@
 /* Alert title when unlinking device fails */
 "UNLINKING_FAILED_ALERT_TITLE" = "Signal nu a putut disocia dispozitivul tău.";
 
+/* Text for a toast confirming that the mic has been unmuted for a call. */
+"UNMUTE_CONFIRMATION_TOAST_LABEL" = "Microfon activat";
+
 /* Pressing this button un-pins a thread */
 "UNPIN_ACTION" = "Anulare fixare";
 
@@ -7543,17 +8089,29 @@
 /* Explanation of when you should use a signal proxy */
 "USE_PROXY_EXPLANATION" = "Folosește un proxy numai dacă nu te poți conecta la Signal pe date mobile sau Wi-Fi.";
 
-/* Description of how to update discovery */
-"USERNAME_DISCOVERY_DESCRIPTION" = "Dezactivează descoperirea numerelor de telefon din Setări > Număr de telefon > Cine poate găsi numărul meu, pentru a utiliza numele tău de utilizator ca modalitate principală de contact cu ceilalți.";
+/* Description of username links and QR codes on the username education sheet */
+"USERNAME_EDUCATION_LINK_DESCRIPTION" = "Numele de utilizator au un cod QR unic și un link pe care îl poți trimite prietenilor pentru a începe rapid o conversație cu tine.";
 
-/* Description of username discriminator digits */
-"USERNAME_DISCRIMINATOR_DESCRIPTION" = "Numele de utilizator sunt asociate cu un set de cifre și nu sunt partajate la profil";
+/* Title for the username links and QR codes section on the username education sheet */
+"USERNAME_EDUCATION_LINK_TITLE" = "Coduri QR și link-uri";
+
+/* Description of phone number privacy on the username education sheet */
+"USERNAME_EDUCATION_PRIVACY_DESCRIPTION" = "Numărul tău de telefon nu mai este vizibil în conversații. Dacă numărul tău este salvat în contactele unui prieten, acesta îl va vedea în continuare.";
+
+/* Title for phone number privacy section of the username education sheet */
+"USERNAME_EDUCATION_PRIVACY_TITLE" = "Confidențialitatea numărului de telefon";
+
+/* Label for the 'set up' button on the username education sheet */
+"USERNAME_EDUCATION_SET_UP_BUTTON" = "Configurează-ți numele de utilizator";
 
 /* Title to set up signal username */
-"USERNAME_EDUCATION_TITLE" = "Stabilește-ți numele de utilizator Signal";
+"USERNAME_EDUCATION_TITLE" = "Noi moduri de conectare";
 
-/* Description of username link */
-"USERNAME_LINK_DESCRIPTION" = "Fiecare nume de utilizator are un link unic și îl poți partaja prietenilor tăi iar ei îl pot folosi ca să înceapă o conversație cu tine";
+/* Description of usernames on the username education sheet */
+"USERNAME_EDUCATION_USERNAME_DESCRIPTION" = "Acum, oamenii îți pot trimite mesaje folosind numele tău de utilizator opțional, astfel încât să nu fie nevoie să dai numărul tău de telefon. Numele de utilizator nu sunt vizibile pe profilul tău.";
+
+/* Title for usernames section on the username education sheet */
+"USERNAME_EDUCATION_USERNAME_TITLE" = "Nume de utilizator";
 
 /* A title for a view that allows you to pick a color for a QR code for your username link. */
 "USERNAME_LINK_QR_CODE_COLOR_PICKER_VIEW_TITLE_COLOR" = "Culoare";
@@ -7564,14 +8122,17 @@
 /* Text for a label explaining what the username link and QR code give others access to. */
 "USERNAME_LINK_QR_CODE_VIEW_DISCLAIMER_LABEL" = "Trimite codul tău QR și conectează-te numai cu persoane în care ai încredere. Când este trimis, ceilalți vor putea să îți vadă numele de utilizator și să înceapă o conversație cu tine.";
 
+/* Text presented in an action sheet notifying the user their qr code and link are not set. */
+"USERNAME_LINK_QR_CODE_VIEW_LINK_NOT_SET" = "Codul QR și linkul nu sunt setate. Verifică-ți conexiunea la rețea și încearcă din nou.";
+
 /* Title for a button that allows users to reset their username link and QR code. */
 "USERNAME_LINK_QR_CODE_VIEW_RESET_BUTTON_TITLE" = "Resetare";
 
 /* A message explaining what will happen if the user resets their QR code. */
-"USERNAME_LINK_QR_CODE_VIEW_RESET_SHEET_MESSAGE" = "Dacă resetezi codul QR, codul QR existent și linkul nu vor mai funcționa.";
+"USERNAME_LINK_QR_CODE_VIEW_RESET_SHEET_MESSAGE" = "Dacă resetezi linkul și codul QR, codul QR existent și linkul nu vor mai funcționa.";
 
-/* A label indicating that the username link is being reset. */
-"USERNAME_LINK_QR_CODE_VIEW_RESETTING_LINK_LABEL" = "Se resetează linkul...";
+/* Text presenting an action sheet notifying the user their QR code and link were reset. */
+"USERNAME_LINK_QR_CODE_VIEW_RESET_SUCCESSFUL" = "Codul și link-ul QR au fost resetate și au fost create unele noi.";
 
 /* Title for a button to share your username link QR code. Lowercase styling is intentional. */
 "USERNAME_LINK_QR_CODE_VIEW_SHARE_BUTTON" = "Distribuie";
@@ -7585,6 +8146,9 @@
 /* Text presented in a toast notifying the user that their username was copied to the system clipboard. */
 "USERNAME_LINK_QR_CODE_VIEW_USERNAME_COPIED" = "Numele de utilizator a fost copiat";
 
+/* Text presented in a toast notifying the user that their username link was copied to the system clipboard. */
+"USERNAME_LINK_QR_CODE_VIEW_USERNAME_LINK_COPIED" = "Link copiat";
+
 /* Text providing instructions on how to use the username link QR code scanning. */
 "USERNAME_LINK_SCAN_QR_CODE_INSTRUCTIONS_LABEL" = "Scanează Codul QR de pe dispozitivul contactului tău.";
 
@@ -7593,6 +8157,9 @@
 
 /* Text describing what you can do with a username link, on a sheet for sharing it. */
 "USERNAME_LINK_SHARE_SHEET_HEADER" = "Oricine cu acest link poate vedea numele și fotografia grupului și poate solicita să se alăture acestuia. Distribuie linkul persoanelor de încredere.";
+
+/* Title for a button to open a sheet for copying and sharing your username link. */
+"USERNAME_LINK_SHEET_BUTTON" = "link";
 
 /* Subtitle for a tooltip describing ways to share your username. */
 "USERNAME_LINK_TOOLTIP_SUBTITLE" = "Permite altora să înceapă o conversație cu tine partajând codul sau linkul tău QR unic.";
@@ -7618,20 +8185,29 @@
 /* Title for an action sheet indicating that the given username is not associated with a registered Signal account. */
 "USERNAME_LOOKUP_NOT_FOUND_TITLE" = "Utilizatorul nu a fost găsit";
 
+/* Instructions that appear below the username QR code on a sharable exported image. */
+"USERNAME_QR_CODE_EXPORT_INSTRUCTIONS" = "Scanează acest cod QR cu telefonul tău pentru a discuta cu mine pe Signal.";
+
+/* A message in a toast informing the user their username, link, and QR code have successfully been reset. Embeds {{ the user's new username }}. */
+"USERNAME_RESET_SUCCESSFUL_TOAST" = "Codul tău QR și linkul au fost resetate, iar numele tău de utilizator este %1$@";
+
 /* An error message shown when the user has typed a username that starts with a digit, which is invalid. */
-"USERNAME_SELECTION_CANNOT_START_WITH_DIGIT_ERROR_MESSAGE" = "Numele de utilizator nu pot începe cu un număr.";
+"USERNAME_SELECTION_CANNOT_START_WITH_DIGIT_ERROR_MESSAGE" = "Numele de utilizator nu poate începe cu un număr";
 
 /* A message explaining the side effects of changing your username. */
 "USERNAME_SELECTION_CHANGE_USERNAME_CONFIRMATION_MESSAGE" = "Schimbarea numelui de utilizator va reseta codul QR existent și linkul. Ești sigur?";
 
 /* Footer text below a text field in which users type their desired username, which explains how usernames work. Embeds a {{ \"learn more\" link. }}. */
-"USERNAME_SELECTION_EXPLANATION_FOOTER_FORMAT" = "Numele de utilizator ajută alte persoane să îți dea mesaj fără să aibă nevoie de numărul tău de telefon. Și face pereche cu un set de cifre care ajută la menținerea adresei tale private. %1$@";
+"USERNAME_SELECTION_EXPLANATION_FOOTER_FORMAT" = "Numele de utilizator sunt întotdeauna asociate cu un set de numere. %1$@";
 
 /* When the user has entered text into a text field for setting their username, a header displays the username text. This string is shown in the header when the text field is empty. */
 "USERNAME_SELECTION_HEADER_TEXT_FOR_PLACEHOLDER" = "Alege-ți numele de utilizator";
 
 /* An error message shown when the user has typed a username that has invalid characters. The character ranges \"a-z\", \"0-9\", \"_\" should not be translated, as they are literal. */
-"USERNAME_SELECTION_INVALID_CHARACTERS_ERROR_MESSAGE" = "Numele de utilizatori pot conține doar a-z, 0-9, și _.";
+"USERNAME_SELECTION_INVALID_CHARACTERS_ERROR_MESSAGE" = "Numele de utilizatori pot conține doar a-z, 0-9 și _";
+
+/* An error message shown when the user has typed an invalid discriminator for their username. */
+"USERNAME_SELECTION_INVALID_DISCRIMINATOR_ERROR_MESSAGE" = "Nume de utilizator nevalid, introdu minimum 2 cifre";
 
 /* The message of a sheet that pops up when the user taps \"Learn More\" in text that explains how usernames work. This message help explain that the automatically-generated numeric suffix of their username helps keep their username private, to avoid them being contacted by people by whom they don't want to be contacted. */
 "USERNAME_SELECTION_LEARN_MORE_ACTION_SHEET_MESSAGE" = "Aceste cifre ajută la păstrarea confidențialității numelui tău de utilizator ca să eviți mesajele nedorite. Trimite numele tău de utilizator doar persoanelor și grupurilor cu care dorești să conversezi. Dacă îți schimbi numele de utilizator, vei primi un set nou de cifre.";
@@ -7640,7 +8216,10 @@
 "USERNAME_SELECTION_LEARN_MORE_ACTION_SHEET_TITLE" = "Ce este acest număr?";
 
 /* An error message shown when the user wants to set their username to an unavailable value. */
-"USERNAME_SELECTION_NOT_AVAILABLE_ERROR_MESSAGE" = "Numele de utilizator nu e disponibil.";
+"USERNAME_SELECTION_NOT_AVAILABLE_ERROR_MESSAGE" = "Numele de utilizator nu e disponibil";
+
+/* An error message shown when the user has attempted too many username reservations. */
+"USERNAME_SELECTION_RESERVATION_RATE_LIMITED_ERROR_MESSAGE" = "Prea multe încercări efectuate, încearcă din nou mai târziu";
 
 /* The placeholder for a text field into which users can type their desired username. */
 "USERNAME_SELECTION_TEXT_FIELD_PLACEHOLDER" = "Nume utilizator";
@@ -7648,8 +8227,11 @@
 /* The title for the username selection view. */
 "USERNAME_SELECTION_TITLE" = "Nume utilizator";
 
-/* An error message shown when the user has typed a username that is below the minimum character limit. Embeds {{ %1$@ the minimum character count }}. */
-"USERNAME_SELECTION_TOO_SHORT_ERROR_MESSAGE" = "Numele de utilizator trebuie să înceapă cu cel puțin %1$@ caractere.";
+/* An error message shown when the user has typed '00' as their discriminator for their username. */
+"USERNAME_SELECTION_ZERO_DISCRIMINATOR_ERROR_MESSAGE" = "Acest număr nu poate fi 00. Introdu o cifră între 1–9";
+
+/* An error message indicating that a usernames-related requeset failed because of a network error. */
+"USERNAMES_REMOTE_MUTATION_ERROR_DESCRIPTION" = "Numele de utilizatori pot fi actualizate doar când există conexiune la internet.";
 
 /* error label near a field */
 "VALIDATION_ERROR_CANNOT_BE_BLANK" = "Numele dispozitivului nu poate fi gol";
@@ -7679,7 +8261,7 @@
 "VERIFY_PRIVACY_MULTIPLE" = "Verifică numerele de siguranță";
 
 /* Instructions for verifying your safety number. Embeds {{contact's name}} */
-"VERIFY_SAFETY_NUMBER_INSTRUCTIONS" = "To verify end-to-end encryption with %1$@, compare the numbers above with their device. You can also scan the code on their device.";
+"VERIFY_SAFETY_NUMBER_INSTRUCTIONS" = "Pentru a verifica criptarea integrală cu %1$@, compară numerele de mai sus cu cele de pe dispozitivul său. Poți scana codul pe dispozitivul său.";
 
 /* Toast alert text shown when tapping on a video that cannot be played. */
 "VIDEO_BROKEN" = "Videoclipul nu poate fi redat";
@@ -7705,6 +8287,9 @@
 /* View the story of a group or user */
 "VIEW_STORY" = "Vezi Povestea";
 
+/* Accessibility label for placing a voice call */
+"VOICE_CALL_LABEL" = "Apel vocal";
+
 /* Indicates how to cancel a voice message. */
 "VOICE_MESSAGE_CANCEL_INSTRUCTIONS" = "Glisează pentru a anula";
 
@@ -7716,6 +8301,9 @@
 
 /* Activity indicator title, shown upon returning to the device manager, until you complete the provisioning process on desktop */
 "WAITING_TO_COMPLETE_DEVICE_LINK_TEXT" = "Finalizează configurarea în Signal Desktop.";
+
+/* Accessibility label for gradient wallpaper swatch, naming the two colors in the gradient. {{ Embeds the names of the two colors in the gradient }} */
+"WALLPAPER_GRADIENT_COLORS_ACCESSIBILITY_LABEL" = "Gradient cu %1$@ și %2$@";
 
 /* Placeholder text for header of the wallpaper mini preview */
 "WALLPAPER_MINI_PREVIEW_CONTACT_NAME" = "Nume contact";

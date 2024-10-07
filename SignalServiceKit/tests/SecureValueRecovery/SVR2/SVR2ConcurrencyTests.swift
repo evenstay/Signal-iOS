@@ -34,7 +34,8 @@ class SVR2ConcurrencyTests: XCTestCase {
 
         self.svr = SecureValueRecovery2Impl(
             accountAttributesUpdater: MockAccountAttributesUpdater(),
-            appReadiness: SVR2.Mocks.AppReadiness(),
+            appContext: SVR2.Mocks.AppContext(),
+            appReadiness: AppReadinessMock(),
             appVersion: MockAppVerion(),
             clientWrapper: mockClientWrapper,
             connectionFactory: mockConnectionFactory,
@@ -102,7 +103,7 @@ class SVR2ConcurrencyTests: XCTestCase {
         }
 
         let firstBackupExpectation = self.expectation(description: "first backup")
-        svr.generateAndBackupKeys(pin: "1234", authMethod: .implicit, rotateMasterKey: true).observe(on: SyncScheduler()) { (_: Result<Void, Error>) in
+        svr.generateAndBackupKeys(pin: "1234", authMethod: .implicit).observe(on: SyncScheduler()) { (_: Result<Void, Error>) in
             firstBackupExpectation.fulfill()
         }
 
@@ -114,7 +115,7 @@ class SVR2ConcurrencyTests: XCTestCase {
         ], timeout: 10, enforceOrder: true)
 
         let secondBackupExpectation = self.expectation(description: "second backup")
-        svr.generateAndBackupKeys(pin: "abcd", authMethod: .implicit, rotateMasterKey: true).observe(on: SyncScheduler()) { (_: Result<Void, Error>) in
+        svr.generateAndBackupKeys(pin: "abcd", authMethod: .implicit).observe(on: SyncScheduler()) { (_: Result<Void, Error>) in
             secondBackupExpectation.fulfill()
         }
 
@@ -178,11 +179,11 @@ class SVR2ConcurrencyTests: XCTestCase {
         }
 
         let firstBackupExpectation = self.expectation(description: "first backup")
-        svr.generateAndBackupKeys(pin: "1234", authMethod: .implicit, rotateMasterKey: true).observe(on: SyncScheduler()) { (_: Result<Void, Error>) in
+        svr.generateAndBackupKeys(pin: "1234", authMethod: .implicit).observe(on: SyncScheduler()) { (_: Result<Void, Error>) in
             firstBackupExpectation.fulfill()
         }
         let secondBackupExpectation = self.expectation(description: "first backup")
-        svr.generateAndBackupKeys(pin: "abcd", authMethod: .implicit, rotateMasterKey: true).observe(on: SyncScheduler()) { (_: Result<Void, Error>) in
+        svr.generateAndBackupKeys(pin: "abcd", authMethod: .implicit).observe(on: SyncScheduler()) { (_: Result<Void, Error>) in
             secondBackupExpectation.fulfill()
         }
 
@@ -257,7 +258,7 @@ class SVR2ConcurrencyTests: XCTestCase {
         let firstBackupError = WebSocketError.closeError(statusCode: 400, closeReason: nil)
 
         let firstBackupExpectation = self.expectation(description: "first backup")
-        svr.generateAndBackupKeys(pin: "1234", authMethod: .implicit, rotateMasterKey: true).observe(on: SyncScheduler()) { (result: Result<Void, Error>) in
+        svr.generateAndBackupKeys(pin: "1234", authMethod: .implicit).observe(on: SyncScheduler()) { (result: Result<Void, Error>) in
             switch result {
             case .success:
                 XCTFail("Expected error on second backup.")
@@ -267,7 +268,7 @@ class SVR2ConcurrencyTests: XCTestCase {
             firstBackupExpectation.fulfill()
         }
         let secondBackupExpectation = self.expectation(description: "second backup")
-        svr.generateAndBackupKeys(pin: "abcd", authMethod: .implicit, rotateMasterKey: true).observe(on: SyncScheduler()) { (result: Result<Void, Error>) in
+        svr.generateAndBackupKeys(pin: "abcd", authMethod: .implicit).observe(on: SyncScheduler()) { (result: Result<Void, Error>) in
             switch result {
             case .success:
                 XCTFail("Expected error on second backup.")
@@ -294,7 +295,7 @@ class SVR2ConcurrencyTests: XCTestCase {
             return Promise<SVR2Proto_Response>.pending().0
         }
 
-        let _: Promise<Void> = svr.generateAndBackupKeys(pin: "zzzz", authMethod: .implicit, rotateMasterKey: true)
+        let _: Promise<Void> = svr.generateAndBackupKeys(pin: "zzzz", authMethod: .implicit)
 
         wait(for: [secondOpenExpectation], timeout: 10)
         XCTAssertEqual(numOpenedConnections, 2)
@@ -332,7 +333,8 @@ class SVR2ConcurrencyTests: XCTestCase {
 
             let svr = SecureValueRecovery2Impl(
                 accountAttributesUpdater: MockAccountAttributesUpdater(),
-                appReadiness: SVR2.Mocks.AppReadiness(),
+                appContext: SVR2.Mocks.AppContext(),
+                appReadiness: AppReadinessMock(),
                 appVersion: MockAppVerion(),
                 clientWrapper: MockSVR2ClientWrapper(),
                 connectionFactory: mockConnectionFactory,
@@ -347,8 +349,8 @@ class SVR2ConcurrencyTests: XCTestCase {
                 tsConstants: TSConstants.shared,
                 twoFAManager: SVR2.TestMocks.OWS2FAManager()
             )
-            firstBackupPromise = svr.generateAndBackupKeys(pin: "1234", authMethod: .implicit, rotateMasterKey: false)
-            secondBackupPromise = svr.generateAndBackupKeys(pin: "1234", authMethod: .implicit, rotateMasterKey: false)
+            firstBackupPromise = svr.generateAndBackupKeys(pin: "1234", authMethod: .implicit)
+            secondBackupPromise = svr.generateAndBackupKeys(pin: "1234", authMethod: .implicit)
 
             wait(for: [sendRequestExpectation], timeout: 10)
         }
@@ -406,27 +408,27 @@ class SVR2ConcurrencyTests: XCTestCase {
             self.scheduler = AlwaysAsyncScheduler(queue)
         }
 
-        var sync: SignalCoreKit.Scheduler { SyncScheduler() }
+        var sync: SignalServiceKit.Scheduler { SyncScheduler() }
 
-        var main: SignalCoreKit.Scheduler { scheduler }
+        var main: SignalServiceKit.Scheduler { scheduler }
 
-        var sharedUserInteractive: SignalCoreKit.Scheduler { scheduler }
+        var sharedUserInteractive: SignalServiceKit.Scheduler { scheduler }
 
-        var sharedUserInitiated: SignalCoreKit.Scheduler { scheduler }
+        var sharedUserInitiated: SignalServiceKit.Scheduler { scheduler }
 
-        var sharedUtility: SignalCoreKit.Scheduler { scheduler }
+        var sharedUtility: SignalServiceKit.Scheduler { scheduler }
 
-        var sharedBackground: SignalCoreKit.Scheduler { scheduler }
+        var sharedBackground: SignalServiceKit.Scheduler { scheduler }
 
-        func sharedQueue(at qos: DispatchQoS) -> SignalCoreKit.Scheduler {
+        func sharedQueue(at qos: DispatchQoS) -> SignalServiceKit.Scheduler {
             return scheduler
         }
 
-        func global(qos: DispatchQoS.QoSClass) -> SignalCoreKit.Scheduler {
+        func global(qos: DispatchQoS.QoSClass) -> SignalServiceKit.Scheduler {
             return scheduler
         }
 
-        func queue(label: String, qos: DispatchQoS, attributes: DispatchQueue.Attributes, autoreleaseFrequency: DispatchQueue.AutoreleaseFrequency, target: DispatchQueue?) -> SignalCoreKit.Scheduler {
+        func queue(label: String, qos: DispatchQoS, attributes: DispatchQueue.Attributes, autoreleaseFrequency: DispatchQueue.AutoreleaseFrequency, target: DispatchQueue?) -> SignalServiceKit.Scheduler {
             return scheduler
         }
     }

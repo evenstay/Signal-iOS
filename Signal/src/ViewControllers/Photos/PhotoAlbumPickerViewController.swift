@@ -4,7 +4,7 @@
 //
 
 import Photos
-import SignalCoreKit
+import SignalServiceKit
 import SignalUI
 
 protocol PhotoAlbumPickerDelegate: AnyObject {
@@ -18,9 +18,9 @@ class PhotoAlbumPickerViewController: OWSTableViewController, OWSNavigationChild
     private let library: PhotoLibrary
     private let folder: PhotoCollectionFolder?
 
-    required init(library: PhotoLibrary,
-                  collectionDelegate: PhotoAlbumPickerDelegate,
-                  folder: PhotoCollectionFolder? = nil) {
+    init(library: PhotoLibrary,
+         collectionDelegate: PhotoAlbumPickerDelegate,
+         folder: PhotoCollectionFolder? = nil) {
         self.library = library
         self.collectionDelegate = collectionDelegate
         self.folder = folder
@@ -89,11 +89,12 @@ class PhotoAlbumPickerViewController: OWSTableViewController, OWSNavigationChild
         cell.backgroundColor = Theme.darkThemeBackgroundColor
         cell.selectedBackgroundView?.backgroundColor = UIColor(white: 0.2, alpha: 1)
 
+        let scale = UIScreen.main.scale
         let kImageSize: CGFloat = 80
         let folderImageSpacing: CGFloat = 1
         let folderImageSize = (kImageSize - folderImageSpacing) / 2
-        let photoMediaSize = PhotoMediaSize(thumbnailSize: CGSize(square: kImageSize))
-        let folderMediaSize = PhotoMediaSize(thumbnailSize: CGSize(square: folderImageSize))
+        let photoMediaSize = PhotoMediaSize(thumbnailSize: CGSize(square: kImageSize * scale))
+        let folderMediaSize = PhotoMediaSize(thumbnailSize: CGSize(square: folderImageSize * scale))
 
         let contentCount: Int
         var assetItem: PhotoPickerAssetItem?
@@ -175,7 +176,8 @@ class PhotoAlbumPickerViewController: OWSTableViewController, OWSNavigationChild
     }
 
     private func loadThumbnail(for imageView: UIImageView, using assetItem: PhotoPickerAssetItem) {
-        imageView.image = assetItem.asyncThumbnail { [weak imageView] image in
+        imageView.image = nil
+        assetItem.asyncThumbnail { [weak imageView] image in
             AssertIsOnMainThread()
 
             guard let imageView = imageView else {

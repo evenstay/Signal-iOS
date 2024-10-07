@@ -3,60 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalServiceKit
-
-public struct PaymentsHistoryItem {
-    let paymentModel: TSPaymentModel
-    let displayName: String
-
-    var address: SignalServiceAddress? {
-        paymentModel.senderOrRecipientAci.map { SignalServiceAddress($0.wrappedAciValue) }
-    }
-
-    var isIncoming: Bool {
-        paymentModel.isIncoming
-    }
-
-    var isOutgoing: Bool {
-        paymentModel.isOutgoing
-    }
-
-    var isOutgoingTransfer: Bool {
-        paymentModel.isOutgoingTransfer
-    }
-
-    var isUnidentified: Bool {
-        paymentModel.isUnidentified
-    }
-
-    var isFailed: Bool {
-        paymentModel.isFailed
-    }
-
-    var isDefragmentation: Bool {
-        paymentModel.isDefragmentation
-    }
-
-    var receiptData: Data? {
-        paymentModel.mobileCoin?.receiptData
-    }
-
-    var paymentAmount: TSPaymentAmount? {
-        paymentModel.paymentAmount
-    }
-
-    var paymentType: TSPaymentType {
-        paymentModel.paymentType
-    }
-
-    var paymentState: TSPaymentState {
-        paymentModel.paymentState
-    }
-
-    var sortDate: Date {
-        paymentModel.sortDate
-    }
-}
+public import SignalServiceKit
+import SignalUI
 
 // MARK: -
 
@@ -147,7 +95,7 @@ class PaymentsHistoryDataSource: Dependencies {
                 if paymentModel.isUnidentified {
                     displayName = PaymentsViewUtils.buildUnidentifiedTransactionString(paymentModel: paymentModel)
                 } else if let senderOrRecipientAci = paymentModel.senderOrRecipientAci?.wrappedAciValue {
-                    displayName = Self.contactsManager.displayName(for: SignalServiceAddress(senderOrRecipientAci), transaction: transaction)
+                    displayName = Self.contactsManager.displayName(for: SignalServiceAddress(senderOrRecipientAci), tx: transaction).resolvedValue()
                 } else if paymentModel.isOutgoingTransfer {
                     displayName = OWSLocalizedString("PAYMENTS_TRANSFER_OUT_PAYMENT",
                                                     comment: "Label for 'transfer out' payments.")
@@ -158,7 +106,7 @@ class PaymentsHistoryDataSource: Dependencies {
                     displayName = OWSLocalizedString("PAYMENTS_UNKNOWN_PAYMENT",
                                                     comment: "Label for unknown payments.")
                 }
-                return PaymentsHistoryItem(paymentModel: paymentModel, displayName: displayName)
+                return PaymentsHistoryModelItem(paymentModel: paymentModel, displayName: displayName)
             }
         }
     }
@@ -191,7 +139,7 @@ extension PaymentsHistoryDataSource: DatabaseChangeDelegate {
     public func databaseChangesDidUpdate(databaseChanges: DatabaseChanges) {
         AssertIsOnMainThread()
 
-        guard databaseChanges.didUpdateModel(collection: TSPaymentModel.collection()) else {
+        guard databaseChanges.didUpdate(tableName: TSPaymentModel.table.tableName) else {
             return
         }
 
@@ -208,5 +156,57 @@ extension PaymentsHistoryDataSource: DatabaseChangeDelegate {
         AssertIsOnMainThread()
 
         updateContent()
+    }
+}
+
+extension ArchivedPayment {
+    public func statusDescription(isOutgoing: Bool) -> String? {
+        if status.isFailure {
+            switch (failureReason, isOutgoing) {
+            case (.insufficientFundsFailure, true):
+                return OWSLocalizedString(
+                    "PAYMENTS_FAILURE_OUTGOING_INSUFFICIENT_FUNDS",
+                    comment: "Status indicator for outgoing payments which failed due to insufficient funds."
+                )
+            case (.networkFailure, true):
+                return OWSLocalizedString(
+                    "PAYMENTS_FAILURE_OUTGOING_NOTIFICATION_SEND_FAILED",
+                    comment: "Status indicator for outgoing payments for which the notification could not be sent."
+                )
+            case (_, true):
+                return OWSLocalizedString(
+                    "PAYMENTS_FAILURE_OUTGOING_FAILED",
+                    comment: "Status indicator for outgoing payments which failed."
+                )
+            case (_, false):
+                return OWSLocalizedString(
+                    "PAYMENTS_FAILURE_INCOMING_FAILED",
+                    comment: "Status indicator for incoming payments which failed."
+                )
+            }
+        } else {
+            switch (status, isOutgoing) {
+            case (.initial, true):
+                return OWSLocalizedString(
+                    "PAYMENTS_PAYMENT_STATUS_SHORT_OUTGOING_UNSUBMITTED",
+                    comment: "Status indicator for outgoing payments which have not yet been submitted."
+                )
+            case (.submitted, true):
+                return OWSLocalizedString(
+                    "PAYMENTS_PAYMENT_STATUS_SHORT_OUTGOING_SENDING",
+                    comment: "Status indicator for outgoing payments which are being sent."
+                )
+            case (_, true):
+                return OWSLocalizedString(
+                    "PAYMENTS_PAYMENT_STATUS_SHORT_OUTGOING_SENT",
+                    comment: "Status indicator for outgoing payments which have been sent."
+                )
+            case (_, false):
+                return OWSLocalizedString(
+                    "PAYMENTS_PAYMENT_STATUS_SHORT_INCOMING_COMPLETE",
+                    comment: "Status indicator for incoming payments which are complete."
+                )
+            }
+        }
     }
 }

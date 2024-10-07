@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
+import SignalServiceKit
 import SignalUI
 
 class DonationReceiptViewController: OWSTableViewController2 {
@@ -22,7 +22,7 @@ class DonationReceiptViewController: OWSTableViewController2 {
         button.titleLabel?.font = .dynamicTypeBodyClamped.semibold()
         button.clipsToBounds = true
         button.layer.cornerRadius = 8
-        button.contentEdgeInsets = UIEdgeInsets(top: 13, leading: 13, bottom: 13, trailing: 13)
+        button.ows_contentEdgeInsets = UIEdgeInsets(top: 13, leading: 13, bottom: 13, trailing: 13)
         button.dimsWhenHighlighted = true
         button.backgroundColor = .ows_accentBlue
 
@@ -147,7 +147,7 @@ class DonationReceiptViewController: OWSTableViewController2 {
 
     // MARK: - Donation receipt image activity provider
 
-    private class DonationReceiptImageActivityItemProvider: UIActivityItemProvider {
+    private class DonationReceiptImageActivityItemProvider: UIActivityItemProvider, @unchecked Sendable {
         let donationReceiptImage: UIImage
 
         public override var item: Any { donationReceiptImage }

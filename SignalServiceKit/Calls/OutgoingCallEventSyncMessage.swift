@@ -3,8 +3,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalCoreKit
-
 /// Represents a call event that occurred on this device that we want to
 /// communicate to our linked devices.
 @objc(OutgoingCallEvent)
@@ -13,6 +11,7 @@ class OutgoingCallEvent: NSObject, NSCoding {
         case audio
         case video
         case group
+        case adHocCall
     }
 
     enum EventDirection: UInt {
@@ -23,11 +22,12 @@ class OutgoingCallEvent: NSObject, NSCoding {
     enum EventType: UInt {
         case accepted
         case notAccepted
+        case deleted
+        case observed
     }
 
     let timestamp: UInt64
     let conversationId: Data
-
     let callId: UInt64
     let callType: CallType
     let eventDirection: EventDirection
@@ -72,7 +72,7 @@ class OutgoingCallEvent: NSObject, NSCoding {
     required init?(coder: NSCoder) {
         guard
             let timestamp = coder.decodeObject(of: NSNumber.self, forKey: Keys.timestamp) as? UInt64,
-            let conversationId = coder.decodeObject(of: NSData.self, forKey: Keys.conversationId),
+            let conversationId = coder.decodeObject(of: NSData.self, forKey: Keys.conversationId) as Data?,
             let callId = coder.decodeObject(of: NSNumber.self, forKey: Keys.callId) as? UInt64,
             let callTypeRaw = coder.decodeObject(of: NSNumber.self, forKey: Keys.callType) as? UInt,
             let callType = CallType(rawValue: callTypeRaw),
@@ -86,7 +86,7 @@ class OutgoingCallEvent: NSObject, NSCoding {
         }
 
         self.timestamp = timestamp
-        self.conversationId = conversationId as Data
+        self.conversationId = conversationId
         self.callId = callId
         self.callType = callType
         self.eventDirection = eventDirection
@@ -98,6 +98,8 @@ class OutgoingCallEvent: NSObject, NSCoding {
 ///
 /// Indicates to linked devices that a call has changed state. For example, that
 /// we accepted a ringing call on this device.
+///
+/// - SeeAlso ``IncomingCallEventSyncMessageManager``
 @objc(OutgoingCallEventSyncMessage)
 public class OutgoingCallEventSyncMessage: OWSOutgoingSyncMessage {
 
@@ -157,6 +159,8 @@ fileprivate extension OutgoingCallEvent.CallType {
             return .videoCall
         case .group:
             return .groupCall
+        case .adHocCall:
+            return .adHocCall
         }
     }
 }
@@ -179,6 +183,10 @@ fileprivate extension OutgoingCallEvent.EventType {
             return .accepted
         case .notAccepted:
             return .notAccepted
+        case .deleted:
+            return .deleted
+        case .observed:
+            return .observed
         }
     }
 }

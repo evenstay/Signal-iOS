@@ -25,6 +25,9 @@
 /* Accessibility label for stickers. */
 "ACCESSIBILITY_LABEL_STICKER" = "چىراي ئىپادە";
 
+/* Accessibility label for stickers. Embeds {{ name of top emoji the sticker resembles }} */
+"ACCESSIBILITY_LABEL_STICKER_FORMAT" = "%1$@ گە ئوخشاش چاپلاق";
+
 /* Accessibility label for a voice memo. */
 "ACCESSIBILITY_LABEL_VOICE_MEMO" = "ئۈن ئۇچۇر";
 
@@ -64,9 +67,6 @@
 /* Users can request a report of their account data. This is the title on the screen where they do this. */
 "ACCOUNT_DATA_REPORT_TITLE" = "ھېساباتىڭىزنىڭ سانلىق مەلۇماتلىرى";
 
-/* Label for 'voice call' button in contact view. */
-"ACTION_AUDIO_CALL" = "‫Signal چاقىرىقى";
-
 /* Label for 'invite' button in contact view. */
 "ACTION_INVITE" = "Signal ئىشلىتىش تەكلىپى";
 
@@ -78,6 +78,9 @@
 
 /* Label for 'video call' button in contact view. */
 "ACTION_VIDEO_CALL" = "سىنلىق چاقىرىش";
+
+/* Label for 'voice call' button in contact view. */
+"ACTION_VOICE_CALL" = "‫Signal چاقىرىقى";
 
 /* The title for the 'add group members' view. */
 "ADD_GROUP_MEMBERS_VIEW_TITLE" = "ئەزا قوش";
@@ -139,7 +142,7 @@
 /* The label for the 'save' button in action sheets. */
 "ALERT_SAVE" = "ساقلا";
 
-/* Message for UI  warning about an unknown contact thread. */
+/* Message for UI warning about an unknown contact thread. */
 "ALERT_UNKNOWN_THREAD_WARNING_CONTACT_MESSAGE" = "بۇ كىشى بىلەن ئورتاق گۇرۇپپىڭىز يوق. كېرەكسىز ئۇچۇرلاردىن ساقلىنىش ئۈچۈن قوشۇلۇشتىن ئىلگىرى تەلەپلەرنى ئەستايىدىللىق بىلەن تەكشۈرۈڭ.";
 
 /* Message for UI warning about an unknown group thread. */
@@ -183,9 +186,6 @@
 
 /* Title for the view of all your signal connections */
 "ALL_SIGNAL_CONNECTIONS_TITLE" = "بارلىق ئالاقىداشلار";
-
-/* notification action */
-"ANSWER_CALL_BUTTON_TITLE" = "جاۋاب";
 
 /* notification body */
 "APN_Message" = "يېڭى ئۇچۇرىڭىز بار";
@@ -292,14 +292,14 @@
 /* Apple Pay donation error for decline failures where the payment cannot be authorized. */
 "APPLE_PAY_DONATION_ERROR_PAYMENT_CANNOT_BE_AUTHORIZED" = "Apple Pay دىكى ھەق تۆلەش ئۇسۇلىڭىزنىڭ يېڭى ھالەتتە ئىكەنلىكىنى تەكشۈرۈڭ. ئەگەر يېڭى بولمىسا ئۇنى يېڭىلاپ قايتا سىناڭ.";
 
-/* Name of application */
-"APPLICATION_NAME" = "Signal ";
-
 /* On the iOS home screen, if you tap and hold the Signal icon, this shortcut will appear. Tapping it will let users send a new message. You may want to refer to similar behavior in other iOS apps, such as Messages, for equivalent strings. */
 "APPLICATION_SHORTCUT_NEW_MESSAGE" = "يېڭى ئۇچۇر";
 
 /* Label for the archive button for conversations list view */
 "ARCHIVE_ACTION" = "ئارخىپ";
+
+/* Button to try to join a call. The admin may need to approve the request before the user can join. */
+"ASK_TO_JOIN_CALL" = "چاقىرىققا قاتنىشىشنى ئىلتىماس قىلىش";
 
 /* One of the choices for pre-defined aspect ratio of a photo in media editor. */
 "ASPECT_RATIO_ORIGINAL" = "ئورگىنال";
@@ -430,9 +430,6 @@
 /* Short text label for a gif attachment, used for thread preview and on the lock screen */
 "ATTACHMENT_TYPE_GIF" = "GIF";
 
-/* Short text label for an image attachment, used for thread preview and on the lock screen */
-"ATTACHMENT_TYPE_IMAGE" = "رەسىم";
-
 /* Short text label for a photo attachment, used for thread preview and on the lock screen */
 "ATTACHMENT_TYPE_PHOTO" = "سۈرەت";
 
@@ -444,9 +441,6 @@
 
 /* A string indicating that an audio message is playing. */
 "AUDIO_ACTIVITY_PLAYBACK_NAME_AUDIO_MESSAGE" = "ئۈن ئۇچۇر";
-
-/* Accessibility label for placing an audio call */
-"AUDIO_CALL_LABEL" = "ئۈن چاقىرىش";
 
 /* action sheet button title to enable built in speaker during a call */
 "AUDIO_ROUTE_BUILT_IN_SPEAKER" = "ياڭراتقۇ";
@@ -503,22 +497,19 @@
 "BADGE_EXPIRED_LEARN_MORE_LINK" = "تېخىمۇ كۆپ بىلدۈرگۈ";
 
 /* Title for subscription on the badge expiration sheet. */
-"BADGE_EXPIRED_SUBSCRIPTION_TITLE" = "Monthly Donation Canceled";
+"BADGE_EXPIRED_SUBSCRIPTION_TITLE" = "ئايلىق ئىئانە بىكار قىلىندى";
 
 /* String explaining to the user on a badge expiry sheet that their subscription badge has expired because the renewal payment failed. Embeds {{ a specific, already-localized string describing the payment failure }}. Will have a 'learn more' link appended, when it is rendered. */
-"BADGE_SUBSCRIPTION_EXPIRED_BECAUSE_OF_CHARGE_FAILURE_BODY_FORMAT" = "Your recurring monthly donation has ended. %1$@\n\nWithout an active subscription your badge will no longer be visible on your profile.";
-
-/* Body of the sheet shown when your subscription is canceled due to inactivity. Embeds {{ the name of the badge }}. Will have a 'learn more' link appended, when it is rendered. */
-"BADGE_SUBSCRIPTION_EXPIRED_BECAUSE_OF_INACTIVITY_BODY_FORMAT" = "سىز بەك ئۇزاق ۋاقىت مەشغۇلات ئېلىپ بارمىغاچقا ئايلىق ئىئانىڭىز ئاپتوماتىك بىكار قىلىندى. %1$@ ئىزنىكىڭىز ئەمدى ئارخىپىڭىزدا كۆرۈنمەيدۇ.\n\nSignal نى يەنىلا ئىشلىتەلەيسىز، لېكىن ئەپنى قوللاش ۋە ئىزنەكلىرىڭىزنى قايتا قوزغىتىش ئۈچۈن مۇشتەرىلىكنى يېڭىلاڭ.";
+"BADGE_SUBSCRIPTION_EXPIRED_BECAUSE_OF_CHARGE_FAILURE_BODY_FORMAT" = "سىزنىڭ تەكرار ئايلىق ئىئانىڭىز بىكار قىلىندى. %1$@\n\nئىزنىكىڭىز ئەمدى ئارخىپىڭىزدا كۆرۈنمەيدۇ.";
 
 /* Body for a sheet explaining that a bank transfer donation is complete, and that you have received a badge. */
-"BADGE_THANKS_BANK_DONATION_COMPLETE_BODY" = "Your bank transfer was received. You can choose to display this badge on your profile to show off your support.";
+"BADGE_THANKS_BANK_DONATION_COMPLETE_BODY" = "بانكىدىن ئاغدۇرغان سوممىڭىز تاپشۇرۇۋېلىندى. ئىئانىڭىزنى نامايەن قىلىش ئۈچۈن بۇ ئىزنەكنى ئارخىپىڭىزدا كۆرسىتىشنى تاللىسىڭىز بولىدۇ.";
 
 /* Title for a sheet explaining that a bank transfer donation is complete, and that you have received a badge. */
-"BADGE_THANKS_BANK_DONATION_COMPLETE_TITLE" = "Donation Complete";
+"BADGE_THANKS_BANK_DONATION_COMPLETE_TITLE" = "ئىئانە تاماملاندى";
 
 /* When you make a donation to Signal, you will receive a badge. A thank-you sheet appears when this happens. This is the body text on that sheet. */
-"BADGE_THANKS_BODY" = "You can choose to display this badge on your profile to show off your support.";
+"BADGE_THANKS_BODY" = "ئىئانىڭىزنى نامايەن قىلىش ئۈچۈن بۇ ئىزنەكنى ئارخىپىڭىزدا كۆرسىتىشنى تاللىسىڭىز بولىدۇ.";
 
 /* Label prompting the user to display the new badge on their profile on the badge thank you sheet. */
 "BADGE_THANKS_DISPLAY_ON_PROFILE_LABEL" = "ئارخىپتا كۆرسىتىش";
@@ -533,22 +524,22 @@
 "BADGE_THANKS_TOGGLE_FOOTER" = "ئىزنەك سانىڭىز بىردىن كۆپ بولغاندا، بىر ئىزنەكنى تاللاپ ئۇنى ئارخىپىڭىزدا باشقىلار كۆرەلەيدىغان قىلالايسىز.";
 
 /* On the bank donation screen, show a link below the input form to show help about finding account info. */
-"BANK_DONATION_FOOTER_FIND_ACCOUNT_INFO" = "Find Account Info";
+"BANK_DONATION_FOOTER_FIND_ACCOUNT_INFO" = "ھېسابات ئۇچۇرىنى ئىزدەش";
 
 /* On the bank transfer donation screen, a small amount of information text is shown. This is that text. It should (1) instruct users to enter their bank information (2) tell them that Signal does not collect or store their personal information. */
-"BANK_DONATION_SUBHEADER_TEXT" = "Enter your bank details. Signal does not collect or store your personal information.";
+"BANK_DONATION_SUBHEADER_TEXT" = "بانكا تەپسىلاتىنى كىرگۈزۈڭ. Signal شەخسىي ئۇچۇرلىرىڭىزنى توپلىمايدۇ ياكى ساقلىمايدۇ.";
 
 /* Users can donate to Signal with a bank account. We are required to show them a mandate with information about bank transfers. This is a label for a button to agree to the mandate. */
-"BANK_MANDATE_AGREE" = "Agree";
+"BANK_MANDATE_AGREE" = "قوشۇلىمەن";
 
 /* Users can donate to Signal with a bank account. We are required to show them a mandate with information about bank transfers. This is a label for a button that shows more of the mandate if it is not all visible. */
-"BANK_MANDATE_READ_MORE" = "Read More";
+"BANK_MANDATE_READ_MORE" = "تېخىمۇ كۆپ";
 
 /* Users can donate to Signal with a bank account. We are required to show them a mandate with information about bank transfers. This is a subtitle about the payment processor Stripe above that mandate. */
-"BANK_MANDATE_SUBTITLE" = "Stripe processes donations made to Signal. Signal does not collect or store your personal information.";
+"BANK_MANDATE_SUBTITLE" = "Signal غا قىلغان ئىئانىنى Stripe بىر تەرەپ قىلىدۇ. Signal شەخسىي ئۇچۇرىڭىزنى توپلىمايدۇ ياكى ساقلىمايدۇ.";
 
 /* Users can donate to Signal with a bank account. We are required to show them a mandate with information about bank transfers. This is the title above that mandate. */
-"BANK_MANDATE_TITLE" = "Bank Transfer";
+"BANK_MANDATE_TITLE" = "بانكىدىن ئاغدۇرۇش";
 
 /* Accessibility label for banner close button */
 "BANNER_CLOSE_ACCESSIBILITY_LABEL" = "لوزۇنكىنى ياپ";
@@ -691,9 +682,6 @@
 /* Label for button that lets users call a contact again. */
 "CALL_AGAIN_BUTTON_TITLE" = "قايتا چاقىر";
 
-/* notification body */
-"CALL_AUDIO_INCOMING_NOTIFICATION_BODY" = "📞ئاۋازلىق چاقىرىق كېلىۋاتىدۇ…";
-
 /* notification body for a missed call in the last 24 hours. Embeds {{time}}, e.g. '3:30 PM'. */
 "CALL_AUDIO_MISSED_24_HOURS_NOTIFICATION_BODY_FORMAT" = "📞ئېلىنمىغان ئاۋازلىق چاقىرىق %1$@";
 
@@ -721,14 +709,74 @@
 /* label for button shown when an incoming call rings */
 "CALL_CONTROLS_INCOMING_DECLINE" = "رەت قىل";
 
-/* Body for the repeating notification shown while an incoming group call is ringing, if the user has chosen not to include contact names in notifications */
-"CALL_GROUP_INCOMING_NOTIFICATION_BODY_ANONYMOUS" = "📹 گۇرۇپپىدىن كەلگەن چاقىرىق…";
+/* Button to open a screen to edit the name of a Call Link. Also used as the title of that screen once it opens. */
+"CALL_LINK_ADD_NAME" = "چاقىرىق نامى قوشۇش";
 
-/* Body for the repeating notification shown while an incoming group call is ringing. Embeds {{caller name}} */
-"CALL_GROUP_INCOMING_NOTIFICATION_BODY_FORMAT" = "📹 %1$@ گۇرۇپپىغا چاقىرىق قىلىۋاتىدۇ…";
+/* Button to copy a Call Link to the clipboard. */
+"CALL_LINK_COPY" = "ئۇلانما كۆچۈرۈش";
+
+/* Navigation bar title for the sheet used to create & configure a Call Link. */
+"CALL_LINK_CREATE" = "چاقىرىق ئۇلانمىسى قۇرۇش";
+
+/* Description of sheet presented when call link creation fails. */
+"CALL_LINK_CREATION_FAILURE_SHEET_DESCRIPTION" = "چاقىرىش ئۇلانمىسىنى قۇرغىلى بولمىدى. تور ئۇلىنىشىڭىزنى تەكشۈرۈپ قايتا سىناپ بېقىڭ.";
+
+/* Title of sheet presented when call link creation or update fails. */
+"CALL_LINK_CREATION_OR_UPDATE_FAILURE_SHEET_TITLE" = "تور خاتالىقى";
+
+/* Button to open a screen to edit the name of a Call Link. Also used as the title of that screen once it opens. */
+"CALL_LINK_EDIT_NAME" = "چاقىرىق نامىنى تەھرىرلەش";
+
+/* Description of sheet presented when joining call from call link sheet fails. */
+"CALL_LINK_JOIN_CALL_FAILURE_SHEET_DESCRIPTION" = "چاقىرىشقا قاتنىشالمىدى. تور ئۇلىنىشىڭىزنى تەكشۈرۈپ قايتا سىناپ بېقىڭ.";
+
+/* Button on an action sheet to approve a request to join a call link. */
+"CALL_LINK_JOIN_REQUEST_APPROVE_BUTTON" = "Approve Entry";
+
+/* Button on an action sheet to deny a request to join a call link. */
+"CALL_LINK_JOIN_REQUEST_DENY_BUTTON" = "Deny Entry";
+
+/* Tappable label that appears below a user's name on a toast when they request to join a call link. */
+"CALL_LINK_JOIN_REQUEST_PROMPT" = "Would like to join…";
+
+/* Shown in a message bubble when you send a call link in a Signal chat */
+"CALL_LINK_LINK_PREVIEW_DESCRIPTION" = "بۇ ئۇلانما بىلەن Signal چاقىرىقىغا قوشۇلۇش";
+
+/* Text that appears on a toast in a call lobby before joining a call link informing the user what information will be shared with other call members when they have phone number sharing turned off. */
+"CALL_LINK_LOBBY_SHARING_INFO_PHONE_NUMBER_SHARING_OFF" = "Anyone who joins this call via the link will see your name and photo.";
+
+/* Text that appears on a toast in a call lobby before joining a call link informing the user what information will be shared with other call members when they have phone number sharing turned on. */
+"CALL_LINK_LOBBY_SHARING_INFO_PHONE_NUMBER_SHARING_ON" = "Anyone who joins this call via the link will see your name, photo, and phone number.";
+
+/* Title for button to approve all requests to join a call. */
+"CALL_LINK_REQUEST_SHEET_APPROVE_ALL_BUTTON" = "ھەممىنى تەستىقلاڭ";
+
+/* Title for button to deny all requests to join a call. */
+"CALL_LINK_REQUEST_SHEET_DENY_ALL_BUTTON" = "ھەممىنى رەت قىلىڭ";
+
+/* Header for the sheet displaying a list of requests to join a call. */
+"CALL_LINK_REQUEST_SHEET_HEADER" = "بۇ چاقىرىققا قېتىلىشنى تەلەپ قىلىۋاتىدۇ";
+
+/* Name of a toggle switch to enable/disable admin approval for joining a Call Link. */
+"CALL_LINK_REQUIRE_APPROVAL" = "باشقۇرغۇچىنىڭ تەستىقىنى تەلەپ قىلىش";
+
+/* Button to open UI to share a Call Link with someone on Signal. */
+"CALL_LINK_SHARE_VIA_SIGNAL" = "ئۇلانمىنى Signal ئارقىلىق ئورتاقلىشىش";
+
+/* Button to open the system share sheet to share a Call Link. */
+"CALL_LINK_SHARE_VIA_SYSTEM" = "ئۇلانما ھەمبەھىر";
+
+/* Description of sheet presented when call link update fails. */
+"CALL_LINK_UPDATE_FAILURE_SHEET_DESCRIPTION" = "چاقىرىش ئۇلانمىسىنى يېڭىلىغىلى بولمىدى. تور ئۇلىنىشىڭىزنى تەكشۈرۈپ قايتا سىناپ بېقىڭ.";
+
+/* Label on button for lowering hand in call. */
+"CALL_LOWER_HAND_BUTTON_LABEL" = "قول چۈشۈرۈش";
 
 /* notification body */
 "CALL_MISSED_BECAUSE_OF_IDENTITY_CHANGE_NOTIFICATION_BODY" = "☎️ جاۋابسىز چاقىرىش چۈنكى چاقىرغۇچىنىڭ بىخەتەرلىك نومۇرى ئۆزگەرگەن.";
+
+/* Label on button for raising hand in call. */
+"CALL_RAISE_HAND_BUTTON_LABEL" = "قول كۆتۈرۈش";
 
 /* Button to return to the current call */
 "CALL_RETURN_BUTTON" = "چاقىرىشقا قايت";
@@ -736,8 +784,8 @@
 /* Call setup status label after outgoing call times out */
 "CALL_SCREEN_STATUS_NO_ANSWER" = "جاۋاب يوق";
 
-/* embeds {{Call Status}} in call screen label. For ongoing calls, {{Call Status}} is a seconds timer like 01:23, otherwise {{Call Status}} is a short text like 'Ringing', 'Busy', or 'Failed Call' */
-"CALL_STATUS_FORMAT" = "Signal %1$@";
+/* Button to start a call */
+"CALL_START_BUTTON" = "چاقىرىق باشلا";
 
 /* Label for call button for alert offering to call a user. */
 "CALL_USER_ALERT_CALL_BUTTON" = "چاقىر";
@@ -747,9 +795,6 @@
 
 /* Title for alert offering to call a user. */
 "CALL_USER_ALERT_TITLE" = "چاقىر؟";
-
-/* notification body */
-"CALL_VIDEO_INCOMING_NOTIFICATION_BODY" = "📹 ۋىدېيولۇق چاقىرىق…";
 
 /* notification body for a missed call in the last 24 hours. Embeds {{time}}, e.g. '3:30 PM'. */
 "CALL_VIDEO_MISSED_24_HOURS_NOTIFICATION_BODY_FORMAT" = "📹 ئېلىنمىغان ۋىدېيولۇق چاقىرىق %1$@";
@@ -763,7 +808,7 @@
 /* notification body for a missed call from the last week. Embeds {{weekday}}, e.g. 'Monday'. */
 "CALL_VIDEO_MISSED_WEEK_NOTIFICATION_BODY_FORMAT" = "📹 ئېلىنمىغان ۋىدېيولۇق چاقىرىق %1$@";
 
-/* label for accepting incoming video calls as audio  only */
+/* label for accepting incoming video calls as audio only */
 "CALL_VIEW_ACCEPT_INCOMING_CALL_AUDIO_ONLY_LABEL" = "سىنسىز جاۋاب";
 
 /* label for accepting incoming calls */
@@ -778,6 +823,12 @@
 /* Accessibility label for hang up call */
 "CALL_VIEW_HANGUP_LABEL" = "توختات";
 
+/* Accessibility label for leaving a call */
+"CALL_VIEW_LEAVE_CALL_LABEL" = "چاقىرىقتىن ئايرىل";
+
+/* Accessibility label for the More button in the Call Controls row. */
+"CALL_VIEW_MORE_LABEL" = "تېخىمۇ كۆپ";
+
 /* Accessibility label for muting the microphone */
 "CALL_VIEW_MUTE_LABEL" = "ئۈنسىز";
 
@@ -787,11 +838,17 @@
 /* Accessibility label to toggle front- vs. rear-facing camera */
 "CALL_VIEW_SWITCH_CAMERA_DIRECTION" = "ئالدى كەينى كامېرا ئالماشتۇر";
 
-/* Accessibility label to switch to audio only */
-"CALL_VIEW_SWITCH_TO_AUDIO_LABEL" = "ئاۋازلىق چاقىرىققا ئالماشتۇرۇش";
+/* Accessibility label for turning off the camera */
+"CALL_VIEW_TURN_VIDEO_OFF_LABEL" = "كامېرانى ئېتىش";
 
-/* Accessibility label to switch to video call */
-"CALL_VIEW_SWITCH_TO_VIDEO_LABEL" = "سىن چاقىرىشقا ئالماشتۇرىدۇ";
+/* Accessibility label for turning on the camera */
+"CALL_VIEW_TURN_VIDEO_ON_LABEL" = "كامېرانى ئېچىش";
+
+/* Accessibility label for unmuting the microphone */
+"CALL_VIEW_UNMUTE_LABEL" = "ئۈنلۈك";
+
+/* Shown in the header below the name of the call while waiting for the host to allow you to enter the call. */
+"CALL_WAITING_TO_BE_LET_IN" = "قېتىلىشنى كۈتىۋاتىدۇ...";
 
 /* notification action */
 "CALLBACK_BUTTON_TITLE" = "قايتۇرۇپ چاقىر";
@@ -804,6 +861,84 @@
 
 /* The generic name used for group calls if CallKit privacy is enabled */
 "CALLKIT_ANONYMOUS_GROUP_NAME" = "Signal گۇرۇپپىسى";
+
+/* Title for the calls list view. */
+"CALLS_LIST_TITLE" = "چاقىرىشلار";
+
+/* Label for an entry in the Calls Tab describing a call as incoming. */
+"CALLS_TAB_CALL_DIRECTION_LABEL_INCOMING" = "كېلىۋاتقان";
+
+/* Label for an entry in the Calls Tab describing a call as missed. */
+"CALLS_TAB_CALL_DIRECTION_LABEL_MISSED" = "ئېلىنمىغىنى";
+
+/* Label for an entry in the Calls Tab describing a call as outgoing. */
+"CALLS_TAB_CALL_DIRECTION_LABEL_OUTGOING" = "ئۇرۇلغىنى";
+
+/* Title for a row in the Calls Tab that represents multiple calls that have been coalesced together. Embeds {{ a title describing the coalesced calls }}, {{ the number of coalesced calls }}. */
+"CALLS_TAB_COALESCED_CALLS_TITLE_FORMAT" = "%1$@ (%2$@)";
+
+/* Title for a button allowing the user to delete all the calls from the Calls Tab. */
+"CALLS_TAB_DELETE_ALL_CALLS_BUTTON_TITLE" = "تازىلاش";
+
+/* Message for a prompt confirming that the user wants to delete all the calls from the Calls Tab. */
+"CALLS_TAB_DELETE_ALL_CALLS_PROMPT_MESSAGE" = "بۇ مەشغۇلات بارلىق چاقىرىق تارىخىنى مەڭگۈلۈك ئ‍ۆچۈرىدۇ.";
+
+/* Title for a prompt confirming that the user wants to delete all the calls from the Calls Tab. */
+"CALLS_TAB_DELETE_ALL_CALLS_PROMPT_TITLE" = "چاقىرىق تارىخىنى تازىلامسىز؟";
+
+/* Title for a long-press context menu action to delete a call, triggered from a call in the Calls Tab. */
+"CALLS_TAB_DELETE_CALL_ACTION_TITLE" = "ئۆچۈرۈش";
+
+/* An option in a segmented control in the Calls Tab allowing the user to select the filter option 'all calls'; i.e., 'unfiltered'. */
+"CALLS_TAB_FILTER_PICKER_OPTION_ALL" = "ھەممىسى";
+
+/* An option in a segmented control in the Calls Tab allowing the user to select the filter option 'missed calls'. */
+"CALLS_TAB_FILTER_PICKER_OPTION_MISSED" = "ئېلىنمىغىنى";
+
+/* Title for an action, either long-press context menu or swipe, offering to take the user to the chat associated with a call in the Calls Tab. */
+"CALLS_TAB_GO_TO_CHAT_ACTION_TITLE" = "پاراڭغا كىرىش";
+
+/* Title for a button offering to let the user join an ongoing call, associated with a call in the Calls Tab. */
+"CALLS_TAB_JOIN_CALL_BUTTON_TITLE" = "قوشۇل";
+
+/* Title for a long-press context menu action to join a video call, triggered from a call in the Calls Tab. */
+"CALLS_TAB_JOIN_VIDEO_CALL_ACTION_TITLE" = "ۋىدېيولۇق چاقىرىققا قوشۇلۇش";
+
+/* Title for a long-press context menu action to join a voice call, triggered from a call in the Calls Tab. */
+"CALLS_TAB_JOIN_VOICE_CALL_ACTION_TITLE" = "ئاۋازلىق چاقىرىققا قوشۇلۇش";
+
+/* Label explaining that the user has no missed calls, so their Calls Tab is empty. */
+"CALLS_TAB_NO_MISSED_CALLS_LABEL" = "ئېلىنمىغان چاقىرىق يوق";
+
+/* Label explaining that the user has no recent calls, so their Calls Tab is empty. */
+"CALLS_TAB_NO_RECENT_CALLS_LABEL" = "يېقىنقى چاقىرىق يوق";
+
+/* Label suggesting that the user start a call, shown when their Calls Tab is empty. */
+"CALLS_TAB_NO_RECENT_CALLS_SUGGESTION_LABEL" = "دوستىڭىزغا چاقىرىق قىلىپ باشلاڭ";
+
+/* Title for a long-press context menu action to return to a call the user is actively participating in, triggered from a call in the Calls Tab. */
+"CALLS_TAB_RETURN_TO_CALL_ACTION_TITLE" = "چاقىرىققا قايت";
+
+/* Title for a button offering to let the user return to an ongoing call they're already in, associated with a call in the Calls Tab. */
+"CALLS_TAB_RETURN_TO_CALL_BUTTON_TITLE" = "قايت";
+
+/* Label for a view explaining that no search results were found in the Calls Tab. Embeds {{ the search term }}. */
+"CALLS_TAB_SEARCH_NO_RESULTS_FOUND_LABEL_FORMAT" = "«%1$@» ئۈچۈن ھېچقانداق نەتىجە تېپىلمىدى";
+
+/* Title for a long-press context menu action to select a call, triggered from a call in the Calls Tab. */
+"CALLS_TAB_SELECT_CALL_ACTION_TITLE" = "تاللا";
+
+/* Title for a button allowing the user to select one or more calls, from the Calls Tab. */
+"CALLS_TAB_SELECT_CALLS_BUTTON_TITLE" = "تاللا";
+
+/* Title for a long-press context menu action to start a video call, triggered from a call in the Calls Tab. */
+"CALLS_TAB_START_VIDEO_CALL_ACTION_TITLE" = "سىنلىق چاقىرىش";
+
+/* Title for a long-press context menu action to start a voice call, triggered from a call in the Calls Tab. */
+"CALLS_TAB_START_VOICE_CALL_ACTION_TITLE" = "ئۈن چاقىرىش";
+
+/* Title for a long-press context menu action to view info about a call, triggered from a call in the Calls Tab. */
+"CALLS_TAB_VIEW_CALL_INFO_ACTION_TITLE" = "ئۇچۇر";
 
 /* Accessibility hint describing what you can do with the camera button */
 "CAMERA_BUTTON_HINT" = "سۈرەت تارتىپ ۋە ئۇنى يوللايدۇ";
@@ -961,8 +1096,17 @@
 /* Tooltip highlighting the auto chat color option. */
 "CHAT_COLORS_AUTO_TOOLTIP" = "تام قەغەز رەڭگىگە ئۆزلۈكىدىن ماسلىشىدۇ";
 
+/* Title for context menu action to disable chat list filter (e.g., Filter by Unread) */
+"CHAT_LIST_CLEAR_FILTER_MENU_ACTION" = "سۈزگۈچلەرنى بىكار قىلىش";
+
 /* Title for the chat list's default mode. */
 "CHAT_LIST_TITLE_INBOX" = "پاراڭلار";
+
+/* Title for context menu action to enable Filter by Unread */
+"CHAT_LIST_UNREAD_FILTER_MENU_ACTION" = "ئوقۇلمىغانلارنى سۈزۈش";
+
+/* Message displayed on chat list when Filter by Unread is enabled but no unread chats are available */
+"CHAT_LIST_UNREAD_FILTER_NO_CHATS" = "ئوقۇلمىغان پاراڭ يوق";
 
 /* Title for the color & wallpaper settings view. */
 "COLOR_AND_WALLPAPER_SETTINGS_TITLE" = "پاراڭ رەڭگى ۋە تام قەغەز";
@@ -986,7 +1130,22 @@
 "COMPOSE_MESSAGE_PHONE_NUMBER_SEARCH_SECTION_TITLE" = "نومۇر ئارقىلىق ئىزدەش";
 
 /* Table section header for username search when composing a new message */
-"COMPOSE_MESSAGE_USERNAME_SEARCH_SECTION_TITLE" = "ئىشلەتكۈچى ئىسمى بويىچە ئىزدەش";
+"COMPOSE_MESSAGE_USERNAME_SEARCH_SECTION_TITLE" = "ئىشلەتكۈچى نامى بويىچە ئىزدەش";
+
+/* Menu action to display limited contact picker. */
+"COMPOSE_SCREEN_LIMITED_CONTACTS_ACTION_MANAGE" = "تېخىمۇ كۆپ ئالاقىلاشقۇچىلارنى تاللاڭ";
+
+/* Menu action visit app contact permission in settings. */
+"COMPOSE_SCREEN_LIMITED_CONTACTS_ACTION_SETTINGS" = "تەڭشەكلەرگە يۆتكەل";
+
+/* Multi-line label explaining why compose-screen contact picker may be missing contacts. */
+"COMPOSE_SCREEN_LIMITED_CONTACTS_CTA" = "باشقۇرۇش";
+
+/* Multi-line label explaining why compose-screen contact picker is empty. */
+"COMPOSE_SCREEN_LIMITED_CONTACTS_PERMISSION" = "سىگنال سىزنىڭ سىستېما ئالاقىداشلىرىڭىزنى چەكلىك دائىرىدىلا زىيارەت قىلالايدۇ";
+
+/* Button to open settings from an empty compose-screen contact picker. */
+"COMPOSE_SCREEN_MISSING_CONTACTS_CTA" = "تەڭشەكنى ئېچىش";
 
 /* Multi-line label explaining why compose-screen contact picker is empty. */
 "COMPOSE_SCREEN_MISSING_CONTACTS_PERMISSION" = "سىز iOS نىڭ تەڭشەكلەردىن ئالاقەداشلار زىيارەت ھوقۇقىنى قوزغىتىپ، كىملەرنىڭ Signal ئىشلەتكۈچىسى ئىكەنلىكىنى كۆرەلەيسىز.";
@@ -1014,6 +1173,27 @@
 
 /* Button text */
 "CONFIRM_LINK_NEW_DEVICE_ACTION" = "يېڭى ئۈسكۈنىگە باغلان";
+
+/* Indicates that the user has blocked the other account. Embeds {{name}} */
+"CONTACT_ABOUT_SHEET_BLOCKED_USER_FORMAT" = "%1$@ چەكلەندى";
+
+/* Indicates that another account is in the user's system contacts. Embeds {{name}} */
+"CONTACT_ABOUT_SHEET_CONNECTION_IN_SYSTEM_CONTACTS" = "%1$@ سىزنىڭ ئالاقىداش تىزىملىكىڭىزدە";
+
+/* Indicates that the user has no messages with the other account. Embeds {{name}} */
+"CONTACT_ABOUT_SHEET_NO_DIRECT_MESSAGES" = "%1$@ بىلەن بىۋاسىتە ئۇچۇرلاشماڭ";
+
+/* Indicates that the user has a pending request with the other account. Embeds {{name}} */
+"CONTACT_ABOUT_SHEET_PENDING_REQUEST" = "كۈتۈۋاتقان ئۇچۇر تەلىپى";
+
+/* Message for a tooltip that appears above a parenthesized name for another user, indicating that that name is the name the other user set for themself. Embeds {{name}} */
+"CONTACT_ABOUT_SHEET_SECONDARY_NAME_TOOLTIP_MESSAGE" = "«%1$@» بولسا بۇ كىشى Signal دا ئۆزى ئۈچۈن بەلگىلىگەن ئارخىپ نامى.";
+
+/* A label indicating a user is a signal connection. */
+"CONTACT_ABOUT_SHEET_SIGNAL_CONNECTION_LABEL" = "Signal ئۇلىنىشى";
+
+/* The title for a contact 'about' sheet. */
+"CONTACT_ABOUT_SHEET_TITLE" = "ھەققىدە";
 
 /* Label for a contact's postal address. */
 "CONTACT_ADDRESS" = "ئادرېس";
@@ -1048,13 +1228,31 @@
 /* Label for the 'organization' field of a contact. */
 "CONTACT_FIELD_ORGANIZATION" = "تەشكىل";
 
+/* Title for a view showing the note that has been set for a profile. */
+"CONTACT_NOTE_TITLE" = "خاتىرە";
+
+/* Body for contact permission action sheet */
+"CONTACT_PERMISSION_ACTION_SHEET_2_BODY" = "Signal دا تونۇيدىغان كىشىلەرنى تېپىش:";
+
+/* First step for contact permission action sheet */
+"CONTACT_PERMISSION_ACTION_SHEET_2_STEP_ONE" = "تۆۋەندىكى «تەڭشەكلەرگە يۆتكەل» نى چېكىڭ";
+
+/* Third step for contact permission action sheet */
+"CONTACT_PERMISSION_ACTION_SHEET_2_STEP_THREE" = "ئىجازەت بېرىڭ";
+
+/* Second step for contact permission action sheet */
+"CONTACT_PERMISSION_ACTION_SHEET_2_STEP_TWO" = "«ئالاقىلاشقۇچىلار» نى چېكىڭ";
+
+/* Title for contact permission action sheet */
+"CONTACT_PERMISSION_ACTION_SHEET_2_TITLE" = "ئالاقىداش ھوقۇقىغا ئىجازەت قىلىش";
+
 /* Body for contact permission action sheet */
 "CONTACT_PERMISSION_ACTION_SHEET_BODY" = "پاراڭدىكى ئالاقىداش ئىسمى ۋە رەسىمىنى كۆرسىتىدۇ:";
 
 /* First step for contact permission action sheet */
 "CONTACT_PERMISSION_ACTION_SHEET_STEP_ONE" = "تۆۋەندىكى «تەڭشەكلەرگە يۆتكەل» نى چېكىڭ";
 
-/* Third step for contact permission action sheet */
+/* Second step for contact permission action sheet */
 "CONTACT_PERMISSION_ACTION_SHEET_STEP_TWO" = "«ئالاقەداشلار» نى قوزغات";
 
 /* Title for contact permission action sheet */
@@ -1064,13 +1262,13 @@
 "CONTACT_PERMISSION_NOT_NOW_ACTION" = "ھازىر ئەمەس";
 
 /* Action text for contact permission reminder megaphone */
-"CONTACT_PERMISSION_REMINDER_MEGAPHONE_ACTION" = "ئاچ";
+"CONTACT_PERMISSION_REMINDER_MEGAPHONE_ACTION" = "ئىشلىتىشكە رۇخسەت";
 
 /* Body for contact permission reminder megaphone */
-"CONTACT_PERMISSION_REMINDER_MEGAPHONE_BODY" = "پاراڭدىكى ئالاقىداش ئىسمى ۋە رەسىمىنى كۆرۈش.";
+"CONTACT_PERMISSION_REMINDER_MEGAPHONE_BODY" = "سىگنالنىڭ ئالاقىلاشقۇچىلار تىزىملىكىگە كىرىشىگە يول قويۇپ ئۇلارنى تېزراق تېپىۋېلىڭ.";
 
 /* Title for contact permission reminder megaphone */
-"CONTACT_PERMISSION_REMINDER_MEGAPHONE_TITLE" = "ئالاقەداشلارنى ئاچامدۇ؟";
+"CONTACT_PERMISSION_REMINDER_MEGAPHONE_TITLE" = "سىگنالدىن ئالاقىداشلارنى تېپىڭ";
 
 /* Label for a contact's phone number. */
 "CONTACT_PHONE" = "تېلېفون";
@@ -1093,8 +1291,11 @@
 /* Error indicating that an invalid contact cannot be shared. */
 "CONTACT_SHARE_INVALID_CONTACT" = "ئىناۋەتسىز ئالاقەداش.";
 
-/* Error indicating that at least one contact field must be selected before sharing a contact. */
-"CONTACT_SHARE_NO_FIELDS_SELECTED" = "ھېچقانداق ئالاقەداش بۆلىكى تاللانمىدى.";
+/* Alert body when contacts disabled while trying to share a contact. */
+"CONTACT_SHARING_NO_ACCESS_BODY" = "Signal غا ئالاقىداشلارنى زىيارەت قىلىش ھوقۇقى لازىم. IOS تەڭشەكلىرىگە كىرىپ ئالاقىداشلارنى قوزغىتىڭ. ئالاقىداشلىرىڭىز مەخپىيلەشتۈرۈلگەن بولۇپ، Signal مۇلازىمىتىگە كۆرۈنمەيدۇ.";
+
+/* Alert title when contacts disabled while trying to share a contact. */
+"CONTACT_SHARING_NO_ACCESS_TITLE" = "ئالاقىداشنى زىيارەت قىلىشىغا رۇخسەت قىلىڭ";
 
 /* Button text to initiate an email to signal support staff */
 "CONTACT_SUPPORT" = "قوللىغۇچىلار  بىلەن ئالاقىلىشىڭ";
@@ -1208,7 +1409,7 @@
 "CONTEXT_MENU_STOP_SPEAKING_MESSAGE" = "توختىتىش";
 
 /* Message for the 'conversation delete confirmation' alert. */
-"CONVERSATION_DELETE_CONFIRMATION_ALERT_MESSAGE" = "بۇ پاراڭ بۇ ئۈسكۈنىدىن ئۆچۈرۈلىدۇ.";
+"CONVERSATION_DELETE_CONFIRMATION_ALERT_MESSAGE" = "بۇ پاراڭ بارلىق ئۈسكۈنىلىرىڭىزدىن ئۆچۈرۈلىدۇ.";
 
 /* Title for the 'conversation delete confirmation' alert. */
 "CONVERSATION_DELETE_CONFIRMATION_ALERT_TITLE" = "پاراڭنى ئۆچۈرەمسىز؟";
@@ -1262,22 +1463,13 @@
 "CONVERSATION_SETTINGS_ADD_TO_EXISTING_CONTACT" = "مەۋجۇت ئالاقەداشقا قوش";
 
 /* button in conversation settings view. */
-"CONVERSATION_SETTINGS_ADD_TO_SYSTEM_CONTACTS" = "سىستېما ئالاقەداشقا قوش";
+"CONVERSATION_SETTINGS_ADD_TO_SYSTEM_CONTACTS" = "تېلېفون ئالاقىداشلىرىغا قوشۇش";
 
-/* Label indicating that only administrators can update the group's attributes: name, avatar, etc. */
-"CONVERSATION_SETTINGS_ATTRIBUTES_ACCESS_ADMINISTRATOR" = "باشقۇرغۇچىلار";
-
-/* Label indicating that all group members can update the group's attributes: name, avatar, etc. */
-"CONVERSATION_SETTINGS_ATTRIBUTES_ACCESS_MEMBER" = "ھەممىسى";
-
-/* Label indicating that no member can update the group's attributes: name, avatar, etc. */
-"CONVERSATION_SETTINGS_ATTRIBUTES_ACCESS_NONE" = "تاقالغان";
+/* Header title for the section showing all media in conversation settings */
+"CONVERSATION_SETTINGS_ALL_MEDIA_HEADER" = "بارلىق مېدىيا";
 
 /* Footer for the 'attributes access' section in conversation settings view. */
 "CONVERSATION_SETTINGS_ATTRIBUTES_ACCESS_SECTION_FOOTER" = "گۇرۇپپىنىڭ ئىسمى، سۈرىتى، تونۇشتۇرۇشى ۋە كۆرۈن-غايىب ئۇچۇرنىڭ ۋاقىت خاتىرىلىگۈچىنى كىم ئۆزگەرتەلەيدىغانلىقىنى تاللاڭ.";
-
-/* Button to start a audio call */
-"CONVERSATION_SETTINGS_AUDIO_CALL_BUTTON" = "ئۈن";
 
 /* Footer string for a contact's badges in conversation settings */
 "CONVERSATION_SETTINGS_BADGES_FOOTER" = "Signal نى قوللاپ، ئارخىپىڭىزدا ئىزنەكلەرگە ئېرىشىڭ. تەپسىلاتى ئۈچۈن خالىغان ئىزنەكنى چېكىڭ.";
@@ -1285,20 +1477,29 @@
 /* Header title for a contact's badges in conversation settings */
 "CONVERSATION_SETTINGS_BADGES_HEADER" = "ئىزناكلار";
 
-/* Footer text for the 'block and leave' section of contact conversation settings view. */
-"CONVERSATION_SETTINGS_BLOCK_AND_LEAVE_SECTION_CONTACT_FOOTER" = "ئەمدى بۇ ئىشلەتكۈچىنىڭ ئۇچۇرى ياكى يېڭىلىنىشىنى تاپشۇرۇۋالمايسىز.";
-
-/* Footer text for the 'block and leave' section of group conversation settings view. */
-"CONVERSATION_SETTINGS_BLOCK_AND_LEAVE_SECTION_FOOTER" = "ئەمدى بۇ گۇرۇپپىنىڭ ئۇچۇرى ۋە يېڭىلىنىشىنى تاپشۇرۇۋالمايسىز.";
-
 /* Label for 'block group' action in conversation settings view. */
 "CONVERSATION_SETTINGS_BLOCK_GROUP" = "گۇرۇپپا چەكلەش";
 
 /* Label for 'block user' action in conversation settings view. */
 "CONVERSATION_SETTINGS_BLOCK_USER" = "ئىشلەتكۈچى چەكلەش";
 
-/* Label for the 'edit' button in conversation settings view. */
-"CONVERSATION_SETTINGS_EDIT" = "تەھرىر";
+/* A label indicating that a call was an incoming video call */
+"CONVERSATION_SETTINGS_CALL_DETAILS_INCOMING_VIDEO_CALL" = "كەلگەن ۋىدېيولۇق چاقىرىق";
+
+/* A label indicating that a call was an incoming voice call */
+"CONVERSATION_SETTINGS_CALL_DETAILS_INCOMING_VOICE_CALL" = "كەلگەن ئاۋازلىق چاقىرىق";
+
+/* A label indicating that a call was an missed video call */
+"CONVERSATION_SETTINGS_CALL_DETAILS_MISSED_VIDEO_CALL" = "سۆزلەشمىگەن سىن چاقىرىش";
+
+/* A label indicating that a call was an missed voice call */
+"CONVERSATION_SETTINGS_CALL_DETAILS_MISSED_VOICE_CALL" = "ئېلىنمىغان ئاۋازلىق چاقىرىق";
+
+/* A label indicating that a call was an outgoing video call */
+"CONVERSATION_SETTINGS_CALL_DETAILS_OUTGOING_VIDEO_CALL" = "ئۇرۇلغان ۋىدېيولۇق چاقىرىق";
+
+/* A label indicating that a call was an outgoing voice call */
+"CONVERSATION_SETTINGS_CALL_DETAILS_OUTGOING_VOICE_CALL" = "ئۇرۇلغان ئاۋازلىق چاقىرىق";
 
 /* Label for 'edit attributes access' action in conversation settings view. */
 "CONVERSATION_SETTINGS_EDIT_ATTRIBUTES_ACCESS" = "گۇرۇپپا ئۇچۇرى تەھرىر";
@@ -1402,6 +1603,9 @@
 /* Format for title for 'remove from group' confirmation alert. Embeds {user to remove from the group}. */
 "CONVERSATION_SETTINGS_REMOVE_FROM_GROUP_TITLE_FORMAT" = "بۇ گۇرۇپپىدىن %1$@نى چىقىرىۋېتەمدۇ؟";
 
+/* Label for 'report spam' action in conversation settings view. */
+"CONVERSATION_SETTINGS_REPORT_SPAM" = "ئالدامچى مەلۇم قىلىش";
+
 /* Label for 'revoke group admin' button in conversation settings view. */
 "CONVERSATION_SETTINGS_REVOKE_GROUP_ADMIN_BUTTON" = "باشقۇرغۇچىدىن چىقىرىۋەت";
 
@@ -1438,6 +1642,9 @@
 /* Indicates that user is in the system contacts list. */
 "CONVERSATION_SETTINGS_VIEW_IS_SYSTEM_CONTACT" = "ئالاقەداش تەپسىلاتى";
 
+/* Button to start a voice call */
+"CONVERSATION_SETTINGS_VOICE_CALL_BUTTON" = "ئاۋاز";
+
 /* Message shown in conversation view that offers to add an unknown user to your phone's contacts. */
 "CONVERSATION_VIEW_ADD_TO_CONTACTS_OFFER" = "ئالاقەداشلارغا قوش";
 
@@ -1465,14 +1672,14 @@
 /* No comment provided by engineer. */
 "COUNTRYCODE_SELECT_TITLE" = "دۆلەت كودى تاللاڭ";
 
-/* Body text for an interactive in-app prompt to set up a Signal username. */
-"CREATE_USERNAME_MEGAPHONE_BODY" = "باشقىلار تېلېفون نومۇرىڭىزنى لازىم قىلماي تۇرۇپلا ئىشلەتكۈچى نامى ئارقىلىق سىزگە ئۇچۇر يوللىيالايدۇ.";
+/* Label for button that enables you to make a new call link. */
+"CREATE_CALL_LINK_LABEL" = "چاقىرىق ئۇلانمىسى قۇرۇش";
 
-/* Title for a button in an interactive in-app prompt to set up a Signal username, which will start a create-username flow. */
-"CREATE_USERNAME_MEGAPHONE_SET_UP_BUTTON_TITLE" = "بەلگىلەش";
+/* Body text for an interactive in-app prompt to set up a Signal username. */
+"CREATE_USERNAME_MEGAPHONE_BODY" = "تېلېفون نومۇر مەخپىيەتلىكى، تاللانما ئىشلەتكۈچى نامى ۋە ئۇلانمىسى كىرگۈزۈلدى.";
 
 /* Title for an interactive in-app prompt to set up a Signal username. */
-"CREATE_USERNAME_MEGAPHONE_TITLE" = "Signal ئىشلەتكۈچى نامىنى بەلگىلەڭ";
+"CREATE_USERNAME_MEGAPHONE_TITLE" = "ئۇلىنىشنىڭ يېڭى ئۇسۇللىرى";
 
 /* Credit/debit card donation error for decline failures where the card has expired. */
 "CREDIT_OR_DEBIT_CARD_DONATION_ERROR_EXPIRED_CARD" = "كارتىڭىزنىڭ ۋاقتى ئۆتكەن. كارتا تەپسىلاتىنىڭ توغرىلىقىنى دەلىللەپ قايتا سىناڭ.";
@@ -1625,10 +1832,10 @@
 "DEBUG_LOG_INFO_BUTTON" = "سازلاش خاتىرىسى ھەققىدىكى ئۇچۇر";
 
 /* info message text in conversation view */
-"DECLINED_AUDIO_CALL" = "بىر ئاۋازلىق چاقىرىقنى رەت قىلدىڭىز";
+"DECLINED_VIDEO_CALL" = "بىر ۋىدېيولۇق چاقىرىقنى رەت قىلدىڭىز";
 
 /* info message text in conversation view */
-"DECLINED_VIDEO_CALL" = "بىر ۋىدېيولۇق چاقىرىقنى رەت قىلدىڭىز";
+"DECLINED_VOICE_CALL" = "بىر ئاۋازلىق چاقىرىقنى رەت قىلدىڭىز";
 
 /* Title for the action sheet 'delete' action of the 'delete account confirmation' view controller. */
 "DELETE_ACCOUNT_CONFIRMATION_ACTION_SHEEET_ACTION" = "ھېساباتنى ئۆچۈر";
@@ -1676,7 +1883,7 @@
 "DELETE_CONTACT_ACTION_SHEET_BUTTON" = "ئۆچۈرۈش";
 
 /* An explanation of what happens in Signal when you remove a system contact. */
-"DELETE_CONTACT_ACTION_SHEET_EXPLANATION" = "بۇ كىشى سىزنىڭ سېستىمىڭىزدىكى ئالاقىداشلىرىڭىزدىن ئۆچۈرىلىۋېتىدۇ. ئىزدىگەن ۋاقتىڭىزدا بۇ كىشىنى كۆرمەيسىز. كەلگۈسىدە ئۇلار سىزگە ئۇچۇر يوللاپ قالسا، سىزگە ئاۋۋال ئۇچۇر تەلىپى كېلىدۇ.";
+"DELETE_CONTACT_ACTION_SHEET_EXPLANATION" = "بۇ كىشى سىزنىڭ تېلېفون ئالاقىداشلىرىڭىز تىزىملىكىدىن ئۆچۈرىلىدۇ. ئىزدىگەن ۋاقتىڭىزدا بۇ كىشىنى كۆرمەيسىز. كەلگۈسىدە ئۇلار سىزگە ئۇچۇر يوللاپ قالسا، سىزگە ئاۋۋال ئۇچۇر تەلىپى كېلىدۇ.";
 
 /* Title of action sheet confirming the user wants to delete a system contact. */
 "DELETE_CONTACT_ACTION_SHEET_TITLE" = "ئالاقىداشنى ئۆچۈرۈپ، تىزىملىكىڭزدىن چىقرىۋېتەمسىز؟";
@@ -1686,6 +1893,27 @@
 
 /* Toast message confirming the system contact was deleted. Embeds {{The name of the user who was deleted.}}. */
 "DELETE_CONTACT_CONFIRMATION_TOAST" = "%1$@ ئالاقىداشلىرىڭىزدىن ئۆچۈرىۋېتىلدى ۋە چىقىرىۋېتىلدى.";
+
+/* Title for an action sheet button explaining that a message will be deleted. */
+"DELETE_FOR_ME_NOTE_TO_SELF_ACTION_SHEET_BUTTON_TITLE" = "ئۆچۈرۈش";
+
+/* Header text for an action sheet confirming deleting a message in Note to Self. */
+"DELETE_FOR_ME_NOTE_TO_SELF_ACTION_SHEET_HEADER" = "ئۇچۇرنى ئۆچۈرەمسىز؟";
+
+/* Subheader for an action sheet explaining that a Note to Self deleted on this device will be deleted on the user's other devices as well. */
+"DELETE_FOR_ME_NOTE_TO_SELF_LINKED_DEVICES_PRESENT_ACTION_SHEET_SUBHEADER" = "بۇ ئۇچۇرلار بارلىق ئۈسكۈنىڭىزدىن ئۆچۈرۈلىدۇ.";
+
+/* Label for a button in an info sheet confirming that deletes are now synced across devices. */
+"DELETE_FOR_ME_SYNC_MESSAGE_INFO_SHEET_BUTTON" = "بىلدىم";
+
+/* Subtitle for an info sheet explaining that deletes are now synced across devices. */
+"DELETE_FOR_ME_SYNC_MESSAGE_INFO_SHEET_SUBTITLE" = "ئۇچۇر ياكى پاراڭلارنى ئ‍ۆچۈرسىڭىز، ئۇلار تېلېفونىڭىزدىن ۋە بارلىق ئۇلانغان ئۈسكۈنىلەردىن ئ‍ۆچۈرۈلىدۇ.";
+
+/* Title for an info sheet explaining that deletes are now synced across devices. */
+"DELETE_FOR_ME_SYNC_MESSAGE_INFO_SHEET_TITLE" = "ئۆچۈرۈش ھازىر بارلىق ئۈسكۈنىلىرىڭىزدە ماسقەدەملىنىدۇ";
+
+/* Label indicating a user who deleted their account. */
+"DELETED_USER" = "ھېساباتنى ئۆچۈرۈش";
 
 /* Notification warning the user that they have been de-registered. */
 "DEREGISTRATION_NOTIFICATION" = "سىز بۇ ئۈسكۈنىدە Signal دىن چېكىنىپ چىققان.";
@@ -1858,6 +2086,12 @@
 /* The unit for a number of weeks */
 "DISAPPEARING_MESSAGES_WEEKS" = "ھەپتە";
 
+/* Message/subtitle for confirmation prompt when discarding a draft before editing a message */
+"DISCARD_DRAFT_CONFIRMATION_MESSAGE" = "بۇ مەشغۇلاتنى ئەمەلدىن قالدۇرغىلى بولمايدۇ.";
+
+/* Title for confirmation prompt when discarding a draft before editing a message */
+"DISCARD_DRAFT_CONFIRMATION_TITLE" = "ئورگىنالنى ئەمەلدىن قالدۇرامسىز؟";
+
 /* Short text to dismiss current modal / actionsheet / screen */
 "DISMISS_BUTTON_TEXT" = "تارقىتىۋېتىش";
 
@@ -1874,13 +2108,13 @@
 "DOMAIN_FRONTING_COUNTRY_VIEW_SECTION_HEADER" = "تەكشۈرۈشتىن دالدىلىنىش ئورنى";
 
 /* Users can donate to Signal with a credit or debit card. This is the heading on that screen, telling them how much they'll donate. Embeds {{formatted amount of money}}, such as \"$20\". */
-"DONATE_BUTTON" = "Donate %1$@";
+"DONATE_BUTTON" = "%1$@ ئىئانە قىلىش";
 
 /* Users can donate to Signal with a credit or debit card. This is the heading on that screen, telling them how much they'll donate every month. Embeds {{formatted amount of money}}, such as \"$20\". */
-"DONATE_BUTTON_MONTHLY" = "Donate %1$@/month";
+"DONATE_BUTTON_MONTHLY" = "ئايلىقىغا %1$@ ئىئانە قىلىش";
 
 /* When users make donations, they can choose which payment method they want to use. This is the text on the button that lets them choose to pay with bank transfer. */
-"DONATE_CHOOSE_BANK_TRANSFER_AS_PAYMENT_METHOD" = "Bank Transfer";
+"DONATE_CHOOSE_BANK_TRANSFER_AS_PAYMENT_METHOD" = "بانكىدىن ئاغدۇرۇش";
 
 /* When users make donations, they can choose which payment method they want to use. This is the text on the button that lets them choose to pay with credit or debit card. */
 "DONATE_CHOOSE_CREDIT_OR_DEBIT_CARD_AS_PAYMENT_METHOD" = "ئىناۋەتلىك كارتا ياكى بانكا كارتىسى";
@@ -1892,7 +2126,7 @@
 "DONATE_CHOOSE_PAYMENT_METHOD_SHEET_SUBTITLE_FOR_MONTHLY_DONATION" = "%1$@ ئىزنىكىگە ئېرىشىڭ";
 
 /* When users make one-time donations, they see a sheet that lets them pick a payment method. It also tells them what they'll be doing when they pay: receive a badge for a month. This is the subtitle on that sheet. Embeds {{localized badge name}}, such as \"Boost\". */
-"DONATE_CHOOSE_PAYMENT_METHOD_SHEET_SUBTITLE_FOR_ONE_TIME_DONATION" = "Get the %1$@ badge for 30 days";
+"DONATE_CHOOSE_PAYMENT_METHOD_SHEET_SUBTITLE_FOR_ONE_TIME_DONATION" = "30 كۈنلۈك %1$@ ئىزنىكىگە ئېرىشىڭ";
 
 /* When users make donations on a friend's behalf, they see a sheet that lets them pick a payment method. This is the title on that sheet. Embeds {{amount of money}}, such as \"$5\". */
 "DONATE_CHOOSE_PAYMENT_METHOD_SHEET_TITLE_FOR_DONATION_ON_BEHALF_OF_A_FRIEND" = "Signal غا %1$@ ئىئانە قىلىش";
@@ -1912,17 +2146,26 @@
 /* If a donation badge has been sent, indicates that it's expired and can no longer be redeemed. This is shown in the chat. */
 "DONATE_ON_BEHALF_OF_A_FRIEND_CHAT_EXPIRED" = "ۋاقتى ئۆتكەن";
 
+/* Message in an alert presented when the user tries to make a donation, but already has an iDEAL donation that is currently awaiting approval. */
+"DONATE_SCREEN_ERROR_MESSAGE_APPROVE_IDEAL_DONATION_BEFORE_MAKING_ANOTHER_DONATION" = "iDEAL ئىئانىڭىزنى بىر تەرەپ قىلىۋاتىدۇ. يەنە بىر ئىئانە قىلىشتىن بۇرۇن بانكا ئەپىڭىزنى تەكشۈرۈپ پۇل تۆلەشنى تەستىقلاڭ.";
+
+/* Message in an alert presented when the user tries to update their recurring donation, but already has a recurring donation that is currently awaiting authorization. */
+"DONATE_SCREEN_ERROR_MESSAGE_BANK_PAYMENT_AWAITING_AUTHORIZATION" = "iDEAL ئىئانىڭىزنى بىر تەرەپ قىلىۋاتىدۇ. يەنە بىر ئىئانە قىلىشتىن بۇرۇن بانكا ئەپىڭىزنى تەكشۈرۈپ پۇل تۆلەشنى تەستىقلاڭ.";
+
 /* Message in an alert presented when the user tries to make a donation, but already has a donation that is currently processing via bank payment. */
-"DONATE_SCREEN_ERROR_MESSAGE_BANK_PAYMENT_PLEASE_WAIT_BEFORE_MAKING_ANOTHER_DONATION" = "Bank transfers usually take 1 business day to process. Please wait until this donation completes before making another donation.";
+"DONATE_SCREEN_ERROR_MESSAGE_BANK_PAYMENT_PLEASE_WAIT_BEFORE_MAKING_ANOTHER_DONATION" = "بانكىدىن ئاغدۇرغان ھېساباتنى بىر تەرەپ قىلىشقا ئادەتتە بىر كۈن كېتىدۇ. باشقا بىر ئىئانە قىلىشتىن بۇرۇن بۇ پۇل تۆلەشنىڭ تاماملىنىشىنى كۈتۈپ تۇرۇڭ.";
 
 /* Message in an alert presented when the user tries to update their recurring donation, but already has a recurring donation that is currently processing via bank payment. */
-"DONATE_SCREEN_ERROR_MESSAGE_BANK_PAYMENT_PLEASE_WAIT_BEFORE_UPDATING_YOUR_SUBSCRIPTION" = "Bank transfers usually take 1 business day to process. Please wait until this donation completes before updating your subscription.";
+"DONATE_SCREEN_ERROR_MESSAGE_BANK_PAYMENT_PLEASE_WAIT_BEFORE_UPDATING_YOUR_SUBSCRIPTION" = "بانكىدىن ئاغدۇرغان ھېساباتنى بىر تەرەپ قىلىشقا ئادەتتە بىر كۈن كېتىدۇ. مۇشتەرىلىكنى يېڭىلاشتىن بۇرۇن بۇ پۇ تۆلەشنىڭ تاماملىنىشىنى كۈتۈپ تۇرۇڭ.";
+
+/* Message for an alert shown when the user tries to donate via bank transfer, but the amount they want to donate is too large. Embeds {{ the maximum allowed donation amount }}. */
+"DONATE_SCREEN_ERROR_MESSAGE_FORMAT_BANK_TRANSFER_AMOUNT_TOO_LARGE" = "بانكا ئارقىلىق كۆپ بولغاندا %1$@ ئىئانە قىلالايسىز. باشقا ئىئانە سوممىسىنى ياكى باشقا پۇل تۆلەش ئۇسۇلىنى سىناپ بېقىڭ.";
 
 /* Message in an alert presented when the user tries to make a donation, but already has a donation that is currently processing via non-bank payment. */
-"DONATE_SCREEN_ERROR_MESSAGE_PLEASE_WAIT_BEFORE_MAKING_ANOTHER_DONATION" = "Your donation is still being processed. This can take a few minutes depending on your connection. Please wait until this donation completes before making another donation.";
+"DONATE_SCREEN_ERROR_MESSAGE_PLEASE_WAIT_BEFORE_MAKING_ANOTHER_DONATION" = "ئىئانىڭىزنى تېخىچە بىر تەرەپ قىلىۋاتىدۇ. تور ئۇلىنىشىڭىزغا ئاساسەن بۇنىڭغا بىر نەچچە مىنۇت كېتىشى مۇمكىن. باشقا بىر ئىئانە قىلىشتىن بۇرۇن بۇ پۇل تۆلەشنىڭ تاماملىنىشىنى كۈتۈپ تۇرۇڭ.";
 
 /* Message in an alert presented when the user tries to update their recurring donation, but already has a recurring donation that is currently processing via non-bank payment. */
-"DONATE_SCREEN_ERROR_MESSAGE_PLEASE_WAIT_BEFORE_UPDATING_YOUR_SUBSCRIPTION" = "Your donation is still being processed. This can take a few minutes depending on your connection. Please wait until this donation completes before updating your subscription.";
+"DONATE_SCREEN_ERROR_MESSAGE_PLEASE_WAIT_BEFORE_UPDATING_YOUR_SUBSCRIPTION" = "ئىئانىڭىزنى تېخىچە بىر تەرەپ قىلىۋاتىدۇ. تور ئۇلىنىشىڭىزغا ئاساسەن بۇنىڭغا بىر نەچچە مىنۇت كېتىشى مۇمكىن. مۇشتەرىلىكنى يېڭىلاشتىن بۇرۇن بۇ پۇ تۆلەشنىڭ تاماملىنىشىنى كۈتۈپ تۇرۇڭ.";
 
 /* If the user tries to donate to Signal but no amount is selected, this error message is shown. */
 "DONATE_SCREEN_ERROR_NO_AMOUNT_SELECTED" = "ئىئانە قىلىدىغان سوممىنى تاللاڭ.";
@@ -1930,11 +2173,17 @@
 /* If the user tries to donate to Signal but they've entered an amount that's too small, this error message is shown. Embeds {{currency string}}, such as \"$5\". */
 "DONATE_SCREEN_ERROR_SELECT_A_LARGER_AMOUNT_FORMAT" = "ئىئانە قىلىش ئەڭ تۆۋەن سوممىسى %1$@.";
 
+/* Title for an alert presented when the user tries to make a donation, but already has a donation that is currently awaiting authorization. */
+"DONATE_SCREEN_ERROR_TITLE_BANK_PAYMENT_AWAITING_AUTHORIZATION" = "ئىئانە تەستىقلاشنى كۈتۈۋاتىدۇ";
+
 /* Title for an alert presented when the user tries to make a donation, but already has a donation that is currently processing via bank payment. */
-"DONATE_SCREEN_ERROR_TITLE_BANK_PAYMENT_YOU_HAVE_A_DONATION_PENDING" = "You have a donation pending";
+"DONATE_SCREEN_ERROR_TITLE_BANK_PAYMENT_YOU_HAVE_A_DONATION_PENDING" = "بىر ئىئانىڭىز بىر تەرەپ قىلىنىۋاتىدۇ";
+
+/* Title for an alert shown when the user tries to donate via bank transfer, but the amount they want to donate is too large. */
+"DONATE_SCREEN_ERROR_TITLE_BANK_TRANSFER_AMOUNT_TOO_LARGE" = "ئىئانە سوممىسى بەك كۆپ بولۇپ كەتكەن";
 
 /* Title for an alert presented when the user tries to make a donation, but already has a donation that is currently processing via non-bank payment. */
-"DONATE_SCREEN_ERROR_TITLE_YOU_HAVE_A_PAYMENT_PROCESSING" = "You have a donation processing";
+"DONATE_SCREEN_ERROR_TITLE_YOU_HAVE_A_PAYMENT_PROCESSING" = "بىر ئىئانىڭىز بىر تەرەپ قىلىنىۋاتىدۇ";
 
 /* On the donation screen, you can choose between one-time and monthly donations. This is the text on the picker for one-time donations. */
 "DONATE_SCREEN_MONTHLY_CHOICE" = "ئايلىق";
@@ -1958,25 +2207,25 @@
 "DONATE_SCREEN_UPDATE_MONTHLY_SUBSCRIPTION_BUTTON" = "مۇشتەرىلىكنى يېڭىلاش";
 
 /* Message for a sheet explaining that a donation via bank payment has failed. Embeds {{ a specific, already-localized string describing the payment failure }}. */
-"DONATION_BADGE_ISSUE_SHEET_BANK_PAYMENT_FAILED_MESSAGE" = "We’re having trouble processing your bank transfer. %1$@";
+"DONATION_BADGE_ISSUE_SHEET_BANK_PAYMENT_FAILED_MESSAGE" = "بانكىدىن يۆتكىگەن پۇلنى بىر تەرەپ قىلىشتا مەسىلە كۆرۈلدى. %1$@";
 
 /* Title for a sheet explaining that a donation via bank payment has failed. */
-"DONATION_BADGE_ISSUE_SHEET_BANK_PAYMENT_FAILED_TITLE" = "Donation Couldn’t Be Processed";
+"DONATION_BADGE_ISSUE_SHEET_BANK_PAYMENT_FAILED_TITLE" = "ئىئانىنى بىر تەرەپ قىلالمىدى";
 
 /* Title for a sheet explaining that a donation via bank payment is pending. */
-"DONATION_BADGE_ISSUE_SHEET_BANK_PAYMENT_PROCESSING_TITLE" = "Donation Pending";
+"DONATION_BADGE_ISSUE_SHEET_BANK_PAYMENT_PROCESSING_TITLE" = "ئىئانىنى بىر تەرەپ قىلىۋاتىدۇ";
 
 /* Message for a sheet explaining that a one-time donation via bank payment is pending, and how that will affect the user's badge. Embeds {{ the name of the badge }}. Will have a 'learn more' link appended, when it is rendered. */
-"DONATION_BADGE_ISSUE_SHEET_ONE_TIME_BANK_PAYMENT_PROCESSING_MESSAGE" = "Your one-time donation is pending. You’ll be able to display the %1$@ badge on your profile when your donation is received.\n\nBank transfers usually take 1 business day to process.";
+"DONATION_BADGE_ISSUE_SHEET_ONE_TIME_BANK_PAYMENT_PROCESSING_MESSAGE" = "بىر قېتىملىق ئىئانىڭىزنى بىر تەرەپ قىلىۋاتىدۇ. ئىئانىڭىزنى تاپشۇرۇپ ئالغاندىن كېيىن ئارخىپىڭىزدا %1$@ ئىزنىكىنى كۆرسىتەلەيسىز.\n\nبانكىدىن ئاغدۇرغان ھېساباتنى بىر تەرەپ قىلىشقا ئادەتتە بىر كۈن كېتىدۇ.";
 
 /* Message for a sheet explaining that a recurring donation via bank payment is pending, and how that will affect the user's badge. Embeds {{ the name of the badge }}. Will have a 'learn more' link appended, when it is rendered. */
-"DONATION_BADGE_ISSUE_SHEET_RECURRING_BANK_PAYMENT_PROCESSING_MESSAGE" = "Your monthly donation is pending. You’ll be able to display the %1$@ badge on your profile when your donation is received.\n\nBank transfers usually take 1 business day to process.";
+"DONATION_BADGE_ISSUE_SHEET_RECURRING_BANK_PAYMENT_PROCESSING_MESSAGE" = "ئايلىق ئىئانىڭىزنى بىر تەرەپ قىلىۋاتىدۇ. ئىئانىڭىزنى تاپشۇرۇپ ئالغاندىن كېيىن ئارخىپىڭىزدا %1$@ ئىزنىكىنى كۆرسىتەلەيسىز.\n\nبانكىدىن ئاغدۇرغان ھېساباتنى بىر تەرەپ قىلىشقا ئادەتتە بىر كۈن كېتىدۇ.";
 
 /* Title for a button asking the user to renew their subscription, because it has expired. */
-"DONATION_BADGE_ISSUE_SHEET_RENEW_SUBSCRIPTION_BUTTON_TITLE" = "Renew Subscription";
+"DONATION_BADGE_ISSUE_SHEET_RENEW_SUBSCRIPTION_BUTTON_TITLE" = "مۇشتەرىلىكنى يېڭىلاش";
 
 /* Title for a button asking the user to try their donation again, because something went wrong. */
-"DONATION_BADGE_ISSUE_SHEET_TRY_AGAIN_BUTTON_TITLE" = "Try Again";
+"DONATION_BADGE_ISSUE_SHEET_TRY_AGAIN_BUTTON_TITLE" = "قايتا سىنا";
 
 /* When donating on behalf of a friend, a badge will be sent. This shows how long the badge lasts. Embeds {{formatted duration}}. */
 "DONATION_FOR_A_FRIEND_ROW_DURATION" = "داۋاملىشىش ۋاقتى %1$@";
@@ -2122,6 +2371,15 @@
 /* Text at the bottom of the donation receipts list, telling users that receipts might not be available */
 "DONATION_RECEIPTS_MIGHT_BE_MISSING_IF_YOU_REINSTALLED" = "ئەگەر Signal نى قايتا قاچىلىغان بولسىڭىز، بۇرۇنقى ئىئانىلەرنىڭ تالونىنى كۆرگىلى بولمايدۇ.";
 
+/* Error message displayed if something goes wrong with 3DSecure/iDEAL payment authorization.  This will be encountered if the user cancels the webview before authrizing the payment. */
+"DONATION_REDIRECT_ERROR_CANCELLED_MESSAGE" = "پۇل تۆلەش ئەمەلدىن قالدۇرۇلدى. قايتا سىناڭ.";
+
+/* Error message displayed if something goes wrong with 3DSecure/iDEAL payment authorization.  This will be encountered if the callback is in an unexpected format. */
+"DONATION_REDIRECT_ERROR_INVALID_RESPONSE_MESSAGE" = "ئىناۋەتسىز چىقىم ئىنكاسى. قايتا سىناڭ.";
+
+/* Error message displayed if something goes wrong with 3DSecure/iDEAL payment authorization.  This will be encountered if the user denies the payment. */
+"DONATION_REDIRECT_ERROR_PAYMENT_DENIED_MESSAGE" = "پۇل تۆلەش رەت قىلىندى. قايتا سىناڭ.";
+
 /* On the donation settings screen, tapping this button will take the user to a screen where they can donate. */
 "DONATION_SCREEN_DONATE_BUTTON" = "ئىئانە قىلىڭ";
 
@@ -2134,44 +2392,71 @@
 /* On donation screens, a small amount of information text is shown. This is the title for that text. */
 "DONATION_SCREENS_HEADER_TITLE" = "پايدا ئەمەس، مەخپىيەتلىك مۇھىم";
 
+/* Button title confirming the user wants to begin a new donation. */
+"DONATION_SETTINGS_CANCEL_DONATION_AWAITING_AUTHORIZATION_DONATE_ACTION" = "ئىئانە قىلىڭ";
+
+/* Prompt confirming the user wants to abandon the current donation flow and start a new donation. */
+"DONATION_SETTINGS_CANCEL_DONATION_AWAITING_AUTHORIZATION_MESSAGE" = "ئەگەر داۋاملاشتۇرسىڭىز يېقىنقى ئىئانىڭىز بىكار قىلىنىدۇ. سىزدىن پۇل تۇتۇلمايدۇ، لېكىن بانكا ئەپىڭىزدە سىز مەشغۇلات ئېلىپ بارغۇچە پۇل تۆلەش تەلىپى كۆرۈنىدۇ. يېڭى بىر ئىئانە قىلامسىز؟";
+
 /* Title for an action in an action sheet asking the user to renew a subscription that has failed to renew. */
-"DONATION_SETTINGS_MY_SUPPORT_ACTION_SHEET_ACTION_TITLE_RENEW_SUBSCRIPTION" = "Renew Subscription";
+"DONATION_SETTINGS_MY_SUPPORT_ACTION_SHEET_ACTION_TITLE_RENEW_SUBSCRIPTION" = "مۇشتەرىلىكنى يېڭىلاش";
 
 /* Title for an action in an action sheet asking the user to try again, in reference to a donation that failed. */
-"DONATION_SETTINGS_MY_SUPPORT_ACTION_SHEET_ACTION_TITLE_TRY_AGAIN" = "Try Again";
+"DONATION_SETTINGS_MY_SUPPORT_ACTION_SHEET_ACTION_TITLE_TRY_AGAIN" = "قايتا سىنا";
+
+/* Prompt the user asking if they want to keep the current in-flight, but unauthorized donation, or try again. */
+"DONATION_SETTINGS_MY_SUPPORT_BANK_PAYMENT_AWAITING_AUTHORIZATION_MESSAGE" = "iDEAL ئىئانىڭىزنى جەزملەشتۈرگىلى بولمىدۇ. بانكا ئەپىڭىزنى تەكشۈرۈپ ئىئانىڭىزگە ئىجازەت بېرىڭ ياكى قايتا سىناڭ.";
 
 /* Message for an alert explaining that a one-time payment made via bank transfer is being processed. */
-"DONATION_SETTINGS_MY_SUPPORT_BANK_PAYMENT_PROCESSING_MESSAGE" = "Your bank transfer is pending. Bank transfers usually take 1 business day to process.";
+"DONATION_SETTINGS_MY_SUPPORT_BANK_PAYMENT_PROCESSING_MESSAGE" = "بانكىدىن ئاغدۇرغان سوممىڭىزنى بىر تەرەپ قىلىۋاتىدۇ. بانكىدىن ئاغدۇرغان ھېساباتنى تاماملاشقا ئادەتتە 1 كۈن كېتىدۇ.";
 
 /* Title for an alert explaining that a one-time payment made via bank transfer is being processed. */
-"DONATION_SETTINGS_MY_SUPPORT_BANK_PAYMENT_PROCESSING_TITLE" = "Donation Pending";
+"DONATION_SETTINGS_MY_SUPPORT_BANK_PAYMENT_PROCESSING_TITLE" = "ئىئانىنى بىر تەرەپ قىلىۋاتىدۇ";
 
 /* Message shown in a sheet explaining that the user's donation has failed because payment failed. Embeds {{ a specific, already-localized string describing the payment failure reason }}. */
-"DONATION_SETTINGS_MY_SUPPORT_DONATION_FAILED_ALERT_MESSAGE_FORMAT" = "We’re having trouble processing your donation. %1$@";
+"DONATION_SETTINGS_MY_SUPPORT_DONATION_FAILED_ALERT_MESSAGE_FORMAT" = "ئىئانىڭىزنى بىر تەرەپ قىلىشتا مەسىلە كۆرۈلدى. %1$@";
 
 /* Title for a sheet explaining that a payment failed. */
-"DONATION_SETTINGS_MY_SUPPORT_DONATION_FAILED_ALERT_TITLE" = "Error Processing Donation";
+"DONATION_SETTINGS_MY_SUPPORT_DONATION_FAILED_ALERT_TITLE" = "ئىئانە بىر تەرەپ قىلىش خاتالىقى";
+
+/* Title for a sheet explaining that a payment needs confirmation. */
+"DONATION_SETTINGS_MY_SUPPORT_DONATION_UNCONFIMRED_ALERT_TITLE" = "ئىئانىنى جەزملەشتۈرەلمىدى";
+
+/* Message shown in a sheet explaining that the user's iDEAL one-time donation coultn't be processed. */
+"DONATION_SETTINGS_MY_SUPPORT_IDEAL_ONE_TIME_DONATION_FAILED_MESSAGE" = "بىر قېتىملىق iDEAL ئىئانىڭىزنى بىر تەرەپ قىلالمىدى. باشقا پۇل تۆلەش ئۇسۇلىنى سىناپ بېقىڭ ياكى تەپسىلاتى ئۈچۈن بانكا بىلەن ئالاقىلىشىڭ.";
+
+/* Title for a sheet explaining that a payment needs confirmation. */
+"DONATION_SETTINGS_MY_SUPPORT_IDEAL_ONE_TIME_DONATION_NOT_CONFIRMED_MESSAGE_FORMAT" = "بىر قېتىملىق %1$@ iDEAL ئىئانىڭىزنى جەزملەشتۈرەلمىدى. بانكا ئەپىنى تەكشۈرۈپ iDEAL ئىئانىڭىزنى تەستىقلاڭ.";
+
+/* Message shown in a sheet explaining that the user's iDEAL recurring monthly donation coultn't be processed. */
+"DONATION_SETTINGS_MY_SUPPORT_IDEAL_RECURRING_SUBSCRIPTION_FAILED_MESSAGE" = "سىزنىڭ iDEAL ھەر ئايلىق ئىئانىڭىزنى بىر تەرەپ قىلالمىدى. باشقا پۇل تۆلەش ئۇسۇلىنى سىناپ بېقىڭ ياكى تەپسىلاتى ئۈچۈن بانكا بىلەن ئالاقىلىشىڭ.";
+
+/* Message shown in a sheet explaining that the user's iDEAL recurring monthly donation hasn't been confirmed. Embeds {{ formatted current amount }}. */
+"DONATION_SETTINGS_MY_SUPPORT_IDEAL_RECURRING_SUBSCRIPTION_NOT_CONFIRMED_MESSAGE_FORMAT" = "سىزنىڭ %1$@ ھەر ئايلىق iDEAL ئىئانىڭىزنى جەزملەشتۈرەلمىدى. بانكا ئەپىنى تەكشۈرۈپ iDEAL ئىئانىڭىزنى تەستىقلاڭ.";
 
 /* Message shown in a sheet explaining that the user's recurring subscription has ended because payment failed. Embeds {{ a specific, already-localized string describing the failure reason }}. */
-"DONATION_SETTINGS_MY_SUPPORT_RECURRING_SUBSCRIPTION_LAPSED_CHARGE_FAILURE_ALERT_MESSAGE_FORMAT" = "Your recurring monthly donation has ended. %1$@";
+"DONATION_SETTINGS_MY_SUPPORT_RECURRING_SUBSCRIPTION_LAPSED_CHARGE_FAILURE_ALERT_MESSAGE_FORMAT" = "ئايلىق ئىئانىڭىز ئاخىرلاشتى. %1$@";
 
 /* Title for a sheet explaining that the user's recurring subscription has ended because payment failed. */
-"DONATION_SETTINGS_MY_SUPPORT_RECURRING_SUBSCRIPTION_LAPSED_TITLE" = "Monthly Donation Canceled";
+"DONATION_SETTINGS_MY_SUPPORT_RECURRING_SUBSCRIPTION_LAPSED_TITLE" = "ئايلىق ئىئانە بىكار قىلىندى";
 
 /* A label describing a donation payment that was made via bank transfer, which is still processing and has not completed. */
-"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_BANK_PAYMENT_PROCESSING" = "Donation Pending";
+"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_BANK_PAYMENT_PROCESSING" = "ئىئانىنى بىر تەرەپ قىلىۋاتىدۇ";
 
 /* A label describing a donation payment that was made by a method other than bank transfer (such as by credit card), which is still processing and has not completed. */
-"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_NON_BANK_PAYMENT_PROCESSING" = "Processing Donation...";
+"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_NON_BANK_PAYMENT_PROCESSING" = "ئىئانە بىر تەرەپ قىلىنىۋاتىدۇ...";
 
 /* A label describing a donation payment that has failed to process. */
-"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_PAYMENT_FAILED" = "Error Processing Donation";
+"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_PAYMENT_FAILED" = "ئىئانە بىر تەرەپ قىلىش خاتالىقى";
 
 /* A label describing a recurring monthly donation that used to be active, but has now been canceled because it failed to renew. */
-"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_SUBSCRIPTION_LAPSED" = "Monthly Donation Canceled";
+"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_SUBSCRIPTION_LAPSED" = "ئايلىق ئىئانە بىكار قىلىندى";
+
+/* A label describing a donation payment that has requires authorization. */
+"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_WAITING_FOR_AUTHORIZATION" = "تەستىقلاشنى كۈتۈۋاتىدۇ";
 
 /* A string describing the amount and currency of a one-time payment. Embeds {{ the amount, formatted as a currency }}. */
-"DONATION_SETTINGS_ONE_TIME_AMOUNT_FORMAT" = "%1$@ one-time";
+"DONATION_SETTINGS_ONE_TIME_AMOUNT_FORMAT" = "%1$@ بىر قېتىملىق";
 
 /* Title for the \"donate for a friend\" button on the donation view. */
 "DONATION_VIEW_DONATE_ON_BEHALF_OF_A_FRIEND" = "دوستىڭىزغا ۋاكالىتەن ئىئانە قىلىش";
@@ -2180,7 +2465,7 @@
 "DONATION_VIEW_DONATION_TO_SIGNAL" = "Signal غا ئىئانە قىلىش";
 
 /* Title for the 'Donor FAQ' button on the donation screen */
-"DONATION_VIEW_DONOR_FAQ" = "Donor FAQ";
+"DONATION_VIEW_DONOR_FAQ" = "ئىئانە قىلغۇچىلار كۆپ سورايدىغان سوئاللار";
 
 /* Text that's shown when the donation view fails to load data, probably due to network failure */
 "DONATION_VIEW_LOAD_FAILED" = "تور خاتالىقى. تور ئۇلىنىشىڭىزنى تەكشۈرۈپ قايتا سىناڭ.";
@@ -2205,6 +2490,12 @@
 
 /* Label for the currency picker button in donation views */
 "DONATIONS_CURRENCY_PICKER_LABEL" = "پۇل تۈرى";
+
+/* Message for Double Tap to Edit sheet show on first interaction */
+"DOUBLE_TAP_TO_EDIT_ALERT_MESSAGE" = "ئۇچۇرلىرىڭىزنى تەھرىرلەش ئۈچۈن ئۇلارنى قوش چېكىڭ. ئۇچۇرلىرىڭىز يوللىنىپ 24 سائەت ئىچىدە ئۇلارنى تەھرىرلىيەلەيسىز.";
+
+/* Title for Double Tap to Edit sheet show on first interaction */
+"DOUBLE_TAP_TO_EDIT_ALERT_TITLE" = "قوش چېكىپ تەھرىرلەش";
 
 /* Alert body for when the user has just tried to edit a contacts after declining to give Signal contacts permissions */
 "EDIT_CONTACT_WITHOUT_CONTACTS_PERMISSION_ALERT_BODY" = "سىز iOS تەڭشەكلىرىدىن ئەپ زىيارەت ھوقۇقىنى قوزغىتالايسىز.";
@@ -2236,15 +2527,6 @@
 /* Short name for edit menu item to copy contents of media message. */
 "EDIT_ITEM_COPY_ACTION" = "كۆچۈر";
 
-/* Edit Send Beta prompt body */
-"EDIT_MESSAGE_SEND_MESSAGE_BODY" = "ئەگەر سىز ئۇچۇرنى تەھرىرلىسىڭىز، ئۇنى پەقەت Signalنىڭ ئەڭ يېڭى نەشرىنى ئىشلىتىۋاتقان كىشىلەرلا كۆرەلەيدۇ. ئۇلار سىزنىڭ ئۇچۇرنى تەھرىرلىگەنلىكىڭىزنى كۆرەلەيدۇ.";
-
-/* Label to confirm sending an edit */
-"EDIT_MESSAGE_SEND_MESSAGE_CONFIRM" = "ئەۋەت";
-
-/* Edit Send Beta prompt title */
-"EDIT_MESSAGE_SEND_MESSAGE_TITLE" = "ئۇچۇر تەھرىرلەش";
-
 /* Error message to display to user when a message is too old to edit */
 "EDIT_MESSAGE_SEND_MESSAGE_TOO_OLD_ERROR" = "بۇ ئۇچۇرنى يوللاپ 24 سائەت ئىچىدىلا تەھرىرلەشكە بولىدۇ.";
 
@@ -2252,7 +2534,7 @@
 "EDIT_MESSAGE_SEND_MESSAGE_UNKNOWN_ERROR" = "EDIT_MESSAGE_SEND_MESSAGE_UNKNOWN_ERROR";
 
 /* body of email sent to contacts when inviting to install Signal. Embeds {{link to install Signal}} and {{link to the Signal home page}} */
-"EMAIL_INVITE_BODY" = "ياخشىمۇسىز، \n\n يېقىندىن بېرى ئالاقە بىخەتەرلىكىنى ئويلىشىپ Signal نى ئىشلىتىپ كېلىۋاتىمەن. ئىككىمىزنىڭ ئالاقىمىزنىڭ بىخەتەرلىكىگە كاپالەتلىك قىلىش ئۈچۈن سىزنىڭ Signal قاچىلىشىڭىزنى تەۋسىيە قىلىمەن. \n\nSignal نى iPhones ۋە Android دا ئىشلىتىشكە بولىدۇ. بۇ يەردىن چۈشۈرۈڭ: %1$@\n\nSignal خۇددى بۇرۇنقى ئۇچۇرلىشىش ئەپلىرىگە ئوخشاش بولۇپ، ئۇنىڭدا رەسىم ۋە ۋىدېيو يوللىيالايسىز، چاقىرىق قىلالايسىز ۋە گۇرۇپپىدا پاراڭلىشالايسىز. ئۇنىڭ ئەڭ ياخشى تەرىپى، ھېچكىم، ھەتتا Signal نى ياساپ چىققانلارمۇ ئۇچۇرلارنى كۆرەلمەيدۇ.\n\nOpen Whisper Systems، يەنى Signal نى بەرپا قىلغان كىشىلەر توغرىسىدىكى تەپسىلاتنى بۇ يەردىن كۆرۈڭ: %2$@";
+"EMAIL_INVITE_BODY" = "Hey,\n\nLately I've been using Signal to keep the chats on my iPhone private. I'd like you to install it too, so we can be confident that only you and I can read our messages or hear our calls.\n\nSignal is available for iPhones and Android. Get it here: %1$@\n\nSignal works like your existing messaging app. We can send pictures and video, make calls, and start group chats. The best part is, no one else can see any of it, not even the people who make Signal!\n\nYou can read more about Signal here: %2$@";
 
 /* subject of email sent to contacts when inviting to install Signal */
 "EMAIL_INVITE_SUBJECT" = "‫Signal دا پاراڭلىشايلى";
@@ -2303,7 +2585,7 @@
 "END_CALL_RESPONDER_IS_BUSY" = "ئالدىراش";
 
 /* Call setup status label */
-"END_CALL_UNCATEGORIZED_FAILURE" = "چاقىرىش مەغلۇب بولدى.";
+"END_CALL_UNCATEGORIZED_FAILURE" = "چاقىرىق مەغلۇب بولدى";
 
 /* Error indicating that a message could not be forwarded. */
 "ERROR_COULD_NOT_FORWARD_MESSAGES_1" = "ئۇچۇرنى ئۇلاپ يوللىيالمايدۇ.";
@@ -2364,6 +2646,9 @@
 
 /* Error message indicating that attachment download(s) failed. */
 "ERROR_MESSAGE_ATTACHMENT_DOWNLOAD_FAILED" = "يۈكلەنمەنى چۈشۈرەلمىدى.";
+
+/* Error message indicating that attachment upload(s) failed. */
+"ERROR_MESSAGE_ATTACHMENT_UPLOAD_FAILED" = "قىستۇرما يۈكلەنمىدى.";
 
 /* Error message for a decryption failure. Embeds {{sender short name}}. */
 "ERROR_MESSAGE_DECRYPTION_FAILURE" = "«%1$@» دىن كەلگەن بىر ئۇچۇر يەتكۈزۈلمىدى";
@@ -2465,10 +2750,22 @@
 "FEATURED_BADGE_SETTINGS_TITLE" = "تاللانغان ئىزناك";
 
 /* Users can choose to learn more about how to find account info, which will open a sheet with additional information. This is the body of that sheet. */
-"FIND_ACCOUNT_INFO_SHEET_BODY" = "Look for your IBAN at the top of your bank statement. IBAN numbers contain up to 34 characters. The name you enter should match your full name on your bank account. Contact your bank for more information.";
+"FIND_ACCOUNT_INFO_SHEET_BODY" = "IBAN نومۇرىڭىز بانكا تالونىڭىزنىڭ ئۈستۈنكى قىسىمىدا بولىدۇ. IBAN نومۇرى كۆپ بولغاندا 34 ھەرىپ-بەلگە بولىدۇ. سىز كىرگۈزگەن ئىسىم بانكا ھېساباتىڭىزدىكى تولۇق ئىسمىڭىز بىلەن بىردەك بولۇشى كېرەك. تېخىمۇ كۆپ ئۇچۇر ئۈچۈن بانكا بىلەن ئالاقىلىشىڭ.";
 
 /* Users can choose to learn more about how to find account info, which will open a sheet with additional information. This is the title of that sheet. */
-"FIND_ACCOUNT_INFO_SHEET_TITLE" = "Find Your Account Information";
+"FIND_ACCOUNT_INFO_SHEET_TITLE" = "ھېسابات ئۇچۇرلىرىڭىزنى ئىزدەش";
+
+/* A footer below the username text field describing what should be entered */
+"FIND_BY_USERNAME_FOOTER" = "كەينىدە بىر چېكىت ۋە بىر يۈرۈش نومۇر بار ئىشلەتكۈچى نامىنى كىرگۈزۈڭ.";
+
+/* A placeholder value for the text field for finding an account by their username */
+"FIND_BY_USERNAME_PLACEHOLDER" = "ئىشلەتكۈچى نامى";
+
+/* A button below the username text field which opens a username QR code scanner */
+"FIND_BY_USERNAME_SCAN_QR_CODE_BUTTON" = "QR كودى تارا";
+
+/* Title for the view for finding accounts by their username */
+"FIND_BY_USERNAME_TITLE" = "ئىشلەتكۈچى نامى بويىچە ئىزدەش";
 
 /* Button that marks user as verified after a successful fingerprint scan. */
 "FINGERPRINT_SCAN_VERIFY_BUTTON" = "دەلىللەندى";
@@ -2478,6 +2775,9 @@
 
 /* Accessibility label for finishing new group */
 "FINISH_GROUP_CREATION_LABEL" = "گۇرۇپپا قۇرۇش تامام";
+
+/* Tooltip notifying users that the flip camera button moved to the picture-in-picture view of themselves in a call */
+"FLIP_CAMERA_BUTTON_MOVED_TO_PIP_TOOLTIP" = "كامېرا ئالماشتۇرۇش كۇنۇپكىسى بۇ يەرگە يۆتكەلدى، ۋىدېيونى چېكىپ ئۇنى سىناپ بېقىڭ";
 
 /* Label and title for 'contact forwarding' views. */
 "FORWARD_CONTACT" = "ئالاقەداشنى ئۇلاپ يوللا";
@@ -2522,10 +2822,10 @@
 "GET_STARTED_CARD_APPEARANCE" = "كۆرۈنۈش";
 
 /* 'Get Started' button direction users to avatar builder */
-"GET_STARTED_CARD_AVATAR_BUILDER" = "رەسىم قوش";
+"GET_STARTED_CARD_AVATAR_BUILDER" = "رەسىم قوشۇش";
 
 /* 'Get Started' button directing users to invite friends */
-"GET_STARTED_CARD_INVITE_FRIENDS" = "دوستلىرىڭىزنى تەكلىپ قىلىڭ";
+"GET_STARTED_CARD_INVITE_FRIENDS" = "دوست تەكلىپى";
 
 /* 'Get Started' button directing users to create a group */
 "GET_STARTED_CARD_NEW_GROUP" = "يېڭى گۇرۇپپا";
@@ -2638,6 +2938,21 @@
 /* Button to leave a group call */
 "GROUP_CALL_LEAVE_BUTTON" = "چاقىرىشتىن ئايرىل";
 
+/* Title for the section of the group call member list which displays the list of all members in the call. */
+"GROUP_CALL_MEMBER_LIST_IN_CALL_SECTION_HEADER" = "چاقىرىقتا";
+
+/* Title for the section of the group call member list which displays the list of members with their hand raised. */
+"GROUP_CALL_MEMBER_LIST_RAISED_HANDS_SECTION_HEADER" = "كۆتۈرۈلگەن قوللار";
+
+/* A count of members in a given group call member list section, displayed after the header. */
+"GROUP_CALL_MEMBER_LIST_SECTION_HEADER_MEMBER_COUNT" = "(%1$d)";
+
+/* Title for a button on the group members sheet for sharing that call's link. */
+"GROUP_CALL_MEMBER_LIST_SHARE_CALL_LINK_BUTTON" = "چاقىرىق ئۇلانمىسى ئورتاقلىشىش";
+
+/* Title for the sheet showing the group call members list */
+"GROUP_CALL_MEMBER_LIST_TITLE" = "Call Info";
+
 /* String displayed in cell when media from a user can't be displayed in group call grid. Embeds {user's name} */
 "GROUP_CALL_MISSING_MEDIA_KEYS_FORMAT" = "%1$@ دىن ئۈن ۋە سىن تاپشۇرۇۋالالمايدۇ";
 
@@ -2649,9 +2964,6 @@
 
 /* Text explaining that you are the only person currently in the group call */
 "GROUP_CALL_NO_ONE_HERE" = "بۇ يەردە ھېچكىم يوق";
-
-/* Text explaining to the user that nobody has joined this call yet. */
-"GROUP_CALL_NOBODY_IS_IN_YET" = "بۇ چاقىرىشتا تېخى ھېچكىم يوق.";
 
 /* Copy explaining that a user has joined the group call. Embeds {member name} */
 "GROUP_CALL_NOTIFICATION_ONE_JOINED_FORMAT" = "%1$@ چاقىرىققا قوشۇلدى";
@@ -2674,6 +2986,27 @@
 /* Text indicating that the user has lost their connection to the call and we are reconnecting. */
 "GROUP_CALL_RECONNECTING" = "قايتا ئۇلىنىۋاتىدۇ";
 
+/* Label for a button to block a member from a group call. */
+"GROUP_CALL_REMOVE_MEMBER_CONFIRMATION_ACTION_SHEET_BLOCK_ACTION" = "Block from Call";
+
+/* Label for the button to confirm removing a member from a group call. */
+"GROUP_CALL_REMOVE_MEMBER_CONFIRMATION_ACTION_SHEET_REMOVE_ACTION" = "Remove";
+
+/* Title for action sheet confirming removal of a member from a group call. embeds {{ name }} */
+"GROUP_CALL_REMOVE_MEMBER_CONFIRMATION_ACTION_SHEET_TITLE" = "Remove %1$@ from the call?";
+
+/* The title of an alert when you've been removed from a group call. */
+"GROUP_CALL_REMOVED" = "چاقىرىقتىن چىقىرىۋېتىلدى.";
+
+/* The message of an alert when you've been removed from a group call. */
+"GROUP_CALL_REMOVED_MESSAGE" = "بىرەيلەن سىزنى چاقىرىقتىن چىقىرىۋەتتى.";
+
+/* The title of an alert when tried to join a call using a link but the admin rejected your request. */
+"GROUP_CALL_REQUEST_DENIED" = "قېتىلىش تەلىپى رەت قىلىندى";
+
+/* The message of an alert when tried to join a call using a link but the admin rejected your request. */
+"GROUP_CALL_REQUEST_DENIED_MESSAGE" = "بۇ توپقا قېتىلىش تەلىپىڭىز رەت قىلىدىندى.";
+
 /* notification body when you join a group call and an already-joined participant has an untrusted safety number */
 "GROUP_CALL_SAFETY_NUMBER_CHANGE_AT_JOIN_BODY" = "بىر چاقىرىق ئەزاسىنىڭ بىخەتەرلىك نومۇرى ئۆزگەرگەن. كۆرۈش ئۈچۈن چېكىڭ.";
 
@@ -2688,9 +3021,6 @@
 
 /* Toast view text informing user about swiping to speaker view */
 "GROUP_CALL_SPEAKER_VIEW_TOAST" = "ئۈستىگە سۈرۈلسە ئۆزگىرىشنى كۆرسىتىدۇ";
-
-/* Button to start a group call */
-"GROUP_CALL_START_BUTTON" = "چاقىرىق باشلا";
 
 /* Tooltip highlighting group calls. */
 "GROUP_CALL_START_TOOLTIP" = "بۇ يەر چېكىلسە گۇرۇپپا چاقىرىش باشلىنىدۇ";
@@ -2732,7 +3062,7 @@
 "GROUP_CREATED_BY_LOCAL_USER" = "بۇ گۇرۇپپىنى سىز قۇرغان.";
 
 /* Message indicating that group was created by another user. Embeds {{remote user name}}. */
-"GROUP_CREATED_BY_REMOTE_USER_FORMAT" = "سىزنى %1$@ گۇرۇپپىغا قوشتى.";
+"GROUP_CREATED_BY_REMOTE_USER_FORMAT" = "%1$@ بۇ گۇرۇپپىنى قۇردى.";
 
 /* Message indicating that group was created by an unknown user. */
 "GROUP_CREATED_BY_UNKNOWN_USER" = "گۇرۇپپا قۇرۇلدى.";
@@ -2754,42 +3084,6 @@
 
 /* Title for the group description view. Embeds {{ the number of characters that can be added to the description without hitting the length limit }}. */
 "GROUP_DESCRIPTION_VIEW_TITLE_FORMAT" = "گۇرۇپپا تونۇشتۇرۇشى (%1$@)";
-
-/* Message indicating that 1 invalid invite was added to the group. */
-"GROUP_INVALID_INVITES_ADDED_1" = "بىر ئىناۋەتسىزتەكلىپ قوشۇلۈپ قالدى.";
-
-/* Message indicating that 1 invalid invite was added by the local user. */
-"GROUP_INVALID_INVITES_ADDED_BY_LOCAL_USER_1" = "بىر ئىناۋەتسىز تەكلىپ قوشتىڭىز.";
-
-/* Message indicating that multiple invalid invites were added by the local user. */
-"GROUP_INVALID_INVITES_ADDED_BY_LOCAL_USER_N" = "ئىناۋەتسىز تەكلىپلەرنى قوشتىڭىز.";
-
-/* Message indicating that 1 invalid invite was added by another user. Embeds {{remote user name}}. */
-"GROUP_INVALID_INVITES_ADDED_BY_REMOTE_USER_FORMAT_1" = "%1$@ ئىناۋەتسىز بىر تەكلىپ قوشتى.";
-
-/* Message indicating that multiple invalid invites were added by another user. Embeds {{remote user name}}. */
-"GROUP_INVALID_INVITES_ADDED_BY_REMOTE_USER_FORMAT_N" = "%1$@ ئىناۋەتسىز تەكلىپ قوشتى.";
-
-/* Message indicating that multiple invalid invites were added to the group. */
-"GROUP_INVALID_INVITES_ADDED_N" = "ئىناۋەتسىز تەكلىپلەر قوشۇلدى.";
-
-/* Message indicating that 1 invalid invite was revoked. */
-"GROUP_INVALID_INVITES_REMOVED_1" = "بىر ئىناۋەتسىز تەكلىپ بىكار قىلىندى.";
-
-/* Message indicating that 1 invalid invite was revoked by the local user. */
-"GROUP_INVALID_INVITES_REMOVED_BY_LOCAL_USER_1" = "بىر ئىناۋەتسىز تەكلىپنى بىكار قىلدىڭىز.";
-
-/* Message indicating that multiple invalid invites were revoked by the local user. */
-"GROUP_INVALID_INVITES_REMOVED_BY_LOCAL_USER_N" = "ئىناۋەتسىز تەكلىپلەرنى بىكار قىلدىڭىز.";
-
-/* Message indicating that 1 invalid invite was revoked by another user. Embeds {{remote user name}}. */
-"GROUP_INVALID_INVITES_REMOVED_BY_REMOTE_USER_FORMAT_1" = "%1$@ بىر ئىناۋەتسىز تەكلىپنى بىكار قىلدى.";
-
-/* Message indicating that multiple invalid invites were revoked by another user. Embeds {{remote user name}}. */
-"GROUP_INVALID_INVITES_REMOVED_BY_REMOTE_USER_FORMAT_N" = "%1$@ ئىناۋەتسىز تەكلىپنى بىكار قىلدى.";
-
-/* Message indicating that multiple invalid invites were revoked. */
-"GROUP_INVALID_INVITES_REMOVED_N" = "ئىناۋەتسىز تەكلىپلەر بىكار قىلىندى.";
 
 /* Message indicating that the group invite link was disabled. */
 "GROUP_INVITE_LINK_DISABLED" = "گۇرۇپپا ئۇلانمىسى ئېتىۋېتىلدى.";
@@ -2890,6 +3184,12 @@
 /* Message text for the 'group invite link' action sheet. */
 "GROUP_LINK_ACTION_SHEET_VIEW_MESSAGE" = "گۇرۇپپىغا قوشۇلۇپ ئىسىم ۋە سۈرىتىڭىزنى گۇرۇپپا ئەزالىرى بىلەن ھەمبەھىرلىنەمسىز؟";
 
+/* Label for the 'request to join' button in the 'group invite link' action sheet. */
+"GROUP_LINK_ACTION_SHEET_VIEW_REQUEST_TO_JOIN_BUTTON" = "Request to Join";
+
+/* Message text for the 'group invite link' action sheet, if the user will be requesting to join. */
+"GROUP_LINK_ACTION_SHEET_VIEW_REQUEST_TO_JOIN_MESSAGE" = "An admin of this group must approve your request before you can join this group. When you request to join, your name and photo will be shared with its members.";
+
 /* Error message the attempt to request to join the group failed due to network connectivity. */
 "GROUP_LINK_COULD_NOT_REQUEST_TO_JOIN_GROUP_DUE_TO_NETWORK_ERROR_MESSAGE" = "تورنى تەكشۈرۈپ ئاندىن قايتا سىناڭ.";
 
@@ -2972,7 +3272,7 @@
 "GROUP_LINK_VIEW_TITLE" = "گۇرۇپپا ئۇلانمىسى";
 
 /* Message indicating that the local user was added to the group by another user. Embeds {{remote user name}}. */
-"GROUP_LOCAL_USER_ADDED_TO_GROUP_BY_REMOTE_USER_FORMAT" = "%1$@ سىزنى قوشتى.";
+"GROUP_LOCAL_USER_ADDED_TO_GROUP_BY_REMOTE_USER_FORMAT" = "سىزنى %1$@ گۇرۇپپىغا قوشتى.";
 
 /* Message indicating that the local user was granted administrator role. */
 "GROUP_LOCAL_USER_GRANTED_ADMINISTRATOR" = "ئەمدى سىز باشقۇرغۇچى.";
@@ -3049,12 +3349,6 @@
 /* Title for the 'members' section of the 'group members' view. */
 "GROUP_MEMBERS_SECTION_TITLE_MEMBERS" = "ئەزالار";
 
-/* Button to allow user to review known name collisions in group membership */
-"GROUP_MEMBERSHIP_NAME_COLLISION_BANNER_REVIEW_BUTTON" = "كۆزدىن كەچۈرۈش ئۈچۈن چېكىڭ";
-
-/* A header string above a group member's contact info */
-"GROUP_MEMBERSHIP_NAME_COLLISION_MEMBER_HEADER" = "ئەزا";
-
 /* A title string for a view that allows a user to review name collisions in group membership */
 "GROUP_MEMBERSHIP_NAME_COLLISION_TITLE" = "ئەزالارنى تەكشۈر";
 
@@ -3118,6 +3412,9 @@
 /* Message indicating that a remote user was removed from the group by the local user. Embeds {{remote user name}}. */
 "GROUP_REMOTE_USER_REMOVED_BY_LOCAL_USER_FORMAT" = "%1$@ نى چىقىرىۋەتتىڭىز";
 
+/* Message indicating that a remote user was removed from the group by an unknown user. Embeds {{remote user name}}. */
+"GROUP_REMOTE_USER_REMOVED_BY_UNKNOWN_USER_FORMAT" = "%1$@ ئەمدى گۇرۇپپىدا ئەمەس";
+
 /* Message indicating that the remote user was removed from the group. Embeds {{ %1$@ user who removed the user, %2$@ user who was removed}}. */
 "GROUP_REMOTE_USER_REMOVED_FROM_GROUP_BY_REMOTE_USER_FORMAT" = "%1$@ %2$@ نى چىقىرىۋەتتى";
 
@@ -3126,6 +3423,9 @@
 
 /* Message indicating that a remote user's request to join the group was approved by another user. Embeds {{ %1$@ requesting user name, %2$@ approving user name }}. */
 "GROUP_REMOTE_USER_REQUEST_APPROVED_BY_REMOTE_USER_FORMAT" = "%1$@ نىڭ گۇرۇپپىغا قوشۇلۇش ئىلتىماسىنى %2$@ تەستىقلىدى.";
+
+/* Message indicating that a remote user's request to join the group was approved by an unknown user. Embeds {{ %1$@ requesting user name }}. */
+"GROUP_REMOTE_USER_REQUEST_APPROVED_BY_UNKNOWN_USER_FORMAT" = "%1$@ نىڭ گۇرۇپپىغا قوشۇلۇش ئىلتىماسى تەستىقلاندى.";
 
 /* Message indicating that a remote user cancelled their request to join the group. Embeds {{ the name of the requesting user }}. */
 "GROUP_REMOTE_USER_REQUEST_CANCELLED_BY_REMOTE_USER_FORMAT" = "%1$@ گۇرۇپپىغا قوشۇلۇش ئىلتىماسىدىن ۋاز كەچتى.";
@@ -3240,6 +3540,9 @@
 
 /* Message indicating that the group was migrated. */
 "GROUP_WAS_MIGRATED" = "بۇ گۇرۇپپا «يېڭى گۇرۇپپا»غا يېڭىلاندى.";
+
+/* Message indicating that the local user was invited after the group was migrated. */
+"GROUP_WAS_MIGRATED_LOCAL_USER_INVITED" = "تەكلىپ قىلىنمىغۇچە يېڭى گۇرۇپپىغا قوشۇلالمايسىز.";
 
 /* Message indicating that the local user left the group. */
 "GROUP_YOU_LEFT" = "سىز گۇرۇپپىدىن ئايرىلدىڭىز.";
@@ -3385,6 +3688,18 @@
 /* Title 'Read All' button in the toolbar of the ChatList if multi-section is active. */
 "HOME_VIEW_TOOLBAR_READ_ALL" = "ھەممىسى ئوقۇلغان";
 
+/* Label for both bank chooser header and the bank form field on the iDEAL payment detail page. */
+"IDEAL_DONATION_CHOOSE_YOUR_BANK_LABEL" = "بانكىڭىزنى تاللاڭ";
+
+/* Fallback title confirming recurring donation with bank. */
+"IDEAL_DONATION_CONFIRM_DONATION_TITLE" = "ئىئانىڭىزنى جەزملەشتۈرۈڭ";
+
+/* Message confirming recurring donation with bank. This message confirms with the user that they will see a small confirmation charge with their bank before the donation. */
+"IDEAL_DONATION_CONFIRM_DONATION_WITH_BANK_MESSAGE" = "تەكرار ئىئانە قىلىشنى تەڭشەشتىن بۇرۇن، چېكىپ بانكا بىلەن €0,01 ھەقنى جەزملەشتۈرۈڭ. بۇ سومما ئاپتوماتىك قايتۇرۇلىدۇ ۋە %1$@/ئايلىق ئىئانىڭىزنى بانكا ھېساباتىڭىزدىن تۇتىدۇ.";
+
+/* Title confirming recurring donation with bank. */
+"IDEAL_DONATION_CONFIRM_DONATION_WITH_BANK_TITLE" = "%1$@ بىلەن قىلغان ئىئانىڭىزنى جەزملەشتۈرۈڭ";
+
 /* The image editor hint that you can draw blur */
 "IMAGE_EDITOR_BLUR_HINT" = "خالىغان جاي سىزىلسا تۇتۇقلىشىدۇ";
 
@@ -3404,13 +3719,13 @@
 "IN_CALL_CONNECTING" = "باغلىنىۋاتىدۇ…";
 
 /* Call screen label when call was canceled on this device because the call recipient answered on another device. */
-"IN_CALL_ENDED_BECAUSE_ANSWERED_ELSEWHERE" = "باشقا بىر ئۈسكۈنىدە جاۋابلىدى.";
+"IN_CALL_ENDED_BECAUSE_ANSWERED_ELSEWHERE" = "باشقا بىر ئۈسكۈنىدە قوبۇل قىلدى";
 
 /* Call screen label when call was canceled on this device because the call recipient has a call in progress on another device. */
-"IN_CALL_ENDED_BECAUSE_BUSY_ELSEWHERE" = "باشقا ئۈسكۈنىدە چاقىرىش داۋاملىشىۋاتقاچقا جاۋاب قايتۇرالمىدى.";
+"IN_CALL_ENDED_BECAUSE_BUSY_ELSEWHERE" = "باشقا ئۈسكۈنىدە چاقىرىش داۋاملىشىۋاتقاچقا ئالالمىدى";
 
 /* Call screen label when call was canceled on this device because the call recipient declined on another device. */
-"IN_CALL_ENDED_BECAUSE_DECLINED_ELSEWHERE" = "باشقا بىر ئۈسكۈنىدە رەت قىلدى.";
+"IN_CALL_ENDED_BECAUSE_DECLINED_ELSEWHERE" = "باشقا بىر ئۈسكۈنىدە رەت قىلدى";
 
 /* Call setup status label */
 "IN_CALL_RECONNECTING" = "قايتا ئۇلىنىۋاتىدۇ…";
@@ -3428,7 +3743,16 @@
 "IN_CALL_SECURING" = "جاۋابلاندى. قوغدىلىۋاتىدۇ...";
 
 /* Call setup status label */
-"IN_CALL_TERMINATED" = "چاقىرىش ئاياغلاشتى.";
+"IN_CALL_TERMINATED" = "چاقرىق ئاخىرلاشتى";
+
+/* Title for a button in an in-app megaphone about a user's inactive linked device, indicating the user doesn't want to be reminded. */
+"INACTIVE_LINKED_DEVICE_REMINDER_MEGAPHONE_DONT_REMIND_ME_BUTTON" = "ئەسكەرتمەڭ";
+
+/* Title for a button in an in-app megaphone about a user's inactive linked device, temporarily dismissing the megaphone. */
+"INACTIVE_LINKED_DEVICE_REMINDER_MEGAPHONE_GOT IT_BUTTON" = "بىلدىم";
+
+/* Title for an in-app megaphone about a user's inactive linked device. */
+"INACTIVE_LINKED_DEVICE_REMINDER_MEGAPHONE_TITLE" = "ئاكتىپ ئەمەس ئۇلانغان ئۈسكۈنە";
 
 /* Label reminding the user that they are in archive mode, and that muted chats remain archived when they receive a new message. */
 "INBOX_VIEW_ARCHIVE_MODE_MUTED_CHATS_REMINDER" = "ئارخىپلانغان ئۈنسىز پاراڭلار يېڭى ئۇچۇر كەلگۈچە ئارخىپتا ساقلىنىدۇ.";
@@ -3440,16 +3764,37 @@
 "INBOX_VIEW_EMPTY_INBOX" = "تېخى پاراڭ يوق.\nدوستىڭىزغا ئۇچۇر يوللاپ پاراڭ باشلاڭ.";
 
 /* info message text in conversation view */
-"INCOMING_AUDIO_CALL" = "كەلگەن ئاۋازلىق چاقىرىق";
+"INCOMING_VIDEO_CALL" = "كەلگەن ۋىدېيولۇق چاقىرىق";
 
 /* info message text in conversation view */
-"INCOMING_VIDEO_CALL" = "كەلگەن ۋىدېيولۇق چاقىرىق";
+"INCOMING_VOICE_CALL" = "كەلگەن ئاۋازلىق چاقىرىق";
+
+/* An info message inserted into the chat when you accept a message request, in a 1:1 or group chat. */
+"INFO_MESSAGE_ACCEPTED_MESSAGE_REQUEST" = "ئۇچۇر تەلىپىنى قوبۇل قىلدىڭىز.";
+
+/* Header for an action sheet providing options in response to an accepted 1:1 message request. Embeds {{ the name of your chat partner }}. */
+"INFO_MESSAGE_ACCEPTED_MESSAGE_REQUEST_OPTIONS_ACTION_SHEET_HEADER_CONTACT" = "%1$@ ئەۋەتكەن ئۇچۇر تەلىپىنى قوبۇل قىلدىڭىز. ئەگەر بۇنى ئۇقۇشماي قىلغان بولسىڭىز ئاستىدىكى مەشغۇلاتلاردىن تاللاش ئېلىپ بارالايسىز.";
+
+/* Header for an action sheet providing options in response to an accepted group message request. */
+"INFO_MESSAGE_ACCEPTED_MESSAGE_REQUEST_OPTIONS_ACTION_SHEET_HEADER_GROUP" = "سىز بۇ گۇرۇپپىنىڭ بىر ئۇچۇر تەلىپىنى قوبۇل قىلدىڭىز. ئەگەر بۇنى ئۇقۇشماي قىلغان بولسىڭىز ئاستىدىكى مەشغۇلاتلاردىن تاللاش ئېلىپ بارالايسىز.";
+
+/* Title for a button shown alongside an info message indicating you accepted a message request. */
+"INFO_MESSAGE_ACCEPTED_MESSAGE_REQUEST_OPTIONS_BUTTON" = "تاللاشلار";
+
+/* An info message inserted into a group chat when you block the group. */
+"INFO_MESSAGE_BLOCKED_GROUP" = "بۇ گۇرۇپپىنى چەكلىدىڭىز.";
+
+/* An info message inserted into a 1:1 chat when you block another user. */
+"INFO_MESSAGE_BLOCKED_OTHER_USER" = "بۇ ئىشلەتكۈچىنى چەكلىدىڭىز.";
 
 /* Indicates that a previously-removed recipient has been added back to the current user's contacts. */
 "INFO_MESSAGE_CONTACT_REINSTATED" = "بۇ كىشى سىزنىڭ سىگنال ئالاقىداشلىرىڭىزغا قايتا قوشۇلدى.";
 
 /* Indicates that the recipient has been removed from the current user's contacts and that messaging them will re-add them. */
 "INFO_MESSAGE_CONTACT_REMOVED" = "سىز بۇ كىشىنى سىگنال ئالاقىداشلىرىڭىزدىن چىقىرىۋەتكەن، ئۇلارغا ئۇچۇر يوللىغان ئۇچۇرىڭىز ئۇلارنى قايتىدىن قوشىدۇ.";
+
+/* When you start a chat with someone and then later learn their profile name, we insert an in-chat message with this string to record the identifier you originally used to contact them. Embeds {{ the identifier, either a phone number or a username }}. */
+"INFO_MESSAGE_LEARNED_PROFILE_KEY" = "%1$@ بىلەن بۇ پاراڭنى باشلىدىڭىز.";
 
 /* Shown when a user activates payments from a chat */
 "INFO_MESSAGE_PAYMENTS_ACTIVATED" = "پۇل تۆلەش ئىقتىدارىنى ئاكتىپلىدىڭىز.";
@@ -3463,8 +3808,23 @@
 /* Shown when requesting a user activates payments. Embeds: {{ the user's name}} */
 "INFO_MESSAGE_PAYMENTS_ACTIVATION_REQUEST_SENT" = "«%1$@» گە پۇل تۆلەش ئىقتىدارىنى ئاكتىپلاش ئىلتىماسى يوللىدىڭىز.";
 
+/* Shown when a user reports a conversation as spam. */
+"INFO_MESSAGE_REPORTED_SPAM" = "ئالدامچى ئۇچۇر دەپ مەلۇم قىلىندى";
+
+/* Body message of the alert shown when a user taps on 'learn more' via the spam info message. */
+"INFO_MESSAGE_REPORTED_SPAM_LEARN_MORE_MESSAGE" = "Signal بۇ كىشىنىڭ بەلكىم ئالدامچى ئۇچۇر يوللاۋاتقانلىقى توغرىسىدا ئۇقتۇرۇش تاپشۇرۇۋالدى. Signal ھەرقانداق پاراڭ مەزمۇنىنى كۆرەلمەيدۇ.";
+
+/* Title of the alert shown when a user taps on 'learn more' via the spam info message. */
+"INFO_MESSAGE_REPORTED_SPAM_LEARN_MORE_TITLE" = "مەلۇم قىلىنغان ئالدامچىلىق";
+
 /* Shown in inbox and conversation after syncing as a placeholder indicating why your message history is missing. */
-"INFO_MESSAGE_SYNCED_THREAD" = "You can send or receive synchronized messages from your phone or iPad.  For your security, chat history isn't transferred to new linked devices.";
+"INFO_MESSAGE_SYNCED_THREAD" = "بىخەتەرلىكىڭىز ئۈچۈن پاراڭلىشىش خاتىرىسى يېڭى ئۇلانغان ئۈسكۈنىلەرگە يۆتكەلمەيدۇ.";
+
+/* An info message inserted into a group chat when you unblock the group. */
+"INFO_MESSAGE_UNBLOCKED_GROUP" = "بۇ گۇرۇپپىنى چەكلەشنى بىكار قىلدىڭىز.";
+
+/* An info message inserted into a 1:1 chat when you unblock another user. */
+"INFO_MESSAGE_UNBLOCKED_OTHER_USER" = "بۇ كىشىنى چەكلەشنى بىكار قىلدىڭىز.";
 
 /* Indicates that another user has changed their phone number. Embeds: {{ the user's name}} */
 "INFO_MESSAGE_USER_CHANGED_PHONE_NUMBER_FORMAT" = "%1$@ تېلېفون نومۇرىنى ئۆزگەرتتى.";
@@ -3504,6 +3864,9 @@
 
 /* Label for the cell that presents the 'invite contacts' workflow. */
 "INVITE_FRIENDS_CONTACT_TABLE_BUTTON" = "دوستلىرىڭىزنى Signal غا تەكلىپ قىلىڭ";
+
+/* Header label above a section for more options for adding contacts */
+"INVITE_FRIENDS_CONTACT_TABLE_HEADER" = "تېخىمۇ كۆپ";
 
 /* Search */
 "INVITE_FRIENDS_PICKER_SEARCHBAR_PLACEHOLDER" = "ئىزدە";
@@ -3611,31 +3974,22 @@
 "LINK_NEW_DEVICE_SUBTITLE" = "QR كودىنى سايىلەپ يېڭى ئۈسكۈنىنى باغلاڭ.";
 
 /* Navigation title when scanning QR code to add new device. */
-"LINK_NEW_DEVICE_TITLE" = "يېڭى ئۈسكۈنىگە باغلان";
+"LINK_NEW_DEVICE_TITLE" = "يېڭى ئۈسكۈنە باغلاش";
 
 /* Label for link previews with an unknown host. */
 "LINK_PREVIEW_UNKNOWN_DOMAIN" = "ئۇلانما ئالدىن كۆرۈش";
 
 /* Shown in an alert when trying to edit a contact. */
-"LINKED_DEVICE_CONTACTS_NOT_ALLOWED" = "سىستېما ئالاقىداشلىرىنى ئەمدى iPad تە باشقۇرغىلى بولمايدۇ. Signal ئالاقىداشلىرىنى سىستېما ئالاقىداشلىرىغا قوشۇش ئۈچۈن Signal نى تېلېفونىڭىزدا ئېچىڭ.";
+"LINKED_DEVICE_CONTACTS_NOT_ALLOWED" = "تېلېفون ئالاقىداشلىرىنى ئەمدى iPad دە باشقۇرغىلى بولمايدۇ. Signal  ئالاقىداشلىرىنى تېلېفون ئالاقىداشلىرىڭىزغا قوشۇش ئۈچۈن Signal نى تېلېفونىڭىزدا ئېچىڭ.";
 
 /* Shown in a banner when you tap the 'New Chat' icon at the top of the list of chats. */
-"LINKED_DEVICE_MANAGE_CONTACTS_BANNER" = "سىستېما ئالاقىداشلىرىنى ئەمدى iPad تە باشقۇرغىلى بولمايدۇ. بۇ ئۈسكۈنە تېلېفونىڭىزدىكى Signal ئالاقىداشلار تىزىملىكىدىكى بارلىق ئۆزگىرىشلەرنى داۋاملىق ماسقەدەملەيدۇ.";
+"LINKED_DEVICE_MANAGE_CONTACTS_BANNER" = "iPad ئەمدى تېلېفون ئالاقىداشلىرىنى باشقۇرۇش ئىقتىدارىنى قوللىمايدۇ. بۇ ئۈسكۈنە Signal دىكى تېلېفون ئالاقىداشلار تىزىملىكىگە قىلىنغان ھەر قانداق ئۆزگىرىشىنى داۋاملىق ماسقەدەملەيدۇ.";
 
 /* A button shown in a banner when you tap the 'New Chat' icon at the top of the list of chats. Tapping it opens a website with more details. */
 "LINKED_DEVICE_MANAGE_CONTACTS_LEARN_MORE" = "تەپسىلاتى";
 
 /* Menu item and navbar title for the device manager */
 "LINKED_DEVICES_TITLE" = "باغلانغان ئۈسكۈنىلەر";
-
-/* Label for the 'give access' button in the 'onboarding permissions' view. */
-"LINKED_ONBOARDING_PERMISSIONS_ENABLE_PERMISSIONS_BUTTON" = "ئۇقتۇرۇشقا رۇخسەت";
-
-/* Explanation in the 'onboarding permissions' view. */
-"LINKED_ONBOARDING_PERMISSIONS_EXPLANATION" = "ئۇقتۇرۇشقا رۇخسەت قىلسىڭىز، ئۇچۇر ياكى چاقىرىق كەلگەندە ياكى يېڭى پاراڭ پائالىيەتلىرى ھەققىدە خەۋەر بولغاندا سىزگە ئۇقتۇرۇش قىلىنىدۇ.";
-
-/* Title of the 'onboarding permissions' view. */
-"LINKED_ONBOARDING_PERMISSIONS_TITLE" = "ئۇقتۇرۇشقا رۇخسەت";
 
 /* Alert Title */
 "LINKING_DEVICE_FAILED_TITLE" = "ئۈسكۈنە باغلاش مەغلۇب بولدى";
@@ -3901,13 +4255,22 @@
 /* Context menu message preview accessibility label */
 "MESSAGE_PREVIEW" = "ئۇچۇرنى ئالدىن كۆر";
 
+/* Sheet option for blocking a chat. In this case, the sheet appears when the user taps a button attached to a 'message request accepted' info message in-chat. */
+"MESSAGE_REQUEST_ACCEPTED_INFO_MESSAGE_SHEET_OPTION_BLOCK" = "چەكلەش";
+
+/* Sheet option for deleting a chat. In this case, the sheet appears when the user taps a button attached to a 'message request accepted' info message in-chat. */
+"MESSAGE_REQUEST_ACCEPTED_INFO_MESSAGE_SHEET_OPTION_DELETE" = "پاراڭنى ئۆچۈرۈش";
+
+/* Sheet option for reporting a chat as spam. In this case, the sheet appears when the user taps a button attached to a 'message request accepted' info message in-chat. */
+"MESSAGE_REQUEST_ACCEPTED_INFO_MESSAGE_SHEET_OPTION_SPAM" = "ئالدامچى مەلۇم قىلىش";
+
 /* Action sheet action to confirm blocking a thread via a message request. */
 "MESSAGE_REQUEST_BLOCK_ACTION" = "چەكلەش";
 
 /* Action sheet action to confirm blocking and deleting a thread via a message request. */
 "MESSAGE_REQUEST_BLOCK_AND_DELETE_ACTION" = "چەكلە ۋە ئۆچۈر";
 
-/* Action sheet action to confirm blocking and report spam for a thread via a message request. */
+/* Action sheet action to confirm blocking and reporting spam for a thread via a message request. */
 "MESSAGE_REQUEST_BLOCK_AND_REPORT_SPAM_ACTION" = "ئەخلەت ئۇچۇرنى مەلۇم قىلىش ۋە چەكلەش";
 
 /* Action sheet message to confirm blocking a conversation via a message request. */
@@ -3941,16 +4304,10 @@
 "MESSAGE_REQUEST_LEAVE_AND_DELETE_GROUP_TITLE" = "ئۆچۈرۈپ ۋە گۇرۇپپىدىن ئايرىلامسىز؟";
 
 /* Banner label notifying user that a new message is from a user with the same name as an existing contact */
-"MESSAGE_REQUEST_NAME_COLLISON_BANNER_LABEL" = "ئىلتىماسنى ئېھتىيات بىلەن تەكشۈرۈڭ. Signal ئوخشاش ئاتلىق باشقا ئالاقەداشنى بايقىدى.";
-
-/* A header string above a known contact's contact info */
-"MESSAGE_REQUEST_NAME_COLLISON_CONTACT_HEADER" = "ئالاقەداشىڭىز";
+"MESSAGE_REQUEST_NAME_COLLISION_BANNER_LABEL" = "بۇ كىشىنىڭ ئىسمى يەنە بىر ئالاقىداش بىلەن ئوخشاش";
 
 /* A header string informing the user about name collisions in a message request */
 "MESSAGE_REQUEST_NAME_COLLISON_HEADER" = "كىمنىڭ ئىلتىماسى ئىكەنلىكىنى جەزملەشتۈرەلمىسىڭىز، ئاستىدىكى ئالاقەداشلارنى كۆزدىن كەچۈرۈڭ ۋە مۇناسىپ مەشغۇلات قىلىڭ.";
-
-/* A header string above the requester's contact info */
-"MESSAGE_REQUEST_NAME_COLLISON_REQUESTER_HEADER" = "ئىلتىماس";
 
 /* A title string for a view that allows a user to review name collisions for an incoming message request */
 "MESSAGE_REQUEST_NAME_COLLISON_TITLE" = "ئىلتىماسنى تەكشۈر";
@@ -3958,8 +4315,17 @@
 /* A button that updates a known contact's information to resolve a name collision */
 "MESSAGE_REQUEST_NAME_COLLISON_UPDATE_CONTACT_ACTION" = "ئالاقەداش يېڭىلا";
 
-/* Button to allow user to review known name collisions with an incoming message request */
-"MESSAGE_REQUEST_REVIEW_NAME_COLLISION" = "ئىلتىماسنى تەكشۈر";
+/* Action sheet message to confirm reporting a conversation as spam via a message request. */
+"MESSAGE_REQUEST_REPORT_CONVERSATION_MESSAGE" = "Signal بۇ كىشىنىڭ بەلكىم ئالدامچى ئۇچۇرى يوللاۋاتقانلىقى ھەققىدە ئۇقتۇرۇش تاپشۇرۇۋالىدۇ. Signal ھەرقانداق پاراڭ مەزمۇنىنى كۆرەلمەيدۇ.";
+
+/* Action sheet title to confirm reporting a conversation as spam via a message request. */
+"MESSAGE_REQUEST_REPORT_CONVERSATION_TITLE" = "ئالدامچى مەلۇم قىلامسىز؟";
+
+/* Action sheet action to confirm reporting a conversation as spam via a message request. */
+"MESSAGE_REQUEST_REPORT_SPAM_ACTION" = "ئالدامچى مەلۇم قىلىش";
+
+/* String indicating that spam has been reported. */
+"MESSAGE_REQUEST_SPAM_REPORTED" = "ئالدامچى ئۇچۇر دەپ مەلۇم قىلىندى.";
 
 /* String indicating that spam has been reported and the chat has been blocked. */
 "MESSAGE_REQUEST_SPAM_REPORTED_AND_BLOCKED" = "ئەخلەت ئۇچۇر دەپ مەلۇم قىلىنىپ چەكلەندى.";
@@ -4002,6 +4368,9 @@
 
 /* A prompt asking if the user wants to accept a conversation invite from a person whom they previously removed. Embeds {{contact name}}. */
 "MESSAGE_REQUEST_VIEW_REMOVED_CONTACT_PROMPT_FORMAT" = "«%1$@» نىڭ ئۇچۇر يوللىشىغا قوشۇلامسىز ۋە نامىڭىز ۋە رەسمىڭىزنى ئۇنىڭ بىلەن ئورتاقلىشامسىز؟ سىز بۇرۇن بۇ كىشىنى ئۆچۈرۈۋەتكەن.";
+
+/* incoming message request button text which reports a conversation as spam */
+"MESSAGE_REQUEST_VIEW_REPORT_BUTTON" = "مەلۇم قىلىش…";
 
 /* A button used to unlock a blocked conversation. */
 "MESSAGE_REQUEST_VIEW_UNBLOCK_BUTTON" = "چەكلەشنى بىكار قىلىش";
@@ -4072,9 +4441,6 @@
 /* Indicator that separates read from unread messages. */
 "MESSAGES_VIEW_UNREAD_INDICATOR" = "يېڭى ئۇچۇرلار";
 
-/* info message text in conversation view */
-"MISSED_AUDIO_CALL" = "ئېلىنمىغان ئاۋازلىق چاقىرىق";
-
 /* info message text in conversation view for when a call was dropped because the contact is blocked in iOS settings */
 "MISSED_CALL_BLOCKED_SYSTEM_CONTACT" = "تېلېفون تەڭشىكىدىن توسۇپ قويۇلغان ئالاقىداشلاردىن ئالالمىغان چاقىرىق";
 
@@ -4087,14 +4453,14 @@
 /* Title for sheet shown when the user taps a missed call from a contact blocked in iOS settings. Embeds {{ Contact's name }} */
 "MISSED_CALL_BLOCKED_SYSTEM_SETTINGS_SHEET_TITLE" = "%1$@ تېلېفون تەڭشىكىدە توسىۋېتىلدى";
 
-/* info message text in conversation view (use Apple's name for 'Do Not Disturb' on iOS 14 and older) */
-"MISSED_CALL_DO_NOT_DISTURB" = "«دەخلىسىز ھالەت» تىكى جاۋابسىز چاقىرىق";
-
 /* info message text in conversation view (use Apple's name for 'Focus') */
 "MISSED_CALL_FOCUS_MODE" = "«Focus» ھالەتتىكى جاۋابسىز چاقىرىق";
 
 /* info message text in conversation view */
 "MISSED_VIDEO_CALL" = "سۆزلەشمىگەن سىن چاقىرىش";
+
+/* info message text in conversation view */
+"MISSED_VOICE_CALL" = "ئېلىنمىغان ئاۋازلىق چاقىرىق";
 
 /* Alert body */
 "MISSING_CAMERA_PERMISSION_MESSAGE" = "‫iOS تەڭشەكلەردىن كامېرا ھوقۇقىنى قوزغاتقاندىن كېيىن Signal دا سىنلىق چاقىرالايسىز.";
@@ -4119,6 +4485,9 @@
 
 /* A recovery suggestion shown as the body of an alert when try to link a new device & the user is already at the limit. */
 "MULTIDEVICE_PAIRING_MAX_RECOVERY" = "ھېساباتىڭىزغا باغلانغان ئۈسكۈنە سانى چېكىگە يەتتى، بىر ئۈسكۈنىنى چىقىرىۋېتىپ ئاندىن قايتا سىناڭ.";
+
+/* Text for a toast confirming that the mic has been muted for a call. */
+"MUTE_CONFIRMATION_TOAST_LABEL" = "مىكروفون ئېتىك";
 
 /* Badge indicating that the user is muted. */
 "MUTED_BADGE" = "ئۈنسىز";
@@ -4153,8 +4522,8 @@
 /* Prompt to add to your story */
 "MY_STORY_TAP_TO_ADD" = "چېكىپ قوشۇش";
 
-/* Format string describing a recent profile name change that led to a name collision. Embeds {{ %1$@ old profile name }} and {{ %2$@ current profile name }} */
-"NAME_COLLISION_RECENT_CHANGE_FORMAT_STRING" = "يېقىندا ئارخىپ نامىنى «%1$@» دىن «%2$@» گە ئۆزگەرتتى.";
+/* Format string describing a recent profile name change that led to a name collision. Embeds {{ %1$@ current name, which may be a profile name or an address book name }}, {{ %2$@ old profile name }}, and {{ %3$@ current profile name }} */
+"NAME_COLLISION_RECENT_CHANGE_FORMAT_STRING" = "%1$@ يېقىندا ئارخىپ نامىنى %2$@ دىن %3$@ گە ئۆزگەرتتى";
 
 /* A button to skip a view. */
 "NAVIGATION_ITEM_SKIP_BUTTON" = "ئاتلا";
@@ -4171,8 +4540,29 @@
 /* String representing both wifi and cellular interfaces */
 "NETWORK_INTERFACE_SET_WIFI_CELLULAR" = "WiFi ۋە كۆچمە تورى";
 
+/* Accessibility hint describing the action of the new call button on the Calls Tab */
+"NEW_CALL_HINT" = "ئالاقىداش ۋە گۇرۇپپا تاللاپ چاقىرىقنى باشلاڭ.";
+
+/* Accessibility label for the new call button on the Calls Tab */
+"NEW_CALL_LABEL" = "يېڭى چاقىرىق";
+
+/* Title for a long-press context menu action to message a given recipient or group, triggered from a recipient in the New Call contact picker */
+"NEW_CALL_MESSAGE_ACTION_TITLE" = "ئۇچۇر";
+
+/* Title for the contact picker that allows new calls to be started */
+"NEW_CALL_TITLE" = "يېڭى چاقىرىق";
+
+/* Title for a long-press context menu action to start a video call, triggered from a recipient in the New Call contact picker */
+"NEW_CALL_VIDEO_CALL_ACTION_TITLE" = "سىنلىق چاقىرىش";
+
+/* Title for a long-press context menu action to start a voice call, triggered from a recipient in the New Call contact picker */
+"NEW_CALL_VOICE_CALL_ACTION_TITLE" = "ئۈن چاقىرىش";
+
 /* A label the cell that lets you add a new member to a group. */
 "NEW_CONVERSATION_FIND_BY_PHONE_NUMBER" = "تېلېفون نومۇرى بىلەن تېپىڭ";
+
+/* A label for the cell that lets you add a new member by their username */
+"NEW_CONVERSATION_FIND_BY_USERNAME" = "ئىشلەتكۈچى نامى بويىچە ئىزدەش";
 
 /* Label for the 'create new group' button. */
 "NEW_GROUP_BUTTON" = "يېڭى گۇرۇپپا";
@@ -4213,11 +4603,8 @@
 /* Title for the 'new group story' view */
 "NEW_GROUP_STORY_VIEW_CONTROLLER_TITLE" = "گۇرۇپپا تاللاش";
 
-/* A label for the 'add by phone number' button in the 'new non-contact conversation' view */
-"NEW_NONCONTACT_CONVERSATION_VIEW_BUTTON" = "ئىزدە";
-
 /* Title for the 'new non-contact conversation' view. */
-"NEW_NONCONTACT_CONVERSATION_VIEW_TITLE" = "ئىشلەتكۈچى ئىزدەڭ";
+"NEW_NONCONTACT_CONVERSATION_VIEW_TITLE" = "تېلېفون نومۇرى بىلەن تېپىڭ";
 
 /* Title for the 'new private story' confirmation view */
 "NEW_PRIVATE_STORY_CONFIRM_TITLE" = "ھېكايىگە نام قويۇش";
@@ -4261,8 +4648,35 @@
 /* Title for the new story sheet */
 "NEW_STORY_SHEET_TITLE" = "ھېكايە تىپىنى تاللاش";
 
+/* Title for the table cell in conversation settings for presenting the profile nickname editor. */
+"NICKNAME_BUTTON_TITLE" = "لەقەم";
+
+/* The message for a prompt confirming that the user wants to delete the nickname and note. */
+"NICKNAME_EDITOR_DELETE_CONFIRMATION_MESSAGE" = "بۇ مەشغۇلات بۇ لەقەم ۋە خاتىرىنى مەڭگۈلۈك ئۆچۈرىدۇ.";
+
+/* The title for a prompt confirming that the user wants to delete the nickname and note. */
+"NICKNAME_EDITOR_DELETE_CONFIRMATION_TITLE" = "لەقەمنى ئۆچۈرەمسىز؟";
+
+/* The description below the title on the profile nickname editor view. */
+"NICKNAME_EDITOR_DESCRIPTION" = "لەقەم ۋە خاتىرىلەر Signal دا ئۇچتىن ئۇچقا مەخپىيلەشتۈرۈلگەن ھالدا ساقلىنىدۇ. ئۇلارنى پەقەت سىز كۆرەلەيسىز.";
+
+/* Placeholder text it the text field for the family name in the profile nickname editor. */
+"NICKNAME_EDITOR_FAMILY_NAME_PLACEHOLDER" = "فامىلە";
+
+/* Placeholder text it the text field for the given name in the profile nickname editor. */
+"NICKNAME_EDITOR_GIVEN_NAME_PLACEHOLDER" = "ئات";
+
+/* Placeholder text it the text box for the note in the profile nickname editor. */
+"NICKNAME_EDITOR_NOTE_PLACEHOLDER" = "خاتىرە";
+
+/* The title for the profile nickname editor view. */
+"NICKNAME_EDITOR_TITLE" = "لەقەم";
+
 /* Label for a button that lets users search for contacts by phone number */
 "NO_CONTACTS_SEARCH_BY_PHONE_NUMBER" = "تېلېفون نومۇرى بىلەن ئالاقىداشلارنى تېپىڭ";
+
+/* Label for a button that lets users search for contacts by username */
+"NO_CONTACTS_SEARCH_BY_USERNAME" = "ئالاقىداشلارنى ئىشلەتكۈچى نامى بىلەن تېپىش";
 
 /* A string describing that the user has no groups in common with another user */
 "NO_GROUPS_IN_COMMON" = "ئورتاق گۇرۇپپا يوق";
@@ -4305,6 +4719,12 @@
 
 /* Title for notification permission reminder megaphone */
 "NOTIFICATION_PERMISSION_REMINDER_MEGAPHONE_TITLE" = "ئۇقتۇرۇشنى قوزغىتامدۇ؟";
+
+/* Shown as the body of an alert when notifications can't be shown due to an error. */
+"NOTIFICATIONS_ERROR_MESSAGE" = "Signal ئۇقتۇرۇشلىرىنى تاپشۇرۇۋالمىغان بولسىڭىز %1$@ نى قايتا قوزغىتىڭ.";
+
+/* Shown as the title of an alert when notifications can't be shown due to an error. */
+"NOTIFICATIONS_ERROR_TITLE" = "ئۇقتۇرۇشلارنى كۆرسىتەلمىدى";
 
 /* No comment provided by engineer. */
 "NOTIFICATIONS_FOOTER_WARNING" = "مەشغۇلات «ئوقۇلدى»، «جاۋاب»، «قايتۇرۇپ چاقىر» نى ئۆز ئىچىگە ئالىدۇ.";
@@ -4381,11 +4801,20 @@
 /* warning to the user that linking a phone is not recommended */
 "ONBOARDING_MODE_SWITCH_WARNING_REGISTERING" = "iPhone نىڭىزنى باغلاش ئادەتتە تەۋسىيە قىلىنمايدۇ ۋە بەزى نۇقتىلىق ئىقتىدارلار چەكلىنىپ قالىدۇ.";
 
-/* Label for the 'give access' button in the 'onboarding permissions' view. */
-"ONBOARDING_PERMISSIONS_ENABLE_PERMISSIONS_BUTTON" = "ھوقۇق بېرىڭ";
+/* Description of the 'Contacts' permission in the 'onboarding permissions' view. */
+"ONBOARDING_PERMISSIONS_CONTACTS_DESCRIPTION" = "سىز تونۇيدىغان كىشىلەرنى تېپىڭ. ئالاقىداشلىرىڭىز مەخپىيلەشتۈرۈلگەن بولۇپ، سىگنال مۇلازىمىتىگە كۆرۈنمەيدۇ.";
 
-/* Explanation in the 'onboarding permissions' view. */
-"ONBOARDING_PERMISSIONS_EXPLANATION" = "ئۇقتۇرۇشلار ۋە ئالاقىداشلارغا رۇخسەت بېرىش - ئۇچۇرلىرىڭىزنىڭ قاچان كەلگەنلىكىنى كۆرەلىشىڭىز ۋە تونۇيدىغان كىشىلەرنى تېپىشىڭىزغا ياردەم بېرىدۇ. ئالاقىداشلار مەخپىيلەشتۈرۈلىدىغان بولغاچقا، Signal مۇلازىمىتى ئۇلارنى كۆرەلمەيدۇ.";
+/* Title introducing the 'Contacts' permission in the 'onboarding permissions' view. */
+"ONBOARDING_PERMISSIONS_CONTACTS_TITLE" = "ئالاقەداشلار";
+
+/* Description of the 'Notifications' permission in the 'onboarding permissions' view. */
+"ONBOARDING_PERMISSIONS_NOTIFICATIONS_DESCRIPTION" = "يېڭى ئۇچۇرلار كەلگەندە، خەۋەردار بولۇڭ.";
+
+/* Title introducing the 'Notifications' permission in the 'onboarding permissions' view. */
+"ONBOARDING_PERMISSIONS_NOTIFICATIONS_TITLE" = "ئۇقتۇرۇشلار";
+
+/* Preamble of the 'onboarding permissions' view. */
+"ONBOARDING_PERMISSIONS_PREAMBLE" = "سىگنال تۆۋەندىكى ئىجازەتلەرنى تەلەپ قىلماقچى.";
 
 /* Title of the 'onboarding permissions' view. */
 "ONBOARDING_PERMISSIONS_TITLE" = "ھوقۇق بېرىڭ";
@@ -4493,13 +4922,10 @@
 "OUTDATED_PAYMENT_CLIENT_REMINDER_TEXT" = "پۇل تۆلەش ئىقتىدارىنى داۋاملىق ئىشلىتىش ئۈچۈن Signal نى يېڭىلاڭ. قالدۇق سوممىڭىز ئەڭ يېڭى ھالەتتە بولماسلىقى مۇمكىن.";
 
 /* info message text in conversation view */
-"OUTGOING_AUDIO_CALL" = "ئۇرۇلغان ئاۋازلىق چاقىرىق";
-
-/* info message text in conversation view */
-"OUTGOING_MISSED_AUDIO_CALL" = "جاۋابسىز ئاۋازلىق چاقىرىق";
-
-/* info message text in conversation view */
 "OUTGOING_MISSED_VIDEO_CALL" = "جاۋابسىز ۋىدېيولۇق چاقىرىق";
+
+/* info message text in conversation view */
+"OUTGOING_MISSED_VOICE_CALL" = "جاۋابسىز ئاۋازلىق چاقىرىق";
 
 /* Button for action sheet shown when device transfer completes; quits the Signal app immediately (does not automatically relaunch, but the user may choose to relaunch). */
 "OUTGOING_TRANSFER_COMPLETE_EXIT_ACTION" = "سىگنالدىن چىقىڭ";
@@ -4513,11 +4939,14 @@
 /* info message text in conversation view */
 "OUTGOING_VIDEO_CALL" = "ئۇرۇلغان ۋىدېيولۇق چاقىرىق";
 
+/* info message text in conversation view */
+"OUTGOING_VOICE_CALL" = "ئۇرۇلغان ئاۋازلىق چاقىرىق";
+
 /* Header title for bank payment details screen */
-"PAYMENT_DETAILS_BANK_TITLE" = "Bank Transfer";
+"PAYMENT_DETAILS_BANK_TITLE" = "بانكىدىن ئاغدۇرۇش";
 
 /* Header title for card payment details screen */
-"PAYMENT_DETAILS_CARD_TITLE" = "Credit or Debit Card";
+"PAYMENT_DETAILS_CARD_TITLE" = "ئىناۋەتلىك كارتا ياكى بانكا كارتىسى";
 
 /* Format for indicator of a payment amount converted to fiat currency with the freshness of the conversion rate. Embeds: {{ %1$@ the payment amount, %2$@ the freshness of the currency conversion rate }}. */
 "PAYMENTS_CURRENCY_CONVERSION_FRESHNESS_FORMAT" = "‫%1$@ %2$@ دە";
@@ -4583,6 +5012,9 @@
 "PAYMENTS_LOCK_FIRST_TIME_ACTION_SHEET_MESSAGE_FACEID" = "قوشۇمچە بىخەتەرلىك تەدبىرى قوللىنىپ پۇل تۆلەش ئىقتىدارى ئۈچۈن Face ID تەلەپ قىلىدىغان قىلىپ تەڭشەڭ.";
 
 /* First time payments suggest payments lock message */
+"PAYMENTS_LOCK_FIRST_TIME_ACTION_SHEET_MESSAGE_OPTICID" = "قوشۇمچە بىخەتەرلىك تەدبىرى قوللىنىپ پۇل ئەۋەتىش ئۈچۈن Optic ID نى تەلەپ قىلىدىغان قىلىپ تەڭشەڭ.";
+
+/* First time payments suggest payments lock message */
 "PAYMENTS_LOCK_FIRST_TIME_ACTION_SHEET_MESSAGE_PASSCODE" = "قوشۇمچە بىخەتەرلىك تەدبىرى قوللىنىپ پۇل تۆلەش ئىقتىدارى ئۈچۈن مەخپىي نومۇر تەلەپ قىلىدىغان قىلىپ تەڭشەڭ.";
 
 /* First time payments suggest payments lock message */
@@ -4596,6 +5028,9 @@
 
 /* Affirmative action title to enable payments lock */
 "PAYMENTS_LOCK_FIRST_TIME_AFFIRMATIVE_ACTION_FACEID" = "ئەۋەتىش ئۈچۈن Face ID تەلەپ قىلىش";
+
+/* Affirmative action title to enable payments lock */
+"PAYMENTS_LOCK_FIRST_TIME_AFFIRMATIVE_ACTION_OPTICID" = "ئەۋەتىش ئۈچۈن Optic ID تەلەپ قىلىندى";
 
 /* Affirmative action title to enable payments lock */
 "PAYMENTS_LOCK_FIRST_TIME_AFFIRMATIVE_ACTION_PASSCODE" = "ئەۋەتىش ئۈچۈن تېلېفونىڭىزنىڭ مەخپىي نومۇرىنى تەلەپ قىلىش";
@@ -4883,13 +5318,13 @@
 "PHONE_NUMBER_DISCOVERABILITY_EVERYBODY" = "ھەممەيلەن";
 
 /* A user friendly description of the 'everybody' phone number discoverability mode. */
-"PHONE_NUMBER_DISCOVERABILITY_EVERYBODY_DESCRIPTION" = "تېلېفون نومۇرىڭىز بار ئالاقىداشلارنىڭ ھېساباتىدا سىز ھەم ئۇلارنىڭ Signal ئالاقىداشلار تىزىملىكىدە كۆرۈنىسىز. باشقىلار سىز بىلەن پاراڭلاشماقچى ياكى گۇرۇپپا پارىڭى باشلىماقچى بولسا، تېلېفون نومۇرىڭىز ئارقىلىق سىز بىلەن ئالاقىلىشالايدۇ.";
+"PHONE_NUMBER_DISCOVERABILITY_EVERYBODY_DESCRIPTION" = "تېلېفون نومۇرىڭىز بار ھەرقانداق كىشى سىزنىڭ Signal دا ئىكەنلىكىڭىزنى كۆرەلەيدۇ ۋە سىز بىلەن پاراڭ باشلىيالايدۇ.";
 
 /* A user friendly name for the 'nobody' phone number discoverability mode. */
 "PHONE_NUMBER_DISCOVERABILITY_NOBODY" = "ھېچكىم";
 
 /* A user friendly description of the 'nobody' phone number discoverability mode. */
-"PHONE_NUMBER_DISCOVERABILITY_NOBODY_DESCRIPTION" = "Signal دا ھېچكىم سىزنى تېلېفون نومۇرىڭىز بىلەن تاپالمايدۇ.";
+"PHONE_NUMBER_DISCOVERABILITY_NOBODY_DESCRIPTION" = "ئەگەر باشقىلارغا ئۇچۇر يوللىسىمىڭىز ياكى باشقىلار بىلەن بۇرۇندىنلا مەۋجۇت پارىڭىڭىز بولمىسا، باشقىلار سىزنىڭ Signal دا ئىكەنلىكىڭىزنى كۆرەلمەيدۇ.";
 
 /* A format for a label showing an example phone number. Embeds {{the example phone number}}. */
 "PHONE_NUMBER_EXAMPLE_FORMAT" = "مىسال: %1$@";
@@ -4898,16 +5333,16 @@
 "PHONE_NUMBER_SHARING_EVERYBODY" = "ھەممەيلەن";
 
 /* A user friendly description of the 'everybody' phone number sharing mode. */
-"PHONE_NUMBER_SHARING_EVERYBODY_DESCRIPTION" = "تېلېفون نومۇرىڭىز ئۇچۇرلاشقان بارلىق كىشىلەر ۋە گۇرۇپپىدا كۆرۈنىدۇ. تېلېفون نومۇرىڭىز ئالاقەداش تىزىملىكىدە بار كىشىلەرنىڭ Signal. دىمۇ كۆرۈنىدۇ";
+"PHONE_NUMBER_SHARING_EVERYBODY_DESCRIPTION" = "تېلېفون نومۇرىڭىزنى سىز ئۇچۇر يوللىغان كىشىلەر ۋە گۇرۇپپىدىكىلەر كۆرەلەيدۇ.";
 
 /* A user friendly name for the 'nobody' phone number sharing mode. */
 "PHONE_NUMBER_SHARING_NOBODY" = "ھېچكىم";
 
-/* A user friendly description of the 'nobody' phone number sharing mode. */
-"PHONE_NUMBER_SHARING_NOBODY_DESCRIPTION" = "ھېچكىم تېلېفون نومۇرىڭىزنى Signal دا كۆرەلمەيدۇ.";
+/* A user-friendly description of the 'nobody' phone number sharing mode when phone number discovery is set to 'everybody'. */
+"PHONE_NUMBER_SHARING_NOBODY_DESCRIPTION_DISCOVERABILITY_EVERYBODY" = "تېلېفون نومۇرىڭىزنى ئۆزىنىڭ ئالاقىداشلار تىزىملىكىدە ساقلىمىغانلا بولسا، ھېچكىم تېلېفون نومۇرىڭىزنى كۆرەلمەيدۇ.";
 
-/* Format for phone number label with an index. Embeds {{Phone number label (e.g. 'home')}} and {{index, e.g. 2}}. */
-"PHONE_NUMBER_TYPE_AND_INDEX_NAME_FORMAT" = "%1$@ %2$@";
+/* A user-friendly description of the 'nobody' phone number sharing mode when phone number discovery is set to 'nobody'. */
+"PHONE_NUMBER_SHARING_NOBODY_DESCRIPTION_DISCOVERABILITY_NOBODY" = "تېلېفون نومۇرىڭىزنى ھېچكىم كۆرەلمەيدۇ.";
 
 /* Label for 'Home' phone numbers. */
 "PHONE_NUMBER_TYPE_HOME" = "ئۆي";
@@ -4933,9 +5368,6 @@
 /* Label for 'Pager' phone numbers. */
 "PHONE_NUMBER_TYPE_PAGER" = "چاقىرغۇ";
 
-/* Label used when we don't what kind of phone number it is (e.g. mobile/work/home). */
-"PHONE_NUMBER_TYPE_UNKNOWN" = "تېلېفون";
-
 /* Label for 'Work' phone numbers. */
 "PHONE_NUMBER_TYPE_WORK" = "خىزمەت";
 
@@ -4950,6 +5382,15 @@
 
 /* alert title */
 "PHOTO_CAPTURE_UNABLE_TO_INITIALIZE_CAMERA" = "كامېرا سەپلەنمىدى.";
+
+/* Button label for opening the chat on a sheet presented from photo capture view indicating that a username QR code was found. */
+"PHOTO_CAPTURE_USERNAME_QR_CODE_FOUND_CTA" = "پاراڭغا كىرىش";
+
+/* Message for a sheet presented from photo capture view indicating that a username QR code was found. Embeds {{username}}. */
+"PHOTO_CAPTURE_USERNAME_QR_CODE_FOUND_MESSAGE_FORMAT" = "«%1$@» بىلەن پاراڭلىشىشنى باشلاڭ";
+
+/* Title for sheet presented from photo capture view indicating that a username QR code was found. Embeds {{username}}. */
+"PHOTO_CAPTURE_USERNAME_QR_CODE_FOUND_TITLE_FORMAT" = "%1$@ بايقالدى";
 
 /* alert title, generic error preventing user from capturing a video that is too long */
 "PHOTO_CAPTURE_VIDEO_SIZE_ERROR" = "سىن بەك ئۇزۇن.";
@@ -5228,13 +5669,13 @@
 "PROFILE_SETTINGS_NAME_PLACEHOLDER" = "ئىسمىڭىز";
 
 /* A message explaining that something is wrong with the username, on a sheet allowing the user to resolve the issue. */
-"PROFILE_SETTINGS_USERNAME_CORRUPTED_RESOLUTION_CONFIRMATION_ALERT_MESSAGE" = "سىزنىڭ ئىشلەتكۈى نامىڭىزدا بەزى مەسىلىلەر بار، بۇ ئەمدى سىزنىڭ ھېسابىڭىزغا تەقسىم قىلىنمايدۇ.";
-
-/* Title for an action sheet button allowing users to create a new username when their current one is corrupted. */
-"PROFILE_SETTINGS_USERNAME_CORRUPTED_RESOLUTION_CREATE_NEW_USERNAME_ACTION_TITLE" = "ئىشلەتكۈچى نامى بېكىتىش";
+"PROFILE_SETTINGS_USERNAME_CORRUPTED_RESOLUTION_CONFIRMATION_ALERT_MESSAGE" = "ئىشلەتكۈچى نامىڭىزدا خاتالىق كۆرۈلگەن بولۇپ، ئۇ ئەمدى سىزنىڭ ھېساباتىڭىزغا تەۋە ئەمەس. ئۇنى قايتا تەڭشەپ سىناپ باقسىڭىز ياكى يېڭى بىر نام تاللىسىڭىز بولىدۇ.";
 
 /* Title for an action sheet button allowing users to delete their corrupted username. */
 "PROFILE_SETTINGS_USERNAME_CORRUPTED_RESOLUTION_DELETE_USERNAME_ACTION_TITLE" = "ئىشلەتكۈچى نامىنى ئۆچۈرۈش";
+
+/* Title for an action sheet button allowing users to fix their username when their current one is corrupted. */
+"PROFILE_SETTINGS_USERNAME_CORRUPTED_RESOLUTION_FIX_ACTION_TITLE" = "دەرھال ئوڭشاش";
 
 /* A message asking the user if they are sure they want to remove their username and explaining what will happen. Embeds {{ the user's current username }}. */
 "PROFILE_SETTINGS_USERNAME_DELETION_CONFIRMATION_ALERT_MESSAGE_FORMAT" = "بۇ سىزنىڭ ئىشلەتكۈچى نامىڭىزنى ئۆچۈرىۋېتىدۇ ۋە QR كودىڭىزۋە ئۇلانمىسىنى بېكار قىلىۋېتىدۇ. \"%1$@\" بولسا باشقىلارنىڭ ئىشلىتىشى ئۈچۈن بېرىلىدۇ. جەزىملەشتۈرەمسىز؟";
@@ -5270,10 +5711,16 @@
 "PROFILE_VIEW_NO_CONNECTION" = "تورغا باغلانغان ھالەتتىلا سەپلىمە ھۆججەتنى يېڭىلىغىلى بولىدۇ.";
 
 /* Description of the user profile. */
-"PROFILE_VIEW_PROFILE_DESCRIPTION" = "سەپلىمە ھۆججىتىڭىز ئۇچتىن-ئۇچقا شىفىرلانغان. يېڭى سۆھبەت باشلىسىڭىز ياكى قوشۇلسىڭىز، ئالاقەداشلىرىڭىز ۋە سۆھبەتداشلىرىڭىز سەپلىمە ھۆججىتىڭىز ۋە ئۆزگىرىشلەرنى كۆرەلەيدۇ.";
+"PROFILE_VIEW_PROFILE_DESCRIPTION" = "ئارخىپىڭىز ۋە ئۇنىڭغا كىرگۈزگەن ئۆزگەرتىشلىرىڭىزنى سىز ئۇچۇرلاشقانلار، ئالاقىداشلار ۋە گۇرۇپپىدىكىلەر كۆرەلەيدۇ.";
 
 /* Title for the profile view. */
 "PROFILE_VIEW_TITLE" = "ئارخىپ";
+
+/* Footer below the usernames section of the profile settings explaining username visibility. */
+"PROFILE_VIEW_USERNAME_DESCRIPTION" = "ئىشلەتكۈچى نامىڭىز، QR كودىڭىز ۋە ئۇلانمىڭىز ئارخىپىڭىزدا كۆرۈنمەيدۇ. ئىشلەتكۈچى نامىڭىزنى پەقەت سىز ئىشىنىدىغان كىشىلەر بىلەنلا ئورتاقلىشىڭ.";
+
+/* Footer below the usernames section of the profile settings when a username has not been set. */
+"PROFILE_VIEW_USERNAME_UNSET_DESCRIPTION" = "باشقىلار ئەمدى تاللانما ئىشلەتكۈچى نامىڭىزنى ئىشلىتىپ سىزگە ئۇچۇر يوللىسا بولىدۇ، تېلېفون نومۇرىڭىزنى ئېيتىپ بېرىشنىڭ ھاجىتى يوق.";
 
 /* The title for the address of the signal proxy */
 "PROXY_ADDRESS" = "ۋاكالەتچى ئادرېس";
@@ -5340,6 +5787,18 @@
 
 /* Indicates this message is a quoted reply to a video file. */
 "QUOTED_REPLY_TYPE_VIDEO" = "سىن";
+
+/* Label for a button to lower your raised hand in a call. */
+"RAISED_HANDS_LOWER_HAND_BUTTON" = "چۈشۈرۈش";
+
+/* A message appearing on the call view's raised hands toast indicating that another named member has raised their hand. */
+"RAISED_HANDS_TOAST_SINGLE_HAND_MESSAGE" = "%1$@ قول كۆتۈردى";
+
+/* A compact member count on the call view's raised hands toast indicating that you and a number of other users raised a hand. Embeds {{number of other users}} */
+"RAISED_HANDS_TOAST_YOU_PLUS_OTHERS_COUNT" = "سىز ۋە +%1$d";
+
+/* A message appearing on the call view's raised hands toast indicating that you raised your own hand. */
+"RAISED_HANDS_TOAST_YOUR_HAND_MESSAGE" = "قول كۆتۈردىڭىز";
 
 /* The header used to indicate All reactions to a given message. Embeds {{number of reactions}} */
 "REACTION_DETAIL_ALL_FORMAT" = "بارلىق · %1$@";
@@ -5581,14 +6040,17 @@
 /* Error message when sending a verification code via voice call failed, but resending via sms might succeed. */
 "REGISTRATION_VOICE_CODE_FAILED_TRY_SMS_ERROR" = "بىز ئاۋازلىق چاقىرىق ئارقىلىق سىزگە دەلىللەش كودى يوللىيالمىدۇق. ئۇنىڭ ئورنىغا قىسقا ئۇچۇر ئارقىلىق دەلىللەش كودىنى تاپشۇرىۋېلىشنى سىناڭ.";
 
-/* notification action */
-"REJECT_CALL_BUTTON_TITLE" = "رەت قىل";
-
 /* No comment provided by engineer. */
 "RELAY_REGISTERED_ERROR_RECOVERY" = "سىز تىزىملاتماقچى بولغان تېلېفون نومۇرى باشقا بىر مۇلازىمېتىردا تىزىملىتىلغان. ئۇ مۇلازىمېتىردىن رويخەتتىن ئۆچۈرۈپ ئاندىن قايتا سىناڭ.";
 
+/* Button below the warning to fix a corrupted username. */
+"REMINDER_VIEW_USERNAME_CORRUPTED_FIX_BUTTON" = "دەرھال ئوڭشاش";
+
 /* Label warning the user that something is wrong with their username. */
 "REMINDER_VIEW_USERNAME_CORRUPTED_WARNING" = "ئىشلەتكۈچى نامىڭىزدا خاتالىق كۆرۈلگەن بولۇپ، ئۇ ئەمدى سىزنىڭ ھېساباتىڭىزغا تەۋە ئەمەس. ئۇنى قايتا تەڭشەپ سىناپ باقسىڭىز ياكى يېڭى بىر نام تاللىسىڭىز بولىدۇ.";
+
+/* Button below the warning to fix a username link. */
+"REMINDER_VIEW_USERNAME_LINK_CORRUPTED_FIX_BUTTON" = "دەرھال ئوڭشاش";
 
 /* Label warning the user that something is wrong with their username link. */
 "REMINDER_VIEW_USERNAME_LINK_CORRUPTED_WARNING" = "سىزنىڭ ئىشلەتكۈى نامىڭىز، QR كودىڭىز ۋە ئۇلانمىڭىزدا بەزى مەسىلىلەر بار، بۇنىڭدىن كىيىن كۈچكە ئىگە ئەمەس. باشقىلار بىلەن ئورتاقلىشىش ئۈچۈن يېڭى بىر ئۇلانما تۈزۈڭ.";
@@ -5616,6 +6078,12 @@
 
 /* Button to return to current group call */
 "RETURN_CALL_PILL_BUTTON" = "قايت";
+
+/* Text for a toast confirming that ringing has been turned off for a call. */
+"RING_OFF_CONFIRMATION_TOAST_LABEL" = "قوڭغۇراق ئېتىك";
+
+/* Text for a toast confirming that ringing has been turned on for a call. */
+"RING_ON_CONFIRMATION_TOAST_LABEL" = "قوڭغۇراق ئوچۇق";
 
 /* button title to confirm adding a recipient when their safety number has recently changed */
 "SAFETY_NUMBER_CHANGED_CONFIRM_ADD_MEMBER_ACTION" = "يەنىلا قوشۇش";
@@ -5646,6 +6114,48 @@
 
 /* Action sheet heading */
 "SAFETY_NUMBERS_ACTIONSHEET_TITLE" = "سىزنىڭ %1$@ بىلەن بولغان بىخەتەرلىك نومۇرىڭىز ئۆزگەردى. ئۇنى دەلىللەشنى تەۋسىيە قىلىمىز.";
+
+/* Title for Safety Tips button in thread details. */
+"SAFETY_TIPS_BUTTON_ACTION_TITLE" = "بىخەتەرلىك ئەسكەرتىشلىرى";
+
+/* Message contents for the crypto safety tip. */
+"SAFETY_TIPS_CRYPTO_BODY" = "ئەگەر سىز تونۇمايدىغان بىرەيلەن سىزگە cryptocurrency (Bitcoin غا ئوخشاش) نىڭ ياكى مەلۇم ئىقتىسادىي پۇرسەتنىڭ گېپىنى قىلسا، بۇ ئالدامچىلىق بولۇشى مۇمكىن. ئېھتىيات قىلىڭ.";
+
+/* Message title describing the crypto safety tip. */
+"SAFETY_TIPS_CRYPTO_TITLE" = "Crypto ياكى پۇل ئالدامچىلىقى";
+
+/* Message contents for the safety tip concerning fake businesses. */
+"SAFETY_TIPS_FAKE_BUSINESS_BODY" = "كارخانا ياكى ھۆكۈمەت ئورگانلىرىنىڭ سىز بىلەن ئالاقىلىشىشىغا دىققەت قىلىڭ. باج ئورگىنى ، تېز يوللانما ۋە باشقا ئۇچۇرلارنى ئۆز ئىچىگە ئالغان ئۇچۇرلار ئالدامچى ئۇچۇر بولۇشى مۇمكىن.";
+
+/* Message title describing the safety tip about unknown or fake businesses. */
+"SAFETY_TIPS_FAKE_BUSINESS_TITLE" = "ساختا كارخانا ۋە ئورگانلار";
+
+/* Message describing safety tips for group conversations. */
+"SAFETY_TIPS_GROUPS_HEADER_MESSAGE" = "بۇ تەلەپنى ئەستايىدىل كۆرۈپ چىقىڭ. بۇ گۇرۇپپىدا ھېچقانداق سىزنىڭ ئالاقىداشلىرىڭىز ياكى پاراڭلىشىپ باققان كىشىلەر يوق. تۆۋەندىكى بىر قانچە ئىشلارغا دىققەت قىلىڭ:";
+
+/* Title for Safety Tips education screen. */
+"SAFETY_TIPS_HEADER_TITLE" = "بىخەتەرلىك ئەسكەرتىشلىرى";
+
+/* Message describing safety tips for 1:1 conversations. */
+"SAFETY_TIPS_INDIVIDUAL_HEADER_MESSAGE" = "سىز تونۇمايدىغان كىشىلەرنىڭ ئۇچۇر تەلىپىنى قوبۇل قىلغاندا ئېھتىياتچان بولۇڭ. تۆۋەندىكى نۇقتىلارغا دىققەت قىلىڭ:";
+
+/* Message contents for the unknown links in messages safety tip. */
+"SAFETY_TIPS_MESSAGE_LINKS_BODY" = "سىز تونۇمايدىغان كىشىلەر ئىچىدە تور بېتىگە كىرىدىغان ئۇلانما بار ئۇچۇر يوللىغاندا ئېھتىيات قىلىڭ. سىز ئىشەنمەيدىغان كىشىلەر يوللىغان ئۇلانمىلارنى ھەرگىز ئاچماڭ.";
+
+/* Message title describing the safety tip about unknown links in messages. */
+"SAFETY_TIPS_MESSAGE_LINKS_TITLE" = "ئۇلانما بار ئۇچۇرلار";
+
+/* Button that will show the next safety tip. */
+"SAFETY_TIPS_NEXT_TIP_BUTTON" = "كېيىنكى";
+
+/* Button that will show the previous safety tip. */
+"SAFETY_TIPS_PREVIOUS_TIP_BUTTON" = "ئالدىنقى";
+
+/* Message contents for the vague message safety tip. */
+"SAFETY_TIPS_VAGUE_MESSAGE_BODY" = "ئالدامچىلار دىققىتىڭىزنى تارتىش ئۈچۈن ئاددىي قىلىپ «Hi» دەپ ئۇچۇر يوللايدۇ. ئەگەر جاۋاب قايتۇرسىڭىز ئۇلار كېيىنكى قەدەمگە ئ‍ۆتىدۇ.";
+
+/* Message title describing the safety tip about vague messages. */
+"SAFETY_TIPS_VAGUE_MESSAGE_TITLE" = "ئېنىق بولمىغان ياكى مۇناسىۋەتسىز ئۇچۇرلار";
 
 /* label presented once scanning (camera) view is visible. */
 "SCAN_CODE_INSTRUCTIONS" = "ئالاقەداشىڭىزنىڭ ئۈسكۈنىسىدىكى QR كودىنى تاراڭ.";
@@ -5684,7 +6194,7 @@
 "SCREEN_LOCK_UNLOCK_SIGNAL" = "Signal نى ئاجرىتىڭ";
 
 /* Placeholder text indicating the user can search for contacts by name, username, or phone number. */
-"SEARCH_BY_NAME_OR_USERNAME_OR_NUMBER_PLACEHOLDER_TEXT" = "ئات، ئىشلەتكۈچى ئاتى ياكى نومۇر";
+"SEARCH_BY_NAME_OR_USERNAME_OR_NUMBER_PLACEHOLDER_TEXT" = "نام، ئىشلەتكۈچى نامى ياكى تېلېفون نومۇرى";
 
 /* Placeholder text indicating the user can search for contacts by name or phone number. */
 "SEARCH_BYNAMEORNUMBER_PLACEHOLDER_TEXT" = "ئات ياكى نومۇر بويىچە ئىزدەيدۇ";
@@ -5807,49 +6317,49 @@
 "SENT_MEDIA_QUALITY_STANDARD" = "ئۆلچەملىك";
 
 /* Users can donate to Signal with a bank account. This is the label for email field on that screen. */
-"SEPA_DONATION_EMAIL_LABEL" = "Email";
+"SEPA_DONATION_EMAIL_LABEL" = "ئېلخەت";
 
 /* Users can donate to Signal with a bank account. This is placeholder text for the email field before the user starts typing. */
-"SEPA_DONATION_EMAIL_PLACEHOLDER" = "Email Address";
+"SEPA_DONATION_EMAIL_PLACEHOLDER" = "ئېلخەت ئادرېسى";
 
 /* SEPA bank account donation error for insufficient funds. */
-"SEPA_DONATION_ERROR_INSUFFICIENT_FUNDS" = "The bank account provided has insufficient funds to complete this purchase, try again or contact your bank for more information.";
+"SEPA_DONATION_ERROR_INSUFFICIENT_FUNDS" = "سىز تەمىنلىگەن بانكا ھېساباتىدىكى قالدۇق سومما بۇ سودىلىقنى قىلىشقا يەتمەيدۇ. قايتا سىناڭ ياكى بانكىڭىز بىلەن ئالاقىلىشىپ تەپسىلاتىنى سۈرۈشتۈرۈڭ.";
 
 /* SEPA bank account donation error for missing or incorrect mandate information. */
-"SEPA_DONATION_ERROR_NOT_AUTHORIZED" = "An error occurred while processing this payment, please try again.";
+"SEPA_DONATION_ERROR_NOT_AUTHORIZED" = "بۇ پۇل تۆلەشنى بىر تەرەپ قىلىشتا خاتالىق كۆرۈلدى، قايتا سىناڭ.";
 
 /* SEPA bank account donation error for the account details not being able to be processed. */
-"SEPA_DONATION_ERROR_NOT_PROCESSED" = "The bank details provided could not be processed, contact your bank for more information.";
+"SEPA_DONATION_ERROR_NOT_PROCESSED" = "سىز تەمىنلىگەن بانكا ئۇچۇرلىرىنى بىر تەرەپ قىلغىلى بولمىدى، تەپسىلاتى ئۈچۈن بانكا بىلەن ئالاقىلىشىڭ.";
 
 /* SEPA bank account donation error for unspecified decline failures. */
-"SEPA_DONATION_ERROR_OTHER" = "Verify your bank details are correct and try again. If the problem continues, contact your bank.";
+"SEPA_DONATION_ERROR_OTHER" = "بانكا كارتا تەپسىلاتىنىڭ توغرىلىقىنى دەلىللەپ قايتا سىناڭ. مەسىلە ھەل بولمىسا بانكا بىلەن ئالاقىلىشىڭ.";
 
 /* SEPA bank account donation error for the payment not being authorizing by the account holder. */
-"SEPA_DONATION_ERROR_PAYMENT_NOT_AUTHORIZED" = "This payment was revoked by the account holder and could not be processed. You haven’t been charged.";
+"SEPA_DONATION_ERROR_PAYMENT_NOT_AUTHORIZED" = "بۇ پۇل تۆلەشنى ھېسابات ئىگىسى بىكار قىلىۋەتتى، داۋاملاشتۇرغىلى بولمايدۇ. سىزدىن پۇل تۇتۇلمىدى.";
 
 /* Users can donate to Signal with a bank account. If their internation bank account number (IBAN) contains characters other than letters and numbers, this error will be shown. Try to use a short string to make space in the UI. */
-"SEPA_DONATION_IBAN_INVALID_CHARACTERS_ERROR" = "IBAN can only contain A-Z and 0-9";
+"SEPA_DONATION_IBAN_INVALID_CHARACTERS_ERROR" = "IBAN پەقەت A دىن Z غىچە ھەرپلەرنى ۋە 0 دىن 9 غىچە سانلارنى ئۆز ئىچىگە ئالىدۇ";
 
 /* Users can donate to Signal with a bank account. If their internation bank account number (IBAN) does not pass validation, this error will be shown. Try to use a short string to make space in the UI. */
-"SEPA_DONATION_IBAN_INVALID_CHECK_ERROR" = "Invalid IBAN number";
+"SEPA_DONATION_IBAN_INVALID_CHECK_ERROR" = "IBAN نومۇرى ئىناۋەتسىز";
 
 /* Users can donate to Signal with a bank account. If their internation bank account number (IBAN) has an unsupported country code, this error will be shown. Try to use a short string to make space in the UI. */
-"SEPA_DONATION_IBAN_INVALID_COUNTRY_ERROR" = "IBAN country code is not supported";
+"SEPA_DONATION_IBAN_INVALID_COUNTRY_ERROR" = "IBAN دۆلەت كودىنى قوللىمايدۇ";
 
 /* Users can donate to Signal with a bank account. This is the label for IBAN (internation bank account number) field on that screen. */
 "SEPA_DONATION_IBAN_LABEL" = "IBAN";
 
 /* Users can donate to Signal with a bank account. If their internation bank account number (IBAN) is too long, this error will be shown. Try to use a short string to make space in the UI. */
-"SEPA_DONATION_IBAN_TOO_LONG_ERROR" = "IBAN is too long";
+"SEPA_DONATION_IBAN_TOO_LONG_ERROR" = "IBAN بەك ئۇزۇن";
 
 /* Users can donate to Signal with a bank account. If their internation bank account number (IBAN) is too long, this error will be shown. Try to use a short string to make space in the UI. */
-"SEPA_DONATION_IBAN_TOO_SHORT_ERROR" = "IBAN is too short";
+"SEPA_DONATION_IBAN_TOO_SHORT_ERROR" = "IBAN بەك قىسقا";
 
 /* Users can donate to Signal with a bank account. This is the label for name field on that screen. */
-"SEPA_DONATION_NAME_LABEL" = "Name";
+"SEPA_DONATION_NAME_LABEL" = "ئىسمىڭىز";
 
 /* Users can donate to Signal with a bank account. This is placeholder text for the name field before the user starts typing. */
-"SEPA_DONATION_NAME_PLACEHOLDER" = "Name on Bank Account";
+"SEPA_DONATION_NAME_PLACEHOLDER" = "بانكا ھېسابات ئىگىسىنىڭ ئىسمى";
 
 /* Description for the session refresh alert */
 "SESSION_REFRESH_ALERT_MESSAGE" = "‫Signal ئۇچتىن ئۇچقا شىفىرلاش ئىشلىتىدۇ، بەزىدە سۆھبەتتىكى سۆزلىشىشلەرنى يېڭىلاش زۆرۈر بولۇشى مۇمكىن. گەرچە بۇ سۆھبەتنىڭ بىخەتەرلىكىگە تەسىر كۆرسەتمىسىمۇ ئەمما بۇ ئالاقەداشنىڭ ئۇچۇرىنى ئۆتكۈزۈۋېتىشىڭىز مۇمكىن، ئۇنىڭدىن قايتا ئەۋەتىشنى تەلەپ قىلسىڭىز بولىدۇ.";
@@ -5936,10 +6446,10 @@
 "SETTINGS_APPEARANCE_APP_ICON" = "ئەپ سىنبەلگىسى";
 
 /* Footer for avatar section in appearance settings */
-"SETTINGS_APPEARANCE_AVATAR_FOOTER" = "سىستېما ئالاقەداشلارنىڭ سۈرەتى بولسا كۆرسىتىدۇ.";
+"SETTINGS_APPEARANCE_AVATAR_FOOTER" = "ئەگەر بولسا تېلېفون ئالاقىداشلار رەسىمىنى كۆرسىتىڭ.";
 
 /* Title for switch to toggle preference between contact and profile avatars */
-"SETTINGS_APPEARANCE_AVATAR_PREFERENCE_LABEL" = "سىستېما ئالاقەداش سۈرەتىنى ئىشلىتىدۇ";
+"SETTINGS_APPEARANCE_AVATAR_PREFERENCE_LABEL" = "تېلېفون ئالاقىداشلار رەسىمىنى ئىشلىتىش";
 
 /* The title for the theme section in the appearance settings. */
 "SETTINGS_APPEARANCE_THEME_TITLE" = "تېما";
@@ -6323,7 +6833,7 @@
 "SETTINGS_PAYMENTS_PASSPHRASE_DISCARD_CONFIRMATION_BUTTON" = "بىخەتەرلىك ئىبارىسىنى ئاتلاش";
 
 /* Message of confirmation alert when discarding recovery phrase. */
-"SETTINGS_PAYMENTS_PASSPHRASE_DISCARD_CONFIRMATION_MESSAGE" = "ئەڭ ئېغىر ئەھۋاللاردا ئەسلىگە كەلتۈرۈش ئىبارىسى ئارقىلىق قالدۇق سوممىڭىزنى ئەسلىگە كەلتۈرەلەيسىز. ئۇنى ساقلىۋېلىشىڭىزنى كۈچلۈك تەۋسىيە قىلىمىز.";
+"SETTINGS_PAYMENTS_PASSPHRASE_DISCARD_CONFIRMATION_MESSAGE" = "Your recovery phrase lets you restore your balance in a worst-case scenario. We strongly recommend you save it.";
 
 /* Title of confirmation alert when discarding recovery phrase. */
 "SETTINGS_PAYMENTS_PASSPHRASE_DISCARD_CONFIRMATION_TITLE" = "ساقلىمايلا داۋاملاشتۇرامسىز؟";
@@ -6400,6 +6910,9 @@
 /* Double reminder action sheet title in Payments Lock Prompt view for Face ID. */
 "SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_DOUBLE_REMINDER_TITLE_FACEID" = "Face ID نى قوزغىتىشتىن ئاتلامسىز؟";
 
+/* Double reminder action sheet title in Payments Lock Prompt view for Optic ID. */
+"SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_DOUBLE_REMINDER_TITLE_OPTICID" = "Optic ID نى قوزغىتىشتىن ئاتلامسىز؟";
+
 /* Double reminder action sheet title in Payments Lock Prompt view for Passcode. */
 "SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_DOUBLE_REMINDER_TITLE_PASSCODE" = "مەخپىي نومۇرنى قوزغىتىشتىن ئاتلامسىز؟";
 
@@ -6409,6 +6922,9 @@
 /* Enable Button title in Payments Lock Prompt view for Face ID. */
 "SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_ENABLE_BUTTON_FACEID" = "Face ID ئىشلىتىش";
 
+/* Enable Button title in Payments Lock Prompt view for Optic ID. */
+"SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_ENABLE_BUTTON_OPTICID" = "Optic ID نى ئشلىتىڭ";
+
 /* Enable Button title in Payments Lock Prompt view for Passcode. */
 "SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_ENABLE_BUTTON_PASSCODE" = "مەخپىي نومۇر ئىشلىتىش";
 
@@ -6417,6 +6933,9 @@
 
 /* Explanation of 'payments lock' with Face ID in the 'payments lock prompt' view shown after payments activation. */
 "SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_EXPLANATION_FACEID" = "Touch ID نى قوزغىتىپ باشقىلارنىڭ تېلېفونىڭىزدا فوندلىرىڭىزنى زىيارەت قىلىشىنىڭ ئالدىنى ئېلىڭ. بۇ ئىقتىدارنى «تەڭشەك» تىن ئېتەلەيسىز.";
+
+/* Explanation of 'payments lock' with Optic ID in the 'payments lock prompt' view shown after payments activation. */
+"SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_EXPLANATION_OPTICID" = "Optic ID نى قوزغىتىپ تېلېفونىڭىزدا باشقىلارنىڭ مەبلەغلىرىڭىزنى زىيارەت قىلىشىنىڭ ئالدىنى ئېلىڭ. بۇ ئىقتىدارنى «تەڭشەك» تىن ئېتەلەيسىز.";
 
 /* Explanation of 'payments lock' with passcode in the 'payments lock prompt' view shown after payments activation. */
 "SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_EXPLANATION_PASSCODE" = "مەخپىي نومۇر ئىشلىتىپ تېلېفونىڭىزدا باشقىلارنىڭ فوندلىرىڭىزنى زىيارەت قىلىشىنىڭ ئالدىنى ئېلىڭ. بۇ ئىقتىدارنى «تەڭشەك» تىن ئېتەلەيسىز.";
@@ -6459,9 +6978,6 @@
 
 /* Label for the current balance in the 'deactivate payments' settings. */
 "SETTINGS_PAYMENTS_REMAINING_BALANCE" = "قالغان قالدۇق";
-
-/* Label for the 'remove payments details' button in the app settings. */
-"SETTINGS_PAYMENTS_REMOVE_BUTTON" = "چىقىرىۋەت";
 
 /* Label for 'restore payments' button in the payments settings. */
 "SETTINGS_PAYMENTS_RESTORE_PAYMENTS_BUTTON" = "چىقىم ھېساباتىنى ئەسلىگە قايتۇر";
@@ -6534,6 +7050,9 @@
 
 /* Caption for footer label beneath the payments lock privacy toggle for faceid biometry. */
 "SETTINGS_PAYMENTS_SECURITY_DETAIL_FACEID" = "پۇل ئاغدۇرۇش ئۈچۈن Face ID تەلەپ قىلىش.";
+
+/* Caption for footer label beneath the payments lock privacy toggle for opticid biometry */
+"SETTINGS_PAYMENTS_SECURITY_DETAIL_OPTICID" = "مەبلەغ يۆتكەش ئۈچۈن Optic ID تەلەپ قىلىندى.";
 
 /* Caption for footer label beneath the payments lock privacy toggle for a biometry type that is a passcode. */
 "SETTINGS_PAYMENTS_SECURITY_DETAIL_PASSCODE" = "پۇل ئاغدۇرۇش ئۈچۈن تېلېفونىڭىزنىڭ مەخپىي نومۇرىنى تەلەپ قىلىدۇ.";
@@ -6637,6 +7156,15 @@
 /* Label for the payments wallet address. */
 "SETTINGS_PAYMENTS_WALLET_ADDRESS_LABEL" = "ھەميان ئادرېسىڭىز";
 
+/* A toast that displays when the user attempts to set discoverability to 'nobody' when their phone number sharing is set to 'everybody', which is not allowed. */
+"SETTINGS_PHONE_NUMBER_DISCOVERABILITY_DISABLED_TOAST" = "بۇ تەڭشەكنى ئۆزگەرتىش ئۈچۈن «تېلېفون نومۇرۇمنى كۆرەلەيدىغانلار» نى «ھېچكىم» گە تەڭشەڭ.";
+
+/* The description for a sheet asking for confirmation that the user wants to set their phone number discoverability to 'nobody'. */
+"SETTINGS_PHONE_NUMBER_DISCOVERABILITY_NOBODY_CONFIRMATION_DESCRIPTION" = "«مېنى  نومۇرۇم بىلەن تاپالايدىغانلار» نى «ھېچكىم» گە تەڭشەپ قويسىڭىز،  باشقىلارنىڭ سىزنى Signal دا تېپىشى تەس بولىدۇ.";
+
+/* The title for a sheet asking for confirmation that the user wants to set their phone number discoverability to 'nobody'. */
+"SETTINGS_PHONE_NUMBER_DISCOVERABILITY_NOBODY_CONFIRMATION_TITLE" = "جەزملەشتۈرەمسىز؟";
+
 /* The title for the phone number discoverability setting section. */
 "SETTINGS_PHONE_NUMBER_DISCOVERABILITY_TITLE" = "تېلېفون نومۇرۇم بىلەن مېنى تاپالايدىغانلار";
 
@@ -6734,6 +7262,9 @@
 "SETTINGS_SECURITY_DETAIL_FACEID" = "چىراي ID ئارقىلىق Signal قۇلۇپىنى ئېچىڭ.";
 
 /* Section footer */
+"SETTINGS_SECURITY_DETAIL_OPTICID" = "‫Optic ID ئارقىلىق سىگنال قۇلۇپىنى ئېچىڭ.";
+
+/* Section footer */
 "SETTINGS_SECURITY_DETAIL_PASSCODE" = "ئۈسكۈنە ئىم ئارقىلىق Signal قۇلۇپىنى ئېچىڭ.";
 
 /* Section footer */
@@ -6750,9 +7281,6 @@
 
 /* Setting for enabling & disabling iOS contact sharing. */
 "SETTINGS_SHARING_SUGGESTIONS" = "ئالاقەداشلارنى iOS بىلەن ھەمبەھىرلەيدۇ";
-
-/* Footer for setting for enabling & disabling contact sharing with iOS. */
-"SETTINGS_SHARING_SUGGESTIONS_FOOTER" = "iOS نىڭ Signal ئالاقەداشلىرىنى زىيارەت قىلىش ۋە سۆھبەتلىشىشىگە يول قويۇپ تەكلىپ ھەمبەھىرلەش ئىقتىدارىغا ئېرىشىدۇ.";
 
 /* Footer for setting for enabling & disabling contact and notification sharing with iOS. */
 "SETTINGS_SHARING_SUGGESTIONS_NOTIFICATIONS_FOOTER" = "iOS نىڭ Signal ئالاقەداشلىرىنى زىيارەت قىلىش ۋە سۆھبەتلىشىشىگە يول قويۇپ تەكلىپ ھەمبەھىرلەش  ۋە ئۇقتۇرۇش ئىقتىدارىغا ئېرىشىدۇ.";
@@ -6829,6 +7357,9 @@
 /* notification action */
 "SHOW_THREAD_BUTTON_TITLE" = "سۆھبەت كۆرسەت";
 
+/* Shown in the header when the user hasn't provided a custom name for a call. */
+"SIGNAL_CALL" = "‫Signal چاقىرىقى";
+
 /* body sent to contacts when inviting to Install Signal */
 "SMS_INVITE_BODY" = "مەن Signal نى قاچىلاشقا تەكلىپ قىلىندىم! ئۇلانمىسى بۇ يەردە:";
 
@@ -6864,6 +7395,12 @@
 
 /* Title for the captcha view controller */
 "SPAM_CAPTCHA_VIEW_CONTROLLER" = "دەلىللەش تامام";
+
+/* Text for a toast confirming that the speakerphone has been turned off for a call. */
+"SPEAKERPHONE_OFF_CONFIRMATION_TOAST_LABEL" = "كاناي تاقاقلىق";
+
+/* Text for a toast confirming that the speakerphone has been turned on for a call. */
+"SPEAKERPHONE_ON_CONFIRMATION_TOAST_LABEL" = "كاناي ئوچۇق";
 
 /* The name for the sticker category 'Featured' */
 "STICKER_CATEGORY_FEATURED_NAME" = "ئالاھىدە";
@@ -7090,8 +7627,11 @@
 /* inbox and notification text for a reaction to a story authored by the local user. Embeds {{reaction emoji}} */
 "STORY_REACTION_LOCAL_AUTHOR_PREVIEW_FORMAT" = "ھېكايىڭىزگە ئىنكاس %1$@";
 
-/* quote text for a reaction to a story. Embeds {{reaction emoji}} */
-"STORY_REACTION_QUOTE_FORMAT" = "ھېكايىگە ئىنكاس %1$@";
+/* quote text for a reaction to a story by the user (the header on the bubble says \"You\"). Embeds {{reaction emoji}} */
+"STORY_REACTION_QUOTE_FORMAT_SECOND_PERSON" = "ھېكايىگە %1$@ ئىنكاسى قايتۇردى";
+
+/* quote text for a reaction to a story by some other user (the header on the bubble says their name, e.g. \"Bob\"). Embeds {{reaction emoji}} */
+"STORY_REACTION_QUOTE_FORMAT_THIRD_PERSON" = "ھېكايىگە %1$@ ئىنكاسى قايتۇردى";
 
 /* inbox and notification text for a reaction to a story authored by another user. Embeds {{ %1$@ reaction emoji, %2$@ story author name }} */
 "STORY_REACTION_REMOTE_AUTHOR_PREVIEW_FORMAT" = "«%2$@» نىڭ ھېكايىسىگە ئىنكاس %1$@";
@@ -7099,8 +7639,11 @@
 /* Button for replying to a story with no existing replies. */
 "STORY_REPLY_BUTTON" = "جاۋاب";
 
-/* Text indicating a story has been reacted to */
-"STORY_REPLY_REACTION" = "ھېكايىگە ئىنكاس قايتۇردى";
+/* Text indicating you reacted to a story (the header on the bubble says \"You\") */
+"STORY_REPLY_REACTION_SECOND_PERSON" = "ھېكايىگە ئىنكاس قايتۇردى";
+
+/* Text indicating someone else reacted to a story (the header on the bubble says their name, e.g. \"Bob\") */
+"STORY_REPLY_REACTION_THIRD_PERSON" = "ھېكايىگە ئىنكاس قايتۇردى";
 
 /* placeholder text for replying to a story */
 "STORY_REPLY_TEXT_FIELD_PLACEHOLDER" = "جاۋاب";
@@ -7154,7 +7697,7 @@
 "STORY_SETTINGS_LEARN_MORE_SHEET_BULLET_2" = "ئۇچۇرلىشىش ئىلتىماسىنى قوبۇل قىلىش ئارقىلىق";
 
 /* Third bullet point for the explainer sheet for signal connections */
-"STORY_SETTINGS_LEARN_MORE_SHEET_BULLET_3" = "ئۇلارنى سىستېما ئالاقىداشلار تىزىملىكىڭىزگە قوشۇش ئارقىلىق";
+"STORY_SETTINGS_LEARN_MORE_SHEET_BULLET_3" = "ئۇلارنى ئالاقىداش تىزىملىكىڭىزگە قوشۇڭ";
 
 /* Footer for the explainer sheet for signal connections */
 "STORY_SETTINGS_LEARN_MORE_SHEET_FOOTER" = "ئالاقىداشلىرىڭىز ئىسمىڭىز ۋە رەسىمىڭىزنى كۆرەلەيدۇ، ۋە ئۇلارنى «ھېكايەم» نى كۆرەلمەيدىغان قىلىپ تەڭشىمىگەن بولىسڭىز، «ھېكايەم» گە يوللىغان مەزمۇنلارنىمۇ كۆرەلەيدۇ.";
@@ -7192,8 +7735,8 @@
 /* Text indicating that the user has views turned off */
 "STORY_VIEWS_OFF" = "كۆرۈپ بېقىش ئېتىك";
 
-/* Toast indicating that the user has copied their subscriber ID. */
-"SUBSCRIPTION_SUBSCRIBER_ID_COPIED_TO_CLIPBOARD" = "مۇشتەرىلىك ID سى چاپلاش تاختىسىغا كۆچۈرۈلدى";
+/* Toast indicating that the user has copied their subscriber ID. (Externally referred to as donor ID) */
+"SUBSCRIPTION_SUBSCRIBER_ID_COPIED_TO_CLIPBOARD" = "ئىئانە قىلغۇچى ID سى چاپلاش تاختىسىغا كۆچۈرۈلدى";
 
 /* Alert body after verifying privacy with {{other user's name}} */
 "SUCCESSFUL_VERIFICATION_DESCRIPTION" = "سىزنىڭ %1$@ بىلەن بولغان بىخەتەرلىك نومۇرىڭىز ئۆز-ئارا ماس كەلدى. بۇ ئالاقىداشقا دەلىللەنگەن دەپ بەلگە قويسىڭىز بولىدۇ.";
@@ -7273,20 +7816,23 @@
 /* Action sheet title for Couldn't Add Badge sheet */
 "SUSTAINER_VIEW_CANT_ADD_BADGE_TITLE" = "ئىزنەك قوشالمىدى";
 
+/* Action sheet title for Error Authorizing Payment sheet */
+"SUSTAINER_VIEW_ERROR_AUTHORIZING_PAYMENT_TITLE" = "پۇل تۆلەشنى تەستىقلاش خاتالىقى";
+
 /* Action sheet title for Error Processing Payment sheet */
-"SUSTAINER_VIEW_ERROR_PROCESSING_PAYMENT_TITLE" = "Error Processing Donation";
+"SUSTAINER_VIEW_ERROR_PROCESSING_PAYMENT_TITLE" = "ئىئانە بىر تەرەپ قىلىش خاتالىقى";
 
 /* Pricing text for sustainer view badges, embeds {{price}} */
 "SUSTAINER_VIEW_PRICING" = "%1$@/ئايلىق";
 
 /* Loading indicator on the sustainer view */
-"SUSTAINER_VIEW_PROCESSING_PAYMENT" = "Processing donation...";
+"SUSTAINER_VIEW_PROCESSING_PAYMENT" = "ئىئانە بىر تەرەپ قىلىنىۋاتىدۇ...";
 
 /* Renewal date text for sustainer view level, embeds {{renewal date}} */
 "SUSTAINER_VIEW_RENEWAL" = "يېڭىلىنىش ۋاقتى %1$@";
 
 /* Action sheet message for Still Processing Badge sheet */
-"SUSTAINER_VIEW_STILL_PROCESSING_BADGE_MESSAGE" = "Your donation is still being processed. This can take a few minutes depending on your connection.";
+"SUSTAINER_VIEW_STILL_PROCESSING_BADGE_MESSAGE" = "ئىئانىڭىزنى تېخىچە بىر تەرەپ قىلىۋاتىدۇ. تور ئۇلىنىشىڭىزغا ئاساسەن بۇنىڭغا بىر نەچچە مىنۇت كېتىشى مۇمكىن.";
 
 /* Toast indicating that the subscription has been cancelled */
 "SUSTAINER_VIEW_SUBSCRIPTION_CANCELLED" = "مۇشتەرىلىكىڭىز ئەمەلدىن قالدۇرۇلدى";
@@ -7453,9 +7999,6 @@
 /* Message shown in conversation view that offers to block an unknown user. */
 "UNKNOWN_CONTACT_BLOCK_OFFER" = "ئىشلەتكۈچى سىزنىڭ ئالاقىداشلىرىڭىز ئارىسىدا يوقكەن. بۇ ئىشلەتكۈچىنى چەكلەمسىز؟";
 
-/* Displayed if for some reason we can't determine a contacts phone number *or* name */
-"UNKNOWN_CONTACT_NAME" = "نامەلۇم ئالاقەداش";
-
 /* Info message recorded in conversation history when local user receives an unknown message from a linked device and needs to upgrade. */
 "UNKNOWN_PROTOCOL_VERSION_NEED_TO_UPGRADE_FROM_LINKED_DEVICE" = "سىزنىڭ بىر ئۈسكىنىڭىز ئەۋەتكەن ئۇچۇردا Signal نىڭ بىر يېڭى ئىقتىدارى قوللىنىلغاچقا، ئۇنى بىر تەرەپ قىلالمىدى ياكى كۆرسىتەلمىدى.";
 
@@ -7507,6 +8050,9 @@
 /* Alert title when unlinking device fails */
 "UNLINKING_FAILED_ALERT_TITLE" = "‫Signal ئۈسكۈنىڭىزنى ئاجرىتالمىدى.";
 
+/* Text for a toast confirming that the mic has been unmuted for a call. */
+"UNMUTE_CONFIRMATION_TOAST_LABEL" = "مىكروفون ئوچۇق";
+
 /* Pressing this button un-pins a thread */
 "UNPIN_ACTION" = "قوندۇرما";
 
@@ -7543,17 +8089,29 @@
 /* Explanation of when you should use a signal proxy */
 "USE_PROXY_EXPLANATION" = "كۆچمە ئېقىم ياكى Wi-Fi دا Signal غا ئۇلىنالمىغان ئەھۋالدىلا ئاندىن ۋاكالەتچى ئىشلىتىڭ.";
 
-/* Description of how to update discovery */
-"USERNAME_DISCOVERY_DESCRIPTION" = "ئىشلەتكۈچى نامىڭىزنى باشقىلارنىڭ سىزنى تاپىدىغان ئاساسلىق ئۇسۇلى قىلىپ تەڭشەش ئۈچۈن، تەڭشەك > مەخپىيەتلىك > تېلېفون نومۇرى > نومۇرىمنى تاپالايدىغانلار دېگەن جايدىن تېلفون نومۇرىنى بايقاش ئىقتىدارىنى ئېتىۋېتىڭ.";
+/* Description of username links and QR codes on the username education sheet */
+"USERNAME_EDUCATION_LINK_DESCRIPTION" = "ئىشلەتكۈچى نامىنىڭ خاس QR ۋە ئۇلانمىسى بار بولۇپ، ئۇلارنى دوستلىرىڭىز بىلەن ئورتاقلىشىپ پاراڭلىشىشنى باشلىسىڭىز بولىدۇ.";
 
-/* Description of username discriminator digits */
-"USERNAME_DISCRIMINATOR_DESCRIPTION" = "ئىشلەتكۈچى نامى بىر يۈرۈش رەقەملەر بىلەن ماسلاشتۇرۇلغان بولۇپ، ئۇ ئارخىپىڭىزدا ئورتاقلىشىلمايدۇ";
+/* Title for the username links and QR codes section on the username education sheet */
+"USERNAME_EDUCATION_LINK_TITLE" = "QR كودى ياكى ئۇلانما";
+
+/* Description of phone number privacy on the username education sheet */
+"USERNAME_EDUCATION_PRIVACY_DESCRIPTION" = "تېلېفون نومۇرىڭىز ئەمدى پاراڭلاردا كۆرۈنمەيدۇ. ئەگەر تېلېفون نومۇرىڭىز دوستىڭىزنىڭ ئالاقىداش تىزىملىكىدە ساقلانغان بولسا، ئۇلار ئۇنى كۆرەلەيدۇ.";
+
+/* Title for phone number privacy section of the username education sheet */
+"USERNAME_EDUCATION_PRIVACY_TITLE" = "تېلېفون نومۇرى مەخپىيەتلىكى";
+
+/* Label for the 'set up' button on the username education sheet */
+"USERNAME_EDUCATION_SET_UP_BUTTON" = "ئىشلەتكۈچى نامىنى تەڭشەش";
 
 /* Title to set up signal username */
-"USERNAME_EDUCATION_TITLE" = "Signal ئىشلەتكۈچى نامىنى بەلگىلەڭ";
+"USERNAME_EDUCATION_TITLE" = "ئۇلىنىشنىڭ يېڭى ئۇسۇللىرى";
 
-/* Description of username link */
-"USERNAME_LINK_DESCRIPTION" = "ھەر بىر ئىشلەتكۈچى نامىنىڭ خاس ئۇلانمىسى بار بولۇپ، بۇ ئۇلانمىنى دوستلىرىڭىز بىلەن ئورتاقلىشىپ پاراڭلىشىشنى باشلىيالايسىز";
+/* Description of usernames on the username education sheet */
+"USERNAME_EDUCATION_USERNAME_DESCRIPTION" = "باشقىلار ئەمدى تاللانما ئىشلەتكۈچى نامىڭىزنى ئىشلىتىپ سىزگە ئۇچۇر يوللىسا بولىدۇ، تېلېفون نومۇرىڭىزنى ئېيتىپ بېرىشنىڭ ھاجىتى يوق. ئىشلەتكۈچى نامى ئارخىپىڭىزدا كۆرۈنمەيدۇ.";
+
+/* Title for usernames section on the username education sheet */
+"USERNAME_EDUCATION_USERNAME_TITLE" = "ئىشلەتكۈچى نامى";
 
 /* A title for a view that allows you to pick a color for a QR code for your username link. */
 "USERNAME_LINK_QR_CODE_COLOR_PICKER_VIEW_TITLE_COLOR" = "رەڭ";
@@ -7564,14 +8122,17 @@
 /* Text for a label explaining what the username link and QR code give others access to. */
 "USERNAME_LINK_QR_CODE_VIEW_DISCLAIMER_LABEL" = "QR كودىڭىز ۋە ئۇلانمىڭىزنى سىز ئىشىنىدىغان كىشىلەر بىلەنلا ئورتاقلىشىڭ. ئۇلارنى ئورتاقلاشقاندا باشقىلار سىزنىڭ ئ‍ىشلەتكۈچى نامىڭىزنى كۆرەلەيدۇ ۋە سىز بىلەن پاراڭ باشلىيالايدۇ.";
 
+/* Text presented in an action sheet notifying the user their qr code and link are not set. */
+"USERNAME_LINK_QR_CODE_VIEW_LINK_NOT_SET" = "QR كودى ۋە ئۇلانمىسى بېكىتىلمىدى. تور ئۇلىنىشىنى تەكشۈرۈپ قايتا سىناڭ.";
+
 /* Title for a button that allows users to reset their username link and QR code. */
 "USERNAME_LINK_QR_CODE_VIEW_RESET_BUTTON_TITLE" = "ئەسلىگە قايتۇر";
 
 /* A message explaining what will happen if the user resets their QR code. */
-"USERNAME_LINK_QR_CODE_VIEW_RESET_SHEET_MESSAGE" = "ئەگەر سىز QR كودىڭىزنى يېڭلىسىڭىز، سىزنىڭ ھازىرقى QR كودىڭىز ۋە ئۇلانمىڭىز ئىشلىمەيدۇ.";
+"USERNAME_LINK_QR_CODE_VIEW_RESET_SHEET_MESSAGE" = "ئەگەر QR كودىڭىزنى ۋە ئۇلانمىڭىزنى ئەسلىگە قايتۇرسىڭىز، نۆۋەتتىكى QR كودىڭىز ۋە ئۇلانمىڭىز ئىشلىمەيدۇ.";
 
-/* A label indicating that the username link is being reset. */
-"USERNAME_LINK_QR_CODE_VIEW_RESETTING_LINK_LABEL" = "ئۇلانمىنى يېڭىلاۋاتىدۇ...";
+/* Text presenting an action sheet notifying the user their QR code and link were reset. */
+"USERNAME_LINK_QR_CODE_VIEW_RESET_SUCCESSFUL" = "QR كودىڭىز ۋە ئۇلانمىڭىز ئەسلىگە قايتۇرۇلغان بولۇپ، يېڭى QR كودى ۋە ئۇلانمىسى قۇرۇلدى.";
 
 /* Title for a button to share your username link QR code. Lowercase styling is intentional. */
 "USERNAME_LINK_QR_CODE_VIEW_SHARE_BUTTON" = "ھەمبەھىرلە";
@@ -7585,6 +8146,9 @@
 /* Text presented in a toast notifying the user that their username was copied to the system clipboard. */
 "USERNAME_LINK_QR_CODE_VIEW_USERNAME_COPIED" = "ئىشلەتكۈچى نامى كۆچۈرۈلدى";
 
+/* Text presented in a toast notifying the user that their username link was copied to the system clipboard. */
+"USERNAME_LINK_QR_CODE_VIEW_USERNAME_LINK_COPIED" = "ئۇلانما كۆچۈرۈلدى";
+
 /* Text providing instructions on how to use the username link QR code scanning. */
 "USERNAME_LINK_SCAN_QR_CODE_INSTRUCTIONS_LABEL" = "ئالاقىدىشىڭىزنىڭ ئۈسكۈنىسىدىكى QR كودنى سېكاننېرلاڭ.";
 
@@ -7593,6 +8157,9 @@
 
 /* Text describing what you can do with a username link, on a sheet for sharing it. */
 "USERNAME_LINK_SHARE_SHEET_HEADER" = "بۇ ئۇلانما بار ھەرقانداق ئادەم ئىشلەتكۈچى نامىڭىزنى كۆرەلەيدۇ ۋە سىز بىلەن پاراڭ باشلىيالايدۇ. ئۇنى پەقەت سىز ئىشىنىدىغان كىشىلەر بىلەنلا ئورتاقلىشىڭ.";
+
+/* Title for a button to open a sheet for copying and sharing your username link. */
+"USERNAME_LINK_SHEET_BUTTON" = "ئۇلانما";
 
 /* Subtitle for a tooltip describing ways to share your username. */
 "USERNAME_LINK_TOOLTIP_SUBTITLE" = "سىزنىڭ خاس QR كودىڭىز ياكى ئۇلانمىڭىزنى پايلىشىش ئارقىلىق باشقىلار بىلەن پاراڭلىشىڭ";
@@ -7618,20 +8185,29 @@
 /* Title for an action sheet indicating that the given username is not associated with a registered Signal account. */
 "USERNAME_LOOKUP_NOT_FOUND_TITLE" = "ئىشلەتكۈچى تېپىلمىدى";
 
+/* Instructions that appear below the username QR code on a sharable exported image. */
+"USERNAME_QR_CODE_EXPORT_INSTRUCTIONS" = "Signal دا مەن بىلەن پاراڭلىشىش ئۈچۈن تېلېفونىڭىز بىلەن بۇ QR كودنى سىكاننېرلاڭ.";
+
+/* A message in a toast informing the user their username, link, and QR code have successfully been reset. Embeds {{ the user's new username }}. */
+"USERNAME_RESET_SUCCESSFUL_TOAST" = "QR كودىڭىز ۋە ئۇلانمىڭىز ئەسلىگە قايتۇرۇلغان بولۇپ، ئىشلەتكۈچى نامىڭىز بولسا %1$@";
+
 /* An error message shown when the user has typed a username that starts with a digit, which is invalid. */
-"USERNAME_SELECTION_CANNOT_START_WITH_DIGIT_ERROR_MESSAGE" = "ئىشلەتكۈچى نامى رەقەم بىلەن باشلانسا بولمايدۇ.";
+"USERNAME_SELECTION_CANNOT_START_WITH_DIGIT_ERROR_MESSAGE" = "ئىشلەتكۈچى نامى رەقەم بىلەن باشلانسا بولمايدۇ";
 
 /* A message explaining the side effects of changing your username. */
 "USERNAME_SELECTION_CHANGE_USERNAME_CONFIRMATION_MESSAGE" = "ئىشلەتكۈچى نامىڭىزنى ئۆزگەرتسىڭىز، سىزنىڭ ھازىرقى QR كودىڭىز ۋە ئۇلانمىڭىز قايتىدىن تۈزۈلىدۇ. جەزىملەشتۈرەمسىز؟";
 
 /* Footer text below a text field in which users type their desired username, which explains how usernames work. Embeds a {{ \"learn more\" link. }}. */
-"USERNAME_SELECTION_EXPLANATION_FOOTER_FORMAT" = "باشقىلار تېلېفون نومۇرىڭىزنى لازىم قىلماي تۇرۇپلا ئىشلەتكۈچى نامى ئارقىلىق سىزگە ئۇچۇر يوللىيالايدۇ. ئۇلار بىر يۈرۈش رەقەم ئارقىلىق ئۇلانغان بولۇپ، بۇنداق قىلىشنىڭ ئادرېسىڭىزنى مەخپىي تۇتۇشقا پايدىسى بار. %1$@";
+"USERNAME_SELECTION_EXPLANATION_FOOTER_FORMAT" = "ئىشلەتكۈچى نامى داۋاملىق بىر يۈرۈش سان بىلەن ماس كېلىدۇ. %1$@";
 
 /* When the user has entered text into a text field for setting their username, a header displays the username text. This string is shown in the header when the text field is empty. */
 "USERNAME_SELECTION_HEADER_TEXT_FOR_PLACEHOLDER" = "ئىشلەتكۈچى نامىڭىزنى تاللاڭ";
 
 /* An error message shown when the user has typed a username that has invalid characters. The character ranges \"a-z\", \"0-9\", \"_\" should not be translated, as they are literal. */
-"USERNAME_SELECTION_INVALID_CHARACTERS_ERROR_MESSAGE" = "ئىشلەتكۈچى نامى پەقەت a-Z، 0-9 ۋە ئاستى سىزىق «_» دىن تۈزۈلىشى كېرەك.";
+"USERNAME_SELECTION_INVALID_CHARACTERS_ERROR_MESSAGE" = "ئىشلەتكۈچى ئىسمى پەقەت a-Z، 0-9 ۋە ئاستى سىزىقتىن تۈزۈلىشى كېرەك.";
+
+/* An error message shown when the user has typed an invalid discriminator for their username. */
+"USERNAME_SELECTION_INVALID_DISCRIMINATOR_ERROR_MESSAGE" = "ئىشلەتكۈچى نامى ئىناۋەتسىز، ئاز دېگەندە 2 خانە كىرگۈزۈڭ";
 
 /* The message of a sheet that pops up when the user taps \"Learn More\" in text that explains how usernames work. This message help explain that the automatically-generated numeric suffix of their username helps keep their username private, to avoid them being contacted by people by whom they don't want to be contacted. */
 "USERNAME_SELECTION_LEARN_MORE_ACTION_SHEET_MESSAGE" = "بۇ رەقەملەر ئارقىلىق ئىشلەتكۈچى نامىڭىزنى مەخپىي تۇتالايسىز ۋە شۇ ئارقىلىق خالىمىغان ئۇچۇرلاردىن ساقلىنالايسىز. ئىشلەتكۈچى نامىڭىزنى پەقەت سىز پاراڭلاشماقچى بولغان كىشىلەر ۋە گۇرۇپپا بىلەنلا ئورتاقلىشىڭ. ئىشلەتكۈچى نامىڭىزنى ئۆزگەرتسىڭىز، يېڭى بىر يۈرۈش رەقەمگە ئېرىشىسىز.";
@@ -7640,7 +8216,10 @@
 "USERNAME_SELECTION_LEARN_MORE_ACTION_SHEET_TITLE" = "بۇ نېمە سان؟";
 
 /* An error message shown when the user wants to set their username to an unavailable value. */
-"USERNAME_SELECTION_NOT_AVAILABLE_ERROR_MESSAGE" = "بۇ ئىشلەتكۈچى نامىنى ئىشلەتكىلى بولمايدۇ.";
+"USERNAME_SELECTION_NOT_AVAILABLE_ERROR_MESSAGE" = "بۇ ئىشلەتكۈچى نامىنى ئىشلەتكىلى بولمايدۇ";
+
+/* An error message shown when the user has attempted too many username reservations. */
+"USERNAME_SELECTION_RESERVATION_RATE_LIMITED_ERROR_MESSAGE" = "زىيادە كۆپ قېتىم سىنىدىڭىز، كېيىنرەك قايتا سىناڭ";
 
 /* The placeholder for a text field into which users can type their desired username. */
 "USERNAME_SELECTION_TEXT_FIELD_PLACEHOLDER" = "ئىشلەتكۈچى نامى";
@@ -7648,8 +8227,11 @@
 /* The title for the username selection view. */
 "USERNAME_SELECTION_TITLE" = "ئىشلەتكۈچى نامى";
 
-/* An error message shown when the user has typed a username that is below the minimum character limit. Embeds {{ %1$@ the minimum character count }}. */
-"USERNAME_SELECTION_TOO_SHORT_ERROR_MESSAGE" = "ئىشلەتكۈچى نامى ئاز دېگەندە %1$@ ھەرپتىن تۈزۈلگەن بولۇشى كېرەك.";
+/* An error message shown when the user has typed '00' as their discriminator for their username. */
+"USERNAME_SELECTION_ZERO_DISCRIMINATOR_ERROR_MESSAGE" = "بۇ نومۇر 00 بولسا بولمايدۇ. 1-9 ئارىسىدىكى نومۇر كىرگۈزۈڭ";
+
+/* An error message indicating that a usernames-related requeset failed because of a network error. */
+"USERNAMES_REMOTE_MUTATION_ERROR_DESCRIPTION" = "ئىشلەتكۈچى نامىنى تورغا ئۇلانغاندىلا ئاندىن يېڭىلىغىلى بولىدۇ.";
 
 /* error label near a field */
 "VALIDATION_ERROR_CANNOT_BE_BLANK" = "ئۈسكۈنە ئىسمى قۇرۇق قالسا بولمايدۇ";
@@ -7679,7 +8261,7 @@
 "VERIFY_PRIVACY_MULTIPLE" = "بىخەتەرلىك نومۇرىنى تەكشۈرۈڭ";
 
 /* Instructions for verifying your safety number. Embeds {{contact's name}} */
-"VERIFY_SAFETY_NUMBER_INSTRUCTIONS" = "To verify end-to-end encryption with %1$@, compare the numbers above with their device. You can also scan the code on their device.";
+"VERIFY_SAFETY_NUMBER_INSTRUCTIONS" = "«%1$@» بىلەن ئۇچتىن ئۇچقا مەخپىيلەشتۈرۈشنى جەزملەشتۈرۈش ئۈچۈن، يۇقىرىدىكى نومۇرلارنى ئۇلارنىڭ ئۈسكۈنىسىدىكى نومۇر بىلەن سېلىشتۇرۇڭ. ئۇلارنىڭ ئۈسكۈنىسىنى سىكاننېرلىسىڭىزمۇ بولىدۇ.";
 
 /* Toast alert text shown when tapping on a video that cannot be played. */
 "VIDEO_BROKEN" = "بۇ ۋىدېيونى قويغىلى بولمايدۇ";
@@ -7705,6 +8287,9 @@
 /* View the story of a group or user */
 "VIEW_STORY" = "ھېكايە كۆرۈش";
 
+/* Accessibility label for placing a voice call */
+"VOICE_CALL_LABEL" = "ئۈن چاقىرىش";
+
 /* Indicates how to cancel a voice message. */
 "VOICE_MESSAGE_CANCEL_INSTRUCTIONS" = "بىكار قىلىش ئۈچۈن سىيرىڭ";
 
@@ -7716,6 +8301,9 @@
 
 /* Activity indicator title, shown upon returning to the device manager, until you complete the provisioning process on desktop */
 "WAITING_TO_COMPLETE_DEVICE_LINK_TEXT" = "‫Signal ئۈستەل يۈزى ئەپىدە سەپلەشنى تاماملاڭ.";
+
+/* Accessibility label for gradient wallpaper swatch, naming the two colors in the gradient. {{ Embeds the names of the two colors in the gradient }} */
+"WALLPAPER_GRADIENT_COLORS_ACCESSIBILITY_LABEL" = "%1$@ ۋە %2$@ بىلەن تىزىلغان";
 
 /* Placeholder text for header of the wallpaper mini preview */
 "WALLPAPER_MINI_PREVIEW_CONTACT_NAME" = "ئالاقىداش نامى";

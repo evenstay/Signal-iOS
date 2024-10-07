@@ -4,18 +4,11 @@
 //
 
 #import "OWSGroupCallMessage.h"
-#import "FunctionalUtil.h"
 #import "TSGroupThread.h"
-#import <SignalCoreKit/NSDate+OWS.h>
+#import <SignalServiceKit/NSDate+OWS.h>
 #import <SignalServiceKit/SignalServiceKit-Swift.h>
 
 NS_ASSUME_NONNULL_BEGIN
-
-@interface OWSGroupCallMessage ()
-
-@property (nonatomic, getter=wasRead) BOOL read;
-
-@end
 
 #pragma mark -
 
@@ -26,13 +19,20 @@ NS_ASSUME_NONNULL_BEGIN
                                   thread:(TSGroupThread *)thread
                          sentAtTimestamp:(uint64_t)sentAtTimestamp
 {
-    self = [super initInteractionWithTimestamp:sentAtTimestamp thread:thread];
+    self = [super initWithTimestamp:sentAtTimestamp
+                receivedAtTimestamp:[NSDate ows_millisecondTimeStamp]
+                             thread:thread];
 
     if (!self) {
         return self;
     }
 
-    _joinedMemberUuids = [joinedMemberAcis map:^(AciObjC *aci) { return aci.serviceIdUppercaseString; }];
+    NSMutableArray<NSString *> *uuids = [[NSMutableArray alloc] initWithCapacity:joinedMemberAcis.count];
+    for (AciObjC *aci in joinedMemberAcis) {
+        [uuids addObject:aci.serviceIdUppercaseString];
+    }
+    _joinedMemberUuids = uuids;
+    _hasEnded = joinedMemberAcis.count == 0;
     _creatorUuid = creatorAci.serviceIdUppercaseString;
 
     return self;
@@ -86,16 +86,20 @@ NS_ASSUME_NONNULL_BEGIN
     return [super initWithCoder:coder];
 }
 
-- (NSArray<SignalServiceAddress *> *)joinedMemberAddresses
+- (NSArray<AciObjC *> *)joinedMemberAcis
 {
-    return [self.joinedMemberUuids
-        map:^(NSString *aciString) { return [[SignalServiceAddress alloc] initWithAciString:aciString]; }];
+    NSArray<NSString *> *_Nullable uuids = self.joinedMemberUuids;
+    NSMutableArray<AciObjC *> *result = [[NSMutableArray alloc] initWithCapacity:uuids.count];
+    for (NSString *aciString in uuids) {
+        [result addObject:[[AciObjC alloc] initWithAciString:aciString]];
+    }
+    return result;
 }
 
-- (nullable SignalServiceAddress *)creatorAddress
+- (nullable AciObjC *)creatorAci
 {
     if (self.creatorUuid) {
-        return [[SignalServiceAddress alloc] initWithAciString:self.creatorUuid];
+        return [[AciObjC alloc] initWithAciString:self.creatorUuid];
     } else {
         return nil;
     }
@@ -104,154 +108,6 @@ NS_ASSUME_NONNULL_BEGIN
 - (OWSInteractionType)interactionType
 {
     return OWSInteractionType_Call;
-}
-
-#pragma mark - OWSReadTracking
-
-- (uint64_t)expireStartedAt
-{
-    return 0;
-}
-
-- (BOOL)shouldAffectUnreadCounts
-{
-    return YES;
-}
-
-- (void)markAsReadAtTimestamp:(uint64_t)readTimestamp
-                       thread:(TSThread *)thread
-                 circumstance:(OWSReceiptCircumstance)circumstance
-     shouldClearNotifications:(BOOL)shouldClearNotifications
-                  transaction:(SDSAnyWriteTransaction *)transaction
-{
-
-    OWSAssertDebug(transaction);
-
-    if (self.read) {
-        return;
-    }
-
-    OWSLogDebug(@"marking as read uniqueId: %@ which has timestamp: %llu", self.uniqueId, self.timestamp);
-
-    [self anyUpdateGroupCallMessageWithTransaction:transaction
-                                             block:^(OWSGroupCallMessage *groupCallMessage) {
-                                                 groupCallMessage.read = YES;
-                                             }];
-
-    // Ignore `circumstance` - we never send read receipts for calls.
-}
-
-#pragma mark - Methods
-
-- (NSString *)previewTextWithTransaction:(SDSAnyReadTransaction *)transaction
-{
-    if (self.hasEnded) {
-        return OWSLocalizedString(
-            @"GROUP_CALL_ENDED_MESSAGE", @"Text in conversation view for a group call that has since ended");
-    } else if (self.creatorAddress.isLocalAddress) {
-        return OWSLocalizedString(@"GROUP_CALL_STARTED_BY_YOU", @"Text explaining that you started a group call.");
-    } else if (self.creatorAddress) {
-        NSString *creatorDisplayName = [self participantNameForAddress:self.creatorAddress transaction:transaction];
-        NSString *formatString = OWSLocalizedString(@"GROUP_CALL_STARTED_MESSAGE_FORMAT",
-            @"Text explaining that someone started a group call. Embeds {{call creator display name}}");
-        return [NSString stringWithFormat:formatString, creatorDisplayName];
-    } else {
-        return OWSLocalizedString(@"GROUP_CALL_SOMEONE_STARTED_MESSAGE",
-            @"Text in conversation view for a group call that someone started. We don't know who");
-    }
-}
-
-- (NSString *)systemTextWithTransaction:(SDSAnyReadTransaction *)transaction
-{
-    NSString *threeOrMoreFormat = NSLocalizedStringFromTableInBundle(@"GROUP_CALL_MANY_PEOPLE_HERE_%d",
-        @"PluralAware",
-        NSBundle.mainBundle.appBundle,
-        @"Text explaining that there are three or more people in the group call. Embeds {{ %1$@ participantCount-2, "
-        @"%2$@ participant1, %3$@ participant2 }}");
-    NSString *twoFormat = OWSLocalizedString(@"GROUP_CALL_TWO_PEOPLE_HERE_FORMAT",
-        @"Text explaining that there are two people in the group call. Embeds {{ %1$@ participant1, %2$@ participant2 "
-        @"}}");
-    NSString *onlyCreatorFormat = OWSLocalizedString(@"GROUP_CALL_STARTED_MESSAGE_FORMAT",
-        @"Text explaining that someone started a group call. Embeds {{call creator display name}}");
-    NSString *youCreatedString
-        = OWSLocalizedString(@"GROUP_CALL_STARTED_BY_YOU", @"Text explaining that you started a group call.");
-    NSString *onlyYouString
-        = OWSLocalizedString(@"GROUP_CALL_YOU_ARE_HERE", @"Text explaining that you are in the group call.");
-    NSString *onlyOneFormat = OWSLocalizedString(@"GROUP_CALL_ONE_PERSON_HERE_FORMAT",
-        @"Text explaining that there is one person in the group call. Embeds {member name}");
-    NSString *endedString = OWSLocalizedString(
-        @"GROUP_CALL_ENDED_MESSAGE", @"Text in conversation view for a group call that has since ended");
-    NSString *someoneString = OWSLocalizedString(@"GROUP_CALL_SOMEONE_STARTED_MESSAGE",
-        @"Text in conversation view for a group call that someone started. We don't know who");
-
-
-    // Sort the addresses to prioritize the local user and originator, then the rest of the participants alphabetically
-    NSArray<SignalServiceAddress *> *sortedAddresses = [self.joinedMemberAddresses
-        sortedArrayUsingComparator:^NSComparisonResult(SignalServiceAddress *obj1, SignalServiceAddress *obj2) {
-            if ([obj1 isEqualToAddress:obj2]) {
-                return NSOrderedSame;
-            } else if (obj1.isLocalAddress || obj2.isLocalAddress) {
-                return obj1.isLocalAddress ? NSOrderedAscending : NSOrderedDescending;
-            } else if ([obj1 isEqualToAddress:self.creatorAddress] || [obj2 isEqualToAddress:self.creatorAddress]) {
-                return [obj1 isEqualToAddress:self.creatorAddress] ? NSOrderedAscending : NSOrderedDescending;
-            } else {
-                NSString *compareString1 = [self.contactsManager comparableNameForAddress:obj1 transaction:transaction];
-                NSString *compareString2 = [self.contactsManager comparableNameForAddress:obj2 transaction:transaction];
-                return [compareString1 compare:compareString2];
-            }
-        }];
-
-    if (self.hasEnded) {
-        return endedString;
-
-    } else if (sortedAddresses.count >= 3) {
-        NSString *firstName = [self participantNameForAddress:sortedAddresses[0] transaction:transaction];
-        NSString *secondName = [self participantNameForAddress:sortedAddresses[1] transaction:transaction];
-        return [NSString localizedStringWithFormat:threeOrMoreFormat, sortedAddresses.count - 2, firstName, secondName];
-
-    } else if (sortedAddresses.count == 2) {
-        NSString *firstName = [self participantNameForAddress:sortedAddresses[0] transaction:transaction];
-        NSString *secondName = [self participantNameForAddress:sortedAddresses[1] transaction:transaction];
-        return [NSString stringWithFormat:twoFormat, firstName, secondName];
-
-    } else if (sortedAddresses.count == 1 && [sortedAddresses[0] isEqualToAddress:self.creatorAddress]) {
-        if (sortedAddresses[0].isLocalAddress) {
-            return youCreatedString;
-        } else {
-            NSString *name = [self participantNameForAddress:sortedAddresses[0] transaction:transaction];
-            return [NSString stringWithFormat:onlyCreatorFormat, name];
-        }
-
-    } else if (sortedAddresses.count == 1 && sortedAddresses[0].isLocalAddress) {
-        return onlyYouString;
-
-    } else if (sortedAddresses.count == 1) {
-        NSString *name = [self participantNameForAddress:sortedAddresses[0] transaction:transaction];
-        return [NSString stringWithFormat:onlyOneFormat, name];
-
-    } else {
-        return someoneString;
-    }
-}
-
-- (void)updateWithHasEnded:(BOOL)hasEnded transaction:(SDSAnyWriteTransaction *)transaction
-{
-    [self anyUpdateGroupCallMessageWithTransaction:transaction
-                                             block:^(OWSGroupCallMessage *message) {
-                                                 message.hasEnded = hasEnded;
-                                                 message.joinedMemberUuids = @[];
-                                             }];
-}
-
-#pragma mark - Private
-
-- (NSString *)participantNameForAddress:(SignalServiceAddress *)address transaction:(SDSAnyReadTransaction *)transaction
-{
-    if (address.isLocalAddress) {
-        return OWSLocalizedString(@"YOU", "Second person pronoun to represent the local user.");
-    } else {
-        return [self.contactsManager displayNameForAddress:address transaction:transaction];
-    }
 }
 
 @end

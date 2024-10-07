@@ -4,7 +4,6 @@
 //
 
 import UserNotifications
-import SignalMessaging
 import SignalServiceKit
 
 // The lifecycle of the NSE looks something like the following:
@@ -30,11 +29,11 @@ import SignalServiceKit
 // database, logging, etc. are only ever setup once per *process*
 private let globalEnvironment = NSEEnvironment()
 
-private let hasShownFirstUnlockError = AtomicBool(false)
+private let hasShownFirstUnlockError = AtomicBool(false, lock: .sharedGlobal)
 
 class NotificationService: UNNotificationServiceExtension {
     private typealias ContentHandler = (UNNotificationContent) -> Void
-    private let contentHandler = AtomicOptional<ContentHandler>(nil)
+    private let contentHandler = AtomicOptional<ContentHandler>(nil, lock: .sharedGlobal)
 
     // MARK: -
 
@@ -69,7 +68,7 @@ class NotificationService: UNNotificationServiceExtension {
     // MARK: -
 
     // This method is thread-safe.
-    func completeSilently(timeHasExpired: Bool = false, badgeValue: UInt? = nil, logger: NSELogger) {
+    func completeSilently(badgeCount: BadgeCount? = nil, logger: NSELogger) {
         defer { logger.flush() }
 
         guard let contentHandler = contentHandler.swap(nil) else {
@@ -79,27 +78,9 @@ class NotificationService: UNNotificationServiceExtension {
         Self.nseDidComplete()
 
         let content = UNMutableNotificationContent()
-        content.badge = badgeValue.map { NSNumber(value: $0) }
+        content.badge = badgeCount.map { NSNumber(value: $0.unreadTotalCount) }
 
-        if timeHasExpired {
-            contentHandler(content)
-        } else {
-            // If we have some time left, query current notification state
-            logger.info("Querying existing notifications")
-
-            let notificationCenter = UNUserNotificationCenter.current()
-            notificationCenter.getPendingNotificationRequests { requests in
-                defer { logger.flush() }
-                logger.info("Found \(requests.count) pending notification requests with identifiers: \(requests.map { $0.identifier }.joined(separator: ", "))")
-
-                notificationCenter.getDeliveredNotifications { notifications in
-                    defer { logger.flush() }
-                    logger.info("Found \(notifications.count) delivered notifications with identifiers: \(notifications.map { $0.request.identifier }.joined(separator: ", "))")
-
-                    contentHandler(content)
-                }
-            }
-        }
+        contentHandler(content)
     }
 
     override func didReceive(
@@ -108,15 +89,19 @@ class NotificationService: UNNotificationServiceExtension {
     ) {
         let logger = NSELogger()
 
-        DispatchQueue.main.sync { globalEnvironment.setUpBeforeCheckingForFirstDeviceUnlock(logger: logger) }
-
-        // Detect and handle "no GRDB file" and "no keychain access; device
-        // not yet unlocked for first time" cases _before_ calling
-        // setupIfNecessary().
-        if let errorContent = globalEnvironment.verifyDBKeysAvailable(logger: logger) {
+        do {
+            try DispatchQueue.main.sync(execute: { try globalEnvironment.setUp(logger: logger) })
+        } catch KeychainError.notAllowed {
+            // Detect and handle "no GRDB file" and "no keychain access".
             if hasShownFirstUnlockError.tryToSetFlag() {
                 logger.error("DB Keys not accessible; showing error.", flushImmediately: true)
-                contentHandler(errorContent)
+                let content = UNMutableNotificationContent()
+                let notificationFormat = OWSLocalizedString(
+                    "NOTIFICATION_BODY_PHONE_LOCKED_FORMAT",
+                    comment: "Lock screen notification text presented after user powers on their device without unlocking. Embeds {{device model}} (either 'iPad' or 'iPhone')"
+                )
+                content.body = String(format: notificationFormat, UIDevice.current.localizedModel)
+                contentHandler(content)
             } else {
                 // Only show a single error if we receive multiple pushes
                 // before first device unlock.
@@ -125,19 +110,15 @@ class NotificationService: UNNotificationServiceExtension {
                 contentHandler(emptyContent)
             }
             return
+        } catch {
+            owsFail("Couldn't load database: \(error.grdbErrorForLogging)")
         }
-
-        DispatchQueue.main.sync { globalEnvironment.setUpAfterCheckingForFirstDeviceUnlock(logger: logger) }
 
         self.contentHandler.set(contentHandler)
 
-        let nseCount = Self.nseDidStart()
+        _ = Self.nseDidStart()
 
-        logger.info(
-            "Received notification in pid: \(ProcessInfo.processInfo.processIdentifier), memoryUsage: \(LocalDevice.memoryUsageString), nseCount: \(nseCount)"
-        )
-
-        AppReadiness.runNowOrWhenAppWillBecomeReady {
+        globalEnvironment.appReadiness.runNowOrWhenAppWillBecomeReady {
             // Mark down that the APNS token is working since we got a push.
             // Do this as early as possible but after the app is ready and has run
             // GRDB migrations and such. (therefore, willBecomeReady, which actually runs
@@ -147,7 +128,11 @@ class NotificationService: UNNotificationServiceExtension {
             }
         }
 
-        AppReadiness.runNowOrWhenAppDidBecomeReadySync {
+        globalEnvironment.appReadiness.runNowOrWhenAppDidBecomeReadySync {
+            self.messageFetcherJob.prepareToFetchViaREST()
+        }
+
+        globalEnvironment.appReadiness.runNowOrWhenAppDidBecomeReadySync {
             globalEnvironment.askMainAppToHandleReceipt(logger: logger) { [weak self] mainAppHandledReceipt in
                 guard !mainAppHandledReceipt else {
                     logger.info("Received notification handled by main application, memoryUsage: \(LocalDevice.memoryUsageString).")
@@ -155,9 +140,9 @@ class NotificationService: UNNotificationServiceExtension {
                     return
                 }
 
-                logger.info("Processing received notification, memoryUsage: \(LocalDevice.memoryUsageString).")
-
-                self?.fetchAndProcessMessages(logger: logger)
+                DispatchQueue.main.async {
+                    self?.fetchAndProcessMessages(logger: logger)
+                }
             }
         }
     }
@@ -169,7 +154,7 @@ class NotificationService: UNNotificationServiceExtension {
         // We complete silently here so that nothing is presented to the user.
         // By default the OS will present whatever the raw content of the original
         // notification is to the user otherwise.
-        completeSilently(timeHasExpired: true, logger: .uncorrelated)
+        completeSilently(logger: .uncorrelated)
     }
 
     // This method is thread-safe.
@@ -195,55 +180,38 @@ class NotificationService: UNNotificationServiceExtension {
 
         globalEnvironment.processingMessageCounter.increment()
 
-        logger.info("Beginning message fetch.")
-
         firstly {
-            messageFetcherJob.run().promise
+            messageFetcherJob.run()
         }.then(on: DispatchQueue.global()) { [weak self] () -> Promise<Void> in
-            logger.info("Waiting for processing to complete.")
             guard let self = self else { return Promise.value(()) }
 
-            let runningAndCompletedPromises = AtomicArray<(String, Promise<Void>)>()
-
             return firstly { () -> Promise<Void> in
-                let promise = self.messageProcessor.processingCompletePromise()
-                runningAndCompletedPromises.append(("MessageProcessorCompletion", promise))
-                return promise
+                return self.messageProcessor.waitForProcessingComplete().asPromise()
             }.then(on: DispatchQueue.global()) { () -> Promise<Void> in
-                logger.info("Initial message processing complete.")
-                // Wait until all async side effects of message processing are complete.
-                let completionPromises: [(String, Promise<Void>)] = [
+                return Promise.when(on: SyncScheduler(), resolved: [
                     // Wait until all ACKs are complete.
-                    ("Pending messageFetch ack", Self.messageFetcherJob.pendingAcksPromise()),
+                    Self.messageFetcherJob.pendingAcksPromise(),
                     // Wait until all outgoing receipt sends are complete.
-                    ("Pending receipt sends", Self.outgoingReceiptManager.pendingSendsPromise()),
+                    SSKEnvironment.shared.receiptSenderRef.pendingSendsPromise(),
                     // Wait until all outgoing messages are sent.
-                    ("Pending outgoing message", Self.messageSender.pendingSendsPromise()),
+                    Self.messageSender.pendingSendsPromise(),
                     // Wait until all sync requests are fulfilled.
-                    ("Pending sync request", OWSMessageManager.pendingTasksPromise())
-                ]
-                let joinedPromise = Promise.when(resolved: completionPromises.map { (name, promise) in
-                    promise.done(on: DispatchQueue.global()) {
-                        logger.info("\(name) complete")
-                    }
-                })
-                completionPromises.forEach { runningAndCompletedPromises.append($0) }
-                return joinedPromise.asVoid()
+                    MessageReceiver.pendingTasksPromise(),
+                ]).asVoid()
             }.then(on: DispatchQueue.global()) { () -> Promise<Void> in
                 // Finally, wait for any notifications to finish posting
-                let promise = NotificationPresenter.pendingNotificationsPromise()
-                runningAndCompletedPromises.append(("Pending notification post", promise))
-                return promise
+                return NotificationPresenterImpl.pendingNotificationsPromise()
             }
         }.ensure(on: DispatchQueue.global()) { [weak self] in
-            logger.info("Message fetch completed.")
+            logger.info("Message fetching & processing completed.")
             SignalProxy.stopRelayServer()
             globalEnvironment.processingMessageCounter.decrementOrZero()
             // If we're completing normally, try to update the badge on the app icon.
-            let badgeValue = Self.databaseStorage.read { tx in
-                InteractionFinder.unreadCountInAllThreads(transaction: tx)
+            let badgeCount: BadgeCount = Self.databaseStorage.read { tx in
+                return DependenciesBridge.shared.badgeCountFetcher
+                    .fetchBadgeCount(tx: tx.asV2Read)
             }
-            self?.completeSilently(badgeValue: badgeValue, logger: logger)
+            self?.completeSilently(badgeCount: badgeCount, logger: logger)
         }.catch(on: DispatchQueue.global()) { error in
             logger.error("Error: \(error)")
         }

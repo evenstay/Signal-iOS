@@ -4,12 +4,41 @@
 //
 
 import Foundation
-import SignalCoreKit
-import SignalMessaging
 import SignalServiceKit
 import SignalUI
 
-extension OWSOrphanDataCleaner {
+private enum Constants {
+    static let lastCleaningVersionKey = "OWSOrphanDataCleaner_LastCleaningVersionKey"
+    static let lastCleaningDateKey = "OWSOrphanDataCleaner_LastCleaningDateKey"
+}
+
+private struct OWSOrphanData {
+    let interactionIds: Set<String>
+    let attachmentIds: Set<String>
+    let filePaths: Set<String>
+    let reactionIds: Set<String>
+    let mentionIds: Set<String>
+    let fileAndDirectoryPaths: Set<String>
+    let hasOrphanedPacksOrStickers: Bool
+}
+private typealias OrphanDataBlock = (_ orphanData: OWSOrphanData) -> Void
+
+// Notes:
+//
+// * On disk, we only bother cleaning up files, not directories.
+enum OWSOrphanDataCleaner {
+
+    /// Unlike CurrentAppContext().isMainAppAndActive, this method can be safely
+    /// invoked off the main thread.
+    private static var isMainAppAndActive: Bool {
+        CurrentAppContext().reportedApplicationState == .active
+    }
+    private static let databaseStorage = SDSDatabaseStorage.shared
+    private static let keyValueStore = SDSKeyValueStore(collection: "OWSOrphanDataCleaner_Collection")
+
+    /// We use the lowest priority possible.
+    private static let workQueue = DispatchQueue.global(qos: .background)
+
     static func auditOnLaunchIfNecessary() {
         AssertIsOnMainThread()
 
@@ -21,18 +50,80 @@ extension OWSOrphanDataCleaner {
         auditAndCleanup(shouldCleanUp)
     }
 
+    /// This is exposed for the debug UI and tests.
+    static func auditAndCleanup(_ shouldRemoveOrphans: Bool, completion: (() -> Void)? = nil) {
+        AssertIsOnMainThread()
+
+        guard CurrentAppContext().isMainApp else {
+            owsFailDebug("can't audit orphan data in app extensions.")
+            return
+        }
+
+        Logger.info("Starting orphan data \(shouldRemoveOrphans ? "cleanup" : "audit")")
+
+        // Orphan cleanup has two risks:
+        //
+        // * As a long-running process that involves access to the
+        //   shared data container, it could cause 0xdead10cc.
+        // * It could accidentally delete data still in use,
+        //   e.g. a profile avatar which has been saved to disk
+        //   but whose OWSUserProfile hasn't been saved yet.
+        //
+        // To prevent 0xdead10cc, the cleaner continually checks
+        // whether the app has resigned active.  If so, it aborts.
+        // Each phase (search, re-search, processing) retries N times,
+        // then gives up until the next app launch.
+        //
+        // To prevent accidental data deletion, we take the following
+        // measures:
+        //
+        // * Only cleanup data of the following types (which should
+        //   include all relevant app data): profile avatar,
+        //   attachment, temporary files (including temporary
+        //   attachments).
+        // * We don't delete any data created more recently than N seconds
+        //   _before_ when the app launched.  This prevents any stray data
+        //   currently in use by the app from being accidentally cleaned
+        //   up.
+        let maxRetries = 3
+        findOrphanData(withRetries: maxRetries) { orphanData in
+            processOrphans(orphanData,
+                           remainingRetries: maxRetries,
+                           shouldRemoveOrphans: shouldRemoveOrphans) {
+                Logger.info("Completed orphan data cleanup.")
+
+                databaseStorage.write { transaction in
+                    keyValueStore.setString(AppVersionImpl.shared.currentAppVersion,
+                                            key: Constants.lastCleaningVersionKey,
+                                            transaction: transaction)
+                    keyValueStore.setDate(Date(),
+                                          key: Constants.lastCleaningDateKey,
+                                          transaction: transaction)
+                }
+
+                completion?()
+            } failure: {
+                Logger.info("Aborting orphan data cleanup.")
+                completion?()
+            }
+        } failure: {
+            Logger.info("Aborting orphan data cleanup.")
+            completion?()
+        }
+    }
+
     private static func shouldAuditWithSneakyTransaction() -> Bool {
-        let kvs = keyValueStore()
-        let currentAppVersion = AppVersionImpl.shared.currentAppReleaseVersion
+        let kvs = keyValueStore
+        let currentAppVersion = AppVersionImpl.shared.currentAppVersion
 
         return databaseStorage.read { transaction -> Bool in
-            guard DependenciesBridge.shared.tsAccountManager.registrationState(tx: transaction.asV2Read).isRegistered else {
-                Logger.info("Orphan data audit skipped because we're not registered")
+            let tsAccountManager = DependenciesBridge.shared.tsAccountManager
+            guard tsAccountManager.registrationState(tx: transaction.asV2Read).isRegistered else {
                 return false
             }
 
             let lastCleaningVersion = kvs.getString(
-                OWSOrphanDataCleaner_LastCleaningVersionKey,
+                Constants.lastCleaningVersionKey,
                 transaction: transaction
             )
             guard let lastCleaningVersion else {
@@ -40,12 +131,12 @@ extension OWSOrphanDataCleaner {
                 return true
             }
             guard lastCleaningVersion == currentAppVersion else {
-                Logger.info("Performing orphan data cleanup because we're on a different app version (\(currentAppVersion)")
+                Logger.info("Performing orphan data cleanup because we're on a different app version")
                 return true
             }
 
             let lastCleaningDate = kvs.getDate(
-                OWSOrphanDataCleaner_LastCleaningDateKey,
+                Constants.lastCleaningDateKey,
                 transaction: transaction
             )
             guard let lastCleaningDate else {
@@ -64,27 +155,23 @@ extension OWSOrphanDataCleaner {
                 return true
             }
 
-            Logger.info("Orphan data audit skipped because no other checks succeeded")
             return false
         }
     }
 
-    @objc
-    static func findJobRecordAttachmentIds(transaction: SDSAnyReadTransaction) -> [String]? {
+    private static func findJobRecordAttachmentIds(transaction: SDSAnyReadTransaction) -> [String]? {
         var attachmentIds = [String]()
         var shouldAbort = false
 
         func findAttachmentIds<JobRecordType: JobRecord>(
-            label: String,
             transaction: SDSAnyReadTransaction,
             jobRecordAttachmentIds: (JobRecordType) -> some Sequence<String>
         ) {
             do {
-                try JobRecordFinderImpl<JobRecordType>().enumerateJobRecords(
-                    label: label,
+                try JobRecordFinderImpl<JobRecordType>(db: DependenciesBridge.shared.db).enumerateJobRecords(
                     transaction: transaction.asV2Read,
                     block: { jobRecord, stop in
-                        guard isMainAppAndActive() else {
+                        guard isMainAppAndActive else {
                             shouldAbort = true
                             stop = true
                             return
@@ -98,10 +185,12 @@ extension OWSOrphanDataCleaner {
         }
 
         findAttachmentIds(
-            label: MessageSenderJobQueue.jobRecordLabel,
             transaction: transaction,
-            jobRecordAttachmentIds: { (jobRecord: MessageSenderJobRecord) in
-                fetchMessage(for: jobRecord, transaction: transaction)?.allAttachmentIds() ?? []
+            jobRecordAttachmentIds: { (jobRecord: MessageSenderJobRecord) -> [String] in
+                guard let message = fetchMessage(for: jobRecord, transaction: transaction) else {
+                    return []
+                }
+                return Self.legacyAttachmentUniqueIds(message)
             }
         )
 
@@ -110,9 +199,8 @@ extension OWSOrphanDataCleaner {
         }
 
         findAttachmentIds(
-            label: BroadcastMediaMessageJobRecord.defaultLabel,
             transaction: transaction,
-            jobRecordAttachmentIds: { (jobRecord: BroadcastMediaMessageJobRecord) in jobRecord.attachmentIdMap.keys }
+            jobRecordAttachmentIds: { (jobRecord: TSAttachmentMultisendJobRecord) in jobRecord.attachmentIdMap.keys }
         )
 
         if shouldAbort {
@@ -120,9 +208,8 @@ extension OWSOrphanDataCleaner {
         }
 
         findAttachmentIds(
-            label: IncomingGroupSyncJobRecord.defaultLabel,
             transaction: transaction,
-            jobRecordAttachmentIds: { (jobRecord: IncomingGroupSyncJobRecord) in [jobRecord.attachmentId] }
+            jobRecordAttachmentIds: { (jobRecord: IncomingGroupSyncJobRecord) in [jobRecord.legacyAttachmentId].compacted() }
         )
 
         if shouldAbort {
@@ -130,9 +217,15 @@ extension OWSOrphanDataCleaner {
         }
 
         findAttachmentIds(
-            label: IncomingContactSyncJobRecord.defaultLabel,
             transaction: transaction,
-            jobRecordAttachmentIds: { (jobRecord: IncomingContactSyncJobRecord) in [jobRecord.attachmentId] }
+            jobRecordAttachmentIds: { (jobRecord: IncomingContactSyncJobRecord) -> [String] in
+                switch jobRecord.downloadInfo {
+                case .invalid, .transient:
+                    return []
+                case .legacy(let attachmentId):
+                    return [attachmentId]
+                }
+            }
         )
 
         if shouldAbort {
@@ -146,14 +239,12 @@ extension OWSOrphanDataCleaner {
         for jobRecord: MessageSenderJobRecord,
         transaction: SDSAnyReadTransaction
     ) -> TSMessage? {
-        if let invisibleMessage = jobRecord.invisibleMessage {
-            return invisibleMessage
-        }
-
-        let fetchMessageForMessageId: () -> TSMessage? = {
-            guard let messageId = jobRecord.messageId else {
-                return nil
-            }
+        switch jobRecord.messageType {
+        case .none:
+            return nil
+        case .transient(let message):
+            return message
+        case .persisted(let messageId, _), .editMessage(let messageId, _, _):
             guard let interaction = TSInteraction.anyFetch(uniqueId: messageId, transaction: transaction) else {
                 // Interaction may have been deleted.
                 Logger.warn("Missing interaction")
@@ -161,14 +252,324 @@ extension OWSOrphanDataCleaner {
             }
             return interaction as? TSMessage
         }
-        if let fetchedMessage = fetchMessageForMessageId() {
-            return fetchedMessage
-        }
-
-        return nil
     }
 
     // MARK: - Find
+
+    /// This method finds but does not delete orphan data.
+    ///
+    /// The follow items are considered orphan data:
+    /// * Orphan `TSInteraction`s (with no thread).
+    /// * Orphan `TSAttachment`s (with no message).
+    /// * Orphan attachment files (with no corresponding `TSAttachment`).
+    /// * Orphan profile avatars.
+    /// * Temporary files (all).
+    ///
+    /// It also finds but we don't clean these up:
+    /// * Missing attachment files (cannot be cleaned up).
+    ///   These are attachments which have no file on disk. The should be extremely rare -
+    ///   the only cases I have seen are probably due to debugging.
+    ///   They can't be cleaned up - we don't want to delete the TSAttachmentStream or
+    ///   its corresponding message. Better that the broken message shows up in the
+    ///   conversation view.
+    private static func findOrphanData(withRetries remainingRetries: Int,
+                                       success: @escaping OrphanDataBlock,
+                                       failure: @escaping () -> Void) {
+        guard remainingRetries > 0 else {
+            Logger.info("Aborting orphan data search. No more retries.")
+            workQueue.async(failure)
+            return
+        }
+
+        Logger.info("Enqueuing an orphan data search. Remaining retries: \(remainingRetries)")
+
+        // Wait until the app is active...
+        CurrentAppContext().runNowOrWhenMainAppIsActive {
+            // ...but perform the work off the main thread.
+            let backgroundTask = OWSBackgroundTask(label: #function)
+            workQueue.async {
+                if let orphanData = findOrphanDataSync() {
+                    success(orphanData)
+                } else {
+                    findOrphanData(withRetries: remainingRetries - 1, success: success, failure: failure)
+                }
+                backgroundTask.end()
+            }
+        }
+    }
+
+    /// Returns `nil` on failure, usually indicating that the search
+    /// aborted due to the app resigning active. This method is extremely careful to
+    /// abort if the app resigns active, in order to avoid `0xdead10cc` crashes.
+    private static func findOrphanDataSync() -> OWSOrphanData? {
+        var shouldAbort = false
+
+        let legacyAttachmentsDirPath = TSAttachmentStream.legacyAttachmentsDirPath()
+        let sharedDataAttachmentsDirPath = TSAttachmentStream.sharedDataAttachmentsDirPath()
+        guard let legacyAttachmentFilePaths = filePaths(inDirectorySafe: legacyAttachmentsDirPath), isMainAppAndActive else {
+            return nil
+        }
+        guard let sharedDataAttachmentFilePaths = filePaths(inDirectorySafe: sharedDataAttachmentsDirPath), isMainAppAndActive else {
+            return nil
+        }
+
+        let legacyProfileAvatarsDirPath = OWSUserProfile.legacyProfileAvatarsDirPath
+        let sharedDataProfileAvatarsDirPath = OWSUserProfile.sharedDataProfileAvatarsDirPath
+        guard let legacyProfileAvatarsFilePaths = filePaths(inDirectorySafe: legacyProfileAvatarsDirPath), isMainAppAndActive else {
+            return nil
+        }
+        guard let sharedDataProfileAvatarFilePaths = filePaths(inDirectorySafe: sharedDataProfileAvatarsDirPath), isMainAppAndActive else {
+            return nil
+        }
+
+        guard let allGroupAvatarFilePaths = filePaths(inDirectorySafe: TSGroupModel.avatarsDirectory.path), isMainAppAndActive else {
+            return nil
+        }
+
+        let stickersDirPath = StickerManager.cacheDirUrl().path
+        guard let allStickerFilePaths = filePaths(inDirectorySafe: stickersDirPath), isMainAppAndActive else {
+            return nil
+        }
+
+        let allOnDiskFilePaths: Set<String> = {
+            var result: Set<String> = []
+            result.formUnion(legacyAttachmentFilePaths)
+            result.formUnion(sharedDataAttachmentFilePaths)
+            result.formUnion(legacyProfileAvatarsFilePaths)
+            result.formUnion(sharedDataProfileAvatarFilePaths)
+            result.formUnion(allGroupAvatarFilePaths)
+            result.formUnion(allStickerFilePaths)
+            // TODO: Badges?
+
+            // This should be redundant, but this will future-proof us against
+            // ever accidentally removing the GRDB databases during
+            // orphan clean up.
+            let grdbPrimaryDirectoryPath = GRDBDatabaseStorageAdapter.databaseDirUrl(directoryMode: .primary).path
+            let grdbHotswapDirectoryPath = GRDBDatabaseStorageAdapter.databaseDirUrl(directoryMode: .hotswapLegacy).path
+            let grdbTransferDirectoryPath: String?
+            if GRDBDatabaseStorageAdapter.hasAssignedTransferDirectory && TSAccountManagerObjcBridge.isTransferInProgressWithMaybeTransaction {
+                grdbTransferDirectoryPath = GRDBDatabaseStorageAdapter.databaseDirUrl(directoryMode: .transfer).path
+            } else {
+                grdbTransferDirectoryPath = nil
+            }
+
+            let databaseFilePaths: Set<String> = {
+                var filePathsToSubtract: Set<String> = []
+                for filePath in result {
+                    if filePath.hasPrefix(grdbPrimaryDirectoryPath) {
+                        Logger.info("Protecting database file: \(filePath)")
+                        filePathsToSubtract.insert(filePath)
+                    } else if filePath.hasPrefix(grdbHotswapDirectoryPath) {
+                        Logger.info("Protecting database hotswap file: \(filePath)")
+                        filePathsToSubtract.insert(filePath)
+                    } else if let grdbTransferDirectoryPath, filePath.hasPrefix(grdbTransferDirectoryPath) {
+                        Logger.info("Protecting database hotswap file: \(filePath)")
+                        filePathsToSubtract.insert(filePath)
+                    }
+                }
+                return filePathsToSubtract
+            }()
+            result.subtract(databaseFilePaths)
+
+            return result
+        }()
+
+        let profileAvatarFilePaths: Set<String> = {
+            var result: Set<String> = []
+            databaseStorage.read { transaction in
+                result = OWSProfileManager.allProfileAvatarFilePaths(transaction: transaction)
+            }
+            return result
+        }()
+
+        guard let groupAvatarFilePaths = {
+            do {
+                var result: Set<String> = []
+                try databaseStorage.read { transaction in
+                    result = try TSGroupModel.allGroupAvatarFilePaths(transaction: transaction)
+                }
+                return result
+            } catch {
+                owsFailDebug("Failed to query group avatar file paths \(error)")
+                return nil
+            }
+        }() else {
+            return nil
+        }
+
+        guard isMainAppAndActive else {
+            return nil
+        }
+
+        let voiceMessageDraftOrphanedPaths = findOrphanedVoiceMessageDraftPaths()
+
+        guard isMainAppAndActive else {
+            return nil
+        }
+
+        guard isMainAppAndActive else {
+            return nil
+        }
+
+        // Attachments
+        var attachmentStreamCount: Int = 0
+        var allAttachmentFilePaths: Set<String> = []
+        var allAttachmentIds: Set<String> = []
+        var allReactionIds: Set<String> = []
+        var allMentionIds: Set<String> = []
+        var orphanInteractionIds: Set<String> = []
+        var allMessageAttachmentIds: Set<String> = []
+        var allStoryAttachmentIds: Set<String> = []
+        var allMessageReactionIds: Set<String> = []
+        var allMessageMentionIds: Set<String> = []
+        var activeStickerFilePaths: Set<String> = []
+        var hasOrphanedPacksOrStickers = false
+        databaseStorage.read { transaction in
+            TSAttachmentStream.anyEnumerate(transaction: transaction, batched: true) { attachment, stop in
+                guard isMainAppAndActive else {
+                    shouldAbort = true
+                    stop.pointee = true
+                    return
+                }
+                guard let attachmentStream = attachment as? TSAttachmentStream else {
+                    return
+                }
+                allAttachmentIds.insert(attachment.uniqueId)
+                attachmentStreamCount += 1
+                if let filePath = attachmentStream.originalFilePath {
+                    allAttachmentFilePaths.insert(filePath)
+                } else {
+                    owsFailDebug("attachment has no file path.")
+                }
+
+                allAttachmentFilePaths.formUnion(attachmentStream.allSecondaryFilePaths())
+            }
+
+            if shouldAbort {
+                return
+            }
+
+            let threadIds: Set<String> = Set(TSThread.anyAllUniqueIds(transaction: transaction))
+
+            var allInteractionIds: Set<String> = []
+            TSInteraction.anyEnumerate(transaction: transaction, batched: true) { interaction, stop in
+                guard isMainAppAndActive else {
+                    shouldAbort = true
+                    stop.pointee = true
+                    return
+                }
+                if interaction.uniqueThreadId.isEmpty || !threadIds.contains(interaction.uniqueThreadId) {
+                    orphanInteractionIds.insert(interaction.uniqueId)
+                }
+
+                allInteractionIds.insert(interaction.uniqueId)
+                guard let message = interaction as? TSMessage else {
+                    return
+                }
+                allMessageAttachmentIds.formUnion(legacyAttachmentUniqueIds(message))
+            }
+
+            if shouldAbort {
+                return
+            }
+
+            OWSReaction.anyEnumerate(transaction: transaction, batchingPreference: .batched()) { reaction, stop in
+                guard isMainAppAndActive else {
+                    shouldAbort = true
+                    stop.pointee = true
+                    return
+                }
+                allReactionIds.insert(reaction.uniqueId)
+                if allInteractionIds.contains(reaction.uniqueMessageId) {
+                    allMessageReactionIds.insert(reaction.uniqueId)
+                }
+            }
+
+            if shouldAbort {
+                return
+            }
+
+            TSMention.anyEnumerate(transaction: transaction, batchingPreference: .batched()) { mention, stop in
+                guard isMainAppAndActive else {
+                    shouldAbort = true
+                    stop.pointee = true
+                    return
+                }
+                allMentionIds.insert(mention.uniqueId)
+                if allInteractionIds.contains(mention.uniqueMessageId) {
+                    allMessageMentionIds.insert(mention.uniqueId)
+                }
+            }
+
+            if shouldAbort {
+                return
+            }
+
+            StoryMessage.anyEnumerate(transaction: transaction, batchingPreference: .batched()) { message, stop in
+                guard isMainAppAndActive else {
+                    shouldAbort = true
+                    stop.pointee = true
+                    return
+                }
+                if let attachmentUniqueId = legacyAttachmentUniqueId(message) {
+                    allStoryAttachmentIds.insert(attachmentUniqueId)
+                }
+            }
+
+            if shouldAbort {
+                return
+            }
+
+            guard let jobRecordAttachmentIds = findJobRecordAttachmentIds(transaction: transaction) else {
+                shouldAbort = true
+                return
+            }
+
+            allMessageAttachmentIds.formUnion(jobRecordAttachmentIds)
+
+            activeStickerFilePaths.formUnion(StickerManager.filePathsForAllInstalledStickers(transaction: transaction))
+
+            hasOrphanedPacksOrStickers = StickerManager.hasOrphanedData(tx: transaction)
+        }
+        if shouldAbort {
+            return nil
+        }
+
+        var orphanFilePaths = allOnDiskFilePaths
+        orphanFilePaths.subtract(allAttachmentFilePaths)
+        orphanFilePaths.subtract(profileAvatarFilePaths)
+        orphanFilePaths.subtract(groupAvatarFilePaths)
+        orphanFilePaths.subtract(activeStickerFilePaths)
+        var missingAttachmentFilePaths = allAttachmentFilePaths
+        missingAttachmentFilePaths.subtract(allOnDiskFilePaths)
+
+        var orphanAttachmentIds = allAttachmentIds
+        orphanAttachmentIds.subtract(allMessageAttachmentIds)
+        orphanAttachmentIds.subtract(allStoryAttachmentIds)
+        var missingAttachmentIds = allMessageAttachmentIds
+        missingAttachmentIds.subtract(allAttachmentIds)
+
+        var orphanReactionIds = allReactionIds
+        orphanReactionIds.subtract(allMessageReactionIds)
+        var missingReactionIds = allMessageReactionIds
+        missingReactionIds.subtract(allReactionIds)
+
+        var orphanMentionIds = allMentionIds
+        orphanMentionIds.subtract(allMessageMentionIds)
+        var missingMentionIds = allMessageMentionIds
+        missingMentionIds.subtract(allMentionIds)
+
+        var orphanFileAndDirectoryPaths: Set<String> = []
+        orphanFileAndDirectoryPaths.formUnion(voiceMessageDraftOrphanedPaths)
+
+        return OWSOrphanData(interactionIds: orphanInteractionIds,
+                             attachmentIds: orphanAttachmentIds,
+                             filePaths: orphanFilePaths,
+                             reactionIds: orphanReactionIds,
+                             mentionIds: orphanMentionIds,
+                             fileAndDirectoryPaths: orphanFileAndDirectoryPaths,
+                             hasOrphanedPacksOrStickers: hasOrphanedPacksOrStickers)
+    }
 
     /// Finds paths in `baseUrl` not present in `fetchExpectedRelativePaths()`.
     private static func findOrphanedPaths(
@@ -221,8 +622,7 @@ extension OWSOrphanDataCleaner {
         return Set(orphanedRelativePaths.lazy.map { basePath.appendingPathComponent($0) })
     }
 
-    @objc
-    static func findOrphanedVoiceMessageDraftPaths() -> Set<String> {
+    private static func findOrphanedVoiceMessageDraftPaths() -> Set<String> {
         findOrphanedPaths(
             baseUrl: VoiceMessageInterruptedDraftStore.draftVoiceMessageDirectory,
             fetchExpectedRelativePaths: {
@@ -231,24 +631,208 @@ extension OWSOrphanDataCleaner {
         )
     }
 
-    @objc
-    static func findOrphanedWallpaperPaths() -> Set<String> {
-        findOrphanedPaths(
-            baseUrl: DependenciesBridge.shared.wallpaperStore.customPhotoDirectory,
-            fetchExpectedRelativePaths: { Wallpaper.allCustomPhotoRelativePaths(tx: $0.asV2Read) }
-        )
-    }
-
     // MARK: - Remove
 
-    @objc
-    static func removeOrphanedFileAndDirectoryPaths(_ fileAndDirectoryPaths: Set<String>) -> Bool {
+    /// Calls `failure` on exhausting all remaining retries, usually indicating that
+    /// orphan processing aborted due to the app resigning active. This method is
+    /// extremely careful to abort if the app resigns active, in order to avoid
+    /// `0xdead10cc` crashes.
+    private static func processOrphans(_ orphanData: OWSOrphanData,
+                                       remainingRetries: Int,
+                                       shouldRemoveOrphans: Bool,
+                                       success: @escaping () -> Void,
+                                       failure: @escaping () -> Void) {
+        guard remainingRetries > 0 else {
+            Logger.info("Aborting orphan data audit.")
+            workQueue.async(failure)
+            return
+        }
+
+        // Wait until the app is active...
+        CurrentAppContext().runNowOrWhenMainAppIsActive {
+            // ...but perform the work off the main thread.
+            let backgroundTask = OWSBackgroundTask(label: #function)
+            workQueue.async {
+                let result = processOrphansSync(orphanData, shouldRemoveOrphans: shouldRemoveOrphans)
+                if result {
+                    success()
+                } else {
+                    processOrphans(orphanData,
+                                   remainingRetries: remainingRetries - 1,
+                                   shouldRemoveOrphans: shouldRemoveOrphans,
+                                   success: success,
+                                   failure: failure)
+                }
+                backgroundTask.end()
+            }
+        }
+    }
+
+    /// Returns `false` on failure, usually indicating that orphan processing
+    /// aborted due to the app resigning active.  This method is extremely careful to
+    /// abort if the app resigns active, in order to avoid `0xdead10cc` crashes.
+    private static func processOrphansSync(_ orphanData: OWSOrphanData, shouldRemoveOrphans: Bool) -> Bool {
+        guard isMainAppAndActive else {
+            return false
+        }
+
+        var shouldAbort = false
+
+        // We need to avoid cleaning up new files that are still in the process of
+        // being created/written, so we don't clean up anything recent.
+        let minimumOrphanAgeSeconds: TimeInterval = CurrentAppContext().isRunningTests ? 0 : 15 * kMinuteInterval
+        let appLaunchTime = CurrentAppContext().appLaunchTime
+        let thresholdTimestamp = appLaunchTime.timeIntervalSince1970 - minimumOrphanAgeSeconds
+        let thresholdDate = Date(timeIntervalSince1970: thresholdTimestamp)
+        databaseStorage.write { transaction in
+            var interactionsRemoved: UInt = 0
+            for interactionId in orphanData.interactionIds {
+                guard isMainAppAndActive else {
+                    shouldAbort = true
+                    return
+                }
+                guard let interaction = TSInteraction.anyFetch(uniqueId: interactionId, transaction: transaction) else {
+                    // This could just be a race condition, but it should be very unlikely.
+                    Logger.warn("Could not load interaction: \(interactionId)")
+                    continue
+                }
+                // Don't delete interactions which were created in the last N minutes.
+                let creationDate = Date(millisecondsSince1970: interaction.timestamp)
+                guard creationDate <= thresholdDate else {
+                    Logger.info("Skipping orphan interaction due to age: \(creationDate.timeIntervalSinceNow)")
+                    continue
+                }
+                Logger.info("Removing orphan message: \(interaction.uniqueId)")
+                interactionsRemoved += 1
+                guard shouldRemoveOrphans else {
+                    continue
+                }
+                DependenciesBridge.shared.interactionDeleteManager
+                    .delete(interaction, sideEffects: .default(), tx: transaction.asV2Write)
+            }
+            Logger.info("Deleted orphan interactions: \(interactionsRemoved)")
+
+            var attachmentsRemoved: UInt = 0
+            for attachmentId in orphanData.attachmentIds {
+                guard isMainAppAndActive else {
+                    shouldAbort = true
+                    return
+                }
+                guard let attachment = TSAttachment.anyFetch(uniqueId: attachmentId, transaction: transaction) else {
+                    // This can happen on launch since we sync contacts/groups, especially if you have a lot of attachments
+                    // to churn through, it's likely it's been deleted since starting this job.
+                    Logger.warn("Could not load attachment: \(attachmentId)")
+                    continue
+                }
+                guard let attachmentStream = attachment as? TSAttachmentStream else {
+                    continue
+                }
+                // Don't delete attachments which were created in the last N minutes.
+                let creationDate = attachmentStream.creationTimestamp
+                guard creationDate <= thresholdDate else {
+                    Logger.info("Skipping orphan attachment due to age: \(creationDate.timeIntervalSinceNow)")
+                    continue
+                }
+                Logger.info("Removing orphan attachmentStream: \(attachmentStream.uniqueId)")
+                attachmentsRemoved += 1
+                guard shouldRemoveOrphans else {
+                    continue
+                }
+                attachmentStream.anyRemove(transaction: transaction)
+            }
+            Logger.info("Deleted orphan attachments: \(attachmentsRemoved)")
+
+            var reactionsRemoved: UInt = 0
+            for reactionId in orphanData.reactionIds {
+                guard isMainAppAndActive else {
+                    shouldAbort = true
+                    return
+                }
+
+                let performedCleanup = ReactionManager.tryToCleanupOrphanedReaction(uniqueId: reactionId,
+                                                                                    thresholdDate: thresholdDate,
+                                                                                    shouldPerformRemove: shouldRemoveOrphans,
+                                                                                    transaction: transaction)
+                if performedCleanup {
+                    reactionsRemoved += 1
+                }
+            }
+            Logger.info("Deleted orphan reactions: \(reactionsRemoved)")
+
+            var mentionsRemoved: UInt = 0
+            for mentionId in orphanData.mentionIds {
+                guard isMainAppAndActive else {
+                    shouldAbort = true
+                    return
+                }
+
+                let performedCleanup = MentionFinder.tryToCleanupOrphanedMention(uniqueId: mentionId,
+                                                                                 thresholdDate: thresholdDate,
+                                                                                 shouldPerformRemove: shouldRemoveOrphans,
+                                                                                 transaction: transaction)
+                if performedCleanup {
+                    mentionsRemoved += 1
+                }
+            }
+            Logger.info("Deleted orphan mentions: \(mentionsRemoved)")
+
+            if orphanData.hasOrphanedPacksOrStickers {
+                StickerManager.cleanUpOrphanedData(tx: transaction)
+            }
+        }
+
+        guard !shouldAbort else {
+            return false
+        }
+
+        var filesRemoved: UInt = 0
+        let filePaths = orphanData.filePaths.sorted()
+        for filePath in filePaths {
+            guard isMainAppAndActive else {
+                return false
+            }
+
+            guard let attributes = try? FileManager.default.attributesOfItem(atPath: filePath) else {
+                // This is fine; the file may have been deleted since we found it.
+                Logger.warn("Could not get attributes of file at: \(filePath)")
+                continue
+            }
+            // Don't delete files which were created in the last N minutes.
+            if let creationDate = (attributes as NSDictionary).fileModificationDate(), creationDate > thresholdDate {
+                Logger.info("Skipping file due to age: \(creationDate.timeIntervalSinceNow)")
+                continue
+            }
+            Logger.info("Deleting file: \(filePath)")
+            filesRemoved += 1
+            guard shouldRemoveOrphans else {
+                continue
+            }
+            guard OWSFileSystem.fileOrFolderExists(atPath: filePath) else {
+                // Already removed.
+                continue
+            }
+            if !OWSFileSystem.deleteFile(filePath, ignoreIfMissing: true) {
+                owsFailDebug("Could not remove orphan file")
+            }
+        }
+        Logger.info("Deleted orphan files: \(filesRemoved)")
+
+        if shouldRemoveOrphans {
+            guard removeOrphanedFileAndDirectoryPaths(orphanData.fileAndDirectoryPaths) else {
+                return false
+            }
+        }
+
+        return true
+    }
+
+    private static func removeOrphanedFileAndDirectoryPaths(_ fileAndDirectoryPaths: Set<String>) -> Bool {
         var successCount = 0
         var errorCount = 0
         // Sort by longest path to shortest path so that we remove files before we
         // try to remove the directories that contain them.
         for fileOrDirectoryPath in fileAndDirectoryPaths.sorted(by: { $0.count < $1.count }).reversed() {
-            if !self.isMainAppAndActive() {
+            if !self.isMainAppAndActive {
                 return false
             }
             do {
@@ -299,5 +883,60 @@ extension OWSOrphanDataCleaner {
             throw POSIXError(errorCode)
         }
         throw OWSGenericError("Operation failed.")
+    }
+
+    // MARK: - Helpers
+
+    private static func legacyAttachmentUniqueIds(_ message: TSMessage) -> [String] {
+        let ids = TSAttachmentStore().allAttachmentIds(for: message)
+        return Array(ids)
+    }
+
+    private static func legacyAttachmentUniqueId(_ storyMessage: StoryMessage) -> String? {
+        switch storyMessage.attachment {
+        case .file(let file):
+            return file.attachmentId
+        case .text(let textAttachment):
+            return textAttachment.preview?.legacyImageAttachmentId
+        case .foreignReferenceAttachment:
+            return nil
+        }
+    }
+
+    private static func filePaths(inDirectorySafe dirPath: String) -> Set<String>? {
+        guard FileManager.default.fileExists(atPath: dirPath) else {
+            return []
+        }
+        do {
+            var result: Set<String> = []
+            let fileNames = try FileManager.default.contentsOfDirectory(atPath: dirPath)
+            for fileName in fileNames {
+                guard isMainAppAndActive else {
+                    return nil
+                }
+                let filePath = dirPath.appendingPathComponent(fileName)
+                var isDirectory: ObjCBool = false
+                if FileManager.default.fileExists(atPath: filePath, isDirectory: &isDirectory) {
+                    if isDirectory.boolValue {
+                        guard let dirPaths = filePaths(inDirectorySafe: filePath) else {
+                            return nil
+                        }
+                        result.formUnion(dirPaths)
+                    } else {
+                        result.insert(filePath)
+                    }
+                }
+            }
+            return result
+        } catch {
+            switch error {
+            case POSIXError.ENOENT, CocoaError.fileReadNoSuchFile:
+                // Races may cause files to be removed while we crawl the directory contents.
+                Logger.warn("Error: \(error)")
+            default:
+                owsFailDebug("Error: \(error)")
+            }
+            return []
+        }
     }
 }

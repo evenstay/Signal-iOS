@@ -5,17 +5,16 @@
 
 import Foundation
 import LibSignalClient
-import SignalCoreKit
-@testable import SignalServiceKit
-@testable import Signal
+@testable public import SignalServiceKit
+@testable public import Signal
 
 extension RegistrationCoordinatorImpl {
 
     public enum TestMocks {
-        public typealias AccountManager = _RegistrationCoordinator_AccountManagerMock
         public typealias ContactsManager = _RegistrationCoordinator_ContactsManagerMock
         public typealias ContactsStore = _RegistrationCoordinator_CNContactsStoreMock
         public typealias ExperienceManager = _RegistrationCoordinator_ExperienceManagerMock
+        public typealias FeatureFlags = _RegistrationCoordinator_FeatureFlagsMock
         public typealias MessagePipelineSupervisor = _RegistrationCoordinator_MessagePipelineSupervisorMock
         public typealias MessageProcessor = _RegistrationCoordinator_MessageProcessorMock
         public typealias OWS2FAManager = _RegistrationCoordinator_OWS2FAManagerMock
@@ -24,19 +23,6 @@ extension RegistrationCoordinatorImpl {
         public typealias PushRegistrationManager = _RegistrationCoordinator_PushRegistrationManagerMock
         public typealias ReceiptManager = _RegistrationCoordinator_ReceiptManagerMock
         public typealias UDManager = _RegistrationCoordinator_UDManagerMock
-    }
-}
-
-// MARK: - AccountManager
-
-public class _RegistrationCoordinator_AccountManagerMock: _RegistrationCoordinator_AccountManagerShim {
-
-    public init() {}
-
-    public var performInitialStorageServiceRestoreMock: ((AuthedDevice) -> Promise<Void>)?
-
-    public func performInitialStorageServiceRestore(authedDevice: AuthedDevice) -> Promise<Void> {
-        return performInitialStorageServiceRestoreMock!(authedDevice)
     }
 }
 
@@ -92,6 +78,13 @@ public class _RegistrationCoordinator_ExperienceManagerMock: _RegistrationCoordi
         didEnableAllGetStartedCards = true
         enableAllGetStartedCardsMock?()
     }
+}
+
+public class _RegistrationCoordinator_FeatureFlagsMock: _RegistrationCoordinator_FeatureFlagsShim {
+
+    public init() {}
+
+    public var messageBackupFileAlphaRegistrationFlow: Bool { false }
 }
 
 // MARK: - MessagePipelineSupervisor
@@ -163,22 +156,22 @@ public class _RegistrationCoordinator_OWS2FAManagerMock: _RegistrationCoordinato
 
 // MARK: - PreKeyManager
 
-public class _RegistrationCoordinator_PreKeyManagerMock: MockPreKeyManager {
+public class _RegistrationCoordinator_PreKeyManagerMock: _RegistrationCoordinator_PreKeyManagerShim {
     public var createPreKeysMock: (() -> Promise<RegistrationPreKeyUploadBundles>)?
 
-    override public func createPreKeysForRegistration() -> Promise<RegistrationPreKeyUploadBundles> {
+    public func createPreKeysForRegistration() -> Promise<RegistrationPreKeyUploadBundles> {
         return createPreKeysMock!()
     }
 
     public var finalizePreKeysMock: ((_ didSucceed: Bool) -> Promise<Void>)?
 
-    override public func finalizeRegistrationPreKeys(_ bundles: RegistrationPreKeyUploadBundles, uploadDidSucceed: Bool) -> Promise<Void> {
+    public func finalizeRegistrationPreKeys(_ bundles: RegistrationPreKeyUploadBundles, uploadDidSucceed: Bool) -> Promise<Void> {
         return finalizePreKeysMock!(uploadDidSucceed)
     }
 
     public var rotateOneTimePreKeysMock: ((ChatServiceAuth) -> Promise<Void>)?
 
-    override public func rotateOneTimePreKeysForRegistration(auth: ChatServiceAuth) -> Promise<Void> {
+    public func rotateOneTimePreKeysForRegistration(auth: ChatServiceAuth) -> Promise<Void> {
         return rotateOneTimePreKeysMock!(auth)
     }
 }
@@ -193,27 +186,33 @@ public class _RegistrationCoordinator_ProfileManagerMock: _RegistrationCoordinat
 
     public var hasProfileName: Bool { return hasProfileNameMock() }
 
-    public var localProfileKeyMock: () -> OWSAES256Key = { OWSAES256Key() }
+    public var localProfileKeyMock: () -> Aes256Key = { Aes256Key() }
 
-    public var localProfileKey: OWSAES256Key { return localProfileKeyMock() }
+    public var localProfileKey: Aes256Key { return localProfileKeyMock() }
 
     public var updateLocalProfileMock: ((
-        _ givenName: String,
-        _ familyName: String?,
+        _ givenName: OWSUserProfile.NameComponent,
+        _ familyName: OWSUserProfile.NameComponent?,
         _ avatarData: Data?,
-        _ authedAccount: AuthedAccount
+        _ authedAccount: AuthedAccount,
+        _ tx: DBWriteTransaction
     ) -> Promise<Void>)?
 
     public func updateLocalProfile(
-        givenName: String,
-        familyName: String?,
+        givenName: OWSUserProfile.NameComponent,
+        familyName: OWSUserProfile.NameComponent?,
         avatarData: Data?,
-        authedAccount: AuthedAccount
+        authedAccount: AuthedAccount,
+        tx: DBWriteTransaction
     ) -> Promise<Void> {
-        return updateLocalProfileMock!(givenName, familyName, avatarData, authedAccount)
+        return updateLocalProfileMock!(givenName, familyName, avatarData, authedAccount, tx)
     }
 
-    func setIsOnboarded(_ tx: DBWriteTransaction) {}
+    public var didScheduleReuploadLocalProfile = false
+
+    public func scheduleReuploadLocalProfile(authedAccount: AuthedAccount) {
+        didScheduleReuploadLocalProfile = true
+    }
 }
 
 // MARK: - PushRegistrationManager
@@ -249,12 +248,6 @@ public class _RegistrationCoordinator_PushRegistrationManagerMock: _Registration
 
     public func clearPreAuthChallengeToken() {
         didClearPreAuthChallengeToken = true
-    }
-
-    public func syncPushTokensForcingUpload(
-        auth: ChatServiceAuth
-    ) -> Guarantee<Registration.SyncPushTokensResult> {
-        fatalError("Only legacy registration should be syncing push tokens")
     }
 }
 

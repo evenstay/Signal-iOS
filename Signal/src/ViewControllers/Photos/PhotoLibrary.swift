@@ -6,7 +6,7 @@
 import CoreServices
 import Foundation
 import Photos
-import SignalMessaging
+import SignalServiceKit
 
 protocol PhotoLibraryDelegate: AnyObject {
     func photoLibraryDidChange(_ photoLibrary: PhotoLibrary)
@@ -53,16 +53,13 @@ class PhotoPickerAssetItem: PhotoGridItem {
 
     var isFavorite: Bool { asset.isFavorite }
 
-    func asyncThumbnail(completion: @escaping (UIImage?) -> Void) -> UIImage? {
-        var syncImageResult: UIImage?
+    func asyncThumbnail(completion: @escaping (UIImage?) -> Void) {
         var hasLoadedImage = false
 
         // Surprisingly, iOS will opportunistically run the completion block sync if the image is
         // already available.
         photoCollectionContents.requestThumbnail(for: self.asset, thumbnailSize: photoMediaSize.thumbnailSize) { image, _ in
             DispatchMainThreadSafe({
-                syncImageResult = image
-
                 // Once we've _successfully_ completed (e.g. invoked the completion with
                 // a non-nil image), don't invoke the completion again with a nil argument.
                 if !hasLoadedImage || image != nil {
@@ -74,7 +71,6 @@ class PhotoPickerAssetItem: PhotoGridItem {
                 }
             })
         }
-        return syncImageResult
     }
 }
 
@@ -169,7 +165,7 @@ class PhotoAlbumContents {
                     return
                 }
 
-                guard let dataSource = DataSourceValue.dataSource(with: imageData, utiType: dataUTI) else {
+                guard let dataSource = DataSourceValue(imageData, utiType: dataUTI) else {
                     future.reject(PhotoLibraryError.assertionError(description: "dataSource was unexpectedly nil"))
                     return
                 }
@@ -197,9 +193,9 @@ class PhotoAlbumContents {
                 let baseFilename: String?
                 if let onDiskVideo = video as? AVURLAsset {
                     let url = onDiskVideo.url
-                    dataUTI = MIMETypeUtil.utiType(forFileExtension: url.pathExtension) ?? kUTTypeVideo as String
+                    dataUTI = MimeTypeUtil.utiTypeForFileExtension(url.pathExtension) ?? UTType.video.identifier
 
-                    if let dataSource = try? DataSourcePath.dataSource(with: url, shouldDeleteOnDeallocation: false) {
+                    if let dataSource = try? DataSourcePath(fileUrl: url, shouldDeleteOnDeallocation: false) {
                         if !SignalAttachment.isVideoThatNeedsCompression(dataSource: dataSource, dataUTI: dataUTI) {
                             future.resolve(SignalAttachment.attachment(dataSource: dataSource, dataUTI: dataUTI))
                             return
@@ -208,16 +204,17 @@ class PhotoAlbumContents {
 
                     baseFilename = url.lastPathComponent
                 } else {
-                    dataUTI = kUTTypeVideo as String
+                    dataUTI = UTType.video.identifier
                     baseFilename = nil
                 }
 
-                let (compressPromise, _) = SignalAttachment.compressVideoAsMp4(asset: video,
-                                                                               baseFilename: baseFilename,
-                                                                               dataUTI: dataUTI)
-                compressPromise
-                    .done { future.resolve($0) }
-                    .catch { future.reject($0) }
+                Task {
+                    do {
+                        future.resolve(try await SignalAttachment.compressVideoAsMp4(asset: video, baseFilename: baseFilename, dataUTI: dataUTI))
+                    } catch {
+                        future.reject(error)
+                    }
+                }
             }
         }
     }

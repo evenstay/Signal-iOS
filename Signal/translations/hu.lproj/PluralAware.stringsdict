@@ -66,6 +66,134 @@
 			<string>Új tagok hozzáadása</string>
 		</dict>
 	</dict>
+	<key>CALL_LINK_APPROVE_ALL_REQUESTS_CONFIRMATION_BODY_%ld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$ld személy hozzáadásra kerül a híváshoz.</string>
+			<key>other</key>
+			<string>%1$ld személy hozzáadásra kerül a híváshoz.</string>
+		</dict>
+	</dict>
+	<key>CALL_LINK_APPROVE_ALL_REQUESTS_CONFIRMATION_TITLE_%ld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Jóváhagysz %1$ld kérést?</string>
+			<key>other</key>
+			<string>Jóváhagysz %1$ld kérést?</string>
+		</dict>
+	</dict>
+	<key>CALL_LINK_DENY_ALL_REQUESTS_CONFIRMATION_BODY_%ld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$ld személy nem kerül hozzáadásra a híváshoz.</string>
+			<key>other</key>
+			<string>%1$ld személy nem kerül hozzáadásra a híváshoz.</string>
+		</dict>
+	</dict>
+	<key>CALL_LINK_DENY_ALL_REQUESTS_CONFIRMATION_TITLE_%ld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Elutasítasz %1$ld kérést?</string>
+			<key>other</key>
+			<string>Elutasítasz %1$ld kérést?</string>
+		</dict>
+	</dict>
+	<key>CALL_LINK_JOIN_REQUEST_AMOUNT_MORE_BUTTON_%ld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>+%1$ld Request</string>
+			<key>other</key>
+			<string>+%1$ld Requests</string>
+		</dict>
+	</dict>
+	<key>CALL_LINK_REQUEST_HEADER_COUNT_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$ld személy várakozik</string>
+			<key>other</key>
+			<string>%1$ld személy várakozik</string>
+		</dict>
+	</dict>
+	<key>CALL_PEOPLE_HERE</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>ld</string>
+			<key>one</key>
+			<string>%1$ld személy</string>
+			<key>other</key>
+			<string>%1$ld személy</string>
+		</dict>
+	</dict>
+	<key>CALL_PEOPLE_WAITING</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>ld</string>
+			<key>one</key>
+			<string>%1$ld személy várakozik</string>
+			<key>other</key>
+			<string>%1$ld személy várakozik</string>
+		</dict>
+	</dict>
 	<key>CAMERA_VO_N_ITEMS</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -141,9 +269,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>A csevegés ezen az eszközön törlésre kerül.</string>
+			<string>Ez a csevegés minden kapcsolt eszközödön törlésre kerül.</string>
 			<key>other</key>
-			<string>Ezek a csevegések ezen az eszközön törlésre kerülnek.</string>
+			<string>Ezek a csevegések minden kapcsolt eszközödön törlésre kerülnek.</string>
 		</dict>
 	</dict>
 	<key>CONVERSATION_PICKER_CAN_SELECT_NO_MORE_CONVERSATIONS_%d</key>
@@ -349,22 +477,6 @@
 			<string>A csoporthívás elérte a maximális %1$d főt ebben a hívásban. Kérjük, próbáld újra később.</string>
 		</dict>
 	</dict>
-	<key>GROUP_CALL_IN_THIS_CALL_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>Ebben a hívásban · %1$d személy</string>
-			<key>other</key>
-			<string>Ebben a hívásban · %1$d személy</string>
-		</dict>
-	</dict>
 	<key>GROUP_CALL_IS_RINGING_MANY_PEOPLE_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -379,6 +491,22 @@
 			<string>%2$@, %3$@ és %1$d másik felhasználó hívása…</string>
 			<key>other</key>
 			<string>%2$@, %3$@ és %1$d másik felhasználó hívása…</string>
+		</dict>
+	</dict>
+	<key>GROUP_CALL_MANY_OTHERS_HERE</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>ld</string>
+			<key>one</key>
+			<string>%1$ld személy vesz részt ebben a hívásban</string>
+			<key>other</key>
+			<string>%1$ld személy vesz részt ebben a hívásban</string>
 		</dict>
 	</dict>
 	<key>GROUP_CALL_MANY_PEOPLE_HERE_%d</key>
@@ -427,6 +555,22 @@
 			<string>%2$@, %3$@ és %1$d további tag kilépett a hívásból</string>
 			<key>other</key>
 			<string>%2$@, %3$@ és %1$d további tag kilépett a hívásból</string>
+		</dict>
+	</dict>
+	<key>GROUP_CALL_ONE_KNOWN_AND_MANY_OTHERS_HERE</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>ld</string>
+			<key>one</key>
+			<string>%2$@ és %1$ld másik személy vesz részt ebben a hívásban</string>
+			<key>other</key>
+			<string>%2$@ és még %1$ld másik személy vesz részt ebben a hívásban</string>
 		</dict>
 	</dict>
 	<key>GROUP_CALL_WILL_NOTIFY_MANY_PEOPLE_%d</key>
@@ -488,9 +632,41 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>%1$d csoporttag hasonló névvel szerepel.</string>
+			<string>A csoport %1$d tagjának ugyanaz a neve.</string>
 			<key>other</key>
-			<string>%1$d csoporttag hasonló névvel szerepel.</string>
+			<string>A csoport %1$d tagjának ugyanaz a neve.</string>
+		</dict>
+	</dict>
+	<key>GROUP_MEMBERSHIP_MULTIPLE_COLLISIONS_BANNER_TITLE_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d névütközés található ebben a csoportban.</string>
+			<key>other</key>
+			<string>%1$d névütközés található ebben a csoportban.</string>
+		</dict>
+	</dict>
+	<key>GROUP_MEMBERSHIP_NAME_COLLISION_MEMBER_COUNT_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d tag</string>
+			<key>other</key>
+			<string>%1$d tag</string>
 		</dict>
 	</dict>
 	<key>GROUP_MEMBERSHIP_NAME_MULTIPLE_COLLISION_HEADER_%d</key>
@@ -504,9 +680,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>%1$d csoporttag hasonló névvel szerepel. Tekintsd át a lenti listát, és dönts a továbbiakról!</string>
+			<string>%1$d névütközés található ebben a csoportban. Tekintsd át a tagokat alább, vagy válassz műveletet.</string>
 			<key>other</key>
-			<string>%1$d csoporttag hasonló névvel szerepel. Tekintsd át a lenti listát, és dönts a továbbiakról!</string>
+			<string>%1$d névütközés található ebben a csoportban. Tekintsd át a tagokat alább, vagy válassz műveletet.</string>
 		</dict>
 	</dict>
 	<key>GROUP_MEMBERSHIP_NAME_SINGLE_COLLISION_HEADER_%d</key>
@@ -555,6 +731,22 @@
 			<string>%1$d tag</string>
 			<key>other</key>
 			<string>%1$d tag</string>
+		</dict>
+	</dict>
+	<key>GROUP_REMOTE_USER_INVITED_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d személyt meghívtak a csoportba.</string>
+			<key>other</key>
+			<string>%1$d személyt meghívtak a csoportba.</string>
 		</dict>
 	</dict>
 	<key>GROUP_REMOTE_USER_INVITED_BY_REMOTE_USER_%d</key>
@@ -637,6 +829,38 @@
 			<string>Csoport történet · %1$d néző</string>
 		</dict>
 	</dict>
+	<key>GROUP_WAS_MIGRATED_USERS_DROPPED_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d tagot nem lehetett közvetlenül hozzáadni az Új csoporthoz, ezért eltávolításra került.</string>
+			<key>other</key>
+			<string>%1$d tagot nem lehetett közvetlenül hozzáadni az Új csoporthoz, ezért eltávolításra kerültek.</string>
+		</dict>
+	</dict>
+	<key>GROUP_WAS_MIGRATED_USERS_INVITED_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>A tagot nem lehetett közvetlenül hozzáadni az új csoporthoz, ezért meghívásra került.</string>
+			<key>other</key>
+			<string>%1$d tagot nem lehetett közvetlenül hozzáadni az új csoporthoz, ezért meghívásra kerültek.</string>
+		</dict>
+	</dict>
 	<key>IMAGE_PICKER_CAN_SELECT_NO_MORE_TOAST_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -651,6 +875,22 @@
 			<string>Nem oszthatsz meg többet 1 elemnél.</string>
 			<key>other</key>
 			<string>Nem oszthatsz meg többet %1$d elemnél.</string>
+		</dict>
+	</dict>
+	<key>INACTIVE_LINKED_DEVICE_REMINDER_MEGAPHONE_BODY_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>A(z) „%2$@” összekapcsolásának megtartásához nyissa meg a Signalt az adott eszközön %1$d napon belül.</string>
+			<key>other</key>
+			<string>A(z) „%2$@” összekapcsolásának megtartásához nyissa meg a Signalt az adott eszközön %1$d napon belül.</string>
 		</dict>
 	</dict>
 	<key>MANY_GROUPS_IN_COMMON_%d</key>
@@ -781,6 +1021,22 @@
 			<string>%1$d kiválasztva</string>
 		</dict>
 	</dict>
+	<key>MESSAGE_REACTIONS_ACCESSIBILITY_LABEL_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d reakció %2$@ hangulatjellel.</string>
+			<key>other</key>
+			<string>%1$d reakció %2$@ hangulatjellel.</string>
+		</dict>
+	</dict>
 	<key>MY_STORIES_SETTINGS_VISIBILITY_ALL_SIGNAL_CONNECTIONS_EXCEPT_SUBTITLE_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -909,6 +1165,22 @@
 			<string>%1$d néző</string>
 		</dict>
 	</dict>
+	<key>OVERFLOW_REACTIONS_ACCESSIBILITY_LABEL_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d további reakció.</string>
+			<key>other</key>
+			<string>%1$d további reakció.</string>
+		</dict>
+	</dict>
 	<key>PENDING_GROUP_MEMBERS_MEMBER_INVITED_USERS_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -1003,6 +1275,22 @@
 			<string>Egyéni Történet · %1$d néző</string>
 			<key>other</key>
 			<string>Egyéni Történet · %1$d néző</string>
+		</dict>
+	</dict>
+	<key>RAISED_HANDS_TOAST_MULTIPLE_HANDS_MESSAGE</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>ld</string>
+			<key>one</key>
+			<string>%2$@ és %1$ld felemelte a kezét</string>
+			<key>other</key>
+			<string>%2$@ + %1$ld felemelte a kezét</string>
 		</dict>
 	</dict>
 	<key>REREGISTER_INVALID_PIN_ATTEMPT_COUNT_%d</key>
@@ -1131,6 +1419,22 @@
 			<string>%1$d megtekintés</string>
 			<key>other</key>
 			<string>&lt;bold&gt;%1$d&lt;/bold&gt; megtekintés</string>
+		</dict>
+	</dict>
+	<key>USERNAME_SELECTION_TOO_SHORT_ERROR_MESSAGE_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>A felhasználóneveknek legalább %1$d karakterrel kell kezdődniük</string>
+			<key>other</key>
+			<string>A felhasználóneveknek legalább %1$d karakterrel kell kezdődniük</string>
 		</dict>
 	</dict>
 </dict>

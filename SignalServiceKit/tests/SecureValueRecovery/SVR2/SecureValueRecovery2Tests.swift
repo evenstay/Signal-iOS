@@ -6,7 +6,7 @@
 import Foundation
 import XCTest
 
-@testable import SignalServiceKit
+@testable public import SignalServiceKit
 
 class SecureValueRecovery2Tests: XCTestCase {
 
@@ -47,7 +47,8 @@ class SecureValueRecovery2Tests: XCTestCase {
 
         self.svr = SecureValueRecovery2Impl(
             accountAttributesUpdater: mockAccountAttributesUpdater,
-            appReadiness: SVR2.Mocks.AppReadiness(),
+            appContext: SVR2.Mocks.AppContext(),
+            appReadiness: AppReadinessMock(),
             appVersion: MockAppVerion(),
             clientWrapper: MockSVR2ClientWrapper(),
             connectionFactory: mockConnectionFactory,

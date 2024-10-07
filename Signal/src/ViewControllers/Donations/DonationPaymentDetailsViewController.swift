@@ -4,19 +4,25 @@
 //
 
 import AuthenticationServices
-import SignalMessaging
+import SignalServiceKit
 import SignalUI
 
 class DonationPaymentDetailsViewController: OWSTableViewController2 {
+    enum IDEALPaymentType {
+        case oneTime
+        case recurring(mandate: Stripe.PaymentMethod.Mandate)
+    }
+
     enum PaymentMethod {
         case card
         case sepa(mandate: Stripe.PaymentMethod.Mandate)
+        case ideal(paymentType: IDEALPaymentType)
 
         fileprivate var stripePaymentMethod: OWSRequestFactory.StripePaymentMethod {
             switch self {
             case .card:
                 return .card
-            case .sepa:
+            case .sepa, .ideal:
                 return .bankTransfer(.sepa)
             }
         }
@@ -27,9 +33,10 @@ class DonationPaymentDetailsViewController: OWSTableViewController2 {
     let paymentMethod: PaymentMethod
     let onFinished: (Error?) -> Void
     var threeDSecureAuthenticationSession: ASWebAuthenticationSession?
+    var threeDSecureAuthenticationFuture: Future<String>?
 
     public override var preferredNavigationBarStyle: OWSNavigationBarStyle { .solid }
-    public override var navbarBackgroundColorOverride: UIColor? { .clear }
+    public override var navbarBackgroundColorOverride: UIColor? { tableBackgroundColor }
 
     init(
         donationAmount: FiatMoney,
@@ -49,13 +56,11 @@ class DonationPaymentDetailsViewController: OWSTableViewController2 {
             title = OWSLocalizedString(
                 "PAYMENT_DETAILS_CARD_TITLE",
                 comment: "Header title for card payment details screen")
-        case .sepa:
+        case .sepa, .ideal:
             title = OWSLocalizedString(
                 "PAYMENT_DETAILS_BANK_TITLE",
                 comment: "Header title for bank payment details screen")
         }
-
-        self.defaultSpacingBetweenSections = 0
     }
 
     deinit {
@@ -71,13 +76,21 @@ class DonationPaymentDetailsViewController: OWSTableViewController2 {
 
         render()
 
-        contents = OWSTableContents(sections: [donationAmountSection, formSection])
+        let sections = [donationAmountSection] + formSections()
+        contents = OWSTableContents(sections: sections)
     }
 
     public override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
 
-        cardNumberView.becomeFirstResponder()
+        switch paymentMethod {
+        case .card:
+            cardNumberView.becomeFirstResponder()
+        case .sepa:
+            ibanView.becomeFirstResponder()
+        case .ideal:
+            break
+        }
     }
 
     public override func themeDidChange() {
@@ -89,10 +102,11 @@ class DonationPaymentDetailsViewController: OWSTableViewController2 {
     // MARK: - Events
 
     private func didSubmit() {
-        // TODO: Dismiss keyboard?
+        dismissKeyboard()
+
         switch formState {
         case .invalid, .potentiallyValid:
-            owsFail("[Donations] It should be impossible to submit the form without a fully-valid card. Is the submit button properly disabled?")
+            owsFailDebug("[Donations] It should be impossible to submit the form without a fully-valid card. Is the submit button properly disabled?")
         case let .fullyValid(validForm):
             switch donationMode {
             case .oneTime:
@@ -113,10 +127,23 @@ class DonationPaymentDetailsViewController: OWSTableViewController2 {
                 switch validForm {
                 case let .card(creditOrDebitCard):
                     giftDonation(with: creditOrDebitCard, in: thread, messageText: messageText)
-                case .sepa:
+                case .sepa, .ideal:
                     owsFailDebug("Gift badges do not support bank transfers")
                 }
             }
+        }
+    }
+
+    private func dismissKeyboard() {
+        [
+            cardNumberView,
+            expirationView,
+            cvvView,
+            ibanView,
+            nameView,
+            emailView,
+        ].forEach { formFieldView in
+            formFieldView.resignFirstResponder()
         }
     }
 
@@ -135,7 +162,7 @@ class DonationPaymentDetailsViewController: OWSTableViewController2 {
                 "CARD_DONATION_SUBHEADER_TEXT",
                 comment: "On the credit/debit card donation screen, a small amount of information text is shown. This is that text. It should (1) instruct users to enter their credit/debit card information (2) tell them that Signal does not collect or store their personal information."
             )
-        case .sepa:
+        case .sepa, .ideal:
             subheaderText = OWSLocalizedString(
                 "BANK_DONATION_SUBHEADER_TEXT",
                 comment: "On the bank transfer donation screen, a small amount of information text is shown. This is that text. It should (1) instruct users to enter their bank information (2) tell them that Signal does not collect or store their personal information."
@@ -155,7 +182,6 @@ class DonationPaymentDetailsViewController: OWSTableViewController2 {
             .underlineColor: UIColor.clear,
             .underlineStyle: NSUnderlineStyle.single.rawValue
         ]
-        subheaderTextView.textAlignment = .center
 
         // Only change the placeholder when enough digits are entered.
         // Helps avoid a jittery UI as you type/delete.
@@ -298,17 +324,27 @@ class DonationPaymentDetailsViewController: OWSTableViewController2 {
                 email: emailView.text,
                 isEmailFieldFocused: emailView.isFirstResponder
             )
+        case let .ideal(paymentType):
+            return Self.formState(
+                IDEALPaymentType: paymentType,
+                IDEALBank: IDEALBank,
+                name: nameView.text,
+                email: emailView.text,
+                isEmailFieldFocused: emailView.isFirstResponder
+            )
         }
     }
 
-    private lazy var formSection: OWSTableSection = {
+    private func formSections() -> [OWSTableSection] {
         switch self.paymentMethod {
         case .card:
-            return creditCardFormSection
+            return [creditCardFormSection]
         case .sepa:
-            return sepaFormSection
+            return [sepaFormSection]
+        case .ideal:
+            return idealFormSections()
         }
-    }()
+    }
 
     private static func cell(for formFieldView: FormFieldView) -> OWSTableItem {
         .init(customCellBlock: { [weak formFieldView] in
@@ -414,7 +450,7 @@ class DonationPaymentDetailsViewController: OWSTableViewController2 {
 
     // MARK: Card number
 
-    static func formatCardNumber(unformatted: String) -> String {
+    nonisolated static func formatCardNumber(unformatted: String) -> String {
         var gaps: Set<Int>
         switch CreditAndDebitCards.cardType(ofNumber: unformatted) {
         case .americanExpress: gaps = [4, 10]
@@ -449,7 +485,7 @@ class DonationPaymentDetailsViewController: OWSTableViewController2 {
 
     // MARK: Expiration date
 
-    static func formatExpirationDate(unformatted: String) -> String {
+    nonisolated static func formatExpirationDate(unformatted: String) -> String {
         switch unformatted.count {
         case 0:
             return unformatted
@@ -475,45 +511,61 @@ class DonationPaymentDetailsViewController: OWSTableViewController2 {
         }
     }
 
-    private lazy var expirationView = FormFieldView(
-        title: Self.expirationTitle,
-        titleLayout: self.cardFormTitleLayout,
-        placeholder: OWSLocalizedString(
-            "CARD_DONATION_EXPIRATION_DATE_PLACEHOLDER",
-            comment: "Users can donate to Signal with a credit or debit card. This is the label for the card expiration date field on that screen."
-        ),
-        style: .formatted(
-            format: Self.formatExpirationDate(unformatted:),
-            allowedCharacters: .numbers,
-            maxDigits: 4
-        ),
-        textContentType: nil, // TODO: Add content type for iOS 17
-        delegate: self
-    )
+    private lazy var expirationView = {
+        let textContentType: UITextContentType?
+        if #available (iOS 17.0, *) {
+            textContentType = .creditCardExpiration
+        } else {
+            textContentType = nil
+        }
+        return FormFieldView(
+            title: Self.expirationTitle,
+            titleLayout: self.cardFormTitleLayout,
+            placeholder: OWSLocalizedString(
+                "CARD_DONATION_EXPIRATION_DATE_PLACEHOLDER",
+                comment: "Users can donate to Signal with a credit or debit card. This is the label for the card expiration date field on that screen."
+            ),
+            style: .formatted(
+                format: Self.formatExpirationDate(unformatted:),
+                allowedCharacters: .numbers,
+                maxDigits: 4
+            ),
+            textContentType: textContentType,
+            delegate: self
+        )
+    }()
 
     // MARK: CVV
 
-    private lazy var cvvView = FormFieldView(
-        title: Self.cvvTitle,
-        titleLayout: self.cardFormTitleLayout,
-        placeholder: "123",
-        style: .formatted(
-            format: { $0 },
-            allowedCharacters: .numbers,
-            maxDigits: 4
-        ),
-        textContentType: nil, // TODO: Add content type for iOS 17,
-        delegate: self
-    )
+    private lazy var cvvView = {
+        let textContentType: UITextContentType?
+        if #available(iOS 17.0, *) {
+            textContentType = .creditCardSecurityCode
+        } else {
+            textContentType = nil
+        }
+        return FormFieldView(
+            title: Self.cvvTitle,
+            titleLayout: self.cardFormTitleLayout,
+            placeholder: "123",
+            style: .formatted(
+                format: { $0 },
+                allowedCharacters: .numbers,
+                maxDigits: 4
+            ),
+            textContentType: textContentType,
+            delegate: self
+        )
+    }()
 
     // MARK: - SEPA form
 
     private lazy var sepaFormSection = {
         let section = OWSTableSection(items: [
-                Self.cell(for: self.ibanView),
-                Self.cell(for: self.nameView),
-                Self.cell(for: self.emailView),
-            ])
+            Self.cell(for: self.ibanView),
+            Self.cell(for: self.nameView),
+            Self.cell(for: self.emailView),
+        ])
 
         let label = LinkingTextView()
         let linkPart = StringStyle.Part.link(SupportConstants.subscriptionFAQURL)
@@ -538,7 +590,7 @@ class DonationPaymentDetailsViewController: OWSTableViewController2 {
 
     // MARK: IBAN
 
-    static func formatIBAN(unformatted: String) -> String {
+    nonisolated private static func formatIBAN(unformatted: String) -> String {
         let gaps: Set<Int> = [4, 8, 12, 16, 20, 24, 28, 32]
 
         var result = unformatted.enumerated().reduce(into: [Character]()) { (partialResult, item) in
@@ -567,7 +619,48 @@ class DonationPaymentDetailsViewController: OWSTableViewController2 {
         delegate: self
     )
 
+    // MARK: iDEAL
+
+    private func idealFormSections() -> [OWSTableSection] {
+        let textViewItems: [OWSTableItem]
+        switch self.donationMode {
+        case .oneTime, .gift:
+            textViewItems = [ Self.cell(for: self.nameView) ]
+        case .monthly:
+            textViewItems = [ Self.cell(for: self.nameView), Self.cell(for: self.emailView)]
+        }
+        return [
+            OWSTableSection(items: [
+                OWSTableItem(customCellBlock: { [weak self] in
+                    if let bank = self?.IDEALBank {
+                        return OWSTableItem.buildImageCell(
+                            image: bank.image,
+                            itemName: bank.displayName,
+                            accessoryType: .disclosureIndicator
+                        )
+                    } else {
+                        return OWSTableItem.buildImageCell(
+                            image: UIImage(named: "building")?.withRenderingMode(.alwaysTemplate),
+                            itemName: OWSLocalizedString(
+                                "IDEAL_DONATION_CHOOSE_YOUR_BANK_LABEL",
+                                comment: "Label for both bank chooser header and the bank form field on the iDEAL payment detail page."
+                            ),
+                            accessoryType: .disclosureIndicator
+                        )
+                    }
+                }, actionBlock: { [weak self] in
+                    let bankSelectionVC = DonationPaymentDetailsSelectIdealBankViewController()
+                    bankSelectionVC.bankSelectionDelegate = self
+                    self?.navigationController?.pushViewController(bankSelectionVC, animated: true)
+                })
+            ]),
+            OWSTableSection(items: textViewItems)
+        ]
+    }
+
     // MARK: Name & Email
+
+    private var IDEALBank: Stripe.PaymentMethod.IDEALBank?
 
     private lazy var nameView = FormFieldView(
         title: Self.nameTitle,
@@ -596,8 +689,8 @@ class DonationPaymentDetailsViewController: OWSTableViewController2 {
     // MARK: - Submit button, footer
 
     private lazy var submitButton: OWSButton = {
+        let amountString = DonationUtilities.format(money: self.donationAmount)
         let title = {
-            let amountString = DonationUtilities.format(money: self.donationAmount)
             let format: String
             switch self.donationMode {
             case .oneTime, .gift:
@@ -615,7 +708,54 @@ class DonationPaymentDetailsViewController: OWSTableViewController2 {
         }()
 
         let result = OWSButton(title: title) { [weak self] in
-            self?.didSubmit()
+            guard let self else { return }
+            let submitAction = {
+                self.didSubmit()
+            }
+            switch self.paymentMethod {
+            case .card, .sepa:
+                submitAction()
+            case .ideal:
+                switch self.donationMode {
+                case .oneTime, .gift:
+                    submitAction()
+                case .monthly:
+                    let title: String
+                    if let bankName = self.IDEALBank?.displayName {
+                        let titleFormat = OWSLocalizedString(
+                            "IDEAL_DONATION_CONFIRM_DONATION_WITH_BANK_TITLE",
+                            comment: "Title confirming recurring donation with bank."
+                        )
+                        title = String(format: titleFormat, bankName)
+                    } else {
+                        title = OWSLocalizedString(
+                            "IDEAL_DONATION_CONFIRM_DONATION_TITLE",
+                            comment: "Fallback title confirming recurring donation with bank."
+                        )
+                    }
+
+                    let messageFormat = OWSLocalizedString(
+                        "IDEAL_DONATION_CONFIRM_DONATION_WITH_BANK_MESSAGE",
+                        comment: "Message confirming recurring donation with bank. This message confirms with the user that they will see a small confirmation charge with their bank before the donation."
+                    )
+                    let message = String(format: messageFormat, amountString)
+
+                    let actionSheet = ActionSheetController(title: title, message: message)
+                    actionSheet.addAction(.init(
+                        title: CommonStrings.continueButton,
+                        style: .default,
+                        handler: { _ in
+                            submitAction()
+                        }
+                    ))
+                    actionSheet.addAction(.init(
+                        title: CommonStrings.cancelButton,
+                        style: .cancel,
+                        handler: nil
+                    ))
+                    self.presentActionSheet(actionSheet)
+                }
+            }
         }
         result.dimsWhenHighlighted = true
         result.dimsWhenDisabled = true
@@ -667,6 +807,21 @@ extension DonationPaymentDetailsViewController: UITextViewDelegate {
 
 extension DonationPaymentDetailsViewController: CreditOrDebitCardDonationFormViewDelegate {
     func didSomethingChange() { render() }
+}
+
+// MARK: - DonationPaymentDetailsSelectIdealBankDelegate
+
+extension DonationPaymentDetailsViewController: DonationPaymentDetailsSelectIdealBankDelegate {
+    func viewController(
+        _ viewController: DonationPaymentDetailsSelectIdealBankViewController,
+        didSelect IDEALBank: SignalServiceKit.Stripe.PaymentMethod.IDEALBank
+    ) {
+        self.IDEALBank = IDEALBank
+        let sections = [donationAmountSection] + formSections()
+        contents = OWSTableContents(sections: sections)
+        viewController.navigationController?.popViewController(animated: true)
+        render()
+    }
 }
 
 // MARK: - Utilities

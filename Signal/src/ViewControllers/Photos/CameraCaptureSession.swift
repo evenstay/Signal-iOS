@@ -3,14 +3,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import AVFoundation
+public import AVFoundation
 import CoreMotion
 import CoreServices
 import Foundation
-import SignalCoreKit
-import SignalMessaging
+import SignalServiceKit
 import SignalUI
-import UIKit
+public import UIKit
 
 enum PhotoCaptureError: Error {
     case assertionError(description: String)
@@ -90,10 +89,14 @@ class CameraCaptureSession: NSObject {
     }
 
     private let photoCapture = PhotoCapture()
-    private let videoCapture = VideoCapture()
+    private let videoCapture: VideoCapture
 
-    init(delegate: CameraCaptureSessionDelegate) {
+    init(
+        delegate: CameraCaptureSessionDelegate,
+        qrCodeSampleBufferScanner: QRCodeSampleBufferScanner
+    ) {
         self.delegate = delegate
+        self.videoCapture = VideoCapture(qrCodeSampleBufferScanner: qrCodeSampleBufferScanner)
 
         super.init()
 
@@ -338,6 +341,12 @@ class CameraCaptureSession: NSObject {
         videoConnection.videoOrientation = orientation
     }
 
+    func updateVideoCaptureOrientation() {
+        sessionQueue.async {
+            self.videoCapture.setVideoOrientation(self.captureOrientation)
+        }
+    }
+
     // Outputs initial orientation.
     private func beginObservingOrientationChanges() -> AVCaptureVideoOrientation? {
         guard motionManager == nil else { return nil }
@@ -377,6 +386,8 @@ class CameraCaptureSession: NSObject {
                 return
             }
             self.captureOrientation = orientation
+
+            self.updateVideoCaptureOrientation()
 
             DispatchQueue.main.async {
                 self.delegate?.cameraCaptureSession(self, didChangeOrientation: orientation)
@@ -623,7 +634,7 @@ class CameraCaptureSession: NSObject {
                 return
             }
 
-            let zoomFactor = CGFloatLerp(self.initialSlideZoomFactor!, self.maximumZoomFactor(forDevice: captureDevice), alpha)
+            let zoomFactor = CGFloat.lerp(left: self.initialSlideZoomFactor!, right: self.maximumZoomFactor(forDevice: captureDevice), alpha: alpha)
             self.update(captureDevice: captureDevice, zoomFactor: zoomFactor)
         }
     }
@@ -702,7 +713,6 @@ class CameraCaptureSession: NSObject {
     // MARK: - Photo Capture
 
     private func takePhoto() {
-        Logger.verbose("")
         AssertIsOnMainThread()
 
         guard let delegate else { return }
@@ -738,7 +748,6 @@ class CameraCaptureSession: NSObject {
         }
         set {
             AssertIsOnMainThread()
-            Logger.verbose("videoRecordingState: [\(_videoRecordingState)] -> [\(newValue)]")
             _videoRecordingState = newValue
         }
     }
@@ -759,7 +768,6 @@ class CameraCaptureSession: NSObject {
 
     private func startVideoRecording() {
         AssertIsOnMainThread()
-        Logger.verbose("")
 
         guard videoRecordingState == .ready else {
             owsFailBeta("Invalid recording state: \(videoRecordingState)")
@@ -781,11 +789,9 @@ class CameraCaptureSession: NSObject {
             self.setTorchMode(self.flashMode.toTorchMode)
 
             let audioCaptureStarted = self.startAudioCapture()
-            let captureOrientation = self.captureOrientation
 
             do {
                 try videoCapture.beginRecording(
-                    captureOrientation: captureOrientation,
                     aspectRatio: aspectRatio,
                     includeAudio: audioCaptureStarted
                 )
@@ -804,9 +810,6 @@ class CameraCaptureSession: NSObject {
             return
         }
 
-        Logger.verbose("")
-        BenchEventStart(title: "Video Processing", eventId: "Video Processing")
-
         videoRecordingState = .stopping
 
         videoCapture.stopRecording()
@@ -817,8 +820,6 @@ class CameraCaptureSession: NSObject {
             owsFailBeta("Invalid recording state: \(videoRecordingState)")
             return
         }
-
-        Logger.verbose("")
 
         videoRecordingState = .canceling
         videoCapture.stopRecording()
@@ -839,12 +840,11 @@ class CameraCaptureSession: NSObject {
         guard OWSMediaUtils.isValidVideo(path: outputUrl.path) else {
             return handleVideoCaptureError(PhotoCaptureError.invalidVideo)
         }
-        guard let dataSource = try? DataSourcePath.dataSource(with: outputUrl, shouldDeleteOnDeallocation: true) else {
+        guard let dataSource = try? DataSourcePath(fileUrl: outputUrl, shouldDeleteOnDeallocation: true) else {
             return handleVideoCaptureError(PhotoCaptureError.captureFailed)
         }
 
-        let attachment = SignalAttachment.attachment(dataSource: dataSource, dataUTI: kUTTypeMPEG4 as String)
-        BenchEventComplete(eventId: "Video Processing")
+        let attachment = SignalAttachment.attachment(dataSource: dataSource, dataUTI: UTType.mpeg4Movie.identifier)
         delegate.cameraCaptureSession(self, didFinishProcessing: attachment)
     }
 
@@ -937,6 +937,25 @@ class CameraCaptureSession: NSObject {
 
         audioSession.endAudioActivity(recordingAudioActivity)
     }
+
+    // MARK: Volume Button observation
+
+    private var volumeButtonObservation: AVVolumeButtonObservation?
+
+    public func beginObservingVolumeButtons() {
+        let volumeButtonObservation =
+            self.volumeButtonObservation
+            ?? AVVolumeButtonObservation(
+                observer: self,
+                capturePreviewView: previewView
+            )
+        self.volumeButtonObservation = volumeButtonObservation
+        volumeButtonObservation.isEnabled = true
+    }
+
+    public func stopObservingVolumeButtons() {
+        volumeButtonObservation?.isEnabled = false
+    }
 }
 
 // MARK: -
@@ -962,7 +981,6 @@ extension CameraCaptureSession: VideoCaptureDelegate {
 
     fileprivate func videoCapture(_ videoCapture: VideoCapture, didFinishWith result: Result<URL, Error>) {
         AssertIsOnMainThread()
-        Logger.verbose("Video recording ended with result: \(result)")
 
         switch result {
         case .success(let outputURL):
@@ -985,7 +1003,6 @@ extension CameraCaptureSession: VideoCaptureDelegate {
 extension CameraCaptureSession: PhotoCaptureDelegate {
 
     fileprivate func photoCaptureDidProduce(result: Result<Data, Error>) {
-        Logger.verbose("")
         AssertIsOnMainThread()
         guard let delegate = delegate else { return }
 
@@ -993,9 +1010,9 @@ extension CameraCaptureSession: PhotoCaptureDelegate {
         case .failure(let error):
             delegate.cameraCaptureSession(self, didFailWith: error)
         case .success(let photoData):
-            let dataSource = DataSourceValue.dataSource(with: photoData, utiType: kUTTypeJPEG as String)
+            let dataSource = DataSourceValue(photoData, utiType: UTType.jpeg.identifier)
 
-            let attachment = SignalAttachment.attachment(dataSource: dataSource, dataUTI: kUTTypeJPEG as String)
+            let attachment = SignalAttachment.attachment(dataSource: dataSource, dataUTI: UTType.jpeg.identifier)
             delegate.cameraCaptureSession(self, didFinishProcessing: attachment)
         }
     }
@@ -1062,7 +1079,7 @@ class CapturePreviewView: UIView {
 
 // MARK: -
 
-extension CameraCaptureSession: VolumeButtonObserver {
+extension CameraCaptureSession: AVVolumeButtonObserver {
 
     func didPressVolumeButton(with identifier: VolumeButtons.Identifier) {
         delegate?.beginCaptureButtonAnimation(0.5)
@@ -1138,23 +1155,22 @@ private protocol VideoCaptureDelegate: AnyObject {
 
 private class VideoCapture: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureAudioDataOutputSampleBufferDelegate {
 
+    private var qrCodeSampleBufferScanner: QRCodeSampleBufferScanner
+
     let videoDataOutput = AVCaptureVideoDataOutput()
     let audioDataOutput = AVCaptureAudioDataOutput()
 
-    private static let videoCaptureQueue = DispatchQueue(label: "org.signal.capture.video", qos: .userInteractive)
-    private var videoCaptureQueue: DispatchQueue { VideoCapture.videoCaptureQueue }
-
-    private static let audioCaptureQueue = DispatchQueue(label: "org.signal.capture.audio", qos: .userInteractive)
-    private var audioCaptureQueue: DispatchQueue { VideoCapture.audioCaptureQueue }
-
+    private let videoCaptureQueue = DispatchQueue(label: "org.signal.capture.video", qos: .userInteractive)
+    private let audioCaptureQueue = DispatchQueue(label: "org.signal.capture.audio", qos: .userInteractive)
     private let recordingQueue = DispatchQueue(label: "org.signal.capture.recording", qos: .userInteractive)
 
     private var assetWriter: AVAssetWriter?
     private var videoWriterInput: AVAssetWriterInput?
     private var audioWriterInput: AVAssetWriterInput?
 
+    // Access on `recordingQueue`.
     private var isAssetWriterSessionStarted = false
-    private var isAssetWriterAcceptingSampleBuffers = AtomicBool(false)
+    private var isAssetWriterAcceptingSampleBuffers = false
     private var needsFinishAssetWriterSession = false
 
     weak var delegate: VideoCaptureDelegate?
@@ -1163,7 +1179,8 @@ private class VideoCapture: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
     private var timeOfFirstAppendedVideoSampleBuffer = CMTime.invalid
     private var timeOfLastAppendedVideoSampleBuffer = CMTime.invalid
 
-    override init() {
+    init(qrCodeSampleBufferScanner: QRCodeSampleBufferScanner) {
+        self.qrCodeSampleBufferScanner = qrCodeSampleBufferScanner
         super.init()
 
         videoDataOutput.alwaysDiscardsLateVideoFrames = false
@@ -1171,18 +1188,8 @@ private class VideoCapture: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
         audioDataOutput.setSampleBufferDelegate(self, queue: audioCaptureQueue)
     }
 
-    func beginRecording(
-        captureOrientation: AVCaptureVideoOrientation,
-        aspectRatio: CGFloat,
-        includeAudio: Bool
-    ) throws {
-        Logger.verbose("")
-
-        guard let videoConnection = videoDataOutput.connection(with: .video) else {
-            throw OWSAssertionError("videoConnection was unexpectedly nil")
-        }
-        videoConnection.videoOrientation = captureOrientation
-
+    // main thread
+    func beginRecording(aspectRatio: CGFloat, includeAudio: Bool) throws {
         let outputURL = OWSFileSystem.temporaryFileUrl(fileExtension: "mp4")
         let assetWriter = try AVAssetWriter(outputURL: outputURL, fileType: .mp4)
 
@@ -1219,7 +1226,7 @@ private class VideoCapture: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
             throw PhotoCaptureError.initializationFailed
         }
 
-        Logger.info("videoOrientation: \(captureOrientation), captured: \(capturedWidth)x\(capturedHeight), output: \(outputSize.width)x\(outputSize.height), aspectRatio: \(aspectRatio)")
+        Logger.info("captured: \(capturedWidth)x\(capturedHeight), output: \(outputSize.width)x\(outputSize.height), aspectRatio: \(aspectRatio)")
 
         let videoWriterInput = AVAssetWriterInput(
             mediaType: .video,
@@ -1256,11 +1263,13 @@ private class VideoCapture: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
         }
         self.assetWriter = assetWriter
 
-        isAssetWriterAcceptingSampleBuffers.set(true)
+        recordingQueue.async {
+            self.isAssetWriterAcceptingSampleBuffers = true
+        }
     }
 
+    // main thread
     func stopRecording() {
-        Logger.verbose("")
         AssertIsOnMainThread()
 
         // Make video recording at least 1 second long.
@@ -1284,13 +1293,14 @@ private class VideoCapture: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
         return CMTimeSubtract(timeOfLastAppendedVideoSampleBuffer, timeOfFirstAppendedVideoSampleBuffer)
     }
 
+    // `recordingQueue`
     private func finishAssetWriterSession() {
         guard let assetWriter else {
             owsFailBeta("assetWriter is nil")
             return
         }
 
-        isAssetWriterAcceptingSampleBuffers.set(false)
+        isAssetWriterAcceptingSampleBuffers = false
 
         videoSampleTimeLock.lock()
         let timeOfLastAppendedVideoSampleBuffer = timeOfLastAppendedVideoSampleBuffer
@@ -1322,6 +1332,18 @@ private class VideoCapture: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
         }
     }
 
+    func setVideoOrientation(_ videoOrientation: AVCaptureVideoOrientation) {
+        guard let videoConnection = videoDataOutput.connection(with: .video) else {
+            #if !targetEnvironment(simulator)
+            owsFailBeta("videoConnection was unexpectedly nil")
+            #endif
+            return
+        }
+        Logger.info("set videoOrientation: \(videoOrientation)")
+        videoConnection.videoOrientation = videoOrientation
+    }
+
+    // `recordingQueue`
     private func append(sampleBuffer: CMSampleBuffer, to assetWriterInput: AVAssetWriterInput) {
         guard let assetWriter else {
             owsFailBeta("assetWriter is nil")
@@ -1338,13 +1360,10 @@ private class VideoCapture: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
             }
         }
 
-        let acceptingSampleBuffers = isAssetWriterAcceptingSampleBuffers.get()
-        guard acceptingSampleBuffers && isAssetWriterSessionStarted else {
-            Logger.verbose("Not accepting sample buffers at the moment.")
+        guard isAssetWriterAcceptingSampleBuffers && isAssetWriterSessionStarted else {
             return
         }
         guard assetWriterInput.isReadyForMoreMediaData else {
-            Logger.verbose("Input not ready for more media data")
             return
         }
 
@@ -1378,8 +1397,11 @@ private class VideoCapture: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
         }
     }
 
+    // `videoCaptureQueue` or `audioCaptureQueue`
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
-        guard isAssetWriterAcceptingSampleBuffers.get() else {
+        guard assetWriter != nil else {
+            // Scan for QR codes when _not_ recording.
+            qrCodeSampleBufferScanner.captureOutput(output, didOutput: sampleBuffer, from: connection)
             return
         }
 
@@ -1442,7 +1464,6 @@ private class PhotoCapture: NSObject {
         }
 
         avCaptureConnection.videoOrientation = captureOrientation
-        Logger.verbose("photoOrientation: \(captureOrientation), deviceOrientation: \(UIDevice.current.orientation)")
 
         let photoSettings = AVCapturePhotoSettings()
         photoSettings.flashMode = flashMode
@@ -1522,7 +1543,7 @@ private class PhotoCapture: NSObject {
 
 // MARK: -
 
-extension AVCaptureDevice.FocusMode: CustomStringConvertible {
+extension AVCaptureDevice.FocusMode: @retroactive CustomStringConvertible {
     public var description: String {
         switch self {
         case .locked:
@@ -1539,7 +1560,7 @@ extension AVCaptureDevice.FocusMode: CustomStringConvertible {
 
 // MARK: -
 
-extension AVCaptureDevice.ExposureMode: CustomStringConvertible {
+extension AVCaptureDevice.ExposureMode: @retroactive CustomStringConvertible {
     public var description: String {
         switch self {
         case .locked:
@@ -1558,7 +1579,7 @@ extension AVCaptureDevice.ExposureMode: CustomStringConvertible {
 
 // MARK: -
 
-extension AVCaptureVideoOrientation: CustomStringConvertible {
+extension AVCaptureVideoOrientation: @retroactive CustomStringConvertible {
     public var description: String {
         switch self {
         case .portrait:
@@ -1577,7 +1598,7 @@ extension AVCaptureVideoOrientation: CustomStringConvertible {
 
 // MARK: -
 
-extension UIDeviceOrientation: CustomStringConvertible {
+extension UIDeviceOrientation: @retroactive CustomStringConvertible {
     public var description: String {
         switch self {
         case .unknown:
@@ -1602,7 +1623,7 @@ extension UIDeviceOrientation: CustomStringConvertible {
 
 // MARK: -
 
-extension UIInterfaceOrientation: CustomStringConvertible {
+extension UIInterfaceOrientation: @retroactive CustomStringConvertible {
     public var description: String {
         switch self {
         case .unknown:
@@ -1623,7 +1644,7 @@ extension UIInterfaceOrientation: CustomStringConvertible {
 
 // MARK: -
 
-extension UIImage.Orientation: CustomStringConvertible {
+extension UIImage.Orientation: @retroactive CustomStringConvertible {
     public var description: String {
         switch self {
         case .up:

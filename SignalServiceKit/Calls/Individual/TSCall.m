@@ -5,7 +5,7 @@
 
 #import "TSCall.h"
 #import "TSContactThread.h"
-#import <SignalCoreKit/NSDate+OWS.h>
+#import <SignalServiceKit/NSDate+OWS.h>
 #import <SignalServiceKit/SignalServiceKit-Swift.h>
 
 NS_ASSUME_NONNULL_BEGIN
@@ -46,8 +46,6 @@ NSUInteger TSCallCurrentSchemaVersion = 1;
 
 @interface TSCall ()
 
-@property (nonatomic, getter=wasRead) BOOL read;
-
 @property (nonatomic, readonly) NSUInteger callSchemaVersion;
 
 @property (nonatomic) TSRecentCallOfferType offerType;
@@ -63,7 +61,9 @@ NSUInteger TSCallCurrentSchemaVersion = 1;
                           thread:(TSContactThread *)thread
                  sentAtTimestamp:(uint64_t)sentAtTimestamp
 {
-    self = [super initInteractionWithTimestamp:sentAtTimestamp thread:thread];
+    self = [super initWithTimestamp:sentAtTimestamp
+                receivedAtTimestamp:[NSDate ows_millisecondTimeStamp]
+                             thread:thread];
 
     if (!self) {
         return self;
@@ -159,7 +159,7 @@ NSUInteger TSCallCurrentSchemaVersion = 1;
         case RPRecentCallTypeIncomingAnsweredElsewhere: {
             switch (_offerType) {
                 case TSRecentCallOfferTypeAudio:
-                    return OWSLocalizedString(@"INCOMING_AUDIO_CALL", @"info message text in conversation view");
+                    return OWSLocalizedString(@"INCOMING_VOICE_CALL", @"info message text in conversation view");
                 case TSRecentCallOfferTypeVideo:
                     return OWSLocalizedString(@"INCOMING_VIDEO_CALL", @"info message text in conversation view");
             }
@@ -168,7 +168,7 @@ NSUInteger TSCallCurrentSchemaVersion = 1;
         case RPRecentCallTypeOutgoingIncomplete: {
             switch (_offerType) {
                 case TSRecentCallOfferTypeAudio:
-                    return OWSLocalizedString(@"OUTGOING_AUDIO_CALL", @"info message text in conversation view");
+                    return OWSLocalizedString(@"OUTGOING_VOICE_CALL", @"info message text in conversation view");
                 case TSRecentCallOfferTypeVideo:
                     return OWSLocalizedString(@"OUTGOING_VIDEO_CALL", @"info message text in conversation view");
             }
@@ -176,7 +176,7 @@ NSUInteger TSCallCurrentSchemaVersion = 1;
         case RPRecentCallTypeOutgoingMissed: {
             switch (_offerType) {
                 case TSRecentCallOfferTypeAudio:
-                    return OWSLocalizedString(@"OUTGOING_MISSED_AUDIO_CALL", @"info message text in conversation view");
+                    return OWSLocalizedString(@"OUTGOING_MISSED_VOICE_CALL", @"info message text in conversation view");
                 case TSRecentCallOfferTypeVideo:
                     return OWSLocalizedString(@"OUTGOING_MISSED_VIDEO_CALL", @"info message text in conversation view");
             }
@@ -186,7 +186,7 @@ NSUInteger TSCallCurrentSchemaVersion = 1;
         case RPRecentCallTypeIncomingBusyElsewhere: {
             switch (_offerType) {
                 case TSRecentCallOfferTypeAudio:
-                    return OWSLocalizedString(@"MISSED_AUDIO_CALL", @"info message text in conversation view");
+                    return OWSLocalizedString(@"MISSED_VOICE_CALL", @"info message text in conversation view");
                 case TSRecentCallOfferTypeVideo:
                     return OWSLocalizedString(@"MISSED_VIDEO_CALL", @"info message text in conversation view");
             }
@@ -195,57 +195,19 @@ NSUInteger TSCallCurrentSchemaVersion = 1;
         case RPRecentCallTypeIncomingDeclinedElsewhere: {
             switch (_offerType) {
                 case TSRecentCallOfferTypeAudio:
-                    return OWSLocalizedString(@"DECLINED_AUDIO_CALL", @"info message text in conversation view");
+                    return OWSLocalizedString(@"DECLINED_VOICE_CALL", @"info message text in conversation view");
                 case TSRecentCallOfferTypeVideo:
                     return OWSLocalizedString(@"DECLINED_VIDEO_CALL", @"info message text in conversation view");
             }
         }
         case RPRecentCallTypeIncomingMissedBecauseOfDoNotDisturb:
-            if (@available(iOS 15, *)) {
-                return OWSLocalizedString(@"MISSED_CALL_FOCUS_MODE",
-                    @"info message text in conversation view (use Apple's name for 'Focus')");
-            } else {
-                return OWSLocalizedString(@"MISSED_CALL_DO_NOT_DISTURB",
-                    @"info message text in conversation view (use Apple's name for 'Do Not Disturb' on iOS 14 and "
-                    @"older)");
-            }
+            return OWSLocalizedString(
+                @"MISSED_CALL_FOCUS_MODE", @"info message text in conversation view (use Apple's name for 'Focus')");
         case RPRecentCallTypeIncomingMissedBecauseBlockedSystemContact:
             return OWSLocalizedString(@"MISSED_CALL_BLOCKED_SYSTEM_CONTACT",
                 @"info message text in conversation view for when a call was dropped because the contact is blocked in "
                 @"iOS settings");
     }
-}
-
-#pragma mark - OWSReadTracking
-
-- (uint64_t)expireStartedAt
-{
-    return 0;
-}
-
-- (BOOL)shouldAffectUnreadCounts
-{
-    return YES;
-}
-
-- (void)markAsReadAtTimestamp:(uint64_t)readTimestamp
-                       thread:(TSThread *)thread
-                 circumstance:(OWSReceiptCircumstance)circumstance
-     shouldClearNotifications:(BOOL)shouldClearNotifications
-                  transaction:(SDSAnyWriteTransaction *)transaction
-{
-
-    OWSAssertDebug(transaction);
-
-    if (self.read) {
-        return;
-    }
-
-    OWSLogDebug(@"marking as read uniqueId: %@ which has timestamp: %llu", self.uniqueId, self.timestamp);
-
-    [self anyUpdateCallWithTransaction:transaction block:^(TSCall *call) { call.read = YES; }];
-
-    // Ignore `circumstance` - we never send read receipts for calls.
 }
 
 @end

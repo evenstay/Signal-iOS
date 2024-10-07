@@ -4,7 +4,7 @@
 //
 
 import Foundation
-import SignalMessaging
+import SignalServiceKit
 
 extension DonationPaymentDetailsViewController {
     enum DonationMode {

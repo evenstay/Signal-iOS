@@ -6,8 +6,7 @@
 import CoreMedia
 import Foundation
 import SafariServices
-import SignalCoreKit
-import SignalMessaging
+import SignalServiceKit
 import SignalUI
 import UIKit
 import YYImage
@@ -31,10 +30,12 @@ class StoryItemMediaView: UIView {
     private lazy var gradientProtectionView = GradientView(colors: [])
     private var gradientProtectionViewHeightConstraint: NSLayoutConstraint?
 
+    private var contextButton: ContextMenuButton!
     private let bottomContentVStack = UIStackView()
 
     init(
         item: StoryItem,
+        contextButton: ContextMenuButton,
         spoilerState: SpoilerRenderState,
         delegate: StoryItemMediaViewDelegate
     ) {
@@ -78,7 +79,7 @@ class StoryItemMediaView: UIView {
         bottomContentVStack.addArrangedSubview(authorRow)
 
         updateCaption()
-        updateAuthorRow()
+        updateAuthorRow(newContextButton: contextButton)
     }
 
     required init?(coder: NSCoder) {
@@ -96,12 +97,12 @@ class StoryItemMediaView: UIView {
         lastTruncationWidth = nil
     }
 
-    func updateItem(_ newItem: StoryItem) {
+    func updateItem(_ newItem: StoryItem, newContextButton: ContextMenuButton) {
         let oldItem = self.item
         self.item = newItem
 
         updateTimestampText()
-        updateAuthorRow()
+        updateAuthorRow(newContextButton: newContextButton)
 
         // Only recreate the media view if the actual attachment changes.
         if item.attachment != oldItem.attachment {
@@ -138,7 +139,10 @@ class StoryItemMediaView: UIView {
             return didHandle
         }
 
-        if contextButton.bounds.contains(gesture.location(in: contextButton)) {
+        if
+            let contextButton,
+            contextButton.bounds.contains(gesture.location(in: contextButton))
+        {
             return true
         }
 
@@ -146,7 +150,10 @@ class StoryItemMediaView: UIView {
     }
 
     func willHandlePanGesture(_ gesture: UIPanGestureRecognizer) -> Bool {
-        if contextButton.bounds.contains(gesture.location(in: contextButton)) {
+        if
+            let contextButton,
+            contextButton.bounds.contains(gesture.location(in: contextButton))
+        {
             return true
         }
 
@@ -202,7 +209,7 @@ class StoryItemMediaView: UIView {
         case .pointer:
             owsFailDebug("Undownloaded attachments should not progress.")
             return 0
-        case .stream(let stream, _):
+        case .stream(let stream):
             glyphCount = stream.caption?.glyphCount
 
             if let asset = videoPlayer?.avPlayer.currentItem?.asset {
@@ -235,7 +242,7 @@ class StoryItemMediaView: UIView {
                 }
             }
         case .text(let attachment):
-            switch attachment.textContent {
+            switch attachment.textAttachment.textContent {
             case .empty:
                 glyphCount = nil
             case .styled(let text, _):
@@ -250,7 +257,7 @@ class StoryItemMediaView: UIView {
 
             // If a text attachment includes a link preview, play
             // for an additional 2s
-            if attachment.preview != nil { duration += 2 }
+            if attachment.textAttachment.preview != nil { duration += 2 }
         }
 
         // If we have a glyph count, increase the duration to allow it to be readable
@@ -278,16 +285,14 @@ class StoryItemMediaView: UIView {
             size: CGSize(square: 60)
         )
         guard downloadHitRegion.contains(gesture.location(in: self)) else { return false }
-        return item.startAttachmentDownloadIfNecessary { [weak self] in
-            self?.updateMediaView()
-        }
+        return item.startAttachmentDownloadIfNecessary(priority: .userInitiated)
     }
 
     // MARK: - Author Row
 
     private lazy var timestampLabel = UILabel()
     private lazy var authorRow = UIStackView()
-    private func updateAuthorRow() {
+    private func updateAuthorRow(newContextButton contextButton: ContextMenuButton) {
         let (avatarView, nameLabel) = databaseStorage.read { (
             buildAvatarView(transaction: $0),
             buildNameLabel(transaction: $0)
@@ -349,18 +354,26 @@ class StoryItemMediaView: UIView {
             metadataStackView = nameHStack
         }
 
+        let contextButtonSize: CGFloat = 42
+
         authorRow.removeAllSubviews()
         authorRow.addArrangedSubviews([
             avatarView,
             .spacer(withWidth: 12),
             metadataStackView,
             .hStretchingSpacer(),
-            .spacer(withWidth: Self.contextButtonSize)
+            .spacer(withWidth: contextButtonSize)
         ])
         authorRow.axis = .horizontal
         authorRow.alignment = .center
 
+        self.contextButton = contextButton
+        contextButton.tintColor = Theme.darkThemePrimaryColor
+        contextButton.setImage(Theme.iconImage(.buttonMore), for: .normal)
+        contextButton.contentMode = .center
+
         authorRow.addSubview(contextButton)
+        contextButton.autoSetDimensions(to: .square(contextButtonSize))
         contextButton.autoPinEdge(toSuperviewEdge: .trailing)
         NSLayoutConstraint.activate([
             contextButton.centerYAnchor.constraint(equalTo: authorRow.centerYAnchor)
@@ -442,20 +455,6 @@ class StoryItemMediaView: UIView {
         )
         return label
     }
-
-    static let contextButtonSize: CGFloat = 42
-
-    private lazy var contextButton: DelegatingContextMenuButton = {
-        let contextButton = DelegatingContextMenuButton(delegate: delegate)
-        contextButton.showsContextMenuAsPrimaryAction = true
-        contextButton.tintColor = Theme.darkThemePrimaryColor
-        contextButton.setImage(Theme.iconImage(.buttonMore), for: .normal)
-        contextButton.contentMode = .center
-
-        contextButton.autoSetDimensions(to: .square(Self.contextButtonSize))
-
-        return contextButton
-    }()
 
     // MARK: - Caption
 
@@ -842,15 +841,10 @@ class StoryItemMediaView: UIView {
 
     private func buildMediaView() -> UIView {
         switch item.attachment {
-        case .stream(let stream, _):
+        case .stream(let stream):
             let container = UIView()
 
-            guard let originalMediaUrl = stream.originalMediaURL else {
-                owsFailDebug("Missing media for attachment stream")
-                return buildContentUnavailableView()
-            }
-
-            guard let thumbnailImage = stream.thumbnailImageSmallSync() else {
+            guard let thumbnailImage = stream.attachment.attachmentStream.thumbnailImageSync(quality: .small) else {
                 owsFailDebug("Failed to generate thumbnail for attachment stream")
                 return buildContentUnavailableView()
             }
@@ -859,33 +853,37 @@ class StoryItemMediaView: UIView {
             container.addSubview(backgroundImageView)
             backgroundImageView.autoPinEdgesToSuperviewEdges()
 
-            if stream.isVideo {
-                let videoView = buildVideoView(originalMediaUrl: originalMediaUrl, shouldLoop: stream.isLoopingVideo)
+            switch stream.attachment.attachmentStream.computeContentType() {
+            case .video:
+                let videoView = buildVideoView(attachment: stream.attachment)
                 container.addSubview(videoView)
                 videoView.autoPinEdgesToSuperviewEdges()
-            } else if stream.shouldBeRenderedByYY {
-                let yyImageView = buildYYImageView(originalMediaUrl: originalMediaUrl)
+            case .animatedImage:
+                let yyImageView = buildYYImageView(attachment: stream.attachment.attachmentStream)
                 container.addSubview(yyImageView)
                 yyImageView.autoPinEdgesToSuperviewEdges()
-            } else if stream.isImage {
-                let imageView = buildImageView(originalMediaUrl: originalMediaUrl)
+            case .image:
+                let imageView = buildImageView(attachment: stream.attachment.attachmentStream)
                 container.addSubview(imageView)
                 imageView.autoPinEdgesToSuperviewEdges()
-            } else {
+            case .audio, .file, .invalid:
                 owsFailDebug("Unexpected content type.")
                 return buildContentUnavailableView()
             }
 
             return container
-        case .pointer(let pointer, _):
+        case .pointer(let pointer):
             let container = UIView()
 
-            if let blurHashImageView = buildBlurHashImageViewIfAvailable(pointer: pointer) {
+            if let blurHashImageView = buildBlurHashImageViewIfAvailable(pointer: pointer.attachment) {
                 container.addSubview(blurHashImageView)
                 blurHashImageView.autoPinEdgesToSuperviewEdges()
             }
 
-            let view = buildDownloadStateView(for: pointer)
+            let view = buildDownloadStateView(
+                for: pointer.attachment,
+                transitTierDownloadState: pointer.transitTierDownloadState
+            )
             container.addSubview(view)
             view.autoPinEdgesToSuperviewEdges()
 
@@ -905,8 +903,11 @@ class StoryItemMediaView: UIView {
 
     private var videoPlayerLoopCount = 0
     private var videoPlayer: VideoPlayer?
-    private func buildVideoView(originalMediaUrl: URL, shouldLoop: Bool) -> UIView {
-        let player = VideoPlayer(url: originalMediaUrl, shouldLoop: shouldLoop, shouldMixAudioWithOthers: true)
+    private func buildVideoView(attachment: ReferencedTSResourceStream) -> UIView {
+        guard let player = try? VideoPlayer(attachment: attachment, shouldMixAudioWithOthers: true) else {
+            owsFailDebug("Could not load attachment.")
+            return buildContentUnavailableView()
+        }
         player.delegate = self
         self.videoPlayer = player
         updateMuteState()
@@ -922,8 +923,10 @@ class StoryItemMediaView: UIView {
     }
 
     private var yyImageView: YYAnimatedImageView?
-    private func buildYYImageView(originalMediaUrl: URL) -> UIView {
-        guard let image = YYImage(contentsOfFile: originalMediaUrl.path) else {
+    private func buildYYImageView(attachment: TSResourceStream) -> UIView {
+        guard
+            let image = try? attachment.decryptedYYImage()
+        else {
             owsFailDebug("Could not load attachment.")
             return buildContentUnavailableView()
         }
@@ -942,8 +945,8 @@ class StoryItemMediaView: UIView {
         return animatedImageView
     }
 
-    private func buildImageView(originalMediaUrl: URL) -> UIView {
-        guard let image = UIImage(contentsOfFile: originalMediaUrl.path) else {
+    private func buildImageView(attachment: TSResourceStream) -> UIView {
+        guard let image = try? attachment.decryptedImage() else {
             owsFailDebug("Could not load attachment.")
             return buildContentUnavailableView()
         }
@@ -962,8 +965,11 @@ class StoryItemMediaView: UIView {
         return imageView
     }
 
-    private func buildBlurHashImageViewIfAvailable(pointer: TSAttachmentPointer) -> UIView? {
-        guard let blurHash = pointer.blurHash, let blurHashImage = BlurHash.image(for: blurHash) else {
+    private func buildBlurHashImageViewIfAvailable(pointer: TSResourcePointer) -> UIView? {
+        guard
+            let blurHash = pointer.resource.resourceBlurHash,
+            let blurHashImage = BlurHash.image(for: blurHash)
+        else {
             return nil
         }
         let imageView = UIImageView()
@@ -989,9 +995,15 @@ class StoryItemMediaView: UIView {
     }
 
     private static let mediaCache = CVMediaCache()
-    private func buildDownloadStateView(for pointer: TSAttachmentPointer) -> UIView {
+    private func buildDownloadStateView(
+        for pointer: TSResourcePointer,
+        transitTierDownloadState: AttachmentDownloadState
+    ) -> UIView {
         let progressView = CVAttachmentProgressView(
-            direction: .download(attachmentPointer: pointer),
+            direction: .download(
+                attachmentPointer: pointer,
+                transitTierDownloadState: transitTierDownloadState
+            ),
             diameter: 56,
             isDarkThemeEnabled: true,
             mediaCache: Self.mediaCache
@@ -1016,9 +1028,35 @@ class StoryItem: NSObject {
     let message: StoryMessage
     let numberOfReplies: UInt64
     enum Attachment: Equatable {
-        case pointer(TSAttachmentPointer, captionStyles: [NSRangedValue<MessageBodyRanges.CollapsedStyle>])
-        case stream(TSAttachmentStream, captionStyles: [NSRangedValue<MessageBodyRanges.CollapsedStyle>])
-        case text(TextAttachment)
+        struct Pointer: Equatable {
+            let reference: TSResourceReference
+            let attachment: TSResourcePointer
+            let transitTierDownloadState: AttachmentDownloadState
+            var caption: String? { reference.storyMediaCaption?.text }
+            var captionStyles: [NSRangedValue<MessageBodyRanges.CollapsedStyle>] { reference.storyMediaCaption?.collapsedStyles ?? [] }
+
+            static func == (lhs: StoryItem.Attachment.Pointer, rhs: StoryItem.Attachment.Pointer) -> Bool {
+                return lhs.attachment.resourceId == rhs.attachment.resourceId
+                    && lhs.reference.hasSameOwner(as: rhs.reference)
+                    && lhs.transitTierDownloadState == rhs.transitTierDownloadState
+            }
+        }
+
+        struct Stream: Equatable {
+            let attachment: ReferencedTSResourceStream
+            var isLoopingVideo: Bool { attachment.reference.renderingFlag == .shouldLoop }
+            var caption: String? { attachment.reference.storyMediaCaption?.text }
+            var captionStyles: [NSRangedValue<MessageBodyRanges.CollapsedStyle>] { attachment.reference.storyMediaCaption?.collapsedStyles ?? [] }
+
+            static func == (lhs: StoryItem.Attachment.Stream, rhs: StoryItem.Attachment.Stream) -> Bool {
+                return lhs.attachment.attachmentStream.resourceId == rhs.attachment.attachmentStream.resourceId
+                    && lhs.attachment.reference.hasSameOwner(as: rhs.attachment.reference)
+            }
+        }
+
+        case pointer(Pointer)
+        case stream(Stream)
+        case text(PreloadedTextAttachment)
     }
     var attachment: Attachment
 
@@ -1030,16 +1068,16 @@ class StoryItem: NSObject {
 
     var caption: StyleOnlyMessageBody? {
         switch attachment {
-        case let .stream(attachment, captionStyles):
-            guard let text = attachment.caption?.nilIfEmpty else {
+        case let .stream(stream):
+            guard let text = stream.caption?.nilIfEmpty else {
                 return nil
             }
-            return StyleOnlyMessageBody(text: text, collapsedStyles: captionStyles)
-        case let .pointer(attachment, captionStyles):
-            guard let text = attachment.caption?.nilIfEmpty else {
+            return StyleOnlyMessageBody(text: text, collapsedStyles: stream.captionStyles)
+        case let .pointer(pointer):
+            guard let text = pointer.caption?.nilIfEmpty else {
                 return nil
             }
-            return StyleOnlyMessageBody(text: text, collapsedStyles: captionStyles)
+            return StyleOnlyMessageBody(text: text, collapsedStyles: pointer.captionStyles)
         case .text:
             return nil
         }
@@ -1050,27 +1088,30 @@ extension StoryItem {
     // MARK: - Downloading
 
     @discardableResult
-    func startAttachmentDownloadIfNecessary(completion: (() -> Void)? = nil) -> Bool {
-        guard case .pointer(let pointer, _) = attachment, ![.enqueued, .downloading].contains(pointer.state) else { return false }
-
-        attachmentDownloads.enqueueDownloadOfAttachments(
-            forStoryMessageId: message.uniqueId,
-            attachmentGroup: .allAttachmentsIncoming,
-            downloadBehavior: .bypassAll,
-            touchMessageImmediately: true) { _ in
-                Logger.info("Successfully re-downloaded attachment.")
-                DispatchQueue.main.async { completion?() }
-            } failure: { error in
-                Logger.warn("Failed to redownload attachment with error: \(error)")
-                DispatchQueue.main.async { completion?() }
+    func startAttachmentDownloadIfNecessary(priority: AttachmentDownloadPriority = .default) -> Bool {
+        return databaseStorage.write { tx in
+            guard
+                case .pointer(let pointer) = attachment,
+                pointer.attachment.downloadState(tx: tx.asV2Read) != .enqueuedOrDownloading
+            else {
+                return false
             }
-
-        return true
+            DependenciesBridge.shared.tsResourceDownloadManager.enqueueDownloadOfAttachmentsForStoryMessage(
+                message,
+                priority: priority,
+                tx: tx.asV2Write
+            )
+            return true
+        }
     }
 
     var isPendingDownload: Bool {
-        guard case .pointer = attachment else { return false }
-        return true
+        switch attachment {
+        case .pointer:
+            return true
+        case .stream, .text:
+            return false
+        }
     }
 }
 

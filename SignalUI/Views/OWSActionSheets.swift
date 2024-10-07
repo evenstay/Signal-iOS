@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
+import SignalServiceKit
 
 public enum OWSActionSheets {
     public static func showActionSheet(
@@ -22,10 +22,12 @@ public enum OWSActionSheets {
         message: String? = nil,
         buttonTitle: String? = nil,
         buttonAction: ActionSheetAction.Handler? = nil,
-        fromViewController: UIViewController? = nil
+        fromViewController: UIViewController? = nil,
+        dismissalDelegate: (any SheetDismissalDelegate)? = nil
     ) {
         let actionSheet = ActionSheetController(title: title, message: message)
         actionSheet.addOkayAction(title: buttonTitle, action: buttonAction)
+        actionSheet.dismissalDelegate = dismissalDelegate
         showActionSheet(actionSheet, fromViewController: fromViewController)
     }
 
@@ -46,7 +48,9 @@ public enum OWSActionSheets {
         message: String? = nil,
         proceedTitle: String? = nil,
         proceedStyle: ActionSheetAction.Style = .default,
-        proceedAction: @escaping ActionSheetAction.Handler
+        proceedAction: @escaping ActionSheetAction.Handler,
+        fromViewController: UIViewController? = nil,
+        dismissalDelegate: (any SheetDismissalDelegate)? = nil
     ) {
         assert(!title.isEmptyOrNil || !message.isEmptyOrNil)
 
@@ -61,8 +65,9 @@ public enum OWSActionSheets {
             handler: proceedAction
         )
         actionSheet.addAction(okAction)
+        actionSheet.dismissalDelegate = dismissalDelegate
 
-        CurrentAppContext().frontmostViewController()?.present(actionSheet, animated: true)
+        showActionSheet(actionSheet, fromViewController: fromViewController)
     }
 
     public static func showConfirmationWithNotNowAlert(
@@ -91,12 +96,14 @@ public enum OWSActionSheets {
 
     public static func showErrorAlert(
         message: String,
-        fromViewController: UIViewController? = nil
+        fromViewController: UIViewController? = nil,
+        dismissalDelegate: (any SheetDismissalDelegate)? = nil
     ) {
         showActionSheet(
             title: CommonStrings.errorAlertTitle,
             message: message,
-            fromViewController: fromViewController
+            fromViewController: fromViewController,
+            dismissalDelegate: dismissalDelegate
         )
     }
 
@@ -157,8 +164,7 @@ public enum OWSActionSheets {
         )
 
         let discardAction = ActionSheetAction(
-            title: OWSLocalizedString("ALERT_DISCARD_BUTTON",
-                                      comment: "The label for the 'discard' button in alerts and action sheets."),
+            title: CommonStrings.discardButton,
             accessibilityIdentifier: "OWSActionSheets.discard",
             style: .destructive
         ) { _ in discardAction() }

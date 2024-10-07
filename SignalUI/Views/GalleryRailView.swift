@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalCoreKit
+import SignalServiceKit
 
 public protocol GalleryRailItemProvider: AnyObject {
     var railItems: [GalleryRailItem] { get }
@@ -100,8 +100,6 @@ public class GalleryRailCellView: UIView {
     private func didTap(sender: UITapGestureRecognizer) {
         delegate?.didTapGalleryRailCellView(self)
     }
-
-    // MARK: 
 
     var item: GalleryRailItem?
 

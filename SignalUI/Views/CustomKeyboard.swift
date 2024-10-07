@@ -72,34 +72,31 @@ open class CustomKeyboard: UIInputView {
     private struct SystemKeyboardHeight {
         var landscape: CGFloat?
         var portrait: CGFloat?
-        var current: CGFloat? {
-            get {
-                return CurrentAppContext().interfaceOrientation.isLandscape ? landscape : portrait
-            }
-            set {
-                // App frame height changes based on orientation (i.e. its the smaller dimension when landscape)
-                // Cap the height for custom keyboard because our layout breaks if we extend too tall.
-                let newValue = newValue.map { min($0, CurrentAppContext().frame.height * 0.75) }
-                if CurrentAppContext().interfaceOrientation.isLandscape {
-                    landscape = newValue
-                } else {
-                    portrait = newValue
-                }
-            }
-        }
     }
     private var cachedSystemKeyboardHeight = SystemKeyboardHeight()
+
+    private var currentSystemKeyboardHeight: CGFloat? {
+        get {
+            let interfaceOrientation = window?.windowScene?.interfaceOrientation ?? .unknown
+            return interfaceOrientation.isLandscape ? cachedSystemKeyboardHeight.landscape : cachedSystemKeyboardHeight.portrait
+        }
+        set {
+            let interfaceOrientation = window?.windowScene?.interfaceOrientation ?? .unknown
+            let orientationKey = interfaceOrientation.isLandscape ? \SystemKeyboardHeight.landscape : \.portrait
+            cachedSystemKeyboardHeight[keyPath: orientationKey] = newValue
+        }
+    }
 
     public func updateSystemKeyboardHeight(_ height: CGFloat) {
         // Only respect this height if it's reasonable, we don't want
         // to have a tiny keyboard.
         guard height > 170 else { return }
-        cachedSystemKeyboardHeight.current = height
+        currentSystemKeyboardHeight = height
         resizeToSystemKeyboard()
     }
 
     open func resizeToSystemKeyboard() {
-        guard let cachedHeight = cachedSystemKeyboardHeight.current else {
+        guard var keyboardHeight = currentSystemKeyboardHeight else {
             // We don't have a cached height for this orientation,
             // let the auto sizing do its best guess at what the
             // system keyboard height might be.
@@ -108,12 +105,21 @@ open class CustomKeyboard: UIInputView {
             return
         }
 
+        if let window {
+            // App frame height changes based on orientation (i.e. its the smaller dimension when landscape).
+            // Cap the height for custom keyboard because our layout breaks if we extend too tall.
+            let maxHeight = window.frame.height * 0.75
+            if keyboardHeight > maxHeight {
+                keyboardHeight = maxHeight
+            }
+        }
+
         // We have a cached height so we want to size ourself. The system
         // sizing isn't a 100% match to the system keyboard's size and
         // does not account for things like the quicktype toolbar.
         allowsSelfSizing = true
         heightConstraint.isActive = true
-        heightConstraint.constant = cachedHeight
+        heightConstraint.constant = keyboardHeight
     }
 
     open override func layoutSubviews() {
@@ -134,6 +140,9 @@ private class CustomKeyboardResponder: UITextView {
     init(customKeyboard: CustomKeyboard) {
         self.customKeyboard = customKeyboard
         super.init(frame: .zero, textContainer: nil)
+
+        self.disableAiWritingTools()
+
         autocorrectionType = .no
         keyboardAppearance = Theme.keyboardAppearance
         inputAssistantItem.leadingBarButtonGroups = []

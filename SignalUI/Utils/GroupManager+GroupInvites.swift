@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import LibSignalClient
-import SignalServiceKit
+public import LibSignalClient
+public import SignalServiceKit
 
 public extension GroupManager {
 
@@ -30,7 +30,7 @@ public extension GroupManager {
                         groupThread: groupThread,
                         replacementAdminAci: replacementAdminAci,
                         waitForMessageProcessing: true,
-                        transaction: transaction
+                        tx: transaction
                     ).asVoid()
                 }
             }.done(on: DispatchQueue.main) { _ in
@@ -51,40 +51,43 @@ public extension GroupManager {
         }
     }
 
-    static func acceptGroupInviteAsync(
+    @MainActor
+    static func acceptGroupInviteWithModal(
         _ groupThread: TSGroupThread,
-        fromViewController: UIViewController,
-        success: @escaping () -> Void
-    ) {
-        ModalActivityIndicatorViewController.present(
-            fromViewController: fromViewController,
-            canCancel: false
-        ) { modalActivityIndicator in
-            firstly(on: DispatchQueue.global()) { () -> Promise<TSGroupThread> in
-                guard let groupModelV2 = groupThread.groupModel as? TSGroupModelV2 else {
-                    throw OWSAssertionError("Invalid group model")
-                }
+        fromViewController: UIViewController
+    ) async throws {
+        return try await withCheckedThrowingContinuation { continuation in
+            ModalActivityIndicatorViewController.present(
+                fromViewController: fromViewController,
+                canCancel: false,
+                asyncBlock: { modalActivityIndicator in
+                    do {
+                        guard let groupModelV2 = groupThread.groupModel as? TSGroupModelV2 else {
+                            throw OWSAssertionError("Invalid group model")
+                        }
 
-                return self.localAcceptInviteToGroupV2(
-                    groupModel: groupModelV2,
-                    waitForMessageProcessing: true
-                )
-            }.done(on: DispatchQueue.main) { _ in
-                modalActivityIndicator.dismiss {
-                    success()
-                }
-            }.catch { error in
-                owsFailDebug("Error: \(error)")
+                        _ = try await self.localAcceptInviteToGroupV2(
+                            groupModel: groupModelV2,
+                            waitForMessageProcessing: true
+                        )
 
-                modalActivityIndicator.dismiss {
-                    let title = OWSLocalizedString(
-                        "GROUPS_INVITE_ACCEPT_INVITE_FAILED",
-                        comment: "Error indicating that an error occurred while accepting an invite."
-                    )
+                        modalActivityIndicator.dismiss {
+                            continuation.resume()
+                        }
+                    } catch {
+                        modalActivityIndicator.dismiss {
+                            let title = OWSLocalizedString(
+                                "GROUPS_INVITE_ACCEPT_INVITE_FAILED",
+                                comment: "Error indicating that an error occurred while accepting an invite."
+                            )
 
-                    OWSActionSheets.showActionSheet(title: title)
+                            OWSActionSheets.showActionSheet(title: title)
+
+                            continuation.resume(throwing: error)
+                        }
+                    }
                 }
-            }
+            )
         }
     }
 }

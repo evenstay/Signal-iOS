@@ -7,32 +7,31 @@ import Contacts
 import LibSignalClient
 import XCTest
 
-@testable import SignalMessaging
 @testable import SignalServiceKit
 
-class ContactStreamTest: SignalBaseTest {
+final class ContactStreamTest: XCTestCase {
 
-    // MARK: - Test Life Cycle
+    let outputContactSyncData = "GwoMKzEzMjMxMTExMTExEgdBbGljZS0xQABgATMSB0FsaWNlLTJAAEokMzFjZTE0MTItOWEyOC00ZTZmLWI0ZWUtMjIyMjIyMjIyMjIyYAFBCgwrMTMyMTMzMzMzMzMSB0FsaWNlLTNAAEokMWQ0YWIwNDUtODhmYi00YzRlLTlmNmEtMzMzMzMzMzMzMzMzYAE="
 
-    override func setUp() {
-        super.setUp()
-        Self.databaseStorage.write { tx in
-            (DependenciesBridge.shared.registrationStateChangeManager as! RegistrationStateChangeManagerImpl).registerForTests(
-                localIdentifiers: .forUnitTests,
-                tx: tx.asV2Write
-            )
-        }
+    private func makeAccount(phoneNumber: String?, serviceId: String?, fullName: String) -> SignalAccount {
+        return SignalAccount(
+            recipientPhoneNumber: phoneNumber,
+            recipientServiceId: serviceId.map({ Aci.constantForTesting($0) }),
+            multipleAccountLabelText: nil,
+            cnContactId: nil,
+            givenName: "",
+            familyName: "",
+            nickname: "",
+            fullName: fullName,
+            contactAvatarHash: nil
+        )
     }
-
-    // MARK: -
-
-    let outputContactSyncData = "GQoMKzEzMjMxMTExMTExEgdBbGljZS0xQAAxEgdBbGljZS0yQABKJDMxY2UxNDEyLTlhMjgtNGU2Zi1iNGVlLTIyMjIyMjIyMjIyMj8KDCsxMzIxMzMzMzMzMxIHQWxpY2UtM0AASiQxZDRhYjA0NS04OGZiLTRjNGUtOWY2YS0zMzMzMzMzMzMzMzM="
 
     func test_writeContactSync() throws {
         let signalAccounts = [
-            SignalAccount(address: SignalServiceAddress(phoneNumber: "+13231111111")),
-            SignalAccount(address: SignalServiceAddress(aciString: "31ce1412-9a28-4e6f-b4ee-222222222222")),
-            SignalAccount(address: SignalServiceAddress(aciString: "1d4ab045-88fb-4c4e-9f6a-333333333333", phoneNumber: "+13213333333"))
+            makeAccount(phoneNumber: "+13231111111", serviceId: nil, fullName: "Alice-1"),
+            makeAccount(phoneNumber: nil, serviceId: "31ce1412-9a28-4e6f-b4ee-222222222222", fullName: "Alice-2"),
+            makeAccount(phoneNumber: "+13213333333", serviceId: "1d4ab045-88fb-4c4e-9f6a-333333333333", fullName: "Alice-3"),
         ]
 
         let streamData = try buildContactSyncData(signalAccounts: signalAccounts)
@@ -85,148 +84,22 @@ class ContactStreamTest: SignalBaseTest {
         }
     }
 
-    func buildContactSyncData(signalAccounts: [SignalAccount]) throws -> Data {
-        let contactsManager = TestContactsManager()
+    private func buildContactSyncData(signalAccounts: [SignalAccount]) throws -> Data {
         let dataOutputStream = OutputStream(toMemory: ())
         dataOutputStream.open()
         defer { dataOutputStream.close() }
         let contactOutputStream = ContactOutputStream(outputStream: dataOutputStream)
 
         for signalAccount in signalAccounts {
-            let contactFactory = ContactFactory()
-            contactFactory.fullNameBuilder = {
-                "Alice-\(signalAccount.recipientAddress.serviceIdentifier!.suffix(1))"
-            }
-            contactFactory.cnContactIdBuilder = { "123" }
-            contactFactory.uniqueIdBuilder = { "123" }
-
-            signalAccount.replaceContactForTests(try contactFactory.build())
-
             try contactOutputStream.writeContact(
                 aci: signalAccount.recipientServiceId as? Aci,
                 phoneNumber: E164(signalAccount.recipientPhoneNumber),
                 signalAccount: signalAccount,
                 disappearingMessagesConfiguration: nil,
-                inboxPosition: nil,
-                isBlocked: false
+                inboxPosition: nil
             )
         }
 
         return dataOutputStream.property(forKey: .dataWrittenToMemoryStreamKey) as! Data
     }
-}
-
-class TestContactsManager: NSObject, ContactsManagerProtocol {
-    func fetchSignalAccount(for address: SignalServiceAddress, transaction: SDSAnyReadTransaction) -> SignalAccount? {
-        nil
-    }
-
-    func isSystemContactWithSignalAccount(_ address: SignalServiceAddress) -> Bool {
-        false
-    }
-
-    func isSystemContactWithSignalAccount(_ address: SignalServiceAddress, transaction: SDSAnyReadTransaction) -> Bool {
-        false
-    }
-
-    func hasNameInSystemContacts(for address: SignalServiceAddress, transaction: SDSAnyReadTransaction) -> Bool {
-        false
-    }
-
-    func comparableName(for address: SignalServiceAddress, transaction: SDSAnyReadTransaction) -> String {
-        self.displayName(for: address)
-    }
-
-    func comparableName(for signalAccount: SignalAccount, transaction: SDSAnyReadTransaction) -> String {
-        signalAccount.recipientAddress.stringForDisplay
-    }
-
-    func displayName(for address: SignalServiceAddress) -> String {
-        address.stringForDisplay
-    }
-
-    func displayName(for address: SignalServiceAddress, transaction: SDSAnyReadTransaction) -> String {
-        address.stringForDisplay
-    }
-
-    func displayName(for signalAccount: SignalAccount) -> String {
-        signalAccount.recipientAddress.stringForDisplay
-    }
-
-    func displayNames(forAddresses addresses: [SignalServiceAddress], transaction: SDSAnyReadTransaction) -> [String] {
-        return addresses.map {
-            $0.stringForDisplay
-        }
-    }
-
-    func displayName(for thread: TSThread, transaction: SDSAnyReadTransaction) -> String {
-        "Fake Name"
-    }
-
-    func displayNameWithSneakyTransaction(thread: TSThread) -> String {
-        "Fake Name"
-    }
-
-    func shortDisplayName(for address: SignalServiceAddress, transaction: SDSAnyReadTransaction) -> String {
-        address.stringForDisplay
-    }
-
-    func nameComponents(for address: SignalServiceAddress, transaction: SDSAnyReadTransaction) -> PersonNameComponents? {
-        PersonNameComponents()
-    }
-
-    func signalAccounts() -> [SignalAccount] {
-        []
-    }
-
-    func isSystemContactWithSneakyTransaction(phoneNumber: String) -> Bool {
-        return true
-    }
-
-    func isSystemContact(phoneNumber: String, transaction: SDSAnyReadTransaction) -> Bool {
-        return true
-    }
-
-    func isSystemContactWithSneakyTransaction(address: SignalServiceAddress) -> Bool {
-        return true
-    }
-
-    func isSystemContact(address: SignalServiceAddress, transaction: SDSAnyReadTransaction) -> Bool {
-        return true
-    }
-
-    func isSystemContact(withSignalAccount phoneNumber: String) -> Bool {
-        true
-    }
-
-    func isSystemContact(withSignalAccount phoneNumber: String, transaction: SDSAnyReadTransaction) -> Bool {
-        true
-    }
-
-    func compare(signalAccount left: SignalAccount, with right: SignalAccount) -> ComparisonResult {
-        .orderedSame
-    }
-
-    public func sortSignalServiceAddresses(_ addresses: [SignalServiceAddress],
-                                           transaction: SDSAnyReadTransaction) -> [SignalServiceAddress] {
-        addresses
-    }
-
-    func cnContact(withId contactId: String?) -> CNContact? {
-        nil
-    }
-
-    func avatarData(forCNContactId contactId: String?) -> Data? {
-        nil
-    }
-
-    func avatarImage(forCNContactId contactId: String?) -> UIImage? {
-        nil
-    }
-
-    func leaseCacheSize(_ size: Int) -> ModelReadCacheSizeLease? {
-        return nil
-    }
-
-    var unknownUserLabel: String = "unknown"
 }

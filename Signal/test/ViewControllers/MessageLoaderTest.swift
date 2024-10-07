@@ -16,12 +16,14 @@ class MessageLoaderTest: XCTestCase {
 
     private class MockBatchFetcher: MessageLoaderBatchFetcher {
         var interactions = [TSInteraction]()
-        func fetchUniqueIds(filter: RowIdFilter, excludingPlaceholders excludePlaceholders: Bool, limit: Int, tx: DBReadTransaction) throws -> [String] {
+        func fetchUniqueIds(filter: InteractionFinder.RowIdFilter, limit: Int, tx: DBReadTransaction) throws -> [String] {
             switch filter {
             case .newest:
                 return Array(interactions.lazy.suffix(limit).map { $0.uniqueId })
             case .after(let rowId):
                 return Array(interactions.lazy.filter { $0.sqliteRowId! > rowId }.prefix(limit).map { $0.uniqueId })
+            case .atOrBefore(let rowId):
+                return Array(interactions.lazy.filter { $0.sqliteRowId! <= rowId }.suffix(limit).map { $0.uniqueId })
             case .before(let rowId):
                 return Array(interactions.lazy.filter { $0.sqliteRowId! < rowId }.suffix(limit).map { $0.uniqueId })
             case .range(let rowIds):

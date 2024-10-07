@@ -9,7 +9,7 @@ import XCTest
 
 @testable import SignalServiceKit
 
-class SignalRecipientTest: SSKBaseTestSwift {
+class SignalRecipientTest: SSKBaseTest {
 
     private lazy var localAci = Aci.randomForTesting()
     private lazy var localPhoneNumber = E164("+16505550199")!
@@ -90,9 +90,21 @@ class SignalRecipientTest: SSKBaseTestSwift {
         XCTAssertNil(addressToBeUpdated.serviceId)
 
         write { transaction in
+            let aciProfile = OWSUserProfile.getOrBuildUserProfile(
+                for: .otherUser(aci),
+                userProfileWriter: .tests,
+                tx: transaction
+            )
+            aciProfile.anyInsert(transaction: transaction)
+            aciProfile.update(
+                isPhoneNumberShared: .setTo(true),
+                userProfileWriter: .tests,
+                transaction: transaction,
+                completion: nil
+            )
             let recipient = mergeHighTrust(aci: aci, phoneNumber: phoneNumber, transaction: transaction)
             XCTAssertEqual(recipient.aci, aci)
-            XCTAssertEqual(recipient.phoneNumber, phoneNumber.stringValue)
+            XCTAssertEqual(recipient.phoneNumber?.stringValue, phoneNumber.stringValue)
 
             // The incomplete address is automatically filled after marking the
             // complete address as registered.
@@ -126,13 +138,16 @@ class SignalRecipientTest: SSKBaseTestSwift {
         let newPhoneNumber = E164("+16505550102")!
         let oldAddress = SignalServiceAddress(serviceId: aci, phoneNumber: oldPhoneNumber.stringValue)
 
+        // Do this because of SignalServiceAddressTest.test_hashStability2().
+        _ = SignalServiceAddress(serviceId: aci, phoneNumber: newPhoneNumber.stringValue)
+
         write { transaction in
             let oldThread = TSContactThread.getOrCreateThread(
                 withContactAddress: oldAddress,
                 transaction: transaction
             )
 
-            let messageBuilder = TSIncomingMessageBuilder(
+            let messageBuilder: TSIncomingMessageBuilder = .withDefaultValues(
                 thread: oldThread,
                 authorAci: aci,
                 messageBody: "Test 123"
@@ -141,15 +156,19 @@ class SignalRecipientTest: SSKBaseTestSwift {
             oldMessage.anyInsert(transaction: transaction)
 
             let oldPhoneNumberProfile = OWSUserProfile.getOrBuildUserProfile(
-                for: oldAddress,
-                authedAccount: .implicit(),
-                transaction: transaction
+                for: .otherUser(aci),
+                userProfileWriter: .tests,
+                tx: transaction
             )
             oldPhoneNumberProfile.anyInsert(transaction: transaction)
-            let newPhoneNumberProfile = OWSUserProfile.getOrBuildUserProfile(
-                for: SignalServiceAddress(phoneNumber: newPhoneNumber.stringValue),
-                authedAccount: .implicit(),
-                transaction: transaction
+            oldPhoneNumberProfile.update(
+                isPhoneNumberShared: .setTo(true),
+                userProfileWriter: .tests,
+                transaction: transaction,
+                completion: nil
+            )
+            let newPhoneNumberProfile = OWSUserProfile(
+                address: .otherUser(SignalServiceAddress(phoneNumber: newPhoneNumber.stringValue))
             )
             newPhoneNumberProfile.anyInsert(transaction: transaction)
 
@@ -170,9 +189,9 @@ class SignalRecipientTest: SSKBaseTestSwift {
                 transaction: transaction
             )!
             let newProfile = OWSUserProfile.getOrBuildUserProfile(
-                for: newAddress,
-                authedAccount: .implicit(),
-                transaction: transaction
+                for: .otherUser(aci),
+                userProfileWriter: .tests,
+                tx: transaction
             )
             let newAccount = SignalAccount.anyFetch(
                 uniqueId: oldAccount.uniqueId,
@@ -186,7 +205,8 @@ class SignalRecipientTest: SSKBaseTestSwift {
             XCTAssertEqual(oldAddress.serviceId, newAddress.serviceId)
 
             XCTAssertEqual(oldThread.uniqueId, newThread.uniqueId)
-            XCTAssertNotEqual(oldThread.contactPhoneNumber, newThread.contactPhoneNumber)
+            XCTAssertNil(oldThread.contactPhoneNumber)
+            XCTAssertNil(newThread.contactPhoneNumber)
             XCTAssertEqual(newAddress, newThread.contactAddress)
 
             XCTAssertEqual(oldMessage.uniqueId, newMessage.uniqueId)
@@ -195,27 +215,27 @@ class SignalRecipientTest: SSKBaseTestSwift {
             XCTAssertNil(newMessage.authorPhoneNumber)
 
             XCTAssertEqual(newProfile.uniqueId, oldPhoneNumberProfile.uniqueId)
-            XCTAssertEqual(newProfile.recipientPhoneNumber, newPhoneNumber.stringValue)
-            XCTAssertEqual(newProfile.recipientUUID, aci.serviceIdUppercaseString)
+            XCTAssertNil(newProfile.phoneNumber)
+            XCTAssertEqual(newProfile.serviceIdString, aci.serviceIdUppercaseString)
             XCTAssertNil(OWSUserProfile.anyFetch(uniqueId: newPhoneNumberProfile.uniqueId, transaction: transaction))
 
             XCTAssertNil(newAccount)
         }
     }
 
-    func testHighTrustUUIDChange() {
+    func testHighTrustUUIDChange() throws {
         let oldAci = Aci.randomForTesting()
         let newAci = Aci.randomForTesting()
         let phoneNumber = E164("+16505550101")!
         let oldAddress = SignalServiceAddress(serviceId: oldAci, phoneNumber: phoneNumber.stringValue)
 
-        write { transaction in
+        try write { transaction in
             let oldThread = TSContactThread.getOrCreateThread(
                 withContactAddress: oldAddress,
                 transaction: transaction
             )
 
-            let messageBuilder = TSIncomingMessageBuilder(
+            let messageBuilder: TSIncomingMessageBuilder = .withDefaultValues(
                 thread: oldThread,
                 authorAci: oldAci,
                 messageBody: "Test 123"
@@ -223,12 +243,14 @@ class SignalRecipientTest: SSKBaseTestSwift {
             let oldMessage = messageBuilder.build()
             oldMessage.anyInsert(transaction: transaction)
 
-            let oldProfile = OWSUserProfile.getOrBuildUserProfile(
-                for: oldAddress,
-                authedAccount: .implicit(),
-                transaction: transaction
-            )
+            var oldProfile = OWSUserProfile(address: .otherUser(oldAddress))
             oldProfile.anyInsert(transaction: transaction)
+            oldProfile.update(
+                isPhoneNumberShared: .setTo(true),
+                userProfileWriter: .tests,
+                transaction: transaction,
+                completion: nil
+            )
 
             let oldAccount = SignalAccount(address: oldAddress)
             oldAccount.anyInsert(transaction: transaction)
@@ -247,9 +269,9 @@ class SignalRecipientTest: SSKBaseTestSwift {
                 transaction: transaction
             )!
             let newProfile = OWSUserProfile.getOrBuildUserProfile(
-                for: newAddress,
-                authedAccount: .implicit(),
-                transaction: transaction
+                for: .otherUser(newAci),
+                userProfileWriter: .tests,
+                tx: transaction
             )
             let newAccount = SignalAccount.anyFetch(
                 uniqueId: oldAccount.uniqueId,
@@ -273,11 +295,11 @@ class SignalRecipientTest: SSKBaseTestSwift {
             XCTAssertNil(newMessage.authorPhoneNumber)
             XCTAssertNotEqual(newAddress, newMessage.authorAddress)
 
-            oldProfile.anyReload(transaction: transaction)
+            oldProfile = try XCTUnwrap(OWSUserProfile.anyFetch(uniqueId: oldProfile.uniqueId, transaction: transaction))
             XCTAssertNotEqual(oldProfile.uniqueId, newProfile.uniqueId)
-            XCTAssertNil(oldProfile.recipientPhoneNumber)
-            XCTAssertEqual(newAddress, newProfile.address)
-            XCTAssertNotEqual(newAddress, oldProfile.address)
+            XCTAssertNil(oldProfile.phoneNumber)
+            XCTAssertEqual(.otherUser(newAddress), newProfile.internalAddress)
+            XCTAssertNotEqual(.otherUser(newAddress), oldProfile.internalAddress)
 
             XCTAssertEqual(newAccount.uniqueId, oldAccount.uniqueId)
             XCTAssertEqual(newAccount.recipientPhoneNumber, phoneNumber.stringValue)
@@ -289,11 +311,10 @@ class SignalRecipientTest: SSKBaseTestSwift {
         return self.write { (tx) -> TSGroupThread in
             // Create a group with all the addresses.
             let groupThread = {
-                let factory = GroupThreadFactory()
-                factory.memberAddressesBuilder = {
-                    return addresses.map { SignalServiceAddress(serviceId: $0.aci, phoneNumber: $0.phoneNumber?.stringValue) }
-                }
-                return factory.create(transaction: tx)
+                return try! GroupManager.createGroupForTests(
+                    members: addresses.map { SignalServiceAddress(serviceId: $0.aci, phoneNumber: $0.phoneNumber?.stringValue) },
+                    transaction: tx
+                )
             }()
             // Delete the group members that were created automatically.
             TSGroupMember.anyRemoveAllWithInstantiation(transaction: tx)
@@ -301,8 +322,11 @@ class SignalRecipientTest: SSKBaseTestSwift {
             // that were provided.
             for address in addresses {
                 let groupMember = TSGroupMember(
-                    serviceId: address.aci,
-                    phoneNumber: address.phoneNumber?.stringValue,
+                    address: NormalizedDatabaseRecordAddress(
+                        aci: address.aci,
+                        phoneNumber: address.phoneNumber?.stringValue,
+                        pni: nil
+                    )!,
                     groupThreadId: groupThread.uniqueId,
                     lastInteractionTimestamp: NSDate.ows_millisecondTimeStamp()
                 )
@@ -370,7 +394,7 @@ class SignalRecipientTest: SSKBaseTestSwift {
 
         // We should still have two group members: (u1, p2) and (u2, nil).
         assertEqual(groupMembers: finalGroupMembers, expectedAddresses: [
-            (aci: aci1, phoneNumber: phoneNumber2),
+            (aci: aci1, phoneNumber: nil),
             (aci: aci2, phoneNumber: nil)
         ])
     }
@@ -417,7 +441,7 @@ class SignalRecipientTest: SSKBaseTestSwift {
 
         // We should now have one group member: (u1, p2).
         assertEqual(groupMembers: finalGroupMembers, expectedAddresses: [
-            (aci: aci1, phoneNumber: phoneNumber2)
+            (aci: aci1, phoneNumber: nil)
         ])
     }
 
@@ -464,7 +488,7 @@ class SignalRecipientTest: SSKBaseTestSwift {
 
         // We should still have two group members: (u2, p1) and (u1, nil).
         assertEqual(groupMembers: finalGroupMembers, expectedAddresses: [
-            (aci: aci2, phoneNumber: phoneNumber1),
+            (aci: aci2, phoneNumber: nil),
             (aci: aci1, phoneNumber: nil)
         ])
     }
@@ -512,7 +536,7 @@ class SignalRecipientTest: SSKBaseTestSwift {
         // We should now have two group members: (u2, p1), (u1, nil).
         assertEqual(groupMembers: finalGroupMembers, expectedAddresses: [
             (aci: aci1, phoneNumber: nil),
-            (aci: aci2, phoneNumber: phoneNumber1)
+            (aci: aci2, phoneNumber: nil)
         ])
     }
 
@@ -550,7 +574,7 @@ class SignalRecipientTest: SSKBaseTestSwift {
         }
 
         assertEqual(groupMembers: finalGroupMembers, expectedAddresses: [
-            (aci: aci1, phoneNumber: phoneNumber1)
+            (aci: aci1, phoneNumber: nil)
         ])
     }
 
@@ -590,55 +614,6 @@ class SignalRecipientTest: SSKBaseTestSwift {
         ])
     }
 
-    func testUnregisteredTimestamps() {
-        let aci = Aci.randomForTesting()
-        write { tx in
-            let recipientFetcher = DependenciesBridge.shared.recipientFetcher
-            let recipient = recipientFetcher.fetchOrCreate(serviceId: aci, tx: tx.asV2Write)
-            XCTAssertNotNil(recipient.unregisteredAtTimestamp)
-
-            recipient.markAsRegisteredAndSave(tx: tx)
-            XCTAssertNil(fetchRecipient(aci: aci, transaction: tx)!.unregisteredAtTimestamp)
-
-            recipient.markAsUnregisteredAndSave(tx: tx)
-            XCTAssertGreaterThan(fetchRecipient(aci: aci, transaction: tx)!.unregisteredAtTimestamp!, 0)
-
-            recipient.markAsRegisteredAndSave(tx: tx)
-            XCTAssertNil(fetchRecipient(aci: aci, transaction: tx)!.unregisteredAtTimestamp)
-        }
-    }
-
-    func testMarkAsRegistered() {
-        struct TestCase {
-            var initialDeviceIds: Set<UInt32>
-            var addedDeviceId: UInt32
-            var expectedDeviceIds: Set<UInt32>
-        }
-        let testCases: [TestCase] = [
-            TestCase(initialDeviceIds: [], addedDeviceId: 1, expectedDeviceIds: [1]),
-            TestCase(initialDeviceIds: [], addedDeviceId: 2, expectedDeviceIds: [1, 2]),
-            TestCase(initialDeviceIds: [1], addedDeviceId: 1, expectedDeviceIds: [1]),
-            TestCase(initialDeviceIds: [1], addedDeviceId: 2, expectedDeviceIds: [1, 2]),
-            TestCase(initialDeviceIds: [2], addedDeviceId: 1, expectedDeviceIds: [1, 2]),
-            TestCase(initialDeviceIds: [2], addedDeviceId: 2, expectedDeviceIds: [1, 2]),
-            TestCase(initialDeviceIds: [3], addedDeviceId: 1, expectedDeviceIds: [1, 3]),
-            TestCase(initialDeviceIds: [3], addedDeviceId: 2, expectedDeviceIds: [1, 2, 3]),
-            TestCase(initialDeviceIds: [1, 2], addedDeviceId: 1, expectedDeviceIds: [1, 2]),
-            TestCase(initialDeviceIds: [1, 2], addedDeviceId: 2, expectedDeviceIds: [1, 2]),
-            TestCase(initialDeviceIds: [1, 2, 3], addedDeviceId: 1, expectedDeviceIds: [1, 2, 3]),
-            TestCase(initialDeviceIds: [1, 2, 3], addedDeviceId: 2, expectedDeviceIds: [1, 2, 3])
-        ]
-        write { tx in
-            let recipientFetcher = DependenciesBridge.shared.recipientFetcher
-            for testCase in testCases {
-                let recipient = recipientFetcher.fetchOrCreate(serviceId: Aci.randomForTesting(), tx: tx.asV2Write)
-                recipient.modifyAndSave(deviceIdsToAdd: Array(testCase.initialDeviceIds), deviceIdsToRemove: [], tx: tx)
-                recipient.markAsRegisteredAndSave(deviceId: testCase.addedDeviceId, tx: tx)
-                XCTAssertEqual(Set(recipient.deviceIds), testCase.expectedDeviceIds, "\(testCase)")
-            }
-        }
-    }
-
     // MARK: - Helpers
 
     @discardableResult
@@ -652,12 +627,14 @@ class SignalRecipientTest: SSKBaseTestSwift {
         )
     }
 
-    private func fetchRecipient(aci: Aci, transaction: SDSAnyReadTransaction) -> SignalRecipient? {
-        SignalRecipient.fetchRecipient(for: SignalServiceAddress(aci), onlyIfRegistered: false, tx: transaction)
+    private func fetchRecipient(aci: Aci, transaction tx: SDSAnyReadTransaction) -> SignalRecipient? {
+        return DependenciesBridge.shared.recipientDatabaseTable
+            .fetchRecipient(serviceId: aci, transaction: tx.asV2Read)
     }
 
-    private func fetchRecipient(phoneNumber: E164, transaction: SDSAnyReadTransaction) -> SignalRecipient? {
-        SignalRecipient.fetchRecipient(for: SignalServiceAddress(phoneNumber), onlyIfRegistered: false, tx: transaction)
+    private func fetchRecipient(phoneNumber: E164, transaction tx: SDSAnyReadTransaction) -> SignalRecipient? {
+        return DependenciesBridge.shared.recipientDatabaseTable
+            .fetchRecipient(phoneNumber: phoneNumber.stringValue, transaction: tx.asV2Read)
     }
 }
 
@@ -699,14 +676,16 @@ final class SignalRecipient2Test: XCTestCase {
             XCTAssertEqual(signalRecipients[0].id, 18)
             XCTAssertEqual(signalRecipients[0].uniqueId, "00000000-0000-4000-8000-00000000000A")
             XCTAssertEqual(signalRecipients[0].deviceIds, [1, 2, 5, 4, 6])
-            XCTAssertEqual(signalRecipients[0].phoneNumber, "+16505550100")
+            XCTAssertEqual(signalRecipients[0].phoneNumber?.stringValue, "+16505550100")
+            XCTAssertEqual(signalRecipients[0].phoneNumber?.isDiscoverable, false)
             XCTAssertEqual(signalRecipients[0].aciString, "00000000-0000-4000-8000-000000000000")
             XCTAssertEqual(signalRecipients[0].unregisteredAtTimestamp, nil)
 
             XCTAssertEqual(signalRecipients[1].id, 21)
             XCTAssertEqual(signalRecipients[1].uniqueId, "00000000-0000-4000-8000-00000000000B")
             XCTAssertEqual(signalRecipients[1].deviceIds, [])
-            XCTAssertEqual(signalRecipients[1].phoneNumber, "+16505550101")
+            XCTAssertEqual(signalRecipients[1].phoneNumber?.stringValue, "+16505550101")
+            XCTAssertEqual(signalRecipients[1].phoneNumber?.isDiscoverable, false)
             XCTAssertEqual(signalRecipients[1].aciString, "00000000-0000-4000-8000-000000000001")
             XCTAssertEqual(signalRecipients[1].unregisteredAtTimestamp, 1683679214631)
         }
@@ -755,5 +734,68 @@ final class SignalRecipient2Test: XCTestCase {
         XCTAssertEqual(copiedRecipient, someRecipient)
         XCTAssertEqual(copiedRecipient.hashValue, someRecipient.hashValue)
         XCTAssertEqual(Set([someRecipient, copiedRecipient]).count, 1)
+    }
+
+    func testUnregisteredTimestamps() {
+        let aci = Aci.randomForTesting()
+        let mockDb = MockDB()
+        let recipientTable = MockRecipientDatabaseTable()
+        let recipientFetcher = RecipientFetcherImpl(recipientDatabaseTable: recipientTable)
+        let recipientManager = SignalRecipientManagerImpl(
+            phoneNumberVisibilityFetcher: MockPhoneNumberVisibilityFetcher(),
+            recipientDatabaseTable: recipientTable,
+            storageServiceManager: FakeStorageServiceManager()
+        )
+        mockDb.write { tx in
+            let recipient = recipientFetcher.fetchOrCreate(serviceId: aci, tx: tx)
+            XCTAssertNotNil(recipient.unregisteredAtTimestamp)
+
+            recipientManager.markAsRegisteredAndSave(recipient, shouldUpdateStorageService: false, tx: tx)
+            XCTAssertNil(recipientTable.fetchRecipient(serviceId: aci, transaction: tx)!.unregisteredAtTimestamp)
+
+            recipientManager.markAsUnregisteredAndSave(recipient, unregisteredAt: .now, shouldUpdateStorageService: false, tx: tx)
+            XCTAssertGreaterThan(recipientTable.fetchRecipient(serviceId: aci, transaction: tx)!.unregisteredAtTimestamp!, 0)
+
+            recipientManager.markAsRegisteredAndSave(recipient, shouldUpdateStorageService: false, tx: tx)
+            XCTAssertNil(recipientTable.fetchRecipient(serviceId: aci, transaction: tx)!.unregisteredAtTimestamp)
+        }
+    }
+
+    func testMarkAsRegistered() {
+        struct TestCase {
+            var initialDeviceIds: Set<UInt32>
+            var addedDeviceId: UInt32
+            var expectedDeviceIds: Set<UInt32>
+        }
+        let testCases: [TestCase] = [
+            TestCase(initialDeviceIds: [], addedDeviceId: 1, expectedDeviceIds: [1]),
+            TestCase(initialDeviceIds: [], addedDeviceId: 2, expectedDeviceIds: [1, 2]),
+            TestCase(initialDeviceIds: [1], addedDeviceId: 1, expectedDeviceIds: [1]),
+            TestCase(initialDeviceIds: [1], addedDeviceId: 2, expectedDeviceIds: [1, 2]),
+            TestCase(initialDeviceIds: [2], addedDeviceId: 1, expectedDeviceIds: [1, 2]),
+            TestCase(initialDeviceIds: [2], addedDeviceId: 2, expectedDeviceIds: [1, 2]),
+            TestCase(initialDeviceIds: [3], addedDeviceId: 1, expectedDeviceIds: [1, 3]),
+            TestCase(initialDeviceIds: [3], addedDeviceId: 2, expectedDeviceIds: [1, 2, 3]),
+            TestCase(initialDeviceIds: [1, 2], addedDeviceId: 1, expectedDeviceIds: [1, 2]),
+            TestCase(initialDeviceIds: [1, 2], addedDeviceId: 2, expectedDeviceIds: [1, 2]),
+            TestCase(initialDeviceIds: [1, 2, 3], addedDeviceId: 1, expectedDeviceIds: [1, 2, 3]),
+            TestCase(initialDeviceIds: [1, 2, 3], addedDeviceId: 2, expectedDeviceIds: [1, 2, 3])
+        ]
+        let mockDb = MockDB()
+        let recipientTable = MockRecipientDatabaseTable()
+        let recipientFetcher = RecipientFetcherImpl(recipientDatabaseTable: recipientTable)
+        let recipientManager = SignalRecipientManagerImpl(
+            phoneNumberVisibilityFetcher: MockPhoneNumberVisibilityFetcher(),
+            recipientDatabaseTable: recipientTable,
+            storageServiceManager: FakeStorageServiceManager()
+        )
+        mockDb.write { tx in
+            for testCase in testCases {
+                let recipient = recipientFetcher.fetchOrCreate(serviceId: Aci.randomForTesting(), tx: tx)
+                recipientManager.setDeviceIds(testCase.initialDeviceIds, for: recipient, shouldUpdateStorageService: false)
+                recipientManager.markAsRegisteredAndSave(recipient, deviceId: testCase.addedDeviceId, shouldUpdateStorageService: false, tx: tx)
+                XCTAssertEqual(Set(recipient.deviceIds), testCase.expectedDeviceIds, "\(testCase)")
+            }
+        }
     }
 }

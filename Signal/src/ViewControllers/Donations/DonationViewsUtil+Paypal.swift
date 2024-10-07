@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
+import SignalServiceKit
 import SignalUI
 
 extension DonationViewsUtil {
@@ -14,15 +14,15 @@ extension DonationViewsUtil {
             amount: FiatMoney,
             level: OneTimeBadgeLevel,
             fromViewController: UIViewController
-        ) -> Promise<URL> {
-            let (promise, future) = Promise<URL>.pending()
+        ) -> Promise<(URL, String)> {
+            let (promise, future) = Promise<(URL, String)>.pending()
 
             ModalActivityIndicatorViewController.present(
                 fromViewController: fromViewController,
                 canCancel: false
             ) { modal in
                 firstly {
-                    SignalMessaging.Paypal.createBoost(amount: amount, level: level)
+                    SignalServiceKit.Paypal.createBoost(amount: amount, level: level)
                 }.map(on: DispatchQueue.main) { approvalUrl in
                     modal.dismiss { future.resolve(approvalUrl) }
                 }.catch(on: DispatchQueue.main) { error in

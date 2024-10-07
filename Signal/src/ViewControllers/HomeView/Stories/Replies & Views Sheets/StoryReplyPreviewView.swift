@@ -4,7 +4,7 @@
 //
 
 import Foundation
-import SignalMessaging
+import SignalServiceKit
 import SignalUI
 import UIKit
 
@@ -41,14 +41,16 @@ class StoryReplyPreviewView: UIView {
         authorLabel.setCompressionResistanceHigh()
 
         let authorName: String
-        if quotedReplyModel.authorAddress.isLocalAddress {
+        if quotedReplyModel.isOriginalMessageAuthorLocalUser {
             authorName = CommonStrings.you
         } else {
-            authorName = contactsManager.displayName(for: quotedReplyModel.authorAddress)
+            authorName = databaseStorage.read { tx in
+                return contactsManager.displayName(for: quotedReplyModel.originalMessageAuthorAddress, tx: tx).resolvedValue()
+            }
         }
 
         let authorText: String
-        if quotedReplyModel.isStory {
+        if quotedReplyModel.originalContent.isStory {
             let format = OWSLocalizedString(
                 "QUOTED_REPLY_STORY_AUTHOR_INDICATOR_FORMAT",
                 comment: "Message header when you are quoting a story. Embeds {{ story author name }}")
@@ -66,12 +68,12 @@ class StoryReplyPreviewView: UIView {
         descriptionLabel.numberOfLines = 2
         descriptionLabel.setCompressionResistanceHigh()
 
-        if let body = quotedReplyModel.body?.nilIfEmpty {
+        if let body = quotedReplyModel.originalMessageBody?.text.nilIfEmpty {
             descriptionLabel.font = .dynamicTypeSubheadline
             descriptionLabel.text = body
         } else {
             descriptionLabel.font = UIFont.dynamicTypeSubheadline.italic()
-            descriptionLabel.text = description(forContentType: quotedReplyModel.contentType)
+            descriptionLabel.text = description(forMimeType: quotedReplyModel.originalContent.attachmentMimeType)
         }
 
         vStack.addArrangedSubview(descriptionLabel)
@@ -79,14 +81,19 @@ class StoryReplyPreviewView: UIView {
         vStack.addArrangedSubview(.vStretchingSpacer())
 
         let trailingView: UIView
-        if let thumbnailImage = quotedReplyModel.thumbnailImage {
-            let imageView = UIImageView()
-            imageView.contentMode = .scaleAspectFill
-            imageView.image = thumbnailImage
-            trailingView = imageView
-        } else if let thumbnailView = quotedReplyModel.thumbnailViewFactory?(spoilerState) {
-            trailingView = thumbnailView
-        } else {
+        switch quotedReplyModel.originalContent {
+        case .textStory(let rendererFn):
+            trailingView = rendererFn(spoilerState)
+        case .attachment(_, _, let thumbnailImage), .mediaStory(_, _, let thumbnailImage):
+            if let thumbnailImage {
+                let imageView = UIImageView()
+                imageView.contentMode = .scaleAspectFill
+                imageView.image = thumbnailImage
+                trailingView = imageView
+            } else {
+                fallthrough
+            }
+        default:
             owsFailDebug("Missing trailingView for quote")
             trailingView = UIView()
         }
@@ -109,13 +116,13 @@ class StoryReplyPreviewView: UIView {
         layer.mask = maskLayer
     }
 
-    func description(forContentType contentType: String?) -> String {
-        if let contentType = contentType, MIMETypeUtil.isVideo(contentType) {
+    func description(forMimeType mimeType: String?) -> String {
+        if let mimeType = mimeType, MimeTypeUtil.isSupportedVideoMimeType(mimeType) {
             return OWSLocalizedString(
                 "QUOTED_REPLY_TYPE_VIDEO",
                 comment: "Indicates this message is a quoted reply to a video file.")
-        } else if let contentType = contentType, MIMETypeUtil.isAnimated(contentType) {
-            if contentType.caseInsensitiveCompare(OWSMimeTypeImageGif) == .orderedSame {
+        } else if let mimeType = mimeType, MimeTypeUtil.isSupportedDefinitelyAnimatedMimeType(mimeType) {
+            if mimeType.caseInsensitiveCompare(MimeType.imageGif.rawValue) == .orderedSame {
                 return OWSLocalizedString(
                     "QUOTED_REPLY_TYPE_GIF",
                     comment: "Indicates this message is a quoted reply to animated GIF file.")
@@ -124,7 +131,7 @@ class StoryReplyPreviewView: UIView {
                     "QUOTED_REPLY_TYPE_IMAGE",
                     comment: "Indicates this message is a quoted reply to an image file.")
             }
-        } else if let contentType = contentType, MIMETypeUtil.isImage(contentType) {
+        } else if let mimeType = mimeType, MimeTypeUtil.isSupportedImageMimeType(mimeType) {
             return OWSLocalizedString(
                 "QUOTED_REPLY_TYPE_PHOTO",
                 comment: "Indicates this message is a quoted reply to a photo file.")

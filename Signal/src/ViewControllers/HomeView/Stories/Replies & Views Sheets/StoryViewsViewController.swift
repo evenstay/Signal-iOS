@@ -4,14 +4,13 @@
 //
 
 import Foundation
-import SignalMessaging
+import SignalServiceKit
 import SignalUI
 import UIKit
 
 private struct Viewer {
     let address: SignalServiceAddress
-    let displayName: String
-    let comparableName: String
+    let comparableName: ComparableDisplayName
     let viewedTimestamp: UInt64
 }
 
@@ -78,22 +77,27 @@ class StoryViewsViewController: OWSViewController {
                 return
             }
 
+            let config: DisplayName.ComparableValue.Config = .current()
             self.viewers = recipientStates
                 .lazy
                 .filter { $1.isValidForContext(self.context) }
-                .compactMap {
-                    guard let viewedTimestamp = $0.value.viewedTimestamp else { return nil }
+                .compactMap { (serviceId, recipientState) -> Viewer? in
+                    guard let viewedTimestamp = recipientState.viewedTimestamp else { return nil }
+                    let address = SignalServiceAddress(serviceId)
                     return Viewer(
-                        address: SignalServiceAddress($0.key),
-                        displayName: Self.contactsManager.displayName(for: SignalServiceAddress($0.key), transaction: transaction),
-                        comparableName: Self.contactsManager.comparableName(for: SignalServiceAddress($0.key), transaction: transaction),
+                        address: address,
+                        comparableName: ComparableDisplayName(
+                            address: address,
+                            displayName: Self.contactsManager.displayName(for: address, tx: transaction),
+                            config: config
+                        ),
                         viewedTimestamp: viewedTimestamp
                     )
                 }.sorted { lhs, rhs in
-                    if lhs.viewedTimestamp == rhs.viewedTimestamp {
-                        return lhs.comparableName.caseInsensitiveCompare(rhs.comparableName) == .orderedAscending
+                    if lhs.viewedTimestamp != rhs.viewedTimestamp {
+                        return lhs.viewedTimestamp > rhs.viewedTimestamp
                     }
-                    return lhs.viewedTimestamp > rhs.viewedTimestamp
+                    return lhs.comparableName < rhs.comparableName
                 }
         }
     }
@@ -138,7 +142,7 @@ class StoryViewsViewController: OWSViewController {
             settingsButton.setTitle(CommonStrings.goToSettingsButton, for: .normal)
             settingsButton.titleLabel?.font = UIFont.dynamicTypeCaption1.semibold()
             settingsButton.setTitleColor(.ows_gray25, for: .normal)
-            settingsButton.contentEdgeInsets = UIEdgeInsets(hMargin: 14, vMargin: 6)
+            settingsButton.ows_contentEdgeInsets = UIEdgeInsets(hMargin: 14, vMargin: 6)
             settingsButton.layer.borderWidth = 1.5
             settingsButton.layer.borderColor = UIColor.ows_gray25.cgColor
 
@@ -250,7 +254,7 @@ private class StoryViewCell: UITableViewCell {
 
     func configure(with viewer: Viewer) {
         avatarView.updateWithSneakyTransactionIfNecessary { $0.dataSource = .address(viewer.address) }
-        nameLabel.text = viewer.displayName
+        nameLabel.text = viewer.comparableName.resolvedValue()
         timestampLabel.text = DateUtil.formatPastTimestampRelativeToNow(viewer.viewedTimestamp)
     }
 }

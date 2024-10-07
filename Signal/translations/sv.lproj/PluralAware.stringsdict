@@ -66,6 +66,134 @@
 			<string>Lägg till nya medlemmar</string>
 		</dict>
 	</dict>
+	<key>CALL_LINK_APPROVE_ALL_REQUESTS_CONFIRMATION_BODY_%ld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$ld person kommer att läggas till i samtalet.</string>
+			<key>other</key>
+			<string>%1$ld personer kommer att läggas till i samtalet.</string>
+		</dict>
+	</dict>
+	<key>CALL_LINK_APPROVE_ALL_REQUESTS_CONFIRMATION_TITLE_%ld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Godkänn %1$ld förfrågan?</string>
+			<key>other</key>
+			<string>Godkänn %1$ld förfrågningar?</string>
+		</dict>
+	</dict>
+	<key>CALL_LINK_DENY_ALL_REQUESTS_CONFIRMATION_BODY_%ld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$ld person kommer inte att läggas till i samtalet.</string>
+			<key>other</key>
+			<string>%1$ld personer kommer inte att läggas till i samtalet.</string>
+		</dict>
+	</dict>
+	<key>CALL_LINK_DENY_ALL_REQUESTS_CONFIRMATION_TITLE_%ld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Neka %1$ld förfrågan?</string>
+			<key>other</key>
+			<string>Neka %1$ld förfrågningar?</string>
+		</dict>
+	</dict>
+	<key>CALL_LINK_JOIN_REQUEST_AMOUNT_MORE_BUTTON_%ld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>+%1$ld Request</string>
+			<key>other</key>
+			<string>+%1$ld Requests</string>
+		</dict>
+	</dict>
+	<key>CALL_LINK_REQUEST_HEADER_COUNT_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$ld person väntar</string>
+			<key>other</key>
+			<string>%1$ld personer väntar</string>
+		</dict>
+	</dict>
+	<key>CALL_PEOPLE_HERE</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>ld</string>
+			<key>one</key>
+			<string>%1$ld person</string>
+			<key>other</key>
+			<string>%1$ld personer</string>
+		</dict>
+	</dict>
+	<key>CALL_PEOPLE_WAITING</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>ld</string>
+			<key>one</key>
+			<string>%1$ld person väntar</string>
+			<key>other</key>
+			<string>%1$ld personer väntar</string>
+		</dict>
+	</dict>
 	<key>CAMERA_VO_N_ITEMS</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -141,9 +269,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Den här chatten kommer att tas bort från den här enheten.</string>
+			<string>Denna chatt kommer att tas bort från alla dina enheter.</string>
 			<key>other</key>
-			<string>De här chattarna kommer att tas bort från den här enheten.</string>
+			<string>De här chattarna kommer att tas bort från alla dina enheter.</string>
 		</dict>
 	</dict>
 	<key>CONVERSATION_PICKER_CAN_SELECT_NO_MORE_CONVERSATIONS_%d</key>
@@ -349,22 +477,6 @@
 			<string>Det maximala antalet på %1$d deltagare har nåtts för detta samtal. Försök igen senare.</string>
 		</dict>
 	</dict>
-	<key>GROUP_CALL_IN_THIS_CALL_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>I detta samtal · %1$d person</string>
-			<key>other</key>
-			<string>I detta samtal · %1$d personer</string>
-		</dict>
-	</dict>
 	<key>GROUP_CALL_IS_RINGING_MANY_PEOPLE_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -379,6 +491,22 @@
 			<string>Ringer %2$@, %3$@ och %1$d annan …</string>
 			<key>other</key>
 			<string>Ringer %2$@, %3$@ och %1$d andra …</string>
+		</dict>
+	</dict>
+	<key>GROUP_CALL_MANY_OTHERS_HERE</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>ld</string>
+			<key>one</key>
+			<string>%1$ld person är i med det här samtalet</string>
+			<key>other</key>
+			<string>%1$ld personer är i med det här samtalet</string>
 		</dict>
 	</dict>
 	<key>GROUP_CALL_MANY_PEOPLE_HERE_%d</key>
@@ -427,6 +555,22 @@
 			<string>%2$@, %3$@ och %1$d annan lämnade samtalet</string>
 			<key>other</key>
 			<string>%2$@, %3$@ och %1$d andra lämnade samtalet</string>
+		</dict>
+	</dict>
+	<key>GROUP_CALL_ONE_KNOWN_AND_MANY_OTHERS_HERE</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>ld</string>
+			<key>one</key>
+			<string>%2$@ och %1$ld annan är med i det här samtalet</string>
+			<key>other</key>
+			<string>%2$@ och %1$ld andra är med i det här samtalet</string>
 		</dict>
 	</dict>
 	<key>GROUP_CALL_WILL_NOTIFY_MANY_PEOPLE_%d</key>
@@ -488,9 +632,41 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>%1$d gruppmedlem har liknande namn.</string>
+			<string>%1$d gruppmedlem har samma namn.</string>
 			<key>other</key>
-			<string>%1$d gruppmedlemmar har liknande namn.</string>
+			<string>%1$d gruppmedlemmar har samma namn.</string>
+		</dict>
+	</dict>
+	<key>GROUP_MEMBERSHIP_MULTIPLE_COLLISIONS_BANNER_TITLE_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d namnkonflikt hittades i denna grupp.</string>
+			<key>other</key>
+			<string>%1$d namnkonflikter hittades i denna grupp.</string>
+		</dict>
+	</dict>
+	<key>GROUP_MEMBERSHIP_NAME_COLLISION_MEMBER_COUNT_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d medlem</string>
+			<key>other</key>
+			<string>%1$d medlemmar</string>
 		</dict>
 	</dict>
 	<key>GROUP_MEMBERSHIP_NAME_MULTIPLE_COLLISION_HEADER_%d</key>
@@ -504,9 +680,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>%1$d gruppmedlem har liknande namn. Granska medlemmen nedan eller välj att vidta åtgärder.</string>
+			<string>%1$d namnkonflikt hittades i denna grupp. Granska medlemmarna nedan eller välj att vidta åtgärder.</string>
 			<key>other</key>
-			<string>%1$d gruppmedlemmar har liknande namn. Granska medlemmarna nedan eller välj att vidta åtgärder.</string>
+			<string>%1$d namnkonflikter hittades i denna grupp. Granska medlemmarna nedan eller välj att vidta åtgärder.</string>
 		</dict>
 	</dict>
 	<key>GROUP_MEMBERSHIP_NAME_SINGLE_COLLISION_HEADER_%d</key>
@@ -555,6 +731,22 @@
 			<string>%1$d medlem</string>
 			<key>other</key>
 			<string>%1$d medlemmar</string>
+		</dict>
+	</dict>
+	<key>GROUP_REMOTE_USER_INVITED_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d person har bjudits in till gruppen.</string>
+			<key>other</key>
+			<string>%1$d personer har bjudits in till gruppen.</string>
 		</dict>
 	</dict>
 	<key>GROUP_REMOTE_USER_INVITED_BY_REMOTE_USER_%d</key>
@@ -637,6 +829,38 @@
 			<string>Gruppstory · %1$d tittare</string>
 		</dict>
 	</dict>
+	<key>GROUP_WAS_MIGRATED_USERS_DROPPED_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>En medlem kunde inte läggas till i den Nya gruppen och har tagits bort.</string>
+			<key>other</key>
+			<string>%1$d medlemmar kunde inte läggas till i den Nya gruppen och har tagits bort.</string>
+		</dict>
+	</dict>
+	<key>GROUP_WAS_MIGRATED_USERS_INVITED_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>En medlem kunde inte läggas till i den Nya gruppen och har blivit inbjuden att gå med.</string>
+			<key>other</key>
+			<string>%1$d medlemmar kunde inte läggas till i den Nya gruppen och har blivit inbjudna att gå med.</string>
+		</dict>
+	</dict>
 	<key>IMAGE_PICKER_CAN_SELECT_NO_MORE_TOAST_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -651,6 +875,22 @@
 			<string>Du kan inte dela fler än 1 objekt.</string>
 			<key>other</key>
 			<string>Du kan inte dela fler än %1$d objekt.</string>
+		</dict>
+	</dict>
+	<key>INACTIVE_LINKED_DEVICE_REMINDER_MEGAPHONE_BODY_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>För att hålla &quot;%2$@&quot; länkad, öppna Signal på den enheten inom %1$d dag.</string>
+			<key>other</key>
+			<string>För att hålla &quot;%2$@&quot; länkad, öppna Signal på den enheten inom %1$d dagar.</string>
 		</dict>
 	</dict>
 	<key>MANY_GROUPS_IN_COMMON_%d</key>
@@ -781,6 +1021,22 @@
 			<string>%1$d valda</string>
 		</dict>
 	</dict>
+	<key>MESSAGE_REACTIONS_ACCESSIBILITY_LABEL_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d reaktion med %2$@.</string>
+			<key>other</key>
+			<string>%1$d reaktioner med %2$@.</string>
+		</dict>
+	</dict>
 	<key>MY_STORIES_SETTINGS_VISIBILITY_ALL_SIGNAL_CONNECTIONS_EXCEPT_SUBTITLE_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -909,6 +1165,22 @@
 			<string>%1$d tittare</string>
 		</dict>
 	</dict>
+	<key>OVERFLOW_REACTIONS_ACCESSIBILITY_LABEL_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d ytterligare reaktion.</string>
+			<key>other</key>
+			<string>%1$d ytterligare reaktioner.</string>
+		</dict>
+	</dict>
 	<key>PENDING_GROUP_MEMBERS_MEMBER_INVITED_USERS_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -1003,6 +1275,22 @@
 			<string>Anpassad story · %1$d tittare</string>
 			<key>other</key>
 			<string>Anpassad story · %1$d tittare</string>
+		</dict>
+	</dict>
+	<key>RAISED_HANDS_TOAST_MULTIPLE_HANDS_MESSAGE</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>ld</string>
+			<key>one</key>
+			<string>%2$@ + %1$ld räcker upp handen</string>
+			<key>other</key>
+			<string>%2$@ + %1$ld räcker upp handen</string>
 		</dict>
 	</dict>
 	<key>REREGISTER_INVALID_PIN_ATTEMPT_COUNT_%d</key>
@@ -1131,6 +1419,22 @@
 			<string>&lt;bold&gt;%1$d&lt;/bold&gt; visning</string>
 			<key>other</key>
 			<string>&lt;bold&gt;%1$d&lt;/bold&gt; visningar</string>
+		</dict>
+	</dict>
+	<key>USERNAME_SELECTION_TOO_SHORT_ERROR_MESSAGE_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Användarnamn måste börja med minst %1$d tecken</string>
+			<key>other</key>
+			<string>Användarnamn måste börja med minst %1$d tecken</string>
 		</dict>
 	</dict>
 </dict>

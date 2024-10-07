@@ -4,7 +4,7 @@
 //
 
 import SignalServiceKit
-import SignalUI
+public import SignalUI
 
 public class PinReminderViewController: OWSViewController {
 
@@ -63,7 +63,7 @@ public class PinReminderViewController: OWSViewController {
         super.viewDidAppear(animated)
 
         // For now, the design only allows for portrait layout on non-iPads
-        if !UIDevice.current.isIPad && CurrentAppContext().interfaceOrientation != .portrait {
+        if !UIDevice.current.isIPad && view.window?.windowScene?.interfaceOrientation != .portrait {
             UIDevice.current.ows_setOrientation(.portrait)
         }
     }
@@ -279,7 +279,7 @@ public class PinReminderViewController: OWSViewController {
         // If the user tried and guessed wrong, we'll dismiss the megaphone and
         // decrease their reminder interval so the next reminder comes sooner.
         // If they didn't try and enter a PIN, we do nothing and leave the megaphone.
-        if hasGuessedWrong { OWS2FAManager.shared.reminderCompleted(withIncorrectAttempts: true) }
+        if hasGuessedWrong { OWS2FAManager.shared.reminderCompleted(incorrectAttempts: true) }
 
         self.completionHandler?(.canceled(didGuessWrong: hasGuessedWrong))
     }
@@ -305,17 +305,17 @@ public class PinReminderViewController: OWSViewController {
 
         OWS2FAManager.shared.verifyPin(pin) { success in
             guard success else {
-                guard OWS2FAManager.shared.needsLegacyPinMigration(), pin.count > kLegacyTruncated2FAv1PinLength else {
+                guard OWS2FAManager.shared.needsLegacyPinMigration, pin.count > kLegacyTruncated2FAv1PinLength else {
                     if !silent { self.validationState = .mismatch }
                     return
                 }
                 // We have a legacy pin that may have been truncated to 16 characters.
-                let truncatedPinCode = pin.substring(to: Int(kLegacyTruncated2FAv1PinLength))
+                let truncatedPinCode = String(pin.prefix(Int(kLegacyTruncated2FAv1PinLength)))
                 self.verifyAndDismissOnSuccess(truncatedPinCode, silent: silent)
                 return
             }
 
-            OWS2FAManager.shared.reminderCompleted(withIncorrectAttempts: self.hasGuessedWrong)
+            OWS2FAManager.shared.reminderCompleted(incorrectAttempts: self.hasGuessedWrong)
             self.completionHandler?(.succeeded)
         }
     }

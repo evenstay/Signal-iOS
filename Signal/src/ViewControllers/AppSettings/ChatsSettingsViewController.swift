@@ -4,7 +4,7 @@
 //
 
 import IntentsUI
-import SignalMessaging
+import SignalServiceKit
 import SignalUI
 
 class ChatsSettingsViewController: OWSTableViewController2 {
@@ -19,7 +19,7 @@ class ChatsSettingsViewController: OWSTableViewController2 {
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(updateTableContents),
-            name: .OWSSyncManagerConfigurationSyncDidComplete,
+            name: .syncManagerConfigurationSyncDidComplete,
             object: nil
         )
     }
@@ -39,7 +39,7 @@ class ChatsSettingsViewController: OWSTableViewController2 {
                 comment: "Setting for enabling & disabling link previews."
             ),
             isOn: {
-                Self.databaseStorage.read { SSKPreferences.areLinkPreviewsEnabled(transaction: $0) }
+                Self.databaseStorage.read { DependenciesBridge.shared.linkPreviewSettingStore.areLinkPreviewsEnabled(tx: $0.asV2Read) }
             },
             target: self,
             selector: #selector(didToggleLinkPreviewsEnabled)
@@ -47,17 +47,10 @@ class ChatsSettingsViewController: OWSTableViewController2 {
         contents.add(linkPreviewSection)
 
         let sharingSuggestionsSection = OWSTableSection()
-        if #available(iOS 15, *) {
-            sharingSuggestionsSection.footerTitle = OWSLocalizedString(
-                "SETTINGS_SHARING_SUGGESTIONS_NOTIFICATIONS_FOOTER",
-                comment: "Footer for setting for enabling & disabling contact and notification sharing with iOS."
-            )
-        } else {
-            sharingSuggestionsSection.footerTitle = OWSLocalizedString(
-                "SETTINGS_SHARING_SUGGESTIONS_FOOTER",
-                comment: "Footer for setting for enabling & disabling contact sharing with iOS."
-            )
-        }
+        sharingSuggestionsSection.footerTitle = OWSLocalizedString(
+            "SETTINGS_SHARING_SUGGESTIONS_NOTIFICATIONS_FOOTER",
+            comment: "Footer for setting for enabling & disabling contact and notification sharing with iOS."
+        )
 
         sharingSuggestionsSection.add(.switch(
             withText: OWSLocalizedString(
@@ -120,8 +113,10 @@ class ChatsSettingsViewController: OWSTableViewController2 {
     @objc
     private func didToggleLinkPreviewsEnabled(_ sender: UISwitch) {
         Logger.info("toggled to: \(sender.isOn)")
-        databaseStorage.write { transaction in
-            SSKPreferences.setAreLinkPreviewsEnabled(sender.isOn, sendSyncMessage: true, transaction: transaction)
+        let db = DependenciesBridge.shared.db
+        db.write { tx in
+            let linkPreviewSettingManager = DependenciesBridge.shared.linkPreviewSettingManager
+            linkPreviewSettingManager.setAreLinkPreviewsEnabled(sender.isOn, shouldSendSyncMessage: true, tx: tx)
         }
     }
 
@@ -171,34 +166,72 @@ class ChatsSettingsViewController: OWSTableViewController2 {
         Self.storageServiceManager.recordPendingLocalAccountUpdates()
     }
 
+    // MARK: -
+
     private func didTapClearHistory() {
-        OWSActionSheets.showConfirmationAlert(
-            title: OWSLocalizedString(
-                "SETTINGS_DELETE_HISTORYLOG_CONFIRMATION",
-                comment: "Alert message before user confirms clearing history"
-            ),
-            proceedTitle: OWSLocalizedString(
-                "SETTINGS_DELETE_HISTORYLOG_CONFIRMATION_BUTTON",
-                comment: "Confirmation text for button which deletes all message, calling, attachments, etc."
-            ),
-            proceedStyle: .destructive,
-            proceedAction: { [weak self] _ in self?.clearHistory() }
-        )
+        DeleteForMeInfoSheetCoordinator.fromGlobals().coordinateDelete(
+            fromViewController: self
+        ) { _, threadSoftDeleteManager in
+            OWSActionSheets.showConfirmationAlert(
+                title: OWSLocalizedString(
+                    "SETTINGS_DELETE_HISTORYLOG_CONFIRMATION",
+                    comment: "Alert message before user confirms clearing history"
+                ),
+                proceedTitle: OWSLocalizedString(
+                    "SETTINGS_DELETE_HISTORYLOG_CONFIRMATION_BUTTON",
+                    comment: "Confirmation text for button which deletes all message, calling, attachments, etc."
+                ),
+                proceedStyle: .destructive,
+                proceedAction: { [weak self] _ in
+                    self?.clearHistoryBehindSpinner(threadSoftDeleteManager: threadSoftDeleteManager)
+                }
+            )
+        }
     }
 
-    private func clearHistory() {
+    private func clearHistoryBehindSpinner(
+        threadSoftDeleteManager: any ThreadSoftDeleteManager
+    ) {
         ModalActivityIndicatorViewController.present(
             fromViewController: self,
             canCancel: false,
             presentationDelay: 0.5,
+            backgroundBlockQueueQos: .userInitiated,
             backgroundBlock: { modal in
-                DispatchQueue.global(qos: .userInitiated).async {
-                    ThreadUtil.deleteAllContentWithSneakyTransaction()
-                    DispatchQueue.main.async {
-                        modal.dismiss()
-                    }
+                self.clearHistoryWithSneakyTransaction(
+                    threadSoftDeleteManager: threadSoftDeleteManager
+                )
+
+                DispatchQueue.main.async {
+                    modal.dismiss()
                 }
             }
         )
+    }
+
+    private func clearHistoryWithSneakyTransaction(
+        threadSoftDeleteManager: any ThreadSoftDeleteManager
+    ) {
+        Logger.info("")
+
+        databaseStorage.write { transaction in
+            threadSoftDeleteManager.softDelete(
+                threads: TSThread.anyFetchAll(transaction: transaction),
+                sendDeleteForMeSyncMessage: true,
+                tx: transaction.asV2Write
+            )
+
+            StoryMessage.anyRemoveAllWithInstantiation(transaction: transaction)
+            // V2 attachments have owner deletion cascade rules defined in sql,
+            // no need for an explicit delete here.
+            TSAttachment.anyRemoveAllWithInstantiation(transaction: transaction)
+
+            // Deleting attachments above should be enough to remove any gallery items, but
+            // we redunantly clean up *all* gallery items to be safe.
+            MediaGalleryRecordManager.didRemoveAllContent(transaction: transaction)
+        }
+
+        TSAttachmentStream.deleteAttachmentsFromDisk()
+        AttachmentStream.deleteAllAttachmentFiles()
     }
 }

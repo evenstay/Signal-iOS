@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Scheme
-   LastUpgradeVersion = "1320"
+   LastUpgradeVersion = "1600"
    version = "1.8">
    <BuildAction
       parallelizeBuildables = "YES"
@@ -17,20 +17,6 @@
                BlueprintIdentifier = "D221A088169C9E5E00537ABF"
                BuildableName = "Signal.app"
                BlueprintName = "Signal"
-               ReferencedContainer = "container:Signal.xcodeproj">
-            </BuildableReference>
-         </BuildActionEntry>
-         <BuildActionEntry
-            buildForTesting = "YES"
-            buildForRunning = "NO"
-            buildForProfiling = "NO"
-            buildForArchiving = "NO"
-            buildForAnalyzing = "NO">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "4C10B17F23176D250099396B"
-               BuildableName = "SignalPerformanceTests.xctest"
-               BlueprintName = "SignalPerformanceTests"
                ReferencedContainer = "container:Signal.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -62,6 +48,13 @@
       <CodeCoverageTargets>
          <BuildableReference
             BuildableIdentifier = "primary"
+            BlueprintIdentifier = "D221A088169C9E5E00537ABF"
+            BuildableName = "Signal.app"
+            BlueprintName = "Signal"
+            ReferencedContainer = "container:Signal.xcodeproj">
+         </BuildableReference>
+         <BuildableReference
+            BuildableIdentifier = "primary"
             BlueprintIdentifier = "F9C5C896289451B900548EEE"
             BuildableName = "SignalServiceKit.framework"
             BlueprintName = "SignalServiceKit"
@@ -76,26 +69,6 @@
                BlueprintIdentifier = "D221A0A9169C9E5F00537ABF"
                BuildableName = "SignalTests.xctest"
                BlueprintName = "SignalTests"
-               ReferencedContainer = "container:Signal.xcodeproj">
-            </BuildableReference>
-         </TestableReference>
-         <TestableReference
-            skipped = "NO">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "5C9F6BA9ADC4724B2612C9F20FBE2076"
-               BuildableName = "SignalCoreKit-Unit-Tests.xctest"
-               BlueprintName = "SignalCoreKit-Unit-Tests"
-               ReferencedContainer = "container:Pods/Pods.xcodeproj">
-            </BuildableReference>
-         </TestableReference>
-         <TestableReference
-            skipped = "YES">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "4C10B17F23176D250099396B"
-               BuildableName = "SignalPerformanceTests.xctest"
-               BlueprintName = "SignalPerformanceTests"
                ReferencedContainer = "container:Signal.xcodeproj">
             </BuildableReference>
          </TestableReference>
@@ -152,6 +125,14 @@
       <CommandLineArguments>
          <CommandLineArgument
             argument = "-AppLaunchesAttempted 1"
+            isEnabled = "NO">
+         </CommandLineArgument>
+         <CommandLineArgument
+            argument = "-UseLibsignalForUnidentifiedWebsocket YES"
+            isEnabled = "NO">
+         </CommandLineArgument>
+         <CommandLineArgument
+            argument = "-UseLibsignalForIdentifiedWebsocket YES"
             isEnabled = "NO">
          </CommandLineArgument>
       </CommandLineArguments>

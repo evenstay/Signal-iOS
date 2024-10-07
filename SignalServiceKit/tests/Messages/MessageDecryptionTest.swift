@@ -7,7 +7,7 @@ import XCTest
 @testable import SignalServiceKit
 import LibSignalClient
 
-class MessageDecryptionTest: SSKBaseTestSwift {
+class MessageDecryptionTest: SSKBaseTest {
     let localE164Identifier = "+13235551234"
     let localAci = UUID()
     let localPni = UUID()
@@ -22,7 +22,7 @@ class MessageDecryptionTest: SSKBaseTestSwift {
     let sealedSenderTrustRoot = IdentityKeyPair.generate()
 
     private var fakeMessageSender: FakeMessageSender {
-        MockSSKEnvironment.shared.messageSender as! FakeMessageSender
+        SSKEnvironment.shared.messageSenderRef as! FakeMessageSender
     }
 
     // MARK: - Hooks
@@ -45,7 +45,7 @@ class MessageDecryptionTest: SSKBaseTestSwift {
             )
         }
 
-        (notificationsManager as! NoopNotificationsManager).expectErrors = true
+        (notificationPresenter as! NoopNotificationPresenterImpl).expectErrors = true
         (udManager as! OWSUDManagerImpl).trustRoot = sealedSenderTrustRoot.publicKey
     }
 
@@ -249,18 +249,19 @@ class MessageDecryptionTest: SSKBaseTestSwift {
     private func waitForResendRequestRatchetKey(line: UInt = #line) -> Promise<PublicKey> {
         let (promise, future) = Promise<PublicKey>.pending()
 
+        fakeMessageSender.stubbedFailingErrors = [nil]
         fakeMessageSender.sendMessageWasCalledBlock = { message in
             guard let resendRequest = message as? OWSOutgoingResendRequest else {
                 return
             }
+            self.fakeMessageSender.sendMessageWasCalledBlock = nil
+
             let decryptionError = try! DecryptionErrorMessage(bytes: resendRequest.decryptionErrorData)
             if let ratchetKey = decryptionError.ratchetKey {
                 future.resolve(ratchetKey)
             } else {
                 XCTFail("missing ratchet key", line: line)
             }
-
-            self.fakeMessageSender.sendMessageWasCalledBlock = nil
         }
         return promise
     }
@@ -275,7 +276,7 @@ class MessageDecryptionTest: SSKBaseTestSwift {
     }
 
     func testMissingSignedPreKey() {
-        sskJobQueues.messageSenderJobQueue.setup()
+        SSKEnvironment.shared.messageSenderJobQueueRef.setup(appReadiness: AppReadinessMock())
 
         let requestRatchetKey = waitForResendRequestRatchetKey()
 
@@ -315,7 +316,7 @@ class MessageDecryptionTest: SSKBaseTestSwift {
     }
 
     func testMissingOneTimePreKey() {
-        sskJobQueues.messageSenderJobQueue.setup()
+        SSKEnvironment.shared.messageSenderJobQueueRef.setup(appReadiness: AppReadinessMock())
 
         let requestRatchetKey = waitForResendRequestRatchetKey()
 

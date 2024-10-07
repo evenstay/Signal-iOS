@@ -4,7 +4,6 @@
 //
 
 import Foundation
-import SignalMessaging
 import SignalServiceKit
 import SignalUI
 
@@ -26,13 +25,19 @@ class ResendMessagePromptBuilder {
                 }
                 // If the message was remotely deleted, resend a *delete* message
                 // rather than the message itself.
-                let messageToSend: TSOutgoingMessage
+                let preparedMessage: PreparedOutgoingMessage
                 if latestMessage.wasRemotelyDeleted {
-                    messageToSend = TSOutgoingDeleteMessage(thread: latestThread, message: latestMessage, transaction: tx)
+                    let messageToSend = TSOutgoingDeleteMessage(thread: latestThread, message: latestMessage, transaction: tx)
+                    preparedMessage = PreparedOutgoingMessage.preprepared(
+                        transientMessageWithoutAttachments: messageToSend
+                    )
                 } else {
-                    messageToSend = latestMessage
+                    preparedMessage = PreparedOutgoingMessage.preprepared(
+                        forResending: latestMessage,
+                        messageRowId: latestMessage.sqliteRowId!
+                    )
                 }
-                messageSenderJobQueue.add(message: messageToSend.asPreparer, transaction: tx)
+                messageSenderJobQueue.add(message: preparedMessage, transaction: tx)
             }
         }
 
@@ -58,7 +63,12 @@ class ResendMessagePromptBuilder {
             style: .destructive,
             handler: { [databaseStorage] _ in
                 databaseStorage.write { tx in
-                    TSInteraction.anyFetch(uniqueId: message.uniqueId, transaction: tx)?.anyRemove(transaction: tx)
+                    guard let freshInstance = TSInteraction.anyFetch(
+                        uniqueId: message.uniqueId, transaction: tx
+                    ) else { return }
+
+                    DependenciesBridge.shared.interactionDeleteManager
+                        .delete(freshInstance, sideEffects: .default(), tx: tx.asV2Write)
                 }
             }
         ))

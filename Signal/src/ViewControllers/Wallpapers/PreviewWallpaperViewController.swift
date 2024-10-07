@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
+import SignalServiceKit
 import SignalUI
 
 protocol PreviewWallpaperDelegate: AnyObject {
@@ -117,23 +117,31 @@ class PreviewWallpaperViewController: UIViewController {
     }
 
     func setCurrentWallpaperAndDismiss() {
-        databaseStorage.asyncWrite { transaction in
+        let croppedAndScaledPhoto: UIImage?
+        let preset: Wallpaper?
+        switch self.mode {
+        case .photo:
+            guard let standalonePage = self.standalonePage else {
+                return owsFailDebug("Missing standalone page for photo")
+            }
+            croppedAndScaledPhoto = standalonePage.view.renderAsImage()
+            preset = nil
+        case .preset(let selectedWallpaper):
+            croppedAndScaledPhoto = nil
+            preset = selectedWallpaper
+        }
+        DispatchQueue.global().async { [weak self, thread] in
             do {
-                switch self.mode {
-                case .photo:
-                    guard let standalonePage = self.standalonePage else {
-                        return owsFailDebug("Missing standalone page for photo")
-                    }
-                    let croppedAndScaledPhoto = standalonePage.view.renderAsImage()
-                    try Wallpaper.setPhoto(croppedAndScaledPhoto, for: self.thread, transaction: transaction)
-                case .preset(let selectedWallpaper):
-                    try Wallpaper.setBuiltIn(selectedWallpaper, for: self.thread, transaction: transaction)
+                if let croppedAndScaledPhoto {
+                    try DependenciesBridge.shared.wallpaperStore.setPhoto(croppedAndScaledPhoto, for: thread)
+                } else if let preset {
+                    try DependenciesBridge.shared.wallpaperStore.setBuiltIn(preset, for: thread)
                 }
             } catch {
                 owsFailDebug("Failed to set wallpaper \(error)")
             }
-
-            transaction.addAsyncCompletionOnMain {
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
                 self.delegate?.previewWallpaperDidComplete(self)
             }
         }
@@ -166,7 +174,11 @@ class PreviewWallpaperViewController: UIViewController {
         }
         mockConversationView.model = buildMockConversationModel()
         mockConversationView.customChatColor = databaseStorage.read { tx in
-            ChatColors.resolvedChatColor(for: thread, previewWallpaper: resolvedWallpaper, tx: tx)
+            DependenciesBridge.shared.chatColorSettingStore.resolvedChatColor(
+                for: thread,
+                previewWallpaper: resolvedWallpaper,
+                tx: tx.asV2Read
+            )
         }
     }
 
@@ -183,7 +195,7 @@ class PreviewWallpaperViewController: UIViewController {
                 "WALLPAPER_PREVIEW_OUTGOING_MESSAGE_FORMAT",
                 comment: "The outgoing bubble text when setting a wallpaper for specific chat. Embeds {{chat name}}"
             )
-            let displayName = contactsManager.displayNameWithSneakyTransaction(thread: thread)
+            let displayName = databaseStorage.read { tx in contactsManager.displayName(for: thread, transaction: tx) }
             return String(format: formatString, displayName)
         }()
 
@@ -317,7 +329,10 @@ private class WallpaperPage: UIViewController {
         view = rootView
 
         let shouldDimInDarkTheme = databaseStorage.read { transaction in
-            Wallpaper.dimInDarkMode(for: thread, transaction: transaction)
+            DependenciesBridge.shared.wallpaperStore.fetchDimInDarkMode(
+                for: thread?.uniqueId,
+                tx: transaction.asV2Read
+            )
         }
         let wallpaperView = Wallpaper.viewBuilder(
             for: wallpaper,

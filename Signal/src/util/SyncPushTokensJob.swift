@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
 import SignalServiceKit
 
 class SyncPushTokensJob: NSObject {
@@ -18,16 +17,14 @@ class SyncPushTokensJob: NSObject {
 
     public let auth: ChatServiceAuth
 
-    required init(mode: Mode, auth: ChatServiceAuth = .implicit()) {
+    init(mode: Mode, auth: ChatServiceAuth = .implicit()) {
         self.mode = mode
         self.auth = auth
     }
 
-    private static let hasUploadedTokensOnce = AtomicBool(false)
+    private static let hasUploadedTokensOnce = AtomicBool(false, lock: .sharedGlobal)
 
     func run() async throws {
-        Logger.info("Starting.")
-
         switch mode {
         case .normal, .forceUpload:
             // Don't rotate.
@@ -58,19 +55,19 @@ class SyncPushTokensJob: NSObject {
             }
         }
 
-        let (pushToken, voipToken) = (regResult.apnsToken, regResult.voipToken)
+        let pushToken = regResult.apnsToken
 
-        Logger.info("Fetched pushToken: \(redact(pushToken)), voipToken: \(redact(voipToken))")
+        Logger.info("Fetched pushToken: \(redact(pushToken))")
 
         var shouldUploadTokens = false
 
-        if preferences.pushToken != pushToken || preferences.voipToken != voipToken {
+        if preferences.pushToken != pushToken {
             Logger.info("Push tokens changed.")
             shouldUploadTokens = true
         } else if mode == .forceUpload {
             Logger.info("Forced uploading, even though tokens didn't change.")
             shouldUploadTokens = true
-        } else if AppVersionImpl.shared.lastAppVersion != AppVersionImpl.shared.currentAppReleaseVersion {
+        } else if AppVersionImpl.shared.lastAppVersion != AppVersionImpl.shared.currentAppVersion {
             Logger.info("Uploading due to fresh install or app upgrade.")
             shouldUploadTokens = true
         } else if !Self.hasUploadedTokensOnce.get() {
@@ -79,22 +76,14 @@ class SyncPushTokensJob: NSObject {
         }
 
         guard shouldUploadTokens else {
-            Logger.info("No reason to upload pushToken: \(redact(pushToken)), voipToken: \(redact(voipToken))")
+            Logger.info("No reason to upload pushToken: \(redact(pushToken))")
             return
         }
 
-        Logger.warn("uploading tokens to account servers. pushToken: \(redact(pushToken)), voipToken: \(redact(voipToken))")
-        switch auth.credentials {
-        case .implicit:
-            try await accountManager.updatePushTokens(pushToken: pushToken, voipToken: voipToken).awaitable()
-        case .explicit:
-            let request = OWSRequestFactory.registerForPushRequest(withPushIdentifier: pushToken, voipIdentifier: voipToken)
-            request.shouldHaveAuthorizationHeaders = true
-            request.setAuth(auth)
-            try await accountManager.updatePushTokens(request: request).awaitable()
-        }
+        Logger.warn("uploading tokens to account servers. pushToken: \(redact(pushToken))")
+        try await self.updatePushTokens(pushToken: pushToken, auth: auth)
 
-        await recordPushTokensLocally(pushToken: pushToken, voipToken: voipToken)
+        await recordPushTokensLocally(pushToken: pushToken)
 
         Self.hasUploadedTokensOnce.set(true)
 
@@ -111,21 +100,45 @@ class SyncPushTokensJob: NSObject {
         }
     }
 
-    // MARK: 
-
-    private func recordPushTokensLocally(pushToken: String, voipToken: String?) async {
+    private func recordPushTokensLocally(pushToken: String) async {
         assert(!Thread.isMainThread)
 
         await databaseStorage.awaitableWrite { tx in
-            Logger.warn("Recording push tokens locally. pushToken: \(redact(pushToken)), voipToken: \(redact(voipToken))")
+            Logger.warn("Recording push tokens locally. pushToken: \(redact(pushToken))")
 
             if pushToken != self.preferences.getPushToken(tx: tx) {
                 Logger.info("Recording new plain push token")
                 self.preferences.setPushToken(pushToken, tx: tx)
             }
-            if voipToken != self.preferences.getVoipToken(tx: tx) {
-                Logger.info("Recording new voip token")
-                self.preferences.setVoipToken(voipToken, tx: tx)
+        }
+    }
+
+    // MARK: - Requests
+
+    func updatePushTokens(pushToken: String, auth: ChatServiceAuth) async throws {
+        let request = OWSRequestFactory.registerForPushRequest(apnsToken: pushToken)
+        request.setAuth(auth)
+        return try await updatePushTokens(request: request, remainingRetries: 3)
+    }
+
+    private func updatePushTokens(
+        request: TSRequest,
+        remainingRetries: Int
+    ) async throws {
+        do {
+            _ = try await networkManager
+                .makePromise(request: request)
+                .awaitable()
+            return
+        } catch let error {
+            if remainingRetries > 0 {
+                return try await updatePushTokens(
+                    request: request,
+                    remainingRetries: remainingRetries - 1
+                )
+            } else {
+                owsFailDebugUnlessNetworkFailure(error)
+                throw error
             }
         }
     }
@@ -133,5 +146,9 @@ class SyncPushTokensJob: NSObject {
 
 private func redact(_ string: String?) -> String {
     guard let string = string else { return "nil" }
-    return OWSIsDebugBuild() ? string : "[ REDACTED \(string.prefix(2))...\(string.suffix(2)) ]"
+#if DEBUG
+    return string
+#else
+    return "\(string.prefix(2))…\(string.suffix(2))"
+#endif
 }

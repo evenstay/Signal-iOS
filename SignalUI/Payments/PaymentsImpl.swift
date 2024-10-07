@@ -4,23 +4,25 @@
 //
 
 import Foundation
-import LibSignalClient
-import MobileCoin
-import SignalCoreKit
-import SignalMessaging
-import SignalServiceKit
+public import LibSignalClient
+public import MobileCoin
+public import SignalServiceKit
 
 public class PaymentsImpl: NSObject, PaymentsSwift {
 
+    private let appReadiness: AppReadiness
     private var refreshBalanceEvent: RefreshEvent?
 
-    fileprivate let paymentsReconciliation = PaymentsReconciliation()
+    fileprivate let paymentsReconciliation: PaymentsReconciliation
 
-    private let paymentsProcessor = PaymentsProcessor()
+    private let paymentsProcessor: PaymentsProcessor
 
     public static let maxPaymentMemoMessageLength: Int = 32
 
-    public required override init() {
+    public init(appReadiness: AppReadiness) {
+        self.appReadiness = appReadiness
+        self.paymentsReconciliation = PaymentsReconciliation(appReadiness: appReadiness)
+        self.paymentsProcessor = PaymentsProcessor(appReadiness: appReadiness)
         super.init()
 
         // Note: this isn't how often we refresh the balance, it's how often we
@@ -28,13 +30,13 @@ public class PaymentsImpl: NSObject, PaymentsSwift {
         //
         // TODO: Tune.
         let refreshCheckInterval = kMinuteInterval * 5
-        refreshBalanceEvent = RefreshEvent(refreshInterval: refreshCheckInterval) { [weak self] in
+        refreshBalanceEvent = RefreshEvent(appReadiness: appReadiness, refreshInterval: refreshCheckInterval) { [weak self] in
             self?.updateCurrentPaymentBalanceIfNecessary()
         }
 
         MobileCoinAPI.configureSDKLogging()
 
-        AppReadiness.runNowOrWhenAppDidBecomeReadyAsync {
+        appReadiness.runNowOrWhenAppDidBecomeReadyAsync {
             DispatchQueue.global().async {
                 self.updateLastKnownLocalPaymentAddressProtoDataIfNecessary()
             }
@@ -49,20 +51,19 @@ public class PaymentsImpl: NSObject, PaymentsSwift {
         guard DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isRegistered else {
             return
         }
-        guard AppReadiness.isAppReady else {
+        guard appReadiness.isAppReady else {
             return
         }
 
         let appVersionKey = "appVersion"
-        let currentAppVersion4 = AppVersionImpl.shared.currentAppVersion4
+        let currentAppVersion = AppVersionImpl.shared.currentAppVersion
 
         let shouldUpdate = Self.databaseStorage.read { (transaction: SDSAnyReadTransaction) -> Bool in
             // Check if the app version has changed.
             let lastAppVersion = self.keyValueStore.getString(appVersionKey, transaction: transaction)
-            guard lastAppVersion == currentAppVersion4 else {
+            guard lastAppVersion == currentAppVersion else {
                 return true
             }
-            Logger.info("Skipping; lastAppVersion: \(String(describing: lastAppVersion)), currentAppVersion4: \(currentAppVersion4).")
             return false
         }
         guard shouldUpdate else {
@@ -73,7 +74,7 @@ public class PaymentsImpl: NSObject, PaymentsSwift {
         databaseStorage.write { transaction in
             self.updateLastKnownLocalPaymentAddressProtoData(transaction: transaction)
 
-            self.keyValueStore.setString(currentAppVersion4, key: appVersionKey, transaction: transaction)
+            self.keyValueStore.setString(currentAppVersion, key: appVersionKey, transaction: transaction)
         }
     }
 
@@ -216,7 +217,7 @@ public class PaymentsImpl: NSObject, PaymentsSwift {
 
     public static let currentPaymentBalanceDidChange = Notification.Name("currentPaymentBalanceDidChange")
 
-    private let paymentBalanceCache = AtomicOptional<PaymentBalance>(nil)
+    private let paymentBalanceCache = AtomicOptional<PaymentBalance>(nil, lock: .sharedGlobal)
 
     public var currentPaymentBalance: PaymentBalance? {
         paymentBalanceCache.get()
@@ -260,7 +261,7 @@ public class PaymentsImpl: NSObject, PaymentsSwift {
             return
         }
         guard
-            AppReadiness.isAppReady,
+            appReadiness.isAppReady,
             CurrentAppContext().isMainAppAndActive,
             DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isRegistered
         else {
@@ -323,22 +324,21 @@ public class PaymentsImpl: NSObject, PaymentsSwift {
 public extension PaymentsImpl {
 
     private func fetchPublicAddress(for recipientAci: Aci) -> Promise<MobileCoin.PublicAddress> {
-        return firstly {
-            ProfileFetcherJob.fetchProfilePromise(
-                serviceId: recipientAci,
-                mainAppOnly: false,
-                ignoreThrottling: true
-            )
-        }.map(on: DispatchQueue.global()) { (fetchedProfile: FetchedProfile) -> MobileCoin.PublicAddress in
+        return Promise.wrapAsync {
+            let profileFetcher = SSKEnvironment.shared.profileFetcherRef
+            let fetchedProfile = try await profileFetcher.fetchProfile(for: recipientAci)
+
             guard let decryptedProfile = fetchedProfile.decryptedProfile else {
                 throw PaymentsError.userHasNoPublicAddress
             }
 
-            // We don't need to persist this value in the cache; the ProfileFetcherJob
+            // We don't need to persist this value in the cache; the ProfileFetcher
             // will take care of that.
-            guard let paymentAddress = decryptedProfile.paymentAddress,
-                  paymentAddress.isValid,
-                  paymentAddress.currency == .mobileCoin else {
+            guard
+                let paymentAddress = decryptedProfile.paymentAddress(identityKey: fetchedProfile.identityKey),
+                paymentAddress.isValid,
+                paymentAddress.currency == .mobileCoin
+            else {
                 throw PaymentsError.userHasNoPublicAddress
             }
             do {
@@ -633,7 +633,6 @@ public extension PaymentsImpl {
                 // prepareTransaction() will fail if local balance is not yet known.
                 mobileCoinAPI.getLocalBalance()
             }.then(on: DispatchQueue.global()) { (balance: TSPaymentAmount) -> Promise<Void> in
-                Logger.verbose("balance: \(balance.picoMob)")
                 return self.defragmentIfNecessary(forPaymentAmount: paymentAmount,
                                                   mobileCoinAPI: mobileCoinAPI,
                                                   canDefragment: canDefragment)
@@ -659,8 +658,6 @@ public extension PaymentsImpl {
     private func defragmentIfNecessary(forPaymentAmount paymentAmount: TSPaymentAmount,
                                        mobileCoinAPI: MobileCoinAPI,
                                        canDefragment: Bool) -> Promise<Void> {
-        Logger.verbose("")
-
         return firstly(on: DispatchQueue.global()) { () throws -> Promise<Bool> in
             mobileCoinAPI.requiresDefragmentation(forPaymentAmount: paymentAmount)
         }.then(on: DispatchQueue.global()) { (shouldDefragment: Bool) -> Promise<Void> in
@@ -826,7 +823,6 @@ public extension PaymentsImpl {
 
     class func sendDefragmentationSyncMessage(paymentModel: TSPaymentModel,
                                               transaction: SDSAnyWriteTransaction) {
-        Logger.verbose("")
         guard paymentModel.isDefragmentation else {
             owsFailDebug("Invalid paymentType.")
             return
@@ -952,7 +948,6 @@ public extension PaymentsImpl {
     class func sendOutgoingPaymentSyncMessage(paymentModel: TSPaymentModel,
                                               transaction: SDSAnyWriteTransaction) {
 
-        Logger.verbose("")
         guard let recipientAci = paymentModel.senderOrRecipientAci else {
             owsFailDebug("Missing recipientAci.")
             return
@@ -1066,7 +1061,7 @@ public extension PaymentsImpl {
             mcReceiptData: mcReceiptData
         )
         let dmConfigurationStore = DependenciesBridge.shared.disappearingMessagesConfigurationStore
-        let expiresInSeconds = dmConfigurationStore.durationSeconds(for: thread, tx: transaction.asV2Read)
+        let dmConfig = dmConfigurationStore.fetchOrBuildDefault(for: .thread(thread), tx: transaction.asV2Read)
 
         let messageBody: String? = {
             guard let picoMob = paymentModel.paymentAmount?.picoMob else {
@@ -1084,20 +1079,18 @@ public extension PaymentsImpl {
             thread: thread,
             messageBody: messageBody,
             paymentNotification: paymentNotification,
-            expiresInSeconds: expiresInSeconds,
+            expiresInSeconds: dmConfig.durationSeconds,
+            expireTimerVersion: NSNumber(value: dmConfig.timerVersion),
             transaction: transaction
         )
 
         paymentModel.update(withInteractionUniqueId: message.uniqueId, transaction: transaction)
+        // No attachments to add.
+        let unpreparedMessage = UnpreparedOutgoingMessage.forMessage(message)
 
         ThreadUtil.enqueueMessage(
-            message,
-            thread: thread,
-            insertMessage: { innerTx in
-                message.anyInsert(transaction: innerTx)
-                return message.asPreparer
-            },
-            transaction: transaction
+            unpreparedMessage,
+            thread: thread
         )
 
         return message
@@ -1120,19 +1113,28 @@ public extension PaymentsImpl {
             owsFailDebug("Missing local thread.")
             return nil
         }
-        let mobileCoin = OutgoingPaymentMobileCoin(recipientAci: recipientAci.map { AciObjC($0) },
-                                                   recipientAddress: recipientAddress,
-                                                   amountPicoMob: paymentAmount.picoMob,
-                                                   feePicoMob: feeAmount.picoMob,
-                                                   blockIndex: mcLedgerBlockIndex ?? 0,
-                                                   blockTimestamp: mcLedgerBlockTimestamp ?? 0,
-                                                   memoMessage: memoMessage?.nilIfEmpty,
-                                                   spentKeyImages: mcSpentKeyImages,
-                                                   outputPublicKeys: mcOutputPublicKeys,
-                                                   receiptData: mcReceiptData,
-                                                   isDefragmentation: isDefragmentation)
-        let message = OutgoingPaymentSyncMessage(thread: thread, mobileCoin: mobileCoin, transaction: transaction)
-        Self.sskJobQueues.messageSenderJobQueue.add(message: message.asPreparer, transaction: transaction)
+        let mobileCoin = OutgoingPaymentMobileCoin(
+            recipientAci: recipientAci.map { AciObjC($0) },
+            recipientAddress: recipientAddress,
+            amountPicoMob: paymentAmount.picoMob,
+            feePicoMob: feeAmount.picoMob,
+            blockIndex: mcLedgerBlockIndex ?? 0,
+            blockTimestamp: mcLedgerBlockTimestamp ?? 0,
+            memoMessage: memoMessage?.nilIfEmpty,
+            spentKeyImages: mcSpentKeyImages,
+            outputPublicKeys: mcOutputPublicKeys,
+            receiptData: mcReceiptData,
+            isDefragmentation: isDefragmentation
+        )
+        let message = OutgoingPaymentSyncMessage(
+            thread: thread,
+            mobileCoin: mobileCoin,
+            transaction: transaction
+        )
+        let preparedMessage = PreparedOutgoingMessage.preprepared(
+            transientMessageWithoutAttachments: message
+        )
+        SSKEnvironment.shared.messageSenderJobQueueRef.add(message: preparedMessage, transaction: transaction)
         return message
     }
 }
@@ -1189,13 +1191,10 @@ public extension PaymentsImpl {
     }
 
     static func formatAsUrl(publicAddress: MobileCoin.PublicAddress) -> String {
-        let url = MobileCoinAPI.formatAsUrl(publicAddress: publicAddress)
-        Logger.verbose("publicAddressUrl: \(url)")
-        return url
+        return MobileCoinAPI.formatAsUrl(publicAddress: publicAddress)
     }
 
     static func parseAsPublicAddress(url: URL) -> MobileCoin.PublicAddress? {
-        Logger.verbose("publicAddressUrl: \(url)")
         return MobileCoinAPI.parseAsPublicAddress(url: url)
     }
 

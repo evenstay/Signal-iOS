@@ -305,23 +305,23 @@ class AudioAllMediaPresenter: AudioPresenter {
         return CVLabelConfig.unstyledText(text, font: Constants.bottomLineFont, textColor: .label)
     }
 
-    static func hasAttachmentLabel(attachment: TSAttachment) -> Bool {
-        return !attachment.isVoiceMessage
+    static func hasAttachmentLabel(attachment: TSResource, isVoiceMessage: Bool) -> Bool {
+        return !isVoiceMessage
     }
 
-    func hasAttachmentLabel(attachment: TSAttachment) -> Bool {
-        return Self.hasAttachmentLabel(attachment: attachment)
+    func hasAttachmentLabel(attachment: TSResource, isVoiceMessage: Bool) -> Bool {
+        return Self.hasAttachmentLabel(attachment: attachment, isVoiceMessage: isVoiceMessage)
     }
 
     func topLabelConfig(audioAttachment: AudioAttachment, isIncoming: Bool, conversationStyle: ConversationStyle?) -> CVLabelConfig? {
 
         let attachment = audioAttachment.attachment
-        guard hasAttachmentLabel(attachment: attachment) else {
+        guard hasAttachmentLabel(attachment: attachment, isVoiceMessage: audioAttachment.isVoiceMessage) else {
             return nil
         }
 
         let text: String
-        if let fileName = attachment.sourceFilename?.stripped, !fileName.isEmpty {
+        if let fileName = audioAttachment.sourceFilename?.stripped, !fileName.isEmpty {
             text = fileName
         } else {
             text = NSLocalizedString("GENERIC_ATTACHMENT_LABEL", comment: "A label for generic attachments.")
@@ -334,7 +334,7 @@ class AudioAllMediaPresenter: AudioPresenter {
         )
     }
 
-    func audioWaveform(attachmentStream: TSAttachmentStream?) -> AudioWaveform? {
+    func audioWaveform(attachmentStream: TSResourceStream?) -> Task<AudioWaveform, Error>? {
         return attachmentStream?.highPriorityAudioWaveform()
     }
 }

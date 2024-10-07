@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
 import SignalServiceKit
 import SignalUI
 
@@ -67,11 +66,6 @@ class StoryGroupReplyViewController: OWSViewController, StoryReplySheet {
         self.spoilerState = spoilerState
 
         super.init()
-
-        // Fetch profiles for everyone in the group to make sure we have the latest capability state
-        if let thread = thread {
-            bulkProfileFetch.fetchProfiles(addresses: thread.recipientAddressesWithSneakyTransaction)
-        }
 
         databaseStorage.appendDatabaseChangeDelegate(self)
     }
@@ -163,7 +157,7 @@ extension StoryGroupReplyViewController: UITableViewDelegate {
         }
         let promptBuilder = ResendMessagePromptBuilder(
             databaseStorage: databaseStorage,
-            messageSenderJobQueue: sskJobQueues.messageSenderJobQueue
+            messageSenderJobQueue: SSKEnvironment.shared.messageSenderJobQueueRef
         )
         self.present(promptBuilder.build(for: message), animated: true)
     }

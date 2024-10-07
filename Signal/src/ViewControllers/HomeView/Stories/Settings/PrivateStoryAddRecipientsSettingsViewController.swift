@@ -4,9 +4,8 @@
 //
 
 import Foundation
-import SignalServiceKit
-import SignalMessaging
-import SignalUI
+public import SignalServiceKit
+public import SignalUI
 
 public class PrivateStoryAddRecipientsSettingsViewController: BaseMemberViewController {
     let thread: TSPrivateStoryThread
@@ -14,7 +13,7 @@ public class PrivateStoryAddRecipientsSettingsViewController: BaseMemberViewCont
 
     public override var hasUnsavedChanges: Bool { !recipientSet.orderedMembers.isEmpty }
 
-    public required init(thread: TSPrivateStoryThread) {
+    public init(thread: TSPrivateStoryThread) {
         self.thread = thread
         super.init()
 
@@ -29,10 +28,9 @@ public class PrivateStoryAddRecipientsSettingsViewController: BaseMemberViewCont
     }
 
     private func updateBarButtons() {
-        navigationItem.rightBarButtonItem = UIBarButtonItem(
-            barButtonSystemItem: .save,
-            target: self,
-            action: #selector(updatePressed))
+        navigationItem.rightBarButtonItem = .systemItem(.save) { [weak self] in
+            self?.updatePressed()
+        }
         navigationItem.rightBarButtonItem?.isEnabled = hasUnsavedChanges
 
         title = OWSLocalizedString(
@@ -43,7 +41,6 @@ public class PrivateStoryAddRecipientsSettingsViewController: BaseMemberViewCont
 
     // MARK: - Actions
 
-    @objc
     private func updatePressed() {
         AssertIsOnMainThread()
 
@@ -81,7 +78,7 @@ extension PrivateStoryAddRecipientsSettingsViewController: MemberViewDelegate {
 
     public func memberViewCanAddRecipient(_ recipient: PickedRecipient) -> Bool { true }
 
-    public func memberViewPrepareToSelectRecipient(_ recipient: PickedRecipient) -> AnyPromise { AnyPromise(Promise.value(())) }
+    public func memberViewPrepareToSelectRecipient(_ recipient: PickedRecipient) -> Promise<Void> { Promise.value(()) }
 
     public func memberViewShouldShowMemberCount() -> Bool { false }
 

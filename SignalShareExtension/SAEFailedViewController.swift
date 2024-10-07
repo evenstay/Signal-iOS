@@ -4,7 +4,7 @@
 //
 
 import PureLayout
-import SignalMessaging
+import SignalServiceKit
 import SignalUI
 
 // All Observer methods will be invoked from the main thread.
@@ -36,9 +36,9 @@ class SAEFailedViewController: UIViewController {
     override func loadView() {
         super.loadView()
 
-        self.navigationItem.leftBarButtonItem = UIBarButtonItem(barButtonSystemItem: .cancel,
-                                                                target: self,
-                                                                action: #selector(cancelPressed))
+        self.navigationItem.leftBarButtonItem = .cancelButton { [weak self] in
+            self?.cancelPressed()
+        }
         self.navigationItem.title = "Signal"
 
         self.view.backgroundColor = Theme.launchScreenBackgroundColor
@@ -84,8 +84,7 @@ class SAEFailedViewController: UIViewController {
 
     // MARK: - Event Handlers
 
-    @objc
-    private func cancelPressed(sender: UIButton) {
+    private func cancelPressed() {
         guard let delegate = delegate else {
             owsFailDebug("missing delegate")
             return

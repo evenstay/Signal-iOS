@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalCoreKit
+import SignalServiceKit
 import UIKit
 
 class MediaZoomAnimationController: NSObject {
@@ -50,8 +50,6 @@ extension MediaZoomAnimationController: UIViewControllerAnimatedTransitioning {
                 return
             }
             fromContextProvider = contextProvider
-        case let memberActionSheet as MemberActionSheet:
-            fromContextProvider = memberActionSheet
         default:
             owsFailDebug("unexpected fromVC: \(fromVC)")
             transitionContext.completeTransition(false)

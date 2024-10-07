@@ -3,8 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import LibSignalClient
-import SignalCoreKit
+public import LibSignalClient
 
 /// Manages usernames-related API calls.
 public protocol UsernameApiClient {
@@ -28,7 +27,8 @@ public protocol UsernameApiClient {
     /// An encrypted form of this username for use in a username link.
     func confirmReservedUsername(
         reservedUsername: Usernames.HashedUsername,
-        encryptedUsernameForLink: Data
+        encryptedUsernameForLink: Data,
+        chatServiceAuth: ChatServiceAuth
     ) -> Promise<Usernames.ApiClientConfirmationResult>
 
     // MARK: Deletion
@@ -50,9 +50,18 @@ public protocol UsernameApiClient {
     /// - SeeAlso
     /// ``Usernames.UsernameLink`` and ``UsernameLinkManager``.
     ///
+    /// - Parameter encryptedUsername
+    /// The new encrypted username for the username link.
+    /// - Parameter keepLinkHandle
+    /// Whether we should ask the service to keep the existing link handle the
+    /// same, rather than rotating it. Intended for use specifically in
+    /// ``LocalUsernameManager/updateVisibleCaseOfExistingUsername``.
     /// - Returns
     /// The handle for the local user's encrypted username.
-    func setUsernameLink(encryptedUsername: Data) -> Promise<UUID>
+    func setUsernameLink(
+        encryptedUsername: Data,
+        keepLinkHandle: Bool
+    ) -> Promise<UUID>
 
     /// Gets the encrypted username for the given handle, if any.
     ///

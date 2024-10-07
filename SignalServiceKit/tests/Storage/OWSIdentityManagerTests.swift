@@ -8,8 +8,8 @@ import XCTest
 
 @testable import SignalServiceKit
 
-class OWSIdentityManagerTests: SSKBaseTestSwift {
-    private var identityManager: OWSIdentityManager { DependenciesBridge.shared.identityManager }
+class OWSIdentityManagerTests: SSKBaseTest {
+    private var identityManager: OWSIdentityManagerImpl { DependenciesBridge.shared.identityManager as! OWSIdentityManagerImpl }
 
     override func setUp() {
         super.setUp()
@@ -25,19 +25,19 @@ class OWSIdentityManagerTests: SSKBaseTestSwift {
         let newKey = IdentityKeyPair.generate().identityKey
         let aci = Aci.randomForTesting()
         try write { transaction in
-            _ = DependenciesBridge.shared.recipientIdFinder.ensureRecipientId(for: aci, tx: transaction.asV2Write)
+            _ = DependenciesBridge.shared.recipientIdFinder.ensureRecipientUniqueId(for: aci, tx: transaction.asV2Write)
             XCTAssert(try identityManager.isTrustedIdentityKey(
                 newKey,
                 serviceId: aci,
                 direction: .outgoing,
                 tx: transaction.asV2Read
-            ).get())
+            ))
             XCTAssert(try identityManager.isTrustedIdentityKey(
                 newKey,
                 serviceId: aci,
                 direction: .incoming,
                 tx: transaction.asV2Read
-            ).get())
+            ))
         }
     }
 
@@ -51,13 +51,13 @@ class OWSIdentityManagerTests: SSKBaseTestSwift {
                 serviceId: aci,
                 direction: .outgoing,
                 tx: transaction.asV2Read
-            ).get())
+            ))
             XCTAssert(try identityManager.isTrustedIdentityKey(
                 newKey,
                 serviceId: aci,
                 direction: .incoming,
                 tx: transaction.asV2Read
-            ).get())
+            ))
         }
     }
 
@@ -72,28 +72,36 @@ class OWSIdentityManagerTests: SSKBaseTestSwift {
                 serviceId: aci,
                 direction: .outgoing,
                 tx: transaction.asV2Read
-            ).get())
+            ))
             XCTAssert(try identityManager.isTrustedIdentityKey(
                 originalKey,
                 serviceId: aci,
                 direction: .incoming,
                 tx: transaction.asV2Read
-            ).get())
+            ))
 
             let otherKey = IdentityKeyPair.generate().identityKey
 
-            XCTAssertFalse(try identityManager.isTrustedIdentityKey(
+            XCTAssertThrowsError(try identityManager.isTrustedIdentityKey(
                 otherKey,
                 serviceId: aci,
                 direction: .outgoing,
                 tx: transaction.asV2Read
-            ).get())
+            ), "", { error in
+                switch error {
+                case IdentityManagerError.identityKeyMismatchForOutgoingMessage:
+                    // This is fine.
+                    break
+                default:
+                    XCTFail("Threw the wrong type of error.")
+                }
+            })
             XCTAssert(try identityManager.isTrustedIdentityKey(
                 otherKey,
                 serviceId: aci,
                 direction: .incoming,
                 tx: transaction.asV2Read
-            ).get())
+            ))
         }
     }
 

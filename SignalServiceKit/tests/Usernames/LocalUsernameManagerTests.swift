@@ -4,6 +4,7 @@
 //
 
 import LibSignalClient
+import SignalRingRTC
 import XCTest
 
 @testable import SignalServiceKit
@@ -12,6 +13,7 @@ class LocalUsernameManagerTests: XCTestCase {
     private var mockDB: MockDB!
     private var testScheduler: TestScheduler!
 
+    private var mockReachabilityManager: MockReachabilityManager!
     private var mockStorageServiceManager: MockStorageServiceManager!
     private var mockUsernameApiClient: MockUsernameApiClient!
     private var mockUsernameLinkManager: MockUsernameLinkManager!
@@ -25,6 +27,7 @@ class LocalUsernameManagerTests: XCTestCase {
         mockDB = MockDB()
         testScheduler = TestScheduler()
 
+        mockReachabilityManager = MockReachabilityManager()
         mockStorageServiceManager = MockStorageServiceManager()
         mockUsernameApiClient = MockUsernameApiClient()
         mockUsernameLinkManager = MockUsernameLinkManager()
@@ -32,13 +35,19 @@ class LocalUsernameManagerTests: XCTestCase {
         kvStoreFactory = InMemoryKeyValueStoreFactory()
         kvStore = kvStoreFactory.keyValueStore(collection: "localUsernameManager")
 
+        setLocalUsernameManager(maxNetworkRequestRetries: 0)
+    }
+
+    private func setLocalUsernameManager(maxNetworkRequestRetries: Int) {
         localUsernameManager = LocalUsernameManagerImpl(
             db: mockDB,
             kvStoreFactory: kvStoreFactory,
+            reachabilityManager: mockReachabilityManager,
             schedulers: TestSchedulers(scheduler: testScheduler),
             storageServiceManager: mockStorageServiceManager,
             usernameApiClient: mockUsernameApiClient,
-            usernameLinkManager: mockUsernameLinkManager
+            usernameLinkManager: mockUsernameLinkManager,
+            maxNetworkRequestRetries: maxNetworkRequestRetries
         )
     }
 
@@ -117,7 +126,7 @@ class LocalUsernameManagerTests: XCTestCase {
 
         XCTAssertEqual(usernameState(), .unset)
 
-        let promise = mockDB.write { tx in
+        let guarantee = mockDB.write { tx in
             localUsernameManager.confirmUsername(
                 reservedUsername: .mock(username),
                 tx: tx
@@ -127,8 +136,8 @@ class LocalUsernameManagerTests: XCTestCase {
         testScheduler.runUntilIdle()
 
         XCTAssertEqual(
-            promise.value,
-            .success(username: username, usernameLink: .mock(handle: linkHandle))
+            guarantee.value,
+            .success(.success(username: username, usernameLink: .mock(handle: linkHandle)))
         )
         XCTAssertEqual(
             usernameState(),
@@ -137,20 +146,61 @@ class LocalUsernameManagerTests: XCTestCase {
         XCTAssertTrue(mockStorageServiceManager.didRecordPendingLocalAccountUpdates)
     }
 
-    func testNoCorruptionIfFailToGenerateLink() {
-        mockUsernameLinkManager.entropyToGenerate = .failure(OWSGenericError("A Sarlacc"))
+    func testConfirmBailsEarlyIfNotReachable() {
+        mockReachabilityManager.isReachable = false
 
         let stateBeforeConfirm = setUsername(username: "boba_fett.42")
 
-        let promise = mockDB.write { tx in
+        let guarantee = mockDB.write { tx in
             localUsernameManager.confirmUsername(
                 reservedUsername: .mock("boba_fett.43"),
                 tx: tx
             )
         }
 
-        XCTAssertNil(promise.value)
+        testScheduler.runUntilIdle()
+
+        XCTAssertEqual(guarantee.value, .failure(.networkError))
         XCTAssertEqual(usernameState(), stateBeforeConfirm)
+        XCTAssertFalse(mockStorageServiceManager.didRecordPendingLocalAccountUpdates)
+    }
+
+    func testNoCorruptionIfFailToGenerateLink() {
+        mockUsernameLinkManager.entropyToGenerate = .failure(OWSGenericError("A Sarlacc"))
+
+        let stateBeforeConfirm = setUsername(username: "boba_fett.42")
+
+        let guarantee = mockDB.write { tx in
+            localUsernameManager.confirmUsername(
+                reservedUsername: .mock("boba_fett.43"),
+                tx: tx
+            )
+        }
+
+        testScheduler.runUntilIdle()
+
+        XCTAssertEqual(guarantee.value, .failure(.otherError))
+        XCTAssertEqual(usernameState(), stateBeforeConfirm)
+        XCTAssertFalse(mockStorageServiceManager.didRecordPendingLocalAccountUpdates)
+    }
+
+    func testCorruptionIfNetworkErrorWhileConfirming() {
+        mockUsernameLinkManager.entropyToGenerate = .success(.mockEntropy)
+        mockUsernameApiClient.confirmationResult = .error(OWSHTTPError.mockNetworkFailure)
+
+        XCTAssertEqual(usernameState(), .unset)
+
+        let guarantee = mockDB.write { tx in
+            localUsernameManager.confirmUsername(
+                reservedUsername: .mock("boba_fett.42"),
+                tx: tx
+            )
+        }
+
+        testScheduler.runUntilIdle()
+
+        XCTAssertEqual(guarantee.value, .failure(.networkError))
+        XCTAssertEqual(usernameState(), .usernameAndLinkCorrupted)
         XCTAssertFalse(mockStorageServiceManager.didRecordPendingLocalAccountUpdates)
     }
 
@@ -160,7 +210,7 @@ class LocalUsernameManagerTests: XCTestCase {
 
         XCTAssertEqual(usernameState(), .unset)
 
-        let promise = mockDB.write { tx in
+        let guarantee = mockDB.write { tx in
             localUsernameManager.confirmUsername(
                 reservedUsername: .mock("boba_fett.42"),
                 tx: tx
@@ -169,7 +219,7 @@ class LocalUsernameManagerTests: XCTestCase {
 
         testScheduler.runUntilIdle()
 
-        XCTAssertNil(promise.value)
+        XCTAssertEqual(guarantee.value, .failure(.otherError))
         XCTAssertEqual(usernameState(), .usernameAndLinkCorrupted)
         XCTAssertFalse(mockStorageServiceManager.didRecordPendingLocalAccountUpdates)
     }
@@ -180,7 +230,7 @@ class LocalUsernameManagerTests: XCTestCase {
 
         let stateBeforeConfirm = setUsername(username: "boba_fett.42")
 
-        let promise = mockDB.write { tx in
+        let guarantee = mockDB.write { tx in
             localUsernameManager.confirmUsername(
                 reservedUsername: .mock("boba_fett.43"),
                 tx: tx
@@ -189,7 +239,7 @@ class LocalUsernameManagerTests: XCTestCase {
 
         testScheduler.runUntilIdle()
 
-        XCTAssertEqual(promise.value, .rejected)
+        XCTAssertEqual(guarantee.value, .success(.rejected))
         XCTAssertEqual(usernameState(), stateBeforeConfirm)
         XCTAssertFalse(mockStorageServiceManager.didRecordPendingLocalAccountUpdates)
     }
@@ -200,7 +250,7 @@ class LocalUsernameManagerTests: XCTestCase {
 
         let stateBeforeConfirm = setUsername(username: "boba_fett.42")
 
-        let promise = mockDB.write { tx in
+        let guarantee = mockDB.write { tx in
             localUsernameManager.confirmUsername(
                 reservedUsername: .mock("boba_fett.43"),
                 tx: tx
@@ -209,7 +259,7 @@ class LocalUsernameManagerTests: XCTestCase {
 
         testScheduler.runUntilIdle()
 
-        XCTAssertEqual(promise.value, .rateLimited)
+        XCTAssertEqual(guarantee.value, .success(.rateLimited))
         XCTAssertEqual(usernameState(), stateBeforeConfirm)
         XCTAssertFalse(mockStorageServiceManager.didRecordPendingLocalAccountUpdates)
     }
@@ -229,7 +279,7 @@ class LocalUsernameManagerTests: XCTestCase {
 
         XCTAssertEqual(usernameState(), .linkCorrupted(username: "boba_fett.42"))
 
-        let promise = mockDB.write { tx in
+        let guarantee = mockDB.write { tx in
             localUsernameManager.confirmUsername(
                 reservedUsername: try! Usernames.HashedUsername(forUsername: "boba_fett.43"),
                 tx: tx
@@ -241,8 +291,8 @@ class LocalUsernameManagerTests: XCTestCase {
         let expectedNewLink = Usernames.UsernameLink(handle: newHandle, entropy: .mockEntropy)!
 
         XCTAssertEqual(
-            promise.value,
-            .success(username: "boba_fett.43", usernameLink: expectedNewLink)
+            guarantee.value,
+            .success(.success(username: "boba_fett.43", usernameLink: expectedNewLink))
         )
         XCTAssertEqual(
             usernameState(),
@@ -263,7 +313,7 @@ class LocalUsernameManagerTests: XCTestCase {
 
         XCTAssertEqual(usernameState(), .usernameAndLinkCorrupted)
 
-        let promise = mockDB.write { tx in
+        let guarantee = mockDB.write { tx in
             localUsernameManager.confirmUsername(
                 reservedUsername: try! Usernames.HashedUsername(forUsername: "boba_fett.43"),
                 tx: tx
@@ -275,8 +325,8 @@ class LocalUsernameManagerTests: XCTestCase {
         let expectedNewLink = Usernames.UsernameLink(handle: newHandle, entropy: .mockEntropy)!
 
         XCTAssertEqual(
-            promise.value,
-            .success(username: "boba_fett.43", usernameLink: expectedNewLink)
+            guarantee.value,
+            .success(.success(username: "boba_fett.43", usernameLink: expectedNewLink))
         )
         XCTAssertEqual(
             usernameState(),
@@ -292,15 +342,47 @@ class LocalUsernameManagerTests: XCTestCase {
 
         _ = setUsername(username: "boba_fett.42")
 
-        let promise = mockDB.write { tx in
+        let guarantee = mockDB.write { tx in
             localUsernameManager.deleteUsername(tx: tx)
         }
 
         testScheduler.runUntilIdle()
 
-        XCTAssertNotNil(promise.value)
+        XCTAssertEqual(guarantee.value?.isSuccess, true)
         XCTAssertEqual(usernameState(), .unset)
         XCTAssertTrue(mockStorageServiceManager.didRecordPendingLocalAccountUpdates)
+    }
+
+    func testDeleteBailsEarlyIfNotReachable() {
+        mockReachabilityManager.isReachable = false
+
+        let stateBeforeConfirm = setUsername(username: "boba_fett.42")
+
+        let guarantee = mockDB.write { tx in
+            localUsernameManager.deleteUsername(tx: tx)
+        }
+
+        testScheduler.runUntilIdle()
+
+        XCTAssertEqual(guarantee.value?.isNetworkError, true)
+        XCTAssertEqual(usernameState(), stateBeforeConfirm)
+        XCTAssertFalse(mockStorageServiceManager.didRecordPendingLocalAccountUpdates)
+    }
+
+    func testCorruptionIfNetworkErrorWhileDeleting() {
+        mockUsernameApiClient.deletionResult = .error(OWSHTTPError.mockNetworkFailure)
+
+        _ = setUsername(username: "boba_fett.42")
+
+        let guarantee = mockDB.write { tx in
+            localUsernameManager.deleteUsername(tx: tx)
+        }
+
+        testScheduler.runUntilIdle()
+
+        XCTAssertEqual(guarantee.value?.isNetworkError, true)
+        XCTAssertEqual(usernameState(), .usernameAndLinkCorrupted)
+        XCTAssertFalse(mockStorageServiceManager.didRecordPendingLocalAccountUpdates)
     }
 
     func testCorruptionIfErrorWhileDeleting() {
@@ -308,13 +390,13 @@ class LocalUsernameManagerTests: XCTestCase {
 
         _ = setUsername(username: "boba_fett.42")
 
-        let promise = mockDB.write { tx in
+        let guarantee = mockDB.write { tx in
             localUsernameManager.deleteUsername(tx: tx)
         }
 
         testScheduler.runUntilIdle()
 
-        XCTAssertNil(promise.value)
+        XCTAssertEqual(guarantee.value?.isOtherError, true)
         XCTAssertEqual(usernameState(), .usernameAndLinkCorrupted)
         XCTAssertFalse(mockStorageServiceManager.didRecordPendingLocalAccountUpdates)
     }
@@ -328,13 +410,13 @@ class LocalUsernameManagerTests: XCTestCase {
 
         XCTAssertEqual(usernameState(), .usernameAndLinkCorrupted)
 
-        let promise = mockDB.write { tx in
+        let guarantee = mockDB.write { tx in
             localUsernameManager.deleteUsername(tx: tx)
         }
 
         testScheduler.runUntilIdle()
 
-        XCTAssertNotNil(promise.value)
+        XCTAssertEqual(guarantee.value?.isSuccess, true)
         XCTAssertEqual(usernameState(), .unset)
         XCTAssertTrue(mockStorageServiceManager.didRecordPendingLocalAccountUpdates)
     }
@@ -351,13 +433,13 @@ class LocalUsernameManagerTests: XCTestCase {
 
         XCTAssertEqual(usernameState(), .linkCorrupted(username: "boba_fett.42"))
 
-        let promise = mockDB.write { tx in
+        let guarantee = mockDB.write { tx in
             localUsernameManager.deleteUsername(tx: tx)
         }
 
         testScheduler.runUntilIdle()
 
-        XCTAssertNotNil(promise.value)
+        XCTAssertEqual(guarantee.value?.isSuccess, true)
         XCTAssertEqual(usernameState(), .unset)
         XCTAssertTrue(mockStorageServiceManager.didRecordPendingLocalAccountUpdates)
     }
@@ -372,7 +454,7 @@ class LocalUsernameManagerTests: XCTestCase {
 
         _ = setUsername(username: "boba_fett.42")
 
-        let promise = mockDB.write { tx in
+        let guarantee = mockDB.write { tx in
             localUsernameManager.rotateUsernameLink(tx: tx)
         }
 
@@ -380,7 +462,7 @@ class LocalUsernameManagerTests: XCTestCase {
 
         let expectedNewLink = Usernames.UsernameLink(handle: newHandle, entropy: .mockEntropy)!
 
-        XCTAssertEqual(promise.value, expectedNewLink)
+        XCTAssertEqual(guarantee.value, .success(expectedNewLink))
         XCTAssertEqual(
             usernameState(),
             .available(username: "boba_fett.42", usernameLink: expectedNewLink)
@@ -388,17 +470,50 @@ class LocalUsernameManagerTests: XCTestCase {
         XCTAssertTrue(mockStorageServiceManager.didRecordPendingLocalAccountUpdates)
     }
 
+    func testRotationBailsEarlyIfNotReachable() {
+        mockReachabilityManager.isReachable = false
+
+        let stateBeforeConfirm = setUsername(username: "boba_fett.42")
+
+        let guarantee = mockDB.write { tx in
+            localUsernameManager.rotateUsernameLink(tx: tx)
+        }
+
+        testScheduler.runUntilIdle()
+
+        XCTAssertEqual(guarantee.value!, .failure(.networkError))
+        XCTAssertEqual(usernameState(), stateBeforeConfirm)
+        XCTAssertFalse(mockStorageServiceManager.didRecordPendingLocalAccountUpdates)
+    }
+
     func testNoCorruptionIfFailToGenerateNewLink() {
         mockUsernameLinkManager.entropyToGenerate = .failure(OWSGenericError("Jabba's Sudden But Inevitable Betrayal"))
 
         let stateBeforeRotate = setUsername(username: "boba_fett.42")
 
-        let promise = mockDB.write { tx in
+        let guarantee = mockDB.write { tx in
             localUsernameManager.rotateUsernameLink(tx: tx)
         }
 
-        XCTAssertNil(promise.value)
+        XCTAssertEqual(guarantee.value, .failure(.otherError))
         XCTAssertEqual(usernameState(), stateBeforeRotate)
+        XCTAssertFalse(mockStorageServiceManager.didRecordPendingLocalAccountUpdates)
+    }
+
+    func testCorruptionIfNetworkErrorWhileRotatingLink() {
+        mockUsernameLinkManager.entropyToGenerate = .success(.mockEntropy)
+        mockUsernameApiClient.setLinkResult = .error(OWSHTTPError.mockNetworkFailure)
+
+        _ = setUsername(username: "boba_fett.42")
+
+        let guarantee = mockDB.write { tx in
+            localUsernameManager.rotateUsernameLink(tx: tx)
+        }
+
+        testScheduler.runUntilIdle()
+
+        XCTAssertEqual(guarantee.value, .failure(.networkError))
+        XCTAssertEqual(usernameState(), .linkCorrupted(username: "boba_fett.42"))
         XCTAssertFalse(mockStorageServiceManager.didRecordPendingLocalAccountUpdates)
     }
 
@@ -408,13 +523,13 @@ class LocalUsernameManagerTests: XCTestCase {
 
         _ = setUsername(username: "boba_fett.42")
 
-        let promise = mockDB.write { tx in
+        let guarantee = mockDB.write { tx in
             localUsernameManager.rotateUsernameLink(tx: tx)
         }
 
         testScheduler.runUntilIdle()
 
-        XCTAssertNil(promise.value)
+        XCTAssertEqual(guarantee.value, .failure(.otherError))
         XCTAssertEqual(usernameState(), .linkCorrupted(username: "boba_fett.42"))
         XCTAssertFalse(mockStorageServiceManager.didRecordPendingLocalAccountUpdates)
     }
@@ -434,7 +549,7 @@ class LocalUsernameManagerTests: XCTestCase {
 
         XCTAssertEqual(usernameState(), .linkCorrupted(username: "boba_fett.42"))
 
-        let promise = mockDB.write { tx in
+        let guarantee = mockDB.write { tx in
             localUsernameManager.rotateUsernameLink(tx: tx)
         }
 
@@ -442,7 +557,7 @@ class LocalUsernameManagerTests: XCTestCase {
 
         let expectedNewLink = Usernames.UsernameLink(handle: newHandle, entropy: .mockEntropy)!
 
-        XCTAssertEqual(promise.value, expectedNewLink)
+        XCTAssertEqual(guarantee.value, .success(expectedNewLink))
         XCTAssertEqual(
             usernameState(),
             .available(username: "boba_fett.42", usernameLink: expectedNewLink)
@@ -450,13 +565,155 @@ class LocalUsernameManagerTests: XCTestCase {
         XCTAssertTrue(mockStorageServiceManager.didRecordPendingLocalAccountUpdates)
     }
 
+    func testUpdateVisibleCaseHappyPath() {
+        let linkHandle = UUID()
+
+        mockUsernameApiClient.setLinkMock = { _, keepLinkHandle in
+            XCTAssertTrue(keepLinkHandle)
+            return .value(linkHandle)
+        }
+
+        let currentLink = setUsername(username: "boba_fett.42", linkHandle: linkHandle).usernameLink!
+
+        let guarantee = mockDB.write { tx in
+            localUsernameManager.updateVisibleCaseOfExistingUsername(
+                newUsername: "BoBa_fEtT.42",
+                tx: tx
+            )
+        }
+
+        testScheduler.runUntilIdle()
+
+        XCTAssertEqual(guarantee.value?.isSuccess, true)
+        XCTAssertEqual(
+            usernameState(),
+            .available(username: "BoBa_fEtT.42", usernameLink: currentLink)
+        )
+        XCTAssertTrue(mockStorageServiceManager.didRecordPendingLocalAccountUpdates)
+    }
+
+    func testUpdateVisibleCaseBailsEarlyIfNotReachable() {
+        mockReachabilityManager.isReachable = false
+
+        let stateBeforeConfirm = setUsername(username: "boba_fett.42")
+
+        let guarantee = mockDB.write { tx in
+            localUsernameManager.updateVisibleCaseOfExistingUsername(
+                newUsername: "BoBa_fEtT.42",
+                tx: tx
+            )
+        }
+
+        testScheduler.runUntilIdle()
+
+        XCTAssertEqual(guarantee.value?.isNetworkError, true)
+        XCTAssertEqual(usernameState(), stateBeforeConfirm)
+        XCTAssertFalse(mockStorageServiceManager.didRecordPendingLocalAccountUpdates)
+    }
+
+    func testUpdateVisibleCaseSetsLocalEvenIfNetworkError() {
+        let linkHandle = UUID()
+
+        mockUsernameApiClient.setLinkMock = { _, keepLinkHandle in
+            XCTAssertTrue(keepLinkHandle)
+            return Promise(error: OWSHTTPError.mockNetworkFailure)
+        }
+
+        _ = setUsername(username: "boba_fett.42", linkHandle: linkHandle).usernameLink!
+
+        let guarantee = mockDB.write { tx in
+            localUsernameManager.updateVisibleCaseOfExistingUsername(
+                newUsername: "BoBa_fEtT.42",
+                tx: tx
+            )
+        }
+
+        testScheduler.runUntilIdle()
+
+        XCTAssertEqual(guarantee.value?.isNetworkError, true)
+        XCTAssertEqual(
+            usernameState(),
+            .linkCorrupted(username: "BoBa_fEtT.42")
+        )
+        XCTAssertTrue(mockStorageServiceManager.didRecordPendingLocalAccountUpdates)
+    }
+
+    func testUpdateVisibleCaseSetsLocalEvenIfError() {
+        let linkHandle = UUID()
+
+        mockUsernameApiClient.setLinkMock = { _, keepLinkHandle in
+            XCTAssertTrue(keepLinkHandle)
+            return Promise(error: OWSGenericError("oopsie"))
+        }
+
+        _ = setUsername(username: "boba_fett.42", linkHandle: linkHandle).usernameLink!
+
+        let guarantee = mockDB.write { tx in
+            localUsernameManager.updateVisibleCaseOfExistingUsername(
+                newUsername: "BoBa_fEtT.42",
+                tx: tx
+            )
+        }
+
+        testScheduler.runUntilIdle()
+
+        XCTAssertEqual(guarantee.value?.isOtherError, true)
+        XCTAssertEqual(
+            usernameState(),
+            .linkCorrupted(username: "BoBa_fEtT.42")
+        )
+        XCTAssertTrue(mockStorageServiceManager.didRecordPendingLocalAccountUpdates)
+    }
+
+    // MARK: Network retries
+
+    func testUpdateVisibleCaseWorkSecondTimeAfterNetworkError() {
+        setLocalUsernameManager(maxNetworkRequestRetries: 1)
+
+        var networkAttempts = 0
+        let linkHandle = UUID()
+
+        mockUsernameApiClient.setLinkMock = { _, keepLinkHandle in
+            networkAttempts += 1
+            XCTAssertTrue(keepLinkHandle)
+
+            if networkAttempts == 1 {
+                return Promise(error: OWSHTTPError.mockNetworkFailure)
+            }
+
+            return .value(linkHandle)
+        }
+
+        let currentLink = setUsername(username: "boba_fett.42", linkHandle: linkHandle).usernameLink!
+
+        let guarantee = mockDB.write { tx in
+            localUsernameManager.updateVisibleCaseOfExistingUsername(
+                newUsername: "BoBa_fEtT.42",
+                tx: tx
+            )
+        }
+
+        testScheduler.runUntilIdle()
+
+        XCTAssertEqual(networkAttempts, 2)
+        XCTAssertEqual(guarantee.value?.isSuccess, true)
+        XCTAssertEqual(
+            usernameState(),
+            .available(username: "BoBa_fEtT.42", usernameLink: currentLink)
+        )
+        XCTAssertTrue(mockStorageServiceManager.didRecordPendingLocalAccountUpdates)
+    }
+
     // MARK: Utilities
 
-    private func setUsername(username: String) -> Usernames.LocalUsernameState {
+    private func setUsername(
+        username: String,
+        linkHandle: UUID? = nil
+    ) -> Usernames.LocalUsernameState {
         return mockDB.write { tx in
             localUsernameManager.setLocalUsername(
                 username: username,
-                usernameLink: .mock(handle: UUID()),
+                usernameLink: .mock(handle: linkHandle ?? UUID()),
                 tx: tx
             )
 
@@ -468,6 +725,37 @@ class LocalUsernameManagerTests: XCTestCase {
         return mockDB.read { tx in
             return localUsernameManager.usernameState(tx: tx)
         }
+    }
+}
+
+private extension Usernames.RemoteMutationResult<Void> {
+    var isSuccess: Bool {
+        switch self {
+        case .success: return true
+        case .failure: return false
+        }
+    }
+
+    var isNetworkError: Bool {
+        switch self {
+        case .failure(.networkError): return true
+        case .success, .failure(.otherError): return false
+        }
+    }
+
+    var isOtherError: Bool {
+        switch self {
+        case .failure(.otherError): return true
+        case .success, .failure(.networkError): return false
+        }
+    }
+}
+
+// MARK: - Mocks
+
+private extension OWSHTTPError {
+    static var mockNetworkFailure: OWSHTTPError {
+        return .networkFailure(requestUrl: URL(string: "https://signal.org")!)
     }
 }
 
@@ -490,7 +778,10 @@ private extension Data {
     static let mockEntropy = Data(repeating: 12, count: 32)
 }
 
-// MARK: - Mocks
+private class MockReachabilityManager: SSKReachabilityManager {
+    var isReachable: Bool = true
+    func isReachable(via reachabilityType: ReachabilityType) -> Bool { owsFail("Not implemented!") }
+}
 
 private class MockStorageServiceManager: StorageServiceManager {
     var didRecordPendingLocalAccountUpdates: Bool = false
@@ -499,74 +790,15 @@ private class MockStorageServiceManager: StorageServiceManager {
         didRecordPendingLocalAccountUpdates = true
     }
 
-    func waitForPendingRestores() -> AnyPromise {
-        return AnyPromise(Promise<Void>.value(()))
-    }
-
+    func waitForPendingRestores() -> Promise<Void> { Promise.value(()) }
     func resetLocalData(transaction: DBWriteTransaction) { owsFail("Not implemented!") }
-    func recordPendingUpdates(updatedAccountIds: [AccountId]) { owsFail("Not implemented!") }
+    func recordPendingUpdates(updatedRecipientUniqueIds: [RecipientUniqueId]) { owsFail("Not implemented!") }
     func recordPendingUpdates(updatedAddresses: [SignalServiceAddress]) { owsFail("Not implemented!") }
     func recordPendingUpdates(updatedGroupV2MasterKeys: [Data]) { owsFail("Not implemented!") }
     func recordPendingUpdates(updatedStoryDistributionListIds: [Data]) { owsFail("Not implemented!") }
+    func recordPendingUpdates(callLinkRootKeys: [CallLinkRootKey]) { owsFail("Not implemented!") }
     func recordPendingUpdates(groupModel: TSGroupModel) { owsFail("Not implemented!") }
     func setLocalIdentifiers(_ localIdentifiers: LocalIdentifiersObjC) { owsFail("Not implemented!") }
     func backupPendingChanges(authedDevice: AuthedDevice) { owsFail("Not implemented!") }
     func restoreOrCreateManifestIfNecessary(authedDevice: AuthedDevice) -> Promise<Void> { owsFail("Not implemented!") }
-}
-
-private class MockUsernameApiClient: UsernameApiClient {
-
-    // MARK: Confirm
-
-    var confirmationResult: ConsumableMockPromise<Usernames.ApiClientConfirmationResult> = .unset
-
-    func confirmReservedUsername(reservedUsername: Usernames.HashedUsername, encryptedUsernameForLink: Data) -> Promise<Usernames.ApiClientConfirmationResult> {
-        return confirmationResult.consumeIntoPromise()
-    }
-
-    // MARK: Delete
-
-    var deletionResult: ConsumableMockPromise<Void> = .unset
-
-    func deleteCurrentUsername() -> Promise<Void> {
-        return deletionResult.consumeIntoPromise()
-    }
-
-    // MARK: Set link
-
-    var setLinkResult: ConsumableMockPromise<UUID> = .unset
-
-    func setUsernameLink(encryptedUsername: Data) -> Promise<UUID> {
-        return setLinkResult.consumeIntoPromise()
-    }
-
-    // MARK: Unimplemented
-
-    func reserveUsernameCandidates(usernameCandidates: Usernames.HashedUsername.GeneratedCandidates) -> Promise<Usernames.ApiClientReservationResult> { owsFail("Not implemented!") }
-    func lookupAci(forHashedUsername hashedUsername: Usernames.HashedUsername) -> Promise<Aci?> { owsFail("Not implemented!") }
-    func getUsernameLink(handle: UUID) -> Promise<Data?> { owsFail("Not implemented!") }
-}
-
-private class MockUsernameLinkManager: UsernameLinkManager {
-    var entropyToGenerate: Result<Data, Error>?
-
-    func generateEncryptedUsername(username: String) throws -> (entropy: Data, encryptedUsername: Data) {
-        guard let entropyToGenerate else {
-            XCTFail("No mock set!")
-            throw OWSGenericError("No mock set!")
-        }
-
-        self.entropyToGenerate = nil
-
-        switch entropyToGenerate {
-        case .success(let entropy):
-            return (entropy, Data())
-        case .failure(let error):
-            throw error
-        }
-    }
-
-    func decryptEncryptedLink(link: Usernames.UsernameLink) -> Promise<String?> {
-        owsFail("Not implemented!")
-    }
 }

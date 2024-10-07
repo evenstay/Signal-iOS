@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalServiceKit
+public import SignalServiceKit
 
 public extension Notification.Name {
     static let themeDidChange = Notification.Name("ThemeDidChangeNotification")
@@ -24,8 +24,10 @@ final public class Theme: NSObject {
 
     private override init() {
         super.init()
+    }
 
-        AppReadiness.runNowOrWhenAppDidBecomeReadySync {
+    public static func performInitialSetup(appReadiness: AppReadiness) {
+        appReadiness.runNowOrWhenAppDidBecomeReadySync {
             // IOS-782: +[Theme shared] re-enterant initialization
             // AppReadiness will invoke the block synchronously if the app is already ready.
             // This doesn't work here, because we'll end up reenterantly calling +shared
@@ -36,7 +38,7 @@ final public class Theme: NSObject {
             // asyncing always to ensure the dependency chain is broken. We're okay waiting, since
             // there's no guarantee that this block in synchronously executed anyway.
             DispatchQueue.main.async {
-                self.notifyIfThemeModeIsNotDefault()
+                Self.shared.notifyIfThemeModeIsNotDefault()
             }
         }
     }
@@ -93,6 +95,17 @@ final public class Theme: NSObject {
         shared.setCurrentMode(mode)
     }
 
+    public class func performWithModeAsCurrent(_ mode: Mode, _ operation: () -> Void) {
+        shared.performWithModeAsCurrent(mode, operation)
+    }
+
+    private func performWithModeAsCurrent(_ mode: Mode, _ operation: () -> Void) {
+        let previousMode = cachedCurrentMode
+        defer { cachedCurrentMode = previousMode }
+        cachedCurrentMode = mode
+        operation()
+    }
+
     private var cachedIsDarkThemeEnabled: Bool?
     private var cachedCurrentMode: Mode?
 
@@ -104,7 +117,7 @@ final public class Theme: NSObject {
 #endif
 
         // Don't cache this value until it reflects the data store.
-        guard AppReadiness.isAppReady else {
+        guard AppReadinessObjcBridge.isAppReady else {
             return isSystemDarkThemeEnabled()
         }
 
@@ -138,7 +151,7 @@ final public class Theme: NSObject {
             return cachedCurrentMode
         }
 
-        guard AppReadiness.isAppReady else {
+        guard AppReadinessObjcBridge.isAppReady else {
             return defaultMode
         }
 
@@ -177,7 +190,7 @@ final public class Theme: NSObject {
     private func setCurrentMode(_ mode: Mode) {
         AssertIsOnMainThread()
 
-        let wasDarkThemeEnabled = cachedIsDarkThemeEnabled
+        let previousMode = cachedCurrentMode
 
         switch mode {
         case .light:
@@ -195,7 +208,7 @@ final public class Theme: NSObject {
             Theme.keyValueStore.setUInt(mode.rawValue, key: KVSKeys.currentMode, transaction: transaction)
         }
 
-        if wasDarkThemeEnabled != cachedIsDarkThemeEnabled {
+        if previousMode != mode {
             themeDidChange()
         }
     }
@@ -233,10 +246,7 @@ final public class Theme: NSObject {
 
     private func themeDidChange() {
         Theme.setupSignalAppearance()
-
-        UIView.performWithoutAnimation {
-            NotificationCenter.default.post(name: Notification.Name.themeDidChange, object: nil)
-        }
+        NotificationCenter.default.post(name: .themeDidChange, object: self)
     }
 
     // MARK: - UI Colors
@@ -277,6 +287,10 @@ final public class Theme: NSObject {
     public class var ternaryTextColor: UIColor { .ows_gray45 }
 
     public class var placeholderColor: UIColor { .ows_gray45 }
+
+    public class var snippetColor: UIColor {
+        isDarkThemeEnabled ? darkThemeSnippetColor : lightThemeSnippetColor
+    }
 
     public class var hairlineColor: UIColor {
         isDarkThemeEnabled ? .ows_gray75 : .ows_gray15
@@ -372,6 +386,8 @@ final public class Theme: NSObject {
 
     public class var lightThemeSecondaryTextAndIconColor: UIColor { .ows_gray60 }
 
+    public class var lightThemeSnippetColor: UIColor { .ows_gray45 }
+
     // MARK: - Dark Theme Colors
 
     public class var darkThemeBackgroundColor: UIColor { .black }
@@ -379,6 +395,8 @@ final public class Theme: NSObject {
     public class var darkThemePrimaryColor: UIColor { .ows_gray02 }
 
     public class var darkThemeSecondaryTextAndIconColor: UIColor { .ows_gray25 }
+
+    public class var darkThemeSnippetColor: UIColor { .ows_gray25 }
 
     public class var darkThemeWashColor: UIColor { .ows_gray75 }
 

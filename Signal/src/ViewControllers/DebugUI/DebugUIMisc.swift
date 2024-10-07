@@ -4,7 +4,6 @@
 //
 
 import MobileCoin
-import SignalMessaging
 import SignalServiceKit
 import SignalUI
 
@@ -13,6 +12,12 @@ import SignalUI
 class DebugUIMisc: NSObject, DebugUIPage, Dependencies {
 
     let name = "Misc."
+
+    private let appReadiness: AppReadinessSetter?
+
+    init(appReadiness: AppReadinessSetter?) {
+        self.appReadiness = appReadiness
+    }
 
     func section(thread: TSThread?) -> OWSTableSection? {
         var items = [OWSTableItem]()
@@ -27,36 +32,46 @@ class DebugUIMisc: NSObject, DebugUIPage, Dependencies {
         }
 
         items += [
-            OWSTableItem(title: "Make next app launch fail", actionBlock: {
-                CurrentAppContext().appUserDefaults().set(10, forKey: kAppLaunchesAttemptedKey)
-                if let frontmostViewController = CurrentAppContext().frontmostViewController() {
-                    frontmostViewController.presentToast(text: "Okay, the next app launch will fail!")
+            OWSTableItem(title: "Corrupt username", actionBlock: {
+                SDSDatabaseStorage.shared.write { tx in
+                    DependenciesBridge.shared.localUsernameManager.setLocalUsernameCorrupted(tx: tx.asV2Write)
                 }
             }),
 
-            OWSTableItem(title: "Re-register", actionBlock: {
+            OWSTableItem(title: "Reenable disabled inactive linked device reminder megaphones", actionBlock: {
+                SDSDatabaseStorage.shared.write { tx in
+                    DependenciesBridge.shared.inactiveLinkedDeviceFinder
+                        .reenablePermanentlyDisabledFinders(tx: tx.asV2Write)
+                }
+            })
+        ]
+
+        if let appReadiness {
+            items.append(OWSTableItem(title: "Re-register", actionBlock: { [appReadiness] in
                 OWSActionSheets.showConfirmationAlert(
                     title: "Re-register?",
                     message: "If you proceed, you will not lose any of your current messages, " +
                     "but your account will be deactivated until you complete re-registration.",
                     proceedTitle: "Proceed",
                     proceedAction: { _ in
-                        DebugUIMisc.reregister()
+                        DebugUIMisc.reregister(appReadiness: appReadiness)
                     }
                 )
-            }),
+            }))
+        }
 
+        items += [
             OWSTableItem(title: "Show 2FA Reminder", actionBlock: {
                 DebugUIMisc.showPinReminder()
             }),
             OWSTableItem(title: "Reset 2FA Repetition Interval", actionBlock: {
                 SDSDatabaseStorage.shared.write { transaction in
-                    OWS2FAManager.shared.setDefaultRepetitionIntervalWith(transaction)
+                    OWS2FAManager.shared.setDefaultRepetitionInterval(transaction: transaction)
                 }
             }),
 
             OWSTableItem(title: "Share UIImage", actionBlock: {
-                let image = UIImage(color: .red, size: .square(1))
+                let image = UIImage.image(color: .red, size: .square(1))
                 AttachmentSharing.showShareUI(for: image)
             }),
             OWSTableItem(title: "Share 2 images", actionBlock: {
@@ -71,9 +86,6 @@ class DebugUIMisc: NSObject, DebugUIPage, Dependencies {
 
             OWSTableItem(title: "Fetch system contacts", actionBlock: {
                 SSKEnvironment.shared.contactsManagerImpl.requestSystemContactsOnce()
-            }),
-            OWSTableItem(title: "Cycle websockets", actionBlock: {
-                DependenciesBridge.shared.socketManager.cycleSocket()
             }),
             OWSTableItem(title: "Flag database as corrupted", actionBlock: {
                 DebugUIMisc.showFlagDatabaseAsCorruptedUi()
@@ -125,9 +137,6 @@ class DebugUIMisc: NSObject, DebugUIPage, Dependencies {
             OWSTableItem(title: "Remove local PNI identity key", actionBlock: {
                 DebugUIMisc.removeLocalPniIdentityKey()
             }),
-            OWSTableItem(title: "Discard All Profile Keys", actionBlock: {
-                DebugUIMisc.discardAllProfileKeys()
-            }),
 
             OWSTableItem(title: "Log all sticker suggestions", actionBlock: {
                 DebugUIMisc.logStickerSuggestions()
@@ -141,16 +150,8 @@ class DebugUIMisc: NSObject, DebugUIPage, Dependencies {
                 DebugUIMisc.logSignalRecipients()
             }),
 
-            OWSTableItem(title: "Log SignalAccounts", actionBlock: {
-                DebugUIMisc.logSignalAccounts()
-            }),
-
             OWSTableItem(title: "Clear Profile Key Credentials", actionBlock: {
                 DebugUIMisc.clearProfileKeyCredentials()
-            }),
-
-            OWSTableItem(title: "Clear Temporal Credentials", actionBlock: {
-                DebugUIMisc.clearTemporalCredentials()
             }),
 
             OWSTableItem(title: "Clear custom reaction emoji (locally)", actionBlock: {
@@ -177,8 +178,16 @@ class DebugUIMisc: NSObject, DebugUIPage, Dependencies {
                 DebugUIMisc.showSpoilerAnimationTestController()
             }),
 
-            OWSTableItem(title: "Enable edit send education prompt", actionBlock: {
-                DebugUIMisc.enableEditMessagePromptMessage()
+            OWSTableItem(title: "Mark flip cam button tooltip as unread", actionBlock: {
+                let flipCamTooltipManager = FlipCameraTooltipManager(db: DependenciesBridge.shared.db)
+                flipCamTooltipManager.markTooltipAsUnread()
+            }),
+
+            OWSTableItem(title: "Enable DeleteForMeSyncMessage info sheet", actionBlock: {
+                SDSDatabaseStorage.shared.write { tx in
+                    DeleteForMeInfoSheetCoordinator.fromGlobals()
+                        .forceEnableInfoSheet(tx: tx.asV2Write)
+                }
             })
         ]
         return OWSTableSection(title: name, items: items)
@@ -191,14 +200,11 @@ class DebugUIMisc: NSObject, DebugUIPage, Dependencies {
             owsFailDebug("attachment[\(String(describing: attachment.sourceFilename))]: \(String(describing: attachment.errorName))")
             return
         }
-        databaseStorage.read { transaction in
-            ThreadUtil.enqueueMessage(
-                body: nil,
-                mediaAttachments: [ attachment ],
-                thread: thread,
-                transaction: transaction
-            )
-        }
+        ThreadUtil.enqueueMessage(
+            body: nil,
+            mediaAttachments: [ attachment ],
+            thread: thread
+        )
     }
 
     private static func shareAssets(_ count: UInt, fromAssetLoaders assetLoaders: [DebugUIMessagesAssetLoader]) {
@@ -287,9 +293,12 @@ class DebugUIMisc: NSObject, DebugUIPage, Dependencies {
 
     // MARK: -
 
-    private static func reregister() {
+    private static func reregister(appReadiness: AppReadinessSetter) {
         Logger.info("Re-registering.")
-        RegistrationUtils.reregister(fromViewController: SignalApp.shared.conversationSplitViewController!)
+        RegistrationUtils.reregister(
+            fromViewController: SignalApp.shared.conversationSplitViewController!,
+            appReadiness: appReadiness
+        )
     }
 
     private static func enableExternalDatabaseAccess() {
@@ -304,18 +313,24 @@ class DebugUIMisc: NSObject, DebugUIPage, Dependencies {
             proceedTitle: "I'm okay with this",
             proceedStyle: .destructive,
             proceedAction: { _ in
-                // This should be caught above. Fatal assert just in case.
-                owsAssert(OWSIsTestableBuild() && Platform.isSimulator)
-
-                // Note: These static strings go hand-in-hand with Scripts/sqlclient.py
-                let payload = [ "key": GRDBDatabaseStorageAdapter.debugOnly_keyData?.hexadecimalString ]
-                let payloadData = try! JSONSerialization.data(withJSONObject: payload, options: .prettyPrinted)
-
-                let groupDir = URL(fileURLWithPath: OWSFileSystem.appSharedDataDirectoryPath(), isDirectory: true)
-                let destURL = groupDir.appendingPathComponent("dbPayload.txt")
-                try! payloadData.write(to: destURL, options: .atomic)
+                debugOnly_savePlaintextDbKey()
             }
         )
+    }
+
+    static func debugOnly_savePlaintextDbKey() {
+#if TESTABLE_BUILD && targetEnvironment(simulator)
+        // Note: These static strings go hand-in-hand with Scripts/sqlclient.py
+        let payload = [ "key": NSObject.databaseStorage.keyFetcher.debugOnly_keyData()?.hexadecimalString ]
+        let payloadData = try! JSONSerialization.data(withJSONObject: payload, options: .prettyPrinted)
+
+        let groupDir = URL(fileURLWithPath: OWSFileSystem.appSharedDataDirectoryPath(), isDirectory: true)
+        let destURL = groupDir.appendingPathComponent("dbPayload.txt")
+        try! payloadData.write(to: destURL, options: .atomic)
+#else
+        // This should be caught above. Fatal assert just in case.
+        owsFail("Can't savePlaintextDbKey")
+#endif
     }
 
     private static func removeAllPrekeys() {
@@ -353,12 +368,6 @@ class DebugUIMisc: NSObject, DebugUIPage, Dependencies {
         databaseStorage.write { transaction in
             let identityManager = DependenciesBridge.shared.identityManager
             identityManager.setIdentityKeyPair(nil, for: .pni, tx: transaction.asV2Write)
-        }
-    }
-
-    private static func discardAllProfileKeys() {
-        databaseStorage.write { transaction in
-            OWSProfileManager.discardAllProfileKeys(with: transaction)
         }
     }
 
@@ -400,23 +409,9 @@ class DebugUIMisc: NSObject, DebugUIPage, Dependencies {
         }
     }
 
-    private static func logSignalAccounts() {
-        Self.databaseStorage.read { transaction in
-            SignalAccount.anyEnumerate(transaction: transaction, batchingPreference: .batched(32)) { (signalAccount, _) in
-                Logger.verbose("SignalAccount: \(signalAccount.addressComponentsDescription)")
-            }
-        }
-    }
-
     private static func clearProfileKeyCredentials() {
         Self.databaseStorage.write { transaction in
             Self.versionedProfiles.clearProfileKeyCredentials(transaction: transaction)
-        }
-    }
-
-    private static func clearTemporalCredentials() {
-        Self.databaseStorage.write { transaction in
-            Self.groupsV2.clearTemporalCredentials(transaction: transaction)
         }
     }
 
@@ -465,7 +460,7 @@ class DebugUIMisc: NSObject, DebugUIPage, Dependencies {
                 updateStorageService: false, /* storage service updated below */
                 transaction: transaction
             )
-            StoryManager.setHasSetMyStoriesPrivacy(false, transaction: transaction, shouldUpdateStorageService: true)
+            StoryManager.setHasSetMyStoriesPrivacy(false, shouldUpdateStorageService: true, transaction: transaction)
         }
     }
 
@@ -501,15 +496,6 @@ class DebugUIMisc: NSObject, DebugUIPage, Dependencies {
     private static func showSpoilerAnimationTestController() {
         let viewController = SpoilerAnimationTestController()
         UIApplication.shared.frontmostViewController!.present(viewController, animated: true)
-    }
-
-    private static func enableEditMessagePromptMessage() {
-        databaseStorage.write { tx in
-            DependenciesBridge.shared.editManager.setShouldShowEditSendConfirmation(
-                true,
-                tx: tx.asV2Write
-            )
-        }
     }
 }
 

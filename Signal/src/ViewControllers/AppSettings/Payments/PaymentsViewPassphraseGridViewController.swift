@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalUI
-import SignalMessaging
+public import SignalUI
+public import SignalServiceKit
 
 public class PaymentsViewPassphraseGridViewController: OWSTableViewController2 {
 
@@ -19,8 +19,8 @@ public class PaymentsViewPassphraseGridViewController: OWSTableViewController2 {
         set {}
     }
 
-    public required init(passphrase: PaymentsPassphrase,
-                         viewPassphraseDelegate: PaymentsViewPassphraseDelegate) {
+    public init(passphrase: PaymentsPassphrase,
+                viewPassphraseDelegate: PaymentsViewPassphraseDelegate) {
         self.passphrase = passphrase
         self.viewPassphraseDelegate = viewPassphraseDelegate
 

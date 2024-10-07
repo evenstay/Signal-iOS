@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
+import SignalServiceKit
 import SignalUI
 
 class AdvancedPrivacySettingsViewController: OWSTableViewController2 {
@@ -20,7 +20,7 @@ class AdvancedPrivacySettingsViewController: OWSTableViewController2 {
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(updateTableContents),
-            name: OWSWebSocket.webSocketStateDidChange,
+            name: OWSChatConnection.chatConnectionStateDidChange,
             object: nil
         )
         NotificationCenter.default.addObserver(
@@ -32,7 +32,7 @@ class AdvancedPrivacySettingsViewController: OWSTableViewController2 {
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(updateTableContents),
-            name: .OWSSyncManagerConfigurationSyncDidComplete,
+            name: .syncManagerConfigurationSyncDidComplete,
             object: nil
         )
         NotificationCenter.default.addObserver(
@@ -71,7 +71,7 @@ class AdvancedPrivacySettingsViewController: OWSTableViewController2 {
             }
         } else if
             !signalService.isCensorshipCircumventionActive,
-            DependenciesBridge.shared.socketManager.isAnySocketOpen
+            DependenciesBridge.shared.chatConnectionManager.identifiedConnectionState == .open
         {
             isCensorshipCircumventionSwitchEnabled = false
             censorshipCircumventionSection.footerTitle = OWSLocalizedString(
@@ -109,7 +109,7 @@ class AdvancedPrivacySettingsViewController: OWSTableViewController2 {
                     "SETTINGS_ADVANCED_CENSORSHIP_CIRCUMVENTION_COUNTRY",
                     comment: "Label for the 'manual censorship circumvention' country."
                 ),
-                detailText: ensureManualCensorshipCircumventionCountry().localizedCountryName,
+                accessoryText: ensureManualCensorshipCircumventionCountry().localizedCountryName,
                 actionBlock: { [weak self] in
                     let vc = DomainFrontingCountryViewController()
                     self?.navigationController?.pushViewController(vc, animated: true)
@@ -133,7 +133,7 @@ class AdvancedPrivacySettingsViewController: OWSTableViewController2 {
                 "PROXY_SETTINGS_TITLE",
                 comment: "Title for the signal proxy settings"
             ),
-            detailText: SignalProxy.isEnabled ? CommonStrings.switchOn : CommonStrings.switchOff,
+            accessoryText: SignalProxy.isEnabled ? CommonStrings.switchOn : CommonStrings.switchOff,
             actionBlock: { [weak self] in
                 let vc = ProxySettingsViewController()
                 self?.navigationController?.pushViewController(vc, animated: true)
@@ -251,9 +251,9 @@ class AdvancedPrivacySettingsViewController: OWSTableViewController2 {
     }
 
     private func ensureManualCensorshipCircumventionCountry() -> OWSCountryMetadata {
-        let countryCode = self.signalService.manualCensorshipCircumventionCountryCode ?? PhoneNumber.defaultCountryCode()
+        let countryCode = self.signalService.manualCensorshipCircumventionCountryCode ?? PhoneNumberUtil.defaultCountryCode()
         self.signalService.manualCensorshipCircumventionCountryCode = countryCode
-        return OWSCountryMetadata(forCountryCode: countryCode)
+        return OWSCountryMetadata.countryMetadata(countryCode: countryCode)!
     }
 
     @objc

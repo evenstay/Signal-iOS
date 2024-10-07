@@ -5,7 +5,7 @@
 
 import Photos
 import PhotosUI
-import SignalMessaging
+import SignalServiceKit
 import SignalUI
 
 protocol RecentPhotosDelegate: AnyObject {
@@ -145,14 +145,10 @@ class RecentPhotosCollectionView: UICollectionView {
     }
 
     private var hasAccessToPhotos: Bool {
-        guard #available(iOS 14, *) else {
-            return mediaLibraryAuthorizationStatus == .authorized
-        }
         return [.authorized, .limited].contains(mediaLibraryAuthorizationStatus)
     }
 
     private var isAccessToPhotosLimited: Bool {
-        guard #available(iOS 14, *) else { return false }
         return mediaLibraryAuthorizationStatus == .limited
     }
 
@@ -210,8 +206,7 @@ class RecentPhotosCollectionView: UICollectionView {
             comment: "Button in chat attachment panel that allows to select photos/videos Signal has access to."
         ))
         button.block = {
-            guard #available(iOS 14, *),
-                let frontmostVC = CurrentAppContext().frontmostViewController() else { return }
+            guard let frontmostVC = CurrentAppContext().frontmostViewController() else { return }
             PHPhotoLibrary.shared().presentLimitedLibraryPicker(from: frontmostVC)
         }
         let stackView = UIStackView(arrangedSubviews: [ textLabel, button ])
@@ -266,12 +261,12 @@ class RecentPhotosCollectionView: UICollectionView {
         let button = OWSButton()
 
         let backgroundColor = Theme.isDarkThemeEnabled ? UIColor(white: 1, alpha: 0.16) : UIColor(white: 0, alpha: 0.08)
-        button.setBackgroundImage(UIImage(color: backgroundColor), for: .normal)
+        button.setBackgroundImage(UIImage.image(color: backgroundColor), for: .normal)
 
         let highlightedBgColor = Theme.isDarkThemeEnabled ? UIColor(white: 1, alpha: 0.26) : UIColor(white: 0, alpha: 0.18)
-        button.setBackgroundImage(UIImage(color: highlightedBgColor), for: .highlighted)
+        button.setBackgroundImage(UIImage.image(color: highlightedBgColor), for: .highlighted)
 
-        button.contentEdgeInsets = UIEdgeInsets(top: 7, leading: 16, bottom: 7, trailing: 16)
+        button.ows_contentEdgeInsets = UIEdgeInsets(top: 7, leading: 16, bottom: 7, trailing: 16)
         button.heightAnchor.constraint(greaterThanOrEqualToConstant: 32).isActive = true
         button.layer.masksToBounds = true
         button.layer.cornerRadius = 16
@@ -313,6 +308,21 @@ extension RecentPhotosCollectionView: UICollectionViewDelegate, UICollectionView
         collectionContents.outgoingAttachment(
             for: asset
         ).done { [weak self] attachment in
+            switch attachment.error {
+            case nil:
+                break
+            case .fileSizeTooLarge:
+                OWSActionSheets.showActionSheet(
+                    title: OWSLocalizedString(
+                        "ATTACHMENT_ERROR_FILE_SIZE_TOO_LARGE",
+                        comment: "Attachment error message for attachments whose data exceed file size limits"
+                    )
+                )
+                return
+            default:
+                OWSActionSheets.showActionSheet(title: OWSLocalizedString("IMAGE_PICKER_FAILED_TO_PROCESS_ATTACHMENTS", comment: "alert title"))
+                return
+            }
             self?.recentPhotosDelegate?.didSelectRecentPhoto(asset: asset, attachment: attachment)
         }.ensure { [weak self] in
             self?.fetchingAttachmentIndex = nil
@@ -565,7 +575,8 @@ private class RecentPhotoCell: UICollectionViewCell {
     func configure(item: PhotoGridItem, isLoading: Bool) {
         self.item = item
 
-        image = item.asyncThumbnail { [weak self] image in
+        image = nil
+        item.asyncThumbnail { [weak self] image in
             guard let self = self, let currentItem = self.item, currentItem === item else { return }
             self.image = image
         }

@@ -3,9 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalCoreKit
-import SignalMessaging
-import SignalUI
+public import SignalServiceKit
+public import SignalUI
 
 extension ChatListViewController {
 
@@ -40,15 +39,15 @@ extension ChatListViewController {
                                                object: nil)
         NotificationCenter.default.addObserver(self,
                                                selector: #selector(localProfileDidChange),
-                                               name: .localProfileDidChange,
+                                               name: UserProfileNotifications.localProfileDidChange,
                                                object: nil)
         NotificationCenter.default.addObserver(self,
                                                selector: #selector(profileWhitelistDidChange),
-                                               name: .profileWhitelistDidChange,
+                                               name: UserProfileNotifications.profileWhitelistDidChange,
                                                object: nil)
         NotificationCenter.default.addObserver(self,
                                                selector: #selector(otherProfileDidChange(_:)),
-                                               name: .otherUsersProfileDidChange,
+                                               name: UserProfileNotifications.otherUsersProfileDidChange,
                                                object: nil)
         NotificationCenter.default.addObserver(self,
                                                selector: #selector(appExpiryDidChange),
@@ -72,24 +71,6 @@ extension ChatListViewController {
                                                object: nil)
         NotificationCenter.default.addObserver(
             self,
-            selector: #selector(updateBarButtonItems),
-            name: .isSignalProxyReadyDidChange,
-            object: nil
-        )
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(updateBarButtonItems),
-            name: OWSWebSocket.webSocketStateDidChange,
-            object: nil
-        )
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(updateBarButtonItems),
-            name: SSKReachability.owsReachabilityDidChange,
-            object: nil
-        )
-        NotificationCenter.default.addObserver(
-            self,
             selector: #selector(localUsernameStateDidChange),
             name: Usernames.localUsernameStateChangedNotification,
             object: nil
@@ -98,13 +79,13 @@ extension ChatListViewController {
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(showBadgeSheetIfNecessary),
-            name: SubscriptionReceiptCredentialRedemptionOperation.DidSucceedNotification,
+            name: ReceiptCredentialRedemptionJob.didSucceedNotification,
             object: nil
         )
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(showBadgeSheetIfNecessary),
-            name: SubscriptionReceiptCredentialRedemptionOperation.DidFailNotification,
+            name: ReceiptCredentialRedemptionJob.didFailNotification,
             object: nil
         )
 
@@ -127,7 +108,7 @@ extension ChatListViewController {
         AssertIsOnMainThread()
 
         // This is wasteful but this event is very rare.
-        reloadTableDataAndResetCellContentCache()
+        reloadTableDataAndResetThreadViewModelCache()
     }
 
     @objc
@@ -135,6 +116,7 @@ extension ChatListViewController {
         AssertIsOnMainThread()
 
         updateReminderViews()
+        loadIfNecessary()
     }
 
     @objc
@@ -142,13 +124,13 @@ extension ChatListViewController {
         AssertIsOnMainThread()
 
         updateReminderViews()
+        loadIfNecessary()
     }
 
     @objc
     private func localProfileDidChange(_ notification: NSNotification) {
         AssertIsOnMainThread()
 
-        updateBarButtonItems()
         showBadgeSheetIfNecessary()
     }
 
@@ -157,6 +139,7 @@ extension ChatListViewController {
         AssertIsOnMainThread()
 
         updateReminderViews()
+        loadIfNecessary()
     }
 
     @objc
@@ -190,8 +173,8 @@ extension ChatListViewController {
 
         // If profile whitelist just changed, we need to update the associated
         // thread to reflect the latest message request state.
-        let address: SignalServiceAddress? = notification.userInfo?[kNSNotificationKey_ProfileAddress] as? SignalServiceAddress
-        let groupId: Data? = notification.userInfo?[kNSNotificationKey_ProfileGroupId] as? Data
+        let address: SignalServiceAddress? = notification.userInfo?[UserProfileNotifications.profileAddressKey] as? SignalServiceAddress
+        let groupId: Data? = notification.userInfo?[UserProfileNotifications.profileGroupIdKey] as? Data
 
         let changedThreadId: String? = databaseStorage.read { transaction in
             if let address = address,
@@ -205,7 +188,6 @@ extension ChatListViewController {
         }
 
         if let threadId = changedThreadId {
-            Logger.info("[Scroll Perf Debug] Scheduling load for threadId \(threadId) because whitelist did change.")
             self.loadCoordinator.scheduleLoad(updatedThreadIds: Set([threadId]))
         }
     }
@@ -214,7 +196,7 @@ extension ChatListViewController {
     private func otherProfileDidChange(_ notification: NSNotification) {
         AssertIsOnMainThread()
 
-        let address = notification.userInfo?[kNSNotificationKey_ProfileAddress] as? SignalServiceAddress
+        let address = notification.userInfo?[UserProfileNotifications.profileAddressKey] as? SignalServiceAddress
 
         let changedThreadId: String? = databaseStorage.read { readTx in
             if let address = address, address.isValid {
@@ -225,9 +207,6 @@ extension ChatListViewController {
         }
 
         if let changedThreadId = changedThreadId {
-            if DebugFlags.internalLogging {
-                Logger.info("[Scroll Perf Debug] Scheduling load for threadId \(changedThreadId) because other profile did change.")
-            }
             self.loadCoordinator.scheduleLoad(updatedThreadIds: Set([changedThreadId]))
         }
     }
@@ -252,6 +231,7 @@ extension ChatListViewController {
     @objc
     private func localUsernameStateDidChange() {
         updateReminderViews()
+        loadIfNecessary()
     }
 }
 
@@ -262,27 +242,17 @@ extension ChatListViewController: DatabaseChangeDelegate {
     public func databaseChangesDidUpdate(databaseChanges: DatabaseChanges) {
         AssertIsOnMainThread()
 
-        BenchManager.startEvent(title: "uiDatabaseUpdate", eventId: "uiDatabaseUpdate")
-
-        if databaseChanges.didUpdateModel(collection: TSPaymentModel.collection()) {
-            if DebugFlags.internalLogging {
-                Logger.info("[Scroll Perf Debug] TSPaymentModel did update")
-            }
+        if databaseChanges.didUpdate(tableName: TSPaymentModel.table.tableName) {
             updateUnreadPaymentNotificationsCountWithSneakyTransaction()
         }
 
         if !databaseChanges.threadUniqueIdsForChatListUpdate.isEmpty {
-            if DebugFlags.internalLogging {
-                Logger.info("[Scroll Perf Debug] Scheduling load for threadIds (count \(databaseChanges.threadUniqueIdsForChatListUpdate.count): \(databaseChanges.threadUniqueIdsForChatListUpdate)")
-            }
             self.loadCoordinator.scheduleLoad(updatedThreadIds: databaseChanges.threadUniqueIdsForChatListUpdate)
         }
     }
 
     public func databaseChangesDidUpdateExternally() {
         AssertIsOnMainThread()
-
-        Logger.verbose("")
 
         // External database modifications can't be converted into incremental updates,
         // so rebuild everything.  This is expensive and usually isn't necessary, but

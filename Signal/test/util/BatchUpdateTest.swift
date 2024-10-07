@@ -6,7 +6,6 @@
 import XCTest
 @testable import SignalServiceKit
 @testable import Signal
-@testable import SignalMessaging
 
 class BatchUpdateTest: XCTestCase {
     func testScenario1() {
@@ -575,7 +574,6 @@ struct BatchUpdateMockValue: BatchUpdateValue {
     }
 
     var batchUpdateId: String { itemId }
-    var logSafeDescription: String { itemId }
 }
 
 // MARK: -

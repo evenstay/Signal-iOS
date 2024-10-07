@@ -6,8 +6,8 @@
 import BonMot
 import Foundation
 import Lottie
-import SignalMessaging
-import SignalUI
+public import SignalServiceKit
+public import SignalUI
 import UIKit
 import SafariServices
 
@@ -96,8 +96,8 @@ public class DonationCurrencyPickerButton: UIStackView {
             .color(Theme.primaryTextColor)
         ), for: .normal)
 
-        picker.setBackgroundImage(UIImage(color: DonationViewsUtil.bubbleBackgroundColor), for: .normal)
-        picker.setBackgroundImage(UIImage(color: DonationViewsUtil.bubbleBackgroundColor.withAlphaComponent(0.8)), for: .highlighted)
+        picker.setBackgroundImage(UIImage.image(color: DonationViewsUtil.bubbleBackgroundColor), for: .normal)
+        picker.setBackgroundImage(UIImage.image(color: DonationViewsUtil.bubbleBackgroundColor.withAlphaComponent(0.8)), for: .highlighted)
 
         let pillView = PillView()
         pillView.layer.borderWidth = DonationViewsUtil.bubbleBorderWidth
@@ -209,6 +209,103 @@ public final class DonationViewsUtil {
         return ConversationAvatarView(sizeClass: sizeClass, localUserDisplayMode: .asUser)
     }
 
+    /// Complete the monthly donation and allow for an optional onFinished block to be called with the
+    /// result of the subscription.  Regardless of success or failure here, the pending donation is cleared
+    /// since there isn't anything actionable for the user to do on failure other than try again with a new
+    /// donation.
+    public static func completeMonthlyDonations(
+        subscriberId: Data,
+        paymentType: SubscriptionManagerImpl.RecurringSubscriptionPaymentType,
+        newSubscriptionLevel: SubscriptionLevel,
+        priorSubscriptionLevel: SubscriptionLevel?,
+        currencyCode: Currency.Code,
+        databaseStorage: SDSDatabaseStorage
+    ) -> Promise<Void> {
+        let pendingStore = DependenciesBridge.shared.externalPendingIDEALDonationStore
+        return firstly(on: DispatchQueue.sharedUserInitiated) {
+            DonationViewsUtil.finalizeAndRedeemSubscription(
+                subscriberId: subscriberId,
+                paymentType: paymentType,
+                newSubscriptionLevel: newSubscriptionLevel,
+                priorSubscriptionLevel: priorSubscriptionLevel,
+                currencyCode: currencyCode
+            )
+        }.ensure {
+            databaseStorage.write { tx in
+                pendingStore.clearPendingSubscription(tx: tx.asV2Write)
+            }
+        }
+    }
+
+    /// Complete the one-time donation and allow for an optional onFinished
+    /// block to be called with the result of the transaction.
+    public static func completeOneTimeDonation(
+        paymentIntentId: String,
+        amount: FiatMoney,
+        paymentMethod: DonationPaymentMethod,
+        databaseStorage: SDSDatabaseStorage
+    ) -> Promise<Void> {
+        let pendingStore = DependenciesBridge.shared.externalPendingIDEALDonationStore
+        return firstly(on: DispatchQueue.sharedUserInitiated) {
+            DonationViewsUtil.createAndRedeemOneTimeDonation(
+                paymentIntentId: paymentIntentId,
+                amount: amount,
+                paymentMethod: paymentMethod
+            )
+        }
+        .ensure {
+            databaseStorage.write { tx in
+                pendingStore.clearPendingOneTimeDonation(tx: tx.asV2Write)
+            }
+        }
+    }
+
+    public static func createAndRedeemOneTimeDonation(
+        paymentIntentId: String,
+        amount: FiatMoney,
+        paymentMethod: DonationPaymentMethod
+    ) -> Promise<Void> {
+        let redemptionJob = SubscriptionManagerImpl.requestAndRedeemReceipt(
+            boostPaymentIntentId: paymentIntentId,
+            amount: amount,
+            paymentProcessor: .stripe,
+            paymentMethod: paymentMethod
+        )
+        return DonationViewsUtil.waitForRedemptionJob(redemptionJob, paymentMethod: paymentMethod)
+    }
+
+    public static func finalizeAndRedeemSubscription(
+        subscriberId: Data,
+        paymentType: SubscriptionManagerImpl.RecurringSubscriptionPaymentType,
+        newSubscriptionLevel: SubscriptionLevel,
+        priorSubscriptionLevel: SubscriptionLevel?,
+        currencyCode: Currency.Code
+    ) -> Promise<Void> {
+        firstly(on: DispatchQueue.sharedUserInitiated) { () -> Promise<Subscription> in
+            Logger.info("[Donations] Finalizing new subscription")
+
+            return SubscriptionManagerImpl.finalizeNewSubscription(
+                forSubscriberId: subscriberId,
+                paymentType: paymentType,
+                subscription: newSubscriptionLevel,
+                currencyCode: currencyCode
+            )
+        }.then(on: DispatchQueue.sharedUserInitiated) { _ in
+            Logger.info("[Donations] Redeeming monthly receipts")
+
+            let redemptionJob = SubscriptionManagerImpl.requestAndRedeemReceipt(
+                subscriberId: subscriberId,
+                subscriptionLevel: newSubscriptionLevel.level,
+                priorSubscriptionLevel: priorSubscriptionLevel?.level,
+                paymentProcessor: paymentType.paymentProcessor,
+                paymentMethod: paymentType.paymentMethod,
+                isNewSubscription: true,
+                shouldSuppressPaymentAlreadyRedeemed: false
+            )
+            return DonationViewsUtil.waitForRedemptionJob(redemptionJob, paymentMethod: paymentType.paymentMethod)
+        }
+    }
+
     public static func loadSubscriptionLevels(badgeStore: BadgeStore) -> Promise<[SubscriptionLevel]> {
         firstly { () -> Promise<SubscriptionManagerImpl.DonationConfiguration> in
             SubscriptionManagerImpl.fetchDonationConfiguration()
@@ -252,40 +349,145 @@ public final class DonationViewsUtil {
 
         return actionSheet
     }
-}
 
-/// Not the best place for this to live, but at the time of writing I wanted to
-/// minimize the diff (these methods lived here before) while restricting these
-/// methods to ``DonateViewController``.
-extension DonateViewController {
-   func presentErrorSheet(
+    static func completeIDEALDonation(
+        donationType: Stripe.IDEALCallbackType,
+        databaseStorage: SDSDatabaseStorage
+    ) -> Promise<Void> {
+        let paymentStore = DependenciesBridge.shared.externalPendingIDEALDonationStore
+        switch donationType {
+        case let .monthly(success, clientSecret, intentId):
+            guard let monthlyDonation = databaseStorage.read(block: { tx in
+                paymentStore.getPendingSubscription(tx: tx.asV2Read)
+            }) else {
+                Logger.error("[Donations] Could not find iDEAL subscription to complete")
+                return Promise.init(error: OWSUnretryableError())
+            }
+            guard
+                clientSecret == monthlyDonation.clientSecret,
+                intentId == monthlyDonation.setupIntentId
+            else {
+                owsFailDebug("[Donations] Pending iDEAL subscription details do not match")
+                return Promise.init(error: OWSUnretryableError())
+            }
+            guard success else {
+                return Promise.init(error: OWSUnretryableError())
+            }
+
+            return firstly(on: DispatchQueue.global()) {
+                DonationViewsUtil.completeMonthlyDonations(
+                    subscriberId: monthlyDonation.subscriberId,
+                    paymentType: .ideal(setupIntentId: monthlyDonation.setupIntentId),
+                    newSubscriptionLevel: monthlyDonation.newSubscriptionLevel,
+                    priorSubscriptionLevel: monthlyDonation.oldSubscriptionLevel,
+                    currencyCode: monthlyDonation.amount.currencyCode,
+                    databaseStorage: databaseStorage
+                )
+            }
+        case let .oneTime(success, intentId):
+            guard let oneTimePayment = databaseStorage.read(block: { tx in
+                paymentStore.getPendingOneTimeDonation(tx: tx.asV2Read)
+            }) else {
+                Logger.error("[Donations] Could not find iDEAL payment to complete")
+                return Promise.init(error: OWSUnretryableError())
+            }
+            guard intentId == oneTimePayment.paymentIntentId else {
+                owsFailDebug("[Donations] Could not find iDEAL subscription to complete")
+                return Promise.init(error: OWSUnretryableError())
+            }
+            guard success else {
+                return Promise.init(error: OWSUnretryableError())
+            }
+
+            return firstly(on: DispatchQueue.global()) {
+                DonationViewsUtil.completeOneTimeDonation(
+                    paymentIntentId: oneTimePayment.paymentIntentId,
+                    amount: oneTimePayment.amount,
+                    paymentMethod: .ideal,
+                    databaseStorage: databaseStorage
+                )
+            }
+        }
+    }
+
+    static func presentErrorSheet(
+        from viewController: UIViewController,
         error: Error,
-        mode donateMode: DonateMode,
+        mode donateMode: DonateViewController.DonateMode,
         badge: ProfileBadge,
         paymentMethod: DonationPaymentMethod?
     ) {
         if let donationJobError = error as? DonationJobError {
             switch donationJobError {
             case .timeout:
-                presentStillProcessingSheet(
+                DonationViewsUtil.presentStillProcessingSheet(
+                    from: viewController,
                     badge: badge,
                     paymentMethod: paymentMethod,
                     donateMode: donateMode
                 )
             case .assertion:
-                presentBadgeCantBeAddedSheet(donateMode: donateMode)
+                DonationViewsUtil.presentBadgeCantBeAddedSheet(
+                    from: viewController,
+                    donateMode: donateMode
+                )
             }
         } else if let stripeError = error as? Stripe.StripeError {
-            presentDonationErrorSheet(
+            DonationViewsUtil.presentDonationErrorSheet(
+                from: viewController,
                 forDonationChargeErrorCode: stripeError.code,
                 using: paymentMethod
             )
+        } else if let redirectError = error as? Stripe.RedirectAuthorizationError {
+            DonationViewsUtil.presentRedirectAuthErrorSheet(
+                from: viewController,
+                donateMode: donateMode,
+                paymentMethod: paymentMethod,
+                error: redirectError
+            )
         } else {
-            presentBadgeCantBeAddedSheet(donateMode: donateMode)
+            presentBadgeCantBeAddedSheet(
+                from: viewController,
+                donateMode: donateMode
+            )
         }
     }
 
-    private func presentDonationErrorSheet(
+    private static func presentRedirectAuthErrorSheet(
+        from viewController: UIViewController,
+        donateMode: DonateViewController.DonateMode,
+        paymentMethod: DonationPaymentMethod?,
+        error: Stripe.RedirectAuthorizationError
+    ) {
+        let actionSheet = ActionSheetController(
+            title: OWSLocalizedString(
+                "SUSTAINER_VIEW_ERROR_AUTHORIZING_PAYMENT_TITLE",
+                comment: "Action sheet title for Error Authorizing Payment sheet"
+            ),
+            message: DonationViewsUtil.localizedDonationFailureForPaymentAuthorizationRedirect(error: error)
+        )
+
+        actionSheet.addAction(.init(title: CommonStrings.okButton, style: .cancel, handler: { _ in
+            switch paymentMethod {
+            case .ideal:
+                let idealDonationStore = DependenciesBridge.shared.externalPendingIDEALDonationStore
+                viewController.databaseStorage.write { tx in
+                    switch donateMode {
+                    case .oneTime:
+                        idealDonationStore.clearPendingOneTimeDonation(tx: tx.asV2Write)
+                    case .monthly:
+                        idealDonationStore.clearPendingSubscription(tx: tx.asV2Write)
+                    }
+                }
+            case .applePay, .creditOrDebitCard, .paypal, .sepa, .none:
+                break
+            }
+        }))
+        viewController.presentActionSheet(actionSheet)
+    }
+
+    private static func presentDonationErrorSheet(
+        from viewController: UIViewController,
         forDonationChargeErrorCode chargeErrorCode: String,
         using paymentMethod: DonationPaymentMethod?
     ) {
@@ -309,24 +511,25 @@ extension DonateViewController {
         case .learnMore(let learnMoreUrl):
             actionSheet.addAction(.init(title: CommonStrings.learnMore, style: .default) { _ in
                 let vc = SFSafariViewController(url: learnMoreUrl)
-                self.present(vc, animated: true, completion: nil)
+                viewController.present(vc, animated: true, completion: nil)
             })
         }
 
-        self.presentActionSheet(actionSheet)
+        viewController.presentActionSheet(actionSheet)
     }
 
-    private func presentStillProcessingSheet(
+    private static func presentStillProcessingSheet(
+        from viewController: UIViewController,
         badge: ProfileBadge,
         paymentMethod: DonationPaymentMethod?,
-        donateMode: DonateMode
+        donateMode: DonateViewController.DonateMode
     ) {
         switch paymentMethod {
         case nil, .applePay, .creditOrDebitCard, .paypal:
-            self.presentActionSheet(
+            viewController.presentActionSheet(
                 DonationViewsUtil.nonBankPaymentStillProcessingActionSheet()
             )
-        case .sepa:
+        case .sepa, .ideal:
             let badgeIssueSheetMode: BadgeIssueSheetState.Mode = {
                 switch donateMode {
                 case .oneTime:
@@ -336,7 +539,7 @@ extension DonateViewController {
                 }
             }()
 
-            self.present(
+            viewController.present(
                 BadgeIssueSheet(
                     badge: badge,
                     mode: badgeIssueSheetMode
@@ -346,15 +549,19 @@ extension DonateViewController {
         }
     }
 
-    private func presentBadgeCantBeAddedSheet(donateMode: DonateMode) {
-        let receiptCredentialRequestError = SDSDatabaseStorage.shared.read { tx -> SubscriptionReceiptCredentialRequestError? in
-            let resultStore = DependenciesBridge.shared.subscriptionReceiptCredentialResultStore
+    private static func presentBadgeCantBeAddedSheet(
+        from viewController: UIViewController,
+        donateMode: DonateViewController.DonateMode
+    ) {
+        let receiptCredentialRequestError = SDSDatabaseStorage.shared.read { tx -> ReceiptCredentialRequestError? in
+            let resultStore = DependenciesBridge.shared.receiptCredentialResultStore
 
             switch donateMode {
             case .oneTime:
                 return resultStore.getRequestError(errorMode: .oneTimeBoost, tx: tx.asV2Read)
             case .monthly:
-                return resultStore.getRequestError(errorMode: .recurringSubscription, tx: tx.asV2Read)
+                // All subscriptions from this controller are being initiated.
+                return resultStore.getRequestError(errorMode: .recurringSubscriptionInitiation, tx: tx.asV2Read)
             }
         }
 
@@ -382,13 +589,13 @@ extension DonateViewController {
                                                               message: localizedSheetMessage)
                     let buttonTitle = OWSLocalizedString("BUTTON_OKAY", comment: "Label for the 'okay' button.")
                     fallbackSheet.addAction(ActionSheetAction(title: buttonTitle, style: .default))
-                    self.presentActionSheet(fallbackSheet)
+                    viewController.presentActionSheet(fallbackSheet)
                     return
                 }
                 let supportVC = ContactSupportViewController()
                 supportVC.selectedFilter = .donationsAndBadges
                 let navVC = OWSNavigationController(rootViewController: supportVC)
-                self.presentFormSheet(navVC, animated: true)
+                viewController.presentFormSheet(navVC, animated: true)
             }
         ))
 
@@ -397,6 +604,6 @@ extension DonateViewController {
             style: .cancel,
             handler: nil
         ))
-        self.presentActionSheet(actionSheet)
+        viewController.presentActionSheet(actionSheet)
     }
 }

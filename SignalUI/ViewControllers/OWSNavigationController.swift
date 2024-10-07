@@ -53,7 +53,7 @@ extension OWSNavigationChildController {
 /// This navigation controller subclass should be used anywhere we might
 /// want to cancel back button presses or back gestures due to, for example,
 /// unsaved changes.
-open class OWSNavigationController: OWSNavigationControllerBase {
+open class OWSNavigationController: UINavigationController {
 
     private var owsNavigationBar: OWSNavigationBar {
         return navigationBar as! OWSNavigationBar
@@ -142,7 +142,7 @@ open class OWSNavigationController: OWSNavigationControllerBase {
     /// Apply any changes to navbar appearance from the top view controller in the stack.
     /// Changes will be automatically applied when a view controller is pushed or popped;
     /// this method is just for use if state changes while the view is on screen.
-    public func updateNavbarAppearance(animated: Bool = false) {
+    public func updateNavbarAppearance(animated: Bool = UIView.areAnimationsEnabled) {
         if let topViewController = topViewController {
             updateNavbarAppearance(for: topViewController, fromViewControllerTransition: false, animated: animated)
         }
@@ -245,23 +245,10 @@ extension OWSNavigationController: UINavigationBarDelegate {
         // wasBackButtonClicked is true if the back button was pressed but not
         // if a back gesture was performed or if the view is popped programmatically.
         let wasBackButtonClicked = topViewController?.navigationItem == item
-        var result = true
-        if wasBackButtonClicked {
-            if let child = topViewController?.getFinalNavigationChildController() {
-                result = !child.shouldCancelNavigationBack
-            }
+        if wasBackButtonClicked, let child = topViewController?.getFinalNavigationChildController() {
+            return !child.shouldCancelNavigationBack
         }
-
-        // If we're not going to cancel the pop/back, we need to call the super
-        // implementation since it has important side effects.
-        if result {
-            // NOTE: result might end up false if the super implementation cancels the
-            // the pop/back.
-            super.ows_navigationBar(navigationBar, shouldPop: item)
-            result = true
-        }
-
-        return result
+        return true
     }
 }
 
@@ -274,7 +261,13 @@ extension OWSNavigationController: UINavigationControllerDelegate {
         willShow viewController: UIViewController,
         animated: Bool
     ) {
-        updateNavbarAppearance(for: viewController, fromViewControllerTransition: true, animated: animated)
+        // The `viewController` parameter is non-Optional. It is annotated as such
+        // in Apple's header. However, on iOS 16, they pass `nil`, and that causes
+        // our code to blow up. Detect when they've given us nil in a non-Optional
+        // parameter and avoid calling the method that causes things to blow up.
+        if let viewController = viewController as AnyObject as? UIViewController {
+            updateNavbarAppearance(for: viewController, fromViewControllerTransition: true, animated: animated)
+        }
         externalDelegate?.navigationController?(navigationController, willShow: viewController, animated: animated)
     }
 

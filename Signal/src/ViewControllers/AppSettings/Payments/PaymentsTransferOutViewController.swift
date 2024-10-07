@@ -5,8 +5,8 @@
 
 import Lottie
 import MobileCoin
-import SignalMessaging
-import SignalUI
+public import SignalServiceKit
+public import SignalUI
 
 public class PaymentsTransferOutViewController: OWSTableViewController2 {
 
@@ -26,7 +26,7 @@ public class PaymentsTransferOutViewController: OWSTableViewController2 {
         return !addressValue.isEmpty
     }
 
-    public required init(transferAmount: TSPaymentAmount?) {
+    public init(transferAmount: TSPaymentAmount?) {
         self.transferAmount = transferAmount
     }
 

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
+import SignalServiceKit
 import SignalUI
 
 protocol GroupDescriptionViewControllerDelegate: AnyObject {
@@ -12,6 +12,7 @@ protocol GroupDescriptionViewControllerDelegate: AnyObject {
 
 class GroupDescriptionViewController: OWSTableViewController2 {
     private let helper: GroupAttributesEditorHelper
+    private let providedCurrentDescription: Bool
 
     weak var descriptionDelegate: GroupDescriptionViewControllerDelegate?
 
@@ -25,10 +26,6 @@ class GroupDescriptionViewController: OWSTableViewController2 {
 
     var isEditable: Bool { options.contains(.editable) }
 
-    convenience init(groupModel: TSGroupModel) {
-        self.init(groupModel: groupModel, options: [])
-    }
-
     convenience init(
         groupModel: TSGroupModel,
         groupDescriptionCurrent: String? = nil,
@@ -41,7 +38,7 @@ class GroupDescriptionViewController: OWSTableViewController2 {
         )
     }
 
-    required init(
+    init(
         helper: GroupAttributesEditorHelper,
         groupDescriptionCurrent: String? = nil,
         options: Options = []
@@ -51,6 +48,9 @@ class GroupDescriptionViewController: OWSTableViewController2 {
 
         if let groupDescriptionCurrent = groupDescriptionCurrent {
             self.helper.groupDescriptionOriginal = groupDescriptionCurrent
+            providedCurrentDescription = true
+        } else {
+            providedCurrentDescription = false
         }
 
         super.init()
@@ -68,13 +68,8 @@ class GroupDescriptionViewController: OWSTableViewController2 {
 
         updateNavigation()
         updateTableContents()
-    }
-
-    override func themeDidChange() {
-        super.themeDidChange()
-
         helper.descriptionTextView.linkTextAttributes = [
-            .foregroundColor: Theme.primaryTextColor,
+            .foregroundColor: UIColor.link,
             .underlineStyle: NSUnderlineStyle.single.rawValue
         ]
     }
@@ -98,7 +93,13 @@ class GroupDescriptionViewController: OWSTableViewController2 {
         let remainingGlyphCount = max(0, GroupManager.maxGroupDescriptionGlyphCount - currentGlyphCount)
 
         if !isEditable, let groupName = helper.groupNameCurrent {
-            title = groupName
+            if self.providedCurrentDescription {
+                // don't assume the current group title applies
+                // if a group description was directly provided.
+                title = nil
+            } else {
+                title = groupName
+            }
         } else if isEditable, remainingGlyphCount <= 100 {
             let titleFormat = OWSLocalizedString(
                 "GROUP_DESCRIPTION_VIEW_TITLE_FORMAT",
@@ -113,38 +114,30 @@ class GroupDescriptionViewController: OWSTableViewController2 {
         }
 
         if isEditable {
-            navigationItem.leftBarButtonItem = UIBarButtonItem(
-                barButtonSystemItem: .cancel,
-                target: self,
-                action: #selector(didTapCancel),
-                accessibilityIdentifier: "cancel_button"
+            navigationItem.leftBarButtonItem = .cancelButton(
+                dismissingFrom: self,
+                hasUnsavedChanges: { [weak self] in self?.helper.hasUnsavedChanges }
             )
         } else {
-            navigationItem.leftBarButtonItem = UIBarButtonItem(
-                barButtonSystemItem: .done,
-                target: self,
-                action: #selector(didTapDone),
-                accessibilityIdentifier: "done_button"
-            )
+            navigationItem.leftBarButtonItem = .doneButton { [weak self] in
+                self?.didTapDone()
+            }
         }
 
         if helper.hasUnsavedChanges {
             owsAssertDebug(isEditable)
             if options.contains(.updateImmediately) {
-                navigationItem.rightBarButtonItem = UIBarButtonItem(
+                navigationItem.rightBarButtonItem = .button(
                     title: CommonStrings.setButton,
                     style: .done,
-                    target: self,
-                    action: #selector(didTapSet),
-                    accessibilityIdentifier: "set_button"
+                    action: { [weak self] in
+                        self?.didTapSet()
+                    }
                 )
             } else {
-                navigationItem.rightBarButtonItem = UIBarButtonItem(
-                    barButtonSystemItem: .done,
-                    target: self,
-                    action: #selector(didTapDone),
-                    accessibilityIdentifier: "done_button"
-                )
+                navigationItem.rightBarButtonItem = .doneButton { [weak self] in
+                    self?.didTapDone()
+                }
             }
         } else {
             navigationItem.rightBarButtonItem = nil
@@ -165,34 +158,13 @@ class GroupDescriptionViewController: OWSTableViewController2 {
         let contents = OWSTableContents()
 
         let descriptionTextView = helper.descriptionTextView
-        let isEditable = self.isEditable
 
         let section = OWSTableSection()
-        section.add(.init(
-            customCellBlock: {
-                let cell = OWSTableItem.newCell()
-
-                cell.selectionStyle = .none
-
-                cell.contentView.addSubview(descriptionTextView)
-                descriptionTextView.autoPinEdgesToSuperviewMargins()
-
-                if isEditable {
-                    descriptionTextView.isEditable = true
-                    descriptionTextView.dataDetectorTypes = []
-                    descriptionTextView.autoSetDimension(.height, toSize: 74, relation: .greaterThanOrEqual)
-                } else {
-                    descriptionTextView.isEditable = false
-                    descriptionTextView.dataDetectorTypes = .all
-                }
-
-                return cell
-            },
-            actionBlock: {
-                if isEditable {
-                    descriptionTextView.becomeFirstResponder()
-                }
-            }
+        descriptionTextView.isEditable = self.isEditable
+        section.add(self.textViewItem(
+            descriptionTextView,
+            minimumHeight: self.isEditable ? 74 : nil,
+            dataDetectorTypes: self.isEditable ? [] : .all
         ))
 
         if isEditable {
@@ -207,26 +179,12 @@ class GroupDescriptionViewController: OWSTableViewController2 {
         self.contents = contents
     }
 
-    @objc
-    private func didTapCancel() {
-        guard helper.hasUnsavedChanges else {
-            dismiss(animated: true)
-            return
-        }
-
-        OWSActionSheets.showPendingChangesActionSheet(discardAction: { [weak self] in
-            self?.dismiss(animated: true)
-        })
-    }
-
-    @objc
     private func didTapDone() {
         helper.descriptionTextView.acceptAutocorrectSuggestion()
         descriptionDelegate?.groupDescriptionViewControllerDidComplete(groupDescription: helper.groupDescriptionCurrent)
         dismiss(animated: true)
     }
 
-    @objc
     private func didTapSet() {
         guard isEditable, helper.hasUnsavedChanges else {
             return owsFailDebug("Unexpectedly trying to set")
@@ -242,21 +200,13 @@ class GroupDescriptionViewController: OWSTableViewController2 {
     }
 }
 
-extension GroupDescriptionViewController: GroupAttributesEditorHelperDelegate {
+extension GroupDescriptionViewController: GroupAttributesEditorHelperDelegate, TextViewWithPlaceholderDelegate {
     func groupAttributesEditorContentsDidChange() {
         updateNavigation()
-
-        // Kick the tableview so it recalculates sizes
-        UIView.performWithoutAnimation {
-            tableView.performBatchUpdates(nil) { (_) in
-                // And when the size changes have finished, make sure we're scrolled
-                // to the focused line
-                self.helper.descriptionTextView.scrollToFocus(in: self.tableView, animated: false)
-            }
-        }
+        textViewDidUpdateText(helper.descriptionTextView)
     }
 
     func groupAttributesEditorSelectionDidChange() {
-        helper.descriptionTextView.scrollToFocus(in: tableView, animated: true)
+        textViewDidUpdateSelection(helper.descriptionTextView)
     }
 }

@@ -3,8 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalCoreKit
-import SignalMessaging
+import SignalServiceKit
 import SignalUI
 
 protocol CurrencyPickerDataSource {
@@ -25,7 +24,7 @@ class CurrencyPickerViewController<DataSourceType: CurrencyPickerDataSource>: OW
         searchBar.text?.ows_stripped()
     }
 
-    public required init(dataSource: DataSourceType, completion: @escaping (Currency.Code) -> Void) {
+    public init(dataSource: DataSourceType, completion: @escaping (Currency.Code) -> Void) {
         self.dataSource = dataSource
         self.completion = completion
         super.init()
@@ -41,7 +40,9 @@ class CurrencyPickerViewController<DataSourceType: CurrencyPickerDataSource>: OW
         title = OWSLocalizedString("CURRENCY_PICKER_VIEW_TITLE",
                                   comment: "Title for the 'currency picker' view in the app settings.")
 
-        navigationItem.leftBarButtonItem = UIBarButtonItem(barButtonSystemItem: .cancel, target: self, action: #selector(didTapCancel))
+        navigationItem.leftBarButtonItem = .cancelButton { [weak self] in
+            self?.dismissPicker()
+        }
 
         searchBar.placeholder = CommonStrings.searchBarPlaceholder
         searchBar.delegate = self
@@ -195,11 +196,6 @@ class CurrencyPickerViewController<DataSourceType: CurrencyPickerDataSource>: OW
         } else {
             navigationController?.popViewController(animated: true)
         }
-    }
-
-    @objc
-    private func didTapCancel() {
-        dismissPicker()
     }
 
     private func didSelectCurrency(_ currencyCode: String) {

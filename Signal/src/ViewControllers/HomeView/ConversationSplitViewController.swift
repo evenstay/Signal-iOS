@@ -4,19 +4,19 @@
 //
 
 import MultipeerConnectivity
-import SignalMessaging
+import SignalServiceKit
 import SignalUI
 
 class ConversationSplitViewController: UISplitViewController, ConversationSplit {
 
     fileprivate var deviceTransferNavController: OutgoingDeviceTransferNavigationController?
 
-    let homeVC = HomeTabBarController()
+    let homeVC: HomeTabBarController
     private let detailPlaceholderVC = NoSelectedConversationViewController()
 
     private var chatListNavController: OWSNavigationController { homeVC.chatListNavController }
     private lazy var detailNavController = OWSNavigationController()
-    private lazy var lastActiveInterfaceOrientation = CurrentAppContext().interfaceOrientation
+    private var lastActiveInterfaceOrientation = UIInterfaceOrientation.unknown
 
     private(set) weak var selectedConversationViewController: ConversationViewController?
 
@@ -53,14 +53,18 @@ class ConversationSplitViewController: UISplitViewController, ConversationSplit 
         return detailNavController.topViewController ?? chatListNavController.topViewController
     }
 
-    init() {
+    private let appReadiness: AppReadinessSetter
+
+    init(appReadiness: AppReadinessSetter) {
+        self.appReadiness = appReadiness
+        self.homeVC = HomeTabBarController(appReadiness: appReadiness)
         super.init(nibName: nil, bundle: nil)
 
         viewControllers = [homeVC, detailPlaceholderVC]
 
         chatListNavController.delegate = self
         delegate = self
-        preferredDisplayMode = .allVisible
+        preferredDisplayMode = .oneBesideSecondary
 
         NotificationCenter.default.addObserver(self, selector: #selector(applyTheme), name: .themeDidChange, object: nil)
         NotificationCenter.default.addObserver(
@@ -90,14 +94,19 @@ class ConversationSplitViewController: UISplitViewController, ConversationSplit 
     @objc
     private func orientationDidChange() {
         AssertIsOnMainThread()
-        guard UIApplication.shared.applicationState == .active else { return }
-        lastActiveInterfaceOrientation = CurrentAppContext().interfaceOrientation
+
+        if let windowScene = view.window?.windowScene, windowScene.activationState == .foregroundActive {
+            lastActiveInterfaceOrientation = windowScene.interfaceOrientation
+        }
     }
 
     @objc
     private func didBecomeActive() {
         AssertIsOnMainThread()
-        lastActiveInterfaceOrientation = CurrentAppContext().interfaceOrientation
+
+        if let windowScene = view.window?.windowScene {
+            lastActiveInterfaceOrientation = windowScene.interfaceOrientation
+        }
     }
 
     func closeSelectedConversation(animated: Bool) {
@@ -124,15 +133,15 @@ class ConversationSplitViewController: UISplitViewController, ConversationSplit 
         // This results in conversations opening up in the wrong pane when you were in portrait and then
         // try and open the app in landscape. We work around this by dispatching to the next runloop
         // at which point things have stabilized.
-        if UIApplication.shared.applicationState != .active, lastActiveInterfaceOrientation != CurrentAppContext().interfaceOrientation {
-            if #available(iOS 14, *) { owsFailDebug("check if this still happens") }
+        if let windowScene = view.window?.windowScene, windowScene.activationState != .foregroundActive, lastActiveInterfaceOrientation != windowScene.interfaceOrientation {
+            owsFailDebug("check if this still happens")
             // Reset this to avoid getting stuck in a loop. We're becoming active.
-            lastActiveInterfaceOrientation = CurrentAppContext().interfaceOrientation
+            lastActiveInterfaceOrientation = windowScene.interfaceOrientation
             DispatchQueue.main.async { self.presentThread(thread, action: action, focusMessageId: focusMessageId, animated: animated) }
             return
         }
 
-        if homeVC.selectedTab != .chatList {
+        if homeVC.selectedHomeTab != .chatList {
             guard homeVC.presentedViewController == nil else {
                 homeVC.dismiss(animated: true) {
                     self.presentThread(thread, action: action, focusMessageId: focusMessageId, animated: animated)
@@ -141,7 +150,7 @@ class ConversationSplitViewController: UISplitViewController, ConversationSplit 
             }
 
             // Ensure the tab bar is on the chat list.
-            homeVC.selectedTab = .chatList
+            homeVC.selectedHomeTab = .chatList
         }
 
         guard selectedThread?.uniqueId != thread.uniqueId else {
@@ -162,6 +171,7 @@ class ConversationSplitViewController: UISplitViewController, ConversationSplit 
 
         let vc = databaseStorage.read { tx in
             ConversationViewController.load(
+                appReadiness: appReadiness,
                 threadViewModel: ThreadViewModel(thread: thread, forChatList: false, transaction: tx),
                 action: action,
                 focusMessageId: focusMessageId,
@@ -189,15 +199,15 @@ class ConversationSplitViewController: UISplitViewController, ConversationSplit 
         // This results in conversations opening up in the wrong pane when you were in portrait and then
         // try and open the app in landscape. We work around this by dispatching to the next runloop
         // at which point things have stabilized.
-        if UIApplication.shared.applicationState != .active, lastActiveInterfaceOrientation != CurrentAppContext().interfaceOrientation {
-            if #available(iOS 14, *) { owsFailDebug("check if this still happens") }
+        if let windowScene = view.window?.windowScene, windowScene.activationState != .foregroundActive, lastActiveInterfaceOrientation != windowScene.interfaceOrientation {
+            owsFailDebug("check if this still happens")
             // Reset this to avoid getting stuck in a loop. We're becoming active.
-            lastActiveInterfaceOrientation = CurrentAppContext().interfaceOrientation
+            lastActiveInterfaceOrientation = windowScene.interfaceOrientation
             DispatchQueue.main.async { self.showMyStoriesController(animated: animated) }
             return
         }
 
-        if homeVC.selectedTab != .stories {
+        if homeVC.selectedHomeTab != .stories {
             guard homeVC.presentedViewController == nil else {
                 homeVC.dismiss(animated: true) {
                     self.showMyStoriesController(animated: animated)
@@ -206,7 +216,7 @@ class ConversationSplitViewController: UISplitViewController, ConversationSplit 
             }
 
             // Ensure the tab bar is on the stories tab.
-            homeVC.selectedTab = .stories
+            homeVC.selectedHomeTab = .stories
         }
 
         homeVC.storiesViewController.showMyStories(animated: animated)
@@ -431,7 +441,7 @@ class ConversationSplitViewController: UISplitViewController, ConversationSplit 
         if selectedThread != nil {
             keyCommands += selectedConversationKeyCommands
         }
-        if homeVC.selectedTab == .chatList {
+        if homeVC.selectedHomeTab == .chatList {
             keyCommands += chatListKeyCommands
         }
         return keyCommands
@@ -546,7 +556,11 @@ extension ConversationSplitViewController: UISplitViewControllerDelegate {
         assert(secondaryViewController == detailNavController)
 
         // Move all the views from the detail nav controller onto the primary nav controller.
-        chatListNavController.viewControllers += detailNavController.viewControllers
+        let detailViewControllers = detailNavController.viewControllers
+        // Clear the detailNavController's view controllers first to avoid a UIKit
+        // crash that happens if you don't.
+        detailNavController.viewControllers = []
+        chatListNavController.viewControllers += detailViewControllers
 
         return true
     }
@@ -611,18 +625,6 @@ extension ConversationSplitViewController: UINavigationControllerDelegate {
     }
 }
 
-extension ChatListViewController {
-    var conversationSplitViewController: ConversationSplitViewController? {
-        return splitViewController as? ConversationSplitViewController
-    }
-}
-
-extension StoriesViewController {
-    var conversationSplitViewController: ConversationSplitViewController? {
-        return splitViewController as? ConversationSplitViewController
-    }
-}
-
 extension ConversationViewController {
     var conversationSplitViewController: ConversationSplitViewController? {
         return splitViewController as? ConversationSplitViewController
@@ -666,6 +668,14 @@ extension ConversationSplitViewController: DeviceTransferServiceObserver {
 
         deviceTransferService.addObserver(self)
         deviceTransferService.startListeningForNewDevices()
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+
+        if let windowScene = view.window?.windowScene, windowScene.activationState == .foregroundActive {
+            lastActiveInterfaceOrientation = windowScene.interfaceOrientation
+        }
     }
 
     override func viewWillDisappear(_ animated: Bool) {

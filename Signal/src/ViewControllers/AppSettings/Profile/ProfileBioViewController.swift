@@ -7,8 +7,7 @@ import SignalServiceKit
 import SignalUI
 
 protocol ProfileBioViewControllerDelegate: AnyObject {
-    func profileBioViewDidComplete(bio: String?,
-                                   bioEmoji: String?)
+    func profileBioViewDidComplete(bio: String?, bioEmoji: String?)
 }
 
 // MARK: -
@@ -17,7 +16,17 @@ class ProfileBioViewController: OWSTableViewController2 {
 
     private weak var profileDelegate: ProfileBioViewControllerDelegate?
 
-    private lazy var bioTextField = OWSTextField()
+    private lazy var bioTextField = OWSTextField(
+        placeholder: OWSLocalizedString(
+            "PROFILE_BIO_VIEW_BIO_PLACEHOLDER",
+            comment: "Placeholder text for the bio field of the profile bio view."
+        ),
+        returnKeyType: .done,
+        delegate: self,
+        editingChanged: { [weak self] in
+            self?.updateNavigation()
+        }
+    )
     private lazy var cancelButton = OWSButton { [weak self] in
         self?.didTapResetButton()
     }
@@ -31,9 +40,9 @@ class ProfileBioViewController: OWSTableViewController2 {
     private let originalBio: String?
     private let originalBioEmoji: String?
 
-    required init(bio: String?,
-                  bioEmoji: String?,
-                  profileDelegate: ProfileBioViewControllerDelegate) {
+    init(bio: String?,
+         bioEmoji: String?,
+         profileDelegate: ProfileBioViewControllerDelegate) {
 
         self.originalBio = bio
         self.originalBioEmoji = bioEmoji
@@ -64,15 +73,11 @@ class ProfileBioViewController: OWSTableViewController2 {
     }
 
     private var normalizedProfileBio: String? {
-        let normalizedProfileBio = bioTextField.text?.ows_stripped()
-        if normalizedProfileBio?.isEmpty == true { return nil }
-        return normalizedProfileBio
+        return bioTextField.text?.strippedOrNil
     }
 
     private var normalizedProfileBioEmoji: String? {
-        let normalizedProfileBioEmoji = bioEmojiLabel.text?.ows_stripped()
-        if normalizedProfileBioEmoji?.isEmpty == true { return nil }
-        return normalizedProfileBioEmoji
+        return bioEmojiLabel.text?.strippedOrNil
     }
 
     private var hasUnsavedChanges: Bool {
@@ -85,33 +90,28 @@ class ProfileBioViewController: OWSTableViewController2 {
     }
 
     private func updateNavigation() {
-        if bioTextField.isFirstResponder,
-           let normalizedProfileBio = self.normalizedProfileBio,
-           !normalizedProfileBio.isEmpty {
-            let remainingGlyphCount = max(0, OWSUserProfile.kMaxBioLengthGlyphs - normalizedProfileBio.glyphCount)
-            let titleFormat = OWSLocalizedString("PROFILE_BIO_VIEW_TITLE_FORMAT",
-                                                comment: "Title for the profile bio view. Embeds {{ the number of characters that can be added to the profile bio without hitting the length limit }}.")
+        if bioTextField.isFirstResponder, let normalizedProfileBio {
+            let remainingGlyphCount = max(0, OWSUserProfile.Constants.maxBioLengthGlyphs - normalizedProfileBio.glyphCount)
+            let titleFormat = OWSLocalizedString(
+                "PROFILE_BIO_VIEW_TITLE_FORMAT",
+                comment: "Title for the profile bio view. Embeds {{ the number of characters that can be added to the profile bio without hitting the length limit }}."
+            )
             title = String(format: titleFormat, OWSFormat.formatInt(remainingGlyphCount))
         } else {
             title = OWSLocalizedString("PROFILE_BIO_VIEW_TITLE", comment: "Title for the profile bio view.")
         }
 
-        navigationItem.leftBarButtonItem = UIBarButtonItem(
-            barButtonSystemItem: .cancel,
-            target: self,
-            action: #selector(didTapCancel),
-            accessibilityIdentifier: "cancel_button"
+        navigationItem.leftBarButtonItem = .cancelButton(
+            dismissingFrom: self,
+            hasUnsavedChanges: { [weak self] in self?.hasUnsavedChanges }
         )
 
         cancelButton.isHiddenInStackView = normalizedProfileBio?.isEmpty != false && normalizedProfileBioEmoji?.isEmpty != false
 
         if hasUnsavedChanges {
-            navigationItem.rightBarButtonItem = UIBarButtonItem(
-                barButtonSystemItem: .done,
-                target: self,
-                action: #selector(didTapDone),
-                accessibilityIdentifier: "done_button"
-            )
+            navigationItem.rightBarButtonItem = .doneButton { [weak self] in
+                self?.didTapDone()
+            }
         } else {
             navigationItem.rightBarButtonItem = nil
         }
@@ -170,15 +170,6 @@ class ProfileBioViewController: OWSTableViewController2 {
         addEmojiImageView.accessibilityIdentifier = "bio_emoji"
         updateEmojiViews()
 
-        bioTextField.returnKeyType = .done
-        bioTextField.placeholder = OWSLocalizedString("PROFILE_BIO_VIEW_BIO_PLACEHOLDER",
-                                                            comment: "Placeholder text for the bio field of the profile bio view.")
-        bioTextField.delegate = self
-        bioTextField.accessibilityIdentifier = "bio_textfield"
-        bioTextField.addTarget(self, action: #selector(textFieldDidChange), for: .editingChanged)
-        bioTextField.addTarget(self, action: #selector(textFieldDidChange), for: .editingDidBegin)
-        bioTextField.addTarget(self, action: #selector(textFieldDidChange), for: .editingDidEnd)
-
         let cancelColor = Theme.isDarkThemeEnabled ? UIColor.ows_gray45 : UIColor.ows_gray25
         let cancelIcon = UIImageView.withTemplateImageName("x-circle-fill-compact", tintColor: cancelColor)
 
@@ -207,7 +198,6 @@ class ProfileBioViewController: OWSTableViewController2 {
             bioEmojiLabel.setContentHuggingHorizontalHigh()
             bioEmojiLabel.setCompressionResistanceHorizontalHigh()
 
-            bioTextField.font = .dynamicTypeBodyClamped
             bioTextField.textColor = Theme.primaryTextColor
             bioTextField.setContentHuggingHorizontalLow()
             bioTextField.setCompressionResistanceHorizontalLow()
@@ -292,22 +282,8 @@ class ProfileBioViewController: OWSTableViewController2 {
         ]
     }
 
-    @objc
-    private func didTapCancel() {
-        guard hasUnsavedChanges else {
-            dismiss(animated: true)
-            return
-        }
-
-        OWSActionSheets.showPendingChangesActionSheet(discardAction: { [weak self] in
-            self?.dismiss(animated: true)
-        })
-    }
-
-    @objc
     private func didTapDone() {
-        profileDelegate?.profileBioViewDidComplete(bio: normalizedProfileBio,
-                                                   bioEmoji: normalizedProfileBioEmoji)
+        profileDelegate?.profileBioViewDidComplete(bio: normalizedProfileBio, bioEmoji: normalizedProfileBioEmoji)
 
         dismiss(animated: true)
     }
@@ -358,14 +334,17 @@ extension ProfileBioViewController: UITextFieldDelegate {
         TextFieldHelper.textField(
             textField,
             shouldChangeCharactersInRange: range,
-            replacementString: string.withoutBidiControlCharacters,
-            maxByteCount: OWSUserProfile.kMaxBioLengthBytes,
-            maxGlyphCount: OWSUserProfile.kMaxBioLengthGlyphs
+            replacementString: string.withoutBidiControlCharacters(),
+            maxByteCount: OWSUserProfile.Constants.maxBioLengthBytes,
+            maxGlyphCount: OWSUserProfile.Constants.maxBioLengthGlyphs
         )
     }
 
-    @objc
-    func textFieldDidChange(_ textField: UITextField) {
+    func textFieldDidBeginEditing(_ textField: UITextField) {
+        updateNavigation()
+    }
+
+    func textFieldDidEndEditing(_ textField: UITextField) {
         updateNavigation()
     }
 

@@ -3,8 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalCoreKit
+import SignalServiceKit
 import SignalUI
+public import UIKit
 
 public class MessageAction: NSObject {
 
@@ -105,11 +106,7 @@ public class MessageActionsToolbar: UIToolbar {
     }
     private let mode: Mode
 
-    deinit {
-        Logger.verbose("")
-    }
-
-    required init(mode: Mode) {
+    init(mode: Mode) {
         self.mode = mode
 
         super.init(frame: .zero)
@@ -164,7 +161,7 @@ public class MessageActionsToolbar: UIToolbar {
         var actionItems = [MessageActionsToolbarButton]()
         for action in messagesActions {
             if !newItems.isEmpty {
-                newItems.append(UIBarButtonItem(barButtonSystemItem: .flexibleSpace, target: nil, action: nil))
+                newItems.append(.flexibleSpace())
             }
 
             let actionItem = MessageActionsToolbarButton(actionsToolbar: self, messageAction: action)
@@ -176,8 +173,8 @@ public class MessageActionsToolbar: UIToolbar {
 
         // If we only have a single button, center it.
         if newItems.count == 1 {
-            newItems.insert(UIBarButtonItem(barButtonSystemItem: .flexibleSpace, target: nil, action: nil), at: 0)
-            newItems.append(UIBarButtonItem(barButtonSystemItem: .flexibleSpace, target: nil, action: nil))
+            newItems.insert(.flexibleSpace(), at: 0)
+            newItems.append(.flexibleSpace())
         }
 
         items = newItems
@@ -203,9 +200,9 @@ public class MessageActionsToolbar: UIToolbar {
 
         var newItems = [UIBarButtonItem]()
         newItems.append(deleteItem)
-        newItems.append(UIBarButtonItem(barButtonSystemItem: .flexibleSpace, target: nil, action: nil))
+        newItems.append(.flexibleSpace())
         newItems.append(labelItem)
-        newItems.append(UIBarButtonItem(barButtonSystemItem: .flexibleSpace, target: nil, action: nil))
+        newItems.append(.flexibleSpace())
         newItems.append(forwardItem)
 
         items = newItems
@@ -230,11 +227,7 @@ class MessageActionsToolbarButton: UIBarButtonItem {
     private weak var actionsToolbar: MessageActionsToolbar?
     fileprivate var messageAction: MessageAction?
 
-    required override init() {
-        super.init()
-    }
-
-    required init(actionsToolbar: MessageActionsToolbar, messageAction: MessageAction) {
+    init(actionsToolbar: MessageActionsToolbar, messageAction: MessageAction) {
         self.actionsToolbar = actionsToolbar
         self.messageAction = messageAction
 

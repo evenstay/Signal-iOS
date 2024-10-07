@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
+import SignalServiceKit
 import SignalUI
 
 #if USE_DEBUG_UI
@@ -28,17 +28,18 @@ class DebugUITableViewController: OWSTableViewController {
 
     // MARK: Public
 
-    static func presentDebugUI(from fromViewController: UIViewController) {
+    static func presentDebugUI(from fromViewController: UIViewController, appReadiness: AppReadinessSetter) {
         let viewController = DebugUITableViewController()
 
         let subsectionItems: [OWSTableItem] = [
+            itemForSubsection(DebugUICallsTab(), viewController: viewController),
             itemForSubsection(DebugUIContacts(), viewController: viewController),
             itemForSubsection(DebugUIDiskUsage(), viewController: viewController),
             itemForSubsection(DebugUISessionState(), viewController: viewController),
             itemForSubsection(DebugUISyncMessages(), viewController: viewController),
             itemForSubsection(DebugUIGroupsV2(), viewController: viewController),
             itemForSubsection(DebugUIPayments(), viewController: viewController),
-            itemForSubsection(DebugUIMisc(), viewController: viewController)
+            itemForSubsection(DebugUIMisc(appReadiness: appReadiness), viewController: viewController)
         ]
         viewController.contents = OWSTableContents(
             title: "Debug UI",
@@ -51,6 +52,7 @@ class DebugUITableViewController: OWSTableViewController {
         let viewController = DebugUITableViewController()
 
         var subsectionItems: [OWSTableItem] = [
+            itemForSubsection(DebugUICallsTab(), viewController: viewController, thread: thread),
             itemForSubsection(DebugUIMessages(), viewController: viewController, thread: thread),
             itemForSubsection(DebugUIContacts(), viewController: viewController, thread: thread),
             itemForSubsection(DebugUIDiskUsage(), viewController: viewController, thread: thread),
@@ -60,8 +62,8 @@ class DebugUITableViewController: OWSTableViewController {
             subsectionItems.append(itemForSubsection(DebugUICalling(), viewController: viewController, thread: thread))
         }
         subsectionItems += [
-            itemForSubsection(DebugUINotifications(), viewController: viewController, thread: thread),
-            itemForSubsection(DebugUIStress(), viewController: viewController, thread: thread),
+            itemForSubsection(DebugUINotifications(databaseStorage: databaseStorage, notificationPresenterImpl: notificationPresenterImpl), viewController: viewController, thread: thread),
+            itemForSubsection(DebugUIStress(contactsManager: contactsManager, databaseStorage: databaseStorage, messageSender: messageSender), viewController: viewController, thread: thread),
             itemForSubsection(DebugUISyncMessages(), viewController: viewController, thread: thread),
 
             OWSTableItem(
@@ -81,16 +83,9 @@ class DebugUITableViewController: OWSTableViewController {
                 }
             ),
 
-            OWSTableItem.disclosureItem(
-                withText: "Data Store Reports",
-                actionBlock: {
-                    viewController.navigationController?.pushViewController(DebugUIReportsViewController(), animated: true)
-                }
-            ),
-
             itemForSubsection(DebugUIGroupsV2(), viewController: viewController, thread: thread),
             itemForSubsection(DebugUIPayments(), viewController: viewController, thread: thread),
-            itemForSubsection(DebugUIMisc(), viewController: viewController, thread: thread)
+            itemForSubsection(DebugUIMisc(appReadiness: nil), viewController: viewController, thread: thread)
         ]
 
         viewController.contents = OWSTableContents(

@@ -12,19 +12,16 @@
 		"TSAttachmentStream.isValidVideoCached": "Bool",
 		"TSAttachmentStream.isAnimatedCached": "Bool",
 		"OWSBackupFragment.uncompressedDataLength": "UInt64",
-		"TestModel.nsNumberValueUsingInt64": "Int64",
-		"TestModel.nsNumberValueUsingUInt64": "UInt64",
 		"SSKJobRecord.exclusiveProcessIdentifier": "Int32",
 		"TSMessage.storyTimestamp": "UInt64",
 		"TSThread.editTargetTimestamp": "UInt64",
 		"TSThread.lastSentStoryTimestamp": "UInt64",
 		"TSThread.lastViewedStoryTimestamp": "UInt64",
-		"SignalRecipient.unregisteredAtTimestamp": "UInt64",
-		"TSThread.lastReceivedStoryTimestamp": "UInt64"
+		"TSThread.lastReceivedStoryTimestamp": "UInt64",
+                "TSMessage.expireTimerVersion": "UInt32"
 	},
 	"properties_to_ignore": [
 		"TSYapDatabaseObject.grdbId",
-		"SignalRecipient.recipientSchemaVersion",
 		"OWSDynamicOutgoingMessage.block",
 		"OWSDisappearingMessagesConfiguration.originalDictionaryValue",
 		"OWSDisappearingMessagesConfiguration.newRecord",
@@ -39,8 +36,6 @@
 		"TSOutgoingMessage.outgoingMessageSchemaVersion",
 		"OWSUnknownProtocolVersionMessage.unknownProtocolVersionMessageSchemaVersion",
 		"OWSRecipientIdentity.recipientIdentitySchemaVersion",
-		"SignalAccount.accountSchemaVersion",
-		"OWSUserProfile.userProfileSchemaVersion",
 		"TSRecipientReadReceipt.recipientReadReceiptSchemaVersion",
 		"OWSLinkedDeviceReadReceipt.linkedDeviceReadReceiptSchemaVersion",
 		"TSOutgoingMessage.changeActionsProtoData"
@@ -55,10 +50,7 @@
 		"InstalledSticker": "Self.modelReadCaches.installedStickerCache.didReadInstalledSticker",
 		"TSThread": "Self.modelReadCaches.threadReadCache.didReadThread",
 		"TSInteraction": "Self.modelReadCaches.interactionReadCache.didReadInteraction",
-		"TSAttachment": "Self.modelReadCaches.attachmentReadCache.didReadAttachment",
-		"SignalRecipient": "Self.modelReadCaches.signalRecipientReadCache.didReadSignalRecipient",
-		"SignalAccount": "Self.modelReadCaches.signalAccountReadCache.didReadSignalAccount",
-		"OWSUserProfile": "Self.modelReadCaches.userProfileReadCache.didReadUserProfile"
+		"TSAttachment": "Self.modelReadCaches.attachmentReadCache.didReadAttachment"
 	},
 	"class_to_skip_serialization": [
 		"OWSContactOffersInteraction",
@@ -140,8 +132,7 @@
 		"TSThread.isArchivedObsolete": "isArchived",
 		"TSThread.isMarkedUnreadObsolete": "isMarkedUnread",
 		"TSThread.mutedUntilTimestampObsolete": "mutedUntilTimestamp",
-		"TSThread.conversationColorNameObsolete": "conversationColorName",
-		"SignalAccount.contactAvatarJpegDataObsolete": "contactAvatarJpegData"
+		"TSThread.conversationColorNameObsolete": "conversationColorName"
 	},
 	"aliased_column_names": {
 		"TSInteraction.sortId": "id",
@@ -154,7 +145,6 @@
 		"TSThread.isArchivedObsolete": "isArchived",
 		"TSThread.isMarkedUnreadObsolete": "isMarkedUnread",
 		"TSThread.mutedUntilTimestampObsolete": "mutedUntilTimestamp",
-		"TSThread.conversationColorNameObsolete": "conversationColorName",
-		"SignalAccount.contactAvatarJpegDataObsolete": "contactAvatarJpegData"
+		"TSThread.conversationColorNameObsolete": "conversationColorName"
 	}
 }

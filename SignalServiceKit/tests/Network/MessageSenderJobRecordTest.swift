@@ -7,61 +7,45 @@ import Foundation
 import XCTest
 @testable import SignalServiceKit
 
-class SSKMessageSenderJobRecordTest: SSKBaseTestSwift {
+class SSKMessageSenderJobRecordTest: SSKBaseTest {
 
     func test_savedVisibleMessage() {
         let message = OutgoingMessageFactory().create()
         self.read { transaction in
             let jobRecord = try! MessageSenderJobRecord(
-                message: message,
-                removeMessageAfterSending: false,
+                persistedMessage: .init(
+                    rowId: 0,
+                    message: message
+                ),
                 isHighPriority: false,
-                label: MessageSenderJobQueue.jobRecordLabel,
                 transaction: transaction
             )
 
-            XCTAssertNotNil(jobRecord.messageId)
-            XCTAssertNotNil(jobRecord.threadId)
-            XCTAssertNil(jobRecord.invisibleMessage)
-        }
-    }
-
-    func test_unsavedVisibleMessage() {
-        self.write { transaction in
-            let message = OutgoingMessageFactory().build(transaction: transaction)
-
-            do {
-                _ = try MessageSenderJobRecord(
-                    message: message,
-                    removeMessageAfterSending: false,
-                    isHighPriority: false,
-                    label: MessageSenderJobQueue.jobRecordLabel,
-                    transaction: transaction
-                )
-
-                XCTFail("Should error")
-            } catch JobRecordError.assertionError {
-                // expected
-            } catch {
-                XCTFail("unexpected error: \(error)")
+            switch jobRecord.messageType {
+            case .persisted:
+                break
+            case .transient, .editMessage, .none:
+                XCTFail("Incorrect message type")
             }
+            XCTAssertNotNil(jobRecord.threadId)
         }
     }
 
     func test_invisibleMessage() {
         let message = OutgoingMessageFactory().buildDeliveryReceipt()
         self.read { transaction in
-            let jobRecord = try! MessageSenderJobRecord(
-                message: message,
-                removeMessageAfterSending: false,
-                isHighPriority: false,
-                label: MessageSenderJobQueue.jobRecordLabel,
-                transaction: transaction
+            let jobRecord = MessageSenderJobRecord(
+                transientMessage: message,
+                isHighPriority: false
             )
 
-            XCTAssertNil(jobRecord.messageId)
+            switch jobRecord.messageType {
+            case .transient:
+                break
+            case .persisted, .editMessage, .none:
+                XCTFail("Incorrect message type")
+            }
             XCTAssertNotNil(jobRecord.threadId)
-            XCTAssertNotNil(jobRecord.invisibleMessage)
         }
     }
 }

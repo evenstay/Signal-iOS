@@ -4,19 +4,24 @@
 //
 
 #import "OWSOutgoingCallMessage.h"
-#import "ProtoUtils.h"
 #import "TSContactThread.h"
-#import <SignalCoreKit/NSDate+OWS.h>
+#import <SignalServiceKit/NSDate+OWS.h>
 #import <SignalServiceKit/SignalServiceKit-Swift.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
 @implementation OWSOutgoingCallMessage
 
-- (instancetype)initWithThread:(TSThread *)thread transaction:(SDSAnyReadTransaction *)transaction
+- (instancetype)initWithThread:(TSThread *)thread
+            overrideRecipients:(NSArray<AciObjC *> *)overrideRecipients
+                   transaction:(SDSAnyReadTransaction *)transaction
 {
     TSOutgoingMessageBuilder *messageBuilder = [TSOutgoingMessageBuilder outgoingMessageBuilderWithThread:thread];
-    self = [super initOutgoingMessageWithBuilder:messageBuilder transaction:transaction];
+    self = [super initOutgoingMessageWithBuilder:messageBuilder
+                            additionalRecipients:@[]
+                              explicitRecipients:overrideRecipients
+                               skippedRecipients:@[]
+                                     transaction:transaction];
     if (!self) {
         return self;
     }
@@ -29,7 +34,7 @@ NS_ASSUME_NONNULL_BEGIN
            destinationDeviceId:(nullable NSNumber *)destinationDeviceId
                    transaction:(SDSAnyReadTransaction *)transaction
 {
-    self = [self initWithThread:thread transaction:transaction];
+    self = [self initWithThread:thread overrideRecipients:@[] transaction:transaction];
     if (!self) {
         return self;
     }
@@ -45,7 +50,7 @@ NS_ASSUME_NONNULL_BEGIN
            destinationDeviceId:(nullable NSNumber *)destinationDeviceId
                    transaction:(SDSAnyReadTransaction *)transaction
 {
-    self = [self initWithThread:thread transaction:transaction];
+    self = [self initWithThread:thread overrideRecipients:@[] transaction:transaction];
     if (!self) {
         return self;
     }
@@ -61,7 +66,7 @@ NS_ASSUME_NONNULL_BEGIN
            destinationDeviceId:(nullable NSNumber *)destinationDeviceId
                    transaction:(SDSAnyReadTransaction *)transaction
 {
-    self = [self initWithThread:thread transaction:transaction];
+    self = [self initWithThread:thread overrideRecipients:@[] transaction:transaction];
     if (!self) {
         return self;
     }
@@ -73,27 +78,11 @@ NS_ASSUME_NONNULL_BEGIN
 }
 
 - (instancetype)initWithThread:(TSThread *)thread
-           legacyHangupMessage:(SSKProtoCallMessageHangup *)legacyHangupMessage
-           destinationDeviceId:(nullable NSNumber *)destinationDeviceId
-                   transaction:(SDSAnyReadTransaction *)transaction
-{
-    self = [self initWithThread:thread transaction:transaction];
-    if (!self) {
-        return self;
-    }
-
-    _legacyHangupMessage = legacyHangupMessage;
-    _destinationDeviceId = destinationDeviceId;
-
-    return self;
-}
-
-- (instancetype)initWithThread:(TSThread *)thread
                  hangupMessage:(SSKProtoCallMessageHangup *)hangupMessage
            destinationDeviceId:(nullable NSNumber *)destinationDeviceId
                    transaction:(SDSAnyReadTransaction *)transaction
 {
-    self = [self initWithThread:thread transaction:transaction];
+    self = [self initWithThread:thread overrideRecipients:@[] transaction:transaction];
     if (!self) {
         return self;
     }
@@ -109,7 +98,7 @@ NS_ASSUME_NONNULL_BEGIN
            destinationDeviceId:(nullable NSNumber *)destinationDeviceId
                    transaction:(SDSAnyReadTransaction *)transaction
 {
-    self = [self initWithThread:thread transaction:transaction];
+    self = [self initWithThread:thread overrideRecipients:@[] transaction:transaction];
     if (!self) {
         return self;
     }
@@ -122,9 +111,10 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (instancetype)initWithThread:(TSThread *)thread
                  opaqueMessage:(SSKProtoCallMessageOpaque *)opaqueMessage
+            overrideRecipients:(nullable NSArray<AciObjC *> *)overrideRecipients
                    transaction:(SDSAnyReadTransaction *)transaction
 {
-    self = [self initWithThread:thread transaction:transaction];
+    self = [self initWithThread:thread overrideRecipients:overrideRecipients transaction:transaction];
     if (!self) {
         return self;
     }
@@ -153,20 +143,20 @@ NS_ASSUME_NONNULL_BEGIN
 {
     SSKProtoCallMessageBuilder *builder = [SSKProtoCallMessage builder];
 
+    BOOL shouldHaveProfileKey = NO;
+
     if (self.offerMessage) {
         [builder setOffer:self.offerMessage];
+        shouldHaveProfileKey = YES;
     }
 
     if (self.answerMessage) {
         [builder setAnswer:self.answerMessage];
+        shouldHaveProfileKey = YES;
     }
 
     if (self.iceUpdateMessages.count > 0) {
         [builder setIceUpdate:self.iceUpdateMessages];
-    }
-
-    if (self.legacyHangupMessage) {
-        [builder setLegacyHangup:self.legacyHangupMessage];
     }
 
     if (self.hangupMessage) {
@@ -185,10 +175,9 @@ NS_ASSUME_NONNULL_BEGIN
         [builder setDestinationDeviceID:self.destinationDeviceId.unsignedIntValue];
     }
 
-    [ProtoUtils addLocalProfileKeyIfNecessary:thread callMessageBuilder:builder transaction:transaction];
-
-    // All call messages must indicate multi-ring capability.
-    [builder setSupportsMultiRing:YES];
+    if (shouldHaveProfileKey) {
+        [ProtoUtils addLocalProfileKeyIfNecessary:thread callMessageBuilder:builder transaction:transaction];
+    }
 
     NSError *error;
     SSKProtoCallMessage *_Nullable result = [builder buildAndReturnError:&error];
@@ -233,8 +222,6 @@ NS_ASSUME_NONNULL_BEGIN
         payload = @"answerMessage";
     } else if (self.iceUpdateMessages.count > 0) {
         payload = [NSString stringWithFormat:@"iceUpdateMessages: %lu", (unsigned long)self.iceUpdateMessages.count];
-    } else if (self.legacyHangupMessage) {
-        payload = @"legacyHangupMessage";
     } else if (self.hangupMessage) {
         payload = @"hangupMessage";
     } else if (self.busyMessage) {

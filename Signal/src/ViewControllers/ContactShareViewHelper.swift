@@ -5,7 +5,6 @@
 
 import ContactsUI
 import MessageUI
-import SignalMessaging
 import SignalServiceKit
 import SignalUI
 
@@ -19,7 +18,7 @@ class ContactShareViewHelper: NSObject, CNContactViewControllerDelegate {
 
     weak var delegate: ContactShareViewHelperDelegate?
 
-    required override init() {
+    override init() {
         AssertIsOnMainThread()
 
         super.init()
@@ -27,30 +26,31 @@ class ContactShareViewHelper: NSObject, CNContactViewControllerDelegate {
 
     // MARK: Actions
 
-    func sendMessage(contactShare: ContactShareViewModel, fromViewController: UIViewController) {
+    func sendMessage(to phoneNumbers: [String], from viewController: UIViewController) {
         Logger.info("")
 
-        presentThreadAndPeform(action: .compose, contactShare: contactShare, fromViewController: fromViewController)
+        presentThread(performAction: .compose, to: phoneNumbers, from: viewController)
     }
 
-    func audioCall(contactShare: ContactShareViewModel, fromViewController: UIViewController) {
+    func audioCall(to phoneNumbers: [String], from viewController: UIViewController) {
         Logger.info("")
 
-        presentThreadAndPeform(action: .audioCall, contactShare: contactShare, fromViewController: fromViewController)
+        presentThread(performAction: .voiceCall, to: phoneNumbers, from: viewController)
     }
 
-    func videoCall(contactShare: ContactShareViewModel, fromViewController: UIViewController) {
+    func videoCall(to phoneNumbers: [String], from viewController: UIViewController) {
         Logger.info("")
 
-        presentThreadAndPeform(action: .videoCall, contactShare: contactShare, fromViewController: fromViewController)
+        presentThread(performAction: .videoCall, to: phoneNumbers, from: viewController)
     }
 
-    private func presentThreadAndPeform(action: ConversationViewAction, contactShare: ContactShareViewModel, fromViewController: UIViewController) {
-        // TODO: We're taking the first Signal account id. We might
-        // want to let the user select if there's more than one.
-        let phoneNumbers = contactShare.systemContactsWithSignalAccountPhoneNumbers()
+    private func presentThread(
+        performAction action: ConversationViewAction,
+        to phoneNumbers: [String],
+        from viewController: UIViewController
+    ) {
         guard phoneNumbers.count > 0 else {
-            owsFailDebug("missing Signal recipient id.")
+            owsFailDebug("No registered phone numbers.")
             return
         }
         guard phoneNumbers.count > 1 else {
@@ -59,14 +59,33 @@ class ContactShareViewHelper: NSObject, CNContactViewControllerDelegate {
             return
         }
 
-        showPhoneNumberPicker(phoneNumbers: phoneNumbers, fromViewController: fromViewController, completion: { phoneNumber in
-            SignalApp.shared.presentConversationForAddress(SignalServiceAddress(phoneNumber: phoneNumber), action: action, animated: true)
-        })
+        let completion: (String) -> Void = { phoneNumber in
+            SignalApp.shared.presentConversationForAddress(
+                SignalServiceAddress(phoneNumber: phoneNumber),
+                action: action,
+                animated: true
+            )
+        }
+        let actionSheet = ActionSheetController(title: nil, message: nil)
+
+        for phoneNumber in phoneNumbers {
+            actionSheet.addAction(ActionSheetAction(
+                title: PhoneNumber.bestEffortLocalizedPhoneNumber(e164: phoneNumber),
+                style: .default
+            ) { _ in
+                completion(phoneNumber)
+            })
+        }
+        actionSheet.addAction(OWSActionSheets.cancelAction)
+
+        viewController.presentActionSheet(actionSheet)
     }
+
+    // MARK: Invite
 
     private var inviteFlow: InviteFlow?
 
-    func showInviteContact(contactShare: ContactShareViewModel, fromViewController: UIViewController) {
+    func showInviteContact(contactShare: ContactShareViewModel, from viewController: UIViewController) {
         Logger.info("")
 
         guard MFMessageComposeViewController.canSendText() else {
@@ -74,18 +93,20 @@ class ContactShareViewHelper: NSObject, CNContactViewControllerDelegate {
             OWSActionSheets.showErrorAlert(message: InviteFlow.unsupportedFeatureMessage)
             return
         }
-        let phoneNumbers = contactShare.e164PhoneNumbers()
-        guard phoneNumbers.count > 0 else {
+        let phoneNumbers = contactShare.dbRecord.e164PhoneNumbers()
+        if phoneNumbers.isEmpty {
             owsFailDebug("no phone numbers.")
             return
         }
 
-        let inviteFlow = InviteFlow(presentingViewController: fromViewController)
+        let inviteFlow = InviteFlow(presentingViewController: viewController)
         self.inviteFlow = inviteFlow
         inviteFlow.sendSMSTo(phoneNumbers: phoneNumbers)
     }
 
-    func showAddToContacts(contactShare: ContactShareViewModel, fromViewController: UIViewController) {
+    // MARK: Add to Contacts
+
+    func showAddToContactsPrompt(contactShare: ContactShareViewModel, from viewController: UIViewController) {
         Logger.info("")
 
         let actionSheet = ActionSheetController(title: nil, message: nil)
@@ -97,7 +118,7 @@ class ContactShareViewHelper: NSObject, CNContactViewControllerDelegate {
             ),
             style: .default
         ) { _ in
-            self.didPressCreateNewContact(contactShare: contactShare, fromViewController: fromViewController)
+            self.presentCreateNewContactFlow(contactShare: contactShare, from: viewController)
         })
         actionSheet.addAction(ActionSheetAction(
             title: OWSLocalizedString("CONVERSATION_SETTINGS_ADD_TO_EXISTING_CONTACT",
@@ -105,102 +126,221 @@ class ContactShareViewHelper: NSObject, CNContactViewControllerDelegate {
                                      ),
             style: .default
         ) { _ in
-            self.didPressAddToExistingContact(contactShare: contactShare, fromViewController: fromViewController)
+            self.presentAddToExistingContactFlow(contactShare: contactShare, from: viewController)
         })
         actionSheet.addAction(OWSActionSheets.cancelAction)
 
-        fromViewController.presentActionSheet(actionSheet)
+        viewController.presentActionSheet(actionSheet)
     }
 
-    private func showPhoneNumberPicker(phoneNumbers: [String], fromViewController: UIViewController, completion: @escaping ((String) -> Void)) {
-
-        let actionSheet = ActionSheetController(title: nil, message: nil)
-
-        for phoneNumber in phoneNumbers {
-            actionSheet.addAction(ActionSheetAction(
-                title: PhoneNumber.bestEffortLocalizedPhoneNumber(withE164: phoneNumber),
-                style: .default
-            ) { _ in
-                completion(phoneNumber)
-            })
-        }
-        actionSheet.addAction(OWSActionSheets.cancelAction)
-
-        fromViewController.presentActionSheet(actionSheet)
-    }
-
-    func didPressCreateNewContact(contactShare: ContactShareViewModel, fromViewController: UIViewController) {
+    private func presentCreateNewContactFlow(contactShare: ContactShareViewModel, from viewController: UIViewController) {
         Logger.info("")
 
-        presentNewContactView(contactShare: contactShare, fromViewController: fromViewController)
-    }
-
-    func didPressAddToExistingContact(contactShare: ContactShareViewModel, fromViewController: UIViewController) {
-        Logger.info("")
-
-        presentSelectAddToExistingContactView(contactShare: contactShare, fromViewController: fromViewController)
-    }
-
-    // MARK: -
-
-    private func presentNewContactView(contactShare: ContactShareViewModel, fromViewController: UIViewController) {
-        contactsViewHelper.checkEditingAuthorization(
-            authorizedBehavior: .runAction({
-                guard let systemContact = contactShare.dbRecord.buildSystemContact(withImageData: contactShare.avatarImageData) else {
-                    owsFailDebug("Could not derive system contact.")
-                    return
-                }
-                let contactViewController = CNContactViewController(forNewContact: systemContact)
-                contactViewController.delegate = self
-                contactViewController.allowsActions = false
-                contactViewController.allowsEditing = true
-                contactViewController.navigationItem.leftBarButtonItem = UIBarButtonItem(
-                    title: CommonStrings.cancelButton,
-                    style: .plain,
-                    target: self,
-                    action: #selector(self.didFinishEditingContact)
+        contactsViewHelper.checkEditAuthorization(
+            performWhenAllowed: {
+                let modalViewController = AddContactShareToContactsFlowNavigationController(
+                    flow: .init(contactShare: contactShare, operation: .createNew),
+                    completion: {
+                        self.delegate?.didCreateOrEditContact()
+                    }
                 )
-                let modal = OWSNavigationController(rootViewController: contactViewController)
-                fromViewController.present(modal, animated: true)
-            }),
-            unauthorizedBehavior: .presentError(from: fromViewController)
+                viewController.present(modalViewController, animated: true)
+            },
+            presentErrorFrom: viewController
         )
     }
 
-    private func presentSelectAddToExistingContactView(contactShare: ContactShareViewModel, fromViewController: UIViewController) {
-        guard let navigationController = fromViewController.navigationController else {
-            return owsFailDebug("Missing navigationController.")
+    private func presentAddToExistingContactFlow(contactShare: ContactShareViewModel, from viewController: UIViewController) {
+        Logger.info("")
+
+        contactsViewHelper.checkEditAuthorization(
+            performWhenAllowed: {
+                let modalViewController = AddContactShareToContactsFlowNavigationController(
+                    flow: .init(contactShare: contactShare, operation: .addToExisting),
+                    completion: {
+                        self.delegate?.didCreateOrEditContact()
+                    }
+                )
+                viewController.present(modalViewController, animated: true)
+            },
+            presentErrorFrom: viewController
+        )
+    }
+}
+
+private class AddContactShareToContactsFlow {
+    enum Operation {
+        case createNew
+        case addToExisting
+    }
+
+    let contactShare: ContactShareViewModel
+    let operation: Operation
+    var existingContact: CNContact?
+
+    init(contactShare: ContactShareViewModel, operation: Operation) {
+        self.contactShare = contactShare
+        self.operation = operation
+    }
+
+    func buildContact() -> CNContact {
+        guard let newContact = contactShare.dbRecord.buildSystemContact(withImageData: contactShare.avatarImageData) else {
+            owsFailDebug("Could not derive system contact.")
+            return CNContact()
         }
-        contactsViewHelper.checkEditingAuthorization(
-            authorizedBehavior: .pushViewController(on: navigationController, viewController: {
-                AddContactShareToExistingContactViewController(contactShare: contactShare)
-            }),
-            unauthorizedBehavior: .presentError(from: fromViewController)
-        )
+        if let oldContact = existingContact {
+            let tsAccountManager = DependenciesBridge.shared.tsAccountManager
+            let phoneNumber = tsAccountManager.localIdentifiersWithMaybeSneakyTransaction?.phoneNumber
+            let canonicalPhoneNumber = E164(phoneNumber).map(CanonicalPhoneNumber.init(nonCanonicalPhoneNumber:))
+            return mergeContact(newContact, into: oldContact, localPhoneNumber: canonicalPhoneNumber)
+        }
+        return newContact
     }
 
-    // MARK: - CNContactViewControllerDelegate
+    private func mergeContact(
+        _ newCNContact: CNContact,
+        into oldCNContact: CNContact,
+        localPhoneNumber: CanonicalPhoneNumber?
+    ) -> CNContact {
+        let oldContact = SystemContact(cnContact: oldCNContact)
+        let mergedCNContact = oldCNContact.mutableCopy() as! CNMutableContact
+
+        // Name (all or nothing -- no piecemeal merges)
+        let formattedFullName = SystemContact.formattedFullName(for: mergedCNContact)
+
+        if formattedFullName.isEmpty {
+            mergedCNContact.namePrefix = newCNContact.namePrefix.stripped
+            mergedCNContact.givenName = newCNContact.givenName.stripped
+            mergedCNContact.nickname = newCNContact.nickname.stripped
+            mergedCNContact.middleName = newCNContact.middleName.stripped
+            mergedCNContact.familyName = newCNContact.familyName.stripped
+            mergedCNContact.nameSuffix = newCNContact.nameSuffix.stripped
+        }
+
+        if mergedCNContact.organizationName.stripped.isEmpty {
+            mergedCNContact.organizationName = newCNContact.organizationName.stripped
+        }
+
+        // Phone Numbers
+        var existingUserTextPhoneNumbers = Set(oldContact.phoneNumbers.map { $0.value })
+        var existingCanonicalPhoneNumbers = Set(FetchedSystemContacts.parsePhoneNumbers(
+            for: oldContact,
+            phoneNumberUtil: NSObject.phoneNumberUtil,
+            localPhoneNumber: localPhoneNumber
+        ))
+        var mergedPhoneNumbers = mergedCNContact.phoneNumbers
+        for labeledPhoneNumber in newCNContact.phoneNumbers {
+            let phoneNumber = labeledPhoneNumber.value.stringValue
+            guard existingUserTextPhoneNumbers.insert(phoneNumber).inserted else {
+                continue
+            }
+            let canonicalPhoneNumbers = FetchedSystemContacts.parsePhoneNumber(
+                phoneNumber,
+                phoneNumberUtil: NSObject.phoneNumberUtil,
+                localPhoneNumber: localPhoneNumber
+            )
+            guard existingCanonicalPhoneNumbers.isDisjoint(with: canonicalPhoneNumbers) else {
+                continue
+            }
+            existingCanonicalPhoneNumbers.formUnion(canonicalPhoneNumbers)
+            mergedPhoneNumbers.append(labeledPhoneNumber)
+        }
+        mergedCNContact.phoneNumbers = mergedPhoneNumbers
+
+        // Emails
+        var existingEmailAddresses = Set(oldContact.emailAddresses)
+        var mergedEmailAddresses = mergedCNContact.emailAddresses
+        for labeledEmailAddress in newCNContact.emailAddresses {
+            let emailAddress = (labeledEmailAddress.value as String).ows_stripped()
+            guard existingEmailAddresses.insert(emailAddress).inserted else {
+                continue
+            }
+            mergedEmailAddresses.append(labeledEmailAddress)
+        }
+        mergedCNContact.emailAddresses = mergedEmailAddresses
+
+        // Address (all or nothing -- no piecemeal merges)
+        if mergedCNContact.postalAddresses.isEmpty {
+            mergedCNContact.postalAddresses = newCNContact.postalAddresses
+        }
+
+        // Avatar
+        if mergedCNContact.imageData == nil {
+            mergedCNContact.imageData = newCNContact.imageData
+        }
+
+        return mergedCNContact.copy() as! CNContact
+    }
+}
+
+private class AddContactShareToContactsFlowNavigationController: UINavigationController, CNContactViewControllerDelegate, ContactPickerDelegate {
+
+    let flow: AddContactShareToContactsFlow
+    let completion: (() -> Void)?
+
+    init(flow: AddContactShareToContactsFlow, completion: (() -> Void)? = nil) {
+        self.flow = flow
+        self.completion = completion
+
+        super.init(nibName: nil, bundle: nil)
+
+        let rootViewController: UIViewController = {
+            switch flow.operation {
+            case .createNew:
+                return buildContactViewController()
+
+            case .addToExisting:
+                let contactPicker = ContactPickerViewController(allowsMultipleSelection: false, subtitleCellType: .none)
+                contactPicker.delegate = self
+                return contactPicker
+            }
+        }()
+        pushViewController(rootViewController, animated: false)
+    }
+
+    required init?(coder aDecoder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func buildContactViewController() -> CNContactViewController {
+        let contactViewController = CNContactViewController(forNewContact: flow.buildContact())
+        contactViewController.delegate = self
+        contactViewController.allowsActions = false
+        contactViewController.allowsEditing = true
+        return contactViewController
+    }
+
+    // MARK: CNContactViewControllerDelegate
 
     func contactViewController(_ viewController: CNContactViewController, didCompleteWith contact: CNContact?) {
-        Logger.info("")
-
-        guard let delegate else {
-            owsFailDebug("missing delegate")
-            return
-        }
-
-        delegate.didCreateOrEditContact()
+        dismiss(animated: true, completion: completion)
     }
 
-    @objc
-    private func didFinishEditingContact() {
-        Logger.info("")
+    func contactViewController(_ viewController: CNContactViewController, shouldPerformDefaultActionFor property: CNContactProperty) -> Bool {
+        return false
+    }
 
-        guard let delegate else {
-            owsFailDebug("missing delegate")
-            return
-        }
+    // MARK: ContactPickerDelegate
 
-        delegate.didCreateOrEditContact()
+    func contactPickerDidCancel(_: ContactPickerViewController) {
+        dismiss(animated: true, completion: completion)
+    }
+
+    func contactPicker(_ contactPicker: ContactPickerViewController, didSelect systemContact: SystemContact) {
+        flow.existingContact = contactsManager.cnContact(withId: systemContact.cnContactId)
+        // Note that CNContactViewController uses Cancel as the left bar button item (not the < back button).
+        // Therefore to go back to contact picker CNContactViewControllerDelegate method above
+        // would need to be modified to handle contact editing cancellation.
+        let contactViewController = buildContactViewController()
+        contactViewController.title = nil // Replace "New Contact" with an empty title.
+        pushViewController(contactViewController, animated: true)
+    }
+
+    func contactPicker(_: ContactPickerViewController, didSelectMultiple systemContacts: [SystemContact]) {
+        owsFailBeta("Invalid configuration")
+    }
+
+    func contactPicker(_: ContactPickerViewController, shouldSelect systemContact: SystemContact) -> Bool {
+        true
     }
 }

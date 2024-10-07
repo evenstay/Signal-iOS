@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
+import SignalServiceKit
 
 // ManualLayoutView uses a CATransformLayer by default.
 // CATransformLayer does not render.
@@ -35,7 +35,7 @@ open class ManualLayoutView: UIView, CVView {
         CATransformLayer.self
     }
 
-    public required init(name: String) {
+    public init(name: String) {
         self.name = name
 
         super.init(frame: .zero)

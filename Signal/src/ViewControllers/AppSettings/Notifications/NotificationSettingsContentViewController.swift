@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
+import SignalServiceKit
 import SignalUI
 
 class NotificationSettingsContentViewController: OWSTableViewController2 {
@@ -21,7 +21,7 @@ class NotificationSettingsContentViewController: OWSTableViewController2 {
         let section = OWSTableSection()
         section.footerTitle = OWSLocalizedString("NOTIFICATIONS_FOOTER_WARNING", comment: "")
 
-        let selectedType = preferences.notificationPreviewType
+        let selectedType = databaseStorage.read(block: preferences.notificationPreviewType(tx:))
         let allTypes: [NotificationType] = [.namePreview, .nameNoPreview, .noNameNoPreview]
         for type in allTypes {
             section.add(.init(
@@ -30,7 +30,7 @@ class NotificationSettingsContentViewController: OWSTableViewController2 {
                     self?.preferences.setNotificationPreviewType(type)
 
                     // rebuild callUIAdapter since notification configuration changed.
-                    Self.callService.createCallUIAdapter()
+                    AppEnvironment.shared.callService.rebuildCallUIAdapter()
 
                     self?.updateTableContents()
                 },

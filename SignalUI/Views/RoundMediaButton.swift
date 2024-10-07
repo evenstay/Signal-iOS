@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalCoreKit
+import SignalServiceKit
 import UIKit
 
 open class RoundMediaButton: UIButton {
@@ -51,7 +51,7 @@ open class RoundMediaButton: UIButton {
 
         super.init(frame: CGRect(origin: .zero, size: .square(Self.visibleButtonSize + 2*Self.defaultInset)))
 
-        contentEdgeInsets = UIEdgeInsets(margin: Self.defaultContentInset)
+        ows_contentEdgeInsets = UIEdgeInsets(margin: Self.defaultContentInset)
         layoutMargins = UIEdgeInsets(margin: Self.defaultInset)
         tintColor = Theme.darkThemePrimaryColor
         insetsLayoutMarginsFromSafeArea = false

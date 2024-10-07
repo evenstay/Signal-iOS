@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
+import SignalServiceKit
 import SignalUI
 
 @objc
@@ -29,17 +29,7 @@ class ComposeViewController: RecipientPickerContainerViewController {
         recipientPicker.view.autoPinEdge(toSuperviewEdge: .trailing)
         recipientPicker.view.autoPinEdge(toSuperviewEdge: .bottom)
 
-        navigationItem.leftBarButtonItem = UIBarButtonItem(barButtonSystemItem: .cancel, target: self, action: #selector(dismissPressed))
-    }
-
-    @objc
-    private func dismissPressed() {
-        dismiss(animated: true)
-    }
-
-    @objc
-    private func newGroupPressed() {
-        showNewGroupUI()
+        navigationItem.leftBarButtonItem = .cancelButton(dismissingFrom: self)
     }
 
     /// Presents the conversation for the given address and dismisses this
@@ -57,28 +47,20 @@ class ComposeViewController: RecipientPickerContainerViewController {
 
     /// Presents the conversation for the given thread and dismisses this
     /// controller such that the conversation is visible.
-    ///
-    /// - Note
-    /// In practice, the view controller dismissing us here is the same one
-    /// (a ``ConversationSplitViewController``) that will ultimately present the
-    /// conversation. To that end, there be dragons in potential races between
-    /// the two actions, which seem to particularly be prominent when this
-    /// method is called from a `DispatchQueue.main` block. (This happens, for
-    /// example, when doing some asynchronous work, such as a lookup, which
-    /// completes in a `DispatchQueue.main` block that calls this method.)
-    ///
-    /// Some example dragons found at the time of writing include user
-    /// interaction being disabled on the nav bar, incorrect nav bar layout,
-    /// keyboards refusing to pop, and the conversation input toolbar being
-    /// hidden behind the keyboard if it does pop.
-    ///
-    /// Ensuring that the presentation and dismissal are in separate dispatch
-    /// blocks seems to dodge the dragons.
     func newConversation(thread: TSThread) {
-        SignalApp.shared.presentConversationForThread(thread, action: .compose, animated: false)
-
-        DispatchQueue.main.async { [weak self] in
-            self?.presentingViewController?.dismiss(animated: true)
+        presentingViewController?.dismiss(animated: true)
+        if let transitionCoordinator = presentingViewController?.transitionCoordinator {
+            // When transitionCoordinator is present, coordinate the immediate presentation of
+            // the conversationVC with the animated dismissal of the compose VC
+            transitionCoordinator.animate { _ in
+                UIView.performWithoutAnimation {
+                    SignalApp.shared.presentConversationForThread(thread, action: .compose, animated: false)
+                }
+            }
+        } else {
+            // There isn't a transition coordinator present for some reason, revert to displaying
+            // the conversation VC in parallel with the animated dismissal of the compose VC
+            SignalApp.shared.presentConversationForThread(thread, action: .compose, animated: false)
         }
     }
 
@@ -87,7 +69,7 @@ class ComposeViewController: RecipientPickerContainerViewController {
     }
 }
 
-extension ComposeViewController: RecipientPickerDelegate {
+extension ComposeViewController: RecipientPickerDelegate, UsernameLinkScanDelegate {
 
     func recipientPicker(
         _ recipientPickerViewController: RecipientPickerViewController,
@@ -108,17 +90,6 @@ extension ComposeViewController: RecipientPickerDelegate {
         }
     }
 
-    func recipientPicker(_ recipientPickerViewController: RecipientPickerViewController,
-                         prepareToSelectRecipient recipient: PickedRecipient) -> AnyPromise {
-        owsFailDebug("This method should not called.")
-        return AnyPromise(Promise.value(()))
-    }
-
-    func recipientPicker(
-        _ recipientPickerViewController: RecipientPickerViewController,
-        didDeselectRecipient recipient: PickedRecipient
-    ) {}
-
     func recipientPicker(
         _ recipientPickerViewController: RecipientPickerViewController,
         accessoryMessageForRecipient recipient: PickedRecipient,
@@ -132,12 +103,6 @@ extension ComposeViewController: RecipientPickerDelegate {
             return MessageStrings.conversationIsBlocked
         }
     }
-
-    func recipientPicker(
-        _ recipientPickerViewController: RecipientPickerViewController,
-        accessoryViewForRecipient recipient: PickedRecipient,
-        transaction: SDSAnyReadTransaction
-    ) -> ContactCellAccessoryView? { nil }
 
     func recipientPicker(_ recipientPickerViewController: RecipientPickerViewController,
                          attributedSubtitleForRecipient recipient: PickedRecipient,
@@ -157,11 +122,7 @@ extension ComposeViewController: RecipientPickerDelegate {
         }
     }
 
-    func recipientPickerTableViewWillBeginDragging(_ recipientPickerViewController: RecipientPickerViewController) {}
-
     func recipientPickerNewGroupButtonWasPressed() {
         showNewGroupUI()
     }
-
-    func recipientPickerCustomHeaderViews() -> [UIView] { return [] }
 }

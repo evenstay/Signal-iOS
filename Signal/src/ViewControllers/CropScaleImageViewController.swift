@@ -4,7 +4,7 @@
 //
 
 import MediaPlayer
-import SignalMessaging
+import SignalServiceKit
 import SignalUI
 
 // This kind of view is tricky.  I've tried to organize things in the 
@@ -44,7 +44,7 @@ class CropScaleImageViewController: OWSViewController {
     //
     // TODO: We could make this a parameter.
     var dstSizePixels: CGSize {
-        return CGSize(square: CGFloat(kOWSProfileManager_MaxAvatarDiameterPixels))
+        return CGSize(square: CGFloat(OWSProfileManager.maxAvatarDiameterPixels))
     }
     var dstAspectRatio: CGFloat {
         return dstSizePixels.width / dstSizePixels.height
@@ -75,7 +75,7 @@ class CropScaleImageViewController: OWSViewController {
 
     // MARK: Initializers
 
-    required init(srcImage: UIImage, successCompletion: @escaping (UIImage) -> Void) {
+    init(srcImage: UIImage, successCompletion: @escaping (UIImage) -> Void) {
         // normalized() can be slightly expensive but in practice this is fine.
         self.srcImage = srcImage.normalized()
         self.successCompletion = successCompletion

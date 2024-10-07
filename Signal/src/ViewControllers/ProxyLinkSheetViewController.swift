@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
+import SignalServiceKit
 import SignalUI
 
 class ProxyLinkSheetViewController: OWSTableSheetViewController {
@@ -13,10 +13,6 @@ class ProxyLinkSheetViewController: OWSTableSheetViewController {
         guard SignalProxy.isValidProxyLink(url) else { return nil }
         self.url = url
         super.init()
-    }
-
-    required init() {
-        fatalError("init() has not been implemented")
     }
 
     override func updateTableContents(shouldReload: Bool = true) {

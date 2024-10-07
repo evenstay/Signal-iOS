@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
+import SignalServiceKit
 import SignalUI
 import UIKit
 
@@ -49,7 +49,6 @@ enum PhotoGridItemType {
 public struct MediaMetadata {
     var sender: String
     var abbreviatedSender: String
-    var filename: String?
     var byteSize: Int
     var creationDate: Date?
 }
@@ -57,7 +56,7 @@ public struct MediaMetadata {
 protocol PhotoGridItem: AnyObject {
     var type: PhotoGridItemType { get }
     var isFavorite: Bool { get }
-    func asyncThumbnail(completion: @escaping (UIImage?) -> Void) -> UIImage?
+    func asyncThumbnail(completion: @escaping (UIImage?) -> Void)
     var mediaMetadata: MediaMetadata? { get }
 }
 
@@ -313,7 +312,8 @@ class PhotoGridViewCell: UICollectionViewCell {
         // `configure(item:)` multiple times because the high-quality image eventually applied
         // last time it was called will be momentarily replaced by a progression of lower
         // quality images.
-        image = item.asyncThumbnail { [weak self] image in
+        image = nil
+        item.asyncThumbnail { [weak self] image in
             guard let self else { return }
 
             guard let currentItem = self.photoGridItem else {

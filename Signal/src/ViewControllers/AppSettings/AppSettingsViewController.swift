@@ -3,13 +3,20 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
+import SignalServiceKit
 import SignalUI
 
 class AppSettingsViewController: OWSTableViewController2 {
 
-    class func inModalNavigationController() -> OWSNavigationController {
-        OWSNavigationController(rootViewController: AppSettingsViewController())
+    private let appReadiness: AppReadinessSetter
+
+    init(appReadiness: AppReadinessSetter) {
+        self.appReadiness = appReadiness
+        super.init()
+    }
+
+    class func inModalNavigationController(appReadiness: AppReadinessSetter) -> OWSNavigationController {
+        OWSNavigationController(rootViewController: AppSettingsViewController(appReadiness: appReadiness))
     }
 
     private var localUsernameState: Usernames.LocalUsernameState!
@@ -23,21 +30,25 @@ class AppSettingsViewController: OWSTableViewController2 {
         }
 
         title = OWSLocalizedString("SETTINGS_NAV_BAR_TITLE", comment: "Title for settings activity")
-        navigationItem.leftBarButtonItem = .init(barButtonSystemItem: .done, target: self, action: #selector(didTapDone))
+        navigationItem.leftBarButtonItem = .doneButton(dismissingFrom: self)
 
         defaultSeparatorInsetLeading = Self.cellHInnerMargin + 24 + OWSTableItem.iconSpacing
 
         updateHasExpiredGiftBadge()
         updateTableContents()
 
-        if let localAddress = DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction?.aciAddress {
-            bulkProfileFetch.fetchProfile(address: localAddress)
+        let tsAccountManager = DependenciesBridge.shared.tsAccountManager
+        if let localAci = tsAccountManager.localIdentifiersWithMaybeSneakyTransaction?.aci {
+            Task {
+                let profileFetcher = SSKEnvironment.shared.profileFetcherRef
+                _ = try? await profileFetcher.fetchProfile(for: localAci, options: [.opportunistic])
+            }
         }
 
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(localProfileDidChange),
-            name: .localProfileDidChange,
+            name: UserProfileNotifications.localProfileDidChange,
             object: nil
         )
 
@@ -51,7 +62,7 @@ class AppSettingsViewController: OWSTableViewController2 {
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(subscriptionStateDidChange),
-            name: SubscriptionReceiptCredentialRedemptionOperation.DidSucceedNotification,
+            name: ReceiptCredentialRedemptionJob.didSucceedNotification,
             object: nil
         )
 
@@ -61,11 +72,6 @@ class AppSettingsViewController: OWSTableViewController2 {
             name: .hasExpiredGiftBadgeDidChangeNotification,
             object: nil
         )
-    }
-
-    @objc
-    private func didTapDone() {
-        dismiss(animated: true)
     }
 
     @objc
@@ -135,18 +141,16 @@ class AppSettingsViewController: OWSTableViewController2 {
         let section1 = OWSTableSection()
         section1.add(.disclosureItem(
             icon: .settingsAccount,
-            name: OWSLocalizedString("SETTINGS_ACCOUNT", comment: "Title for the 'account' link in settings."),
-            accessibilityIdentifier: UIView.accessibilityIdentifier(in: self, name: "account"),
-            actionBlock: { [weak self] in
-                let vc = AccountSettingsViewController()
+            withText: OWSLocalizedString("SETTINGS_ACCOUNT", comment: "Title for the 'account' link in settings."),
+            actionBlock: { [weak self, appReadiness] in
+                let vc = AccountSettingsViewController(appReadiness: appReadiness)
                 self?.navigationController?.pushViewController(vc, animated: true)
             }
         ))
         if DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isPrimaryDevice == true {
             section1.add(.disclosureItem(
                 icon: .settingsLinkedDevices,
-                name: OWSLocalizedString("LINKED_DEVICES_TITLE", comment: "Menu item and navbar title for the device manager"),
-                accessibilityIdentifier: UIView.accessibilityIdentifier(in: self, name: "linked-devices"),
+                withText: OWSLocalizedString("LINKED_DEVICES_TITLE", comment: "Menu item and navbar title for the device manager"),
                 actionBlock: { [weak self] in
                     let vc = LinkedDevicesTableViewController()
                     self?.navigationController?.pushViewController(vc, animated: true)
@@ -179,8 +183,7 @@ class AppSettingsViewController: OWSTableViewController2 {
         let section2 = OWSTableSection()
         section2.add(.disclosureItem(
             icon: .settingsAppearance,
-            name: OWSLocalizedString("SETTINGS_APPEARANCE_TITLE", comment: "The title for the appearance settings."),
-            accessibilityIdentifier: UIView.accessibilityIdentifier(in: self, name: "appearance"),
+            withText: OWSLocalizedString("SETTINGS_APPEARANCE_TITLE", comment: "The title for the appearance settings."),
             actionBlock: { [weak self] in
                 let vc = AppearanceSettingsTableViewController()
                 self?.navigationController?.pushViewController(vc, animated: true)
@@ -188,31 +191,26 @@ class AppSettingsViewController: OWSTableViewController2 {
         ))
         section2.add(.disclosureItem(
             icon: .settingsChats,
-            name: OWSLocalizedString("SETTINGS_CHATS", comment: "Title for the 'chats' link in settings."),
-            accessibilityIdentifier: UIView.accessibilityIdentifier(in: self, name: "chats"),
+            withText: OWSLocalizedString("SETTINGS_CHATS", comment: "Title for the 'chats' link in settings."),
             actionBlock: { [weak self] in
                 let vc = ChatsSettingsViewController()
                 self?.navigationController?.pushViewController(vc, animated: true)
             }
         ))
-        if RemoteConfig.stories {
-            section2.add(.disclosureItem(
-                icon: .settingsStories,
-                name: OWSLocalizedString(
-                    "STORY_SETTINGS_TITLE",
-                    comment: "Label for the stories section of the settings view"
-                ),
-                accessibilityIdentifier: UIView.accessibilityIdentifier(in: self, name: "stories"),
-                actionBlock: { [weak self] in
-                    let vc = StoryPrivacySettingsViewController()
-                    self?.navigationController?.pushViewController(vc, animated: true)
-                }
-            ))
-        }
+        section2.add(.disclosureItem(
+            icon: .settingsStories,
+            withText: OWSLocalizedString(
+                "STORY_SETTINGS_TITLE",
+                comment: "Label for the stories section of the settings view"
+            ),
+            actionBlock: { [weak self] in
+                let vc = StoryPrivacySettingsViewController()
+                self?.navigationController?.pushViewController(vc, animated: true)
+            }
+        ))
         section2.add(.disclosureItem(
             icon: .settingsNotifications,
-            name: OWSLocalizedString("SETTINGS_NOTIFICATIONS", comment: "The title for the notification settings."),
-            accessibilityIdentifier: UIView.accessibilityIdentifier(in: self, name: "notifications"),
+            withText: OWSLocalizedString("SETTINGS_NOTIFICATIONS", comment: "The title for the notification settings."),
             actionBlock: { [weak self] in
                 let vc = NotificationSettingsViewController()
                 self?.navigationController?.pushViewController(vc, animated: true)
@@ -220,8 +218,7 @@ class AppSettingsViewController: OWSTableViewController2 {
         ))
         section2.add(.disclosureItem(
             icon: .settingsPrivacy,
-            name: OWSLocalizedString("SETTINGS_PRIVACY_TITLE", comment: "The title for the privacy settings."),
-            accessibilityIdentifier: UIView.accessibilityIdentifier(in: self, name: "privacy"),
+            withText: OWSLocalizedString("SETTINGS_PRIVACY_TITLE", comment: "The title for the privacy settings."),
             actionBlock: { [weak self] in
                 let vc = PrivacySettingsViewController()
                 self?.navigationController?.pushViewController(vc, animated: true)
@@ -229,8 +226,7 @@ class AppSettingsViewController: OWSTableViewController2 {
         ))
         section2.add(.disclosureItem(
             icon: .settingsDataUsage,
-            name: OWSLocalizedString("SETTINGS_DATA", comment: "Label for the 'data' section of the app settings."),
-            accessibilityIdentifier: UIView.accessibilityIdentifier(in: self, name: "data-usage"),
+            withText: OWSLocalizedString("SETTINGS_DATA", comment: "Label for the 'data' section of the app settings."),
             actionBlock: { [weak self] in
                 let vc = DataSettingsTableViewController()
                 self?.navigationController?.pushViewController(vc, animated: true)
@@ -303,8 +299,8 @@ class AppSettingsViewController: OWSTableViewController2 {
 
                     return cell
                 },
-                actionBlock: { [weak self] in
-                    let vc = PaymentsSettingsViewController(mode: .inAppSettings)
+                actionBlock: { [weak self, appReadiness] in
+                    let vc = PaymentsSettingsViewController(mode: .inAppSettings, appReadiness: appReadiness)
                     self?.navigationController?.pushViewController(vc, animated: true)
                 }
             ))
@@ -314,8 +310,7 @@ class AppSettingsViewController: OWSTableViewController2 {
         let section3 = OWSTableSection()
         section3.add(.disclosureItem(
             icon: .settingsHelp,
-            name: CommonStrings.help,
-            accessibilityIdentifier: UIView.accessibilityIdentifier(in: self, name: "help"),
+            withText: CommonStrings.help,
             actionBlock: { [weak self] in
                 let vc = HelpViewController()
                 self?.navigationController?.pushViewController(vc, animated: true)
@@ -324,7 +319,6 @@ class AppSettingsViewController: OWSTableViewController2 {
         section3.add(.item(
             icon: .settingsInvite,
             name: OWSLocalizedString("SETTINGS_INVITE_TITLE", comment: "Settings table view cell label"),
-            accessibilityIdentifier: UIView.accessibilityIdentifier(in: self, name: "invite"),
             actionBlock: { [weak self] in
                 self?.showInviteFlow()
             }
@@ -335,10 +329,9 @@ class AppSettingsViewController: OWSTableViewController2 {
             let internalSection = OWSTableSection()
             internalSection.add(.disclosureItem(
                 icon: .settingsAdvanced,
-                name: "Internal",
-                accessibilityIdentifier: UIView.accessibilityIdentifier(in: self, name: "internal"),
-                actionBlock: { [weak self] in
-                    let vc = InternalSettingsViewController()
+                withText: "Internal",
+                actionBlock: { [weak self, appReadiness] in
+                    let vc = InternalSettingsViewController(appReadiness: appReadiness)
                     self?.navigationController?.pushViewController(vc, animated: true)
                 }
             ))
@@ -385,7 +378,7 @@ class AppSettingsViewController: OWSTableViewController2 {
 
     private func profileCellAvatarImageView() -> UIView {
         let avatarImageView = ConversationAvatarView(
-            sizeClass: .sixtyFour,
+            sizeClass: .customDiameter(72),
             localUserDisplayMode: .asUser
         )
 
@@ -420,32 +413,57 @@ class AppSettingsViewController: OWSTableViewController2 {
             nameLabel.textColor = Theme.accentBlueColor
         }
 
-        func addSubtitleLabel(text: String?, isLast: Bool = false) {
-            guard let text = text, !text.isEmpty else { return }
+        @discardableResult
+        func addSubtitleLabel(
+            text: String,
+            textColor: UIColor
+        ) -> UIView? {
+            guard !text.isEmpty else { return nil }
 
             let label = UILabel()
             label.font = .dynamicTypeFootnoteClamped
             label.text = text
-            label.textColor = Theme.secondaryTextAndIconColor
+            label.textColor = textColor
 
             let containerView = UIView()
-            containerView.layoutMargins = UIEdgeInsets(top: 2, left: 0, bottom: isLast ? 0 : 2, right: 0)
+            containerView.layoutMargins = UIEdgeInsets(top: 2, left: 0, bottom: 0, right: 0)
             containerView.addSubview(label)
             label.autoPinEdgesToSuperviewMargins()
 
             profileInfoStack.addArrangedSubview(containerView)
+            return containerView
         }
-
-        addSubtitleLabel(text: OWSUserProfile.bioForDisplay(bio: snapshot.bio, bioEmoji: snapshot.bioEmoji))
 
         if let phoneNumber = DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction?.phoneNumber {
             addSubtitleLabel(
-                text: PhoneNumber.bestEffortFormatPartialUserSpecifiedText(toLookLikeAPhoneNumber: phoneNumber),
-                isLast: true
+                text: PhoneNumber.bestEffortFormatPartialUserSpecifiedTextToLookLikeAPhoneNumber(phoneNumber),
+                textColor: Theme.primaryTextColor
             )
         } else {
             owsFailDebug("Missing local number")
         }
+
+        if let localUsernameState {
+            switch localUsernameState {
+            case let .available(username, _):
+                addSubtitleLabel(
+                    text: username,
+                    textColor: Theme.primaryTextColor
+                )
+            case .unset, .usernameAndLinkCorrupted, .linkCorrupted:
+                break
+            }
+        }
+
+        if let bioText = OWSUserProfile.bioForDisplay(bio: snapshot.bio, bioEmoji: snapshot.bioEmoji) {
+            let bioLabel = addSubtitleLabel(
+                text: bioText,
+                textColor: Theme.secondaryTextAndIconColor
+            )
+            bioLabel?.layoutMargins.top = 8
+        }
+
+        profileInfoStack.arrangedSubviews.last?.layoutMargins.bottom = 2
 
         return profileInfoStack
     }
@@ -493,6 +511,7 @@ class AppSettingsViewController: OWSTableViewController2 {
         }
 
         usernameLinkButton.bounds = CGRect(origin: .zero, size: .square(36))
+        usernameLinkButton.imageView?.autoSetDimensions(to: .square(20))
 
         return usernameLinkButton
     }
@@ -525,7 +544,7 @@ extension AppSettingsViewController: UsernameLinkScanDelegate {
                     link: usernameLink,
                     fromViewController: presentingViewController,
                     tx: tx
-                ) { aci in
+                ) { _, aci in
                     SignalApp.shared.presentConversationForAddress(
                         SignalServiceAddress(aci),
                         animated: true

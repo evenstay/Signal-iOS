@@ -4,7 +4,7 @@
 //
 
 import Foundation
-import SignalCoreKit
+public import GRDB
 
 // TODO: [DBV2] Ideally, these would live in a test target.
 //
@@ -22,6 +22,16 @@ import SignalCoreKit
 /// ever unwrapped as a real SDS transaction.
 private class MockTransaction: DBWriteTransaction {
     init() {}
+
+    func addFinalization(forKey key: String, block: @escaping () -> Void) {
+        fatalError()
+    }
+
+    var syncCompletions = [() -> Void]()
+
+    func addSyncCompletion(_ block: @escaping () -> Void) {
+        syncCompletions.append(block)
+    }
 
     struct AsyncCompletion {
         let scheduler: Scheduler
@@ -110,6 +120,10 @@ public class MockDB: DB {
 
             let blockValue = try block(tx)
 
+            tx.syncCompletions.forEach {
+                $0()
+            }
+
             tx.asyncCompletions.forEach {
                 $0.scheduler.async($0.block)
             }
@@ -120,40 +134,40 @@ public class MockDB: DB {
 
     // MARK: - Async Methods
 
-    public func asyncRead(
+    public func asyncRead<T>(
         file: String,
         function: String,
         line: Int,
-        block: @escaping (DBReadTransaction) -> Void,
+        block: @escaping (DBReadTransaction) -> T,
         completionQueue: DispatchQueue,
-        completion: (() -> Void)?
+        completion: ((T) -> Void)?
     ) {
         queue.sync {
-            performRead(block: block)
+            let result = performRead(block: block)
 
             guard let completion else { return }
 
             completionQueue.sync {
-                completion()
+                completion(result)
             }
         }
     }
 
-    public func asyncWrite(
+    public func asyncWrite<T>(
         file: String,
         function: String,
         line: Int,
-        block: @escaping (DBWriteTransaction) -> Void,
+        block: @escaping (DBWriteTransaction) -> T,
         completionQueue: DispatchQueue,
-        completion: (() -> Void)?
+        completion: ((T) -> Void)?
     ) {
         queue.sync {
-            performWrite(block: block)
+            let result = performWrite(block: block)
 
             guard let completion else { return }
 
             completionQueue.sync {
-                completion()
+                completion(result)
             }
         }
     }
@@ -229,6 +243,27 @@ public class MockDB: DB {
     }
 
     public func appendDbChangeDelegate(_ dbChangeDelegate: DBChangeDelegate) {
+        // Do nothing.
+    }
+
+    public func add(
+        transactionObserver: TransactionObserver,
+        extent: Database.TransactionObservationExtent
+    ) {
+        // Do nothing.
+    }
+
+    // MARK: - Touching
+
+    public func touch(_ interaction: TSInteraction, shouldReindex: Bool, tx: DBWriteTransaction) {
+        // Do nothing.
+    }
+
+    public func touch(_ thread: TSThread, shouldReindex: Bool, shouldUpdateChatListUi: Bool, tx: DBWriteTransaction) {
+        // Do nothing.
+    }
+
+    public func touch(_ storyMessage: StoryMessage, tx: DBWriteTransaction) {
         // Do nothing.
     }
 }

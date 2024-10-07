@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
+import SignalServiceKit
 import SignalUI
 
 public struct SendPaymentInfo {
@@ -53,7 +53,7 @@ class SendPaymentHelper: Dependencies {
 
     private var maximumPaymentAmount: TSPaymentAmount?
 
-    required init(delegate: SendPaymentHelperDelegate) {
+    init(delegate: SendPaymentHelperDelegate) {
         self.delegate = delegate
 
         addObservers()
@@ -207,8 +207,6 @@ class SendPaymentHelper: Dependencies {
                       PaymentsConstants.mobileCoinCurrencyIdentifier)
     }
 }
-
-// MARK: 
 
 extension SendPaymentHelperDelegate {
     var minTopVSpacing: CGFloat { SendPaymentHelper.minTopVSpacing }

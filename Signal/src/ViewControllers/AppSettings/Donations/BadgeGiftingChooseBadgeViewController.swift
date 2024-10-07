@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
-import SignalUI
+import SignalServiceKit
+public import SignalUI
 
 public class BadgeGiftingChooseBadgeViewController: OWSTableViewController2 {
     typealias GiftConfiguration = SubscriptionManagerImpl.DonationConfiguration.GiftConfiguration
@@ -126,6 +126,12 @@ public class BadgeGiftingChooseBadgeViewController: OWSTableViewController2 {
 
     public override func viewDidLoad() {
         super.viewDidLoad()
+
+        let isPresentedStandalone = navigationController?.viewControllers.first == self
+        if isPresentedStandalone {
+            navigationItem.leftBarButtonItem = .cancelButton(dismissingFrom: self)
+        }
+
         loadDataIfNecessary()
         updateTableContents()
         setUpBottomFooter()
@@ -235,12 +241,12 @@ public class BadgeGiftingChooseBadgeViewController: OWSTableViewController2 {
             retryButton.setTitle(CommonStrings.retryButton, for: .normal)
             if Theme.isDarkThemeEnabled {
                 retryButton.setTitleColor(.ows_gray05, for: .normal)
-                retryButton.setBackgroundImage(UIImage.init(color: .ows_gray85), for: .normal)
+                retryButton.setBackgroundImage(UIImage.image(color: .ows_gray85), for: .normal)
             } else {
                 retryButton.setTitleColor(.ows_gray90, for: .normal)
-                retryButton.setBackgroundImage(UIImage.init(color: .ows_gray05), for: .normal)
+                retryButton.setBackgroundImage(UIImage.image(color: .ows_gray05), for: .normal)
             }
-            retryButton.contentEdgeInsets = UIEdgeInsets(hMargin: 16, vMargin: 6)
+            retryButton.ows_contentEdgeInsets = UIEdgeInsets(hMargin: 16, vMargin: 6)
             retryButton.autoPinWidthToSuperviewMargins(relation: .lessThanOrEqual)
             retryButton.autoHCenterInSuperview()
             retryButton.setContentHuggingHigh()

@@ -55,10 +55,9 @@ public protocol JobQueue: DurableOperationDelegate, Dependencies {
     typealias JobRecordType = DurableOperationType.JobRecordType
 
     var runningOperations: AtomicArray<DurableOperationType> { get set }
-    var jobRecordLabel: String { get }
 
-    var isSetup: AtomicBool { get set }
-    func setup()
+    var isSetup: AtomicBool { get }
+    func setup(appReadiness: AppReadiness)
     func didMarkAsReady(oldJobRecord: JobRecordType, transaction: SDSAnyWriteTransaction)
 
     func operationQueue(jobRecord: JobRecordType) -> OperationQueue
@@ -80,6 +79,7 @@ public extension JobQueue {
 
     func add(
         jobRecord: JobRecordType,
+        appReadiness: AppReadiness,
         transaction: SDSAnyWriteTransaction
     ) {
         owsAssertDebug(jobRecord.status == .ready)
@@ -87,25 +87,28 @@ public extension JobQueue {
         jobRecord.anyInsert(transaction: transaction)
 
         transaction.addTransactionFinalizationBlock(
-            forKey: "jobQueue.\(jobRecordLabel).startWorkImmediatelyIfAppIsReady"
+            forKey: "jobQueue.\(JobRecordType.jobRecordType.jobRecordLabel).startWorkImmediatelyIfAppIsReady"
         ) { transaction in
-            self.startWorkImmediatelyIfAppIsReady(transaction: transaction)
+            self.startWorkImmediatelyIfAppIsReady(appReadiness: appReadiness, transaction: transaction)
         }
 
         transaction.addAsyncCompletion(queue: .global()) {
-            self.startWorkWhenAppIsReady()
+            self.startWorkWhenAppIsReady(appReadiness: appReadiness)
         }
     }
 
-    func startWorkImmediatelyIfAppIsReady(transaction: SDSAnyWriteTransaction) {
+    func startWorkImmediatelyIfAppIsReady(
+        appReadiness: AppReadiness,
+        transaction: SDSAnyWriteTransaction
+    ) {
         guard isEnabled else { return }
         guard !CurrentAppContext().isRunningTests else { return }
-        guard AppReadiness.isAppReady else { return }
+        guard appReadiness.isAppReady else { return }
         guard isSetup.get() else { return }
         workStep(transaction: transaction)
     }
 
-    func startWorkWhenAppIsReady() {
+    func startWorkWhenAppIsReady(appReadiness: AppReadiness) {
         guard isEnabled else { return }
 
         guard !CurrentAppContext().isRunningTests else {
@@ -115,7 +118,7 @@ public extension JobQueue {
             return
         }
 
-        AppReadiness.runNowOrWhenAppDidBecomeReadyAsync {
+        appReadiness.runNowOrWhenAppDidBecomeReadyAsync {
             guard self.isSetup.get() else {
                 return
             }
@@ -126,8 +129,6 @@ public extension JobQueue {
     }
 
     func workStep() {
-        Logger.debug("")
-
         guard isEnabled else { return }
 
         guard isSetup.get() else {
@@ -145,10 +146,7 @@ public extension JobQueue {
         let nextJob: JobRecordType?
 
         do {
-            nextJob = try JobRecordFinderImpl().getNextReady(
-                label: jobRecordLabel,
-                transaction: transaction.asV2Write
-            )
+            nextJob = try JobRecordFinderImpl(db: DependenciesBridge.shared.db).getNextReady(transaction: transaction.asV2Write)
         } catch let error {
             Logger.error("Couldn't start next job: \(error)")
             return
@@ -172,16 +170,13 @@ public extension JobQueue {
 
             transaction.addSyncCompletion {
                 self.runningOperations.append(durableOperation)
-
-                Logger.debug("adding operation: \(durableOperation) with remainingRetries: \(remainingRetries)")
                 operationQueue.addOperation(durableOperation.operation)
             }
         } catch JobError.permanentFailure(let description) {
             owsFailDebug("permanent failure: \(description)")
             nextJob.saveAsPermanentlyFailed(transaction: transaction)
-        } catch JobError.obsolete(let description) {
+        } catch JobError.obsolete {
             // TODO is this even worthwhile to have obsolete state? Should we just delete the task outright?
-            Logger.verbose("marking obsolete task as such. description:\(description)")
             nextJob.saveAsObsolete(transaction: transaction)
         } catch {
             owsFailDebug("unexpected error")
@@ -197,8 +192,7 @@ public extension JobQueue {
         databaseStorage.write { transaction in
             let runningRecords: [JobRecordType]
             do {
-                runningRecords = try JobRecordFinderImpl().allRecords(
-                    label: self.jobRecordLabel,
+                runningRecords = try JobRecordFinderImpl(db: DependenciesBridge.shared.db).allRecords(
                     status: JobRecord.Status.running,
                     transaction: transaction.asV2Write
                 )
@@ -206,7 +200,7 @@ public extension JobQueue {
                 Logger.error("Couldn't restart old jobs: \(error)")
                 return
             }
-            Logger.info("marking old `running` \(self.jobRecordLabel) JobRecords as ready: \(runningRecords.count)")
+            Logger.info("marking old `running` \(JobRecordType.jobRecordType.jobRecordLabel) JobRecords as ready: \(runningRecords.count)")
             for jobRecord in runningRecords {
                 do {
                     try jobRecord.saveRunningAsReady(transaction: transaction)
@@ -226,16 +220,15 @@ public extension JobQueue {
         databaseStorage.write { transaction in
             let staleRecords: [JobRecordType]
             do {
-                staleRecords = try JobRecordFinderImpl().staleRecords(
-                    label: self.jobRecordLabel,
-                    transaction: transaction.asV2Write
-                )
+                staleRecords = try JobRecordFinderImpl(db: DependenciesBridge.shared.db).staleRecords(transaction: transaction.asV2Write)
             } catch {
                 Logger.error("Failed to prune stale jobs! \(error)")
                 return
             }
 
-            Logger.info("Pruning stale \(jobRecordLabel) job records: \(staleRecords.count).")
+            if !staleRecords.isEmpty {
+                Logger.info("Pruning stale \(JobRecordType.jobRecordType.jobRecordLabel) job records: \(staleRecords.count).")
+            }
 
             for jobRecord in staleRecords {
                 jobRecord.anyRemove(transaction: transaction)
@@ -252,7 +245,7 @@ public extension JobQueue {
     /// So you might ask, why not just rename this method to `setup`? Because
     /// `setup` is called from objc, and default implementations from a protocol
     /// cannot be marked as @objc.
-    func defaultSetup() {
+    func defaultSetup(appReadiness: AppReadiness) {
         guard isEnabled else { return }
 
         guard !isSetup.get() else {
@@ -270,21 +263,19 @@ public extension JobQueue {
             if self.requiresInternet {
                 // FIXME: The returned observer token is never unregistered.
                 // In practice all our JobQueues live forever, so this isn't a problem.
-                NotificationCenter.default.addObserver(forName: SSKReachability.owsReachabilityDidChange,
-                                                       object: nil,
-                                                       queue: nil) { _ in
-
-                                                        if self.reachabilityManager.isReachable {
-                                                            Logger.verbose("isReachable: true")
-                                                            self.becameReachable()
-                                                        } else {
-                                                            Logger.verbose("isReachable: false")
-                                                        }
+                NotificationCenter.default.addObserver(
+                    forName: SSKReachability.owsReachabilityDidChange,
+                    object: nil,
+                    queue: nil
+                ) { _ in
+                    if self.reachabilityManager.isReachable {
+                        self.becameReachable()
+                    }
                 }
             }
 
             self.isSetup.set(true)
-            self.startWorkWhenAppIsReady()
+            self.startWorkWhenAppIsReady(appReadiness: appReadiness)
         }
     }
 
@@ -342,14 +333,30 @@ public extension JobQueue {
 public protocol JobRecordFinder<JobRecordType> {
     associatedtype JobRecordType: JobRecord
 
+    /// Fetches a single JobRecord from the database.
+    ///
+    /// Returns `nil` a JobRecord doesn't exist for `rowId`.
+    func fetchJob(rowId: JobRecord.RowId, tx: DBReadTransaction) throws -> JobRecordType?
+
+    /// Removes a single JobRecord from the database.
+    func removeJob(_ jobRecord: JobRecordType, tx: DBWriteTransaction)
+
+    /// Fetches all runnable jobs.
+    ///
+    /// This method may use multiple transactions, may use write transactions,
+    /// may delete jobs that can't ever be run, etc.
+    ///
+    /// It returns all jobs that can be run.
+    ///
+    /// Conforming types should avoid long-running write transactions.
+    func loadRunnableJobs() async throws -> [JobRecordType]
+
     func enumerateJobRecords(
-        label: String,
         transaction: DBReadTransaction,
         block: (JobRecordType, inout Bool) -> Void
     ) throws
 
     func enumerateJobRecords(
-        label: String,
         status: JobRecord.Status,
         transaction: DBReadTransaction,
         block: (JobRecordType, inout Bool) -> Void
@@ -357,9 +364,9 @@ public protocol JobRecordFinder<JobRecordType> {
 }
 
 public extension JobRecordFinder {
-    func getNextReady(label: String, transaction: DBReadTransaction) throws -> JobRecordType? {
+    func getNextReady(transaction: DBReadTransaction) throws -> JobRecordType? {
         var result: JobRecordType?
-        try enumerateJobRecords(label: label, status: .ready, transaction: transaction) { jobRecord, stop in
+        try enumerateJobRecords(status: .ready, transaction: transaction) { jobRecord, stop in
             // Skip job records that aren't for the current process, we can't run these.
             guard jobRecord.canBeRunByCurrentProcess else {
                 return
@@ -370,18 +377,18 @@ public extension JobRecordFinder {
         return result
     }
 
-    func allRecords(label: String, status: JobRecord.Status, transaction: DBReadTransaction) throws -> [JobRecordType] {
+    func allRecords(status: JobRecord.Status, transaction: DBReadTransaction) throws -> [JobRecordType] {
         var result: [JobRecordType] = []
-        try enumerateJobRecords(label: label, status: status, transaction: transaction) { jobRecord, _ in
+        try enumerateJobRecords(status: status, transaction: transaction) { jobRecord, _ in
             result.append(jobRecord)
         }
         return result
     }
 
-    func staleRecords(label: String, transaction: DBReadTransaction) throws -> [JobRecordType] {
+    func staleRecords(transaction: DBReadTransaction) throws -> [JobRecordType] {
         var result: [JobRecordType] = []
 
-        try enumerateJobRecords(label: label, transaction: transaction) { jobRecord, _ in
+        try enumerateJobRecords(transaction: transaction) { jobRecord, _ in
             let isStale: Bool = {
                 switch jobRecord.status {
                 case .running:
@@ -405,17 +412,21 @@ public extension JobRecordFinder {
     }
 }
 
-private extension JobRecord {
-    var canBeRunByCurrentProcess: Bool {
-        if let exclusiveProcessIdentifier, exclusiveProcessIdentifier != JobRecord.currentProcessIdentifier {
-            return false
-        }
-        return true
-    }
+private enum Constants {
+    /// The number of JobRecords to fetch in a batch.
+    ///
+    /// Most job queues won't ever have more than a few records at the same
+    /// time. Other times, a job queue may build up a huge backlog, and this
+    /// value can help prune it efficiently.
+    static let batchSize = 400
 }
 
 public class JobRecordFinderImpl<JobRecordType>: JobRecordFinder where JobRecordType: JobRecord {
-    public init() {}
+    private let db: DB
+
+    public init(db: DB) {
+        self.db = db
+    }
 
     private func iterateJobsWith(
         sql: String,
@@ -440,7 +451,6 @@ public class JobRecordFinderImpl<JobRecordType>: JobRecordFinder where JobRecord
     }
 
     public func enumerateJobRecords(
-        label: String,
         transaction: DBReadTransaction,
         block: (JobRecordType, inout Bool) -> Void
     ) throws {
@@ -454,14 +464,13 @@ public class JobRecordFinderImpl<JobRecordType>: JobRecordFinder where JobRecord
 
         try iterateJobsWith(
             sql: sql,
-            arguments: [label],
+            arguments: [JobRecordType.jobRecordType.jobRecordLabel],
             database: transaction.unwrapGrdbRead.database,
             block: block
         )
     }
 
     public func enumerateJobRecords(
-        label: String,
         status: JobRecord.Status,
         transaction: DBReadTransaction,
         block: (JobRecordType, inout Bool) -> Void
@@ -477,9 +486,100 @@ public class JobRecordFinderImpl<JobRecordType>: JobRecordFinder where JobRecord
 
         try iterateJobsWith(
             sql: sql,
-            arguments: [status.rawValue, label],
+            arguments: [status.rawValue, JobRecordType.jobRecordType.jobRecordLabel],
             database: transaction.unwrapGrdbRead.database,
             block: block
         )
+    }
+
+    public func fetchJob(rowId: JobRecord.RowId, tx: DBReadTransaction) throws -> JobRecordType? {
+        do {
+            let db = SDSDB.shimOnlyBridge(tx).unwrapGrdbRead.database
+            return try JobRecordType.fetchOne(db, key: rowId)
+        } catch {
+            throw error.grdbErrorForLogging
+        }
+    }
+
+    public func removeJob(_ jobRecord: JobRecordType, tx: DBWriteTransaction) {
+        jobRecord.anyRemove(transaction: SDSDB.shimOnlyBridge(tx))
+    }
+
+    public func loadRunnableJobs() async throws -> [JobRecordType] {
+        var allRunnableJobs = [JobRecordType]()
+        var afterRowId: JobRecord.RowId?
+        while true {
+            let (runnableJobs, hasMoreAfterRowId) = try await db.awaitableWrite { tx in
+                try self.fetchAndPruneSomePersistedJobs(afterRowId: afterRowId, tx: tx)
+            }
+            allRunnableJobs.append(contentsOf: runnableJobs)
+            guard let hasMoreAfterRowId else {
+                break
+            }
+            afterRowId = hasMoreAfterRowId
+        }
+        return allRunnableJobs
+    }
+
+    private func fetchAndPruneSomePersistedJobs(
+        afterRowId: JobRecord.RowId?,
+        tx: DBWriteTransaction
+    ) throws -> ([JobRecordType], hasMoreAfterRowId: JobRecord.RowId?) {
+        let (jobs, hasMore) = try fetchSomeJobs(afterRowId: afterRowId, tx: tx)
+        var runnableJobs = [JobRecordType]()
+        for job in jobs {
+            let canRunJob: Bool = {
+                // This property is deprecated. If it's set, it means the job was created
+                // for a prior version of the application, and that version definitely
+                // can't be the current process.
+                guard job.exclusiveProcessIdentifier == nil else {
+                    return false
+                }
+                // If a job has failed or is obsolete, we can remove it. We previously
+                // distinguished `.ready` from `.running`, but now they're treated exactly
+                // the same when we restart existing jobs.
+                switch job.status {
+                case .unknown, .permanentlyFailed, .obsolete:
+                    return false
+                case .ready, .running:
+                    break
+                }
+                return true
+            }()
+            if canRunJob {
+                runnableJobs.append(job)
+            } else {
+                removeJob(job, tx: tx)
+            }
+        }
+        return (runnableJobs, hasMore ? jobs.last!.id! : nil)
+    }
+
+    private func fetchSomeJobs(
+        afterRowId: JobRecord.RowId?,
+        tx: DBReadTransaction
+    ) throws -> ([JobRecordType], hasMore: Bool) {
+        var sql = """
+            SELECT * FROM \(JobRecordType.databaseTableName)
+            WHERE "\(JobRecordType.columnName(.label))" = ?
+        """
+        var arguments: StatementArguments = [JobRecordType.jobRecordType.jobRecordLabel]
+        if let afterRowId {
+            sql += """
+                AND \(JobRecordType.columnName(.id)) > ?
+            """
+            arguments += [afterRowId]
+        }
+        sql += """
+            ORDER BY "\(JobRecordType.columnName(.id))"
+            LIMIT \(Constants.batchSize)
+        """
+        do {
+            let db = SDSDB.shimOnlyBridge(tx).unwrapGrdbRead.database
+            let results = try JobRecordType.fetchAll(db, sql: sql, arguments: arguments)
+            return (results, results.count == Constants.batchSize)
+        } catch {
+            throw error.grdbErrorForLogging
+        }
     }
 }

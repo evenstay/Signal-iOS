@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
+import SignalServiceKit
 import SignalUI
 
 class PrivateStorySettingsViewController: OWSTableViewController2 {
@@ -23,11 +23,9 @@ class PrivateStorySettingsViewController: OWSTableViewController2 {
     private func updateBarButtons() {
         title = thread.name
 
-        navigationItem.rightBarButtonItem = UIBarButtonItem(
-            barButtonSystemItem: .edit,
-            target: self,
-            action: #selector(editPressed)
-        )
+        navigationItem.rightBarButtonItem = .systemItem(.edit) { [weak self] in
+            self?.editPressed()
+        }
     }
 
     override func viewDidLoad() {
@@ -227,10 +225,10 @@ class PrivateStorySettingsViewController: OWSTableViewController2 {
                 // up records from storage service.
                 self.thread.updateWithStoryViewMode(.disabled, transaction: transaction)
 
-                TSPrivateStoryThread.recordDeletedAtTimestamp(
+                DependenciesBridge.shared.privateStoryThreadDeletionManager.recordDeletedAtTimestamp(
                     Date.ows_millisecondTimestamp(),
                     forDistributionListIdentifier: dlistIdentifier,
-                    transaction: transaction
+                    tx: transaction.asV2Write
                 )
 
                 transaction.addAsyncCompletionOnMain {
@@ -274,7 +272,9 @@ class PrivateStorySettingsViewController: OWSTableViewController2 {
         )
 
         let actionSheet = ActionSheetController(
-            title: String.localizedStringWithFormat(format, Self.contactsManager.displayName(for: address)),
+            title: String.localizedStringWithFormat(format, databaseStorage.read { tx in
+                return contactsManager.displayName(for: address, tx: tx).resolvedValue()
+            }),
             message: OWSLocalizedString(
                 "PRIVATE_STORY_SETTINGS_REMOVE_VIEWER_DESCRIPTION",
                 comment: "Action sheet description prompting to remove a viewer from a story on the 'private story settings' view."
@@ -299,7 +299,6 @@ class PrivateStorySettingsViewController: OWSTableViewController2 {
         presentActionSheet(actionSheet)
     }
 
-    @objc
     private func editPressed() {
         let vc = PrivateStoryNameSettingsViewController(thread: thread) { [weak self] in
             self?.title = self?.thread.name

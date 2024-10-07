@@ -66,6 +66,134 @@
 			<string>Προσθήκη νέων μελών</string>
 		</dict>
 	</dict>
+	<key>CALL_LINK_APPROVE_ALL_REQUESTS_CONFIRMATION_BODY_%ld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$ld άτομο θα προστεθεί στην κλήση.</string>
+			<key>other</key>
+			<string>%1$ld άτομα θα προστεθούν στην κλήση.</string>
+		</dict>
+	</dict>
+	<key>CALL_LINK_APPROVE_ALL_REQUESTS_CONFIRMATION_TITLE_%ld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Έγκριση %1$ld αιτήματος;</string>
+			<key>other</key>
+			<string>Έγκριση %1$ld αιτημάτων;</string>
+		</dict>
+	</dict>
+	<key>CALL_LINK_DENY_ALL_REQUESTS_CONFIRMATION_BODY_%ld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$ld άτομο δεν θα προστεθεί στην κλήση.</string>
+			<key>other</key>
+			<string>%1$ld άτομα δεν θα προστεθούν στην κλήση.</string>
+		</dict>
+	</dict>
+	<key>CALL_LINK_DENY_ALL_REQUESTS_CONFIRMATION_TITLE_%ld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Απόρριψη %1$ld αιτήματος;</string>
+			<key>other</key>
+			<string>Απόρριψη %1$ld αιτημάτων;</string>
+		</dict>
+	</dict>
+	<key>CALL_LINK_JOIN_REQUEST_AMOUNT_MORE_BUTTON_%ld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>+%1$ld Request</string>
+			<key>other</key>
+			<string>+%1$ld Requests</string>
+		</dict>
+	</dict>
+	<key>CALL_LINK_REQUEST_HEADER_COUNT_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$ld άτομο σε αναμονή</string>
+			<key>other</key>
+			<string>%1$ld άτομα σε αναμονή</string>
+		</dict>
+	</dict>
+	<key>CALL_PEOPLE_HERE</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>ld</string>
+			<key>one</key>
+			<string>%1$ld άτομο</string>
+			<key>other</key>
+			<string>%1$ld άτομα</string>
+		</dict>
+	</dict>
+	<key>CALL_PEOPLE_WAITING</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>ld</string>
+			<key>one</key>
+			<string>%1$ld άτομο σε αναμονή</string>
+			<key>other</key>
+			<string>%1$ld άτομα σε αναμονή</string>
+		</dict>
+	</dict>
 	<key>CAMERA_VO_N_ITEMS</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -141,9 +269,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Αυτή η συνομιλία θα διαγραφεί από αυτή τη συσκευή.</string>
+			<string>Αυτή η συνομιλία θα διαγραφεί από όλες τις συσκευές σου.</string>
 			<key>other</key>
-			<string>Αυτές οι συνομιλίες θα διαγραφούν από αυτή τη συσκευή.</string>
+			<string>Αυτές οι συνομιλίες θα διαγραφούν από όλες τις συσκευές σου.</string>
 		</dict>
 	</dict>
 	<key>CONVERSATION_PICKER_CAN_SELECT_NO_MORE_CONVERSATIONS_%d</key>
@@ -349,22 +477,6 @@
 			<string>Έχει συμπληρωθεί ο μέγιστος αριθμός %1$d συμμετεχόντων για αυτήν την κλήση. Δοκίμασε ξανά αργότερα.</string>
 		</dict>
 	</dict>
-	<key>GROUP_CALL_IN_THIS_CALL_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>Σε αυτή τη κλήση · %1$d άτομο</string>
-			<key>other</key>
-			<string>Σε αυτή τη κλήση · %1$d άτομα</string>
-		</dict>
-	</dict>
 	<key>GROUP_CALL_IS_RINGING_MANY_PEOPLE_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -379,6 +491,22 @@
 			<string>Καλεί τους %2$@, %3$@, και %1$d ακόμα</string>
 			<key>other</key>
 			<string>Καλεί τους %2$@, %3$@, και %1$d ακόμα</string>
+		</dict>
+	</dict>
+	<key>GROUP_CALL_MANY_OTHERS_HERE</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>ld</string>
+			<key>one</key>
+			<string>%1$ld άτομο είναι στην κλήση</string>
+			<key>other</key>
+			<string>%1$ld άτομα είναι στην κλήση</string>
 		</dict>
 	</dict>
 	<key>GROUP_CALL_MANY_PEOPLE_HERE_%d</key>
@@ -427,6 +555,22 @@
 			<string>Οι %2$@, %3$@ και %1$d ακόμα έφυγαν από την κλήση</string>
 			<key>other</key>
 			<string>Οι %2$@, %3$@ και %1$d ακόμα έφυγαν από την κλήση</string>
+		</dict>
+	</dict>
+	<key>GROUP_CALL_ONE_KNOWN_AND_MANY_OTHERS_HERE</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>ld</string>
+			<key>one</key>
+			<string>Οι %2$@ και %1$ld ακόμα άτομο είναι στην κλήση</string>
+			<key>other</key>
+			<string>Οι %2$@ και %1$ld ακόμα άτομα είναι στην κλήση</string>
 		</dict>
 	</dict>
 	<key>GROUP_CALL_WILL_NOTIFY_MANY_PEOPLE_%d</key>
@@ -488,9 +632,41 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>%1$d μέλος της ομάδας έχει παρόμοιο όνομα.</string>
+			<string>%1$d μέλος της ομάδας έχει το ίδιο όνομα.</string>
 			<key>other</key>
-			<string>%1$d μέλη της ομάδας έχουν παρόμοια ονόματα.</string>
+			<string>%1$d μέλη της ομάδας έχουν το ίδιο όνομα.</string>
+		</dict>
+	</dict>
+	<key>GROUP_MEMBERSHIP_MULTIPLE_COLLISIONS_BANNER_TITLE_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Υπάρχει σύγκρουση μεταξύ %1$d ονόματος σε αυτήν την ομάδα.</string>
+			<key>other</key>
+			<string>Υπάρχει σύγκρουση μεταξύ %1$d ονομάτων σε αυτήν την ομάδα.</string>
+		</dict>
+	</dict>
+	<key>GROUP_MEMBERSHIP_NAME_COLLISION_MEMBER_COUNT_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d μέλος</string>
+			<key>other</key>
+			<string>%1$d μέλη</string>
 		</dict>
 	</dict>
 	<key>GROUP_MEMBERSHIP_NAME_MULTIPLE_COLLISION_HEADER_%d</key>
@@ -504,9 +680,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>%1$d από τα μέλη της ομάδας έχουν παρόμοια ονόματα. Έλεγξε τα μέλη παρακάτω ή επίλεξε ενέργεια.</string>
+			<string>Υπάρχει σύγκρουση μεταξύ %1$d ονόματος σε αυτήν την ομάδα. Ελέγξτε τα μέλη παρακάτω ή αναλάβετε δράση.</string>
 			<key>other</key>
-			<string>%1$d από τα μέλη της ομάδας έχουν παρόμοια ονόματα. Έλεγξε τα μέλη παρακάτω ή επίλεξε ενέργεια.</string>
+			<string>Υπάρχει σύγκρουση μεταξύ %1$d ονομάτων σε αυτήν την ομάδα. Ελέγξτε τα μέλη παρακάτω ή αναλάβετε δράση.</string>
 		</dict>
 	</dict>
 	<key>GROUP_MEMBERSHIP_NAME_SINGLE_COLLISION_HEADER_%d</key>
@@ -520,7 +696,7 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>%1$d από τα μέλη της ομάδας έχουν το ίδιο όνομα. Έλεγξε τα μέλη παρακάτω ή επίλεξε ενέργεια.</string>
+			<string>%1$d μέλος της ομάδας έχει το ίδιο όνομα. Έλεγξε το μέλος παρακάτω ή επίλεξε ενέργεια.</string>
 			<key>other</key>
 			<string>%1$d από τα μέλη της ομάδας έχουν το ίδιο όνομα. Έλεγξε τα μέλη παρακάτω ή επίλεξε ενέργεια.</string>
 		</dict>
@@ -555,6 +731,22 @@
 			<string>%1$d μέλος</string>
 			<key>other</key>
 			<string>%1$d μέλη</string>
+		</dict>
+	</dict>
+	<key>GROUP_REMOTE_USER_INVITED_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d άτομο προσκλήθηκε στην ομάδα.</string>
+			<key>other</key>
+			<string>%1$d άτομα προσκλήθηκαν στην ομάδα.</string>
 		</dict>
 	</dict>
 	<key>GROUP_REMOTE_USER_INVITED_BY_REMOTE_USER_%d</key>
@@ -637,6 +829,38 @@
 			<string>Ιστορία ομάδας · %1$d θεατές</string>
 		</dict>
 	</dict>
+	<key>GROUP_WAS_MIGRATED_USERS_DROPPED_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Ένα μέλος δεν ήταν δυνατό να προστεθεί στη Νέα Ομάδα και αφαιρέθηκε.</string>
+			<key>other</key>
+			<string>%1$d μέλη δεν ήταν δυνατό να προστεθούν στη Νέα Ομάδα και αφαιρέθηκαν.</string>
+		</dict>
+	</dict>
+	<key>GROUP_WAS_MIGRATED_USERS_INVITED_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Ένα μέλος δεν μπόρεσε να προστεθεί στη Νέα Ομάδα και προσκλήθηκε για συμμετοχή.</string>
+			<key>other</key>
+			<string>%1$d μέλη δεν μπόρεσαν να προστεθούν στη Νέα Ομάδα και προσκλήθηκαν για συμμετοχή.</string>
+		</dict>
+	</dict>
 	<key>IMAGE_PICKER_CAN_SELECT_NO_MORE_TOAST_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -651,6 +875,22 @@
 			<string>Δεν μπορείς να κοινοποιήσεις πάνω από 1 στοιχεία.</string>
 			<key>other</key>
 			<string>Δεν μπορείς να κοινοποιήσεις πάνω από %1$d στοιχεία.</string>
+		</dict>
+	</dict>
+	<key>INACTIVE_LINKED_DEVICE_REMINDER_MEGAPHONE_BODY_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Για να διατηρήσεις τη &quot;%2$@&quot; συνδεδεμένη, άνοιξε το Signal σε αυτή τη συσκευή εντός %1$d ημέρας.</string>
+			<key>other</key>
+			<string>Για να διατηρήσεις τη &quot;%2$@&quot; συνδεδεμένη, άνοιξε το Signal σε αυτή τη συσκευή εντός %1$d ημερών.</string>
 		</dict>
 	</dict>
 	<key>MANY_GROUPS_IN_COMMON_%d</key>
@@ -781,6 +1021,22 @@
 			<string>%1$d επιλεγμένα</string>
 		</dict>
 	</dict>
+	<key>MESSAGE_REACTIONS_ACCESSIBILITY_LABEL_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d αντίδραση με %2$@.</string>
+			<key>other</key>
+			<string>%1$d αντιδράσεις με %2$@.</string>
+		</dict>
+	</dict>
 	<key>MY_STORIES_SETTINGS_VISIBILITY_ALL_SIGNAL_CONNECTIONS_EXCEPT_SUBTITLE_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -909,6 +1165,22 @@
 			<string>%1$d θεατές</string>
 		</dict>
 	</dict>
+	<key>OVERFLOW_REACTIONS_ACCESSIBILITY_LABEL_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d επιπλέον αντίδραση.</string>
+			<key>other</key>
+			<string>%1$d επιπλέον αντιδράσεις.</string>
+		</dict>
+	</dict>
 	<key>PENDING_GROUP_MEMBERS_MEMBER_INVITED_USERS_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -1003,6 +1275,22 @@
 			<string>Προσαρμοσμένη ιστορία · %1$d θεατής</string>
 			<key>other</key>
 			<string>Προσαρμοσμένη ιστορία · %1$d θεατές</string>
+		</dict>
+	</dict>
+	<key>RAISED_HANDS_TOAST_MULTIPLE_HANDS_MESSAGE</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>ld</string>
+			<key>one</key>
+			<string>Οι χρήστες %2$@ +%1$ld σήκωσαν το χέρι τους</string>
+			<key>other</key>
+			<string>Οι χρήστες %2$@ + %1$ld σήκωσαν το χέρι τους</string>
 		</dict>
 	</dict>
 	<key>REREGISTER_INVALID_PIN_ATTEMPT_COUNT_%d</key>
@@ -1131,6 +1419,22 @@
 			<string>&lt;bold&gt;%1$d&lt;/bold&gt; προβολή</string>
 			<key>other</key>
 			<string>&lt;bold&gt;%1$d&lt;/bold&gt; προβολές</string>
+		</dict>
+	</dict>
+	<key>USERNAME_SELECTION_TOO_SHORT_ERROR_MESSAGE_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Τα ονόματα χρήστη πρέπει να ξεκινούν με τουλάχιστον %1$d χαρακτήρα</string>
+			<key>other</key>
+			<string>Τα ονόματα χρήστη πρέπει να ξεκινούν με τουλάχιστον %1$d χαρακτήρες</string>
 		</dict>
 	</dict>
 </dict>

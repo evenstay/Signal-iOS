@@ -3,16 +3,16 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import LibSignalClient
-import SignalMessaging
-import SignalServiceKit
+public import LibSignalClient
+public import SignalServiceKit
 
 public struct UsernameQuerier {
-    private let contactsManager: ContactsManagerProtocol
+    private let contactsManager: any ContactManager
     private let databaseStorage: SDSDatabaseStorage
     private let localUsernameManager: LocalUsernameManager
     private let networkManager: NetworkManager
-    private let profileManager: ProfileManagerProtocol
+    private let profileManager: ProfileManager
+    private let recipientManager: any SignalRecipientManager
     private let recipientFetcher: RecipientFetcher
     private let schedulers: Schedulers
     private let storageServiceManager: StorageServiceManager
@@ -31,6 +31,7 @@ public struct UsernameQuerier {
             localUsernameManager: DependenciesBridge.shared.localUsernameManager,
             networkManager: deps.networkManager,
             profileManager: deps.profileManager,
+            recipientManager: DependenciesBridge.shared.recipientManager,
             recipientFetcher: DependenciesBridge.shared.recipientFetcher,
             schedulers: DependenciesBridge.shared.schedulers,
             storageServiceManager: deps.storageServiceManager,
@@ -42,11 +43,12 @@ public struct UsernameQuerier {
     }
 
     public init(
-        contactsManager: ContactsManagerProtocol,
+        contactsManager: any ContactManager,
         databaseStorage: SDSDatabaseStorage,
         localUsernameManager: LocalUsernameManager,
         networkManager: NetworkManager,
-        profileManager: ProfileManagerProtocol,
+        profileManager: ProfileManager,
+        recipientManager: any SignalRecipientManager,
         recipientFetcher: RecipientFetcher,
         schedulers: Schedulers,
         storageServiceManager: StorageServiceManager,
@@ -60,6 +62,7 @@ public struct UsernameQuerier {
         self.localUsernameManager = localUsernameManager
         self.networkManager = networkManager
         self.profileManager = profileManager
+        self.recipientManager = recipientManager
         self.recipientFetcher = recipientFetcher
         self.schedulers = schedulers
         self.storageServiceManager = storageServiceManager
@@ -73,14 +76,21 @@ public struct UsernameQuerier {
         link: Usernames.UsernameLink,
         fromViewController: UIViewController,
         tx: SDSAnyReadTransaction,
-        onSuccess: @escaping (Aci) -> Void
+        failureSheetDismissalDelegate: (any SheetDismissalDelegate)? = nil,
+        onSuccess: @escaping (_ username: String, _ aci: Aci) -> Void
     ) {
+        let usernameState = localUsernameManager.usernameState(tx: tx.asV2Read)
         if
             let localAci = tsAccountManager.localIdentifiers(tx: tx.asV2Read)?.aci,
-            let localLink = localUsernameManager.usernameState(tx: tx.asV2Read).usernameLink,
+            let localLink = usernameState.usernameLink,
+            let localUsername = usernameState.username,
             localLink == link
         {
-            queryMatchedLocalUser(onSuccess: onSuccess, localAci: localAci, tx: tx)
+            queryMatchedLocalUser(
+                onSuccess: { onSuccess(localUsername, $0) },
+                localAci: localAci,
+                tx: tx
+            )
             return
         }
 
@@ -93,7 +103,7 @@ public struct UsernameQuerier {
             }.done(on: schedulers.main) { username in
                 guard let username else {
                     modal.dismissIfNotCanceled {
-                        showUsernameLinkOutdatedError()
+                        showUsernameLinkOutdatedError(dismissalDelegate: failureSheetDismissalDelegate)
                     }
 
                     return
@@ -103,7 +113,7 @@ public struct UsernameQuerier {
                     forUsername: username
                 ) else {
                     modal.dismissIfNotCanceled {
-                        showInvalidUsernameError(username: username)
+                        showInvalidUsernameError(username: username, dismissalDelegate: nil)
                     }
                     return
                 }
@@ -111,10 +121,11 @@ public struct UsernameQuerier {
                 queryServiceForUsernameBehindSpinner(
                     presentedModalActivityIndicator: modal,
                     hashedUsername: hashedUsername,
-                    onSuccess: onSuccess
+                    failureSheetDismissalDelegate: failureSheetDismissalDelegate,
+                    onSuccess: { onSuccess(username, $0) }
                 )
             }.catch(on: schedulers.main) { _ in
-                showGenericError(presentedModal: modal)
+                showGenericError(presentedModal: modal, dismissalDelegate: nil)
             }
         }
     }
@@ -129,6 +140,7 @@ public struct UsernameQuerier {
         username: String,
         fromViewController: UIViewController,
         tx: SDSAnyReadTransaction,
+        failureSheetDismissalDelegate: (any SheetDismissalDelegate)? = nil,
         onSuccess: @escaping (Aci) -> Void
     ) {
         if
@@ -143,7 +155,10 @@ public struct UsernameQuerier {
         guard let hashedUsername = try? Usernames.HashedUsername(
             forUsername: username
         ) else {
-            showInvalidUsernameError(username: username)
+            showInvalidUsernameError(
+                username: username,
+                dismissalDelegate: failureSheetDismissalDelegate
+            )
             return
         }
 
@@ -154,6 +169,7 @@ public struct UsernameQuerier {
             queryServiceForUsernameBehindSpinner(
                 presentedModalActivityIndicator: modal,
                 hashedUsername: hashedUsername,
+                failureSheetDismissalDelegate: failureSheetDismissalDelegate,
                 onSuccess: onSuccess
             )
         }
@@ -186,6 +202,7 @@ public struct UsernameQuerier {
     private func queryServiceForUsernameBehindSpinner(
         presentedModalActivityIndicator modal: ModalActivityIndicatorViewController,
         hashedUsername: Usernames.HashedUsername,
+        failureSheetDismissalDelegate: (any SheetDismissalDelegate)?,
         onSuccess: @escaping (Aci) -> Void
     ) {
         firstly(on: schedulers.sync) { () -> Promise<Aci?> in
@@ -208,12 +225,16 @@ public struct UsernameQuerier {
                     }
                 } else {
                     self.showUsernameNotFoundError(
-                        username: hashedUsername.usernameString
+                        username: hashedUsername.usernameString,
+                        dismissalDelegate: failureSheetDismissalDelegate
                     )
                 }
             }
         }.catch(on: schedulers.main) { _ in
-            showGenericError(presentedModal: modal)
+            showGenericError(
+                presentedModal: modal,
+                dismissalDelegate: failureSheetDismissalDelegate
+            )
         }
     }
 
@@ -223,7 +244,7 @@ public struct UsernameQuerier {
         tx: SDSAnyWriteTransaction
     ) {
         let recipient = recipientFetcher.fetchOrCreate(serviceId: aci, tx: tx.asV2Write)
-        recipient.markAsRegisteredAndSave(tx: tx)
+        recipientManager.markAsRegisteredAndSave(recipient, shouldUpdateStorageService: true, tx: tx.asV2Write)
 
         let isUsernameBestIdentifier = Usernames.BetterIdentifierChecker.assembleByQuerying(
             forRecipient: recipient,
@@ -242,7 +263,7 @@ public struct UsernameQuerier {
                 transaction: tx.asV2Write
             )
 
-            storageServiceManager.recordPendingUpdates(updatedAccountIds: [recipient.accountId])
+            storageServiceManager.recordPendingUpdates(updatedRecipientUniqueIds: [recipient.uniqueId])
         } else {
             // If we have a better identifier for this address, we can
             // throw away any stored username info for it.
@@ -257,7 +278,10 @@ public struct UsernameQuerier {
 
     // MARK: - Errors
 
-    private func showInvalidUsernameError(username: String) {
+    private func showInvalidUsernameError(
+        username: String,
+        dismissalDelegate: (any SheetDismissalDelegate)?
+    ) {
         OWSActionSheets.showActionSheet(
             title: OWSLocalizedString(
                 "USERNAME_LOOKUP_INVALID_USERNAME_TITLE",
@@ -269,11 +293,15 @@ public struct UsernameQuerier {
                     comment: "A message indicating that a user-entered username value is not a valid username. Embeds {{ a username }}."
                 ),
                 username
-            )
+            ),
+            dismissalDelegate: dismissalDelegate
         )
     }
 
-    private func showUsernameNotFoundError(username: String) {
+    private func showUsernameNotFoundError(
+        username: String,
+        dismissalDelegate: (any SheetDismissalDelegate)?
+    ) {
         OWSActionSheets.showActionSheet(
             title: OWSLocalizedString(
                 "USERNAME_LOOKUP_NOT_FOUND_TITLE",
@@ -285,30 +313,38 @@ public struct UsernameQuerier {
                     comment: "A message indicating that the given username is not associated with a registered Signal account. Embeds {{ a username }}."
                 ),
                 username
-            )
+            ),
+            dismissalDelegate: dismissalDelegate
         )
     }
 
-    private func showUsernameLinkOutdatedError() {
+    private func showUsernameLinkOutdatedError(
+        dismissalDelegate: (any SheetDismissalDelegate)?
+    ) {
         OWSActionSheets.showActionSheet(
             title: CommonStrings.errorAlertTitle,
             message: OWSLocalizedString(
                 "USERNAME_LOOKUP_LINK_NO_LONGER_VALID_MESSAGE",
                 comment: "A message indicating that a username link the user attempted to query is no longer valid."
-            )
+            ),
+            dismissalDelegate: dismissalDelegate
         )
     }
 
     private func showGenericError(
-        presentedModal modal: ModalActivityIndicatorViewController
+        presentedModal modal: ModalActivityIndicatorViewController,
+        dismissalDelegate: (any SheetDismissalDelegate)?
     ) {
         Logger.error("Error while querying for username!")
 
         modal.dismissIfNotCanceled {
-            OWSActionSheets.showErrorAlert(message: OWSLocalizedString(
-                "USERNAME_LOOKUP_ERROR_MESSAGE",
-                comment: "A message indicating that username lookup failed."
-            ))
+            OWSActionSheets.showErrorAlert(
+                message: OWSLocalizedString(
+                    "USERNAME_LOOKUP_ERROR_MESSAGE",
+                    comment: "A message indicating that username lookup failed."
+                ),
+                dismissalDelegate: dismissalDelegate
+            )
         }
     }
 }

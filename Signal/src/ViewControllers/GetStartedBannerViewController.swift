@@ -85,7 +85,7 @@ class GetStartedBannerViewController: UIViewController, UICollectionViewDelegate
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(localProfileDidChange),
-            name: .localProfileDidChange,
+            name: UserProfileNotifications.localProfileDidChange,
             object: nil)
     }
 
@@ -163,7 +163,7 @@ class GetStartedBannerViewController: UIViewController, UICollectionViewDelegate
                 return []
             } else {
                 // Once you have an avatar, don't show the avatar builder card.
-                if Self.profileManager.localProfileAvatarData() != nil {
+                if Self.profileManager.localProfileAvatarData != nil {
                     Self.databaseStorage.asyncWrite { writeTx in
                         Self.completeCard(.avatarBuilder, writeTx: writeTx)
                     }
@@ -352,7 +352,6 @@ extension GetStartedBannerViewController: DatabaseChangeDelegate {
 
     public func databaseChangesDidUpdate(databaseChanges: DatabaseChanges) {
         AssertIsOnMainThread()
-        owsAssertDebug(AppReadiness.isAppReady)
         if databaseChanges.didUpdateThreads {
             updateContent()
         }
@@ -360,27 +359,23 @@ extension GetStartedBannerViewController: DatabaseChangeDelegate {
 
     public func databaseChangesDidUpdateExternally() {
         AssertIsOnMainThread()
-        owsAssertDebug(AppReadiness.isAppReady)
         updateContent()
     }
 
     public func databaseChangesDidReset() {
         AssertIsOnMainThread()
-        owsAssertDebug(AppReadiness.isAppReady)
         updateContent()
     }
 
     @objc
     private func activeCardsDidChange() {
         AssertIsOnMainThread()
-        owsAssertDebug(AppReadiness.isAppReady)
         updateContent()
     }
 
     @objc
     private func localProfileDidChange() {
         AssertIsOnMainThread()
-        owsAssertDebug(AppReadiness.isAppReady)
         updateContent()
     }
 }

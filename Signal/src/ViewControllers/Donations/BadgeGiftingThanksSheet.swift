@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
+import SignalServiceKit
 import SignalUI
 
 class BadgeGiftingThanksSheet: OWSTableViewController2 {
@@ -19,7 +19,7 @@ class BadgeGiftingThanksSheet: OWSTableViewController2 {
 
         self.defaultSpacingBetweenSections = 16
 
-        if #available(iOS 15.0, *), let presentationController = presentationController as? UISheetPresentationController {
+        if let presentationController = sheetPresentationController {
             presentationController.detents = [.medium()]
             presentationController.prefersGrabberVisible = true
             presentationController.preferredCornerRadius = 16

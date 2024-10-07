@@ -38,6 +38,7 @@ class ChangePhoneNumberPniManagerTest: XCTestCase {
         db = .init()
 
         changeNumberPniManager = ChangePhoneNumberPniManagerImpl(
+            db: db,
             identityManager: identityManagerMock,
             pniDistributionParameterBuilder: pniDistributionParameterBuilderMock,
             pniSignedPreKeyStore: signedPreKeyStoreMock,
@@ -147,14 +148,14 @@ class ChangePhoneNumberPniManagerTest: XCTestCase {
         linkedDeviceIds: [UInt32]
     ) -> Guarantee<ChangePhoneNumberPni.GeneratePniIdentityResult> {
         let aci = Aci.randomForTesting()
-        let accountId: String = UUID().uuidString
+        let recipientUniqueId: String = UUID().uuidString
 
         let localDeviceId: UInt32 = 1
 
         return changeNumberPniManager.generatePniIdentity(
             forNewE164: e164,
             localAci: aci,
-            localAccountId: accountId,
+            localRecipientUniqueId: recipientUniqueId,
             localDeviceId: localDeviceId,
             localUserAllDeviceIds: [localDeviceId] + linkedDeviceIds
         )
@@ -231,7 +232,7 @@ private class PniDistributionParameterBuilderMock: PniDistributionParamaterBuild
 
     func buildPniDistributionParameters(
         localAci: Aci,
-        localAccountId: String,
+        localRecipientUniqueId: String,
         localDeviceId: UInt32,
         localUserAllDeviceIds: [UInt32],
         localPniIdentityKeyPair: ECKeyPair,

@@ -3,8 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalServiceKit
-import SignalMessaging
+public import SignalServiceKit
 
 public enum MessageReceiptStatus: Int {
     case uploading
@@ -23,42 +22,27 @@ public class MessageRecipientStatusUtils {
     private init() {}
 
     // This method is per-recipient.
-    public class func recipientStatus(
+    public class func recipientStatusAndStatusMessage(
         outgoingMessage: TSOutgoingMessage,
-        recipientState: TSOutgoingMessageRecipientState
-    ) -> MessageReceiptStatus {
-        let (messageReceiptStatus, _, _) = recipientStatusAndStatusMessage(outgoingMessage: outgoingMessage,
-                                                                             recipientState: recipientState)
-        return messageReceiptStatus
-    }
-
-    // This method is per-recipient.
-    public class func shortStatusMessage(
-        outgoingMessage: TSOutgoingMessage,
-        recipientState: TSOutgoingMessageRecipientState
-    ) -> String {
-        let (_, shortStatusMessage, _) = recipientStatusAndStatusMessage(outgoingMessage: outgoingMessage,
-                                                                         recipientState: recipientState)
-        return shortStatusMessage
-    }
-
-    // This method is per-recipient.
-    public class func longStatusMessage(
-        outgoingMessage: TSOutgoingMessage,
-        recipientState: TSOutgoingMessageRecipientState
-    ) -> String {
-        let (_, _, longStatusMessage) = recipientStatusAndStatusMessage(outgoingMessage: outgoingMessage,
-                                                                        recipientState: recipientState)
-        return longStatusMessage
+        recipientState: TSOutgoingMessageRecipientState,
+        transaction: SDSAnyReadTransaction
+    ) -> (status: MessageReceiptStatus, shortStatusMessage: String, longStatusMessage: String) {
+        let hasBodyAttachments = outgoingMessage.hasBodyAttachments(transaction: transaction)
+        return recipientStatusAndStatusMessage(
+            outgoingMessage: outgoingMessage,
+            recipientState: recipientState,
+            hasBodyAttachments: hasBodyAttachments
+        )
     }
 
     // This method is per-recipient.
     public class func recipientStatusAndStatusMessage(
         outgoingMessage: TSOutgoingMessage,
-        recipientState: TSOutgoingMessageRecipientState
+        recipientState: TSOutgoingMessageRecipientState,
+        hasBodyAttachments: Bool
     ) -> (status: MessageReceiptStatus, shortStatusMessage: String, longStatusMessage: String) {
 
-        switch recipientState.state {
+        switch recipientState.status {
         case .failed:
             let shortStatusMessage = OWSLocalizedString("MESSAGE_STATUS_FAILED_SHORT", comment: "status message for failed messages")
             let longStatusMessage = OWSLocalizedString("MESSAGE_STATUS_FAILED", comment: "status message for failed messages")
@@ -68,7 +52,7 @@ public class MessageRecipientStatusUtils {
             let longStatusMessage = OWSLocalizedString("MESSAGE_STATUS_PENDING", comment: "Label indicating that a message send was paused.")
             return (status: .pending, shortStatusMessage: shortStatusMessage, longStatusMessage: longStatusMessage)
         case .sending:
-            if outgoingMessage.hasAttachments() {
+            if hasBodyAttachments {
                 assert(outgoingMessage.messageState == .sending)
 
                 let statusMessage = OWSLocalizedString("MESSAGE_STATUS_UPLOADING",
@@ -82,31 +66,27 @@ public class MessageRecipientStatusUtils {
                 return (status: .sending, shortStatusMessage: statusMessage, longStatusMessage: statusMessage)
             }
         case .sent:
-            if let viewedTimestamp = recipientState.viewedTimestamp {
-                let timestampString = DateUtil.formatPastTimestampRelativeToNow(viewedTimestamp.uint64Value)
-                let shortStatusMessage = timestampString
-                let longStatusMessage = OWSLocalizedString("MESSAGE_STATUS_VIEWED", comment: "status message for viewed messages") + " " + timestampString
-                return (status: .viewed, shortStatusMessage: shortStatusMessage, longStatusMessage: longStatusMessage)
-            }
-            if let readTimestamp = recipientState.readTimestamp {
-                let timestampString = DateUtil.formatPastTimestampRelativeToNow(readTimestamp.uint64Value)
-                let shortStatusMessage = timestampString
-                let longStatusMessage = OWSLocalizedString("MESSAGE_STATUS_READ", comment: "status message for read messages") + " " + timestampString
-                return (status: .read, shortStatusMessage: shortStatusMessage, longStatusMessage: longStatusMessage)
-            }
-            if let deliveryTimestamp = recipientState.deliveryTimestamp {
-                let timestampString = DateUtil.formatPastTimestampRelativeToNow(deliveryTimestamp.uint64Value)
-                let shortStatusMessage = timestampString
-                let longStatusMessage = OWSLocalizedString("MESSAGE_STATUS_DELIVERED",
-                                                          comment: "message status for message delivered to their recipient.") + " " + timestampString
-                return (status: .delivered, shortStatusMessage: shortStatusMessage, longStatusMessage: longStatusMessage)
-            }
-
             let timestampString = DateUtil.formatPastTimestampRelativeToNow(outgoingMessage.timestamp)
             let shortStatusMessage = timestampString
             let longStatusMessage = OWSLocalizedString("MESSAGE_STATUS_SENT",
                                                       comment: "status message for sent messages") + " " + timestampString
             return (status: .sent, shortStatusMessage: shortStatusMessage, longStatusMessage: longStatusMessage)
+        case .delivered:
+            let timestampString = DateUtil.formatPastTimestampRelativeToNow(recipientState.statusTimestamp)
+            let shortStatusMessage = timestampString
+            let longStatusMessage = OWSLocalizedString("MESSAGE_STATUS_DELIVERED",
+                                                       comment: "message status for message delivered to their recipient.") + " " + timestampString
+            return (status: .delivered, shortStatusMessage: shortStatusMessage, longStatusMessage: longStatusMessage)
+        case .read:
+            let timestampString = DateUtil.formatPastTimestampRelativeToNow(recipientState.statusTimestamp)
+            let shortStatusMessage = timestampString
+            let longStatusMessage = OWSLocalizedString("MESSAGE_STATUS_READ", comment: "status message for read messages") + " " + timestampString
+            return (status: .read, shortStatusMessage: shortStatusMessage, longStatusMessage: longStatusMessage)
+        case .viewed:
+            let timestampString = DateUtil.formatPastTimestampRelativeToNow(recipientState.statusTimestamp)
+            let shortStatusMessage = timestampString
+            let longStatusMessage = OWSLocalizedString("MESSAGE_STATUS_VIEWED", comment: "status message for viewed messages") + " " + timestampString
+            return (status: .viewed, shortStatusMessage: shortStatusMessage, longStatusMessage: longStatusMessage)
         case .skipped:
             let statusMessage = OWSLocalizedString("MESSAGE_STATUS_RECIPIENT_SKIPPED",
                                                   comment: "message status if message delivery to a recipient is skipped. We skip delivering group messages to users who have left the group or unregistered their Signal account.")
@@ -115,8 +95,18 @@ public class MessageRecipientStatusUtils {
     }
 
     // This method is per-message.
-    internal class func receiptStatusAndMessage(outgoingMessage: TSOutgoingMessage) -> (status: MessageReceiptStatus, message: String) {
+    public class func receiptStatusAndMessage(
+        outgoingMessage: TSOutgoingMessage,
+        transaction: SDSAnyReadTransaction
+    ) -> (status: MessageReceiptStatus, message: String) {
+        let hasBodyAttachments = outgoingMessage.hasBodyAttachments(transaction: transaction)
+        return receiptStatusAndMessage(outgoingMessage: outgoingMessage, hasBodyAttachments: hasBodyAttachments)
+    }
 
+    public class func receiptStatusAndMessage(
+        outgoingMessage: TSOutgoingMessage,
+        hasBodyAttachments: Bool
+    ) -> (status: MessageReceiptStatus, message: String) {
         switch outgoingMessage.messageState {
         case .failed:
             // Use the "long" version of this message here.
@@ -124,7 +114,7 @@ public class MessageRecipientStatusUtils {
         case .pending:
             return (.pending, OWSLocalizedString("MESSAGE_STATUS_PENDING", comment: "Label indicating that a message send was paused."))
         case .sending:
-            if outgoingMessage.hasAttachments() {
+            if hasBodyAttachments {
                 return (.uploading, OWSLocalizedString("MESSAGE_STATUS_UPLOADING",
                                          comment: "status message while attachment is uploading"))
             } else {
@@ -152,14 +142,38 @@ public class MessageRecipientStatusUtils {
     }
 
     // This method is per-message.
-    public class func receiptMessage(outgoingMessage: TSOutgoingMessage) -> String {
-        let (_, message ) = receiptStatusAndMessage(outgoingMessage: outgoingMessage)
+    public class func receiptMessage(
+        outgoingMessage: TSOutgoingMessage,
+        transaction: SDSAnyReadTransaction
+    ) -> String {
+        let (_, message ) = receiptStatusAndMessage(outgoingMessage: outgoingMessage, transaction: transaction)
         return message
     }
 
     // This method is per-message.
-    public class func recipientStatus(outgoingMessage: TSOutgoingMessage) -> MessageReceiptStatus {
-        let (status, _ ) = receiptStatusAndMessage(outgoingMessage: outgoingMessage)
+    public class func receiptMessage(
+        outgoingMessage: TSOutgoingMessage,
+        hasBodyAttachments: Bool
+    ) -> String {
+        let (_, message ) = receiptStatusAndMessage(outgoingMessage: outgoingMessage, hasBodyAttachments: hasBodyAttachments)
+        return message
+    }
+
+    // This method is per-message.
+    public class func recipientStatus(
+        outgoingMessage: TSOutgoingMessage,
+        transaction: SDSAnyReadTransaction
+    ) -> MessageReceiptStatus {
+        let (status, _ ) = receiptStatusAndMessage(outgoingMessage: outgoingMessage, transaction: transaction)
+        return status
+    }
+
+    // This method is per-message.
+    public class func recipientStatus(
+        outgoingMessage: TSOutgoingMessage,
+        hasBodyAttachments: Bool
+    ) -> MessageReceiptStatus {
+        let (status, _ ) = receiptStatusAndMessage(outgoingMessage: outgoingMessage, hasBodyAttachments: hasBodyAttachments)
         return status
     }
 

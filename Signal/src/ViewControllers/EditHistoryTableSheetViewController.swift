@@ -4,7 +4,6 @@
 //
 
 import LibSignalClient
-import SignalMessaging
 import SignalServiceKit
 import SignalUI
 
@@ -42,10 +41,6 @@ class EditHistoryTableSheetViewController: OWSTableSheetViewController {
         database.appendDatabaseChangeDelegate(self)
     }
 
-    required init() {
-        fatalError("init() has not been implemented")
-    }
-
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         do {
@@ -76,10 +71,10 @@ class EditHistoryTableSheetViewController: OWSTableSheetViewController {
             }
             message = newMessage
 
-            let edits = try EditMessageFinder.findEditHistory(
+            let edits: [TSMessage] = try DependenciesBridge.shared.editMessageStore.findEditHistory(
                 for: message,
-                transaction: tx
-            ).compactMap { $1 }
+                tx: tx.asV2Read
+            ).compactMap { $0.message }
 
             guard let thread = TSThread.anyFetch(
                 uniqueId: message.uniqueThreadId,
@@ -197,10 +192,13 @@ class EditHistoryTableSheetViewController: OWSTableSheetViewController {
             viewWidth: viewWidth,
             hasWallpaper: false,
             isWallpaperPhoto: false,
-            chatColor: ChatColors.resolvedChatColor(for: thread, tx: tx)
+            chatColor: DependenciesBridge.shared.chatColorSettingStore.resolvedChatColor(
+                for: thread,
+                tx: tx.asV2Read
+            )
         )
 
-        let itemDate = NSDate.ows_date(withMillisecondsSince1970: interaction.timestamp)
+        let itemDate = Date(millisecondsSince1970: interaction.timestamp)
         let daysPrior = DateUtil.daysFrom(firstDate: itemDate, toSecondDate: Date())
         if forceDateHeader || daysPrior > currentDaysBefore {
             currentDaysBefore = daysPrior
@@ -272,6 +270,8 @@ extension EditHistoryTableSheetViewController: CVComponentDelegate {
 
     func didTapSystemMessageItem(_ item: CVTextLabel.Item) {}
 
+    func didDoubleTapTextViewItem(_ itemViewModel: CVItemViewModelImpl) {}
+
     func didLongPressTextViewItem(
         _ cell: CVCell,
         itemViewModel: CVItemViewModelImpl,
@@ -302,10 +302,7 @@ extension EditHistoryTableSheetViewController: CVComponentDelegate {
         shouldAllowReply: Bool
     ) {}
 
-    func didTapPayment(
-        _ paymentModel: TSPaymentModel,
-        displayName: String
-    ) {}
+    func didTapPayment(_ payment: PaymentsHistoryItem) {}
 
     func didChangeLongPress(_ itemViewModel: CVItemViewModelImpl) {}
 
@@ -337,8 +334,9 @@ extension EditHistoryTableSheetViewController: CVComponentDelegate {
 
     func didTapBodyMedia(
         itemViewModel: CVItemViewModelImpl,
-        attachmentStream: TSAttachmentStream,
-        imageView: UIView) {}
+        attachmentStream: ReferencedTSResourceStream,
+        imageView: UIView
+    ) {}
 
     func didTapGenericAttachment(
         _ attachment: CVComponentGenericAttachment
@@ -350,7 +348,7 @@ extension EditHistoryTableSheetViewController: CVComponentDelegate {
 
     func didTapContactShare(_ contactShare: ContactShareViewModel) {}
 
-    func didTapSendMessage(toContactShare contactShare: ContactShareViewModel) {}
+    func didTapSendMessage(to phoneNumbers: [String]) {}
 
     func didTapSendInvite(toContactShare contactShare: ContactShareViewModel) {}
 
@@ -416,7 +414,7 @@ extension EditHistoryTableSheetViewController: CVComponentDelegate {
 
     func didTapGroupInviteLinkPromotion(groupModel: TSGroupModel) {}
 
-    func didTapViewGroupDescription(groupModel: TSGroupModel?) {}
+    func didTapViewGroupDescription(newGroupDescription: String) {}
 
     func didTapShowConversationSettings() {}
 
@@ -439,6 +437,8 @@ extension EditHistoryTableSheetViewController: CVComponentDelegate {
 
     func didTapViewOnceExpired(_ interaction: TSInteraction) {}
 
+    func didTapContactName(thread: TSContactThread) {}
+
     func didTapUnknownThreadWarningGroup() {}
     func didTapUnknownThreadWarningContact() {}
     func didTapDeliveryIssueWarning(_ message: TSErrorMessage) {}
@@ -447,4 +447,8 @@ extension EditHistoryTableSheetViewController: CVComponentDelegate {
     func didTapSendPayment() {}
 
     func didTapThreadMergeLearnMore(phoneNumber: String) {}
+
+    func didTapReportSpamLearnMore() {}
+
+    func didTapMessageRequestAcceptedOptions() {}
 }

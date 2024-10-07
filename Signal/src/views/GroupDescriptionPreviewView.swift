@@ -63,10 +63,6 @@ class GroupDescriptionPreviewView: ManualLayoutView {
         textView.autoPinEdgesToSuperviewEdges()
     }
 
-    required init(name: String) {
-        fatalError("init(name:) has not been implemented")
-    }
-
     override func sizeThatFits(_ size: CGSize) -> CGSize {
         textView.sizeThatFits(size)
     }
@@ -113,7 +109,7 @@ class GroupDescriptionPreviewView: ManualLayoutView {
 
         // We might fit without further truncation, for example if the description
         // contains new line characters, so set the possible new text immediately.
-        textThatFits = textThatFits.substring(to: visibleCharacterRangeUpperBound)
+        textThatFits = (textThatFits as NSString).substring(to: visibleCharacterRangeUpperBound)
 
         setTextThatFits(textThatFits)
         visibleCharacterRangeUpperBound
@@ -127,7 +123,7 @@ class GroupDescriptionPreviewView: ManualLayoutView {
             let truncateToIndex = max(0, visibleCharacterRangeUpperBound)
             guard truncateToIndex > 0 else { break }
 
-            textThatFits = textThatFits.substring(to: truncateToIndex)
+            textThatFits = (textThatFits as NSString).substring(to: truncateToIndex)
 
             setTextThatFits(textThatFits)
             visibleCharacterRangeUpperBound

@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalCoreKit
-import SignalUI
+import SignalServiceKit
+public import SignalUI
 
 public class DonationReadMoreSheetViewController: InteractiveSheetViewController {
     let contentScrollView = UIScrollView()
@@ -13,6 +13,8 @@ public class DonationReadMoreSheetViewController: InteractiveSheetViewController
     public override var sheetBackgroundColor: UIColor { Theme.tableView2PresentedBackgroundColor }
 
     override public func viewDidLoad() {
+        self.animationsShouldBeInterruptible = true
+
         super.viewDidLoad()
 
         minimizedHeight = 600

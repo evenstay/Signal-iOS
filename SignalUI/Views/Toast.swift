@@ -3,26 +3,24 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import PureLayout
-import SignalCoreKit
+public import PureLayout
+import SignalServiceKit
 
 public class ToastController: NSObject, ToastViewDelegate {
 
     static var currentToastController: ToastController?
 
-    private let toastView: ToastView
+    private weak var toastView: ToastView?
     private var isDismissing: Bool
+    private let toastText: String
 
     // MARK: Initializers
 
-    required public init(text: String) {
-        toastView = ToastView()
-        toastView.text = text
+    public init(text: String) {
+        self.toastText = text
         isDismissing = false
 
         super.init()
-
-        toastView.delegate = self
 
         NotificationCenter.default.addObserver(self, selector: #selector(keyboardDidHide), name: UIResponder.keyboardDidHideNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(keyboardDidAppear), name: UIResponder.keyboardDidShowNotification, object: nil)
@@ -34,6 +32,11 @@ public class ToastController: NSObject, ToastViewDelegate {
                                  of view: UIView,
                                  inset: CGFloat,
                                  dismissAfter: DispatchTimeInterval = .seconds(4)) {
+        let toastView = ToastView()
+        toastView.text = self.toastText
+        toastView.delegate = self
+        self.toastView = toastView
+
         owsAssertDebug(edge == .bottom || edge == .top)
         let offset = (edge == .top) ? inset : -inset
 
@@ -52,7 +55,6 @@ public class ToastController: NSObject, ToastViewDelegate {
         self.viewToPinTo = view
         self.offset = offset
         if
-            #available(iOS 15, *),
             edge == .bottom,
             // If keyboard is closed, its layout guide height is equivalent to the bottom safe area inset.
             view.keyboardLayoutGuide.layoutFrame.height > view.safeAreaInsets.totalHeight
@@ -72,7 +74,7 @@ public class ToastController: NSObject, ToastViewDelegate {
         type(of: self).currentToastController = self
 
         UIView.animate(withDuration: 0.2) {
-            self.toastView.alpha = 1
+            toastView.alpha = 1
         }
 
         DispatchQueue.main.asyncAfter(deadline: DispatchTime.now() + dismissAfter) {
@@ -89,7 +91,6 @@ public class ToastController: NSObject, ToastViewDelegate {
     private var viewToPinTo: UIView?
     private var offset: CGFloat?
 
-    @available(iOS 15, *)
     private func keyboardConstraint(toastView: ToastView, viewOwningKeyboard: UIView) -> NSLayoutConstraint {
         return NSLayoutConstraint(
             item: toastView,
@@ -114,10 +115,10 @@ public class ToastController: NSObject, ToastViewDelegate {
 
     private func keyboardPresenceDidChange(isPresent: Bool) {
         if
-            #available(iOS 15, *),
             let constraint = self.toastBottomConstraint,
             let view = self.viewToPinTo,
-            let offset = offset
+            let offset = offset,
+            let toastView = toastView
         {
             NSLayoutConstraint.deactivate([constraint])
             let newConstraint: NSLayoutConstraint
@@ -148,7 +149,7 @@ public class ToastController: NSObject, ToastViewDelegate {
     func dismissToastView() {
         Logger.debug("")
 
-        guard !isDismissing else {
+        guard !isDismissing, let toastView = toastView else {
             return
         }
         isDismissing = true
@@ -159,10 +160,11 @@ public class ToastController: NSObject, ToastViewDelegate {
 
         UIView.animate(withDuration: 0.2,
                        animations: {
-            self.toastView.alpha = 0
+            toastView.alpha = 0
         },
                        completion: { (_) in
-            self.toastView.removeFromSuperview()
+            toastView.removeFromSuperview()
+            self.toastView = nil
         })
     }
 }

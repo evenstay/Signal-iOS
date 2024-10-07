@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import LibSignalClient
+public import LibSignalClient
 
 #if TESTABLE_BUILD
 
@@ -18,15 +18,15 @@ public class ChangePhoneNumberPniManagerMock: ChangePhoneNumberPniManager {
     public func generatePniIdentity(
         forNewE164 newE164: E164,
         localAci: Aci,
-        localAccountId: String,
+        localRecipientUniqueId: String,
         localDeviceId: UInt32,
         localUserAllDeviceIds: [UInt32]
     ) -> Guarantee<ChangePhoneNumberPni.GeneratePniIdentityResult> {
         let keyPair = ECKeyPair.generateKeyPair()
         let registrationId = UInt32.random(in: 1...0x3fff)
 
-        let localPqKey1 = try! self.mockKyberStore.generateEphemeralLastResortKyberPreKey(signedBy: keyPair)
-        let localPqKey2 = try! self.mockKyberStore.generateEphemeralLastResortKyberPreKey(signedBy: keyPair)
+        let localPqKey1 = try! self.mockKyberStore.generateLastResortKyberPreKeyForLinkedDevice(signedBy: keyPair)
+        let localPqKey2 = try! self.mockKyberStore.generateLastResortKyberPreKeyForLinkedDevice(signedBy: keyPair)
 
         return .value(.success(
             parameters: PniDistribution.Parameters.mock(

@@ -4,17 +4,20 @@
 //
 
 import MobileCoin
-import SignalServiceKit
+public import SignalServiceKit
 
 public class PaymentsProcessor: NSObject {
 
-    public required override init() {
+    private let appReadiness: AppReadiness
+
+    public init(appReadiness: AppReadiness) {
+        self.appReadiness = appReadiness
         super.init()
 
-        AppReadiness.runNowOrWhenAppDidBecomeReadySync {
+        appReadiness.runNowOrWhenAppDidBecomeReadySync {
             Self.databaseStorage.appendDatabaseChangeDelegate(self)
         }
-        AppReadiness.runNowOrWhenAppDidBecomeReadyAsync {
+        appReadiness.runNowOrWhenAppDidBecomeReadyAsync {
             self.process()
         }
 
@@ -96,7 +99,7 @@ public class PaymentsProcessor: NSObject {
     // although the operations may fail to do so.
     @objc
     public func process() {
-        DispatchQueue.global().async {
+        DispatchQueue.global().async { [appReadiness] in
             guard !CurrentAppContext().isRunningTests else {
                 return
             }
@@ -104,7 +107,7 @@ public class PaymentsProcessor: NSObject {
                 return
             }
             guard
-                AppReadiness.isAppReady,
+                appReadiness.isAppReady,
                 CurrentAppContext().isMainAppAndActive,
                 DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isRegistered
             else {
@@ -143,7 +146,6 @@ public class PaymentsProcessor: NSObject {
                     continue
                 }
                 self.processingPaymentIds.insert(paymentId)
-                Logger.verbose("Start processing: \(paymentId) \(paymentModel.descriptionForLogs)")
                 let operation = PaymentProcessingOperation(delegate: delegate,
                                                            paymentModel: paymentModel)
                 processingQueue(forPaymentModel: paymentModel).addOperation(operation)
@@ -183,7 +185,7 @@ public class PaymentsProcessor: NSObject {
         private let paymentModel: TSPaymentModel
         private let nextRetryDelayInteral: TimeInterval
         private weak var delegate: PaymentProcessingOperationDelegate?
-        private let hasScheduled = AtomicBool(false)
+        private let hasScheduled = AtomicBool(false, lock: .sharedGlobal)
         private var timer: Timer?
 
         var paymentId: String { paymentModel.uniqueId }
@@ -253,9 +255,9 @@ extension PaymentsProcessor: DatabaseChangeDelegate {
 
     public func databaseChangesDidUpdate(databaseChanges: DatabaseChanges) {
         AssertIsOnMainThread()
-        owsAssertDebug(AppReadiness.isAppReady)
+        owsAssertDebug(appReadiness.isAppReady)
 
-        guard databaseChanges.didUpdateModel(collection: TSPaymentModel.collection()) else {
+        guard databaseChanges.didUpdate(tableName: TSPaymentModel.table.tableName) else {
             return
         }
 
@@ -264,14 +266,14 @@ extension PaymentsProcessor: DatabaseChangeDelegate {
 
     public func databaseChangesDidUpdateExternally() {
         AssertIsOnMainThread()
-        owsAssertDebug(AppReadiness.isAppReady)
+        owsAssertDebug(appReadiness.isAppReady)
 
         process()
     }
 
     public func databaseChangesDidReset() {
         AssertIsOnMainThread()
-        owsAssertDebug(AppReadiness.isAppReady)
+        owsAssertDebug(appReadiness.isAppReady)
 
         process()
     }
@@ -316,23 +318,23 @@ extension PaymentsProcessor: PaymentProcessingOperationDelegate {
             return
         }
 
-        Logger.verbose("\(label): \(paymentId)")
-
         let operation = PaymentProcessingOperation(delegate: self,
                                                    paymentModel: paymentModel,
                                                    retryDelayInteral: retryDelayInteral)
         processingQueue(forPaymentModel: paymentModel).addOperation(operation)
     }
 
-    func scheduleRetryProcessing(paymentModel: TSPaymentModel,
-                                 retryDelayInteral: TimeInterval,
-                                 nextRetryDelayInteral: TimeInterval) {
-        let paymentId = paymentModel.uniqueId
-        Logger.verbose("schedule retry: \(paymentId), retryDelayInteral: \(retryDelayInteral), nextRetryDelayInteral: \(nextRetryDelayInteral)")
-        add(retryScheduler: RetryScheduler(paymentModel: paymentModel,
-                                           retryDelayInteral: retryDelayInteral,
-                                           nextRetryDelayInteral: nextRetryDelayInteral,
-                                           delegate: self))
+    func scheduleRetryProcessing(
+        paymentModel: TSPaymentModel,
+        retryDelayInteral: TimeInterval,
+        nextRetryDelayInteral: TimeInterval
+    ) {
+        add(retryScheduler: RetryScheduler(
+            paymentModel: paymentModel,
+            retryDelayInteral: retryDelayInteral,
+            nextRetryDelayInteral: nextRetryDelayInteral,
+            delegate: self
+        ))
     }
 
     func endProcessing(paymentModel: TSPaymentModel) {
@@ -340,7 +342,6 @@ extension PaymentsProcessor: PaymentProcessingOperationDelegate {
     }
 
     func endProcessing(paymentId: String) {
-        Logger.verbose("End processing: \(paymentId)")
         Self.unfairLock.withLock {
             owsAssertDebug(processingPaymentIds.contains(paymentId))
             processingPaymentIds.remove(paymentId)
@@ -364,8 +365,7 @@ private protocol PaymentProcessingOperationDelegate: AnyObject {
 // MARK: -
 
 // See comments on PaymentsProcessor.process().
-private class PaymentProcessingOperation: OWSOperation {
-
+private class PaymentProcessingOperation: OWSOperation, @unchecked Sendable {
     private weak var delegate: PaymentProcessingOperationDelegate?
     private let paymentId: String
     private let retryDelayInteral: TimeInterval
@@ -613,9 +613,6 @@ private class PaymentProcessingOperation: OWSOperation {
 
             owsAssertDebug(paymentModel.isValid)
 
-            let paymentId = paymentModel.uniqueId
-            Logger.verbose("Trying to process: \(paymentId), \(formattedState)")
-
             switch paymentModel.paymentState {
             case .outgoingUnsubmitted:
                 return self.submitOutgoingPayment(paymentModel: paymentModel)
@@ -659,8 +656,6 @@ private class PaymentProcessingOperation: OWSOperation {
 
     private func submitOutgoingPayment(paymentModel: TSPaymentModel) -> Promise<Void> {
         owsAssertDebug(paymentModel.paymentState == .outgoingUnsubmitted)
-
-        Logger.verbose("")
 
         guard !payments.isKillSwitchActive else {
             do {
@@ -739,8 +734,6 @@ private class PaymentProcessingOperation: OWSOperation {
     private func verifyOutgoingPayment(paymentModel: TSPaymentModel) -> Promise<Void> {
         owsAssertDebug(paymentModel.paymentState == .outgoingUnverified)
 
-        Logger.verbose("")
-
         if DebugFlags.paymentsSkipSubmissionAndOutgoingVerification.get() {
             return firstly(on: DispatchQueue.global()) { () -> Void in
                 try Self.databaseStorage.write { transaction in
@@ -769,8 +762,6 @@ private class PaymentProcessingOperation: OWSOperation {
 
                 return mobileCoinAPI.getOutgoingTransactionStatus(transaction: transaction)
             }.map { (transactionStatus: MCOutgoingTransactionStatus) in
-                Logger.verbose("transactionStatus: \(transactionStatus)")
-
                 try Self.databaseStorage.write { transaction in
                     switch transactionStatus.transactionStatus {
                     case .unknown:
@@ -835,8 +826,6 @@ private class PaymentProcessingOperation: OWSOperation {
     private func sendPaymentNotificationMessage(paymentModel: TSPaymentModel) -> Promise<Void> {
         owsAssertDebug(paymentModel.paymentState == .outgoingVerified)
 
-        Logger.verbose("")
-
         guard !paymentModel.isOutgoingTransfer else {
             // No need to notify for "transfer out" transactions.
             return Self.updatePaymentStatePromise(paymentModel: paymentModel,
@@ -890,8 +879,6 @@ private class PaymentProcessingOperation: OWSOperation {
     private func verifyIncomingPayment(paymentModel: TSPaymentModel) -> Promise<Void> {
         owsAssertDebug(paymentModel.paymentState == .incomingUnverified)
 
-        Logger.verbose("")
-
         return firstly { () -> Promise<MobileCoinAPI> in
             Self.paymentsImpl.getMobileCoinAPI()
         }.then(on: DispatchQueue.global()) { (mobileCoinAPI: MobileCoinAPI) -> Promise<MCIncomingReceiptStatus> in
@@ -906,8 +893,6 @@ private class PaymentProcessingOperation: OWSOperation {
 
             return mobileCoinAPI.getIncomingReceiptStatus(receipt: receipt)
         }.map { (receiptStatus: MCIncomingReceiptStatus) in
-            Logger.verbose("receiptStatus: \(receiptStatus)")
-
             try Self.databaseStorage.write { transaction in
                 switch receiptStatus.receiptStatus {
                 case .unknown:

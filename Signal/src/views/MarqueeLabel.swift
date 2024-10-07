@@ -3,9 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import UIKit
+public import UIKit
 import QuartzCore
-import SignalMessaging
 
 @IBDesignable
 open class MarqueeLabel: UILabel, CAAnimationDelegate {

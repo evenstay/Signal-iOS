@@ -66,6 +66,134 @@
 			<string>Lisää uusia jäseniä</string>
 		</dict>
 	</dict>
+	<key>CALL_LINK_APPROVE_ALL_REQUESTS_CONFIRMATION_BODY_%ld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$ld henkilö lisätään puheluun.</string>
+			<key>other</key>
+			<string>%1$ld henkilöä lisätään puheluun.</string>
+		</dict>
+	</dict>
+	<key>CALL_LINK_APPROVE_ALL_REQUESTS_CONFIRMATION_TITLE_%ld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Hyväksytäänkö %1$ld pyyntö?</string>
+			<key>other</key>
+			<string>Hyväksytäänkö %1$ld pyyntöä?</string>
+		</dict>
+	</dict>
+	<key>CALL_LINK_DENY_ALL_REQUESTS_CONFIRMATION_BODY_%ld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$ld henkilöä ei lisätä puheluun.</string>
+			<key>other</key>
+			<string>%1$ld henkilöä ei lisätä puheluun.</string>
+		</dict>
+	</dict>
+	<key>CALL_LINK_DENY_ALL_REQUESTS_CONFIRMATION_TITLE_%ld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Hylätäänkö %1$ld pyyntö?</string>
+			<key>other</key>
+			<string>Hylätäänkö %1$ld pyyntöä?</string>
+		</dict>
+	</dict>
+	<key>CALL_LINK_JOIN_REQUEST_AMOUNT_MORE_BUTTON_%ld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>+%1$ld Request</string>
+			<key>other</key>
+			<string>+%1$ld Requests</string>
+		</dict>
+	</dict>
+	<key>CALL_LINK_REQUEST_HEADER_COUNT_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$ld henkilö odottaa</string>
+			<key>other</key>
+			<string>%1$ld henkilöä odottaa</string>
+		</dict>
+	</dict>
+	<key>CALL_PEOPLE_HERE</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>ld</string>
+			<key>one</key>
+			<string>%1$ld henkilöä</string>
+			<key>other</key>
+			<string>%1$ld henkilöä</string>
+		</dict>
+	</dict>
+	<key>CALL_PEOPLE_WAITING</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>ld</string>
+			<key>one</key>
+			<string>%1$ld henkilö odottaa</string>
+			<key>other</key>
+			<string>%1$ld henkilöä odottaa</string>
+		</dict>
+	</dict>
 	<key>CAMERA_VO_N_ITEMS</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -141,9 +269,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Tämä keskustelu poistetaan tältä laitteelta.</string>
+			<string>Tämä keskustelu poistetaan kaikilta laitteiltasi.</string>
 			<key>other</key>
-			<string>Nämä keskustelut poistetaan tältä laitteelta.</string>
+			<string>Nämä keskustelut poistetaan kaikilta laitteiltasi.</string>
 		</dict>
 	</dict>
 	<key>CONVERSATION_PICKER_CAN_SELECT_NO_MORE_CONVERSATIONS_%d</key>
@@ -349,22 +477,6 @@
 			<string>Tämän puhelun osallistujien enimmäismäärä, %1$d osallistujaa, on täyttynyt. Yritä myöhemmin uudelleen.</string>
 		</dict>
 	</dict>
-	<key>GROUP_CALL_IN_THIS_CALL_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>Tässä puhelussa · %1$d henkilö</string>
-			<key>other</key>
-			<string>Tässä puhelussa · %1$d henkilöä</string>
-		</dict>
-	</dict>
 	<key>GROUP_CALL_IS_RINGING_MANY_PEOPLE_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -379,6 +491,22 @@
 			<string>Soitetaan käyttäjille %2$@, %3$@ ja %1$d muulle…</string>
 			<key>other</key>
 			<string>Soitetaan käyttäjille %2$@, %3$@ ja %1$d muulle…</string>
+		</dict>
+	</dict>
+	<key>GROUP_CALL_MANY_OTHERS_HERE</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>ld</string>
+			<key>one</key>
+			<string>%1$ld henkilö on tässä puhelussa</string>
+			<key>other</key>
+			<string>%1$ld henkilöä on tässä puhelussa</string>
 		</dict>
 	</dict>
 	<key>GROUP_CALL_MANY_PEOPLE_HERE_%d</key>
@@ -427,6 +555,22 @@
 			<string>%2$@, %3$@ ja %1$d muu poistuivat puhelusta</string>
 			<key>other</key>
 			<string>%2$@, %3$@ ja %1$d muuta poistuivat puhelusta</string>
+		</dict>
+	</dict>
+	<key>GROUP_CALL_ONE_KNOWN_AND_MANY_OTHERS_HERE</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>ld</string>
+			<key>one</key>
+			<string>%2$@ ja %1$ld muu ovat tässä puhelussa</string>
+			<key>other</key>
+			<string>%2$@ ja %1$ld muuta ovat tässä puhelussa</string>
 		</dict>
 	</dict>
 	<key>GROUP_CALL_WILL_NOTIFY_MANY_PEOPLE_%d</key>
@@ -488,9 +632,41 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>%1$d ryhmän jäsenellä on samankaltainen nimi.</string>
+			<string>%1$d ryhmän jäsenellä on sama nimi.</string>
 			<key>other</key>
-			<string>%1$d ryhmän jäsenellä on samankaltaiset nimet.</string>
+			<string>%1$d ryhmän jäsenellä on sama nimi.</string>
+		</dict>
+	</dict>
+	<key>GROUP_MEMBERSHIP_MULTIPLE_COLLISIONS_BANNER_TITLE_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Tästä ryhmästä löytyi %1$d nimiristiriita.</string>
+			<key>other</key>
+			<string>Tästä ryhmästä löytyi %1$d nimiristiriitaa.</string>
+		</dict>
+	</dict>
+	<key>GROUP_MEMBERSHIP_NAME_COLLISION_MEMBER_COUNT_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d jäsen</string>
+			<key>other</key>
+			<string>%1$d jäsentä</string>
 		</dict>
 	</dict>
 	<key>GROUP_MEMBERSHIP_NAME_MULTIPLE_COLLISION_HEADER_%d</key>
@@ -504,9 +680,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>%1$d ryhmän jäsenellä on samankaltainen nimi. Tarkista jäsen alla tai korjaa ongelma.</string>
+			<string>Tästä ryhmästä löytyi %1$d nimiristiriita. Tarkista jäsenet alla tai korjaa ongelma.</string>
 			<key>other</key>
-			<string>%1$d ryhmän jäsenellä on samankaltaiset nimet. Tarkista jäsenet alla tai korjaa ongelma.</string>
+			<string>Tästä ryhmästä löytyi %1$d nimiristiriitaa. Tarkista jäsenet alla tai korjaa ongelma.</string>
 		</dict>
 	</dict>
 	<key>GROUP_MEMBERSHIP_NAME_SINGLE_COLLISION_HEADER_%d</key>
@@ -520,9 +696,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>%1$d ryhmän jäsenellä on sama nimi. Tarkista jäsen alla tai korjaa ongelma.</string>
+			<string>%1$d ryhmän jäsenellä on sama nimi. Tarkista, kuka jäsen on, alla tai korjaa ongelma.</string>
 			<key>other</key>
-			<string>%1$d ryhmän jäsenellä on sama nimi. Tarkista jäsenet alla tai korjaa ongelma.</string>
+			<string>%1$d ryhmän jäsenellä on sama nimi. Tarkista, keitä jäsenet ovat, alla tai korjaa ongelma.</string>
 		</dict>
 	</dict>
 	<key>GROUP_MEMBER_COUNT_LABEL_%d</key>
@@ -555,6 +731,22 @@
 			<string>%1$d jäsen</string>
 			<key>other</key>
 			<string>%1$d jäsentä</string>
+		</dict>
+	</dict>
+	<key>GROUP_REMOTE_USER_INVITED_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d henkilö kutsuttiin ryhmään.</string>
+			<key>other</key>
+			<string>%1$d henkilöä kutsuttiin ryhmään.</string>
 		</dict>
 	</dict>
 	<key>GROUP_REMOTE_USER_INVITED_BY_REMOTE_USER_%d</key>
@@ -637,6 +829,38 @@
 			<string>Ryhmätarina · %1$d katsojaa</string>
 		</dict>
 	</dict>
+	<key>GROUP_WAS_MIGRATED_USERS_DROPPED_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Jäsentä ei voitu lisätä uuteen ryhmään, ja hänet on poistettu.</string>
+			<key>other</key>
+			<string>%1$d jäsentä ei voitu lisätä uuteen ryhmään, ja heidät on poistettu.</string>
+		</dict>
+	</dict>
+	<key>GROUP_WAS_MIGRATED_USERS_INVITED_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Jäsentä ei voitu lisätä uuteen ryhmään, ja hänelle on lähetetty kutsu.</string>
+			<key>other</key>
+			<string>%1$d jäsentä ei voitu lisätä uuteen ryhmään, ja heille on lähetetty kutsu.</string>
+		</dict>
+	</dict>
 	<key>IMAGE_PICKER_CAN_SELECT_NO_MORE_TOAST_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -651,6 +875,22 @@
 			<string>Voit jakaa enintään 1 kohteen.</string>
 			<key>other</key>
 			<string>Voit jakaa enintään %1$d kohdetta.</string>
+		</dict>
+	</dict>
+	<key>INACTIVE_LINKED_DEVICE_REMINDER_MEGAPHONE_BODY_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Jos haluat pitää laitteen %2$@ yhdistettynä, avaa Signal kyseisellä laitteella %1$d päivän kuluessa.</string>
+			<key>other</key>
+			<string>Jos haluat pitää laitteen %2$@ yhdistettynä, avaa Signal kyseisellä laitteella %1$d päivän kuluessa.</string>
 		</dict>
 	</dict>
 	<key>MANY_GROUPS_IN_COMMON_%d</key>
@@ -781,6 +1021,22 @@
 			<string>%1$d valittu</string>
 		</dict>
 	</dict>
+	<key>MESSAGE_REACTIONS_ACCESSIBILITY_LABEL_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d reaktio emojilla %2$@.</string>
+			<key>other</key>
+			<string>%1$d reaktiota emojilla %2$@.</string>
+		</dict>
+	</dict>
 	<key>MY_STORIES_SETTINGS_VISIBILITY_ALL_SIGNAL_CONNECTIONS_EXCEPT_SUBTITLE_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -909,6 +1165,22 @@
 			<string>%1$d katsojaa</string>
 		</dict>
 	</dict>
+	<key>OVERFLOW_REACTIONS_ACCESSIBILITY_LABEL_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d muu reaktio.</string>
+			<key>other</key>
+			<string>%1$d muuta reaktiota.</string>
+		</dict>
+	</dict>
 	<key>PENDING_GROUP_MEMBERS_MEMBER_INVITED_USERS_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -1003,6 +1275,22 @@
 			<string>Mukautettu tarina · %1$d katsoja</string>
 			<key>other</key>
 			<string>Mukautettu tarina · %1$d katsojaa</string>
+		</dict>
+	</dict>
+	<key>RAISED_HANDS_TOAST_MULTIPLE_HANDS_MESSAGE</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>ld</string>
+			<key>one</key>
+			<string>%2$@ ja %1$ld muu nostivat kätensä</string>
+			<key>other</key>
+			<string>%2$@ ja %1$ld muuta nostitte kätenne</string>
 		</dict>
 	</dict>
 	<key>REREGISTER_INVALID_PIN_ATTEMPT_COUNT_%d</key>
@@ -1131,6 +1419,22 @@
 			<string>&lt;bold&gt;%1$d&lt;/bold&gt; katselukerta</string>
 			<key>other</key>
 			<string>&lt;bold&gt;%1$d&lt;/bold&gt; katselukertaa</string>
+		</dict>
+	</dict>
+	<key>USERNAME_SELECTION_TOO_SHORT_ERROR_MESSAGE_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Käyttäjänimessä on oltava vähintään %1$d merkki</string>
+			<key>other</key>
+			<string>Käyttäjänimessä on oltava vähintään %1$d merkkiä</string>
 		</dict>
 	</dict>
 </dict>

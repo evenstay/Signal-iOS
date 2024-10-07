@@ -4,11 +4,11 @@
 //
 
 import Foundation
-import SignalMessaging
+import SignalServiceKit
 
 public class PaymentOnboarding {
     private class func ftPaymentsLockActionSheetMessage() -> String {
-        switch BiometryType.biometryType {
+        switch DeviceOwnerAuthenticationType.current {
         case .unknown:
             return OWSLocalizedString(
                 "PAYMENTS_LOCK_FIRST_TIME_ACTION_SHEET_MESSAGE",
@@ -25,11 +25,15 @@ public class PaymentOnboarding {
             return OWSLocalizedString(
                 "PAYMENTS_LOCK_FIRST_TIME_ACTION_SHEET_MESSAGE_TOUCHID",
                 comment: "First time payments suggest payments lock message")
+        case .opticId:
+            return OWSLocalizedString(
+                "PAYMENTS_LOCK_FIRST_TIME_ACTION_SHEET_MESSAGE_OPTICID",
+                comment: "First time payments suggest payments lock message")
         }
     }
 
     private class func ftPaymentsLockAffirmativeActionTitle() -> String {
-        switch BiometryType.biometryType {
+        switch DeviceOwnerAuthenticationType.current {
         case .unknown:
             return OWSLocalizedString(
                 "PAYMENTS_LOCK_FIRST_TIME_AFFIRMATIVE_ACTION",
@@ -46,12 +50,16 @@ public class PaymentOnboarding {
             return OWSLocalizedString(
                 "PAYMENTS_LOCK_FIRST_TIME_AFFIRMATIVE_ACTION_TOUCHID",
                 comment: "Affirmative action title to enable payments lock")
+        case .opticId:
+            return OWSLocalizedString(
+                "PAYMENTS_LOCK_FIRST_TIME_AFFIRMATIVE_ACTION_OPTICID",
+                comment: "Affirmative action title to enable payments lock")
         }
     }
 
     public class func presentBiometricLockPromptIfNeeded(completion: @escaping () -> Void) {
-        guard OWSPaymentsLock.shared.isTimeToShowSuggestion()
-              && OWSPaymentsLock.shared.isPaymentsLockEnabled() == false
+        guard NSObject.owsPaymentsLock.isTimeToShowSuggestion()
+              && NSObject.owsPaymentsLock.isPaymentsLockEnabled() == false
         else {
             completion()
             return
@@ -64,7 +72,7 @@ public class PaymentOnboarding {
         actionSheet.addAction(ActionSheetAction(title: ftPaymentsLockAffirmativeActionTitle(),
                                                 accessibilityIdentifier: "payments.lock.first_time.affirmative_action",
                                                 style: .default) { _ in
-            OWSPaymentsLock.shared.setIsPaymentsLockEnabledAndSnooze(true)
+            NSObject.owsPaymentsLock.setIsPaymentsLockEnabledAndSnooze(true)
             completion()
         })
 
@@ -74,7 +82,7 @@ public class PaymentOnboarding {
             style: .cancel
         ) { _ in
             Logger.debug("Not Now")
-            OWSPaymentsLock.shared.setIsPaymentsLockEnabledAndSnooze(false)
+            NSObject.owsPaymentsLock.setIsPaymentsLockEnabledAndSnooze(false)
             completion()
         })
 

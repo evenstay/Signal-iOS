@@ -10,7 +10,7 @@ import XCTest
 
 @testable import SignalServiceKit
 
-class OWSRecipientIdentityTest: SSKBaseTestSwift {
+class OWSRecipientIdentityTest: SSKBaseTest {
     private lazy var localAci = Aci.randomForTesting()
     private lazy var aliceAci = Aci.randomForTesting()
     private lazy var bobAci = Aci.randomForTesting()
@@ -36,7 +36,7 @@ class OWSRecipientIdentityTest: SSKBaseTestSwift {
             (DependenciesBridge.shared.registrationStateChangeManager as! RegistrationStateChangeManagerImpl).registerForTests(
                 localIdentifiers: .init(
                     aci: localAci,
-                    pni: nil,
+                    pni: Pni.randomForTesting(),
                     e164: E164("+16505550100")!
                 ),
                 tx: tx.asV2Write
@@ -45,17 +45,21 @@ class OWSRecipientIdentityTest: SSKBaseTestSwift {
         // Create recipients & identities for them.
         write { tx in
             let recipientFetcher = DependenciesBridge.shared.recipientFetcher
-            for recipient in recipients {
-                recipientFetcher.fetchOrCreate(serviceId: recipient, tx: tx.asV2Write).markAsRegisteredAndSave(tx: tx)
-                identityManager.saveIdentityKey(identityKey(recipient), for: recipient, tx: tx.asV2Write)
+            let recipientManager = DependenciesBridge.shared.recipientManager
+            for serviceId in recipients {
+                let recipient = recipientFetcher.fetchOrCreate(serviceId: serviceId, tx: tx.asV2Write)
+                recipientManager.markAsRegisteredAndSave(recipient, shouldUpdateStorageService: false, tx: tx.asV2Write)
+                identityManager.saveIdentityKey(identityKey(serviceId), for: serviceId, tx: tx.asV2Write)
             }
-        }
 
-        // Create a group with our recipients plus us.
-        self.groupThread = try! GroupManager.createGroupForTests(
-            members: recipients.map { SignalServiceAddress($0) },
-            name: "Test Group"
-        )
+            // Create a group with our recipients plus us.
+            self.groupThread = try! GroupManager.createGroupForTests(
+                members: recipients.map { SignalServiceAddress($0) },
+                name: "Test Group",
+                avatarData: nil,
+                transaction: tx
+            )
+        }
     }
 
     private var identityManager: OWSIdentityManager { DependenciesBridge.shared.identityManager }

@@ -7,7 +7,7 @@ import XCTest
 
 @testable import SignalServiceKit
 
-final class OWSDisappearingMessagesJobTest: SSKBaseTestSwift {
+final class OWSDisappearingMessagesJobTest: SSKBaseTest {
     private func message(
         withBody body: String,
         expiresInSeconds: UInt32,
@@ -15,7 +15,7 @@ final class OWSDisappearingMessagesJobTest: SSKBaseTestSwift {
     ) -> TSMessage {
         let localAddress = SignalServiceAddress.randomForTesting()
         let thread = TSContactThread.getOrCreateThread(contactAddress: localAddress)
-        let messageBuilder = TSIncomingMessageBuilder.incomingMessageBuilder(
+        let messageBuilder: TSIncomingMessageBuilder = .withDefaultValues(
             thread: thread,
             messageBody: body
         )

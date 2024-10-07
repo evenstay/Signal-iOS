@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
 import SignalServiceKit
 import SignalUI
 
@@ -24,10 +23,6 @@ class StoryGroupReplySheet: InteractiveSheetViewController, StoryGroupReplier {
         super.init()
 
         self.allowsExpansion = true
-    }
-
-    public required init() {
-        fatalError("init() has not been implemented")
     }
 
     override func viewDidLoad() {

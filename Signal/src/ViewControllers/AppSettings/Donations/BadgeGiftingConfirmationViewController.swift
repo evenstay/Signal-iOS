@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
 import SignalServiceKit
 import SignalUI
 
@@ -116,7 +115,7 @@ class BadgeGiftingConfirmationViewController: OWSTableViewController2 {
                         self.startCreditOrDebitCard()
                     case .paypal:
                         self.startPaypal()
-                    case .sepa:
+                    case .sepa, .ideal:
                         owsFail("Bank transfer not supported for gift badges")
                     }
                 }
@@ -271,16 +270,7 @@ class BadgeGiftingConfirmationViewController: OWSTableViewController2 {
         }))
 
         let messageTextSection = OWSTableSection()
-        messageTextSection.add(.init(customCellBlock: { [weak self] in
-            guard let self = self else { return UITableViewCell() }
-            let cell = AppSettingsViewsUtil.newCell(cellOuterInsets: self.cellOuterInsets)
-
-            cell.contentView.addSubview(messageTextView)
-            messageTextView.autoPinEdgesToSuperviewMargins()
-            messageTextView.autoSetDimension(.height, toSize: 102, relation: .greaterThanOrEqual)
-
-            return cell
-        }))
+        messageTextSection.add(self.textViewItem(messageTextView, minimumHeight: 102))
 
         var sections: [OWSTableSection] = [
             badgeSection,
@@ -413,21 +403,6 @@ extension BadgeGiftingConfirmationViewController: DatabaseChangeDelegate {
 // MARK: - Text view delegate
 
 extension BadgeGiftingConfirmationViewController: TextViewWithPlaceholderDelegate {
-    func textViewDidUpdateSelection(_ textView: TextViewWithPlaceholder) {
-        textView.scrollToFocus(in: tableView, animated: true)
-    }
-
-    func textViewDidUpdateText(_ textView: TextViewWithPlaceholder) {
-        // Kick the tableview so it recalculates sizes
-        UIView.performWithoutAnimation {
-            tableView.performBatchUpdates(nil) { (_) in
-                // And when the size changes have finished, make sure we're scrolled
-                // to the focused line
-                textView.scrollToFocus(in: self.tableView, animated: false)
-            }
-        }
-    }
-
     func textView(_ textView: TextViewWithPlaceholder,
                   uiTextView: UITextView,
                   shouldChangeTextIn range: NSRange,

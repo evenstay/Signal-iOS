@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
+import SignalServiceKit
 import SignalUI
 
 protocol AddToBlockListDelegate: AnyObject {
@@ -50,7 +50,7 @@ class AddToBlockListViewController: RecipientPickerContainerViewController {
     }
 }
 
-extension AddToBlockListViewController: RecipientPickerDelegate {
+extension AddToBlockListViewController: RecipientPickerDelegate, UsernameLinkScanDelegate {
 
     func recipientPicker(
         _ recipientPickerViewController: RecipientPickerViewController,
@@ -84,12 +84,6 @@ extension AddToBlockListViewController: RecipientPickerDelegate {
         }
     }
 
-    func recipientPicker(_ recipientPickerViewController: RecipientPickerViewController,
-                         prepareToSelectRecipient recipient: PickedRecipient) -> AnyPromise {
-        owsFailDebug("This method should not called.")
-        return AnyPromise(Promise.value(()))
-    }
-
     func recipientPicker(
         _ recipientPickerViewController: RecipientPickerViewController,
         accessoryMessageForRecipient recipient: PickedRecipient,
@@ -99,7 +93,7 @@ extension AddToBlockListViewController: RecipientPickerDelegate {
         case .address(let address):
             #if DEBUG
             let isBlocked = blockingManager.isAddressBlocked(address, transaction: transaction)
-            owsAssert(!isBlocked, "It should be impossible to see a blocked connection in this view")
+            owsPrecondition(!isBlocked, "It should be impossible to see a blocked connection in this view")
             #endif
             return nil
         case .group(let thread):
@@ -107,22 +101,4 @@ extension AddToBlockListViewController: RecipientPickerDelegate {
             return MessageStrings.conversationIsBlocked
         }
     }
-
-    func recipientPicker(
-        _ recipientPickerViewController: RecipientPickerViewController,
-        accessoryViewForRecipient recipient: PickedRecipient,
-        transaction: SDSAnyReadTransaction
-    ) -> ContactCellAccessoryView? { nil }
-
-    func recipientPicker(
-        _ recipientPickerViewController: RecipientPickerViewController,
-        attributedSubtitleForRecipient recipient: PickedRecipient,
-        transaction: SDSAnyReadTransaction
-    ) -> NSAttributedString? { nil }
-
-    func recipientPickerTableViewWillBeginDragging(_ recipientPickerViewController: RecipientPickerViewController) {}
-
-    func recipientPickerNewGroupButtonWasPressed() {}
-
-    func recipientPickerCustomHeaderViews() -> [UIView] { return [] }
 }

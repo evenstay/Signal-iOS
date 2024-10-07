@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
+import SignalServiceKit
 import SignalUI
 
 // TODO: Rename to NewGroupViewController; remove old view.
@@ -11,7 +11,7 @@ public class NewGroupMembersViewController: BaseGroupMemberViewController {
 
     private var newGroupState = NewGroupState()
 
-    public required override init() {
+    public override init() {
         super.init()
 
         groupMemberViewDelegate = self

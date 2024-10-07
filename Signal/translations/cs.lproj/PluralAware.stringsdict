@@ -82,6 +82,166 @@
 			<string>Přidat nové členy</string>
 		</dict>
 	</dict>
+	<key>CALL_LINK_APPROVE_ALL_REQUESTS_CONFIRMATION_BODY_%ld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>K hovoru bude přidána %1$ld osoba.</string>
+			<key>few</key>
+			<string>K hovoru budou přidány %1$ld osoby.</string>
+			<key>many</key>
+			<string>K hovoru bude přidáno %1$ld osob.</string>
+			<key>other</key>
+			<string>K hovoru bude přidáno %1$ld osob.</string>
+		</dict>
+	</dict>
+	<key>CALL_LINK_APPROVE_ALL_REQUESTS_CONFIRMATION_TITLE_%ld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Schválit %1$ld žádost?</string>
+			<key>few</key>
+			<string>Schválit %1$ld žádosti?</string>
+			<key>many</key>
+			<string>Schválit %1$ld žádostí?</string>
+			<key>other</key>
+			<string>Schválit %1$ld žádostí?</string>
+		</dict>
+	</dict>
+	<key>CALL_LINK_DENY_ALL_REQUESTS_CONFIRMATION_BODY_%ld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>K hovoru nebude přidána %1$ld osoba.</string>
+			<key>few</key>
+			<string>K hovoru nebudou přidány %1$ld osoby.</string>
+			<key>many</key>
+			<string>K hovoru nebude přidáno %1$ld osob.</string>
+			<key>other</key>
+			<string>K hovoru nebude přidáno %1$ld osob.</string>
+		</dict>
+	</dict>
+	<key>CALL_LINK_DENY_ALL_REQUESTS_CONFIRMATION_TITLE_%ld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Zamítnout %1$ld žádost?</string>
+			<key>few</key>
+			<string>Zamítnout %1$ld žádosti?</string>
+			<key>many</key>
+			<string>Zamítnout %1$ld žádostí?</string>
+			<key>other</key>
+			<string>Zamítnout %1$ld žádostí?</string>
+		</dict>
+	</dict>
+	<key>CALL_LINK_JOIN_REQUEST_AMOUNT_MORE_BUTTON_%ld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>+%1$ld Request</string>
+			<key>few</key>
+			<string>+%1$ld Requests</string>
+			<key>many</key>
+			<string>+%1$ld Requests</string>
+			<key>other</key>
+			<string>+%1$ld Requests</string>
+		</dict>
+	</dict>
+	<key>CALL_LINK_REQUEST_HEADER_COUNT_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Čeká %1$ld osoba</string>
+			<key>few</key>
+			<string>Čekají %1$ld osoby</string>
+			<key>many</key>
+			<string>Čeká %1$ld osob</string>
+			<key>other</key>
+			<string>Čeká %1$ld osob</string>
+		</dict>
+	</dict>
+	<key>CALL_PEOPLE_HERE</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>ld</string>
+			<key>one</key>
+			<string>%1$ld osoba</string>
+			<key>few</key>
+			<string>%1$ld osoby</string>
+			<key>many</key>
+			<string>%1$ld osob</string>
+			<key>other</key>
+			<string>%1$ld osob</string>
+		</dict>
+	</dict>
+	<key>CALL_PEOPLE_WAITING</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>ld</string>
+			<key>one</key>
+			<string>Čeká %1$ld osoba</string>
+			<key>few</key>
+			<string>Čekají %1$ld osoby</string>
+			<key>many</key>
+			<string>Čeká %1$ld osob</string>
+			<key>other</key>
+			<string>Čeká %1$ld osob</string>
+		</dict>
+	</dict>
 	<key>CAMERA_VO_N_ITEMS</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -173,13 +333,13 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Tento chat bude z tohoto zařízení odstraněn.</string>
+			<string>Tento chat bude odstraněn ze všech vašich zařízení.</string>
 			<key>few</key>
-			<string>Tyto chaty budou z tohoto zařízení odstraněny.</string>
+			<string>Tyto chaty budou odstraněny ze všech vašich zařízení.</string>
 			<key>many</key>
-			<string>Tyto chaty budou z tohoto zařízení odstraněny.</string>
+			<string>Těchto chatů bude odstraněno ze všech vašich zařízení.</string>
 			<key>other</key>
-			<string>Tyto chaty budou z tohoto zařízení odstraněny.</string>
+			<string>Těchto chatů bude odstraněno ze všech vašich zařízení.</string>
 		</dict>
 	</dict>
 	<key>CONVERSATION_PICKER_CAN_SELECT_NO_MORE_CONVERSATIONS_%d</key>
@@ -437,26 +597,6 @@
 			<string>Maximální počet %1$d účastníků hovoru byl naplněn. Zkuste to prosím později.</string>
 		</dict>
 	</dict>
-	<key>GROUP_CALL_IN_THIS_CALL_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>V tomto hovoru · %1$d osoba</string>
-			<key>few</key>
-			<string>V tomto hovoru · %1$d osoby</string>
-			<key>many</key>
-			<string>V tomto hovoru · %1$d osob</string>
-			<key>other</key>
-			<string>V tomto hovoru · %1$d osob</string>
-		</dict>
-	</dict>
 	<key>GROUP_CALL_IS_RINGING_MANY_PEOPLE_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -475,6 +615,26 @@
 			<string>Volám uživatelům %2$@, %3$@ a %1$d dalším…</string>
 			<key>other</key>
 			<string>Volám uživatelům %2$@, %3$@ a %1$d dalším…</string>
+		</dict>
+	</dict>
+	<key>GROUP_CALL_MANY_OTHERS_HERE</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>ld</string>
+			<key>one</key>
+			<string>%1$ld osoba se účastní tohoto hovoru</string>
+			<key>few</key>
+			<string>%1$ld osoby se účastní tohoto hovoru</string>
+			<key>many</key>
+			<string>%1$ld osob se účastní tohoto hovoru</string>
+			<key>other</key>
+			<string>%1$ld osob se účastní tohoto hovoru</string>
 		</dict>
 	</dict>
 	<key>GROUP_CALL_MANY_PEOPLE_HERE_%d</key>
@@ -535,6 +695,26 @@
 			<string>%2$@, %3$@ a %1$d dalších opustili hovor</string>
 			<key>other</key>
 			<string>%2$@, %3$@ a %1$d dalších opustili hovor</string>
+		</dict>
+	</dict>
+	<key>GROUP_CALL_ONE_KNOWN_AND_MANY_OTHERS_HERE</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>ld</string>
+			<key>one</key>
+			<string>%2$@ a %1$ld další osoba se účastní tohoto hovoru</string>
+			<key>few</key>
+			<string>%2$@ a %1$ld další osoby se účastní tohoto hovoru</string>
+			<key>many</key>
+			<string>%2$@ a %1$ld dalších osob se účastní tohoto hovoru</string>
+			<key>other</key>
+			<string>%2$@ a %1$ld dalších osob se účastní tohoto hovoru</string>
 		</dict>
 	</dict>
 	<key>GROUP_CALL_WILL_NOTIFY_MANY_PEOPLE_%d</key>
@@ -608,13 +788,53 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>%1$d člen skupiny má podobné jméno.</string>
+			<string>%1$d člen skupiny má stejné jméno.</string>
 			<key>few</key>
-			<string>%1$d členové skupiny mají podobné jméno.</string>
+			<string>%1$d členové skupiny mají stejné jméno.</string>
 			<key>many</key>
-			<string>%1$d členů skupiny má podobné jméno.</string>
+			<string>%1$d členů skupiny má stejné jméno.</string>
 			<key>other</key>
-			<string>%1$d členů skupiny má podobné jméno.</string>
+			<string>%1$d členů skupiny má stejné jméno.</string>
+		</dict>
+	</dict>
+	<key>GROUP_MEMBERSHIP_MULTIPLE_COLLISIONS_BANNER_TITLE_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>V této skupině bylo nalezeno %1$d shodné jméno.</string>
+			<key>few</key>
+			<string>V této skupině byla nalezena %1$d shodná jména.</string>
+			<key>many</key>
+			<string>V této skupině bylo nalezeno %1$d shodných jmen.</string>
+			<key>other</key>
+			<string>V této skupině bylo nalezeno %1$d shodných jmen.</string>
+		</dict>
+	</dict>
+	<key>GROUP_MEMBERSHIP_NAME_COLLISION_MEMBER_COUNT_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d člen</string>
+			<key>few</key>
+			<string>%1$d členové</string>
+			<key>many</key>
+			<string>%1$d členů</string>
+			<key>other</key>
+			<string>%1$d členů</string>
 		</dict>
 	</dict>
 	<key>GROUP_MEMBERSHIP_NAME_MULTIPLE_COLLISION_HEADER_%d</key>
@@ -628,13 +848,13 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>%1$d člen skupiny má podobné jméno, prohlédněte si ho níže nebo zvolte akci.</string>
+			<string>V této skupině bylo nalezeno %1$d shodné jméno. Zkontrolujte níže uvedené členy nebo zvolte, jaké kroky chcete podniknout.</string>
 			<key>few</key>
-			<string>%1$d členové skupiny mají podobné jméno, prohlédněte si je níže nebo zvolte akci.</string>
+			<string>V této skupině byla nalezena %1$d shodná jméno. Zkontrolujte níže uvedené členy nebo zvolte, jaké kroky chcete podniknout.</string>
 			<key>many</key>
-			<string>%1$d členů skupiny má podobné jméno, prohlédněte si je níže nebo zvolte akci.</string>
+			<string>V této skupině bylo nalezeno %1$d shodných jmen. Zkontrolujte níže uvedené členy nebo zvolte, jaké kroky chcete podniknout.</string>
 			<key>other</key>
-			<string>%1$d členů skupiny má podobné jméno, prohlédněte si je níže nebo zvolte akci.</string>
+			<string>V této skupině bylo nalezeno %1$d shodných jmen. Zkontrolujte níže uvedené členy nebo zvolte, jaké kroky chcete podniknout.</string>
 		</dict>
 	</dict>
 	<key>GROUP_MEMBERSHIP_NAME_SINGLE_COLLISION_HEADER_%d</key>
@@ -648,13 +868,13 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>%1$d člen skupiny má stejné jméno, prohlédněte si ho níže nebo vyberte akci.</string>
+			<string>%1$d člen skupiny má stejné jméno. Prohlédněte si ho níže nebo vyberte akci.</string>
 			<key>few</key>
-			<string>%1$d členové skupiny mají stejné jméno, prohlédněte si je níže nebo vyberte akci.</string>
+			<string>%1$d členové skupiny mají stejné jméno. Prohlédněte si je níže nebo vyberte akci.</string>
 			<key>many</key>
-			<string>%1$d členů skupiny má stejné jméno, prohlédněte si je níže nebo vyberte akci.</string>
+			<string>%1$d členů skupiny má stejné jméno. Prohlédněte si je níže nebo vyberte akci.</string>
 			<key>other</key>
-			<string>%1$d členů skupiny má stejné jméno, prohlédněte si je níže nebo vyberte akci.</string>
+			<string>%1$d členů skupiny má stejné jméno. Prohlédněte si je níže nebo vyberte akci.</string>
 		</dict>
 	</dict>
 	<key>GROUP_MEMBER_COUNT_LABEL_%d</key>
@@ -695,6 +915,26 @@
 			<string>%1$d členů</string>
 			<key>other</key>
 			<string>%1$d členů</string>
+		</dict>
+	</dict>
+	<key>GROUP_REMOTE_USER_INVITED_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d osoba byla pozvána do skupiny.</string>
+			<key>few</key>
+			<string>%1$d osoby byly pozvány do skupiny.</string>
+			<key>many</key>
+			<string>%1$d osob bylo pozváno do skupiny.</string>
+			<key>other</key>
+			<string>%1$d osob bylo pozváno do skupiny.</string>
 		</dict>
 	</dict>
 	<key>GROUP_REMOTE_USER_INVITED_BY_REMOTE_USER_%d</key>
@@ -797,6 +1037,46 @@
 			<string>Skupinový příběh · %1$d sledujících</string>
 		</dict>
 	</dict>
+	<key>GROUP_WAS_MIGRATED_USERS_DROPPED_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Jednoho člena nebylo možné přidat do Nové skupiny a byl odebrán.</string>
+			<key>few</key>
+			<string>%1$d členy nebylo možné přidat do Nové skupiny a byli odebráni.</string>
+			<key>many</key>
+			<string>%1$d členů nebylo možné přidat do Nové skupiny a byli odebráni.</string>
+			<key>other</key>
+			<string>%1$d členů nebylo možné přidat do Nové skupiny a byli odebráni.</string>
+		</dict>
+	</dict>
+	<key>GROUP_WAS_MIGRATED_USERS_INVITED_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Člena nebylo možné přidat do nové verze skupiny a byl pozván, aby se připojil.</string>
+			<key>few</key>
+			<string>%1$d členy nebylo možné přidat do nové verze skupiny a byli pozváni, aby se připojili.</string>
+			<key>many</key>
+			<string>%1$d členů nebylo možné přidat do nové verze skupiny a byli pozváni, aby se připojili.</string>
+			<key>other</key>
+			<string>%1$d členů nebylo možné přidat do nové verze skupiny a byli pozváni, aby se připojili.</string>
+		</dict>
+	</dict>
 	<key>IMAGE_PICKER_CAN_SELECT_NO_MORE_TOAST_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -815,6 +1095,26 @@
 			<string>Nemůžete sdílet více než %1$d položek.</string>
 			<key>other</key>
 			<string>Nemůžete sdílet více než %1$d položek.</string>
+		</dict>
+	</dict>
+	<key>INACTIVE_LINKED_DEVICE_REMINDER_MEGAPHONE_BODY_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Pokud chcete, aby zařízení „%2$@“ zůstalo propojené, otevřete na tomto zařízení aplikaci Signal do jednoho dne.</string>
+			<key>few</key>
+			<string>Pokud chcete, aby zařízení „%2$@“ zůstalo propojené, otevřete na tomto zařízení aplikaci Signal do %1$d dnů.</string>
+			<key>many</key>
+			<string>Pokud chcete, aby zařízení „%2$@“ zůstalo propojené, otevřete na tomto zařízení aplikaci Signal do %1$d dnů.</string>
+			<key>other</key>
+			<string>Pokud chcete, aby zařízení „%2$@“ zůstalo propojené, otevřete na tomto zařízení aplikaci Signal do %1$d dnů.</string>
 		</dict>
 	</dict>
 	<key>MANY_GROUPS_IN_COMMON_%d</key>
@@ -977,6 +1277,26 @@
 			<string>%1$d vybráno</string>
 		</dict>
 	</dict>
+	<key>MESSAGE_REACTIONS_ACCESSIBILITY_LABEL_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d reakce %2$@.</string>
+			<key>few</key>
+			<string>%1$d reakce %2$@.</string>
+			<key>many</key>
+			<string>%1$d reakce %2$@.</string>
+			<key>other</key>
+			<string>%1$d reakcí %2$@.</string>
+		</dict>
+	</dict>
 	<key>MY_STORIES_SETTINGS_VISIBILITY_ALL_SIGNAL_CONNECTIONS_EXCEPT_SUBTITLE_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -1137,6 +1457,26 @@
 			<string>%1$d sledujících</string>
 		</dict>
 	</dict>
+	<key>OVERFLOW_REACTIONS_ACCESSIBILITY_LABEL_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d další reakce.</string>
+			<key>few</key>
+			<string>%1$d další reakce.</string>
+			<key>many</key>
+			<string>%1$d další reakce.</string>
+			<key>other</key>
+			<string>%1$d dalších reakcí.</string>
+		</dict>
+	</dict>
 	<key>PENDING_GROUP_MEMBERS_MEMBER_INVITED_USERS_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -1255,6 +1595,26 @@
 			<string>Vlastní příběh · %1$d sledujících</string>
 			<key>other</key>
 			<string>Vlastní příběh · %1$d sledujících</string>
+		</dict>
+	</dict>
+	<key>RAISED_HANDS_TOAST_MULTIPLE_HANDS_MESSAGE</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>ld</string>
+			<key>one</key>
+			<string>%2$@ a %1$ld mají zvednutou ruku</string>
+			<key>few</key>
+			<string>%2$@ a %1$ld mají zvednutou ruku</string>
+			<key>many</key>
+			<string>%2$@ a %1$ld má zvednutou ruku</string>
+			<key>other</key>
+			<string>%2$@ a %1$ld má zvednutou ruku</string>
 		</dict>
 	</dict>
 	<key>REREGISTER_INVALID_PIN_ATTEMPT_COUNT_%d</key>
@@ -1415,6 +1775,26 @@
 			<string>&lt;bold&gt;%1$d&lt;/bold&gt; zobrazení</string>
 			<key>other</key>
 			<string>&lt;bold&gt;%1$d&lt;/bold&gt; zobrazení</string>
+		</dict>
+	</dict>
+	<key>USERNAME_SELECTION_TOO_SHORT_ERROR_MESSAGE_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Uživatelské jméno musí začínat alespoň %1$d znakem</string>
+			<key>few</key>
+			<string>Uživatelské jméno musí začínat alespoň %1$d znaky</string>
+			<key>many</key>
+			<string>Uživatelské jméno musí začínat alespoň %1$d znaky</string>
+			<key>other</key>
+			<string>Uživatelské jméno musí začínat alespoň %1$d znaky</string>
 		</dict>
 	</dict>
 </dict>

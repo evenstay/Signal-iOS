@@ -36,9 +36,10 @@ public protocol IndividualCallRecordManager {
         callType: CallRecord.CallType,
         callDirection: CallRecord.CallDirection,
         individualCallStatus: CallRecord.CallStatus.IndividualCallStatus,
+        callEventTimestamp: UInt64,
         shouldSendSyncMessage: Bool,
         tx: DBWriteTransaction
-    )
+    ) -> CallRecord
 
     /// Update the given call record.
     func updateRecord(
@@ -53,18 +54,20 @@ public protocol IndividualCallRecordManager {
 public class IndividualCallRecordManagerImpl: IndividualCallRecordManager {
     private let callRecordStore: CallRecordStore
     private let interactionStore: InteractionStore
-    private let outgoingSyncMessageManager: CallRecordOutgoingSyncMessageManager
+    private let outgoingSyncMessageManager: OutgoingCallEventSyncMessageManager
+    private let statusTransitionManager: IndividualCallRecordStatusTransitionManager
 
     private var logger: PrefixedLogger { CallRecordLogger.shared }
 
     init(
         callRecordStore: CallRecordStore,
         interactionStore: InteractionStore,
-        outgoingSyncMessageManager: CallRecordOutgoingSyncMessageManager
+        outgoingSyncMessageManager: OutgoingCallEventSyncMessageManager
     ) {
         self.callRecordStore = callRecordStore
         self.interactionStore = interactionStore
         self.outgoingSyncMessageManager = outgoingSyncMessageManager
+        self.statusTransitionManager = IndividualCallRecordStatusTransitionManager()
     }
 
     public func updateInteractionTypeAndRecordIfExists(
@@ -126,11 +129,14 @@ public class IndividualCallRecordManagerImpl: IndividualCallRecordManager {
             )
         else { return }
 
-        if let existingCallRecord = callRecordStore.fetch(
+        switch callRecordStore.fetch(
             callId: callId,
-            threadRowId: contactThreadRowId,
+            conversationId: .thread(threadRowId: contactThreadRowId),
             tx: tx
         ) {
+        case .matchDeleted:
+            logger.warn("Ignoring: existing record for call was deleted!")
+        case .matchFound(let existingCallRecord):
             updateRecord(
                 contactThread: contactThread,
                 existingCallRecord: existingCallRecord,
@@ -138,8 +144,8 @@ public class IndividualCallRecordManagerImpl: IndividualCallRecordManager {
                 shouldSendSyncMessage: true,
                 tx: tx
             )
-        } else {
-            createRecordForInteraction(
+        case .matchNotFound:
+            _ = createRecordForInteraction(
                 individualCallInteraction: individualCallInteraction,
                 individualCallInteractionRowId: individualCallInteractionRowId,
                 contactThread: contactThread,
@@ -148,6 +154,7 @@ public class IndividualCallRecordManagerImpl: IndividualCallRecordManager {
                 callType: CallRecord.CallType(individualCallOfferTypeType: individualCallInteraction.offerType),
                 callDirection: callDirection,
                 individualCallStatus: individualCallStatus,
+                callEventTimestamp: individualCallInteraction.timestamp,
                 shouldSendSyncMessage: true,
                 tx: tx
             )
@@ -163,9 +170,10 @@ public class IndividualCallRecordManagerImpl: IndividualCallRecordManager {
         callType: CallRecord.CallType,
         callDirection: CallRecord.CallDirection,
         individualCallStatus: CallRecord.CallStatus.IndividualCallStatus,
+        callEventTimestamp: UInt64,
         shouldSendSyncMessage: Bool,
         tx: DBWriteTransaction
-    ) {
+    ) -> CallRecord {
         logger.info("Creating new 1:1 call record from interaction.")
 
         let callRecord = CallRecord(
@@ -175,20 +183,21 @@ public class IndividualCallRecordManagerImpl: IndividualCallRecordManager {
             callType: callType,
             callDirection: callDirection,
             callStatus: .individual(individualCallStatus),
-            timestamp: individualCallInteraction.timestamp
+            callBeganTimestamp: callEventTimestamp
         )
 
-        guard callRecordStore.insert(
-            callRecord: callRecord, tx: tx
-        ) else { return }
+        callRecordStore.insert(callRecord: callRecord, tx: tx)
 
         if shouldSendSyncMessage {
             outgoingSyncMessageManager.sendSyncMessage(
-                contactThread: contactThread,
                 callRecord: callRecord,
+                callEvent: .callUpdated,
+                callEventTimestamp: callRecord.callBeganTimestamp,
                 tx: tx
             )
         }
+
+        return callRecord
     }
 
     public func updateRecord(
@@ -198,16 +207,30 @@ public class IndividualCallRecordManagerImpl: IndividualCallRecordManager {
         shouldSendSyncMessage: Bool,
         tx: DBWriteTransaction
     ) {
-        guard callRecordStore.updateRecordStatusIfAllowed(
+        guard case let .individual(individualCallStatus) = existingCallRecord.callStatus else {
+            logger.error("Missing individual call status while trying to update record!")
+            return
+        }
+
+        guard statusTransitionManager.isStatusTransitionAllowed(
+            fromIndividualCallStatus: individualCallStatus,
+            toIndividualCallStatus: newIndividualCallStatus
+        ) else {
+            logger.warn("Status transition \(individualCallStatus) -> \(newIndividualCallStatus) not allowed. Skipping record update.")
+            return
+        }
+
+        callRecordStore.updateCallAndUnreadStatus(
             callRecord: existingCallRecord,
             newCallStatus: .individual(newIndividualCallStatus),
             tx: tx
-        ) else { return }
+        )
 
         if shouldSendSyncMessage {
             outgoingSyncMessageManager.sendSyncMessage(
-                contactThread: contactThread,
                 callRecord: existingCallRecord,
+                callEvent: .callUpdated,
+                callEventTimestamp: existingCallRecord.callBeganTimestamp,
                 tx: tx
             )
         }
@@ -288,6 +311,51 @@ extension CallRecord.CallStatus.IndividualCallStatus {
         @unknown default:
             CallRecordLogger.shared.warn("Unknown call type!")
             return nil
+        }
+    }
+}
+
+// MARK: -
+
+public class IndividualCallRecordStatusTransitionManager {
+    public init() {}
+
+    public func isStatusTransitionAllowed(
+        fromIndividualCallStatus: CallRecord.CallStatus.IndividualCallStatus,
+        toIndividualCallStatus: CallRecord.CallStatus.IndividualCallStatus
+    ) -> Bool {
+        switch fromIndividualCallStatus {
+        case .pending:
+            switch toIndividualCallStatus {
+            case .pending: return false
+            case .accepted, .notAccepted, .incomingMissed:
+                // Pending can transition to anything.
+                return true
+            }
+        case .accepted:
+            switch toIndividualCallStatus {
+            case .accepted, .pending: return false
+            case .notAccepted, .incomingMissed:
+                // Accepted trumps declined or missed.
+                return false
+            }
+        case .notAccepted:
+            switch toIndividualCallStatus {
+            case .notAccepted, .pending: return false
+            case .accepted:
+                // Accepted trumps declined...
+                return true
+            case .incomingMissed:
+                // ...but declined trumps missed.
+                return false
+            }
+        case .incomingMissed:
+            switch toIndividualCallStatus {
+            case .incomingMissed, .pending: return false
+            case .accepted, .notAccepted:
+                // Accepted or declined trumps missed.
+                return true
+            }
         }
     }
 }

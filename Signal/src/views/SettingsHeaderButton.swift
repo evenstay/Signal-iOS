@@ -3,7 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
+import Foundation
 import SignalUI
+import UIKit
 
 /// A button used in the header of a settings view.
 class SettingsHeaderButton: OWSButton {
@@ -32,7 +34,7 @@ class SettingsHeaderButton: OWSButton {
         dimsWhenHighlighted = true
         self.isEnabled = isEnabled
         layer.cornerRadius = 10
-        setBackgroundImage(UIImage(color: backgroundColor), for: .normal)
+        setBackgroundImage(UIImage.image(color: backgroundColor), for: .normal)
         clipsToBounds = true
         accessibilityLabel = text
 

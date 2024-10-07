@@ -8,22 +8,14 @@ import XCTest
 
 @testable import SignalServiceKit
 @testable import Signal
-@testable import SignalMessaging
 
 class GRDBFinderTest: SignalBaseTest {
     override func setUp() {
         super.setUp()
 
-        // ensure local client has necessary "registered" state
-        let localE164Identifier = "+13235551234"
-        let localUUID = UUID()
         databaseStorage.write { tx in
             (DependenciesBridge.shared.registrationStateChangeManager as! RegistrationStateChangeManagerImpl).registerForTests(
-                localIdentifiers: .init(
-                    aci: .init(fromUUID: localUUID),
-                    pni: nil,
-                    e164: E164(localE164Identifier)!
-                ),
+                localIdentifiers: .forUnitTests,
                 tx: tx.asV2Write
             )
         }
@@ -32,12 +24,12 @@ class GRDBFinderTest: SignalBaseTest {
     func testThreadFinder() {
 
         // Contact Threads
-        let address1 = SignalServiceAddress(phoneNumber: "+13213334444")
-        let address2 = SignalServiceAddress(serviceId: Aci.randomForTesting(), phoneNumber: "+13213334445")
-        let address3 = SignalServiceAddress(serviceId: Aci.randomForTesting(), phoneNumber: "+13213334446")
+        let address1 = SignalServiceAddress(phoneNumber: "+16505550101")
+        let address2 = SignalServiceAddress(serviceId: Aci.randomForTesting(), phoneNumber: "+16505550102")
+        let address3 = SignalServiceAddress(serviceId: Aci.randomForTesting(), phoneNumber: "+16505550103")
         let address4 = SignalServiceAddress.randomForTesting()
-        let address5 = SignalServiceAddress(phoneNumber: "+13213334447")
-        let address6 = SignalServiceAddress(serviceId: Aci.randomForTesting(), phoneNumber: "+13213334448")
+        let address5 = SignalServiceAddress(phoneNumber: "+16505550105")
+        let address6 = SignalServiceAddress(serviceId: Aci.randomForTesting(), phoneNumber: "+16505550106")
         let address7 = SignalServiceAddress.randomForTesting()
         let contactThread1 = TSContactThread(contactAddress: address1)
         let contactThread2 = TSContactThread(contactAddress: address2)
@@ -47,9 +39,7 @@ class GRDBFinderTest: SignalBaseTest {
         let createGroupThread: () -> TSGroupThread = {
             var groupThread: TSGroupThread!
             self.write { transaction in
-                groupThread = try! GroupManager.createGroupForTests(members: [address1],
-                                                                    name: "Test Group",
-                                                                    transaction: transaction)
+                groupThread = try! GroupManager.createGroupForTests(members: [address1], name: "Test Group", transaction: transaction)
             }
             return groupThread
         }
@@ -90,13 +80,13 @@ class GRDBFinderTest: SignalBaseTest {
     func testSignalAccountFinder() {
 
         // We'll create SignalAccount for these...
-        let address1 = SignalServiceAddress(phoneNumber: "+13213334444")
-        let address2 = SignalServiceAddress(serviceId: Aci.randomForTesting(), phoneNumber: "+13213334445")
-        let address3 = SignalServiceAddress(serviceId: Aci.randomForTesting(), phoneNumber: "+13213334446")
+        let address1 = SignalServiceAddress(phoneNumber: "+16505550101")
+        let address2 = SignalServiceAddress(serviceId: Aci.randomForTesting(), phoneNumber: "+16505550102")
+        let address3 = SignalServiceAddress(serviceId: Aci.randomForTesting(), phoneNumber: "+16505550103")
         let address4 = SignalServiceAddress.randomForTesting()
         // ...but not these.
-        let address5 = SignalServiceAddress(phoneNumber: "+13213334447")
-        let address6 = SignalServiceAddress(serviceId: Aci.randomForTesting(), phoneNumber: "+13213334448")
+        let address5 = SignalServiceAddress(phoneNumber: "+16505550105")
+        let address6 = SignalServiceAddress(serviceId: Aci.randomForTesting(), phoneNumber: "+16505550106")
         let address7 = SignalServiceAddress.randomForTesting()
 
         self.write { transaction in
@@ -125,7 +115,7 @@ class GRDBFinderTest: SignalBaseTest {
             XCTAssertNotNil(SignalAccountFinder().signalAccount(for: address4, tx: tx))
             // If we save a SignalAccount with just a UUID,
             // we should later be able to look it up using a UUID & phone number,
-            XCTAssertNotNil(SignalAccountFinder().signalAccount(for: SignalServiceAddress(serviceId: address4.serviceId!, phoneNumber: "+1666777888"), tx: tx))
+            XCTAssertNotNil(SignalAccountFinder().signalAccount(for: SignalServiceAddress(serviceId: address4.serviceId!, phoneNumber: "+16505550198"), tx: tx))
 
             // ...these don't.
             XCTAssertNil(SignalAccountFinder().signalAccount(for: address5, tx: tx))
@@ -139,19 +129,30 @@ class GRDBFinderTest: SignalBaseTest {
     func testSignalRecipientFinder() {
 
         // We'll create SignalRecipient for these...
-        let address1 = SignalServiceAddress(phoneNumber: "+13213334444")
-        let address2 = SignalServiceAddress(serviceId: Aci.randomForTesting(), phoneNumber: "+13213334445")
-        let address3 = SignalServiceAddress(serviceId: Aci.randomForTesting(), phoneNumber: "+13213334446")
+        let address1 = SignalServiceAddress(phoneNumber: "+16505550101")
+        let address2 = SignalServiceAddress(serviceId: Aci.randomForTesting(), phoneNumber: "+16505550102")
+        let address3 = SignalServiceAddress(serviceId: Aci.randomForTesting(), phoneNumber: "+16505550103")
         let address4 = SignalServiceAddress.randomForTesting()
         // ...but not these.
-        let address5 = SignalServiceAddress(phoneNumber: "+13213334447")
-        let address6 = SignalServiceAddress(serviceId: Aci.randomForTesting(), phoneNumber: "+13213334448")
+        let address5 = SignalServiceAddress(phoneNumber: "+16505550105")
+        let address6 = SignalServiceAddress(serviceId: Aci.randomForTesting(), phoneNumber: "+16505550106")
         let address7 = SignalServiceAddress.randomForTesting()
 
         self.write { transaction in
             [address1, address2, address3, address4].forEach {
                 SignalRecipient(aci: $0.aci, pni: nil, phoneNumber: $0.e164)
                     .anyInsert(transaction: transaction)
+            }
+        }
+
+        /// We used to have a type called `SignalRecipientFinder`, whose
+        /// functionality was moved to `RecipientDatabaseTable`. To minimize the
+        /// diff in the code just below, I've recreated a type with the same
+        /// name such that the lines below didn't need to change.
+        struct SignalRecipientFinder {
+            func signalRecipient(for address: SignalServiceAddress, tx: SDSAnyReadTransaction) -> SignalRecipient? {
+                return DependenciesBridge.shared.recipientDatabaseTable
+                    .fetchRecipient(address: address, tx: tx.asV2Read)
             }
         }
 
@@ -174,7 +175,7 @@ class GRDBFinderTest: SignalBaseTest {
             XCTAssertNotNil(SignalRecipientFinder().signalRecipient(for: address4, tx: tx))
             // If we save a SignalRecipient with just a UUID,
             // we should later be able to look it up using a UUID & phone number,
-            XCTAssertNotNil(SignalRecipientFinder().signalRecipient(for: SignalServiceAddress(serviceId: address4.serviceId!, phoneNumber: "+1666777888"), tx: tx))
+            XCTAssertNotNil(SignalRecipientFinder().signalRecipient(for: SignalServiceAddress(serviceId: address4.serviceId!, phoneNumber: "+16505550198"), tx: tx))
 
             // ...these don't.
             XCTAssertNil(SignalRecipientFinder().signalRecipient(for: address5, tx: tx))
@@ -186,18 +187,34 @@ class GRDBFinderTest: SignalBaseTest {
     }
 
     func testUserProfileFinder_missingAndStaleUserProfiles() {
+        let now = Date()
 
         let dateWithOffsetFromNow = { (offset: TimeInterval) -> Date in
-            return Date(timeInterval: offset, since: Date())
+            return Date(timeInterval: offset, since: now)
         }
 
-        let finder = UserProfileFinder()
-
-        var expectedAddresses = Set<SignalServiceAddress>()
-        self.write { transaction in
+        var expectedAddresses = Set<OWSUserProfile.Address>()
+        self.write { tx in
             let buildUserProfile = { () -> OWSUserProfile in
-                let address = CommonGenerator.address(hasPhoneNumber: true)
-                return OWSUserProfile.getOrBuildUserProfile(for: address, authedAccount: .implicit(), transaction: transaction)
+                return OWSUserProfile.getOrBuildUserProfile(
+                    for: .otherUser(Aci.randomForTesting()),
+                    userProfileWriter: .tests,
+                    tx: tx
+                )
+            }
+
+            func updateUserProfile(
+                _ userProfile: OWSUserProfile,
+                lastFetchDate: OptionalChange<Date> = .noChange,
+                lastMessagingDate: OptionalChange<Date> = .noChange
+            ) {
+                userProfile.update(
+                    lastFetchDate: lastFetchDate,
+                    lastMessagingDate: lastMessagingDate,
+                    userProfileWriter: .metadataUpdate,
+                    transaction: tx,
+                    completion: nil
+                )
             }
 
             do {
@@ -208,111 +225,77 @@ class GRDBFinderTest: SignalBaseTest {
             do {
                 // This profile is _not_ expected; lastMessagingDate is nil.
                 let userProfile = buildUserProfile()
-                userProfile.update(lastFetchDate: dateWithOffsetFromNow(-1 * kMonthInterval),
-                                   userProfileWriter: .metadataUpdate,
-                                   authedAccount: .implicit(),
-                                   transaction: transaction)
+                updateUserProfile(userProfile, lastFetchDate: .setTo(dateWithOffsetFromNow(-1 * kMonthInterval)))
             }
 
             do {
                 // This profile is _not_ expected; lastMessagingDate is nil.
                 let userProfile = buildUserProfile()
-                userProfile.update(lastFetchDate: dateWithOffsetFromNow(-1 * kMinuteInterval),
-                                   userProfileWriter: .metadataUpdate,
-                                   authedAccount: .implicit(),
-                                   transaction: transaction)
+                updateUserProfile(userProfile, lastFetchDate: .setTo(dateWithOffsetFromNow(-1 * kMinuteInterval)))
             }
 
             do {
                 // This profile is _not_ expected; lastMessagingDate is old.
                 let userProfile = buildUserProfile()
-                userProfile.update(lastMessagingDate: dateWithOffsetFromNow(-2 * kMonthInterval),
-                                   userProfileWriter: .metadataUpdate,
-                                   authedAccount: .implicit(),
-                                   transaction: transaction)
+                updateUserProfile(userProfile, lastMessagingDate: .setTo(dateWithOffsetFromNow(-2 * kMonthInterval)))
             }
 
             do {
                 // This profile is _not_ expected; lastMessagingDate is old.
                 let userProfile = buildUserProfile()
-                userProfile.update(lastMessagingDate: dateWithOffsetFromNow(-2 * kMonthInterval),
-                                   userProfileWriter: .metadataUpdate,
-                                   authedAccount: .implicit(),
-                                   transaction: transaction)
-                userProfile.update(lastFetchDate: dateWithOffsetFromNow(-1 * kMonthInterval),
-                                   userProfileWriter: .metadataUpdate,
-                                   authedAccount: .implicit(),
-                                   transaction: transaction)
+                updateUserProfile(
+                    userProfile,
+                    lastFetchDate: .setTo(dateWithOffsetFromNow(-1 * kMonthInterval)),
+                    lastMessagingDate: .setTo(dateWithOffsetFromNow(-2 * kMonthInterval))
+                )
             }
 
             do {
                 // This profile is _not_ expected; lastMessagingDate is old.
                 let userProfile = buildUserProfile()
-                userProfile.update(lastMessagingDate: dateWithOffsetFromNow(-2 * kMonthInterval),
-                                   userProfileWriter: .metadataUpdate,
-                                   authedAccount: .implicit(),
-                                   transaction: transaction)
-                userProfile.update(lastFetchDate: dateWithOffsetFromNow(-1 * kMinuteInterval),
-                                   userProfileWriter: .metadataUpdate,
-                                   authedAccount: .implicit(),
-                                   transaction: transaction)
+                updateUserProfile(
+                    userProfile,
+                    lastFetchDate: .setTo(dateWithOffsetFromNow(-1 * kMinuteInterval)),
+                    lastMessagingDate: .setTo(dateWithOffsetFromNow(-2 * kMonthInterval))
+                )
             }
 
             do {
                 // This profile is expected; lastMessagingDate is recent and lastFetchDate is nil.
                 let userProfile = buildUserProfile()
-                userProfile.update(lastMessagingDate: dateWithOffsetFromNow(-1 * kHourInterval),
-                                   userProfileWriter: .metadataUpdate,
-                                   authedAccount: .implicit(),
-                                   transaction: transaction)
-                expectedAddresses.insert(userProfile.address)
-                userProfile.logDates(prefix: "Expected profile")
+                updateUserProfile(userProfile, lastMessagingDate: .setTo(dateWithOffsetFromNow(-1 * kHourInterval)))
+                expectedAddresses.insert(userProfile.internalAddress)
             }
 
             do {
                 // This profile is expected; lastMessagingDate is recent and lastFetchDate is old.
                 let userProfile = buildUserProfile()
-                userProfile.update(lastMessagingDate: dateWithOffsetFromNow(-1 * kHourInterval),
-                                   userProfileWriter: .metadataUpdate,
-                                   authedAccount: .implicit(),
-                                   transaction: transaction)
-                userProfile.update(lastFetchDate: dateWithOffsetFromNow(-1 * kMonthInterval),
-                                   userProfileWriter: .metadataUpdate,
-                                   authedAccount: .implicit(),
-                                   transaction: transaction)
-                expectedAddresses.insert(userProfile.address)
-                userProfile.logDates(prefix: "Expected profile")
+                updateUserProfile(
+                    userProfile,
+                    lastFetchDate: .setTo(dateWithOffsetFromNow(-1 * kMonthInterval)),
+                    lastMessagingDate: .setTo(dateWithOffsetFromNow(-1 * kHourInterval))
+                )
+                expectedAddresses.insert(userProfile.internalAddress)
             }
 
             do {
                 // This profile is _not_ expected; lastFetchDate is recent.
                 let userProfile = buildUserProfile()
-                userProfile.update(lastMessagingDate: dateWithOffsetFromNow(-1 * kHourInterval),
-                                   userProfileWriter: .metadataUpdate,
-                                   authedAccount: .implicit(),
-                                   transaction: transaction)
-                userProfile.update(lastFetchDate: dateWithOffsetFromNow(-1 * kMinuteInterval),
-                                   userProfileWriter: .metadataUpdate,
-                                   authedAccount: .implicit(),
-                                   transaction: transaction)
+                updateUserProfile(
+                    userProfile,
+                    lastFetchDate: .setTo(dateWithOffsetFromNow(-1 * kMinuteInterval)),
+                    lastMessagingDate: .setTo(dateWithOffsetFromNow(-1 * kHourInterval))
+                )
             }
         }
 
-        var missingAndStaleAddresses = Set<SignalServiceAddress>()
+        var missingAndStaleAddresses = Set<OWSUserProfile.Address>()
         self.read { transaction in
-            OWSUserProfile.anyEnumerate(transaction: transaction) { (userProfile: OWSUserProfile, _) in
-                userProfile.logDates(prefix: "Considering profile")
-            }
-
-            finder.enumerateMissingAndStaleUserProfiles(transaction: transaction) { (userProfile: OWSUserProfile) in
-                userProfile.logDates(prefix: "Missing or stale profile")
-                XCTAssertFalse(missingAndStaleAddresses.contains(userProfile.address))
-                missingAndStaleAddresses.insert(userProfile.address)
+            StaleProfileFetcher.enumerateMissingAndStaleUserProfiles(now: now, tx: transaction) { userProfile in
+                XCTAssertTrue(missingAndStaleAddresses.insert(userProfile.internalAddress).inserted)
             }
         }
 
-        Logger.verbose("expectedAddresses: \(expectedAddresses)")
-        Logger.verbose("missingAndStaleAddresses: \(missingAndStaleAddresses)")
         XCTAssertEqual(expectedAddresses, missingAndStaleAddresses)
     }
 }

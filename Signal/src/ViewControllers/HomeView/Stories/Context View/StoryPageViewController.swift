@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
+import AVKit
 import SignalServiceKit
 import SignalUI
 
@@ -61,7 +62,7 @@ class StoryPageViewController: UIPageViewController {
 
     // MARK: - Init
 
-    required init(
+    init(
         context: StoryContext,
         spoilerState: SpoilerRenderState,
         viewableContexts: [StoryContext]? = nil,
@@ -132,7 +133,7 @@ class StoryPageViewController: UIPageViewController {
         super.viewDidAppear(animated)
 
         // For now, the design only allows for portrait layout on non-iPads
-        if !UIDevice.current.isIPad && CurrentAppContext().interfaceOrientation != .portrait {
+        if !UIDevice.current.isIPad && view.window?.windowScene?.interfaceOrientation != .portrait {
             UIDevice.current.ows_setOrientation(.portrait)
         }
 
@@ -222,7 +223,6 @@ class StoryPageViewController: UIPageViewController {
     }
 
     private var isAudioSessionActive = false
-    private var isObservingVolumeButtons = false
 
     private func updateVolumeObserversIfNeeded() {
         // Set audio session only if on screen.
@@ -281,14 +281,17 @@ class StoryPageViewController: UIPageViewController {
         isAudioSessionActive = false
     }
 
+    private var volumeButtonsObservation: PassiveVolumeButtonObservation?
+    private var isObservingVolumeButtons: Bool { volumeButtonsObservation != nil }
+
     private func observeVolumeButtons() {
-        VolumeButtons.shared?.addObserver(observer: self)
-        isObservingVolumeButtons = true
+        if volumeButtonsObservation != nil { return }
+        let observation = PassiveVolumeButtonObservation(observer: self)
+        self.volumeButtonsObservation = observation
     }
 
     private func stopObservingVolumeButtons() {
-        VolumeButtons.shared?.removeObserver(self)
-        isObservingVolumeButtons = false
+        volumeButtonsObservation = nil
     }
 }
 
@@ -502,7 +505,7 @@ extension StoryPageViewController: UIViewControllerTransitioningDelegate {
     private func storyTransitionContext(presentingViewController: UIViewController, isPresenting: Bool) throws -> StoryTransitionContext? {
         // If we're not presenting from the stories tab, use a default animation
         guard let splitViewController = presentingViewController as? ConversationSplitViewController else { return nil }
-        guard splitViewController.homeVC.selectedTab == .stories else { return nil }
+        guard splitViewController.homeVC.selectedHomeTab == .stories else { return nil }
 
         let thumbnailView: UIView
         let storyMessage: StoryMessage
@@ -557,18 +560,22 @@ extension StoryPageViewController: UIViewControllerTransitioningDelegate {
     }
 
     private func storyThumbnailSize(for presentingMessage: StoryMessage) throws -> CGSize? {
+        let attachment: TSResource?
         switch presentingMessage.attachment {
-        case .file(let file):
-            guard let attachment = databaseStorage.read(block: { TSAttachment.anyFetch(uniqueId: file.attachmentId, transaction: $0) }) else {
-                throw OWSAssertionError("Unexpectedly missing attachment for story message")
-            }
-
-            if let stream = attachment as? TSAttachmentStream, let thumbnailImage = stream.thumbnailImageSmallSync() {
-                return thumbnailImage.size
-            } else {
-                return nil
-            }
+        case .file, .foreignReferenceAttachment:
+            attachment = databaseStorage.read { tx in
+                return presentingMessage.fileAttachment(tx: tx)
+            }?.attachment
         case .text:
+            return nil
+        }
+        guard let attachment else {
+            throw OWSAssertionError("Unexpectedly missing attachment for story message")
+        }
+
+        if let stream = attachment.asResourceStream(), let thumbnailImage = stream.thumbnailImageSync(quality: .small) {
+            return thumbnailImage.size
+        } else {
             return nil
         }
     }
@@ -576,8 +583,8 @@ extension StoryPageViewController: UIViewControllerTransitioningDelegate {
     private func storyView(for presentingMessage: StoryMessage) -> UIView? {
         let storyView: UIView
         switch presentingMessage.attachment {
-        case .file(let file):
-            guard let attachment = databaseStorage.read(block: { TSAttachment.anyFetch(uniqueId: file.attachmentId, transaction: $0) }) else {
+        case .file, .foreignReferenceAttachment:
+            guard let attachment = databaseStorage.read(block: { presentingMessage.fileAttachment(tx: $0) })?.attachment else {
                 // Can happen if the story was deleted by the sender while in the viewer.
                 return nil
             }
@@ -585,7 +592,7 @@ extension StoryPageViewController: UIViewControllerTransitioningDelegate {
             let view = UIView()
             storyView = view
 
-            if let stream = attachment as? TSAttachmentStream, let thumbnailImage = stream.thumbnailImageSmallSync() {
+            if let stream = attachment.asResourceStream(), let thumbnailImage = stream.thumbnailImageSync(quality: .small) {
                 let blurredImageView = UIImageView()
                 blurredImageView.contentMode = .scaleAspectFill
                 blurredImageView.image = thumbnailImage
@@ -602,7 +609,7 @@ extension StoryPageViewController: UIViewControllerTransitioningDelegate {
                 imageView.image = thumbnailImage
                 view.addSubview(imageView)
                 imageView.autoPinEdgesToSuperviewEdges()
-            } else if let blurHash = attachment.blurHash, let blurHashImage = BlurHash.image(for: blurHash) {
+            } else if let blurHash = attachment.resourceBlurHash, let blurHashImage = BlurHash.image(for: blurHash) {
                 let blurHashImageView = UIImageView()
                 blurHashImageView.contentMode = .scaleAspectFill
                 blurHashImageView.image = blurHashImage
@@ -610,8 +617,15 @@ extension StoryPageViewController: UIViewControllerTransitioningDelegate {
                 blurHashImageView.autoPinEdgesToSuperviewEdges()
             }
         case .text(let attachment):
+            let preloadedAttachment = databaseStorage.read { tx in
+                return PreloadedTextAttachment.from(
+                    attachment,
+                    storyMessage: presentingMessage,
+                    tx: tx
+                )
+            }
             storyView = TextAttachmentView(
-                attachment: attachment,
+                attachment: preloadedAttachment,
                 interactionIdentifier: .fromStoryMessage(presentingMessage),
                 spoilerState: spoilerState
             ).asThumbnailView()
@@ -623,11 +637,9 @@ extension StoryPageViewController: UIViewControllerTransitioningDelegate {
     }
 }
 
-extension StoryPageViewController: VolumeButtonObserver {
+extension StoryPageViewController: PassiveVolumeButtonObserver {
 
-    func didPressVolumeButton(with identifier: VolumeButtons.Identifier) {
-        VolumeButtons.shared?.incrementSystemVolume(for: identifier)
-
+    func didTapSomeVolumeButton() {
         guard isMuted else {
             // Already unmuted, no need to do anything.
             return

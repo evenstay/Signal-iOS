@@ -6,53 +6,37 @@
 import Contacts
 import Foundation
 import LibSignalClient
-import SignalMessaging
-import SignalServiceKit
+public import SignalServiceKit
 
 extension RegistrationCoordinatorImpl {
 
     public enum Shims {
-        public typealias AccountManager = _RegistrationCoordinator_AccountManagerShim
         public typealias ContactsManager = _RegistrationCoordinator_ContactsManagerShim
         public typealias ContactsStore = _RegistrationCoordinator_CNContactsStoreShim
         public typealias ExperienceManager = _RegistrationCoordinator_ExperienceManagerShim
+        public typealias FeatureFlags = _RegistrationCoordinator_FeatureFlagsShim
         public typealias MessagePipelineSupervisor = _RegistrationCoordinator_MessagePipelineSupervisorShim
         public typealias MessageProcessor = _RegistrationCoordinator_MessageProcessorShim
         public typealias OWS2FAManager = _RegistrationCoordinator_OWS2FAManagerShim
+        public typealias PreKeyManager = _RegistrationCoordinator_PreKeyManagerShim
         public typealias ProfileManager = _RegistrationCoordinator_ProfileManagerShim
         public typealias PushRegistrationManager = _RegistrationCoordinator_PushRegistrationManagerShim
         public typealias ReceiptManager = _RegistrationCoordinator_ReceiptManagerShim
         public typealias UDManager = _RegistrationCoordinator_UDManagerShim
     }
     public enum Wrappers {
-        public typealias AccountManager = _RegistrationCoordinator_AccountManagerWrapper
         public typealias ContactsManager = _RegistrationCoordinator_ContactsManagerWrapper
         public typealias ContactsStore = _RegistrationCoordinator_CNContactsStoreWrapper
         public typealias ExperienceManager = _RegistrationCoordinator_ExperienceManagerWrapper
+        public typealias FeatureFlags = _RegistrationCoordinator_FeatureFlagsWrapper
         public typealias MessagePipelineSupervisor = _RegistrationCoordinator_MessagePipelineSupervisorWrapper
         public typealias MessageProcessor = _RegistrationCoordinator_MessageProcessorWrapper
         public typealias OWS2FAManager = _RegistrationCoordinator_OWS2FAManagerWrapper
+        public typealias PreKeyManager = _RegistrationCoordinator_PreKeyManagerWrapper
         public typealias ProfileManager = _RegistrationCoordinator_ProfileManagerWrapper
         public typealias PushRegistrationManager = _RegistrationCoordinator_PushRegistrationManagerWrapper
         public typealias ReceiptManager = _RegistrationCoordinator_ReceiptManagerWrapper
         public typealias UDManager = _RegistrationCoordinator_UDManagerWrapper
-    }
-}
-
-// MARK: - AccountManager
-
-public protocol _RegistrationCoordinator_AccountManagerShim {
-
-    func performInitialStorageServiceRestore(authedDevice: AuthedDevice) -> Promise<Void>
-}
-
-public class _RegistrationCoordinator_AccountManagerWrapper: _RegistrationCoordinator_AccountManagerShim {
-
-    private let manager: AccountManager
-    public init(_ manager: AccountManager) { self.manager = manager }
-
-    public func performInitialStorageServiceRestore(authedDevice: AuthedDevice) -> Promise<Void> {
-        return manager.performInitialStorageServiceRestore(authedDevice: authedDevice)
     }
 }
 
@@ -61,8 +45,6 @@ public class _RegistrationCoordinator_AccountManagerWrapper: _RegistrationCoordi
 public protocol _RegistrationCoordinator_ContactsManagerShim {
 
     func fetchSystemContactsOnceIfAlreadyAuthorized()
-
-    func setIsPrimaryDevice()
 }
 
 public class _RegistrationCoordinator_ContactsManagerWrapper: _RegistrationCoordinator_ContactsManagerShim {
@@ -72,10 +54,6 @@ public class _RegistrationCoordinator_ContactsManagerWrapper: _RegistrationCoord
 
     public func fetchSystemContactsOnceIfAlreadyAuthorized() {
         manager.fetchSystemContactsOnceIfAlreadyAuthorized()
-    }
-
-    public func setIsPrimaryDevice() {
-        manager.setIsPrimaryDevice()
     }
 }
 
@@ -132,6 +110,20 @@ public class _RegistrationCoordinator_ExperienceManagerWrapper: _RegistrationCoo
     public func enableAllGetStartedCards(_ tx: DBWriteTransaction) {
         GetStartedBannerViewController.enableAllCards(writeTx: SDSDB.shimOnlyBridge(tx))
     }
+}
+
+// MARK: - FeatureFlags
+
+public protocol _RegistrationCoordinator_FeatureFlagsShim {
+
+    var messageBackupFileAlphaRegistrationFlow: Bool { get }
+}
+
+public class _RegistrationCoordinator_FeatureFlagsWrapper: _RegistrationCoordinator_FeatureFlagsShim {
+
+    public init() {}
+
+    public var messageBackupFileAlphaRegistrationFlow: Bool { FeatureFlags.messageBackupFileAlphaRegistrationFlow }
 }
 
 // MARK: - MessagePipelineSupervisor
@@ -205,7 +197,7 @@ public class _RegistrationCoordinator_OWS2FAManagerWrapper: _RegistrationCoordin
     public init(_ manager: OWS2FAManager) { self.manager = manager }
 
     public func pinCode(_ tx: DBReadTransaction) -> String? {
-        return manager.pinCode(with: SDSDB.shimOnlyBridge(tx))
+        return manager.pinCode(transaction: SDSDB.shimOnlyBridge(tx))
     }
 
     public func clearLocalPinCode(_ tx: DBWriteTransaction) {
@@ -225,6 +217,60 @@ public class _RegistrationCoordinator_OWS2FAManagerWrapper: _RegistrationCoordin
     }
 }
 
+// MARK: - PreKeyManager
+
+// Unfortunately this shim needs to exist because of tests; Promise.wrapAsync starts a Task,
+// which is unavoidably asynchronous, which does not play nice with TestScheduler and general
+// synchronous, single-threaded test setups. To avoid this, we need to push down the
+// Promise.wrapAsync call into the shim, so that we can avoid the call entirely in tests.
+public protocol _RegistrationCoordinator_PreKeyManagerShim {
+
+    func createPreKeysForRegistration() -> Promise<RegistrationPreKeyUploadBundles>
+
+    func finalizeRegistrationPreKeys(
+        _ prekeyBundles: RegistrationPreKeyUploadBundles,
+        uploadDidSucceed: Bool
+    ) -> Promise<Void>
+
+    func rotateOneTimePreKeysForRegistration(auth: ChatServiceAuth) -> Promise<Void>
+}
+
+public class _RegistrationCoordinator_PreKeyManagerWrapper: _RegistrationCoordinator_PreKeyManagerShim {
+
+    private let preKeyManager: PreKeyManager
+
+    public init(_ preKeyManager: PreKeyManager) {
+        self.preKeyManager = preKeyManager
+    }
+
+    public func createPreKeysForRegistration() -> Promise<RegistrationPreKeyUploadBundles> {
+        let preKeyManager = self.preKeyManager
+        return Promise.wrapAsync {
+            return try await preKeyManager.createPreKeysForRegistration().value
+        }
+    }
+
+    public func finalizeRegistrationPreKeys(
+        _ prekeyBundles: RegistrationPreKeyUploadBundles,
+        uploadDidSucceed: Bool
+    ) -> Promise<Void> {
+        let preKeyManager = self.preKeyManager
+        return Promise.wrapAsync {
+            return try await preKeyManager.finalizeRegistrationPreKeys(
+                prekeyBundles,
+                uploadDidSucceed: uploadDidSucceed
+            ).value
+        }
+    }
+
+    public func rotateOneTimePreKeysForRegistration(auth: ChatServiceAuth) -> Promise<Void> {
+        let preKeyManager = self.preKeyManager
+        return Promise.wrapAsync {
+            return try await preKeyManager.rotateOneTimePreKeysForRegistration(auth: auth).value
+        }
+    }
+}
+
 // MARK: - ProfileManager
 
 public protocol _RegistrationCoordinator_ProfileManagerShim {
@@ -233,41 +279,51 @@ public protocol _RegistrationCoordinator_ProfileManagerShim {
 
     // NOTE: non-optional because OWSProfileManager generates a random key
     // if one doesn't already exist.
-    var localProfileKey: OWSAES256Key { get }
+    var localProfileKey: Aes256Key { get }
 
     func updateLocalProfile(
-        givenName: String,
-        familyName: String?,
+        givenName: OWSUserProfile.NameComponent,
+        familyName: OWSUserProfile.NameComponent?,
         avatarData: Data?,
-        authedAccount: AuthedAccount
+        authedAccount: AuthedAccount,
+        tx: DBWriteTransaction
     ) -> Promise<Void>
+
+    func scheduleReuploadLocalProfile(authedAccount: AuthedAccount)
 }
 
 public class _RegistrationCoordinator_ProfileManagerWrapper: _RegistrationCoordinator_ProfileManagerShim {
 
-    private let manager: ProfileManagerProtocol
-    public init(_ manager: ProfileManagerProtocol) { self.manager = manager }
+    private let manager: ProfileManager
+    public init(_ manager: ProfileManager) { self.manager = manager }
 
     public var hasProfileName: Bool { manager.hasProfileName }
 
-    public var localProfileKey: OWSAES256Key { manager.localProfileKey() }
+    public var localProfileKey: Aes256Key { manager.localProfileKey }
 
     public func updateLocalProfile(
-        givenName: String,
-        familyName: String?,
+        givenName: OWSUserProfile.NameComponent,
+        familyName: OWSUserProfile.NameComponent?,
         avatarData: Data?,
-        authedAccount: AuthedAccount
+        authedAccount: AuthedAccount,
+        tx: DBWriteTransaction
     ) -> Promise<Void> {
-        return OWSProfileManager.updateLocalProfilePromise(
-            profileGivenName: givenName,
-            profileFamilyName: familyName,
-            profileBio: nil,
-            profileBioEmoji: nil,
-            profileAvatarData: avatarData,
-            visibleBadgeIds: [],
+        return manager.updateLocalProfile(
+            profileGivenName: .setTo(givenName),
+            profileFamilyName: .setTo(familyName),
+            profileBio: .setTo(nil),
+            profileBioEmoji: .setTo(nil),
+            profileAvatarData: .setTo(avatarData),
+            visibleBadgeIds: .setTo([]),
+            unsavedRotatedProfileKey: nil,
             userProfileWriter: .registration,
-            authedAccount: authedAccount
+            authedAccount: authedAccount,
+            tx: SDSDB.shimOnlyBridge(tx)
         )
+    }
+
+    public func scheduleReuploadLocalProfile(authedAccount: AuthedAccount) {
+        return manager.reuploadLocalProfile(authedAccount: authedAccount)
     }
 }
 
@@ -300,10 +356,6 @@ public protocol _RegistrationCoordinator_PushRegistrationManagerShim {
     func receivePreAuthChallengeToken() -> Guarantee<String>
 
     func clearPreAuthChallengeToken()
-
-    func syncPushTokensForcingUpload(
-        auth: ChatServiceAuth
-    ) -> Guarantee<Registration.SyncPushTokensResult>
 }
 
 public class _RegistrationCoordinator_PushRegistrationManagerWrapper: _RegistrationCoordinator_PushRegistrationManagerShim {
@@ -316,7 +368,9 @@ public class _RegistrationCoordinator_PushRegistrationManagerWrapper: _Registrat
     }
 
     public func registerUserNotificationSettings() -> Guarantee<Void> {
-        return manager.registerUserNotificationSettings()
+        return Guarantee.wrapAsync { [manager] in
+            await manager.registerUserNotificationSettings()
+        }
     }
 
     public func requestPushToken() -> Guarantee<Registration.RequestPushTokensResult> {
@@ -340,28 +394,6 @@ public class _RegistrationCoordinator_PushRegistrationManagerWrapper: _Registrat
 
     public func clearPreAuthChallengeToken() {
         manager.clearPreAuthChallengeToken()
-    }
-
-    public func syncPushTokensForcingUpload(
-        auth: ChatServiceAuth
-    ) -> Guarantee<Registration.SyncPushTokensResult> {
-        let job = SyncPushTokensJob(mode: .forceUpload, auth: auth)
-        return Guarantee.wrapAsync {
-            do {
-                try await job.run()
-                return .success
-            } catch {
-                if error.isNetworkFailureOrTimeout {
-                    return .networkError
-                }
-                switch error {
-                case PushRegistrationError.pushNotSupported(let description):
-                    return .pushUnsupported(description: description)
-                default:
-                    return .genericError(error)
-                }
-            }
-        }
     }
 }
 

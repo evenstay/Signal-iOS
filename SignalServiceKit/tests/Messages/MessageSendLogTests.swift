@@ -9,7 +9,7 @@ import XCTest
 
 @testable import SignalServiceKit
 
-class MessageSendLogTests: SSKBaseTestSwift {
+class MessageSendLogTests: SSKBaseTest {
     private var messageSendLog: MessageSendLog { SSKEnvironment.shared.messageSendLogRef }
 
     func testStoreAndRetrieveValidPayload() throws {
@@ -468,15 +468,12 @@ class MessageSendLogTests: SSKBaseTestSwift {
             return (oldId, newId)
         }
 
-        // Kick off cleanup
-        let testScheduler = TestScheduler()
-        messageSendLog.schedulePeriodicCleanup(on: testScheduler)
-        testScheduler.tick()
+        try messageSendLog.cleanUpExpiredEntries()
 
-        databaseStorage.write { writeTx in
+        databaseStorage.read { tx in
             // Verify only the old message was deleted
-            XCTAssertFalse(isPayloadAlive(index: oldId, transaction: writeTx))
-            XCTAssertTrue(isPayloadAlive(index: newId, transaction: writeTx))
+            XCTAssertFalse(isPayloadAlive(index: oldId, transaction: tx))
+            XCTAssertTrue(isPayloadAlive(index: newId, transaction: tx))
         }
     }
 
@@ -491,7 +488,7 @@ class MessageSendLogTests: SSKBaseTestSwift {
         // we get 1629210680139.
         try databaseStorage.write { writeTx in
             let messageSendLog = MessageSendLog(
-                databaseStorage: databaseStorage,
+                db: DependenciesBridge.shared.db,
                 dateProvider: { Date(timeIntervalSince1970: 1629270000) }
             )
 
@@ -520,8 +517,14 @@ class MessageSendLogTests: SSKBaseTestSwift {
     // MARK: - Helpers
 
     class MSLTestMessage: TSOutgoingMessage {
-        override init(outgoingMessageWithBuilder outgoingMessageBuilder: TSOutgoingMessageBuilder, transaction: SDSAnyReadTransaction) {
-            super.init(outgoingMessageWithBuilder: outgoingMessageBuilder, transaction: transaction)
+        init(outgoingMessageWithBuilder outgoingMessageBuilder: TSOutgoingMessageBuilder, transaction: SDSAnyReadTransaction) {
+            super.init(
+                outgoingMessageWith: outgoingMessageBuilder,
+                additionalRecipients: [],
+                explicitRecipients: [],
+                skippedRecipients: [],
+                transaction: transaction
+            )
         }
 
         required init?(coder: NSCoder) {
@@ -552,18 +555,20 @@ class MessageSendLogTests: SSKBaseTestSwift {
             return newDate
         }()
 
-        let builder = TSOutgoingMessageBuilder(thread: ContactThreadFactory().create(transaction: writeTx),
-                                               timestamp: resolvedDate.ows_millisecondsSince1970)
+        let builder: TSOutgoingMessageBuilder = .withDefaultValues(
+            thread: ContactThreadFactory().create(transaction: writeTx),
+            timestamp: resolvedDate.ows_millisecondsSince1970
+        )
         let testMessage = MSLTestMessage(outgoingMessageWithBuilder: builder, transaction: writeTx)
         testMessage._contentHint = contentHint
         testMessage._relatedMessageIds = [testMessage.uniqueId] + relatedMessageIds
         return testMessage
     }
 
-    func isPayloadAlive(index: Int64, transaction writeTx: SDSAnyWriteTransaction) -> Bool {
+    func isPayloadAlive(index: Int64, transaction tx: SDSAnyReadTransaction) -> Bool {
         let count = try! MessageSendLog.Payload
             .filter(Column("payloadId") == index)
-            .fetchCount(writeTx.unwrapGrdbWrite.database)
+            .fetchCount(tx.unwrapGrdbRead.database)
         return count > 0
     }
 }

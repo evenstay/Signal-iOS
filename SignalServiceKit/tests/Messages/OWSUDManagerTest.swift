@@ -5,11 +5,10 @@
 
 import XCTest
 import Foundation
-import SignalCoreKit
 import LibSignalClient
 @testable import SignalServiceKit
 
-class OWSUDManagerTest: SSKBaseTestSwift {
+class OWSUDManagerTest: SSKBaseTest {
 
     private var udManagerImpl: OWSUDManagerImpl {
         return SSKEnvironment.shared.udManager as! OWSUDManagerImpl
@@ -17,16 +16,14 @@ class OWSUDManagerTest: SSKBaseTestSwift {
 
     // MARK: - Setup/Teardown
 
-    private let aliceE164 = "+13213214321"
-    private let aliceAci = Aci.randomForTesting()
-    private lazy var aliceAddress = SignalServiceAddress(serviceId: aliceAci, phoneNumber: aliceE164)
+    private let localIdentifiers: LocalIdentifiers = .forUnitTests
 
     override func setUp() {
         super.setUp()
 
         databaseStorage.write { tx in
             (DependenciesBridge.shared.registrationStateChangeManager as! RegistrationStateChangeManagerImpl).registerForTests(
-                localIdentifiers: .init(aci: aliceAci, pni: nil, e164: E164(aliceE164)!),
+                localIdentifiers: localIdentifiers,
                 tx: tx.asV2Write
             )
         }
@@ -34,11 +31,14 @@ class OWSUDManagerTest: SSKBaseTestSwift {
         // Configure UDManager
         self.write { transaction in
             self.profileManager.setProfileKeyData(
-                OWSAES256Key.generateRandom().keyData,
-                for: self.aliceAddress,
+                Aes256Key.generateRandom().keyData,
+                for: localIdentifiers.aci,
+                onlyFillInIfMissing: false,
+                shouldFetchProfile: true,
                 userProfileWriter: .tests,
+                localIdentifiers: localIdentifiers,
                 authedAccount: .implicit(),
-                transaction: transaction
+                tx: transaction.asV2Write
             )
         }
     }
@@ -50,7 +50,7 @@ class OWSUDManagerTest: SSKBaseTestSwift {
 
         // Ensure UD is enabled by setting our own access level to enabled.
         write { tx in
-            udManagerImpl.setUnidentifiedAccessMode(.enabled, for: aliceAci, tx: tx)
+            udManagerImpl.setUnidentifiedAccessMode(.enabled, for: localIdentifiers.aci, tx: tx)
         }
 
         let bobRecipientAci = Aci.randomForTesting()
@@ -99,17 +99,20 @@ class OWSUDManagerTest: SSKBaseTestSwift {
 
         // Ensure UD is enabled by setting our own access level to enabled.
         write { tx in
-            udManagerImpl.setUnidentifiedAccessMode(.enabled, for: aliceAci, tx: tx)
+            udManagerImpl.setUnidentifiedAccessMode(.enabled, for: localIdentifiers.aci, tx: tx)
         }
 
         let bobRecipientAci = Aci.randomForTesting()
         self.write { transaction in
             self.profileManager.setProfileKeyData(
-                OWSAES256Key.generateRandom().keyData,
-                for: SignalServiceAddress(bobRecipientAci),
+                Aes256Key.generateRandom().keyData,
+                for: bobRecipientAci,
+                onlyFillInIfMissing: false,
+                shouldFetchProfile: true,
                 userProfileWriter: .tests,
+                localIdentifiers: localIdentifiers,
                 authedAccount: .implicit(),
-                transaction: transaction
+                tx: transaction.asV2Write
             )
         }
 

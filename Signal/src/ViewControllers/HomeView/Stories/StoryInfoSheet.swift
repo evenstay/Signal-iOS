@@ -5,7 +5,7 @@
 
 import Foundation
 import LibSignalClient
-import SignalMessaging
+import SignalServiceKit
 import SignalUI
 
 class StoryInfoSheet: OWSTableSheetViewController {
@@ -27,10 +27,6 @@ class StoryInfoSheet: OWSTableSheetViewController {
 
         tableViewController.forceDarkMode = true
         tableViewController.tableView.register(ContactTableViewCell.self, forCellReuseIdentifier: ContactTableViewCell.reuseIdentifier)
-    }
-
-    required init() {
-        fatalError("init() has not been implemented")
     }
 
     public override func dismiss(animated flag: Bool, completion: (() -> Void)? = nil) {
@@ -105,13 +101,13 @@ class StoryInfoSheet: OWSTableSheetViewController {
 
         switch storyMessage.attachment {
         case .text: break
-        case .file(let file):
-            guard let attachment = databaseStorage.read(block: { TSAttachment.anyFetch(uniqueId: file.attachmentId, transaction: $0) }) else {
+        case .file, .foreignReferenceAttachment:
+            guard let attachment = databaseStorage.read(block: { storyMessage.fileAttachment(tx: $0) })?.attachment else {
                 owsFailDebug("Missing attachment for story message")
                 break
             }
 
-            if let formattedByteCount = byteCountFormatter.string(for: attachment.byteCount) {
+            if let formattedByteCount = byteCountFormatter.string(for: attachment.unencryptedResourceByteCount) {
                 stackView.addArrangedSubview(buildValueLabel(
                     name: OWSLocalizedString(
                         "MESSAGE_METADATA_VIEW_ATTACHMENT_FILE_SIZE",
@@ -146,7 +142,7 @@ class StoryInfoSheet: OWSTableSheetViewController {
 
         var sections = [OWSTableSection]()
 
-        let orderedSendingStates: [OWSOutgoingMessageRecipientState] = [
+        let orderedSendingStates: [OWSOutgoingMessageRecipientStatus] = [
             .sent,
             .sending,
             .pending,
@@ -159,10 +155,12 @@ class StoryInfoSheet: OWSTableSheetViewController {
         for state in orderedSendingStates {
             guard let recipients = groupedRecipientStates[state], !recipients.isEmpty else { continue }
 
-            let sortedRecipientAddresses = contactsManagerImpl
-                .sortSignalServiceAddressesWithSneakyTransaction(
-                    recipients.compactMap { SignalServiceAddress($0.key) }
+            let sortedRecipientAddresses = databaseStorage.read { tx in
+                return contactsManagerImpl.sortSignalServiceAddresses(
+                    recipients.map { SignalServiceAddress($0.key) },
+                    transaction: tx
                 )
+            }
 
             let section = OWSTableSection()
             section.hasBackground = false
@@ -180,9 +178,9 @@ class StoryInfoSheet: OWSTableSheetViewController {
         return sections
     }
 
-    private func sectionTitle(for state: OWSOutgoingMessageRecipientState) -> String {
+    private func sectionTitle(for state: OWSOutgoingMessageRecipientStatus) -> String {
         switch state {
-        case .sent:
+        case .sent, .delivered, .read, .viewed:
             return OWSLocalizedString(
                 "MESSAGE_METADATA_VIEW_MESSAGE_STATUS_SENT",
                 comment: "Status label for messages which are sent."
@@ -210,9 +208,9 @@ class StoryInfoSheet: OWSTableSheetViewController {
         }
     }
 
-    private func statusMessage(for state: OWSOutgoingMessageRecipientState) -> String {
+    private func statusMessage(for state: OWSOutgoingMessageRecipientStatus) -> String {
         switch state {
-        case .sent:
+        case .sent, .delivered, .read, .viewed:
             return DateUtil.formatPastTimestampRelativeToNow(storyMessage.timestamp)
         case .sending:
             return OWSLocalizedString("MESSAGE_STATUS_SENDING", comment: "message status while message is sending.")
@@ -281,8 +279,12 @@ class StoryInfoSheet: OWSTableSheetViewController {
             return cell
         }, actionBlock: { [weak self] in
             guard let self = self else { return }
-            let actionSheet = MemberActionSheet(address: address, groupViewHelper: nil, spoilerState: self.spoilerState)
-            actionSheet.present(from: self)
+            ProfileSheetSheetCoordinator(
+                address: address,
+                groupViewHelper: nil,
+                spoilerState: self.spoilerState
+            )
+            .presentAppropriateSheet(from: self)
         })
     }
 

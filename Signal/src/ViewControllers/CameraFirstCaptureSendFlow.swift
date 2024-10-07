@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
 import SignalServiceKit
 import SignalUI
 
@@ -151,7 +150,10 @@ extension CameraFirstCaptureSendFlow: ConversationPickerDelegate {
             }
 
             firstly {
-                AttachmentMultisend.sendTextAttachment(textAttachment, to: selectedStoryItems)
+                TSResourceMultisend.sendTextAttachment(
+                    textAttachment,
+                    to: selectedStoryItems
+                ).enqueuedPromise
             }.done { _ in
                 self.delegate?.cameraFirstCaptureSendFlowDidComplete(self)
             }.catch { error in
@@ -169,9 +171,11 @@ extension CameraFirstCaptureSendFlow: ConversationPickerDelegate {
 
         let conversations = selectedConversations
         firstly {
-            AttachmentMultisend.sendApprovedMedia(conversations: conversations,
-                                                  approvalMessageBody: self.approvalMessageBody,
-                                                  approvedAttachments: approvedAttachments)
+            TSResourceMultisend.sendApprovedMedia(
+                conversations: conversations,
+                approvalMessageBody: self.approvalMessageBody,
+                approvedAttachments: approvedAttachments
+            ).enqueuedPromise
         }.done { _ in
             self.delegate?.cameraFirstCaptureSendFlowDidComplete(self)
         }.catch { error in

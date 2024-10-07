@@ -3,8 +3,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
-
 public extension Usernames {
     /// Represents a username parsed into its user-generated nickname and
     /// programmatically-generated numeric discriminator.
@@ -38,8 +36,22 @@ public extension Usernames {
             self.discriminator = discriminator
         }
 
+        init(nickname: String, discriminator: String) {
+            self.nickname = nickname
+            self.discriminator = discriminator
+        }
+
         public var reassembled: String {
             "\(nickname)\(Self.separator)\(discriminator)"
+        }
+
+        public func updatingNickame(
+            newNickname: String
+        ) -> ParsedUsername {
+            return ParsedUsername(
+                nickname: newNickname,
+                discriminator: discriminator
+            )
         }
     }
 }

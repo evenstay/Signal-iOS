@@ -4,7 +4,6 @@
 //
 
 import Foundation
-import SignalMessaging
 import SignalServiceKit
 import SignalUI
 import UIKit
@@ -49,10 +48,6 @@ class StoryGroupRepliesAndViewsSheet: InteractiveSheetViewController, StoryGroup
 
         self.allowsExpansion = true
         minimizedHeight = CurrentAppContext().frame.height * 0.6
-    }
-
-    public required init() {
-        fatalError("init() has not been implemented")
     }
 
     override func viewDidLoad() {
@@ -172,10 +167,10 @@ class StoryGroupRepliesAndViewsSheet: InteractiveSheetViewController, StoryGroup
         button.layer.cornerRadius = 14
         button.clipsToBounds = true
         button.titleLabel?.font = UIFont.semiboldFont(ofSize: 15)
-        button.contentEdgeInsets = UIEdgeInsets(hMargin: 12, vMargin: 4)
+        button.ows_contentEdgeInsets = UIEdgeInsets(hMargin: 12, vMargin: 4)
         button.setTitle(title, for: .normal)
         button.setTitleColor(Theme.darkThemePrimaryColor, for: .normal)
-        button.setBackgroundImage(UIImage(color: .ows_gray65), for: .selected)
+        button.setBackgroundImage(UIImage.image(color: .ows_gray65), for: .selected)
         return button
     }
 }

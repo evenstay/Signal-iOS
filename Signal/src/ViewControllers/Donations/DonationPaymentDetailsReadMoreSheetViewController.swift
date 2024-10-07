@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalCoreKit
-import SignalUI
+import SignalServiceKit
+public import SignalUI
 
 public class DonationPaymentDetailsReadMoreSheetViewController: OWSTableSheetViewController {
     override public func updateTableContents(shouldReload: Bool = true) {

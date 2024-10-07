@@ -6,6 +6,7 @@
 import CoreServices
 import SignalServiceKit
 import SignalUI
+import UniformTypeIdentifiers
 
 class SetWallpaperViewController: OWSTableViewController2 {
     lazy var collectionView = WallpaperCollectionView(container: self, shouldDimInDarkMode: shouldDimInDarkMode) { [weak self] wallpaper in
@@ -21,7 +22,10 @@ class SetWallpaperViewController: OWSTableViewController2 {
     static func load(thread: TSThread?, tx: SDSAnyReadTransaction) -> SetWallpaperViewController {
         return SetWallpaperViewController(
             thread: thread,
-            shouldDimInDarkMode: Wallpaper.dimInDarkMode(for: thread, transaction: tx)
+            shouldDimInDarkMode: DependenciesBridge.shared.wallpaperStore.fetchDimInDarkMode(
+                for: thread?.uniqueId,
+                tx: tx.asV2Read
+            )
         )
     }
 
@@ -76,15 +80,16 @@ class SetWallpaperViewController: OWSTableViewController2 {
 
         let choosePhotoItem = OWSTableItem.disclosureItem(
             icon: .buttonPhotoLibrary,
-            name: OWSLocalizedString("SET_WALLPAPER_CHOOSE_PHOTO",
-                                    comment: "Title for the wallpaper choose from photos option"),
-            accessibilityIdentifier: UIView.accessibilityIdentifier(in: self, name: "choose_photo")
+            withText: OWSLocalizedString(
+                "SET_WALLPAPER_CHOOSE_PHOTO",
+                comment: "Title for the wallpaper choose from photos option"
+            )
         ) { [weak self] in
             guard let self = self else { return }
             let vc = UIImagePickerController()
             vc.delegate = self
             vc.sourceType = .photoLibrary
-            vc.mediaTypes = [kUTTypeImage as String]
+            vc.mediaTypes = [UTType.image.identifier]
             self.presentFormSheet(vc, animated: true)
         }
         photosSection.add(choosePhotoItem)

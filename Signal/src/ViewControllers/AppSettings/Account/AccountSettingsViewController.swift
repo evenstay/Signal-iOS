@@ -3,15 +3,16 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
 import SignalServiceKit
 import SignalUI
 
 class AccountSettingsViewController: OWSTableViewController2 {
 
+    private let appReadiness: AppReadinessSetter
     private let context: ViewControllerContext
 
-    override init() {
+    public init(appReadiness: AppReadinessSetter) {
+        self.appReadiness = appReadiness
         // TODO[ViewContextPiping]
         self.context = ViewControllerContext.shared
         super.init()
@@ -55,7 +56,7 @@ class AccountSettingsViewController: OWSTableViewController2 {
             )
 
             pinSection.add(.disclosureItem(
-                withText: OWS2FAManager.shared.is2FAEnabled()
+                withText: OWS2FAManager.shared.is2FAEnabled
                     ? OWSLocalizedString(
                         "SETTINGS_PINS_ITEM",
                         comment: "Label for the 'pins' item of the privacy settings when the user does have a pin."
@@ -64,14 +65,13 @@ class AccountSettingsViewController: OWSTableViewController2 {
                         "SETTINGS_PINS_ITEM_CREATE",
                         comment: "Label for the 'pins' item of the privacy settings when the user doesn't have a pin."
                     ),
-                accessibilityIdentifier: UIView.accessibilityIdentifier(in: self, name: "pin"),
                 actionBlock: { [weak self] in
                     self?.showCreateOrChangePin()
                 }
             ))
 
             // Reminders toggle.
-            if OWS2FAManager.shared.is2FAEnabled() {
+            if OWS2FAManager.shared.is2FAEnabled {
                 pinSection.add(.switch(
                     withText: OWSLocalizedString(
                         "SETTINGS_PIN_REMINDER_SWITCH_LABEL",
@@ -109,7 +109,6 @@ class AccountSettingsViewController: OWSTableViewController2 {
                     "SETTINGS_ADVANCED_PIN_SETTINGS",
                     comment: "Label for the 'advanced pin settings' button."
                 ),
-                accessibilityIdentifier: UIView.accessibilityIdentifier(in: self, name: "advanced-pins"),
                 actionBlock: { [weak self] in
                     let vc = AdvancedPinSettingsTableViewController()
                     self?.navigationController?.pushViewController(vc, animated: true)
@@ -206,7 +205,7 @@ class AccountSettingsViewController: OWSTableViewController2 {
     // MARK: - Account
 
     private func reregisterUser() {
-        RegistrationUtils.showReregistrationUI(fromViewController: self)
+        RegistrationUtils.showReregistrationUI(fromViewController: self, appReadiness: appReadiness)
     }
 
     private func deleteLinkedData() {
@@ -221,7 +220,7 @@ class AccountSettingsViewController: OWSTableViewController2 {
     }
 
     private func unregisterUser() {
-        let vc = DeleteAccountConfirmationViewController()
+        let vc = DeleteAccountConfirmationViewController(appReadiness: appReadiness)
         presentFormSheet(OWSNavigationController(rootViewController: vc), animated: true)
     }
 
@@ -261,19 +260,19 @@ class AccountSettingsViewController: OWSTableViewController2 {
                 // Don't allow changing number if we are in the middle of registering.
                 return .disallowed
             }
+            let recipientDatabaseTable = DependenciesBridge.shared.recipientDatabaseTable
             guard
                 let localIdentifiers = tsAccountManager.localIdentifiers(tx: transaction.asV2Read),
                 let localE164 = E164(localIdentifiers.phoneNumber),
                 let authToken = tsAccountManager.storedServerAuthToken(tx: transaction.asV2Read),
-                let localRecipient = SignalRecipient.fetchRecipient(
-                    for: localIdentifiers.aciAddress,
-                    onlyIfRegistered: false,
-                    tx: transaction
-                ),
-                let localAccountId = localRecipient.accountId
+                let localRecipient = recipientDatabaseTable.fetchRecipient(
+                    serviceId: localIdentifiers.aci,
+                    transaction: transaction.asV2Read
+                )
             else {
                 return .disallowed
             }
+            let localRecipientUniqueId = localRecipient.uniqueId
             let localDeviceId = tsAccountManager.storedDeviceId(tx: transaction.asV2Read)
             let localUserAllDeviceIds = localRecipient.deviceIds
 
@@ -281,7 +280,7 @@ class AccountSettingsViewController: OWSTableViewController2 {
                 oldE164: localE164,
                 oldAuthToken: authToken,
                 localAci: localIdentifiers.aci,
-                localAccountId: localAccountId,
+                localAccountId: localRecipientUniqueId,
                 localDeviceId: localDeviceId,
                 localUserAllDeviceIds: localUserAllDeviceIds
             ))
@@ -299,7 +298,7 @@ class AccountSettingsViewController: OWSTableViewController2 {
                 transaction: $0.asV2Write
             )
         }
-        let navController = RegistrationNavigationController.withCoordinator(coordinator)
+        let navController = RegistrationNavigationController.withCoordinator(coordinator, appReadiness: appReadiness)
         let window: UIWindow = CurrentAppContext().mainWindow!
         window.rootViewController = navController
     }
@@ -365,11 +364,14 @@ class AccountSettingsViewController: OWSTableViewController2 {
                 "SETTINGS_REGISTRATION_LOCK_TURN_ON",
                 comment: "Action to turn on registration lock"
             )) { [weak self] _ in
-                if OWS2FAManager.shared.is2FAEnabled() {
-                    OWS2FAManager.shared.enableRegistrationLockV2().done {
-                        self?.updateTableContents()
-                    }.catch { error in
-                        owsFailDebug("Error enabling reglock \(error)")
+                if OWS2FAManager.shared.is2FAEnabled {
+                    Task {
+                        do {
+                            try await OWS2FAManager.shared.enableRegistrationLockV2()
+                            self?.updateTableContents()
+                        } catch {
+                            owsFailDebug("Error enabling reglock \(error)")
+                        }
                     }
                 } else {
                     self?.showCreatePin(enableRegistrationLock: true)
@@ -389,10 +391,13 @@ class AccountSettingsViewController: OWSTableViewController2 {
                 ),
                 style: .destructive
             ) { [weak self] _ in
-                OWS2FAManager.shared.disableRegistrationLockV2().done {
-                    self?.updateTableContents()
-                }.catch { error in
-                    owsFailDebug("Failed to disable reglock \(error)")
+                Task {
+                    do {
+                        try await OWS2FAManager.shared.disableRegistrationLockV2()
+                        self?.updateTableContents()
+                    } catch {
+                        owsFailDebug("Failed to disable reglock \(error)")
+                    }
                 }
             }
             actionSheet.addAction(turnOffAction)
@@ -410,7 +415,7 @@ class AccountSettingsViewController: OWSTableViewController2 {
     }
 
     public func showCreateOrChangePin() {
-        if OWS2FAManager.shared.is2FAEnabled() {
+        if OWS2FAManager.shared.is2FAEnabled {
             showChangePin()
         } else {
             showCreatePin()

@@ -4,12 +4,12 @@
 //
 
 import Foundation
-import LibSignalClient
-import SignalCoreKit
+public import LibSignalClient
 
 @objc
 public class LegacyChangePhoneNumber: NSObject {
 
+    private let appReadiness: AppReadiness
     private let changePhoneNumberPniManager: ChangePhoneNumberPniManager
 
     /// Records change-number operations that were started (by this, or
@@ -20,15 +20,15 @@ public class LegacyChangePhoneNumber: NSObject {
     /// we will attempt to recover it.
     private let incompleteChangeTokenStore = IncompleteChangeTokenStore()
 
-    @objc
-    public override init() {
+    public init(appReadiness: AppReadiness) {
+        self.appReadiness = appReadiness
         self.changePhoneNumberPniManager = DependenciesBridge.shared.changePhoneNumberPniManager
 
         super.init()
 
         SwiftSingletons.register(self)
 
-        AppReadiness.runNowOrWhenAppDidBecomeReadyAsync {
+        appReadiness.runNowOrWhenAppDidBecomeReadyAsync {
             self.recoverInterruptedChangeNumberIfNecessary()
         }
     }
@@ -125,7 +125,7 @@ public class LegacyChangePhoneNumber: NSObject {
     }
 
     private func recoverInterruptedChangeNumberIfNecessary() {
-        guard AppReadiness.isAppReady else {
+        guard appReadiness.isAppReady else {
             owsFailDebug("isAppReady.")
             return
         }
@@ -165,42 +165,13 @@ public class LegacyChangePhoneNumber: NSObject {
 
     // MARK: - Update the local phone number
 
-    /// Warning: do not use this method.
-    ///
-    /// In a PNI world, it's not safe to update the E164 based on a WhoAmI
-    /// request (which this does), since the E164 is semantically linked to
-    /// data not available in the WhoAmI (such as the PNI identity key).
-    ///
-    /// This method exists to preserve existing behavior in an error scenario
-    /// we should never find ourselves in. When we remove the E164 from the
-    /// StorageService AccountRecord, we should remove this behavior as well.
-    @objc
-    public func deprecated_updateLocalPhoneNumberOnAccountRecordMismatch() {
-        // PNP0 TODO: Remove this once we've removed the e164 from AccountRecord.
-
-        firstly { () -> Promise<WhoAmIRequestFactory.Responses.WhoAmI> in
-            Self.accountServiceClient.getAccountWhoAmI()
-        }.map(on: DispatchQueue.global()) { whoAmIResponse throws in
-            try self.databaseStorage.write { transaction in
-                try self.updateLocalPhoneNumber(
-                    forServiceAci: whoAmIResponse.aci,
-                    servicePni: whoAmIResponse.pni,
-                    serviceE164: whoAmIResponse.e164,
-                    transaction: transaction
-                )
-            }
-        }.catch(on: DispatchQueue.global()) { error in
-            owsFailDebugUnlessNetworkFailure(error)
-        }
-    }
-
     /// Update local state concerning the phone number, based on values fetched
     /// from the service.
     /// 
     /// - Returns
     /// The persisted local phone number.
     @discardableResult
-    fileprivate func updateLocalPhoneNumber(
+    private func updateLocalPhoneNumber(
         forServiceAci serviceAci: Aci,
         servicePni: Pni,
         serviceE164: E164,
@@ -238,7 +209,8 @@ public class LegacyChangePhoneNumber: NSObject {
             pni: servicePni,
             tx: transaction.asV2Write
         )
-        localRecipient.markAsRegisteredAndSave(tx: transaction)
+        let recipientManager = DependenciesBridge.shared.recipientManager
+        recipientManager.markAsRegisteredAndSave(localRecipient, shouldUpdateStorageService: false, tx: transaction.asV2Write)
 
         if
             serviceE164 != localE164

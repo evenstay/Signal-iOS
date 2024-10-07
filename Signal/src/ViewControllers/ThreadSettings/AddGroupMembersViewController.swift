@@ -4,7 +4,7 @@
 //
 
 import LibSignalClient
-import SignalServiceKit
+public import SignalServiceKit
 import SignalUI
 
 protocol AddGroupMembersViewControllerDelegate: AnyObject {
@@ -22,7 +22,7 @@ public class AddGroupMembersViewController: BaseGroupMemberViewController {
 
     private var newRecipientSet = OrderedSet<PickedRecipient>()
 
-    public required init(groupThread: TSGroupThread) {
+    public init(groupThread: TSGroupThread) {
         owsAssertDebug(groupThread.isGroupV2Thread, "Can't add members to v1 threads.")
 
         self.groupThread = groupThread
@@ -69,7 +69,7 @@ public class AddGroupMembersViewController: BaseGroupMemberViewController {
             return
         }
 
-        let groupName = contactsManager.displayNameWithSneakyTransaction(thread: groupThread)
+        let groupName = databaseStorage.read { tx in contactsManager.displayName(for: groupThread, transaction: tx) }
         let alertTitle: String
         let alertMessage: String
         let actionTitle: String
@@ -130,10 +130,9 @@ private extension AddGroupMembersViewController {
 
         GroupViewUtils.updateGroupWithActivityIndicator(
             fromViewController: self,
-            withGroupModel: self.oldGroupModel,
             updateDescription: self.logTag,
             updateBlock: {
-                GroupManager.addOrInvite(
+                _ = try await GroupManager.addOrInvite(
                     serviceIds: newServiceIds,
                     toExistingGroup: self.oldGroupModel
                 )

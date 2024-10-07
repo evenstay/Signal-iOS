@@ -14,18 +14,29 @@ private enum OpenableUrl {
     case groupInvite(URL)
     case signalProxy(URL)
     case linkDevice(DeviceProvisioningURL)
+    case completeIDEALDonation(Stripe.IDEALCallbackType)
+    case callLink(CallLink)
 }
 
 class UrlOpener {
+    private let appReadiness: AppReadinessSetter
     private let databaseStorage: SDSDatabaseStorage
     private let tsAccountManager: TSAccountManager
 
     init(
+        appReadiness: AppReadinessSetter,
         databaseStorage: SDSDatabaseStorage,
         tsAccountManager: TSAccountManager
     ) {
+        self.appReadiness = appReadiness
         self.databaseStorage = databaseStorage
         self.tsAccountManager = tsAccountManager
+    }
+
+    // MARK: - Constants
+
+    enum Constants {
+        static let sgnlPrefix = "sgnl"
     }
 
     // MARK: - Parsing URLs
@@ -60,8 +71,14 @@ class UrlOpener {
         if SignalProxy.isValidProxyLink(url) {
             return .signalProxy(url)
         }
-        if let deviceProvisiongUrl = parseSgnlLinkDeviceUrl(url) {
-            return .linkDevice(deviceProvisiongUrl)
+        if let deviceProvisioningUrl = parseSgnlLinkDeviceUrl(url) {
+            return .linkDevice(deviceProvisioningUrl)
+        }
+        if let donationType = Stripe.parseStripeIDEALCallback(url) {
+            return .completeIDEALDonation(donationType)
+        }
+        if let callLink = CallLink(url: url) {
+            return .callLink(callLink)
         }
         owsFailDebug("Couldn't parse URL")
         return nil
@@ -70,7 +87,7 @@ class UrlOpener {
     private static func parseSgnlAddStickersUrl(_ url: URL) -> StickerPackInfo? {
         guard
             let components = URLComponents(string: url.absoluteString),
-            components.scheme == kURLSchemeSGNLKey,
+            components.scheme == Constants.sgnlPrefix,
             components.host?.hasPrefix("addstickers") == true,
             let queryItems = components.queryItems
         else {
@@ -94,7 +111,7 @@ class UrlOpener {
     }
 
     private static func parseSgnlLinkDeviceUrl(_ url: URL) -> DeviceProvisioningURL? {
-        guard url.scheme == kURLSchemeSGNLKey, url.host?.hasPrefix(kURLHostLinkDevicePrefix) == true else {
+        guard url.scheme == Constants.sgnlPrefix, url.host?.hasPrefix(DeviceProvisioningURL.Constants.linkDeviceHost) == true else {
             return nil
         }
         return DeviceProvisioningURL(urlString: url.absoluteString)
@@ -109,12 +126,19 @@ class UrlOpener {
         guard let rootViewController = window.rootViewController else {
             return owsFailDebug("Ignoring URL; no root view controller.")
         }
-        if rootViewController.presentedViewController != nil {
+        if shouldDismiss(for: parsedUrl.openableUrl) && rootViewController.presentedViewController != nil {
             rootViewController.dismiss(animated: false, completion: {
                 self.openUrlAfterDismissing(parsedUrl.openableUrl, rootViewController: rootViewController)
             })
         } else {
             openUrlAfterDismissing(parsedUrl.openableUrl, rootViewController: rootViewController)
+        }
+    }
+
+    private func shouldDismiss(for url: OpenableUrl) -> Bool {
+        switch url {
+        case .completeIDEALDonation: return false
+        case .groupInvite, .linkDevice, .phoneNumberLink, .signalProxy, .stickerPack, .usernameLink, .callLink: return true
         }
     }
 
@@ -129,7 +153,7 @@ class UrlOpener {
                     link: link,
                     fromViewController: rootViewController,
                     tx: tx
-                ) { aci in
+                ) { _, aci in
                     SignalApp.shared.presentConversationForAddress(
                         SignalServiceAddress(aci),
                         animated: true
@@ -155,7 +179,7 @@ class UrlOpener {
             let linkDeviceViewController = LinkDeviceViewController()
             linkDeviceViewController.delegate = linkedDevicesViewController
 
-            let navigationController = AppSettingsViewController.inModalNavigationController()
+            let navigationController = AppSettingsViewController.inModalNavigationController(appReadiness: appReadiness)
             var viewControllers = navigationController.viewControllers
             viewControllers.append(linkedDevicesViewController)
             viewControllers.append(linkDeviceViewController)
@@ -164,6 +188,38 @@ class UrlOpener {
             rootViewController.presentFormSheet(navigationController, animated: false) {
                 linkDeviceViewController.confirmProvisioningWithUrl(deviceProvisioningURL)
             }
+
+        case .completeIDEALDonation(let donationType):
+            DonationViewsUtil.attemptToContinueActiveIDEALDonation(
+                type: donationType,
+                databaseStorage: self.databaseStorage
+            )
+            .then(on: DispatchQueue.main) { [weak self] handled -> Promise<Void> in
+                guard let self else { return .value(()) }
+                if handled {
+                    return Promise.value(())
+                }
+                return DonationViewsUtil.restartAndCompleteInterruptedIDEALDonation(
+                    type: donationType,
+                    rootViewController: rootViewController,
+                    databaseStorage: self.databaseStorage,
+                    appReadiness: appReadiness
+                )
+            }.done {
+                Logger.info("[Donations] Completed iDEAL donation")
+            } .catch { error in
+                switch error {
+                case Signal.DonationJobError.timeout:
+                    // This is an expected error case for pending donations
+                    break
+                default:
+                    // Unexpected. Log a warning
+                    Logger.warn("[Donations] Unexpected error encountered with iDEAL donation")
+                }
+            }
+
+        case .callLink(let callLink):
+            GroupCallViewController.presentLobby(for: callLink)
         }
     }
 }

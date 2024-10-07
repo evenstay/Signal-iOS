@@ -4,14 +4,26 @@
 //
 
 import LibSignalClient
-import SignalCoreKit
-import SignalMessaging
 import SignalServiceKit
 import SignalUI
 
 #if USE_DEBUG_UI
 
-class DebugUIStress: DebugUIPage, Dependencies {
+class DebugUIStress: DebugUIPage {
+
+    private let contactsManager: any ContactManager
+    private let databaseStorage: SDSDatabaseStorage
+    private let messageSender: MessageSender
+
+    init(
+        contactsManager: any ContactManager,
+        databaseStorage: SDSDatabaseStorage,
+        messageSender: MessageSender
+    ) {
+        self.contactsManager = contactsManager
+        self.databaseStorage = databaseStorage
+        self.messageSender = messageSender
+    }
 
     let name = "Stress"
 
@@ -19,22 +31,22 @@ class DebugUIStress: DebugUIPage, Dependencies {
         var items = [OWSTableItem]()
 
         if let thread {
-            items.append(OWSTableItem(title: "Send empty message", actionBlock: {
-                DebugUIStress.sendStressMessage(toThread: thread, block: { return Data() })
+            items.append(OWSTableItem(title: "Send empty message", actionBlock: { [weak self] in
+                self?.sendStressMessage(toThread: thread, block: { return Data() })
             }))
-            items.append(OWSTableItem(title: "Send random noise message", actionBlock: {
-                DebugUIStress.sendStressMessage(toThread: thread, block: {
-                    return Cryptography.generateRandomBytes(.random(in: 0...31))
+            items.append(OWSTableItem(title: "Send random noise message", actionBlock: { [weak self] in
+                self?.sendStressMessage(toThread: thread, block: {
+                    return Randomness.generateRandomBytes(.random(in: 0...31))
                 })
             }))
-            items.append(OWSTableItem(title: "Send no payload message", actionBlock: {
-                DebugUIStress.sendStressMessage(toThread: thread, block: {
+            items.append(OWSTableItem(title: "Send no payload message", actionBlock: { [weak self] in
+                self?.sendStressMessage(toThread: thread, block: {
                     let contentBuilder = SSKProtoContent.builder()
                     return (contentBuilder.buildIgnoringErrors()?.serializedDataIgnoringErrors())!
                 })
             }))
-            items.append(OWSTableItem(title: "Send empty null message", actionBlock: {
-                DebugUIStress.sendStressMessage(toThread: thread, block: {
+            items.append(OWSTableItem(title: "Send empty null message", actionBlock: { [weak self] in
+                self?.sendStressMessage(toThread: thread, block: {
                     let contentBuilder = SSKProtoContent.builder()
                     if let nullMessage = SSKProtoNullMessage.builder().buildIgnoringErrors() {
                         contentBuilder.setNullMessage(nullMessage)
@@ -45,8 +57,8 @@ class DebugUIStress: DebugUIPage, Dependencies {
 
             // Sync
 
-            items.append(OWSTableItem(title: "Send empty sync message", actionBlock: {
-                DebugUIStress.sendStressMessage(toThread: thread, block: {
+            items.append(OWSTableItem(title: "Send empty sync message", actionBlock: { [weak self] in
+                self?.sendStressMessage(toThread: thread, block: {
                     let contentBuilder = SSKProtoContent.builder()
                     if let syncMessage = SSKProtoSyncMessage.builder().buildIgnoringErrors() {
                         contentBuilder.setSyncMessage(syncMessage)
@@ -54,8 +66,8 @@ class DebugUIStress: DebugUIPage, Dependencies {
                     return (contentBuilder.buildIgnoringErrors()?.serializedDataIgnoringErrors())!
                 })
             }))
-            items.append(OWSTableItem(title: "Send empty sync sent message", actionBlock: {
-                DebugUIStress.sendStressMessage(toThread: thread, block: {
+            items.append(OWSTableItem(title: "Send empty sync sent message", actionBlock: { [weak self] in
+                self?.sendStressMessage(toThread: thread, block: {
                     let contentBuilder = SSKProtoContent.builder()
                     let syncMessageBuilder = SSKProtoSyncMessage.builder()
                     if let syncSentMessage = SSKProtoSyncMessageSent.builder().buildIgnoringErrors() {
@@ -67,8 +79,8 @@ class DebugUIStress: DebugUIPage, Dependencies {
                     return (contentBuilder.buildIgnoringErrors()?.serializedDataIgnoringErrors())!
                 })
             }))
-            items.append(OWSTableItem(title: "Send malformed sync sent message 1", actionBlock: {
-                DebugUIStress.sendStressMessage(toThread: thread, block: {
+            items.append(OWSTableItem(title: "Send malformed sync sent message 1", actionBlock: { [weak self] in
+                self?.sendStressMessage(toThread: thread, block: {
                     let contentBuilder = SSKProtoContent.builder()
                     let syncMessageBuilder = SSKProtoSyncMessage.builder()
                     let syncSentMessageBuilder = SSKProtoSyncMessageSent.builder()
@@ -86,8 +98,8 @@ class DebugUIStress: DebugUIPage, Dependencies {
                     return (contentBuilder.buildIgnoringErrors()?.serializedDataIgnoringErrors())!
                 })
             }))
-            items.append(OWSTableItem(title: "Send malformed sync sent message 2", actionBlock: {
-                DebugUIStress.sendStressMessage(toThread: thread, block: {
+            items.append(OWSTableItem(title: "Send malformed sync sent message 2", actionBlock: { [weak self] in
+                self?.sendStressMessage(toThread: thread, block: {
                     let contentBuilder = SSKProtoContent.builder()
                     let syncMessageBuilder = SSKProtoSyncMessage.builder()
                     let syncSentMessageBuilder = SSKProtoSyncMessageSent.builder()
@@ -105,8 +117,8 @@ class DebugUIStress: DebugUIPage, Dependencies {
                     return (contentBuilder.buildIgnoringErrors()?.serializedDataIgnoringErrors())!
                 })
             }))
-            items.append(OWSTableItem(title: "Send malformed sync sent message 3", actionBlock: {
-                DebugUIStress.sendStressMessage(toThread: thread, block: {
+            items.append(OWSTableItem(title: "Send malformed sync sent message 3", actionBlock: { [weak self] in
+                self?.sendStressMessage(toThread: thread, block: {
                     let contentBuilder = SSKProtoContent.builder()
                     let syncMessageBuilder = SSKProtoSyncMessage.builder()
                     let syncSentMessageBuilder = SSKProtoSyncMessageSent.builder()
@@ -126,8 +138,8 @@ class DebugUIStress: DebugUIPage, Dependencies {
                     return (contentBuilder.buildIgnoringErrors()?.serializedDataIgnoringErrors())!
                 })
             }))
-            items.append(OWSTableItem(title: "Send malformed sync sent message 5", actionBlock: {
-                DebugUIStress.sendStressMessage(toThread: thread, block: {
+            items.append(OWSTableItem(title: "Send malformed sync sent message 5", actionBlock: { [weak self] in
+                self?.sendStressMessage(toThread: thread, block: {
                     let contentBuilder = SSKProtoContent.builder()
                     let syncMessageBuilder = SSKProtoSyncMessage.builder()
                     let syncSentMessageBuilder = SSKProtoSyncMessageSent.builder()
@@ -146,9 +158,9 @@ class DebugUIStress: DebugUIPage, Dependencies {
         // Groups
 
         if let groupThread = thread as? TSGroupThread {
-            items.append(OWSTableItem(title: "Copy members to another group", actionBlock: {
+            items.append(OWSTableItem(title: "Copy members to another group", actionBlock: { [weak self] in
                 guard let fromViewController = UIApplication.shared.frontmostViewController else { return }
-                DebugUIStress.copyToAnotherGroup(groupThread, fromViewController: fromViewController)
+                self?.copyToAnotherGroup(groupThread, fromViewController: fromViewController)
             }))
             items.append(OWSTableItem(title: "Log membership", actionBlock: {
                 DebugUIStress.logMembership(groupThread)
@@ -156,64 +168,55 @@ class DebugUIStress: DebugUIPage, Dependencies {
         }
 
         items.append(OWSTableItem(title: "Make group w. unregistered users", actionBlock: {
-            DebugUIStress.makeUnregisteredGroup()
+            Task {
+                try await DebugUIStress.makeUnregisteredGroup()
+            }
         }))
 
         // Other
-        items.append(OWSTableItem(title: "Delete other profiles", actionBlock: {
-            DebugUIStress.deleteOtherProfiles()
+        items.append(OWSTableItem(title: "Delete other profiles", actionBlock: { [weak self] in
+            self?.deleteOtherProfiles()
         }))
         if let contactThread = thread as? TSContactThread {
-            items.append(OWSTableItem(title: "Log groups for contact", actionBlock: {
-                DebugUIStress.logGroupsForAddress(contactThread.contactAddress)
+            items.append(OWSTableItem(title: "Log groups for contact", actionBlock: { [weak self] in
+                self?.logGroupsForAddress(contactThread.contactAddress)
             }))
         }
 
         return OWSTableSection(title: name, items: items)
     }
 
-    static private let shared = DebugUIStress()
-
     // MARK: -
 
-    private static func sendStressMessage(_ message: TSOutgoingMessage) {
-        if let dynamicMessage = message as? OWSDynamicOutgoingMessage {
-            messageSender.sendMessage(dynamicMessage.asPreparer) {
-                Logger.info("Success.")
-            } failure: { error in
-                owsFailDebug("Error: \(error)")
-            }
-        } else {
-            databaseStorage.write { transaction in
-                self.sskJobQueues.messageSenderJobQueue.add(message: message.asPreparer, transaction: transaction)
-            }
-        }
-    }
-
-    private static func sendStressMessage(
+    private func sendStressMessage(
         toThread thread: TSThread,
-        timestamp: UInt64 = Date.ows_millisecondTimestamp(),
         block: @escaping DynamicOutgoingMessageBlock
     ) {
         let message = databaseStorage.read { transaction in
             OWSDynamicOutgoingMessage(
                 thread: thread,
-                timestamp: timestamp,
                 transaction: transaction,
                 plainTextDataBlock: block
             )
         }
-        sendStressMessage(message)
+        Task {
+            do {
+                let preparedMessage = PreparedOutgoingMessage.preprepared(transientMessageWithoutAttachments: message)
+                try await self.messageSender.sendMessage(preparedMessage)
+                Logger.info("Success.")
+            } catch {
+                owsFailDebug("Error: \(error)")
+            }
+        }
     }
 
     // MARK: Groups
 
-    private static func makeUnregisteredGroup() {
-        var recipientAddresses: [SignalServiceAddress] = (0...2).map { _ in
-            var phoneNumber = "+1651555"
-            phoneNumber.append(String(format: "%04d", Int.random(in: 0...9999)))
-            return SignalServiceAddress(serviceId: Aci(fromUUID: UUID()), phoneNumber: phoneNumber)
-        }
+    @MainActor
+    private static func makeUnregisteredGroup() async throws {
+        var recipientAddresses = [SignalServiceAddress]()
+
+        recipientAddresses.append(contentsOf: (0...2).map { _ in SignalServiceAddress(Aci(fromUUID: UUID())) })
 
         if let localAddress = DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction?.aciAddress {
             recipientAddresses.append(localAddress)
@@ -221,19 +224,16 @@ class DebugUIStress: DebugUIPage, Dependencies {
 
         recipientAddresses.append(contentsOf: (0...2).map { _ in SignalServiceAddress(Aci(fromUUID: UUID())) })
 
-        GroupManager.localCreateNewGroup(
+        let groupThread = try await GroupManager.localCreateNewGroup(
             members: recipientAddresses,
             name: UUID().uuidString,
             disappearingMessageToken: .disabledToken,
             shouldSendMessage: false
-        ).done { groupThread in
-            SignalApp.shared.presentConversationForThread(groupThread, animated: true)
-        }.catch { error in
-            owsFailDebug("Error: \(error)")
-        }
+        )
+        SignalApp.shared.presentConversationForThread(groupThread, animated: true)
     }
 
-    private static func copyToAnotherGroup(_ srcGroupThread: TSGroupThread, fromViewController: UIViewController) {
+    private func copyToAnotherGroup(_ srcGroupThread: TSGroupThread, fromViewController: UIViewController) {
         let groupThreads = self.databaseStorage.read { (transaction: SDSAnyReadTransaction) -> [TSGroupThread] in
             TSThread.anyFetchAll(transaction: transaction).compactMap { $0 as? TSGroupThread }
         }
@@ -253,17 +253,17 @@ class DebugUIStress: DebugUIPage, Dependencies {
         for serviceId in serviceIdsToAdd {
             Logger.verbose("Adding: \(serviceId)")
         }
-        firstly {
-            GroupManager.addOrInvite(
-                serviceIds: serviceIdsToAdd,
-                toExistingGroup: dstGroupThread.groupModel
-            )
-        }.done { (groupThread) in
-            Logger.info("Complete.")
-
-            SignalApp.shared.presentConversationForThread(groupThread, animated: true)
-        }.catch(on: DispatchQueue.global()) { error in
-            owsFailDebug("Error: \(error)")
+        Task { @MainActor in
+            do {
+                let groupThread = try await GroupManager.addOrInvite(
+                    serviceIds: serviceIdsToAdd,
+                    toExistingGroup: dstGroupThread.groupModel
+                )
+                Logger.info("Complete.")
+                SignalApp.shared.presentConversationForThread(groupThread, animated: true)
+            } catch {
+                owsFailDebug("Error: \(error)")
+            }
         }
     }
 
@@ -273,26 +273,28 @@ class DebugUIStress: DebugUIPage, Dependencies {
         Logger.info("addresses: \(addressStrings.joined(separator: "\n"))")
     }
 
-    private static func deleteOtherProfiles() {
+    private func deleteOtherProfiles() {
         databaseStorage.write { transaction in
             let profiles = OWSUserProfile.anyFetchAll(transaction: transaction)
             for profile in profiles {
-                guard !OWSUserProfile.isLocalProfileAddress(profile.address) else {
+                switch profile.internalAddress {
+                case .localUser:
                     continue
+                case .otherUser(let address):
+                    Logger.verbose("Deleting: \(address)")
+                    profile.anyRemove(transaction: transaction)
                 }
-                Logger.verbose("Deleting: \(profile.address)")
-                profile.anyRemove(transaction: transaction)
             }
         }
     }
 
-    private static func logGroupsForAddress(_ address: SignalServiceAddress) {
-        Self.databaseStorage.read { transaction in
+    private func logGroupsForAddress(_ address: SignalServiceAddress) {
+        databaseStorage.read { transaction in
             TSGroupThread.enumerateGroupThreads(
                 with: address,
                 transaction: transaction
             ) { thread, _ in
-                let displayName = Self.contactsManager.displayName(for: thread, transaction: transaction)
+                let displayName = contactsManager.displayName(for: thread, transaction: transaction)
                 Logger.verbose("Group[\(thread.groupId.hexadecimalString)]: \(displayName)")
             }
         }

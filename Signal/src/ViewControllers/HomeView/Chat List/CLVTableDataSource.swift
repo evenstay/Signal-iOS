@@ -3,20 +3,41 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
-import SignalUI
+private import ObjectiveC.runtime
+import SignalServiceKit
+public import SignalUI
 
-public class CLVTableDataSource: NSObject {
-
+class CLVTableDataSource: NSObject {
     private var viewState: CLVViewState!
 
-    public let tableView = CLVTableView()
+    let tableView = CLVTableView()
 
-    public weak var viewController: ChatListViewController?
+    /// CLVTableDataSource is itself a UITableViewDelegate and thus conforms to
+    /// UIScrollViewDelegate. Any UIScrollViewDelegate methods implemented by
+    /// this class are either manually forwarded after being handled, or automatically
+    /// forwarded in the implementation of `forwardingTarget(for:)`.
+    ///
+    /// - Note: This must be set before calling `configure(viewState:)`.
+    weak var scrollViewDelegate: (any UIScrollViewDelegate)?
+
+    weak var viewController: ChatListViewController?
 
     fileprivate var splitViewController: UISplitViewController? { viewController?.splitViewController }
 
-    public var renderState: CLVRenderState = .empty
+    var renderState: CLVRenderState = .empty
+
+    /// While table view selection is changing, i.e., between
+    /// `tableView(_:willSelectRowAt:)` and `tableView(_:didSelectRowAt:)`,
+    /// records the identifier of the newly selected thread, or `nil` if
+    /// being deselected.
+    ///
+    /// This is because `tableView(_:didDeselectRowAt:)` is always called before
+    /// `tableView(_:didSelectRowAt:)`, whether the previous selection is being
+    /// set to `nil` (i.e., deselecting the current row) or to a new index path
+    /// (changing the selection to a new row). Distinguishing between these two
+    /// cases allows us to avoid spurious changes to selection that could trigger
+    /// unwanted side-effects.
+    private var threadIdBeingSelected: String?
 
     fileprivate var lastReloadDate: Date? { tableView.lastReloadDate }
 
@@ -45,6 +66,29 @@ public class CLVTableDataSource: NSObject {
         }
     }
 
+    override func responds(to selector: Selector!) -> Bool {
+        if super.responds(to: selector) {
+            return true
+        }
+
+        if let scrollViewDelegate, protocol_getMethodDescription(UIScrollViewDelegate.self, selector, false, true).name != nil {
+            return scrollViewDelegate.responds(to: selector)
+        }
+
+        return false
+    }
+
+    override func forwardingTarget(for selector: Selector!) -> Any? {
+        guard let scrollViewDelegate else { return nil }
+
+        // We're relying on `responds(to:)` first validating the selector is a
+        // method in `UIScrollViewDelegate`, and not claiming to respond to
+        // any other selectors.
+        assert(scrollViewDelegate.responds(to: selector))
+
+        return scrollViewDelegate
+    }
+
     func configure(viewState: CLVViewState) {
         AssertIsOnMainThread()
 
@@ -54,16 +98,13 @@ public class CLVTableDataSource: NSObject {
         tableView.dataSource = self
         tableView.separatorStyle = .none
         tableView.separatorColor = Theme.cellSeparatorColor
-        tableView.register(ChatListCell.self, forCellReuseIdentifier: ChatListCell.reuseIdentifier)
-        tableView.register(ArchivedConversationsCell.self, forCellReuseIdentifier: ArchivedConversationsCell.reuseIdentifier)
+        tableView.register(ChatListCell.self)
+        tableView.register(ArchivedConversationsCell.self)
+        tableView.register(ChatListFilterFooterCell.self)
         tableView.tableFooterView = UIView()
     }
-}
 
-// MARK: -
-
-extension CLVTableDataSource {
-    public func threadViewModel(forThread thread: TSThread) -> ThreadViewModel {
+    func threadViewModel(forThread thread: TSThread) -> ThreadViewModel {
         let threadViewModelCache = viewState.threadViewModelCache
         if let value = threadViewModelCache.get(key: thread.uniqueId) {
             return value
@@ -75,21 +116,13 @@ extension CLVTableDataSource {
         return threadViewModel
     }
 
-    func threadViewModel(forIndexPath indexPath: IndexPath, expectsSuccess: Bool = true) -> ThreadViewModel? {
-        guard let thread = thread(forIndexPath: indexPath, expectsSuccess: expectsSuccess) else {
-            return nil
-        }
-        return threadViewModel(forThread: thread)
+    func threadViewModel(forIndexPath indexPath: IndexPath) -> ThreadViewModel? {
+        renderState.thread(forIndexPath: indexPath).map(threadViewModel(forThread:))
     }
 
-    func thread(forIndexPath indexPath: IndexPath, expectsSuccess: Bool = true) -> TSThread? {
-        renderState.thread(forIndexPath: indexPath, expectsSuccess: expectsSuccess)
+    func selectedThreads(in tableView: UITableView) -> [TSThread]? {
+        tableView.indexPathsForSelectedRows?.compactMap(renderState.thread(forIndexPath:))
     }
-}
-
-// MARK: - UIScrollViewDelegate
-
-extension CLVTableDataSource: UIScrollViewDelegate {
 
     private func preloadCellsIfNecessary() {
         AssertIsOnMainThread()
@@ -126,18 +159,11 @@ extension CLVTableDataSource: UIScrollViewDelegate {
             return
         }
         let conversationIndexPaths = visibleIndexPaths.compactMap { indexPath -> IndexPath? in
-            guard let section = ChatListSection(rawValue: indexPath.section) else {
-                owsFailDebug("Invalid section: \(indexPath.section).")
-                return nil
-            }
-
-            switch section {
-            case .reminders:
+            switch renderState.sections[indexPath.section].type {
+            case .reminders, .archiveButton, .inboxFilterFooter:
                 return nil
             case .pinned, .unpinned:
                 return indexPath
-            case .archiveButton:
-                return nil
             }
         }
         guard !conversationIndexPaths.isEmpty else {
@@ -146,7 +172,7 @@ extension CLVTableDataSource: UIScrollViewDelegate {
         let sortedIndexPaths = conversationIndexPaths.sorted()
         var indexPathsToPreload = [IndexPath]()
         func tryToEnqueue(_ indexPath: IndexPath) {
-            let rowCount = numberOfRows(inSection: indexPath.section)
+            let rowCount = renderState.numberOfRows(in: renderState.sections[indexPath.section])
             guard indexPath.row >= 0,
                   indexPath.row < rowCount else {
                 return
@@ -188,17 +214,6 @@ extension CLVTableDataSource: UIScrollViewDelegate {
             preloadCellIfNecessaryAsync(indexPath: indexPath)
         }
     }
-
-    public func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
-        AssertIsOnMainThread()
-
-        guard let viewController = viewController else {
-            owsFailDebug("Missing viewController.")
-            return
-        }
-
-        viewController.dismissSearchKeyboard()
-    }
 }
 
 // MARK: -
@@ -210,17 +225,17 @@ public enum ChatListMode: Int, CaseIterable {
 
 // MARK: -
 
-public enum ChatListSection: Int, CaseIterable {
+public enum ChatListSectionType: String, CaseIterable {
     case reminders
     case pinned
     case unpinned
     case archiveButton
+    case inboxFilterFooter
 }
 
 // MARK: -
 
 extension CLVTableDataSource: UITableViewDelegate {
-
     public func tableView(_ tableView: UITableView, editingStyleForRowAt indexPath: IndexPath) -> UITableViewCell.EditingStyle {
         return UITableViewCell.EditingStyle.none
     }
@@ -257,122 +272,110 @@ extension CLVTableDataSource: UITableViewDelegate {
     }
 
     public func tableView(_ tableView: UITableView, heightForHeaderInSection section: Int) -> CGFloat {
-        AssertIsOnMainThread()
+        let section = renderState.sections[section]
 
-        guard let section = ChatListSection(rawValue: section) else {
-            owsFailDebug("Invalid section: \(section).")
-            return 0
-        }
-
-        switch section {
-        case .pinned, .unpinned:
-            if !renderState.hasPinnedAndUnpinnedThreads {
-                return CGFloat.epsilon
-            }
-
-            return UITableView.automaticDimension
-        default:
-            // Without returning a header with a non-zero height, Grouped
-            // table view will use a default spacing between sections. We
-            // do not want that spacing so we use the smallest possible height.
-            return CGFloat.epsilon
-        }
+        // Without returning a header with a non-zero height, Grouped
+        // table view will use a default spacing between sections. We
+        // do not want that spacing so we use the smallest possible height.
+        return section.title == nil ? .leastNormalMagnitude : UITableView.automaticDimension
     }
 
     public func tableView(_ tableView: UITableView, heightForFooterInSection section: Int) -> CGFloat {
-        AssertIsOnMainThread()
-
         // Without returning a footer with a non-zero height, Grouped
         // table view will use a default spacing between sections. We
         // do not want that spacing so we use the smallest possible height.
-        return CGFloat.epsilon
+        return .leastNormalMagnitude
     }
 
-    public func tableView(_ tableView: UITableView,
-                          viewForHeaderInSection section: Int) -> UIView? {
-        AssertIsOnMainThread()
+    public func tableView(_ tableView: UITableView, viewForHeaderInSection section: Int) -> UIView? {
+        guard let title = renderState.sections[section].title else { return UIView() }
 
-        guard let section = ChatListSection(rawValue: section) else {
-            owsFailDebug("Invalid section: \(section).")
-            return nil
-        }
+        let container = UIView()
+        container.backgroundColor = Theme.backgroundColor
+        container.layoutMargins = UIEdgeInsets(top: 14, leading: 16, bottom: 8, trailing: 16)
 
-        switch section {
-        case .pinned, .unpinned:
-            let container = UIView()
-            container.layoutMargins = UIEdgeInsets(top: 14, leading: 16, bottom: 8, trailing: 16)
+        let label = UILabel()
+        container.addSubview(label)
+        label.autoPinEdgesToSuperviewMargins()
+        label.font = UIFont.dynamicTypeBody.semibold()
+        label.textColor = Theme.primaryTextColor
+        label.text = title
 
-            let label = UILabel()
-            container.addSubview(label)
-            label.autoPinEdgesToSuperviewMargins()
-            label.font = UIFont.dynamicTypeBody.semibold()
-            label.textColor = Theme.primaryTextColor
-            label.text = (section == .pinned
-                            ? OWSLocalizedString("PINNED_SECTION_TITLE",
-                                                comment: "The title for pinned conversation section on the conversation list")
-                            : OWSLocalizedString("UNPINNED_SECTION_TITLE",
-                                                comment: "The title for unpinned conversation section on the conversation list"))
-
-            return container
-        default:
-            return UIView()
-        }
+        return container
     }
 
     public func tableView(_ tableView: UITableView, viewForFooterInSection section: Int) -> UIView? {
-        AssertIsOnMainThread()
+        UIView()
+    }
 
-        return UIView()
+    public func tableView(_ tableView: UITableView, willSelectRowAt indexPath: IndexPath) -> IndexPath? {
+        switch renderState.sections[indexPath.section].type {
+        case .reminders, .inboxFilterFooter:
+            return nil
+
+        case .archiveButton:
+            return indexPath
+
+        case .pinned, .unpinned:
+            guard let thread = renderState.thread(forIndexPath: indexPath) else {
+                owsFailDebug("Missing thread at index path: \(indexPath)")
+                return nil
+            }
+            threadIdBeingSelected = thread.uniqueId
+            return indexPath
+        }
     }
 
     public func tableView(_ tableView: UITableView, didDeselectRowAt indexPath: IndexPath) {
-        AssertIsOnMainThread()
+        if threadIdBeingSelected == nil {
+            viewState.lastSelectedThreadId = nil
+        }
 
         guard let viewController = self.viewController else {
             owsFailDebug("Missing viewController.")
             return
         }
+
         if viewState.multiSelectState.isActive {
             viewController.updateCaptions()
         }
     }
 
     public func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        AssertIsOnMainThread()
-
-        Logger.info("\(indexPath)")
-
         guard let viewController = self.viewController else {
             owsFailDebug("Missing viewController.")
             return
         }
 
-        viewController.dismissSearchKeyboard()
-
-        guard let section = ChatListSection(rawValue: indexPath.section) else {
-            owsFailDebug("Invalid section: \(indexPath.section).")
-            return
+        defer {
+            viewController.cancelSearch()
         }
 
-        switch section {
-        case .reminders:
+        let sectionType = renderState.sections[indexPath.section].type
+
+        switch sectionType {
+        case .reminders, .inboxFilterFooter:
+            owsFailDebug("Unexpected selection in section \(sectionType)")
             tableView.deselectRow(at: indexPath, animated: false)
+
         case .pinned, .unpinned:
-            guard let threadViewModel = threadViewModel(forIndexPath: indexPath) else {
-                owsFailDebug("Missing threadViewModel.")
+            guard let thread = renderState.thread(forIndexPath: indexPath) else {
+                owsFailDebug("Missing thread.")
                 return
             }
+            owsAssertDebug(thread.uniqueId == threadIdBeingSelected)
+            threadIdBeingSelected = nil
+            viewState.lastSelectedThreadId = thread.uniqueId
+
             if viewState.multiSelectState.isActive {
                 viewController.updateCaptions()
             } else {
-                viewController.presentThread(threadViewModel.threadRecord, animated: true)
+                viewController.presentThread(thread, animated: true)
             }
+
         case .archiveButton:
-            if viewState.multiSelectState.isActive {
-                tableView.deselectRow(at: indexPath, animated: false)
-            } else {
-                viewController.showArchivedConversations()
-            }
+            owsAssertDebug(!viewState.multiSelectState.isActive)
+            viewController.showArchivedConversations()
         }
     }
 
@@ -392,18 +395,22 @@ extension CLVTableDataSource: UITableViewDelegate {
             return nil
         }
 
-        return UIContextMenuConfiguration(identifier: thread.uniqueId as NSString,
-                                          previewProvider: { [weak viewController] in
-                                            viewController?.createPreviewController(atIndexPath: indexPath)
-                                          },
-                                          actionProvider: { _ in
-                                            // nil for now. But we may want to add options like "Pin" or "Mute" in the future
-                                            return nil
-                                          })
+        return UIContextMenuConfiguration(
+            identifier: thread.uniqueId as NSString,
+            previewProvider: { [weak viewController] in
+                viewController?.createPreviewController(atIndexPath: indexPath)
+            },
+            actionProvider: { _ in
+                // nil for now. But we may want to add options like "Pin" or "Mute" in the future
+                return nil
+            }
+        )
     }
 
-    public func tableView(_ tableView: UITableView,
-                          previewForDismissingContextMenuWithConfiguration configuration: UIContextMenuConfiguration) -> UITargetedPreview? {
+    public func tableView(
+        _ tableView: UITableView,
+        previewForDismissingContextMenuWithConfiguration configuration: UIContextMenuConfiguration
+    ) -> UITargetedPreview? {
         AssertIsOnMainThread()
 
         guard let threadId = configuration.identifier as? String else {
@@ -452,9 +459,11 @@ extension CLVTableDataSource: UITableViewDelegate {
         return UITargetedPreview(view: cell, parameters: params, target: target)
     }
 
-    public func tableView(_ tableView: UITableView,
-                          willPerformPreviewActionForMenuWith configuration: UIContextMenuConfiguration,
-                          animator: UIContextMenuInteractionCommitAnimating) {
+    public func tableView(
+        _ tableView: UITableView,
+        willPerformPreviewActionForMenuWith configuration: UIContextMenuConfiguration,
+        animator: UIContextMenuInteractionCommitAnimating
+    ) {
         AssertIsOnMainThread()
 
         guard let viewController = self.viewController else {
@@ -502,82 +511,50 @@ extension CLVTableDataSource: UITableViewDelegate {
 // MARK: -
 
 extension CLVTableDataSource: UITableViewDataSource {
-
     public func numberOfSections(in tableView: UITableView) -> Int {
-        AssertIsOnMainThread()
-
-        return ChatListSection.allCases.count
+        renderState.sections.count
     }
 
     public func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        AssertIsOnMainThread()
-
-        return numberOfRows(inSection: section)
-    }
-
-    fileprivate func numberOfRows(inSection section: Int) -> Int {
-        AssertIsOnMainThread()
-
-        guard let viewController = self.viewController else {
-            owsFailDebug("Missing viewController.")
-            return 0
-        }
-
-        guard let section = ChatListSection(rawValue: section) else {
-            owsFailDebug("Invalid section: \(section).")
-            return 0
-        }
-        switch section {
-        case .reminders:
-            return viewController.hasVisibleReminders ? 1 : 0
-        case .pinned:
-            return renderState.pinnedThreads.count
-        case .unpinned:
-            return renderState.unpinnedThreads.count
-        case .archiveButton:
-            return viewController.hasArchivedThreadsRow ? 1 : 0
-        }
+        renderState.numberOfRows(in: renderState.sections[section])
     }
 
     public func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
-        AssertIsOnMainThread()
-                guard let section = ChatListSection(rawValue: indexPath.section) else {
-            owsFailDebug("Invalid section: \(indexPath.section).")
-            return UITableView.automaticDimension
-        }
-
-        switch section {
-        case .reminders:
+        switch renderState.sections[indexPath.section].type {
+        case .reminders, .archiveButton, .inboxFilterFooter:
             return UITableView.automaticDimension
         case .pinned, .unpinned:
             return measureConversationCell(tableView: tableView, indexPath: indexPath)
-        case .archiveButton:
-            return UITableView.automaticDimension
         }
     }
 
     public func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        AssertIsOnMainThread()
-
         guard let viewController = self.viewController else {
             owsFailDebug("Missing viewController.")
             return UITableViewCell()
         }
-        guard let section = ChatListSection(rawValue: indexPath.section) else {
-            owsFailDebug("Invalid section: \(indexPath.section).")
-            return UITableViewCell()
-        }
 
-        let cell: UITableViewCell = {
-            switch section {
-            case .reminders:
-                return viewController.reminderViewCell
-            case .pinned, .unpinned:
-                return buildConversationCell(tableView: tableView, indexPath: indexPath)
-            case .archiveButton:
-                return buildArchivedConversationsButtonCell(tableView: tableView, indexPath: indexPath)
+        let cell: UITableViewCell
+        let section = renderState.sections[indexPath.section]
+
+        switch section.type {
+        case .reminders:
+            cell = viewController.reminderViewCell
+        case .pinned, .unpinned:
+            cell = buildConversationCell(tableView: tableView, indexPath: indexPath)
+        case .archiveButton:
+            cell = buildArchivedConversationsButtonCell(tableView: tableView, indexPath: indexPath)
+        case .inboxFilterFooter:
+            let filterFooterCell = tableView.dequeueReusableCell(ChatListFilterFooterCell.self, for: indexPath)
+            filterFooterCell.primaryAction = .disableChatListFilter(target: viewController)
+            cell = filterFooterCell
+            guard let inboxFilterSection = renderState.inboxFilterSection else {
+                owsFailDebug("Missing view model in inbox filter section")
+                break
             }
-        }()
+            filterFooterCell.isExpanded = inboxFilterSection.isEmptyState
+            filterFooterCell.message = inboxFilterSection.message
+        }
 
         cell.tintColor = .ows_accentBlue
         return cell
@@ -593,11 +570,11 @@ extension CLVTableDataSource: UITableViewDataSource {
         if let result = viewController.conversationCellHeightCache {
             return result
         }
-        guard let cellConfigurationAndContentToken = buildCellConfigurationAndContentTokenSync(forIndexPath: indexPath) else {
+        guard let cellContentToken = buildCellContentToken(for: indexPath) else {
             owsFailDebug("Missing cellConfigurationAndContentToken.")
             return UITableView.automaticDimension
         }
-        let result = ChatListCell.measureCellHeight(cellContentToken: cellConfigurationAndContentToken.contentToken)
+        let result = ChatListCell.measureCellHeight(cellContentToken: cellContentToken)
         viewController.conversationCellHeightCache = result
         return result
     }
@@ -605,32 +582,16 @@ extension CLVTableDataSource: UITableViewDataSource {
     private func buildConversationCell(tableView: UITableView, indexPath: IndexPath) -> UITableViewCell {
         AssertIsOnMainThread()
 
-        guard let cell = tableView.dequeueReusableCell(withIdentifier: ChatListCell.reuseIdentifier) as? ChatListCell else {
-            owsFailDebug("Invalid cell.")
-            return UITableViewCell()
-        }
-        guard let cellConfigurationAndContentToken = buildCellConfigurationAndContentTokenSync(forIndexPath: indexPath) else {
+        let cell = tableView.dequeueReusableCell(ChatListCell.self, for: indexPath)
+
+        guard let contentToken = buildCellContentToken(for: indexPath) else {
             owsFailDebug("Missing cellConfigurationAndContentToken.")
             return UITableViewCell()
         }
-        let configuration = cellConfigurationAndContentToken.configuration
-        let contentToken = cellConfigurationAndContentToken.contentToken
 
         cell.configure(cellContentToken: contentToken, spoilerAnimationManager: viewState.spoilerAnimationManager)
-        let thread = configuration.thread.threadRecord
-        let cellName: String = {
-            if let groupThread = thread as? TSGroupThread {
-                return "cell-group-\(groupThread.groupModel.groupName ?? "unknown")"
-            } else if let contactThread = thread as? TSContactThread {
-                return "cell-contact-\(contactThread.contactAddress.stringForDisplay)"
-            } else {
-                owsFailDebug("invalid-thread-\(thread.uniqueId) ")
-                return "Unknown"
-            }
-        }()
-        cell.accessibilityIdentifier = cellName
 
-        if isConversationActive(forThread: thread) {
+        if isConversationActive(threadUniqueId: contentToken.thread.uniqueId) {
             tableView.selectRow(at: indexPath, animated: false, scrollPosition: .none)
         } else if !viewState.multiSelectState.isActive {
             tableView.deselectRow(at: indexPath, animated: false)
@@ -640,51 +601,34 @@ extension CLVTableDataSource: UITableViewDataSource {
         return cell
     }
 
-    private func isConversationActive(forThread thread: TSThread) -> Bool {
+    private func isConversationActive(threadUniqueId: String) -> Bool {
         AssertIsOnMainThread()
 
         guard let conversationSplitViewController = splitViewController as? ConversationSplitViewController else {
             owsFailDebug("Missing conversationSplitViewController.")
             return false
         }
-        return conversationSplitViewController.selectedThread?.uniqueId == thread.uniqueId
+        return conversationSplitViewController.selectedThread?.uniqueId == threadUniqueId
     }
 
     private func buildArchivedConversationsButtonCell(tableView: UITableView, indexPath: IndexPath) -> UITableViewCell {
         AssertIsOnMainThread()
-
-        guard let cell = tableView.dequeueReusableCell(withIdentifier: ArchivedConversationsCell.reuseIdentifier) else {
-            owsFailDebug("Invalid cell.")
-            return UITableViewCell()
-        }
-        if let cell = cell as? ArchivedConversationsCell {
-            cell.configure(enabled: !viewState.multiSelectState.isActive)
-        }
+        let cell = tableView.dequeueReusableCell(ArchivedConversationsCell.self, for: indexPath)
+        cell.configure(enabled: !viewState.multiSelectState.isActive)
         return cell
     }
 
     // MARK: - Edit Actions
 
-    public func tableView(_ tableView: UITableView,
-                          commit editingStyle: UITableViewCell.EditingStyle,
-                          forRowAt indexPath: IndexPath) {
-        AssertIsOnMainThread()
-
+    public func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCell.EditingStyle, forRowAt indexPath: IndexPath) {
         // TODO: Is this method necessary?
     }
 
-    public func tableView(_ tableView: UITableView,
-                          trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath) -> UISwipeActionsConfiguration? {
-        AssertIsOnMainThread()
-
-        guard let section = ChatListSection(rawValue: indexPath.section) else {
-            owsFailDebug("Invalid section: \(indexPath.section).")
+    public func tableView(_ tableView: UITableView, trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath) -> UISwipeActionsConfiguration? {
+        switch renderState.sections[indexPath.section].type {
+        case .reminders, .archiveButton, .inboxFilterFooter:
             return nil
-        }
 
-        switch section {
-        case .reminders, .archiveButton:
-            return nil
         case .pinned, .unpinned:
             guard let threadViewModel = threadViewModel(forIndexPath: indexPath) else {
                 owsFailDebug("Missing threadViewModel.")
@@ -695,9 +639,10 @@ extension CLVTableDataSource: UITableViewDataSource {
                 return nil
             }
 
-            return viewController.trailingSwipeActionsConfiguration(for: threadViewModel,
-                                                                       closeConversationBlock: { [weak self] in
-                if let self = self, self.isConversationActive(forThread: threadViewModel.threadRecord) {
+            let threadUniqueId = threadViewModel.threadRecord.uniqueId
+            return viewController.trailingSwipeActionsConfiguration(for: threadViewModel, closeConversationBlock: { [weak self] in
+                guard let self else { return }
+                if self.isConversationActive(threadUniqueId: threadUniqueId) {
                     viewController.conversationSplitViewController?.closeSelectedConversation(animated: true)
                 }
             })
@@ -705,37 +650,19 @@ extension CLVTableDataSource: UITableViewDataSource {
     }
 
     public func tableView(_ tableView: UITableView, canEditRowAt indexPath: IndexPath) -> Bool {
-        AssertIsOnMainThread()
-
-        guard let section = ChatListSection(rawValue: indexPath.section) else {
-            owsFailDebug("Invalid section: \(indexPath.section).")
-            return false
-        }
-
-        switch section {
-        case .reminders:
+        switch renderState.sections[indexPath.section].type {
+        case .reminders, .archiveButton, .inboxFilterFooter:
             return false
         case .pinned, .unpinned:
             return true
-        case .archiveButton:
-            return false
         }
     }
 
-    public func tableView(_ tableView: UITableView,
-                          leadingSwipeActionsConfigurationForRowAt indexPath: IndexPath) -> UISwipeActionsConfiguration? {
-        AssertIsOnMainThread()
+    public func tableView(_ tableView: UITableView, leadingSwipeActionsConfigurationForRowAt indexPath: IndexPath) -> UISwipeActionsConfiguration? {
+        switch renderState.sections[indexPath.section].type {
+        case .reminders, .archiveButton, .inboxFilterFooter:
+            return nil
 
-        guard let section = ChatListSection(rawValue: indexPath.section) else {
-            owsFailDebug("Invalid section: \(indexPath.section).")
-            return nil
-        }
-
-        switch section {
-        case .reminders:
-            return nil
-        case .archiveButton:
-            return nil
         case .pinned, .unpinned:
             guard let threadViewModel = threadViewModel(forIndexPath: indexPath) else {
                 owsFailDebug("Missing threadViewModel.")
@@ -754,7 +681,6 @@ extension CLVTableDataSource: UITableViewDataSource {
 // MARK: -
 
 extension CLVTableDataSource {
-
     func updateAndSetRefreshTimer(for cell: ChatListCell?) {
         if let cell = cell, let timestamp = cell.nextUpdateTimestamp {
             if nextUpdateAt == nil || timestamp.isBefore(nextUpdateAt!) {
@@ -786,33 +712,35 @@ extension CLVTableDataSource {
         AssertIsOnMainThread()
 
         guard tableView.indexPathsForVisibleRows?.contains(indexPath) == true else { return false }
-        guard let homeCell = tableView.cellForRow(at: indexPath) as? ChatListCell else { return false }
-        guard let configToken = buildCellConfigurationAndContentTokenSync(forIndexPath: indexPath)?.contentToken else { return false }
+        guard let cell = tableView.cellForRow(at: indexPath) as? ChatListCell else { return false }
+        guard let contentToken = buildCellContentToken(for: indexPath) else { return false }
 
-        let cellWasVisible = homeCell.isCellVisible
-        homeCell.reset()
+        let cellWasVisible = cell.isCellVisible
+        cell.reset()
         // reduces flicker effects for already visible cells
-        homeCell.configure(cellContentToken: configToken, spoilerAnimationManager: viewState.spoilerAnimationManager, asyncAvatarLoadingAllowed: false)
-        homeCell.isCellVisible = cellWasVisible
+        cell.configure(
+            cellContentToken: contentToken,
+            spoilerAnimationManager: viewState.spoilerAnimationManager,
+            asyncAvatarLoadingAllowed: false
+        )
+        cell.isCellVisible = cellWasVisible
         return true
     }
 
-    fileprivate struct CLVCellConfigurationAndContentToken {
-        let configuration: ChatListCell.Configuration
-        let contentToken: CLVCellContentToken
-    }
-
     // This method can be called from any thread.
-    private static func buildCellConfiguration(threadViewModel: ThreadViewModel,
-                                               lastReloadDate: Date?) -> ChatListCell.Configuration {
+    private static func buildCellConfiguration(
+        threadViewModel: ThreadViewModel,
+        lastReloadDate: Date?
+    ) -> ChatListCell.Configuration {
         owsAssertDebug(threadViewModel.chatListInfo != nil)
-        let configuration = ChatListCell.Configuration(thread: threadViewModel,
-                                                       lastReloadDate: lastReloadDate,
-                                                       isBlocked: threadViewModel.isBlocked)
+        let configuration = ChatListCell.Configuration(
+            threadViewModel: threadViewModel,
+            lastReloadDate: lastReloadDate
+        )
         return configuration
     }
 
-    fileprivate func buildCellConfigurationAndContentTokenSync(forIndexPath indexPath: IndexPath) -> CLVCellConfigurationAndContentToken? {
+    private func buildCellContentToken(for indexPath: IndexPath) -> CLVCellContentToken? {
         AssertIsOnMainThread()
 
         guard let threadViewModel = threadViewModel(forIndexPath: indexPath) else {
@@ -823,29 +751,23 @@ extension CLVTableDataSource {
             owsFailDebug("Missing viewController.")
             return nil
         }
+        let cellContentCache = viewController.cellContentCache
+        let cellContentCacheKey = threadViewModel.threadRecord.uniqueId
+        // If we have an existing CLVCellContentToken, use it. Cell
+        // measurement/arrangement is expensive.
+        if let cellContentToken = cellContentCache.get(key: cellContentCacheKey) {
+            return cellContentToken
+        }
         let lastReloadDate: Date? = {
             guard viewState.hasEverAppeared else {
                 return nil
             }
             return self.lastReloadDate
         }()
-        let configuration = Self.buildCellConfiguration(threadViewModel: threadViewModel,
-                                                        lastReloadDate: lastReloadDate)
-        let cellContentCache = viewController.cellContentCache
-        let contentToken = { () -> CLVCellContentToken in
-            // If we have an existing CLVCellContentToken, use it.
-            // Cell measurement/arrangement is expensive.
-            let cacheKey = configuration.thread.threadRecord.uniqueId
-            if let cellContentToken = cellContentCache.get(key: cacheKey) {
-                return cellContentToken
-            }
-
-            let cellContentToken = ChatListCell.buildCellContentToken(forConfiguration: configuration)
-            cellContentCache.set(key: cacheKey, value: cellContentToken)
-            return cellContentToken
-        }()
-        return CLVCellConfigurationAndContentToken(configuration: configuration,
-                                                  contentToken: contentToken)
+        let configuration = Self.buildCellConfiguration(threadViewModel: threadViewModel, lastReloadDate: lastReloadDate)
+        let cellContentToken = ChatListCell.buildCellContentToken(for: configuration)
+        cellContentCache.set(key: cellContentCacheKey, value: cellContentToken)
+        return cellContentToken
     }
 
     // TODO: It would be preferable to figure out some way to use ReverseDispatchQueue.
@@ -867,7 +789,7 @@ extension CLVTableDataSource {
         let cellContentCacheResetCount = cellContentCache.resetCount
         let threadViewModelCacheResetCount = threadViewModelCache.resetCount
 
-        guard let thread = self.thread(forIndexPath: indexPath) else {
+        guard let thread = renderState.thread(forIndexPath: indexPath) else {
             owsFailDebug("Missing thread.")
             return
         }
@@ -897,27 +819,21 @@ extension CLVTableDataSource {
             }
             let configuration = Self.buildCellConfiguration(threadViewModel: threadViewModel,
                                                             lastReloadDate: lastReloadDate)
-            let contentToken = ChatListCell.buildCellContentToken(forConfiguration: configuration)
+            let contentToken = ChatListCell.buildCellContentToken(for: configuration)
             return (threadViewModel, contentToken)
         }.done(on: DispatchQueue.main) { (threadViewModel: ThreadViewModel, contentToken: CLVCellContentToken) in
             // Commit the preloaded values to their respective caches.
             guard cellContentCacheResetCount == cellContentCache.resetCount else {
-                Logger.info("cellContentCache was reset.")
                 return
             }
             guard threadViewModelCacheResetCount == threadViewModelCache.resetCount else {
-                Logger.info("cellContentCache was reset.")
                 return
             }
             if nil == threadViewModelCache.get(key: cacheKey) {
                 threadViewModelCache.set(key: cacheKey, value: threadViewModel)
-            } else {
-                Logger.info("threadViewModel already loaded.")
             }
             if nil == cellContentCache.get(key: cacheKey) {
                 cellContentCache.set(key: cacheKey, value: contentToken)
-            } else {
-                Logger.info("contentToken already loaded.")
             }
         }.catch(on: DispatchQueue.global()) { error in
             if case CLVPreloadError.alreadyLoaded = error {
@@ -935,7 +851,6 @@ extension CLVTableDataSource {
 // MARK: -
 
 public class CLVTableView: UITableView {
-
     fileprivate var lastReloadDate: Date?
 
     public override func reloadData() {
@@ -946,29 +861,12 @@ public class CLVTableView: UITableView {
         (dataSource as? CLVTableDataSource)?.calcRefreshTimer()
     }
 
-    public required init() {
+    public init() {
         super.init(frame: .zero, style: .grouped)
     }
 
     @available(*, unavailable, message: "use other constructor instead.")
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
-    }
-}
-
-// MARK: -
-
-extension ChatListViewController {
-
-    func threadViewModel(forThread thread: TSThread) -> ThreadViewModel {
-        tableDataSource.threadViewModel(forThread: thread)
-    }
-
-    func thread(forIndexPath indexPath: IndexPath) -> TSThread? {
-        tableDataSource.thread(forIndexPath: indexPath)
-    }
-
-    func threadViewModel(forIndexPath indexPath: IndexPath) -> ThreadViewModel? {
-        tableDataSource.threadViewModel(forIndexPath: indexPath)
     }
 }

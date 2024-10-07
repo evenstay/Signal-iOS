@@ -5,7 +5,6 @@
 
 import LibSignalClient
 import QuickLook
-import SignalMessaging
 import SignalServiceKit
 import SignalUI
 
@@ -29,7 +28,7 @@ class MessageDetailViewController: OWSTableViewController2 {
     public let spoilerState: SpoilerRenderState
     private let editManager: EditManager
     private var wasDeleted: Bool = false
-    private var isIncoming: Bool { message as? TSIncomingMessage != nil }
+    private var isIncoming: Bool { message is TSIncomingMessage }
     private var expires: Bool { message.expiresInSeconds > 0 }
 
     private struct MessageRecipientModel {
@@ -37,19 +36,13 @@ class MessageDetailViewController: OWSTableViewController2 {
         let accessoryText: String
         let displayUDIndicator: Bool
     }
-    private let messageRecipients = AtomicOptional<[MessageReceiptStatus: [MessageRecipientModel]]>(nil)
+    private let messageRecipients = AtomicOptional<[MessageReceiptStatus: [MessageRecipientModel]]>(nil, lock: .sharedGlobal)
 
     private let cellView = CVCellView()
 
-    private var attachments: [TSAttachment]?
-    private var attachmentStreams: [TSAttachmentStream]? {
-        return attachments?.compactMap { $0 as? TSAttachmentStream }
-    }
-    var hasMediaAttachment: Bool {
-        guard let attachmentStreams = self.attachmentStreams, !attachmentStreams.isEmpty else {
-            return false
-        }
-        return true
+    private var bodyMediaAttachments: [ReferencedTSResource]?
+    private var bodyMediaAttachmentStreams: [ReferencedTSResourceStream]? {
+        return bodyMediaAttachments?.compactMap { $0.asReferencedStream }
     }
 
     private let byteCountFormatter: ByteCountFormatter = ByteCountFormatter()
@@ -115,7 +108,7 @@ class MessageDetailViewController: OWSTableViewController2 {
 
     // MARK: Initializers
 
-    required init(
+    init(
         message: TSMessage,
         spoilerState: SpoilerRenderState,
         editManager: EditManager,
@@ -158,7 +151,7 @@ class MessageDetailViewController: OWSTableViewController2 {
         let panGesture = DirectionalPanGestureRecognizer(direction: .horizontal, target: self, action: #selector(handlePan))
 
         // Allow panning with trackpad
-        if #available(iOS 13.4, *) { panGesture.allowedScrollTypesMask = .continuous }
+        panGesture.allowedScrollTypesMask = .continuous
 
         view.addGestureRecognizer(panGesture)
 
@@ -229,7 +222,10 @@ class MessageDetailViewController: OWSTableViewController2 {
             viewWidth: view.width - (cellOuterInsets.totalWidth + (Self.cellHInnerMargin * 2)),
             hasWallpaper: false,
             isWallpaperPhoto: false,
-            chatColor: ChatColors.resolvedChatColor(for: thread, tx: transaction)
+            chatColor: DependenciesBridge.shared.chatColorSettingStore.resolvedChatColor(
+                for: thread,
+                tx: transaction.asV2Read
+            )
         )
 
         return CVLoader.buildStandaloneRenderItem(
@@ -296,8 +292,8 @@ class MessageDetailViewController: OWSTableViewController2 {
             self.expiryLabel = expiryLabel
         }
 
-        if hasMediaAttachment, attachments?.count == 1, let attachment = attachments?.first {
-            if let sourceFilename = attachment.sourceFilename {
+        if bodyMediaAttachments?.count == 1, let attachment = bodyMediaAttachments?.first {
+            if let sourceFilename = attachment.reference.sourceFilename {
                 messageStack.addArrangedSubview(Self.buildValueLabel(
                     name: OWSLocalizedString("MESSAGE_METADATA_VIEW_SOURCE_FILENAME",
                                             comment: "Label for the original filename of any attachment in the 'message metadata' view."),
@@ -305,7 +301,7 @@ class MessageDetailViewController: OWSTableViewController2 {
                 ))
             }
 
-            if let formattedByteCount = byteCountFormatter.string(for: attachment.byteCount) {
+            if let formattedByteCount = byteCountFormatter.string(for: attachment.attachment.unencryptedResourceByteCount ?? 0) {
                 messageStack.addArrangedSubview(Self.buildValueLabel(
                     name: OWSLocalizedString("MESSAGE_METADATA_VIEW_ATTACHMENT_FILE_SIZE",
                                             comment: "Label for file size of attachments in the 'message metadata' view."),
@@ -316,11 +312,11 @@ class MessageDetailViewController: OWSTableViewController2 {
             }
 
             if DebugFlags.messageDetailsExtraInfo {
-                let contentType = attachment.contentType
+                let mimeType = attachment.attachment.mimeType
                 messageStack.addArrangedSubview(Self.buildValueLabel(
                     name: OWSLocalizedString("MESSAGE_METADATA_VIEW_ATTACHMENT_MIME_TYPE",
                                             comment: "Label for the MIME type of attachments in the 'message metadata' view."),
-                    value: contentType
+                    value: mimeType
                 ))
             }
         }
@@ -380,11 +376,10 @@ class MessageDetailViewController: OWSTableViewController2 {
         let section = OWSTableSection()
         section.add(.disclosureItem(
             icon: .buttonEdit,
-            name: OWSLocalizedString(
+            withText: OWSLocalizedString(
                 "MESSAGE_DETAILS_EDIT_HISTORY_TITLE",
                 comment: "Title for the 'edit history' section on the 'message details' view."
             ),
-            accessibilityIdentifier: "view_edit_history",
             actionBlock: { [weak self] in
                 guard let self else { return }
                 let sheet = EditHistoryTableSheetViewController(
@@ -479,7 +474,8 @@ class MessageDetailViewController: OWSTableViewController2 {
     }
 
     private func contactItem(for address: SignalServiceAddress, accessoryText: String, displayUDIndicator: Bool) -> OWSTableItem {
-        return .init(customCellBlock: { [weak self] in
+        return .init(
+            customCellBlock: { [weak self] in
                 guard let self = self else { return UITableViewCell() }
                 let tableView = self.tableView
                 guard let cell = tableView.dequeueReusableCell(withIdentifier: ContactTableViewCell.reuseIdentifier) as? ContactTableViewCell else {
@@ -498,8 +494,12 @@ class MessageDetailViewController: OWSTableViewController2 {
             },
             actionBlock: { [weak self] in
                 guard let self = self else { return }
-            let actionSheet = MemberActionSheet(address: address, groupViewHelper: nil, spoilerState: self.spoilerState)
-                actionSheet.present(from: self)
+                ProfileSheetSheetCoordinator(
+                    address: address,
+                    groupViewHelper: nil,
+                    spoilerState: self.spoilerState
+                )
+                .presentAppropriateSheet(from: self)
             }
         )
     }
@@ -714,7 +714,7 @@ extension MessageDetailViewController: MediaGalleryDelegate {
     }
 
     func didReloadAllSectionsInMediaGallery(_ mediaGallery: MediaGallery) {
-        if let firstAttachment = self.attachments?.first,
+        if let firstAttachment = self.bodyMediaAttachments?.first,
            mediaGallery.ensureLoadedForDetailView(focusedAttachment: firstAttachment) == nil {
             // Assume the item was deleted.
             self.dismiss(animated: true) {
@@ -731,9 +731,9 @@ extension MessageDetailViewController: MediaGalleryDelegate {
 // MARK: -
 
 extension MessageDetailViewController: ContactShareViewHelperDelegate {
-    public func didCreateOrEditContact() {
+
+    func didCreateOrEditContact() {
         updateTableContents()
-        self.dismiss(animated: true)
     }
 }
 
@@ -881,7 +881,8 @@ extension MessageDetailViewController: DatabaseChangeDelegate {
                 return false
             }
             self.message = newMessage
-            self.attachments = newMessage.mediaAttachments(with: transaction.unwrapGrdbRead)
+            self.bodyMediaAttachments = DependenciesBridge.shared.tsResourceStore
+                .referencedBodyMediaAttachments(for: newMessage, tx: transaction.asV2Read)
             guard let renderItem = buildRenderItem(
                 message: newMessage,
                 spoilerState: spoilerState,
@@ -917,10 +918,13 @@ extension MessageDetailViewController: DatabaseChangeDelegate {
             guard let self = self else { return }
 
             let messageRecipientAddressesUnsorted = outgoingMessage.recipientAddresses()
-            let messageRecipientAddressesSorted = self.databaseStorage.read { transaction in
-                self.contactsManagerImpl.sortSignalServiceAddresses(
-                    messageRecipientAddressesUnsorted,
-                    transaction: transaction
+            let (hasBodyAttachments, messageRecipientAddressesSorted) = self.databaseStorage.read { transaction in
+                return (
+                    outgoingMessage.hasBodyAttachments(transaction: transaction),
+                    self.contactsManagerImpl.sortSignalServiceAddresses(
+                        messageRecipientAddressesUnsorted,
+                        transaction: transaction
+                    )
                 )
             }
             let messageRecipientAddressesGrouped = messageRecipientAddressesSorted.reduce(
@@ -932,7 +936,8 @@ extension MessageDetailViewController: DatabaseChangeDelegate {
 
                 let (status, statusMessage, _) = MessageRecipientStatusUtils.recipientStatusAndStatusMessage(
                     outgoingMessage: outgoingMessage,
-                    recipientState: recipientState
+                    recipientState: recipientState,
+                    hasBodyAttachments: hasBodyAttachments
                 )
                 var bucket = result[status] ?? []
 
@@ -985,6 +990,10 @@ extension MessageDetailViewController: CVComponentDelegate {
     // MARK: - System Message Items
 
     func didTapSystemMessageItem(_ item: CVTextLabel.Item) {}
+
+    // MARK: - Double-Tap
+
+    func didDoubleTapTextViewItem(_ itemViewModel: CVItemViewModelImpl) {}
 
     // MARK: - Long Press
 
@@ -1055,7 +1064,7 @@ extension MessageDetailViewController: CVComponentDelegate {
 
     func didTapBodyMedia(
         itemViewModel: CVItemViewModelImpl,
-        attachmentStream: TSAttachmentStream,
+        attachmentStream: ReferencedTSResourceStream,
         imageView: UIView
     ) {
         guard let thread = thread else {
@@ -1076,9 +1085,7 @@ extension MessageDetailViewController: CVComponentDelegate {
     }
 
     func didTapGenericAttachment(_ attachment: CVComponentGenericAttachment) -> CVAttachmentTapAction {
-        if attachment.canQuickLook {
-            let previewController = QLPreviewController()
-            previewController.dataSource = attachment
+        if let previewController = attachment.createQLPreviewController() {
             present(previewController, animated: true)
             return .handledByDelegate
         } else {
@@ -1105,16 +1112,16 @@ extension MessageDetailViewController: CVComponentDelegate {
         self.navigationController?.pushViewController(contactViewController, animated: true)
     }
 
-    func didTapSendMessage(toContactShare contactShare: ContactShareViewModel) {
-        contactShareViewHelper.sendMessage(contactShare: contactShare, fromViewController: self)
+    func didTapSendMessage(to phoneNumbers: [String]) {
+        contactShareViewHelper.sendMessage(to: phoneNumbers, from: self)
     }
 
     func didTapSendInvite(toContactShare contactShare: ContactShareViewModel) {
-        contactShareViewHelper.showInviteContact(contactShare: contactShare, fromViewController: self)
+        contactShareViewHelper.showInviteContact(contactShare: contactShare, from: self)
     }
 
     func didTapAddToContacts(contactShare: ContactShareViewModel) {
-        contactShareViewHelper.showAddToContacts(contactShare: contactShare, fromViewController: self)
+        contactShareViewHelper.showAddToContactsPrompt(contactShare: contactShare, from: self)
     }
 
     func didTapStickerPack(_ stickerPackInfo: StickerPackInfo) {
@@ -1122,7 +1129,7 @@ extension MessageDetailViewController: CVComponentDelegate {
         packView.present(from: self, animated: true)
     }
 
-    func didTapPayment(_ paymentModel: TSPaymentModel, displayName: String) { }
+    func didTapPayment(_ payment: PaymentsHistoryItem) {}
 
     func didTapGroupInviteLink(url: URL) {
         GroupInviteLinksUI.openGroupInviteLink(url, fromViewController: self)
@@ -1199,7 +1206,7 @@ extension MessageDetailViewController: CVComponentDelegate {
 
     func didTapGroupInviteLinkPromotion(groupModel: TSGroupModel) {}
 
-    func didTapViewGroupDescription(groupModel: TSGroupModel?) {}
+    func didTapViewGroupDescription(newGroupDescription: String) {}
 
     // TODO:
     func didTapShowConversationSettings() {}
@@ -1237,6 +1244,8 @@ extension MessageDetailViewController: CVComponentDelegate {
     // TODO:
     func didTapViewOnceExpired(_ interaction: TSInteraction) {}
 
+    func didTapContactName(thread: TSContactThread) {}
+
     // TODO:
     func didTapUnknownThreadWarningGroup() {}
     // TODO:
@@ -1247,6 +1256,10 @@ extension MessageDetailViewController: CVComponentDelegate {
     func didTapSendPayment() {}
 
     func didTapThreadMergeLearnMore(phoneNumber: String) {}
+
+    func didTapReportSpamLearnMore() {}
+
+    func didTapMessageRequestAcceptedOptions() {}
 }
 
 extension MessageDetailViewController: UINavigationControllerDelegate {
@@ -1266,7 +1279,7 @@ private class AnimationController: NSObject, UIViewControllerAnimatedTransitioni
     weak var percentDrivenTransition: UIPercentDrivenInteractiveTransition?
 
     let operation: UINavigationController.Operation
-    required init(operation: UINavigationController.Operation) {
+    init(operation: UINavigationController.Operation) {
         self.operation = operation
         super.init()
     }

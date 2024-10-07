@@ -25,6 +25,9 @@
 /* Accessibility label for stickers. */
 "ACCESSIBILITY_LABEL_STICKER" = "स्टिकर";
 
+/* Accessibility label for stickers. Embeds {{ name of top emoji the sticker resembles }} */
+"ACCESSIBILITY_LABEL_STICKER_FORMAT" = "%1$@ यासारखाच स्टिकर";
+
 /* Accessibility label for a voice memo. */
 "ACCESSIBILITY_LABEL_VOICE_MEMO" = "व्हॉईस संदेश";
 
@@ -64,9 +67,6 @@
 /* Users can request a report of their account data. This is the title on the screen where they do this. */
 "ACCOUNT_DATA_REPORT_TITLE" = "आपला अकाऊंट डेटा";
 
-/* Label for 'voice call' button in contact view. */
-"ACTION_AUDIO_CALL" = "Signal कॉल";
-
 /* Label for 'invite' button in contact view. */
 "ACTION_INVITE" = "Signal वर आमंत्रित करा";
 
@@ -78,6 +78,9 @@
 
 /* Label for 'video call' button in contact view. */
 "ACTION_VIDEO_CALL" = "व्हिडीओ कॉल";
+
+/* Label for 'voice call' button in contact view. */
+"ACTION_VOICE_CALL" = "Signal कॉल";
 
 /* The title for the 'add group members' view. */
 "ADD_GROUP_MEMBERS_VIEW_TITLE" = "सदस्य जोडा";
@@ -119,7 +122,7 @@
 "ALERT_ACTION_ACKNOWLEDGE" = "कळले";
 
 /* Format string for delivery issue sheet message. Embeds {{ sender name }}. */
-"ALERT_DELIVERY_ISSUE_MESSAGE_FORMAT" = "या चॅटमध्ये %1$@ कडील संदेश, स्टिकर, प्रतिक्रिया, वाचल्याची पावती किंवा मिडिया तुम्हाला वितरित करता आला नाही.";
+"ALERT_DELIVERY_ISSUE_MESSAGE_FORMAT" = "या चॅटमध्ये %1$@ कडून संदेश, स्टिकर, प्रतिक्रिया किंवा मिडिया आपल्यापर्यंत पोहोचवली जाऊ शकली नाही.";
 
 /* Title for delivery issue sheet */
 "ALERT_DELIVERY_ISSUE_TITLE" = "डिलिव्हरी समस्या";
@@ -139,7 +142,7 @@
 /* The label for the 'save' button in action sheets. */
 "ALERT_SAVE" = "जतन करा";
 
-/* Message for UI  warning about an unknown contact thread. */
+/* Message for UI warning about an unknown contact thread. */
 "ALERT_UNKNOWN_THREAD_WARNING_CONTACT_MESSAGE" = "आपले या व्यक्तीसोबत कुठलेही गट समाईक नाहीत. नको असलेले संदेश टाळण्यासाठी विनंत्याचे काळजीपूर्वक पुनरावलोकन करा.";
 
 /* Message for UI warning about an unknown group thread. */
@@ -183,9 +186,6 @@
 
 /* Title for the view of all your signal connections */
 "ALL_SIGNAL_CONNECTIONS_TITLE" = "सर्व कनेक्शन्स";
-
-/* notification action */
-"ANSWER_CALL_BUTTON_TITLE" = "उत्तर";
 
 /* notification body */
 "APN_Message" = "आपल्यासाठी नवीन संदेश असू शकतात";
@@ -292,14 +292,14 @@
 /* Apple Pay donation error for decline failures where the payment cannot be authorized. */
 "APPLE_PAY_DONATION_ERROR_PAYMENT_CANNOT_BE_AUTHORIZED" = "Apple Pay वर आपली पेमेंट पद्धत अद्ययावत आहे का पाहण्यासाठी तपासा. ते नसल्यास, ते अद्यतनित करा आणि पुन्हा प्रयत्न करा.";
 
-/* Name of application */
-"APPLICATION_NAME" = "Signal";
-
 /* On the iOS home screen, if you tap and hold the Signal icon, this shortcut will appear. Tapping it will let users send a new message. You may want to refer to similar behavior in other iOS apps, such as Messages, for equivalent strings. */
 "APPLICATION_SHORTCUT_NEW_MESSAGE" = "नवीन संदेश";
 
 /* Label for the archive button for conversations list view */
 "ARCHIVE_ACTION" = "आर्काइव्ह";
+
+/* Button to try to join a call. The admin may need to approve the request before the user can join. */
+"ASK_TO_JOIN_CALL" = "कॉलमध्ये सामील होण्यास सांगा";
 
 /* One of the choices for pre-defined aspect ratio of a photo in media editor. */
 "ASPECT_RATIO_ORIGINAL" = "मूळ";
@@ -430,9 +430,6 @@
 /* Short text label for a gif attachment, used for thread preview and on the lock screen */
 "ATTACHMENT_TYPE_GIF" = "GIF";
 
-/* Short text label for an image attachment, used for thread preview and on the lock screen */
-"ATTACHMENT_TYPE_IMAGE" = "चित्र";
-
 /* Short text label for a photo attachment, used for thread preview and on the lock screen */
 "ATTACHMENT_TYPE_PHOTO" = "फोटो";
 
@@ -444,9 +441,6 @@
 
 /* A string indicating that an audio message is playing. */
 "AUDIO_ACTIVITY_PLAYBACK_NAME_AUDIO_MESSAGE" = "ऑडिओ संदेश";
-
-/* Accessibility label for placing an audio call */
-"AUDIO_CALL_LABEL" = "व्हॉईस कॉल";
 
 /* action sheet button title to enable built in speaker during a call */
 "AUDIO_ROUTE_BUILT_IN_SPEAKER" = "स्पीकर";
@@ -503,22 +497,19 @@
 "BADGE_EXPIRED_LEARN_MORE_LINK" = "अधिक जाणा.";
 
 /* Title for subscription on the badge expiration sheet. */
-"BADGE_EXPIRED_SUBSCRIPTION_TITLE" = "Monthly Donation Canceled";
+"BADGE_EXPIRED_SUBSCRIPTION_TITLE" = "मासिक देणगी रद्द करण्यात आली";
 
 /* String explaining to the user on a badge expiry sheet that their subscription badge has expired because the renewal payment failed. Embeds {{ a specific, already-localized string describing the payment failure }}. Will have a 'learn more' link appended, when it is rendered. */
-"BADGE_SUBSCRIPTION_EXPIRED_BECAUSE_OF_CHARGE_FAILURE_BODY_FORMAT" = "Your recurring monthly donation has ended. %1$@\n\nWithout an active subscription your badge will no longer be visible on your profile.";
-
-/* Body of the sheet shown when your subscription is canceled due to inactivity. Embeds {{ the name of the badge }}. Will have a 'learn more' link appended, when it is rendered. */
-"BADGE_SUBSCRIPTION_EXPIRED_BECAUSE_OF_INACTIVITY_BODY_FORMAT" = "आपण दीर्घ काळासाठी असक्रिय असल्याकारणाने आपली आवर्ती मासिक देणगी आपोआप रद्द झाली होती. आपला %1$@ बॅज यापुढे आपल्या प्रोफाइलवर दृश्यमान राहणार नाही.\n\nआपण Signal ला वापरणे सुरु ठेवू शकता परंतु अ‍ॅपला सपोर्ट करण्यासाठी आणि आपला बॅज पुन्हा सक्रिय करण्यासाठी, आत्ता देणगी द्या.";
+"BADGE_SUBSCRIPTION_EXPIRED_BECAUSE_OF_CHARGE_FAILURE_BODY_FORMAT" = "आपली आवर्ती मासिक देणगी रद्द करण्यात आली होती. %1$@\n\nआपल्या प्रोफाईलवर आपला बॅज यापुढे दृश्यमान होणार नाही.";
 
 /* Body for a sheet explaining that a bank transfer donation is complete, and that you have received a badge. */
-"BADGE_THANKS_BANK_DONATION_COMPLETE_BODY" = "Your bank transfer was received. You can choose to display this badge on your profile to show off your support.";
+"BADGE_THANKS_BANK_DONATION_COMPLETE_BODY" = "आपले बँक हस्तांतरण प्राप्त झाले. आता आपण आपला सपोर्ट दाखवण्यासाठी आपल्या प्रोफाईलवर हा बॅज प्रदर्शित करणे निवडू शकता.";
 
 /* Title for a sheet explaining that a bank transfer donation is complete, and that you have received a badge. */
-"BADGE_THANKS_BANK_DONATION_COMPLETE_TITLE" = "Donation Complete";
+"BADGE_THANKS_BANK_DONATION_COMPLETE_TITLE" = "देणगी देणे पूर्ण";
 
 /* When you make a donation to Signal, you will receive a badge. A thank-you sheet appears when this happens. This is the body text on that sheet. */
-"BADGE_THANKS_BODY" = "You can choose to display this badge on your profile to show off your support.";
+"BADGE_THANKS_BODY" = "आता आपण आपला सपोर्ट दाखवण्यासाठी आपल्या प्रोफाईलवर हा बॅज प्रदर्शित करणे निवडू शकता.";
 
 /* Label prompting the user to display the new badge on their profile on the badge thank you sheet. */
 "BADGE_THANKS_DISPLAY_ON_PROFILE_LABEL" = "प्रोफाइलवर दाखवा";
@@ -533,22 +524,22 @@
 "BADGE_THANKS_TOGGLE_FOOTER" = "जेव्हा तुमच्याकडे एकापेक्षा जास्त बॅज असतील, तेव्हा तुम्ही तुमच्या प्रोफाईलवर इतरांना पाहण्यासाठी एक निवडू शकता.";
 
 /* On the bank donation screen, show a link below the input form to show help about finding account info. */
-"BANK_DONATION_FOOTER_FIND_ACCOUNT_INFO" = "Find Account Info";
+"BANK_DONATION_FOOTER_FIND_ACCOUNT_INFO" = "अकाऊंट माहिती शोधा";
 
 /* On the bank transfer donation screen, a small amount of information text is shown. This is that text. It should (1) instruct users to enter their bank information (2) tell them that Signal does not collect or store their personal information. */
-"BANK_DONATION_SUBHEADER_TEXT" = "Enter your bank details. Signal does not collect or store your personal information.";
+"BANK_DONATION_SUBHEADER_TEXT" = "आपला बँक तपशील प्रविष्ट करा. Signal आपली वैयक्तिक माहिती संकलित किंवा संग्रहित करत नाही.";
 
 /* Users can donate to Signal with a bank account. We are required to show them a mandate with information about bank transfers. This is a label for a button to agree to the mandate. */
-"BANK_MANDATE_AGREE" = "Agree";
+"BANK_MANDATE_AGREE" = "सहमत";
 
 /* Users can donate to Signal with a bank account. We are required to show them a mandate with information about bank transfers. This is a label for a button that shows more of the mandate if it is not all visible. */
-"BANK_MANDATE_READ_MORE" = "Read More";
+"BANK_MANDATE_READ_MORE" = "अधिक वाचा";
 
 /* Users can donate to Signal with a bank account. We are required to show them a mandate with information about bank transfers. This is a subtitle about the payment processor Stripe above that mandate. */
-"BANK_MANDATE_SUBTITLE" = "Stripe processes donations made to Signal. Signal does not collect or store your personal information.";
+"BANK_MANDATE_SUBTITLE" = "Signal ला केलेले देणगीवर स्ट्राईप प्रक्रिया करते. Signal आपली वैयक्तिक माहिती संकलित किंवा संग्रहित करत नाही.";
 
 /* Users can donate to Signal with a bank account. We are required to show them a mandate with information about bank transfers. This is the title above that mandate. */
-"BANK_MANDATE_TITLE" = "Bank Transfer";
+"BANK_MANDATE_TITLE" = "बँक हस्तांतरण";
 
 /* Accessibility label for banner close button */
 "BANNER_CLOSE_ACCESSIBILITY_LABEL" = "बॅनर बंद करा";
@@ -691,9 +682,6 @@
 /* Label for button that lets users call a contact again. */
 "CALL_AGAIN_BUTTON_TITLE" = "पुन्हा कॉल करा";
 
-/* notification body */
-"CALL_AUDIO_INCOMING_NOTIFICATION_BODY" = "📞 येणारा व्हॉईस कॉल…";
-
 /* notification body for a missed call in the last 24 hours. Embeds {{time}}, e.g. '3:30 PM'. */
 "CALL_AUDIO_MISSED_24_HOURS_NOTIFICATION_BODY_FORMAT" = "📞 %1$@वाजता चुकलेला व्हॉईस काॅल";
 
@@ -721,14 +709,74 @@
 /* label for button shown when an incoming call rings */
 "CALL_CONTROLS_INCOMING_DECLINE" = "नाकारा";
 
-/* Body for the repeating notification shown while an incoming group call is ringing, if the user has chosen not to include contact names in notifications */
-"CALL_GROUP_INCOMING_NOTIFICATION_BODY_ANONYMOUS" = "📹 इनकमिंग ग्रुप कॉल(…)";
+/* Button to open a screen to edit the name of a Call Link. Also used as the title of that screen once it opens. */
+"CALL_LINK_ADD_NAME" = "कॉलचे नाव जोडा";
 
-/* Body for the repeating notification shown while an incoming group call is ringing. Embeds {{caller name}} */
-"CALL_GROUP_INCOMING_NOTIFICATION_BODY_FORMAT" = "📹 {{%1$@}} हे ग्रुपला रिंग करत आहेत(…)";
+/* Button to copy a Call Link to the clipboard. */
+"CALL_LINK_COPY" = "लिंक कॉपी करा";
+
+/* Navigation bar title for the sheet used to create & configure a Call Link. */
+"CALL_LINK_CREATE" = "कॉल लिंक तयार करा";
+
+/* Description of sheet presented when call link creation fails. */
+"CALL_LINK_CREATION_FAILURE_SHEET_DESCRIPTION" = "कॉल लिंक तयार केली जाऊ शकत नाही. आपले इंटरनेट कनेक्शन तपासा आणि पुन्हा तपासा.";
+
+/* Title of sheet presented when call link creation or update fails. */
+"CALL_LINK_CREATION_OR_UPDATE_FAILURE_SHEET_TITLE" = "नेटवर्क त्रुटी";
+
+/* Button to open a screen to edit the name of a Call Link. Also used as the title of that screen once it opens. */
+"CALL_LINK_EDIT_NAME" = "कॉल नाव संपादित करा";
+
+/* Description of sheet presented when joining call from call link sheet fails. */
+"CALL_LINK_JOIN_CALL_FAILURE_SHEET_DESCRIPTION" = "कॉल मध्ये सामील होऊ शकत नाही. आपले इंटरनेट कनेक्शन तपासा आणि पुन्हा तपासा.";
+
+/* Button on an action sheet to approve a request to join a call link. */
+"CALL_LINK_JOIN_REQUEST_APPROVE_BUTTON" = "Approve Entry";
+
+/* Button on an action sheet to deny a request to join a call link. */
+"CALL_LINK_JOIN_REQUEST_DENY_BUTTON" = "Deny Entry";
+
+/* Tappable label that appears below a user's name on a toast when they request to join a call link. */
+"CALL_LINK_JOIN_REQUEST_PROMPT" = "Would like to join…";
+
+/* Shown in a message bubble when you send a call link in a Signal chat */
+"CALL_LINK_LINK_PREVIEW_DESCRIPTION" = "एका Signal कॉलमध्ये सामील होण्यासाठी या लिंकचा वापर करा";
+
+/* Text that appears on a toast in a call lobby before joining a call link informing the user what information will be shared with other call members when they have phone number sharing turned off. */
+"CALL_LINK_LOBBY_SHARING_INFO_PHONE_NUMBER_SHARING_OFF" = "Anyone who joins this call via the link will see your name and photo.";
+
+/* Text that appears on a toast in a call lobby before joining a call link informing the user what information will be shared with other call members when they have phone number sharing turned on. */
+"CALL_LINK_LOBBY_SHARING_INFO_PHONE_NUMBER_SHARING_ON" = "Anyone who joins this call via the link will see your name, photo, and phone number.";
+
+/* Title for button to approve all requests to join a call. */
+"CALL_LINK_REQUEST_SHEET_APPROVE_ALL_BUTTON" = "सर्व मंजूर करा";
+
+/* Title for button to deny all requests to join a call. */
+"CALL_LINK_REQUEST_SHEET_DENY_ALL_BUTTON" = "सर्व नाकारा";
+
+/* Header for the sheet displaying a list of requests to join a call. */
+"CALL_LINK_REQUEST_SHEET_HEADER" = "या कॉलमध्ये जॉईन होण्याच्या विनंती";
+
+/* Name of a toggle switch to enable/disable admin approval for joining a Call Link. */
+"CALL_LINK_REQUIRE_APPROVAL" = "ॲडमिनची मंजुरी आवश्यक आहे";
+
+/* Button to open UI to share a Call Link with someone on Signal. */
+"CALL_LINK_SHARE_VIA_SIGNAL" = "Signal मार्फत लिंक शेअर करा";
+
+/* Button to open the system share sheet to share a Call Link. */
+"CALL_LINK_SHARE_VIA_SYSTEM" = "लिंक शेअर करा";
+
+/* Description of sheet presented when call link update fails. */
+"CALL_LINK_UPDATE_FAILURE_SHEET_DESCRIPTION" = "कॉल लिंक अद्यतनित केली जाऊ शकत नाही. आपले इंटरनेट कनेक्शन तपासा आणि पुन्हा तपासा.";
+
+/* Label on button for lowering hand in call. */
+"CALL_LOWER_HAND_BUTTON_LABEL" = "हात खाली घ्या";
 
 /* notification body */
 "CALL_MISSED_BECAUSE_OF_IDENTITY_CHANGE_NOTIFICATION_BODY" = "☎️ सुटलेला कॉल कारण वापरकर्त्याचा सुरक्षितता नंबर बदलला आहे.";
+
+/* Label on button for raising hand in call. */
+"CALL_RAISE_HAND_BUTTON_LABEL" = "हात वर करा";
 
 /* Button to return to the current call */
 "CALL_RETURN_BUTTON" = "कॉलवर परत या";
@@ -736,8 +784,8 @@
 /* Call setup status label after outgoing call times out */
 "CALL_SCREEN_STATUS_NO_ANSWER" = "कुठलेही उत्तर नाही";
 
-/* embeds {{Call Status}} in call screen label. For ongoing calls, {{Call Status}} is a seconds timer like 01:23, otherwise {{Call Status}} is a short text like 'Ringing', 'Busy', or 'Failed Call' */
-"CALL_STATUS_FORMAT" = "Signal %1$@";
+/* Button to start a call */
+"CALL_START_BUTTON" = "कॉल चालू करा";
 
 /* Label for call button for alert offering to call a user. */
 "CALL_USER_ALERT_CALL_BUTTON" = "कॉल करा";
@@ -747,9 +795,6 @@
 
 /* Title for alert offering to call a user. */
 "CALL_USER_ALERT_TITLE" = "कॉल करायचा?";
-
-/* notification body */
-"CALL_VIDEO_INCOMING_NOTIFICATION_BODY" = "📹 येणारा व्हिडिओ कॉल…";
 
 /* notification body for a missed call in the last 24 hours. Embeds {{time}}, e.g. '3:30 PM'. */
 "CALL_VIDEO_MISSED_24_HOURS_NOTIFICATION_BODY_FORMAT" = "📹  %1$@वाजता एक मिस्ड व्हिडीओ कॉल";
@@ -763,7 +808,7 @@
 /* notification body for a missed call from the last week. Embeds {{weekday}}, e.g. 'Monday'. */
 "CALL_VIDEO_MISSED_WEEK_NOTIFICATION_BODY_FORMAT" = "📹  %1$@ एक मिस्ड व्हिडिओ कॉल";
 
-/* label for accepting incoming video calls as audio  only */
+/* label for accepting incoming video calls as audio only */
 "CALL_VIEW_ACCEPT_INCOMING_CALL_AUDIO_ONLY_LABEL" = "विना व्हिडिओ उत्तर द्या";
 
 /* label for accepting incoming calls */
@@ -778,6 +823,12 @@
 /* Accessibility label for hang up call */
 "CALL_VIEW_HANGUP_LABEL" = "कॉल संपवा";
 
+/* Accessibility label for leaving a call */
+"CALL_VIEW_LEAVE_CALL_LABEL" = "कॉल सोडा";
+
+/* Accessibility label for the More button in the Call Controls row. */
+"CALL_VIEW_MORE_LABEL" = "अधिक";
+
 /* Accessibility label for muting the microphone */
 "CALL_VIEW_MUTE_LABEL" = "मूक करा";
 
@@ -787,11 +838,17 @@
 /* Accessibility label to toggle front- vs. rear-facing camera */
 "CALL_VIEW_SWITCH_CAMERA_DIRECTION" = "कॅमेरा दिशा स्विच करा";
 
-/* Accessibility label to switch to audio only */
-"CALL_VIEW_SWITCH_TO_AUDIO_LABEL" = "व्हाईस कॉलला स्वीच व्हा";
+/* Accessibility label for turning off the camera */
+"CALL_VIEW_TURN_VIDEO_OFF_LABEL" = "कॅमेरा बंद करा";
 
-/* Accessibility label to switch to video call */
-"CALL_VIEW_SWITCH_TO_VIDEO_LABEL" = "व्हिडिओ कॉलवर स्विच करा";
+/* Accessibility label for turning on the camera */
+"CALL_VIEW_TURN_VIDEO_ON_LABEL" = "कॅमेरा चालू करा";
+
+/* Accessibility label for unmuting the microphone */
+"CALL_VIEW_UNMUTE_LABEL" = "अनम्यूट करा";
+
+/* Shown in the header below the name of the call while waiting for the host to allow you to enter the call. */
+"CALL_WAITING_TO_BE_LET_IN" = "आत येण्याची वाट पाहत आहे…";
 
 /* notification action */
 "CALLBACK_BUTTON_TITLE" = "परत कॉल करा";
@@ -804,6 +861,84 @@
 
 /* The generic name used for group calls if CallKit privacy is enabled */
 "CALLKIT_ANONYMOUS_GROUP_NAME" = "Signal गट";
+
+/* Title for the calls list view. */
+"CALLS_LIST_TITLE" = "कॉल";
+
+/* Label for an entry in the Calls Tab describing a call as incoming. */
+"CALLS_TAB_CALL_DIRECTION_LABEL_INCOMING" = "येणारे";
+
+/* Label for an entry in the Calls Tab describing a call as missed. */
+"CALLS_TAB_CALL_DIRECTION_LABEL_MISSED" = "मिस्ड";
+
+/* Label for an entry in the Calls Tab describing a call as outgoing. */
+"CALLS_TAB_CALL_DIRECTION_LABEL_OUTGOING" = "बाहेर जाणारे";
+
+/* Title for a row in the Calls Tab that represents multiple calls that have been coalesced together. Embeds {{ a title describing the coalesced calls }}, {{ the number of coalesced calls }}. */
+"CALLS_TAB_COALESCED_CALLS_TITLE_FORMAT" = "%1$@ (%2$@)";
+
+/* Title for a button allowing the user to delete all the calls from the Calls Tab. */
+"CALLS_TAB_DELETE_ALL_CALLS_BUTTON_TITLE" = "साफ करा";
+
+/* Message for a prompt confirming that the user wants to delete all the calls from the Calls Tab. */
+"CALLS_TAB_DELETE_ALL_CALLS_PROMPT_MESSAGE" = "हे कायमस्वरूपी सर्व कॉल इतिहास हटवेल.";
+
+/* Title for a prompt confirming that the user wants to delete all the calls from the Calls Tab. */
+"CALLS_TAB_DELETE_ALL_CALLS_PROMPT_TITLE" = "कॉल इतिहास साफ करायचा?";
+
+/* Title for a long-press context menu action to delete a call, triggered from a call in the Calls Tab. */
+"CALLS_TAB_DELETE_CALL_ACTION_TITLE" = "हटवा";
+
+/* An option in a segmented control in the Calls Tab allowing the user to select the filter option 'all calls'; i.e., 'unfiltered'. */
+"CALLS_TAB_FILTER_PICKER_OPTION_ALL" = "सर्व";
+
+/* An option in a segmented control in the Calls Tab allowing the user to select the filter option 'missed calls'. */
+"CALLS_TAB_FILTER_PICKER_OPTION_MISSED" = "मिस्ड";
+
+/* Title for an action, either long-press context menu or swipe, offering to take the user to the chat associated with a call in the Calls Tab. */
+"CALLS_TAB_GO_TO_CHAT_ACTION_TITLE" = "चॅटवर जा";
+
+/* Title for a button offering to let the user join an ongoing call, associated with a call in the Calls Tab. */
+"CALLS_TAB_JOIN_CALL_BUTTON_TITLE" = "सामील व्हा";
+
+/* Title for a long-press context menu action to join a video call, triggered from a call in the Calls Tab. */
+"CALLS_TAB_JOIN_VIDEO_CALL_ACTION_TITLE" = "व्हिडिओ कॉलमध्ये सामील व्हा";
+
+/* Title for a long-press context menu action to join a voice call, triggered from a call in the Calls Tab. */
+"CALLS_TAB_JOIN_VOICE_CALL_ACTION_TITLE" = "व्हॉईस कॉल जॉईन करा";
+
+/* Label explaining that the user has no missed calls, so their Calls Tab is empty. */
+"CALLS_TAB_NO_MISSED_CALLS_LABEL" = "कोणतेही मिस्ड कॉल नाहीत";
+
+/* Label explaining that the user has no recent calls, so their Calls Tab is empty. */
+"CALLS_TAB_NO_RECENT_CALLS_LABEL" = "कोणतेही अलिकडील कॉल नाहीत";
+
+/* Label suggesting that the user start a call, shown when their Calls Tab is empty. */
+"CALLS_TAB_NO_RECENT_CALLS_SUGGESTION_LABEL" = "मित्राला कॉल करुन सुरुवात करा";
+
+/* Title for a long-press context menu action to return to a call the user is actively participating in, triggered from a call in the Calls Tab. */
+"CALLS_TAB_RETURN_TO_CALL_ACTION_TITLE" = "कॉलवर परत या";
+
+/* Title for a button offering to let the user return to an ongoing call they're already in, associated with a call in the Calls Tab. */
+"CALLS_TAB_RETURN_TO_CALL_BUTTON_TITLE" = "परत जा";
+
+/* Label for a view explaining that no search results were found in the Calls Tab. Embeds {{ the search term }}. */
+"CALLS_TAB_SEARCH_NO_RESULTS_FOUND_LABEL_FORMAT" = "'%1$@' करिता कुठलेही परिणाम नाहीत";
+
+/* Title for a long-press context menu action to select a call, triggered from a call in the Calls Tab. */
+"CALLS_TAB_SELECT_CALL_ACTION_TITLE" = "निवडा";
+
+/* Title for a button allowing the user to select one or more calls, from the Calls Tab. */
+"CALLS_TAB_SELECT_CALLS_BUTTON_TITLE" = "निवडा";
+
+/* Title for a long-press context menu action to start a video call, triggered from a call in the Calls Tab. */
+"CALLS_TAB_START_VIDEO_CALL_ACTION_TITLE" = "व्हिडीओ कॉल";
+
+/* Title for a long-press context menu action to start a voice call, triggered from a call in the Calls Tab. */
+"CALLS_TAB_START_VOICE_CALL_ACTION_TITLE" = "व्हॉईस कॉल";
+
+/* Title for a long-press context menu action to view info about a call, triggered from a call in the Calls Tab. */
+"CALLS_TAB_VIEW_CALL_INFO_ACTION_TITLE" = "माहिती";
 
 /* Accessibility hint describing what you can do with the camera button */
 "CAMERA_BUTTON_HINT" = "एक चित्र घ्या आणि नंतर त्यास पाठवा";
@@ -961,8 +1096,17 @@
 /* Tooltip highlighting the auto chat color option. */
 "CHAT_COLORS_AUTO_TOOLTIP" = "वॉलपेपरसोबत स्वयंचलितपणे रंग जुळवते";
 
+/* Title for context menu action to disable chat list filter (e.g., Filter by Unread) */
+"CHAT_LIST_CLEAR_FILTER_MENU_ACTION" = "फिल्टर साफ करा";
+
 /* Title for the chat list's default mode. */
 "CHAT_LIST_TITLE_INBOX" = "चॅट्स";
+
+/* Title for context menu action to enable Filter by Unread */
+"CHAT_LIST_UNREAD_FILTER_MENU_ACTION" = "न वाचलेल्यानुसार फिल्टर करा";
+
+/* Message displayed on chat list when Filter by Unread is enabled but no unread chats are available */
+"CHAT_LIST_UNREAD_FILTER_NO_CHATS" = "न वाचलेले कोणतेही चॅटस् नाहीत";
 
 /* Title for the color & wallpaper settings view. */
 "COLOR_AND_WALLPAPER_SETTINGS_TITLE" = "चॅट रंग आणि वॉलपेपर";
@@ -986,7 +1130,22 @@
 "COMPOSE_MESSAGE_PHONE_NUMBER_SEARCH_SECTION_TITLE" = "नंबरनुसार शोधा";
 
 /* Table section header for username search when composing a new message */
-"COMPOSE_MESSAGE_USERNAME_SEARCH_SECTION_TITLE" = "वापरकर्तानावानुसार शोधा";
+"COMPOSE_MESSAGE_USERNAME_SEARCH_SECTION_TITLE" = "वापरकर्तानावाने शोधा";
+
+/* Menu action to display limited contact picker. */
+"COMPOSE_SCREEN_LIMITED_CONTACTS_ACTION_MANAGE" = "अधिक संपर्क निवडा";
+
+/* Menu action visit app contact permission in settings. */
+"COMPOSE_SCREEN_LIMITED_CONTACTS_ACTION_SETTINGS" = "सेटिंग वर जा";
+
+/* Multi-line label explaining why compose-screen contact picker may be missing contacts. */
+"COMPOSE_SCREEN_LIMITED_CONTACTS_CTA" = "व्यवस्थापित करा";
+
+/* Multi-line label explaining why compose-screen contact picker is empty. */
+"COMPOSE_SCREEN_LIMITED_CONTACTS_PERMISSION" = "Signal ला आपल्या सिस्टम संपर्कांमध्ये मर्यादित प्रवेश आहे";
+
+/* Button to open settings from an empty compose-screen contact picker. */
+"COMPOSE_SCREEN_MISSING_CONTACTS_CTA" = "सेटिंग्ज उघडा";
 
 /* Multi-line label explaining why compose-screen contact picker is empty. */
 "COMPOSE_SCREEN_MISSING_CONTACTS_PERMISSION" = "आपल्या संपर्कांमधील कोण Signal वापरकर्ते आहेत हे पहाण्यासाठी आपण iOS सेटिंग अॅप मध्ये संपर्क अॅक्सेस सक्षम करू शकता.";
@@ -1014,6 +1173,27 @@
 
 /* Button text */
 "CONFIRM_LINK_NEW_DEVICE_ACTION" = "नवीन डिव्हाईस जोडा";
+
+/* Indicates that the user has blocked the other account. Embeds {{name}} */
+"CONTACT_ABOUT_SHEET_BLOCKED_USER_FORMAT" = "%1$@ अवरोधित केलेले आहे";
+
+/* Indicates that another account is in the user's system contacts. Embeds {{name}} */
+"CONTACT_ABOUT_SHEET_CONNECTION_IN_SYSTEM_CONTACTS" = "%1$@ आपल्या फोन संपर्कामध्ये आहेत";
+
+/* Indicates that the user has no messages with the other account. Embeds {{name}} */
+"CONTACT_ABOUT_SHEET_NO_DIRECT_MESSAGES" = "आपणाला %1$@कडून कोणतेही थेट संदेश नाहीत";
+
+/* Indicates that the user has a pending request with the other account. Embeds {{name}} */
+"CONTACT_ABOUT_SHEET_PENDING_REQUEST" = "प्रलंबित संदेश विनंती";
+
+/* Message for a tooltip that appears above a parenthesized name for another user, indicating that that name is the name the other user set for themself. Embeds {{name}} */
+"CONTACT_ABOUT_SHEET_SECONDARY_NAME_TOOLTIP_MESSAGE" = "“%1$@” हे प्रोफाइल नाव आहे जे या व्यक्तीने Signal मध्ये स्वतःसाठी सेट केले आहे.";
+
+/* A label indicating a user is a signal connection. */
+"CONTACT_ABOUT_SHEET_SIGNAL_CONNECTION_LABEL" = "Signal कनेक्शन";
+
+/* The title for a contact 'about' sheet. */
+"CONTACT_ABOUT_SHEET_TITLE" = "आपल्याबद्दल";
 
 /* Label for a contact's postal address. */
 "CONTACT_ADDRESS" = "पत्ता";
@@ -1048,13 +1228,31 @@
 /* Label for the 'organization' field of a contact. */
 "CONTACT_FIELD_ORGANIZATION" = "संस्था";
 
+/* Title for a view showing the note that has been set for a profile. */
+"CONTACT_NOTE_TITLE" = "टीप";
+
+/* Body for contact permission action sheet */
+"CONTACT_PERMISSION_ACTION_SHEET_2_BODY" = "Signal वर आपणाला माहीत असलेल्या लोकांना शोधण्यासाठी:";
+
+/* First step for contact permission action sheet */
+"CONTACT_PERMISSION_ACTION_SHEET_2_STEP_ONE" = "खाली \"सेटिंग वर जा\" टॅप करा";
+
+/* Third step for contact permission action sheet */
+"CONTACT_PERMISSION_ACTION_SHEET_2_STEP_THREE" = "परवानगीची अनुमती द्या";
+
+/* Second step for contact permission action sheet */
+"CONTACT_PERMISSION_ACTION_SHEET_2_STEP_TWO" = "“संपर्क” वर टॅप करा";
+
+/* Title for contact permission action sheet */
+"CONTACT_PERMISSION_ACTION_SHEET_2_TITLE" = "संपर्कांना ॲक्सेसची अनुमती द्या";
+
 /* Body for contact permission action sheet */
 "CONTACT_PERMISSION_ACTION_SHEET_BODY" = "आपल्या चॅटमध्ये संपर्क नावं आणि फोटोज पहाण्यासाठी:";
 
 /* First step for contact permission action sheet */
 "CONTACT_PERMISSION_ACTION_SHEET_STEP_ONE" = "खाली \"सेटिंग वर जा\" टॅप करा";
 
-/* Third step for contact permission action sheet */
+/* Second step for contact permission action sheet */
 "CONTACT_PERMISSION_ACTION_SHEET_STEP_TWO" = "\"संपर्क\" चालू करा";
 
 /* Title for contact permission action sheet */
@@ -1064,13 +1262,13 @@
 "CONTACT_PERMISSION_NOT_NOW_ACTION" = "आता नाही";
 
 /* Action text for contact permission reminder megaphone */
-"CONTACT_PERMISSION_REMINDER_MEGAPHONE_ACTION" = "चालू करा";
+"CONTACT_PERMISSION_REMINDER_MEGAPHONE_ACTION" = "अॅक्सेस अनुमती द्या";
 
 /* Body for contact permission reminder megaphone */
-"CONTACT_PERMISSION_REMINDER_MEGAPHONE_BODY" = "आपल्या चॅट्समध्ये संपर्क नावं आणि फोटोज पहा.";
+"CONTACT_PERMISSION_REMINDER_MEGAPHONE_BODY" = "आपल्या संपर्कांना Signal वर त्वरित शोधण्यासाठी ॲक्सेसची अनुमती द्या.";
 
 /* Title for contact permission reminder megaphone */
-"CONTACT_PERMISSION_REMINDER_MEGAPHONE_TITLE" = "संपर्क चालू करायचे?";
+"CONTACT_PERMISSION_REMINDER_MEGAPHONE_TITLE" = "Signal वर संंपर्क शोधा";
 
 /* Label for a contact's phone number. */
 "CONTACT_PHONE" = "फोन";
@@ -1093,8 +1291,11 @@
 /* Error indicating that an invalid contact cannot be shared. */
 "CONTACT_SHARE_INVALID_CONTACT" = "अवैध संपर्क.";
 
-/* Error indicating that at least one contact field must be selected before sharing a contact. */
-"CONTACT_SHARE_NO_FIELDS_SELECTED" = "कुठलेही संपर्क फिल्ड निवडले नाहीत.";
+/* Alert body when contacts disabled while trying to share a contact. */
+"CONTACT_SHARING_NO_ACCESS_BODY" = "Signal ला आपल्या संपर्कामध्ये प्रवेश करण्याची गरज आहे. iOS सेटिंग्ज मध्ये जा आणि संपर्क सुरू करा. आपले संपर्क कूटबद्ध केलेले आहेत आणि ते Signal सेवेला दृश्यमान नाहीत.";
+
+/* Alert title when contacts disabled while trying to share a contact. */
+"CONTACT_SHARING_NO_ACCESS_TITLE" = "संपर्क अॅक्सेसची अनुमती द्या";
 
 /* Button text to initiate an email to signal support staff */
 "CONTACT_SUPPORT" = "समर्थन सोबत संपर्क साधा";
@@ -1208,7 +1409,7 @@
 "CONTEXT_MENU_STOP_SPEAKING_MESSAGE" = "थांबा";
 
 /* Message for the 'conversation delete confirmation' alert. */
-"CONVERSATION_DELETE_CONFIRMATION_ALERT_MESSAGE" = "हे चॅट या डिव्हाइस वरून हटवले जाईल.";
+"CONVERSATION_DELETE_CONFIRMATION_ALERT_MESSAGE" = "हा चॅट आपल्या सर्व डिव्हाइसेसवरून हटवला जाईल.";
 
 /* Title for the 'conversation delete confirmation' alert. */
 "CONVERSATION_DELETE_CONFIRMATION_ALERT_TITLE" = "चॅट हटवायचा?";
@@ -1262,22 +1463,13 @@
 "CONVERSATION_SETTINGS_ADD_TO_EXISTING_CONTACT" = "अस्तित्वात असलेल्या संपर्कात जोडा";
 
 /* button in conversation settings view. */
-"CONVERSATION_SETTINGS_ADD_TO_SYSTEM_CONTACTS" = "सिस्टिम संपर्कामध्ये जोडा";
+"CONVERSATION_SETTINGS_ADD_TO_SYSTEM_CONTACTS" = "फोन संपर्कामध्ये जोडा";
 
-/* Label indicating that only administrators can update the group's attributes: name, avatar, etc. */
-"CONVERSATION_SETTINGS_ATTRIBUTES_ACCESS_ADMINISTRATOR" = "प्रशासक";
-
-/* Label indicating that all group members can update the group's attributes: name, avatar, etc. */
-"CONVERSATION_SETTINGS_ATTRIBUTES_ACCESS_MEMBER" = "सर्व";
-
-/* Label indicating that no member can update the group's attributes: name, avatar, etc. */
-"CONVERSATION_SETTINGS_ATTRIBUTES_ACCESS_NONE" = "अक्षम केले";
+/* Header title for the section showing all media in conversation settings */
+"CONVERSATION_SETTINGS_ALL_MEDIA_HEADER" = "सर्व मिडिया";
 
 /* Footer for the 'attributes access' section in conversation settings view. */
 "CONVERSATION_SETTINGS_ATTRIBUTES_ACCESS_SECTION_FOOTER" = "गट नाव, फोटो, विवरण आणि हरवणारे संदेश टायमर जो संपादन करू शकतो त्याला निवडा.";
-
-/* Button to start a audio call */
-"CONVERSATION_SETTINGS_AUDIO_CALL_BUTTON" = "ऑडिओ";
 
 /* Footer string for a contact's badges in conversation settings */
 "CONVERSATION_SETTINGS_BADGES_FOOTER" = "Signal ला सपोर्ट करून तुमच्या प्रोफाइलसाठी बॅज मिळवा. अधिक जाणून घेण्यासाठी बॅजवर टॅप करा.";
@@ -1285,20 +1477,29 @@
 /* Header title for a contact's badges in conversation settings */
 "CONVERSATION_SETTINGS_BADGES_HEADER" = "बॅजेस";
 
-/* Footer text for the 'block and leave' section of contact conversation settings view. */
-"CONVERSATION_SETTINGS_BLOCK_AND_LEAVE_SECTION_CONTACT_FOOTER" = "या वापरकर्त्याकडून आपल्याला यापुढे संदेश किंवा अद्यतने प्राप्त होणार नाहीत.";
-
-/* Footer text for the 'block and leave' section of group conversation settings view. */
-"CONVERSATION_SETTINGS_BLOCK_AND_LEAVE_SECTION_FOOTER" = "या गटामधून आपल्याला यापुढे संदेश किंवा अद्यतने प्राप्त होणार नाहीत.";
-
 /* Label for 'block group' action in conversation settings view. */
 "CONVERSATION_SETTINGS_BLOCK_GROUP" = "गट अवरोधित करा";
 
 /* Label for 'block user' action in conversation settings view. */
 "CONVERSATION_SETTINGS_BLOCK_USER" = "वापरकर्त्याला अवरोधित करा";
 
-/* Label for the 'edit' button in conversation settings view. */
-"CONVERSATION_SETTINGS_EDIT" = "संपादन";
+/* A label indicating that a call was an incoming video call */
+"CONVERSATION_SETTINGS_CALL_DETAILS_INCOMING_VIDEO_CALL" = "येणारा व्हिडिओ कॉल";
+
+/* A label indicating that a call was an incoming voice call */
+"CONVERSATION_SETTINGS_CALL_DETAILS_INCOMING_VOICE_CALL" = "येणारा व्हाईस कॉल";
+
+/* A label indicating that a call was an missed video call */
+"CONVERSATION_SETTINGS_CALL_DETAILS_MISSED_VIDEO_CALL" = "चूकलेला व्हिडिओ कॉल";
+
+/* A label indicating that a call was an missed voice call */
+"CONVERSATION_SETTINGS_CALL_DETAILS_MISSED_VOICE_CALL" = "चूकलेला व्हाईस कॉल";
+
+/* A label indicating that a call was an outgoing video call */
+"CONVERSATION_SETTINGS_CALL_DETAILS_OUTGOING_VIDEO_CALL" = "बाहेर जाणारा व्हिडिओ कॉल";
+
+/* A label indicating that a call was an outgoing voice call */
+"CONVERSATION_SETTINGS_CALL_DETAILS_OUTGOING_VOICE_CALL" = "बाहेर जाणारा व्हाईस कॉल";
 
 /* Label for 'edit attributes access' action in conversation settings view. */
 "CONVERSATION_SETTINGS_EDIT_ATTRIBUTES_ACCESS" = "गट माहिती संपादित करा";
@@ -1402,6 +1603,9 @@
 /* Format for title for 'remove from group' confirmation alert. Embeds {user to remove from the group}. */
 "CONVERSATION_SETTINGS_REMOVE_FROM_GROUP_TITLE_FORMAT" = "%1$@ ला ग्रुपमधून काढून टाकायचे?";
 
+/* Label for 'report spam' action in conversation settings view. */
+"CONVERSATION_SETTINGS_REPORT_SPAM" = "स्पॅम रिपोर्ट करा";
+
 /* Label for 'revoke group admin' button in conversation settings view. */
 "CONVERSATION_SETTINGS_REVOKE_GROUP_ADMIN_BUTTON" = "प्रशासक म्हणून काढून टाका";
 
@@ -1438,6 +1642,9 @@
 /* Indicates that user is in the system contacts list. */
 "CONVERSATION_SETTINGS_VIEW_IS_SYSTEM_CONTACT" = "संपर्क तपशील";
 
+/* Button to start a voice call */
+"CONVERSATION_SETTINGS_VOICE_CALL_BUTTON" = "व्हॉईस";
+
 /* Message shown in conversation view that offers to add an unknown user to your phone's contacts. */
 "CONVERSATION_VIEW_ADD_TO_CONTACTS_OFFER" = "संपर्कात जोडा";
 
@@ -1465,14 +1672,14 @@
 /* No comment provided by engineer. */
 "COUNTRYCODE_SELECT_TITLE" = "देश कोड निवडा";
 
-/* Body text for an interactive in-app prompt to set up a Signal username. */
-"CREATE_USERNAME_MEGAPHONE_BODY" = "वापरकर्तानावे आपणाला आपल्या फोन नंबरशिवाय इतरांना संदेश करू देतात.";
+/* Label for button that enables you to make a new call link. */
+"CREATE_CALL_LINK_LABEL" = "कॉल लिंक तयार करा";
 
-/* Title for a button in an interactive in-app prompt to set up a Signal username, which will start a create-username flow. */
-"CREATE_USERNAME_MEGAPHONE_SET_UP_BUTTON_TITLE" = "सेट अप";
+/* Body text for an interactive in-app prompt to set up a Signal username. */
+"CREATE_USERNAME_MEGAPHONE_BODY" = "फोन नंबर गोपनीयता, पर्यायी वापरकर्ता नाव आणि लिंक्स सादर करीत आहोत.";
 
 /* Title for an interactive in-app prompt to set up a Signal username. */
-"CREATE_USERNAME_MEGAPHONE_TITLE" = "आपले Signal वापरकर्तानाव सेटअप करा";
+"CREATE_USERNAME_MEGAPHONE_TITLE" = "कनेक्ट होण्याचे नवीन मार्ग";
 
 /* Credit/debit card donation error for decline failures where the card has expired. */
 "CREDIT_OR_DEBIT_CARD_DONATION_ERROR_EXPIRED_CARD" = "आपले कार्ड कालबाह्य झाले आहे. आपला कार्ड तपशील बरोबर असल्याची पडताळणी करा आणि पुन्हा प्रयत्न करा.";
@@ -1625,10 +1832,10 @@
 "DEBUG_LOG_INFO_BUTTON" = "डीबग लॉगबद्दल माहिती";
 
 /* info message text in conversation view */
-"DECLINED_AUDIO_CALL" = "आपण व्हाईस कॉलला नकार दिला";
+"DECLINED_VIDEO_CALL" = "आपण व्हिडिओ कॉलला नकार दिला";
 
 /* info message text in conversation view */
-"DECLINED_VIDEO_CALL" = "आपण व्हिडिओ कॉलला नकार दिला";
+"DECLINED_VOICE_CALL" = "आपण व्हाईस कॉलला नकार दिला";
 
 /* Title for the action sheet 'delete' action of the 'delete account confirmation' view controller. */
 "DELETE_ACCOUNT_CONFIRMATION_ACTION_SHEEET_ACTION" = "अकाऊंट हटवा";
@@ -1676,7 +1883,7 @@
 "DELETE_CONTACT_ACTION_SHEET_BUTTON" = "हटवा";
 
 /* An explanation of what happens in Signal when you remove a system contact. */
-"DELETE_CONTACT_ACTION_SHEET_EXPLANATION" = "या व्यक्तीला आपल्या सिस्टम संपर्कामधून हटवले जाईल. शोधत असताना आपण या व्यक्तीला पाहू शकणार नाही. त्यांनी आपल्याला भविष्यामध्ये संदेश केल्यास आपणांस संदेश विनंती मिळेल.";
+"DELETE_CONTACT_ACTION_SHEET_EXPLANATION" = "या व्यक्तीला आपल्या फोन संपर्कामधून हटवले जाईल. शोधत असताना आपण या व्यक्तीला पाहू शकणार नाही. त्यांनी आपल्याला भविष्यामध्ये संदेश केल्यास आपणांस संदेश विनंती मिळेल.";
 
 /* Title of action sheet confirming the user wants to delete a system contact. */
 "DELETE_CONTACT_ACTION_SHEET_TITLE" = "संपर्क हटवायचा आणि आपल्या सूची मधून काढून टाकयचा?";
@@ -1686,6 +1893,27 @@
 
 /* Toast message confirming the system contact was deleted. Embeds {{The name of the user who was deleted.}}. */
 "DELETE_CONTACT_CONFIRMATION_TOAST" = "%1$@ ना आपल्या संपर्कांमधून हटवले आणि काढून टाकले.";
+
+/* Title for an action sheet button explaining that a message will be deleted. */
+"DELETE_FOR_ME_NOTE_TO_SELF_ACTION_SHEET_BUTTON_TITLE" = "हटवा";
+
+/* Header text for an action sheet confirming deleting a message in Note to Self. */
+"DELETE_FOR_ME_NOTE_TO_SELF_ACTION_SHEET_HEADER" = "संदेश हटवायचा?";
+
+/* Subheader for an action sheet explaining that a Note to Self deleted on this device will be deleted on the user's other devices as well. */
+"DELETE_FOR_ME_NOTE_TO_SELF_LINKED_DEVICES_PRESENT_ACTION_SHEET_SUBHEADER" = "हा संदेश आपल्या सर्व डिव्हाइसेसवरून हटवला जाईल.";
+
+/* Label for a button in an info sheet confirming that deletes are now synced across devices. */
+"DELETE_FOR_ME_SYNC_MESSAGE_INFO_SHEET_BUTTON" = "कळले";
+
+/* Subtitle for an info sheet explaining that deletes are now synced across devices. */
+"DELETE_FOR_ME_SYNC_MESSAGE_INFO_SHEET_SUBTITLE" = "जेव्हा आपण संदेश किंवा चॅट्स हटवता, तेव्हा ते आपल्या फोन आणि लिंक केलेल्या डिव्हाइसेसवरून हटवले जातील.";
+
+/* Title for an info sheet explaining that deletes are now synced across devices. */
+"DELETE_FOR_ME_SYNC_MESSAGE_INFO_SHEET_TITLE" = "हटवणे आता आपल्या सर्व डिव्हाइसेसवरून संकालित केले आहे";
+
+/* Label indicating a user who deleted their account. */
+"DELETED_USER" = "हटवलेले अकाऊंट";
 
 /* Notification warning the user that they have been de-registered. */
 "DEREGISTRATION_NOTIFICATION" = "आपण या डिव्हाइसवर Signal मधून लॉग आऊट झालेला आहात.";
@@ -1858,6 +2086,12 @@
 /* The unit for a number of weeks */
 "DISAPPEARING_MESSAGES_WEEKS" = "आठवडे";
 
+/* Message/subtitle for confirmation prompt when discarding a draft before editing a message */
+"DISCARD_DRAFT_CONFIRMATION_MESSAGE" = "ही क्रिया पूर्ववत केली जाऊ शकत नाही.";
+
+/* Title for confirmation prompt when discarding a draft before editing a message */
+"DISCARD_DRAFT_CONFIRMATION_TITLE" = "मसुदा टाकून द्यायचा?";
+
 /* Short text to dismiss current modal / actionsheet / screen */
 "DISMISS_BUTTON_TEXT" = "रद्द करा";
 
@@ -1874,13 +2108,13 @@
 "DOMAIN_FRONTING_COUNTRY_VIEW_SECTION_HEADER" = "सेंसॉरशिप सर्कंवेंशन स्थान";
 
 /* Users can donate to Signal with a credit or debit card. This is the heading on that screen, telling them how much they'll donate. Embeds {{formatted amount of money}}, such as \"$20\". */
-"DONATE_BUTTON" = "Donate %1$@";
+"DONATE_BUTTON" = "%1$@ देणगी द्या";
 
 /* Users can donate to Signal with a credit or debit card. This is the heading on that screen, telling them how much they'll donate every month. Embeds {{formatted amount of money}}, such as \"$20\". */
-"DONATE_BUTTON_MONTHLY" = "Donate %1$@/month";
+"DONATE_BUTTON_MONTHLY" = "%1$@/महिना देणगी द्या";
 
 /* When users make donations, they can choose which payment method they want to use. This is the text on the button that lets them choose to pay with bank transfer. */
-"DONATE_CHOOSE_BANK_TRANSFER_AS_PAYMENT_METHOD" = "Bank Transfer";
+"DONATE_CHOOSE_BANK_TRANSFER_AS_PAYMENT_METHOD" = "बँक हस्तांतरण";
 
 /* When users make donations, they can choose which payment method they want to use. This is the text on the button that lets them choose to pay with credit or debit card. */
 "DONATE_CHOOSE_CREDIT_OR_DEBIT_CARD_AS_PAYMENT_METHOD" = "क्रेडिट किंवा डेबिट कार्ड";
@@ -1892,7 +2126,7 @@
 "DONATE_CHOOSE_PAYMENT_METHOD_SHEET_SUBTITLE_FOR_MONTHLY_DONATION" = "%1$@ बँज मिळवा";
 
 /* When users make one-time donations, they see a sheet that lets them pick a payment method. It also tells them what they'll be doing when they pay: receive a badge for a month. This is the subtitle on that sheet. Embeds {{localized badge name}}, such as \"Boost\". */
-"DONATE_CHOOSE_PAYMENT_METHOD_SHEET_SUBTITLE_FOR_ONE_TIME_DONATION" = "Get the %1$@ badge for 30 days";
+"DONATE_CHOOSE_PAYMENT_METHOD_SHEET_SUBTITLE_FOR_ONE_TIME_DONATION" = "30 दिवसांसाठी %1$@ बॅज मिळवा";
 
 /* When users make donations on a friend's behalf, they see a sheet that lets them pick a payment method. This is the title on that sheet. Embeds {{amount of money}}, such as \"$5\". */
 "DONATE_CHOOSE_PAYMENT_METHOD_SHEET_TITLE_FOR_DONATION_ON_BEHALF_OF_A_FRIEND" = "%1$@ Signal ला देणगी";
@@ -1912,17 +2146,26 @@
 /* If a donation badge has been sent, indicates that it's expired and can no longer be redeemed. This is shown in the chat. */
 "DONATE_ON_BEHALF_OF_A_FRIEND_CHAT_EXPIRED" = "कालबाह्य झालेे";
 
+/* Message in an alert presented when the user tries to make a donation, but already has an iDEAL donation that is currently awaiting approval. */
+"DONATE_SCREEN_ERROR_MESSAGE_APPROVE_IDEAL_DONATION_BEFORE_MAKING_ANOTHER_DONATION" = "आपल्या iDEAL देणगीवर अद्याप प्रक्रिया होत आहे. आणखी देणगी देण्यापूर्वी पेमेंटला मान्यता देण्यासाठी आपल्या बँकेचे ॲप तपासा.";
+
+/* Message in an alert presented when the user tries to update their recurring donation, but already has a recurring donation that is currently awaiting authorization. */
+"DONATE_SCREEN_ERROR_MESSAGE_BANK_PAYMENT_AWAITING_AUTHORIZATION" = "आपल्या iDEAL देणगीवर अद्याप प्रक्रिया होत आहे. आणखी देणगी देण्यापूर्वी पेमेंटला मान्यता देण्यासाठी आपल्या बँकेचे ॲप तपासा.";
+
 /* Message in an alert presented when the user tries to make a donation, but already has a donation that is currently processing via bank payment. */
-"DONATE_SCREEN_ERROR_MESSAGE_BANK_PAYMENT_PLEASE_WAIT_BEFORE_MAKING_ANOTHER_DONATION" = "Bank transfers usually take 1 business day to process. Please wait until this donation completes before making another donation.";
+"DONATE_SCREEN_ERROR_MESSAGE_BANK_PAYMENT_PLEASE_WAIT_BEFORE_MAKING_ANOTHER_DONATION" = "बँक हस्तांतरणावर प्रक्रिया होण्यासाठी सामान्यपणे 1 व्यावसायिक दिवसाचा कालावधी लागतो. कृपया आणखी एक देणगी देण्यापूर्वी हे पेमेंट्स पूर्ण होण्याची प्रतिक्षा करा.";
 
 /* Message in an alert presented when the user tries to update their recurring donation, but already has a recurring donation that is currently processing via bank payment. */
-"DONATE_SCREEN_ERROR_MESSAGE_BANK_PAYMENT_PLEASE_WAIT_BEFORE_UPDATING_YOUR_SUBSCRIPTION" = "Bank transfers usually take 1 business day to process. Please wait until this donation completes before updating your subscription.";
+"DONATE_SCREEN_ERROR_MESSAGE_BANK_PAYMENT_PLEASE_WAIT_BEFORE_UPDATING_YOUR_SUBSCRIPTION" = "बँक हस्तांतरणावर प्रक्रिया होण्यासाठी सामान्यपणे 1 व्यावसायिक दिवसाचा कालावधी लागतो. कृपया आपले सदस्यत्व अद्ययावत करण्यापूर्वी या देणगी वर प्रक्रिया होण्याची प्रतिक्षा करा.";
+
+/* Message for an alert shown when the user tries to donate via bank transfer, but the amount they want to donate is too large. Embeds {{ the maximum allowed donation amount }}. */
+"DONATE_SCREEN_ERROR_MESSAGE_FORMAT_BANK_TRANSFER_AMOUNT_TOO_LARGE" = "आपण बँक ट्रान्सफर द्वारे %1$@ पर्यंत पाठवू शकता. दुसरी रक्कम किंवा एक दुसरी पेमेंट्स पद्धत वापरून पहा.";
 
 /* Message in an alert presented when the user tries to make a donation, but already has a donation that is currently processing via non-bank payment. */
-"DONATE_SCREEN_ERROR_MESSAGE_PLEASE_WAIT_BEFORE_MAKING_ANOTHER_DONATION" = "Your donation is still being processed. This can take a few minutes depending on your connection. Please wait until this donation completes before making another donation.";
+"DONATE_SCREEN_ERROR_MESSAGE_PLEASE_WAIT_BEFORE_MAKING_ANOTHER_DONATION" = "आपल्या देणगीवर अद्याप प्रक्रिया केली जात आहे. हे आपल्या कनेक्शनवर अवलंबून काही मिनिटांचा वेळ घेऊ शकते. कृपया आणखी एक देणगी देण्यापूर्वी हे पेमेंट्स पूर्ण होण्याची प्रतिक्षा करा.";
 
 /* Message in an alert presented when the user tries to update their recurring donation, but already has a recurring donation that is currently processing via non-bank payment. */
-"DONATE_SCREEN_ERROR_MESSAGE_PLEASE_WAIT_BEFORE_UPDATING_YOUR_SUBSCRIPTION" = "Your donation is still being processed. This can take a few minutes depending on your connection. Please wait until this donation completes before updating your subscription.";
+"DONATE_SCREEN_ERROR_MESSAGE_PLEASE_WAIT_BEFORE_UPDATING_YOUR_SUBSCRIPTION" = "आपल्या देणगीवर अद्याप प्रक्रिया केली जात आहे. हे आपल्या कनेक्शनवर अवलंबून काही मिनिटांचा वेळ घेऊ शकते. कृपया आपले सदस्यत्व अद्ययावत करण्यापूर्वी या देणगी वर प्रक्रिया होण्याची प्रतिक्षा करा.";
 
 /* If the user tries to donate to Signal but no amount is selected, this error message is shown. */
 "DONATE_SCREEN_ERROR_NO_AMOUNT_SELECTED" = "देणगी देण्यास एक रक्कम निवडा.";
@@ -1930,11 +2173,17 @@
 /* If the user tries to donate to Signal but they've entered an amount that's too small, this error message is shown. Embeds {{currency string}}, such as \"$5\". */
 "DONATE_SCREEN_ERROR_SELECT_A_LARGER_AMOUNT_FORMAT" = "आपण देणगी देऊ शकता अशी किमान रक्कम %1$@ आहे.";
 
+/* Title for an alert presented when the user tries to make a donation, but already has a donation that is currently awaiting authorization. */
+"DONATE_SCREEN_ERROR_TITLE_BANK_PAYMENT_AWAITING_AUTHORIZATION" = "देणगी अधिकृततेच्या प्रतीक्षेत आहे";
+
 /* Title for an alert presented when the user tries to make a donation, but already has a donation that is currently processing via bank payment. */
-"DONATE_SCREEN_ERROR_TITLE_BANK_PAYMENT_YOU_HAVE_A_DONATION_PENDING" = "You have a donation pending";
+"DONATE_SCREEN_ERROR_TITLE_BANK_PAYMENT_YOU_HAVE_A_DONATION_PENDING" = "आपली देणगी प्रलंबित आहे";
+
+/* Title for an alert shown when the user tries to donate via bank transfer, but the amount they want to donate is too large. */
+"DONATE_SCREEN_ERROR_TITLE_BANK_TRANSFER_AMOUNT_TOO_LARGE" = "देणगीची रक्कम अतिशय जास्त आहे";
 
 /* Title for an alert presented when the user tries to make a donation, but already has a donation that is currently processing via non-bank payment. */
-"DONATE_SCREEN_ERROR_TITLE_YOU_HAVE_A_PAYMENT_PROCESSING" = "You have a donation processing";
+"DONATE_SCREEN_ERROR_TITLE_YOU_HAVE_A_PAYMENT_PROCESSING" = "आपल्या देणगीवर प्रक्रिया होत आहे";
 
 /* On the donation screen, you can choose between one-time and monthly donations. This is the text on the picker for one-time donations. */
 "DONATE_SCREEN_MONTHLY_CHOICE" = "मासिक";
@@ -1958,25 +2207,25 @@
 "DONATE_SCREEN_UPDATE_MONTHLY_SUBSCRIPTION_BUTTON" = "सदस्यत्व अद्ययावत करा";
 
 /* Message for a sheet explaining that a donation via bank payment has failed. Embeds {{ a specific, already-localized string describing the payment failure }}. */
-"DONATION_BADGE_ISSUE_SHEET_BANK_PAYMENT_FAILED_MESSAGE" = "We’re having trouble processing your bank transfer. %1$@";
+"DONATION_BADGE_ISSUE_SHEET_BANK_PAYMENT_FAILED_MESSAGE" = "आम्हाला आपल्या बँक हस्तांतरणावर प्रक्रिया करण्यामध्ये समस्या येत आहे. %1$@";
 
 /* Title for a sheet explaining that a donation via bank payment has failed. */
-"DONATION_BADGE_ISSUE_SHEET_BANK_PAYMENT_FAILED_TITLE" = "Donation Couldn’t Be Processed";
+"DONATION_BADGE_ISSUE_SHEET_BANK_PAYMENT_FAILED_TITLE" = "देणगीवर प्रक्रिया केली जाऊ शकत नाही";
 
 /* Title for a sheet explaining that a donation via bank payment is pending. */
-"DONATION_BADGE_ISSUE_SHEET_BANK_PAYMENT_PROCESSING_TITLE" = "Donation Pending";
+"DONATION_BADGE_ISSUE_SHEET_BANK_PAYMENT_PROCESSING_TITLE" = "देणगी प्रलंबित";
 
 /* Message for a sheet explaining that a one-time donation via bank payment is pending, and how that will affect the user's badge. Embeds {{ the name of the badge }}. Will have a 'learn more' link appended, when it is rendered. */
-"DONATION_BADGE_ISSUE_SHEET_ONE_TIME_BANK_PAYMENT_PROCESSING_MESSAGE" = "Your one-time donation is pending. You’ll be able to display the %1$@ badge on your profile when your donation is received.\n\nBank transfers usually take 1 business day to process.";
+"DONATION_BADGE_ISSUE_SHEET_ONE_TIME_BANK_PAYMENT_PROCESSING_MESSAGE" = "आपली एक-वेळ देणगी प्रलंबित आहे. आपली देणगी प्राप्त झाल्यानंतर आपण आपल्या प्रोफाईलवर %1$@ बॅज प्रदर्शित करू शकाल.\n\nबँक हस्तांतरणावर प्रक्रिया होण्यासाठी सामान्यपणे 1 व्यावसायिक दिवसाचा कालावधी लागतो.";
 
 /* Message for a sheet explaining that a recurring donation via bank payment is pending, and how that will affect the user's badge. Embeds {{ the name of the badge }}. Will have a 'learn more' link appended, when it is rendered. */
-"DONATION_BADGE_ISSUE_SHEET_RECURRING_BANK_PAYMENT_PROCESSING_MESSAGE" = "Your monthly donation is pending. You’ll be able to display the %1$@ badge on your profile when your donation is received.\n\nBank transfers usually take 1 business day to process.";
+"DONATION_BADGE_ISSUE_SHEET_RECURRING_BANK_PAYMENT_PROCESSING_MESSAGE" = "आपली मासिक देणगी प्रलंबित आहे. आपली देणगी प्राप्त झाल्यानंतर आपण आपल्या प्रोफाईलवर %1$@ बॅज प्रदर्शित करू शकाल.\n\nबँक हस्तांतरणावर प्रक्रिया होण्यासाठी सामान्यपणे 1 व्यावसायिक दिवसाचा कालावधी लागतो.";
 
 /* Title for a button asking the user to renew their subscription, because it has expired. */
-"DONATION_BADGE_ISSUE_SHEET_RENEW_SUBSCRIPTION_BUTTON_TITLE" = "Renew Subscription";
+"DONATION_BADGE_ISSUE_SHEET_RENEW_SUBSCRIPTION_BUTTON_TITLE" = "सब्स्क्रिप्शन नूतनीकरण करा";
 
 /* Title for a button asking the user to try their donation again, because something went wrong. */
-"DONATION_BADGE_ISSUE_SHEET_TRY_AGAIN_BUTTON_TITLE" = "Try Again";
+"DONATION_BADGE_ISSUE_SHEET_TRY_AGAIN_BUTTON_TITLE" = "पुन्हा प्रयत्न करा";
 
 /* When donating on behalf of a friend, a badge will be sent. This shows how long the badge lasts. Embeds {{formatted duration}}. */
 "DONATION_FOR_A_FRIEND_ROW_DURATION" = "%1$@ टिकते";
@@ -2122,6 +2371,15 @@
 /* Text at the bottom of the donation receipts list, telling users that receipts might not be available */
 "DONATION_RECEIPTS_MIGHT_BE_MISSING_IF_YOU_REINSTALLED" = "आपण जर Signal पुन्हा स्थापित केले असल्यास, मागील देणगीच्या पावत्या उपलब्ध होणार नाहीत.";
 
+/* Error message displayed if something goes wrong with 3DSecure/iDEAL payment authorization.  This will be encountered if the user cancels the webview before authrizing the payment. */
+"DONATION_REDIRECT_ERROR_CANCELLED_MESSAGE" = "पेमेंट रद्द केले. कृपया पुन्हा प्रयत्न करा.";
+
+/* Error message displayed if something goes wrong with 3DSecure/iDEAL payment authorization.  This will be encountered if the callback is in an unexpected format. */
+"DONATION_REDIRECT_ERROR_INVALID_RESPONSE_MESSAGE" = "अवैध पेमेंट प्रतिसाद. कृपया पुन्हा प्रयत्न करा.";
+
+/* Error message displayed if something goes wrong with 3DSecure/iDEAL payment authorization.  This will be encountered if the user denies the payment. */
+"DONATION_REDIRECT_ERROR_PAYMENT_DENIED_MESSAGE" = "पेमेंट नाकारले. कृपया पुन्हा प्रयत्न करा.";
+
 /* On the donation settings screen, tapping this button will take the user to a screen where they can donate. */
 "DONATION_SCREEN_DONATE_BUTTON" = "देणगी द्या";
 
@@ -2134,44 +2392,71 @@
 /* On donation screens, a small amount of information text is shown. This is the title for that text. */
 "DONATION_SCREENS_HEADER_TITLE" = "फायद्यापेक्षा गोपनीयता";
 
+/* Button title confirming the user wants to begin a new donation. */
+"DONATION_SETTINGS_CANCEL_DONATION_AWAITING_AUTHORIZATION_DONATE_ACTION" = "देणगी द्या";
+
+/* Prompt confirming the user wants to abandon the current donation flow and start a new donation. */
+"DONATION_SETTINGS_CANCEL_DONATION_AWAITING_AUTHORIZATION_MESSAGE" = "पुढे सुरु ठेवल्याने आपली अलीकडील देणगी रद्द होईल. आपणाकडून शुल्क आकारले जाणार नाही. मात्र आपल्या बॅंकिग ॲपमध्ये आपण कृती करत नाही तोपर्यंत आपणाला पेमेंट विनंती दिसू शकते. आपण खात्रीने नवीन देणगी देऊ इच्छिता?";
+
 /* Title for an action in an action sheet asking the user to renew a subscription that has failed to renew. */
-"DONATION_SETTINGS_MY_SUPPORT_ACTION_SHEET_ACTION_TITLE_RENEW_SUBSCRIPTION" = "Renew Subscription";
+"DONATION_SETTINGS_MY_SUPPORT_ACTION_SHEET_ACTION_TITLE_RENEW_SUBSCRIPTION" = "सब्स्क्रिप्शन नूतनीकरण करा";
 
 /* Title for an action in an action sheet asking the user to try again, in reference to a donation that failed. */
-"DONATION_SETTINGS_MY_SUPPORT_ACTION_SHEET_ACTION_TITLE_TRY_AGAIN" = "Try Again";
+"DONATION_SETTINGS_MY_SUPPORT_ACTION_SHEET_ACTION_TITLE_TRY_AGAIN" = "पुन्हा प्रयत्न करा";
+
+/* Prompt the user asking if they want to keep the current in-flight, but unauthorized donation, or try again. */
+"DONATION_SETTINGS_MY_SUPPORT_BANK_PAYMENT_AWAITING_AUTHORIZATION_MESSAGE" = "आपल्या iDEAL देणगीची पुष्टी केली जाऊ शकत नाही. आपल्या देणगीला मंजुरी देण्यासाठी आपले बॅकिंग ॲप तपासा किंवा पुन्हा प्रयत्न करा.";
 
 /* Message for an alert explaining that a one-time payment made via bank transfer is being processed. */
-"DONATION_SETTINGS_MY_SUPPORT_BANK_PAYMENT_PROCESSING_MESSAGE" = "Your bank transfer is pending. Bank transfers usually take 1 business day to process.";
+"DONATION_SETTINGS_MY_SUPPORT_BANK_PAYMENT_PROCESSING_MESSAGE" = "आपले बँक हस्तांतरण प्रलंबित आहे. बँक हस्तांतरणावर प्रक्रिया होण्यासाठी सामान्यपणे 1 व्यावसायिक दिवसाचा कालावधी लागतो.";
 
 /* Title for an alert explaining that a one-time payment made via bank transfer is being processed. */
-"DONATION_SETTINGS_MY_SUPPORT_BANK_PAYMENT_PROCESSING_TITLE" = "Donation Pending";
+"DONATION_SETTINGS_MY_SUPPORT_BANK_PAYMENT_PROCESSING_TITLE" = "देणगी प्रलंबित";
 
 /* Message shown in a sheet explaining that the user's donation has failed because payment failed. Embeds {{ a specific, already-localized string describing the payment failure reason }}. */
-"DONATION_SETTINGS_MY_SUPPORT_DONATION_FAILED_ALERT_MESSAGE_FORMAT" = "We’re having trouble processing your donation. %1$@";
+"DONATION_SETTINGS_MY_SUPPORT_DONATION_FAILED_ALERT_MESSAGE_FORMAT" = "आम्हाला आपल्या देणगीवर प्रक्रिया करताना समस्या येत आहे. %1$@";
 
 /* Title for a sheet explaining that a payment failed. */
-"DONATION_SETTINGS_MY_SUPPORT_DONATION_FAILED_ALERT_TITLE" = "Error Processing Donation";
+"DONATION_SETTINGS_MY_SUPPORT_DONATION_FAILED_ALERT_TITLE" = "देणगीवर प्रक्रिया करताना त्रुटी आली";
+
+/* Title for a sheet explaining that a payment needs confirmation. */
+"DONATION_SETTINGS_MY_SUPPORT_DONATION_UNCONFIMRED_ALERT_TITLE" = "देणगीची पुष्टी करू शकत नाही";
+
+/* Message shown in a sheet explaining that the user's iDEAL one-time donation coultn't be processed. */
+"DONATION_SETTINGS_MY_SUPPORT_IDEAL_ONE_TIME_DONATION_FAILED_MESSAGE" = "आपल्या iDEAL एक-वेळ देणगी वर प्रक्रिया केली जाऊ शकत नाही. दुसरी पेमेंट पद्धत वापरून पहा किंवा अधिक माहितीसाठी आपल्या बँकेशी संपर्क साधा.";
+
+/* Title for a sheet explaining that a payment needs confirmation. */
+"DONATION_SETTINGS_MY_SUPPORT_IDEAL_ONE_TIME_DONATION_NOT_CONFIRMED_MESSAGE_FORMAT" = "आपल्या एक-वेळ %1$@ iDEAL देणगीची पुष्टी केली जाऊ शकत नाही. आपल्या iDEAL देणगीला मंजूर करण्यासाठी आपले बँकिंग ॲप तपासा.";
+
+/* Message shown in a sheet explaining that the user's iDEAL recurring monthly donation coultn't be processed. */
+"DONATION_SETTINGS_MY_SUPPORT_IDEAL_RECURRING_SUBSCRIPTION_FAILED_MESSAGE" = "आपल्या iDEAL आवर्ती मासिक देणगीवर प्रक्रिया केली जाऊ शकत नाही. दुसरी पेमेंट पद्धत वापरून पहा किंवा अधिक माहितीसाठी आपल्या बँकेशी संपर्क साधा.";
+
+/* Message shown in a sheet explaining that the user's iDEAL recurring monthly donation hasn't been confirmed. Embeds {{ formatted current amount }}. */
+"DONATION_SETTINGS_MY_SUPPORT_IDEAL_RECURRING_SUBSCRIPTION_NOT_CONFIRMED_MESSAGE_FORMAT" = "आपल्या आवर्ती %1$@ मासिक iDEAL देणगीची पुष्टी केली जाऊ शकत नाही. आपल्या iDEAL देणगीला मंजूर करण्यासाठी आपले बँकिंग ॲप तपासा.";
 
 /* Message shown in a sheet explaining that the user's recurring subscription has ended because payment failed. Embeds {{ a specific, already-localized string describing the failure reason }}. */
-"DONATION_SETTINGS_MY_SUPPORT_RECURRING_SUBSCRIPTION_LAPSED_CHARGE_FAILURE_ALERT_MESSAGE_FORMAT" = "Your recurring monthly donation has ended. %1$@";
+"DONATION_SETTINGS_MY_SUPPORT_RECURRING_SUBSCRIPTION_LAPSED_CHARGE_FAILURE_ALERT_MESSAGE_FORMAT" = "आपली आवर्ती मासिक देणगी समाप्त झाली आहे. %1$@";
 
 /* Title for a sheet explaining that the user's recurring subscription has ended because payment failed. */
-"DONATION_SETTINGS_MY_SUPPORT_RECURRING_SUBSCRIPTION_LAPSED_TITLE" = "Monthly Donation Canceled";
+"DONATION_SETTINGS_MY_SUPPORT_RECURRING_SUBSCRIPTION_LAPSED_TITLE" = "मासिक देणगी रद्द करण्यात आली";
 
 /* A label describing a donation payment that was made via bank transfer, which is still processing and has not completed. */
-"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_BANK_PAYMENT_PROCESSING" = "Donation Pending";
+"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_BANK_PAYMENT_PROCESSING" = "देणगी प्रलंबित";
 
 /* A label describing a donation payment that was made by a method other than bank transfer (such as by credit card), which is still processing and has not completed. */
-"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_NON_BANK_PAYMENT_PROCESSING" = "Processing Donation...";
+"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_NON_BANK_PAYMENT_PROCESSING" = "देणगी वर प्रक्रिया करत आहे...";
 
 /* A label describing a donation payment that has failed to process. */
-"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_PAYMENT_FAILED" = "Error Processing Donation";
+"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_PAYMENT_FAILED" = "देणगीवर प्रक्रिया करताना त्रुटी आली";
 
 /* A label describing a recurring monthly donation that used to be active, but has now been canceled because it failed to renew. */
-"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_SUBSCRIPTION_LAPSED" = "Monthly Donation Canceled";
+"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_SUBSCRIPTION_LAPSED" = "मासिक देणगी रद्द करण्यात आली";
+
+/* A label describing a donation payment that has requires authorization. */
+"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_WAITING_FOR_AUTHORIZATION" = "अधिकृत करण्याच्या प्रतिक्षेत आहे";
 
 /* A string describing the amount and currency of a one-time payment. Embeds {{ the amount, formatted as a currency }}. */
-"DONATION_SETTINGS_ONE_TIME_AMOUNT_FORMAT" = "%1$@ one-time";
+"DONATION_SETTINGS_ONE_TIME_AMOUNT_FORMAT" = "%1$@ एक-वेळ";
 
 /* Title for the \"donate for a friend\" button on the donation view. */
 "DONATION_VIEW_DONATE_ON_BEHALF_OF_A_FRIEND" = "मित्रासाठी देणगी द्या";
@@ -2180,7 +2465,7 @@
 "DONATION_VIEW_DONATION_TO_SIGNAL" = "Signal ला देणगी";
 
 /* Title for the 'Donor FAQ' button on the donation screen */
-"DONATION_VIEW_DONOR_FAQ" = "Donor FAQ";
+"DONATION_VIEW_DONOR_FAQ" = "देणगीदारांचे FAQ";
 
 /* Text that's shown when the donation view fails to load data, probably due to network failure */
 "DONATION_VIEW_LOAD_FAILED" = "नेटवर्क त्रुटी. आपले कनेक्शन तपासा आणि पुन्हा प्रयत्न करा.";
@@ -2205,6 +2490,12 @@
 
 /* Label for the currency picker button in donation views */
 "DONATIONS_CURRENCY_PICKER_LABEL" = "चलन";
+
+/* Message for Double Tap to Edit sheet show on first interaction */
+"DOUBLE_TAP_TO_EDIT_ALERT_MESSAGE" = "आपले संदेश संपादित करण्यासाठी त्यांवर दोनदा द्रुतपणे टॅप करा. आपण आपल्या संदेशाना पाठवल्यानंतर 24 तासापर्यंत संपादित करा करु शकता.";
+
+/* Title for Double Tap to Edit sheet show on first interaction */
+"DOUBLE_TAP_TO_EDIT_ALERT_TITLE" = "संपादित करण्यासाठी डबल टॅप करा";
 
 /* Alert body for when the user has just tried to edit a contacts after declining to give Signal contacts permissions */
 "EDIT_CONTACT_WITHOUT_CONTACTS_PERMISSION_ALERT_BODY" = "आपण iOS सेटिंग अॅप मध्ये अॅक्सेस सक्षम करू शकता.";
@@ -2236,15 +2527,6 @@
 /* Short name for edit menu item to copy contents of media message. */
 "EDIT_ITEM_COPY_ACTION" = "कॉपी करा";
 
-/* Edit Send Beta prompt body */
-"EDIT_MESSAGE_SEND_MESSAGE_BODY" = "आपण संदेश संपादित केल्यास, तो Signal च्या नवीनतम आवृत्तीवर असलेल्या लोकांनाच दृश्यमान असेल. ते आपला संपादित केलेला संदेश पाहू शकतील.";
-
-/* Label to confirm sending an edit */
-"EDIT_MESSAGE_SEND_MESSAGE_CONFIRM" = "पाठवा";
-
-/* Edit Send Beta prompt title */
-"EDIT_MESSAGE_SEND_MESSAGE_TITLE" = "संदेश संपादित करा";
-
 /* Error message to display to user when a message is too old to edit */
 "EDIT_MESSAGE_SEND_MESSAGE_TOO_OLD_ERROR" = "आपण हा संदेश पाठवल्यापासून फक्त 24 तासांच्या आत संपादन करणे लागू केले जाऊ शकते.";
 
@@ -2252,7 +2534,7 @@
 "EDIT_MESSAGE_SEND_MESSAGE_UNKNOWN_ERROR" = "EDIT_MESSAGE_SEND_MESSAGE_UNKNOWN_ERROR";
 
 /* body of email sent to contacts when inviting to install Signal. Embeds {{link to install Signal}} and {{link to the Signal home page}} */
-"EMAIL_INVITE_BODY" = "नमस्कार,\n\nसध्या मी माझ्या iPhone वरील चॅट खाजगी ठेवण्यासाठी Signal वापरत आहे. आपणही याला इन्स्टॉल करावे असे मला वाटते की , जेणेकरून आपले संदेश फक्त आपण वाचतो आहोत किंवा आपले कॉल फक्त आपण ऐकतो आहोत याची आपल्याला खात्री असेल.\n\nSignal iPhone आणि Android करिता उपलब्ध आहे. ते येथे मिळवा: %1$@\n\nSignal आपल्या विद्यमान संदेशन ॲप सारखे कार्य करते. आपण चित्रे आणि व्हिडिओ पाठवू शकतो, कॉल करू शकतो, आणि गट चॅट चालू करू शकतो. आणि सर्वोत्कृष्ट भाग हा की, कुणीही हे बघू शकत नाही, जे लोक Signal बनवतात ते सुद्धा नाही!\n\nआपण Open Whisper Systems, जे लोक Signal बनवतात त्यांच्याबद्दल अधिक वाचू शकता, येथे: %2$@";
+"EMAIL_INVITE_BODY" = "Hey,\n\nLately I've been using Signal to keep the chats on my iPhone private. I'd like you to install it too, so we can be confident that only you and I can read our messages or hear our calls.\n\nSignal is available for iPhones and Android. Get it here: %1$@\n\nSignal works like your existing messaging app. We can send pictures and video, make calls, and start group chats. The best part is, no one else can see any of it, not even the people who make Signal!\n\nYou can read more about Signal here: %2$@";
 
 /* subject of email sent to contacts when inviting to install Signal */
 "EMAIL_INVITE_SUBJECT" = "Signal वर स्विच करूया";
@@ -2303,7 +2585,7 @@
 "END_CALL_RESPONDER_IS_BUSY" = "व्यस्त";
 
 /* Call setup status label */
-"END_CALL_UNCATEGORIZED_FAILURE" = "कॉल अयशस्वी.";
+"END_CALL_UNCATEGORIZED_FAILURE" = "कॉल अयशस्वी झाला";
 
 /* Error indicating that a message could not be forwarded. */
 "ERROR_COULD_NOT_FORWARD_MESSAGES_1" = "संदेश अग्रेषित करू शकलो नाही.";
@@ -2364,6 +2646,9 @@
 
 /* Error message indicating that attachment download(s) failed. */
 "ERROR_MESSAGE_ATTACHMENT_DOWNLOAD_FAILED" = "संलग्न डाऊनलोड अयशस्वी.";
+
+/* Error message indicating that attachment upload(s) failed. */
+"ERROR_MESSAGE_ATTACHMENT_UPLOAD_FAILED" = "संलग्नक डाउनलोड करणे अयशस्वी.";
 
 /* Error message for a decryption failure. Embeds {{sender short name}}. */
 "ERROR_MESSAGE_DECRYPTION_FAILURE" = "%1$@ कडील संदेश वितरित करता आला नाही";
@@ -2465,10 +2750,22 @@
 "FEATURED_BADGE_SETTINGS_TITLE" = "वैशिष्ट्यीकृत बॅज";
 
 /* Users can choose to learn more about how to find account info, which will open a sheet with additional information. This is the body of that sheet. */
-"FIND_ACCOUNT_INFO_SHEET_BODY" = "Look for your IBAN at the top of your bank statement. IBAN numbers contain up to 34 characters. The name you enter should match your full name on your bank account. Contact your bank for more information.";
+"FIND_ACCOUNT_INFO_SHEET_BODY" = "आपल्या बँक स्टेटमेंटच्या शीर्षावर आपल्या IBAN चा शोध घ्या. IBAN क्रमांकामध्ये 34 पर्यंत वर्ण असतात. आपण प्रविष्ट करत असलेले नाव आपल्या बँक अकाऊंटवरील पूर्ण नावाशी जुळणे आवश्यक आहे. अधिक माहितीसाठी आपल्या बँकेशी संपर्क साधा.";
 
 /* Users can choose to learn more about how to find account info, which will open a sheet with additional information. This is the title of that sheet. */
-"FIND_ACCOUNT_INFO_SHEET_TITLE" = "Find Your Account Information";
+"FIND_ACCOUNT_INFO_SHEET_TITLE" = "आपली अकाऊंट माहिती शोधा";
+
+/* A footer below the username text field describing what should be entered */
+"FIND_BY_USERNAME_FOOTER" = "वापरकर्तानावानंतर एक पूर्णविराम आणि त्याच्या संख्याचा सेट प्रविष्ट करा.";
+
+/* A placeholder value for the text field for finding an account by their username */
+"FIND_BY_USERNAME_PLACEHOLDER" = "वापरकर्तानाव";
+
+/* A button below the username text field which opens a username QR code scanner */
+"FIND_BY_USERNAME_SCAN_QR_CODE_BUTTON" = "QR कोड स्कॅन करा";
+
+/* Title for the view for finding accounts by their username */
+"FIND_BY_USERNAME_TITLE" = "वापरकर्तानावाने शोधा";
 
 /* Button that marks user as verified after a successful fingerprint scan. */
 "FINGERPRINT_SCAN_VERIFY_BUTTON" = "सत्यापित म्हणून चिन्हांकित करा";
@@ -2478,6 +2775,9 @@
 
 /* Accessibility label for finishing new group */
 "FINISH_GROUP_CREATION_LABEL" = "गट तयार करणे संपवा";
+
+/* Tooltip notifying users that the flip camera button moved to the picture-in-picture view of themselves in a call */
+"FLIP_CAMERA_BUTTON_MOVED_TO_PIP_TOOLTIP" = "फ्लिप कॅमेरा या ठिकाणी हलवण्यात आले आहे, त्याला वापरून पाहण्यासाठी आपल्या व्हिडीओवर टॅप करा";
 
 /* Label and title for 'contact forwarding' views. */
 "FORWARD_CONTACT" = "संपर्क फॉर्वर्ड करा";
@@ -2525,7 +2825,7 @@
 "GET_STARTED_CARD_AVATAR_BUILDER" = "फोटो जोडा";
 
 /* 'Get Started' button directing users to invite friends */
-"GET_STARTED_CARD_INVITE_FRIENDS" = "मित्रांना आमंत्रित करा";
+"GET_STARTED_CARD_INVITE_FRIENDS" = "आमंत्रित करा";
 
 /* 'Get Started' button directing users to create a group */
 "GET_STARTED_CARD_NEW_GROUP" = "नवीन गट";
@@ -2638,6 +2938,21 @@
 /* Button to leave a group call */
 "GROUP_CALL_LEAVE_BUTTON" = "कॉल सोडा";
 
+/* Title for the section of the group call member list which displays the list of all members in the call. */
+"GROUP_CALL_MEMBER_LIST_IN_CALL_SECTION_HEADER" = "कॉल मध्ये";
+
+/* Title for the section of the group call member list which displays the list of members with their hand raised. */
+"GROUP_CALL_MEMBER_LIST_RAISED_HANDS_SECTION_HEADER" = "हात वर केले";
+
+/* A count of members in a given group call member list section, displayed after the header. */
+"GROUP_CALL_MEMBER_LIST_SECTION_HEADER_MEMBER_COUNT" = "(%1$d)";
+
+/* Title for a button on the group members sheet for sharing that call's link. */
+"GROUP_CALL_MEMBER_LIST_SHARE_CALL_LINK_BUTTON" = "कॉल लिंक शेअर करा";
+
+/* Title for the sheet showing the group call members list */
+"GROUP_CALL_MEMBER_LIST_TITLE" = "Call Info";
+
 /* String displayed in cell when media from a user can't be displayed in group call grid. Embeds {user's name} */
 "GROUP_CALL_MISSING_MEDIA_KEYS_FORMAT" = "%1$@ कडून ऑडिओ आणि व्हिडिओ प्राप्त करू शकत नाही";
 
@@ -2649,9 +2964,6 @@
 
 /* Text explaining that you are the only person currently in the group call */
 "GROUP_CALL_NO_ONE_HERE" = "येथे अजून कुणीही नाही";
-
-/* Text explaining to the user that nobody has joined this call yet. */
-"GROUP_CALL_NOBODY_IS_IN_YET" = "आतापर्यंत या कॉलमध्ये कुणीही नाही.";
 
 /* Copy explaining that a user has joined the group call. Embeds {member name} */
 "GROUP_CALL_NOTIFICATION_ONE_JOINED_FORMAT" = "%1$@ कॉलमध्ये सामील झाले";
@@ -2674,6 +2986,27 @@
 /* Text indicating that the user has lost their connection to the call and we are reconnecting. */
 "GROUP_CALL_RECONNECTING" = "पुनःकनेक्ट करत आहे…";
 
+/* Label for a button to block a member from a group call. */
+"GROUP_CALL_REMOVE_MEMBER_CONFIRMATION_ACTION_SHEET_BLOCK_ACTION" = "Block from Call";
+
+/* Label for the button to confirm removing a member from a group call. */
+"GROUP_CALL_REMOVE_MEMBER_CONFIRMATION_ACTION_SHEET_REMOVE_ACTION" = "Remove";
+
+/* Title for action sheet confirming removal of a member from a group call. embeds {{ name }} */
+"GROUP_CALL_REMOVE_MEMBER_CONFIRMATION_ACTION_SHEET_TITLE" = "Remove %1$@ from the call?";
+
+/* The title of an alert when you've been removed from a group call. */
+"GROUP_CALL_REMOVED" = "कॉलमधून काढण्यात आले";
+
+/* The message of an alert when you've been removed from a group call. */
+"GROUP_CALL_REMOVED_MESSAGE" = "कोणीतरी आपणाला कॉल मधून काढले.";
+
+/* The title of an alert when tried to join a call using a link but the admin rejected your request. */
+"GROUP_CALL_REQUEST_DENIED" = "जोडले जाण्याची विनंती नाकारली";
+
+/* The message of an alert when tried to join a call using a link but the admin rejected your request. */
+"GROUP_CALL_REQUEST_DENIED_MESSAGE" = "या कॉलमध्ये जोडले जाण्याची आपली विनंती नाकारण्यात आली.";
+
 /* notification body when you join a group call and an already-joined participant has an untrusted safety number */
 "GROUP_CALL_SAFETY_NUMBER_CHANGE_AT_JOIN_BODY" = "एका कॉल सहभाग्याचा सुरक्षितता क्रमांक बदलला आहे. पाहण्यासाठी टॅप करा.";
 
@@ -2688,9 +3021,6 @@
 
 /* Toast view text informing user about swiping to speaker view */
 "GROUP_CALL_SPEAKER_VIEW_TOAST" = "दृश्य बदल्ण्यासाठी वर स्वाइप करा";
-
-/* Button to start a group call */
-"GROUP_CALL_START_BUTTON" = "कॉल चालू करा";
 
 /* Tooltip highlighting group calls. */
 "GROUP_CALL_START_TOOLTIP" = "गट कॉल प्रारंभ करण्यासाठी येथे टॅप करा";
@@ -2732,7 +3062,7 @@
 "GROUP_CREATED_BY_LOCAL_USER" = "आपण गट तयार केला.";
 
 /* Message indicating that group was created by another user. Embeds {{remote user name}}. */
-"GROUP_CREATED_BY_REMOTE_USER_FORMAT" = "%1$@ ने आपल्याला गटात जोडले.";
+"GROUP_CREATED_BY_REMOTE_USER_FORMAT" = "%1$@ने गट तयार केला.";
 
 /* Message indicating that group was created by an unknown user. */
 "GROUP_CREATED_BY_UNKNOWN_USER" = "गट तयार केला देला.";
@@ -2754,42 +3084,6 @@
 
 /* Title for the group description view. Embeds {{ the number of characters that can be added to the description without hitting the length limit }}. */
 "GROUP_DESCRIPTION_VIEW_TITLE_FORMAT" = "गट विवरण (%1$@)";
-
-/* Message indicating that 1 invalid invite was added to the group. */
-"GROUP_INVALID_INVITES_ADDED_1" = "एक अवैध आमंत्रण जोडले गेले होते.";
-
-/* Message indicating that 1 invalid invite was added by the local user. */
-"GROUP_INVALID_INVITES_ADDED_BY_LOCAL_USER_1" = "आपण एक अवैध आमंत्रण जोडले आहे.";
-
-/* Message indicating that multiple invalid invites were added by the local user. */
-"GROUP_INVALID_INVITES_ADDED_BY_LOCAL_USER_N" = "आपण अवैध आमंत्रणे जोडले आहेत.";
-
-/* Message indicating that 1 invalid invite was added by another user. Embeds {{remote user name}}. */
-"GROUP_INVALID_INVITES_ADDED_BY_REMOTE_USER_FORMAT_1" = "%1$@ ने अवैध आमंत्रण जोडले आहे.";
-
-/* Message indicating that multiple invalid invites were added by another user. Embeds {{remote user name}}. */
-"GROUP_INVALID_INVITES_ADDED_BY_REMOTE_USER_FORMAT_N" = "%1$@ अवैध आमंत्रणे जोडले आहेत.";
-
-/* Message indicating that multiple invalid invites were added to the group. */
-"GROUP_INVALID_INVITES_ADDED_N" = "अवैध आमंत्रणे जोडली गेली होती.";
-
-/* Message indicating that 1 invalid invite was revoked. */
-"GROUP_INVALID_INVITES_REMOVED_1" = "अवैध आमंत्रण जोडले गेले होते.";
-
-/* Message indicating that 1 invalid invite was revoked by the local user. */
-"GROUP_INVALID_INVITES_REMOVED_BY_LOCAL_USER_1" = "आपण अवैध आमंत्रण रद्द केले.";
-
-/* Message indicating that multiple invalid invites were revoked by the local user. */
-"GROUP_INVALID_INVITES_REMOVED_BY_LOCAL_USER_N" = "आपण अवैध आमंत्रणे रद्द केली.";
-
-/* Message indicating that 1 invalid invite was revoked by another user. Embeds {{remote user name}}. */
-"GROUP_INVALID_INVITES_REMOVED_BY_REMOTE_USER_FORMAT_1" = "%1$@ ने अवैध आमंत्रण रद्द केले.";
-
-/* Message indicating that multiple invalid invites were revoked by another user. Embeds {{remote user name}}. */
-"GROUP_INVALID_INVITES_REMOVED_BY_REMOTE_USER_FORMAT_N" = "%1$@ ने अवैध आमंत्रणे रद्द केली.";
-
-/* Message indicating that multiple invalid invites were revoked. */
-"GROUP_INVALID_INVITES_REMOVED_N" = "अवैध आमंत्रणे रद्द केली गेली होती.";
 
 /* Message indicating that the group invite link was disabled. */
 "GROUP_INVITE_LINK_DISABLED" = "गट लिंक बंद केली गेली होती.";
@@ -2890,6 +3184,12 @@
 /* Message text for the 'group invite link' action sheet. */
 "GROUP_LINK_ACTION_SHEET_VIEW_MESSAGE" = "आपण या गटात सामील होण्यास आणि आपले नाव आणि फोटो त्याच्या सदस्यांसह सामायिक करण्यास इच्छुक आहात?";
 
+/* Label for the 'request to join' button in the 'group invite link' action sheet. */
+"GROUP_LINK_ACTION_SHEET_VIEW_REQUEST_TO_JOIN_BUTTON" = "Request to Join";
+
+/* Message text for the 'group invite link' action sheet, if the user will be requesting to join. */
+"GROUP_LINK_ACTION_SHEET_VIEW_REQUEST_TO_JOIN_MESSAGE" = "An admin of this group must approve your request before you can join this group. When you request to join, your name and photo will be shared with its members.";
+
 /* Error message the attempt to request to join the group failed due to network connectivity. */
 "GROUP_LINK_COULD_NOT_REQUEST_TO_JOIN_GROUP_DUE_TO_NETWORK_ERROR_MESSAGE" = "आपण ऑनलाईन आहात की नाही ते कृपया तपासा आणि पुन्हा प्रयत्न करा.";
 
@@ -2972,7 +3272,7 @@
 "GROUP_LINK_VIEW_TITLE" = "गट लिंक";
 
 /* Message indicating that the local user was added to the group by another user. Embeds {{remote user name}}. */
-"GROUP_LOCAL_USER_ADDED_TO_GROUP_BY_REMOTE_USER_FORMAT" = "%1$@ ने आपल्याला जोडले.";
+"GROUP_LOCAL_USER_ADDED_TO_GROUP_BY_REMOTE_USER_FORMAT" = "%1$@ ने आपल्याला गटात जोडले.";
 
 /* Message indicating that the local user was granted administrator role. */
 "GROUP_LOCAL_USER_GRANTED_ADMINISTRATOR" = "आपण आता प्रशासक आहात.";
@@ -3049,12 +3349,6 @@
 /* Title for the 'members' section of the 'group members' view. */
 "GROUP_MEMBERS_SECTION_TITLE_MEMBERS" = "सदस्य";
 
-/* Button to allow user to review known name collisions in group membership */
-"GROUP_MEMBERSHIP_NAME_COLLISION_BANNER_REVIEW_BUTTON" = "पुनरावलोकन करण्यासाठी टॅप करा";
-
-/* A header string above a group member's contact info */
-"GROUP_MEMBERSHIP_NAME_COLLISION_MEMBER_HEADER" = "सदस्य";
-
 /* A title string for a view that allows a user to review name collisions in group membership */
 "GROUP_MEMBERSHIP_NAME_COLLISION_TITLE" = "सदस्यांचे पुनरावलोकन करा";
 
@@ -3118,6 +3412,9 @@
 /* Message indicating that a remote user was removed from the group by the local user. Embeds {{remote user name}}. */
 "GROUP_REMOTE_USER_REMOVED_BY_LOCAL_USER_FORMAT" = "आपण %1$@ ला काढले.";
 
+/* Message indicating that a remote user was removed from the group by an unknown user. Embeds {{remote user name}}. */
+"GROUP_REMOTE_USER_REMOVED_BY_UNKNOWN_USER_FORMAT" = "%1$@ हे यापुढे गटात नाही";
+
 /* Message indicating that the remote user was removed from the group. Embeds {{ %1$@ user who removed the user, %2$@ user who was removed}}. */
 "GROUP_REMOTE_USER_REMOVED_FROM_GROUP_BY_REMOTE_USER_FORMAT" = "%1$@ ने %2$@ ला काढून टाकले.";
 
@@ -3126,6 +3423,9 @@
 
 /* Message indicating that a remote user's request to join the group was approved by another user. Embeds {{ %1$@ requesting user name, %2$@ approving user name }}. */
 "GROUP_REMOTE_USER_REQUEST_APPROVED_BY_REMOTE_USER_FORMAT" = "%1$@ कडून गटात सामील होण्याच्या विनंतीला %2$@ ने मान्यता दिली.";
+
+/* Message indicating that a remote user's request to join the group was approved by an unknown user. Embeds {{ %1$@ requesting user name }}. */
+"GROUP_REMOTE_USER_REQUEST_APPROVED_BY_UNKNOWN_USER_FORMAT" = "%1$@कडून गटात सामील होण्याची विनंती मंजूर झाली आहे.";
 
 /* Message indicating that a remote user cancelled their request to join the group. Embeds {{ the name of the requesting user }}. */
 "GROUP_REMOTE_USER_REQUEST_CANCELLED_BY_REMOTE_USER_FORMAT" = "%1$@ ने गटात सामील होण्याची त्यांची विनंती रद्द केली.";
@@ -3240,6 +3540,9 @@
 
 /* Message indicating that the group was migrated. */
 "GROUP_WAS_MIGRATED" = "हा गट नवीन गटात श्रेणीसुधारित केले गेले होते.";
+
+/* Message indicating that the local user was invited after the group was migrated. */
+"GROUP_WAS_MIGRATED_LOCAL_USER_INVITED" = "आपण नवीन गटात जोडला जाऊ शकला नाहीत आणि त्यात सामील होण्यासाठी आमंत्रित केले गेले आहे.";
 
 /* Message indicating that the local user left the group. */
 "GROUP_YOU_LEFT" = "आपण गट सोडला आहे.";
@@ -3385,6 +3688,18 @@
 /* Title 'Read All' button in the toolbar of the ChatList if multi-section is active. */
 "HOME_VIEW_TOOLBAR_READ_ALL" = "सर्व वाचा";
 
+/* Label for both bank chooser header and the bank form field on the iDEAL payment detail page. */
+"IDEAL_DONATION_CHOOSE_YOUR_BANK_LABEL" = "आपली बँक निवडा";
+
+/* Fallback title confirming recurring donation with bank. */
+"IDEAL_DONATION_CONFIRM_DONATION_TITLE" = "आपल्या देणगीची पुष्टी करा";
+
+/* Message confirming recurring donation with bank. This message confirms with the user that they will see a small confirmation charge with their bank before the donation. */
+"IDEAL_DONATION_CONFIRM_DONATION_WITH_BANK_MESSAGE" = "आपली आवर्ती देणगी सेट करण्यासाठी, आपल्या बॅंकेकडे €0,01 शुल्काची पुष्टी करण्यासाठी सुरू ठेवा वर टॅप करा. हे आपोआप परत केले जाईल आणि आपली %1$@/महिना देणगी आपल्या अकाऊंटमधून डेबिट करण्याची अनुमती देते.";
+
+/* Title confirming recurring donation with bank. */
+"IDEAL_DONATION_CONFIRM_DONATION_WITH_BANK_TITLE" = "%1$@ सह आपल्या देणगीची पुष्टी करा";
+
 /* The image editor hint that you can draw blur */
 "IMAGE_EDITOR_BLUR_HINT" = "अस्पष्ट करण्यासाठी कुठेही रेखाटा";
 
@@ -3404,13 +3719,13 @@
 "IN_CALL_CONNECTING" = "कनेक्ट करत आहे…";
 
 /* Call screen label when call was canceled on this device because the call recipient answered on another device. */
-"IN_CALL_ENDED_BECAUSE_ANSWERED_ELSEWHERE" = "इतर डिव्हाईस वर उत्तर दिले.";
+"IN_CALL_ENDED_BECAUSE_ANSWERED_ELSEWHERE" = "इतर डिव्हाईस वर उत्तर दिले";
 
 /* Call screen label when call was canceled on this device because the call recipient has a call in progress on another device. */
-"IN_CALL_ENDED_BECAUSE_BUSY_ELSEWHERE" = "इतर डिव्हाईस वर कॉल सुरू असल्याने सुटले.";
+"IN_CALL_ENDED_BECAUSE_BUSY_ELSEWHERE" = "इतर डिव्हाइस वर कॉल सुरू असल्याने सुटला";
 
 /* Call screen label when call was canceled on this device because the call recipient declined on another device. */
-"IN_CALL_ENDED_BECAUSE_DECLINED_ELSEWHERE" = "इतर डिव्हाईस वर नकारले गेले.";
+"IN_CALL_ENDED_BECAUSE_DECLINED_ELSEWHERE" = "इतर डिव्हाईस वर नकारले गेले";
 
 /* Call setup status label */
 "IN_CALL_RECONNECTING" = "पुनःकनेक्ट करत आहे…";
@@ -3428,7 +3743,16 @@
 "IN_CALL_SECURING" = "उत्तर दिले. सुरक्षित करत आहे…";
 
 /* Call setup status label */
-"IN_CALL_TERMINATED" = "कॉल संपला.";
+"IN_CALL_TERMINATED" = "कॉल संपला";
+
+/* Title for a button in an in-app megaphone about a user's inactive linked device, indicating the user doesn't want to be reminded. */
+"INACTIVE_LINKED_DEVICE_REMINDER_MEGAPHONE_DONT_REMIND_ME_BUTTON" = "मला आठवण करून देऊ नका";
+
+/* Title for a button in an in-app megaphone about a user's inactive linked device, temporarily dismissing the megaphone. */
+"INACTIVE_LINKED_DEVICE_REMINDER_MEGAPHONE_GOT IT_BUTTON" = "कळले";
+
+/* Title for an in-app megaphone about a user's inactive linked device. */
+"INACTIVE_LINKED_DEVICE_REMINDER_MEGAPHONE_TITLE" = "असक्रिय लिंंक केलेली डिव्हाइसेस";
 
 /* Label reminding the user that they are in archive mode, and that muted chats remain archived when they receive a new message. */
 "INBOX_VIEW_ARCHIVE_MODE_MUTED_CHATS_REMINDER" = "नवीन संदेश येईल तेव्हा संग्रहित केलेले मूक चॅट्स हे अर्काईव्ह केलेलेच राहतील.";
@@ -3440,16 +3764,37 @@
 "INBOX_VIEW_EMPTY_INBOX" = "आतापर्यंत कुठेलही चॅट नाही.\nमित्राला संदेश पाठवून सुरू करा.";
 
 /* info message text in conversation view */
-"INCOMING_AUDIO_CALL" = "येणारा व्हाईस कॉल";
+"INCOMING_VIDEO_CALL" = "येणारा व्हिडिओ कॉल";
 
 /* info message text in conversation view */
-"INCOMING_VIDEO_CALL" = "येणारा व्हिडिओ कॉल";
+"INCOMING_VOICE_CALL" = "येणारा व्हाईस कॉल";
+
+/* An info message inserted into the chat when you accept a message request, in a 1:1 or group chat. */
+"INFO_MESSAGE_ACCEPTED_MESSAGE_REQUEST" = "आपण संदेश विनंती स्वीकारली आहे.";
+
+/* Header for an action sheet providing options in response to an accepted 1:1 message request. Embeds {{ the name of your chat partner }}. */
+"INFO_MESSAGE_ACCEPTED_MESSAGE_REQUEST_OPTIONS_ACTION_SHEET_HEADER_CONTACT" = "आपण %1$@कडूनची संदेश विनंती स्वीकारली आहे. हे जर चुकीने झाले असल्यास, आपण खालील कृती निवडू शकता.";
+
+/* Header for an action sheet providing options in response to an accepted group message request. */
+"INFO_MESSAGE_ACCEPTED_MESSAGE_REQUEST_OPTIONS_ACTION_SHEET_HEADER_GROUP" = "या गटापासून संदेश विनंती स्वीकारली आहे. हे जर चुकीने झाले असल्यास, आपण खालील कृती निवडू शकता.";
+
+/* Title for a button shown alongside an info message indicating you accepted a message request. */
+"INFO_MESSAGE_ACCEPTED_MESSAGE_REQUEST_OPTIONS_BUTTON" = "पर्याय";
+
+/* An info message inserted into a group chat when you block the group. */
+"INFO_MESSAGE_BLOCKED_GROUP" = "आपण या गटाला अवरोधित केले आहे.";
+
+/* An info message inserted into a 1:1 chat when you block another user. */
+"INFO_MESSAGE_BLOCKED_OTHER_USER" = "आपण या व्यक्तीला अवरोधित केले आहे.";
 
 /* Indicates that a previously-removed recipient has been added back to the current user's contacts. */
 "INFO_MESSAGE_CONTACT_REINSTATED" = "आपल्या Signal संपर्क यादीमध्ये या व्यक्तीला पुन्हा जोडण्यात आले होते.";
 
 /* Indicates that the recipient has been removed from the current user's contacts and that messaging them will re-add them. */
 "INFO_MESSAGE_CONTACT_REMOVED" = "आपण या व्यक्तीला आपल्या Signal संपर्क यादीमधून हटवले होते, त्यांना संदेशन करण्याने ते पुन्हा जोडले जातील.";
+
+/* When you start a chat with someone and then later learn their profile name, we insert an in-chat message with this string to record the identifier you originally used to contact them. Embeds {{ the identifier, either a phone number or a username }}. */
+"INFO_MESSAGE_LEARNED_PROFILE_KEY" = "आपण हे चॅट %1$@ सह सुरू केले.";
 
 /* Shown when a user activates payments from a chat */
 "INFO_MESSAGE_PAYMENTS_ACTIVATED" = "आपण पेमेंट्स सक्रिय केले आहे.";
@@ -3463,8 +3808,23 @@
 /* Shown when requesting a user activates payments. Embeds: {{ the user's name}} */
 "INFO_MESSAGE_PAYMENTS_ACTIVATION_REQUEST_SENT" = "आपण %1$@ ना पेमेंट्स सक्रिय करण्याची विनंती पाठवली आहे.";
 
+/* Shown when a user reports a conversation as spam. */
+"INFO_MESSAGE_REPORTED_SPAM" = "स्पॅम म्हणून रिपोर्ट केले";
+
+/* Body message of the alert shown when a user taps on 'learn more' via the spam info message. */
+"INFO_MESSAGE_REPORTED_SPAM_LEARN_MORE_MESSAGE" = "Signal ने सूचित केले आहे की कदाचित ही व्यक्ती स्पॅम पाठवत आहे. Signal कोणत्याही चॅट्सचा मजकूर पाहू शकत नाही.";
+
+/* Title of the alert shown when a user taps on 'learn more' via the spam info message. */
+"INFO_MESSAGE_REPORTED_SPAM_LEARN_MORE_TITLE" = "स्पॅम कळवा";
+
 /* Shown in inbox and conversation after syncing as a placeholder indicating why your message history is missing. */
-"INFO_MESSAGE_SYNCED_THREAD" = "You can send or receive synchronized messages from your phone or iPad.  For your security, chat history isn't transferred to new linked devices.";
+"INFO_MESSAGE_SYNCED_THREAD" = "आपल्या सुरक्षिततेसाठी, नवीन लिंंक केलेली डिव्हाइसेस वर चॅट्स इतिहास अंतरित केला नाही.";
+
+/* An info message inserted into a group chat when you unblock the group. */
+"INFO_MESSAGE_UNBLOCKED_GROUP" = "या गटाला अनावरोधित केले आहे.";
+
+/* An info message inserted into a 1:1 chat when you unblock another user. */
+"INFO_MESSAGE_UNBLOCKED_OTHER_USER" = "आपण ह्या व्यक्तीला अनावरोधित केले.";
 
 /* Indicates that another user has changed their phone number. Embeds: {{ the user's name}} */
 "INFO_MESSAGE_USER_CHANGED_PHONE_NUMBER_FORMAT" = "%1$@ यांनी त्यांचा फोन क्रमांक बदलला";
@@ -3504,6 +3864,9 @@
 
 /* Label for the cell that presents the 'invite contacts' workflow. */
 "INVITE_FRIENDS_CONTACT_TABLE_BUTTON" = "मित्रांना Signal वर आमंत्रित करा";
+
+/* Header label above a section for more options for adding contacts */
+"INVITE_FRIENDS_CONTACT_TABLE_HEADER" = "अधिक";
 
 /* Search */
 "INVITE_FRIENDS_PICKER_SEARCHBAR_PLACEHOLDER" = "शोध";
@@ -3611,31 +3974,22 @@
 "LINK_NEW_DEVICE_SUBTITLE" = "नवीन डिव्हाइस लिंक करण्यासाठी QR कोड स्कॅन करा.";
 
 /* Navigation title when scanning QR code to add new device. */
-"LINK_NEW_DEVICE_TITLE" = "नवीन डिव्हाईस जोडा";
+"LINK_NEW_DEVICE_TITLE" = "नवीन डिव्हाइस लिंक करा";
 
 /* Label for link previews with an unknown host. */
 "LINK_PREVIEW_UNKNOWN_DOMAIN" = "दुवा पुनरावलोकन";
 
 /* Shown in an alert when trying to edit a contact. */
-"LINKED_DEVICE_CONTACTS_NOT_ALLOWED" = "iPad वर सिस्टम संपर्क व्यवस्थापित करणे यापुढे उपलब्ध असणार नाही. आपल्या सिस्टम संपर्कामध्ये Signal कनेक्शन्स जोडण्यासाठी आपल्या फोनवर Signal उघडा.";
+"LINKED_DEVICE_CONTACTS_NOT_ALLOWED" = "iPad वर फोन संपर्क व्यवस्थापित करणे यापुढे उपलब्ध असणार नाही. आपल्या फोन संपर्कांमध्ये Signal कनेक्शन्स जोडण्यासाठी आपल्या फोनवर Signal उघडा.";
 
 /* Shown in a banner when you tap the 'New Chat' icon at the top of the list of chats. */
-"LINKED_DEVICE_MANAGE_CONTACTS_BANNER" = "iPad वर सिस्टम संपर्क व्यवस्थापित करण्यास यापुढे समर्थन केले जाणार नाही. हे डिव्हाइस Signal कडून आपल्या संपर्क सूचीमधील कोणत्याही बदलांना आपल्या फोनवर सिंक करणे पुढे सुरू ठेवेल.";
+"LINKED_DEVICE_MANAGE_CONTACTS_BANNER" = "iPad वर फोन संपर्क व्यवस्थापित करण्यास यापुढे समर्थन केले जाणार नाही. हे डिव्हाइस Signal कडून आपल्या संपर्क सूचीमधील कोणत्याही बदलांना आपल्या फोनवर सिंक करणे पुढे सुरू ठेवेल.";
 
 /* A button shown in a banner when you tap the 'New Chat' icon at the top of the list of chats. Tapping it opens a website with more details. */
 "LINKED_DEVICE_MANAGE_CONTACTS_LEARN_MORE" = "अधिक जाणा";
 
 /* Menu item and navbar title for the device manager */
 "LINKED_DEVICES_TITLE" = "लिंक केलेले डिव्हाईस";
-
-/* Label for the 'give access' button in the 'onboarding permissions' view. */
-"LINKED_ONBOARDING_PERMISSIONS_ENABLE_PERMISSIONS_BUTTON" = "अधिसूचनांना अनुमती द्या";
-
-/* Explanation in the 'onboarding permissions' view. */
-"LINKED_ONBOARDING_PERMISSIONS_EXPLANATION" = "अधिसूचनांना परवानगी देणे हे तुम्हाला संदेश, कॉल्स किंवा नवीन संभाषण गतिविधीविषयी प्राप्त झालेल्या अद्यतनांबाबत माहिती देते.";
-
-/* Title of the 'onboarding permissions' view. */
-"LINKED_ONBOARDING_PERMISSIONS_TITLE" = "अधिसूचनांना अनुमती द्या";
 
 /* Alert Title */
 "LINKING_DEVICE_FAILED_TITLE" = "डिव्हाईस लिंक करणे अयशस्वी";
@@ -3901,13 +4255,22 @@
 /* Context menu message preview accessibility label */
 "MESSAGE_PREVIEW" = "संदेश पूर्वावलोकन";
 
+/* Sheet option for blocking a chat. In this case, the sheet appears when the user taps a button attached to a 'message request accepted' info message in-chat. */
+"MESSAGE_REQUEST_ACCEPTED_INFO_MESSAGE_SHEET_OPTION_BLOCK" = "अवरोधित करा";
+
+/* Sheet option for deleting a chat. In this case, the sheet appears when the user taps a button attached to a 'message request accepted' info message in-chat. */
+"MESSAGE_REQUEST_ACCEPTED_INFO_MESSAGE_SHEET_OPTION_DELETE" = "चॅट हटवा";
+
+/* Sheet option for reporting a chat as spam. In this case, the sheet appears when the user taps a button attached to a 'message request accepted' info message in-chat. */
+"MESSAGE_REQUEST_ACCEPTED_INFO_MESSAGE_SHEET_OPTION_SPAM" = "स्पॅम रिपोर्ट करा";
+
 /* Action sheet action to confirm blocking a thread via a message request. */
 "MESSAGE_REQUEST_BLOCK_ACTION" = "अवरोधित करा";
 
 /* Action sheet action to confirm blocking and deleting a thread via a message request. */
 "MESSAGE_REQUEST_BLOCK_AND_DELETE_ACTION" = "अवरोधित करा आणि हटवा";
 
-/* Action sheet action to confirm blocking and report spam for a thread via a message request. */
+/* Action sheet action to confirm blocking and reporting spam for a thread via a message request. */
 "MESSAGE_REQUEST_BLOCK_AND_REPORT_SPAM_ACTION" = "स्पॅम म्हणून रिपोर्ट करा आणि अवरोधित करा";
 
 /* Action sheet message to confirm blocking a conversation via a message request. */
@@ -3941,16 +4304,10 @@
 "MESSAGE_REQUEST_LEAVE_AND_DELETE_GROUP_TITLE" = "ग्रुप हटवायचा आणि सोडायचा?";
 
 /* Banner label notifying user that a new message is from a user with the same name as an existing contact */
-"MESSAGE_REQUEST_NAME_COLLISON_BANNER_LABEL" = "विनंत्यांचे काळजीपूर्वक पुनरावलोकन करा. Signal ला त्याच नावाचा दुसरा संपर्क सापडला.";
-
-/* A header string above a known contact's contact info */
-"MESSAGE_REQUEST_NAME_COLLISON_CONTACT_HEADER" = "आपला संपर्क";
+"MESSAGE_REQUEST_NAME_COLLISION_BANNER_LABEL" = "या व्यक्तीचे नाव दुसऱ्या संपर्कासारखेच आहे";
 
 /* A header string informing the user about name collisions in a message request */
 "MESSAGE_REQUEST_NAME_COLLISON_HEADER" = "विनंती कोणाकडून आहे याची आपल्याला खात्री नसल्यास, खाली असलेल्या संपर्कांचे पुनरावलोकन करा आणि कारवाई करा.";
-
-/* A header string above the requester's contact info */
-"MESSAGE_REQUEST_NAME_COLLISON_REQUESTER_HEADER" = "विनंती";
 
 /* A title string for a view that allows a user to review name collisions for an incoming message request */
 "MESSAGE_REQUEST_NAME_COLLISON_TITLE" = "पुनरावलोकन विनंती";
@@ -3958,8 +4315,17 @@
 /* A button that updates a known contact's information to resolve a name collision */
 "MESSAGE_REQUEST_NAME_COLLISON_UPDATE_CONTACT_ACTION" = "संपर्क अद्यतनित करा";
 
-/* Button to allow user to review known name collisions with an incoming message request */
-"MESSAGE_REQUEST_REVIEW_NAME_COLLISION" = "पुनरावलोकन विनंती";
+/* Action sheet message to confirm reporting a conversation as spam via a message request. */
+"MESSAGE_REQUEST_REPORT_CONVERSATION_MESSAGE" = "Signal सूचित करेल की कदाचित ही व्यक्ती स्पॅम पाठवत असेल. Signal कोणत्याही चॅट्सचा मजकूर पाहू शकत नाही.";
+
+/* Action sheet title to confirm reporting a conversation as spam via a message request. */
+"MESSAGE_REQUEST_REPORT_CONVERSATION_TITLE" = "स्पॅम रिपोर्ट करायचा?";
+
+/* Action sheet action to confirm reporting a conversation as spam via a message request. */
+"MESSAGE_REQUEST_REPORT_SPAM_ACTION" = "स्पॅम रिपोर्ट करा";
+
+/* String indicating that spam has been reported. */
+"MESSAGE_REQUEST_SPAM_REPORTED" = "स्पॅम म्हणून रिपोर्ट केले.";
 
 /* String indicating that spam has been reported and the chat has been blocked. */
 "MESSAGE_REQUEST_SPAM_REPORTED_AND_BLOCKED" = "स्पॅम म्हणून रिपोर्ट केले आणि अवरोधित केले.";
@@ -4002,6 +4368,9 @@
 
 /* A prompt asking if the user wants to accept a conversation invite from a person whom they previously removed. Embeds {{contact name}}. */
 "MESSAGE_REQUEST_VIEW_REMOVED_CONTACT_PROMPT_FORMAT" = "चला %1$@ ला आपणाला संदेश करू द्या आणि त्यांच्यासोबत आपले नाव आणि फोटो शेअर करायचा? आपण पूर्वी या व्यक्तीला हटवले होते.";
+
+/* incoming message request button text which reports a conversation as spam */
+"MESSAGE_REQUEST_VIEW_REPORT_BUTTON" = "रिपोर्ट करा…";
 
 /* A button used to unlock a blocked conversation. */
 "MESSAGE_REQUEST_VIEW_UNBLOCK_BUTTON" = "अनावरोधित करा";
@@ -4072,9 +4441,6 @@
 /* Indicator that separates read from unread messages. */
 "MESSAGES_VIEW_UNREAD_INDICATOR" = "नवीन संदेश";
 
-/* info message text in conversation view */
-"MISSED_AUDIO_CALL" = "चूकलेला व्हाईस कॉल";
-
 /* info message text in conversation view for when a call was dropped because the contact is blocked in iOS settings */
 "MISSED_CALL_BLOCKED_SYSTEM_CONTACT" = "फोन सेटिंग्ज मध्ये अवरोधित केलेल्या संपर्काकडून मिस्ड कॉल";
 
@@ -4087,14 +4453,14 @@
 /* Title for sheet shown when the user taps a missed call from a contact blocked in iOS settings. Embeds {{ Contact's name }} */
 "MISSED_CALL_BLOCKED_SYSTEM_SETTINGS_SHEET_TITLE" = "%1$@ हा फोन सेटिंग्ज मध्ये अवरोधित आहे";
 
-/* info message text in conversation view (use Apple's name for 'Do Not Disturb' on iOS 14 and older) */
-"MISSED_CALL_DO_NOT_DISTURB" = "व्यत्यय आणू नका वर असताना मिस्ड कॉल";
-
 /* info message text in conversation view (use Apple's name for 'Focus') */
 "MISSED_CALL_FOCUS_MODE" = "Focus वापरत असताना मिस्ड कॉल";
 
 /* info message text in conversation view */
 "MISSED_VIDEO_CALL" = "चूकलेला व्हिडिओ कॉल";
+
+/* info message text in conversation view */
+"MISSED_VOICE_CALL" = "चूकलेला व्हाईस कॉल";
 
 /* Alert body */
 "MISSING_CAMERA_PERMISSION_MESSAGE" = "Signal मध्ये व्हिडिओ कॉल करण्यासाठी आपण iOS सेटिंग अॅप मध्ये कॅमेरा अॅक्सेस सक्षम करू शकता.";
@@ -4119,6 +4485,9 @@
 
 /* A recovery suggestion shown as the body of an alert when try to link a new device & the user is already at the limit. */
 "MULTIDEVICE_PAIRING_MAX_RECOVERY" = "आपल्या खात्यासोबत लिंक करू शकणाऱ्या डिव्हाइसच्या कमाल मर्यादेपर्यंत सध्या आपण पोहोचला आहात. कृपया डिव्हाइस काढून टाका आणि पुन्हा प्रयत्न करा.";
+
+/* Text for a toast confirming that the mic has been muted for a call. */
+"MUTE_CONFIRMATION_TOAST_LABEL" = "माईक बंद आहे";
 
 /* Badge indicating that the user is muted. */
 "MUTED_BADGE" = "मूक केलेले";
@@ -4153,8 +4522,8 @@
 /* Prompt to add to your story */
 "MY_STORY_TAP_TO_ADD" = "जोडण्यासाठी टॅप करा";
 
-/* Format string describing a recent profile name change that led to a name collision. Embeds {{ %1$@ old profile name }} and {{ %2$@ current profile name }} */
-"NAME_COLLISION_RECENT_CHANGE_FORMAT_STRING" = "अलीकडे त्यांचे प्रोफाईल नाव %1$@ ते %2$@ वर बदलले.";
+/* Format string describing a recent profile name change that led to a name collision. Embeds {{ %1$@ current name, which may be a profile name or an address book name }}, {{ %2$@ old profile name }}, and {{ %3$@ current profile name }} */
+"NAME_COLLISION_RECENT_CHANGE_FORMAT_STRING" = "%1$@ नी अलिकडेच त्यांचे प्रोफाइन नाव %2$@ वरून %3$@ ला बदलले";
 
 /* A button to skip a view. */
 "NAVIGATION_ITEM_SKIP_BUTTON" = "वगळा";
@@ -4171,8 +4540,29 @@
 /* String representing both wifi and cellular interfaces */
 "NETWORK_INTERFACE_SET_WIFI_CELLULAR" = "Wi-Fi आणि सेल्यूलर";
 
+/* Accessibility hint describing the action of the new call button on the Calls Tab */
+"NEW_CALL_HINT" = "एका नवीन कॉलसह सुरूवात करण्यासाठी एक संपर्क किंवा गट निवडा.";
+
+/* Accessibility label for the new call button on the Calls Tab */
+"NEW_CALL_LABEL" = "नवीन कॉल";
+
+/* Title for a long-press context menu action to message a given recipient or group, triggered from a recipient in the New Call contact picker */
+"NEW_CALL_MESSAGE_ACTION_TITLE" = "संदेश";
+
+/* Title for the contact picker that allows new calls to be started */
+"NEW_CALL_TITLE" = "नवीन कॉल";
+
+/* Title for a long-press context menu action to start a video call, triggered from a recipient in the New Call contact picker */
+"NEW_CALL_VIDEO_CALL_ACTION_TITLE" = "व्हिडीओ कॉल";
+
+/* Title for a long-press context menu action to start a voice call, triggered from a recipient in the New Call contact picker */
+"NEW_CALL_VOICE_CALL_ACTION_TITLE" = "व्हॉईस कॉल";
+
 /* A label the cell that lets you add a new member to a group. */
 "NEW_CONVERSATION_FIND_BY_PHONE_NUMBER" = "फोन नंबर द्वारा शोधा";
+
+/* A label for the cell that lets you add a new member by their username */
+"NEW_CONVERSATION_FIND_BY_USERNAME" = "वापरकर्तानावाने शोधा";
 
 /* Label for the 'create new group' button. */
 "NEW_GROUP_BUTTON" = "नवीन गट";
@@ -4213,11 +4603,8 @@
 /* Title for the 'new group story' view */
 "NEW_GROUP_STORY_VIEW_CONTROLLER_TITLE" = "गट निवडा";
 
-/* A label for the 'add by phone number' button in the 'new non-contact conversation' view */
-"NEW_NONCONTACT_CONVERSATION_VIEW_BUTTON" = "शोध";
-
 /* Title for the 'new non-contact conversation' view. */
-"NEW_NONCONTACT_CONVERSATION_VIEW_TITLE" = "वापरकर्ता शोधा";
+"NEW_NONCONTACT_CONVERSATION_VIEW_TITLE" = "फोन नंबर द्वारा शोधा";
 
 /* Title for the 'new private story' confirmation view */
 "NEW_PRIVATE_STORY_CONFIRM_TITLE" = "स्टोरीला नाव द्या";
@@ -4261,8 +4648,35 @@
 /* Title for the new story sheet */
 "NEW_STORY_SHEET_TITLE" = "स्टोरी प्रकार निवडा";
 
+/* Title for the table cell in conversation settings for presenting the profile nickname editor. */
+"NICKNAME_BUTTON_TITLE" = "टोपणनाव";
+
+/* The message for a prompt confirming that the user wants to delete the nickname and note. */
+"NICKNAME_EDITOR_DELETE_CONFIRMATION_MESSAGE" = "यामुळे हे टोपणनाव आणि टीप कायमस्वरूपी हटवेल.";
+
+/* The title for a prompt confirming that the user wants to delete the nickname and note. */
+"NICKNAME_EDITOR_DELETE_CONFIRMATION_TITLE" = "टोपणनाव हटवायचे?";
+
+/* The description below the title on the profile nickname editor view. */
+"NICKNAME_EDITOR_DESCRIPTION" = "टोपणनाव व टिपा हे Signal सह स्टोअर केले जातात आणि कूटबद्ध केलेले असतात. ते फक्त आपणाला दृश्यमान आहेत.";
+
+/* Placeholder text it the text field for the family name in the profile nickname editor. */
+"NICKNAME_EDITOR_FAMILY_NAME_PLACEHOLDER" = "आडनाव";
+
+/* Placeholder text it the text field for the given name in the profile nickname editor. */
+"NICKNAME_EDITOR_GIVEN_NAME_PLACEHOLDER" = "नाव";
+
+/* Placeholder text it the text box for the note in the profile nickname editor. */
+"NICKNAME_EDITOR_NOTE_PLACEHOLDER" = "टीप लिहा";
+
+/* The title for the profile nickname editor view. */
+"NICKNAME_EDITOR_TITLE" = "टोपणनाव";
+
 /* Label for a button that lets users search for contacts by phone number */
 "NO_CONTACTS_SEARCH_BY_PHONE_NUMBER" = "फोन नंबर द्वारा संपर्क शोधा";
+
+/* Label for a button that lets users search for contacts by username */
+"NO_CONTACTS_SEARCH_BY_USERNAME" = "वापरकर्तानावाने संपर्क शोधा";
 
 /* A string describing that the user has no groups in common with another user */
 "NO_GROUPS_IN_COMMON" = "कुठलेही गट समाईक नाहीत";
@@ -4305,6 +4719,12 @@
 
 /* Title for notification permission reminder megaphone */
 "NOTIFICATION_PERMISSION_REMINDER_MEGAPHONE_TITLE" = "सूचना चालू करायच्या?";
+
+/* Shown as the body of an alert when notifications can't be shown due to an error. */
+"NOTIFICATIONS_ERROR_MESSAGE" = "आपणाला Signal अधिसूचना प्राप्त होत नसतील तर आपला %1$@ रिस्टार्ट करा.";
+
+/* Shown as the title of an alert when notifications can't be shown due to an error. */
+"NOTIFICATIONS_ERROR_TITLE" = "अधिसूचना दाखवू शकलो नाही";
 
 /* No comment provided by engineer. */
 "NOTIFICATIONS_FOOTER_WARNING" = "क्रियांमध्ये \"वाचले म्हणून चिन्हांकित करा\", \"प्रत्युत्तर द्या\" आणि \"परत कॉल करा\" समाविष्ट आहे.";
@@ -4381,11 +4801,20 @@
 /* warning to the user that linking a phone is not recommended */
 "ONBOARDING_MODE_SWITCH_WARNING_REGISTERING" = "आपला फोन लिंक करणे शिफारसीय नाही आणि ते मुलभूत कार्यक्षमता मर्यादित करेल.";
 
-/* Label for the 'give access' button in the 'onboarding permissions' view. */
-"ONBOARDING_PERMISSIONS_ENABLE_PERMISSIONS_BUTTON" = "परवानग्यांची अनुमती द्या";
+/* Description of the 'Contacts' permission in the 'onboarding permissions' view. */
+"ONBOARDING_PERMISSIONS_CONTACTS_DESCRIPTION" = "आपण ओळखत असलेल्या लोकांना शोधा. आपले संपर्क कूटबद्ध केलेले आहेत आणि ते Signal सेवेला दृश्यमान नाहीत.";
 
-/* Explanation in the 'onboarding permissions' view. */
-"ONBOARDING_PERMISSIONS_EXPLANATION" = "सूचना आणि संपर्क अनुमत केल्यास आपण प्राप्त झाल्यावर संदेश पाहू शकता आणि याच्याने आपल्याला आपल्या ओळखीचे लोक शोधण्यात मदत मिळते. संपर्क एन्क्रिप्टेड असतात म्हणून Signal सेवा त्यांना पाहू शकत नाही.";
+/* Title introducing the 'Contacts' permission in the 'onboarding permissions' view. */
+"ONBOARDING_PERMISSIONS_CONTACTS_TITLE" = "संपर्क";
+
+/* Description of the 'Notifications' permission in the 'onboarding permissions' view. */
+"ONBOARDING_PERMISSIONS_NOTIFICATIONS_DESCRIPTION" = "नवीन संदेश आल्यानंतर सूचना प्राप्त करा.";
+
+/* Title introducing the 'Notifications' permission in the 'onboarding permissions' view. */
+"ONBOARDING_PERMISSIONS_NOTIFICATIONS_TITLE" = "सूचना";
+
+/* Preamble of the 'onboarding permissions' view. */
+"ONBOARDING_PERMISSIONS_PREAMBLE" = "Signal खालील परवानग्यांसाठी विनंती करू इच्छित आहे.";
 
 /* Title of the 'onboarding permissions' view. */
 "ONBOARDING_PERMISSIONS_TITLE" = "परवानग्यांची अनुमती द्या";
@@ -4493,13 +4922,10 @@
 "OUTDATED_PAYMENT_CLIENT_REMINDER_TEXT" = "पेमेंट्स वापरणे पुढे सुरु ठेवण्यासाठी Signal ला अद्ययावत करा. आपली शिल्लक कदाचित अद्ययावत नसेल.";
 
 /* info message text in conversation view */
-"OUTGOING_AUDIO_CALL" = "बाहेर जाणारा व्हाईस कॉल";
-
-/* info message text in conversation view */
-"OUTGOING_MISSED_AUDIO_CALL" = "अनुत्तरित व्हॉईस कॉल";
-
-/* info message text in conversation view */
 "OUTGOING_MISSED_VIDEO_CALL" = "अनुत्तरित व्हिडिओ कॉल";
+
+/* info message text in conversation view */
+"OUTGOING_MISSED_VOICE_CALL" = "अनुत्तरित व्हॉईस कॉल";
 
 /* Button for action sheet shown when device transfer completes; quits the Signal app immediately (does not automatically relaunch, but the user may choose to relaunch). */
 "OUTGOING_TRANSFER_COMPLETE_EXIT_ACTION" = "Signal मधून बाहेर पडा";
@@ -4513,11 +4939,14 @@
 /* info message text in conversation view */
 "OUTGOING_VIDEO_CALL" = "बाहेर जाणारा व्हिडिओ कॉल";
 
+/* info message text in conversation view */
+"OUTGOING_VOICE_CALL" = "बाहेर जाणारा व्हाईस कॉल";
+
 /* Header title for bank payment details screen */
-"PAYMENT_DETAILS_BANK_TITLE" = "Bank Transfer";
+"PAYMENT_DETAILS_BANK_TITLE" = "बँक हस्तांतरण";
 
 /* Header title for card payment details screen */
-"PAYMENT_DETAILS_CARD_TITLE" = "Credit or Debit Card";
+"PAYMENT_DETAILS_CARD_TITLE" = "क्रेडिट किंवा डेबिट कार्ड";
 
 /* Format for indicator of a payment amount converted to fiat currency with the freshness of the conversion rate. Embeds: {{ %1$@ the payment amount, %2$@ the freshness of the currency conversion rate }}. */
 "PAYMENTS_CURRENCY_CONVERSION_FRESHNESS_FORMAT" = "%2$@ वर %1$@";
@@ -4583,6 +5012,9 @@
 "PAYMENTS_LOCK_FIRST_TIME_ACTION_SHEET_MESSAGE_FACEID" = "पैसे ट्रान्सफर करण्यासाठी सुरक्षेचा अतिरिक्त स्तर आणि फेस आयडी जोडा.";
 
 /* First time payments suggest payments lock message */
+"PAYMENTS_LOCK_FIRST_TIME_ACTION_SHEET_MESSAGE_OPTICID" = "पैसे पाठवण्यासाठी सुरक्षेचा अतिरिक्त स्तर आणि ऑप्टिक ID ची आवश्यकता जोडा.";
+
+/* First time payments suggest payments lock message */
 "PAYMENTS_LOCK_FIRST_TIME_ACTION_SHEET_MESSAGE_PASSCODE" = "सुरक्षेचा एक अतिरिक्त स्तर जोडा आणि पैसे पाठवण्यास पासकोडची आवश्यकता असते.";
 
 /* First time payments suggest payments lock message */
@@ -4596,6 +5028,9 @@
 
 /* Affirmative action title to enable payments lock */
 "PAYMENTS_LOCK_FIRST_TIME_AFFIRMATIVE_ACTION_FACEID" = "पाठवण्यास फेस आयडी आवश्यक आहे";
+
+/* Affirmative action title to enable payments lock */
+"PAYMENTS_LOCK_FIRST_TIME_AFFIRMATIVE_ACTION_OPTICID" = "पाठवण्यासाठी ऑप्टिक ID ची आवश्यकता असते";
 
 /* Affirmative action title to enable payments lock */
 "PAYMENTS_LOCK_FIRST_TIME_AFFIRMATIVE_ACTION_PASSCODE" = "पाठवण्यास आपल्या फोनच्या पासकोडची आवश्यकता असते";
@@ -4883,13 +5318,13 @@
 "PHONE_NUMBER_DISCOVERABILITY_EVERYBODY" = "सर्वजण";
 
 /* A user friendly description of the 'everybody' phone number discoverability mode. */
-"PHONE_NUMBER_DISCOVERABILITY_EVERYBODY_DESCRIPTION" = "आपला फोन नंबर ज्यांच्या संपर्कांमध्ये आहे ते कोणीही तुम्हाला Signal वर संपर्क म्हणून पाहू शकतील. इतर लोक जेव्हा नवीन चॅट किंवा गट सुरू करतील तेव्हा ते आपल्यापर्यंत आपल्या फोनसह पोहचू शकतील.";
+"PHONE_NUMBER_DISCOVERABILITY_EVERYBODY_DESCRIPTION" = "आपला फोन नंबर असणारा कोणीही आपण Signal वर असल्याचे पाहू शकतो आणि आपणासह चॅट्स सुरु करू शकतो.";
 
 /* A user friendly name for the 'nobody' phone number discoverability mode. */
 "PHONE_NUMBER_DISCOVERABILITY_NOBODY" = "कोणीही नाही";
 
 /* A user friendly description of the 'nobody' phone number discoverability mode. */
-"PHONE_NUMBER_DISCOVERABILITY_NOBODY_DESCRIPTION" = "Signal वरील कोणीही आपणापर्यंत आपल्या फोन नंबरसह पोहचू शकणार नाहीत.";
+"PHONE_NUMBER_DISCOVERABILITY_NOBODY_DESCRIPTION" = "आपण त्यांना संदेश पाठवल्याशिवाय किंवा त्यांच्यासोबत सध्याचे चॅट्स असल्यााशिवाय कोणीही आपणाला Signal वर पाहू शकणार नाही.";
 
 /* A format for a label showing an example phone number. Embeds {{the example phone number}}. */
 "PHONE_NUMBER_EXAMPLE_FORMAT" = "उदाहरण: %1$@";
@@ -4898,16 +5333,16 @@
 "PHONE_NUMBER_SHARING_EVERYBODY" = "सर्वजण";
 
 /* A user friendly description of the 'everybody' phone number sharing mode. */
-"PHONE_NUMBER_SHARING_EVERYBODY_DESCRIPTION" = "आपण संदेश पाठवलेल्या व्यक्ती आणि गटांना आपला फोन नंबर दृश्यमान असेल. ज्या व्यक्तींकडे आपला नंबर त्यांच्या फोन संपर्कामध्ये आहे ते देखील Signal वर तो पाहू शकतील.";
+"PHONE_NUMBER_SHARING_EVERYBODY_DESCRIPTION" = "आपण संदेश पाठवलेल्या व्यक्तींना आणि गटांना आपला फोन नंबर दृश्यमान असेल.";
 
 /* A user friendly name for the 'nobody' phone number sharing mode. */
 "PHONE_NUMBER_SHARING_NOBODY" = "कोणीही नाही";
 
-/* A user friendly description of the 'nobody' phone number sharing mode. */
-"PHONE_NUMBER_SHARING_NOBODY_DESCRIPTION" = "कुणीही Signal वर आपला फोन नंबर पाहू शकणार नाही.";
+/* A user-friendly description of the 'nobody' phone number sharing mode when phone number discovery is set to 'everybody'. */
+"PHONE_NUMBER_SHARING_NOBODY_DESCRIPTION_DISCOVERABILITY_EVERYBODY" = "आपला फोन नंबर त्यांनी त्यांच्या फोन संपर्कामध्ये जतन केला असल्याशिवाय कोणालाही दिसणार नाही.";
 
-/* Format for phone number label with an index. Embeds {{Phone number label (e.g. 'home')}} and {{index, e.g. 2}}. */
-"PHONE_NUMBER_TYPE_AND_INDEX_NAME_FORMAT" = "%1$@ %2$@";
+/* A user-friendly description of the 'nobody' phone number sharing mode when phone number discovery is set to 'nobody'. */
+"PHONE_NUMBER_SHARING_NOBODY_DESCRIPTION_DISCOVERABILITY_NOBODY" = "आपला फोन नंबर यापुढे कोणालाही दिसणार नाही.";
 
 /* Label for 'Home' phone numbers. */
 "PHONE_NUMBER_TYPE_HOME" = "मुख्यस्क्रीन";
@@ -4933,9 +5368,6 @@
 /* Label for 'Pager' phone numbers. */
 "PHONE_NUMBER_TYPE_PAGER" = "पेजर";
 
-/* Label used when we don't what kind of phone number it is (e.g. mobile/work/home). */
-"PHONE_NUMBER_TYPE_UNKNOWN" = "फोन";
-
 /* Label for 'Work' phone numbers. */
 "PHONE_NUMBER_TYPE_WORK" = "कार्य";
 
@@ -4950,6 +5382,15 @@
 
 /* alert title */
 "PHOTO_CAPTURE_UNABLE_TO_INITIALIZE_CAMERA" = "कॅमेरा कॉन्फिगर करण्यात अयशस्वी.";
+
+/* Button label for opening the chat on a sheet presented from photo capture view indicating that a username QR code was found. */
+"PHOTO_CAPTURE_USERNAME_QR_CODE_FOUND_CTA" = "चॅटवर जा";
+
+/* Message for a sheet presented from photo capture view indicating that a username QR code was found. Embeds {{username}}. */
+"PHOTO_CAPTURE_USERNAME_QR_CODE_FOUND_MESSAGE_FORMAT" = "“%1$@” सह चॅट सुरू करा";
+
+/* Title for sheet presented from photo capture view indicating that a username QR code was found. Embeds {{username}}. */
+"PHOTO_CAPTURE_USERNAME_QR_CODE_FOUND_TITLE_FORMAT" = "%1$@ सापडले";
 
 /* alert title, generic error preventing user from capturing a video that is too long */
 "PHOTO_CAPTURE_VIDEO_SIZE_ERROR" = "व्हिडीओ फार मोठा आहे.";
@@ -5228,13 +5669,13 @@
 "PROFILE_SETTINGS_NAME_PLACEHOLDER" = "नाव";
 
 /* A message explaining that something is wrong with the username, on a sheet allowing the user to resolve the issue. */
-"PROFILE_SETTINGS_USERNAME_CORRUPTED_RESOLUTION_CONFIRMATION_ALERT_MESSAGE" = "आपल्या वापरकर्ता नावासह काहीतरी चुकीचे झाले आहे, ते यापुढे आपल्या अकाऊंटसह नियुक्त केलेले नाही.";
-
-/* Title for an action sheet button allowing users to create a new username when their current one is corrupted. */
-"PROFILE_SETTINGS_USERNAME_CORRUPTED_RESOLUTION_CREATE_NEW_USERNAME_ACTION_TITLE" = "वापरकर्तानाव तयार करा";
+"PROFILE_SETTINGS_USERNAME_CORRUPTED_RESOLUTION_CONFIRMATION_ALERT_MESSAGE" = "आपल्या वापरकर्ता नावासह काहीतरी चुकीचे झाले आहे, ते यापुढे आपल्या अकाऊंटसह नियुक्त केलेले नाही. आपण प्रयत्न करू शकता आणि तो पुन्हा सेट करू शकता किंवा नवीन निवडू शकता.";
 
 /* Title for an action sheet button allowing users to delete their corrupted username. */
 "PROFILE_SETTINGS_USERNAME_CORRUPTED_RESOLUTION_DELETE_USERNAME_ACTION_TITLE" = "वापरकर्तानाव हटवा";
+
+/* Title for an action sheet button allowing users to fix their username when their current one is corrupted. */
+"PROFILE_SETTINGS_USERNAME_CORRUPTED_RESOLUTION_FIX_ACTION_TITLE" = "आत्ता निश्चित करा";
 
 /* A message asking the user if they are sure they want to remove their username and explaining what will happen. Embeds {{ the user's current username }}. */
 "PROFILE_SETTINGS_USERNAME_DELETION_CONFIRMATION_ALERT_MESSAGE_FORMAT" = "हे आपले वापरकर्ता नाव हटवेल आणि आपला QR कोड आणि लिंक अक्षम करेल. \"%1$@\" हे इतर दाव्यांसाठी उपलब्ध असेल. आपल्याला खात्री आहे?";
@@ -5270,10 +5711,16 @@
 "PROFILE_VIEW_NO_CONNECTION" = "इंटरनेटला कनेक्ट केल्यावरच प्रोफाईल अद्यतनित करता येईल.";
 
 /* Description of the user profile. */
-"PROFILE_VIEW_PROFILE_DESCRIPTION" = "आपली प्रोफाइल एंड-टू-एंड एन्क्रिप्टेड आहे. जेव्हा आपण नवीन चॅट प्रारंभ करता किंवा स्वीकार करता तेव्हा आपले प्रोफाइल आणि त्यामधील बदल आपल्या संपर्कांना दृश्यमान असतील.";
+"PROFILE_VIEW_PROFILE_DESCRIPTION" = "आपले प्रोफाइल आणि त्यामधील बदल आपण संदेश करता असे लोक, संपर्क आणि ग्रुप्स यांना दृश्यमान असतील.";
 
 /* Title for the profile view. */
 "PROFILE_VIEW_TITLE" = "प्रोफाईल";
+
+/* Footer below the usernames section of the profile settings explaining username visibility. */
+"PROFILE_VIEW_USERNAME_DESCRIPTION" = "आपले वापरकर्ता नाव, QR कोड आणि लिंक आपल्या प्रोफाइलवर दिसणार नाहीत. आपण ज्यांच्यावर विश्वास ठेवता फक्त त्याच्यासह आपले वापरकर्ता नाव शेअर करा.";
+
+/* Footer below the usernames section of the profile settings when a username has not been set. */
+"PROFILE_VIEW_USERNAME_UNSET_DESCRIPTION" = "लोक आपणाला आपले वैकल्पिक वापरकर्ता नाव वापरून आता संदेश पाठवू शकतात ज्यामुळे आपणाला आपला फोन क्रमांक देण्याची आवश्यकता नाही.";
 
 /* The title for the address of the signal proxy */
 "PROXY_ADDRESS" = "प्रॉक्सी पत्ता";
@@ -5340,6 +5787,18 @@
 
 /* Indicates this message is a quoted reply to a video file. */
 "QUOTED_REPLY_TYPE_VIDEO" = "व्हिडिओ";
+
+/* Label for a button to lower your raised hand in a call. */
+"RAISED_HANDS_LOWER_HAND_BUTTON" = "खाली घ्या";
+
+/* A message appearing on the call view's raised hands toast indicating that another named member has raised their hand. */
+"RAISED_HANDS_TOAST_SINGLE_HAND_MESSAGE" = "%1$@ ने हात वर केला";
+
+/* A compact member count on the call view's raised hands toast indicating that you and a number of other users raised a hand. Embeds {{number of other users}} */
+"RAISED_HANDS_TOAST_YOU_PLUS_OTHERS_COUNT" = "आपण +%1$d";
+
+/* A message appearing on the call view's raised hands toast indicating that you raised your own hand. */
+"RAISED_HANDS_TOAST_YOUR_HAND_MESSAGE" = "आपण हात वर केला आहे";
 
 /* The header used to indicate All reactions to a given message. Embeds {{number of reactions}} */
 "REACTION_DETAIL_ALL_FORMAT" = "सर्व · %1$@";
@@ -5581,14 +6040,17 @@
 /* Error message when sending a verification code via voice call failed, but resending via sms might succeed. */
 "REGISTRATION_VOICE_CODE_FAILED_TRY_SMS_ERROR" = "आम्ही आपणाला व्हॉईस कॉल मार्फत पडताळणी कोड पाठवू शकत नाही. त्याऐवजी आपला कोड SMS ने प्राप्त करण्याचा प्रयत्न करा.";
 
-/* notification action */
-"REJECT_CALL_BUTTON_TITLE" = "नकार द्या";
-
 /* No comment provided by engineer. */
 "RELAY_REGISTERED_ERROR_RECOVERY" = "जो फोन नंबर आपण नोंदवण्याचा प्रयत्न करत आहात तो आधीपासून इतर सर्व्हर वर नोंदवलेला आहे, कृपया तिथून नोंदणी काढा आणि पुन्हा प्रयत्न करा.";
 
+/* Button below the warning to fix a corrupted username. */
+"REMINDER_VIEW_USERNAME_CORRUPTED_FIX_BUTTON" = "आत्ता निश्चित करा";
+
 /* Label warning the user that something is wrong with their username. */
 "REMINDER_VIEW_USERNAME_CORRUPTED_WARNING" = "आपल्या वापरकर्ता नावासह काहीतरी चुकीचे झाले आहे, ते यापुढे आपल्या अकाऊंटसह नियुक्त केलेले नाही. आपण प्रयत्न करू शकता आणि तो पुन्हा सेट करू शकता किंवा नवीन निवडू शकता.";
+
+/* Button below the warning to fix a username link. */
+"REMINDER_VIEW_USERNAME_LINK_CORRUPTED_FIX_BUTTON" = "आत्ता निश्चित करा";
 
 /* Label warning the user that something is wrong with their username link. */
 "REMINDER_VIEW_USERNAME_LINK_CORRUPTED_WARNING" = "आपल्या वापरकर्ता नाव QR कोड आणि लिंक यासह काहीतरी चुकीचे झाले आहे, ती यापुढे वैध असणार नाही. इतरांसह शेअर करण्यास एक नवीन लिंक तयार करा.";
@@ -5616,6 +6078,12 @@
 
 /* Button to return to current group call */
 "RETURN_CALL_PILL_BUTTON" = "परत जा";
+
+/* Text for a toast confirming that ringing has been turned off for a call. */
+"RING_OFF_CONFIRMATION_TOAST_LABEL" = "रिंग होणे बंद झाले";
+
+/* Text for a toast confirming that ringing has been turned on for a call. */
+"RING_ON_CONFIRMATION_TOAST_LABEL" = "रिंग होणे सुरू झाले";
 
 /* button title to confirm adding a recipient when their safety number has recently changed */
 "SAFETY_NUMBER_CHANGED_CONFIRM_ADD_MEMBER_ACTION" = "कसेही करून जोडा";
@@ -5646,6 +6114,48 @@
 
 /* Action sheet heading */
 "SAFETY_NUMBERS_ACTIONSHEET_TITLE" = "आपला %1$@ सोबतचा सुरक्षितता नंबर बदलला आहे. आपण त्यास सत्यापित करण्यास इच्छुक असू शकता.";
+
+/* Title for Safety Tips button in thread details. */
+"SAFETY_TIPS_BUTTON_ACTION_TITLE" = "सुरक्षिततेच्या टीपा";
+
+/* Message contents for the crypto safety tip. */
+"SAFETY_TIPS_CRYPTO_BODY" = "जर आपण ओळखत नसलेल्या कोणी आपणाला क्रिप्टोकरन्सी (बीटकॉइन सारख्या) किंवा आर्थिक लाभाच्या संधीबद्दल संदेश पाठवल्यास, सावध रहा—ते स्पॅम असण्याची शक्यता आहे.";
+
+/* Message title describing the crypto safety tip. */
+"SAFETY_TIPS_CRYPTO_TITLE" = "क्रिप्टो किंवा पैशांचे घोटाळे";
+
+/* Message contents for the safety tip concerning fake businesses. */
+"SAFETY_TIPS_FAKE_BUSINESS_BODY" = "आपणाशी संपर्क साधणाऱ्या व्यवसायाबद्दल किंवा सरकारी एजन्सीज बद्दल सावधगिरी बाळगा. कर एजन्सी, कुरीयर आणि बरेच काही समाविष्ट असलेले संदेश स्पॅम असू शकतात.";
+
+/* Message title describing the safety tip about unknown or fake businesses. */
+"SAFETY_TIPS_FAKE_BUSINESS_TITLE" = "बनावट व्यवसाय आणि संस्था";
+
+/* Message describing safety tips for group conversations. */
+"SAFETY_TIPS_GROUPS_HEADER_MESSAGE" = "या विनंतीचे काळजीपूर्वक पुनरावलोकन करा. ज्यांच्याशी आपण चॅट्स करता ते आपले कोणतेही संपर्क किंवा लोक या गटात नाहीत. या ठिकाणी ज्यांच्याकडे लक्ष द्यावे अशा काही गोष्टी आहेत:";
+
+/* Title for Safety Tips education screen. */
+"SAFETY_TIPS_HEADER_TITLE" = "सुरक्षिततेच्या टीपा";
+
+/* Message describing safety tips for 1:1 conversations. */
+"SAFETY_TIPS_INDIVIDUAL_HEADER_MESSAGE" = "आपणाला माहीत नसलेल्या लोकांकडून संदेश विनंत्या स्विकारताना सावधगिरी बाळगा. यांकडे लक्ष ठेवा:";
+
+/* Message contents for the unknown links in messages safety tip. */
+"SAFETY_TIPS_MESSAGE_LINKS_BODY" = "आपण ओळखत नसलेल्या लोकांकडून वेबसाइट्सच्या लिंक असलेल्या संदेशांपासून सावध रहा. आपण विश्वास ठेवत नसलेल्या लोकांकडून आलेल्या लिंक्सला कधीही भेट देऊ नका.";
+
+/* Message title describing the safety tip about unknown links in messages. */
+"SAFETY_TIPS_MESSAGE_LINKS_TITLE" = "लिंक सह संदेश";
+
+/* Button that will show the next safety tip. */
+"SAFETY_TIPS_NEXT_TIP_BUTTON" = "पुढे";
+
+/* Button that will show the previous safety tip. */
+"SAFETY_TIPS_PREVIOUS_TIP_BUTTON" = "मागील";
+
+/* Message contents for the vague message safety tip. */
+"SAFETY_TIPS_VAGUE_MESSAGE_BODY" = "स्पॅम करणारे नेहमी आपणाला जाळ्यात ओढण्यासाठी \"Hi\" सारख्या साध्या संदेशाने सुरूवात करतात. आपण जर प्रतिसाद दिल्यास ते आपणाला आणखी पुढे गुंतवू शकतात.";
+
+/* Message title describing the safety tip about vague messages. */
+"SAFETY_TIPS_VAGUE_MESSAGE_TITLE" = "अस्पष्ट किंवा असंबंधित संदेश";
 
 /* label presented once scanning (camera) view is visible. */
 "SCAN_CODE_INSTRUCTIONS" = "आपल्या संपर्काच्या डिव्हाईसवर QR कोड स्कॅन करा";
@@ -5807,49 +6317,49 @@
 "SENT_MEDIA_QUALITY_STANDARD" = "मानक";
 
 /* Users can donate to Signal with a bank account. This is the label for email field on that screen. */
-"SEPA_DONATION_EMAIL_LABEL" = "Email";
+"SEPA_DONATION_EMAIL_LABEL" = "ईमेल";
 
 /* Users can donate to Signal with a bank account. This is placeholder text for the email field before the user starts typing. */
-"SEPA_DONATION_EMAIL_PLACEHOLDER" = "Email Address";
+"SEPA_DONATION_EMAIL_PLACEHOLDER" = "ईमेल पत्ता";
 
 /* SEPA bank account donation error for insufficient funds. */
-"SEPA_DONATION_ERROR_INSUFFICIENT_FUNDS" = "The bank account provided has insufficient funds to complete this purchase, try again or contact your bank for more information.";
+"SEPA_DONATION_ERROR_INSUFFICIENT_FUNDS" = "प्रदान करण्यात आलेल्या बँक अकाऊंटमध्ये ही खरेदी करण्यासाठी अपुरा निधी आहे, पुन्हा प्रयत्न करा किंवा अधिक माहितीसाठी आपल्या बँकेशी संपर्क साधा.";
 
 /* SEPA bank account donation error for missing or incorrect mandate information. */
-"SEPA_DONATION_ERROR_NOT_AUTHORIZED" = "An error occurred while processing this payment, please try again.";
+"SEPA_DONATION_ERROR_NOT_AUTHORIZED" = "या पेमेंटवर प्रक्रिया करण्यास त्रुटी आली, कृपया पुन्हा प्रयत्न करा.";
 
 /* SEPA bank account donation error for the account details not being able to be processed. */
-"SEPA_DONATION_ERROR_NOT_PROCESSED" = "The bank details provided could not be processed, contact your bank for more information.";
+"SEPA_DONATION_ERROR_NOT_PROCESSED" = "प्रदान करण्यात आलेल्या बँक तपशीलावर प्रक्रिया केली जाऊ शकत नाही, अधिक माहितीसाठी आपल्या बँकेशी संपर्क साधा.";
 
 /* SEPA bank account donation error for unspecified decline failures. */
-"SEPA_DONATION_ERROR_OTHER" = "Verify your bank details are correct and try again. If the problem continues, contact your bank.";
+"SEPA_DONATION_ERROR_OTHER" = "आपला कार्ड तपशील बरोबर असल्याची पडताळणी करा आणि पुन्हा प्रयत्न करा. तरीदेखील समस्या सुरूच राहिल्यास, आपल्या बँकेशी संपर्क साधा.";
 
 /* SEPA bank account donation error for the payment not being authorizing by the account holder. */
-"SEPA_DONATION_ERROR_PAYMENT_NOT_AUTHORIZED" = "This payment was revoked by the account holder and could not be processed. You haven’t been charged.";
+"SEPA_DONATION_ERROR_PAYMENT_NOT_AUTHORIZED" = "हे पेमेट अकाऊंट धारकांकडून रद्द करण्यात आले होते आणि त्यावर प्रक्रिया केली जाऊ शकत नाही. आपणाला आकारणी करण्यात आली नाही.";
 
 /* Users can donate to Signal with a bank account. If their internation bank account number (IBAN) contains characters other than letters and numbers, this error will be shown. Try to use a short string to make space in the UI. */
-"SEPA_DONATION_IBAN_INVALID_CHARACTERS_ERROR" = "IBAN can only contain A-Z and 0-9";
+"SEPA_DONATION_IBAN_INVALID_CHARACTERS_ERROR" = "IBAN मध्ये फक्त A-Z आणि 0-9 यांचा समावेश होऊ शकतो";
 
 /* Users can donate to Signal with a bank account. If their internation bank account number (IBAN) does not pass validation, this error will be shown. Try to use a short string to make space in the UI. */
-"SEPA_DONATION_IBAN_INVALID_CHECK_ERROR" = "Invalid IBAN number";
+"SEPA_DONATION_IBAN_INVALID_CHECK_ERROR" = "अवैध IBAN नंबर";
 
 /* Users can donate to Signal with a bank account. If their internation bank account number (IBAN) has an unsupported country code, this error will be shown. Try to use a short string to make space in the UI. */
-"SEPA_DONATION_IBAN_INVALID_COUNTRY_ERROR" = "IBAN country code is not supported";
+"SEPA_DONATION_IBAN_INVALID_COUNTRY_ERROR" = "IBAN देश कोड समर्थित नाही";
 
 /* Users can donate to Signal with a bank account. This is the label for IBAN (internation bank account number) field on that screen. */
 "SEPA_DONATION_IBAN_LABEL" = "IBAN";
 
 /* Users can donate to Signal with a bank account. If their internation bank account number (IBAN) is too long, this error will be shown. Try to use a short string to make space in the UI. */
-"SEPA_DONATION_IBAN_TOO_LONG_ERROR" = "IBAN is too long";
+"SEPA_DONATION_IBAN_TOO_LONG_ERROR" = "IBAN फार मोठा आहे";
 
 /* Users can donate to Signal with a bank account. If their internation bank account number (IBAN) is too long, this error will be shown. Try to use a short string to make space in the UI. */
-"SEPA_DONATION_IBAN_TOO_SHORT_ERROR" = "IBAN is too short";
+"SEPA_DONATION_IBAN_TOO_SHORT_ERROR" = "IBAN अतिशय लहान आहे";
 
 /* Users can donate to Signal with a bank account. This is the label for name field on that screen. */
-"SEPA_DONATION_NAME_LABEL" = "Name";
+"SEPA_DONATION_NAME_LABEL" = "नाव";
 
 /* Users can donate to Signal with a bank account. This is placeholder text for the name field before the user starts typing. */
-"SEPA_DONATION_NAME_PLACEHOLDER" = "Name on Bank Account";
+"SEPA_DONATION_NAME_PLACEHOLDER" = "बँक खात्यावरील नाव";
 
 /* Description for the session refresh alert */
 "SESSION_REFRESH_ALERT_MESSAGE" = "Signal एंड-टू-एंड एन्क्रिप्शन वापरते आणि त्यास काही वेळा आपले चॅट रीफ्रेश करावे लागू शकते. यामुळे आपल्या चॅटच्या सुरक्षिततेवर कुठलाही प्रभाव पडत नाही, पण आपल्याकडून या संपर्काचा एखादा संदेश चुकवलेला असू शकतो, आणि आपण त्यांना तो पुन्हा पाठविण्यास सांगू शकता.";
@@ -5936,10 +6446,10 @@
 "SETTINGS_APPEARANCE_APP_ICON" = "ॲप चिन्ह";
 
 /* Footer for avatar section in appearance settings */
-"SETTINGS_APPEARANCE_AVATAR_FOOTER" = "उपलब्ध असल्यास सिस्टिम संपर्क फोटो दाखवा";
+"SETTINGS_APPEARANCE_AVATAR_FOOTER" = "उपलब्ध असल्यास फोन संपर्क फोटो दाखवा.";
 
 /* Title for switch to toggle preference between contact and profile avatars */
-"SETTINGS_APPEARANCE_AVATAR_PREFERENCE_LABEL" = "सिस्टिम संपर्क फोटो वापरा";
+"SETTINGS_APPEARANCE_AVATAR_PREFERENCE_LABEL" = "फोन संपर्क फोटो वापरा";
 
 /* The title for the theme section in the appearance settings. */
 "SETTINGS_APPEARANCE_THEME_TITLE" = "थीम";
@@ -6323,7 +6833,7 @@
 "SETTINGS_PAYMENTS_PASSPHRASE_DISCARD_CONFIRMATION_BUTTON" = "पुर्नप्राप्ती वाक्यांश वगळा";
 
 /* Message of confirmation alert when discarding recovery phrase. */
-"SETTINGS_PAYMENTS_PASSPHRASE_DISCARD_CONFIRMATION_MESSAGE" = "आपला पुर्नप्राप्ती वाक्यांश आपल्याला अत्यंत वाईट परिस्थितीमध्ये आपली शिल्लक पुनर्प्राप्त करू देतो. आपण त्याला जतन करावे अशी ठाम शिफारस आम्ही करतो.";
+"SETTINGS_PAYMENTS_PASSPHRASE_DISCARD_CONFIRMATION_MESSAGE" = "Your recovery phrase lets you restore your balance in a worst-case scenario. We strongly recommend you save it.";
 
 /* Title of confirmation alert when discarding recovery phrase. */
 "SETTINGS_PAYMENTS_PASSPHRASE_DISCARD_CONFIRMATION_TITLE" = "जतन न करता पुढे सुरू ठेवायचे?";
@@ -6400,6 +6910,9 @@
 /* Double reminder action sheet title in Payments Lock Prompt view for Face ID. */
 "SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_DOUBLE_REMINDER_TITLE_FACEID" = "फेस आयडी सक्षम करणे वगळायचे?";
 
+/* Double reminder action sheet title in Payments Lock Prompt view for Optic ID. */
+"SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_DOUBLE_REMINDER_TITLE_OPTICID" = "ऑप्टिक ID ला सक्षम करणे वगळायचे?";
+
 /* Double reminder action sheet title in Payments Lock Prompt view for Passcode. */
 "SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_DOUBLE_REMINDER_TITLE_PASSCODE" = "पासको़ड सक्षम करणे वगळायचे?";
 
@@ -6409,6 +6922,9 @@
 /* Enable Button title in Payments Lock Prompt view for Face ID. */
 "SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_ENABLE_BUTTON_FACEID" = "फेस आयडीचा वापर करा";
 
+/* Enable Button title in Payments Lock Prompt view for Optic ID. */
+"SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_ENABLE_BUTTON_OPTICID" = "ऑप्टिक ID वापरा";
+
 /* Enable Button title in Payments Lock Prompt view for Passcode. */
 "SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_ENABLE_BUTTON_PASSCODE" = "पासकोड वापरा";
 
@@ -6417,6 +6933,9 @@
 
 /* Explanation of 'payments lock' with Face ID in the 'payments lock prompt' view shown after payments activation. */
 "SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_EXPLANATION_FACEID" = "फेस आयडी सक्षम करून आपल्या निधीमध्ये प्रवेश करण्यापासून आपला फोन ताब्यात असलेल्या व्यक्तीला रोखण्यास मदत करा. आपण सेटिंग्ज मध्ये हा पर्याय अक्षम करू शकता.";
+
+/* Explanation of 'payments lock' with Optic ID in the 'payments lock prompt' view shown after payments activation. */
+"SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_EXPLANATION_OPTICID" = "ऑप्टिक ID सक्षम करून आपला फोन ताब्यात असलेल्या व्यक्तीला आपल्या फंड ॲक्सेस करण्यापासून रोखण्यास मदत करते. आपण सेटिंग्ज मध्ये हा पर्याय अक्षम करू शकता.";
 
 /* Explanation of 'payments lock' with passcode in the 'payments lock prompt' view shown after payments activation. */
 "SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_EXPLANATION_PASSCODE" = "आपला पासकोड वापरून आपला फोन ताब्यात असलेल्या व्यक्तीला आपल्या निधीमध्ये प्रवेश करण्यापासून रोखण्यास मदत करा. आपण सेटिंग्ज मध्ये हा पर्याय अक्षम करू शकता.";
@@ -6459,9 +6978,6 @@
 
 /* Label for the current balance in the 'deactivate payments' settings. */
 "SETTINGS_PAYMENTS_REMAINING_BALANCE" = "उर्वरित बॅलंस";
-
-/* Label for the 'remove payments details' button in the app settings. */
-"SETTINGS_PAYMENTS_REMOVE_BUTTON" = "काढून टाका";
 
 /* Label for 'restore payments' button in the payments settings. */
 "SETTINGS_PAYMENTS_RESTORE_PAYMENTS_BUTTON" = "पेमेंट खाते पुनर्स्थापित करा";
@@ -6534,6 +7050,9 @@
 
 /* Caption for footer label beneath the payments lock privacy toggle for faceid biometry. */
 "SETTINGS_PAYMENTS_SECURITY_DETAIL_FACEID" = "निधी ट्रान्सफर करण्यास फेस आयडीची आवश्यकता.";
+
+/* Caption for footer label beneath the payments lock privacy toggle for opticid biometry */
+"SETTINGS_PAYMENTS_SECURITY_DETAIL_OPTICID" = "फंड ट्रान्सफरसाठी ऑप्टिक ID ची आवश्यकता असते.";
 
 /* Caption for footer label beneath the payments lock privacy toggle for a biometry type that is a passcode. */
 "SETTINGS_PAYMENTS_SECURITY_DETAIL_PASSCODE" = "पैसे ट्रान्सफर करण्यास आपल्या फोनच्या पासकोडची आवश्यकता आहे.";
@@ -6637,6 +7156,15 @@
 /* Label for the payments wallet address. */
 "SETTINGS_PAYMENTS_WALLET_ADDRESS_LABEL" = "आपला वॉलेट पत्ता";
 
+/* A toast that displays when the user attempts to set discoverability to 'nobody' when their phone number sharing is set to 'everybody', which is not allowed. */
+"SETTINGS_PHONE_NUMBER_DISCOVERABILITY_DISABLED_TOAST" = "हे सेटिंग्ज बदलण्यासाठी, \"माझा नंबर कोण पाहू शकतो\" ते \"कोणीही नाही\" ला सेट करा.";
+
+/* The description for a sheet asking for confirmation that the user wants to set their phone number discoverability to 'nobody'. */
+"SETTINGS_PHONE_NUMBER_DISCOVERABILITY_NOBODY_CONFIRMATION_DESCRIPTION" = "सेटिंग्ज मध्ये “ नंबर नुसार मला कोण शोधू शकते” त्याला “कोणीही नाही” असे सेट केल्यास हे लोकांना आपणाला Signal वर शोधणे अवघड करेल.";
+
+/* The title for a sheet asking for confirmation that the user wants to set their phone number discoverability to 'nobody'. */
+"SETTINGS_PHONE_NUMBER_DISCOVERABILITY_NOBODY_CONFIRMATION_TITLE" = "आपल्याला खात्री आहे?";
+
 /* The title for the phone number discoverability setting section. */
 "SETTINGS_PHONE_NUMBER_DISCOVERABILITY_TITLE" = "मला फोन नंबरद्वारे कोण शोधू शकते";
 
@@ -6734,6 +7262,9 @@
 "SETTINGS_SECURITY_DETAIL_FACEID" = "Signal अनलॉक करण्यासाठी Face ID वापरा.";
 
 /* Section footer */
+"SETTINGS_SECURITY_DETAIL_OPTICID" = "Signal ला अनलॉक करण्यासाठी ऑप्टिक ID वापरा.";
+
+/* Section footer */
 "SETTINGS_SECURITY_DETAIL_PASSCODE" = "Signal अनलॉक करण्यासाठी आपला डिव्हाइस पासकोड वापरा.";
 
 /* Section footer */
@@ -6750,9 +7281,6 @@
 
 /* Setting for enabling & disabling iOS contact sharing. */
 "SETTINGS_SHARING_SUGGESTIONS" = "iOS बरोबर संपर्क शेअर करा";
-
-/* Footer for setting for enabling & disabling contact sharing with iOS. */
-"SETTINGS_SHARING_SUGGESTIONS_FOOTER" = "सूचना शेअर करणे या सारख्या वैशिष्ट्यांसाठी Signal संपर्क व चॅट्सना, iOS ॲक्सेस/ प्राप्त करण्याची अनुमती द्या.";
 
 /* Footer for setting for enabling & disabling contact and notification sharing with iOS. */
 "SETTINGS_SHARING_SUGGESTIONS_NOTIFICATIONS_FOOTER" = "सूचना शेअर करणे आणि अधिसूचना या सारख्या वैशिष्ट्यांसाठी iOS ला Signal संपर्क व चॅट ॲक्सेस करू द्या.";
@@ -6829,6 +7357,9 @@
 /* notification action */
 "SHOW_THREAD_BUTTON_TITLE" = "चॅट दाखवा";
 
+/* Shown in the header when the user hasn't provided a custom name for a call. */
+"SIGNAL_CALL" = "Signal कॉल";
+
 /* body sent to contacts when inviting to Install Signal */
 "SMS_INVITE_BODY" = "मी आपल्याला Signal स्थापन करण्यासाठी आमंत्रित करत आहे! हा आहे दुवा:";
 
@@ -6864,6 +7395,12 @@
 
 /* Title for the captcha view controller */
 "SPAM_CAPTCHA_VIEW_CONTROLLER" = "सत्यापन पूर्ण करा";
+
+/* Text for a toast confirming that the speakerphone has been turned off for a call. */
+"SPEAKERPHONE_OFF_CONFIRMATION_TOAST_LABEL" = "स्पीकर बंद";
+
+/* Text for a toast confirming that the speakerphone has been turned on for a call. */
+"SPEAKERPHONE_ON_CONFIRMATION_TOAST_LABEL" = "स्पीकर सुरू";
 
 /* The name for the sticker category 'Featured' */
 "STICKER_CATEGORY_FEATURED_NAME" = "वैशिष्ट्यीकृत";
@@ -7090,8 +7627,11 @@
 /* inbox and notification text for a reaction to a story authored by the local user. Embeds {{reaction emoji}} */
 "STORY_REACTION_LOCAL_AUTHOR_PREVIEW_FORMAT" = "%1$@ नी आपल्या स्टोरी वर प्रतिक्रिया दिली";
 
-/* quote text for a reaction to a story. Embeds {{reaction emoji}} */
-"STORY_REACTION_QUOTE_FORMAT" = "%1$@ नी स्टोरी वर प्रतिक्रिया दिली";
+/* quote text for a reaction to a story by the user (the header on the bubble says \"You\"). Embeds {{reaction emoji}} */
+"STORY_REACTION_QUOTE_FORMAT_SECOND_PERSON" = "एका स्टोरी वर %1$@ नी प्रतिक्रिया दिली";
+
+/* quote text for a reaction to a story by some other user (the header on the bubble says their name, e.g. \"Bob\"). Embeds {{reaction emoji}} */
+"STORY_REACTION_QUOTE_FORMAT_THIRD_PERSON" = "एका स्टोरी वर %1$@ नी प्रतिक्रिया दिली";
 
 /* inbox and notification text for a reaction to a story authored by another user. Embeds {{ %1$@ reaction emoji, %2$@ story author name }} */
 "STORY_REACTION_REMOTE_AUTHOR_PREVIEW_FORMAT" = "%2$@ च्या स्टोरीवर %1$@ प्रतिक्रिया दिली";
@@ -7099,8 +7639,11 @@
 /* Button for replying to a story with no existing replies. */
 "STORY_REPLY_BUTTON" = "प्रत्युत्तर द्या";
 
-/* Text indicating a story has been reacted to */
-"STORY_REPLY_REACTION" = "स्टोरीला प्रतिक्रिया दिली";
+/* Text indicating you reacted to a story (the header on the bubble says \"You\") */
+"STORY_REPLY_REACTION_SECOND_PERSON" = "स्टोरीला प्रतिक्रिया दिली";
+
+/* Text indicating someone else reacted to a story (the header on the bubble says their name, e.g. \"Bob\") */
+"STORY_REPLY_REACTION_THIRD_PERSON" = "स्टोरीला प्रतिक्रिया दिली";
 
 /* placeholder text for replying to a story */
 "STORY_REPLY_TEXT_FIELD_PLACEHOLDER" = "प्रत्युत्तर द्या";
@@ -7154,7 +7697,7 @@
 "STORY_SETTINGS_LEARN_MORE_SHEET_BULLET_2" = "संदेश विनंती स्वीकारून";
 
 /* Third bullet point for the explainer sheet for signal connections */
-"STORY_SETTINGS_LEARN_MORE_SHEET_BULLET_3" = "ते आपल्या सिस्टम संपर्कांमध्ये असणे";
+"STORY_SETTINGS_LEARN_MORE_SHEET_BULLET_3" = "आपल्या फोन संपर्कामध्ये ते असणे";
 
 /* Footer for the explainer sheet for signal connections */
 "STORY_SETTINGS_LEARN_MORE_SHEET_FOOTER" = "आपली कनेक्शन्स आपले नाव आणि फोटो, आणि आपण त्याच्यापासून लपवले नसल्यास \" माझ्या स्टोरी\" ला आपण जे काही पाठवले आहे ते पाहू शकतात.";
@@ -7192,8 +7735,8 @@
 /* Text indicating that the user has views turned off */
 "STORY_VIEWS_OFF" = "दृश्ये बंद आहेत";
 
-/* Toast indicating that the user has copied their subscriber ID. */
-"SUBSCRIPTION_SUBSCRIBER_ID_COPIED_TO_CLIPBOARD" = "सबस्क्राइबर आयडी क्लिपबोर्डवर कॉपी केला";
+/* Toast indicating that the user has copied their subscriber ID. (Externally referred to as donor ID) */
+"SUBSCRIPTION_SUBSCRIBER_ID_COPIED_TO_CLIPBOARD" = "देणगीदार आयडी क्लिपबोर्डवर कॉपी केला";
 
 /* Alert body after verifying privacy with {{other user's name}} */
 "SUCCESSFUL_VERIFICATION_DESCRIPTION" = "%1$@ जुळवण्यांसोबत आपला सुरक्षितता नंबर. आपण हा संपर्क सत्यापित म्हणून चिन्हांकित करू शकता.";
@@ -7273,20 +7816,23 @@
 /* Action sheet title for Couldn't Add Badge sheet */
 "SUSTAINER_VIEW_CANT_ADD_BADGE_TITLE" = "बॅज जोडता आला नाही";
 
+/* Action sheet title for Error Authorizing Payment sheet */
+"SUSTAINER_VIEW_ERROR_AUTHORIZING_PAYMENT_TITLE" = "पेमेंट अधिकृत करण्यामध्ये त्रुटी";
+
 /* Action sheet title for Error Processing Payment sheet */
-"SUSTAINER_VIEW_ERROR_PROCESSING_PAYMENT_TITLE" = "Error Processing Donation";
+"SUSTAINER_VIEW_ERROR_PROCESSING_PAYMENT_TITLE" = "देणगीवर प्रक्रिया करताना त्रुटी आली";
 
 /* Pricing text for sustainer view badges, embeds {{price}} */
 "SUSTAINER_VIEW_PRICING" = "%1$@/महिना";
 
 /* Loading indicator on the sustainer view */
-"SUSTAINER_VIEW_PROCESSING_PAYMENT" = "Processing donation...";
+"SUSTAINER_VIEW_PROCESSING_PAYMENT" = "देणगीवर प्रक्रिया करत आहे...";
 
 /* Renewal date text for sustainer view level, embeds {{renewal date}} */
 "SUSTAINER_VIEW_RENEWAL" = "नूतनीकरणे %1$@";
 
 /* Action sheet message for Still Processing Badge sheet */
-"SUSTAINER_VIEW_STILL_PROCESSING_BADGE_MESSAGE" = "Your donation is still being processed. This can take a few minutes depending on your connection.";
+"SUSTAINER_VIEW_STILL_PROCESSING_BADGE_MESSAGE" = "आपल्या देणगीवर अद्याप प्रक्रिया केली जात आहे. हे आपल्या कनेक्शनवर अवलंबून काही मिनिटांचा वेळ घेऊ शकते.";
 
 /* Toast indicating that the subscription has been cancelled */
 "SUSTAINER_VIEW_SUBSCRIPTION_CANCELLED" = "आपले सब्स्क्रिप्शन रद्द केले";
@@ -7453,9 +7999,6 @@
 /* Message shown in conversation view that offers to block an unknown user. */
 "UNKNOWN_CONTACT_BLOCK_OFFER" = "वापरकर्ता आपल्या संपर्कांत नाही. ह्या वापरकर्त्याला आपणास अवरोधित करायला आवडेल?";
 
-/* Displayed if for some reason we can't determine a contacts phone number *or* name */
-"UNKNOWN_CONTACT_NAME" = "अज्ञात संपर्क";
-
 /* Info message recorded in conversation history when local user receives an unknown message from a linked device and needs to upgrade. */
 "UNKNOWN_PROTOCOL_VERSION_NEED_TO_UPGRADE_FROM_LINKED_DEVICE" = "आपल्या डिव्हाईस पैकी एकाने पाठवलेला संदेश प्रक्रिया केला किंवा प्रदर्शित केला जाऊ शकत नाही कारण तो एक नवीन Signal वैशिष्ट्य वापरतो.";
 
@@ -7507,6 +8050,9 @@
 /* Alert title when unlinking device fails */
 "UNLINKING_FAILED_ALERT_TITLE" = "Signal आपल्या डिव्हाईसला अनलिंक करण्यात अक्षम झाले.";
 
+/* Text for a toast confirming that the mic has been unmuted for a call. */
+"UNMUTE_CONFIRMATION_TOAST_LABEL" = "माईक चालू आहे";
+
 /* Pressing this button un-pins a thread */
 "UNPIN_ACTION" = "अनपिन करा";
 
@@ -7543,17 +8089,29 @@
 /* Explanation of when you should use a signal proxy */
 "USE_PROXY_EXPLANATION" = "आपण मोबाईल डेटा किंवा Wi-Fi वरून Signal ला कनेक्ट करू शकत नसल्यासच प्रॉक्सी वापरा.";
 
-/* Description of how to update discovery */
-"USERNAME_DISCOVERY_DESCRIPTION" = "इतरांना आपल्याशी संपर्क साधण्याचा प्राथमिक मार्ग म्हणून आपले वापरकर्ता नाव वापरण्यास सेटिंग्ज > गोपनीयता > फोन नंबर > माझा नंबर कोण शोधू शकते, खाली फोन नंबर शोध बंद करा.";
+/* Description of username links and QR codes on the username education sheet */
+"USERNAME_EDUCATION_LINK_DESCRIPTION" = "आपल्यासह जलद चॅट्स सुरू करण्यासाठी आपल्या मित्रांसोबत आपण शेअर करू शकता असा एक असामान्य QR कोड आणि लिंक वापरकर्तानावाला आहे.";
 
-/* Description of username discriminator digits */
-"USERNAME_DISCRIMINATOR_DESCRIPTION" = "वापरकर्तानावे ही अंकांच्या संचासह जोडलेली असतात आणि ती आपल्या प्रोफाईल वर शेअर केलेली नसतात";
+/* Title for the username links and QR codes section on the username education sheet */
+"USERNAME_EDUCATION_LINK_TITLE" = "QR कोड्स आणि लिंक्स";
+
+/* Description of phone number privacy on the username education sheet */
+"USERNAME_EDUCATION_PRIVACY_DESCRIPTION" = "आपला फोन क्रमांक यापुढे चॅट्समध्ये दृश्यमान असणार नाही. आपला क्रमांक जर मित्रांच्या संपर्कामध्ये जतन केला असल्यास, ते अद्याप पाहू शकतात.";
+
+/* Title for phone number privacy section of the username education sheet */
+"USERNAME_EDUCATION_PRIVACY_TITLE" = "फोन नंबर गोपनीयता";
+
+/* Label for the 'set up' button on the username education sheet */
+"USERNAME_EDUCATION_SET_UP_BUTTON" = "आपले वापरकर्तानाव सेटअप करा";
 
 /* Title to set up signal username */
-"USERNAME_EDUCATION_TITLE" = "आपले Signal वापरकर्तानाव सेटअप करा";
+"USERNAME_EDUCATION_TITLE" = "कनेक्ट होण्याचे नवीन मार्ग";
 
-/* Description of username link */
-"USERNAME_LINK_DESCRIPTION" = "आपल्यासह चॅटस् सुरू करण्यासाठी आपल्या मित्रांसह आपण शेअर करू शकता अशी एक अद्वितीय लिंक प्रत्येक वापरकर्तानावासह असते";
+/* Description of usernames on the username education sheet */
+"USERNAME_EDUCATION_USERNAME_DESCRIPTION" = "लोक आपणाला आपले वैकल्पिक वापरकर्ता नाव वापरून आता संदेश पाठवू शकतात ज्यामुळे आपणाला आपला फोन क्रमांक देण्याची आवश्यकता नाही. वापरकर्तानाव आपल्या प्रोफाइल वर दृश्यमान होणार नाहीत.";
+
+/* Title for usernames section on the username education sheet */
+"USERNAME_EDUCATION_USERNAME_TITLE" = "वापरकर्ता नाव";
 
 /* A title for a view that allows you to pick a color for a QR code for your username link. */
 "USERNAME_LINK_QR_CODE_COLOR_PICKER_VIEW_TITLE_COLOR" = "रंग";
@@ -7564,14 +8122,17 @@
 /* Text for a label explaining what the username link and QR code give others access to. */
 "USERNAME_LINK_QR_CODE_VIEW_DISCLAIMER_LABEL" = "आपण विश्वास करत असलेल्या लाेकांसह फक्त आपला QR कोड आणि लिंक शेअर करा. जेव्हा शेअर केलेले असेल इतर आपले वापरकर्ता नाव पाहू शकतात आणि आपल्या बराेबर चॅट सुरु शकतात.";
 
+/* Text presented in an action sheet notifying the user their qr code and link are not set. */
+"USERNAME_LINK_QR_CODE_VIEW_LINK_NOT_SET" = "QR कोड आणि लिंक सेट केलेली नाही. आपले नेटवर्क कनेक्शन तपासा आणि पुन्हा प्रयत्न करा.";
+
 /* Title for a button that allows users to reset their username link and QR code. */
 "USERNAME_LINK_QR_CODE_VIEW_RESET_BUTTON_TITLE" = "रीसेट करा";
 
 /* A message explaining what will happen if the user resets their QR code. */
-"USERNAME_LINK_QR_CODE_VIEW_RESET_SHEET_MESSAGE" = "आपण आपला QR कोड रीसेट केल्यास, आपला अस्तित्वात असलेला QR कोड आणि लिंक यापुढे काम करणार नाही.";
+"USERNAME_LINK_QR_CODE_VIEW_RESET_SHEET_MESSAGE" = "आपण आपला QR कोड आणि लिंक रीसेट केल्यास, आपला विद्यमान QR कोड आणि लिंक यापुढे काम करणार नाही.";
 
-/* A label indicating that the username link is being reset. */
-"USERNAME_LINK_QR_CODE_VIEW_RESETTING_LINK_LABEL" = "लिंक रीसेट करत आहे...";
+/* Text presenting an action sheet notifying the user their QR code and link were reset. */
+"USERNAME_LINK_QR_CODE_VIEW_RESET_SUCCESSFUL" = "आपला QR कोड आणि लिंक रीसेट करण्यात आली आहे आणि नवीन QR कोड आणि लिंक तयार करण्यात आली आहे.";
 
 /* Title for a button to share your username link QR code. Lowercase styling is intentional. */
 "USERNAME_LINK_QR_CODE_VIEW_SHARE_BUTTON" = "सामायिक करा";
@@ -7585,6 +8146,9 @@
 /* Text presented in a toast notifying the user that their username was copied to the system clipboard. */
 "USERNAME_LINK_QR_CODE_VIEW_USERNAME_COPIED" = "वापरकर्तानाव कॉपी केले";
 
+/* Text presented in a toast notifying the user that their username link was copied to the system clipboard. */
+"USERNAME_LINK_QR_CODE_VIEW_USERNAME_LINK_COPIED" = "लिंक कॉपी केली";
+
 /* Text providing instructions on how to use the username link QR code scanning. */
 "USERNAME_LINK_SCAN_QR_CODE_INSTRUCTIONS_LABEL" = "आपल्या संपर्काच्या डिव्हाईसवर QR कोड स्कॅन करा.";
 
@@ -7593,6 +8157,9 @@
 
 /* Text describing what you can do with a username link, on a sheet for sharing it. */
 "USERNAME_LINK_SHARE_SHEET_HEADER" = "या लिंकसह असलेले कोणीही आपले वापरकर्ता नाव पाहू शकेल आणि आपणासह चॅट करणे सुरू करेल. आपण ज्यांच्यावर विश्वास ठेवता फक्त त्याच्यासह शेअर करा.";
+
+/* Title for a button to open a sheet for copying and sharing your username link. */
+"USERNAME_LINK_SHEET_BUTTON" = "लिंक";
 
 /* Subtitle for a tooltip describing ways to share your username. */
 "USERNAME_LINK_TOOLTIP_SUBTITLE" = "इतरांना आपल्या सोबत त्यांचा असामान्य QR कोड किंवा लिंक शेअर करून चॅट सुरू करू द्या.";
@@ -7618,20 +8185,29 @@
 /* Title for an action sheet indicating that the given username is not associated with a registered Signal account. */
 "USERNAME_LOOKUP_NOT_FOUND_TITLE" = "वापरकर्ता आढळला नाही";
 
+/* Instructions that appear below the username QR code on a sharable exported image. */
+"USERNAME_QR_CODE_EXPORT_INSTRUCTIONS" = "माझ्यासोबत Signal वर चॅट करण्यासाठी आपल्या फोनसब हा QR कोड स्कॅन करा.";
+
+/* A message in a toast informing the user their username, link, and QR code have successfully been reset. Embeds {{ the user's new username }}. */
+"USERNAME_RESET_SUCCESSFUL_TOAST" = "आपला QR कोड आणि लिंक रिसेट करण्यात आलेली आहे आणि आपले वापरकर्ता नाव %1$@ आहे";
+
 /* An error message shown when the user has typed a username that starts with a digit, which is invalid. */
-"USERNAME_SELECTION_CANNOT_START_WITH_DIGIT_ERROR_MESSAGE" = "वापरकर्तानाव अंकांने सुरु होऊ शकत नाही.";
+"USERNAME_SELECTION_CANNOT_START_WITH_DIGIT_ERROR_MESSAGE" = "वापरकर्ता नाव अंकांने सुरु होऊ शकत नाही";
 
 /* A message explaining the side effects of changing your username. */
 "USERNAME_SELECTION_CHANGE_USERNAME_CONFIRMATION_MESSAGE" = "आपले वापरकर्ता नाव बदलण्याने आपला अस्तित्वात असलेला QR कोड आणि लिंक रीसेट केली जाईल. आपल्याला खात्री आहे?";
 
 /* Footer text below a text field in which users type their desired username, which explains how usernames work. Embeds a {{ \"learn more\" link. }}. */
-"USERNAME_SELECTION_EXPLANATION_FOOTER_FORMAT" = "वापरकर्तानाव आपणाला आपल्या फोन नंबरशिवाय इतरांना संदेश करू देते. आपला पत्ता खाजगी ठेवण्यास मदत करण्यास त्यांना अंकाच्या सेटसह जुळवण्यात आले आहे. %1$@";
+"USERNAME_SELECTION_EXPLANATION_FOOTER_FORMAT" = "वापरकर्ता नावे नेहमी संख्यांच्या संचासह जोडलेली असतात. %1$@";
 
 /* When the user has entered text into a text field for setting their username, a header displays the username text. This string is shown in the header when the text field is empty. */
 "USERNAME_SELECTION_HEADER_TEXT_FOR_PLACEHOLDER" = "आपले वापरकर्तानाव निवडा";
 
 /* An error message shown when the user has typed a username that has invalid characters. The character ranges \"a-z\", \"0-9\", \"_\" should not be translated, as they are literal. */
-"USERNAME_SELECTION_INVALID_CHARACTERS_ERROR_MESSAGE" = "वापरकर्तानावामध्ये फक्त a-z, 0-9, आणि _ असू शकतात.";
+"USERNAME_SELECTION_INVALID_CHARACTERS_ERROR_MESSAGE" = "वापरकर्तानावामध्ये फक्त a-z, 0-9, आणि _ राहू शकतात";
+
+/* An error message shown when the user has typed an invalid discriminator for their username. */
+"USERNAME_SELECTION_INVALID_DISCRIMINATOR_ERROR_MESSAGE" = "अवैध वापरकर्ता नाव, कमीत कमी 2 अंक प्रविष्ट करा";
 
 /* The message of a sheet that pops up when the user taps \"Learn More\" in text that explains how usernames work. This message help explain that the automatically-generated numeric suffix of their username helps keep their username private, to avoid them being contacted by people by whom they don't want to be contacted. */
 "USERNAME_SELECTION_LEARN_MORE_ACTION_SHEET_MESSAGE" = "हे अंक आपले वापरकर्तानाव गोपनीय ठेवण्यास मदत करतील ज्यामुळे आपण नको असलेले संदेश टाळू शकता. आपणाला ज्यांच्या सोबत चॅट करणे आवडते फक्त अशा लोकांसह आणि गटांसह आपले वापरकर्तानाव शेअर करा. आपण वापरकर्तानाव बदलल्यास आपणाला अंकांचा नवीन संच मिळेल.";
@@ -7640,7 +8216,10 @@
 "USERNAME_SELECTION_LEARN_MORE_ACTION_SHEET_TITLE" = "हा नंबर काय आहे?";
 
 /* An error message shown when the user wants to set their username to an unavailable value. */
-"USERNAME_SELECTION_NOT_AVAILABLE_ERROR_MESSAGE" = "हे वापरकर्तानाव उपलब्ध नाही.";
+"USERNAME_SELECTION_NOT_AVAILABLE_ERROR_MESSAGE" = "हे वापरकर्तानाव उपलब्ध नाही";
+
+/* An error message shown when the user has attempted too many username reservations. */
+"USERNAME_SELECTION_RESERVATION_RATE_LIMITED_ERROR_MESSAGE" = "आपण खूप प्रयत्न केले, कृपया पुन्हा प्रयत्न करा";
 
 /* The placeholder for a text field into which users can type their desired username. */
 "USERNAME_SELECTION_TEXT_FIELD_PLACEHOLDER" = "वापरकर्तानाव";
@@ -7648,8 +8227,11 @@
 /* The title for the username selection view. */
 "USERNAME_SELECTION_TITLE" = "वापरकर्तानाव";
 
-/* An error message shown when the user has typed a username that is below the minimum character limit. Embeds {{ %1$@ the minimum character count }}. */
-"USERNAME_SELECTION_TOO_SHORT_ERROR_MESSAGE" = "वापरकर्तानाव हे कमीत कमी %1$@ वर्णानी सुरू होणे आवश्यक आहे.";
+/* An error message shown when the user has typed '00' as their discriminator for their username. */
+"USERNAME_SELECTION_ZERO_DISCRIMINATOR_ERROR_MESSAGE" = "हा नंबर 00 असू शकणार नाही. 1–9 मधील अंक प्रविष्ट करा";
+
+/* An error message indicating that a usernames-related requeset failed because of a network error. */
+"USERNAMES_REMOTE_MUTATION_ERROR_DESCRIPTION" = "इंटरनेटला कनेक्ट असल्यानंतरच वापरकर्ता नाव अपडेट केले जाऊ शकते.";
 
 /* error label near a field */
 "VALIDATION_ERROR_CANNOT_BE_BLANK" = "डिव्हाईस नाव रिक्त असू शकत नाही";
@@ -7679,7 +8261,7 @@
 "VERIFY_PRIVACY_MULTIPLE" = "सुरक्षितता नंबरचे पुनरावलोकन करा";
 
 /* Instructions for verifying your safety number. Embeds {{contact's name}} */
-"VERIFY_SAFETY_NUMBER_INSTRUCTIONS" = "To verify end-to-end encryption with %1$@, compare the numbers above with their device. You can also scan the code on their device.";
+"VERIFY_SAFETY_NUMBER_INSTRUCTIONS" = "%1$@ सह एंड-टू-एंड एन्क्रिप्शनची पडताळणी करण्यासाठी, वरील क्रमांकांची त्यांच्या डिव्हाइससह तुलना करा. आपण त्यांच्या डिव्हाइसवर देखील कोड स्कॅन करू शकता.";
 
 /* Toast alert text shown when tapping on a video that cannot be played. */
 "VIDEO_BROKEN" = "हा व्हिडिओ प्ले केला जाऊ शकत नाही";
@@ -7705,6 +8287,9 @@
 /* View the story of a group or user */
 "VIEW_STORY" = "स्टोरी पहा";
 
+/* Accessibility label for placing a voice call */
+"VOICE_CALL_LABEL" = "व्हॉईस कॉल";
+
 /* Indicates how to cancel a voice message. */
 "VOICE_MESSAGE_CANCEL_INSTRUCTIONS" = "रद्द करण्यासाठी स्लाइड करा";
 
@@ -7716,6 +8301,9 @@
 
 /* Activity indicator title, shown upon returning to the device manager, until you complete the provisioning process on desktop */
 "WAITING_TO_COMPLETE_DEVICE_LINK_TEXT" = "Signal Desktop वर सेटअप पूर्ण करा";
+
+/* Accessibility label for gradient wallpaper swatch, naming the two colors in the gradient. {{ Embeds the names of the two colors in the gradient }} */
+"WALLPAPER_GRADIENT_COLORS_ACCESSIBILITY_LABEL" = "%1$@ आणि %2$@ सह ग्रेडिएंट";
 
 /* Placeholder text for header of the wallpaper mini preview */
 "WALLPAPER_MINI_PREVIEW_CONTACT_NAME" = "संपर्क नाव";

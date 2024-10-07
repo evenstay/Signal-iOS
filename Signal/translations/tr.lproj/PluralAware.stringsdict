@@ -66,6 +66,134 @@
 			<string>Yeni Üye Ekle</string>
 		</dict>
 	</dict>
+	<key>CALL_LINK_APPROVE_ALL_REQUESTS_CONFIRMATION_BODY_%ld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Aramaya %1$ld kişi eklenecek.</string>
+			<key>other</key>
+			<string>Aramaya %1$ld kişi eklenecek.</string>
+		</dict>
+	</dict>
+	<key>CALL_LINK_APPROVE_ALL_REQUESTS_CONFIRMATION_TITLE_%ld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$ld istek onaylansın mı?</string>
+			<key>other</key>
+			<string>%1$ld istek onaylansın mı?</string>
+		</dict>
+	</dict>
+	<key>CALL_LINK_DENY_ALL_REQUESTS_CONFIRMATION_BODY_%ld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$ld kişi aramaya eklenmeyecek.</string>
+			<key>other</key>
+			<string>%1$ld kişi aramaya eklenmeyecek.</string>
+		</dict>
+	</dict>
+	<key>CALL_LINK_DENY_ALL_REQUESTS_CONFIRMATION_TITLE_%ld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$ld istek reddedilsin mi?</string>
+			<key>other</key>
+			<string>%1$ld istek reddedilsin mi?</string>
+		</dict>
+	</dict>
+	<key>CALL_LINK_JOIN_REQUEST_AMOUNT_MORE_BUTTON_%ld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>+%1$ld Request</string>
+			<key>other</key>
+			<string>+%1$ld Requests</string>
+		</dict>
+	</dict>
+	<key>CALL_LINK_REQUEST_HEADER_COUNT_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$ld kişi bekliyor</string>
+			<key>other</key>
+			<string>%1$ld kişi bekliyor</string>
+		</dict>
+	</dict>
+	<key>CALL_PEOPLE_HERE</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>ld</string>
+			<key>one</key>
+			<string>%1$ld kişi</string>
+			<key>other</key>
+			<string>%1$ld kişi</string>
+		</dict>
+	</dict>
+	<key>CALL_PEOPLE_WAITING</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>ld</string>
+			<key>one</key>
+			<string>%1$ld kişi bekliyor</string>
+			<key>other</key>
+			<string>%1$ld kişi bekliyor</string>
+		</dict>
+	</dict>
 	<key>CAMERA_VO_N_ITEMS</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -141,9 +269,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Bu sohbet bu cihazdan silinecektir.</string>
+			<string>Bu sohbet tüm cihazlarından silinecektir.</string>
 			<key>other</key>
-			<string>Bu sohbetler bu cihazdan silinecektir.</string>
+			<string>Bu sohbetler tüm cihazlarından silinecektir.</string>
 		</dict>
 	</dict>
 	<key>CONVERSATION_PICKER_CAN_SELECT_NO_MORE_CONVERSATIONS_%d</key>
@@ -349,22 +477,6 @@
 			<string>Bu arama için maksimum %1$d katılımcı sayısına ulaşıldı. Daha sonra tekrar dene.</string>
 		</dict>
 	</dict>
-	<key>GROUP_CALL_IN_THIS_CALL_%d</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@text@</string>
-		<key>text</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>Bu aramada · %1$d kişi</string>
-			<key>other</key>
-			<string>Bu aramada · %1$d kişi</string>
-		</dict>
-	</dict>
 	<key>GROUP_CALL_IS_RINGING_MANY_PEOPLE_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -379,6 +491,22 @@
 			<string>%2$@, %3$@ ve diğer %1$d kişi aranıyor…</string>
 			<key>other</key>
 			<string>%2$@, %3$@ ve diğer %1$d kişi aranıyor…</string>
+		</dict>
+	</dict>
+	<key>GROUP_CALL_MANY_OTHERS_HERE</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>ld</string>
+			<key>one</key>
+			<string>%1$ld kişi bu aramada</string>
+			<key>other</key>
+			<string>%1$ld kişi bu aramada</string>
 		</dict>
 	</dict>
 	<key>GROUP_CALL_MANY_PEOPLE_HERE_%d</key>
@@ -427,6 +555,22 @@
 			<string>%2$@, %3$@ ve %1$d diğer kişi bu aramadan ayrıldı</string>
 			<key>other</key>
 			<string>%2$@, %3$@ ve %1$d diğer kişi bu aramadan ayrıldı</string>
+		</dict>
+	</dict>
+	<key>GROUP_CALL_ONE_KNOWN_AND_MANY_OTHERS_HERE</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>ld</string>
+			<key>one</key>
+			<string>%2$@ ve %1$ld diğer kişi bu aramada</string>
+			<key>other</key>
+			<string>%2$@ ve %1$ld diğer kişi bu aramada</string>
 		</dict>
 	</dict>
 	<key>GROUP_CALL_WILL_NOTIFY_MANY_PEOPLE_%d</key>
@@ -488,9 +632,41 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>%1$d grup üyesi benzer bir isme sahip.</string>
+			<string>%1$d grup üyesi aynı ada sahip.</string>
 			<key>other</key>
-			<string>%1$d grup üyesi benzer isimlere sahip.</string>
+			<string>%1$d grup üyesi aynı ada sahip.</string>
+		</dict>
+	</dict>
+	<key>GROUP_MEMBERSHIP_MULTIPLE_COLLISIONS_BANNER_TITLE_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Bu grupta %1$d ad çakışması bulundu.</string>
+			<key>other</key>
+			<string>Bu grupta %1$d ad çakışması bulundu.</string>
+		</dict>
+	</dict>
+	<key>GROUP_MEMBERSHIP_NAME_COLLISION_MEMBER_COUNT_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d Üye</string>
+			<key>other</key>
+			<string>%1$d Üye</string>
 		</dict>
 	</dict>
 	<key>GROUP_MEMBERSHIP_NAME_MULTIPLE_COLLISION_HEADER_%d</key>
@@ -504,9 +680,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>%1$d grup üyesi benzer bir isme sahip, aşağıdaki üyeleri gözden geçir veya başka bir işlem seç.</string>
+			<string>Bu grupta %1$d ad çakışması bulundu. Aşağıdaki üyeleri incele veya işlem yapmayı seç.</string>
 			<key>other</key>
-			<string>%1$d grup üyesi benzer isme sahip, aşağıdaki üyeleri gözden geçir veya başka bir işlem seç.</string>
+			<string>Bu grupta %1$d ad çakışması bulundu. Aşağıdaki üyeleri incele veya işlem yapmayı seç.</string>
 		</dict>
 	</dict>
 	<key>GROUP_MEMBERSHIP_NAME_SINGLE_COLLISION_HEADER_%d</key>
@@ -520,9 +696,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>%1$d grup üyesi aynı isme sahip, aşağıdaki üyeleri gözden geçir veya başka bir işlem seç.</string>
+			<string>%1$d grup üyesi aynı ada sahip. Aşağıdaki üyeyi gözden geçir veya başka bir işlem seç.</string>
 			<key>other</key>
-			<string>%1$d grup üyesi aynı isme sahip, aşağıdaki üyeleri gözden geçir veya başka bir işlem seç.</string>
+			<string>%1$d grup üyesi aynı ada sahip. Aşağıdaki üyeleri gözden geçir veya başka bir işlem seç.</string>
 		</dict>
 	</dict>
 	<key>GROUP_MEMBER_COUNT_LABEL_%d</key>
@@ -555,6 +731,22 @@
 			<string>%1$d Üye</string>
 			<key>other</key>
 			<string>%1$d Üye</string>
+		</dict>
+	</dict>
+	<key>GROUP_REMOTE_USER_INVITED_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d kişi gruba davet edildi.</string>
+			<key>other</key>
+			<string>%1$d kişi gruba davet edildi.</string>
 		</dict>
 	</dict>
 	<key>GROUP_REMOTE_USER_INVITED_BY_REMOTE_USER_%d</key>
@@ -637,6 +829,38 @@
 			<string>Grup Hikayesi · %1$d Görüntüleyen</string>
 		</dict>
 	</dict>
+	<key>GROUP_WAS_MIGRATED_USERS_DROPPED_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Bir üye Yeni Gruba eklenemedi ve gruptan çıkarıldı.</string>
+			<key>other</key>
+			<string>%1$d üye Yeni Gruba eklenemedi ve gruptan çıkarıldı.</string>
+		</dict>
+	</dict>
+	<key>GROUP_WAS_MIGRATED_USERS_INVITED_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Bir üye Yeni Gruba eklenemedi ve gruba katılmaya davet edildi.</string>
+			<key>other</key>
+			<string>%1$d üye Yeni Gruba eklenemedi ve gruba katılmaya davet edildi.</string>
+		</dict>
+	</dict>
 	<key>IMAGE_PICKER_CAN_SELECT_NO_MORE_TOAST_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -651,6 +875,22 @@
 			<string>1 ögeden daha fazlasını paylaşamazsın.</string>
 			<key>other</key>
 			<string>%1$d ögeden daha fazlasını paylaşamazsınız.</string>
+		</dict>
+	</dict>
+	<key>INACTIVE_LINKED_DEVICE_REMINDER_MEGAPHONE_BODY_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>&quot;%2$@&quot; adresini bağlı tutmak için bu cihazda %1$d gün içinde Signal&apos;i aç.</string>
+			<key>other</key>
+			<string>&quot;%2$@&quot; adresini bağlı tutmak için bu cihazda %1$d gün içinde Signal&apos;i aç.</string>
 		</dict>
 	</dict>
 	<key>MANY_GROUPS_IN_COMMON_%d</key>
@@ -781,6 +1021,22 @@
 			<string>%1$d Seçili</string>
 		</dict>
 	</dict>
+	<key>MESSAGE_REACTIONS_ACCESSIBILITY_LABEL_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%2$@ ile %1$d tepki.</string>
+			<key>other</key>
+			<string>%2$@ ile %1$d tepki.</string>
+		</dict>
+	</dict>
 	<key>MY_STORIES_SETTINGS_VISIBILITY_ALL_SIGNAL_CONNECTIONS_EXCEPT_SUBTITLE_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -840,9 +1096,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Tüm Signal Bağlantıları · %1$d Görüntüleyen</string>
+			<string>Tüm Signal Kişileri· %1$d Görüntüleyen</string>
 			<key>other</key>
-			<string>Tüm Signal Bağlantıları · %1$d Görüntüleyen</string>
+			<string>Tüm Signal Kişileri · %1$d Görüntüleyen</string>
 		</dict>
 	</dict>
 	<key>MY_STORY_VIEWERS_ALL_CONNECTIONS_EXCLUDING_%d</key>
@@ -856,9 +1112,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Tüm Signal Bağlantıları · %1$d Kişi Hariç Tutuldu</string>
+			<string>Tüm Signal Kişileri · %1$d Kişi Hariç Tutuldu</string>
 			<key>other</key>
-			<string>Tüm Signal Bağlantıları · %1$d Kişi Hariç Tutuldu</string>
+			<string>Tüm Signal Kişileri · %1$d Kişi Hariç Tutuldu</string>
 		</dict>
 	</dict>
 	<key>MY_STORY_VIEWERS_ONLY_%d</key>
@@ -907,6 +1163,22 @@
 			<string>%1$d Görüntüleyen</string>
 			<key>other</key>
 			<string>%1$d Görüntüleyen</string>
+		</dict>
+	</dict>
+	<key>OVERFLOW_REACTIONS_ACCESSIBILITY_LABEL_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d ek tepki.</string>
+			<key>other</key>
+			<string>%1$d ek tepki.</string>
 		</dict>
 	</dict>
 	<key>PENDING_GROUP_MEMBERS_MEMBER_INVITED_USERS_%d</key>
@@ -1003,6 +1275,22 @@
 			<string>Özel hikaye · %1$d Görüntüleyen</string>
 			<key>other</key>
 			<string>Özel hikaye · %1$d Görüntüleyen</string>
+		</dict>
+	</dict>
+	<key>RAISED_HANDS_TOAST_MULTIPLE_HANDS_MESSAGE</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>ld</string>
+			<key>one</key>
+			<string>%2$@ ve%1$ld kişi el kaldırdı</string>
+			<key>other</key>
+			<string>%2$@ ve%1$ld kişi el kaldırdı</string>
 		</dict>
 	</dict>
 	<key>REREGISTER_INVALID_PIN_ATTEMPT_COUNT_%d</key>
@@ -1131,6 +1419,22 @@
 			<string>&lt;bold&gt;%1$d&lt;/bold&gt; görüntüleme</string>
 			<key>other</key>
 			<string>&lt;bold&gt;%1$d&lt;/bold&gt; görüntüleme</string>
+		</dict>
+	</dict>
+	<key>USERNAME_SELECTION_TOO_SHORT_ERROR_MESSAGE_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Kullanıcı adları en az %1$d karakterle başlamalıdır</string>
+			<key>other</key>
+			<string>Kullanıcı adları en az %1$d karakterle başlamalıdır</string>
 		</dict>
 	</dict>
 </dict>

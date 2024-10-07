@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import MobileCoin
-import SignalMessaging
+public import MobileCoin
+public import SignalServiceKit
 
 @objc
 public protocol Payments: AnyObject {
@@ -83,7 +83,6 @@ extension PaymentsPassphrase {
         if validateWords {
             for word in words {
                 guard Self.paymentsSwift.isValidPassphraseWord(word) else {
-                    Logger.verbose("Invalid passphrase word: \(word).")
                     Logger.warn("Invalid passphrase word.")
                     throw PaymentsError.invalidPassphrase
                 }

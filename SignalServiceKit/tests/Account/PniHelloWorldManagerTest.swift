@@ -27,13 +27,12 @@ class PniHelloWorldManagerTest: XCTestCase {
         }
     }
 
-    private var identityManagerMock: IdentityManagerMock!
+    private var identityManagerMock: MockIdentityManager!
     private var networkManagerMock: NetworkManagerMock!
     private var pniDistributionParameterBuilderMock: PniDistributionParamaterBuilderMock!
     private var pniSignedPreKeyStoreMock: MockSignalSignedPreKeyStore!
     private var pniKyberPreKeyStoreMock: MockKyberPreKeyStore!
-    private var profileManagerMock: ProfileManagerMock!
-    private var signalRecipientStoreMock: SignalRecipientStoreMock!
+    private var recipientDatabaseTableMock: MockRecipientDatabaseTable!
     private var tsAccountManagerMock: MockTSAccountManager!
 
     private let db = MockDB()
@@ -43,13 +42,17 @@ class PniHelloWorldManagerTest: XCTestCase {
     private var pniHelloWorldManager: PniHelloWorldManager!
 
     override func setUp() {
-        identityManagerMock = .init()
+        let recipientDatabaseTable = MockRecipientDatabaseTable()
+        let recipientFetcher = RecipientFetcherImpl(recipientDatabaseTable: recipientDatabaseTable)
+        identityManagerMock = .init(recipientIdFinder: RecipientIdFinder(
+            recipientDatabaseTable: recipientDatabaseTable,
+            recipientFetcher: recipientFetcher
+        ))
         networkManagerMock = .init()
         pniDistributionParameterBuilderMock = .init()
         pniSignedPreKeyStoreMock = .init()
         pniKyberPreKeyStoreMock = .init(dateProvider: Date.provider)
-        profileManagerMock = .init()
-        signalRecipientStoreMock = .init()
+        recipientDatabaseTableMock = .init()
         tsAccountManagerMock = .init()
 
         let kvStoreFactory = InMemoryKeyValueStoreFactory()
@@ -66,9 +69,8 @@ class PniHelloWorldManagerTest: XCTestCase {
             pniDistributionParameterBuilder: pniDistributionParameterBuilderMock,
             pniSignedPreKeyStore: pniSignedPreKeyStoreMock,
             pniKyberPreKeyStore: pniKyberPreKeyStoreMock,
-            profileManager: profileManagerMock,
+            recipientDatabaseTable: recipientDatabaseTableMock,
             schedulers: schedulers,
-            signalRecipientStore: signalRecipientStoreMock,
             tsAccountManager: tsAccountManagerMock
         )
     }
@@ -88,23 +90,20 @@ class PniHelloWorldManagerTest: XCTestCase {
     private func setMocksForHappyPath(
         includingNetworkRequest mockNetworkRequest: Bool = false
     ) {
+        let localIdentifiers = LocalIdentifiers.forUnitTests
         tsAccountManagerMock.registrationStateMock = { .registered }
-        tsAccountManagerMock.localIdentifiersMock = { .mock }
-        signalRecipientStoreMock.localAccountId = "foobar"
-        signalRecipientStoreMock.deviceIds = [1, 2, 3]
-        profileManagerMock.isPniCapable = true
+        tsAccountManagerMock.localIdentifiersMock = { localIdentifiers }
+        db.write { tx in
+            recipientDatabaseTableMock.insertRecipient(SignalRecipient(
+                aci: localIdentifiers.aci,
+                pni: localIdentifiers.pni,
+                phoneNumber: E164(localIdentifiers.phoneNumber)!,
+                deviceIds: [1, 2, 3]
+            ), transaction: tx)
+        }
 
         let keyPair = ECKeyPair.generateKeyPair()
-        identityManagerMock.identityKeyPair = keyPair
-        pniSignedPreKeyStoreMock.setCurrentSignedPreKey(
-            pniSignedPreKeyStoreMock.generateSignedPreKey(
-                signedBy: keyPair
-            )
-        )
-        db.write { tx in
-            let key = try! pniKyberPreKeyStoreMock.generateLastResortKyberPreKey(signedBy: keyPair, tx: tx)
-            try! pniKyberPreKeyStoreMock.storeLastResortPreKeyAndMarkAsCurrent(record: key, tx: tx)
-        }
+        identityManagerMock.identityKeyPairs[.pni] = keyPair
 
         pniDistributionParameterBuilderMock.buildOutcomes = [.success]
 
@@ -115,6 +114,16 @@ class PniHelloWorldManagerTest: XCTestCase {
 
     func testHappyPath() {
         setMocksForHappyPath(includingNetworkRequest: true)
+
+        runRunRun()
+
+        XCTAssertEqual(pniDistributionParameterBuilderMock.buildRequestedDeviceIds, [[1, 2, 3]])
+        XCTAssertTrue(db.read { kvStore.hasSaidHelloWorld(tx: $0) })
+    }
+
+    func testGeneratesIfMissingPniIdentityKey() {
+        setMocksForHappyPath(includingNetworkRequest: true)
+        identityManagerMock.identityKeyPairs[.pni] = nil
 
         runRunRun()
 
@@ -154,7 +163,10 @@ class PniHelloWorldManagerTest: XCTestCase {
 
     func testSkipsIfMissingLocalPni() {
         setMocksForHappyPath()
-        tsAccountManagerMock.localIdentifiersMock = { .missingPni }
+        let localIdentifiers = tsAccountManagerMock.localIdentifiersMock()!
+        tsAccountManagerMock.localIdentifiersMock = {
+            LocalIdentifiers(aci: localIdentifiers.aci, pni: nil, phoneNumber: localIdentifiers.phoneNumber)
+        }
 
         runRunRun()
 
@@ -164,29 +176,7 @@ class PniHelloWorldManagerTest: XCTestCase {
 
     func testSkipsIfMissingAccountAndDeviceIds() {
         setMocksForHappyPath()
-        signalRecipientStoreMock.localAccountId = nil
-        signalRecipientStoreMock.deviceIds = nil
-
-        runRunRun()
-
-        XCTAssertEqual(pniDistributionParameterBuilderMock.buildRequestedDeviceIds, [])
-        XCTAssertFalse(db.read { kvStore.hasSaidHelloWorld(tx: $0) })
-    }
-
-    func testSkipsIfNotPniCapable() {
-        setMocksForHappyPath()
-        profileManagerMock.isPniCapable = false
-
-        runRunRun()
-
-        XCTAssertEqual(pniDistributionParameterBuilderMock.buildRequestedDeviceIds, [])
-        XCTAssertFalse(db.read { kvStore.hasSaidHelloWorld(tx: $0) })
-    }
-
-    func testSkipsIfMissingPniKeyParameters() {
-        setMocksForHappyPath()
-        identityManagerMock.identityKeyPair = nil
-        pniSignedPreKeyStoreMock.setCurrentSignedPreKey(nil)
+        recipientDatabaseTableMock.recipientTable = [:]
 
         runRunRun()
 
@@ -217,32 +207,6 @@ class PniHelloWorldManagerTest: XCTestCase {
 
 // MARK: - Mocks
 
-// MARK: LocalIdentifiers
-
-private extension LocalIdentifiers {
-    static var mock: LocalIdentifiers {
-        return .withPni(pni: Pni.randomForTesting())
-    }
-
-    static var missingPni: LocalIdentifiers {
-        return .withPni(pni: nil)
-    }
-
-    private static func withPni(pni: Pni?) -> LocalIdentifiers {
-        return LocalIdentifiers(aci: Aci.randomForTesting(), pni: pni, e164: E164("+17735550199")!)
-    }
-}
-
-// MARK: IdentityManager
-
-private class IdentityManagerMock: _PniHelloWorldManagerImpl_IdentityManager_Shim {
-    var identityKeyPair: ECKeyPair?
-
-    func pniIdentityKeyPair(tx: DBReadTransaction) -> ECKeyPair? {
-        return identityKeyPair
-    }
-}
-
 // MARK: NetworkManager
 
 private class NetworkManagerMock: _PniHelloWorldManagerImpl_NetworkManager_Shim {
@@ -266,7 +230,7 @@ private class PniDistributionParamaterBuilderMock: PniDistributionParamaterBuild
 
     func buildPniDistributionParameters(
         localAci _: Aci,
-        localAccountId _: String,
+        localRecipientUniqueId _: String,
         localDeviceId: UInt32,
         localUserAllDeviceIds: [UInt32],
         localPniIdentityKeyPair: ECKeyPair,
@@ -296,33 +260,5 @@ private class PniDistributionParamaterBuilderMock: PniDistributionParamaterBuild
         case .failure:
             return .value(.failure)
         }
-    }
-}
-
-// MARK: ProfileManager
-
-private class ProfileManagerMock: _PniHelloWorldManagerImpl_ProfileManager_Shim {
-    var isPniCapable: Bool = false
-
-    func isLocalProfilePniCapable() -> Bool {
-        return isPniCapable
-    }
-}
-
-// MARK: SignalRecipientStore
-
-private class SignalRecipientStoreMock: _PniHelloWorldManagerImpl_SignalRecipientStore_Shim {
-    var localAccountId: String?
-    var deviceIds: [UInt32]?
-
-    func localAccountAndDeviceIds(
-        localAci: Aci,
-        tx: DBReadTransaction
-    ) -> (accountId: String, deviceIds: [UInt32])? {
-        guard let localAccountId, let deviceIds else {
-            return nil
-        }
-
-        return (localAccountId, deviceIds)
     }
 }

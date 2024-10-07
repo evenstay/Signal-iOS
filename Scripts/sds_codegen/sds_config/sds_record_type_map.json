@@ -17,7 +17,6 @@
     "OWSAddToContactsOfferMessage": 25,
     "OWSAddToProfileWhitelistOfferMessage": 7,
     "OWSBackupFragment": 32,
-    "OWSBroadcastMediaMessageJobRecord": 58,
     "OWSContactOffersInteraction": 22,
     "OWSContactQuery": 57,
     "OWSDatabaseMigration": 46,
@@ -25,12 +24,14 @@
     "OWSDisappearingConfigurationUpdateInfoMessage": 28,
     "OWSDisappearingMessagesConfiguration": 39,
     "OWSGroupCallMessage": 65,
+    "OWSIncomingArchivedPaymentMessage": 78,
     "OWSIncomingContactSyncJobRecord": 61,
     "OWSIncomingGroupSyncJobRecord": 60,
     "OWSIncomingPaymentMessage": 75,
     "OWSLinkedDeviceReadReceipt": 36,
     "OWSLocalUserLeaveGroupJobRecord": 74,
     "OWSMessageContentJob": 15,
+    "OWSOutgoingArchivedPaymentMessage": 79,
     "OWSOutgoingPaymentMessage": 68,
     "OWSPaymentActivationRequestFinishedMessage": 77,
     "OWSPaymentActivationRequestMessage": 76,
@@ -75,5 +76,6 @@
     "TSRecipientReadReceipt": 12,
     "TSThread": 2,
     "TSUnreadIndicatorInteraction": 4,
-    "TestModel": 59
+    "TestModel": 59,
+    "tsAttachmentMultisendJobRecord": 58
 }

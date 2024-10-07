@@ -10,7 +10,7 @@ public enum RegistrationStep: Equatable {
     // MARK: - Opening Steps
     case registrationSplash
     case changeNumberSplash
-    case permissions(RegistrationPermissionsState)
+    case permissions
 
     // MARK: - Actually registering
 
@@ -50,6 +50,10 @@ public enum RegistrationStep: Equatable {
     case reglockTimeout(RegistrationReglockTimeoutState)
 
     // MARK: - Post-Registration
+
+    /// If the user has successfully recovered their master key and can attempt to
+    /// restore from a local message backup.
+    case restoreFromLocalMessageBackup
 
     /// If the account has not set whether its phone number should be
     /// discoverable, this step happens after registration is complete.
@@ -120,6 +124,7 @@ public enum RegistrationStep: Equatable {
         case .pinAttemptsExhaustedWithoutReglock: return "pinAttemptsExhaustedWithoutReglock"
         case .captchaChallenge: return "captchaChallenge"
         case .reglockTimeout: return "reglockTimeout"
+        case .restoreFromLocalMessageBackup: return "restoreFromLocalMessageBackup"
         case .phoneNumberDiscoverability: return "phoneNumberDiscoverability"
         case .setupProfile: return "setupProfile"
         case .showErrorSheet: return "showErrorSheet"

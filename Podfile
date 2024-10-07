@@ -1,4 +1,4 @@
-platform :ios, '13.0'
+platform :ios, '15.0'
 
 use_frameworks!
 
@@ -8,26 +8,22 @@ use_frameworks!
 
 source 'https://cdn.cocoapods.org/'
 
+pod 'blurhash', podspec: './ThirdParty/blurhash.podspec'
 pod 'SwiftProtobuf', ">= 1.14.0"
 
-pod 'SignalCoreKit', git: 'https://github.com/signalapp/SignalCoreKit', testspecs: ["Tests"]
-# pod 'SignalCoreKit', path: '../SignalCoreKit', testspecs: ["Tests"]
+ENV['LIBSIGNAL_FFI_PREBUILD_CHECKSUM'] = '122382481fb76615f8ab51af415e2e3f38a2af68c1c34c87e652b288eba09571'
+pod 'LibSignalClient', git: 'https://github.com/signalapp/libsignal.git', tag: 'v0.58.0', testspecs: ["Tests"]
+# pod 'LibSignalClient', path: '../libsignal', testspecs: ["Tests"]
 
-ENV['LIBSIGNAL_FFI_PREBUILD_CHECKSUM'] = '1eccfb842c014cb0ff124cc30868f1edea43038cd489a5bb71def9a0111041d2'
-pod 'LibSignalClient', git: 'https://github.com/signalapp/libsignal-client.git', tag: 'v0.34.0', testspecs: ["Tests"]
-# pod 'LibSignalClient', path: '../libsignal-client', testspecs: ["Tests"]
-
-pod 'blurhash', git: 'https://github.com/signalapp/blurhash', branch: 'signal-master'
-# pod 'blurhash', path: '../blurhash'
-
-ENV['RINGRTC_PREBUILD_CHECKSUM'] = '95388cccc6c6a36fc939a4b2170ff4d0d093f30eb788395e9fbd20ef56e2fa9d'
-pod 'SignalRingRTC', git: 'https://github.com/signalapp/ringrtc', tag: 'v2.34.3', inhibit_warnings: true
+ENV['RINGRTC_PREBUILD_CHECKSUM'] = '4613493eaf7d41e2864cc890fae57f741fdab968fdb670f2bd359da172645fd3'
+pod 'SignalRingRTC', git: 'https://github.com/signalapp/ringrtc', tag: 'v2.48.2', inhibit_warnings: true
 # pod 'SignalRingRTC', path: '../ringrtc', testspecs: ["Tests"]
 
 pod 'GRDB.swift/SQLCipher'
 # pod 'GRDB.swift/SQLCipher', path: '../GRDB.swift'
 
-pod 'SQLCipher', git: 'https://github.com/signalapp/sqlcipher.git', commit: '8ea0af7934e0107e4de8e96c8a7d5a95e2611eef'
+pod 'SQLCipher', git: 'https://github.com/signalapp/sqlcipher.git', tag: 'v4.6.0-f_barrierfsync'
+# pod 'SQLCipher', path: '../sqlcipher'
 
 ###
 # forked third party pods
@@ -58,8 +54,8 @@ def ui_pods
   pod 'PureLayout', :inhibit_warnings => true
   pod 'lottie-ios', :inhibit_warnings => true
 
-  pod 'LibMobileCoin/CoreHTTP', git: 'https://github.com/signalapp/libmobilecoin-ios-artifacts', :commit => '5cd4f39a24d06708d1c19aced8384740689d7f61'
-  pod 'MobileCoin/CoreHTTP', git: 'https://github.com/mobilecoinofficial/MobileCoin-Swift', tag: 'v5.0.0'
+  pod 'LibMobileCoin/CoreHTTP', git: 'https://github.com/signalapp/libmobilecoin-ios-artifacts', tag: 'signal/6.0.2', submodules: true
+  pod 'MobileCoin/CoreHTTP', git: 'https://github.com/mobilecoinofficial/MobileCoin-Swift', tag: 'v6.0.3'
 end
 
 target 'Signal' do
@@ -72,24 +68,15 @@ target 'Signal' do
   target 'SignalTests' do
     inherit! :search_paths
   end
-
-  target 'SignalPerformanceTests' do
-    inherit! :search_paths
-  end
 end
 
 # These extensions inherit all of the common pods
 
-target 'SignalMessaging' do 
-  pod 'MobileCoinMinimal', git: 'https://github.com/signalapp/MobileCoin-Swift.git', branch: 'charlesmchen/mobileCoinMinimal', testspecs: ["Tests"]
-  # pod 'MobileCoinMinimal', path: '../MobileCoinMinimal', testspecs: ["Tests"]
-end
-
-target 'SignalShareExtension' do 
+target 'SignalShareExtension' do
   ui_pods
 end
 
-target 'SignalUI' do 
+target 'SignalUI' do
   ui_pods
 
   target 'SignalUITests' do
@@ -99,14 +86,13 @@ end
 
 target 'SignalServiceKit' do
   pod 'CocoaLumberjack'
-  pod 'SAMKeychain'
 
   target 'SignalServiceKitTests' do
     inherit! :search_paths
   end
 end
 
-target 'SignalNSE' do 
+target 'SignalNSE' do
 end
 
 post_install do |installer|
@@ -121,6 +107,7 @@ post_install do |installer|
   update_frameworks_script(installer)
   disable_non_development_pod_warnings(installer)
   fix_ringrtc_project_symlink(installer)
+  fetch_ringrtc
   copy_acknowledgements
 end
 
@@ -168,17 +155,6 @@ def configure_testable_build(installer)
     target.build_configurations.each do |build_configuration|
       next unless ["Testable Release", "Debug", "Profiling"].include?(build_configuration.name)
       build_configuration.build_settings['ONLY_ACTIVE_ARCH'] = 'YES'
-      build_configuration.build_settings['OTHER_CFLAGS'] ||= '$(inherited)'
-      build_configuration.build_settings['OTHER_CFLAGS'] << ' -DTESTABLE_BUILD'
-
-      build_configuration.build_settings['OTHER_SWIFT_FLAGS'] ||= '$(inherited)'
-      build_configuration.build_settings['OTHER_SWIFT_FLAGS'] << ' -DTESTABLE_BUILD'
-      if target.name.end_with? "PureLayout"
-        # Avoid overwriting the PURELAYOUT_APP_EXTENSIONS.
-      else
-        build_configuration.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= '$(inherited)'
-        build_configuration.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] << ' TESTABLE_BUILD=1'
-      end
       build_configuration.build_settings['ENABLE_TESTABILITY'] = 'YES'
     end
   end
@@ -229,8 +205,8 @@ def strip_valid_archs(installer)
   end
 end
 
-#update_framework_scripts updates Pod-Signal-frameworks.sh to fix a bug in the .XCFramework->.framework 
-#conversation process, by ensuring symlinks are properly respected in the XCFramework. 
+#update_framework_scripts updates Pod-Signal-frameworks.sh to fix a bug in the .XCFramework->.framework
+#conversation process, by ensuring symlinks are properly respected in the XCFramework.
 #See https://github.com/CocoaPods/CocoaPods/issues/7587
 def update_frameworks_script(installer)
     fw_script = File.read('Pods/Target Support Files/Pods-Signal/Pods-Signal-frameworks.sh')
@@ -276,12 +252,14 @@ def fix_ringrtc_project_symlink(installer)
   end
 end
 
+def fetch_ringrtc
+  `make fetch-ringrtc`
+end
+
 def copy_acknowledgements
   targets = [
     'Signal',
-    'SignalMessaging',
     'SignalNSE',
-    'SignalPerformanceTests',
     'SignalServiceKit',
     'SignalServiceKitTests',
     'SignalShareExtension',
@@ -290,8 +268,11 @@ def copy_acknowledgements
     'SignalUITests'
   ]
   acknowledgements_files = targets.map do |target|
-    "Pods/Target Support Files/Pods-#{target}/Pods-#{target}-Acknowledgements.plist"
+    "Pods/Target Support Files/Pods-#{target}/Pods-#{target}-acknowledgements.plist"
   end
+  acknowledgements_files << "Pods/LibSignalClient/acknowledgments/acknowledgments.plist"
+  acknowledgements_files << "Pods/SignalRingRTC/acknowledgments/acknowledgments.plist"
+  acknowledgements_files << "Pods/SignalRingRTC/out/release/acknowledgments-webrtc-ios.plist"
 
   def get_specifier_groups(acknowledgements_files)
     acknowledgements_files.map do |file|
@@ -318,15 +299,85 @@ def copy_acknowledgements
     system('plutil', '-insert', 'PreferenceSpecifiers', '-json', output_json, '-append', output_file, exception: true)
   end
 
+  def add_in_repo_third_party_code_licenses(specifiers)
+#    specifiers << {
+#      "Type" => "PSGroupSpecifier",
+#      "Title" => "",
+#      "FooterText" => "",
+#      "License" => "",
+#    }
+     specifiers << {
+       "Type" => "PSGroupSpecifier",
+       "Title" => "UIImage-Resize",
+       "FooterText" => <<~'LICENSE',
+         Without any further information, all the sources provided here are under the MIT License
+         quoted below.
+
+         Anyway, please contact me by email (olivier.halligon+ae@gmail.com) if you plan to use my work and the provided classes
+         in your own software. Thanks.
+
+
+         /***********************************************************************************
+          *
+          * Copyright (c) 2010 Olivier Halligon
+          *
+          * Permission is hereby granted, free of charge, to any person obtaining a copy
+          * of this software and associated documentation files (the "Software"), to deal
+          * in the Software without restriction, including without limitation the rights
+          * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+          * copies of the Software, and to permit persons to whom the Software is
+          * furnished to do so, subject to the following conditions:
+          *
+          * The above copyright notice and this permission notice shall be included in
+          * all copies or substantial portions of the Software.
+          *
+          * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+          * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+          * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+          * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+          * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+          * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+          * THE SOFTWARE.
+          *
+          ***********************************************************************************
+          *
+          * Any comment or suggestion welcome. Referencing this project in your AboutBox is appreciated.
+          * Please tell me if you use this class so we can cross-reference our projects.
+          *
+          ***********************************************************************************/
+       LICENSE
+       "License" => "MIT",
+     }
+  end
+
   specifier_groups = get_specifier_groups(acknowledgements_files)
 
   header_specifier = specifier_groups.first.first
   footer_specifier = specifier_groups.first.last
   all_acknowledgements_specifiers = specifier_groups.flat_map {|g| get_acknowledgements_specifiers(g)}
 
-  cleaned_acknowledgements_specifiers = all_acknowledgements_specifiers
-    .uniq {|s| s["Title"]}
-    .sort_by {|s| s["Title"].downcase}
+  add_in_repo_third_party_code_licenses(all_acknowledgements_specifiers)
+
+  libraries_by_license = Hash.new { |h, k| h[k] = [] }
+  all_acknowledgements_specifiers.each do |v|
+    v["Title"].split(", ").each do |title|
+      libraries_by_license[[v["FooterText"], v["License"]]] << title
+    end
+  end
+
+  grouped_acknowledgements_specifiers = []
+  libraries_by_license.each do |key, value|
+    titles = value.uniq.sort_by { |s| s.downcase }.join(", ")
+    acknowledgement = {
+      "Type" => "PSGroupSpecifier",
+      "Title" => titles,
+      "FooterText" => key[0],
+    }
+    acknowledgement["License"] = key[1] if key[1]
+    grouped_acknowledgements_specifiers << acknowledgement
+  end
+
+  cleaned_acknowledgements_specifiers = grouped_acknowledgements_specifiers.sort_by {|s| s["Title"].downcase}
   final_specifiers = [header_specifier] + cleaned_acknowledgements_specifiers + [footer_specifier]
 
   write_output_file(final_specifiers)

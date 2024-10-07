@@ -3,33 +3,46 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalCoreKit
-import SignalMessaging
 import SignalServiceKit
-import SignalUI
+public import SignalUI
 import StoreKit
 
-public class ChatListViewController: OWSViewController {
+public class ChatListViewController: OWSViewController, HomeTabViewController {
 
-    // MARK: Init
+    let appReadiness: AppReadinessSetter
 
-    override init() {
+    init(
+        chatListMode: ChatListMode,
+        appReadiness: AppReadinessSetter
+    ) {
+        self.appReadiness = appReadiness
+        self.viewState = CLVViewState(chatListMode: chatListMode, inboxFilter: nil)
+
         super.init()
 
+        tableDataSource.scrollViewDelegate = self
         tableDataSource.viewController = self
         loadCoordinator.viewController = self
         reminderViews.chatListViewController = self
+        viewState.settingsButtonCreator.delegate = self
+        viewState.proxyButtonCreator.delegate = self
         viewState.configure()
     }
 
+    public override var canBecomeFirstResponder: Bool {
+        true
+    }
+
     // MARK: View Lifecycle
+
+    private lazy var filterControl = ChatListFilterControl()
 
     public override func viewDidLoad() {
         super.viewDidLoad()
 
         keyboardObservationBehavior = .never
 
-        switch chatListMode {
+        switch viewState.chatListMode {
         case .inbox:
             title = NSLocalizedString("CHAT_LIST_TITLE_INBOX", comment: "Title for the chat list's default mode.")
         case .archive:
@@ -48,8 +61,8 @@ public class ChatListViewController: OWSViewController {
         tableView.estimatedRowHeight = 60
         tableView.allowsSelectionDuringEditing = true
         tableView.allowsMultipleSelectionDuringEditing = true
-
-        addPullToRefreshIfNeeded()
+        tableView.tableHeaderView = filterControl
+        filterControl.delegate = self
 
         // Empty Inbox
         view.addSubview(emptyInboxView)
@@ -67,34 +80,11 @@ public class ChatListViewController: OWSViewController {
         firstConversationCueView.autoPinEdge(toSuperviewMargin: .bottom, relation: .greaterThanOrEqual)
 
         // Search
-        searchBar.placeholder = NSLocalizedString(
-            "HOME_VIEW_CONVERSATION_SEARCHBAR_PLACEHOLDER",
-            comment: "Placeholder text for search bar which filters conversations."
-        )
-        searchBar.delegate = self
-        searchBar.accessibilityIdentifier = "ChatListViewController.searchBar"
-        searchBar.textField?.accessibilityIdentifier = "ChatListViewController.conversation_search"
-        searchBar.sizeToFit()
-        searchBar.layoutMargins = .zero
-        let searchBarContainer = UIView()
-        searchBarContainer.layoutMargins = UIEdgeInsets(hMargin: 8, vMargin: 0)
-        searchBarContainer.frame = searchBar.frame
-        searchBarContainer.addSubview(searchBar)
-        searchBar.autoPinEdgesToSuperviewMargins()
-
-        // Setting tableHeader calls numberOfSections, which must happen after updateMappings has been called at least once.
-        owsAssertDebug(tableView.tableHeaderView == nil)
-        tableView.tableHeaderView = searchBarContainer
-        // Hide search bar by default.  User can pull down to search.
-        tableView.contentOffset = CGPoint(x: 0, y: searchBar.frame.height)
-
+        navigationItem.searchController = viewState.searchController
+        viewState.searchController.searchResultsUpdater = self
         searchResultsController.delegate = self
-        addChild(searchResultsController)
-        view.addSubview(searchResultsController.view)
-        searchResultsController.view.autoPinEdgesToSuperviewEdges(with: .zero, excludingEdge: .top)
-        searchResultsController.view.autoPinTopToSuperviewMargin(withInset: 56)
-        searchResultsController.view.isHidden = true
 
+        updateBarButtonItems()
         updateReminderViews()
         applyTheme()
         observeNotifications()
@@ -103,26 +93,29 @@ public class ChatListViewController: OWSViewController {
     public override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
 
+        defer {
+            loadCoordinator.loadIfNecessary(suppressAnimations: true)
+        }
+
         isViewVisible = true
 
-        // Ensure the tabBar is always hidden if stories is disabled or we're in the archive.
-        let shouldHideTabBar = !StoryManager.areStoriesEnabled || chatListMode == .archive
+        // Ensure the tabBar is always hidden if we're in the archive.
+        let shouldHideTabBar = viewState.chatListMode == .archive
         if shouldHideTabBar {
             tabBarController?.tabBar.isHidden = true
             extendedLayoutIncludesOpaqueBars = true
         }
 
-        let isShowingSearchResults = !searchResultsController.view.isHidden
-        if isShowingSearchResults {
-            owsAssertDebug(!(searchBar.text ?? "").stripped.isEmpty)
-            scrollSearchBarToTop()
-            searchBar.becomeFirstResponder()
+        if isSearching {
+            scrollSearchBarToTop(animated: false)
         } else if let lastViewedThread {
             owsAssertDebug((searchBar.text ?? "").stripped.isEmpty)
 
             // When returning to conversation list, try to ensure that the "last" thread is still
             // visible.  The threads often change ordering while in conversation view due
-            // to incoming & outgoing messages.
+            // to incoming & outgoing messages. Reload to ensure we have this latest ordering
+            // before we find the index path we want to scroll to.
+            loadCoordinator.loadIfNecessary(suppressAnimations: true, shouldForceLoad: true)
             if let indexPathOfLastThread = renderState.indexPath(forUniqueId: lastViewedThread.uniqueId) {
                 tableView.scrollToRow(at: indexPathOfLastThread, at: .none, animated: false)
             }
@@ -136,8 +129,7 @@ public class ChatListViewController: OWSViewController {
             applyDefaultBackButton()
         }
 
-        searchResultsController.viewWillAppear(animated)
-        ensureSearchBarCancelButton()
+        viewState.searchResultsController.viewWillAppear(animated)
 
         updateUnreadPaymentNotificationsCountWithSneakyTransaction()
 
@@ -153,18 +145,40 @@ public class ChatListViewController: OWSViewController {
             ensureCellAnimations()
         }
 
-        if let selectedIndexPath = tableView.indexPathForSelectedRow {
-            // Deselect row when swiping back/returning to chat list.
-            tableView.deselectRow(at: selectedIndexPath, animated: false)
+        if let selectedIndexPath = tableView.indexPathForSelectedRow, let selectedThread = renderState.thread(forIndexPath: selectedIndexPath) {
+            if viewState.lastSelectedThreadId != selectedThread.uniqueId {
+                owsFailDebug("viewState.lastSelectedThreadId out of sync with table view")
+                viewState.lastSelectedThreadId = selectedThread.uniqueId
+                updateShouldBeUpdatingView()
+            }
+
+            let isCollapsed = splitViewController?.isCollapsed ?? true
+            if isCollapsed {
+                if animated, let transitionCoordinator {
+                    transitionCoordinator.animate { [self] _ in
+                        tableView.deselectRow(at: selectedIndexPath, animated: true)
+                    } completion: { [self] context in
+                        if context.isCancelled {
+                            tableView.selectRow(at: selectedIndexPath, animated: false, scrollPosition: .none)
+                        } else {
+                            viewState.lastSelectedThreadId = nil
+                            loadCoordinator.scheduleLoad(updatedThreadIds: [selectedThread.uniqueId], animated: true)
+                        }
+                    }
+                } else {
+                    // No animated transition, so just update the state immediately.
+                    viewState.lastSelectedThreadId = nil
+                    tableView.deselectRow(at: selectedIndexPath, animated: false)
+                    loadCoordinator.scheduleLoad(updatedThreadIds: [selectedThread.uniqueId], animated: false)
+                }
+            }
         }
     }
 
     public override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
 
-        BenchManager.completeEvent(eventId: "AppStart", logIfAbsent: false)
-        InstrumentsMonitor.trackEvent(name: "ChatListViewController.viewDidAppear")
-        AppReadiness.setUIIsReady()
+        appReadiness.setUIIsReady()
 
         if getStartedBanner == nil && !hasEverPresentedExperienceUpgrade && ExperienceUpgradeManager.presentNext(fromViewController: self) {
             hasEverPresentedExperienceUpgrade = true
@@ -181,9 +195,17 @@ public class ChatListViewController: OWSViewController {
 
         requestReviewIfAppropriate()
 
-        searchResultsController.viewDidAppear(animated)
+        viewState.searchResultsController.viewDidAppear(animated)
+
+        if viewState.shouldFocusSearchOnAppear {
+            viewState.shouldFocusSearchOnAppear = false
+            DispatchQueue.main.async {
+                self.focusSearch()
+            }
+        }
 
         showBadgeSheetIfNecessary()
+        Task { await self.checkForFailedServiceExtensionLaunches() }
 
         hasEverAppeared = true
         if viewState.multiSelectState.isActive {
@@ -205,8 +227,6 @@ public class ChatListViewController: OWSViewController {
     }
 
     public override func viewDidDisappear(_ animated: Bool) {
-        InstrumentsMonitor.trackEvent(name: "ChatListViewController.viewDidDisappear")
-
         super.viewDidDisappear(animated)
 
         searchResultsController.viewDidDisappear(animated)
@@ -215,13 +235,20 @@ public class ChatListViewController: OWSViewController {
     public override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
 
-        var contentInset = UIEdgeInsets.zero
-        if let getStartedBanner, getStartedBanner.isViewLoaded, !getStartedBanner.view.isHidden {
-            contentInset.bottom = getStartedBanner.opaqueHeight
+        let bottomInset = if let getStartedBanner, getStartedBanner.isViewLoaded, !getStartedBanner.view.isHidden {
+            getStartedBanner.opaqueHeight
+        } else {
+            CGFloat(0.0)
         }
-        if tableView.contentInset != contentInset {
+
+        if !hasEverAppeared {
+            filterControl.sizeToFit()
+            updateFilterControl(animated: false)
+        }
+
+        if tableView.contentInset.bottom != bottomInset {
             UIView.animate(withDuration: 0.25) {
-                self.tableView.contentInset = contentInset
+                self.tableView.contentInset.bottom = bottomInset
             }
         }
     }
@@ -246,7 +273,6 @@ public class ChatListViewController: OWSViewController {
     private func applyTheme() {
         view.backgroundColor = Theme.backgroundColor
         tableView.backgroundColor = Theme.backgroundColor
-        updateBarButtonItems()
     }
 
     public override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
@@ -362,30 +388,70 @@ public class ChatListViewController: OWSViewController {
     }()
 
     private func settingsBarButtonItem() -> UIBarButtonItem {
-        let contextButton = ContextMenuButton()
-        contextButton.showsContextMenuAsPrimaryAction = true
-        contextButton.contextMenu = settingsContextMenu()
-        contextButton.accessibilityLabel = CommonStrings.openSettingsButton
+        let barButtonItem = createSettingsBarButtonItem(
+            databaseStorage: databaseStorage,
+            shouldShowUnreadPaymentBadge: viewState.settingsButtonCreator.hasUnreadPaymentNotification,
+            buildActions: { settingsAction -> [UIAction] in
+                var contextMenuActions: [UIAction] = []
 
-        let avatarImageView = createAvatarBarButtonViewWithSneakyTransaction()
-        contextButton.addSubview(avatarImageView)
-        avatarImageView.autoPinEdgesToSuperviewEdges()
+                if FeatureFlags.chatListFilter {
+                    // FIXME: combine viewState.inboxFilter and renderState.viewInfo.inboxFilter to avoid bugs with them getting out of sync
+                    switch viewState.inboxFilter {
+                    case .unread:
+                        contextMenuActions.append(.disableChatListFilter(target: self))
+                    case .none?, nil:
+                        contextMenuActions.append(.enableChatListFilter(target: self))
+                    }
+                }
 
-        let wrapper = UIView.container()
-        wrapper.addSubview(contextButton)
-        contextButton.autoPinEdgesToSuperviewEdges()
+                if viewState.settingsButtonCreator.hasInboxChats {
+                    contextMenuActions.append(
+                        UIAction(
+                            title: OWSLocalizedString(
+                                "HOME_VIEW_TITLE_SELECT_CHATS",
+                                comment: "Title for the 'Select Chats' option in the ChatList."
+                            ),
+                            image: Theme.iconImage(.contextMenuSelect),
+                            handler: { [weak self] _ in
+                                self?.willEnterMultiselectMode()
+                            }
+                        )
+                    )
+                }
 
-        if unreadPaymentNotificationsCount > 0 {
-            PaymentsViewUtils.addUnreadBadge(toView: wrapper)
-        }
+                contextMenuActions.append(settingsAction)
 
-        let barButtonItem = UIBarButtonItem(customView: wrapper)
+                if viewState.settingsButtonCreator.hasArchivedChats {
+                    contextMenuActions.append(
+                        UIAction(
+                            title: OWSLocalizedString(
+                                "HOME_VIEW_TITLE_ARCHIVE",
+                                comment: "Title for the conversation list's 'archive' mode."
+                            ),
+                            image: Theme.iconImage(.contextMenuArchive),
+                            handler: { [weak self] _ in
+                                self?.showArchivedConversations(offerMultiSelectMode: true)
+                            }
+                        )
+                    )
+                }
+
+                return contextMenuActions
+            }, showAppSettings: { [weak self] in
+                self?.showAppSettings()
+            }
+        )
         barButtonItem.accessibilityLabel = CommonStrings.openSettingsButton
         barButtonItem.accessibilityIdentifier = "ChatListViewController.settingsButton"
         return barButtonItem
     }
 
     // MARK: Table View
+
+    func reloadTableDataAndResetThreadViewModelCache() {
+        threadViewModelCache.clear()
+        reloadTableDataAndResetCellContentCache()
+    }
 
     func reloadTableDataAndResetCellContentCache() {
         AssertIsOnMainThread()
@@ -395,29 +461,28 @@ public class ChatListViewController: OWSViewController {
         reloadTableData()
     }
 
-    func reloadTableData() {
+    func reloadTableData(withSelection previousSelection: [TSThread]? = nil) {
         AssertIsOnMainThread()
-        InstrumentsMonitor.measure(category: "runtime", parent: "ChatListViewController", name: "reloadTableData") {
-            var selectedThreadIds: Set<String> = []
-            for indexPath in tableView.indexPathsForSelectedRows ?? [] {
-                if let key = tableDataSource.thread(forIndexPath: indexPath, expectsSuccess: false)?.uniqueId {
-                    selectedThreadIds.insert(key)
-                }
-            }
 
-            tableView.reloadData()
+        let selectedThreadIds: Set<String>
+        if let previousSelection {
+            selectedThreadIds = Set(previousSelection.lazy.map(\.uniqueId))
+        } else {
+            selectedThreadIds = []
+        }
 
-            if !selectedThreadIds.isEmpty {
-                var threadIdsToBeSelected = selectedThreadIds
-                for section in 0..<tableDataSource.numberOfSections(in: tableView) {
-                    for row in 0..<tableDataSource.tableView(tableView, numberOfRowsInSection: section) {
-                        let indexPath = IndexPath(row: row, section: section)
-                        if let key = tableDataSource.thread(forIndexPath: indexPath, expectsSuccess: false)?.uniqueId, threadIdsToBeSelected.contains(key) {
-                            tableView.selectRow(at: indexPath, animated: false, scrollPosition: .none)
-                            threadIdsToBeSelected.remove(key)
-                            if threadIdsToBeSelected.isEmpty {
-                                return
-                            }
+        tableView.reloadData()
+
+        if !selectedThreadIds.isEmpty {
+            var threadIdsToBeSelected = selectedThreadIds
+            for section in 0..<tableDataSource.numberOfSections(in: tableView) {
+                for row in 0..<tableDataSource.tableView(tableView, numberOfRowsInSection: section) {
+                    let indexPath = IndexPath(row: row, section: section)
+                    if let key = renderState.thread(forIndexPath: indexPath)?.uniqueId, threadIdsToBeSelected.contains(key) {
+                        tableView.selectRow(at: indexPath, animated: false, scrollPosition: .none)
+                        threadIdsToBeSelected.remove(key)
+                        if threadIdsToBeSelected.isEmpty {
+                            return
                         }
                     }
                 }
@@ -463,12 +528,20 @@ public class ChatListViewController: OWSViewController {
 
     var lastViewedThread: TSThread?
 
-    @objc
     func updateBarButtonItems() {
-        guard chatListMode == .inbox && !viewState.multiSelectState.isActive else { return }
+        updateLeftBarButtonItem()
+        updateRightBarButtonItems()
+    }
+
+    private func updateLeftBarButtonItem() {
+        guard viewState.chatListMode == .inbox && !viewState.multiSelectState.isActive else { return }
 
         // Settings button.
         navigationItem.leftBarButtonItem = settingsBarButtonItem()
+    }
+
+    private func updateRightBarButtonItems() {
+        guard viewState.chatListMode == .inbox && !viewState.multiSelectState.isActive else { return }
 
         var rightBarButtonItems = [UIBarButtonItem]()
 
@@ -500,31 +573,8 @@ public class ChatListViewController: OWSViewController {
         )
         rightBarButtonItems.append(camera)
 
-        if SignalProxy.isEnabled {
-            let proxyStatusImage: UIImage?
-            let tintColor: UIColor
-            switch DependenciesBridge.shared.socketManager.socketState(forType: .identified) {
-            case .open:
-                proxyStatusImage = UIImage(named: "safety-number")
-                tintColor = UIColor.ows_accentGreen
-
-            case .closed:
-                proxyStatusImage = UIImage(named: "error-shield")
-                tintColor = UIColor.ows_accentRed
-
-            case .connecting:
-                proxyStatusImage = UIImage(named: "error-shield")
-                tintColor = UIColor.ows_middleGray
-            }
-
-            let proxy = UIBarButtonItem(
-                image: proxyStatusImage,
-                style: .plain,
-                target: self,
-                action: #selector(showAppSettingsInProxyMode)
-            )
-            proxy.tintColor = tintColor
-            rightBarButtonItems.append(proxy)
+        if let proxyButton = viewState.proxyButtonCreator.buildButton() {
+            rightBarButtonItems.append(proxyButton)
         }
 
         navigationItem.rightBarButtonItems = rightBarButtonItems
@@ -586,28 +636,6 @@ public class ChatListViewController: OWSViewController {
         showNewConversationView()
     }
 
-    private func addPullToRefreshIfNeeded() {
-        if DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isPrimaryDevice ?? true {
-            return
-        }
-
-        let pullToRefreshView = UIRefreshControl()
-        pullToRefreshView.tintColor = .gray
-        pullToRefreshView.addTarget(self, action: #selector(pullToRefreshPerformed), for: .valueChanged)
-        pullToRefreshView.accessibilityIdentifier = "ChatListViewController.pullToRefreshView"
-        tableView.refreshControl = pullToRefreshView
-    }
-
-    @objc
-    private func pullToRefreshPerformed(_ refreshControl: UIRefreshControl) {
-        AssertIsOnMainThread()
-        owsAssert(DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isPrimaryDevice == false)
-
-        syncManager.sendAllSyncRequestMessages(timeout: 20).ensure {
-            refreshControl.endRefreshing()
-        }.cauterize()
-    }
-
     private func applyDefaultBackButton() {
         AssertIsOnMainThread()
 
@@ -629,42 +657,42 @@ public class ChatListViewController: OWSViewController {
     // We want to delay asking for a review until an opportune time.
     // If the user has *just* launched Signal they intend to do something, we don't want to interrupt them.
 
-    private static var callCount: UInt = 0
-    private static var reviewRequested = false
+    private static var requestReviewCount = 0
+    private static var didRequestReview = false
 
-    func requestReviewIfAppropriate() {
-        Self.callCount += 1
+    private func requestReviewIfAppropriate() {
+        Self.requestReviewCount += 1
 
-        if hasEverAppeared && Self.callCount > 25 {
-            Logger.debug("requesting review")
-            // In Debug this pops up *every* time, which is helpful, but annoying.
-            // In Production this will pop up at most 3 times per 365 days.
-    #if !DEBUG
-            if !Self.reviewRequested {
-                // Despite `SKStoreReviewController` docs, some people have reported seeing the "request review" prompt
-                // repeatedly after first installation. Let's make sure it only happens at most once per launch.
-                SKStoreReviewController.requestReview()
-                Self.reviewRequested = true
-            }
-    #endif
-        } else {
-            Logger.debug("not requesting review")
+        // Despite `SKStoreReviewController` docs, some people have reported seeing
+        // the "request review" prompt repeatedly after first installation. Let's
+        // make sure it only happens at most once per launch.
+        if Self.didRequestReview {
+            return
         }
+
+        guard hasEverAppeared, Self.requestReviewCount > 25 else {
+            return
+        }
+
+        guard let windowScene = self.view.window?.windowScene else {
+            return
+        }
+
+        // In Production this will pop up at most 3 times per 365 days.
+        SKStoreReviewController.requestReview(in: windowScene)
+        Self.didRequestReview = true
     }
 
     // MARK: View State
 
-    let viewState = CLVViewState()
+    let viewState: CLVViewState
 
     private func shouldShowFirstConversationCue() -> Bool {
-        let hasSavedThread = databaseStorage.read { transaction in
-            return SSKPreferences.hasSavedThread(transaction: transaction)
-        }
-        return shouldShowEmptyInboxView && !hasSavedThread
+        return shouldShowEmptyInboxView && !databaseStorage.read(block: SSKPreferences.hasSavedThread(transaction:))
     }
 
     private var shouldShowEmptyInboxView: Bool {
-        return chatListMode == .inbox && numberOfInboxThreads == 0 && numberOfArchivedThreads == 0 && !hasVisibleReminders
+        return viewState.chatListMode == .inbox && renderState.viewInfo.inboxCount == 0 && renderState.viewInfo.archiveCount == 0 && !renderState.hasVisibleReminders
     }
 
     func updateViewState() {
@@ -686,8 +714,8 @@ public class ChatListViewController: OWSViewController {
 
     // MARK: Badge Sheets
 
-    var receiptCredentialResultStore: SubscriptionReceiptCredentialResultStore {
-        DependenciesBridge.shared.subscriptionReceiptCredentialResultStore
+    var receiptCredentialResultStore: ReceiptCredentialResultStore {
+        DependenciesBridge.shared.receiptCredentialResultStore
     }
 
     @objc
@@ -698,13 +726,18 @@ public class ChatListViewController: OWSViewController {
 
         let (
             oneTimeBoostReceiptCredentialRedemptionSuccess,
-            recurringSubscriptionReceiptCredentialRedemptionSuccess,
+            recurringSubscriptionInitiationReceiptCredentialRedemptionSuccess,
+
+            oneTimeBoostSuccessHasBeenPresented,
+            recurringSubscriptionInitiationSuccessHasBeenPresented,
 
             oneTimeBoostReceiptCredentialRequestError,
-            recurringSubscriptionReceiptCredentialRequestError,
+            recurringSubscriptionInitiationReceiptCredentialRequestError,
+            recurringSubscriptionRenewalReceiptCredentialRequestError,
 
             oneTimeBoostErrorHasBeenPresented,
-            recurringSubscriptionErrorHasBeenPresented,
+            recurringSubscriptionInitiationErrorHasBeenPresented,
+            recurringSubscriptionRenewalErrorHasBeenPresented,
 
             subscriberID,
             expiredBadgeID,
@@ -713,13 +746,18 @@ public class ChatListViewController: OWSViewController {
             hasCurrentSubscription
         ) = databaseStorage.read { transaction in (
             receiptCredentialResultStore.getRedemptionSuccess(successMode: .oneTimeBoost, tx: transaction.asV2Read),
-            receiptCredentialResultStore.getRedemptionSuccess(successMode: .recurringSubscription, tx: transaction.asV2Read),
+            receiptCredentialResultStore.getRedemptionSuccess(successMode: .recurringSubscriptionInitiation, tx: transaction.asV2Read),
+
+            receiptCredentialResultStore.hasPresentedSuccess(successMode: .oneTimeBoost, tx: transaction.asV2Read),
+            receiptCredentialResultStore.hasPresentedSuccess(successMode: .recurringSubscriptionInitiation, tx: transaction.asV2Read),
 
             receiptCredentialResultStore.getRequestError(errorMode: .oneTimeBoost, tx: transaction.asV2Read),
-            receiptCredentialResultStore.getRequestError(errorMode: .recurringSubscription, tx: transaction.asV2Read),
+            receiptCredentialResultStore.getRequestError(errorMode: .recurringSubscriptionInitiation, tx: transaction.asV2Read),
+            receiptCredentialResultStore.getRequestError(errorMode: .recurringSubscriptionRenewal, tx: transaction.asV2Read),
 
             receiptCredentialResultStore.hasPresentedError(errorMode: .oneTimeBoost, tx: transaction.asV2Read),
-            receiptCredentialResultStore.hasPresentedError(errorMode: .recurringSubscription, tx: transaction.asV2Read),
+            receiptCredentialResultStore.hasPresentedError(errorMode: .recurringSubscriptionInitiation, tx: transaction.asV2Read),
+            receiptCredentialResultStore.hasPresentedError(errorMode: .recurringSubscriptionRenewal, tx: transaction.asV2Read),
 
             SubscriptionManagerImpl.getSubscriberID(transaction: transaction),
             SubscriptionManagerImpl.mostRecentlyExpiredBadgeID(transaction: transaction),
@@ -728,15 +766,21 @@ public class ChatListViewController: OWSViewController {
             subscriptionManager.hasCurrentSubscription(transaction: transaction)
         )}
 
-        if let oneTimeBoostReceiptCredentialRedemptionSuccess {
+        if
+            let oneTimeBoostReceiptCredentialRedemptionSuccess,
+            !oneTimeBoostSuccessHasBeenPresented
+        {
             BadgeThanksSheetPresenter.load(
                 redemptionSuccess: oneTimeBoostReceiptCredentialRedemptionSuccess,
                 successMode: .oneTimeBoost
             ).presentBadgeThanksAndClearSuccess(fromViewController: self)
-        } else if let recurringSubscriptionReceiptCredentialRedemptionSuccess {
+        } else if
+            let recurringSubscriptionInitiationReceiptCredentialRedemptionSuccess,
+            !recurringSubscriptionInitiationSuccessHasBeenPresented
+        {
             BadgeThanksSheetPresenter.load(
-                redemptionSuccess: recurringSubscriptionReceiptCredentialRedemptionSuccess,
-                successMode: .recurringSubscription
+                redemptionSuccess: recurringSubscriptionInitiationReceiptCredentialRedemptionSuccess,
+                successMode: .recurringSubscriptionInitiation
             ).presentBadgeThanksAndClearSuccess(fromViewController: self)
         } else if
             let oneTimeBoostReceiptCredentialRequestError,
@@ -747,12 +791,20 @@ public class ChatListViewController: OWSViewController {
                 errorMode: .oneTimeBoost
             )
         } else if
-            let recurringSubscriptionReceiptCredentialRequestError,
-            !recurringSubscriptionErrorHasBeenPresented
+            let recurringSubscriptionInitiationReceiptCredentialRequestError,
+            !recurringSubscriptionInitiationErrorHasBeenPresented
         {
             showBadgeIssueSheetIfNeeded(
-                receiptCredentialRequestError: recurringSubscriptionReceiptCredentialRequestError,
-                errorMode: .recurringSubscription
+                receiptCredentialRequestError: recurringSubscriptionInitiationReceiptCredentialRequestError,
+                errorMode: .recurringSubscriptionInitiation
+            )
+        } else if
+            let recurringSubscriptionRenewalReceiptCredentialRequestError,
+            !recurringSubscriptionRenewalErrorHasBeenPresented
+        {
+            showBadgeIssueSheetIfNeeded(
+                receiptCredentialRequestError: recurringSubscriptionRenewalReceiptCredentialRequestError,
+                errorMode: .recurringSubscriptionRenewal
             )
         } else {
             showBadgeExpirationSheetIfNeeded(
@@ -775,13 +827,36 @@ public class ChatListViewController: OWSViewController {
     /// of days) to process. If one eventually fails, and we find ourselves with
     /// an error for a failed bank payment, we should present a sheet for it.
     private func showBadgeIssueSheetIfNeeded(
-        receiptCredentialRequestError: SubscriptionReceiptCredentialRequestError,
-        errorMode: SubscriptionReceiptCredentialResultStore.Mode
+        receiptCredentialRequestError: ReceiptCredentialRequestError,
+        errorMode: ReceiptCredentialResultStore.Mode
     ) {
-        switch receiptCredentialRequestError.errorCode {
+        /// Record that we've presented this error. Important to do even for
+        /// errors that don't merit presentation – otherwise, as long as this
+        /// error is persisted and not-presented, we'll keep attempting and
+        /// declining to present it. That'd be bad if it prevented us from
+        /// presenting a different error.
+        func hasPresentedError() {
+            self.databaseStorage.write { tx in
+                self.receiptCredentialResultStore.setHasPresentedError(
+                    errorMode: errorMode,
+                    tx: tx.asV2Write
+                )
+            }
+        }
+
+        guard let badge = receiptCredentialRequestError.badge else {
+            owsFailDebug("Missing badge for failed donation! Is this an old error?")
+            return hasPresentedError()
+        }
+
+        let errorCode = receiptCredentialRequestError.errorCode
+        let paymentMethod = receiptCredentialRequestError.paymentMethod
+        let chargeFailureCodeIfPaymentFailed = receiptCredentialRequestError.chargeFailureCodeIfPaymentFailed
+
+        switch errorCode {
         case .paymentStillProcessing:
             // Not a terminal error – no reason to show a sheet.
-            return
+            return hasPresentedError()
         case
                 .paymentFailed,
                 .localValidationFailed,
@@ -791,19 +866,24 @@ public class ChatListViewController: OWSViewController {
             break
         }
 
-        switch receiptCredentialRequestError.paymentMethod {
+        switch paymentMethod {
         case nil, .applePay, .creditOrDebitCard, .paypal:
-            return
-        case .sepa:
+            // Non-SEPA payment methods generally get their errors immediately,
+            // and so errors from initiating a donation should have been
+            // presented when the user was in the donate view. Consequently, we
+            // only want to present renewal errors here.
+            switch errorMode {
+            case .oneTimeBoost, .recurringSubscriptionInitiation:
+                return hasPresentedError()
+            case .recurringSubscriptionRenewal:
+                break
+            }
+        case .sepa, .ideal:
+            // SEPA donations won't error out immediately upon initiation
+            // (they'll spend time processing first), so we should show errors
+            // for any variety of donation here.
             break
         }
-
-        guard let badge = receiptCredentialRequestError.badge else {
-            owsFailBeta("Missing badge for failed SEPA donation! This should be impossible.")
-            return
-        }
-
-        let chargeFailureCode = receiptCredentialRequestError.chargeFailureCodeIfPaymentFailed
 
         let logger = PrefixedLogger(prefix: "[Donations]", suffix: "\(errorMode)")
 
@@ -815,19 +895,28 @@ public class ChatListViewController: OWSViewController {
                 return
             }
 
+            let badgeIssueSheetMode: BadgeIssueSheetState.Mode = {
+                switch errorMode {
+                case .oneTimeBoost, .recurringSubscriptionInitiation:
+                    return .bankPaymentFailed(
+                        chargeFailureCode: chargeFailureCodeIfPaymentFailed
+                    )
+                case .recurringSubscriptionRenewal:
+                    return .subscriptionExpiredBecauseOfChargeFailure(
+                        chargeFailureCode: chargeFailureCodeIfPaymentFailed,
+                        paymentMethod: paymentMethod
+                    )
+                }
+            }()
+
             let badgeIssueSheet = BadgeIssueSheet(
                 badge: badge,
-                mode: .bankPaymentFailed(chargeFailureCode: chargeFailureCode)
+                mode: badgeIssueSheetMode
             )
             badgeIssueSheet.delegate = self
 
             self.present(badgeIssueSheet, animated: true) {
-                self.databaseStorage.write { tx in
-                    self.receiptCredentialResultStore.setHasPresentedError(
-                        errorMode: errorMode,
-                        tx: tx.asV2Write
-                    )
-                }
+                hasPresentedError()
             }
         }.catch(on: SyncScheduler()) { _ in
             logger.error("Failed to populate badge assets!")
@@ -842,12 +931,10 @@ public class ChatListViewController: OWSViewController {
         hasCurrentSubscription: Bool
     ) {
         guard let expiredBadgeID else {
-            Logger.info("[Donations] No expired badge ID, not showing sheet")
             return
         }
 
         guard shouldShowExpirySheet else {
-            Logger.info("[Donations] Not showing badge expiration sheet because the flag is off")
             return
         }
 
@@ -880,61 +967,56 @@ public class ChatListViewController: OWSViewController {
                 owsFailDebug("Failed to fetch boost badge for expiry \(error)")
             }
         } else if SubscriptionBadgeIds.contains(expiredBadgeID) {
-            // Fetch current subscriptions, required to populate badge assets
-            firstly { () -> Promise<SubscriptionManagerImpl.DonationConfiguration> in
-                SubscriptionManagerImpl.fetchDonationConfiguration()
-            }.map(on: DispatchQueue.global()) { donationConfiguration -> [SubscriptionLevel] in
-                donationConfiguration.subscription.levels
-            }.then(on: DispatchQueue.global()) { subscriptionLevels -> Promise<([SubscriptionLevel], Subscription?)> in
+            /// We expect to show an error sheet when the subscription fails to
+            /// renew and we learn about it from the receipt credential
+            /// redemption job kicked off by the keep-alive.
+            ///
+            /// Consequently, we don't need/want to show a sheet for the badge
+            /// expiration itself, since we should've already shown a sheet.
+            ///
+            /// It's possible that the subscription simply "expired" due to
+            /// inactivity (the subscription was not kept-alive), in which case
+            /// we won't have shown a sheet because there won't have been a
+            /// renewal failure. That's ok – we'll let the badge expire
+            /// silently.
+            ///
+            /// We'll still fetch the subscription, but just for logging
+            /// purposes.
+
+            firstly(on: DispatchQueue.global()) { () -> Promise<Subscription?> in
                 guard let subscriberID else {
-                    return .value((subscriptionLevels, nil))
+                    return .value(nil)
                 }
 
-                return SubscriptionManagerImpl.getCurrentSubscriptionStatus(for: subscriberID)
-                    .map(on: DispatchQueue.global()) { currentSubscription in
-                        (subscriptionLevels, currentSubscription)
-                    }
-            }.done(on: DispatchQueue.global()) { (subscriptionLevels, currentSubscription) in
-                let subscriptionLevel = subscriptionLevels.first { $0.badge.id == expiredBadgeID }
-                guard let subscriptionLevel = subscriptionLevel else {
-                    owsFailDebug("Unable to find matching subscription level for expired badge")
-                    return
-                }
-
-                firstly {
-                    self.profileManager.badgeStore.populateAssetsOnBadge(subscriptionLevel.badge)
-                }.done(on: DispatchQueue.main) {
-                    // Make sure we're still the active VC
-                    guard self.isChatListTopmostViewController() else {
-                        Logger.info("[Donations] No longer topmost view controller, not presenting badge expiration sheet.")
-                        return
-                    }
-
-                    let mode: BadgeIssueSheetState.Mode = {
-                        if
-                            let currentSubscription,
-                            let chargeFailure = currentSubscription.chargeFailure
-                        {
-                            return .subscriptionExpiredBecauseOfChargeFailure(
-                                chargeFailureCode: chargeFailure.code,
-                                paymentMethod: currentSubscription.paymentMethod
-                            )
-                        } else {
-                            return .subscriptionExpiredBecauseNotRenewed
-                        }
-                    }()
-                    let badgeSheet = BadgeIssueSheet(badge: subscriptionLevel.badge, mode: mode)
-                    badgeSheet.delegate = self
-                    self.present(badgeSheet, animated: true)
+                return SubscriptionManagerImpl.getCurrentSubscriptionStatus(
+                    for: subscriberID
+                )
+            }.done(on: DispatchQueue.global()) { currentSubscription in
+                defer {
                     self.databaseStorage.write { transaction in
                         SubscriptionManagerImpl.setShowExpirySheetOnHomeScreenKey(show: false, transaction: transaction)
                     }
-                }.catch { error in
-                    owsFailDebug("Failed to fetch subscription badge assets for expiry \(error)")
                 }
 
-            }.catch { error in
-                owsFailDebug("Failed to fetch subscriptions for expiry \(error)")
+                guard let currentSubscription else {
+                    // If the subscription is missing entirely, it presumably
+                    // expired due to inactivity.
+                    Logger.warn("[Donations] Missing subscription for expired badge. It probably expired due to inactivity and was deleted.")
+                    return
+                }
+
+                owsAssertDebug(
+                    currentSubscription.status == .canceled,
+                    "[Donations] Current subscription is not canceled, but the badge expired!"
+                )
+
+                if let chargeFailure = currentSubscription.chargeFailure {
+                    Logger.warn("[Donations] Badge expired for subscription with charge failure: \(chargeFailure.code ?? "nil")")
+                } else {
+                    Logger.warn("[Donations] Badge expired for subscription without charge failure. It probably expired due to inactivity, but hasn't yet been deleted.")
+                }
+            }.catch(on: SyncScheduler()) { _ in
+                owsFailDebug("[Donations] Failed to get subscription during badge expiration!")
             }
         }
     }
@@ -949,7 +1031,7 @@ public class ChatListViewController: OWSViewController {
         return true
     }
 
-    // MARK: Payments
+    // MARK: - Payments
 
     func configureUnreadPaymentsBannerSingle(_ paymentsReminderView: UIView,
                                              paymentModel: TSPaymentModel,
@@ -969,22 +1051,24 @@ public class ChatListViewController: OWSViewController {
             return
         }
 
-        let userName = contactsManager.shortDisplayName(for: address, transaction: transaction)
+        let shortName = contactsManager.displayName(for: address, tx: transaction).resolvedValue(useShortNameIfAvailable: true)
         let formattedAmount = PaymentsFormat.format(paymentAmount: paymentAmount,
                                                     isShortForm: true,
                                                     withCurrencyCode: true,
                                                     withSpace: true)
         let format = OWSLocalizedString("PAYMENTS_NOTIFICATION_BANNER_1_WITH_DETAILS_FORMAT",
                                        comment: "Format for the payments notification banner for a single payment notification with details. Embeds: {{ %1$@ the name of the user who sent you the payment, %2$@ the amount of the payment }}.")
-        let title = String(format: format, userName, formattedAmount)
+        let title = String(format: format, shortName, formattedAmount)
 
         let avatarView = ConversationAvatarView(sizeClass: .customDiameter(Self.paymentsBannerAvatarSize), localUserDisplayMode: .asUser)
         avatarView.update(transaction) { config in
             config.dataSource = .address(address)
         }
 
-        let paymentsHistoryItem = PaymentsHistoryItem(paymentModel: paymentModel,
-                                                      displayName: userName)
+        let paymentsHistoryItem = PaymentsHistoryModelItem(
+            paymentModel: paymentModel,
+            displayName: shortName
+        )
 
         configureUnreadPaymentsBanner(paymentsReminderView,
                                       title: title,
@@ -1029,7 +1113,7 @@ public class ChatListViewController: OWSViewController {
     private class PaymentsBannerView: UIView {
         let block: () -> Void
 
-        required init(block: @escaping () -> Void) {
+        init(block: @escaping () -> Void) {
             self.block = block
 
             super.init(frame: .zero)
@@ -1116,12 +1200,201 @@ public class ChatListViewController: OWSViewController {
         paymentsBannerView.addSubview(stack)
         stack.autoPinEdgesToSuperviewEdges()
     }
+
+    // MARK: - Notifications
+
+    func checkForFailedServiceExtensionLaunches() async {
+        guard #available(iOS 17.0, *) else {
+            return
+        }
+
+        guard RemoteConfig.current.shouldCheckForServiceExtensionFailures else {
+            return
+        }
+
+        await messageProcessor.waitForFetchingAndProcessing().awaitable()
+
+        let notificationSettings = await UNUserNotificationCenter.current().notificationSettings()
+        guard notificationSettings.authorizationStatus == .authorized else {
+            return
+        }
+
+        // Has the NSE ever launched with the current version?
+        let appVersion = AppVersionImpl.shared
+        guard
+            let mainAppVersion = appVersion.lastCompletedLaunchMainAppVersion,
+            let nseAppVersion = appVersion.lastCompletedLaunchNSEAppVersion,
+            let upgradeDate = appVersion.firstMainAppLaunchDateAfterUpdate
+        else {
+            return
+        }
+        guard nseAppVersion != mainAppVersion else {
+            return
+        }
+
+        // Has it been at least an hour since we upgraded?
+        guard -upgradeDate.timeIntervalSinceNow > kHourInterval else {
+            return
+        }
+
+        // Has the user restarted since the most recent update was installed?
+        let bootTime: Date? = {
+            var timeVal = timeval()
+            var timeValSize = MemoryLayout<timeval>.size
+            let err = sysctlbyname("kern.boottime", &timeVal, &timeValSize, nil, 0)
+            guard err == 0, timeValSize == MemoryLayout<timeval>.size else {
+                return nil
+            }
+            return Date(timeIntervalSince1970: TimeInterval(timeVal.tv_sec))
+        }()
+        guard let bootTime else {
+            return
+        }
+        guard bootTime < upgradeDate else {
+            return
+        }
+
+        let keyValueStore = SDSKeyValueStore(collection: "FailedNSELaunches")
+        let mostRecentDateKey = "mostRecentPromptDate"
+        let promptCountKey = "promptCount"
+
+        let shouldShowPrompt = databaseStorage.read { tx in
+            // If we've shown the prompt recently, don't show it again.
+            let promptCount = keyValueStore.getInt(promptCountKey, defaultValue: 0, transaction: tx)
+            let promptBackoff: TimeInterval = {
+                switch promptCount {
+                case 0:
+                    return 0
+                case 1, 2:
+                    return 24*kHourInterval
+                case 3:
+                    return 48*kHourInterval
+                case 4:
+                    return 72*kHourInterval
+                default:
+                    return 96*kHourInterval
+                }
+            }()
+            let mostRecentDate = keyValueStore.getDate(mostRecentDateKey, transaction: tx)
+            if let mostRecentDate, -mostRecentDate.timeIntervalSinceNow < promptBackoff {
+                return false
+            }
+
+            // If we haven't received a message since upgrading, don't show it.
+            guard
+                let mostRecentMessage = InteractionFinder.lastInsertedIncomingMessage(transaction: tx),
+                Date(millisecondsSince1970: mostRecentMessage.receivedAtTimestamp) > upgradeDate
+            else {
+                return false
+            }
+            return true
+        }
+
+        guard shouldShowPrompt else {
+            return
+        }
+
+        guard isChatListTopmostViewController() else {
+            return
+        }
+
+        let actionSheet = ActionSheetController(
+            title: OWSLocalizedString(
+                "NOTIFICATIONS_ERROR_TITLE",
+                comment: "Shown as the title of an alert when notifications can't be shown due to an error."
+            ),
+            message: String(
+                format: OWSLocalizedString(
+                    "NOTIFICATIONS_ERROR_MESSAGE",
+                    comment: "Shown as the body of an alert when notifications can't be shown due to an error."
+                ),
+                UIDevice.current.localizedModel
+            )
+        )
+        actionSheet.addAction(ActionSheetAction(
+            title: CommonStrings.contactSupport,
+            handler: { [weak self] _ in
+                guard let self else { return }
+                ContactSupportAlert.presentStep2(emailSupportFilter: "NotLaunchingNSE", fromViewController: self)
+            }
+        ))
+        actionSheet.addAction(ActionSheetAction(title: CommonStrings.okButton))
+
+        let promptDate = Date()
+        self.present(actionSheet, animated: true)
+
+        await databaseStorage.awaitableWrite { tx in
+            keyValueStore.setDate(promptDate, key: mostRecentDateKey, transaction: tx)
+            keyValueStore.setInt(
+                keyValueStore.getInt(promptCountKey, defaultValue: 0, transaction: tx) + 1,
+                key: promptCountKey,
+                transaction: tx
+            )
+        }
+    }
 }
 
-// MARK: Settings Button
+// MARK: - ChatListFilterActions
 
 extension ChatListViewController {
+    func enableChatListFilter(_ sender: AnyObject?) {
+        updateChatListFilter(.unread)
+        updateBarButtonItems()
 
+        if filterControl.isFiltering {
+            // No need to update the filter control if it's already in the
+            // filtering state.
+            loadCoordinator.loadIfNecessary()
+        } else {
+            tableView.performBatchUpdates { [self] in
+                filterControl.startFiltering(animated: true)
+                loadCoordinator.loadIfNecessary()
+            }
+        }
+    }
+
+    func disableChatListFilter(_ sender: AnyObject?) {
+        updateChatListFilter(.none)
+        updateBarButtonItems()
+        tableView.performBatchUpdates { [self] in
+            filterControl.stopFiltering(animated: true)
+            loadCoordinator.loadIfNecessary()
+        }
+    }
+
+    private func updateFilterControl(animated: Bool) {
+        if viewState.inboxFilter == .unread {
+            filterControl.startFiltering(animated: animated)
+        } else {
+            filterControl.stopFiltering(animated: animated)
+        }
+    }
+
+    private func updateChatListFilter(_ inboxFilter: InboxFilter) {
+        viewState.inboxFilter = inboxFilter
+        loadCoordinator.saveInboxFilter(inboxFilter)
+    }
+}
+
+// MARK: - Settings Button
+
+extension ChatListViewController: ChatListSettingsButtonDelegate {
+    func didUpdateButton(_ settingsButtonCreator: ChatListSettingsButtonState) {
+        updateLeftBarButtonItem()
+    }
+}
+
+extension ChatListViewController: ChatListProxyButtonDelegate {
+    func didUpdateButton(_ proxyButtonCreator: ChatListProxyButtonCreator) {
+        updateRightBarButtonItems()
+    }
+
+    func didTapButton(_ proxyButtonCreator: ChatListProxyButtonCreator) {
+        showAppSettings(mode: .proxy)
+    }
+}
+
+extension ChatListViewController {
     enum ShowAppSettingsMode {
         case none
         case payments
@@ -1135,66 +1408,12 @@ extension ChatListViewController {
         case proxy
     }
 
-    func createAvatarBarButtonViewWithSneakyTransaction() -> UIView {
-        let avatarView = ConversationAvatarView(sizeClass: .twentyEight, localUserDisplayMode: .asUser)
-        databaseStorage.read { readTx in
-            avatarView.update(readTx) { config in
-                if let address = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: readTx.asV2Read)?.aciAddress {
-                    config.dataSource = .address(address)
-                    config.applyConfigurationSynchronously()
-                }
-            }
-        }
-        return avatarView
-    }
-
-    func settingsContextMenu() -> ContextMenu {
-        var contextMenuActions: [ContextMenuAction] = []
-        if renderState.inboxCount > 0 {
-            contextMenuActions.append(
-                ContextMenuAction(
-                    title: OWSLocalizedString("HOME_VIEW_TITLE_SELECT_CHATS", comment: "Title for the 'Select Chats' option in the ChatList."),
-                    image: Theme.iconImage(.contextMenuSelect),
-                    attributes: [],
-                    handler: { [weak self] (_) in
-                        self?.willEnterMultiselectMode()
-                    }
-                ))
-        }
-        contextMenuActions.append(
-            ContextMenuAction(
-                title: CommonStrings.openSettingsButton,
-                image: Theme.iconImage(.contextMenuSettings),
-                attributes: [],
-                handler: { [weak self] (_) in
-                    self?.showAppSettings(mode: .none)
-                }
-            ))
-        if renderState.archiveCount > 0 {
-            contextMenuActions.append(
-                ContextMenuAction(
-                    title: OWSLocalizedString("HOME_VIEW_TITLE_ARCHIVE", comment: "Title for the conversation list's 'archive' mode."),
-                    image: Theme.iconImage(.contextMenuArchive),
-                    attributes: [],
-                    handler: { [weak self] (_) in
-                        self?.showArchivedConversations(offerMultiSelectMode: true)
-                    }
-                ))
-        }
-        return .init(contextMenuActions)
-    }
-
     func showAppSettings() {
         showAppSettings(mode: .none)
     }
 
     func showAppSettingsInAppearanceMode() {
         showAppSettings(mode: .appearance)
-    }
-
-    @objc
-    func showAppSettingsInProxyMode() {
-        showAppSettings(mode: .proxy)
     }
 
     func showAppSettingsInAvatarBuilderMode() {
@@ -1210,7 +1429,7 @@ extension ChatListViewController {
         conversationSplitViewController?.selectedConversationViewController?
             .dismissMessageContextMenu(animated: true)
 
-        let appSettingsViewController = AppSettingsViewController()
+        let appSettingsViewController = AppSettingsViewController(appReadiness: appReadiness)
 
         var completion: (() -> Void)?
         var viewControllers: [UIViewController] = [ appSettingsViewController ]
@@ -1219,14 +1438,14 @@ extension ChatListViewController {
         case .none:
             break
         case .payments:
-            let paymentsSettings = PaymentsSettingsViewController(mode: .inAppSettings)
+            let paymentsSettings = PaymentsSettingsViewController(mode: .inAppSettings, appReadiness: appReadiness)
             viewControllers += [ paymentsSettings ]
         case .payment(let paymentsHistoryItem):
-            let paymentsSettings = PaymentsSettingsViewController(mode: .inAppSettings)
+            let paymentsSettings = PaymentsSettingsViewController(mode: .inAppSettings, appReadiness: appReadiness)
             let paymentsDetail = PaymentsDetailViewController(paymentItem: paymentsHistoryItem)
             viewControllers += [ paymentsSettings, paymentsDetail ]
         case .paymentsTransferIn:
-            let paymentsSettings = PaymentsSettingsViewController(mode: .inAppSettings)
+            let paymentsSettings = PaymentsSettingsViewController(mode: .inAppSettings, appReadiness: appReadiness)
             let paymentsTransferIn = PaymentsTransferInViewController()
             viewControllers += [ paymentsSettings, paymentsTransferIn ]
         case .appearance:
@@ -1299,7 +1518,6 @@ extension ChatListViewController {
 }
 
 extension ChatListViewController: BadgeIssueSheetDelegate {
-
     func badgeIssueSheetActionTapped(_ action: BadgeIssueSheetAction) {
         switch action {
         case .dismiss:
@@ -1311,16 +1529,14 @@ extension ChatListViewController: BadgeIssueSheetDelegate {
 }
 
 extension ChatListViewController: ThreadSwipeHandler {
-
     func updateUIAfterSwipeAction() {
         updateViewState()
     }
 }
 
 extension ChatListViewController: GetStartedBannerViewControllerDelegate {
-
     func presentGetStartedBannerIfNecessary() {
-        guard getStartedBanner == nil && chatListMode == .inbox else { return }
+        guard getStartedBanner == nil && viewState.chatListMode == .inbox else { return }
 
         let getStartedVC = GetStartedBannerViewController(delegate: self)
         if getStartedVC.hasIncompleteCards {
@@ -1375,14 +1591,21 @@ extension ChatListViewController: GetStartedBannerViewControllerDelegate {
 // MARK: - First conversation label
 
 extension ChatListViewController {
-
     func updateFirstConversationLabel() {
-        let signalAccounts = suggestedAccountsForFirstContact(maxCount: 3)
-
-        var contactNames = databaseStorage.read { transaction in
-            signalAccounts.map { account in
-                self.contactsManager.displayName(for: account.recipientAddress, transaction: transaction)
+        let contactNames = databaseStorage.read { tx -> [ComparableDisplayName] in
+            let comparableNames = contactsManager.sortedComparableNames(
+                for: profileManager.allWhitelistedRegisteredAddresses(tx: tx),
+                tx: tx
+            )
+            let tsAccountManager = DependenciesBridge.shared.tsAccountManager
+            guard let localIdentifiers = tsAccountManager.localIdentifiers(tx: tx.asV2Read) else {
+                return []
             }
+            return Array(
+                comparableNames.lazy
+                    .filter { !localIdentifiers.contains(address: $0.address) }
+                    .prefix(3)
+            )
         }
 
         let formatString = { () -> String in
@@ -1403,29 +1626,49 @@ extension ChatListViewController {
                     comment: "Format string for a label offering to start a new conversation with your contacts, if you have 2 Signal contacts.  Embeds {{The names of 2 of your Signal contacts}}."
                 )
             case 3:
-                break
+                return OWSLocalizedString(
+                    "HOME_VIEW_FIRST_CONVERSATION_OFFER_3_CONTACTS_FORMAT",
+                    comment: "Format string for a label offering to start a new conversation with your contacts, if you have at least 3 Signal contacts.  Embeds {{The names of 3 of your Signal contacts}}."
+                )
             default:
-                owsFailDebug("Unexpectedly had \(contactNames.count) names, expected at most 3!")
-                contactNames = Array(contactNames.prefix(3))
+                owsFail("Too many contactNames.")
             }
-
-            return OWSLocalizedString(
-                "HOME_VIEW_FIRST_CONVERSATION_OFFER_3_CONTACTS_FORMAT",
-                comment: "Format string for a label offering to start a new conversation with your contacts, if you have at least 3 Signal contacts.  Embeds {{The names of 3 of your Signal contacts}}."
-            )
         }()
 
         let attributedString = NSAttributedString.make(
             fromFormat: formatString,
-            attributedFormatArgs: contactNames.map { name in
-                return .string(name, attributes: [.font: firstConversationLabel.font.semibold()])
+            attributedFormatArgs: contactNames.map { comparableName in
+                return .string(
+                    comparableName.resolvedValue(),
+                    attributes: [.font: firstConversationLabel.font.semibold()]
+                )
             }
         )
 
         firstConversationLabel.attributedText = attributedString
     }
+}
 
-    private func suggestedAccountsForFirstContact(maxCount: Int) -> [SignalAccount] {
-        return Array(contactsViewHelper.signalAccounts(includingLocalUser: false).prefix(maxCount))
+extension ChatListViewController: UIScrollViewDelegate {
+    public func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+        cancelSearch()
+    }
+
+    public func scrollViewDidScroll(_ scrollView: UIScrollView) {
+        filterControl.updateScrollPosition(in: scrollView)
+    }
+
+    public func scrollViewWillEndDragging(_ scrollView: UIScrollView, withVelocity velocity: CGPoint, targetContentOffset: UnsafeMutablePointer<CGPoint>) {
+        filterControl.draggingWillEnd(in: scrollView)
+    }
+}
+
+extension ChatListViewController: ChatListFilterControlDelegate {
+    func filterControlDidStartFiltering() {
+        // Perform using the default run loop mode so that scroll view decelaration
+        // can finish gracefully before updating table content.
+        RunLoop.current.perform { [self] in
+            enableChatListFilter(filterControl)
+        }
     }
 }

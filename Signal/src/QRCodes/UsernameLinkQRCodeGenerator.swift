@@ -98,7 +98,7 @@ class UsernameLinkQRCodeGenerator: QRCodeGenerator {
         ))
 
         // Draw the logo inside the circle in the deadzone.
-        let logo = UIImage(named: "signal-logo-40")!.asTintedImage(color: foregroundColor)!
+        let logo = UIImage(named: "signal-logo-40")!.withTintColor(foregroundColor, renderingMode: .alwaysTemplate)
         let logoRect = circleRect.scaled(toPercentage: Constants.deadzoneLogoSizePercentage)
         styledQRCodeContext.draw(logo.cgImage!, in: logoRect)
 
@@ -119,7 +119,7 @@ extension Bitmaps.Image {
         dimensionPercentage percentage: CGFloat,
         paddingPoints: Int
     ) -> Bitmaps.Rect {
-        owsAssert(
+        owsPrecondition(
             percentage < 0.5, // Roughly the dimension percentage for deadzoning 30% of the surface area
             "Deadzoning too much of a QR code means it might not scan!"
         )

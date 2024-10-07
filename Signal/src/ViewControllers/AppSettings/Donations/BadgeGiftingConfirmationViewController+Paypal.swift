@@ -5,7 +5,7 @@
 
 import Foundation
 import AuthenticationServices
-import SignalMessaging
+import SignalServiceKit
 
 extension BadgeGiftingConfirmationViewController {
     typealias SendGiftError = DonationViewsUtil.Gifts.SendGiftError
@@ -13,7 +13,10 @@ extension BadgeGiftingConfirmationViewController {
     func startPaypal() {
         Logger.info("[Gifting] Starting PayPal...")
 
-        var hasCharged = false
+        // This variable doesn't actually do anything because `startJob` will
+        // always throw a `SendGiftError` and there aren't any other throwable
+        // things that come after it.
+        var mightHaveBeenCharged = false
 
         firstly(on: DispatchQueue.sharedUserInitiated) { () -> Void in
             try self.databaseStorage.read { transaction in
@@ -22,17 +25,17 @@ extension BadgeGiftingConfirmationViewController {
                     transaction: transaction
                 )
             }
-        }.then(on: DispatchQueue.main) { () -> Promise<URL> in
+        }.then(on: DispatchQueue.main) { () -> Promise<(URL, String)> in
             DonationViewsUtil.Paypal.createPaypalPaymentBehindActivityIndicator(
                 amount: self.price,
                 level: .giftBadge(.signalGift),
                 fromViewController: self
             )
-        }.then(on: DispatchQueue.main) { [weak self] approvalUrl -> Promise<PreparedGiftPayment> in
+        }.then(on: DispatchQueue.main) { [weak self] (approvalUrl, paymentId) -> Promise<PreparedGiftPayment> in
             guard let self else {
                 throw SendGiftError.userCanceledBeforeChargeCompleted
             }
-            return self.presentPaypal(with: approvalUrl)
+            return self.presentPaypal(with: approvalUrl, paymentId: paymentId)
         }.then(on: DispatchQueue.main) { [weak self] preparedPayment -> Promise<PreparedGiftPayment> in
             guard let self else { throw SendGiftError.userCanceledBeforeChargeCompleted }
             return DonationViewsUtil.Gifts.showSafetyNumberConfirmationIfNecessary(for: self.thread)
@@ -47,6 +50,7 @@ extension BadgeGiftingConfirmationViewController {
                 }
         }.then(on: DispatchQueue.main) { [weak self] preparedPayment -> Promise<Void> in
             guard let self else { throw SendGiftError.userCanceledBeforeChargeCompleted }
+            mightHaveBeenCharged = true
             return DonationViewsUtil.wrapPromiseInProgressView(
                 from: self,
                 promise: DonationViewsUtil.Gifts.startJob(
@@ -55,8 +59,7 @@ extension BadgeGiftingConfirmationViewController {
                     thread: self.thread,
                     messageText: self.messageText,
                     databaseStorage: self.databaseStorage,
-                    blockingManager: self.blockingManager,
-                    onChargeSucceeded: { hasCharged = true }
+                    blockingManager: self.blockingManager
                 )
             )
         }.done(on: DispatchQueue.main) { [weak self] in
@@ -68,13 +71,13 @@ extension BadgeGiftingConfirmationViewController {
                 sendGiftError = error
             } else {
                 owsFailDebug("[Gifting] Expected a SendGiftError but got \(error)")
-                sendGiftError = hasCharged ? .failedAndUserMaybeCharged : .failedAndUserNotCharged
+                sendGiftError = mightHaveBeenCharged ? .failedAndUserMaybeCharged : .failedAndUserNotCharged
             }
             DonationViewsUtil.Gifts.presentErrorSheetIfApplicable(for: sendGiftError)
         }
     }
 
-    private func presentPaypal(with approvalUrl: URL) -> Promise<PreparedGiftPayment> {
+    private func presentPaypal(with approvalUrl: URL, paymentId: String) -> Promise<PreparedGiftPayment> {
         firstly(on: DispatchQueue.main) { () -> Promise<Paypal.OneTimePaymentWebAuthApprovalParams> in
             Logger.info("[Gifting] Presenting PayPal web UI for user approval of gift donation")
             return Paypal.presentExpectingApprovalParams(
@@ -82,7 +85,7 @@ extension BadgeGiftingConfirmationViewController {
                 withPresentationContext: self
             )
         }.map(on: DispatchQueue.sharedUserInitiated) { approvalParams -> PreparedGiftPayment in
-            .forPaypal(approvalParams: approvalParams)
+            .forPaypal(approvalParams: approvalParams, paymentId: paymentId)
         }.recover(on: DispatchQueue.sharedUserInitiated) { error -> Promise<PreparedGiftPayment> in
             let errorToThrow: Error
 

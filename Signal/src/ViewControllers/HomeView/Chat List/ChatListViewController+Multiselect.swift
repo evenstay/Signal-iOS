@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
+import SignalServiceKit
 import SignalUI
 
 extension ChatListViewController {
@@ -24,13 +24,10 @@ extension ChatListViewController {
         // multi selection does not work well with displaying search results, so let's clear the search for now
         searchBar.delegate?.searchBarCancelButtonClicked?(searchBar)
         viewState.multiSelectState.title = title
-        if chatListMode == .inbox {
-            let doneButton = UIBarButtonItem(
-                barButtonSystemItem: .cancel,
-                target: self,
-                action: #selector(done),
-                accessibilityIdentifier: CommonStrings.cancelButton
-            )
+        if viewState.chatListMode == .inbox {
+            let doneButton: UIBarButtonItem = .cancelButton { [weak self] in
+                self?.done()
+            }
             navigationItem.setLeftBarButton(doneButton, animated: true)
             navigationItem.setRightBarButtonItems(nil, animated: true)
         } else {
@@ -42,6 +39,7 @@ extension ChatListViewController {
         searchBar.alpha = 0.5
         viewState.multiSelectState.setIsActive(true, tableView: tableView, cancelCurrentEditAction: cancelCurrentEditAction)
         showToolbar()
+        loadCoordinator.loadIfNecessary(shouldForceLoad: true)
     }
 
     func leaveMultiselectMode() {
@@ -51,7 +49,7 @@ extension ChatListViewController {
             return
         }
 
-        if chatListMode == .archive {
+        if viewState.chatListMode == .archive {
             owsAssertDebug(navigationItem.rightBarButtonItem != nil, "can't change label of right bar button")
             navigationItem.rightBarButtonItem?.title = CommonStrings.selectButton
             navigationItem.rightBarButtonItem?.accessibilityHint = CommonStrings.selectButton
@@ -61,6 +59,11 @@ extension ChatListViewController {
         viewState.multiSelectState.setIsActive(false, tableView: tableView)
         title = viewState.multiSelectState.title
         hideToolbar()
+        loadCoordinator.loadIfNecessary(shouldForceLoad: true)
+
+        if let lastViewedThread, isConversationActive(forThread: lastViewedThread) {
+            ensureSelectedThread(lastViewedThread, animated: false)
+        }
     }
 
     func showToolbar() {
@@ -88,8 +91,7 @@ extension ChatListViewController {
                 }
             }
             if
-                self.chatListMode == .inbox,
-                StoryManager.areStoriesEnabled,
+                viewState.chatListMode == .inbox,
                 let tabController = self.tabBarController as? HomeTabBarController
             {
                 tabController.setTabBarHidden(true, animated: true, duration: 0.1) { _ in
@@ -121,11 +123,12 @@ extension ChatListViewController {
 
     // MARK: private helper
 
-    @objc
     private func done() {
+        updateCaptions()
         leaveMultiselectMode()
         updateBarButtonItems()
-        if self.chatListMode == .archive {
+        updateViewState()
+        if viewState.chatListMode == .archive {
             navigationItem.rightBarButtonItem?.title = CommonStrings.selectButton
         }
     }
@@ -134,7 +137,7 @@ extension ChatListViewController {
         let hasSelectedEntries = !(tableView.indexPathsForSelectedRows ?? []).isEmpty
 
         let archiveBtn = UIBarButtonItem(
-            title: chatListMode == .archive ? CommonStrings.unarchiveAction : CommonStrings.archiveAction,
+            title: viewState.chatListMode == .archive ? CommonStrings.unarchiveAction : CommonStrings.archiveAction,
             style: .plain, target: self, action: #selector(performUnarchive))
         archiveBtn.isEnabled = hasSelectedEntries
 
@@ -143,7 +146,7 @@ extension ChatListViewController {
             readButton = UIBarButtonItem(title: CommonStrings.readAction, style: .plain, target: self, action: #selector(performRead))
             readButton.isEnabled = false
             for path in tableView.indexPathsForSelectedRows ?? [] {
-                if let thread = tableDataSource.threadViewModel(forIndexPath: path, expectsSuccess: false), thread.hasUnreadMessages {
+                if let thread = tableDataSource.threadViewModel(forIndexPath: path), thread.hasUnreadMessages {
                     readButton.isEnabled = true
                     break
                 }
@@ -158,17 +161,16 @@ extension ChatListViewController {
                 target: self,
                 action: #selector(performReadAll)
             )
-            readButton.isEnabled = hasUnreadEntry(threads: Array(renderState.pinnedThreads.orderedValues)) || hasUnreadEntry(threads: Array(renderState.unpinnedThreads))
+            readButton.isEnabled = hasUnreadEntry(threads: renderState.pinnedThreads) || hasUnreadEntry(threads: renderState.unpinnedThreads)
         }
 
         let deleteBtn = UIBarButtonItem(title: CommonStrings.deleteButton, style: .plain, target: self, action: #selector(performDelete))
         deleteBtn.isEnabled = hasSelectedEntries
 
-        let spacer = UIBarButtonItem(barButtonSystemItem: .flexibleSpace, target: nil, action: nil)
         var entries: [UIBarButtonItem] = []
         for button in [archiveBtn, readButton, deleteBtn] {
             if !entries.isEmpty {
-                entries.append(spacer)
+                entries.append(.flexibleSpace())
             }
             entries.append(button)
         }
@@ -199,7 +201,10 @@ extension ChatListViewController {
             } completion: { [weak self] (_) in
                 toolbar.removeFromSuperview()
                 self?.viewState.multiSelectState.toolbar = nil
-                if self?.chatListMode == .inbox, StoryManager.areStoriesEnabled, let tabController = self?.tabBarController as? HomeTabBarController {
+                if
+                    self?.viewState.chatListMode == .inbox,
+                    let tabController = self?.tabBarController as? HomeTabBarController
+                {
                     tabController.setTabBarHidden(false, animated: true, duration: 0.1)
                 }
             }
@@ -224,42 +229,50 @@ extension ChatListViewController {
 
     @objc
     func performArchive() {
-        performOnAllSelectedEntries { thread in
-            archiveThread(threadViewModel: thread, closeConversationBlock: nil)
+        performOn(indexPaths: tableView.indexPathsForSelectedRows ?? []) { threadViewModels in
+            for threadViewModel in threadViewModels {
+                archiveThread(threadViewModel: threadViewModel, closeConversationBlock: nil)
+            }
         }
         done()
     }
 
     @objc
     func performUnarchive() {
-        performOnAllSelectedEntries { thread in
-            archiveThread(threadViewModel: thread, closeConversationBlock: nil)
+        performOn(indexPaths: tableView.indexPathsForSelectedRows ?? []) { threadViewModels in
+            for threadViewModel in threadViewModels {
+                archiveThread(threadViewModel: threadViewModel, closeConversationBlock: nil)
+            }
         }
         done()
     }
 
     @objc
     func performRead() {
-        performOnAllSelectedEntries { thread in
-            markThreadAsRead(threadViewModel: thread)
+        performOn(indexPaths: tableView.indexPathsForSelectedRows ?? []) { threadViewModels in
+            for threadViewModel in threadViewModels {
+                markThreadAsRead(threadViewModel: threadViewModel)
+            }
         }
         done()
     }
 
     @objc
     func performReadAll() {
-        var entries: [ThreadViewModel] = []
-        var threads = Array(renderState.pinnedThreads.orderedValues)
+        var threadViewModels: [ThreadViewModel] = []
+        var threads = renderState.pinnedThreads
         threads.append(contentsOf: renderState.unpinnedThreads)
         for t in threads {
-            let thread = tableDataSource.threadViewModel(forThread: t)
-            if thread.hasUnreadMessages {
-                entries.append(thread)
+            let threadViewModel = tableDataSource.threadViewModel(forThread: t)
+            if threadViewModel.hasUnreadMessages {
+                threadViewModels.append(threadViewModel)
             }
         }
 
-        performOn(entries: entries) { thread in
-            markThreadAsRead(threadViewModel: thread)
+        performOn(threadViewModels: threadViewModels) { threadViewModels in
+            for threadViewModel in threadViewModels {
+                markThreadAsRead(threadViewModel: threadViewModel)
+            }
         }
         done()
     }
@@ -272,45 +285,76 @@ extension ChatListViewController {
             return
         }
 
+        DeleteForMeInfoSheetCoordinator.fromGlobals().coordinateDelete(
+            fromViewController: self
+        ) { [weak self] _, threadSoftDeleteManager in
+            self?.showDeleteAllActionSheet(
+                threadSoftDeleteManager: threadSoftDeleteManager
+            )
+        }
+    }
+
+    private func showDeleteAllActionSheet(threadSoftDeleteManager: any ThreadSoftDeleteManager) {
+        /// We need to grab these now, since they'll be `nil`-ed out when we
+        /// show the modal spinner below.
+        let selectedIndexPaths = tableView.indexPathsForSelectedRows ?? []
+
         let title: String
         let message: String
-        let count = tableView.indexPathsForSelectedRows?.count ?? 0
         let labelFormat = OWSLocalizedString("CONVERSATION_DELETE_CONFIRMATIONS_ALERT_TITLE_%d", tableName: "PluralAware",
                                             comment: "Title for the 'conversations delete confirmation' alert for multiple messages. Embeds: {{ %@ the number of currently selected items }}.")
-        title = String.localizedStringWithFormat(labelFormat, count)
+        title = String.localizedStringWithFormat(labelFormat, selectedIndexPaths.count)
         let messageFormat = OWSLocalizedString("CONVERSATION_DELETE_CONFIRMATION_ALERT_MESSAGES_%d", tableName: "PluralAware",
                                               comment: "Message for the 'conversations delete confirmation' alert for multiple messages.")
-        message = String.localizedStringWithFormat(messageFormat, count)
+        message = String.localizedStringWithFormat(messageFormat, selectedIndexPaths.count)
 
         let alert = ActionSheetController(title: title, message: message)
-        alert.addAction(ActionSheetAction(title: CommonStrings.deleteButton,
-                                          style: .destructive) { [weak self] _ in
-            self?.performOnAllSelectedEntries { thread in
-                self?.deleteThread(threadViewModel: thread, closeConversationBlock: nil)
+        alert.addAction(ActionSheetAction(
+            title: CommonStrings.deleteButton,
+            style: .destructive
+        ) { [weak self] _ in
+            guard let self else { return }
+
+            // This deletion can be quite intensive, so we'll wrap the whole
+            // thing in a UI-blocking modal.
+            ModalActivityIndicatorViewController.present(
+                fromViewController: self,
+                canCancel: false
+            ) { modal in
+                // We want to protect this whole operation with a single write
+                // transaction, to ensure the contents of the threads don't
+                // change as we're deleting them.
+                self.databaseStorage.write { transaction in
+                    self.performOn(indexPaths: selectedIndexPaths) { threadViewModels in
+                        threadSoftDeleteManager.softDelete(
+                            threads: threadViewModels.map { $0.threadRecord },
+                            sendDeleteForMeSyncMessage: true,
+                            tx: transaction.asV2Write
+                        )
+                    }
+                }
+                DispatchQueue.main.async {
+                    modal.dismiss()
+                }
             }
-            self?.done()
+
+            self.done()
         })
         alert.addAction(OWSActionSheets.cancelAction)
 
         presentActionSheet(alert)
     }
 
-    private func performOnAllSelectedEntries(action: ((ThreadViewModel) -> Void)) {
-        var entries: [ThreadViewModel] = []
-        for path in tableView.indexPathsForSelectedRows ?? [] {
-            if let thread = tableDataSource.threadViewModel(forIndexPath: path, expectsSuccess: false) {
-                entries.append(thread)
-            }
-        }
-        performOn(entries: entries, action: action)
+    private func performOn(indexPaths: [IndexPath], action: ([ThreadViewModel]) -> Void) {
+        let threadViewModels = indexPaths.compactMap(tableDataSource.threadViewModel(forIndexPath:))
+        performOn(threadViewModels: threadViewModels, action: action)
     }
 
-    private func performOn(entries: [ThreadViewModel]?, action: ((ThreadViewModel) -> Void)) {
-        for thread in entries ?? [] {
-            viewState.multiSelectState.actionPerformed = true
-            action(thread)
-        }
-        updateCaptions()
+    private func performOn(threadViewModels: [ThreadViewModel], action: ([ThreadViewModel]) -> Void) {
+        guard !threadViewModels.isEmpty else { return }
+
+        viewState.multiSelectState.actionPerformed = true
+        action(threadViewModels)
     }
 }
 

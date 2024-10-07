@@ -4,7 +4,7 @@
 //
 
 import Photos
-import SignalMessaging
+import SignalServiceKit
 import SignalUI
 import UIKit
 
@@ -69,7 +69,7 @@ class CameraCaptureControl: UIView {
 
     weak var delegate: CameraCaptureControlDelegate?
 
-    required init(axis: NSLayoutConstraint.Axis) {
+    init(axis: NSLayoutConstraint.Axis) {
         innerCircleSizeConstraint = shutterButtonInnerCircle.autoSetDimension(.width, toSize: CameraCaptureControl.shutterButtonDefaultSize)
         outerCircleSizeConstraint = shutterButtonOuterCircle.autoSetDimension(.width, toSize: CameraCaptureControl.shutterButtonDefaultSize)
 
@@ -133,6 +133,7 @@ class CameraCaptureControl: UIView {
 
     enum State {
         case initial
+        case maybeStartingRecording
         case recording
         case recordingLocked
         case recordingUsingVoiceOver
@@ -149,6 +150,13 @@ class CameraCaptureControl: UIView {
     }
 
     private var sliderTrackingProgress: CGFloat = 0 {
+        willSet {
+            if newValue > 0 {
+                // Prepare "slide to lock" UI in case user swipes right too fast
+                // and animation for setState(.recording) isn't finished yet.
+                prepareLongPressVideoRecordingControlsIfNecessary()
+            }
+        }
         didSet {
             guard isRecordingWithLongPress else { return }
 
@@ -176,34 +184,32 @@ class CameraCaptureControl: UIView {
         }
 
         if animationDuration > 0 {
-            UIView.animate(withDuration: animationDuration,
-                           delay: 0,
-                           options: [ .beginFromCurrentState ],
-                           animations: {
-                self.updateShutterButtonAppearanceForCurrentState()
-                self.setNeedsLayout()
-                self.layoutIfNeeded()
-            },
-                           completion: { _ in
-                // When switching to "recording" state we want to prepare "slide to lock" UI elements
-                // in the completion handler because none of those elements are needed yet a this point.
-                // Adding the controls to the view hierarchy outside of the animation block
-                // also fixes an issue where stop button would be visible briefly during shutter button animations.
-                if self.state == .recording && isRecordingWithLongPress {
-                    self.prepareLongPressVideoRecordingControls()
+            UIView.animate(
+                withDuration: animationDuration,
+                delay: 0,
+                options: [ .beginFromCurrentState ],
+                animations: {
+                    self.updateShutterButtonAppearanceForCurrentState()
+                    self.setNeedsLayout()
+                    self.layoutIfNeeded()
+                },
+                completion: { _ in
+                    // When switching to "recording" state we want to prepare "slide to lock" UI elements
+                    // in the completion handler because none of those elements are needed yet a this point.
+                    // Adding the controls to the view hierarchy outside of the animation block
+                    // also fixes an issue where stop button would be visible briefly during shutter button animations.
+                    self.prepareLongPressVideoRecordingControlsIfNecessary()
                 }
-            })
+            )
         } else {
             updateShutterButtonAppearanceForCurrentState()
-            if state == .recording && isRecordingWithLongPress {
-                prepareLongPressVideoRecordingControls()
-            }
+            prepareLongPressVideoRecordingControlsIfNecessary()
         }
     }
 
     private func updateShutterButtonAppearanceForCurrentState() {
         switch state {
-        case .initial:
+        case .initial, .maybeStartingRecording:
             shutterButtonInnerCircle.alpha = 1
             shutterButtonInnerCircle.backgroundColor = .clear
 
@@ -339,6 +345,7 @@ class CameraCaptureControl: UIView {
         case .began:
             guard state == .initial else { break }
 
+            state = .maybeStartingRecording
             sliderTrackingProgress = 0
             initialTouchLocation = currentLocation
             initialZoomPosition = nil
@@ -468,7 +475,10 @@ class CameraCaptureControl: UIView {
                     finishVideoRecording()
                 }
 
-            case .initial:
+            case .initial, .maybeStartingRecording:
+                if state == .maybeStartingRecording {
+                    state = .initial
+                }
                 capturePhoto()
 
             case .recordingLocked, .recordingUsingVoiceOver:
@@ -522,7 +532,9 @@ class CameraCaptureControl: UIView {
         }
     }
 
-    private func prepareLongPressVideoRecordingControls() {
+    private func prepareLongPressVideoRecordingControlsIfNecessary() {
+        guard state == .recording && sliderTrackingProgress == 0 && isRecordingWithLongPress else { return }
+
         initializeVideoRecordingControlsIfNecessary()
 
         stopButton.alpha = 1
@@ -607,7 +619,7 @@ class CameraZoomSelectionControl: UIView {
         }
     }
 
-    required init(availableCameras: [(cameraType: CameraCaptureSession.CameraType, defaultZoomFactor: CGFloat)]) {
+    init(availableCameras: [(cameraType: CameraCaptureSession.CameraType, defaultZoomFactor: CGFloat)]) {
         owsAssertDebug(!availableCameras.isEmpty, "availableCameras must not be empty.")
 
         self.availableCameras = availableCameras.map { $0.cameraType }
@@ -700,7 +712,7 @@ class CameraZoomSelectionControl: UIView {
             return label
         }()
 
-        required init(camera: CameraCaptureSession.CameraType, defaultZoomFactor: CGFloat) {
+        init(camera: CameraCaptureSession.CameraType, defaultZoomFactor: CGFloat) {
             self.camera = camera
             self.defaultZoomFactor = defaultZoomFactor
             self.currentZoomFactor = defaultZoomFactor
@@ -1121,7 +1133,7 @@ class FlashModeButton: RoundMediaButton {
 
     private var flashMode: AVCaptureDevice.FlashMode = .auto
 
-    required init() {
+    init() {
         super.init(image: FlashModeButton.flashAuto, backgroundStyle: .blur, customView: nil)
     }
 
@@ -1191,7 +1203,7 @@ class CaptureModeButton: RoundMediaButton {
 
 class MediaPickerThumbnailButton: UIButton {
 
-    required init() {
+    init() {
         let buttonSize = MediaPickerThumbnailButton.visibleSize + 2*MediaPickerThumbnailButton.contentMargin
         super.init(frame: CGRect(origin: .zero, size: .square(buttonSize)))
     }
@@ -1204,7 +1216,7 @@ class MediaPickerThumbnailButton: UIButton {
     private static let contentMargin: CGFloat = 8
 
     func configure() {
-        contentEdgeInsets = UIEdgeInsets(margin: MediaPickerThumbnailButton.contentMargin)
+        ows_contentEdgeInsets = UIEdgeInsets(margin: MediaPickerThumbnailButton.contentMargin)
 
         let placeholderView = UIVisualEffectView(effect: UIBlurEffect(style: .light))
         placeholderView.layer.cornerRadius = 10
@@ -1213,14 +1225,10 @@ class MediaPickerThumbnailButton: UIButton {
         placeholderView.clipsToBounds = true
         placeholderView.isUserInteractionEnabled = false
         insertSubview(placeholderView, at: 0)
-        placeholderView.autoPinEdgesToSuperviewEdges(with: contentEdgeInsets)
+        placeholderView.autoPinEdgesToSuperviewEdges(with: ows_contentEdgeInsets)
 
         var authorizationStatus: PHAuthorizationStatus
-        if #available(iOS 14, *) {
-            authorizationStatus = PHPhotoLibrary.authorizationStatus(for: .readWrite)
-        } else {
-            authorizationStatus = PHPhotoLibrary.authorizationStatus()
-        }
+        authorizationStatus = PHPhotoLibrary.authorizationStatus(for: .readWrite)
         guard authorizationStatus == .authorized else { return }
 
         // Async Fetch last image
@@ -1252,8 +1260,10 @@ class MediaPickerThumbnailButton: UIButton {
     }
 
     override var intrinsicContentSize: CGSize {
-        return CGSize(width: contentEdgeInsets.leading + Self.visibleSize + contentEdgeInsets.trailing,
-                      height: contentEdgeInsets.top + Self.visibleSize + contentEdgeInsets.bottom)
+        return CGSize(
+            width: ows_contentEdgeInsets.leading + Self.visibleSize + ows_contentEdgeInsets.trailing,
+            height: ows_contentEdgeInsets.top + Self.visibleSize + ows_contentEdgeInsets.bottom
+        )
     }
 }
 
@@ -1398,7 +1408,7 @@ class CameraBottomBar: UIView {
     let proceedButton: UIButton = {
         let button = UIButton(type: .system)
         button.setImage(UIImage(imageLiteralResourceName: "chevron-right-colored-42"), for: .normal)
-        button.contentEdgeInsets = UIEdgeInsets(margin: 8)
+        button.ows_contentEdgeInsets = UIEdgeInsets(margin: 8)
         button.sizeToFit()
         return button
     }()
@@ -1577,7 +1587,7 @@ class CameraBottomBar: UIView {
             backgroundColor = .clear
 
             // Use a clear image for the background and the dividers
-            let tintColorImage = UIImage(color: .clear, size: CGSize(width: 1, height: 32))
+            let tintColorImage = UIImage.image(color: .clear, size: CGSize(width: 1, height: 32))
             setBackgroundImage(tintColorImage, for: .normal, barMetrics: .default)
             setDividerImage(tintColorImage, forLeftSegmentState: .normal, rightSegmentState: .normal, barMetrics: .default)
 

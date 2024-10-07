@@ -4,10 +4,10 @@
 //
 
 import CoreServices
-import SignalCoreKit
-import SignalMessaging
+import LibSignalClient
 import SignalServiceKit
 import SignalUI
+import UniformTypeIdentifiers
 
 #if USE_DEBUG_UI
 
@@ -28,7 +28,8 @@ class DebugUIMessages: DebugUIPage, Dependencies {
             items += [
                 OWSTableItem(title: "Delete All Messages in Thread", actionBlock: {
                     self.databaseStorage.write { transaction in
-                        thread.removeAllThreadInteractions(transaction: transaction)
+                        DependenciesBridge.shared.threadSoftDeleteManager
+                            .removeAllInteractions(thread: thread, sendDeleteForMeSyncMessage: false, tx: transaction.asV2Write)
                     }
                 })
             ]
@@ -39,16 +40,11 @@ class DebugUIMessages: DebugUIPage, Dependencies {
                 // Send Media
                 DebugUIMessages.sendAllMediaAction(thread: thread),
                 DebugUIMessages.sendRandomMediaAction(thread: thread),
-                // Fake Media
-                DebugUIMessages.fakeAllMediaAction(thread: thread),
-                DebugUIMessages.fakeRandomMediaAction(thread: thread),
                 // Fake Text
                 DebugUIMessages.fakeAllTextAction(thread: thread),
                 DebugUIMessages.fakeRandomTextAction(thread: thread),
                 // Sequences
                 DebugUIMessages.allFakeSequencesAction(thread: thread),
-                // Quoted Replies
-                DebugUIMessages.allQuotedReplyAction(thread: thread),
                 // Exemplary
                 DebugUIMessages.allFakeActionsAction(thread: thread),
                 DebugUIMessages.allFakeBackDatedAction(thread: thread)
@@ -80,9 +76,6 @@ class DebugUIMessages: DebugUIPage, Dependencies {
                 OWSTableItem(title: "Send All Contact Shares", actionBlock: {
                     DebugUIMessages.sendAllContacts(thread: thread)
                 }),
-                OWSTableItem(title: "Select Quoted Reply", actionBlock: {
-                    DebugUIMessages.selectQuotedReplyAction(thread: thread)
-                }),
                 OWSTableItem(title: "Select Back-Dated", actionBlock: {
                     DebugUIMessages.selectBackDatedAction(thread: thread)
                 }),
@@ -96,7 +89,9 @@ class DebugUIMessages: DebugUIPage, Dependencies {
                 OWSTableItem(title: "Create Threads", actionBlock: {
                     DebugUIMessages.askForQuantityWithTitle("How many threads?") { threadQuantity in
                         DebugUIMessages.askForQuantityWithTitle("How many messages in each thread?") { messageQuantity in
-                            DebugUIMessages.createFakeThreads(threadQuantity, withFakeMessages: messageQuantity)
+                            Task {
+                                await DebugUIMessages.createFakeThreads(threadQuantity, withFakeMessages: messageQuantity)
+                            }
                         }
                     }
                 }),
@@ -104,20 +99,17 @@ class DebugUIMessages: DebugUIPage, Dependencies {
                     DebugUIMessages.sendOversizeTextMessageInThread(thread)
                 }),
                 OWSTableItem(title: "Send unknown mimetype", actionBlock: {
-                    DebugUIMessages.sendRandomAttachmentInThread(thread, uti: kUnknownTestAttachmentUTI)
+                    DebugUIMessages.sendRandomAttachmentInThread(thread, uti: MimeTypeUtil.unknownTestAttachmentUti)
                 }),
                 OWSTableItem(title: "Send pdf", actionBlock: {
-                    DebugUIMessages.sendRandomAttachmentInThread(thread, uti: kUTTypePDF as String)
-                }),
-                OWSTableItem(title: "Create all system messages", actionBlock: {
-                    DebugUIMessages.createSystemMessagesInThread(thread)
+                    DebugUIMessages.sendRandomAttachmentInThread(thread, uti: UTType.pdf.identifier)
                 }),
                 OWSTableItem(title: "Create messages with variety of timestamps", actionBlock: {
                   DebugUIMessages.createTimestampMessagesInThread(thread)
                 }),
-                OWSTableItem(title: "Send text and system messages", actionBlock: {
+                OWSTableItem(title: "Send text messages", actionBlock: {
                     DebugUIMessages.askForQuantityWithTitle("How many messages?") { quantity in
-                        DebugUIMessages.sendTextAndSystemMessages(quantity, thread: thread)
+                        DebugUIMessages.sendTextMessages(quantity, thread: thread)
                     }
                 }),
                 OWSTableItem(title: "Message with stalled timer", actionBlock: {
@@ -187,7 +179,7 @@ class DebugUIMessages: DebugUIPage, Dependencies {
         guard let fromViewController = UIApplication.shared.frontmostViewController else { return }
 
         let actionSheet = ActionSheetController(title: title)
-        [ 1, 10, 25, 100, 1 * 1000, 10 * 1000 ].forEach { count in
+        [ 1, 10, 25, 100 ].forEach { count in
             actionSheet.addAction(ActionSheetAction(
                 title: String(count),
                 handler: { _ in
@@ -226,1109 +218,6 @@ class DebugUIMessages: DebugUIPage, Dependencies {
 
     private static func selectFakeAction(thread: TSThread) {
         selectActionUI(allFakeActions(thread: thread, includeLabels: false), label: "Select Fake")
-    }
-
-    // MARK: Fake Media
-
-    private static func fakeAllMediaAction(thread: TSThread) -> DebugUIMessagesAction {
-        return DebugUIMessagesGroupAction.allGroupActionWithLabel(
-            "All Fake Media",
-            subactions: allFakeMediaActions(thread: thread, includeLabels: true)
-        )
-    }
-
-    private static func fakeRandomMediaAction(thread: TSThread) -> DebugUIMessagesAction {
-        return DebugUIMessagesGroupAction.randomGroupActionWithLabel(
-            "Random Fake Media",
-            subactions: allFakeMediaActions(thread: thread, includeLabels: false)
-        )
-    }
-
-    private static func allFakeMediaActions(thread: TSThread, includeLabels: Bool) -> [DebugUIMessagesAction] {
-        var actions = [DebugUIMessagesAction]()
-
-        // Outgoing
-
-        if includeLabels {
-            actions.append(fakeOutgoingTextMessageAction(thread: thread, messageState: .sent, text: "⚠️ Outgoing Jpeg ⚠️"))
-        }
-        actions += [
-            fakeOutgoingJpegAction(thread: thread, messageState: .failed, hasCaption: false),
-            fakeOutgoingJpegAction(thread: thread, messageState: .failed, hasCaption: true),
-            fakeOutgoingJpegAction(thread: thread, messageState: .sending, hasCaption: false),
-            fakeOutgoingJpegAction(thread: thread, messageState: .sending, hasCaption: true),
-            fakeOutgoingJpegAction(thread: thread, messageState: .sent, hasCaption: false),
-            fakeOutgoingJpegAction(thread: thread, messageState: .sent, hasCaption: true)
-        ]
-
-        if includeLabels {
-            actions.append(fakeOutgoingTextMessageAction(thread: thread, messageState: .sent, text: "⚠️ Outgoing Gif ⚠️"))
-        }
-        actions += [
-            // Don't bother with multiple GIF states.
-            fakeOutgoingGifAction(thread: thread, messageState: .sent, hasCaption: false),
-            fakeOutgoingLargeGifAction(thread: thread, messageState: .sent, hasCaption: false)
-        ]
-
-        if includeLabels {
-            actions.append(fakeOutgoingTextMessageAction(thread: thread, messageState: .sent, text: "⚠️ Outgoing Mp3 ⚠️"))
-        }
-        actions += [
-            fakeOutgoingMp3Action(thread: thread, messageState: .sending, hasCaption: true),
-            fakeOutgoingMp3Action(thread: thread, messageState: .sending, hasCaption: false),
-            fakeOutgoingMp3Action(thread: thread, messageState: .failed, hasCaption: false),
-            fakeOutgoingMp3Action(thread: thread, messageState: .failed, hasCaption: true),
-            fakeOutgoingMp3Action(thread: thread, messageState: .sent, hasCaption: false),
-            fakeOutgoingMp3Action(thread: thread, messageState: .sent, hasCaption: true)
-        ]
-
-        if includeLabels {
-            actions.append(fakeOutgoingTextMessageAction(thread: thread, messageState: .sent, text: "⚠️ Outgoing Mp4 ⚠️"))
-        }
-        actions += [
-            fakeOutgoingMp4Action(thread: thread, messageState: .sending, hasCaption: false),
-            fakeOutgoingMp4Action(thread: thread, messageState: .sending, hasCaption: true),
-            fakeOutgoingMp4Action(thread: thread, messageState: .failed, hasCaption: false),
-            fakeOutgoingMp4Action(thread: thread, messageState: .failed, hasCaption: true),
-            fakeOutgoingMp4Action(thread: thread, messageState: .sent, hasCaption: false),
-            fakeOutgoingMp4Action(thread: thread, messageState: .sent, hasCaption: true)
-        ]
-
-        if includeLabels {
-            actions.append(fakeOutgoingTextMessageAction(thread: thread, messageState: .sent, text: "⚠️ Outgoing Compact Landscape Png ⚠️"))
-        }
-        actions += [
-            fakeOutgoingCompactLandscapePngAction(thread: thread, messageState: .sending, hasCaption: false),
-            fakeOutgoingCompactLandscapePngAction(thread: thread, messageState: .sending, hasCaption: true),
-            fakeOutgoingCompactLandscapePngAction(thread: thread, messageState: .failed, hasCaption: false),
-            fakeOutgoingCompactLandscapePngAction(thread: thread, messageState: .failed, hasCaption: true),
-            fakeOutgoingCompactLandscapePngAction(thread: thread, messageState: .sent, hasCaption: false),
-            fakeOutgoingCompactLandscapePngAction(thread: thread, messageState: .sent, hasCaption: true)
-        ]
-
-        if includeLabels {
-            actions.append(fakeOutgoingTextMessageAction(thread: thread, messageState: .sent, text: "⚠️ Outgoing Compact Portrait Png ⚠️"))
-        }
-        actions += [
-            fakeOutgoingCompactPortraitPngAction(thread: thread, messageState: .sending, hasCaption: false),
-            fakeOutgoingCompactPortraitPngAction(thread: thread, messageState: .sending, hasCaption: true),
-            fakeOutgoingCompactPortraitPngAction(thread: thread, messageState: .failed, hasCaption: false),
-            fakeOutgoingCompactPortraitPngAction(thread: thread, messageState: .failed, hasCaption: true),
-            fakeOutgoingCompactPortraitPngAction(thread: thread, messageState: .sent, hasCaption: false),
-            fakeOutgoingCompactPortraitPngAction(thread: thread, messageState: .sent, hasCaption: true)
-        ]
-
-        if includeLabels {
-            actions.append(fakeOutgoingTextMessageAction(thread: thread, messageState: .sent, text: "⚠️ Outgoing Wide Landscape Png ⚠️"))
-        }
-        actions += [
-            fakeOutgoingWideLandscapePngAction(thread: thread, messageState: .sending, hasCaption: false),
-            fakeOutgoingWideLandscapePngAction(thread: thread, messageState: .sending, hasCaption: true),
-            fakeOutgoingWideLandscapePngAction(thread: thread, messageState: .failed, hasCaption: false),
-            fakeOutgoingWideLandscapePngAction(thread: thread, messageState: .failed, hasCaption: true),
-            fakeOutgoingWideLandscapePngAction(thread: thread, messageState: .sent, hasCaption: false),
-            fakeOutgoingWideLandscapePngAction(thread: thread, messageState: .sent, hasCaption: true)
-        ]
-
-        if includeLabels {
-            actions.append(fakeOutgoingTextMessageAction(thread: thread, messageState: .sent, text: "⚠️ Outgoing Tall Portrait Png ⚠️"))
-        }
-        actions += [
-            fakeOutgoingTallPortraitPngAction(thread: thread, messageState: .sending, hasCaption: false),
-            fakeOutgoingTallPortraitPngAction(thread: thread, messageState: .sending, hasCaption: true),
-            fakeOutgoingTallPortraitPngAction(thread: thread, messageState: .failed, hasCaption: false),
-            fakeOutgoingTallPortraitPngAction(thread: thread, messageState: .failed, hasCaption: true),
-            fakeOutgoingTallPortraitPngAction(thread: thread, messageState: .sent, hasCaption: false),
-            fakeOutgoingTallPortraitPngAction(thread: thread, messageState: .sent, hasCaption: true)
-        ]
-
-        if includeLabels {
-            actions.append(fakeOutgoingTextMessageAction(thread: thread, messageState: .sent, text: "⚠️ Outgoing Large Png ⚠️"))
-        }
-        actions += [
-            fakeOutgoingLargePngAction(thread: thread, messageState: .sent, hasCaption: false),
-            fakeOutgoingLargePngAction(thread: thread, messageState: .sent, hasCaption: true)
-        ]
-
-        if includeLabels {
-            actions.append(fakeOutgoingTextMessageAction(thread: thread, messageState: .sent, text: "⚠️ Outgoing Tiny Png ⚠️"))
-        }
-        actions += [
-            fakeOutgoingTinyPngAction(thread: thread, messageState: .sent, hasCaption: false),
-            fakeOutgoingTinyPngAction(thread: thread, messageState: .sent, hasCaption: true)
-        ]
-
-        if includeLabels {
-            actions.append(fakeOutgoingTextMessageAction(thread: thread, messageState: .sent, text: "⚠️ Outgoing Reserved Color Png ⚠️"))
-        }
-        let bubbleColorIncoming = ConversationStyle.bubbleColorIncoming(hasWallpaper: false, isDarkThemeEnabled: Theme.isDarkThemeEnabled)
-        actions += [
-            fakeOutgoingPngAction(
-                thread: thread,
-                actionLabel: "Fake Outgoing White Png",
-                imageSize: .square(200),
-                backgroundColor: .white,
-                textColor: Theme.accentBlueColor,
-                imageLabel: "W",
-                messageState: .failed,
-                hasCaption: true
-            ),
-            fakeOutgoingPngAction(
-                thread: thread,
-                actionLabel: "Fake Outgoing White Png",
-                imageSize: .square(200),
-                backgroundColor: .white,
-                textColor: Theme.accentBlueColor,
-                imageLabel: "W",
-                messageState: .sending,
-                hasCaption: true
-            ),
-            fakeOutgoingPngAction(
-                thread: thread,
-                actionLabel: "Fake Outgoing White Png",
-                imageSize: .square(200),
-                backgroundColor: .white,
-                textColor: Theme.accentBlueColor,
-                imageLabel: "W",
-                messageState: .sent,
-                hasCaption: true
-            ),
-
-            fakeOutgoingPngAction(
-                thread: thread,
-                actionLabel: "Fake Outgoing 'Outgoing' Png",
-                imageSize: .square(200),
-                backgroundColor: bubbleColorIncoming,
-                textColor: .white,
-                imageLabel: "W",
-                messageState: .failed,
-                hasCaption: true
-            ),
-            fakeOutgoingPngAction(
-                thread: thread,
-                actionLabel: "Fake Outgoing 'Outgoing' Png",
-                imageSize: .square(200),
-                backgroundColor: bubbleColorIncoming,
-                textColor: .white,
-                imageLabel: "W",
-                messageState: .sending,
-                hasCaption: true
-            ),
-            fakeOutgoingPngAction(
-                thread: thread,
-                actionLabel: "Fake Outgoing 'Outgoing' Png",
-                imageSize: .square(200),
-                backgroundColor: bubbleColorIncoming,
-                textColor: .white,
-                imageLabel: "W",
-                messageState: .sent,
-                hasCaption: true
-            )
-        ]
-
-        if includeLabels {
-            actions.append(fakeOutgoingTextMessageAction(thread: thread, messageState: .sent, text: "⚠️ Outgoing Tiny Pdf ⚠️"))
-        }
-        actions += [
-            fakeOutgoingTinyPdfAction(thread: thread, messageState: .sending, hasCaption: false),
-            fakeOutgoingTinyPdfAction(thread: thread, messageState: .sending, hasCaption: true),
-            fakeOutgoingTinyPdfAction(thread: thread, messageState: .failed, hasCaption: false),
-            fakeOutgoingTinyPdfAction(thread: thread, messageState: .failed, hasCaption: true),
-            fakeOutgoingTinyPdfAction(thread: thread, messageState: .sent, hasCaption: false),
-            fakeOutgoingTinyPdfAction(thread: thread, messageState: .sent, hasCaption: true)
-        ]
-
-        if includeLabels {
-            actions.append(fakeOutgoingTextMessageAction(thread: thread, messageState: .sent, text: "⚠️ Outgoing Large Pdf ⚠️"))
-        }
-        actions += [
-            fakeOutgoingLargePdfAction(thread: thread, messageState: .failed, hasCaption: false)
-        ]
-
-        if includeLabels {
-            actions.append(fakeOutgoingTextMessageAction(thread: thread, messageState: .sent, text: "⚠️ Outgoing Missing Png ⚠️"))
-        }
-        actions += [
-            fakeOutgoingMissingPngAction(thread: thread, messageState: .failed, hasCaption: false)
-        ]
-
-        if includeLabels {
-            actions.append(fakeOutgoingTextMessageAction(thread: thread, messageState: .sent, text: "⚠️ Outgoing Large Pdf ⚠️"))
-        }
-        actions += [
-            fakeOutgoingMissingPdfAction(thread: thread, messageState: .failed, hasCaption: false)
-        ]
-
-        if includeLabels {
-            actions.append(fakeOutgoingTextMessageAction(thread: thread, messageState: .sent, text: "⚠️ Outgoing Oversize Text ⚠️"))
-        }
-        actions += [
-            fakeOutgoingOversizeTextAction(thread: thread, messageState: .failed, hasCaption: false),
-            fakeOutgoingOversizeTextAction(thread: thread, messageState: .sending, hasCaption: false),
-            fakeOutgoingOversizeTextAction(thread: thread, messageState: .sent, hasCaption: false)
-        ]
-
-        // Incoming
-
-        if includeLabels {
-            actions.append(fakeIncomingTextMessageAction(thread: thread, text: "⚠️ Incoming Jpg ⚠️"))
-        }
-        actions += [
-            fakeIncomingJpegAction(thread: thread, isAttachmentDownloaded: false, hasCaption: false),
-            fakeIncomingJpegAction(thread: thread, isAttachmentDownloaded: true, hasCaption: false),
-            fakeIncomingJpegAction(thread: thread, isAttachmentDownloaded: false, hasCaption: true),
-            fakeIncomingJpegAction(thread: thread, isAttachmentDownloaded: true, hasCaption: true)
-        ]
-
-        if includeLabels {
-            actions.append(fakeIncomingTextMessageAction(thread: thread, text: "⚠️ Incoming Gif ⚠️"))
-        }
-        actions += [
-            fakeIncomingGifAction(thread: thread, isAttachmentDownloaded: true, hasCaption: false),
-            fakeIncomingLargeGifAction(thread: thread, isAttachmentDownloaded: true, hasCaption: false)
-        ]
-
-        if includeLabels {
-            actions.append(fakeIncomingTextMessageAction(thread: thread, text: "⚠️ Incoming Mp3 ⚠️"))
-        }
-        actions += [
-            fakeIncomingMp3Action(thread: thread, isAttachmentDownloaded: false, hasCaption: false),
-            fakeIncomingMp3Action(thread: thread, isAttachmentDownloaded: true, hasCaption: false),
-            fakeIncomingMp3Action(thread: thread, isAttachmentDownloaded: false, hasCaption: true),
-            fakeIncomingMp3Action(thread: thread, isAttachmentDownloaded: true, hasCaption: true)
-        ]
-
-        if includeLabels {
-            actions.append(fakeIncomingTextMessageAction(thread: thread, text: "⚠️ Incoming Mp4 ⚠️"))
-        }
-        actions += [
-            fakeIncomingMp4Action(thread: thread, isAttachmentDownloaded: false, hasCaption: false),
-            fakeIncomingMp4Action(thread: thread, isAttachmentDownloaded: true, hasCaption: false),
-            fakeIncomingMp4Action(thread: thread, isAttachmentDownloaded: false, hasCaption: true),
-            fakeIncomingMp4Action(thread: thread, isAttachmentDownloaded: true, hasCaption: true)
-        ]
-
-        if includeLabels {
-            actions.append(fakeIncomingTextMessageAction(thread: thread, text: "⚠️ Incoming Compact Landscape Png ⚠️"))
-        }
-        actions += [
-            fakeIncomingCompactLandscapePngAction(thread: thread, isAttachmentDownloaded: false, hasCaption: false),
-            fakeIncomingCompactLandscapePngAction(thread: thread, isAttachmentDownloaded: true, hasCaption: false),
-            fakeIncomingCompactLandscapePngAction(thread: thread, isAttachmentDownloaded: false, hasCaption: true),
-            fakeIncomingCompactLandscapePngAction(thread: thread, isAttachmentDownloaded: true, hasCaption: true)
-        ]
-
-        if includeLabels {
-            actions.append(fakeIncomingTextMessageAction(thread: thread, text: "⚠️ Incoming Compact Portrait Png ⚠️"))
-        }
-        actions += [
-            fakeIncomingCompactPortraitPngAction(thread: thread, isAttachmentDownloaded: false, hasCaption: false),
-            fakeIncomingCompactPortraitPngAction(thread: thread, isAttachmentDownloaded: true, hasCaption: false),
-            fakeIncomingCompactPortraitPngAction(thread: thread, isAttachmentDownloaded: false, hasCaption: true),
-            fakeIncomingCompactPortraitPngAction(thread: thread, isAttachmentDownloaded: true, hasCaption: true)
-        ]
-
-        if includeLabels {
-            actions.append(fakeIncomingTextMessageAction(thread: thread, text: "⚠️ Incoming Wide Landscape Png ⚠️"))
-        }
-        actions += [
-            fakeIncomingWideLandscapePngAction(thread: thread, isAttachmentDownloaded: false, hasCaption: false),
-            fakeIncomingWideLandscapePngAction(thread: thread, isAttachmentDownloaded: true, hasCaption: false),
-            fakeIncomingWideLandscapePngAction(thread: thread, isAttachmentDownloaded: false, hasCaption: true),
-            fakeIncomingWideLandscapePngAction(thread: thread, isAttachmentDownloaded: true, hasCaption: true)
-        ]
-
-        if includeLabels {
-            actions.append(fakeIncomingTextMessageAction(thread: thread, text: "⚠️ Incoming Tall Portrait Png ⚠️"))
-        }
-        actions += [
-            fakeIncomingTallPortraitPngAction(thread: thread, isAttachmentDownloaded: false, hasCaption: false),
-            fakeIncomingTallPortraitPngAction(thread: thread, isAttachmentDownloaded: true, hasCaption: false),
-            fakeIncomingTallPortraitPngAction(thread: thread, isAttachmentDownloaded: false, hasCaption: true),
-            fakeIncomingTallPortraitPngAction(thread: thread, isAttachmentDownloaded: true, hasCaption: true)
-        ]
-
-        if includeLabels {
-            actions.append(fakeIncomingTextMessageAction(thread: thread, text: "⚠️ Incoming Large Png ⚠️"))
-        }
-        actions += [
-            fakeIncomingLargePngAction(thread: thread, isAttachmentDownloaded: true, hasCaption: false),
-            fakeIncomingLargePngAction(thread: thread, isAttachmentDownloaded: true, hasCaption: true)
-        ]
-
-        if includeLabels {
-            actions.append(fakeIncomingTextMessageAction(thread: thread, text: "⚠️ Incoming Tiny Png ⚠️"))
-        }
-        actions += [
-            fakeIncomingTinyPngAction(thread: thread, isAttachmentDownloaded: true, hasCaption: false),
-            fakeIncomingTinyPngAction(thread: thread, isAttachmentDownloaded: true, hasCaption: true)
-        ]
-
-        if includeLabels {
-            actions.append(fakeIncomingTextMessageAction(thread: thread, text: "⚠️ Incoming Reserved Color Png ⚠️"))
-        }
-        actions += [
-            fakeIncomingPngAction(
-                thread: thread,
-                actionLabel: "Fake Incoming White Png",
-                imageSize: .square(200),
-                backgroundColor: .white,
-                textColor: Theme.accentBlueColor,
-                imageLabel: "W",
-                isAttachmentDownloaded: true,
-                hasCaption: true
-            ),
-
-            fakeIncomingPngAction(
-                thread: thread,
-                actionLabel: "Fake Incoming White Png",
-                imageSize: .square(200),
-                backgroundColor: .white,
-                textColor: Theme.accentBlueColor,
-                imageLabel: "W",
-                isAttachmentDownloaded: false,
-                hasCaption: true),
-
-            fakeIncomingPngAction(
-                thread: thread,
-                actionLabel: "Fake Incoming 'Incoming' Png",
-                imageSize: .square(200),
-                backgroundColor: Theme.accentBlueColor,
-                textColor: .white,
-                imageLabel: "W",
-                isAttachmentDownloaded: true,
-                hasCaption: true
-            ),
-
-            fakeIncomingPngAction(
-                thread: thread,
-                actionLabel: "Fake Incoming 'Incoming' Png",
-                imageSize: .square(200),
-                backgroundColor: Theme.accentBlueColor,
-                textColor: .white,
-                imageLabel: "W",
-                isAttachmentDownloaded: true,
-                hasCaption: true
-            ),
-
-            fakeIncomingPngAction(
-                thread: thread,
-                actionLabel: "Fake Incoming 'Incoming' Png",
-                imageSize: .square(200),
-                backgroundColor: Theme.accentBlueColor,
-                textColor: .white,
-                imageLabel: "W",
-                isAttachmentDownloaded: false,
-                hasCaption: true
-            ),
-
-            fakeIncomingPngAction(
-                thread: thread,
-                actionLabel: "Fake Incoming 'Incoming' Png",
-                imageSize: .square(200),
-                backgroundColor: Theme.accentBlueColor,
-                textColor: .white,
-                imageLabel: "W",
-                isAttachmentDownloaded: false,
-                hasCaption: true
-            )
-        ]
-
-        if includeLabels {
-            actions.append(fakeIncomingTextMessageAction(thread: thread, text: "⚠️ Incoming Tiny Pdf ⚠️"))
-        }
-        actions += [
-            fakeIncomingTinyPdfAction(thread: thread, isAttachmentDownloaded: false, hasCaption: false),
-            fakeIncomingTinyPdfAction(thread: thread, isAttachmentDownloaded: true, hasCaption: false),
-            fakeIncomingTinyPdfAction(thread: thread, isAttachmentDownloaded: false, hasCaption: true),
-            fakeIncomingTinyPdfAction(thread: thread, isAttachmentDownloaded: true, hasCaption: true)
-        ]
-
-        if includeLabels {
-            actions.append(fakeIncomingTextMessageAction(thread: thread, text: "⚠️ Incoming Large Pdf ⚠️"))
-        }
-        actions += [
-            fakeIncomingLargePdfAction(thread: thread, isAttachmentDownloaded: true, hasCaption: false)
-        ]
-
-        if includeLabels {
-            actions.append(fakeIncomingTextMessageAction(thread: thread, text: "⚠️ Incoming Missing Png ⚠️"))
-        }
-        actions += [
-            fakeIncomingMissingPngAction(thread: thread, isAttachmentDownloaded: true, hasCaption: false),
-            fakeIncomingMissingPngAction(thread: thread, isAttachmentDownloaded: true, hasCaption: true)
-        ]
-
-        if includeLabels {
-            actions.append(fakeIncomingTextMessageAction(thread: thread, text: "⚠️ Incoming Missing Pdf ⚠️"))
-        }
-        actions += [
-            fakeIncomingMissingPdfAction(thread: thread, isAttachmentDownloaded: true, hasCaption: false),
-            fakeIncomingMissingPdfAction(thread: thread, isAttachmentDownloaded: true, hasCaption: true)
-        ]
-
-        if includeLabels {
-            actions.append(fakeIncomingTextMessageAction(thread: thread, text: "⚠️ Incoming Oversize Text ⚠️"))
-        }
-        actions += [
-            fakeIncomingOversizeTextAction(thread: thread, isAttachmentDownloaded: false, hasCaption: false),
-            fakeIncomingOversizeTextAction(thread: thread, isAttachmentDownloaded: true, hasCaption: false)
-        ]
-
-        return actions
-    }
-
-    // MARK: Fake Outgoing Media
-
-    private static func fakeOutgoingJpegAction(
-        thread: TSThread,
-        messageState: TSOutgoingMessageState,
-        hasCaption: Bool
-    ) -> DebugUIMessagesAction {
-        return fakeOutgoingMediaAction(
-            label: "Fake Outgoing Jpeg",
-            messageState: messageState,
-            hasCaption: hasCaption,
-            fakeAssetLoader: DebugUIMessagesAssetLoader.jpegInstance,
-            thread: thread
-        )
-    }
-
-    private static func fakeOutgoingGifAction(
-        thread: TSThread,
-        messageState: TSOutgoingMessageState,
-        hasCaption: Bool
-    ) -> DebugUIMessagesAction {
-        return fakeOutgoingMediaAction(
-            label: "Fake Outgoing Gif",
-            messageState: messageState,
-            hasCaption: hasCaption,
-            fakeAssetLoader: DebugUIMessagesAssetLoader.gifInstance,
-            thread: thread
-        )
-    }
-
-    private static func fakeOutgoingLargeGifAction(
-        thread: TSThread,
-        messageState: TSOutgoingMessageState,
-        hasCaption: Bool
-    ) -> DebugUIMessagesAction {
-        return fakeOutgoingMediaAction(
-            label: "Fake Outgoing Large Gif",
-            messageState: messageState,
-            hasCaption: hasCaption,
-            fakeAssetLoader: DebugUIMessagesAssetLoader.largeGifInstance,
-            thread: thread
-        )
-    }
-
-    private static func fakeOutgoingMp3Action(
-        thread: TSThread,
-        messageState: TSOutgoingMessageState,
-        hasCaption: Bool
-    ) -> DebugUIMessagesAction {
-        return fakeOutgoingMediaAction(
-            label: "Fake Outgoing Mp3",
-            messageState: messageState,
-            hasCaption: hasCaption,
-            fakeAssetLoader: DebugUIMessagesAssetLoader.mp3Instance,
-            thread: thread
-        )
-    }
-
-    private static func fakeOutgoingMp4Action(
-        thread: TSThread,
-        messageState: TSOutgoingMessageState,
-        hasCaption: Bool
-    ) -> DebugUIMessagesAction {
-        return fakeOutgoingMediaAction(
-            label: "Fake Outgoing Mp4",
-            messageState: messageState,
-            hasCaption: hasCaption,
-            fakeAssetLoader: DebugUIMessagesAssetLoader.mp4Instance,
-            thread: thread
-        )
-    }
-
-    private static func fakeOutgoingCompactPortraitPngAction(
-        thread: TSThread,
-        messageState: TSOutgoingMessageState,
-        hasCaption: Bool
-    ) -> DebugUIMessagesAction {
-        return fakeOutgoingMediaAction(
-            label: "Fake Outgoing Portrait Png",
-            messageState: messageState,
-            hasCaption: hasCaption,
-            fakeAssetLoader: DebugUIMessagesAssetLoader.compactLandscapePngInstance,
-            thread: thread
-        )
-    }
-
-    private static func fakeOutgoingCompactLandscapePngAction(
-        thread: TSThread,
-        messageState: TSOutgoingMessageState,
-        hasCaption: Bool
-    ) -> DebugUIMessagesAction {
-        return fakeOutgoingMediaAction(
-            label: "Fake Outgoing Landscape Png",
-            messageState: messageState,
-            hasCaption: hasCaption,
-            fakeAssetLoader: DebugUIMessagesAssetLoader.compactPortraitPngInstance,
-            thread: thread
-        )
-    }
-
-    private static func fakeOutgoingTallPortraitPngAction(
-        thread: TSThread,
-        messageState: TSOutgoingMessageState,
-        hasCaption: Bool
-    ) -> DebugUIMessagesAction {
-        return fakeOutgoingMediaAction(
-            label: "Fake Outgoing Tall Portrait Png",
-            messageState: messageState,
-            hasCaption: hasCaption,
-            fakeAssetLoader: DebugUIMessagesAssetLoader.tallPortraitPngInstance,
-            thread: thread
-        )
-    }
-
-    private static func fakeOutgoingWideLandscapePngAction(
-        thread: TSThread,
-        messageState: TSOutgoingMessageState,
-        hasCaption: Bool
-    ) -> DebugUIMessagesAction {
-        return fakeOutgoingMediaAction(
-            label: "Fake Outgoing Wide Landscape Png",
-            messageState: messageState,
-            hasCaption: hasCaption,
-            fakeAssetLoader: DebugUIMessagesAssetLoader.wideLandscapePngInstance,
-            thread: thread
-        )
-    }
-
-    private static func fakeOutgoingLargePngAction(
-        thread: TSThread,
-        messageState: TSOutgoingMessageState,
-        hasCaption: Bool
-    ) -> DebugUIMessagesAction {
-        return fakeOutgoingMediaAction(
-            label: "Fake Outgoing Large Png",
-            messageState: messageState,
-            hasCaption: hasCaption,
-            fakeAssetLoader: DebugUIMessagesAssetLoader.largePngInstance,
-            thread: thread
-        )
-    }
-
-    private static func fakeOutgoingTinyPngAction(
-        thread: TSThread,
-        messageState: TSOutgoingMessageState,
-        hasCaption: Bool
-    ) -> DebugUIMessagesAction {
-        return fakeOutgoingMediaAction(
-            label: "Fake Outgoing Tiny Png",
-            messageState: messageState,
-            hasCaption: hasCaption,
-            fakeAssetLoader: DebugUIMessagesAssetLoader.tinyPngInstance,
-            thread: thread
-        )
-    }
-
-    private static func fakeOutgoingPngAction(
-        thread: TSThread,
-        actionLabel: String,
-        imageSize: CGSize,
-        backgroundColor: UIColor,
-        textColor: UIColor,
-        imageLabel: String,
-        messageState: TSOutgoingMessageState,
-        hasCaption: Bool
-    ) -> DebugUIMessagesAction {
-        return fakeOutgoingMediaAction(
-            label: actionLabel,
-            messageState: messageState,
-            hasCaption: hasCaption,
-            fakeAssetLoader: DebugUIMessagesAssetLoader.pngInstance(
-                size: imageSize,
-                backgroundColor: backgroundColor,
-                textColor: textColor,
-                label: imageLabel),
-            thread: thread
-        )
-    }
-
-    private static func fakeOutgoingTinyPdfAction(
-        thread: TSThread,
-        messageState: TSOutgoingMessageState,
-        hasCaption: Bool
-    ) -> DebugUIMessagesAction {
-        return fakeOutgoingMediaAction(
-            label: "Fake Outgoing Tiny Pdf",
-            messageState: messageState,
-            hasCaption: hasCaption,
-            fakeAssetLoader: DebugUIMessagesAssetLoader.tinyPdfInstance,
-            thread: thread
-        )
-    }
-
-    private static func fakeOutgoingLargePdfAction(
-        thread: TSThread,
-        messageState: TSOutgoingMessageState,
-        hasCaption: Bool
-    ) -> DebugUIMessagesAction {
-        return fakeOutgoingMediaAction(label: "Fake Outgoing Large Pdf",
-                                       messageState: messageState,
-                                       hasCaption: hasCaption,
-                                       fakeAssetLoader: DebugUIMessagesAssetLoader.largePdfInstance,
-                                       thread: thread
-        )
-    }
-
-    private static func fakeOutgoingMissingPngAction(
-        thread: TSThread,
-        messageState: TSOutgoingMessageState,
-        hasCaption: Bool
-    ) -> DebugUIMessagesAction {
-        return fakeOutgoingMediaAction(
-            label: "Fake Outgoing Missing Png",
-            messageState: messageState,
-            hasCaption: hasCaption,
-            fakeAssetLoader: DebugUIMessagesAssetLoader.missingPngInstance,
-            thread: thread
-        )
-    }
-
-    private static func fakeOutgoingMissingPdfAction(
-        thread: TSThread,
-        messageState: TSOutgoingMessageState,
-        hasCaption: Bool
-    ) -> DebugUIMessagesAction {
-        return fakeOutgoingMediaAction(
-            label: "Fake Outgoing Missing Pdf",
-            messageState: messageState,
-            hasCaption: hasCaption,
-            fakeAssetLoader: DebugUIMessagesAssetLoader.missingPdfInstance,
-            thread: thread
-        )
-    }
-
-    private static func fakeOutgoingOversizeTextAction(
-        thread: TSThread,
-        messageState: TSOutgoingMessageState,
-        hasCaption: Bool
-    ) -> DebugUIMessagesAction {
-        return fakeOutgoingMediaAction(
-            label: "Fake Outgoing Oversize Text",
-            messageState: messageState,
-            hasCaption: hasCaption,
-            fakeAssetLoader: DebugUIMessagesAssetLoader.oversizeTextInstance,
-            thread: thread
-        )
-    }
-
-    private static func fakeOutgoingMediaAction(
-        label labelParam: String,
-        messageState: TSOutgoingMessageState,
-        hasCaption: Bool,
-        fakeAssetLoader: DebugUIMessagesAssetLoader,
-        thread: TSThread
-    ) -> DebugUIMessagesAction {
-
-        let label = labelParam + actionLabelForHasCaption(hasCaption, outgoingMessageState: messageState, isDelivered: false, isRead: false)
-        return DebugUIMessagesSingleAction(
-            label: label,
-            unstaggeredAction: { index, transaction in
-                owsAssertDebug(!fakeAssetLoader.filePath.isEmptyOrNil)
-                createFakeOutgoingMedia(
-                    index: index,
-                    messageState: messageState,
-                    hasCaption: hasCaption,
-                    fakeAssetLoader: fakeAssetLoader,
-                    thread: thread,
-                    transaction: transaction
-                )
-            },
-            prepare: fakeAssetLoader.prepare
-        )
-    }
-
-    private static func createFakeOutgoingMedia(
-        index: UInt,
-        messageState: TSOutgoingMessageState,
-        hasCaption: Bool,
-        fakeAssetLoader: DebugUIMessagesAssetLoader,
-        thread: TSThread,
-        transaction: SDSAnyWriteTransaction
-    ) {
-        owsAssertDebug(!fakeAssetLoader.filePath.isEmptyOrNil)
-
-        var messageBody: String?
-        if hasCaption {
-            // We want a message body that is "more than one line on all devices,
-            // using all dynamic type sizes."
-            let sampleText = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Lorem ipsum dolor sit amet, " +
-            "consectetur adipiscing elit."
-            messageBody = "\(index) " + sampleText
-            messageBody? += actionLabelForHasCaption(
-                hasCaption,
-                outgoingMessageState: messageState,
-                isDelivered: false,
-                isRead: false
-            )
-        }
-
-        let message = createFakeOutgoingMessage(
-            thread: thread,
-            messageBody: messageBody,
-            fakeAssetLoader: fakeAssetLoader,
-            messageState: messageState,
-            isDelivered: true,
-            transaction: transaction
-        )
-
-        // This is a hack to "back-date" the message.
-        let timestamp = Date.ows_millisecondTimestamp()
-        message.replaceTimestamp(timestamp, transaction: transaction)
-    }
-
-    // MARK: Fake Incoming Media
-
-    private static func fakeIncomingJpegAction(
-        thread: TSThread,
-        isAttachmentDownloaded: Bool,
-        hasCaption: Bool
-    ) -> DebugUIMessagesAction {
-        return fakeIncomingMediaAction(
-            label: "Fake Incoming Jpeg",
-            isAttachmentDownloaded: isAttachmentDownloaded,
-            hasCaption: hasCaption,
-            fakeAssetLoader: DebugUIMessagesAssetLoader.jpegInstance,
-            thread: thread
-        )
-    }
-
-    private static func fakeIncomingGifAction(
-        thread: TSThread,
-        isAttachmentDownloaded: Bool,
-        hasCaption: Bool
-    ) -> DebugUIMessagesAction {
-        return fakeIncomingMediaAction(
-            label: "Fake Incoming Gif",
-            isAttachmentDownloaded: isAttachmentDownloaded,
-            hasCaption: hasCaption,
-            fakeAssetLoader: DebugUIMessagesAssetLoader.gifInstance,
-            thread: thread
-        )
-    }
-
-    private static func fakeIncomingLargeGifAction(
-        thread: TSThread,
-        isAttachmentDownloaded: Bool,
-        hasCaption: Bool
-    ) -> DebugUIMessagesAction {
-        return fakeIncomingMediaAction(
-            label: "Fake Incoming Large Gif",
-            isAttachmentDownloaded: isAttachmentDownloaded,
-            hasCaption: hasCaption,
-            fakeAssetLoader: DebugUIMessagesAssetLoader.largeGifInstance,
-            thread: thread
-        )
-    }
-
-    private static func fakeIncomingMp3Action(
-        thread: TSThread,
-        isAttachmentDownloaded: Bool,
-        hasCaption: Bool
-    ) -> DebugUIMessagesAction {
-        return fakeIncomingMediaAction(
-            label: "Fake Incoming Mp3",
-            isAttachmentDownloaded: isAttachmentDownloaded,
-            hasCaption: hasCaption,
-            fakeAssetLoader: DebugUIMessagesAssetLoader.mp3Instance,
-            thread: thread
-        )
-    }
-
-    private static func fakeIncomingMp4Action(
-        thread: TSThread,
-        isAttachmentDownloaded: Bool,
-        hasCaption: Bool
-    ) -> DebugUIMessagesAction {
-        return fakeIncomingMediaAction(
-            label: "Fake Incoming Mp4",
-            isAttachmentDownloaded: isAttachmentDownloaded,
-            hasCaption: hasCaption,
-            fakeAssetLoader: DebugUIMessagesAssetLoader.mp4Instance,
-            thread: thread
-        )
-    }
-
-    private static func fakeIncomingCompactPortraitPngAction(
-        thread: TSThread,
-        isAttachmentDownloaded: Bool,
-        hasCaption: Bool
-    ) -> DebugUIMessagesAction {
-        return fakeIncomingMediaAction(
-            label: "Fake Incoming Portrait Png",
-            isAttachmentDownloaded: isAttachmentDownloaded,
-            hasCaption: hasCaption,
-            fakeAssetLoader: DebugUIMessagesAssetLoader.compactPortraitPngInstance,
-            thread: thread
-        )
-    }
-
-    private static func fakeIncomingCompactLandscapePngAction(
-        thread: TSThread,
-        isAttachmentDownloaded: Bool,
-        hasCaption: Bool
-    ) -> DebugUIMessagesAction {
-        return fakeIncomingMediaAction(
-            label: "Fake Incoming Landscape Png",
-            isAttachmentDownloaded: isAttachmentDownloaded,
-            hasCaption: hasCaption,
-            fakeAssetLoader: DebugUIMessagesAssetLoader.compactLandscapePngInstance,
-            thread: thread
-        )
-    }
-
-    private static func fakeIncomingTallPortraitPngAction(
-        thread: TSThread,
-        isAttachmentDownloaded: Bool,
-        hasCaption: Bool
-    ) -> DebugUIMessagesAction {
-        return fakeIncomingMediaAction(
-            label: "Fake Incoming Tall Portrait Png",
-            isAttachmentDownloaded: isAttachmentDownloaded,
-            hasCaption: hasCaption,
-            fakeAssetLoader: DebugUIMessagesAssetLoader.tallPortraitPngInstance,
-            thread: thread
-        )
-    }
-
-    private static func fakeIncomingWideLandscapePngAction(
-        thread: TSThread,
-        isAttachmentDownloaded: Bool,
-        hasCaption: Bool
-    ) -> DebugUIMessagesAction {
-        return fakeIncomingMediaAction(
-            label: "Fake Incoming Wide Landscape Png",
-            isAttachmentDownloaded: isAttachmentDownloaded,
-            hasCaption: hasCaption,
-            fakeAssetLoader: DebugUIMessagesAssetLoader.wideLandscapePngInstance,
-            thread: thread
-        )
-    }
-
-    private static func fakeIncomingLargePngAction(
-        thread: TSThread,
-        isAttachmentDownloaded: Bool,
-        hasCaption: Bool
-    ) -> DebugUIMessagesAction {
-        return fakeIncomingMediaAction(
-            label: "Fake Incoming Large Png",
-            isAttachmentDownloaded: isAttachmentDownloaded,
-            hasCaption: hasCaption,
-            fakeAssetLoader: DebugUIMessagesAssetLoader.largePngInstance,
-            thread: thread
-        )
-    }
-
-    private static func fakeIncomingTinyPngAction(
-        thread: TSThread,
-        isAttachmentDownloaded: Bool,
-        hasCaption: Bool
-    ) -> DebugUIMessagesAction {
-        return fakeIncomingMediaAction(
-            label: "Tiny Incoming Large Png",
-            isAttachmentDownloaded: isAttachmentDownloaded,
-            hasCaption: hasCaption,
-            fakeAssetLoader: DebugUIMessagesAssetLoader.tinyPngInstance,
-            thread: thread
-        )
-    }
-
-    private static func fakeIncomingPngAction(
-        thread: TSThread,
-        actionLabel: String,
-        imageSize: CGSize,
-        backgroundColor: UIColor,
-        textColor: UIColor,
-        imageLabel: String,
-        isAttachmentDownloaded: Bool,
-        hasCaption: Bool
-    ) -> DebugUIMessagesAction {
-        return fakeIncomingMediaAction(
-            label: actionLabel,
-            isAttachmentDownloaded: isAttachmentDownloaded,
-            hasCaption: hasCaption,
-            fakeAssetLoader: DebugUIMessagesAssetLoader.pngInstance(
-                size: imageSize,
-                backgroundColor: backgroundColor,
-                textColor: textColor,
-                label: imageLabel
-            ),
-            thread: thread
-        )
-    }
-
-    private static func fakeIncomingTinyPdfAction(
-        thread: TSThread,
-        isAttachmentDownloaded: Bool,
-        hasCaption: Bool
-    ) -> DebugUIMessagesAction {
-        return fakeIncomingMediaAction(
-            label: "Fake Incoming Tiny Pdf",
-            isAttachmentDownloaded: isAttachmentDownloaded,
-            hasCaption: hasCaption,
-            fakeAssetLoader: DebugUIMessagesAssetLoader.tinyPdfInstance,
-            thread: thread
-        )
-    }
-
-    private static func fakeIncomingLargePdfAction(
-        thread: TSThread,
-        isAttachmentDownloaded: Bool,
-        hasCaption: Bool
-    ) -> DebugUIMessagesAction {
-        return fakeIncomingMediaAction(
-            label: "Fake Incoming Large Pdf",
-            isAttachmentDownloaded: isAttachmentDownloaded,
-            hasCaption: hasCaption,
-            fakeAssetLoader: DebugUIMessagesAssetLoader.largePdfInstance,
-            thread: thread
-        )
-    }
-
-    private static func fakeIncomingMissingPngAction(
-        thread: TSThread,
-        isAttachmentDownloaded: Bool,
-        hasCaption: Bool
-    ) -> DebugUIMessagesAction {
-        return fakeIncomingMediaAction(
-            label: "Fake Incoming Missing Png",
-            isAttachmentDownloaded: isAttachmentDownloaded,
-            hasCaption: hasCaption,
-            fakeAssetLoader: DebugUIMessagesAssetLoader.missingPngInstance,
-            thread: thread
-        )
-    }
-
-    private static func fakeIncomingMissingPdfAction(
-        thread: TSThread,
-        isAttachmentDownloaded: Bool,
-        hasCaption: Bool
-    ) -> DebugUIMessagesAction {
-        return fakeIncomingMediaAction(
-            label: "Fake Incoming Missing Pdf",
-            isAttachmentDownloaded: isAttachmentDownloaded,
-            hasCaption: hasCaption,
-            fakeAssetLoader: DebugUIMessagesAssetLoader.missingPdfInstance,
-            thread: thread
-        )
-    }
-
-    private static func fakeIncomingOversizeTextAction(
-        thread: TSThread,
-        isAttachmentDownloaded: Bool,
-        hasCaption: Bool
-    ) -> DebugUIMessagesAction {
-        return fakeIncomingMediaAction(
-            label: "Fake Incoming Oversize Text",
-            isAttachmentDownloaded: isAttachmentDownloaded,
-            hasCaption: hasCaption,
-            fakeAssetLoader: DebugUIMessagesAssetLoader.oversizeTextInstance,
-            thread: thread
-        )
-    }
-
-    private static func fakeIncomingMediaAction(
-        label labelParam: String,
-        isAttachmentDownloaded: Bool,
-        hasCaption: Bool,
-        fakeAssetLoader: DebugUIMessagesAssetLoader,
-        thread: TSThread
-    ) -> DebugUIMessagesAction {
-
-        var label = labelParam
-        if hasCaption {
-            label += " 🔤"
-        }
-        if isAttachmentDownloaded {
-            label += " 👍"
-        }
-
-        return DebugUIMessagesSingleAction(
-            label: label,
-            unstaggeredAction: { index, transaction in
-                owsAssertDebug(!fakeAssetLoader.filePath.isEmptyOrNil)
-                createFakeIncomingMedia(
-                    index: index,
-                    isAttachmentDownloaded: isAttachmentDownloaded,
-                    hasCaption: hasCaption,
-                    fakeAssetLoader: fakeAssetLoader,
-                    thread: thread,
-                    transaction: transaction
-                )
-            },
-            prepare: fakeAssetLoader.prepare
-        )
-    }
-
-    @discardableResult
-    private static func createFakeIncomingMedia(
-        index: UInt,
-        isAttachmentDownloaded: Bool,
-        hasCaption: Bool,
-        fakeAssetLoader: DebugUIMessagesAssetLoader,
-        thread: TSThread,
-        transaction: SDSAnyWriteTransaction
-    ) -> TSIncomingMessage {
-
-        let caption: String?
-        if hasCaption {
-            // We want a message body that is "more than one line on all devices,
-            // using all dynamic type sizes."
-            caption = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Lorem ipsum dolor sit amet, " +
-                      "consectetur adipiscing elit."
-        } else {
-            caption = nil
-        }
-        return createFakeIncomingMedia(
-            index: index,
-            isAttachmentDownloaded: isAttachmentDownloaded,
-            caption: caption,
-            fakeAssetLoader: fakeAssetLoader,
-            thread: thread,
-            transaction: transaction
-        )
-    }
-
-    private static func createFakeIncomingMedia(
-        index: UInt,
-        isAttachmentDownloaded: Bool,
-        caption: String?,
-        fakeAssetLoader: DebugUIMessagesAssetLoader,
-        thread: TSThread,
-        transaction: SDSAnyWriteTransaction
-    ) -> TSIncomingMessage {
-
-        owsAssertDebug(!fakeAssetLoader.filePath.isEmptyOrNil)
-
-        var messageBody: String?
-        if let caption {
-            messageBody = "\(index) " + caption + " 🔤"
-            if isAttachmentDownloaded {
-                messageBody? += " 👍"
-            }
-        }
-
-        return createFakeIncomingMessage(
-            thread: thread,
-            messageBody: messageBody,
-            fakeAssetLoader: fakeAssetLoader,
-            isAttachmentDownloaded: isAttachmentDownloaded,
-            transaction: transaction
-        )
     }
 
     // MARK: Fake Text Messages
@@ -1444,7 +333,6 @@ class DebugUIMessages: DebugUIPage, Dependencies {
                 createFakeOutgoingMessage(
                     thread: thread,
                     messageBody: messageBody,
-                    fakeAssetLoader: nil,
                     messageState: messageState,
                     isDelivered: isDelivered,
                     isRead: isRead,
@@ -1465,7 +353,6 @@ class DebugUIMessages: DebugUIPage, Dependencies {
                 createFakeIncomingMessage(
                     thread: thread,
                     messageBody: messageBody,
-                    fakeAssetLoader: nil,
                     transaction: transaction
                 )
             }
@@ -1480,7 +367,6 @@ class DebugUIMessages: DebugUIPage, Dependencies {
                  createFakeIncomingMessage(
                     thread: thread,
                                      messageBody: messageBody,
-                                 fakeAssetLoader: nil,
                           isAttachmentDownloaded: false,
                                      transaction: transaction
                  )
@@ -1612,157 +498,6 @@ class DebugUIMessages: DebugUIPage, Dependencies {
 
     private typealias PrepareBlock = (@escaping DebugUIMessagesAction.Completion) -> Void
 
-    private static func fakeQuotedReplyAction(
-        thread: TSThread,
-        quotedMessageLabel: String,
-        isQuotedMessageIncoming: Bool,
-        // Optional. At least one of quotedMessageBody and quotedMessageAssetLoader should be non-nil.
-        quotedMessageBody quotedMessageBodyParam: String?,
-        // Optional. At least one of quotedMessageBody and quotedMessageAssetLoader should be non-nil.
-        quotedMessageAssetLoader quotedMessageAssetLoaderParam: DebugUIMessagesAssetLoader?,
-        replyLabel: String,
-        isReplyIncoming: Bool = false,
-        replyMessageBody replyMessageBodyParam: String?,
-        replyAssetLoader replyAssetLoaderParam: DebugUIMessagesAssetLoader? = nil,
-        // Only applies if !isReplyIncoming.
-        replyMessageState: TSOutgoingMessageState = .sent
-    ) -> DebugUIMessagesAction {
-
-        // Use fixed values for properties that shouldn't matter much.
-        let quotedMessageIsDelivered = false
-        let quotedMessageIsRead = false
-        let quotedMessageMessageState = TSOutgoingMessageState.sent
-        let replyIsDelivered = false
-        let replyIsRead = false
-
-        // Seamlessly convert oversize text messages to oversize text attachments.
-        var quotedMessageAssetLoader = quotedMessageAssetLoaderParam
-        var quotedMessageBody = quotedMessageBodyParam
-        if let quotedMessageBodyParam, quotedMessageBodyParam.lengthOfBytes(using: .utf8) >= kOversizeTextMessageSizeThreshold {
-            owsAssertDebug(quotedMessageAssetLoaderParam == nil)
-            quotedMessageAssetLoader = DebugUIMessagesAssetLoader.oversizeTextInstance(text: quotedMessageBodyParam)
-            quotedMessageBody = nil
-        }
-
-        var replyAssetLoader = replyAssetLoaderParam
-        var replyMessageBody = replyMessageBodyParam
-        if let replyMessageBodyParam, replyMessageBodyParam.lengthOfBytes(using: .utf8) >= kOversizeTextMessageSizeThreshold {
-            owsAssertDebug(replyAssetLoaderParam == nil)
-            replyAssetLoader = DebugUIMessagesAssetLoader.oversizeTextInstance(text: replyMessageBodyParam)
-            replyMessageBody = nil
-        }
-
-        var label = "Quoted Reply (" + replyLabel
-        if !isReplyIncoming {
-            label += actionLabelForHasCaption(
-                false,
-                outgoingMessageState: replyMessageState,
-                isDelivered: replyIsDelivered,
-                isRead: replyIsRead
-            )
-        }
-        label += (") to (" + quotedMessageLabel)
-        if let quotedMessageAssetLoader {
-            label += " " + quotedMessageAssetLoader.labelEmoji
-        }
-        if !isQuotedMessageIncoming {
-            label += actionLabelForHasCaption(
-                !quotedMessageBody.isEmptyOrNil,
-                outgoingMessageState: quotedMessageMessageState,
-                isDelivered: quotedMessageIsDelivered,
-                isRead: quotedMessageIsRead
-            )
-        }
-        label += ")"
-
-        let prepareBlocks = NSMutableArray()
-        if let block = quotedMessageAssetLoader?.prepare {
-            prepareBlocks.add(block)
-        }
-        if let block = replyAssetLoader?.prepare {
-            prepareBlocks.add(block)
-        }
-
-        return DebugUIMessagesSingleAction(
-            label: label,
-            unstaggeredAction: { index, transaction in
-                let quotedMessageBodyWIndex: String?
-                if let quotedMessageBody {
-                    quotedMessageBodyWIndex = "\(index) " + quotedMessageBody
-                } else {
-                    quotedMessageBodyWIndex = nil
-                }
-
-                let messageToQuote: TSInteraction = {
-                    if isQuotedMessageIncoming {
-                        return createFakeIncomingMessage(
-                            thread: thread,
-                            messageBody: quotedMessageBodyWIndex,
-                            fakeAssetLoader: quotedMessageAssetLoader,
-                            isAttachmentDownloaded: true,
-                            transaction: transaction
-                        )
-                    } else {
-                        return createFakeOutgoingMessage(
-                            thread: thread,
-                            messageBody: quotedMessageBodyWIndex,
-                            fakeAssetLoader: quotedMessageAssetLoader,
-                            messageState: quotedMessageMessageState,
-                            isDelivered: quotedMessageIsDelivered,
-                            isRead: quotedMessageIsRead,
-                            transaction: transaction
-                        )
-                    }
-                }()
-
-                let threadAssociatedData = createFakeThreadAssociatedData(thread: thread)
-
-                let containerView = UIView(frame: CGRect(origin: .zero, size: .square(100)))
-                let renderItem = CVLoader.debugui_buildStandaloneRenderItem(
-                    interaction: messageToQuote,
-                    thread: thread,
-                    threadAssociatedData: threadAssociatedData,
-                    containerView: containerView,
-                    transaction: transaction
-                )
-                let itemViewModel = CVItemViewModelImpl(renderItem: renderItem!)
-
-                let quotedMessage = QuotedReplyModel.forSending(
-                    item: itemViewModel,
-                    transaction: transaction
-                )!.buildQuotedMessageForSending()
-
-                let replyMessageBodyWIndex: String?
-                if let replyMessageBody {
-                    replyMessageBodyWIndex = "\(index) " + replyMessageBody
-                } else {
-                    replyMessageBodyWIndex = nil
-                }
-                if isReplyIncoming {
-                    createFakeIncomingMessage(
-                        thread: thread,
-                        messageBody: replyMessageBodyWIndex,
-                        fakeAssetLoader: replyAssetLoader,
-                        quotedMessage: quotedMessage,
-                        transaction: transaction
-                    )
-                } else {
-                    createFakeOutgoingMessage(
-                        thread: thread,
-                        messageBody: replyMessageBodyWIndex,
-                        fakeAssetLoader: replyAssetLoader,
-                        messageState: replyMessageState,
-                        isDelivered: replyIsDelivered,
-                        isRead: replyIsRead,
-                        quotedMessage: quotedMessage,
-                        transaction: transaction
-                    )
-                }
-            },
-            prepare: groupPrepareBlockWithPrepareBlocks(prepareBlocks)
-        )
-    }
-
     // Recursively perform a group of "prepare blocks" in sequence, aborting if any fail.
     private static func groupPrepareBlockWithPrepareBlocks(_ prepareBlocks: NSMutableArray) -> PrepareBlock {
         return { completion in
@@ -1792,607 +527,6 @@ class DebugUIMessages: DebugUIPage, Dependencies {
         })
     }
 
-    static private func allFakeQuotedReplyActions(thread: TSThread, includeLabels: Bool) -> [DebugUIMessagesAction] {
-        let shortText = "Lorem ipsum"
-        let mediumText = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Lorem ipsum dolor sit amet, " +
-        "consectetur adipiscing elit."
-        let longText = randomOversizeText()
-
-        var actions = [DebugUIMessagesAction]()
-
-        if includeLabels {
-            actions.append(fakeIncomingTextMessageAction(thread: thread, text: "⚠️ Quoted Replies (Message Lengths) ⚠️"))
-        }
-        actions += [
-            fakeQuotedReplyAction(
-                thread: thread,
-                quotedMessageLabel: "Short Text",
-                isQuotedMessageIncoming: false,
-                quotedMessageBody: shortText,
-                quotedMessageAssetLoader: nil,
-                replyLabel: "Short Text",
-                replyMessageBody: shortText,
-                replyMessageState: .sent
-            ),
-
-            fakeQuotedReplyAction(
-                thread: thread,
-                quotedMessageLabel: "Short Text",
-                isQuotedMessageIncoming: false,
-                quotedMessageBody: shortText,
-                quotedMessageAssetLoader: nil,
-                replyLabel: "Medium Text",
-                replyMessageBody: mediumText,
-                replyMessageState: .sent
-            ),
-
-            fakeQuotedReplyAction(
-                thread: thread,
-                quotedMessageLabel: "Medium Text",
-                isQuotedMessageIncoming: false,
-                quotedMessageBody: mediumText,
-                quotedMessageAssetLoader: nil,
-                replyLabel: "Short Text",
-                replyMessageBody: shortText,
-                replyMessageState: .sent
-            ),
-
-            fakeQuotedReplyAction(
-                thread: thread,
-                quotedMessageLabel: "Medium Text",
-                isQuotedMessageIncoming: false,
-                quotedMessageBody: mediumText,
-                quotedMessageAssetLoader: nil,
-                replyLabel: "Medium Text",
-                replyMessageBody: mediumText,
-                replyMessageState: .sent
-            ),
-
-            fakeQuotedReplyAction(
-                thread: thread,
-                quotedMessageLabel: "Long Text",
-                isQuotedMessageIncoming: false,
-                quotedMessageBody: longText,
-                quotedMessageAssetLoader: nil,
-                replyLabel: "Long Text",
-                replyMessageBody: longText,
-                replyMessageState: .sent
-            )
-        ]
-
-        if includeLabels {
-            actions.append(fakeIncomingTextMessageAction(thread: thread, text: "⚠️ Quoted Replies (Attachment Types) ⚠️"))
-        }
-        actions += [
-            fakeQuotedReplyAction(
-                thread: thread,
-                quotedMessageLabel: "Jpg",
-                isQuotedMessageIncoming: false,
-                quotedMessageBody: nil,
-                quotedMessageAssetLoader: DebugUIMessagesAssetLoader.jpegInstance,
-                replyLabel: "Short Text",
-                replyMessageBody: shortText,
-                replyMessageState: .sent
-            ),
-
-            fakeQuotedReplyAction(
-                thread: thread,
-                quotedMessageLabel: "Jpg",
-                isQuotedMessageIncoming: false,
-                quotedMessageBody: shortText,
-                quotedMessageAssetLoader: DebugUIMessagesAssetLoader.jpegInstance,
-                replyLabel: "Short Text",
-                replyMessageBody: shortText,
-                replyMessageState: .sent
-            ),
-
-            fakeQuotedReplyAction(
-                thread: thread,
-                quotedMessageLabel: "Mp3",
-                isQuotedMessageIncoming: false,
-                quotedMessageBody: nil,
-                quotedMessageAssetLoader: DebugUIMessagesAssetLoader.mp3Instance,
-                replyLabel: "Short Text",
-                replyMessageBody: shortText,
-                replyMessageState: .sent
-            ),
-
-            fakeQuotedReplyAction(
-                thread: thread,
-                quotedMessageLabel: "Mp3",
-                isQuotedMessageIncoming: false,
-                quotedMessageBody: shortText,
-                quotedMessageAssetLoader: DebugUIMessagesAssetLoader.mp3Instance,
-                replyLabel: "Short Text",
-                replyMessageBody: shortText,
-                replyMessageState: .sent
-            ),
-
-            fakeQuotedReplyAction(
-                thread: thread,
-                quotedMessageLabel: "Mp4",
-                isQuotedMessageIncoming: false,
-                quotedMessageBody: nil,
-                quotedMessageAssetLoader: DebugUIMessagesAssetLoader.mp4Instance,
-                replyLabel: "Short Text",
-                replyMessageBody: shortText,
-                replyMessageState: .sent
-            ),
-
-            fakeQuotedReplyAction(
-                thread: thread,
-                quotedMessageLabel: "Mp4",
-                isQuotedMessageIncoming: false,
-                quotedMessageBody: shortText,
-                quotedMessageAssetLoader: DebugUIMessagesAssetLoader.mp4Instance,
-                replyLabel: "Short Text",
-                replyMessageBody: shortText,
-                replyMessageState: .sent
-            ),
-
-            fakeQuotedReplyAction(
-                thread: thread,
-                quotedMessageLabel: "Gif",
-                isQuotedMessageIncoming: false,
-                quotedMessageBody: nil,
-                quotedMessageAssetLoader: DebugUIMessagesAssetLoader.gifInstance,
-                replyLabel: "Short Text",
-                replyMessageBody: shortText,
-                replyMessageState: .sent
-            ),
-
-            fakeQuotedReplyAction(
-                thread: thread,
-                quotedMessageLabel: "Gif",
-                isQuotedMessageIncoming: false,
-                quotedMessageBody: shortText,
-                quotedMessageAssetLoader: DebugUIMessagesAssetLoader.gifInstance,
-                replyLabel: "Short Text",
-                replyMessageBody: shortText,
-                replyMessageState: .sent
-            ),
-
-            fakeQuotedReplyAction(
-                thread: thread,
-                quotedMessageLabel: "Pdf",
-                isQuotedMessageIncoming: true,
-                quotedMessageBody: nil,
-                quotedMessageAssetLoader: DebugUIMessagesAssetLoader.tinyPdfInstance,
-                replyLabel: "Short Text",
-                replyMessageBody: shortText,
-                replyMessageState: .sent
-            ),
-
-            fakeQuotedReplyAction(
-                thread: thread,
-                quotedMessageLabel: "Missing Pdf",
-                isQuotedMessageIncoming: true,
-                quotedMessageBody: nil,
-                quotedMessageAssetLoader: DebugUIMessagesAssetLoader.missingPdfInstance,
-                replyLabel: "Short Text",
-                replyMessageBody: shortText,
-                replyMessageState: .sent
-            ),
-
-            fakeQuotedReplyAction(
-                thread: thread,
-                quotedMessageLabel: "Tiny Png",
-                isQuotedMessageIncoming: true,
-                quotedMessageBody: nil,
-                quotedMessageAssetLoader: DebugUIMessagesAssetLoader.tinyPngInstance,
-                replyLabel: "Short Text",
-                replyMessageBody: shortText,
-                replyMessageState: .sent
-            ),
-
-            fakeQuotedReplyAction(
-                thread: thread,
-                quotedMessageLabel: "Missing Png",
-                isQuotedMessageIncoming: true,
-                quotedMessageBody: nil,
-                quotedMessageAssetLoader: DebugUIMessagesAssetLoader.missingPngInstance,
-                replyLabel: "Short Text",
-                replyMessageBody: shortText,
-                replyMessageState: .sent
-            )
-        ]
-
-        if includeLabels {
-            actions.append(fakeIncomingTextMessageAction(thread: thread, text: "⚠️ Quoted Replies (Attachment Layout) ⚠️"))
-        }
-        actions += [
-            fakeQuotedReplyAction(
-                thread: thread,
-                quotedMessageLabel: "Tall Portrait Png",
-                isQuotedMessageIncoming: false,
-                quotedMessageBody: nil,
-                quotedMessageAssetLoader: DebugUIMessagesAssetLoader.tallPortraitPngInstance,
-                replyLabel: "Short Text",
-                replyMessageBody: shortText,
-                replyMessageState: .sent
-            ),
-
-            fakeQuotedReplyAction(
-                thread: thread,
-                quotedMessageLabel: "Tall Portrait Png",
-                isQuotedMessageIncoming: false,
-                quotedMessageBody: nil,
-                quotedMessageAssetLoader: DebugUIMessagesAssetLoader.tallPortraitPngInstance,
-                replyLabel: "Medium Text",
-                replyMessageBody: mediumText,
-                replyMessageState: .sent
-            ),
-
-            fakeQuotedReplyAction(
-                thread: thread,
-                quotedMessageLabel: "Tall Portrait Png",
-                isQuotedMessageIncoming: false,
-                quotedMessageBody: shortText,
-                quotedMessageAssetLoader: DebugUIMessagesAssetLoader.tallPortraitPngInstance,
-                replyLabel: "Short Text",
-                replyMessageBody: shortText,
-                replyMessageState: .sent
-            ),
-
-            fakeQuotedReplyAction(
-                thread: thread,
-                quotedMessageLabel: "Wide Landscape Png",
-                isQuotedMessageIncoming: false,
-                quotedMessageBody: nil,
-                quotedMessageAssetLoader: DebugUIMessagesAssetLoader.wideLandscapePngInstance,
-                replyLabel: "Short Text",
-                replyMessageBody: shortText,
-                replyMessageState: .sent
-            ),
-
-            fakeQuotedReplyAction(
-                thread: thread,
-                quotedMessageLabel: "Wide Landscape Png",
-                isQuotedMessageIncoming: false,
-                quotedMessageBody: nil,
-                quotedMessageAssetLoader: DebugUIMessagesAssetLoader.wideLandscapePngInstance,
-                replyLabel: "Medium Text",
-                replyMessageBody: mediumText,
-                replyMessageState: .sent
-            ),
-
-            fakeQuotedReplyAction(
-                thread: thread,
-                quotedMessageLabel: "Wide Landscape Png",
-                isQuotedMessageIncoming: false,
-                quotedMessageBody: shortText,
-                quotedMessageAssetLoader: DebugUIMessagesAssetLoader.wideLandscapePngInstance,
-                replyLabel: "Medium Text",
-                replyMessageBody: mediumText,
-                replyMessageState: .sent
-            ),
-
-            fakeQuotedReplyAction(
-                thread: thread,
-                quotedMessageLabel: "Tiny Png",
-                isQuotedMessageIncoming: true,
-                quotedMessageBody: nil,
-                quotedMessageAssetLoader: DebugUIMessagesAssetLoader.tinyPngInstance,
-                replyLabel: "Short Text",
-                replyMessageBody: shortText,
-                replyMessageState: .sent
-            ),
-
-            fakeQuotedReplyAction(
-                thread: thread,
-                quotedMessageLabel: "Tiny Png",
-                isQuotedMessageIncoming: true,
-                quotedMessageBody: nil,
-                quotedMessageAssetLoader: DebugUIMessagesAssetLoader.tinyPngInstance,
-                replyLabel: "Medium Text",
-                replyMessageBody: mediumText,
-                replyMessageState: .sent
-            )
-        ]
-
-        let directionActions: (Bool, Bool) -> Void = { isQuotedMessageIncoming, isReplyIncoming in
-            actions.append(fakeQuotedReplyAction(
-                thread: thread,
-                quotedMessageLabel: "Short Text",
-                isQuotedMessageIncoming: isQuotedMessageIncoming,
-                quotedMessageBody: shortText,
-                quotedMessageAssetLoader: nil,
-                replyLabel: "Short Text",
-                isReplyIncoming: isReplyIncoming,
-                replyMessageBody: shortText,
-                replyMessageState: .sent
-            ))
-        }
-
-        if includeLabels {
-            actions.append(fakeIncomingTextMessageAction(thread: thread, text: "⚠️ Quoted Replies (Incoming v. Outgoing) ⚠️"))
-        }
-        directionActions(false, false)
-        directionActions(true, false)
-        directionActions(false, true)
-        directionActions(true, true)
-
-        if includeLabels {
-            actions.append(fakeIncomingTextMessageAction(thread: thread, text: "⚠️ Quoted Replies (Message States) ⚠️"))
-        }
-        actions += [
-            fakeQuotedReplyAction(
-                thread: thread,
-                quotedMessageLabel: "Jpg",
-                isQuotedMessageIncoming: true,
-                quotedMessageBody: nil,
-                quotedMessageAssetLoader: DebugUIMessagesAssetLoader.jpegInstance,
-                replyLabel: "Short Text",
-                replyMessageBody: shortText,
-                replyMessageState: .sent
-            ),
-
-            fakeQuotedReplyAction(
-                thread: thread,
-                quotedMessageLabel: "Mp3",
-                isQuotedMessageIncoming: true,
-                quotedMessageBody: nil,
-                quotedMessageAssetLoader: DebugUIMessagesAssetLoader.mp3Instance,
-                replyLabel: "Short Text",
-                replyMessageBody: shortText,
-                replyMessageState: .sent
-            ),
-
-            fakeQuotedReplyAction(
-                thread: thread,
-                quotedMessageLabel: "Mp4",
-                isQuotedMessageIncoming: true,
-                quotedMessageBody: nil,
-                quotedMessageAssetLoader: DebugUIMessagesAssetLoader.mp4Instance,
-                replyLabel: "Short Text",
-                replyMessageBody: shortText,
-                replyMessageState: .sent
-            ),
-
-            fakeQuotedReplyAction(
-                thread: thread,
-                quotedMessageLabel: "Gif",
-                isQuotedMessageIncoming: true,
-                quotedMessageBody: nil,
-                quotedMessageAssetLoader: DebugUIMessagesAssetLoader.gifInstance,
-                replyLabel: "Short Text",
-                replyMessageBody: shortText,
-                replyMessageState: .sent
-            ),
-
-            fakeQuotedReplyAction(
-                thread: thread,
-                quotedMessageLabel: "Pdf",
-                isQuotedMessageIncoming: true,
-                quotedMessageBody: nil,
-                quotedMessageAssetLoader: DebugUIMessagesAssetLoader.tinyPdfInstance,
-                replyLabel: "Short Text",
-                replyMessageBody: shortText,
-                replyMessageState: .sent
-            ),
-
-            fakeQuotedReplyAction(
-                thread: thread,
-                quotedMessageLabel: "Missing Pdf",
-                isQuotedMessageIncoming: true,
-                quotedMessageBody: nil,
-                quotedMessageAssetLoader: DebugUIMessagesAssetLoader.missingPdfInstance,
-                replyLabel: "Short Text",
-                replyMessageBody: shortText,
-                replyMessageState: .sent
-            ),
-
-            fakeQuotedReplyAction(
-                thread: thread,
-                quotedMessageLabel: "Tiny Png",
-                isQuotedMessageIncoming: true,
-                quotedMessageBody: nil,
-                quotedMessageAssetLoader: DebugUIMessagesAssetLoader.tinyPngInstance,
-                replyLabel: "Short Text",
-                replyMessageBody: shortText,
-                replyMessageState: .sent
-            ),
-
-            fakeQuotedReplyAction(
-                thread: thread,
-                quotedMessageLabel: "Missing Png",
-                isQuotedMessageIncoming: true,
-                quotedMessageBody: nil,
-                quotedMessageAssetLoader: DebugUIMessagesAssetLoader.missingPngInstance,
-                replyLabel: "Short Text",
-                replyMessageBody: shortText,
-                replyMessageState: .sent
-            ),
-
-            fakeQuotedReplyAction(
-                thread: thread,
-                quotedMessageLabel: "Short Text",
-                isQuotedMessageIncoming: false,
-                quotedMessageBody: shortText,
-                quotedMessageAssetLoader: nil,
-                replyLabel: "Short Text",
-                replyMessageBody: shortText,
-                replyMessageState: .sending
-            ),
-
-            fakeQuotedReplyAction(
-                thread: thread,
-                quotedMessageLabel: "Short Text",
-                isQuotedMessageIncoming: false,
-                quotedMessageBody: shortText,
-                quotedMessageAssetLoader: nil,
-                replyLabel: "Short Text",
-                replyMessageBody: shortText,
-                replyMessageState: .sent
-            ),
-
-            fakeQuotedReplyAction(
-                thread: thread,
-                quotedMessageLabel: "Short Text",
-                isQuotedMessageIncoming: false,
-                quotedMessageBody: shortText,
-                quotedMessageAssetLoader: nil,
-                replyLabel: "Short Text",
-                replyMessageBody: shortText,
-                replyMessageState: .failed
-            )
-        ]
-
-        if includeLabels {
-            actions.append(fakeIncomingTextMessageAction(thread: thread, text: "⚠️ Quoted Replies (Reply W. Attachment) ⚠️"))
-        }
-        actions += [
-            // Png + Text -> Png + Text
-            fakeQuotedReplyAction(
-                thread: thread,
-                quotedMessageLabel: "Tall Portrait Png",
-                isQuotedMessageIncoming: false,
-                quotedMessageBody: shortText,
-                quotedMessageAssetLoader: DebugUIMessagesAssetLoader.tallPortraitPngInstance,
-                replyLabel: "Tall Portrait Png",
-                replyMessageBody: shortText,
-                replyAssetLoader: DebugUIMessagesAssetLoader.tallPortraitPngInstance,
-                replyMessageState: .sent
-            ),
-
-            // Text -> Png + Text
-            fakeQuotedReplyAction(
-                thread: thread,
-                quotedMessageLabel: "Short Text",
-                isQuotedMessageIncoming: false,
-                quotedMessageBody: shortText,
-                quotedMessageAssetLoader: nil,
-                replyLabel: "Tall Portrait Png",
-                replyMessageBody: shortText,
-                replyMessageState: .sent
-            ),
-
-            // Text -> Png
-            fakeQuotedReplyAction(
-                thread: thread,
-                quotedMessageLabel: "Short Text",
-                isQuotedMessageIncoming: false,
-                quotedMessageBody: shortText,
-                quotedMessageAssetLoader: nil,
-                replyLabel: "Tall Portrait Png",
-                replyMessageBody: nil,
-                replyAssetLoader: DebugUIMessagesAssetLoader.tallPortraitPngInstance,
-                replyMessageState: .sent
-            ),
-
-            // Png -> Png + Text
-            fakeQuotedReplyAction(
-                thread: thread,
-                quotedMessageLabel: "Short Text",
-                isQuotedMessageIncoming: false,
-                quotedMessageBody: shortText,
-                quotedMessageAssetLoader: nil,
-                replyLabel: "Tall Portrait Png",
-                replyMessageBody: shortText,
-                replyAssetLoader: DebugUIMessagesAssetLoader.tallPortraitPngInstance,
-                replyMessageState: .sent
-            ),
-
-            // Png -> Portrait Png + Text
-            fakeQuotedReplyAction(
-                thread: thread,
-                quotedMessageLabel: "Short Text",
-                isQuotedMessageIncoming: false,
-                quotedMessageBody: shortText,
-                quotedMessageAssetLoader: nil,
-                replyLabel: "Tall Portrait Png",
-                replyMessageBody: shortText,
-                replyAssetLoader: DebugUIMessagesAssetLoader.tallPortraitPngInstance,
-                replyMessageState: .sent
-            ),
-
-            // Png -> Landscape Png + Text
-            fakeQuotedReplyAction(
-                thread: thread,
-                quotedMessageLabel: "Short Text",
-                isQuotedMessageIncoming: false,
-                quotedMessageBody: shortText,
-                quotedMessageAssetLoader: nil,
-                replyLabel: "Wide Landscape Png",
-                replyMessageBody: shortText,
-                replyAssetLoader: DebugUIMessagesAssetLoader.wideLandscapePngInstance,
-                replyMessageState: .sent
-            ),
-
-            // Png -> Landscape Png + Text
-            fakeQuotedReplyAction(
-                thread: thread,
-                quotedMessageLabel: "Short Text",
-                isQuotedMessageIncoming: false,
-                quotedMessageBody: shortText,
-                quotedMessageAssetLoader: nil,
-                replyLabel: "Wide Landscape Png + Short Text",
-                replyMessageBody: shortText,
-                replyAssetLoader: DebugUIMessagesAssetLoader.wideLandscapePngInstance,
-                replyMessageState: .sent
-            ),
-
-            // Png -> Landscape Png + Text
-            fakeQuotedReplyAction(
-                thread: thread,
-                quotedMessageLabel: "Short Text",
-                isQuotedMessageIncoming: false,
-                quotedMessageBody: shortText,
-                quotedMessageAssetLoader: nil,
-                replyLabel: "Wide Landscape Png + Short Text",
-                replyMessageBody: shortText,
-                replyAssetLoader: DebugUIMessagesAssetLoader.wideLandscapePngInstance,
-                replyMessageState: .sent
-            ),
-
-            // Png -> Landscape Png + Text
-            fakeQuotedReplyAction(
-                thread: thread,
-                quotedMessageLabel: "Short Text",
-                isQuotedMessageIncoming: false,
-                quotedMessageBody: shortText,
-                quotedMessageAssetLoader: nil,
-                replyLabel: "Wide Landscape Png + Medium Text",
-                replyMessageBody: mediumText,
-                replyAssetLoader: DebugUIMessagesAssetLoader.wideLandscapePngInstance,
-                replyMessageState: .sent
-            ),
-
-            // Png -> Landscape Png + Text
-            fakeQuotedReplyAction(
-                thread: thread,
-                quotedMessageLabel: "Short Text",
-                isQuotedMessageIncoming: false,
-                quotedMessageBody: shortText,
-                quotedMessageAssetLoader: nil,
-                replyLabel: "Wide Landscape Png + Medium Text",
-                replyMessageBody: mediumText,
-                replyAssetLoader: DebugUIMessagesAssetLoader.wideLandscapePngInstance,
-                replyMessageState: .sent
-            )
-        ]
-
-        return actions
-    }
-
-    private static func selectQuotedReplyAction(thread: TSThread) {
-        selectActionUI(allFakeQuotedReplyActions(thread: thread, includeLabels: false), label: "Select QuotedReply")
-    }
-
-    private static func allQuotedReplyAction(thread: TSThread) -> DebugUIMessagesAction {
-        return DebugUIMessagesGroupAction.allGroupActionWithLabel(
-            "All Quoted Reply",
-            subactions: allFakeQuotedReplyActions(thread: thread, includeLabels: true)
-        )
-    }
-
-    private static func randomQuotedReplyAction(thread: TSThread) -> DebugUIMessagesAction {
-        return DebugUIMessagesGroupAction.randomGroupActionWithLabel(
-            "Random Quoted Reply",
-            subactions: allFakeQuotedReplyActions(thread: thread, includeLabels: false)
-        )
-    }
-
     // MARK: Exemplary
 
     private static func allFakeActionsAction(thread: TSThread) -> DebugUIMessagesAction {
@@ -2404,10 +538,8 @@ class DebugUIMessages: DebugUIPage, Dependencies {
 
     private static func allFakeActions(thread: TSThread, includeLabels: Bool) -> [DebugUIMessagesAction] {
         var actions = [DebugUIMessagesAction]()
-        actions.append(contentsOf: allFakeMediaActions(thread: thread, includeLabels: includeLabels))
         actions.append(contentsOf: allFakeTextActions(thread: thread, includeLabels: includeLabels))
         actions.append(contentsOf: allFakeSequenceActions(thread: thread, includeLabels: includeLabels))
-        actions.append(contentsOf: allFakeQuotedReplyActions(thread: thread, includeLabels: includeLabels))
         actions.append(contentsOf: allFakeBackDatedActions(thread: thread, includeLabels: includeLabels))
         actions.append(contentsOf: allFakeContactShareActions(thread: thread, includeLabels: includeLabels))
         return actions
@@ -2465,7 +597,7 @@ class DebugUIMessages: DebugUIPage, Dependencies {
 
     // MARK: Contact Shares
 
-    private typealias CreateContactBlock = (SDSAnyWriteTransaction) -> OWSContact
+    private typealias CreateContactBlock = (TSMessage, SDSAnyWriteTransaction) -> Void
 
     private static func fakeAllContactShareAction(thread: TSThread) -> DebugUIMessagesAction {
         return DebugUIMessagesGroupAction.allGroupActionWithLabel(
@@ -2488,105 +620,53 @@ class DebugUIMessages: DebugUIPage, Dependencies {
         actions.append(fakeContactShareMessageAction(
             thread: thread,
             label: "Name & Number",
-            contact: { _ in
+            contact: { message, tx in
                 let contact = OWSContact(name: OWSContactName(givenName: "Alice"))
                 contact.phoneNumbers = [ OWSContactPhoneNumber(type: .home, phoneNumber: "+13213214321") ]
-                return contact
+                message.update(withContactShare: contact, transaction: tx)
             }
         ))
 
         actions.append(fakeContactShareMessageAction(
             thread: thread,
             label: "Name & Email",
-            contact: { _ in
+            contact: { message, tx in
                 let contact = OWSContact(name: OWSContactName(givenName: "Bob"))
                 contact.emails = [ OWSContactEmail(type: .home, email: "a@b.com") ]
-                return contact
+                message.update(withContactShare: contact, transaction: tx)
             }
         ))
-
-        actions.append(
-            fakeContactShareMessageAction(
-                thread: thread,
-                label: "Complicated",
-                contact: { transaction in
-                    let contact = OWSContact(name: OWSContactName(
-                        givenName: "Alice",
-                        familyName: "Carol",
-                        namePrefix: "Ms.",
-                        nameSuffix: "Esq.",
-                        middleName: "Bob",
-                        organizationName: "Falafel Hut"
-                    ))
-
-                    contact.phoneNumbers = [
-                        OWSContactPhoneNumber(type: .home, phoneNumber: "+13213215555"),
-                        OWSContactPhoneNumber(type: .custom, label: "Carphone", phoneNumber: "+13332226666")
-                    ]
-
-                    contact.emails = (0..<16).map { OWSContactEmail(type: .home, email: String(format: "a%zd@b.com", $0)) }
-
-                    let address1 = OWSContactAddress(
-                        type: .home,
-                        street: "123 home st.",
-                        pobox: nil,
-                        neighborhood: "round the bend.",
-                        city: "homeville",
-                        region: "HO",
-                        postcode: "12345",
-                        country: "USA"
-                    )
-                    let address2 = OWSContactAddress(
-                        type: .custom,
-                        label: "Otra casa",
-                        street: "123 casa calle",
-                        pobox: "caja 123",
-                        neighborhood: nil,
-                        city: "barrio norte",
-                        region: "AB",
-                        postcode: "53421",
-                        country: "MX"
-                    )
-                    contact.addresses = [ address1, address2 ]
-
-                    let avatarImage = AvatarBuilder.buildRandomAvatar(diameterPoints: 200)!
-                    contact.saveAvatarImage(avatarImage, transaction: transaction)
-
-                    return contact
-                }
-            )
-        )
 
         actions.append(fakeContactShareMessageAction(
             thread: thread,
             label: "Long values",
-            contact: { _ in
+            contact: { message, tx in
                 let contact = OWSContact(name: OWSContactName(
                     givenName: "Bobasdjasdlkjasldkjas",
                     familyName: "Bobasdjasdlkjasldkjas"
                 ))
                 contact.emails = [ OWSContactEmail(type: .mobile, email: "asdlakjsaldkjasldkjasdlkjasdlkjasdlkajsa@b.com") ]
-                return contact
+                message.update(withContactShare: contact, transaction: tx)
             }
         ))
 
         actions.append(fakeContactShareMessageAction(
             thread: thread,
             label: "System Contact w/o Signal",
-            contact: { _ in
+            contact: { message, tx in
                 let contact = OWSContact(name: OWSContactName(givenName: "Add Me To Your Contacts"))
                 contact.phoneNumbers = [ OWSContactPhoneNumber(type: .work, phoneNumber: "+32460205391") ]
-                return contact
+                message.update(withContactShare: contact, transaction: tx)
             }
         ))
 
         actions.append(fakeContactShareMessageAction(
             thread: thread,
             label: "System Contact w. Signal",
-            contact: { _ in
+            contact: { message, tx in
                 let contact = OWSContact(name: OWSContactName(givenName: "Add Me To Your Contacts"))
                 contact.phoneNumbers = [ OWSContactPhoneNumber(type: .work, phoneNumber: "+32460205392") ]
-                return contact
+                message.update(withContactShare: contact, transaction: tx)
             }
         ))
 
@@ -2605,7 +685,7 @@ class DebugUIMessages: DebugUIPage, Dependencies {
                     thread: thread,
                     messageBody: nil,
                     messageState: .sent,
-                    contactShare: contact(transaction),
+                    contactShareBlock: contact,
                     transaction: transaction
                 )
             })
@@ -2734,7 +814,7 @@ class DebugUIMessages: DebugUIPage, Dependencies {
         hasCaption: Bool,
         completion: (Result<Void, Error>) -> Void
     ) {
-        guard let utiType = MIMETypeUtil.utiType(forFileExtension: fileUrl.pathExtension) else {
+        guard let utiType = MimeTypeUtil.utiTypeForFileExtension(fileUrl.pathExtension) else {
             completion(.failure(DebugUIError.unknownFileExtension))
             return
         }
@@ -2743,7 +823,7 @@ class DebugUIMessages: DebugUIPage, Dependencies {
 
         let dataSource: DataSource
         do {
-            dataSource = try DataSourcePath.dataSource(withFilePath: fileUrl.path, shouldDeleteOnDeallocation: false)
+            dataSource = try DataSourcePath(filePath: fileUrl.path, shouldDeleteOnDeallocation: false)
             dataSource.sourceFilename = filename
         } catch {
             owsFailDebug("error while creating data source: \(error)")
@@ -2782,30 +862,27 @@ class DebugUIMessages: DebugUIPage, Dependencies {
         thread: TSThread,
         messageText: String?
     ) {
-        databaseStorage.read { transaction in
-            let attachments: [SignalAttachment]
-            if let attachment {
-                attachments = [ attachment ]
-            } else {
-                attachments = []
-            }
-            let messageBody: MessageBody?
-            if let messageText {
-                messageBody = MessageBody(text: messageText, ranges: .empty)
-            } else {
-                messageBody = nil
-            }
-            ThreadUtil.enqueueMessage(
-                body: messageBody,
-                mediaAttachments: attachments,
-                thread: thread,
-                transaction: transaction
-            )
+        let attachments: [SignalAttachment]
+        if let attachment {
+            attachments = [ attachment ]
+        } else {
+            attachments = []
         }
+        let messageBody: MessageBody?
+        if let messageText {
+            messageBody = MessageBody(text: messageText, ranges: .empty)
+        } else {
+            messageBody = nil
+        }
+        ThreadUtil.enqueueMessage(
+            body: messageBody,
+            mediaAttachments: attachments,
+            thread: thread
+        )
     }
 
     private static func sendRandomAttachmentInThread(_ thread: TSThread, uti: String, length: UInt32 = 256) {
-        guard let dataSource = DataSourceValue.dataSource(with: createRandomDataOfSize(length), utiType: uti) else {
+        guard let dataSource = DataSourceValue(createRandomDataOfSize(length), utiType: uti) else {
             owsFailDebug("Failed to create data source.")
             return
         }
@@ -2884,8 +961,8 @@ class DebugUIMessages: DebugUIPage, Dependencies {
             }
 
             guard
-                let dataSource = try? DataSourcePath.dataSource(withFilePath: tempFilePath, shouldDeleteOnDeallocation: false),
-                let uti = MIMETypeUtil.utiType(forMIMEType: fakeAssetLoader.mimeType)
+                let dataSource = try? DataSourcePath(filePath: tempFilePath, shouldDeleteOnDeallocation: false),
+                let uti = MimeTypeUtil.utiTypeForMimeType(fakeAssetLoader.mimeType)
             else {
                 return nil
             }
@@ -2904,15 +981,11 @@ class DebugUIMessages: DebugUIPage, Dependencies {
             messageBody = nil
         }
 
-        databaseStorage.read { transaction in
-            let message = ThreadUtil.enqueueMessage(
-                body: messageBody,
-                mediaAttachments: attachments,
-                thread: thread,
-                transaction: transaction
-            )
-            Logger.debug("timestamp: \(message.timestamp)")
-        }
+        ThreadUtil.enqueueMessage(
+            body: messageBody,
+            mediaAttachments: attachments,
+            thread: thread
+        )
     }
 
     // MARK: Send Text Messages
@@ -2954,14 +1027,10 @@ class DebugUIMessages: DebugUIPage, Dependencies {
         Logger.flush()
 
         let text = "\(counter) " + randomText()
-        let message = databaseStorage.write { transaction in
-            return ThreadUtil.enqueueMessage(
-                body: MessageBody(text: text, ranges: .empty),
-                thread: thread,
-                transaction: transaction
-            )
-        }
-        Logger.info("sendTextMessageInThread timestamp: \(message.timestamp).")
+        ThreadUtil.enqueueMessage(
+            body: MessageBody(text: text, ranges: .empty),
+            thread: thread
+        )
     }
 
     private static func sendOversizeTextMessageInThread(_ thread: TSThread) {
@@ -2985,210 +1054,13 @@ class DebugUIMessages: DebugUIPage, Dependencies {
 
     // MARK: System Messages
 
-    private static func createSystemMessageInThread(_ thread: TSThread) {
-        let message = unsavedSystemMessagesInThread(thread).randomElement()!
-        databaseStorage.write { transaction in
-            message.anyInsert(transaction: transaction)
-        }
-    }
-
-    private static func createSystemMessagesInThread(_ thread: TSThread) {
-        let messages = unsavedSystemMessagesInThread(thread)
-        databaseStorage.write { transaction in
-            for message in messages {
-                message.anyInsert(transaction: transaction)
-            }
-        }
-    }
-
-    private static func unsavedSystemMessagesInThread(_ thread: TSThread) -> [TSInteraction] {
-        let messages = databaseStorage.write { transaction in
-            return unsavedSystemMessagesInThread(thread, transaction: transaction)
-        }
-        return messages
-    }
-
-    private static func unsavedSystemMessagesInThread(_ thread: TSThread, transaction: SDSAnyWriteTransaction) -> [TSInteraction] {
-        guard let incomingSenderAddress = anyIncomingSenderAddress(forThread: thread) else {
-            owsFailDebug("Missing incomingSenderAddress.")
-            return []
-        }
-
-        var results = [TSInteraction]()
-
-        // Calls
-
-        if let contactThread = thread as? TSContactThread {
-            results += [
-                TSCall(
-                    callType: .incoming,
-                    offerType: .audio,
-                    thread: contactThread,
-                    sentAtTimestamp: Date.ows_millisecondTimestamp()
-                ),
-                TSCall(
-                    callType: .outgoing,
-                    offerType: .audio,
-                    thread: contactThread,
-                    sentAtTimestamp: Date.ows_millisecondTimestamp()
-                ),
-                TSCall(
-                    callType: .incomingMissed,
-                    offerType: .audio,
-                    thread: contactThread,
-                    sentAtTimestamp: Date.ows_millisecondTimestamp()
-                ),
-                TSCall(
-                    callType: .incomingMissedBecauseOfChangedIdentity,
-                    offerType: .audio,
-                    thread: contactThread,
-                    sentAtTimestamp: Date.ows_millisecondTimestamp()
-                ),
-                TSCall(
-                    callType: .outgoingIncomplete,
-                    offerType: .audio,
-                    thread: contactThread,
-                    sentAtTimestamp: Date.ows_millisecondTimestamp()
-                ),
-                TSCall(
-                    callType: .incomingIncomplete,
-                    offerType: .audio,
-                    thread: contactThread,
-                    sentAtTimestamp: Date.ows_millisecondTimestamp()
-                ),
-                TSCall(
-                    callType: .incomingDeclined,
-                    offerType: .audio,
-                    thread: contactThread,
-                    sentAtTimestamp: Date.ows_millisecondTimestamp()
-                ),
-                TSCall(
-                    callType: .outgoingMissed,
-                    offerType: .audio,
-                    thread: contactThread,
-                    sentAtTimestamp: Date.ows_millisecondTimestamp()
-                ),
-                TSCall(
-                    callType: .incomingMissedBecauseOfDoNotDisturb,
-                    offerType: .audio,
-                    thread: contactThread,
-                    sentAtTimestamp: Date.ows_millisecondTimestamp()
-                )
-            ]
-        }
-
-        // Disappearing Messages
-
-        if let durationSeconds = OWSDisappearingMessagesConfiguration.presetDurationsSeconds().first?.uint32Value {
-            let dmConfigurationStore = DependenciesBridge.shared.disappearingMessagesConfigurationStore
-            let disappearingMessagesConfiguration = dmConfigurationStore
-                .fetchOrBuildDefault(for: .thread(thread), tx: transaction.asV2Read)
-                .copyAsEnabled(withDurationSeconds: durationSeconds)
-            results.append(OWSDisappearingConfigurationUpdateInfoMessage(
-                thread: thread,
-                configuration: disappearingMessagesConfiguration,
-                createdByRemoteName: "Alice",
-                createdInExistingGroup: false
-            ))
-            results.append(OWSDisappearingConfigurationUpdateInfoMessage(
-                thread: thread,
-                configuration: disappearingMessagesConfiguration,
-                createdByRemoteName: nil,
-                createdInExistingGroup: true
-            ))
-        }
-
-        if let durationSeconds = OWSDisappearingMessagesConfiguration.presetDurationsSeconds().last?.uint32Value {
-            let dmConfigurationStore = DependenciesBridge.shared.disappearingMessagesConfigurationStore
-            let disappearingMessagesConfiguration = dmConfigurationStore
-                .fetchOrBuildDefault(for: .thread(thread), tx: transaction.asV2Read)
-                .copyAsEnabled(withDurationSeconds: durationSeconds)
-            results.append(OWSDisappearingConfigurationUpdateInfoMessage(
-                thread: thread,
-                configuration: disappearingMessagesConfiguration,
-                createdByRemoteName: "Alice",
-                createdInExistingGroup: false
-            ))
-        }
-
-        let dmConfigurationStore = DependenciesBridge.shared.disappearingMessagesConfigurationStore
-        let disappearingMessagesConfiguration = dmConfigurationStore
-            .fetchOrBuildDefault(for: .thread(thread), tx: transaction.asV2Read)
-            .copy(withIsEnabled: false)
-        results.append(OWSDisappearingConfigurationUpdateInfoMessage(
-            thread: thread,
-            configuration: disappearingMessagesConfiguration,
-            createdByRemoteName: "Alice",
-            createdInExistingGroup: false
-        ))
-
-        results += [
-            TSInfoMessage.userNotRegisteredMessage(in: thread, address: incomingSenderAddress),
-
-            TSInfoMessage(thread: thread, messageType: .typeSessionDidEnd),
-            // TODO: customMessage?
-            TSInfoMessage(thread: thread, messageType: .typeGroupUpdate),
-            // TODO: customMessage?
-            TSInfoMessage(thread: thread, messageType: .typeGroupQuit),
-
-            OWSVerificationStateChangeMessage(
-                thread: thread,
-                recipientAddress: incomingSenderAddress,
-                verificationState: .default,
-                isLocalChange: true
-            ),
-            OWSVerificationStateChangeMessage(
-                thread: thread,
-                recipientAddress: incomingSenderAddress,
-                verificationState: .verified,
-                isLocalChange: true
-            ),
-            OWSVerificationStateChangeMessage(
-                thread: thread,
-                recipientAddress: incomingSenderAddress,
-                verificationState: .noLongerVerified,
-                isLocalChange: true
-            ),
-
-            OWSVerificationStateChangeMessage(
-                thread: thread,
-                recipientAddress: incomingSenderAddress,
-                verificationState: .default,
-                isLocalChange: false
-            ),
-            OWSVerificationStateChangeMessage(
-                thread: thread,
-                recipientAddress: incomingSenderAddress,
-                verificationState: .verified,
-                isLocalChange: false),
-            OWSVerificationStateChangeMessage(
-                thread: thread,
-                recipientAddress: incomingSenderAddress,
-                verificationState: .noLongerVerified,
-                isLocalChange: false
-            ),
-
-            TSErrorMessage.missingSession(with: createEnvelopeForThread(thread), with: transaction),
-            TSErrorMessage.invalidKeyException(with: createEnvelopeForThread(thread), with: transaction),
-            TSErrorMessage.invalidVersion(with: createEnvelopeForThread(thread), with: transaction),
-
-            TSErrorMessage.nonblockingIdentityChange(in: thread, address: incomingSenderAddress, wasIdentityVerified: false),
-            TSErrorMessage.nonblockingIdentityChange(in: thread, address: incomingSenderAddress, wasIdentityVerified: true)
-        ]
-
-        return results
-    }
-
-    private static func sendTextAndSystemMessages(_ counter: UInt, thread: TSThread) {
+    private static func sendTextMessages(_ counter: UInt, thread: TSThread) {
         guard counter > 0 else { return }
 
-        if Bool.random() {
-            sendTextMessageInThread(thread, counter: counter)
-        } else {
-            createSystemMessageInThread(thread)
-        }
+        sendTextMessageInThread(thread, counter: counter)
+
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-            sendTextAndSystemMessages(counter - 1, thread: thread)
+            sendTextMessages(counter - 1, thread: thread)
         }
     }
 
@@ -3220,9 +1092,12 @@ class DebugUIMessages: DebugUIPage, Dependencies {
                 let randomText = randomText()
 
                 // Legit usage of SenderTimestamp to backdate incoming sent messages for Debug
-                let incomingMessageBuilder = TSIncomingMessageBuilder(thread: thread, messageBody: randomText)
-                incomingMessageBuilder.timestamp = timestamp
-                incomingMessageBuilder.authorAci = AciObjC(incomingSenderAci)
+                let incomingMessageBuilder: TSIncomingMessageBuilder = .withDefaultValues(
+                    thread: thread,
+                    timestamp: timestamp,
+                    authorAci: incomingSenderAci,
+                    messageBody: randomText
+                )
                 let incomingMessage = incomingMessageBuilder.build()
                 incomingMessage.anyInsert(transaction: transaction)
                 incomingMessage.debugonly_markAsReadNow(transaction: transaction)
@@ -3232,8 +1107,8 @@ class DebugUIMessages: DebugUIPage, Dependencies {
                 outgoingMessageBuilder.timestamp = timestamp
                 let outgoingMessage = outgoingMessageBuilder.build(transaction: transaction)
                 outgoingMessage.anyInsert(transaction: transaction)
-                outgoingMessage.update(withFakeMessageState: .sent, transaction: transaction)
-                outgoingMessage.update(withSentRecipient: ServiceIdObjC.wrapValue(incomingSenderAci), wasSentByUD: false, transaction: transaction)
+                outgoingMessage.updateWithFakeMessageState(.sent, tx: transaction)
+                outgoingMessage.updateWithSentRecipient(incomingSenderAci, wasSentByUD: false, transaction: transaction)
                 outgoingMessage.update(
                     withDeliveredRecipient: SignalServiceAddress(incomingSenderAci),
                     deviceId: 0,
@@ -3258,8 +1133,7 @@ class DebugUIMessages: DebugUIPage, Dependencies {
             } else if let contactThread = thread as? TSContactThread {
                 return contactThread.contactAddress
             } else {
-                owsFailDebug("Unknown thread type")
-                return SignalServiceAddress(phoneNumber: "unknown-source-id")
+                owsFail("Unknown thread type")
             }
         }()
 
@@ -3301,133 +1175,160 @@ class DebugUIMessages: DebugUIPage, Dependencies {
         let members = uuidMembers + [DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction!.aciAddress]
         let groupName = "UUID Group"
 
-        _ = GroupManager.localCreateNewGroup(members: members, name: groupName, disappearingMessageToken: .disabledToken, shouldSendMessage: true)
+        Task {
+            _ = try? await GroupManager.localCreateNewGroup(
+                members: members,
+                name: groupName,
+                disappearingMessageToken: .disabledToken,
+                shouldSendMessage: true
+            )
+        }
     }
 
     // MARK: Fake Threads & Messages
 
-    private static func createFakeThreads(_ threadQuantity: UInt, withFakeMessages messageQuantity: UInt) {
-        DebugContactsUtils.createRandomContacts(threadQuantity) { contact, index, stop in
+    private static func createFakeThreads(_ threadQuantity: UInt, withFakeMessages messageQuantity: UInt) async {
+        await DebugContactsUtils.createRandomContacts(threadQuantity) { contact, index, stop in
             guard
                 let phoneNumberText = contact.phoneNumbers.first?.value.stringValue,
-                let e164 = PhoneNumber.tryParsePhoneNumber(fromUserSpecifiedText: phoneNumberText)?.toE164()
+                let e164 = phoneNumberUtil.parsePhoneNumber(userSpecifiedText: phoneNumberText)?.e164
             else {
                 owsFailDebug("Invalid phone number")
                 return
             }
 
-            databaseStorage.write { transaction in
+            let messageContents = try! createFakeMessageContents(
+                count: messageQuantity,
+                messageContentType: .longText
+            )
+
+            await databaseStorage.awaitableWrite { transaction in
                 let address = SignalServiceAddress(phoneNumber: e164)
                 let contactThread = TSContactThread.getOrCreateThread(withContactAddress: address, transaction: transaction)
-                profileManager.addThread(toProfileWhitelist: contactThread, transaction: transaction)
-                createFakeMessagesInBatches(messageQuantity, inThread: contactThread, messageContentType: .longText, transaction: transaction)
+                profileManager.addThread(
+                    toProfileWhitelist: contactThread,
+                    userProfileWriter: .localUser,
+                    transaction: transaction
+                )
+                createFakeMessages(messageContents, inThread: contactThread, transaction: transaction)
                 Logger.info("Created a fake thread for \(e164) with \(messageQuantity) messages")
             }
         }
     }
 
-    private static func createFakeMessagesInBatches(
-        _ counter: UInt,
-        inThread thread: TSThread,
-        messageContentType: MessageContentType,
-        transaction: SDSAnyWriteTransaction
-    ) {
-        let maxBatchSize: UInt = 200
-        var remainder = counter
-        while remainder > 0 {
-            autoreleasepool {
-                let batchSize = min(maxBatchSize, remainder)
-                createFakeMessages(
-                    batchSize,
-                    batchOffset: counter - remainder,
-                    inThread: thread,
-                    messageContentType: messageContentType,
-                    transaction: transaction
-                )
-                remainder -= batchSize
-                Logger.info("createFakeMessages \(counter - remainder) / \(counter)")
-            }
-        }
+    private enum FakeMessageContent {
+        case incomingTextOnly(String)
+        case outgoingTextOnly(String)
+        case outgoingAttachments([TSResourceDataSource])
+        case incomingAttachments([TSResourceDataSource])
     }
 
-    private static func createFakeMessages(
-        _ counter: UInt,
-        batchOffset: UInt,
-        inThread thread: TSThread,
-        messageContentType: MessageContentType,
-        transaction: SDSAnyWriteTransaction
-    ) {
-        Logger.info("createFakeMessages: \(counter)")
-
-        guard let incomingSenderAci = anyIncomingSenderAddress(forThread: thread)?.aci else {
-            owsFailDebug("Missing incomingSenderAci.")
-            return
-        }
-
-        for i in 0..<counter {
+    private static func createFakeMessageContents(
+        count: UInt,
+        messageContentType: MessageContentType
+    ) throws -> [FakeMessageContent] {
+        var contents = [FakeMessageContent]()
+        for i in 0..<count {
             let randomText: String
             if messageContentType == .shortText {
-                randomText = DebugUIMessages.randomShortText() + " \(i + 1 + batchOffset)"
+                randomText = DebugUIMessages.randomShortText() + " \(i + 1)"
             } else {
-                randomText = DebugUIMessages.randomText() + " (sequence: \(i + 1 + batchOffset)"
+                randomText = DebugUIMessages.randomText() + " (sequence: \(i + 1)"
             }
             let isTextOnly = messageContentType != .normal
 
             let numberOfCases = isTextOnly ? 2 : 4
             switch Int.random(in: 0..<numberOfCases) {
             case 0:
-                let incomingMessageBuilder = TSIncomingMessageBuilder(thread: thread, messageBody: randomText)
-                incomingMessageBuilder.authorAci = AciObjC(incomingSenderAci)
+                contents.append(.incomingTextOnly(randomText))
+            case 1:
+                contents.append(.outgoingTextOnly(randomText))
+            case 2:
+                let attachmentDataSource = try DependenciesBridge.shared.tsResourceContentValidator.validateContents(
+                    data: UIImage.image(color: .blue, size: .square(100)).jpegData(compressionQuality: 0.1)!,
+                    mimeType: "image/jpg",
+                    sourceFilename: "test.jpg",
+                    caption: nil,
+                    renderingFlag: .default,
+                    ownerType: .message
+                )
+                contents.append(.incomingAttachments([attachmentDataSource]))
+            case 3:
+                let attachmentCount = Int.random(in: 0...SignalAttachment.maxAttachmentsAllowed)
+                var attachmentDataSources = [TSResourceDataSource]()
+                for _ in (0..<attachmentCount) {
+                    let dataSource = try DependenciesBridge.shared.tsResourceContentValidator.validateContents(
+                        dataSource: DataSourceValue(
+                            ImageFactory().buildPNGData(),
+                            fileExtension: "png"
+                        ),
+                        shouldConsume: true,
+                        mimeType: "image/png",
+                        sourceFilename: "test.png",
+                        caption: nil,
+                        renderingFlag: .default,
+                        ownerType: .message
+                    )
+                    attachmentDataSources.append(dataSource)
+                }
+                contents.append(.outgoingAttachments(attachmentDataSources))
+            default:
+                break
+            }
+        }
+        return contents
+    }
+
+    private static func createFakeMessages(
+        _ contents: [FakeMessageContent],
+        inThread thread: TSThread,
+        transaction: SDSAnyWriteTransaction
+    ) {
+        guard let incomingSenderAci = anyIncomingSenderAddress(forThread: thread)?.aci else {
+            owsFailDebug("Missing incomingSenderAci.")
+            return
+        }
+
+        for content in contents {
+            switch content {
+            case .incomingTextOnly(let text):
+                let incomingMessageBuilder: TSIncomingMessageBuilder = .withDefaultValues(
+                    thread: thread,
+                    authorAci: incomingSenderAci,
+                    messageBody: text
+                )
                 let message = incomingMessageBuilder.build()
                 message.anyInsert(transaction: transaction)
                 message.debugonly_markAsReadNow(transaction: transaction)
 
-            case 1:
+            case .outgoingTextOnly(let text):
                 createFakeOutgoingMessage(
                     thread: thread,
-                    messageBody: randomText,
+                    messageBody: text,
                     messageState: .sent,
                     transaction: transaction
                 )
 
-            case 2:
-                let filesize: UInt32 = 64
-                let pointer = TSAttachmentPointer(
-                    serverId: 237391539706350548,
-                    cdnKey: "",
-                    cdnNumber: 0,
-                    key: createRandomDataOfSize(filesize),
-                    digest: nil,
-                    byteCount: filesize,
-                    contentType: "image/jpg",
-                    sourceFilename: "test.jpg",
-                    caption: nil,
-                    albumMessageId: nil,
-                    attachmentType: .default,
-                    mediaSize: .zero,
-                    blurHash: nil,
-                    uploadTimestamp: 0,
-                    videoDuration: nil
+            case .incomingAttachments(let dataSources):
+                let incomingMessageBuilder: TSIncomingMessageBuilder = .withDefaultValues(
+                    thread: thread,
+                    authorAci: incomingSenderAci
                 )
-                pointer.setAttachmentPointerStateDebug(.failed)
-                pointer.anyInsert(transaction: transaction)
-
-                let incomingMessageBuilder = TSIncomingMessageBuilder(thread: thread)
-                incomingMessageBuilder.authorAci = AciObjC(incomingSenderAci)
-                incomingMessageBuilder.attachmentIds = [ pointer.uniqueId ]
 
                 let message = incomingMessageBuilder.build()
                 message.anyInsert(transaction: transaction)
                 message.debugonly_markAsReadNow(transaction: transaction)
 
-            case 3:
+                try? DependenciesBridge.shared.tsResourceManager.createBodyMediaAttachmentStreams(
+                    consuming: dataSources,
+                    message: message,
+                    tx: transaction.asV2Write
+                )
+
+            case .outgoingAttachments(let dataSources):
                 let conversationFactory = ConversationFactory()
-                // We want to produce a variety of album sizes, but favoring smaller albums
-                conversationFactory.attachmentCount = Int.random(in: 0...SignalAttachment.maxAttachmentsAllowed)
                 conversationFactory.threadCreator = { _ in return thread }
-                conversationFactory.createSentMessage(transaction: transaction)
-            default:
-                break
+                conversationFactory.createSentMessage(bodyAttachmentDataSources: dataSources, transaction: transaction)
             }
         }
     }
@@ -3471,9 +1372,7 @@ class DebugUIMessages: DebugUIPage, Dependencies {
 
         // Try to use an arbitrary member of the current thread that isn't
         // ourselves as the sender.
-        // This might be an "empty" group with no other members.  If so, use a fake
-        // sender id.
-        let address = thread.recipientAddressesWithSneakyTransaction.first ?? SignalServiceAddress(phoneNumber: "+12345678901")
+        let address = thread.recipientAddressesWithSneakyTransaction.first!
 
         let envelopeBuilder = SSKProtoEnvelope.builder(timestamp: NSDate.ows_millisecondTimeStamp())
         envelopeBuilder.setType(.ciphertext)
@@ -3486,114 +1385,6 @@ class DebugUIMessages: DebugUIPage, Dependencies {
         processDecryptedEnvelope(envelope, plaintextData: plaintextData)
     }
 
-    // MARK: -
-
-    private static func deleteRandomMessages(_ count: UInt, inThread thread: TSThread, transaction: SDSAnyWriteTransaction) {
-        Logger.info("deleteRandomMessages: \(count)")
-
-        let interactionFinder = InteractionFinder(threadUniqueId: thread.uniqueId)
-        let uniqueIds = try! interactionFinder.fetchUniqueIds(
-            filter: .newest,
-            excludingPlaceholders: !DebugFlags.showFailedDecryptionPlaceholders.get(),
-            limit: 100_000,
-            tx: transaction
-        )
-        let interactions = InteractionFinder.interactions(
-            withInteractionIds: Set(uniqueIds.shuffled().prefix(Int(count))),
-            transaction: transaction
-        )
-        for interaction in interactions {
-            interaction.anyRemove(transaction: transaction)
-        }
-    }
-
-    private static func insertAndDeleteNewOutgoingMessages(_ count: UInt, inThread thread: TSThread, transaction: SDSAnyWriteTransaction) {
-        Logger.info("insertAndDeleteNewOutgoingMessages: \(count)")
-
-        let messages: [TSOutgoingMessage] = (1...count).map { _ in
-            let text = randomText()
-            let dmConfigurationStore = DependenciesBridge.shared.disappearingMessagesConfigurationStore
-            let expiresInSeconds = dmConfigurationStore.durationSeconds(for: thread, tx: transaction.asV2Read)
-            let message = TSOutgoingMessage(in: thread, messageBody: text, attachmentId: nil, expiresInSeconds: expiresInSeconds)
-            Logger.info("insertAndDeleteNewOutgoingMessages timestamp: \(message.timestamp)")
-            return message
-        }
-
-        for message in messages {
-            message.anyInsert(transaction: transaction)
-        }
-
-        for message in messages {
-            message.anyRemove(transaction: transaction)
-        }
-    }
-
-    private static func resurrectNewOutgoingMessages1(_ count: UInt, inThread thread: TSThread, transaction: SDSAnyWriteTransaction) {
-        Logger.info("resurrectNewOutgoingMessages1.1: \(count)")
-
-        let messages: [TSOutgoingMessage] = (1...count).map { _ in
-            let text = randomText()
-            let dmConfigurationStore = DependenciesBridge.shared.disappearingMessagesConfigurationStore
-            let expiresInSeconds = dmConfigurationStore.durationSeconds(for: thread, tx: transaction.asV2Read)
-            let message = TSOutgoingMessage(in: thread, messageBody: text, attachmentId: nil, expiresInSeconds: expiresInSeconds)
-            Logger.info("resurrectNewOutgoingMessages1 timestamp: \(message.timestamp)")
-            return message
-        }
-
-        for message in messages {
-            message.anyInsert(transaction: transaction)
-        }
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-            Logger.info("resurrectNewOutgoingMessages1.2: \(count)")
-            databaseStorage.write { t in
-                for message in messages {
-                    message.anyRemove(transaction: t)
-                }
-                for message in messages {
-                    message.anyInsert(transaction: t)
-                }
-            }
-        }
-    }
-
-    private static func resurrectNewOutgoingMessages2(_ count: UInt, inThread thread: TSThread, transaction: SDSAnyWriteTransaction) {
-        Logger.info("resurrectNewOutgoingMessages2.1: \(count)")
-
-        let messages: [TSOutgoingMessage] = (1...count).map { _ in
-            let text = randomText()
-            let dmConfigurationStore = DependenciesBridge.shared.disappearingMessagesConfigurationStore
-            let expiresInSeconds = dmConfigurationStore.durationSeconds(for: thread, tx: transaction.asV2Read)
-            let messageBuilder = TSOutgoingMessageBuilder.outgoingMessageBuilder(thread: thread, messageBody: text)
-            messageBuilder.expiresInSeconds = expiresInSeconds
-            let message = messageBuilder.build(transaction: transaction)
-            Logger.info("resurrectNewOutgoingMessages2 timestamp: \(message.timestamp)")
-            return message
-        }
-
-        for message in messages {
-            message.update(withFakeMessageState: .sending, transaction: transaction)
-            message.anyInsert(transaction: transaction)
-        }
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-            Logger.info("resurrectNewOutgoingMessages2.2: \(count)")
-            databaseStorage.write { t in
-                for message in messages {
-                    message.anyRemove(transaction: t)
-                }
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-                Logger.info("resurrectNewOutgoingMessages2.3: \(count)")
-                databaseStorage.write { t in
-                    for message in messages {
-                        message.anyInsert(transaction: t)
-                    }
-                }
-            }
-        }
-    }
-
     // MARK: Disappearing Messages
 
     private static func createDisappearingMessagesWhichFailedToStartInThread(_ thread: TSThread) {
@@ -3604,9 +1395,12 @@ class DebugUIMessages: DebugUIPage, Dependencies {
 
         let now = Date.ows_millisecondTimestamp()
         let messageBody = "Should disappear 60s after \(now)"
-        let incomingMessageBuilder = TSIncomingMessageBuilder.incomingMessageBuilder(thread: thread, messageBody: messageBody)
-        incomingMessageBuilder.authorAci = AciObjC(aci)
-        incomingMessageBuilder.expiresInSeconds = 60
+        let incomingMessageBuilder: TSIncomingMessageBuilder = .withDefaultValues(
+            thread: thread,
+            authorAci: aci,
+            messageBody: messageBody,
+            expiresInSeconds: 60
+        )
         let message = incomingMessageBuilder.build()
         // private setter to avoid starting expire machinery.
         message.wasRead = true
@@ -3629,35 +1423,35 @@ class DebugUIMessages: DebugUIPage, Dependencies {
         guard count > 0 else { return }
 
         let completion: (TSGroupThread) -> Void = { groupThread in
-            databaseStorage.write { transaction in
-                ThreadUtil.enqueueMessage(
-                    body: MessageBody(text: "\(count)", ranges: .empty),
-                    thread: groupThread,
-                    transaction: transaction
-                )
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
-                    createNewGroups(count: count - 1, recipientAddress: recipientAddress)
-                }
+            ThreadUtil.enqueueMessage(
+                body: MessageBody(text: "\(count)", ranges: .empty),
+                thread: groupThread
+            )
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
+                createNewGroups(count: count - 1, recipientAddress: recipientAddress)
             }
         }
 
-        let groupName = randomShortText()
-        createRandomGroupWithName(groupName, member: recipientAddress, completion: completion)
+        Task {
+            let groupName = randomShortText()
+            await createRandomGroupWithName(groupName, member: recipientAddress, completion: completion)
+        }
     }
 
     private static func createRandomGroupWithName(
         _ groupName: String,
         member: SignalServiceAddress,
         completion: @escaping (TSGroupThread) -> Void
-    ) {
+    ) async {
         let members = [ member, DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction!.aciAddress ]
-        GroupManager.localCreateNewGroup(
-            members: members,
-            disappearingMessageToken: .disabledToken,
-            shouldSendMessage: true
-        ).done { groupThread in
+        do {
+            let groupThread = try await GroupManager.localCreateNewGroup(
+                members: members,
+                disappearingMessageToken: .disabledToken,
+                shouldSendMessage: true
+            )
             completion(groupThread)
-        }.catch { error in
+        } catch {
             owsFailDebug("Error: \(error)")
         }
     }
@@ -3687,12 +1481,13 @@ class DebugUIMessages: DebugUIPage, Dependencies {
                 createFakeIncomingMessage(
                     thread: thread,
                     messageBody: string,
-                    fakeAssetLoader: nil,
                     transaction: transaction
                 )
 
-                let member = SignalServiceAddress(phoneNumber: "+1323555555")
-                createRandomGroupWithName(string, member: member, completion: { _ in })
+                let member = SignalServiceAddress(Aci(fromUUID: UUID()))
+                Task {
+                    await createRandomGroupWithName(string, member: member, completion: { _ in })
+                }
             }
         }
     }
@@ -3712,12 +1507,13 @@ class DebugUIMessages: DebugUIPage, Dependencies {
                 createFakeIncomingMessage(
                     thread: thread,
                     messageBody: string,
-                    fakeAssetLoader: nil,
                     transaction: transaction
                 )
 
-                let member = SignalServiceAddress(phoneNumber: "+1323555555")
-                createRandomGroupWithName(string, member: member, completion: { _ in })
+                let member = SignalServiceAddress(Aci(fromUUID: UUID()))
+                Task {
+                    await createRandomGroupWithName(string, member: member, completion: { _ in })
+                }
             }
         }
     }
@@ -3735,12 +1531,13 @@ class DebugUIMessages: DebugUIPage, Dependencies {
                 createFakeIncomingMessage(
                     thread: thread,
                     messageBody: string,
-                    fakeAssetLoader: nil,
                     transaction: transaction
                 )
 
-                let member = SignalServiceAddress(phoneNumber: "+1323555555")
-                createRandomGroupWithName(string, member: member, completion: { _ in })
+                let member = SignalServiceAddress(Aci(fromUUID: UUID()))
+                Task {
+                    await createRandomGroupWithName(string, member: member, completion: { _ in })
+                }
             }
         }
     }
@@ -3755,12 +1552,12 @@ class DebugUIMessages: DebugUIPage, Dependencies {
         sendUnsafeFile = {
             guard let filename = filenames.popLast() else { return }
 
-            let utiType = kUTTypeData as String
+            let type = UTType.data
             let dataLength: UInt32 = 32
-            guard let dataSource = DataSourceValue.dataSource(with: createRandomDataOfSize(dataLength), utiType: utiType) else { return }
+            guard let dataSource = DataSourceValue(createRandomDataOfSize(dataLength), utiType: type.identifier) else { return }
 
             dataSource.sourceFilename = filename
-            let attachment = SignalAttachment.attachment(dataSource: dataSource, dataUTI: utiType)
+            let attachment = SignalAttachment.attachment(dataSource: dataSource, dataUTI: type.identifier)
 
             guard attachment.hasError else {
                 Logger.error("attachment[\(String(describing: attachment.sourceFilename))]: \(String(describing: attachment.errorName))")
@@ -3788,40 +1585,40 @@ class DebugUIMessages: DebugUIPage, Dependencies {
     }
 
     private static func performRandomActionInThread(_ thread: TSThread, counter: UInt) {
-        let actions: [(SDSAnyWriteTransaction) -> Void] = [ { transaction in
-                // injectIncomingMessageInThread doesn't take a transaction.
-                DispatchQueue.main.async {
-                    injectIncomingMessageInThread(thread, counter: counter)
+        let numActions = Int.random(in: 1...4)
+        var actions = [(SDSAnyWriteTransaction) -> Void]()
+        for _ in (0..<numActions) {
+            let randomAction = Int.random(in: 0...2)
+            let action: (SDSAnyWriteTransaction) -> Void = {
+                switch randomAction {
+                case 0:
+                    return { transaction in
+                        // injectIncomingMessageInThread doesn't take a transaction.
+                        DispatchQueue.main.async {
+                            injectIncomingMessageInThread(thread, counter: counter)
+                        }
+                    }
+                case 1:
+                    return { _ in
+                        // sendTextMessageInThread doesn't take a transaction.
+                        DispatchQueue.main.async {
+                            sendTextMessageInThread(thread, counter: counter)
+                        }
+                    }
+                default:
+                    let messageCount = UInt.random(in: 1...4)
+                    let messageContents = try! createFakeMessageContents(count: messageCount, messageContentType: .normal)
+
+                    return  { transaction in
+                        createFakeMessages(messageContents, inThread: thread, transaction: transaction)
+                    }
                 }
-            }, { _ in
-                // sendTextMessageInThread doesn't take a transaction.
-                DispatchQueue.main.async {
-                    sendTextMessageInThread(thread, counter: counter)
-                }
-            }, { transaction in
-                let messageCount = UInt.random(in: 1...4)
-                createFakeMessages(messageCount, batchOffset: 0, inThread: thread, messageContentType: .normal, transaction: transaction)
-            }, { transaction in
-                let messageCount = UInt.random(in: 1...4)
-                deleteRandomMessages(messageCount, inThread: thread, transaction: transaction)
-            }, { transaction in
-                let messageCount = UInt.random(in: 1...4)
-                insertAndDeleteNewOutgoingMessages(messageCount, inThread: thread, transaction: transaction)
-            }, { transaction in
-                let messageCount = UInt.random(in: 1...4)
-                resurrectNewOutgoingMessages1(messageCount, inThread: thread, transaction: transaction)
-            }, { transaction in
-                let messageCount = UInt.random(in: 1...4)
-                resurrectNewOutgoingMessages2(messageCount, inThread: thread, transaction: transaction)
-            }
-        ]
+            }()
+            actions.append(action)
+        }
 
         databaseStorage.write { transaction in
-            for _ in 1...Int.random(in: 1...4) {
-                if let action = actions.randomElement() {
-                    action(transaction)
-                }
-            }
+            actions.forEach { $0(transaction) }
         }
     }
 
@@ -3831,43 +1628,40 @@ class DebugUIMessages: DebugUIPage, Dependencies {
     private static func createFakeOutgoingMessage(
         thread: TSThread,
         messageBody: String?,
-        attachment: TSAttachment? = nil,
-        filename: String? = nil,
         messageState: TSOutgoingMessageState,
         isDelivered: Bool = false,
         isRead: Bool = false,
-        isVoiceMessage: Bool = false,
-        quotedMessage: TSQuotedMessage? = nil,
-        contactShare: OWSContact? = nil,
+        quotedMessageBuilder: OwnedAttachmentBuilder<TSQuotedMessage>? = nil,
+        contactShareBlock: CreateContactBlock? = nil,
         linkPreview: OWSLinkPreview? = nil,
         messageSticker: MessageSticker? = nil,
         transaction: SDSAnyWriteTransaction
     ) -> TSOutgoingMessage {
-
-        owsAssertDebug(!messageBody.isEmptyOrNil || attachment != nil || contactShare != nil)
-
-        let attachmentIds: [String]
-        if let attachmentId = attachment?.uniqueId {
-            attachmentIds = [attachmentId]
-        } else {
-            attachmentIds = []
-        }
+        owsAssertDebug(!messageBody.isEmptyOrNil || contactShareBlock != nil)
 
         let messageBuilder = TSOutgoingMessageBuilder.outgoingMessageBuilder(thread: thread, messageBody: messageBody)
-        messageBuilder.attachmentIds = attachmentIds
-        messageBuilder.isVoiceMessage = isVoiceMessage
-        messageBuilder.quotedMessage = quotedMessage
-        messageBuilder.contactShare = contactShare
-        messageBuilder.linkPreview = linkPreview
-        messageBuilder.messageSticker = messageSticker
+        messageBuilder.isVoiceMessage = false
 
         let message = messageBuilder.build(transaction: transaction)
-        message.anyInsert(transaction: transaction)
-        message.update(withFakeMessageState: messageState, transaction: transaction)
 
-        if let attachment {
-            updateAttachment(attachment, albumMessage: message, transaction: transaction)
-        }
+        quotedMessageBuilder.map { message.update(with: $0.info, transaction: transaction) }
+        linkPreview.map { message.update(with: $0, transaction: transaction) }
+        messageSticker.map { message.update(with: $0, transaction: transaction) }
+
+        message.anyInsert(transaction: transaction)
+
+        contactShareBlock?(message, transaction)
+
+        message.updateWithFakeMessageState(messageState, tx: transaction)
+
+        try? quotedMessageBuilder?.finalize(
+            owner: .quotedReplyAttachment(.init(
+                messageRowId: message.sqliteRowId!,
+                receivedAtTimestamp: message.receivedAtTimestamp,
+                threadRowId: thread.sqliteRowId!
+            )),
+            tx: transaction.asV2Write
+        )
 
         if isDelivered {
             if let address = thread.recipientAddresses(with: transaction).last {
@@ -3895,142 +1689,6 @@ class DebugUIMessages: DebugUIPage, Dependencies {
         }
 
         return message
-    }
-
-    @discardableResult
-    private static func createFakeOutgoingMessage(
-        thread: TSThread,
-        messageBody messageBodyParam: String?,
-        fakeAssetLoader fakeAssetLoaderParam: DebugUIMessagesAssetLoader?,
-        messageState: TSOutgoingMessageState,
-        isDelivered: Bool = false,
-        isRead: Bool = false,
-        quotedMessage: TSQuotedMessage? = nil,
-        contactShare: OWSContact? = nil,
-        linkPreview: OWSLinkPreview? = nil,
-        messageSticker: MessageSticker? = nil,
-        transaction: SDSAnyWriteTransaction
-    ) -> TSOutgoingMessage {
-
-        // Seamlessly convert oversize text messages to oversize text attachments.
-        let messageBody: String?
-        let fakeAssetLoader: DebugUIMessagesAssetLoader?
-        if let messageBodyParam, messageBodyParam.lengthOfBytes(using: .utf8) >= kOversizeTextMessageSizeThreshold {
-            owsAssertDebug(fakeAssetLoaderParam == nil)
-            messageBody = nil
-            fakeAssetLoader = DebugUIMessagesAssetLoader.oversizeTextInstance(text: messageBodyParam)
-        } else {
-            messageBody = messageBodyParam
-            fakeAssetLoader = fakeAssetLoaderParam
-        }
-
-        let attachment: TSAttachment?
-        if let fakeAssetLoader {
-            attachment = createFakeAttachment(
-                fakeAssetLoader: fakeAssetLoader,
-                isAttachmentDownloaded: true,
-                transaction: transaction
-            )
-            owsAssertDebug(attachment != nil)
-        } else {
-            attachment = nil
-        }
-
-        return createFakeOutgoingMessage(
-            thread: thread,
-            messageBody: messageBody,
-            attachment: attachment,
-            filename: fakeAssetLoader?.filename,
-            messageState: messageState,
-            isDelivered: isDelivered,
-            isRead: isRead,
-            isVoiceMessage: attachment?.isVoiceMessage ?? false,
-            quotedMessage: quotedMessage,
-            contactShare: contactShare,
-            linkPreview: linkPreview,
-            messageSticker: messageSticker,
-            transaction: transaction
-        )
-    }
-
-    private static func createFakeAttachment(
-        fakeAssetLoader: DebugUIMessagesAssetLoader,
-        isAttachmentDownloaded: Bool,
-        transaction: SDSAnyWriteTransaction
-    ) -> TSAttachment? {
-
-        owsAssertDebug(!fakeAssetLoader.filePath.isEmptyOrNil)
-
-        if isAttachmentDownloaded {
-            let dataSource: DataSource
-            do {
-                dataSource = try DataSourcePath.dataSource(withFilePath: fakeAssetLoader.filePath!, shouldDeleteOnDeallocation: false)
-            } catch {
-                owsFailDebug("Failed to create dataSource: \(error)")
-                return nil
-            }
-
-            guard let filename = dataSource.sourceFilename else {
-                owsFailDebug("Empty filename: \(dataSource)")
-                return nil
-            }
-            // To support "fake missing" attachments, we sometimes lie about the length of the data.
-            let nominalDataLength: UInt32 = UInt32(max(1, dataSource.dataLength))
-            let attachmentStream = TSAttachmentStream(
-                contentType: fakeAssetLoader.mimeType,
-                byteCount: nominalDataLength,
-                sourceFilename: filename,
-                caption: nil,
-                albumMessageId: nil
-            )
-            do {
-                try attachmentStream.write(dataSource.data)
-                attachmentStream.anyInsert(transaction: transaction)
-            } catch {
-                owsFailDebug("Failed to write data: \(error)")
-                return nil
-            }
-
-            return attachmentStream
-        } else {
-            let filesize: UInt32 = 64
-            let attachmentPointer = TSAttachmentPointer(
-                serverId: 237391539706350548,
-                cdnKey: "",
-                cdnNumber: 0,
-                key: createRandomDataOfSize(filesize),
-                digest: nil,
-                byteCount: filesize,
-                contentType: fakeAssetLoader.mimeType,
-                sourceFilename: fakeAssetLoader.filename,
-                caption: nil,
-                albumMessageId: nil,
-                attachmentType: .default,
-                mediaSize: .zero,
-                blurHash: nil,
-                uploadTimestamp: 0,
-                videoDuration: nil
-            )
-            attachmentPointer.setAttachmentPointerStateDebug(.failed)
-            attachmentPointer.anyInsert(transaction: transaction)
-            return attachmentPointer
-        }
-    }
-
-    private static func updateAttachment(
-        _ attachment: TSAttachment,
-        albumMessage: TSMessage,
-        transaction: SDSAnyWriteTransaction
-    ) {
-        attachment.anyUpdate(transaction: transaction) { latest in
-            // There's no public setter for albumMessageId, since it's usually set in the
-            // initializer. This isn't convenient for the DEBUG UI, so we abuse the
-            // migrateAlbumMessageId method.
-            latest.migrateAlbumMessageId(albumMessage.uniqueId)
-        }
-        if let attachmentStream = attachment as? TSAttachmentStream {
-            MediaGalleryManager.didInsert(attachmentStream: attachmentStream, transaction: transaction)
-        }
     }
 
     private static func actionLabelForHasCaption(
@@ -4067,35 +1725,25 @@ class DebugUIMessages: DebugUIPage, Dependencies {
     private static func createFakeIncomingMessage(
         thread: TSThread,
         messageBody: String?,
-        attachment: TSAttachment?,
         filename: String? = nil,
         isAttachmentDownloaded: Bool = false,
         quotedMessage: TSQuotedMessage? = nil,
         transaction: SDSAnyWriteTransaction
     ) -> TSIncomingMessage {
 
-        owsAssertDebug(!messageBody.isEmptyOrNil || attachment != nil)
-
-        let attachmentIds: [String]
-        if let attachmentId = attachment?.uniqueId {
-            attachmentIds = [attachmentId]
-        } else {
-            attachmentIds = []
-        }
+        owsAssertDebug(!messageBody.isEmptyOrNil)
 
         let authorAci = DebugUIMessages.anyIncomingSenderAddress(forThread: thread)!.aci!
 
-        let incomingMessageBuilder = TSIncomingMessageBuilder(thread: thread, messageBody: messageBody)
-        incomingMessageBuilder.authorAci = AciObjC(authorAci)
-        incomingMessageBuilder.attachmentIds = attachmentIds
-        incomingMessageBuilder.quotedMessage = quotedMessage
+        let incomingMessageBuilder: TSIncomingMessageBuilder = .withDefaultValues(
+            thread: thread,
+            authorAci: authorAci,
+            messageBody: messageBody
+        )
         let message = incomingMessageBuilder.build()
+        quotedMessage.map { message.update(with: $0, transaction: transaction) }
         message.anyInsert(transaction: transaction)
         message.debugonly_markAsReadNow(transaction: transaction)
-
-        if let attachment {
-            updateAttachment(attachment, albumMessage: message, transaction: transaction)
-        }
 
         return message
     }
@@ -4103,45 +1751,35 @@ class DebugUIMessages: DebugUIPage, Dependencies {
     @discardableResult
     private static func createFakeIncomingMessage(
         thread: TSThread,
-        messageBody messageBodyParam: String?,
-        fakeAssetLoader fakeAssetLoaderParam: DebugUIMessagesAssetLoader?,
+        messageBody: String?,
         isAttachmentDownloaded: Bool = false,
-        quotedMessage: TSQuotedMessage? = nil,
+        quotedMessageBuilder: OwnedAttachmentBuilder<TSQuotedMessage>? = nil,
         transaction: SDSAnyWriteTransaction
     ) -> TSIncomingMessage {
+        owsAssertDebug(!messageBody.isEmptyOrNil)
 
-        // Seamlessly convert oversize text messages to oversize text attachments.
-        let messageBody: String?
-        let fakeAssetLoader: DebugUIMessagesAssetLoader?
-        if let messageBodyParam, messageBodyParam.lengthOfBytes(using: .utf8) >= kOversizeTextMessageSizeThreshold {
-            owsAssertDebug(fakeAssetLoaderParam == nil)
-            messageBody = nil
-            fakeAssetLoader = DebugUIMessagesAssetLoader.oversizeTextInstance(text: messageBodyParam)
-        } else {
-            messageBody = messageBodyParam
-            fakeAssetLoader = fakeAssetLoaderParam
-        }
+        let authorAci = DebugUIMessages.anyIncomingSenderAddress(forThread: thread)!.aci!
 
-        let attachment: TSAttachment?
-        if let fakeAssetLoader {
-            attachment = createFakeAttachment(
-                fakeAssetLoader: fakeAssetLoader,
-                isAttachmentDownloaded: isAttachmentDownloaded,
-                transaction: transaction
-            )
-        } else {
-            attachment = nil
-        }
-
-        return createFakeIncomingMessage(
+        let incomingMessageBuilder: TSIncomingMessageBuilder = .withDefaultValues(
             thread: thread,
-            messageBody: messageBody,
-            attachment: attachment,
-            filename: fakeAssetLoader?.filename,
-            isAttachmentDownloaded: isAttachmentDownloaded,
-            quotedMessage: quotedMessage,
-            transaction: transaction
+            authorAci: authorAci,
+            messageBody: messageBody
         )
+        let message = incomingMessageBuilder.build()
+        quotedMessageBuilder.map { message.update(with: $0.info, transaction: transaction) }
+        message.anyInsert(transaction: transaction)
+        message.debugonly_markAsReadNow(transaction: transaction)
+
+        try? quotedMessageBuilder?.finalize(
+            owner: .quotedReplyAttachment(.init(
+                messageRowId: message.sqliteRowId!,
+                receivedAtTimestamp: message.receivedAtTimestamp,
+                threadRowId: thread.sqliteRowId!
+            )),
+            tx: transaction.asV2Write
+        )
+
+        return message
     }
 
     private static func createFakeThreadAssociatedData(thread: TSThread) -> ThreadAssociatedData {
@@ -4177,7 +1815,7 @@ class DebugUIMessages: DebugUIPage, Dependencies {
 
     private static func processDecryptedEnvelope(_ envelope: SSKProtoEnvelope, plaintextData: Data) {
         databaseStorage.write { tx in
-            messageManager.processEnvelope(
+            messageReceiver.processEnvelope(
                 envelope,
                 plaintextData: plaintextData,
                 wasReceivedByUD: false,
@@ -4241,7 +1879,7 @@ extension DebugUIMessages {
 
     private static func randomOversizeText() -> String {
         var message = String()
-        while message.lengthOfBytes(using: .utf8) < kOversizeTextMessageSizeThreshold {
+        while message.lengthOfBytes(using: .utf8) <= kOversizeTextMessageSizeThreshold {
             message += """
 Lorem ipsum dolor sit amet, consectetur adipiscing elit. Suspendisse rutrum, nulla
 vitae pretium hendrerit, tellus turpis pharetra libero, vitae sodales tortor ante vel
@@ -4281,7 +1919,7 @@ lorem, in rhoncus nisi.
     private static func createRandomDataOfSize(_ size: UInt32) -> Data {
         owsAssertDebug(size % 4 == 0)
         owsAssertDebug(size < Int.max)
-        return Randomness.generateRandomBytes(Int32(size))
+        return Randomness.generateRandomBytes(UInt(size))
     }
 }
 

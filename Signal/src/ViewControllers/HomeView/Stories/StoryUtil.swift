@@ -3,8 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
-import SignalServiceKit
+public import SignalServiceKit
 import SignalUI
 
 /// Container for util methods related to story authors.
@@ -12,7 +11,7 @@ public enum StoryUtil: Dependencies {
 
     static func authorDisplayName(
         for storyMessage: StoryMessage,
-        contactsManager: ContactsManagerProtocol,
+        contactsManager: any ContactManager,
         useFullNameForLocalAddress: Bool = true,
         useShortGroupName: Bool = true,
         transaction: SDSAnyReadTransaction
@@ -38,10 +37,10 @@ public enum StoryUtil: Dependencies {
             if storyMessage.authorAddress.isLocalAddress {
                 authorShortName = CommonStrings.you
             } else {
-                authorShortName = contactsManager.shortDisplayName(
+                authorShortName = contactsManager.displayName(
                     for: storyMessage.authorAddress,
-                    transaction: transaction
-                )
+                    tx: transaction
+                ).resolvedValue(useShortNameIfAvailable: true)
             }
 
             let nameFormat = OWSLocalizedString(
@@ -55,8 +54,8 @@ public enum StoryUtil: Dependencies {
             }
             return contactsManager.displayName(
                 for: storyMessage.authorAddress,
-                transaction: transaction
-            )
+                tx: transaction
+            ).resolvedValue()
         }
     }
 
@@ -88,8 +87,7 @@ public enum StoryUtil: Dependencies {
     private static var systemStoryAvatar: ConversationAvatarDataSource {
         return .asset(
             avatar: UIImage(named: "signal-logo-128")?
-                .withRenderingMode(.alwaysTemplate)
-                .asTintedImage(color: .white)?
+                .withTintColor(.white, renderingMode: .alwaysTemplate)
                 .withBackgroundColor(.ows_accentBlue, insets: UIEdgeInsets(margin: 24)),
             badge: nil
         )

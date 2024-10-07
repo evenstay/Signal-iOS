@@ -58,8 +58,8 @@ extension MobileCoinAPI {
                 "mc://node1.consensus.mob.production.namda.net",
                 "mc://node2.consensus.mob.production.namda.net"
             ]
-            let fogUrl = "fog://service.fog.mob.production.namda.net"
-            let fogReportUrl = "fog://fog-rpt-prd.namda.net"
+            let fogUrl = "fog://fog.prod.mobilecoinww.com"
+            let fogReportUrl = fogUrl
             return MobileCoinNetworkConfig(consensusUrls: consensusUrls, fogUrl: fogUrl, fogReportUrl: fogReportUrl)
         }
 
@@ -75,8 +75,8 @@ extension MobileCoinAPI {
                 "mc://node1.consensus.mob.staging.namda.net",
                 "mc://node2.consensus.mob.staging.namda.net"
             ]
-            let fogUrl = "fog://service.fog.mob.staging.namda.net"
-            let fogReportUrl = "fog://fog-rpt-stg.namda.net"
+            let fogUrl = "fog://fog.test.mobilecoin.com"
+            let fogReportUrl = fogUrl
             return MobileCoinNetworkConfig(consensusUrls: consensusUrls, fogUrl: fogUrl, fogReportUrl: fogReportUrl)
         }
 
@@ -377,64 +377,32 @@ extension MobileCoinAPI {
         static var signalMainNet: OWSAttestationConfig {
             // We need the old and new enclave values here.
             let mrEnclaveConsensus: [AttestationRawInfo] = [
-                // ~June 23, 2021
-                .of(Data.data(fromHex: "653228afd2b02a6c28f1dc3b108b1dfa457d170b32ae8ec2978f941bd1655c83")!, ["INTEL-SA-00334"]),
-                // ~July 8th, 2022
-                .of(Data.data(fromHex: "733080d6ece4504f66ba606fa8163dae0a5220f3dbf6ca55fbafbac12c6f1897")!, ["INTEL-SA-00334"]),
-                // ~August 10th, 2022
-                .of(Data.data(fromHex: "d6e54e43c368f0fa2c5f13361afd303ee8f890424e99bd6c367f6164b5fff1b5")!, ["INTEL-SA-00334", "INTEL-SA-00615"]),
-                // ~November 2nd, 2022
-                .of(Data.data(fromHex: "207c9705bf640fdb960034595433ee1ff914f9154fbe4bc7fc8a97e912961e5c")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"]),
-                // ~December 15th, 2022
-                .of(Data.data(fromHex: "e35bc15ee92775029a60a715dca05d310ad40993f56ad43bca7e649ccc9021b5")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"]),
                 // ~May 30th, 2023
-                .of(Data.data(fromHex: "cd86d300c78f74ec23558cdaf734f90dd3e1bcdf8ae43fc827c6b4734ccb8862")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"])
+                .of(Data.data(fromHex: "cd86d300c78f74ec23558cdaf734f90dd3e1bcdf8ae43fc827c6b4734ccb8862")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"]),
+                // ~May 6th, 2024
+                .of(Data.data(fromHex: "82c14d06951a2168763c8ddb9c34174f7d2059564146650661da26ab62224b8a")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"])
             ]
 
             let mrEnclaveFogView: [AttestationRawInfo] = [
-                // ~June 23, 2021
-                .of(Data.data(fromHex: "dd84abda7f05116e21fcd1ee6361b0ec29445fff0472131eaf37bf06255b567a")!, ["INTEL-SA-00334"]),
-                // ~July 8th, 2022
-                .of(Data.data(fromHex: "c64a3b04348b10596442868758875f312dc3a755b450805149774a091d2822d3")!, ["INTEL-SA-00334"]),
-                // ~August 10th, 2022
-                .of(Data.data(fromHex: "3d6e528ee0574ae3299915ea608b71ddd17cbe855d4f5e1c46df9b0d22b04cdb")!, ["INTEL-SA-00334", "INTEL-SA-00615"]),
-                // ~November 2nd, 2022
-                .of(Data.data(fromHex: "fd4c1c82cca13fa007be15a4c90e2b506c093b21c2e7021a055cbb34aa232f3f")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"]),
-                // ~December 15th, 2022
-                .of(Data.data(fromHex: "da209f4b24e8f4471bd6440c4e9f1b3100f1da09e2836d236e285b274901ed3b")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"]),
                 // ~May 30th, 2023
-                .of(Data.data(fromHex: "e94f6e6557b3fb85b27d804e2d005ee14a564cc50fc477797f2e5f9984b0bd79")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"])
+                .of(Data.data(fromHex: "e94f6e6557b3fb85b27d804e2d005ee14a564cc50fc477797f2e5f9984b0bd79")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"]),
+                // ~May 6th, 2024
+                .of(Data.data(fromHex: "2f542dcd8f682b72e8921d87e06637c16f4aa4da27dce55b561335326731fa73")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"])
             ]
 
             // Report aka Ingest.
             let mrEnclaveFogReport: [AttestationRawInfo] = [
-                // ~June 23, 2021
-                .of(Data.data(fromHex: "f3f7e9a674c55fb2af543513527b6a7872de305bac171783f6716a0bf6919499")!, ["INTEL-SA-00334"]),
-                // ~July 8th, 2022
-                .of(Data.data(fromHex: "660103d766cde0fd1e1cfb443b99e52da2ce0617d0dee42f8b875f7104942c6b")!, ["INTEL-SA-00334"]),
-                // ~August 10th, 2022
-                .of(Data.data(fromHex: "3e9bf61f3191add7b054f0e591b62f832854606f6594fd63faef1e2aedec4021")!, ["INTEL-SA-00334", "INTEL-SA-00615"]),
-                // ~November 2nd, 2022
-                .of(Data.data(fromHex: "3370f131b41e5a49ed97c4188f7a976461ac6127f8d222a37929ac46b46d560e")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"]),
-                // ~December 15th, 2022
-                .of(Data.data(fromHex: "a8af815564569aae3558d8e4e4be14d1bcec896623166a10494b4eaea3e1c48c")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"]),
                 // ~May 30th, 2023
-                .of(Data.data(fromHex: "7d10f5e72cacc87a6027b2be42ed4a74a6370a03c3476be754933eb18c404b0b")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"])
+                .of(Data.data(fromHex: "7d10f5e72cacc87a6027b2be42ed4a74a6370a03c3476be754933eb18c404b0b")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"]),
+                // ~May 6th, 2024
+                .of(Data.data(fromHex: "34881106254a626842fa8557e27d07cdf863083e9e6f888d5a492a456720916f")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"])
             ]
 
             let mrEnclaveFogLedger: [AttestationRawInfo] = [
-                // ~June 23, 2021
-                .of(Data.data(fromHex: "89db0d1684fcc98258295c39f4ab68f7de5917ef30f0004d9a86f29930cebbbd")!, ["INTEL-SA-00334"]),
-                // ~July 8th, 2022
-                .of(Data.data(fromHex: "ed8ed6e1b4b6827e5543b25c1c13b9c06b478d819f8df912eb11fa140780fc51")!, ["INTEL-SA-00334"]),
-                // ~August 10th, 2022
-                .of(Data.data(fromHex: "92fb35d0f603ceb5eaf2988b24a41d4a4a83f8fb9cd72e67c3bc37960d864ad6")!, ["INTEL-SA-00334", "INTEL-SA-00615"]),
-                // ~November 2nd, 2022
-                .of(Data.data(fromHex: "dca7521ce4564cc2e54e1637e533ea9d1901c2adcbab0e7a41055e719fb0ff9d")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"]),
-                // ~December 15th, 2022
-                .of(Data.data(fromHex: "8c80a2b95a549fa8d928dd0f0771be4f3d774408c0f98bf670b1a2c390706bf3")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"]),
                 // ~May 30th, 2023
-                .of(Data.data(fromHex: "1dee8e2e98b7dc684506991d62856b2e572a0c23f5a7d698086e62f08fb997cc")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"])
+                .of(Data.data(fromHex: "1dee8e2e98b7dc684506991d62856b2e572a0c23f5a7d698086e62f08fb997cc")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"]),
+                // ~May 6th, 2024
+                .of(Data.data(fromHex: "2494f1542f30a6962707d0bf2aa6c8c08d7bed35668c9db1e5c61d863a0176d1")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"])
             ]
 
             return buildAttestationConfig(consensus: mrEnclaveConsensus,
@@ -451,61 +419,29 @@ extension MobileCoinAPI {
         static var signalTestNet: OWSAttestationConfig {
             // We need the old and new enclave values here.
             let mrEnclaveConsensus: [AttestationRawInfo] = [
-                // ~June 2, 2021
-                .of(Data.data(fromHex: "9659ea738275b3999bf1700398b60281be03af5cb399738a89b49ea2496595af")!, ["INTEL-SA-00334"]),
-                // ~July 13, 2022
-                .of(Data.data(fromHex: "4f134dcfd9c0885956f2f9af0f05c2050d8bdee2dc63b468a640670d7adeb7f8")!, ["INTEL-SA-00334"]),
-                // ~Aug 16, 2022
-                .of(Data.data(fromHex: "01746f4dd25f8623d603534425ed45833687eca2b3ba25bdd87180b9471dac28")!, ["INTEL-SA-00334", "INTEL-SA-00615"]),
-                // ~Nov 8, 2022
-                .of(Data.data(fromHex: "5fe2b72fe5f01c269de0a3678728e7e97d823a953b053e43fbf934f439d290e6")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"]),
-                // ~Feb 2, 2023
-                .of(Data.data(fromHex: "4f3879bfffb7b9f86a33086202b6120a32da0ca159615fbbd6fbac6aa37bbf02")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"]),
                 // ~May 30, 2023
-                .of(Data.data(fromHex: "5341c6702a3312243c0f049f87259352ff32aa80f0f6426351c3dd063d817d7a")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"])
+                .of(Data.data(fromHex: "5341c6702a3312243c0f049f87259352ff32aa80f0f6426351c3dd063d817d7a")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"]),
+                // ~May 6, 2024
+                .of(Data.data(fromHex: "ae7930646f37e026806087d2a3725d3f6d75a8e989fb320e6ecb258eb829057a")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"])
             ]
             let mrEnclaveFogView: [AttestationRawInfo] = [
-                // ~June 2, 2021
-                .of(Data.data(fromHex: "e154f108c7758b5aa7161c3824c176f0c20f63012463bf3cc5651e678f02fb9e")!, ["INTEL-SA-00334"]),
-                // ~July 13, 2022
-                .of(Data.data(fromHex: "719ca43abbe02f507bb91ea11ff8bc900aa86363a7d7e77b8130426fc53d8684")!, ["INTEL-SA-00334"]),
-                // ~Aug 16, 2022
-                .of(Data.data(fromHex: "3d6e528ee0574ae3299915ea608b71ddd17cbe855d4f5e1c46df9b0d22b04cdb")!, ["INTEL-SA-00334", "INTEL-SA-00615"]),
-                // ~Nov 8, 2022
-                .of(Data.data(fromHex: "be1d711887530929fbc06ef8b77b618db15e9cd1dd0265559ea45f60a532ee52")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"]),
-                // ~Feb 2, 2023
-                .of(Data.data(fromHex: "f52b3dc018195eae42f543e64e976c818c06672b5489746e2bf74438d488181b")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"]),
                 // ~May 30, 2023
-                .of(Data.data(fromHex: "ac292a1ad27c0338a5159d5fab2bed3917ea144536cb13b5c1226d09a2fbc648")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"])
+                .of(Data.data(fromHex: "ac292a1ad27c0338a5159d5fab2bed3917ea144536cb13b5c1226d09a2fbc648")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"]),
+                // ~May 6, 2024
+                .of(Data.data(fromHex: "44de03c2ba34c303e6417480644f9796161eacbe5af4f2092e413b4ebf5ccf6a")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"])
             ]
             // Report aka Ingest.
             let mrEnclaveFogReport: [AttestationRawInfo]  = [
-                // ~June 2, 2021
-                .of(Data.data(fromHex: "a4764346f91979b4906d4ce26102228efe3aba39216dec1e7d22e6b06f919f11")!, ["INTEL-SA-00334"]),
-                // ~July 13, 2022
-                .of(Data.data(fromHex: "8f2f3bf81f24bf493fa6d76e29e0f081815022592b1e854f95bda750aece7452")!, ["INTEL-SA-00334"]),
-                // ~Aug 16, 2022
-                .of(Data.data(fromHex: "3e9bf61f3191add7b054f0e591b62f832854606f6594fd63faef1e2aedec4021")!, ["INTEL-SA-00334", "INTEL-SA-00615"]),
-                // ~Nov 8, 2022
-                .of(Data.data(fromHex: "d901b5c4960f49871a848fd157c7c0b03351253d65bb839698ddd5df138ad7b6")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"]),
-                // ~Feb 2, 2023
-                .of(Data.data(fromHex: "16d73984c2d2712156135ab69987ca78aca67a2cf4f0f2287ea584556f9d223a")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"]),
                 // ~May 30, 2023
-                .of(Data.data(fromHex: "248356aa0d3431abc45da1773cfd6191a4f2989a4a99da31f450bd7c461e312b")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"])
+                .of(Data.data(fromHex: "248356aa0d3431abc45da1773cfd6191a4f2989a4a99da31f450bd7c461e312b")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"]),
+                // ~May 6, 2024
+                .of(Data.data(fromHex: "4a5daa23db5efa4b18071291cfa24a808f58fb0cedce7da5de804b011e87cfde")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"])
             ]
             let mrEnclaveFogLedger: [AttestationRawInfo]  = [
-                // ~June 2, 2021
-                .of(Data.data(fromHex: "768f7bea6171fb83d775ee8485e4b5fcebf5f664ca7e8b9ceef9c7c21e9d9bf3")!, ["INTEL-SA-00334"]),
-                // ~July 13, 2022
-                .of(Data.data(fromHex: "685481b33f2846585f33506ab65649c98a4a6d1244989651fd0fcde904ebd82f")!, ["INTEL-SA-00334"]),
-                // ~Aug 16, 2022
-                .of(Data.data(fromHex: "92fb35d0f603ceb5eaf2988b24a41d4a4a83f8fb9cd72e67c3bc37960d864ad6")!, ["INTEL-SA-00334", "INTEL-SA-00615"]),
-                // ~Nov 8, 2022
-                .of(Data.data(fromHex: "d5159ba907066384fae65842b5311f853b028c5ee4594f3b38dfc02acddf6fe3")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"]),
-                // ~Feb 2, 2023
-                .of(Data.data(fromHex: "23ececb2482e3b1d9e284502e2beb65ae76492f2791f3bfef50852ee64b883c3")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"]),
-                // ~Feb 2, 2023
-                .of(Data.data(fromHex: "b61188a6c946557f32e612eff5615908abd1b72ec11d8b7070595a92d4abbbf1")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"])
+                // ~May 30, 2023
+                .of(Data.data(fromHex: "b61188a6c946557f32e612eff5615908abd1b72ec11d8b7070595a92d4abbbf1")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"]),
+                // ~May 6, 2024
+                .of(Data.data(fromHex: "065b1e17e95f2c356d4d071d434cea7eb6b95bc797f94954146736efd47057a7")!, ["INTEL-SA-00334", "INTEL-SA-00615", "INTEL-SA-00657"])
             ]
 
             return buildAttestationConfig(consensus: mrEnclaveConsensus,
@@ -576,67 +512,18 @@ extension MobileCoinAPI {
         }
     }
 
-    // MARK: - Certificates
-
-    private class Certificates: NSObject {
-
-        enum CertificateBundle {
-            case mainApp
-            case ssk
-        }
-
-        static func certificateData(forService certFilename: String,
-                                    type: String,
-                                    certificateBundle: CertificateBundle,
-                                    verifyDer: Bool = false) -> Data {
-            let bundle: Bundle = {
-                switch certificateBundle {
-                case .mainApp:
-                    return Bundle(for: self)
-                case .ssk:
-                    return Bundle(for: OWSHTTPSecurityPolicy.self)
-                }
-            }()
-            guard let filepath = bundle.path(forResource: certFilename, ofType: type) else {
-                owsFail("Missing cert: \(certFilename)")
-            }
-            guard OWSFileSystem.fileOrFolderExists(atPath: filepath) else {
-                owsFail("Missing cert: \(certFilename)")
-            }
-            let data = try! Data(contentsOf: URL(fileURLWithPath: filepath))
-            guard !data.isEmpty else {
-                owsFail("Invalid cert: \(certFilename)")
-            }
-            if verifyDer {
-                guard let certificate = SecCertificateCreateWithData(nil, data as CFData) else {
-                    owsFail("Invalid cert: \(certFilename)")
-                }
-                let derData = SecCertificateCopyData(certificate) as Data
-                return derData
-            } else {
-                return data
-            }
-        }
-    }
-
     // MARK: - TrustRootCerts
 
-    private class TrustRootCerts: NSObject {
+    private enum TrustRootCerts {
 
-        static func anchorCertificates_mobileCoin() -> [Data] {
-            [
-                Certificates.certificateData(forService: "isrgrootx1", type: "der", certificateBundle: .ssk, verifyDer: true)
-            ]
-        }
+        private static let anchorCertificates_mobileCoin = [Certificates.load("isrgrootx1", extension: "crt")]
 
-        static func pinPolicy(environment: Environment) -> Result<OWSHTTPSecurityPolicy, Error> {
-            let trustRootCertDatas: [Data] = anchorCertificates_mobileCoin()
-            guard !trustRootCertDatas.isEmpty else {
-                return .failure(OWSAssertionError("No certificate data"))
+        static func pinPolicy(environment: Environment) throws(OWSAssertionError) -> HttpSecurityPolicy {
+            let trustRootCerts: [SecCertificate] = anchorCertificates_mobileCoin
+            guard !trustRootCerts.isEmpty else {
+                throw OWSAssertionError("No certificate data")
             }
-
-            let securityPolicy =  OWSHTTPSecurityPolicy(pinnedCertificates: Set(trustRootCertDatas))
-            return .success(securityPolicy)
+            return HttpSecurityPolicy(pinnedCertificates: trustRootCerts)
         }
     }
 
@@ -676,9 +563,9 @@ extension MobileCoinAPI {
                                                             fogReportAttestation: attestationConfig.fogReport,
                                                             transportProtocol: .http)
 
-            let securityPolicy: OWSHTTPSecurityPolicy
+            let securityPolicy: HttpSecurityPolicy
             do {
-                securityPolicy = try TrustRootCerts.pinPolicy(environment: environment).get()
+                securityPolicy = try TrustRootCerts.pinPolicy(environment: environment)
             } catch {
                 owsFailDebug("Error: \(error)")
                 throw error
@@ -719,7 +606,7 @@ extension MobileCoinAPI {
         case .mobileCoinAlphaNet,
              .mobileCoinMobileDev:
             return Data(base64Encoded: "MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAyFOockvCEc9TcO1NvsiUfFVzvtDsR64UIRRUl3tBM2Bh8KBA932/Up86RtgJVnbslxuUCrTJZCV4dgd5hAo/mzuJOy9lAGxUTpwWWG0zZJdpt8HJRVLX76CBpWrWEt7JMoEmduvsCR8q7WkSNgT0iIoSXgT/hfWnJ8KGZkN4WBzzTH7hPrAcxPrzMI7TwHqUFfmOX7/gc+bDV5ZyRORrpuu+OR2BVObkocgFJLGmcz7KRuN7/dYtdYFpiKearGvbYqBrEjeo/15chI0Bu/9oQkjPBtkvMBYjyJPrD7oPP67i0ZfqV6xCj4nWwAD3bVjVqsw9cCBHgaykW8ArFFa0VCMdLy7UymYU5SQsfXrw/mHpr27Pp2Z0/7wpuFgJHL+0ARU48OiUzkXSHX+sBLov9X6f9tsh4q/ZRorXhcJi7FnUoagBxewvlfwQfcnLX3hp1wqoRFC4w1DC+ki93vIHUqHkNnayRsf1n48fSu5DwaFfNvejap7HCDIOpCCJmRVR8mVuxi6jgjOUa4Vhb/GCzxfNIn5ZYym1RuoE0TsFO+TPMzjed3tQvG7KemGFz3pQIryb43SbG7Q+EOzIigxYDytzcxOO5Jx7r9i+amQEiIcjBICwyFoEUlVJTgSpqBZGNpznoQ4I2m+uJzM+wMFsinTZN3mp4FU5UHjQsHKG+ZMCAwEAAQ==")!
-        case .mobileCoinTestNet:
+        case .signalTestNet, .mobileCoinTestNet:
             return Data(base64Encoded:
                 """
                 MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAvnB9wTbTOT5uoizRYaYbw7XIEkInl8E7MGOA\
@@ -734,25 +621,19 @@ extension MobileCoinAPI {
                 rQYHI2cCAwEAAQ==
                 """
             )!
-        case .signalTestNet:
-            return Data(base64Encoded:
+        case .mobileCoinMainNet, .signalMainNet:
+            let mainNetFogAuthoritySpkiB64Encoded = """
+                MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAyr/99fvxi104MLgDgvWPVt01TuTJ+rN4qcNBUbF5i3EMM5z\
+                DZlugFHKPYPv7flCh5yDDYyLQHfWkxPQqCBAqlhSrCakvQH3HqDSpbM5FJg7pt0k5w+UQGWvP079iSEO5fMRhjE/lOR\
+                kvk3/UKr2yIXjZ19iEgP8hlhk9xkI42DSg0iIhk59k3wEYPMGSkVarqlPoKBzx2+11CieXnbCkRvoNwLvdzLceY8QNo\
+                Lc6h2/nht4bcjDCdB0MKNSKFLVp6XNHkVF66jC7QWTZRA/d4pgI5xa+GmkQ90zDZC2sBc+xfquVIVtk0nEvqSkUDZjv\
+                7AcJaq/VdPu4uj773ojrZz094PI4Q6sdbg7mfWrcq3ZQG8t9RDXD+6cgugCTFx2Cq/vJhDAPbQHmCEaMoXv2sRSfOhR\
+                jtMP1KmKUw5zXmAZa7s88+e7UXRQC+SS77V8s3hinE/I5Gqa/lzl73smhXx8l4CwGnXzlQ5h1lgEHnYLRFnIenNw/md\
+                MGKlWH5HwHLX3hIujERCPAnGLDt+4MjcUiU0spDH3hC9mjPVA3ltaA3+Mk2lDw0kLrZ4Gv3/Ik9WPlYetOuWteMkR1f\
+                z6VOc13+WoTJPz0dVrJsK2bUz+YvdBsoHQBbUpCkmnQ5Ok+yiuWa5vYikEJ24SEr8wUiZ4Oe12KVEcjyDIxp6QoE8kC\
+                AwEAAQ==
                 """
-                MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAoCMq8nnjTq5EEQ4EI7yrABL9P4y4h1P/h0De\
-                pWgXx+w/fywcfRSZINxbaMpvcV3uSJayExrpV1KmaS2wfASeYhSj+rEzAm0XUOw3Q94NOx5A/dOQag/d\
-                1SS6/QpF3PQYZTULnRFetmM4yzEnXsXcWtzEu0hh02wYJbLeAq4CCcPTPe2qckrbUP9sD18/KOzzNeyp\
-                F4p5dQ2m/ezfxtgaLvdUMVDVIAs2v9a5iu6ce4bIcwTIUXgX0w3+UKRx8zqowc3HIqo9yeaGn4ZOwQHv\
-                AJZecPmb2pH1nK+BtDUvHpvf+Y3/NJxwh+IPp6Ef8aoUxs2g5oIBZ3Q31fjS2Bh2gmwoVooyytEysPAH\
-                vRPVBxXxLi36WpKfk1Vq8K7cgYh3IraOkH2/l2Pyi8EYYFkWsLYofYogaiPzVoq2ZdcizfoJWIYei5mg\
-                q+8m0ZKZYLebK1i2GdseBJNIbSt3wCNXZxyN6uqFHOCB29gmA5cbKvs/j9mDz64PJe9LCanqcDQV1U5l\
-                9dt9UdmUt7Ab1PjBtoIFaP+u473Z0hmZdCgAivuiBMMYMqt2V2EIw4IXLASE3roLOYp0p7h0IQHb+lVI\
-                uEl0ZmwAI30ZmzgcWc7RBeWD1/zNt55zzhfPRLx/DfDY5Kdp6oFHWMvI2r1/oZkdhjFp7pV6qrl7vOyR\
-                5QqmuRkCAwEAAQ==
-                """
-            )!
-        case .mobileCoinMainNet:
-            owsFail("TODO: Set this value.")
-        case .signalMainNet:
-            return Data(base64Encoded: "MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAxaNIOgcoQtq0S64dFVha6rn0hDv/ec+W0cKRdFKygiyp5xuWdW3YKVAkK1PPgSDD2dwmMN/1xcGWrPMqezx1h1xCzbr7HL7XvLyFyoiMB2JYd7aoIuGIbHpCOlpm8ulVnkOX7BNuo0Hi2F0AAHyTPwmtVMt6RZmae1Z/Pl2I06+GgWN6vufV7jcjiLT3yQPsn1kVSj+DYCf3zq+1sCknKIvoRPMdQh9Vi3I/fqNXz00DSB7lt3v5/FQ6sPbjljqdGD/qUl4xKRW+EoDLlAUfzahomQOLXVAlxcws3Ua5cZUhaJi6U5jVfw5Ng2N7FwX/D5oX82r9o3xcFqhWpGnfSxSrAudv1X7WskXomKhUzMl/0exWpcJbdrQWB/qshzi9Et7HEDNY+xEDiwGiikj5f0Lb+QA4mBMlAhY/cmWec8NKi1gf3Dmubh6c3sNteb9OpZ/irA3AfE8jI37K1rvezDI8kbNtmYgvyhfz0lZzRT2WAfffiTe565rJglvKa8rh8eszKk2HC9DyxUb/TcyL/OjGhe2fDYO2t6brAXCqjPZAEkVJq3I30NmnPdE19SQeP7wuaUIb3U7MGxoZC/NuJoxZh8svvZ8cyqVjG+dOQ6/UfrFY0jiswT8AsrfqBis/ZV5EFukZr+zbPtg2MH0H3tSJ14BCLduvc7FY6lAZmOcCAwEAAQ==")!
+            return Data(base64Encoded: mainNetFogAuthoritySpkiB64Encoded)!
         }
     }
 
@@ -796,9 +677,9 @@ final class MobileCoinHttpRequester: NSObject, HttpRequester {
         return config
     }()
 
-    private let securityPolicy: OWSHTTPSecurityPolicy
+    private let securityPolicy: HttpSecurityPolicy
 
-    init(securityPolicy: OWSHTTPSecurityPolicy) {
+    init(securityPolicy: HttpSecurityPolicy) {
         self.securityPolicy = securityPolicy
     }
 

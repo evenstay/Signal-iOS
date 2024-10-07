@@ -4,7 +4,6 @@
 //
 
 import Foundation
-import SignalMessaging
 import SignalServiceKit
 
 extension DonateViewController {
@@ -35,6 +34,7 @@ extension DonateViewController {
 
             enum OneTimePaymentRequest: Equatable {
                 case alreadyHasPaymentProcessing(paymentMethod: DonationPaymentMethod)
+                case awaitingIDEALAuthorization
                 case noAmountSelected
                 case amountIsTooSmall(minimumAmount: FiatMoney)
                 case canContinue(amount: FiatMoney, supportedPaymentMethods: Set<DonationPaymentMethod>)
@@ -43,10 +43,15 @@ extension DonateViewController {
             public let selectedAmount: SelectedAmount
             public let profileBadge: ProfileBadge
 
+            /// The maximum amount a user is allowed to donate via SEPA.
+            public let maximumAmountViaSepa: FiatMoney
+
             fileprivate let presets: [Currency.Code: DonationUtilities.Preset]
-            fileprivate let minimumAmounts: [Currency.Code: FiatMoney]
+            fileprivate let minimumAmountsByCurrency: [Currency.Code: FiatMoney]
             fileprivate let paymentMethodConfiguration: PaymentMethodsConfiguration
-            fileprivate let receiptCredentialRequestError: SubscriptionReceiptCredentialRequestError?
+            fileprivate let receiptCredentialRequestError: ReceiptCredentialRequestError?
+            fileprivate let pendingIDEALOneTimeDonation: PendingOneTimeIDEALDonation?
+
             fileprivate let localNumber: String?
 
             public var amount: FiatMoney? {
@@ -82,6 +87,10 @@ extension DonateViewController {
             }
 
             public var paymentRequest: OneTimePaymentRequest {
+                if pendingIDEALOneTimeDonation != nil {
+                    return .awaitingIDEALAuthorization
+                }
+
                 if
                     let receiptCredentialRequestError,
                     case .paymentStillProcessing = receiptCredentialRequestError.errorCode
@@ -99,7 +108,7 @@ extension DonateViewController {
                 }
 
                 let minimumAmount: FiatMoney
-                if let minimum = minimumAmounts[amount.currencyCode] {
+                if let minimum = minimumAmountsByCurrency[amount.currencyCode] {
                     minimumAmount = minimum
                 } else {
                     // Since this is just a sanity check, don't prevent donation here.
@@ -126,10 +135,12 @@ extension DonateViewController {
                 return OneTimeState(
                     selectedAmount: .nothingSelected(currencyCode: newValue),
                     profileBadge: profileBadge,
+                    maximumAmountViaSepa: maximumAmountViaSepa,
                     presets: presets,
-                    minimumAmounts: minimumAmounts,
+                    minimumAmountsByCurrency: minimumAmountsByCurrency,
                     paymentMethodConfiguration: paymentMethodConfiguration,
                     receiptCredentialRequestError: receiptCredentialRequestError,
+                    pendingIDEALOneTimeDonation: pendingIDEALOneTimeDonation,
                     localNumber: localNumber
                 )
             }
@@ -158,10 +169,12 @@ extension DonateViewController {
                 return OneTimeState(
                     selectedAmount: newValue,
                     profileBadge: profileBadge,
+                    maximumAmountViaSepa: maximumAmountViaSepa,
                     presets: presets,
-                    minimumAmounts: minimumAmounts,
+                    minimumAmountsByCurrency: minimumAmountsByCurrency,
                     paymentMethodConfiguration: paymentMethodConfiguration,
                     receiptCredentialRequestError: receiptCredentialRequestError,
+                    pendingIDEALOneTimeDonation: pendingIDEALOneTimeDonation,
                     localNumber: localNumber
                 )
             }
@@ -193,9 +206,10 @@ extension DonateViewController {
             public let currentSubscription: Subscription?
             public let subscriberID: Data?
             public let previousMonthlySubscriptionPaymentMethod: DonationPaymentMethod?
+            public let pendingIDEALSubscription: PendingMonthlyIDEALDonation?
 
             fileprivate let paymentMethodConfiguration: PaymentMethodsConfiguration
-            fileprivate let receiptCredentialRequestError: SubscriptionReceiptCredentialRequestError?
+            fileprivate let receiptCredentialRequestError: ReceiptCredentialRequestError?
             fileprivate let localNumber: String?
 
             /// Get the currency codes supported by all subscription levels.
@@ -288,6 +302,7 @@ extension DonateViewController {
                     currentSubscription: currentSubscription,
                     subscriberID: subscriberID,
                     previousMonthlySubscriptionPaymentMethod: previousMonthlySubscriptionPaymentMethod,
+                    pendingIDEALSubscription: pendingIDEALSubscription,
                     paymentMethodConfiguration: paymentMethodConfiguration,
                     receiptCredentialRequestError: receiptCredentialRequestError,
                     localNumber: localNumber
@@ -295,7 +310,7 @@ extension DonateViewController {
             }
 
             fileprivate func selectSubscriptionLevel(_ newValue: SubscriptionLevel) -> MonthlyState {
-                owsAssert(subscriptionLevels.contains(newValue), "Subscription level not found")
+                owsPrecondition(subscriptionLevels.contains(newValue), "Subscription level not found")
                 return MonthlyState(
                     subscriptionLevels: subscriptionLevels,
                     selectedCurrencyCode: selectedCurrencyCode,
@@ -303,6 +318,7 @@ extension DonateViewController {
                     currentSubscription: currentSubscription,
                     subscriberID: subscriberID,
                     previousMonthlySubscriptionPaymentMethod: previousMonthlySubscriptionPaymentMethod,
+                    pendingIDEALSubscription: pendingIDEALSubscription,
                     paymentMethodConfiguration: paymentMethodConfiguration,
                     receiptCredentialRequestError: receiptCredentialRequestError,
                     localNumber: localNumber
@@ -447,8 +463,10 @@ extension DonateViewController {
             subscriberID: Data?,
             previousMonthlySubscriptionCurrencyCode: Currency.Code?,
             previousMonthlySubscriptionPaymentMethod: DonationPaymentMethod?,
-            oneTimeBoostReceiptCredentialRequestError: SubscriptionReceiptCredentialRequestError?,
-            recurringSubscriptionReceiptCredentialRequestError: SubscriptionReceiptCredentialRequestError?,
+            oneTimeBoostReceiptCredentialRequestError: ReceiptCredentialRequestError?,
+            recurringSubscriptionReceiptCredentialRequestError: ReceiptCredentialRequestError?,
+            pendingIDEALOneTimeDonation: PendingOneTimeIDEALDonation?,
+            pendingIDEALSubscription: PendingMonthlyIDEALDonation?,
             locale: Locale,
             localNumber: String?
         ) -> State {
@@ -476,10 +494,12 @@ extension DonateViewController {
                 return OneTimeState(
                     selectedAmount: OneTimeState.SelectedAmount.nothingSelected(currencyCode: oneTimeDefaultCurrency),
                     profileBadge: oneTimeConfig.badge,
+                    maximumAmountViaSepa: oneTimeConfig.maximumAmountViaSepa,
                     presets: oneTimeConfig.presetAmounts,
-                    minimumAmounts: oneTimeConfig.minimumAmounts,
+                    minimumAmountsByCurrency: oneTimeConfig.minimumAmountsByCurrency,
                     paymentMethodConfiguration: paymentMethodsConfig,
                     receiptCredentialRequestError: oneTimeBoostReceiptCredentialRequestError,
+                    pendingIDEALOneTimeDonation: pendingIDEALOneTimeDonation,
                     localNumber: localNumber
                 )
             }()
@@ -527,6 +547,7 @@ extension DonateViewController {
                     currentSubscription: currentMonthlySubscription,
                     subscriberID: subscriberID,
                     previousMonthlySubscriptionPaymentMethod: previousMonthlySubscriptionPaymentMethod,
+                    pendingIDEALSubscription: pendingIDEALSubscription,
                     paymentMethodConfiguration: paymentMethodsConfig,
                     receiptCredentialRequestError: recurringSubscriptionReceiptCredentialRequestError,
                     localNumber: localNumber

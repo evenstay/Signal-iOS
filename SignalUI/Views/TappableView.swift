@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalCoreKit
+import SignalServiceKit
 
 public class TappableView: UIView {
     let actionBlock: (() -> Void)
@@ -15,7 +15,7 @@ public class TappableView: UIView {
         fatalError("init(coder:) has not been implemented")
     }
 
-    public required init(actionBlock: @escaping () -> Void) {
+    public init(actionBlock: @escaping () -> Void) {
         self.actionBlock = actionBlock
         super.init(frame: CGRect.zero)
 

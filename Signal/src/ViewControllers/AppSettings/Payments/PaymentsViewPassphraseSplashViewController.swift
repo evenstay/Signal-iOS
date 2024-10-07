@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
-import SignalUI
+public import SignalServiceKit
+public import SignalUI
 
 public protocol PaymentsViewPassphraseDelegate: AnyObject {
     func viewPassphraseDidCancel(viewController: PaymentsViewPassphraseSplashViewController)
@@ -36,9 +36,9 @@ public class PaymentsViewPassphraseSplashViewController: OWSViewController {
 
     private let rootView = UIStackView()
 
-    public required init(passphrase: PaymentsPassphrase,
-                         style: Style,
-                         viewPassphraseDelegate: PaymentsViewPassphraseDelegate) {
+    public init(passphrase: PaymentsPassphrase,
+                style: Style,
+                viewPassphraseDelegate: PaymentsViewPassphraseDelegate) {
         self.passphrase = passphrase
         self.style = style
         self.viewPassphraseDelegate = viewPassphraseDelegate
@@ -202,8 +202,8 @@ public class PaymentsViewPassphraseSplashViewController: OWSViewController {
             return
         }
 
-        if OWSPaymentsLock.shared.isPaymentsLockEnabled() {
-            OWSPaymentsLock.shared.tryToUnlock { [weak self] outcome in
+        if Self.owsPaymentsLock.isPaymentsLockEnabled() {
+            Self.owsPaymentsLock.tryToUnlock { [weak self] outcome in
                 guard let self = self else { return }
                 guard outcome == OWSPaymentsLock.LocalAuthOutcome.success else {
                     PaymentActionSheets.showBiometryAuthFailedActionSheet { _ in

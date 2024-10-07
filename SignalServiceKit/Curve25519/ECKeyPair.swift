@@ -4,8 +4,7 @@
 //
 
 import Foundation
-import SignalCoreKit
-import LibSignalClient
+public import LibSignalClient
 
 @objc(ECKeyPair)
 public final class ECKeyPair: NSObject, NSSecureCoding {

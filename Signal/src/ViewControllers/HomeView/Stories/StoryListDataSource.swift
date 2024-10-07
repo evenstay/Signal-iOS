@@ -97,7 +97,13 @@ class StoryListDataSource: NSObject, Dependencies {
         return syncingModels.exposedModel.shouldDisplayHiddenStories
     }
 
+    private var previousSearchText: String?
+
     public func setSearchText(_ text: String?) {
+        guard text != previousSearchText else {
+            return
+        }
+        previousSearchText = text
         updateStoriesForSearchText(text)
     }
 
@@ -731,10 +737,10 @@ private class SyncingStoryListViewModel {
 
     // These are held separately so they can be accessed off the main thread, which happens with some
     // callbacks in the story viewer.
-    private var _threadSafeStoryContexts = AtomicArray<StoryContext>()
+    private var _threadSafeStoryContexts = AtomicArray<StoryContext>(lock: .sharedGlobal)
 
-    private var _threadSafeVisibleStoryContexts = AtomicArray<StoryContext>()
-    private var _threadSafeHiddenStoryContexts = AtomicArray<StoryContext>()
+    private var _threadSafeVisibleStoryContexts = AtomicArray<StoryContext>(lock: .sharedGlobal)
+    private var _threadSafeHiddenStoryContexts = AtomicArray<StoryContext>(lock: .sharedGlobal)
 
     init(loadingQueue: DispatchQueue) {
         self.loadingQueue = loadingQueue

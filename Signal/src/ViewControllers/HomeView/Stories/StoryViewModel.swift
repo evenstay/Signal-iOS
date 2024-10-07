@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalServiceKit
+public import SignalServiceKit
 import SignalUI
 
 struct StoryViewModel: Dependencies {
@@ -54,7 +54,7 @@ struct StoryViewModel: Dependencies {
             transaction: transaction
         )
         latestMessageAvatarDataSource = try StoryUtil.contextAvatarDataSource(for: latestMessage, transaction: transaction)
-        latestMessageAttachment = .from(latestMessage.attachment, transaction: transaction)
+        latestMessageAttachment = .from(latestMessage, transaction: transaction)
         latestMessageIdentifier = .fromStoryMessage(latestMessage)
         latestMessageTimestamp = latestMessage.timestamp
         latestMessageViewedTimestamp = latestMessage.localUserViewedTimestamp
@@ -104,5 +104,4 @@ extension StoryContext: BatchUpdateValue {
             return "none"
         }
     }
-    public var logSafeDescription: String { batchUpdateId }
 }

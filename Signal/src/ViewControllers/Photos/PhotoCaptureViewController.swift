@@ -8,9 +8,9 @@ import Foundation
 import Lottie
 import Photos
 import UIKit
-import SignalMessaging
 import SignalServiceKit
 import SignalUI
+import LibSignalClient
 
 protocol PhotoCaptureViewControllerDelegate: AnyObject {
     func photoCaptureViewControllerDidFinish(_ photoCaptureViewController: PhotoCaptureViewController)
@@ -38,17 +38,35 @@ class PhotoCaptureViewController: OWSViewController, OWSNavigationChildControlle
     weak var dataSource: PhotoCaptureViewControllerDataSource?
     private var interactiveDismiss: PhotoCaptureInteractiveDismiss?
 
-    public lazy var cameraCaptureSession = CameraCaptureSession(delegate: self)
+    private lazy var qrCodeSampleBufferScanner = QRCodeSampleBufferScanner(delegate: self)
+    lazy var cameraCaptureSession = CameraCaptureSession(
+        delegate: self,
+        qrCodeSampleBufferScanner: qrCodeSampleBufferScanner
+    )
+
+    private var qrCodeScanned = false {
+        didSet {
+            updateShouldProcessQRCodes()
+        }
+    }
+
+    /// The underlying stored atomic for `shouldProcessQRCodes`.
+    /// Update its value by calling `updateShouldProcessQRCodes`.
+    private let _shouldProcessQRCodes = AtomicBool(false, lock: .init())
+
+    private func updateShouldProcessQRCodes() {
+        _shouldProcessQRCodes.set(!qrCodeScanned && !isRecordingVideo && isViewVisible)
+    }
+
     private var isCameraReady = false {
         didSet {
             guard isCameraReady != oldValue else { return }
 
             if isCameraReady {
-                BenchEventComplete(eventId: "Show-Camera")
-                VolumeButtons.shared?.addObserver(observer: cameraCaptureSession)
+                cameraCaptureSession.beginObservingVolumeButtons()
                 UIApplication.shared.isIdleTimerDisabled = true
             } else {
-                VolumeButtons.shared?.removeObserver(cameraCaptureSession)
+                cameraCaptureSession.stopObservingVolumeButtons()
                 UIApplication.shared.isIdleTimerDisabled = false
             }
         }
@@ -61,6 +79,7 @@ class PhotoCaptureViewController: OWSViewController, OWSNavigationChildControlle
     private var isViewVisible = false {
         didSet {
             isCameraReady = isViewVisible && hasCameraStarted
+            updateShouldProcessQRCodes()
         }
     }
 
@@ -105,8 +124,8 @@ class PhotoCaptureViewController: OWSViewController, OWSNavigationChildControlle
         delegate?.photoCaptureViewControllerViewWillAppear(self)
 
         let previewOrientation: AVCaptureVideoOrientation
-        if UIDevice.current.isIPad {
-            previewOrientation = AVCaptureVideoOrientation(interfaceOrientation: CurrentAppContext().interfaceOrientation)  ?? .portrait
+        if UIDevice.current.isIPad, let windowScene = view.window?.windowScene {
+            previewOrientation = AVCaptureVideoOrientation(interfaceOrientation: windowScene.interfaceOrientation) ?? .portrait
         } else {
             previewOrientation = .portrait
         }
@@ -125,6 +144,7 @@ class PhotoCaptureViewController: OWSViewController, OWSNavigationChildControlle
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         isViewVisible = true
+        cameraCaptureSession.updateVideoCaptureOrientation()
     }
 
     override func viewWillDisappear(_ animated: Bool) {
@@ -135,7 +155,7 @@ class PhotoCaptureViewController: OWSViewController, OWSNavigationChildControlle
     }
 
     override var prefersStatusBarHidden: Bool {
-        !UIDevice.current.hasIPhoneXNotch && !UIDevice.current.isIPad && !CurrentAppContext().hasActiveCall
+        !UIDevice.current.hasIPhoneXNotch && !UIDevice.current.isIPad && AppEnvironment.shared.callService.callServiceState.currentCall == nil
     }
 
     override var preferredStatusBarStyle: UIStatusBarStyle {
@@ -254,6 +274,8 @@ class PhotoCaptureViewController: OWSViewController, OWSNavigationChildControlle
         guard _internalIsRecordingVideo != isRecordingVideo else { return }
         _internalIsRecordingVideo = isRecordingVideo
 
+        updateShouldProcessQRCodes()
+
         updateTopBarAppearance(animated: animated)
         topBar.recordingTimerView.isRecordingInProgress = isRecordingVideo
         if isRecordingVideo {
@@ -343,8 +365,8 @@ class PhotoCaptureViewController: OWSViewController, OWSNavigationChildControlle
     private var cameraZoomControlIPhoneConstraints: [NSLayoutConstraint]?
     private var cameraZoomControlIPadConstraints: [NSLayoutConstraint]?
 
-    private lazy var tapToFocusView: AnimationView = {
-        let view = AnimationView(name: "tap_to_focus")
+    private lazy var tapToFocusView: LottieAnimationView = {
+        let view = LottieAnimationView(name: "tap_to_focus")
         view.animationSpeed = 1
         view.backgroundBehavior = .forceFinish
         view.contentMode = .scaleAspectFit
@@ -379,7 +401,7 @@ class PhotoCaptureViewController: OWSViewController, OWSNavigationChildControlle
     private lazy var textBackgroundSelectionButton = RoundGradientButton()
     private lazy var textViewAttachLinkButton: UIButton = {
         let button = RoundMediaButton(image: UIImage(imageLiteralResourceName: "link"), backgroundStyle: .blur)
-        button.contentEdgeInsets = UIEdgeInsets(margin: 3)
+        button.ows_contentEdgeInsets = UIEdgeInsets(margin: 3)
         button.layoutMargins = .zero
         return button
     }()
@@ -658,8 +680,6 @@ class PhotoCaptureViewController: OWSViewController, OWSNavigationChildControlle
     private func updateIconOrientations(isAnimated: Bool, captureOrientation: AVCaptureVideoOrientation) {
         guard !UIDevice.current.isIPad else { return }
 
-        Logger.verbose("captureOrientation: \(captureOrientation)")
-
         let transformFromOrientation: CGAffineTransform
         switch captureOrientation {
         case .portrait:
@@ -916,7 +936,7 @@ extension PhotoCaptureViewController {
 
             super.init(image: nil, backgroundStyle: .blur, customView: gradientCircleView)
 
-            contentEdgeInsets = .zero
+            ows_contentEdgeInsets = .zero
             layoutMargins = .zero
         }
 
@@ -940,8 +960,6 @@ extension PhotoCaptureViewController {
 
     @objc
     private func didTapTextStoryProceedButton() {
-        Logger.verbose("")
-
         let body: StyleOnlyMessageBody
         let textStyle: TextAttachment.TextStyle
         switch textStoryComposerView.textContent {
@@ -1025,6 +1043,7 @@ extension PhotoCaptureViewController {
         }
         cameraCaptureSession.switchCameraPosition().done { [weak self] in
             self?.updateUIOnCameraPositionChange(animated: true)
+            self?.cameraCaptureSession.updateVideoCaptureOrientation()
         }.catch { error in
             self.showFailureUI(error: error)
         }
@@ -1072,7 +1091,6 @@ extension PhotoCaptureViewController {
 
     @objc
     private func contentTypeChanged() {
-        Logger.verbose("")
         guard let newComposerMode = ComposerMode(rawValue: bottomBar.contentTypeSelectionControl.selectedSegmentIndex) else { return }
         setComposerMode(newComposerMode, animated: true)
     }
@@ -1144,6 +1162,7 @@ extension PhotoCaptureViewController {
     @objc
     private func didSwipeToTextComposer(gesture: UISwipeGestureRecognizer) {
         guard composerMode == .camera else { return }
+        guard bottomBar.captureControl.state == .initial else { return }
         setComposerMode(.text, animated: true)
     }
 }
@@ -1166,7 +1185,6 @@ extension PhotoCaptureViewController {
         guard let lastUserFocusTapPoint = lastUserFocusTapPoint else { return }
 
         guard lastUserFocusTapPoint.within(0.005, of: focusPoint) else {
-            Logger.verbose("focus completed for obsolete focus point. User has refocused.")
             return
         }
 
@@ -1268,6 +1286,92 @@ extension PhotoCaptureViewController: CameraZoomSelectionControlDelegate {
     }
 }
 
+// MARK: - QRCodeSampleBufferScannerDelegate
+
+extension PhotoCaptureViewController: QRCodeSampleBufferScannerDelegate {
+    var shouldProcessQRCodes: Bool {
+        _shouldProcessQRCodes.get()
+    }
+
+    func qrCodeFound(string qrCodeString: String?, data qrCodeData: Data?) {
+        guard
+            let qrCodeString,
+            let url = URL(string: qrCodeString),
+            let usernameLink = Usernames.UsernameLink(usernameLinkUrl: url)
+        else {
+            // Not a username link QR code
+            return
+        }
+
+        qrCodeScanned = true
+
+        databaseStorage.read { tx in
+            UsernameQuerier().queryForUsernameLink(
+                link: usernameLink,
+                fromViewController: self,
+                tx: tx,
+                failureSheetDismissalDelegate: self,
+                onSuccess: self.showUsernameLinkSheet(username:aci:)
+            )
+        }
+    }
+
+    func scanFailed(error: Error) {
+        self.showFailureUI(error: error)
+    }
+
+    private func showUsernameLinkSheet(
+        username: String,
+        aci: Aci
+    ) {
+        // `shouldProcessQRCodes` should prevent QR codes being scanned after a
+        // recording is done, but a race condition between the recording ending
+        // and this view hiding can allow a scan to slip through, so do an extra
+        // check after the username is queried before showing the sheet.
+        guard isViewVisible else { return }
+        OWSActionSheets.showConfirmationAlert(
+            title: String(
+                format: OWSLocalizedString(
+                    "PHOTO_CAPTURE_USERNAME_QR_CODE_FOUND_TITLE_FORMAT",
+                    comment: "Title for sheet presented from photo capture view indicating that a username QR code was found. Embeds {{username}}."
+                ),
+                username
+            ),
+            message: String(
+                format: OWSLocalizedString(
+                    "PHOTO_CAPTURE_USERNAME_QR_CODE_FOUND_MESSAGE_FORMAT",
+                    comment: "Message for a sheet presented from photo capture view indicating that a username QR code was found. Embeds {{username}}."
+                ),
+                username
+            ),
+            proceedTitle: OWSLocalizedString(
+                "PHOTO_CAPTURE_USERNAME_QR_CODE_FOUND_CTA",
+                comment: "Button label for opening the chat on a sheet presented from photo capture view indicating that a username QR code was found."
+            ),
+            proceedAction: { [weak self] _ in
+                SignalApp.shared.presentConversationForAddress(
+                    SignalServiceAddress(aci),
+                    animated: false
+                )
+                self?.dismiss(animated: true)
+            },
+            fromViewController: self,
+            dismissalDelegate: self
+        )
+    }
+}
+
+// MARK: - SheetDismissalDelegate
+
+extension PhotoCaptureViewController: SheetDismissalDelegate {
+    func didDismissPresentedSheet() {
+        // Allow another QR code to be scanned
+        qrCodeScanned = false
+    }
+}
+
+// MARK: - CameraCaptureSessionDelegate
+
 extension PhotoCaptureViewController: CameraCaptureSessionDelegate {
 
     // MARK: - Photo
@@ -1323,16 +1427,13 @@ extension PhotoCaptureViewController: CameraCaptureSessionDelegate {
     // MARK: - Video
 
     func cameraCaptureSessionWillStartVideoRecording(_ session: CameraCaptureSession) {
-        Logger.verbose("")
         setIsRecordingVideo(true, animated: true)
     }
 
     func cameraCaptureSessionDidStartVideoRecording(_ session: CameraCaptureSession) {
-        Logger.verbose("")
     }
 
     func cameraCaptureSessionDidStopVideoRecording(_ session: CameraCaptureSession) {
-        Logger.verbose("")
         setIsRecordingVideo(false, animated: true)
     }
 
@@ -1396,8 +1497,7 @@ private class TextStoryComposerView: TextAttachmentView, UITextViewDelegate {
             style: .regular,
             textForegroundColor: .white,
             textBackgroundColor: nil,
-            background: TextStoryComposerView.defaultBackground,
-            linkPreview: nil
+            background: TextStoryComposerView.defaultBackground
         )
 
         // Placeholder Label
@@ -1643,8 +1743,6 @@ private class TextStoryComposerView: TextAttachmentView, UITextViewDelegate {
 
     @objc
     private func didTapTextStyleButton() {
-        Logger.verbose("")
-
         let textStyle = textViewAccessoryToolbar.textStyle.next()
         textViewAccessoryToolbar.textStyle = textStyle
 
@@ -1663,8 +1761,6 @@ private class TextStoryComposerView: TextAttachmentView, UITextViewDelegate {
 
     @objc
     private func didTapDecorationStyleButton() {
-        Logger.verbose("")
-
         // "Underline" and "Outline" are not available in text story composer.
         var decorationStyle = textViewAccessoryToolbar.decorationStyle.next()
         if decorationStyle == .outline || decorationStyle == .underline {
@@ -1682,8 +1778,6 @@ private class TextStoryComposerView: TextAttachmentView, UITextViewDelegate {
 
     @objc
     private func didChangeTextColor() {
-        Logger.verbose("")
-
         // Depending on text decoration style color picker changes either color of the text or background color.
         // That's why we need to update both.
         let textForegroundColor = textViewAccessoryToolbar.textForegroundColor
@@ -1695,8 +1789,6 @@ private class TextStoryComposerView: TextAttachmentView, UITextViewDelegate {
 
     @objc
     private func didTapTextViewDoneButton() {
-        Logger.verbose("")
-
         textView.acceptAutocorrectSuggestion()
         textView.resignFirstResponder()
     }
@@ -1762,6 +1854,13 @@ private class TextStoryComposerView: TextAttachmentView, UITextViewDelegate {
     }
 
     func textViewDidChange(_ textView: UITextView) {
+        // If you swipe type, a space is inserted between words, by putting that space
+        // before the subsequent word in the `shouldChangeTextIn: range:` method.
+        // If you swipe type and then tap a single letter, `shouldChangeTextIn:` only gets
+        // the letters, NOT the space, but the NSConcreteTextStorage _somehow_ gets that
+        // space. In order to avoid this leading to discrepancies between `self.text` and
+        // the text being displayed, we sync the two up here, after the space has been applied.
+        self.text = transformedText(textView.text ?? "", for: textStyle)
         adjustFontSizeIfNecessary()
         validateTextViewAttributes()
         delegate?.textStoryComposerDidChange(self)
@@ -1773,7 +1872,13 @@ private class TextStoryComposerView: TextAttachmentView, UITextViewDelegate {
     fileprivate var linkPreviewDraft: OWSLinkPreviewDraft? {
         didSet {
             if let linkPreviewDraft = linkPreviewDraft {
-                linkPreview = LinkPreviewDraft(linkPreviewDraft: linkPreviewDraft)
+                let state: LinkPreviewState
+                if let _ = CallLink(url: linkPreviewDraft.url) {
+                    state = LinkPreviewCallLink(previewType: .draft(linkPreviewDraft))
+                } else {
+                    state = LinkPreviewDraft(linkPreviewDraft: linkPreviewDraft)
+                }
+                linkPreview = state
             } else {
                 linkPreview = nil
             }
@@ -1784,7 +1889,7 @@ private class TextStoryComposerView: TextAttachmentView, UITextViewDelegate {
     private lazy var deleteLinkPreviewButton: UIButton = {
         let button = RoundMediaButton(image: Theme.iconImage(.buttonX), backgroundStyle: .blurLight)
         button.tintColor = Theme.lightThemePrimaryColor
-        button.contentEdgeInsets = UIEdgeInsets(margin: 8)
+        button.ows_contentEdgeInsets = UIEdgeInsets(margin: 8)
         button.layoutMargins = UIEdgeInsets(margin: 2)
         button.translatesAutoresizingMaskIntoConstraints = false
         button.addTarget(self, action: #selector(didTapDeleteLinkPreviewButton), for: .touchUpInside)

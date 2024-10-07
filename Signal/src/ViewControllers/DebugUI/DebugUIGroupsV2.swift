@@ -5,7 +5,6 @@
 
 import LibSignalClient
 import SignalServiceKit
-import SignalMessaging
 import SignalUI
 
 #if USE_DEBUG_UI
@@ -59,12 +58,14 @@ class DebugUIGroupsV2: DebugUIPage, Dependencies {
         let serviceIdsToKick = groupModel.groupMembership.allMembersOfAnyKind
             .compactMap({ $0.serviceId }).filter({ $0 != localAci })
 
-        GroupManager.removeFromGroupOrRevokeInviteV2(groupModel: groupModel, serviceIds: serviceIdsToKick)
-            .done { _ in
+        Task {
+            do {
+                _ = try await GroupManager.removeFromGroupOrRevokeInviteV2(groupModel: groupModel, serviceIds: serviceIdsToKick)
                 Logger.info("Success.")
-            }.catch { error in
+            } catch {
                 owsFailDebug("Error: \(error)")
             }
+        }
     }
 
     private func sendInvalidGroupMessages(contactThread: TSContactThread) {
@@ -74,80 +75,72 @@ class DebugUIGroupsV2: DebugUIPage, Dependencies {
             owsFailDebug("Recipient is missing ACI.")
             return
         }
-
-        firstly { () -> Promise<TSGroupModelV2> in
-            // Make a real v2 group on the service.
-            // Local user and "other user" are members.
-            return firstly {
-                GroupManager.localCreateNewGroup(members: [otherUserAddress],
-                                                 name: "Real group, both users are in the group",
-                                                 disappearingMessageToken: .disabledToken,
-                                                 shouldSendMessage: false)
-            }.map(on: DispatchQueue.global()) { (groupThread: TSGroupThread) in
+        Task {
+            do {
+                // Make a real v2 group on the service.
+                // Local user and "other user" are members.
+                let groupThread = try await GroupManager.localCreateNewGroup(
+                    members: [otherUserAddress],
+                    name: "Real group, both users are in the group",
+                    disappearingMessageToken: .disabledToken,
+                    shouldSendMessage: false
+                )
                 guard let validGroupModelV2 = groupThread.groupModel as? TSGroupModelV2 else {
                     throw OWSAssertionError("Invalid groupModel.")
                 }
-                return validGroupModelV2
-            }
-        }.then(on: DispatchQueue.global()) { (validGroupModelV2: TSGroupModelV2) -> Promise<(TSGroupModelV2, TSGroupModelV2)> in
-            // Make a real v2 group on the service.
-            // Local user is a member but "other user" is not.
-            return firstly {
-                GroupManager.localCreateNewGroup(members: [],
-                                                 name: "Real group, recipient is not in the group",
-                                                 disappearingMessageToken: .disabledToken,
-                                                 shouldSendMessage: false)
-            }.map(on: DispatchQueue.global()) { (groupThread: TSGroupThread) in
-                guard let missingOtherUserGroupModelV2 = groupThread.groupModel as? TSGroupModelV2 else {
+
+                // Make a real v2 group on the service.
+                // Local user is a member but "other user" is not.
+                let groupThread2 = try await GroupManager.localCreateNewGroup(
+                    members: [],
+                    name: "Real group, recipient is not in the group",
+                    disappearingMessageToken: .disabledToken,
+                    shouldSendMessage: false
+                )
+                guard let missingOtherUserGroupModelV2 = groupThread2.groupModel as? TSGroupModelV2 else {
                     throw OWSAssertionError("Invalid groupModel.")
                 }
-                return (validGroupModelV2, missingOtherUserGroupModelV2)
-            }
-        }.then(on: DispatchQueue.global()) { (validGroupModelV2: TSGroupModelV2, missingOtherUserGroupModelV2: TSGroupModelV2)
-            -> Promise<(TSGroupModelV2, TSGroupModelV2, TSGroupModelV2)> in
-            // Make a real v2 group on the service.
-            // "Other user" is a member but local user is not.
-            return firstly { () -> Promise<TSGroupThread> in
-                GroupManager.localCreateNewGroup(members: [otherUserAddress],
-                                                 name: "Real group, sender is not in the group",
-                                                 disappearingMessageToken: .disabledToken,
-                                                 shouldSendMessage: false)
-            }.then(on: DispatchQueue.global()) { (groupThread: TSGroupThread) -> Promise<TSGroupThread> in
-                guard let groupModel = groupThread.groupModel as? TSGroupModelV2 else {
+
+                // Make a real v2 group on the service.
+                // "Other user" is a member but local user is not.
+                let groupThread3 = try await GroupManager.localCreateNewGroup(
+                    members: [otherUserAddress],
+                    name: "Real group, sender is not in the group",
+                    disappearingMessageToken: .disabledToken,
+                    shouldSendMessage: false
+                )
+
+                guard let groupModel = groupThread3.groupModel as? TSGroupModelV2 else {
                     throw OWSAssertionError("Invalid groupModel.")
                 }
                 guard groupModel.groupMembership.isFullMember(otherUserAddress) else {
                     throw OWSAssertionError("Other user is not a full member.")
                 }
+
                 // Last admin (local user) can't leave group, so first
                 // make the "other user" an admin.
-                return GroupManager.changeMemberRoleV2(
+                let changeMemberThread = try await GroupManager.changeMemberRoleV2(
                     groupModel: groupModel,
                     aci: otherUserAci,
                     role: .administrator
                 )
-            }.then(on: DispatchQueue.global()) { (groupThread: TSGroupThread) -> Promise<TSGroupThread> in
                 self.databaseStorage.write { transaction in
-                    GroupManager.localLeaveGroupOrDeclineInvite(
-                        groupThread: groupThread,
-                        transaction: transaction
-                    )
+                    GroupManager.localLeaveGroupOrDeclineInvite(groupThread: changeMemberThread, tx: transaction)
                 }
-            }.map(on: DispatchQueue.global()) { (groupThread: TSGroupThread) in
-                guard let missingLocalUserGroupModelV2 = groupThread.groupModel as? TSGroupModelV2 else {
+                guard let missingLocalUserGroupModelV2 = changeMemberThread.groupModel as? TSGroupModelV2 else {
                     throw OWSAssertionError("Invalid groupModel.")
                 }
-                return (validGroupModelV2, missingOtherUserGroupModelV2, missingLocalUserGroupModelV2)
+
+                sendInvalidGroupMessages(
+                    contactThread: contactThread,
+                    validGroupModelV2: validGroupModelV2,
+                    missingOtherUserGroupModelV2: missingOtherUserGroupModelV2,
+                    missingLocalUserGroupModelV2: missingLocalUserGroupModelV2
+                )
+                Logger.info("Complete.")
+            } catch {
+                owsFailDebug("Error: \(error)")
             }
-        }.map(on: DispatchQueue.global()) { (validGroupModelV2: TSGroupModelV2, missingOtherUserGroupModelV2: TSGroupModelV2, missingLocalUserGroupModelV2: TSGroupModelV2) in
-            self.sendInvalidGroupMessages(contactThread: contactThread,
-                                          validGroupModelV2: validGroupModelV2,
-                                          missingOtherUserGroupModelV2: missingOtherUserGroupModelV2,
-                                          missingLocalUserGroupModelV2: missingLocalUserGroupModelV2)
-        }.done(on: DispatchQueue.global()) { _ in
-            Logger.info("Complete.")
-        }.catch(on: DispatchQueue.global()) { error in
-            owsFailDebug("Error: \(error)")
         }
     }
 
@@ -155,11 +148,11 @@ class DebugUIGroupsV2: DebugUIPage, Dependencies {
                                           validGroupModelV2: TSGroupModelV2,
                                           missingOtherUserGroupModelV2: TSGroupModelV2,
                                           missingLocalUserGroupModelV2: TSGroupModelV2) {
-        var messages = [TSOutgoingMessage]()
+        var messages = [OWSDynamicOutgoingMessage]()
 
         let groupContextInfoForGroupModel = { (groupModelV2: TSGroupModelV2) -> GroupV2ContextInfo in
-            let masterKey = try! GroupsV2Protos.masterKeyData(forGroupModel: groupModelV2)
-            return try! self.groupsV2.groupV2ContextInfo(forMasterKeyData: masterKey)
+            let masterKey = try! groupModelV2.masterKey().serialize().asData
+            return try! GroupV2ContextInfo.deriveFrom(masterKeyData: masterKey)
         }
 
         let validGroupContextInfo = groupContextInfoForGroupModel(validGroupModelV2)
@@ -167,10 +160,7 @@ class DebugUIGroupsV2: DebugUIPage, Dependencies {
         let missingLocalUserGroupContextInfo = groupContextInfoForGroupModel(missingLocalUserGroupModelV2)
 
         let buildValidGroupContextInfo = { () -> GroupV2ContextInfo in
-            let groupsV2 = self.groupsV2
-            let groupSecretParamsData = try! groupsV2.generateGroupSecretParamsData()
-            let masterKeyData = try! GroupsV2Protos.masterKeyData(forGroupSecretParamsData: groupSecretParamsData)
-            return try! groupsV2.groupV2ContextInfo(forMasterKeyData: masterKeyData)
+            return try! GroupV2ContextInfo.deriveFrom(masterKeyData: Randomness.generateRandomBytes(32))
         }
 
         databaseStorage.read { transaction in
@@ -186,7 +176,7 @@ class DebugUIGroupsV2: DebugUIPage, Dependencies {
                 builder.setRevision(revision)
 
                 let dataBuilder = SSKProtoDataMessage.builder()
-                dataBuilder.setGroupV2(try! builder.build())
+                dataBuilder.setGroupV2(builder.buildInfallibly())
                 dataBuilder.setRequiredProtocolVersion(0)
                 dataBuilder.setBody("\(messages.count)")
                 return Self.contentProtoData(forDataBuilder: dataBuilder)
@@ -204,7 +194,7 @@ class DebugUIGroupsV2: DebugUIPage, Dependencies {
                 builder.setRevision(revision)
 
                 let dataBuilder = SSKProtoDataMessage.builder()
-                dataBuilder.setGroupV2(try! builder.build())
+                dataBuilder.setGroupV2(builder.buildInfallibly())
                 dataBuilder.setRequiredProtocolVersion(0)
                 dataBuilder.setBody("\(messages.count)")
                 return Self.contentProtoData(forDataBuilder: dataBuilder)
@@ -221,7 +211,7 @@ class DebugUIGroupsV2: DebugUIPage, Dependencies {
                 builder.setRevision(revision)
 
                 let dataBuilder = SSKProtoDataMessage.builder()
-                dataBuilder.setGroupV2(try! builder.build())
+                dataBuilder.setGroupV2(builder.buildInfallibly())
                 dataBuilder.setRequiredProtocolVersion(0)
                 dataBuilder.setBody("\(messages.count)")
                 return Self.contentProtoData(forDataBuilder: dataBuilder)
@@ -240,7 +230,7 @@ class DebugUIGroupsV2: DebugUIPage, Dependencies {
                 builder.setRevision(revision)
 
                 let dataBuilder = SSKProtoDataMessage.builder()
-                dataBuilder.setGroupV2(try! builder.build())
+                dataBuilder.setGroupV2(builder.buildInfallibly())
                 dataBuilder.setRequiredProtocolVersion(0)
                 dataBuilder.setBody("\(messages.count)")
                 return Self.contentProtoData(forDataBuilder: dataBuilder)
@@ -259,7 +249,7 @@ class DebugUIGroupsV2: DebugUIPage, Dependencies {
                 builder.setRevision(revision)
 
                 let dataBuilder = SSKProtoDataMessage.builder()
-                dataBuilder.setGroupV2(try! builder.build())
+                dataBuilder.setGroupV2(builder.buildInfallibly())
                 dataBuilder.setRequiredProtocolVersion(0)
                 dataBuilder.setBody("\(messages.count)")
                 return Self.contentProtoData(forDataBuilder: dataBuilder)
@@ -278,7 +268,7 @@ class DebugUIGroupsV2: DebugUIPage, Dependencies {
                 builder.setRevision(revision)
 
                 let dataBuilder = SSKProtoDataMessage.builder()
-                dataBuilder.setGroupV2(try! builder.build())
+                dataBuilder.setGroupV2(builder.buildInfallibly())
                 dataBuilder.setRequiredProtocolVersion(0)
                 dataBuilder.setBody("\(messages.count)")
                 return Self.contentProtoData(forDataBuilder: dataBuilder)
@@ -293,7 +283,7 @@ class DebugUIGroupsV2: DebugUIPage, Dependencies {
                 // Don't set revision.
 
                 let dataBuilder = SSKProtoDataMessage.builder()
-                dataBuilder.setGroupV2(try! builder.build())
+                dataBuilder.setGroupV2(builder.buildInfallibly())
                 dataBuilder.setRequiredProtocolVersion(0)
                 dataBuilder.setBody("\(messages.count)")
                 return Self.contentProtoData(forDataBuilder: dataBuilder)
@@ -308,7 +298,7 @@ class DebugUIGroupsV2: DebugUIPage, Dependencies {
                 builder.setRevision(revision)
 
                 let dataBuilder = SSKProtoDataMessage.builder()
-                dataBuilder.setGroupV2(try! builder.build())
+                dataBuilder.setGroupV2(builder.buildInfallibly())
                 dataBuilder.setRequiredProtocolVersion(0)
                 dataBuilder.setBody("\(messages.count)")
                 return Self.contentProtoData(forDataBuilder: dataBuilder)
@@ -326,7 +316,7 @@ class DebugUIGroupsV2: DebugUIPage, Dependencies {
                 builder.setRevision(revision)
 
                 let dataBuilder = SSKProtoDataMessage.builder()
-                dataBuilder.setGroupV2(try! builder.build())
+                dataBuilder.setGroupV2(builder.buildInfallibly())
                 dataBuilder.setRequiredProtocolVersion(0)
                 dataBuilder.setBody("\(messages.count)")
                 return Self.contentProtoData(forDataBuilder: dataBuilder)
@@ -343,7 +333,7 @@ class DebugUIGroupsV2: DebugUIPage, Dependencies {
                 builder.setRevision(revision)
 
                 let dataBuilder = SSKProtoDataMessage.builder()
-                dataBuilder.setGroupV2(try! builder.build())
+                dataBuilder.setGroupV2(builder.buildInfallibly())
                 dataBuilder.setRequiredProtocolVersion(0)
                 dataBuilder.setBody("Valid gv2 message.")
                 return Self.contentProtoData(forDataBuilder: dataBuilder)
@@ -351,7 +341,8 @@ class DebugUIGroupsV2: DebugUIPage, Dependencies {
         }
 
         for message in messages {
-            messageSender.sendMessage(message.asPreparer, success: {}, failure: { _ in })
+            let preparedMessage = PreparedOutgoingMessage.preprepared(transientMessageWithoutAttachments: message)
+            Task { try await self.messageSender.sendMessage(preparedMessage) }
         }
     }
 
@@ -361,10 +352,10 @@ class DebugUIGroupsV2: DebugUIPage, Dependencies {
             return
         }
 
-        var messages = [TSOutgoingMessage]()
+        var messages = [OWSDynamicOutgoingMessage]()
 
-        let masterKey = try! GroupsV2Protos.masterKeyData(forGroupModel: groupModelV2)
-        let groupContextInfo = try! self.groupsV2.groupV2ContextInfo(forMasterKeyData: masterKey)
+        let masterKey = try! groupModelV2.masterKey().serialize().asData
+        let groupContextInfo = try! GroupV2ContextInfo.deriveFrom(masterKeyData: masterKey)
 
         databaseStorage.read { transaction in
             messages.append(OWSDynamicOutgoingMessage(thread: groupThread, transaction: transaction) {
@@ -382,7 +373,7 @@ class DebugUIGroupsV2: DebugUIPage, Dependencies {
                 builder.setGroupChange(changeActionsProtoData)
 
                 let dataBuilder = SSKProtoDataMessage.builder()
-                dataBuilder.setGroupV2(try! builder.build())
+                dataBuilder.setGroupV2(builder.buildInfallibly())
                 dataBuilder.setRequiredProtocolVersion(0)
                 dataBuilder.setBody("Invalid embedded change actions proto: \(messages.count)")
                 return Self.contentProtoData(forDataBuilder: dataBuilder)
@@ -399,7 +390,7 @@ class DebugUIGroupsV2: DebugUIPage, Dependencies {
                 builder.setRevision(revision)
 
                 let dataBuilder = SSKProtoDataMessage.builder()
-                dataBuilder.setGroupV2(try! builder.build())
+                dataBuilder.setGroupV2(builder.buildInfallibly())
                 dataBuilder.setRequiredProtocolVersion(0)
                 dataBuilder.setBody("Valid gv2 message.")
                 return Self.contentProtoData(forDataBuilder: dataBuilder)
@@ -407,7 +398,8 @@ class DebugUIGroupsV2: DebugUIPage, Dependencies {
         }
 
         for message in messages {
-            messageSender.sendMessage(message.asPreparer, success: {}, failure: { _ in })
+            let preparedMessage = PreparedOutgoingMessage.preprepared(transientMessageWithoutAttachments: message)
+            Task { try await self.messageSender.sendMessage(preparedMessage) }
         }
     }
 
@@ -420,12 +412,9 @@ class DebugUIGroupsV2: DebugUIPage, Dependencies {
     }
 
     private func sendGroupUpdate(groupThread: TSGroupThread) {
-        firstly {
-            GroupManager.sendGroupUpdateMessage(thread: groupThread)
-        }.done { _ in
+        Task {
+            await GroupManager.sendGroupUpdateMessage(thread: groupThread)
             Logger.info("Success.")
-        }.catch { error in
-            owsFailDebug("Error: \(error)")
         }
     }
 
@@ -434,13 +423,18 @@ class DebugUIGroupsV2: DebugUIPage, Dependencies {
             owsFailDebug("Invalid groupModel.")
             return
         }
-        firstly {
-            self.groupV2Updates.tryToRefreshV2GroupUpToCurrentRevisionImmediately(groupId: groupModelV2.groupId,
-                                                                                  groupSecretParamsData: groupModelV2.secretParamsData)
-        }.done { _ in
-            Logger.info("Success.")
-        }.catch { error in
-            owsFailDebug("Error: \(error)")
+        let groupId = groupModelV2.groupId
+        let groupSecretParamsData = groupModelV2.secretParamsData
+        Task {
+            do {
+                _ = try await self.groupV2Updates.tryToRefreshV2GroupUpToCurrentRevisionImmediately(
+                    groupId: groupId,
+                    groupSecretParams: try GroupSecretParams(contents: [UInt8](groupSecretParamsData))
+                )
+                Logger.info("Success.")
+            } catch {
+                owsFailDebug("Error: \(error)")
+            }
         }
     }
 }

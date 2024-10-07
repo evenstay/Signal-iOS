@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
 import SignalServiceKit
 import SignalUI
 import UIKit
@@ -18,21 +17,21 @@ class MediaPageViewController: UIPageViewController {
     private let initialGalleryItem: MediaGalleryItem
 
     convenience init?(
-        initialMediaAttachment: TSAttachment,
+        initialMediaAttachment: ReferencedTSResource,
         thread: TSThread,
         spoilerState: SpoilerRenderState,
         showingSingleMessage: Bool = false
     ) {
         self.init(
             initialMediaAttachment: initialMediaAttachment,
-            mediaGallery: MediaGallery(thread: thread, fileType: .photoVideo, spoilerState: spoilerState),
+            mediaGallery: MediaGallery(thread: thread, mediaCategory: .photoVideo, spoilerState: spoilerState),
             spoilerState: spoilerState,
             showingSingleMessage: showingSingleMessage
         )
     }
 
     init?(
-        initialMediaAttachment: TSAttachment,
+        initialMediaAttachment: ReferencedTSResource,
         mediaGallery: MediaGallery,
         spoilerState: SpoilerRenderState,
         showingSingleMessage: Bool = false
@@ -228,6 +227,8 @@ class MediaPageViewController: UIPageViewController {
         return currentViewController?.galleryItem
     }
 
+    private var currentPageSwipeDirection: UIPageViewController.NavigationDirection = .forward
+
     private func setCurrentItem(
         _ item: MediaGalleryItem,
         direction: UIPageViewController.NavigationDirection,
@@ -243,11 +244,11 @@ class MediaPageViewController: UIPageViewController {
         let mediaPage = buildGalleryPage(galleryItem: item)
         mediaPage.shouldAutoPlayVideo = true
         setViewControllers([mediaPage], direction: direction, animated: animated) { _ in
-            self.didTransitionToNewPage(animated: animated)
+            self.didTransitionToNewPage(animated: animated, direction: direction)
         }
     }
 
-    private func didTransitionToNewPage(animated: Bool) {
+    private func didTransitionToNewPage(animated: Bool, direction: UIPageViewController.NavigationDirection) {
         guard let currentViewController else {
             owsFailBeta("No MediaItemViewController")
             return
@@ -256,6 +257,7 @@ class MediaPageViewController: UIPageViewController {
         bottomMediaPanel.configureWithMediaItem(
             currentViewController.galleryItem,
             videoPlayer: currentViewController.videoPlayer,
+            transitionDirection: direction,
             animated: animated
         )
 
@@ -307,9 +309,8 @@ class MediaPageViewController: UIPageViewController {
     // MARK: Context Menu
 
     private lazy var contextMenuBarButton: UIBarButtonItem = {
-        let contextButton = ContextMenuButton()
-        contextButton.showsContextMenuAsPrimaryAction = true
-        contextButton.forceDarkTheme = true
+        let contextButton = ContextMenuButton(empty: ())
+        contextButton.overrideUserInterfaceStyle = .dark
         return UIBarButtonItem(customView: contextButton)
     }()
 
@@ -329,10 +330,10 @@ class MediaPageViewController: UIPageViewController {
             return
         }
 
-        var contextMenuActions: [ContextMenuAction] = []
+        var contextMenuActions = [UIAction]()
         // TODO: Video Playback Speed
         // TODO: Edit
-        contextMenuActions.append(ContextMenuAction(
+        contextMenuActions.append(UIAction(
             title: OWSLocalizedString(
                 "MEDIA_VIEWER_DELETE_MEDIA_ACTION",
                 comment: "Context menu item in media viewer. Refers to deleting currently displayed photo/video."
@@ -343,7 +344,7 @@ class MediaPageViewController: UIPageViewController {
                 self?.deleteCurrentMedia()
             }
         ))
-        contextMenuButton.contextMenu = ContextMenu(contextMenuActions)
+        contextMenuButton.setActions(actions: contextMenuActions)
     }
 
     // MARK: Bar Buttons
@@ -415,12 +416,13 @@ class MediaPageViewController: UIPageViewController {
     private func forwardCurrentMedia() {
         let messageForCurrentItem = currentItem.message
 
-        let mediaAttachments: [TSAttachment] = databaseStorage.read { transaction in
-            messageForCurrentItem.bodyAttachments(with: transaction.unwrapGrdbRead)
+        let mediaAttachments: [ReferencedTSResource] = databaseStorage.read { transaction in
+            return DependenciesBridge.shared.tsResourceStore
+                .referencedBodyAttachments(for: messageForCurrentItem, tx: transaction.asV2Read)
         }
 
-        let mediaAttachmentStreams: [TSAttachmentStream] = mediaAttachments.compactMap { attachment in
-            guard let attachmentStream = attachment as? TSAttachmentStream else {
+        let mediaAttachmentStreams: [ReferencedTSResourceStream] = mediaAttachments.compactMap { attachment in
+            guard let attachmentStream = attachment.asReferencedStream else {
                 // Our current media item should always be an attachment
                 // stream (downloaded). However, we can't guarantee that the
                 // same is true for other media in the message to forward. For
@@ -482,14 +484,16 @@ class MediaPageViewController: UIPageViewController {
 
     private func shareCurrentMedia(fromNavigationBar: Bool) {
         guard let currentViewController else { return }
-        let attachmentStream = currentViewController.galleryItem.attachmentStream
+        guard
+            let attachmentStream = try? currentViewController.galleryItem.attachmentStream.asShareableResource()
+        else {
+            return
+        }
         let sender = fromNavigationBar ? barButtonShareMedia : bottomMediaPanel
         AttachmentSharing.showShareUI(for: attachmentStream, sender: sender)
     }
 
     private func deleteCurrentMedia() {
-        Logger.verbose("")
-
         guard let mediaItem = currentItem else { return }
 
         let actionSheet = ActionSheetController(title: nil, message: nil)
@@ -508,7 +512,9 @@ class MediaPageViewController: UIPageViewController {
     private func senderName(from message: TSMessage) -> String {
         switch message {
         case let incomingMessage as TSIncomingMessage:
-            return self.contactsManager.displayName(for: incomingMessage.authorAddress)
+            return databaseStorage.read { tx in
+                return self.contactsManager.displayName(for: incomingMessage.authorAddress, tx: tx).resolvedValue()
+            }
         case is TSOutgoingMessage:
             return CommonStrings.you
         default:
@@ -581,6 +587,22 @@ extension MediaPageViewController: UIPageViewControllerDelegate {
 
     func pageViewController(
         _ pageViewController: UIPageViewController,
+        willTransitionTo pendingViewControllers: [UIViewController]
+    ) {
+        guard let currentPage = pageViewController.viewControllers?.first as? MediaItemViewController,
+              let newPage = pendingViewControllers.first as? MediaItemViewController else
+        {
+            return
+        }
+        if currentPage.galleryItem.orderingKey < newPage.galleryItem.orderingKey {
+            currentPageSwipeDirection = .forward
+        } else {
+            currentPageSwipeDirection = .reverse
+        }
+    }
+
+    func pageViewController(
+        _ pageViewController: UIPageViewController,
         didFinishAnimating finished: Bool,
         previousViewControllers: [UIViewController],
         transitionCompleted: Bool
@@ -592,7 +614,7 @@ extension MediaPageViewController: UIPageViewControllerDelegate {
         }
 
         if transitionCompleted {
-            didTransitionToNewPage(animated: true)
+            didTransitionToNewPage(animated: true, direction: currentPageSwipeDirection)
         }
     }
 }
@@ -838,8 +860,13 @@ extension MediaPageViewController: ForwardMessageDelegate {
 }
 
 extension MediaPageViewController: UINavigationBarDelegate {
+
     func navigationBar(_ navigationBar: UINavigationBar, shouldPop item: UINavigationItem) -> Bool {
         dismissSelf(animated: true)
         return false
+    }
+
+    func navigationBar(_ navigationBar: UINavigationBar, didPop item: UINavigationItem) {
+        dismissSelf(animated: true)
     }
 }

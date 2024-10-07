@@ -81,7 +81,7 @@ class StoryContextViewController: OWSViewController {
 
     private(set) lazy var contextMenuGenerator = StoryContextMenuGenerator(presentingController: self, delegate: self)
 
-    required init(
+    init(
         context: StoryContext,
         loadPositionIfRead: LoadPosition = .default,
         spoilerState: SpoilerRenderState,
@@ -266,7 +266,7 @@ class StoryContextViewController: OWSViewController {
             self?.dismiss(animated: true)
         }
         closeButton.setShadow()
-        closeButton.imageEdgeInsets = UIEdgeInsets(hMargin: 16, vMargin: 16)
+        closeButton.ows_imageEdgeInsets = UIEdgeInsets(hMargin: 16, vMargin: 16)
         view.addSubview(closeButton)
         closeButton.autoSetDimensions(to: CGSize(square: 56))
         closeButton.autoPinEdge(toSuperviewSafeArea: .top)
@@ -330,42 +330,102 @@ class StoryContextViewController: OWSViewController {
     private func buildStoryItem(for message: StoryMessage, transaction: SDSAnyReadTransaction) -> StoryItem? {
         let replyCount = message.replyCount
 
+        let attachment: ReferencedTSResource?
         switch message.attachment {
-        case .file(let file):
-            guard let attachment = TSAttachment.anyFetch(uniqueId: file.attachmentId, transaction: transaction) else {
-                owsFailDebug("Missing attachment for StoryMessage with timestamp \(message.timestamp)")
-                return nil
-            }
-            if let attachment = attachment as? TSAttachmentPointer {
-                return StoryItem(
-                    message: message,
-                    numberOfReplies: replyCount,
-                    attachment: .pointer(attachment, captionStyles: file.captionStyles)
-                )
-            } else if let attachment = attachment as? TSAttachmentStream {
-                return StoryItem(
-                    message: message,
-                    numberOfReplies: replyCount,
-                    attachment: .stream(attachment, captionStyles: file.captionStyles)
-                )
+        case .file, .foreignReferenceAttachment:
+            let attachmentReference = DependenciesBridge.shared.tsResourceStore.mediaAttachment(for: message, tx: transaction.asV2Read)
+            let attachmentValue = attachmentReference?.fetch(tx: transaction)
+            if let attachmentReference, let attachmentValue {
+                attachment = .init(reference: attachmentReference, attachment: attachmentValue)
             } else {
-                owsFailDebug("Unexpected attachment type \(type(of: attachment))")
-                return nil
+                attachment = nil
             }
+
         case .text(let attachment):
-            return .init(message: message, numberOfReplies: replyCount, attachment: .text(attachment))
+            let preloadedAttachment = PreloadedTextAttachment.from(
+                attachment,
+                storyMessage: message,
+                tx: transaction
+            )
+            return .init(message: message, numberOfReplies: replyCount, attachment: .text(preloadedAttachment))
+        }
+
+        guard let attachment else {
+            owsFailDebug("Missing attachment for StoryMessage with timestamp \(message.timestamp)")
+            return nil
+        }
+        if attachment.attachment.asResourceStream() == nil, let attachmentPointer = attachment.attachment.asTransitTierPointer() {
+            let transitTierDownloadState = attachmentPointer.downloadState(tx: transaction.asV2Read)
+            let pointer = StoryItem.Attachment.Pointer(
+                reference: attachment.reference,
+                attachment: attachmentPointer,
+                transitTierDownloadState: transitTierDownloadState
+            )
+            return StoryItem(
+                message: message,
+                numberOfReplies: replyCount,
+                attachment: .pointer(pointer)
+            )
+        } else if let attachmentStream = attachment.attachment.asResourceStream() {
+            let stream = StoryItem.Attachment.Stream(
+                attachment: .init(reference: attachment.reference, attachmentStream: attachmentStream)
+            )
+            return StoryItem(
+                message: message,
+                numberOfReplies: replyCount,
+                attachment: .stream(stream)
+            )
+        } else {
+            owsFailDebug("Unexpected attachment type \(type(of: attachment))")
+            return nil
         }
     }
 
     private func currentItemWasUpdated(messageDidChange: Bool) {
         if let currentItem = currentItem {
+            let newContextButton: ContextMenuButton = {
+                let attachment: StoryThumbnailView.Attachment
+                switch currentItem.attachment {
+                case .pointer(let pointer):
+                    attachment = .file(.init(reference: pointer.reference, attachment: pointer.attachment.resource))
+                case .stream(let stream):
+                    attachment = .file(stream.attachment)
+                case .text(let textAttachment):
+                    attachment = .text(textAttachment)
+                }
+
+                let contextButton = ContextMenuButton(empty: ())
+                let actions = self.databaseStorage.read { tx -> [UIAction] in
+                    self.contextMenuGenerator.nativeContextMenuActions(
+                        for: currentItem.message,
+                        in: self.context.thread(transaction: tx),
+                        attachment: attachment,
+                        spoilerState: self.spoilerState,
+                        sourceView: { [weak contextButton] in return contextButton },
+                        transaction: tx
+                    )
+                }
+                contextButton.setActions(actions: actions)
+                contextButton.delegate = self
+                return contextButton
+            }()
+
             if currentItemMediaView == nil {
-                let itemView = StoryItemMediaView(item: currentItem, spoilerState: spoilerState, delegate: self)
+                let itemView = StoryItemMediaView(
+                    item: currentItem,
+                    contextButton: newContextButton,
+                    spoilerState: spoilerState,
+                    delegate: self
+                )
                 self.currentItemMediaView = itemView
                 mediaViewContainer.addSubview(itemView)
                 itemView.autoPinEdgesToSuperviewEdges()
             }
-            currentItemMediaView?.updateItem(currentItem)
+
+            currentItemMediaView!.updateItem(
+                currentItem,
+                newContextButton: newContextButton
+            )
 
             if currentItem.message.sendingState != .sent {
                 updateSendingIndicator(currentItem)
@@ -392,7 +452,7 @@ class StoryContextViewController: OWSViewController {
         case .pending, .sending:
             sendingIndicatorStackView.isHidden = false
 
-            let sendingSpinner = AnimationView(name: "indeterminate_spinner_20")
+            let sendingSpinner = LottieAnimationView(name: "indeterminate_spinner_20")
             sendingSpinner.contentMode = .scaleAspectFit
             sendingSpinner.loopMode = .loop
             sendingSpinner.backgroundBehavior = .pauseAndRestore
@@ -537,12 +597,12 @@ class StoryContextViewController: OWSViewController {
             repliesAndViewsButton.semanticContentAttribute = .unspecified
 
             if let leadingIcon = leadingIcon {
-                repliesAndViewsButton.setImage(leadingIcon.asTintedImage(color: Theme.darkThemePrimaryColor), for: .normal)
-                repliesAndViewsButton.imageEdgeInsets = UIEdgeInsets(top: 2, leading: 0, bottom: 0, trailing: 16)
+                repliesAndViewsButton.setImage(leadingIcon.withTintColor(Theme.darkThemePrimaryColor, renderingMode: .alwaysOriginal), for: .normal)
+                repliesAndViewsButton.ows_imageEdgeInsets = UIEdgeInsets(top: 2, leading: 0, bottom: 0, trailing: 16)
             } else if let trailingIcon = trailingIcon {
-                repliesAndViewsButton.setImage(trailingIcon.asTintedImage(color: Theme.darkThemePrimaryColor), for: .normal)
+                repliesAndViewsButton.setImage(trailingIcon.withTintColor(Theme.darkThemePrimaryColor, renderingMode: .alwaysOriginal), for: .normal)
                 repliesAndViewsButton.semanticContentAttribute = CurrentAppContext().isRTL ? .forceLeftToRight : .forceRightToLeft
-                repliesAndViewsButton.imageEdgeInsets = UIEdgeInsets(top: 3, leading: 0, bottom: 0, trailing: 0)
+                repliesAndViewsButton.ows_imageEdgeInsets = UIEdgeInsets(top: 3, leading: 0, bottom: 0, trailing: 0)
             } else {
                 repliesAndViewsButton.setImage(nil, for: .normal)
                 repliesAndViewsButton.contentHorizontalAlignment = .center
@@ -1026,43 +1086,6 @@ extension StoryContextViewController: DatabaseChangeDelegate {
 }
 
 extension StoryContextViewController: StoryItemMediaViewDelegate {
-
-    func contextMenuConfiguration(for contextMenuButton: DelegatingContextMenuButton) -> ContextMenuConfiguration? {
-        guard let item = currentItem else {
-            return nil
-        }
-        let attachment: StoryThumbnailView.Attachment
-        switch item.attachment {
-        case .pointer(let pointer, _):
-            attachment = .file(pointer)
-        case .stream(let stream, _):
-            attachment = .file(stream)
-        case .text(let textAttachment):
-            attachment = .text(textAttachment)
-        }
-        return .init(
-            identifier: nil,
-            actionProvider: { [weak self, weak contextMenuButton] _ in
-                guard
-                    let self  = self,
-                    let contextMenuButton = contextMenuButton
-                else {
-                    return .init([])
-                }
-                return Self.databaseStorage.read {
-                    return ContextMenu(self.contextMenuGenerator.contextMenuActions(
-                        for: item.message,
-                        in: self.context.thread(transaction: $0),
-                        attachment: attachment,
-                        spoilerState: self.spoilerState,
-                        sourceView: { return contextMenuButton },
-                        transaction: $0
-                    ))
-                }
-            }
-        )
-    }
-
     func storyItemMediaViewWantsToPlay(_ storyItemMediaView: StoryItemMediaView) {
         play()
     }
@@ -1075,11 +1098,11 @@ extension StoryContextViewController: StoryItemMediaViewDelegate {
         return delegate?.storyContextViewControllerShouldBeMuted(self) ?? false
     }
 
-    func contextMenuWillDisplay(from contextMenuButton: DelegatingContextMenuButton) {
+    func contextMenuWillDisplay(from _: ContextMenuButton) {
         pause()
     }
 
-    func contextMenuDidDismiss(from contextMenuButton: ContextMenuButton) {
+    func contextMenuDidDismiss(from _: ContextMenuButton) {
         guard !contextMenuGenerator.isDisplayingFollowup else {
             return
         }

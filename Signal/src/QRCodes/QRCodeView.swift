@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalCoreKit
+import SignalServiceKit
 import SignalUI
 
 class QRCodeView: UIView {
@@ -12,7 +12,7 @@ class QRCodeView: UIView {
 
     private let useCircularWrapper: Bool
 
-    public required init(useCircularWrapper: Bool = true) {
+    public init(useCircularWrapper: Bool = true) {
         self.useCircularWrapper = useCircularWrapper
 
         super.init(frame: .zero)
@@ -120,7 +120,7 @@ class QRCodeView: UIView {
             case .error:
                 return UIImageView.withTemplateImageName(
                     "error-circle",
-                    tintColor: .ows_accentRed
+                    tintColor: .ows_gray25
                 )
             }
         }()
@@ -151,7 +151,7 @@ class QRCodeView: UIView {
                 qrCodeImageView.autoPinEdgesToSuperviewEdges()
             }
         case .error:
-            qrCodeImageView.autoSetDimensions(to: .square(48))
+            qrCodeImageView.autoSetDimensions(to: .square(28))
         }
     }
 

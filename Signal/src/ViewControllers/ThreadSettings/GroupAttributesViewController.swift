@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
 import SignalServiceKit
 import SignalUI
 
@@ -32,9 +31,9 @@ class GroupAttributesViewController: OWSTableViewController2 {
         return helper.hasUnsavedChanges
     }
 
-    public required init(groupThread: TSGroupThread,
-                         editAction: EditAction,
-                         delegate: GroupAttributesViewControllerDelegate) {
+    public init(groupThread: TSGroupThread,
+                editAction: EditAction,
+                delegate: GroupAttributesViewControllerDelegate) {
         self.groupThread = groupThread
         self.editAction = editAction
         self.attributesDelegate = delegate
@@ -85,11 +84,10 @@ class GroupAttributesViewController: OWSTableViewController2 {
         let nameAndDescriptionSection = OWSTableSection()
         nameAndDescriptionSection.add(.disclosureItem(
             icon: .groupInfoEditName,
-            name: helper.groupNameCurrent ?? OWSLocalizedString(
+            withText: helper.groupNameCurrent ?? OWSLocalizedString(
                 "GROUP_NAME_VIEW_TITLE",
                 comment: "Title for the group name view."
             ),
-            accessibilityIdentifier: UIView.accessibilityIdentifier(in: self, name: "group_name"),
             actionBlock: { [weak self] in
                 guard let self = self else { return }
                 let vc = GroupNameViewController(
@@ -102,12 +100,11 @@ class GroupAttributesViewController: OWSTableViewController2 {
         ))
         nameAndDescriptionSection.add(.disclosureItem(
             icon: .groupInfoEditDescription,
-            name: helper.groupDescriptionCurrent ?? OWSLocalizedString(
+            withText: helper.groupDescriptionCurrent ?? OWSLocalizedString(
                 "GROUP_DESCRIPTION_VIEW_TITLE",
                 comment: "Title for the group description view."
             ),
             maxNameLines: 2,
-            accessibilityIdentifier: UIView.accessibilityIdentifier(in: self, name: "group_description"),
             actionBlock: { [weak self] in
                 guard let self = self else { return }
                 let vc = GroupDescriptionViewController(
@@ -225,8 +222,6 @@ extension GroupAttributesViewController: GroupAttributesEditorHelperDelegate {
     func groupAttributesEditorContentsDidChange() {
         updateNavbar()
     }
-
-    func groupAttributesEditorSelectionDidChange() {}
 }
 
 extension GroupAttributesViewController: GroupDescriptionViewControllerDelegate {

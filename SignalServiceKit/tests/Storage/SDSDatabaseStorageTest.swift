@@ -5,7 +5,7 @@
 
 import Foundation
 import XCTest
-@testable import SignalServiceKit
+@testable public import SignalServiceKit
 
 extension TSThread {
     @objc
@@ -33,23 +33,16 @@ extension TSInteraction {
 
 // MARK: -
 
-class SDSDatabaseStorageTest: SSKBaseTestSwift {
+class SDSDatabaseStorageTest: SSKBaseTest {
 
     // MARK: - Test Life Cycle
 
     override func setUp() {
         super.setUp()
 
-        // ensure local client has necessary "registered" state
-        let localE164Identifier = "+13235551234"
-        let localUUID = UUID()
         databaseStorage.write { tx in
             (DependenciesBridge.shared.registrationStateChangeManager as! RegistrationStateChangeManagerImpl).registerForTests(
-                localIdentifiers: .init(
-                    aci: .init(fromUUID: localUUID),
-                    pni: nil,
-                    e164: .init(localE164Identifier)!
-                ),
+                localIdentifiers: .forUnitTests,
                 tx: tx.asV2Write
             )
         }
@@ -123,7 +116,7 @@ class SDSDatabaseStorageTest: SSKBaseTestSwift {
         XCTAssertEqual(1, TSThread.anyFetchAll(databaseStorage: storage).count)
         XCTAssertEqual(0, TSInteraction.anyFetchAll(databaseStorage: storage).count)
 
-        let message1 = TSOutgoingMessage(in: contactThread, messageBody: "message1", attachmentId: nil)
+        let message1 = TSOutgoingMessage(in: contactThread, messageBody: "message1")
 
         storage.write { transaction in
             XCTAssertEqual(1, TSThread.anyFetchAll(transaction: transaction).count)
@@ -136,7 +129,7 @@ class SDSDatabaseStorageTest: SSKBaseTestSwift {
         XCTAssertEqual(1, TSThread.anyFetchAll(databaseStorage: storage).count)
         XCTAssertEqual(1, TSInteraction.anyFetchAll(databaseStorage: storage).count)
 
-        let message2 = TSOutgoingMessage(in: contactThread, messageBody: "message2", attachmentId: nil)
+        let message2 = TSOutgoingMessage(in: contactThread, messageBody: "message2")
 
         storage.write { transaction in
             XCTAssertEqual(1, TSThread.anyFetchAll(transaction: transaction).count)
@@ -152,7 +145,7 @@ class SDSDatabaseStorageTest: SSKBaseTestSwift {
         storage.write { transaction in
             XCTAssertEqual(1, TSThread.anyFetchAll(transaction: transaction).count)
             XCTAssertEqual(2, TSInteraction.anyFetchAll(transaction: transaction).count)
-            message1.anyRemove(transaction: transaction)
+            DependenciesBridge.shared.interactionDeleteManager.delete(message1, sideEffects: .default(), tx: transaction.asV2Write)
             XCTAssertEqual(1, TSThread.anyFetchAll(transaction: transaction).count)
             XCTAssertEqual(1, TSInteraction.anyFetchAll(transaction: transaction).count)
         }
@@ -163,12 +156,21 @@ class SDSDatabaseStorageTest: SSKBaseTestSwift {
         storage.write { transaction in
             XCTAssertEqual(1, TSThread.anyFetchAll(transaction: transaction).count)
             XCTAssertEqual(1, TSInteraction.anyFetchAll(transaction: transaction).count)
-            message2.anyRemove(transaction: transaction)
+            DependenciesBridge.shared.interactionDeleteManager.delete(message2, sideEffects: .default(), tx: transaction.asV2Write)
             XCTAssertEqual(1, TSThread.anyFetchAll(transaction: transaction).count)
             XCTAssertEqual(0, TSInteraction.anyFetchAll(transaction: transaction).count)
         }
 
         XCTAssertEqual(1, TSThread.anyFetchAll(databaseStorage: storage).count)
         XCTAssertEqual(0, TSInteraction.anyFetchAll(databaseStorage: storage).count)
+    }
+}
+
+// MARK: -
+
+private extension TSOutgoingMessage {
+    convenience init(in thread: TSThread, messageBody: String) {
+        let builder: TSOutgoingMessageBuilder = .withDefaultValues(thread: thread, messageBody: messageBody)
+        self.init(outgoingMessageWith: builder, recipientAddressStates: [:])
     }
 }

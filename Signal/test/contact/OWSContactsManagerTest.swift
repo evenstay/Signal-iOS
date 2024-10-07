@@ -7,13 +7,14 @@ import LibSignalClient
 import XCTest
 
 @testable import Signal
-@testable import SignalMessaging
 @testable import SignalServiceKit
 
 class OWSContactsManagerTest: SignalBaseTest {
     private let dbV2: MockDB = .init()
 
     private let mockUsernameLookupMananger: MockUsernameLookupManager = .init()
+    private let mockNicknameManager = MockNicknameManager()
+    private let mockRecipientDatabaseTable = MockRecipientDatabaseTable()
 
     override func setUp() {
         super.setUp()
@@ -27,7 +28,7 @@ class OWSContactsManagerTest: SignalBaseTest {
         }
 
         // Replace the fake contacts manager with the real one just for this test.
-        SSKEnvironment.shared.setContactsManagerForUnitTests(makeContactsManager())
+        SSKEnvironment.shared.setContactManagerForUnitTests(makeContactsManager())
     }
 
     override func tearDown() {
@@ -35,21 +36,38 @@ class OWSContactsManagerTest: SignalBaseTest {
     }
 
     private func makeContactsManager() -> OWSContactsManager {
-        let contactsManager = OWSContactsManager(swiftValues: OWSContactsManagerSwiftValues(
-            usernameLookupManager: mockUsernameLookupMananger
-        ))
+        return OWSContactsManager(
+            appReadiness: AppReadinessMock(),
+            swiftValues: OWSContactsManagerSwiftValues(
+                usernameLookupManager: mockUsernameLookupMananger,
+                recipientDatabaseTable: mockRecipientDatabaseTable,
+                nicknameManager: mockNicknameManager
+            )
+        )
+    }
 
-        contactsManager.setUpSystemContacts()
-
-        return contactsManager
+    private func makeAndInsertRecipient(address: SignalServiceAddress) -> SignalRecipient {
+        let recipient = SignalRecipient(
+            aci: address.aci,
+            pni: nil,
+            phoneNumber: address.e164
+        )
+        self.dbV2.write { tx in
+            mockRecipientDatabaseTable.insertRecipient(recipient, transaction: tx)
+        }
+        return recipient
     }
 
     private func createRecipients(_ serviceIds: [ServiceId]) {
         let recipientFetcher = DependenciesBridge.shared.recipientFetcher
+        let recipientManager = DependenciesBridge.shared.recipientManager
         write { tx in
             for serviceId in serviceIds {
-                let recipient = recipientFetcher.fetchOrCreate(serviceId: serviceId, tx: tx.asV2Write)
-                recipient.markAsRegisteredAndSave(tx: tx)
+                recipientManager.markAsRegisteredAndSave(
+                    recipientFetcher.fetchOrCreate(serviceId: serviceId, tx: tx.asV2Write),
+                    shouldUpdateStorageService: false,
+                    tx: tx.asV2Write
+                )
             }
         }
     }
@@ -62,152 +80,99 @@ class OWSContactsManagerTest: SignalBaseTest {
         }
     }
 
-    private func createContacts(_ contacts: [Contact]) {
-        write { transaction in
-            (self.contactsManager as! OWSContactsManager).setContactsMaps(
-                .build(contacts: contacts, localNumber: LocalIdentifiers.forUnitTests.phoneNumber),
-                localNumber: LocalIdentifiers.forUnitTests.phoneNumber,
-                transaction: transaction
-            )
-        }
-    }
-
     private func makeAccount(
         serviceId: ServiceId,
-        phoneNumber: String?,
-        name: String? = nil
+        phoneNumber: E164,
+        fullName: String
     ) -> SignalAccount {
-        let contact = name.map { name -> Contact in
-            makeContact(
-                address: SignalServiceAddress(
-                    serviceId: serviceId,
-                    phoneNumber: phoneNumber
-                ),
-                name: name
-            )
-        }
-
+        let parts = fullName.components(separatedBy: " ")
         return SignalAccount(
-            contact: contact,
-            contactAvatarHash: nil,
+            recipientPhoneNumber: phoneNumber.stringValue,
+            recipientServiceId: serviceId,
             multipleAccountLabelText: "home",
-            recipientPhoneNumber: phoneNumber,
-            recipientServiceId: serviceId
+            cnContactId: nil,
+            givenName: parts.first!,
+            familyName: parts.dropFirst().first ?? "",
+            nickname: "",
+            fullName: fullName,
+            contactAvatarHash: nil
         )
     }
 
-    private func makeContact(address: SignalServiceAddress, name: String) -> Contact {
-        let parts = name.components(separatedBy: " ")
-        return Contact(
-            address: address,
-            phoneNumberLabel: "home",
-            givenName: parts.first,
-            familyName: parts.dropFirst().first,
-            nickname: nil,
-            fullName: name
+    private func makeUserProfile(givenName: String, familyName: String) -> OWSUserProfile {
+        return OWSUserProfile(
+            id: nil,
+            uniqueId: "",
+            serviceIdString: nil,
+            phoneNumber: nil,
+            avatarFileName: nil,
+            avatarUrlPath: nil,
+            profileKey: nil,
+            givenName: givenName,
+            familyName: familyName,
+            bio: nil,
+            bioEmoji: nil,
+            badges: [],
+            lastFetchDate: nil,
+            lastMessagingDate: nil,
+            isPhoneNumberShared: nil
         )
-    }
-
-    // MARK: - getPhoneNumber(s)
-
-    func testGetPhoneNumberFromAddress() {
-        read { transaction in
-            let contactsManager = self.contactsManager as! OWSContactsManager
-            let actual = contactsManager.phoneNumber(
-                for: SignalServiceAddress(phoneNumber: "+17035559901"),
-                transaction: transaction
-            )
-            XCTAssertEqual(actual, "+17035559901")
-        }
-    }
-
-    func testGetPhoneNumberFromAciProfile() {
-        let aci = Aci.randomForTesting()
-        let account = SignalAccount(
-            contact: nil,
-            contactAvatarHash: nil,
-            multipleAccountLabelText: "home",
-            recipientPhoneNumber: "+17035559901",
-            recipientServiceId: aci
-        )
-        createAccounts([account])
-        let contactsManager = self.contactsManager as! OWSContactsManager
-        read { transaction in
-            let actual = contactsManager.phoneNumber(for: SignalServiceAddress(aci), transaction: transaction)
-            XCTAssertEqual(actual, "+17035559901")
-        }
-    }
-
-    func testGetPhoneNumberFromPniProfile() {
-        let pni = Pni.randomForTesting()
-        let account = SignalAccount(
-            contact: nil,
-            contactAvatarHash: nil,
-            multipleAccountLabelText: "home",
-            recipientPhoneNumber: "+17035559901",
-            recipientServiceId: pni
-        )
-        createAccounts([account])
-        let contactsManager = self.contactsManager as! OWSContactsManager
-        read { transaction in
-            let actual = contactsManager.phoneNumber(
-                for: SignalServiceAddress(serviceIdString: pni.serviceIdUppercaseString),
-                transaction: transaction
-            )
-            XCTAssertEqual(actual, "+17035559901")
-        }
-    }
-
-    func testGetPhoneNumbersFromAddresses() {
-        let addresses = [
-            SignalServiceAddress(phoneNumber: "+17035559901"),
-            SignalServiceAddress(phoneNumber: "+17035559902"),
-            SignalServiceAddress.randomForTesting()
-        ]
-        read { transaction in
-            let contactsManager = self.contactsManager as! OWSContactsManager
-            let actual = contactsManager.phoneNumbers(for: addresses, transaction: transaction)
-            let expected = ["+17035559901", "+17035559902", nil]
-            XCTAssertEqual(actual, expected)
-        }
-    }
-
-    func testGetPhoneNumbersFromProfiles() {
-        let aliceAci = Aci.randomForTesting()
-        let aliceAddress = SignalServiceAddress(serviceId: aliceAci, phoneNumber: "+17035559901")
-
-        let bobAci = Aci.randomForTesting()
-        let bobAddress = SignalServiceAddress(serviceId: bobAci, phoneNumber: "+17035559902")
-
-        let bogusAddress = SignalServiceAddress.randomForTesting()
-
-        read { transaction in
-            let contactsManager = self.contactsManager as! OWSContactsManager
-            let actual = contactsManager.phoneNumbers(
-                for: [aliceAddress, bogusAddress, bobAddress],
-                transaction: transaction
-            )
-            let expected = [aliceAddress.phoneNumber, nil, bobAddress.phoneNumber]
-            XCTAssertEqual(actual, expected)
-        }
     }
 
     // MARK: - Display Names
 
-    func testGetDisplayNamesWithCachedContactNames() {
-        let serviceIds = [Aci.randomForTesting(), Aci.randomForTesting()]
-        let addresses = serviceIds.map { SignalServiceAddress($0) }
+    func testGetDisplayNamesWithNicknames() throws {
+        let aliceAddress = SignalServiceAddress(phoneNumber: "+16505550101")
+        let bobAddress = SignalServiceAddress(serviceId: Aci.randomForTesting(), phoneNumber: "+16505550102")
 
-        createRecipients(serviceIds)
-        let accounts = [
-            makeAccount(serviceId: serviceIds[0], phoneNumber: nil, name: "Alice Aliceson"),
-            makeAccount(serviceId: serviceIds[1], phoneNumber: nil, name: "Bob Bobson")
+        let aliceRecipient = makeAndInsertRecipient(address: aliceAddress)
+        let bobRecipient = makeAndInsertRecipient(address: bobAddress)
+
+        let aliceRecipientRowID = try XCTUnwrap(aliceRecipient.id)
+        let bobRecipientRowID = try XCTUnwrap(bobRecipient.id)
+
+        let aliceNickname = NicknameRecord(
+            recipientRowID: aliceRecipientRowID,
+            givenName: "Alice",
+            familyName: "Doe",
+            note: nil
+        )
+        let bobNickname = NicknameRecord(
+            recipientRowID: bobRecipientRowID,
+            givenName: "Bob",
+            familyName: nil,
+            note: nil
+        )
+
+        self.dbV2.write { tx in
+            mockNicknameManager.insert(aliceNickname, tx: tx)
+            mockNicknameManager.insert(bobNickname, tx: tx)
+        }
+
+        self.read { tx in
+            let contactsManager = self.contactsManager as! OWSContactsManager
+            let actual = contactsManager.displayNames(
+                for: [aliceAddress, bobAddress],
+                tx: tx
+            ).map { $0.resolvedValue() }
+            let expected = ["Alice Doe", "Bob"]
+            XCTAssertEqual(actual, expected)
+        }
+    }
+
+    func testGetDisplayNamesWithCachedContactNames() {
+        let addresses = [
+            SignalServiceAddress(serviceId: Aci.randomForTesting(), phoneNumber: "+16505550100"),
+            SignalServiceAddress(serviceId: Aci.randomForTesting(), phoneNumber: "+16505550101"),
         ]
-        createAccounts(accounts)
+        createRecipients(addresses.map { $0.serviceId! })
+        createAccounts(zip(addresses, ["Alice Aliceson", "Bob Bobson"]).map { address, name in
+            makeAccount(serviceId: address.serviceId!, phoneNumber: address.e164!, fullName: name)
+        })
 
         read { transaction in
             let contactsManager = self.contactsManager as! OWSContactsManager
-            let actual = contactsManager.displayNames(for: addresses, transaction: transaction)
+            let actual = contactsManager.displayNames(for: addresses, tx: transaction).map { $0.resolvedValue() }
             let expected = ["Alice Aliceson (home)", "Bob Bobson (home)"]
             XCTAssertEqual(actual, expected)
         }
@@ -215,13 +180,13 @@ class OWSContactsManagerTest: SignalBaseTest {
 
     func testGetDisplayNamesWithProfileFullNames() {
         let addresses = [SignalServiceAddress.randomForTesting(), SignalServiceAddress.randomForTesting()]
-        (self.profileManager as! OWSFakeProfileManager).fakeDisplayNames = [
-            addresses[0]: "Alice Aliceson",
-            addresses[1]: "Bob Bobson"
+        (self.profileManager as! OWSFakeProfileManager).fakeUserProfiles = [
+            addresses[0]: makeUserProfile(givenName: "Alice", familyName: "Aliceson"),
+            addresses[1]: makeUserProfile(givenName: "Bob", familyName: "Bobson"),
         ]
         read { transaction in
             let contactsManager = self.contactsManager as! OWSContactsManager
-            let actual = contactsManager.displayNames(for: addresses, transaction: transaction)
+            let actual = contactsManager.displayNames(for: addresses, tx: transaction).map { $0.resolvedValue() }
             let expected = ["Alice Aliceson", "Bob Bobson"]
             XCTAssertEqual(actual, expected)
         }
@@ -233,10 +198,10 @@ class OWSContactsManagerTest: SignalBaseTest {
             SignalServiceAddress(phoneNumber: "+17035559901")
         ]
         // Prevent default fake name from being used.
-        (self.profileManager as! OWSFakeProfileManager).fakeDisplayNames = [:]
+        (self.profileManager as! OWSFakeProfileManager).fakeUserProfiles = [:]
         read { transaction in
             let contactsManager = self.contactsManager as! OWSContactsManager
-            let actual = contactsManager.displayNames(for: addresses, transaction: transaction)
+            let actual = contactsManager.displayNames(for: addresses, tx: transaction).map { $0.resolvedValue() }
             let expected = ["+17035559900", "+17035559901"]
             XCTAssertEqual(actual, expected)
         }
@@ -256,11 +221,11 @@ class OWSContactsManagerTest: SignalBaseTest {
         }
 
         // Prevent default fake names from being used.
-        (profileManager as! OWSFakeProfileManager).fakeDisplayNames = [:]
+        (profileManager as! OWSFakeProfileManager).fakeUserProfiles = [:]
 
         read { transaction in
             let contactsManager = self.contactsManager as! OWSContactsManager
-            let actual = contactsManager.displayNames(for: addresses, transaction: transaction)
+            let actual = contactsManager.displayNames(for: addresses, tx: transaction).map { $0.resolvedValue() }
             let expected = ["alice", "bob"]
             XCTAssertEqual(actual, expected)
         }
@@ -271,25 +236,27 @@ class OWSContactsManagerTest: SignalBaseTest {
 
         // Intentionally do not set any mock usernames. Additionally, prevent
         // default fake names from being used.
-        (profileManager as! OWSFakeProfileManager).fakeDisplayNames = [:]
+        (profileManager as! OWSFakeProfileManager).fakeUserProfiles = [:]
 
         read { transaction in
             let contactsManager = self.contactsManager as! OWSContactsManager
-            let actual = contactsManager.displayNames(for: addresses, transaction: transaction)
+            let actual = contactsManager.displayNames(for: addresses, tx: transaction).map { $0.resolvedValue() }
             let expected = ["Unknown", "Unknown"]
             XCTAssertEqual(actual, expected)
         }
     }
 
-    func testGetDisplayNamesMixed() {
+    func testGetDisplayNamesMixed() throws {
         let aliceAci = Aci.randomForTesting()
-        let aliceAddress = SignalServiceAddress(aliceAci)
-        let aliceAccount = makeAccount(serviceId: aliceAci, phoneNumber: nil, name: "Alice Aliceson")
+        let aliceAddress = SignalServiceAddress(serviceId: aliceAci, phoneNumber: "+16505550100")
+        let aliceAccount = makeAccount(serviceId: aliceAci, phoneNumber: aliceAddress.e164!, fullName: "Alice Aliceson")
         createRecipients([aliceAci])
         createAccounts([aliceAccount])
 
         let bobAddress = SignalServiceAddress.randomForTesting()
-        (profileManager as! OWSFakeProfileManager).fakeDisplayNames = [bobAddress: "Bob Bobson"]
+        (profileManager as! OWSFakeProfileManager).fakeUserProfiles = [
+            bobAddress: makeUserProfile(givenName: "Bob", familyName: "Bobson"),
+        ]
 
         let carolAddress = SignalServiceAddress(phoneNumber: "+17035559900")
 
@@ -301,28 +268,46 @@ class OWSContactsManagerTest: SignalBaseTest {
 
         let eveAddress = SignalServiceAddress.randomForTesting()
 
+        let feliciaAci = Aci.randomForTesting()
+        let feliciaAddress = SignalServiceAddress(serviceId: feliciaAci, phoneNumber: "+16505550109")
+        // Test that it doesn't show this account name
+        let feliciaProfileName = UUID().uuidString
+        let feliciaAccount = makeAccount(serviceId: feliciaAci, phoneNumber: feliciaAddress.e164!, fullName: feliciaProfileName)
+        createAccounts([feliciaAccount])
+        let feliciaRecipient = makeAndInsertRecipient(address: feliciaAddress)
+        let feliciaRowID = try XCTUnwrap(feliciaRecipient.id)
+        let feliciaNickname = NicknameRecord(
+            recipientRowID: feliciaRowID,
+            givenName: "Felicia",
+            familyName: "Felicity",
+            note: nil
+        )
+        dbV2.write { tx in
+            mockNicknameManager.insert(feliciaNickname, tx: tx)
+        }
+
         read { transaction in
             let contactsManager = self.contactsManager as! OWSContactsManager
-            let addresses = [aliceAddress, bobAddress, carolAddress, daveAddress, eveAddress]
-            let actual = contactsManager.displayNames(for: addresses, transaction: transaction)
-            let expected = ["Alice Aliceson (home)", "Bob Bobson", "+17035559900", "dave", "Unknown"]
+            let addresses = [aliceAddress, bobAddress, carolAddress, daveAddress, eveAddress, feliciaAddress]
+            let actual = contactsManager.displayNames(for: addresses, tx: transaction).map { $0.resolvedValue() }
+            let expected = ["Alice Aliceson (home)", "Bob Bobson", "+17035559900", "dave", "Unknown", "Felicia Felicity"]
             XCTAssertEqual(actual, expected)
         }
     }
 
     func testSinglePartName() {
-        let serviceIds = [Aci.randomForTesting(), Aci.randomForTesting()]
-        let addresses = serviceIds.map { SignalServiceAddress($0) }
-        createRecipients(serviceIds)
-        let accounts = [
-            makeAccount(serviceId: serviceIds[0], phoneNumber: nil, name: "Alice"),
-            makeAccount(serviceId: serviceIds[1], phoneNumber: nil, name: "Bob")
+        let addresses = [
+            SignalServiceAddress(serviceId: Aci.randomForTesting(), phoneNumber: "+16505550100"),
+            SignalServiceAddress(serviceId: Aci.randomForTesting(), phoneNumber: "+16505550101"),
         ]
-        createAccounts(accounts)
+        createRecipients(addresses.map { $0.serviceId! })
+        createAccounts(zip(addresses, ["Alice", "Bob"]).map { address, name in
+            makeAccount(serviceId: address.serviceId!, phoneNumber: address.e164!, fullName: name)
+        })
 
         read { transaction in
             let contactsManager = self.contactsManager as! OWSContactsManager
-            let actual = contactsManager.displayNames(for: addresses, transaction: transaction)
+            let actual = contactsManager.displayNames(for: addresses, tx: transaction).map { $0.resolvedValue() }
             let expected = ["Alice (home)", "Bob (home)"]
             XCTAssertEqual(actual, expected)
         }
@@ -331,67 +316,39 @@ class OWSContactsManagerTest: SignalBaseTest {
     // MARK: - Cached Contact Names
 
     func testCachedContactNamesWithAccounts() {
-        let serviceIds = [Aci.randomForTesting(), Aci.randomForTesting()]
-        let addresses = serviceIds.map { SignalServiceAddress($0) }
-        createRecipients(serviceIds)
-        let accounts = [
-            makeAccount(serviceId: serviceIds[0], phoneNumber: nil, name: "Alice Aliceson"),
-            makeAccount(serviceId: serviceIds[1], phoneNumber: nil, name: "Bob Bobson")
+        let addresses = [
+            SignalServiceAddress(serviceId: Aci.randomForTesting(), phoneNumber: "+16505550100"),
+            SignalServiceAddress(serviceId: Aci.randomForTesting(), phoneNumber: "+16505550101"),
         ]
-        createAccounts(accounts)
+        createRecipients(addresses.map { $0.serviceId! })
+        createAccounts(zip(addresses, ["Alice Aliceson", "Bob Bobson"]).map { address, name in
+            makeAccount(serviceId: address.serviceId!, phoneNumber: address.e164!, fullName: name)
+        })
         let contactsManager = makeContactsManager()
         read { transaction in
-            let actual = contactsManager.cachedContactNames(for: AnySequence(addresses), transaction: transaction)
+            let actual = contactsManager.systemContactNames(for: addresses.map { $0.phoneNumber! }, tx: transaction).map { $0?.resolvedValue() }
             let expected = ["Alice Aliceson (home)", "Bob Bobson (home)"]
             XCTAssertEqual(actual, expected)
-        }
-    }
-
-    func testCachedContactNamesWithNonSignalContacts() {
-        let aliceAddress = SignalServiceAddress(phoneNumber: "+17035550000")
-        let bobAddress = SignalServiceAddress(phoneNumber: "+17035550001")
-        createContacts([
-            makeContact(address: aliceAddress, name: "Alice Aliceson"),
-            makeContact(address: bobAddress, name: "Bob Bobson")
-        ])
-        let contactsManager = makeContactsManager()
-        read { transaction in
-            let addresses = [aliceAddress, bobAddress]
-            let actual = contactsManager.cachedContactNames(for: AnySequence(addresses), transaction: transaction)
-            let expected = ["Alice Aliceson", "Bob Bobson"]
-            XCTAssertEqual(actual, expected)
-        }
-    }
-
-    func testCachedContactNameWithNonSignalContactsLackingPhoneNumbers() {
-        let addresses = [SignalServiceAddress.randomForTesting(), SignalServiceAddress.randomForTesting()]
-        let contactsManager = makeContactsManager()
-        read { transaction in
-            let actual = contactsManager.cachedContactNames(for: AnySequence(addresses), transaction: transaction)
-            XCTAssertEqual(actual, [nil, nil])
         }
     }
 
     func testCachedContactNameMixed() {
         // Register alice with an account that has a full name.
         let aliceAci = Aci.randomForTesting()
-        let aliceAddress = SignalServiceAddress(aliceAci)
-        let aliceAccount = makeAccount(serviceId: aliceAci, phoneNumber: nil, name: "Alice Aliceson")
+        let aliceAddress = SignalServiceAddress(serviceId: aliceAci, phoneNumber: "+16505550100")
+        let aliceAccount = makeAccount(serviceId: aliceAci, phoneNumber: aliceAddress.e164!, fullName: "Alice Aliceson")
         createRecipients([aliceAci])
         createAccounts([aliceAccount])
 
-        // Register bob as a non-Signal contact.
-        let bobAddress = SignalServiceAddress(phoneNumber: "+17035550001")
-        createContacts([makeContact(address: bobAddress, name: "Bob Bobson")])
-
         // Who the heck is Chuck?
-        let chuckAddress = SignalServiceAddress.randomForTesting()
+        let chuckAci = Aci.randomForTesting()
+        let chuckAddress = SignalServiceAddress(serviceId: chuckAci, phoneNumber: "+16505550101")
 
         let contactsManager = makeContactsManager()
         read { transaction in
-            let addresses = [aliceAddress, bobAddress, chuckAddress]
-            let actual = contactsManager.cachedContactNames(for: AnySequence(addresses), transaction: transaction)
-            let expected = ["Alice Aliceson (home)", "Bob Bobson", nil]
+            let addresses = [aliceAddress, chuckAddress]
+            let actual = contactsManager.systemContactNames(for: addresses.map { $0.phoneNumber! }, tx: transaction).map { $0?.resolvedValue() }
+            let expected = ["Alice Aliceson (home)", nil]
             XCTAssertEqual(actual, expected)
         }
     }

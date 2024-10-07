@@ -4,7 +4,7 @@
 //
 
 import SafariServices
-import SignalMessaging
+import SignalServiceKit
 import SignalUI
 
 final class HelpViewController: OWSTableViewController2 {
@@ -68,8 +68,6 @@ final class HelpViewController: OWSTableViewController2 {
                 name: OWSLocalizedString("SETTINGS_ADVANCED_SUBMIT_DEBUGLOG", comment: ""),
                 accessibilityIdentifier: UIView.accessibilityIdentifier(in: self, name: "submit_debug_log"),
                 actionBlock: {
-                    Logger.info("Submitting debug logs")
-                    Logger.flush()
                     DebugLogs.submitLogs()
                 }
             ))
@@ -82,8 +80,10 @@ final class HelpViewController: OWSTableViewController2 {
             "SETTINGS_COPYRIGHT",
             comment: "Footer for the 'about' help section"
         )
-        aboutSection.add(.copyableItem(label: OWSLocalizedString("SETTINGS_VERSION", comment: ""),
-                                       value: AppVersionImpl.shared.currentAppVersion4))
+        aboutSection.add(.copyableItem(
+            label: OWSLocalizedString("SETTINGS_VERSION", comment: ""),
+            value: AppVersionImpl.shared.prettyAppVersion
+        ))
         aboutSection.add(.disclosureItem(
             withText: OWSLocalizedString("SETTINGS_LEGAL_TERMS_CELL", comment: ""),
             actionBlock: { [weak self] in
@@ -99,7 +99,7 @@ final class HelpViewController: OWSTableViewController2 {
 
     @objc
     private func didToggleEnableLogSwitch(sender: UISwitch) {
-        let debugLogger = DebugLogger.shared()
+        let debugLogger = DebugLogger.shared
         let mainAppContext = CurrentAppContext() as! MainAppContext
 
         Preferences.setIsLoggingEnabled(sender.isOn)

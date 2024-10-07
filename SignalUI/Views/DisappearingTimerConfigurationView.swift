@@ -4,7 +4,7 @@
 //
 
 import Foundation
-import SignalMessaging
+import SignalServiceKit
 
 public protocol DisappearingTimerConfigurationViewDelegate: AnyObject {
     func disappearingTimerConfigurationViewWasTapped(_ disappearingTimerView: DisappearingTimerConfigurationView)
@@ -77,8 +77,6 @@ public class DisappearingTimerConfigurationView: UIView {
 
     @objc
     private func pressHandler(_ gestureRecognizer: UILongPressGestureRecognizer) {
-        Logger.verbose("")
-
         // handle touch down and touch up events separately
         if gestureRecognizer.state == .began {
             applyTintColor(UIColor.gray)

@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalCoreKit
-import SignalUI
+import SignalServiceKit
+public import SignalUI
 
 public protocol PaymentsQRScanDelegate: AnyObject {
     func didScanPaymentAddressQRCode(publicAddressBase58: String)
@@ -16,9 +16,9 @@ public class PaymentsQRScanViewController: OWSViewController {
 
     private weak var delegate: PaymentsQRScanDelegate?
 
-    private let qrCodeScanViewController = QRCodeScanViewController(appearance: .masked())
+    private let qrCodeScanViewController = QRCodeScanViewController(appearance: .framed())
 
-    public required init(delegate: PaymentsQRScanDelegate) {
+    public init(delegate: PaymentsQRScanDelegate) {
         self.delegate = delegate
         super.init()
     }

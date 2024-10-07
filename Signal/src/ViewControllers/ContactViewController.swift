@@ -5,7 +5,6 @@
 
 import ContactsUI
 import MessageUI
-import SignalMessaging
 import SignalServiceKit
 import SignalUI
 
@@ -16,10 +15,9 @@ class ContactViewController: OWSTableViewController2 {
         case systemContactWithoutSignal
         case nonSystemContact
         case noPhoneNumber
-        case unknown
     }
 
-    private var viewMode = ContactViewMode.unknown {
+    private var viewMode: ContactViewMode {
         didSet {
             AssertIsOnMainThread()
 
@@ -30,6 +28,7 @@ class ContactViewController: OWSTableViewController2 {
     }
 
     private let contactShare: ContactShareViewModel
+    private var sendablePhoneNumbers: [String]
 
     private lazy var contactShareViewHelper: ContactShareViewHelper = {
         let helper = ContactShareViewHelper()
@@ -39,12 +38,13 @@ class ContactViewController: OWSTableViewController2 {
 
     // MARK: View Controller
 
-    required init(contactShare: ContactShareViewModel) {
+    init(contactShare: ContactShareViewModel) {
         self.contactShare = contactShare
+        let phoneNumberPartition = Self.phoneNumberPartition(for: contactShare)
+        self.viewMode = Self.viewMode(for: phoneNumberPartition)
+        self.sendablePhoneNumbers = phoneNumberPartition.sendablePhoneNumbers
 
         super.init()
-
-        updateMode()
 
         NotificationCenter.default.addObserver(self,
                                                selector: #selector(updateMode),
@@ -72,37 +72,26 @@ class ContactViewController: OWSTableViewController2 {
 
     // MARK: Contact Data
 
+    private static func phoneNumberPartition(for contactShare: ContactShareViewModel) -> OWSContact.PhoneNumberPartition {
+        return databaseStorage.read(block: contactShare.dbRecord.phoneNumberPartition(tx:))
+    }
+
+    private static func viewMode(for phoneNumberPartition: OWSContact.PhoneNumberPartition) -> ContactViewMode {
+        return phoneNumberPartition.map(
+            ifSendablePhoneNumbers: { _ in .systemContactWithSignal },
+            elseIfInvitablePhoneNumbers: { _ in .systemContactWithoutSignal },
+            elseIfAddablePhoneNumbers: { _ in .nonSystemContact },
+            elseIfNoPhoneNumbers: { .noPhoneNumber }
+        )
+    }
+
     @objc
     private func updateMode() {
         AssertIsOnMainThread()
 
-        if contactShare.e164PhoneNumbers().isEmpty {
-            viewMode = .noPhoneNumber
-            return
-        }
-        if !systemContactsWithSignalAccountsForContact().isEmpty {
-            viewMode = .systemContactWithSignal
-            return
-        }
-        if !systemContactsForContact().isEmpty {
-            viewMode = .systemContactWithoutSignal
-            return
-        }
-        viewMode = .nonSystemContact
-    }
-
-    private func systemContactsWithSignalAccountsForContact() -> [String] {
-        AssertIsOnMainThread()
-
-        return contactShare.systemContactsWithSignalAccountPhoneNumbers()
-    }
-
-    private func systemContactsForContact() -> [String] {
-        AssertIsOnMainThread()
-
-        return databaseStorage.read { transaction in
-            contactShare.systemContactPhoneNumbers(transaction: transaction)
-        }
+        let phoneNumberPartition = Self.phoneNumberPartition(for: contactShare)
+        viewMode = Self.viewMode(for: phoneNumberPartition)
+        sendablePhoneNumbers = phoneNumberPartition.sendablePhoneNumbers
     }
 
     private func showInviteToSignal() -> Bool {
@@ -116,7 +105,7 @@ class ContactViewController: OWSTableViewController2 {
 
     private func showAddToContacts() -> Bool {
         switch viewMode {
-        case .nonSystemContact, .noPhoneNumber:
+        case .nonSystemContact:
             return true
         default:
             return false
@@ -163,8 +152,8 @@ class ContactViewController: OWSTableViewController2 {
             )
             let buttonAudioCall = SettingsHeaderButton(
                 text: OWSLocalizedString(
-                    "CONVERSATION_SETTINGS_AUDIO_CALL_BUTTON",
-                    comment: "Button to start a audio call"
+                    "CONVERSATION_SETTINGS_VOICE_CALL_BUTTON",
+                    comment: "Button to start a voice call"
                 ),
                 icon: .buttonVoiceCall,
                 backgroundColor: Theme.tableCell2BackgroundColor,
@@ -189,8 +178,7 @@ class ContactViewController: OWSTableViewController2 {
         if showInviteToSignal() {
             actionsSection.add(.disclosureItem(
                 icon: .settingsInvite,
-                name: OWSLocalizedString("ACTION_INVITE", comment: ""),
-                accessibilityIdentifier: "invite_contact_share",
+                withText: OWSLocalizedString("ACTION_INVITE", comment: ""),
                 actionBlock: { [weak self] in
                     self?.didPressInvite()
                 }
@@ -200,11 +188,10 @@ class ContactViewController: OWSTableViewController2 {
         if showAddToContacts() {
             actionsSection.add(.disclosureItem(
                 icon: .contactInfoAddToContacts,
-                name: OWSLocalizedString(
+                withText: OWSLocalizedString(
                     "CONVERSATION_VIEW_ADD_TO_CONTACTS_OFFER",
                     comment: "")
                 ,
-                accessibilityIdentifier: "add_to_contacts",
                 actionBlock: { [weak self] in
                     self?.didPressAddToContacts()
                 }
@@ -345,31 +332,31 @@ extension ContactViewController {
     private func didPressSendMessage() {
         Logger.info("")
 
-        contactShareViewHelper.sendMessage(contactShare: contactShare, fromViewController: self)
+        contactShareViewHelper.sendMessage(to: sendablePhoneNumbers, from: self)
     }
 
     private func didPressAudioCall() {
         Logger.info("")
 
-        contactShareViewHelper.audioCall(contactShare: contactShare, fromViewController: self)
+        contactShareViewHelper.audioCall(to: sendablePhoneNumbers, from: self)
     }
 
     private func didPressVideoCall() {
         Logger.info("")
 
-        contactShareViewHelper.videoCall(contactShare: contactShare, fromViewController: self)
+        contactShareViewHelper.videoCall(to: sendablePhoneNumbers, from: self)
     }
 
     private func didPressInvite() {
         Logger.info("")
 
-        contactShareViewHelper.showInviteContact(contactShare: contactShare, fromViewController: self)
+        contactShareViewHelper.showInviteContact(contactShare: contactShare, from: self)
     }
 
     private func didPressAddToContacts() {
         Logger.info("")
 
-        contactShareViewHelper.showAddToContacts(contactShare: contactShare, fromViewController: self)
+        contactShareViewHelper.showAddToContactsPrompt(contactShare: contactShare, from: self)
     }
 
     private func didPressPhoneNumber(phoneNumber: OWSContactPhoneNumber) {
@@ -377,33 +364,34 @@ extension ContactViewController {
 
         let actionSheet = ActionSheetController(title: nil, message: nil)
 
-        if let e164 = phoneNumber.e164 {
-            let address = SignalServiceAddress(phoneNumber: e164)
-            if contactShare.systemContactsWithSignalAccountPhoneNumbers().contains(e164) {
-                actionSheet.addAction(ActionSheetAction(
-                    title: CommonStrings.sendMessage,
-                    style: .default
-                ) { _ in
-                        SignalApp.shared.presentConversationForAddress(address, action: .compose, animated: true)
-                })
-                actionSheet.addAction(ActionSheetAction(
+        if let phoneNumber = phoneNumber.e164 {
+            let isRegistered = sendablePhoneNumbers.contains(phoneNumber)
+            if isRegistered {
+                func addAction(title: String, action: ConversationViewAction) {
+                    actionSheet.addAction(ActionSheetAction(
+                        title: title,
+                        style: .default,
+                        handler: { _ in
+                            let address = SignalServiceAddress(phoneNumber: phoneNumber)
+                            SignalApp.shared.presentConversationForAddress(address, action: action, animated: true)
+                        }
+                    ))
+                }
+                addAction(title: CommonStrings.sendMessage, action: .compose)
+                addAction(
                     title: OWSLocalizedString(
-                        "ACTION_AUDIO_CALL",
+                        "ACTION_VOICE_CALL",
                         comment: "Label for 'voice call' button in contact view."
                     ),
-                    style: .default
-                ) { _ in
-                    SignalApp.shared.presentConversationForAddress(address, action: .audioCall, animated: true)
-                })
-                actionSheet.addAction(ActionSheetAction(
+                    action: .voiceCall
+                )
+                addAction(
                     title: OWSLocalizedString(
                         "ACTION_VIDEO_CALL",
                         comment: "Label for 'video call' button in contact view."
                     ),
-                    style: .default
-                ) { _ in
-                    SignalApp.shared.presentConversationForAddress(address, action: .videoCall, animated: true)
-                })
+                    action: .voiceCall
+                )
             } else {
                 // TODO: We could offer callPhoneNumberWithSystemCall.
             }
@@ -535,8 +523,6 @@ extension ContactViewController {
 extension ContactViewController: ContactShareViewHelperDelegate {
 
     func didCreateOrEditContact() {
-        Logger.info("")
         updateContent()
-        dismiss(animated: true)
     }
 }

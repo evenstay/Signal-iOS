@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalCoreKit
+import SignalServiceKit
 
 open class OWSStackView: UIStackView {
 
@@ -47,7 +47,7 @@ open class OWSStackView: UIStackView {
 
     public var layoutBlock: LayoutBlock?
 
-    public required init(name: String, arrangedSubviews: [UIView] = []) {
+    public init(name: String, arrangedSubviews: [UIView] = []) {
         super.init(frame: .zero)
 
         for subview in arrangedSubviews {
@@ -133,7 +133,7 @@ open class OWSStackView: UIStackView {
 
 // MARK: -
 
-extension NSLayoutConstraint.Axis: CustomStringConvertible {
+extension NSLayoutConstraint.Axis: @retroactive CustomStringConvertible {
     public var description: String {
         switch self {
         case .horizontal:
@@ -149,7 +149,7 @@ extension NSLayoutConstraint.Axis: CustomStringConvertible {
 
 // MARK: -
 
-extension UIStackView.Alignment: CustomStringConvertible {
+extension UIStackView.Alignment: @retroactive CustomStringConvertible {
     public var description: String {
         switch self {
         case .fill:

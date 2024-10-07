@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
 import SignalServiceKit
 import SignalUI
 
@@ -21,7 +20,7 @@ class DebugUICalling: DebugUIPage, Dependencies {
 
         let sectionItems = [
             OWSTableItem(title: "Send 'hangup' for old call") { [weak self] in
-                guard let strongSelf = self else { return }
+                guard let self else { return }
 
                 let kFakeCallId = UInt64(12345)
                 var hangupMessage: SSKProtoCallMessageHangup
@@ -41,14 +40,18 @@ class DebugUICalling: DebugUIPage, Dependencies {
                     )
                 }
 
-                strongSelf.messageSender.sendMessage(.promise, callMessage.asPreparer).done {
-                    Logger.debug("Successfully sent hangup call message to \(contactThread.contactAddress)")
-                }.catch { error in
-                    Logger.error("failed to send hangup call message to \(contactThread.contactAddress) with error: \(error)")
+                Task {
+                    do {
+                        let preparedMessage = PreparedOutgoingMessage.preprepared(transientMessageWithoutAttachments: callMessage)
+                        try await self.messageSender.sendMessage(preparedMessage)
+                        Logger.debug("Successfully sent hangup call message to \(contactThread.contactAddress)")
+                    } catch {
+                        Logger.error("failed to send hangup call message to \(contactThread.contactAddress) with error: \(error)")
+                    }
                 }
             },
             OWSTableItem(title: "Send 'busy' for old call") { [weak self] in
-                guard let strongSelf = self else { return }
+                guard let self else { return }
 
                 let kFakeCallId = UInt64(12345)
                 var busyMessage: SSKProtoCallMessageBusy
@@ -68,10 +71,14 @@ class DebugUICalling: DebugUIPage, Dependencies {
                         transaction: $0)
                 }
 
-                strongSelf.messageSender.sendMessage(.promise, callMessage.asPreparer).done {
-                    Logger.debug("Successfully sent busy call message to \(contactThread.contactAddress)")
-                }.catch { error in
-                    Logger.error("failed to send busy call message to \(contactThread.contactAddress) with error: \(error)")
+                Task {
+                    do {
+                        let preparedMessage = PreparedOutgoingMessage.preprepared(transientMessageWithoutAttachments: callMessage)
+                        try await self.messageSender.sendMessage(preparedMessage)
+                        Logger.debug("Successfully sent busy call message to \(contactThread.contactAddress)")
+                    } catch {
+                        Logger.error("failed to send busy call message to \(contactThread.contactAddress) with error: \(error)")
+                    }
                 }
             }
         ]

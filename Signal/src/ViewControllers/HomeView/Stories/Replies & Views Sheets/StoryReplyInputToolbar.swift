@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
+import SignalServiceKit
 import SignalUI
 import UIKit
 
@@ -225,7 +225,9 @@ class StoryReplyInputToolbar: UIView {
                     "STORY_REPLY_TO_PRIVATE_TEXT_FIELD_PLACEHOLDER",
                     comment: "placeholder text for replying to a private story. Embeds {{author name}}"
                 )
-                let authorName = contactsManager.displayName(for: quotedReplyModel.authorAddress)
+                let authorName = databaseStorage.read { tx in
+                    return contactsManager.displayName(for: quotedReplyModel.originalMessageAuthorAddress, tx: tx).resolvedValue()
+                }
                 return String(format: format, authorName)
             } else {
                 return OWSLocalizedString(
@@ -331,7 +333,7 @@ class StoryReplyInputToolbar: UIView {
         }
 
         let contentSize = textView.sizeThatFits(CGSize(width: textView.frame.width, height: .greatestFiniteMagnitude))
-        let newHeight = CGFloatClamp(contentSize.height, minTextViewHeight, maxTextViewHeight)
+        let newHeight = CGFloat.clamp(contentSize.height, min: minTextViewHeight, max: maxTextViewHeight)
         guard textViewHeightConstraint.constant != newHeight else { return }
 
         if let superview {

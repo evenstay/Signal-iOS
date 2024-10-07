@@ -4,7 +4,7 @@
 //
 
 import Foundation
-import SignalMessaging
+import SignalServiceKit
 import SignalUI
 
 // This is a base class for cells in All Media that have a wide, one-per-row
@@ -37,6 +37,10 @@ class MediaTileListModeCell: UICollectionViewCell, MediaGalleryCollectionViewCel
     }()
 
     private let selectedMaskView = UIView()
+
+    // This property allows us to add vertical margins above and below content "card".
+    // Intended to be used by subclasses only because MediaTileListModeCell doesn't set up the content view.
+    class var contentCardVerticalInset: CGFloat { 0 }
 
     override init(frame: CGRect) {
         super.init(frame: frame)

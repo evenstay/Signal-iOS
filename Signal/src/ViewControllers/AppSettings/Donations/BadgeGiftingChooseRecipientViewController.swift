@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
 import SignalServiceKit
 import SignalUI
 
@@ -32,7 +31,7 @@ class BadgeGiftingChooseRecipientViewController: RecipientPickerContainerViewCon
             comment: "Title on the screen where you choose who you're going to donate on behalf of."
         )
 
-        recipientPicker.allowsAddByPhoneNumber = false
+        recipientPicker.allowsAddByAddress = false
         recipientPicker.shouldHideLocalRecipient = true
         recipientPicker.groupsToShow = .noGroups
         recipientPicker.delegate = self
@@ -56,7 +55,7 @@ class BadgeGiftingChooseRecipientViewController: RecipientPickerContainerViewCon
     }
 }
 
-extension BadgeGiftingChooseRecipientViewController: RecipientPickerDelegate {
+extension BadgeGiftingChooseRecipientViewController: RecipientPickerDelegate, UsernameLinkScanDelegate {
 
     private static func getRecipientAddress(_ recipient: PickedRecipient) -> SignalServiceAddress? {
         guard let address = recipient.address, address.isValid, !address.isLocalAddress else {
@@ -90,28 +89,4 @@ extension BadgeGiftingChooseRecipientViewController: RecipientPickerDelegate {
         self.navigationController?.pushViewController(vc, animated: true)
     }
 
-    func recipientPicker(_ recipientPickerViewController: RecipientPickerViewController,
-                         prepareToSelectRecipient recipient: PickedRecipient) -> AnyPromise {
-        return AnyPromise(Promise.value(()))
-    }
-
-    func recipientPicker(_ recipientPickerViewController: RecipientPickerViewController,
-                         accessoryMessageForRecipient recipient: PickedRecipient,
-                         transaction: SDSAnyReadTransaction) -> String? { nil }
-
-    func recipientPicker(
-        _ recipientPickerViewController: RecipientPickerViewController,
-        accessoryViewForRecipient recipient: PickedRecipient,
-        transaction: SDSAnyReadTransaction
-    ) -> ContactCellAccessoryView? { nil }
-
-    func recipientPicker(_ recipientPickerViewController: RecipientPickerViewController,
-                         attributedSubtitleForRecipient recipient: PickedRecipient,
-                         transaction: SDSAnyReadTransaction) -> NSAttributedString? { nil }
-
-    func recipientPickerTableViewWillBeginDragging(_ recipientPickerViewController: RecipientPickerViewController) {}
-
-    func recipientPickerNewGroupButtonWasPressed() {}
-
-    func recipientPickerCustomHeaderViews() -> [UIView] { [] }
 }

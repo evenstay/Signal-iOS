@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
+import SignalServiceKit
 import SignalUI
 
 class PrivacySettingsViewController: OWSTableViewController2 {
@@ -17,7 +17,7 @@ class PrivacySettingsViewController: OWSTableViewController2 {
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(updateTableContents),
-            name: .OWSSyncManagerConfigurationSyncDidComplete,
+            name: .syncManagerConfigurationSyncDidComplete,
             object: nil
         )
     }
@@ -34,20 +34,19 @@ class PrivacySettingsViewController: OWSTableViewController2 {
 
         let whoCanSection = OWSTableSection()
 
-        if FeatureFlags.phoneNumberPrivacy {
-            whoCanSection.add(.disclosureItem(
-                withText: OWSLocalizedString(
-                    "SETTINGS_PHONE_NUMBER_PRIVACY_TITLE",
-                    comment: "The title for phone number privacy settings."),
-                actionBlock: { [weak self] in
-                    let vc = PhoneNumberPrivacySettingsViewController()
-                    self?.navigationController?.pushViewController(vc, animated: true)
-                }
-            ))
-            whoCanSection.footerTitle = OWSLocalizedString(
-                "SETTINGS_PHONE_NUMBER_PRIVACY_DESCRIPTION_LABEL",
-                comment: "Description label for Phone Number Privacy")
-        }
+        whoCanSection.add(.disclosureItem(
+            withText: OWSLocalizedString(
+                "SETTINGS_PHONE_NUMBER_PRIVACY_TITLE",
+                comment: "The title for phone number privacy settings."),
+            actionBlock: { [weak self] in
+                let vc = PhoneNumberPrivacySettingsViewController()
+                self?.navigationController?.pushViewController(vc, animated: true)
+            }
+        ))
+        whoCanSection.footerTitle = OWSLocalizedString(
+            "SETTINGS_PHONE_NUMBER_PRIVACY_DESCRIPTION_LABEL",
+            comment: "Description label for Phone Number Privacy"
+        )
 
         if !whoCanSection.items.isEmpty {
             contents.add(whoCanSection)
@@ -131,7 +130,7 @@ class PrivacySettingsViewController: OWSTableViewController2 {
         let appSecuritySection = OWSTableSection()
         appSecuritySection.headerTitle = OWSLocalizedString("SETTINGS_SECURITY_TITLE", comment: "Section header")
 
-        switch ScreenLock.shared.biometryType {
+        switch DeviceOwnerAuthenticationType.current {
         case .unknown:
             appSecuritySection.footerTitle = OWSLocalizedString("SETTINGS_SECURITY_DETAIL", comment: "Section footer")
         case .passcode:
@@ -140,6 +139,8 @@ class PrivacySettingsViewController: OWSTableViewController2 {
             appSecuritySection.footerTitle = OWSLocalizedString("SETTINGS_SECURITY_DETAIL_FACEID", comment: "Section footer")
         case .touchId:
             appSecuritySection.footerTitle = OWSLocalizedString("SETTINGS_SECURITY_DETAIL_TOUCHID", comment: "Section footer")
+        case .opticId:
+            appSecuritySection.footerTitle = OWSLocalizedString("SETTINGS_SECURITY_DETAIL_OPTICID", comment: "Section footer")
         }
 
         appSecuritySection.add(.switch(
@@ -163,7 +164,7 @@ class PrivacySettingsViewController: OWSTableViewController2 {
                     "SETTINGS_SCREEN_LOCK_ACTIVITY_TIMEOUT",
                     comment: "Label for the 'screen lock activity timeout' setting of the privacy settings."
                 ),
-                detailText: formatScreenLockTimeout(ScreenLock.shared.screenLockTimeout()),
+                accessoryText: formatScreenLockTimeout(ScreenLock.shared.screenLockTimeout()),
                 actionBlock: { [weak self] in
                     self?.showScreenLockTimeoutPicker()
                 }
@@ -175,7 +176,7 @@ class PrivacySettingsViewController: OWSTableViewController2 {
         let paymentsSection = OWSTableSection()
         paymentsSection.headerTitle = OWSLocalizedString("SETTINGS_PAYMENTS_SECURITY_TITLE", comment: "Title for the payments section in the app’s privacy settings tableview")
 
-        switch BiometryType.biometryType {
+        switch DeviceOwnerAuthenticationType.current {
         case .unknown:
             paymentsSection.footerTitle = OWSLocalizedString("SETTINGS_PAYMENTS_SECURITY_DETAIL", comment: "Caption for footer label beneath the payments lock privacy toggle for a biometry type that is unknown.")
         case .passcode:
@@ -184,6 +185,8 @@ class PrivacySettingsViewController: OWSTableViewController2 {
             paymentsSection.footerTitle = OWSLocalizedString("SETTINGS_PAYMENTS_SECURITY_DETAIL_FACEID", comment: "Caption for footer label beneath the payments lock privacy toggle for faceid biometry.")
         case .touchId:
             paymentsSection.footerTitle = OWSLocalizedString("SETTINGS_PAYMENTS_SECURITY_DETAIL_TOUCHID", comment: "Caption for footer label beneath the payments lock privacy toggle for touchid biometry")
+        case .opticId:
+            paymentsSection.footerTitle = OWSLocalizedString("SETTINGS_PAYMENTS_SECURITY_DETAIL_OPTICID", comment: "Caption for footer label beneath the payments lock privacy toggle for opticid biometry")
         }
 
         paymentsSection.add(.switch(
@@ -191,33 +194,33 @@ class PrivacySettingsViewController: OWSTableViewController2 {
                 "SETTINGS_PAYMENTS_LOCK_SWITCH_LABEL",
                 comment: "Label for UISwitch based payments-lock setting that when enabled requires biometric-authentication (or passcode) to transfer funds or view the recovery phrase."
             ),
-            isOn: { OWSPaymentsLock.shared.isPaymentsLockEnabled() },
+            isOn: { Self.owsPaymentsLock.isPaymentsLockEnabled() },
             target: self,
             selector: #selector(didTogglePaymentsLockSwitch)
         ))
         contents.add(paymentsSection)
 
-        if !CallUIAdapter.isCallkitDisabledForLocale {
-            let callsSection = OWSTableSection()
-            callsSection.headerTitle = OWSLocalizedString(
-                "SETTINGS_SECTION_TITLE_CALLING",
-                comment: "settings topic header for table section"
-            )
-            callsSection.footerTitle = OWSLocalizedString(
-                "SETTINGS_SECTION_FOOTER_CALLING",
-                comment: "Footer for table section"
-            )
-            callsSection.add(.switch(
-                withText: OWSLocalizedString(
-                    "SETTINGS_PRIVACY_CALLKIT_SYSTEM_CALL_LOG_PREFERENCE_TITLE",
-                    comment: "Short table cell label"
-                ),
-                isOn: { Self.preferences.isSystemCallLogEnabled },
-                target: self,
-                selector: #selector(didToggleEnableSystemCallLogSwitch)
-            ))
-            contents.add(callsSection)
-        }
+        let callsSection = OWSTableSection()
+        callsSection.headerTitle = OWSLocalizedString(
+            "SETTINGS_SECTION_TITLE_CALLING",
+            comment: "settings topic header for table section"
+        )
+        callsSection.footerTitle = OWSLocalizedString(
+            "SETTINGS_SECTION_FOOTER_CALLING",
+            comment: "Footer for table section"
+        )
+        callsSection.add(.switch(
+            withText: OWSLocalizedString(
+                "SETTINGS_PRIVACY_CALLKIT_SYSTEM_CALL_LOG_PREFERENCE_TITLE",
+                comment: "Short table cell label"
+            ),
+            isOn: { [unowned self] in
+                return self.databaseStorage.read(block: self.preferences.isSystemCallLogEnabled(tx:))
+            },
+            target: self,
+            selector: #selector(didToggleEnableSystemCallLogSwitch)
+        ))
+        contents.add(callsSection)
 
         let advancedSection = OWSTableSection()
         advancedSection.footerTitle = OWSLocalizedString(
@@ -263,8 +266,8 @@ class PrivacySettingsViewController: OWSTableViewController2 {
     @objc
     private func didTogglePaymentsLockSwitch(_ sender: UISwitch) {
         // Require unlock to disable payments lock
-        if OWSPaymentsLock.shared.isPaymentsLockEnabled() {
-            OWSPaymentsLock.shared.tryToUnlock { [weak self] outcome in
+        if Self.owsPaymentsLock.isPaymentsLockEnabled() {
+            Self.owsPaymentsLock.tryToUnlock { [weak self] outcome in
                 guard let self = self else { return }
                 guard case .success = outcome else {
                     self.updateTableContents()
@@ -272,13 +275,13 @@ class PrivacySettingsViewController: OWSTableViewController2 {
                     return
                 }
                 self.databaseStorage.write { transaction in
-                    OWSPaymentsLock.shared.setIsPaymentsLockEnabled(false, transaction: transaction)
+                    Self.owsPaymentsLock.setIsPaymentsLockEnabled(false, transaction: transaction)
                 }
                 self.updateTableContents()
             }
         } else {
             databaseStorage.write { transaction in
-                OWSPaymentsLock.shared.setIsPaymentsLockEnabled(true, transaction: transaction)
+                Self.owsPaymentsLock.setIsPaymentsLockEnabled(true, transaction: transaction)
             }
             self.updateTableContents()
         }
@@ -320,6 +323,6 @@ class PrivacySettingsViewController: OWSTableViewController2 {
         preferences.setIsSystemCallLogEnabled(sender.isOn)
 
         // rebuild callUIAdapter since CallKit configuration changed.
-        Self.callService.createCallUIAdapter()
+        AppEnvironment.shared.callService.rebuildCallUIAdapter()
     }
 }

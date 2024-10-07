@@ -4,8 +4,8 @@
 //
 
 import Foundation
-import SignalMessaging
-import SignalUI
+import SignalServiceKit
+public import SignalUI
 
 /// Presents information about legacy (V1) and new (V2) groups.
 public class LegacyGroupLearnMoreViewController: InteractiveSheetViewController {

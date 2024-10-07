@@ -3,10 +3,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalCoreKit
+import SignalServiceKit
 import SignalUI
 
-class AppearanceSettingsTableViewController: OWSTableViewController2 {
+final class AppearanceSettingsTableViewController: OWSTableViewController2 {
     override func viewDidLoad() {
         super.viewDidLoad()
 
@@ -28,17 +28,17 @@ class AppearanceSettingsTableViewController: OWSTableViewController2 {
         firstSection.add(OWSTableItem.disclosureItem(
             withText: OWSLocalizedString("SETTINGS_APPEARANCE_THEME_TITLE",
                                         comment: "The title for the theme section in the appearance settings."),
-            detailText: ThemeSettingsTableViewController.currentThemeName,
-            accessibilityIdentifier: UIView.accessibilityIdentifier(in: self, name: "theme")
+            accessoryText: ThemeSettingsTableViewController.currentThemeName
         ) { [weak self] in
             guard let self = self else { return }
             let vc = ThemeSettingsTableViewController()
             self.navigationController?.pushViewController(vc, animated: true)
         })
         firstSection.add(OWSTableItem.disclosureItem(
-            withText: OWSLocalizedString("SETTINGS_ITEM_COLOR_AND_WALLPAPER",
-                                        comment: "Label for settings view that allows user to change the chat color and wallpaper."),
-            accessibilityIdentifier: UIView.accessibilityIdentifier(in: self, name: "color_and_wallpaper")
+            withText: OWSLocalizedString(
+                "SETTINGS_ITEM_COLOR_AND_WALLPAPER",
+                comment: "Label for settings view that allows user to change the chat color and wallpaper."
+            )
         ) { [weak self] in
             guard let self = self else { return }
             let vc = ColorAndWallpaperSettingsViewController()
@@ -74,7 +74,7 @@ class AppearanceSettingsTableViewController: OWSTableViewController2 {
     }
 
     private func buildCurrentAppIconView() -> UIView {
-        let image = UIImage(named: CustomAppIcon.currentIconImageName)
+        let image = UIImage(resource: UIApplication.shared.currentAppIcon.previewImageResource)
         let imageView = UIImageView(image: image)
         imageView.autoSetDimensions(to: .square(24))
         // 60x60 icons have corner radius 12

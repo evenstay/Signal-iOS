@@ -3,8 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import LibSignalClient
-import SignalCoreKit
+public import LibSignalClient
 
 public class UsernameApiClientImpl: UsernameApiClient {
     private let networkManager: Shims.NetworkManager
@@ -84,7 +83,7 @@ public class UsernameApiClientImpl: UsernameApiClient {
                 //
                 // Either way, the reservation has been rejected.
                 return .rejected
-            case 413:
+            case 413, 429:
                 return .rateLimited
             default:
                 throw OWSAssertionError("Unexpected status code: \(statusCode)!")
@@ -100,13 +99,15 @@ public class UsernameApiClientImpl: UsernameApiClient {
 
     public func confirmReservedUsername(
         reservedUsername: Usernames.HashedUsername,
-        encryptedUsernameForLink: Data
+        encryptedUsernameForLink: Data,
+        chatServiceAuth: ChatServiceAuth
     ) -> Promise<Usernames.ApiClientConfirmationResult> {
         let request = OWSRequestFactory.confirmReservedUsernameRequest(
             reservedUsernameHash: reservedUsername.hashString,
             reservedUsernameZKProof: reservedUsername.proofString,
             encryptedUsernameForLink: encryptedUsernameForLink
         )
+        request.setAuth(chatServiceAuth)
 
         func onRequestSuccess(response: HTTPResponse) throws -> Usernames.ApiClientConfirmationResult {
             guard response.responseStatusCode == 200 else {
@@ -140,7 +141,7 @@ public class UsernameApiClientImpl: UsernameApiClient {
                 //
                 // Either way, we've been rejected.
                 return .rejected
-            case 413:
+            case 413, 429:
                 return .rateLimited
             default:
                 throw OWSAssertionError("Unexpected status code: \(statusCode)")
@@ -224,9 +225,13 @@ public class UsernameApiClientImpl: UsernameApiClient {
 
     // MARK: Links
 
-    public func setUsernameLink(encryptedUsername: Data) -> Promise<UUID> {
+    public func setUsernameLink(
+        encryptedUsername: Data,
+        keepLinkHandle: Bool
+    ) -> Promise<UUID> {
         let request = OWSRequestFactory.setUsernameLinkRequest(
-            encryptedUsername: encryptedUsername
+            encryptedUsername: encryptedUsername,
+            keepLinkHandle: keepLinkHandle
         )
 
         func onRequestSuccess(response: HTTPResponse) throws -> UUID {

@@ -6,8 +6,7 @@
 import Foundation
 import SSZipArchive
 import zlib
-import SignalCoreKit
-import SignalMessaging
+import SignalServiceKit
 import SignalUI
 
 typealias UploadDebugLogsSuccess = (URL) -> Void
@@ -169,7 +168,7 @@ class DebugLogs: NSObject {
         let zipDirPath = zipDirUrl.path
         OWSFileSystem.ensureDirectoryExists(zipDirPath)
 
-        let logFilePaths = DebugLogger.shared().allLogFilePaths()
+        let logFilePaths = DebugLogger.shared.allLogFilePaths
         if logFilePaths.isEmpty {
             return .failure(NoLogsError())
         }
@@ -215,6 +214,10 @@ class DebugLogs: NSObject {
             DispatchMainThreadSafe { failure(localizedErrorMessage, logArchiveOrDirectoryPath) }
         }
 
+        // Phase 0. Flush any pending logs to disk.
+        Logger.info("About to zip debug logs")
+        Logger.flush()
+
         // Phase 1. Make a local copy of all of the log files.
         let zipDirPath: String
         switch collectLogs() {
@@ -251,7 +254,7 @@ class DebugLogs: NSObject {
         // Phase 3. Upload the log files.
         DebugLogUploader.uploadFile(
             fileUrl: URL(fileURLWithPath: zipFilePath),
-            mimeType: OWSMimeTypeApplicationZip
+            mimeType: MimeType.applicationZip.rawValue
         ).done(on: DispatchQueue.global()) { url in
             OWSFileSystem.deleteFile(zipFilePath)
             wrappedSuccess(url)

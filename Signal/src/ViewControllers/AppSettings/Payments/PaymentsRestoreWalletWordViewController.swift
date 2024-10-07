@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
-import SignalUI
+public import SignalServiceKit
+public import SignalUI
 
 public class PaymentsRestoreWalletWordViewController: OWSViewController {
 
@@ -32,9 +32,9 @@ public class PaymentsRestoreWalletWordViewController: OWSViewController {
 
     private let warningLabel = UILabel()
 
-    public required init(restoreWalletDelegate: PaymentsRestoreWalletDelegate,
-                         partialPassphrase: PartialPaymentsPassphrase,
-                         wordIndex: Int) {
+    public init(restoreWalletDelegate: PaymentsRestoreWalletDelegate,
+                partialPassphrase: PartialPaymentsPassphrase,
+                wordIndex: Int) {
         self.restoreWalletDelegate = restoreWalletDelegate
         self.partialPassphrase = partialPassphrase
         self.wordIndex = wordIndex

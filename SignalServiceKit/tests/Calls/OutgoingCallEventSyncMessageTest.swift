@@ -8,7 +8,7 @@ import XCTest
 
 @testable import SignalServiceKit
 
-final class OutgoingCallEventSyncMessageSerializationTest: SSKBaseTestSwift {
+final class OutgoingCallEventSyncMessageSerializationTest: SSKBaseTest {
     /// ``OutgoingCallEventSyncMessage`` used to be defined in ObjC. This test
     /// contains a hardcoded base64url-encoded representation of an instance of
     /// that class that was archived:
@@ -48,7 +48,7 @@ final class OutgoingCallEventSyncMessageSerializationTest: SSKBaseTestSwift {
         XCTAssertEqual(syncMessage.callEvent.timestamp, 98765)
         XCTAssertEqual(
             syncMessage.callEvent.conversationId,
-            UUID(uuidString: "F9A2CF64-8456-4478-ADB5-3380DEDAE622")!.data
+            Data(Aci.parseFrom(aciString: "F9A2CF64-8456-4478-ADB5-3380DEDAE622")!.serviceIdBinary)
         )
     }
 
@@ -72,7 +72,7 @@ final class OutgoingCallEventSyncMessageSerializationTest: SSKBaseTestSwift {
                 thread: ContactThreadFactory().create(transaction: tx),
                 event: OutgoingCallEvent(
                     timestamp: 98765,
-                    conversationId: UUID().data,
+                    conversationId: Aci.randomForTesting().serviceIdBinary.asData,
                     callId: 12345,
                     callType: .video,
                     eventDirection: .outgoing,

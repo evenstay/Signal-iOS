@@ -3,8 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
-import SignalServiceKit
+public import SignalServiceKit
 
 public class BlockListUIUtils: Dependencies {
 
@@ -35,7 +34,7 @@ public class BlockListUIUtils: Dependencies {
         from viewController: UIViewController,
         completion: Completion?
     ) {
-        let displayName = contactsManager.displayName(for: address)
+        let displayName = databaseStorage.read { tx in contactsManager.displayName(for: address, tx: tx).resolvedValue() }
         showBlockAddressesActionSheet(address, displayName: displayName, from: viewController, completion: completion)
     }
 
@@ -241,17 +240,7 @@ public class BlockListUIUtils: Dependencies {
         from viewController: UIViewController,
         completion: Completion?
     ) {
-        let displayName = contactsManager.displayName(for: address)
-        showUnblockAddressesActionSheet([address], displayName: displayName, from: viewController, completion: completion)
-    }
-
-    private static func showUnblockAddressesActionSheet(
-        _ addresses: [SignalServiceAddress],
-        displayName: String,
-        from viewController: UIViewController,
-        completion: Completion?
-    ) {
-        owsAssertDebug(!addresses.isEmpty)
+        let displayName = databaseStorage.read { tx in contactsManager.displayName(for: address, tx: tx).resolvedValue() }
         owsAssertDebug(!displayName.isEmpty)
 
         let actionSheetTitle = String(
@@ -267,7 +256,7 @@ public class BlockListUIUtils: Dependencies {
             accessibilityIdentifier: "BlockListUIUtils.unblock",
             style: .destructive,
             handler: { _ in
-                unblockAddresses(addresses, displayName: displayName, from: viewController) { _ in
+                unblockAddress(address, displayName: displayName, from: viewController) { _ in
                     completion?(false)
                 }
             }
@@ -318,20 +307,17 @@ public class BlockListUIUtils: Dependencies {
         viewController.presentActionSheet(actionSheet)
     }
 
-    private static func unblockAddresses(
-        _ addresses: [SignalServiceAddress],
+    private static func unblockAddress(
+        _ address: SignalServiceAddress,
         displayName: String,
         from viewController: UIViewController,
         completion: ((ActionSheetAction) -> Void)?
     ) {
-        owsAssertDebug(!addresses.isEmpty)
+        owsAssertDebug(address.isValid)
         owsAssertDebug(!displayName.isEmpty)
 
         databaseStorage.write { tx in
-            for address in addresses {
-                owsAssertDebug(address.isValid)
-                self.blockingManager.removeBlockedAddress(address, wasLocallyInitiated: true, transaction: tx)
-            }
+            self.blockingManager.removeBlockedAddress(address, wasLocallyInitiated: true, transaction: tx)
         }
 
         let actionSheetTitleFormat = OWSLocalizedString(

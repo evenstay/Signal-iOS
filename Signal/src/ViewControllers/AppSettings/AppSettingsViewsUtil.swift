@@ -3,7 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalUI
+public import SignalUI
+import UIKit
 
 public class AppSettingsViewsUtil {
     public class func newCell(cellOuterInsets: UIEdgeInsets) -> UITableViewCell {

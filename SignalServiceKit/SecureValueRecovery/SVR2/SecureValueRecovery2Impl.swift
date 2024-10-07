@@ -10,7 +10,8 @@ import LibSignalClient
 public class SecureValueRecovery2Impl: SecureValueRecovery {
 
     private let accountAttributesUpdater: AccountAttributesUpdater
-    private let appReadiness: SVR2.Shims.AppReadiness
+    private let appContext: SVR2.Shims.AppContext
+    private let appReadiness: AppReadiness
     private let appVersion: AppVersion
     private let clientWrapper: SVR2ClientWrapper
     private let connectionFactory: SgxWebsocketConnectionFactory
@@ -27,7 +28,8 @@ public class SecureValueRecovery2Impl: SecureValueRecovery {
 
     public convenience init(
         accountAttributesUpdater: AccountAttributesUpdater,
-        appReadiness: SVR2.Shims.AppReadiness,
+        appContext: SVR2.Shims.AppContext,
+        appReadiness: AppReadiness,
         appVersion: AppVersion,
         connectionFactory: SgxWebsocketConnectionFactory,
         credentialStorage: SVRAuthCredentialStorage,
@@ -43,6 +45,7 @@ public class SecureValueRecovery2Impl: SecureValueRecovery {
     ) {
         self.init(
             accountAttributesUpdater: accountAttributesUpdater,
+            appContext: appContext,
             appReadiness: appReadiness,
             appVersion: appVersion,
             clientWrapper: SVR2ClientWrapperImpl(),
@@ -64,7 +67,8 @@ public class SecureValueRecovery2Impl: SecureValueRecovery {
 
     internal init(
         accountAttributesUpdater: AccountAttributesUpdater,
-        appReadiness: SVR2.Shims.AppReadiness,
+        appContext: SVR2.Shims.AppContext,
+        appReadiness: AppReadiness,
         appVersion: AppVersion,
         clientWrapper: SVR2ClientWrapper,
         connectionFactory: SgxWebsocketConnectionFactory,
@@ -80,6 +84,7 @@ public class SecureValueRecovery2Impl: SecureValueRecovery {
         twoFAManager: SVR2.Shims.OWS2FAManager
     ) {
         self.accountAttributesUpdater = accountAttributesUpdater
+        self.appContext = appContext
         self.appReadiness = appReadiness
         self.appVersion = appVersion
         self.clientWrapper = clientWrapper
@@ -99,11 +104,12 @@ public class SecureValueRecovery2Impl: SecureValueRecovery {
     }
 
     public func warmCaches() {
-        Logger.info("")
+        setLocalMasterKeyIfMissing()
+
         // Require migrations to succeed before we check for old stuff
         // to wipe, because migrations add old stuff to be wiped.
         // If a migration isn't needed, this returns a success immediately.
-        migrateEnclavesIfNecessary()
+        migrateEnclavesIfNecessary()?
             .done(on: scheduler) { [weak self] in
                 self?.wipeOldEnclavesIfNeeded(auth: .implicit)
                 self?.periodicRefreshCredentialIfNecessary()
@@ -124,12 +130,12 @@ public class SecureValueRecovery2Impl: SecureValueRecovery {
         else {
             return true
         }
-        return lastAppVersion != appVersion.currentAppVersion4
+        return lastAppVersion != appVersion.currentAppVersion
     }
 
     private func didRefreshCredentialInCurrentVersion(tx: DBWriteTransaction) {
         self.kvStore.setString(
-            appVersion.currentAppVersion4,
+            appVersion.currentAppVersion,
             key: Self.periodicCredentialRefreshAppVersionKey,
             transaction: tx
         )
@@ -152,7 +158,6 @@ public class SecureValueRecovery2Impl: SecureValueRecovery {
                 return self.getNeedsCredentialRefreshBasedOnVersion(tx: tx)
             }
             guard needsRefresh else {
-                Logger.info("No periodic credential refresh necessary.")
                 return
             }
             // Force refresh a credential, even if we have one cached, to ensure we
@@ -190,12 +195,12 @@ public class SecureValueRecovery2Impl: SecureValueRecovery {
     public func useDeviceLocalMasterKey(authedAccount: AuthedAccount, transaction: DBWriteTransaction) {
         Logger.info("")
         setLocalDataAndSyncStorageServiceIfNeeded(
-            masterKey: Cryptography.generateRandomBytes(SVR.masterKeyLengthBytes),
+            masterKey: Randomness.generateRandomBytes(SVR.masterKeyLengthBytes),
             isMasterKeyBackedUp: false,
             pinType: .alphanumeric,
             encodedPINVerificationString: nil,
             mrEnclaveStringValue: nil,
-            authedAccount: authedAccount,
+            mode: .syncStorageService(authedAccount),
             transaction: transaction
         )
         // Disable the PIN locally.
@@ -267,19 +272,20 @@ public class SecureValueRecovery2Impl: SecureValueRecovery {
         }
     }
 
-    public func generateAndBackupKeys(pin: String, authMethod: SVR.AuthMethod, rotateMasterKey: Bool) -> Promise<Void> {
-        let promise: Promise<Data> = self.generateAndBackupKeys(pin: pin, authMethod: authMethod, rotateMasterKey: rotateMasterKey)
+    public func generateAndBackupKeys(pin: String, authMethod: SVR.AuthMethod) -> Promise<Void> {
+        let promise: Promise<Data> = self.generateAndBackupKeys(pin: pin, authMethod: authMethod)
         return promise.asVoid(on: schedulers.sync)
     }
 
-    internal func generateAndBackupKeys(pin: String, authMethod: SVR.AuthMethod, rotateMasterKey: Bool) -> Promise<Data> {
-        Logger.info("backing up, rotating master key? \(rotateMasterKey)")
+    internal func generateAndBackupKeys(pin: String, authMethod: SVR.AuthMethod) -> Promise<Data> {
+        Logger.info("backing up")
         return firstly(on: scheduler) { [weak self] () -> Promise<Data> in
             guard let self else {
                 return .init(error: SVR.SVRError.assertion)
             }
             let masterKey: Data = {
-                if !rotateMasterKey, let masterKey = self.db.read(block: { tx in self.localStorage.getMasterKey(tx) }) {
+                // We never change the master key once stored (on the primary).
+                if let masterKey = self.db.read(block: { tx in self.localStorage.getMasterKey(tx) }) {
                     return masterKey
                 }
                 return self.generateMasterKey()
@@ -384,7 +390,6 @@ public class SecureValueRecovery2Impl: SecureValueRecovery {
         data: Data,
         transaction: DBReadTransaction
     ) -> SVR.ApplyDerivedKeyResult {
-        Logger.info("")
         guard let keyData = self.data(for: keyType, transaction: transaction) else {
             return .masterKeyMissing
         }
@@ -400,7 +405,6 @@ public class SecureValueRecovery2Impl: SecureValueRecovery {
         encryptedData: Data,
         transaction: DBReadTransaction
     ) -> SVR.ApplyDerivedKeyResult {
-        Logger.info("")
         guard let keyData = self.data(for: keyType, transaction: transaction) else {
             return .masterKeyMissing
         }
@@ -450,6 +454,7 @@ public class SecureValueRecovery2Impl: SecureValueRecovery {
     public func storeSyncedMasterKey(
         data: Data,
         authedDevice: AuthedDevice,
+        updateStorageService: Bool,
         transaction: DBWriteTransaction
     ) {
         Logger.info("")
@@ -460,7 +465,7 @@ public class SecureValueRecovery2Impl: SecureValueRecovery {
         localStorage.setSyncedStorageServiceKey(nil, transaction)
 
         // Trigger a re-fetch of the storage manifest if our keys have changed
-        if oldMasterKey != data {
+        if oldMasterKey != data, updateStorageService {
             storageServiceManager.restoreOrCreateManifestIfNecessary(authedDevice: authedDevice)
         }
     }
@@ -478,7 +483,6 @@ public class SecureValueRecovery2Impl: SecureValueRecovery {
     // MARK: - Value Derivation
 
     public func data(for key: SVR.DerivedKey, transaction: DBReadTransaction) -> SVR.DerivedKeyData? {
-        Logger.info("")
         func withMasterKey(_ handler: (Data) -> SVR.DerivedKeyData?) -> SVR.DerivedKeyData? {
             guard let masterKey = self.localStorage.getMasterKey(transaction) else {
                 return nil
@@ -541,6 +545,9 @@ public class SecureValueRecovery2Impl: SecureValueRecovery {
     }
 
     private static func deriveBackupKey(masterKey: Data) -> SVR.DerivedKeyData? {
+        guard FeatureFlags.messageBackupFileAlpha else {
+            owsFail("Internal only")
+        }
         return SVR.DerivedKeyData(SVR.DerivedKey.backupKey.derivedData(from: masterKey), .backupKey)
     }
 
@@ -855,7 +862,7 @@ public class SecureValueRecovery2Impl: SecureValueRecovery {
                                 pinType: backup.pinType,
                                 encodedPINVerificationString: backup.encodedPINVerificationString,
                                 mrEnclaveStringValue: backup.mrEnclaveStringValue,
-                                authedAccount: authedAccount,
+                                mode: .syncStorageService(authedAccount),
                                 transaction: tx
                             )
                         }
@@ -1047,7 +1054,7 @@ public class SecureValueRecovery2Impl: SecureValueRecovery {
                                 pinType: .init(forPin: pin),
                                 encodedPINVerificationString: encodedPINVerificationString,
                                 mrEnclaveStringValue: mrEnclave.stringValue,
-                                authedAccount: authedAccount,
+                                mode: .syncStorageService(authedAccount),
                                 transaction: tx
                             )
                         }
@@ -1183,7 +1190,6 @@ public class SecureValueRecovery2Impl: SecureValueRecovery {
     }
 
     private func wipeOldEnclavesIfNeeded(auth: SVR2.AuthMethod) {
-        Logger.info("Checking old enclaves to wipe")
         var (isRegistered, enclavesToDeleteFrom) = db.read { tx in
             return (
                 self.tsAccountManager.registrationState(tx: tx).isRegistered,
@@ -1218,14 +1224,46 @@ public class SecureValueRecovery2Impl: SecureValueRecovery {
         _ = doNextDelete()
     }
 
-    // MARK: - Migrating enclaves
+    // MARK: - Migrations
+
+    /// There was a bug with registration that would allow the user to register without having set a master key,
+    /// if they skipped the PIN code entry. What we actually wanted was to not _sync_ that master key with
+    /// SVR server, but we still want one locally.
+    /// Clean up this state by setting a local-only master key if we are a registered primary without one.
+    private func setLocalMasterKeyIfMissing() {
+        let (
+            hasMasterKey,
+            pinCode,
+            isRegisteredPrimary
+        ) = db.read { tx in
+            return (
+                self.hasMasterKey(transaction: tx),
+                self.twoFAManager.pinCode(transaction: tx),
+                self.tsAccountManager.registrationState(tx: tx).isRegisteredPrimaryDevice
+            )
+        }
+        if !hasMasterKey, isRegisteredPrimary {
+            db.write { tx in
+                if pinCode != nil {
+                    // We have a pin code but no master key? We know this has happened
+                    // in the wild but have no idea how.
+                    Logger.error("Have PIN but no master key")
+                }
+                self.useDeviceLocalMasterKey(authedAccount: .implicit(), transaction: tx)
+            }
+        }
+    }
 
     /// If there is a newer enclave than the one we most recently backed up to, backs up known
     /// master key data to it instead, marking the old enclave for deletion.
     /// If there is no migration needed, returns a success promise immediately.
-    private func migrateEnclavesIfNecessary() -> Promise<Void> {
-        return firstly(on: scheduler) { [weak self] () -> (String?, String, Data)? in
-            return self?.db.read { tx -> (String?, String, Data)? in
+    private func migrateEnclavesIfNecessary() -> Promise<Void>? {
+        // Never migrate in the NSE or extensions.
+        guard self.appContext.isMainApp else {
+            return nil
+        }
+        return firstly(on: scheduler) { [weak self] () -> (String, String, Data)? in
+            return self?.db.read { tx -> (String, String, Data)? in
                 guard
                     let self,
                     self.tsAccountManager.registrationState(tx: tx).isRegisteredPrimaryDevice,
@@ -1239,46 +1277,28 @@ public class SecureValueRecovery2Impl: SecureValueRecovery {
                 let currentEnclaveString = self.tsConstants.svr2Enclave.stringValue
                 let oldSVR2EnclaveString = self.localStorage.getSVR2MrEnclaveStringValue(tx)
 
-                let isBackedUpToOlderEnclaveNeedingMigration: Bool = {
-                    guard self.localStorage.getIsMasterKeyBackedUp(tx) else {
-                        // "isMasterKeyBackedUp" is shared between svr2 and kbs; if its
-                        // false that means we had no backups to begin with and therefore
-                        // should not back up to any new enclave.
-                        Logger.info("Not migrating; no previous backups.")
-                        return false
-                    }
-
-                    if
-                        let oldSVR2EnclaveString,
-                        oldSVR2EnclaveString != currentEnclaveString
-                    {
-                        // We are backed up to an svr2 enclave that isn't the current one.
-                        Logger.info("Migrating from old svr2 enclave")
-                        return true
-                    }
-                    if
-                        oldSVR2EnclaveString == nil,
-                        self.localStorage.hadSVR1Enclave(tx)
-                    {
-                        // We have not ever backed up to svr2, but we had backed up
-                        // to svr1 (kbs), so we should migrate immediately.
-                        Logger.info("Migrating from kbs")
-                        return true
-                    }
-                    return false
-                }()
-
-                guard isBackedUpToOlderEnclaveNeedingMigration else {
-                    // We only migrate if we actually have a backup on some enclave that isn't
-                    // the current one.
+                guard self.localStorage.getIsMasterKeyBackedUp(tx) else {
+                    // "isMasterKeyBackedUp" is shared between svr2 and kbs; if its
+                    // false that means we had no backups to begin with and therefore
+                    // should not back up to any new enclave.
+                    Logger.info("Not migrating; no previous backups.")
                     return nil
                 }
-                return (oldSVR2EnclaveString, pin, masterKey)
+
+                if
+                    let oldSVR2EnclaveString,
+                    oldSVR2EnclaveString != currentEnclaveString
+                {
+                    // We are backed up to an svr2 enclave that isn't the current one.
+                    Logger.info("Migrating from old svr2 enclave")
+                    return (oldSVR2EnclaveString, pin, masterKey)
+                }
+
+                return nil
             }
         }.then(on: scheduler) { [weak self] values -> Promise<Void> in
             guard let self, let (oldSVR2EnclaveString, pin, masterKey) = values else {
                 // No migration needed.
-                Logger.info("No migration necessary")
                 return .value(())
             }
 
@@ -1290,11 +1310,7 @@ public class SecureValueRecovery2Impl: SecureValueRecovery {
                     guard let self else {
                         return
                     }
-                    // The oldSVR2EnclaveString might be nil if we are migrating from KBS.
-                    // In these cases we shouldn't wipe anything from kbs; we will mirror
-                    // to kbs for a while and eventually kbs will be torn down for us.
                     if
-                        let oldSVR2EnclaveString,
                         let backedUpEnclave = self.tsConstants.svr2PreviousEnclaves.first(where: {
                             $0.stringValue == oldSVR2EnclaveString
                         }) {
@@ -1586,10 +1602,15 @@ public class SecureValueRecovery2Impl: SecureValueRecovery {
     // MARK: - Master key generation
 
     func generateMasterKey() -> Data {
-        return Cryptography.generateRandomBytes(SVR.masterKeyLengthBytes)
+        return Randomness.generateRandomBytes(SVR.masterKeyLengthBytes)
     }
 
     // MARK: - Local key storage helpers
+
+    private enum LocalDataUpdateMode {
+        case dontSyncStorageService
+        case syncStorageService(AuthedAccount)
+    }
 
     private func setLocalDataAndSyncStorageServiceIfNeeded(
         masterKey: Data,
@@ -1597,9 +1618,10 @@ public class SecureValueRecovery2Impl: SecureValueRecovery {
         pinType: SVR.PinType,
         encodedPINVerificationString: String?,
         mrEnclaveStringValue: String?,
-        authedAccount: AuthedAccount,
+        mode: LocalDataUpdateMode,
         transaction: DBWriteTransaction
     ) {
+        localStorage.cleanupDeadKeys(transaction)
         let masterKeyChanged = masterKey != localStorage.getMasterKey(transaction)
         if masterKeyChanged {
             localStorage.setMasterKey(masterKey, transaction)
@@ -1630,20 +1652,25 @@ public class SecureValueRecovery2Impl: SecureValueRecovery {
         storageServiceManager.resetLocalData(transaction: transaction)
 
         // If the app is ready start that restoration.
-        guard AppReadiness.isAppReady else { return }
+        guard appReadiness.isAppReady else { return }
 
-        storageServiceManager.restoreOrCreateManifestIfNecessary(authedDevice: authedAccount.authedDevice(isPrimaryDevice: true))
+        switch mode {
+        case .syncStorageService(let authedAccount):
+            storageServiceManager.restoreOrCreateManifestIfNecessary(authedDevice: authedAccount.authedDevice(isPrimaryDevice: true))
 
-        let syncManager = self.syncManager
-        storageServiceManager.waitForPendingRestores().observe { _ in
-            // Sync our new keys with linked devices, but wait until the storage
-            // service restore is done. That way we avoid the linked device getting
-            // the new keys first, failing to decrypt old storage service data,
-            // and asking for new keys even though thats not the problem.
-            // We don't wanna miss sending one of these, though, so go ahead and send it
-            // even if it fails. In any scenario it should eventually recover once
-            // both storage service and the linked device have the latest stuff.
-            syncManager.sendKeysSyncMessage()
+            let syncManager = self.syncManager
+            storageServiceManager.waitForPendingRestores().observe { _ in
+                // Sync our new keys with linked devices, but wait until the storage
+                // service restore is done. That way we avoid the linked device getting
+                // the new keys first, failing to decrypt old storage service data,
+                // and asking for new keys even though thats not the problem.
+                // We don't wanna miss sending one of these, though, so go ahead and send it
+                // even if it fails. In any scenario it should eventually recover once
+                // both storage service and the linked device have the latest stuff.
+                syncManager.sendKeysSyncMessage()
+            }
+        case .dontSyncStorageService:
+            break
         }
     }
 }

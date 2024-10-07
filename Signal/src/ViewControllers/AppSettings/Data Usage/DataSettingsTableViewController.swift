@@ -17,7 +17,7 @@ class DataSettingsTableViewController: OWSTableViewController2 {
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(preferencesDidChange),
-            name: OWSAttachmentDownloads.mediaBandwidthPreferencesDidChange,
+            name: MediaBandwidthPreferences.mediaBandwidthPreferencesDidChange,
             object: nil
         )
         NotificationCenter.default.addObserver(
@@ -42,16 +42,16 @@ class DataSettingsTableViewController: OWSTableViewController2 {
             comment: "Footer for the 'media auto-download' section in the data settings."
         )
 
-        let mediaDownloadTypes = MediaDownloadType.allCases.sorted {
+        let mediaDownloadTypes = MediaBandwidthPreferences.MediaType.allCases.sorted {
             $0.sortKey < $1.sortKey
         }
         var hasNonDefaultValue = false
         for mediaDownloadType in mediaDownloadTypes {
             let name = MediaDownloadSettingsViewController.name(forMediaDownloadType: mediaDownloadType)
             let bandwidthPreference = databaseStorage.read { transaction in
-                OWSAttachmentDownloads.mediaBandwidthPreference(
-                    forMediaDownloadType: mediaDownloadType,
-                    transaction: transaction
+                DependenciesBridge.shared.mediaBandwidthPreferenceStore.preference(
+                    for: mediaDownloadType,
+                    tx: transaction.asV2Read
                 )
             }
             let preferenceName = MediaDownloadSettingsViewController.name(forMediaBandwidthPreference: bandwidthPreference)
@@ -62,8 +62,7 @@ class DataSettingsTableViewController: OWSTableViewController2 {
 
             autoDownloadSection.add(OWSTableItem.disclosureItem(
                 withText: name,
-                detailText: preferenceName,
-                accessibilityIdentifier: mediaDownloadType.rawValue
+                accessoryText: preferenceName
             ) { [weak self] in
                 self?.showMediaDownloadView(forMediaDownloadType: mediaDownloadType)
             })
@@ -81,7 +80,7 @@ class DataSettingsTableViewController: OWSTableViewController2 {
                 accessibilityIdentifier: resetAccessibilityIdentifier
             ) {
                 Self.databaseStorage.asyncWrite { transaction in
-                    OWSAttachmentDownloads.resetMediaBandwidthPreferences(transaction: transaction)
+                    DependenciesBridge.shared.mediaBandwidthPreferenceStore.resetPreferences(tx: transaction.asV2Write)
                 }
             })
         } else {
@@ -107,7 +106,7 @@ class DataSettingsTableViewController: OWSTableViewController2 {
                 "SETTINGS_DATA_SENT_MEDIA_QUALITY_ITEM_TITLE",
                 comment: "Item title for the sent media quality setting"
             ),
-            detailText: databaseStorage.read { ImageQualityLevel.default(transaction: $0) }.localizedString,
+            accessoryText: databaseStorage.read(block: ImageQualityLevel.resolvedQuality(tx:)).localizedString,
             actionBlock: { [weak self] in
                 self?.showSentMediaQualityPreferences()
             }
@@ -135,7 +134,7 @@ class DataSettingsTableViewController: OWSTableViewController2 {
             withText: OWSLocalizedString(
                 "SETTINGS_DATA_CALL_LOW_BANDWIDTH_ITEM_TITLE",
                 comment: "Item title for the low bandwidth call setting"),
-            detailText: currentCallDataPreferenceString ?? "",
+            accessoryText: currentCallDataPreferenceString ?? "",
             actionBlock: { [weak self] in
                 self?.showCallDataPreferences()
             }
@@ -168,16 +167,17 @@ class DataSettingsTableViewController: OWSTableViewController2 {
     }
 
     private func showSentMediaQualityPreferences() {
-        let vc = SentMediaQualitySettingsViewController { [weak self] newQualityLevel in
-            self?.databaseStorage.write { transaction in
-                ImageQualityLevel.setDefault(newQualityLevel, transaction: transaction)
+        let vc = SentMediaQualitySettingsViewController { [weak self] isHighQuality in
+            guard let self else { return }
+            self.databaseStorage.write { tx in
+                ImageQualityLevel.setUserSelectedHighQuality(isHighQuality, tx: tx)
             }
-            self?.updateTableContents()
+            self.updateTableContents()
         }
         navigationController?.pushViewController(vc, animated: true)
     }
 
-    private func showMediaDownloadView(forMediaDownloadType value: MediaDownloadType) {
+    private func showMediaDownloadView(forMediaDownloadType value: MediaBandwidthPreferences.MediaType) {
         let view = MediaDownloadSettingsViewController(mediaDownloadType: value)
         navigationController?.pushViewController(view, animated: true)
     }

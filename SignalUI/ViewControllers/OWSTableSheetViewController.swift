@@ -7,7 +7,7 @@ import Foundation
 import UIKit
 
 open class OWSTableSheetViewController: InteractiveSheetViewController {
-    public let tableViewController = OWSTableViewController2()
+    open var tableViewController = OWSTableViewController2()
     open override var interactiveScrollViews: [UIScrollView] { [tableViewController.tableView] }
 
     open override var sheetBackgroundColor: UIColor {
@@ -42,7 +42,7 @@ open class OWSTableSheetViewController: InteractiveSheetViewController {
 
     private var contentSizeObservation: NSKeyValueObservation?
 
-    public required init() {
+    public init() {
         super.init()
 
         tableViewController.shouldDeferInitialLoad = false
@@ -50,8 +50,12 @@ open class OWSTableSheetViewController: InteractiveSheetViewController {
         super.allowsExpansion = false
         contentSizeObservation = tableViewController.tableView.observe(\.contentSize, changeHandler: { [weak self] (_, _) in
             guard let self = self else { return }
-            self.minimizedHeight = self.contentSizeHeight
+            self.updateMinimizedHeight()
         })
+    }
+
+    public func updateMinimizedHeight() {
+        self.minimizedHeight = self.contentSizeHeight
     }
 
     deinit {

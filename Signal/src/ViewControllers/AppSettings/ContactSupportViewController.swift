@@ -4,7 +4,7 @@
 //
 
 import SafariServices
-import SignalMessaging
+import SignalServiceKit
 import SignalUI
 
 class SupportConstants: NSObject {
@@ -148,16 +148,15 @@ final class ContactSupportViewController: OWSTableViewController2 {
     }
 
     func setupNavigationBar() {
-        navigationItem.leftBarButtonItem = UIBarButtonItem(
-            barButtonSystemItem: .cancel,
-            target: self,
-            action: #selector(didTapCancel)
-        )
-        navigationItem.rightBarButtonItem = UIBarButtonItem(
+        navigationItem.leftBarButtonItem = .cancelButton { [weak self] in
+            self?.didTapCancel()
+        }
+        navigationItem.rightBarButtonItem = .button(
             title: CommonStrings.nextButton,
             style: .done,
-            target: self,
-            action: #selector(didTapNext)
+            action: { [weak self] in
+                self?.didTapNext()
+            }
         )
         navigationItem.rightBarButtonItem?.isEnabled = false
     }
@@ -231,7 +230,6 @@ final class ContactSupportViewController: OWSTableViewController2 {
 
     // MARK: - Actions
 
-    @objc
     private func didTapCancel() {
         currentEmailComposeOperation?.cancel()
         navigationController?.presentingViewController?.dismiss(animated: true, completion: nil)
@@ -239,7 +237,6 @@ final class ContactSupportViewController: OWSTableViewController2 {
 
     var currentEmailComposeOperation: ComposeSupportEmailOperation?
 
-    @objc
     private func didTapNext() {
         var emailRequest = SupportEmailModel()
         emailRequest.userDescription = descriptionField.text
@@ -274,33 +271,14 @@ final class ContactSupportViewController: OWSTableViewController2 {
 // MARK: - <TextViewWithPlaceholderDelegate>
 
 extension ContactSupportViewController: TextViewWithPlaceholderDelegate {
-
-    func textViewDidUpdateSelection(_ textView: TextViewWithPlaceholder) {
-        textView.scrollToFocus(in: tableView, animated: true)
-    }
-
     func textViewDidUpdateText(_ textView: TextViewWithPlaceholder) {
         updateRightBarButton()
 
         // Disable interactive presentation if the user has entered text
         isModalInPresentation = !textView.text.isEmptyOrNil
 
-        // Kick the tableview so it recalculates sizes
-        UIView.performWithoutAnimation {
-            tableView.performBatchUpdates(nil) { (_) in
-                // And when the size changes have finished, make sure we're scrolled
-                // to the focused line
-                textView.scrollToFocus(in: self.tableView, animated: false)
-            }
-        }
+        _textViewDidUpdateText(textView)
     }
-
-    func textView(
-        _ textView: TextViewWithPlaceholder,
-        uiTextView: UITextView,
-        shouldChangeTextIn range: NSRange,
-        replacementText text: String
-    ) -> Bool { true }
 }
 
 // MARK: - Table view content builders
@@ -333,7 +311,7 @@ extension ContactSupportViewController {
                             "CONTACT_SUPPORT_SELECT_A_FILTER",
                             comment: "Placeholder telling user they must select a filter."
                         ),
-                        accessoryTextColor: self.selectedFilter == nil ? Theme.placeholderColor : nil
+                        accessoryTextColor: self.selectedFilter == nil ? .placeholderText : nil
                     )
                 },
                 actionBlock: { [weak self] in
@@ -341,14 +319,7 @@ extension ContactSupportViewController {
                 }),
 
                 // Description field
-                OWSTableItem(customCellBlock: { [weak self] in
-                    let cell = OWSTableItem.newCell()
-                    guard let self = self else { return cell }
-                    cell.contentView.addSubview(self.descriptionField)
-                    self.descriptionField.autoPinEdgesToSuperviewMargins()
-                    self.descriptionField.autoSetDimension(.height, toSize: 125, relation: .greaterThanOrEqual)
-                    return cell
-                }),
+                self.textViewItem(self.descriptionField, minimumHeight: 125),
 
                 // Debug log switch
                 OWSTableItem(customCellBlock: { [weak self] in

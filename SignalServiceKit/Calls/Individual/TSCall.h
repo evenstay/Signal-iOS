@@ -41,7 +41,7 @@ NSString *NSStringFromCallType(RPRecentCallType callType);
 /// ``TSCall`` instances local to this device.
 ///
 /// Not to be confused with an ``OWSOutgoingCallMessage``.
-@interface TSCall : TSInteraction <OWSReadTracking, OWSPreviewText>
+@interface TSCall : TSInteraction <OWSPreviewText>
 
 /// Encodes both what kind of call it is, and the state of that call (pending, answered, missed, etc.)
 /// Written to by CallKit callbacks, but also by incoming call event sync messages from linked
@@ -49,14 +49,17 @@ NSString *NSStringFromCallType(RPRecentCallType callType);
 @property (nonatomic) RPRecentCallType callType;
 @property (nonatomic, readonly) TSRecentCallOfferType offerType;
 
-- (instancetype)initWithUniqueId:(NSString *)uniqueId
-                       timestamp:(uint64_t)timestamp
-                          thread:(TSThread *)thread NS_UNAVAILABLE;
-- (instancetype)initWithUniqueId:(NSString *)uniqueId
-                       timestamp:(uint64_t)timestamp
-             receivedAtTimestamp:(uint64_t)receivedAtTimestamp
-                          thread:(TSThread *)thread NS_UNAVAILABLE;
-- (instancetype)initInteractionWithTimestamp:(uint64_t)timestamp thread:(TSThread *)thread NS_UNAVAILABLE;
+/// Whether this call has been read, or is "unread".
+/// - SeeAlso ``OWSReadTracking``
+@property (nonatomic, getter=wasRead) BOOL read;
+
+- (instancetype)initWithCustomUniqueId:(NSString *)uniqueId
+                             timestamp:(uint64_t)timestamp
+                   receivedAtTimestamp:(uint64_t)receivedAtTimestamp
+                                thread:(TSThread *)thread NS_UNAVAILABLE;
+- (instancetype)initWithTimestamp:(uint64_t)timestamp
+              receivedAtTimestamp:(uint64_t)receivedAtTimestamp
+                           thread:(TSThread *)thread NS_UNAVAILABLE;
 - (instancetype)initWithGrdbId:(int64_t)grdbId
                       uniqueId:(NSString *)uniqueId
            receivedAtTimestamp:(uint64_t)receivedAtTimestamp

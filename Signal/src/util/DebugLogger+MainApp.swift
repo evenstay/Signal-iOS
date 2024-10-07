@@ -4,19 +4,17 @@
 //
 
 import Foundation
-import SignalMessaging
+import SignalServiceKit
 
 extension DebugLogger {
 
     func postLaunchLogCleanup(appContext: MainAppContext) {
-        // This must be a 3-part version number.
         let shouldWipeLogs: Bool = {
             guard let lastLaunchVersion = AppVersionImpl.shared.lastCompletedLaunchMainAppVersion else {
                 // This is probably a new version, but perhaps it's a really old version.
                 return true
             }
-            let firstValidVersion = "6.16.0"
-            return AppVersionImpl.shared.compare(lastLaunchVersion, with: firstValidVersion) == .orderedAscending
+            return AppVersionNumber(lastLaunchVersion) < AppVersionNumber("6.16.0.0")
         }()
         if shouldWipeLogs {
             wipeLogsAlways(appContext: appContext)
@@ -36,7 +34,7 @@ extension DebugLogger {
 
         // Only the main app can wipe logs because only the main app can access its
         // own logs. (The main app can wipe logs for the other extensions.)
-        for dirPath in Self.allLogsDirPaths() {
+        for dirPath in Self.allLogsDirPaths {
             do {
                 try FileManager.default.removeItem(atPath: dirPath)
             } catch {

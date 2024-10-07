@@ -3,21 +3,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import XCTest
+public import XCTest
 
-@testable import SignalMessaging
 @testable import SignalServiceKit
 
 open class SignalBaseTest: XCTestCase {
 
     public override func setUp() {
         super.setUp()
-
-        SetCurrentAppContext(TestAppContext(), true)
         MockSSKEnvironment.activate()
-        MockSMEnvironment.activate()
-
-        SSKEnvironment.shared.setGroupsV2ForUnitTests(GroupsV2Impl())
     }
 
     open override func tearDown() {

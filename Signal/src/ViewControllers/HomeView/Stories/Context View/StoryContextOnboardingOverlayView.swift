@@ -18,9 +18,6 @@ protocol StoryContextOnboardingOverlayViewDelegate: AnyObject {
 
 class StoryContextOnboardingOverlayView: UIView, Dependencies {
 
-    private let kvStore = SDSKeyValueStore(collection: "StoryViewerOnboardingOverlay")
-    static let kvStoreKey = "hasSeenStoryViewerOnboardingOverlay"
-
     private weak var delegate: StoryContextOnboardingOverlayViewDelegate?
 
     public init(delegate: StoryContextOnboardingOverlayViewDelegate) {
@@ -51,17 +48,8 @@ class StoryContextOnboardingOverlayView: UIView, Dependencies {
 
     func checkIfShouldDisplay() {
         Self.shouldDisplay = Self.databaseStorage.read { transaction in
-            if self.kvStore.getBool(Self.kvStoreKey, defaultValue: false, transaction: transaction) {
-                return false
-            }
-
-            if Self.systemStoryManager.isOnboardingStoryViewed(transaction: transaction) {
-                // We don't sync view state for the onboarding overlay. But we can use
-                // viewing of the onboarding story as an imperfect proxy; if they viewed it
-                // that means they also definitely saw the viewer overlay.
-                return false
-            }
-            return true
+            let isOverlayViewed = Self.systemStoryManager.isOnboardingOverlayViewed(transaction: transaction)
+            return !isOverlayViewed
         }
     }
 
@@ -105,7 +93,7 @@ class StoryContextOnboardingOverlayView: UIView, Dependencies {
     func dismiss() {
         // Mark as viewed from now on.
         Self.databaseStorage.write { transaction in
-            self.kvStore.setBool(true, key: Self.kvStoreKey, transaction: transaction)
+            systemStoryManager.setOnboardingOverlayViewed(value: true, transaction: transaction)
         }
         Self.shouldDisplay = false
 
@@ -124,7 +112,7 @@ class StoryContextOnboardingOverlayView: UIView, Dependencies {
 
     private lazy var blurView = UIVisualEffectView()
 
-    private var animationViews = [AnimationView]()
+    private var animationViews = [LottieAnimationView]()
 
     private func setupSubviews() {
         addSubview(blurView)
@@ -141,7 +129,7 @@ class StoryContextOnboardingOverlayView: UIView, Dependencies {
         for asset in assets {
             let imageContainer = UIView()
 
-            let animationView = AnimationView(name: asset.lottieName)
+            let animationView = LottieAnimationView(name: asset.lottieName)
             animationView.loopMode = .playOnce
             animationView.backgroundBehavior = .forceFinish
             animationView.autoSetDimensions(to: .square(54))
@@ -189,7 +177,7 @@ class StoryContextOnboardingOverlayView: UIView, Dependencies {
         confirmButton.titleLabel?.font = .dynamicTypeSubheadlineClamped.semibold()
         confirmButton.backgroundColor = .ows_white
         confirmButton.setTitleColor(.ows_black, for: .normal)
-        confirmButton.contentEdgeInsets = UIEdgeInsets(hMargin: 23, vMargin: 8)
+        confirmButton.ows_contentEdgeInsets = UIEdgeInsets(hMargin: 23, vMargin: 8)
         confirmButton.block = { [weak self] in
             self?.dismiss()
         }
@@ -200,7 +188,7 @@ class StoryContextOnboardingOverlayView: UIView, Dependencies {
         confirmButton.autoPinEdges(toEdgesOf: confirmButtonContainer)
 
         let closeButton = OWSButton()
-        closeButton.setImage(Theme.iconImage(.buttonX).asTintedImage(color: .ows_white), for: .normal)
+        closeButton.setImage(Theme.iconImage(.buttonX).withTintColor(.ows_white, renderingMode: .alwaysOriginal), for: .normal)
         closeButton.contentMode = .center
         closeButton.block = { [weak self] in
             guard let self = self else { return }

@@ -4,7 +4,6 @@
 //
 
 import LibSignalClient
-import SignalMessaging
 import SignalServiceKit
 import SignalUI
 
@@ -30,7 +29,7 @@ class LinkDeviceViewController: OWSViewController {
         return label
     }()
 
-    private lazy var qrCodeScanViewController = QRCodeScanViewController(appearance: .masked())
+    private lazy var qrCodeScanViewController = QRCodeScanViewController(appearance: .framed())
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -130,7 +129,7 @@ class LinkDeviceViewController: OWSViewController {
     private func provisionWithUrl(_ deviceProvisioningUrl: DeviceProvisioningURL) {
         databaseStorage.write { transaction in
             // Optimistically set this flag.
-            DependenciesBridge.shared.deviceManager.setMayHaveLinkedDevices(
+            DependenciesBridge.shared.deviceManager.setMightHaveUnknownLinkedDevice(
                 true,
                 transaction: transaction.asV2Write
             )
@@ -146,10 +145,10 @@ class LinkDeviceViewController: OWSViewController {
             let identityManager = DependenciesBridge.shared.identityManager
             aciIdentityKeyPair = identityManager.identityKeyPair(for: .aci, tx: tx.asV2Read)
             pniIdentityKeyPair = identityManager.identityKeyPair(for: .pni, tx: tx.asV2Read)
-            areReadReceiptsEnabled = receiptManager.areReadReceiptsEnabled(transaction: tx)
+            areReadReceiptsEnabled = OWSReceiptManager.areReadReceiptsEnabled(transaction: tx)
             masterKey = DependenciesBridge.shared.svr.masterKeyDataForKeysSyncMessage(tx: tx.asV2Read)
         }
-        let myProfileKeyData = profileManager.localProfileKey().keyData
+        let myProfileKeyData = profileManager.localProfileKey.keyData
 
         guard let myAci = localIdentifiers?.aci, let myPhoneNumber = localIdentifiers?.phoneNumber else {
             owsFail("Can't provision without an aci & phone number.")
@@ -192,15 +191,6 @@ class LinkDeviceViewController: OWSViewController {
 
             self.delegate?.expectMoreDevices()
             self.popToLinkedDeviceList()
-
-            // The service implementation of the socket connection caches the linked
-            // device state, so all sync message sends will fail on the socket until it
-            // is cycled.
-            DependenciesBridge.shared.socketManager.cycleSocket()
-
-            // Fetch the local profile to determine if all linked devices support UD.
-            self.profileManager.fetchLocalUsersProfile(authedAccount: .implicit())
-
         }.catch(on: DispatchQueue.main) { error in
             Logger.error("Failed to provision device with error: \(error)")
             self.presentActionSheet(self.retryActionSheetController(error: error, retryBlock: { [weak self] in

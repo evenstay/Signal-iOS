@@ -8,10 +8,10 @@ import XCTest
 import GRDB
 import LibSignalClient
 
-class MessageProcessingIntegrationTest: SSKBaseTestSwift {
+class MessageProcessingIntegrationTest: SSKBaseTest {
 
     let localE164Identifier = "+13235551234"
-    let localUUID = UUID()
+    let localAci = Aci.randomForTesting()
 
     let aliceE164Identifier = "+14715355555"
     var aliceClient: TestSignalClient!
@@ -29,10 +29,6 @@ class MessageProcessingIntegrationTest: SSKBaseTestSwift {
     override func setUp() {
         super.setUp()
 
-        // Use DatabaseChangeObserver to be notified of DB writes so we
-        // can verify the expected changes occur.
-        try! databaseStorage.grdbStorage.setupDatabaseChangeObserver()
-
         // ensure local client has necessary "registered" state
         let identityManager = DependenciesBridge.shared.identityManager
         identityManager.generateAndPersistNewIdentityKey(for: .aci)
@@ -40,8 +36,8 @@ class MessageProcessingIntegrationTest: SSKBaseTestSwift {
         databaseStorage.write { tx in
             (DependenciesBridge.shared.registrationStateChangeManager as! RegistrationStateChangeManagerImpl).registerForTests(
                 localIdentifiers: .init(
-                    aci: .init(fromUUID: localUUID),
-                    pni: .init(fromUUID: UUID()),
+                    aci: localAci,
+                    pni: Pni.randomForTesting(),
                     e164: .init(localE164Identifier)!
                 ),
                 tx: tx.asV2Write
@@ -126,8 +122,8 @@ class MessageProcessingIntegrationTest: SSKBaseTestSwift {
             envelopeSource: .tests
         ) { error in
             switch error {
-            case MessageProcessingError.duplicatePendingEnvelope?:
-                XCTFail("duplicatePendingEnvelope")
+            case MessageProcessingError.replacedEnvelope?:
+                XCTFail("replacedEnvelope")
             case .some:
                 XCTFail("failure")
             case nil:
@@ -296,9 +292,12 @@ class MessageProcessingIntegrationTest: SSKBaseTestSwift {
                                                                           transaction: transaction).compactMap { $0 as? TSOutgoingMessage }
                         XCTAssertNotNil(fetched.first)
                         let message = fetched.first!
-                        let deliveryTimestamp = message.recipientAddressStates?[self.bobClient.address]?.deliveryTimestamp
+                        let recipientState = message.recipientState(for: self.bobClient.address)
+                        XCTAssertNotNil(recipientState)
+                        XCTAssertEqual(recipientState?.status, .delivered)
+                        let deliveryTimestamp = recipientState?.statusTimestamp
                         XCTAssertNotNil(deliveryTimestamp)
-                        XCTAssertGreaterThan(deliveryTimestamp!.uintValue, 1650000000000)
+                        XCTAssert((deliveryTimestamp ?? 0) > 1650000000000)
                         expectation.fulfill()
                     }
                 }
@@ -387,9 +386,12 @@ class MessageProcessingIntegrationTest: SSKBaseTestSwift {
                                                                           transaction: transaction).compactMap { $0 as? TSOutgoingMessage }
                         XCTAssertNotNil(fetched.first)
                         let message = fetched.first!
-                        let actualDeliveryTimestamp = message.recipientAddressStates?[self.bobClient.address]?.deliveryTimestamp
+                        let recipientState = message.recipientState(for: self.bobClient.address)
+                        XCTAssertNotNil(recipientState)
+                        XCTAssertEqual(recipientState?.status, .delivered)
+                        let actualDeliveryTimestamp = recipientState?.statusTimestamp
                         XCTAssertNotNil(actualDeliveryTimestamp)
-                        XCTAssertEqual(actualDeliveryTimestamp!.uint64Value, deliveryTimestamp)
+                        XCTAssertEqual(actualDeliveryTimestamp, deliveryTimestamp)
                         expectation.fulfill()
                     }
                 }

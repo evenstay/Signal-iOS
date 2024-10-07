@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import AVFoundation
+public import AVFoundation
 import SignalServiceKit
 
 public protocol VideoPlayerViewDelegate: AnyObject {
@@ -104,7 +104,7 @@ public class VideoPlayerView: UIView {
             .map { (assetTrack: AVAssetTrack) -> CGSize in
                 assetTrack.naturalSize.applying(assetTrack.preferredTransform).abs
             }.reduce(.zero) {
-                CGSizeMax($0, $1)
+                CGSize.max($0, $1)
             }
     }
 

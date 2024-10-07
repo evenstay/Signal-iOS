@@ -3,13 +3,17 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
+import SignalServiceKit
 import SignalUI
 
 protocol GroupAttributesEditorHelperDelegate: AnyObject {
     func groupAttributesEditorContentsDidChange()
     func groupAttributesEditorSelectionDidChange()
     func presentFormSheet(_ viewControllerToPresent: UIViewController, animated: Bool, completion: (() -> Void)?)
+}
+
+extension GroupAttributesEditorHelperDelegate {
+    func groupAttributesEditorSelectionDidChange() {}
 }
 
 // MARK: -
@@ -88,7 +92,7 @@ class GroupAttributesEditorHelper: NSObject {
         )
     }
 
-    public required init(
+    public init(
         groupModelOriginal: TSGroupModel? = nil,
         groupId: Data,
         groupNameOriginal: String?,
@@ -285,10 +289,9 @@ class GroupAttributesEditorHelper: NSObject {
 
         GroupViewUtils.updateGroupWithActivityIndicator(
             fromViewController: fromViewController,
-            withGroupModel: oldGroupModel,
             updateDescription: self.logTag,
             updateBlock: {
-                GroupManager.updateGroupAttributes(
+                _ = try await GroupManager.updateGroupAttributes(
                     title: currentTitle,
                     description: currentDescription,
                     avatarData: currentAvatarData,
@@ -337,15 +340,13 @@ struct GroupAvatar {
     }
 }
 
-// MARK: 
-
 extension GroupAttributesEditorHelper: UITextFieldDelegate {
     public func textField(_ textField: UITextField, shouldChangeCharactersIn range: NSRange, replacementString: String) -> Bool {
         // Truncate the replacement to fit.
         return TextFieldHelper.textField(
             textField,
             shouldChangeCharactersInRange: range,
-            replacementString: replacementString.withoutBidiControlCharacters,
+            replacementString: replacementString.withoutBidiControlCharacters(),
             maxGlyphCount: GroupManager.maxGroupNameGlyphCount
         )
     }

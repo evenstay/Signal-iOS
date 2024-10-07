@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalCoreKit
+import SignalServiceKit
 
 open class TooltipView: UIView {
     public enum TailDirection {
@@ -123,6 +123,11 @@ open class TooltipView: UIView {
         true
     }
 
+    /// Whether the `tailReferenceView` is itself laid out with autolayout.
+    open var tailReferenceViewUsesAutolayout: Bool {
+        true
+    }
+
     // MARK: - Contents
 
     private func setupContents(
@@ -151,19 +156,36 @@ open class TooltipView: UIView {
         setupContentView()
     }
 
-    private func setupRelationshipWithSuperview(
+    public weak var verticalConstraint: NSLayoutConstraint?
+
+    private func setUpVerticalConstraintWithTailReferenceView(tailReferenceView: UIView) {
+        switch tailDirection {
+        case .up:
+            verticalConstraint = autoPinEdge(.top, to: .bottom, of: tailReferenceView, withOffset: 0)
+        case .down:
+            verticalConstraint = autoPinEdge(.bottom, to: .top, of: tailReferenceView, withOffset: 0)
+        }
+    }
+
+    override open func layoutSubviews() {
+        super.layoutSubviews()
+        if !tailReferenceViewUsesAutolayout {
+            /// When the `tailReferenceView`'s frame is set, we must redo the vertical constraint.
+            /// Ideally, we wouldn't be operating in a dual autolayout + frame-setting world.
+            if let tailReferenceView {
+                setUpVerticalConstraintWithTailReferenceView(tailReferenceView: tailReferenceView)
+            }
+        }
+    }
+
+    open func setupRelationshipWithSuperview(
         superview: UIView,
         tailReferenceView: UIView,
         widthReferenceView: UIView
     ) {
         superview.addSubview(self)
 
-        switch tailDirection {
-        case .up:
-            autoPinEdge(.top, to: .bottom, of: tailReferenceView, withOffset: -0)
-        case .down:
-            autoPinEdge(.bottom, to: .top, of: tailReferenceView, withOffset: -0)
-        }
+        setUpVerticalConstraintWithTailReferenceView(tailReferenceView: tailReferenceView)
 
         // Insist on the tooltip fitting within the margins of the widthReferenceView.
         if stretchesBubbleHorizontally {
@@ -262,10 +284,20 @@ open class TooltipView: UIView {
             tailRight = CGPoint(x: tailHCenter + tailHalfWidth, y: tailHeight)
         }
 
-        bezierPath.move(to: tailPoint)
-        bezierPath.addLine(to: tailLeft)
-        bezierPath.addLine(to: tailRight)
-        bezierPath.addLine(to: tailPoint)
+        let tailPath = UIBezierPath()
+        tailPath.move(to: tailPoint)
+        tailPath.addLine(to: tailLeft)
+        tailPath.addLine(to: tailRight)
+        tailPath.addLine(to: tailPoint)
+        switch tailDirection {
+        case .down:
+            bezierPath.append(tailPath)
+        case .up:
+            // bezierPath and tailPath overlap slightly while animating, leaving
+            // the overlapping area excluded from the path. Adding tailPath with
+            // .reversing() forms the union of the two paths.
+            bezierPath.append(tailPath.reversing())
+        }
 
         return bezierPath.cgPath
     }

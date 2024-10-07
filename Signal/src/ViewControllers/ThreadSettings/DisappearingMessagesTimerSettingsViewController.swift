@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
+import SignalServiceKit
 import SignalUI
 
 class DisappearingMessagesTimerSettingsViewController: OWSTableViewController2 {
@@ -15,8 +15,43 @@ class DisappearingMessagesTimerSettingsViewController: OWSTableViewController2 {
     let useCustomPicker: Bool
     private lazy var pickerView = CustomTimePicker { [weak self] duration in
         guard let self = self else { return }
-        self.configuration = self.originalConfiguration.copyAsEnabled(withDurationSeconds: duration)
+        self.configuration = self.originalConfiguration.copyAsEnabled(
+            withDurationSeconds: duration,
+            timerVersion: self.newTimerVersionWithSneakyTransaction()
+        )
         self.updateNavigation()
+    }
+
+    private func shouldIncrementTimerVersion(tx: DBReadTransaction) -> Bool {
+        guard let contactThread = thread as? TSContactThread else {
+            // The versioned dm timer applies only to 1:1 chats.
+            return false
+        }
+        guard let serviceId = contactThread.contactAddress.serviceId else {
+            // A e164-only recipient can't have this capability; don't increment.
+            return false
+        }
+        guard let localIdentifiers = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: tx) else {
+            owsFailDebug("Not registered when setting dm timer?")
+            return false
+        }
+        let disappearingMessagesConfigurationStore = DependenciesBridge.shared.disappearingMessagesConfigurationStore
+        let isPeerCapable = disappearingMessagesConfigurationStore.isVersionedDMTimerCapable(
+            serviceId: serviceId,
+            tx: tx
+        )
+        let isSelfCapable = disappearingMessagesConfigurationStore.isVersionedDMTimerCapable(
+            serviceId: localIdentifiers.aci,
+            tx: tx
+        )
+        return isPeerCapable && isSelfCapable
+    }
+
+    private func newTimerVersionWithSneakyTransaction() -> UInt32 {
+        let shouldIncrement = DependenciesBridge.shared.db.read { tx in
+            shouldIncrementTimerVersion(tx: tx)
+        }
+        return self.originalConfiguration.timerVersion + (shouldIncrement ? 1 : 0)
     }
 
     init(
@@ -47,7 +82,10 @@ class DisappearingMessagesTimerSettingsViewController: OWSTableViewController2 {
         defaultSeparatorInsetLeading = Self.cellHInnerMargin + 24 + OWSTableItem.iconSpacing
 
         if useCustomPicker {
-            self.configuration = self.originalConfiguration.copyAsEnabled(withDurationSeconds: pickerView.selectedDuration)
+            self.configuration = self.originalConfiguration.copyAsEnabled(
+                withDurationSeconds: pickerView.selectedDuration,
+                timerVersion: self.newTimerVersionWithSneakyTransaction()
+            )
         }
 
         updateNavigation()
@@ -66,21 +104,19 @@ class DisappearingMessagesTimerSettingsViewController: OWSTableViewController2 {
 
     private func updateNavigation() {
         if !useCustomPicker {
-            navigationItem.leftBarButtonItem = UIBarButtonItem(
-                barButtonSystemItem: .cancel,
-                target: self,
-                action: #selector(didTapCancel),
-                accessibilityIdentifier: "cancel_button"
+            navigationItem.leftBarButtonItem = .cancelButton(
+                dismissingFrom: self,
+                hasUnsavedChanges: { [weak self] in self?.hasUnsavedChanges }
             )
         }
 
         if hasUnsavedChanges {
-            navigationItem.rightBarButtonItem = UIBarButtonItem(
+            navigationItem.rightBarButtonItem = .button(
                 title: CommonStrings.setButton,
                 style: .done,
-                target: self,
-                action: #selector(didTapDone),
-                accessibilityIdentifier: "set_button"
+                action: { [weak self] in
+                    self?.didTapDone()
+                }
             )
         } else {
             navigationItem.rightBarButtonItem = nil
@@ -129,7 +165,10 @@ class DisappearingMessagesTimerSettingsViewController: OWSTableViewController2 {
             accessibilityIdentifier: UIView.accessibilityIdentifier(in: self, name: "timer_off"),
             actionBlock: { [weak self] in
                 guard let self = self else { return }
-                self.configuration = self.originalConfiguration.copy(withIsEnabled: false)
+                self.configuration = self.originalConfiguration.copy(
+                    withIsEnabled: false,
+                    timerVersion: self.newTimerVersionWithSneakyTransaction()
+                )
                 self.updateNavigation()
                 self.updateTableContents()
             }
@@ -142,7 +181,10 @@ class DisappearingMessagesTimerSettingsViewController: OWSTableViewController2 {
                 accessibilityIdentifier: UIView.accessibilityIdentifier(in: self, name: "timer_\(duration)"),
                 actionBlock: { [weak self] in
                     guard let self = self else { return }
-                    self.configuration = self.originalConfiguration.copyAsEnabled(withDurationSeconds: duration)
+                    self.configuration = self.originalConfiguration.copyAsEnabled(
+                        withDurationSeconds: duration,
+                        timerVersion: self.newTimerVersionWithSneakyTransaction()
+                    )
                     self.updateNavigation()
                     self.updateTableContents()
                 }
@@ -153,12 +195,11 @@ class DisappearingMessagesTimerSettingsViewController: OWSTableViewController2 {
 
         section.add(.disclosureItem(
             icon: isCustomTime ? .checkmark : .empty,
-            name: OWSLocalizedString(
+            withText: OWSLocalizedString(
                 "DISAPPEARING_MESSAGES_CUSTOM_TIME",
                 comment: "Disappearing message option to define a custom time"
             ),
             accessoryText: isCustomTime ? DateUtil.formatDuration(seconds: configuration.durationSeconds, useShortFormat: false) : nil,
-            accessibilityIdentifier: UIView.accessibilityIdentifier(in: self, name: "timer_custom"),
             actionBlock: { [weak self] in
                 guard let self = self else { return }
                 let vc = DisappearingMessagesTimerSettingsViewController(
@@ -179,19 +220,6 @@ class DisappearingMessagesTimerSettingsViewController: OWSTableViewController2 {
         return OWSDisappearingMessagesConfiguration.presetDurationsSeconds().map { $0.uint32Value }.reversed()
     }
 
-    @objc
-    private func didTapCancel() {
-        guard hasUnsavedChanges else {
-            dismiss(animated: true)
-            return
-        }
-
-        OWSActionSheets.showPendingChangesActionSheet(discardAction: { [weak self] in
-            self?.dismiss(animated: true)
-        })
-    }
-
-    @objc
     private func didTapDone() {
         let configuration = self.configuration
 
@@ -207,20 +235,54 @@ class DisappearingMessagesTimerSettingsViewController: OWSTableViewController2 {
 
         GroupViewUtils.updateGroupWithActivityIndicator(
             fromViewController: self,
-            withThread: thread,
             updateDescription: "Update disappearing messages configuration",
-            updateBlock: { () -> Promise<Void> in
-                // We're sending a message, so we're accepting any pending message request.
-                ThreadUtil.addThreadToProfileWhitelistIfEmptyOrPendingRequestAndSetDefaultTimerWithSneakyTransaction(thread)
+            updateBlock: {
+                await withCheckedContinuation { continuation in
+                    DispatchQueue.global().async {
+                        // We're sending a message, so we're accepting any pending message request.
+                        ThreadUtil.addThreadToProfileWhitelistIfEmptyOrPendingRequestAndSetDefaultTimerWithSneakyTransaction(thread)
+                        continuation.resume()
+                    }
+                }
 
-                return GroupManager.localUpdateDisappearingMessages(thread: thread,
-                                                                    disappearingMessageToken: configuration.asToken)
+                _ = try await self.localUpdateDisappearingMessagesConfiguration(
+                    thread: thread,
+                    newToken: configuration.asVersionedToken
+                )
             },
             completion: { [weak self] _ in
                 self?.completion(configuration)
                 self?.dismiss(animated: true)
             }
         )
+    }
+
+    private func localUpdateDisappearingMessagesConfiguration(
+        thread: TSThread,
+        newToken: VersionedDisappearingMessageToken
+    ) async throws {
+        if let contactThread = thread as? TSContactThread {
+            await databaseStorage.awaitableWrite { tx in
+                GroupManager.localUpdateDisappearingMessageToken(
+                    newToken,
+                    inContactThread: contactThread,
+                    tx: tx
+                )
+            }
+        } else if let groupThread = thread as? TSGroupThread {
+            if let groupV2Model = groupThread.groupModel as? TSGroupModelV2 {
+                _ = try await GroupManager.updateGroupV2(
+                    groupModel: groupV2Model,
+                    description: "Update disappearing messages"
+                ) { changeSet in
+                    changeSet.setNewDisappearingMessageToken(newToken.unversioned)
+                }
+            } else {
+                throw OWSAssertionError("Cannot update disappearing message config for V1 groups!")
+            }
+        } else {
+            throw OWSAssertionError("Unexpected thread type in disappearing message update! \(type(of: thread))")
+        }
     }
 }
 

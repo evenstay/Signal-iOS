@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalServiceKit
-import SignalUI
+public import SignalServiceKit
+public import SignalUI
 
 protocol GroupLinkViewControllerDelegate: AnyObject {
     func groupLinkViewViewDidUpdate()
@@ -18,7 +18,7 @@ public class GroupLinkViewController: OWSTableViewController2 {
 
     private var groupModelV2: TSGroupModelV2
 
-    required init(groupModelV2: TSGroupModelV2) {
+    init(groupModelV2: TSGroupModelV2) {
         self.groupModelV2 = groupModelV2
 
         super.init()
@@ -58,7 +58,7 @@ public class GroupLinkViewController: OWSTableViewController2 {
 
             if groupModelV2.isGroupInviteLinkEnabled {
                 do {
-                    let inviteLinkUrl = try GroupManager.groupInviteLink(forGroupModelV2: groupModelV2)
+                    let inviteLinkUrl = try groupModelV2.groupInviteLinkUrl()
                     let urlLabel = UILabel()
                     urlLabel.text = inviteLinkUrl.absoluteString
                     urlLabel.font = .dynamicTypeSubheadline
@@ -245,10 +245,9 @@ public class GroupLinkViewUtils {
                                completion: @escaping (TSGroupThread) -> Void) {
         GroupViewUtils.updateGroupWithActivityIndicator(
             fromViewController: fromViewController,
-            withGroupModel: groupModelV2,
             updateDescription: description,
-            updateBlock: { () -> Promise<TSGroupThread> in
-                GroupManager.updateLinkModeV2(groupModel: groupModelV2, linkMode: linkMode)
+            updateBlock: {
+                return try await GroupManager.updateLinkModeV2(groupModel: groupModelV2, linkMode: linkMode)
             },
             completion: { (groupThread: TSGroupThread?) in
                 guard let groupThread = groupThread else {
@@ -311,13 +310,13 @@ public class GroupLinkViewUtils {
         }
 
         do {
-            let inviteLinkUrl = try GroupManager.groupInviteLink(forGroupModelV2: groupModelV2)
+            let inviteLinkUrl = try groupModelV2.groupInviteLinkUrl()
             let messageBody = MessageBody(text: inviteLinkUrl.absoluteString, ranges: .empty)
             let unapprovedContent = SendMessageUnapprovedContent.text(messageBody: messageBody)
             let sendMessageFlow = SendMessageFlow(flowType: .`default`,
                                                   unapprovedContent: unapprovedContent,
                                                   useConversationComposeForSingleRecipient: true,
-                                                  navigationController: navigationController,
+                                                  presentationStyle: .pushOnto(navigationController),
                                                   delegate: sendMessageController)
             // Retain the flow until it is complete.
             sendMessageController.sendMessageFlow.set(sendMessageFlow)
@@ -332,7 +331,7 @@ public class GroupLinkViewUtils {
             return
         }
         do {
-            let inviteLinkUrl = try GroupManager.groupInviteLink(forGroupModelV2: groupModelV2)
+            let inviteLinkUrl = try groupModelV2.groupInviteLinkUrl()
             UIPasteboard.general.url = inviteLinkUrl
         } catch {
             owsFailDebug("Error: \(error)")
@@ -351,7 +350,7 @@ public class GroupLinkViewUtils {
             return
         }
         do {
-            let inviteLinkUrl = try GroupManager.groupInviteLink(forGroupModelV2: groupModelV2)
+            let inviteLinkUrl = try groupModelV2.groupInviteLinkUrl()
             AttachmentSharing.showShareUI(for: inviteLinkUrl, sender: self)
         } catch {
             owsFailDebug("Error: \(error)")
@@ -375,10 +374,9 @@ private extension GroupLinkViewController {
     func resetLink() {
         GroupViewUtils.updateGroupWithActivityIndicator(
             fromViewController: self,
-            withGroupModel: self.groupModelV2,
             updateDescription: self.logTag,
-            updateBlock: { () -> Promise<TSGroupThread> in
-                GroupManager.resetLinkV2(groupModel: self.groupModelV2)
+            updateBlock: {
+                return try await GroupManager.resetLinkV2(groupModel: self.groupModelV2)
             },
             completion: { [weak self] (groupThread: TSGroupThread?) in
                 guard let groupThread = groupThread else {

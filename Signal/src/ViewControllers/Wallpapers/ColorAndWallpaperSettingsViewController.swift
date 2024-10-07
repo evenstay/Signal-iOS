@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalServiceKit
-import SignalUI
+public import SignalServiceKit
+public import SignalUI
 
 public class ColorAndWallpaperSettingsViewController: OWSTableViewController2 {
     let thread: TSThread?
@@ -21,7 +21,7 @@ public class ColorAndWallpaperSettingsViewController: OWSTableViewController2 {
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(chatColorsDidChange),
-            name: ChatColors.chatColorsDidChangeNotification,
+            name: ChatColorSettingStore.chatColorsDidChangeNotification,
             object: nil
         )
     }
@@ -42,7 +42,9 @@ public class ColorAndWallpaperSettingsViewController: OWSTableViewController2 {
     private var chatColor: ColorOrGradientSetting!
 
     private func updateChatColor() {
-        chatColor = databaseStorage.read { tx in ChatColors.resolvedChatColor(for: thread, tx: tx) }
+        chatColor = databaseStorage.read { tx in
+            DependenciesBridge.shared.chatColorSettingStore.resolvedChatColor(for: thread, tx: tx.asV2Read)
+        }
     }
 
     @objc
@@ -134,9 +136,10 @@ public class ColorAndWallpaperSettingsViewController: OWSTableViewController2 {
         wallpaperSection.customHeaderHeight = 14
 
         wallpaperSection.add(OWSTableItem.disclosureItem(
-            withText: OWSLocalizedString("WALLPAPER_SETTINGS_SET_WALLPAPER",
-                                        comment: "Set wallpaper action in wallpaper settings view."),
-            accessibilityIdentifier: UIView.accessibilityIdentifier(in: self, name: "set_wallpaper")
+            withText: OWSLocalizedString(
+                "WALLPAPER_SETTINGS_SET_WALLPAPER",
+                comment: "Set wallpaper action in wallpaper settings view."
+            )
         ) { [weak self] in
             guard let self = self else { return }
             let viewController = self.databaseStorage.read { tx in
@@ -150,10 +153,20 @@ public class ColorAndWallpaperSettingsViewController: OWSTableViewController2 {
                                         comment: "Dim wallpaper action in wallpaper settings view."),
             accessibilityIdentifier: UIView.accessibilityIdentifier(in: self, name: "dim_wallpaper"),
             isOn: { () -> Bool in
-                self.databaseStorage.read { Wallpaper.dimInDarkMode(for: self.thread, transaction: $0) }
+                self.databaseStorage.read {
+                    return DependenciesBridge.shared.wallpaperStore.fetchDimInDarkMode(
+                        for: self.thread?.uniqueId,
+                        tx: $0.asV2Read
+                    )
+                }
             },
             isEnabled: {
-                self.databaseStorage.read { Wallpaper.wallpaperForRendering(for: self.thread, transaction: $0) != nil }
+                self.databaseStorage.read {
+                    DependenciesBridge.shared.wallpaperStore.fetchWallpaperForRendering(
+                        for: self.thread?.uniqueId,
+                        tx: $0.asV2Read
+                    ) != nil
+                }
             },
             target: self,
             selector: #selector(updateWallpaperDimming)
@@ -239,10 +252,18 @@ public class ColorAndWallpaperSettingsViewController: OWSTableViewController2 {
 
     func resetWallpaper() {
         let thread = self.thread
-        databaseStorage.asyncWrite { tx in
+        DispatchQueue.global().async {
             do {
                 let wallpaperStore = DependenciesBridge.shared.wallpaperStore
-                try wallpaperStore.reset(for: thread, tx: tx.asV2Write)
+                let onInsert = { [wallpaperStore] (tx: DBWriteTransaction) throws -> Void in
+                    try wallpaperStore.reset(for: thread, tx: tx)
+                }
+
+                if let thread {
+                    try DependenciesBridge.shared.wallpaperImageStore.setWallpaperImage(nil, for: thread, onInsert: onInsert)
+                } else {
+                    try DependenciesBridge.shared.wallpaperImageStore.setGlobalThreadWallpaperImage(nil, onInsert: onInsert)
+                }
             } catch {
                 owsFailDebug("Failed to clear wallpaper with error: \(error)")
                 DispatchQueue.main.async {
@@ -252,7 +273,7 @@ public class ColorAndWallpaperSettingsViewController: OWSTableViewController2 {
                     )
                 }
             }
-            tx.addAsyncCompletionOnMain {
+            DispatchQueue.main.async {
                 self.updateTableContents()
             }
         }
@@ -263,6 +284,7 @@ public class ColorAndWallpaperSettingsViewController: OWSTableViewController2 {
             do {
                 let wallpaperStore = DependenciesBridge.shared.wallpaperStore
                 try wallpaperStore.resetAll(tx: tx.asV2Write)
+                try DependenciesBridge.shared.wallpaperImageStore.resetAllWallpaperImages(tx: tx.asV2Write)
             } catch {
                 owsFailDebug("Failed to reset all wallpapers with error: \(error)")
                 DispatchQueue.main.async {
@@ -322,11 +344,19 @@ public class ColorAndWallpaperSettingsViewController: OWSTableViewController2 {
     }
 
     func resetChatColor() {
-        databaseStorage.asyncWrite { [thread] tx in ChatColors.setChatColorSetting(.auto, for: thread, tx: tx) }
+        databaseStorage.asyncWrite { [thread] tx in
+            DependenciesBridge.shared.chatColorSettingStore.setChatColorSetting(
+                .auto,
+                for: thread,
+                tx: tx.asV2Write
+            )
+        }
     }
 
     private func resetAllChatColors() {
-        databaseStorage.asyncWrite { tx in ChatColors.resetAllSettings(transaction: tx) }
+        databaseStorage.asyncWrite { tx in
+            DependenciesBridge.shared.chatColorSettingStore.resetAllSettings(tx: tx.asV2Write)
+        }
     }
 }
 

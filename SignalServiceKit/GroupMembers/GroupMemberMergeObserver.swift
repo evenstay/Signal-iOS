@@ -5,7 +5,6 @@
 
 import Foundation
 import LibSignalClient
-import SignalCoreKit
 
 class GroupMemberMergeObserverImpl: RecipientMergeObserver {
     private let threadStore: ThreadStore
@@ -29,7 +28,7 @@ class GroupMemberMergeObserverImpl: RecipientMergeObserver {
         if let aci = mergedRecipient.newRecipient.aci {
             groupThreadIds.append(contentsOf: groupMemberStore.groupThreadIds(withFullMember: aci, tx: tx))
         }
-        if let phoneNumber = E164(mergedRecipient.newRecipient.phoneNumber) {
+        if let phoneNumber = E164(mergedRecipient.newRecipient.phoneNumber?.stringValue) {
             groupThreadIds.append(contentsOf: groupMemberStore.groupThreadIds(withFullMember: phoneNumber, tx: tx))
         }
         if let pni = mergedRecipient.newRecipient.pni {
@@ -64,9 +63,11 @@ class GroupMemberMergeObserverImpl: RecipientMergeObserver {
             Logger.warn("Couldn't merge V1 group members.")
             return
         }
-        if oldGroupModel == newGroupModel {
+
+        if oldGroupModel.groupMembership == newGroupModel.groupMembership {
             return
         }
+
         groupThread.update(with: newGroupModel, transaction: SDSDB.shimOnlyBridge(tx))
     }
 }

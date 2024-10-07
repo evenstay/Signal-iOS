@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import LibSignalClient
+public import LibSignalClient
 
 // MARK: - ChangePhoneNumberPniManager protocol
 
@@ -36,7 +36,7 @@ public protocol ChangePhoneNumberPniManager {
     func generatePniIdentity(
         forNewE164 newE164: E164,
         localAci: Aci,
-        localAccountId: String,
+        localRecipientUniqueId: String,
         localDeviceId: UInt32,
         localUserAllDeviceIds: [UInt32]
     ) -> Guarantee<ChangePhoneNumberPni.GeneratePniIdentityResult>
@@ -98,6 +98,7 @@ class ChangePhoneNumberPniManagerImpl: ChangePhoneNumberPniManager {
 
     private let logger: PrefixedLogger = .init(prefix: "[CNPNI]")
 
+    private let db: any DB
     private let identityManager: Shims.IdentityManager
     private let pniDistributionParameterBuilder: PniDistributionParamaterBuilder
     private let pniSignedPreKeyStore: SignalSignedPreKeyStore
@@ -108,6 +109,7 @@ class ChangePhoneNumberPniManagerImpl: ChangePhoneNumberPniManager {
     private let tsAccountManager: TSAccountManager
 
     init(
+        db: any DB,
         identityManager: Shims.IdentityManager,
         pniDistributionParameterBuilder: PniDistributionParamaterBuilder,
         pniSignedPreKeyStore: SignalSignedPreKeyStore,
@@ -117,6 +119,7 @@ class ChangePhoneNumberPniManagerImpl: ChangePhoneNumberPniManager {
         schedulers: Schedulers,
         tsAccountManager: TSAccountManager
     ) {
+        self.db = db
         self.identityManager = identityManager
         self.pniDistributionParameterBuilder = pniDistributionParameterBuilder
         self.pniSignedPreKeyStore = pniSignedPreKeyStore
@@ -132,7 +135,7 @@ class ChangePhoneNumberPniManagerImpl: ChangePhoneNumberPniManager {
     func generatePniIdentity(
         forNewE164 newE164: E164,
         localAci: Aci,
-        localAccountId: String,
+        localRecipientUniqueId: String,
         localDeviceId: UInt32,
         localUserAllDeviceIds: [UInt32]
     ) -> Guarantee<ChangePhoneNumberPni.GeneratePniIdentityResult> {
@@ -140,7 +143,9 @@ class ChangePhoneNumberPniManagerImpl: ChangePhoneNumberPniManager {
 
         let pniIdentityKeyPair = identityManager.generateNewIdentityKeyPair()
 
-        let localDevicePniPqLastResortPreKeyRecord = try? pniKyberPreKeyStore.generateEphemeralLastResortKyberPreKey(signedBy: pniIdentityKeyPair)
+        let localDevicePniPqLastResortPreKeyRecord = db.write { tx in
+            try? pniKyberPreKeyStore.generateLastResortKyberPreKey(signedBy: pniIdentityKeyPair, tx: tx)
+        }
         guard let localDevicePniPqLastResortPreKeyRecord else {
             return Guarantee.value(.failure)
         }
@@ -156,7 +161,7 @@ class ChangePhoneNumberPniManagerImpl: ChangePhoneNumberPniManager {
         return firstly(on: schedulers.sync) { () -> Guarantee<PniDistribution.ParameterGenerationResult> in
             self.pniDistributionParameterBuilder.buildPniDistributionParameters(
                 localAci: localAci,
-                localAccountId: localAccountId,
+                localRecipientUniqueId: localRecipientUniqueId,
                 localDeviceId: localDeviceId,
                 localUserAllDeviceIds: localUserAllDeviceIds,
                 localPniIdentityKeyPair: pniIdentityKeyPair,
@@ -192,15 +197,15 @@ class ChangePhoneNumberPniManagerImpl: ChangePhoneNumberPniManager {
         )
 
         if let newPqLastResortPreKeyRecord = pendingState.localDevicePniPqLastResortPreKeyRecord {
-            try pniKyberPreKeyStore.storeLastResortPreKeyAndMarkAsCurrent(
+            try pniKyberPreKeyStore.storeLastResortPreKey(
                 record: newPqLastResortPreKeyRecord,
                 tx: transaction
             )
         }
 
         let newSignedPreKeyRecord = pendingState.localDevicePniSignedPreKeyRecord
-        pniSignedPreKeyStore.storeSignedPreKeyAsAcceptedAndCurrent(
-            signedPreKeyId: newSignedPreKeyRecord.id,
+        pniSignedPreKeyStore.storeSignedPreKey(
+            newSignedPreKeyRecord.id,
             signedPreKeyRecord: newSignedPreKeyRecord,
             tx: transaction
         )

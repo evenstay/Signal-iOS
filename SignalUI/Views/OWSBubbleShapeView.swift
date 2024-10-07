@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalCoreKit
+import SignalServiceKit
 
 public struct OWSDirectionalRectCorner: OptionSet {
     public let rawValue: Int8
@@ -63,7 +63,7 @@ public class OWSBubbleShapeView: UIView, OWSBubbleViewPartner {
 
     private var isConfigured = false
 
-    public required init(mode: Mode) {
+    public init(mode: Mode) {
         self.mode = mode
 
         super.init(frame: .zero)

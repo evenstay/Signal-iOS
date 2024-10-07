@@ -13,7 +13,7 @@ import LibSignalClient
 // MARK: - Mocks
 //
 //
-extension PreKey.Operation {
+extension PreKey {
     enum Mocks {
         typealias AccountServiceClient = _PreKey_AccountServiceClientMock
         typealias DateProvider = _PreKey_DateProviderMock
@@ -29,7 +29,7 @@ extension PreKey.Operation {
 //
 //
 
-class _PreKey_IdentityManagerMock: PreKey.Operation.Shims.IdentityManager {
+class _PreKey_IdentityManagerMock: PreKey.Shims.IdentityManager {
 
     var aciKeyPair: ECKeyPair?
     var pniKeyPair: ECKeyPair?
@@ -65,9 +65,9 @@ class _PreKey_LinkedDevicePniKeyManagerMock: LinkedDevicePniKeyManager {
     func validateLocalPniIdentityKeyIfNecessary(tx: DBReadTransaction) { owsFail("Not implemented!") }
 }
 
-struct _PreKey_MessageProcessorMock: PreKey.Operation.Shims.MessageProcessor {
-    func fetchingAndProcessingCompletePromise() -> Promise<Void> {
-        return Promise<Void>.value(())
+struct _PreKey_MessageProcessorMock: PreKey.Shims.MessageProcessor {
+    func waitForFetchingAndProcessing() -> Guarantee<Void> {
+        return Guarantee<Void>.value(())
     }
 }
 
@@ -82,18 +82,11 @@ class _PreKey_AccountServiceClientMock: FakeAccountServiceClient {
 
     var setPreKeysResult: ConsumableMockPromise<Void> = .unset
     var identity: OWSIdentity?
-    var identityKey: IdentityKey?
     var signedPreKeyRecord: SignalServiceKit.SignedPreKeyRecord?
     var preKeyRecords: [SignalServiceKit.PreKeyRecord]?
     var pqLastResortPreKeyRecord: SignalServiceKit.KyberPreKeyRecord?
     var pqPreKeyRecords: [SignalServiceKit.KyberPreKeyRecord]?
     var auth: ChatServiceAuth?
-
-    private let schedulers: Schedulers
-
-    init(schedulers: Schedulers) {
-        self.schedulers = schedulers
-    }
 
     override func getPreKeysCount(for identity: OWSIdentity) -> Promise<(ecCount: Int, pqCount: Int)> {
         return Promise.value((currentPreKeyCount!, currentPqPreKeyCount!))
@@ -101,16 +94,14 @@ class _PreKey_AccountServiceClientMock: FakeAccountServiceClient {
 
     override func setPreKeys(
         for identity: OWSIdentity,
-        identityKey: IdentityKey,
         signedPreKeyRecord: SignalServiceKit.SignedPreKeyRecord?,
         preKeyRecords: [SignalServiceKit.PreKeyRecord]?,
         pqLastResortPreKeyRecord: SignalServiceKit.KyberPreKeyRecord?,
         pqPreKeyRecords: [SignalServiceKit.KyberPreKeyRecord]?,
         auth: ChatServiceAuth
     ) -> Promise<Void> {
-        return setPreKeysResult.consumeIntoPromise().map(on: schedulers.sync) {
+        return setPreKeysResult.consumeIntoPromise().map(on: SyncScheduler()) {
             self.identity = identity
-            self.identityKey = identityKey
             self.signedPreKeyRecord = signedPreKeyRecord
             self.preKeyRecords = preKeyRecords
             self.pqLastResortPreKeyRecord = pqLastResortPreKeyRecord

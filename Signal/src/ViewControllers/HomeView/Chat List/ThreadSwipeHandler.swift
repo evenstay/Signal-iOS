@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
+import SignalServiceKit
 import SignalUI
 
 protocol ThreadSwipeHandler {
@@ -19,8 +19,7 @@ extension ThreadSwipeHandler where Self: UIViewController {
             return nil
         }
 
-        let thread = threadViewModel.threadRecord
-        let isThreadPinned = PinnedThreadManager.isThreadPinned(thread)
+        let isThreadPinned = threadViewModel.isPinned
         let pinnedStateAction: UIContextualAction
         if isThreadPinned {
             pinnedStateAction = UIContextualAction(style: .normal, title: nil) { [weak self] (_, _, completion) in
@@ -86,8 +85,23 @@ extension ThreadSwipeHandler where Self: UIViewController {
         muteAction.accessibilityLabel = threadViewModel.isMuted ? CommonStrings.unmuteButton : CommonStrings.muteButton
 
         let deleteAction = UIContextualAction(style: .destructive, title: nil) { [weak self] (_, _, completion) in
-            self?.deleteThreadWithConfirmation(threadViewModel: threadViewModel, closeConversationBlock: closeConversationBlock)
-            completion(false)
+            guard let self else {
+                completion(false)
+                return
+            }
+
+            DeleteForMeInfoSheetCoordinator.fromGlobals().coordinateDelete(
+                fromViewController: self
+            ) { [weak self] _, threadSoftDeleteManager in
+                guard let self else { return }
+
+                self.deleteThreadWithConfirmation(
+                    threadViewModel: threadViewModel,
+                    threadSoftDeleteManager: threadSoftDeleteManager,
+                    closeConversationBlock: closeConversationBlock
+                )
+                completion(false)
+            }
         }
         deleteAction.backgroundColor = .ows_accentRed
         deleteAction.image = actionImage(name: "trash-fill", title: CommonStrings.deleteButton)
@@ -141,30 +155,46 @@ extension ThreadSwipeHandler where Self: UIViewController {
         updateUIAfterSwipeAction()
     }
 
-    fileprivate func deleteThreadWithConfirmation(threadViewModel: ThreadViewModel, closeConversationBlock: (() -> Void)?) {
+    fileprivate func deleteThreadWithConfirmation(
+        threadViewModel: ThreadViewModel,
+        threadSoftDeleteManager: any ThreadSoftDeleteManager,
+        closeConversationBlock: (() -> Void)?
+    ) {
         AssertIsOnMainThread()
 
         let alert = ActionSheetController(title: OWSLocalizedString("CONVERSATION_DELETE_CONFIRMATION_ALERT_TITLE",
                                                                    comment: "Title for the 'conversation delete confirmation' alert."),
                                           message: OWSLocalizedString("CONVERSATION_DELETE_CONFIRMATION_ALERT_MESSAGE",
                                                                      comment: "Message for the 'conversation delete confirmation' alert."))
-        alert.addAction(ActionSheetAction(title: CommonStrings.deleteButton,
-                                          style: .destructive) { [weak self] _ in
-            self?.deleteThread(threadViewModel: threadViewModel, closeConversationBlock: closeConversationBlock)
+        alert.addAction(ActionSheetAction(
+            title: CommonStrings.deleteButton,
+            style: .destructive
+        ) { [weak self] _ in
+            guard let self else { return }
+
+            closeConversationBlock?()
+
+            ModalActivityIndicatorViewController.present(
+                fromViewController: self
+            ) { [weak self] modal in
+                guard let self else { return }
+
+                await self.databaseStorage.awaitableWrite { tx in
+                    threadSoftDeleteManager.softDelete(
+                        threads: [threadViewModel.threadRecord],
+                        sendDeleteForMeSyncMessage: true,
+                        tx: tx.asV2Write
+                    )
+                }
+
+                modal.dismiss {
+                    self.updateUIAfterSwipeAction()
+                }
+            }
         })
         alert.addAction(OWSActionSheets.cancelAction)
 
         presentActionSheet(alert)
-    }
-
-    func deleteThread(threadViewModel: ThreadViewModel, closeConversationBlock: (() -> Void)?) {
-        AssertIsOnMainThread()
-
-        closeConversationBlock?()
-        databaseStorage.write { transaction in
-            threadViewModel.threadRecord.softDelete(with: transaction)
-        }
-        updateUIAfterSwipeAction()
     }
 
     func markThreadAsRead(threadViewModel: ThreadViewModel) {
@@ -218,7 +248,7 @@ extension ThreadSwipeHandler where Self: UIViewController {
         AssertIsOnMainThread()
 
         databaseStorage.write { transaction in
-            threadViewModel.associatedData.updateWith(mutedUntilTimestamp: Date.ows_millisecondTimestamp(), updateStorageService: true, transaction: transaction)
+            threadViewModel.associatedData.updateWith(mutedUntilTimestamp: 0, updateStorageService: true, transaction: transaction)
         }
     }
 
@@ -227,7 +257,11 @@ extension ThreadSwipeHandler where Self: UIViewController {
 
         do {
             try databaseStorage.write { transaction in
-                try PinnedThreadManager.pinThread(threadViewModel.threadRecord, updateStorageService: true, transaction: transaction)
+                try DependenciesBridge.shared.pinnedThreadManager.pinThread(
+                    threadViewModel.threadRecord,
+                    updateStorageService: true,
+                    tx: transaction.asV2Write
+                )
             }
         } catch {
             if case PinnedThreadError.tooManyPinnedThreads = error {
@@ -244,7 +278,11 @@ extension ThreadSwipeHandler where Self: UIViewController {
 
         do {
             try databaseStorage.write { transaction in
-                try PinnedThreadManager.unpinThread(threadViewModel.threadRecord, updateStorageService: true, transaction: transaction)
+                try DependenciesBridge.shared.pinnedThreadManager.unpinThread(
+                    threadViewModel.threadRecord,
+                    updateStorageService: true,
+                    tx: transaction.asV2Write
+                )
             }
         } catch {
             owsFailDebug("Error: \(error)")

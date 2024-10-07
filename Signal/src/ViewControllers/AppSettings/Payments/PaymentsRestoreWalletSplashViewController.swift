@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalCoreKit
-import SignalUI
+import SignalServiceKit
+public import SignalUI
 
 public protocol PaymentsRestoreWalletDelegate: AnyObject {
     func restoreWalletDidComplete()
@@ -16,7 +16,7 @@ public class PaymentsRestoreWalletSplashViewController: OWSViewController {
 
     private weak var restoreWalletDelegate: PaymentsRestoreWalletDelegate?
 
-    public required init(restoreWalletDelegate: PaymentsRestoreWalletDelegate) {
+    public init(restoreWalletDelegate: PaymentsRestoreWalletDelegate) {
         self.restoreWalletDelegate = restoreWalletDelegate
 
         super.init()

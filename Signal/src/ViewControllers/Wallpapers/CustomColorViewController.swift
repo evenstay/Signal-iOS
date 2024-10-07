@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
+import SignalServiceKit
 import SignalUI
 
 class CustomColorViewController: OWSTableViewController2 {
@@ -112,10 +112,13 @@ class CustomColorViewController: OWSTableViewController2 {
         title = OWSLocalizedString("CUSTOM_CHAT_COLOR_SETTINGS_TITLE",
                                   comment: "Title for the custom chat color settings view.")
 
-        navigationItem.rightBarButtonItem = .init(title: CommonStrings.setButton,
-                                                  style: .done,
-                                                  target: self,
-                                                  action: #selector(didTapSet))
+        navigationItem.rightBarButtonItem = .button(
+            title: CommonStrings.setButton,
+            style: .done,
+            action: { [weak self] in
+                self?.didTapSet()
+            }
+        )
 
         createSubviews()
 
@@ -177,20 +180,17 @@ class CustomColorViewController: OWSTableViewController2 {
         }
         self.navigationState = navigationState
 
-        navigationItem.leftBarButtonItem = UIBarButtonItem(
-            barButtonSystemItem: .cancel,
-            target: self,
-            action: #selector(didTapCancel),
-            accessibilityIdentifier: "cancel_button"
-        )
+        navigationItem.leftBarButtonItem = .cancelButton { [weak self] in
+            self?.didTapCancel()
+        }
 
         if hasUnsavedChanges {
-            navigationItem.rightBarButtonItem = UIBarButtonItem(
+            navigationItem.rightBarButtonItem = .button(
                 title: CommonStrings.setButton,
                 style: .done,
-                target: self,
-                action: #selector(didTapDone),
-                accessibilityIdentifier: "set_button"
+                action: { [weak self] in
+                    self?.didTapDone()
+                }
             )
         } else {
             navigationItem.rightBarButtonItem = nil
@@ -431,7 +431,12 @@ class CustomColorViewController: OWSTableViewController2 {
                 return
             }
             // Don't show a confirmation unless the color is used in multiple places.
-            usageCountToConfirm = databaseStorage.read { tx in ChatColors.usageCount(of: colorKey, tx: tx) }
+            usageCountToConfirm = databaseStorage.read { tx in
+                return DependenciesBridge.shared.chatColorSettingStore.usageCount(
+                    of: colorKey,
+                    tx: tx.asV2Read
+                )
+            }
             guard usageCountToConfirm > 1 else {
                 saveAndDismiss()
                 return
@@ -471,12 +476,10 @@ class CustomColorViewController: OWSTableViewController2 {
         self.navigationController?.popViewController(animated: true)
     }
 
-    @objc
     private func didTapSet() {
         showSaveUI()
     }
 
-    @objc
     private func didTapCancel() {
         guard hasUnsavedChanges else {
             dismissWithoutSaving()
@@ -488,7 +491,6 @@ class CustomColorViewController: OWSTableViewController2 {
         })
     }
 
-    @objc
     private func didTapDone() {
         showSaveUI()
     }
@@ -509,11 +511,9 @@ extension CustomColorViewController: SpectrumSliderDelegate {
         }
 
         if spectrumSlider == self.hueSlider {
-            Logger.verbose("hueSlider did change.")
             currentColorSetting.hueAlpha = hueSlider.value.clamp01()
             updateSaturationSpectrum()
         } else if spectrumSlider == self.saturationSlider {
-            Logger.verbose("saturationSlider did change.")
             currentColorSetting.saturationAlpha = saturationSlider.value.clamp01()
         } else {
             owsFailDebug("Unknown slider.")
@@ -561,11 +561,6 @@ private class SpectrumSlider: ManualLayoutView {
         self.shouldDeactivateConstraints = false
 
         createSubviews()
-    }
-
-    @available(swift, obsoleted: 1.0)
-    required init(name: String) {
-        owsFail("Do not use this initializer.")
     }
 
     private static let knobDiameter: CGFloat = 28

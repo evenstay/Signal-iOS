@@ -45,12 +45,6 @@ CREATE
 ;
 
 CREATE
-    INDEX "index_model_TSThread_on_uniqueId"
-        ON "model_TSThread"("uniqueId"
-)
-;
-
-CREATE
     TABLE
         IF NOT EXISTS "model_TSInteraction" (
             "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL
@@ -80,7 +74,7 @@ CREATE
             ,"groupMetaMessage" INTEGER
             ,"hasLegacyMessageState" INTEGER
             ,"hasSyncedTranscript" INTEGER
-            ,"isFromLinkedDevice" INTEGER
+            ,"wasNotCreatedLocally" INTEGER
             ,"isLocalChange" INTEGER
             ,"isViewOnceComplete" INTEGER
             ,"isViewOnceMessage" INTEGER
@@ -100,7 +94,7 @@ CREATE
             ,"recipientAddressStates" BLOB
             ,"sender" BLOB
             ,"serverTimestamp" INTEGER
-            ,"sourceDeviceId" INTEGER
+            ,"deprecated_sourceDeviceId" INTEGER
             ,"storedMessageState" INTEGER
             ,"storedShouldStartExpireTimer" INTEGER
             ,"unregisteredAddress" BLOB
@@ -127,13 +121,10 @@ CREATE
             ,"storyReactionEmoji" TEXT
             ,"giftBadge" BLOB
             ,"editState" INTEGER DEFAULT 0
+            ,"archivedPaymentInfo" BLOB
+            ,"expireTimerVersion" INTEGER
+            ,"isSmsMessageRestoredFromBackup" BOOLEAN DEFAULT 0
         )
-;
-
-CREATE
-    INDEX "index_model_TSInteraction_on_uniqueId"
-        ON "model_TSInteraction"("uniqueId"
-)
 ;
 
 CREATE
@@ -154,12 +145,6 @@ CREATE
 ;
 
 CREATE
-    INDEX "index_model_StickerPack_on_uniqueId"
-        ON "model_StickerPack"("uniqueId"
-)
-;
-
-CREATE
     TABLE
         IF NOT EXISTS "model_InstalledSticker" (
             "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL
@@ -173,12 +158,6 @@ CREATE
 ;
 
 CREATE
-    INDEX "index_model_InstalledSticker_on_uniqueId"
-        ON "model_InstalledSticker"("uniqueId"
-)
-;
-
-CREATE
     TABLE
         IF NOT EXISTS "model_KnownStickerPack" (
             "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL
@@ -189,12 +168,6 @@ CREATE
             ,"info" BLOB NOT NULL
             ,"referenceCount" INTEGER NOT NULL
         )
-;
-
-CREATE
-    INDEX "index_model_KnownStickerPack_on_uniqueId"
-        ON "model_KnownStickerPack"("uniqueId"
-)
 ;
 
 CREATE
@@ -232,6 +205,7 @@ CREATE
             ,"isAnimatedCached" INTEGER
             ,"attachmentSchemaVersion" INTEGER DEFAULT 0
             ,"videoDuration" DOUBLE
+            ,"clientUuid" TEXT
         )
 ;
 
@@ -279,13 +253,21 @@ CREATE
             ,"paypalPaymentId" TEXT
             ,"paypalPaymentToken" TEXT
             ,"paymentMethod" TEXT
+            ,"isNewSubscription" BOOLEAN
+            ,"shouldSuppressPaymentAlreadyRedeemed" BOOLEAN
+            ,"CRDAJR_sendDeleteAllSyncMessage" BOOLEAN
+            ,"CRDAJR_deleteAllBeforeTimestamp" INTEGER
+            ,"CRDAJR_deleteAllBeforeCallId" TEXT
+            ,"CRDAJR_deleteAllBeforeConversationId" BLOB
+            ,"ICSJR_cdnNumber" INTEGER
+            ,"ICSJR_cdnKey" TEXT
+            ,"ICSJR_encryptionKey" BLOB
+            ,"ICSJR_digest" BLOB
+            ,"ICSJR_plaintextLength" INTEGER
+            ,"BDIJR_anchorMessageRowId" INTEGER
+            ,"BDIJR_fullThreadDeletionAnchorMessageRowId" INTEGER
+            ,"BDIJR_threadUniqueId" TEXT
         )
-;
-
-CREATE
-    INDEX "index_model_SSKJobRecord_on_uniqueId"
-        ON "model_SSKJobRecord"("uniqueId"
-)
 ;
 
 CREATE
@@ -304,12 +286,6 @@ CREATE
 ;
 
 CREATE
-    INDEX "index_model_OWSMessageContentJob_on_uniqueId"
-        ON "model_OWSMessageContentJob"("uniqueId"
-)
-;
-
-CREATE
     TABLE
         IF NOT EXISTS "model_OWSRecipientIdentity" (
             "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL
@@ -325,12 +301,6 @@ CREATE
 ;
 
 CREATE
-    INDEX "index_model_OWSRecipientIdentity_on_uniqueId"
-        ON "model_OWSRecipientIdentity"("uniqueId"
-)
-;
-
-CREATE
     TABLE
         IF NOT EXISTS "model_OWSDisappearingMessagesConfiguration" (
             "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL
@@ -339,13 +309,8 @@ CREATE
                 ON CONFLICT FAIL
             ,"durationSeconds" INTEGER NOT NULL
             ,"enabled" INTEGER NOT NULL
+            ,"timerVersion" INTEGER NOT NULL DEFAULT 1
         )
-;
-
-CREATE
-    INDEX "index_model_OWSDisappearingMessagesConfiguration_on_uniqueId"
-        ON "model_OWSDisappearingMessagesConfiguration"("uniqueId"
-)
 ;
 
 CREATE
@@ -360,13 +325,8 @@ CREATE
             ,"recipientUUID" TEXT
             ,"unregisteredAtTimestamp" INTEGER
             ,"pni" TEXT
+            ,"isPhoneNumberDiscoverable" BOOLEAN
         )
-;
-
-CREATE
-    INDEX "index_model_SignalRecipient_on_uniqueId"
-        ON "model_SignalRecipient"("uniqueId"
-)
 ;
 
 CREATE
@@ -391,13 +351,8 @@ CREATE
             ,"isStoriesCapable" BOOLEAN NOT NULL DEFAULT 0
             ,"canReceiveGiftBadges" BOOLEAN NOT NULL DEFAULT 0
             ,"isPniCapable" BOOLEAN NOT NULL DEFAULT 0
+            ,"isPhoneNumberShared" BOOLEAN
         )
-;
-
-CREATE
-    INDEX "index_model_OWSUserProfile_on_uniqueId"
-        ON "model_OWSUserProfile"("uniqueId"
-)
 ;
 
 CREATE
@@ -419,37 +374,6 @@ CREATE
             ,"lastSeenAt" DOUBLE NOT NULL
             ,"name" TEXT
         )
-;
-
-CREATE
-    INDEX "index_model_OWSDevice_on_uniqueId"
-        ON "model_OWSDevice"("uniqueId"
-)
-;
-
-CREATE
-    TABLE
-        IF NOT EXISTS "model_TestModel" (
-            "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL
-            ,"recordType" INTEGER NOT NULL
-            ,"uniqueId" TEXT NOT NULL UNIQUE
-                ON CONFLICT FAIL
-            ,"dateValue" DOUBLE
-            ,"doubleValue" DOUBLE NOT NULL
-            ,"floatValue" DOUBLE NOT NULL
-            ,"int64Value" INTEGER NOT NULL
-            ,"nsIntegerValue" INTEGER NOT NULL
-            ,"nsNumberValueUsingInt64" INTEGER
-            ,"nsNumberValueUsingUInt64" INTEGER
-            ,"nsuIntegerValue" INTEGER NOT NULL
-            ,"uint64Value" INTEGER NOT NULL
-        )
-;
-
-CREATE
-    INDEX "index_model_TestModel_on_uniqueId"
-        ON "model_TestModel"("uniqueId"
-)
 ;
 
 CREATE
@@ -523,14 +447,6 @@ CREATE
 ;
 
 CREATE
-    INDEX "index_thread_on_shouldThreadBeVisible"
-        ON "model_TSThread"("shouldThreadBeVisible"
-    ,"isArchived"
-    ,"lastInteractionRowId"
-)
-;
-
-CREATE
     INDEX "index_user_profiles_on_recipientPhoneNumber"
         ON "model_OWSUserProfile"("recipientPhoneNumber"
 )
@@ -545,7 +461,7 @@ CREATE
 CREATE
     INDEX "index_interactions_on_timestamp_sourceDeviceId_and_authorUUID"
         ON "model_TSInteraction"("timestamp"
-    ,"sourceDeviceId"
+    ,"deprecated_sourceDeviceId"
     ,"authorUUID"
 )
 ;
@@ -553,7 +469,7 @@ CREATE
 CREATE
     INDEX "index_interactions_on_timestamp_sourceDeviceId_and_authorPhoneNumber"
         ON "model_TSInteraction"("timestamp"
-    ,"sourceDeviceId"
+    ,"deprecated_sourceDeviceId"
     ,"authorPhoneNumber"
 )
 ;
@@ -584,13 +500,12 @@ CREATE
             ,"multipleAccountLabelText" TEXT NOT NULL
             ,"recipientPhoneNumber" TEXT
             ,"recipientUUID" TEXT
+            ,"cnContactId" TEXT
+            ,"givenName" TEXT NOT NULL DEFAULT ''
+            ,"familyName" TEXT NOT NULL DEFAULT ''
+            ,"nickname" TEXT NOT NULL DEFAULT ''
+            ,"fullName" TEXT NOT NULL DEFAULT ''
         )
-;
-
-CREATE
-    INDEX "index_model_SignalAccount_on_uniqueId"
-        ON "model_SignalAccount"("uniqueId"
-)
 ;
 
 CREATE
@@ -624,12 +539,6 @@ CREATE
 ;
 
 CREATE
-    INDEX "index_media_gallery_items_on_attachmentId"
-        ON "media_gallery_items"("attachmentId"
-)
-;
-
-CREATE
     TABLE
         IF NOT EXISTS "model_OWSReaction" (
             "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL
@@ -644,12 +553,6 @@ CREATE
             ,"uniqueMessageId" TEXT NOT NULL
             ,"read" BOOLEAN NOT NULL DEFAULT 0
         )
-;
-
-CREATE
-    INDEX "index_model_OWSReaction_on_uniqueId"
-        ON "model_OWSReaction"("uniqueId"
-)
 ;
 
 CREATE
@@ -704,43 +607,6 @@ CREATE
             ,content = 'indexable_text'
             ,content_rowid = 'id'
         ) /* indexable_text_fts(ftsIndexableContent) */
-;
-
-CREATE
-    TABLE
-        IF NOT EXISTS 'indexable_text_fts_data' (
-            id INTEGER PRIMARY KEY
-            ,block BLOB
-        )
-;
-
-CREATE
-    TABLE
-        IF NOT EXISTS 'indexable_text_fts_idx' (
-            segid
-            ,term
-            ,pgno
-            ,PRIMARY KEY (
-                segid
-                ,term
-            )
-        ) WITHOUT ROWID
-;
-
-CREATE
-    TABLE
-        IF NOT EXISTS 'indexable_text_fts_docsize' (
-            id INTEGER PRIMARY KEY
-            ,sz BLOB
-        )
-;
-
-CREATE
-    TABLE
-        IF NOT EXISTS 'indexable_text_fts_config' (
-            k PRIMARY KEY
-            ,v
-        ) WITHOUT ROWID
 ;
 
 CREATE
@@ -836,12 +702,6 @@ CREATE
 ;
 
 CREATE
-    INDEX "index_model_IncomingGroupsV2MessageJob_on_uniqueId"
-        ON "model_IncomingGroupsV2MessageJob"("uniqueId"
-)
-;
-
-CREATE
     TABLE
         IF NOT EXISTS "model_ExperienceUpgrade" (
             "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL
@@ -854,12 +714,6 @@ CREATE
             ,"manifest" BLOB
             ,"snoozeCount" INTEGER NOT NULL DEFAULT 0
         )
-;
-
-CREATE
-    INDEX "index_model_ExperienceUpgrade_on_uniqueId"
-        ON "model_ExperienceUpgrade"("uniqueId"
-)
 ;
 
 CREATE
@@ -902,12 +756,6 @@ CREATE
 ;
 
 CREATE
-    INDEX "index_model_TSAttachment_on_uniqueId"
-        ON "model_TSAttachment"("uniqueId"
-)
-;
-
-CREATE
     INDEX "index_model_TSInteraction_on_uniqueThreadId_recordType_messageType"
         ON "model_TSInteraction"("uniqueThreadId"
     ,"recordType"
@@ -937,12 +785,6 @@ CREATE
 ;
 
 CREATE
-    INDEX "index_model_TSMention_on_uniqueId"
-        ON "model_TSMention"("uniqueId"
-)
-;
-
-CREATE
     INDEX "index_model_TSMention_on_uuidString_and_uniqueThreadId"
         ON "model_TSMention"("uuidString"
     ,"uniqueThreadId"
@@ -953,13 +795,6 @@ CREATE
     UNIQUE INDEX "index_model_TSMention_on_uniqueMessageId_and_uuidString"
         ON "model_TSMention"("uniqueMessageId"
     ,"uuidString"
-)
-;
-
-CREATE
-    INDEX "index_model_TSThread_on_isMarkedUnread_and_shouldThreadBeVisible"
-        ON "model_TSThread"("isMarkedUnread"
-    ,"shouldThreadBeVisible"
 )
 ;
 
@@ -1004,12 +839,6 @@ CREATE
 ;
 
 CREATE
-    INDEX "index_model_TSPaymentModel_on_uniqueId"
-        ON "model_TSPaymentModel"("uniqueId"
-)
-;
-
-CREATE
     INDEX "index_model_TSPaymentModel_on_paymentState"
         ON "model_TSPaymentModel"("paymentState"
 )
@@ -1051,12 +880,6 @@ CREATE
             ,"uuidString" TEXT
             ,"lastInteractionTimestamp" INTEGER NOT NULL DEFAULT 0
         )
-;
-
-CREATE
-    INDEX "index_model_TSGroupMember_on_uniqueId"
-        ON "model_TSGroupMember"("uniqueId"
-)
 ;
 
 CREATE
@@ -1108,12 +931,6 @@ CREATE
             ,"mutedUntilTimestamp" INTEGER NOT NULL DEFAULT 0
             ,"audioPlaybackRate" DOUBLE NOT NULL DEFAULT 1
         )
-;
-
-CREATE
-    UNIQUE INDEX "index_thread_associated_data_on_threadUniqueId"
-        ON "thread_associated_data"("threadUniqueId"
-)
 ;
 
 CREATE
@@ -1221,12 +1038,6 @@ CREATE
             ,"attachment" BLOB NOT NULL
             ,"replyCount" INTEGER NOT NULL DEFAULT 0
         )
-;
-
-CREATE
-    INDEX "index_model_StoryMessage_on_uniqueId"
-        ON "model_StoryMessage"("uniqueId"
-)
 ;
 
 CREATE
@@ -1439,6 +1250,7 @@ CREATE
     TABLE
         IF NOT EXISTS "HiddenRecipient" (
             "recipientId" INTEGER PRIMARY KEY NOT NULL
+            ,"inKnownMessageRequestState" BOOLEAN NOT NULL DEFAULT 0
             ,FOREIGN KEY ("recipientId") REFERENCES "model_SignalRecipient"("id"
         )
             ON DELETE
@@ -1484,6 +1296,9 @@ CREATE
         ,"direction" INTEGER NOT NULL
         ,"status" INTEGER NOT NULL
         ,"timestamp" INTEGER NOT NULL
+        ,"groupCallRingerAci" BLOB
+        ,"unreadStatus" INTEGER NOT NULL DEFAULT 0
+        ,"callEndedTimestamp" INTEGER NOT NULL DEFAULT 0
 )
 ;
 
@@ -1492,4 +1307,858 @@ CREATE
         ON "CallRecord"("callId"
     ,"threadRowId"
 )
+;
+
+CREATE
+    INDEX "index_call_record_on_timestamp"
+        ON "CallRecord"("timestamp"
+)
+;
+
+CREATE
+    INDEX "index_call_record_on_status_and_timestamp"
+        ON "CallRecord"("status"
+    ,"timestamp"
+)
+;
+
+CREATE
+    INDEX "index_call_record_on_threadRowId_and_timestamp"
+        ON "CallRecord"("threadRowId"
+    ,"timestamp"
+)
+;
+
+CREATE
+    INDEX "index_call_record_on_threadRowId_and_status_and_timestamp"
+        ON "CallRecord"("threadRowId"
+    ,"status"
+    ,"timestamp"
+)
+;
+
+CREATE
+    TABLE
+        IF NOT EXISTS "DeletedCallRecord" (
+            "id" INTEGER PRIMARY KEY NOT NULL
+            ,"callId" TEXT NOT NULL
+            ,"threadRowId" INTEGER NOT NULL REFERENCES "model_TSThread"("id"
+        )
+            ON DELETE
+                RESTRICT
+                ,"deletedAtTimestamp" INTEGER NOT NULL
+)
+;
+
+CREATE
+    UNIQUE INDEX "index_deleted_call_record_on_threadRowId_and_callId"
+        ON "DeletedCallRecord"("threadRowId"
+    ,"callId"
+)
+;
+
+CREATE
+    INDEX "index_deleted_call_record_on_deletedAtTimestamp"
+        ON "DeletedCallRecord"("deletedAtTimestamp"
+)
+;
+
+CREATE
+    INDEX "index_call_record_on_callStatus_and_unreadStatus_and_timestamp"
+        ON "CallRecord"("status"
+    ,"unreadStatus"
+    ,"timestamp"
+)
+;
+
+CREATE
+    TABLE
+        IF NOT EXISTS "SearchableName" (
+            "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL
+            ,"threadId" INTEGER UNIQUE
+            ,"signalAccountId" INTEGER UNIQUE
+            ,"userProfileId" INTEGER UNIQUE
+            ,"signalRecipientId" INTEGER UNIQUE
+            ,"usernameLookupRecordId" BLOB UNIQUE
+            ,"value" TEXT NOT NULL
+            ,"nicknameRecordRecipientId" INTEGER REFERENCES "NicknameRecord"("recipientRowID"
+        )
+            ON DELETE
+                CASCADE
+                ,FOREIGN KEY ("threadId") REFERENCES "model_TSThread"("id"
+)
+    ON DELETE
+        CASCADE
+            ON UPDATE
+                CASCADE
+                ,FOREIGN KEY ("signalAccountId") REFERENCES "model_SignalAccount"("id"
+)
+    ON DELETE
+        CASCADE
+            ON UPDATE
+                CASCADE
+                ,FOREIGN KEY ("userProfileId") REFERENCES "model_OWSUserProfile"("id"
+)
+    ON DELETE
+        CASCADE
+            ON UPDATE
+                CASCADE
+                ,FOREIGN KEY ("signalRecipientId") REFERENCES "model_SignalRecipient"("id"
+)
+    ON DELETE
+        CASCADE
+            ON UPDATE
+                CASCADE
+                ,FOREIGN KEY ("usernameLookupRecordId") REFERENCES "UsernameLookupRecord"("aci"
+)
+    ON DELETE
+        CASCADE
+            ON UPDATE
+                CASCADE
+)
+;
+
+CREATE
+    VIRTUAL TABLE
+        "SearchableNameFTS"
+            USING fts5 (
+            VALUE
+            ,tokenize = 'unicode61'
+            ,content = 'SearchableName'
+            ,content_rowid = 'id'
+        ) /* SearchableNameFTS(value) */
+;
+
+CREATE
+    TRIGGER "__SearchableNameFTS_ai" AFTER INSERT
+            ON "SearchableName" BEGIN INSERT
+            INTO
+                "SearchableNameFTS"("rowid"
+                ,"value"
+)
+VALUES (
+new. "id"
+,new. "value"
+)
+;
+
+END
+;
+
+CREATE
+    TRIGGER "__SearchableNameFTS_ad" AFTER DELETE
+                ON "SearchableName" BEGIN INSERT
+                INTO
+                    "SearchableNameFTS"("SearchableNameFTS"
+                    ,"rowid"
+                    ,"value"
+)
+VALUES (
+'delete'
+,old. "id"
+,old. "value"
+)
+;
+
+END
+;
+
+CREATE
+    TRIGGER "__SearchableNameFTS_au" AFTER UPDATE
+                ON "SearchableName" BEGIN INSERT
+                INTO
+                    "SearchableNameFTS"("SearchableNameFTS"
+                    ,"rowid"
+                    ,"value"
+)
+VALUES (
+'delete'
+,old. "id"
+,old. "value"
+)
+;
+
+INSERT
+    INTO
+        "SearchableNameFTS"("rowid"
+        ,"value"
+)
+VALUES (
+new. "id"
+,new. "value"
+)
+;
+
+END
+;
+
+CREATE
+    INDEX "index_call_record_on_threadRowId_and_callStatus_and_unreadStatus_and_timestamp"
+        ON "CallRecord"("threadRowId"
+    ,"status"
+    ,"unreadStatus"
+    ,"timestamp"
+)
+;
+
+CREATE
+    TABLE
+        IF NOT EXISTS "NicknameRecord" (
+            "recipientRowID" INTEGER PRIMARY KEY NOT NULL REFERENCES "model_SignalRecipient"("id"
+        )
+            ON DELETE
+                CASCADE
+                ,"givenName" TEXT
+                ,"familyName" TEXT
+                ,"note" TEXT
+)
+;
+
+CREATE
+    TABLE
+        IF NOT EXISTS "Attachment" (
+            "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL
+            ,"blurHash" TEXT
+            ,"sha256ContentHash" BLOB UNIQUE
+            ,"mediaName" TEXT UNIQUE
+            ,"encryptedByteCount" INTEGER
+            ,"unencryptedByteCount" INTEGER
+            ,"mimeType" TEXT NOT NULL
+            ,"encryptionKey" BLOB NOT NULL
+            ,"digestSHA256Ciphertext" BLOB
+            ,"localRelativeFilePath" TEXT
+            ,"contentType" INTEGER
+            ,"transitCdnNumber" INTEGER
+            ,"transitCdnKey" TEXT
+            ,"transitUploadTimestamp" INTEGER
+            ,"transitEncryptionKey" BLOB
+            ,"transitDigestSHA256Ciphertext" BLOB
+            ,"lastTransitDownloadAttemptTimestamp" INTEGER
+            ,"mediaTierCdnNumber" INTEGER
+            ,"mediaTierUploadEra" TEXT
+            ,"lastMediaTierDownloadAttemptTimestamp" INTEGER
+            ,"thumbnailCdnNumber" INTEGER
+            ,"thumbnailUploadEra" TEXT
+            ,"lastThumbnailDownloadAttemptTimestamp" INTEGER
+            ,"localRelativeFilePathThumbnail" TEXT
+            ,"cachedAudioDurationSeconds" DOUBLE
+            ,"cachedMediaHeightPixels" INTEGER
+            ,"cachedMediaWidthPixels" INTEGER
+            ,"cachedVideoDurationSeconds" DOUBLE
+            ,"audioWaveformRelativeFilePath" TEXT
+            ,"videoStillFrameRelativeFilePath" TEXT
+            ,"originalAttachmentIdForQuotedReply" INTEGER REFERENCES "Attachment"("id"
+        )
+            ON DELETE
+            SET
+                NULL
+                ,"transitUnencryptedByteCount" INTEGER
+                ,"mediaTierUnencryptedByteCount" INTEGER
+                ,"mediaTierDigestSHA256Ciphertext" BLOB
+                ,"mediaTierIncrementalMac" BLOB
+                ,"mediaTierIncrementalMacChunkSize" INTEGER
+                ,"transitTierIncrementalMac" BLOB
+                ,"transitTierIncrementalMacChunkSize" INTEGER
+)
+;
+
+CREATE
+    INDEX "index_attachment_on_contentType_and_mimeType"
+        ON "Attachment"("contentType"
+    ,"mimeType"
+)
+;
+
+CREATE
+    TABLE
+        IF NOT EXISTS "MessageAttachmentReference" (
+            "ownerType" INTEGER NOT NULL
+            ,"ownerRowId" INTEGER NOT NULL REFERENCES "model_TSInteraction"("id"
+        )
+            ON DELETE
+                CASCADE
+                ,"attachmentRowId" INTEGER NOT NULL REFERENCES "Attachment"("id"
+)
+    ON DELETE
+        CASCADE
+        ,"receivedAtTimestamp" INTEGER NOT NULL
+        ,"contentType" INTEGER
+        ,"renderingFlag" INTEGER NOT NULL
+        ,"idInMessage" TEXT
+        ,"orderInMessage" INTEGER
+        ,"threadRowId" INTEGER NOT NULL REFERENCES "model_TSThread"("id"
+)
+    ON DELETE
+        CASCADE
+        ,"caption" TEXT
+        ,"sourceFilename" TEXT
+        ,"sourceUnencryptedByteCount" INTEGER
+        ,"sourceMediaHeightPixels" INTEGER
+        ,"sourceMediaWidthPixels" INTEGER
+        ,"stickerPackId" BLOB
+        ,"stickerId" INTEGER
+        ,isVisualMediaContentType AS (
+            contentType = 2
+            OR contentType = 3
+            OR contentType = 4
+        ) VIRTUAL
+        ,isInvalidOrFileContentType AS (
+            contentType = 0
+            OR contentType = 1
+        ) VIRTUAL
+        ,"isViewOnce" BOOLEAN NOT NULL DEFAULT 0
+)
+;
+
+CREATE
+    INDEX "index_message_attachment_reference_on_ownerRowId_and_ownerType"
+        ON "MessageAttachmentReference"("ownerRowId"
+    ,"ownerType"
+)
+;
+
+CREATE
+    INDEX "index_message_attachment_reference_on_attachmentRowId"
+        ON "MessageAttachmentReference"("attachmentRowId"
+)
+;
+
+CREATE
+    INDEX "index_message_attachment_reference_on_ownerRowId_and_idInMessage"
+        ON "MessageAttachmentReference"("ownerRowId"
+    ,"idInMessage"
+)
+;
+
+CREATE
+    INDEX "index_message_attachment_reference_on_stickerPackId_and_stickerId"
+        ON "MessageAttachmentReference"("stickerPackId"
+    ,"stickerId"
+)
+;
+
+CREATE
+    TABLE
+        IF NOT EXISTS "StoryMessageAttachmentReference" (
+            "ownerType" INTEGER NOT NULL
+            ,"ownerRowId" INTEGER NOT NULL REFERENCES "model_StoryMessage"("id"
+        )
+            ON DELETE
+                CASCADE
+                ,"attachmentRowId" INTEGER NOT NULL REFERENCES "Attachment"("id"
+)
+    ON DELETE
+        CASCADE
+        ,"shouldLoop" BOOLEAN NOT NULL
+        ,"caption" TEXT
+        ,"captionBodyRanges" BLOB
+        ,"sourceFilename" TEXT
+        ,"sourceUnencryptedByteCount" INTEGER
+        ,"sourceMediaHeightPixels" INTEGER
+        ,"sourceMediaWidthPixels" INTEGER
+)
+;
+
+CREATE
+    INDEX "index_story_message_attachment_reference_on_ownerRowId_and_ownerType"
+        ON "StoryMessageAttachmentReference"("ownerRowId"
+    ,"ownerType"
+)
+;
+
+CREATE
+    INDEX "index_story_message_attachment_reference_on_attachmentRowId"
+        ON "StoryMessageAttachmentReference"("attachmentRowId"
+)
+;
+
+CREATE
+    TABLE
+        IF NOT EXISTS "ThreadAttachmentReference" (
+            "ownerRowId" INTEGER UNIQUE REFERENCES "model_TSThread"("id"
+        )
+            ON DELETE
+                CASCADE
+                ,"attachmentRowId" INTEGER NOT NULL REFERENCES "Attachment"("id"
+)
+    ON DELETE
+        CASCADE
+        ,"creationTimestamp" INTEGER NOT NULL
+)
+;
+
+CREATE
+    INDEX "index_thread_attachment_reference_on_attachmentRowId"
+        ON "ThreadAttachmentReference"("attachmentRowId"
+)
+;
+
+CREATE
+    TABLE
+        IF NOT EXISTS "OrphanedAttachment" (
+            "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL
+            ,"localRelativeFilePath" TEXT
+            ,"localRelativeFilePathThumbnail" TEXT
+            ,"localRelativeFilePathAudioWaveform" TEXT
+            ,"localRelativeFilePathVideoStillFrame" TEXT
+            ,"isPendingAttachment" BOOLEAN NOT NULL DEFAULT 0
+        )
+;
+
+CREATE
+    TRIGGER __Attachment_contentType_au AFTER UPDATE
+            OF contentType
+                ON Attachment BEGIN UPDATE
+                    MessageAttachmentReference
+                SET
+                    contentType = NEW.contentType
+                WHERE
+                    attachmentRowId = OLD.id
+;
+
+END
+;
+
+CREATE
+    TRIGGER "__MessageAttachmentReference_ad" AFTER DELETE
+                ON "MessageAttachmentReference" BEGIN DELETE
+                FROM
+                    Attachment
+                WHERE
+                    id = OLD.attachmentRowId
+                    AND NOT EXISTS (
+                        SELECT
+                                1
+                            FROM
+                                MessageAttachmentReference
+                            WHERE
+                                attachmentRowId = OLD.attachmentRowId
+                    )
+                    AND NOT EXISTS (
+                        SELECT
+                                1
+                            FROM
+                                StoryMessageAttachmentReference
+                            WHERE
+                                attachmentRowId = OLD.attachmentRowId
+                    )
+                    AND NOT EXISTS (
+                        SELECT
+                                1
+                            FROM
+                                ThreadAttachmentReference
+                            WHERE
+                                attachmentRowId = OLD.attachmentRowId
+                    )
+;
+
+END
+;
+
+CREATE
+    TRIGGER "__StoryMessageAttachmentReference_ad" AFTER DELETE
+                ON "StoryMessageAttachmentReference" BEGIN DELETE
+                FROM
+                    Attachment
+                WHERE
+                    id = OLD.attachmentRowId
+                    AND NOT EXISTS (
+                        SELECT
+                                1
+                            FROM
+                                MessageAttachmentReference
+                            WHERE
+                                attachmentRowId = OLD.attachmentRowId
+                    )
+                    AND NOT EXISTS (
+                        SELECT
+                                1
+                            FROM
+                                StoryMessageAttachmentReference
+                            WHERE
+                                attachmentRowId = OLD.attachmentRowId
+                    )
+                    AND NOT EXISTS (
+                        SELECT
+                                1
+                            FROM
+                                ThreadAttachmentReference
+                            WHERE
+                                attachmentRowId = OLD.attachmentRowId
+                    )
+;
+
+END
+;
+
+CREATE
+    TRIGGER "__ThreadAttachmentReference_ad" AFTER DELETE
+                ON "ThreadAttachmentReference" BEGIN DELETE
+                FROM
+                    Attachment
+                WHERE
+                    id = OLD.attachmentRowId
+                    AND NOT EXISTS (
+                        SELECT
+                                1
+                            FROM
+                                MessageAttachmentReference
+                            WHERE
+                                attachmentRowId = OLD.attachmentRowId
+                    )
+                    AND NOT EXISTS (
+                        SELECT
+                                1
+                            FROM
+                                StoryMessageAttachmentReference
+                            WHERE
+                                attachmentRowId = OLD.attachmentRowId
+                    )
+                    AND NOT EXISTS (
+                        SELECT
+                                1
+                            FROM
+                                ThreadAttachmentReference
+                            WHERE
+                                attachmentRowId = OLD.attachmentRowId
+                    )
+;
+
+END
+;
+
+CREATE
+    TRIGGER "__Attachment_ad" AFTER DELETE
+                ON "Attachment" BEGIN INSERT
+                INTO
+                    OrphanedAttachment (
+                        localRelativeFilePath
+                        ,localRelativeFilePathThumbnail
+                        ,localRelativeFilePathAudioWaveform
+                        ,localRelativeFilePathVideoStillFrame
+                    )
+                VALUES (
+                    OLD.localRelativeFilePath
+                    ,OLD.localRelativeFilePathThumbnail
+                    ,OLD.audioWaveformRelativeFilePath
+                    ,OLD.videoStillFrameRelativeFilePath
+                )
+;
+
+END
+;
+
+CREATE
+    INDEX "index_thread_on_shouldThreadBeVisible"
+        ON "model_TSThread" (
+        "shouldThreadBeVisible"
+        ,"lastInteractionRowId" DESC
+    )
+;
+
+CREATE
+    INDEX "index_attachment_on_originalAttachmentIdForQuotedReply"
+        ON "Attachment"("originalAttachmentIdForQuotedReply"
+)
+;
+
+CREATE
+    INDEX "message_attachment_reference_media_gallery_single_content_type_index"
+        ON "MessageAttachmentReference"("threadRowId"
+    ,"ownerType"
+    ,"contentType"
+    ,"receivedAtTimestamp"
+    ,"ownerRowId"
+    ,"orderInMessage"
+)
+;
+
+CREATE
+    INDEX "message_attachment_reference_media_gallery_visualMedia_content_type_index"
+        ON "MessageAttachmentReference"("threadRowId"
+    ,"ownerType"
+    ,"isVisualMediaContentType"
+    ,"receivedAtTimestamp"
+    ,"ownerRowId"
+    ,"orderInMessage"
+)
+;
+
+CREATE
+    INDEX "message_attachment_reference_media_gallery_fileOrInvalid_content_type_index"
+        ON "MessageAttachmentReference"("threadRowId"
+    ,"ownerType"
+    ,"isInvalidOrFileContentType"
+    ,"receivedAtTimestamp"
+    ,"ownerRowId"
+    ,"orderInMessage"
+)
+;
+
+CREATE
+    TABLE
+        IF NOT EXISTS "AttachmentDownloadQueue" (
+            "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL
+            ,"sourceType" INTEGER NOT NULL
+            ,"attachmentId" INTEGER NOT NULL REFERENCES "Attachment"("id"
+        )
+            ON DELETE
+                CASCADE
+                ,"priority" INTEGER NOT NULL
+                ,"minRetryTimestamp" INTEGER
+                ,"retryAttempts" INTEGER NOT NULL
+                ,"localRelativeFilePath" TEXT NOT NULL
+)
+;
+
+CREATE
+    INDEX "index_AttachmentDownloadQueue_on_attachmentId_and_sourceType"
+        ON "AttachmentDownloadQueue"("attachmentId"
+    ,"sourceType"
+)
+;
+
+CREATE
+    INDEX "index_AttachmentDownloadQueue_on_priority"
+        ON "AttachmentDownloadQueue"("priority"
+)
+;
+
+CREATE
+    INDEX "partial_index_AttachmentDownloadQueue_on_priority_DESC_and_id_where_minRetryTimestamp_isNull"
+        ON "AttachmentDownloadQueue" (
+        "priority" DESC
+        ,"id"
+    )
+WHERE
+    minRetryTimestamp IS NULL
+;
+
+CREATE
+    INDEX "partial_index_AttachmentDownloadQueue_on_minRetryTimestamp_where_isNotNull"
+        ON "AttachmentDownloadQueue" ("minRetryTimestamp")
+WHERE
+    minRetryTimestamp IS NOT NULL
+;
+
+CREATE
+    TRIGGER "__AttachmentDownloadQueue_ad" AFTER DELETE
+                ON "AttachmentDownloadQueue" BEGIN INSERT
+                INTO
+                    OrphanedAttachment (localRelativeFilePath)
+                VALUES (OLD.localRelativeFilePath)
+;
+
+END
+;
+
+CREATE
+    TABLE
+        IF NOT EXISTS "ArchivedPayment" (
+            "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL
+            ,"amount" TEXT
+            ,"fee" TEXT
+            ,"note" TEXT
+            ,"mobileCoinIdentification" BLOB
+            ,"status" INTEGER
+            ,"failureReason" INTEGER
+            ,"timestamp" INTEGER
+            ,"blockIndex" INTEGER
+            ,"blockTimestamp" INTEGER
+            ,"transaction" BLOB
+            ,"receipt" BLOB
+            ,"direction" INTEGER
+            ,"senderOrRecipientAci" BLOB
+            ,"interactionUniqueId" TEXT
+        )
+;
+
+CREATE
+    INDEX "index_archived_payment_on_interaction_unique_id"
+        ON "ArchivedPayment"("interactionUniqueId"
+)
+;
+
+CREATE
+    TABLE
+        IF NOT EXISTS "TSAttachmentMigration" (
+            "tsAttachmentUniqueId" TEXT NOT NULL
+            ,"interactionRowId" INTEGER
+            ,"storyMessageRowId" INTEGER
+            ,"reservedV2AttachmentPrimaryFileId" BLOB NOT NULL
+            ,"reservedV2AttachmentAudioWaveformFileId" BLOB NOT NULL
+            ,"reservedV2AttachmentVideoStillFrameFileId" BLOB NOT NULL
+        )
+;
+
+CREATE
+    INDEX "index_TSAttachmentMigration_on_interactionRowId"
+        ON "TSAttachmentMigration" ("interactionRowId")
+WHERE
+    "interactionRowId" IS NOT NULL
+;
+
+CREATE
+    INDEX "index_TSAttachmentMigration_on_storyMessageRowId"
+        ON "TSAttachmentMigration" ("storyMessageRowId")
+WHERE
+    "storyMessageRowId" IS NOT NULL
+;
+
+CREATE
+    INDEX "index_message_attachment_reference_on_receivedAtTimestamp"
+        ON "MessageAttachmentReference"("receivedAtTimestamp"
+)
+;
+
+CREATE
+    TABLE
+        IF NOT EXISTS "BackupAttachmentDownloadQueue" (
+            "id" INTEGER PRIMARY KEY AUTOINCREMENT
+            ,"attachmentRowId" INTEGER NOT NULL UNIQUE REFERENCES "Attachment"("id"
+        )
+            ON DELETE
+                CASCADE
+                ,"timestamp" INTEGER
+)
+;
+
+CREATE
+    TABLE
+        IF NOT EXISTS "AttachmentUploadRecord" (
+            "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL
+            ,"sourceType" INTEGER NOT NULL
+            ,"attachmentId" INTEGER NOT NULL
+            ,"uploadForm" BLOB
+            ,"uploadFormTimestamp" INTEGER
+            ,"localMetadata" BLOB
+            ,"uploadSessionUrl" BLOB
+            ,"attempt" INTEGER
+        )
+;
+
+CREATE
+    INDEX "index_attachment_upload_record_on_attachment_id"
+        ON "AttachmentUploadRecord"("attachmentId"
+)
+;
+
+CREATE
+    TABLE
+        IF NOT EXISTS "BlockedRecipient" (
+            "recipientId" INTEGER PRIMARY KEY REFERENCES "model_SignalRecipient"("id"
+        )
+            ON DELETE
+                CASCADE
+                    ON UPDATE
+                        CASCADE
+)
+;
+
+CREATE
+    TABLE
+        IF NOT EXISTS "VersionedDMTimerCapabilities" (
+            "serviceId" BLOB NOT NULL UNIQUE
+            ,"isEnabled" BOOLEAN NOT NULL
+        )
+;
+
+CREATE
+    TABLE
+        IF NOT EXISTS "AttachmentValidationBackfillQueue" (
+            "attachmentId" INTEGER PRIMARY KEY
+                ON CONFLICT IGNORE NOT NULL REFERENCES "Attachment"("id"
+        )
+            ON DELETE
+                CASCADE
+)
+;
+
+CREATE
+    TABLE
+        IF NOT EXISTS "BackupAttachmentUploadQueue" (
+            "id" INTEGER PRIMARY KEY AUTOINCREMENT
+            ,"attachmentRowId" INTEGER NOT NULL UNIQUE REFERENCES "Attachment"("id"
+        )
+            ON DELETE
+                CASCADE
+                ,"sourceType" INTEGER NOT NULL
+                ,"timestamp" INTEGER
+)
+;
+
+CREATE
+    INDEX "index_BackupAttachmentUploadQueue_on_sourceType_timestamp"
+        ON "BackupAttachmentUploadQueue"("sourceType"
+    ,"timestamp"
+)
+;
+
+CREATE
+    TABLE
+        IF NOT EXISTS "BackupStickerPackDownloadQueue" (
+            "id" INTEGER PRIMARY KEY AUTOINCREMENT
+            ,"packId" BLOB NOT NULL
+            ,"packKey" BLOB NOT NULL
+        )
+;
+
+CREATE
+    TABLE
+        IF NOT EXISTS "OrphanedBackupAttachment" (
+            "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL
+            ,"cdnNumber" INTEGER NOT NULL
+            ,"mediaName" TEXT NOT NULL
+            ,"type" INTEGER NOT NULL
+            ,UNIQUE (
+                "mediaName"
+                ,"type"
+                ,"cdnNumber"
+            )
+                ON CONFLICT IGNORE
+        )
+;
+
+CREATE
+    TRIGGER "__Attachment_ad_backup_fullsize" AFTER DELETE
+                ON "Attachment" WHEN (
+                OLD.mediaTierCdnNumber IS NOT NULL
+                AND OLD.mediaName IS NOT NULL
+            ) BEGIN INSERT
+                INTO
+                    OrphanedBackupAttachment (
+                        cdnNumber
+                        ,mediaName
+                        ,type
+                    )
+                VALUES (
+                    OLD.mediaTierCdnNumber
+                    ,OLD.mediaName
+                    ,0
+                )
+;
+
+END
+;
+
+CREATE
+    TRIGGER "__Attachment_ad_backup_thumbnail" AFTER DELETE
+                ON "Attachment" WHEN (
+                OLD.thumbnailCdnNumber IS NOT NULL
+                AND OLD.mediaName IS NOT NULL
+            ) BEGIN INSERT
+                INTO
+                    OrphanedBackupAttachment (
+                        cdnNumber
+                        ,mediaName
+                        ,type
+                    )
+                VALUES (
+                    OLD.thumbnailCdnNumber
+                    ,OLD.mediaName
+                    ,1
+                )
+;
+
+END
 ;

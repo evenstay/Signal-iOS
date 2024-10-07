@@ -4,7 +4,7 @@
 //
 
 import Foundation
-import SignalMessaging
+public import SignalServiceKit
 
 enum AvatarContext {
     case groupId(Data)
@@ -23,11 +23,11 @@ public class AvatarHistoryManager: NSObject {
     static let appSharedDataDirectory = URL(fileURLWithPath: OWSFileSystem.appSharedDataDirectoryPath())
     static let imageHistoryDirectory = URL(fileURLWithPath: "AvatarHistory", isDirectory: true, relativeTo: appSharedDataDirectory)
 
-    override init() {
+    public init(appReadiness: AppReadiness) {
         super.init()
         SwiftSingletons.register(self)
 
-        AppReadiness.runNowOrWhenMainAppDidBecomeReadyAsync {
+        appReadiness.runNowOrWhenMainAppDidBecomeReadyAsync {
             DispatchQueue.global().async {
                 self.cleanupOrphanedImages()
             }
@@ -151,7 +151,10 @@ public class AvatarHistoryManager: NSObject {
         let identifier = UUID().uuidString
         let url = URL(fileURLWithPath: identifier + ".jpg", relativeTo: Self.imageHistoryDirectory)
 
-        let avatarData = OWSProfileManager.avatarData(forAvatarImage: image)
+        guard let avatarData = OWSProfileManager.avatarData(avatarImage: image) else {
+            owsFailDebug("avatarData was nil")
+            return nil
+        }
         do {
             try avatarData.write(to: url)
         } catch {

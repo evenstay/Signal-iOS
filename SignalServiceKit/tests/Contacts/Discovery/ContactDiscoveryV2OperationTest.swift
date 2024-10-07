@@ -52,7 +52,6 @@ final class ContactDiscoveryV2OperationTest: XCTestCase {
 
         let operation = ContactDiscoveryV2Operation(
             e164sToLookup: [try XCTUnwrap(E164("+16505550100"))],
-            tryToReturnAcisWithoutUaks: true,
             persistentState: nil,
             udManager: MockUDManager(),
             connectionFactory: connectionFactory
@@ -68,7 +67,7 @@ final class ContactDiscoveryV2OperationTest: XCTestCase {
             newE164s = request.newE164S
 
             var response = CDSI_ClientResponse()
-            response.token = Cryptography.generateRandomBytes(65)
+            response.token = Randomness.generateRandomBytes(65)
             return .value(response)
         }
         connection.onSendRequestAndReadAllResponses = { request in
@@ -101,7 +100,6 @@ final class ContactDiscoveryV2OperationTest: XCTestCase {
     func testNotDiscoverable() throws {
         let operation = ContactDiscoveryV2Operation(
             e164sToLookup: [try XCTUnwrap(E164("+16505550100"))],
-            tryToReturnAcisWithoutUaks: true,
             persistentState: nil,
             udManager: MockUDManager(),
             connectionFactory: connectionFactory
@@ -111,7 +109,7 @@ final class ContactDiscoveryV2OperationTest: XCTestCase {
         let connection = MockSgxWebsocketConnection<ContactDiscoveryV2WebsocketConfigurator>()
         connection.onSendRequestAndReadResponse = { _ in
             var response = CDSI_ClientResponse()
-            response.token = Cryptography.generateRandomBytes(65)
+            response.token = Randomness.generateRandomBytes(65)
             return .value(response)
         }
         connection.onSendRequestAndReadAllResponses = { _ in
@@ -140,14 +138,13 @@ final class ContactDiscoveryV2OperationTest: XCTestCase {
     func testRateLimitError() throws {
         let operation = ContactDiscoveryV2Operation(
             e164sToLookup: [try XCTUnwrap(E164("+16505550100"))],
-            tryToReturnAcisWithoutUaks: true,
             persistentState: persistentState,
             udManager: MockUDManager(),
             connectionFactory: connectionFactory
         )
 
         // Establish the initial state.
-        let initialToken = Cryptography.generateRandomBytes(65)
+        let initialToken = Randomness.generateRandomBytes(65)
         persistentState.token = initialToken
         let initialPrevE164s: Set<E164> = [try XCTUnwrap(E164("+16505550199"))]
         persistentState.prevE164s = initialPrevE164s
@@ -186,14 +183,13 @@ final class ContactDiscoveryV2OperationTest: XCTestCase {
     func testInvalidTokenError() throws {
         let operation = ContactDiscoveryV2Operation(
             e164sToLookup: [try XCTUnwrap(E164("+16505550100"))],
-            tryToReturnAcisWithoutUaks: true,
             persistentState: persistentState,
             udManager: MockUDManager(),
             connectionFactory: connectionFactory
         )
 
         // Establish the initial state.
-        persistentState.token = Cryptography.generateRandomBytes(65)
+        persistentState.token = Randomness.generateRandomBytes(65)
 
         // Prepare the server's responses to the client's request.
         let connection = MockSgxWebsocketConnection<ContactDiscoveryV2WebsocketConfigurator>()

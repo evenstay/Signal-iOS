@@ -3,9 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
 import SignalServiceKit
-import SignalUI
+public import SignalUI
 
 public class ContactSupportAlert: NSObject {
 
@@ -53,7 +52,9 @@ public class ContactSupportAlert: NSObject {
                     modal.dismiss()
                 }.catch { error in
                     guard !modal.wasCancelled else { return }
-                    showError(error, emailSupportFilter: emailSupportFilter, fromViewController: fromViewController)
+                    modal.dismiss(completion: {
+                        showError(error, emailSupportFilter: emailSupportFilter, fromViewController: fromViewController)
+                    })
                 }
             }
         }

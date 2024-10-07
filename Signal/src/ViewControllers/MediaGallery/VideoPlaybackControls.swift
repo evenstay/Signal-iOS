@@ -83,7 +83,7 @@ class VideoPlaybackControlView: UIView {
         let buttons = [ buttonRewind, buttonPlay, buttonPause, buttonFastForward ]
         buttons.forEach { button in
             button.translatesAutoresizingMaskIntoConstraints = false
-            button.contentEdgeInsets = UIEdgeInsets(margin: 8)
+            button.ows_contentEdgeInsets = UIEdgeInsets(margin: 8)
             addSubview(button)
         }
 
@@ -141,24 +141,42 @@ class VideoPlaybackControlView: UIView {
     weak var delegate: VideoPlaybackControlViewDelegate?
 
     func updateWithMediaItem(_ mediaItem: MediaGalleryItem) {
-        let durationThreshold: TimeInterval = 30
-        if let videoDuration = mediaItem.attachmentStream.videoDuration as? TimeInterval {
-            showRewindAndFastForward = videoDuration >= durationThreshold
-        } else {
-            showRewindAndFastForward = false
-            self.mediaItem = mediaItem
-
-            VideoDurationHelper.shared.promisedDuration(attachment: mediaItem.attachmentStream).observe { [weak self] result in
-                guard let self, self.mediaItem === mediaItem, case .success(let duration) = result else {
-                    self?.mediaItem = nil
-                    return
+        switch mediaItem.attachmentStream.attachmentStream.cachedContentType {
+        case .video(let videoDuration, _):
+            guard let videoDuration else { fallthrough }
+            updateDuration(videoDuration)
+        default:
+            switch mediaItem.attachmentStream.attachmentStream.concreteStreamType {
+            case .v2(let attachmentStream):
+                switch attachmentStream.contentType {
+                case .file, .invalid, .image, .animatedImage, .audio:
+                    break
+                case .video(let duration, _, _):
+                    updateDuration(duration)
                 }
-                self.showRewindAndFastForward = duration >= durationThreshold
+            case .legacy(let tsAttachmentStream):
+                showRewindAndFastForward = false
+                self.mediaItem = mediaItem
 
-                // Only hold on to mediaItem for as long as it is necessary.
-                self.mediaItem = nil
+                TSAttachmentVideoDurationHelper.shared.promisedDuration(
+                    attachment: tsAttachmentStream
+                ).observe { [weak self] result in
+                    guard let self, self.mediaItem === mediaItem, case .success(let duration) = result else {
+                        self?.mediaItem = nil
+                        return
+                    }
+                    self.updateDuration(duration)
+
+                    // Only hold on to mediaItem for as long as it is necessary.
+                    self.mediaItem = nil
+                }
             }
         }
+    }
+
+    private func updateDuration(_ duration: TimeInterval) {
+        let durationThreshold: TimeInterval = 30
+        self.showRewindAndFastForward = duration >= durationThreshold
     }
 
     private var isVideoPlaying = false
@@ -436,7 +454,7 @@ class PlayerProgressView: UIView {
             }
 
             slider.minimumValue = 0
-            slider.maximumValue = Float(CMTimeGetSeconds(item.asset.duration))
+            slider.maximumValue = max(0.01, Float(CMTimeGetSeconds(item.asset.duration)))
 
             progressObserver = avPlayer.addPeriodicTimeObserver(
                 forInterval: CMTime(seconds: 1/60, preferredTimescale: Self.preferredTimeScale),
@@ -601,11 +619,11 @@ class PlayerProgressView: UIView {
 
     // MARK: Render cycle
 
-    private static var formatter: DateComponentsFormatter = {
+    private static let formatter: DateComponentsFormatter = {
         let formatter = DateComponentsFormatter()
         formatter.unitsStyle = .positional
-        formatter.allowedUnits = [.minute, .second ]
-        formatter.zeroFormattingBehavior = [ .pad ]
+        formatter.allowedUnits = [.minute, .second]
+        formatter.zeroFormattingBehavior = .pad
         return formatter
     }()
 
@@ -621,14 +639,11 @@ class PlayerProgressView: UIView {
         }
 
         let position = avPlayer.currentTime()
-        let positionSeconds: Float64 = CMTimeGetSeconds(position)
-        positionLabel.text = Self.formatter.string(from: positionSeconds)
+        positionLabel.text = Self.formatter.string(from: position.seconds)
+        slider.setValue(Float(position.seconds), animated: false)
 
-        let duration: CMTime = item.asset.duration
-        let remainingTime = duration - position
-        let remainingSeconds = CMTimeGetSeconds(remainingTime)
-
-        guard let remainingString = Self.formatter.string(from: remainingSeconds) else {
+        let timeRangeRemaining = CMTimeRange(start: avPlayer.currentTime(), duration: item.asset.duration)
+        guard timeRangeRemaining.isValid, let remainingString = Self.formatter.string(from: timeRangeRemaining.duration.seconds) else {
             owsFailDebug("unable to format time remaining")
             remainingLabel.text = "0:00"
             return
@@ -636,14 +651,11 @@ class PlayerProgressView: UIView {
 
         // show remaining time as negative
         remainingLabel.text = "-\(remainingString)"
-
-        slider.setValue(Float(positionSeconds), animated: false)
     }
 
     // Allows the user to tap anywhere on the slider to set it's position,
     // without first having to grab the thumb.
     private class TrackingSlider: UISlider {
-
         override func beginTracking(_ touch: UITouch, with event: UIEvent?) -> Bool {
             return true
         }

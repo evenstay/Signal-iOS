@@ -6,13 +6,13 @@
 import XCTest
 @testable import SignalServiceKit
 
-class DeliveryReceiptContextTests: SSKBaseTestSwift {
+class DeliveryReceiptContextTests: SSKBaseTest {
     func testExecutesDifferentMessages() throws {
         let aliceRecipient = SignalServiceAddress(phoneNumber: "+12345678900")
         var timestamp: UInt64?
         write { transaction in
             let aliceContactThread = TSContactThread.getOrCreateThread(withContactAddress: aliceRecipient, transaction: transaction)
-            let helloAlice = TSOutgoingMessage(in: aliceContactThread, messageBody: "Hello Alice", attachmentId: nil)
+            let helloAlice = TSOutgoingMessage(in: aliceContactThread, messageBody: "Hello Alice")
             helloAlice.anyInsert(transaction: transaction)
             timestamp = helloAlice.timestamp
         }
@@ -29,5 +29,14 @@ class DeliveryReceiptContextTests: SSKBaseTestSwift {
             XCTAssertFalse(messages[0] === messages[1])
         }
 
+    }
+}
+
+// MARK: -
+
+private extension TSOutgoingMessage {
+    convenience init(in thread: TSThread, messageBody: String) {
+        let builder: TSOutgoingMessageBuilder = .withDefaultValues(thread: thread, messageBody: messageBody)
+        self.init(outgoingMessageWith: builder, recipientAddressStates: [:])
     }
 }

@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
-import SignalUI
+import SignalServiceKit
+public import SignalUI
 
 class CustomActionSheet: ActionSheetController {
 }
@@ -19,8 +19,8 @@ public class GroupLinkPromotionActionSheet: UIView {
 
     private let stackView = UIStackView()
 
-    required init(groupThread: TSGroupThread,
-                  conversationViewController: ConversationViewController) {
+    init(groupThread: TSGroupThread,
+         conversationViewController: ConversationViewController) {
         self.groupThread = groupThread
         self.conversationViewController = conversationViewController
 

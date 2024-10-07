@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
-import SignalUI
+public import SignalServiceKit
+public import SignalUI
 
 public class PaymentsViewUtils: Dependencies {
 
@@ -73,12 +73,9 @@ public class PaymentsViewUtils: Dependencies {
         avatarBadge.autoPinEdge(toSuperviewEdge: .trailing, withInset: -3)
     }
 
-    static func markPaymentAsReadWithSneakyTransaction(_ paymentModel: TSPaymentModel) {
+    static func markPaymentAsRead(_ paymentModel: TSPaymentModel, transaction: SDSAnyWriteTransaction) {
         owsAssertDebug(paymentModel.isUnread)
-
-        databaseStorage.write { transaction in
-            paymentModel.update(withIsUnread: false, transaction: transaction)
-        }
+        paymentModel.update(withIsUnread: false, transaction: transaction)
     }
 
     static func markAllUnreadPaymentsAsReadWithSneakyTransaction() {

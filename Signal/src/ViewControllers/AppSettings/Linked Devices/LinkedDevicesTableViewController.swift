@@ -3,9 +3,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
 import SignalServiceKit
 import SignalUI
+
+// This has a long and awful name so that if the condition is ever changed,
+// the text shown to internal users about it can be changed too.
+private var shouldShowDeviceIdsBecauseUserIsInternal: Bool { DebugFlags.internalSettings }
 
 private struct DisplayableDevice {
     let device: OWSDevice
@@ -71,7 +74,7 @@ class LinkedDevicesTableViewController: OWSTableViewController2 {
                     device: device,
                     displayName: device.displayName(
                         identityManager: identityManager,
-                        transaction: transaction
+                        tx: transaction.asV2Read
                     )
                 )
             }
@@ -110,7 +113,7 @@ class LinkedDevicesTableViewController: OWSTableViewController2 {
     private func refreshDevices() {
         AssertIsOnMainThread()
 
-        OWSDevicesService.refreshDevices()
+        _ = OWSDevicesService.refreshDevices()
     }
 
     @objc
@@ -206,7 +209,6 @@ class LinkedDevicesTableViewController: OWSTableViewController2 {
                 "LINK_NEW_DEVICE_TITLE",
                 comment: "Navigation title when scanning QR code to add new device."
             ),
-            accessibilityIdentifier: UIView.accessibilityIdentifier(in: self, name: "add_new_linked_device"),
             actionBlock: { [weak self] in
                 self?.getCameraPermissionsThenShowLinkNewDeviceView()
             }
@@ -228,6 +230,9 @@ class LinkedDevicesTableViewController: OWSTableViewController2 {
                     return cell
                 })
                 devicesSection.add(item)
+            }
+            if shouldShowDeviceIdsBecauseUserIsInternal {
+                devicesSection.footerTitle = "Device IDs (and this message) are only shown to internal users."
             }
             contents.add(devicesSection)
         }
@@ -341,9 +346,8 @@ extension LinkedDevicesTableViewController: DatabaseChangeDelegate {
 
     func databaseChangesDidUpdate(databaseChanges: DatabaseChanges) {
         AssertIsOnMainThread()
-        owsAssertDebug(AppReadiness.isAppReady)
 
-        guard databaseChanges.didUpdateModel(collection: OWSDevice.collection()) else {
+        guard databaseChanges.didUpdate(tableName: OWSDevice.databaseTableName) else {
             return
         }
 
@@ -352,14 +356,12 @@ extension LinkedDevicesTableViewController: DatabaseChangeDelegate {
 
     func databaseChangesDidUpdateExternally() {
         AssertIsOnMainThread()
-        owsAssertDebug(AppReadiness.isAppReady)
 
         updateDeviceList()
     }
 
     func databaseChangesDidReset() {
         AssertIsOnMainThread()
-        owsAssertDebug(AppReadiness.isAppReady)
 
         updateDeviceList()
     }
@@ -378,11 +380,13 @@ extension LinkedDevicesTableViewController: LinkDeviceViewControllerDelegate {
         self.isEditing = false
 
         pollingRefreshTimer?.invalidate()
-        pollingRefreshTimer = Timer.weakScheduledTimer(withTimeInterval: 10.0,
-                                                       target: self,
-                                                       selector: #selector(refreshDevices),
-                                                       userInfo: nil,
-                                                       repeats: true)
+        pollingRefreshTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] timer in
+            guard let self else {
+                timer.invalidate()
+                return
+            }
+            self.refreshDevices()
+        }
 
         let progressText = OWSLocalizedString("WAITING_TO_COMPLETE_DEVICE_LINK_TEXT",
                                              comment: "Activity indicator title, shown upon returning to the device manager, until you complete the provisioning process on desktop")
@@ -471,7 +475,7 @@ private class DeviceTableViewCell: UITableViewCell {
         linkedLabel.font = .dynamicTypeFootnote
         lastSeenLabel.font = .dynamicTypeFootnote
 
-        if DebugFlags.internalSettings {
+        if shouldShowDeviceIdsBecauseUserIsInternal {
             nameLabel.text = LocalizationNotNeeded(String(
                 format: "#%ld: %@",
                 displayableDevice.device.deviceId,

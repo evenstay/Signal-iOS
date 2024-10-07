@@ -3,9 +3,25 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import BonMot
+public import BonMot
 import SafariServices
 import SignalServiceKit
+
+public protocol SheetDismissalDelegate: AnyObject {
+    func didDismissPresentedSheet()
+}
+
+private final class OnDismissHandler: SheetDismissalDelegate {
+    var handler: () -> Void
+
+    init(handler: @escaping () -> Void) {
+        self.handler = handler
+    }
+
+    func didDismissPresentedSheet() {
+        handler()
+    }
+}
 
 @objc
 open class ActionSheetController: OWSViewController {
@@ -18,6 +34,41 @@ open class ActionSheetController: OWSViewController {
     private let stackView = UIStackView()
     private let scrollView = UIScrollView()
     private var hasCompletedFirstLayout = false
+
+    private var onDismissHandler: OnDismissHandler?
+
+    /// Set this property to register a closure to be run when the sheet is
+    /// dismissed.
+    ///
+    /// After dismissal, `ActionSheetController` sets the value of this property
+    /// to `nil`.
+    ///
+    /// - Note: Setting an `onDismiss` handler discards the previous value of
+    ///   the `dismissalDelegate` property.
+    public var onDismiss: (() -> Void)? {
+        get {
+            onDismissHandler?.handler
+        }
+        set {
+            onDismissHandler = newValue.map(OnDismissHandler.init)
+            dismissalDelegate = onDismissHandler
+        }
+    }
+
+    /// Set this property to register a delegate object to be notified when the
+    /// sheet is dismissed.
+    ///
+    /// After dismissal, `ActionSheetController` sets the value of this property
+    /// to `nil`.
+    ///
+    /// - Note: Setting `dismissalDelegate` causes `onDismiss` to be set to `nil`.
+    public weak var dismissalDelegate: (any SheetDismissalDelegate)? {
+        didSet {
+            if let dismissalDelegate, dismissalDelegate !== onDismissHandler {
+                onDismissHandler = nil
+            }
+        }
+    }
 
     private(set) public var actions = [ActionSheetAction]() {
         didSet {
@@ -219,6 +270,12 @@ open class ActionSheetController: OWSViewController {
         view.addGestureRecognizer(tapGestureRecognizer)
     }
 
+    open override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+
+        actions.first?.button.isSingletonButton = actions.count == 1
+    }
+
     public override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
 
@@ -235,6 +292,12 @@ open class ActionSheetController: OWSViewController {
 
         let bottomInset = scrollView.adjustedContentInset.bottom
         scrollView.contentOffset = CGPoint(x: 0, y: scrollView.contentSize.height - scrollView.height + bottomInset)
+    }
+
+    open override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        dismissalDelegate?.didDismissPresentedSheet()
+        onDismissHandler = nil
     }
 
     @objc
@@ -381,6 +444,8 @@ public class ActionSheetAction: NSObject {
         let style: Style
         public var releaseAction: (() -> Void)?
 
+        var theme: Theme.ActionSheet = .default
+
         var trailingIcon: ThemeIcon? {
             didSet {
                 trailingIconView.isHidden = trailingIcon == nil
@@ -388,7 +453,7 @@ public class ActionSheetAction: NSObject {
                 if let trailingIcon = trailingIcon {
                     trailingIconView.setTemplateImage(
                         Theme.iconImage(trailingIcon),
-                        tintColor: Theme.ActionSheet.default.buttonTextColor
+                        tintColor: theme.buttonTextColor
                     )
                 }
 
@@ -403,11 +468,19 @@ public class ActionSheetAction: NSObject {
                 if let leadingIcon = leadingIcon {
                     leadingIconView.setTemplateImage(
                         Theme.iconImage(leadingIcon),
-                        tintColor: Theme.ActionSheet.default.buttonTextColor
+                        tintColor: theme.buttonTextColor
                     )
                 }
 
                 updateEdgeInsets()
+            }
+        }
+
+        // Indicates that this button is the only button in an action sheet
+        // and may update its display accordingly.
+        fileprivate var isSingletonButton = false {
+            didSet {
+                updateTitleStyle()
             }
         }
 
@@ -433,7 +506,7 @@ public class ActionSheetAction: NSObject {
             style = action.style
             super.init(frame: .zero)
 
-            setBackgroundImage(UIImage(color: Theme.ActionSheet.default.buttonHighlightColor), for: .highlighted)
+            setBackgroundImage(UIImage.image(color: theme.buttonHighlightColor), for: .highlighted)
 
             [leadingIconView, trailingIconView].forEach { iconView in
                 addSubview(iconView)
@@ -449,18 +522,7 @@ public class ActionSheetAction: NSObject {
             updateEdgeInsets()
 
             setTitle(action.title, for: .init())
-
-            switch action.style {
-            case .default:
-                titleLabel?.font = .dynamicTypeBodyClamped
-                setTitleColor(Theme.ActionSheet.default.buttonTextColor, for: .init())
-            case .cancel:
-                titleLabel?.font = UIFont.dynamicTypeBodyClamped.semibold()
-                setTitleColor(Theme.ActionSheet.default.buttonTextColor, for: .init())
-            case .destructive:
-                titleLabel?.font = .dynamicTypeBodyClamped
-                setTitleColor(Theme.ActionSheet.default.destructiveButtonTextColor, for: .init())
-            }
+            updateTitleStyle()
 
             autoSetDimension(.height, toSize: ActionSheetController.minimumRowHeight, relation: .greaterThanOrEqual)
 
@@ -473,9 +535,25 @@ public class ActionSheetAction: NSObject {
             fatalError("init(coder:) has not been implemented")
         }
 
+        private func updateTitleStyle() {
+            switch style {
+            case .default:
+                titleLabel?.font = isSingletonButton ? .dynamicTypeBodyClamped.semibold() : .dynamicTypeBodyClamped
+                setTitleColor(theme.buttonTextColor, for: .init())
+            case .cancel:
+                titleLabel?.font = .dynamicTypeBodyClamped.semibold()
+                setTitleColor(theme.buttonTextColor, for: .init())
+            case .destructive:
+                titleLabel?.font = isSingletonButton ? .dynamicTypeBodyClamped.semibold() : .dynamicTypeBodyClamped
+                setTitleColor(theme.destructiveButtonTextColor, for: .init())
+            }
+        }
+
         public func applyActionSheetTheme(_ theme: Theme.ActionSheet) {
+            self.theme = theme
+
             // Recolor everything based on the requested theme
-            setBackgroundImage(UIImage(color: theme.buttonHighlightColor), for: .highlighted)
+            setBackgroundImage(UIImage.image(color: theme.buttonHighlightColor), for: .highlighted)
 
             leadingIconView.tintColor = theme.buttonTextColor
             trailingIconView.tintColor = theme.buttonTextColor
@@ -490,9 +568,9 @@ public class ActionSheetAction: NSObject {
 
         private func updateEdgeInsets() {
             if !leadingIconView.isHidden || !trailingIconView.isHidden || contentAlignment != .center {
-                contentEdgeInsets = UIEdgeInsets(top: 16, leading: 56, bottom: 16, trailing: 56)
+                ows_contentEdgeInsets = UIEdgeInsets(top: 16, leading: 56, bottom: 16, trailing: 56)
             } else {
-                contentEdgeInsets = UIEdgeInsets(top: 16, leading: 16, bottom: 16, trailing: 16)
+                ows_contentEdgeInsets = UIEdgeInsets(top: 16, leading: 16, bottom: 16, trailing: 16)
             }
         }
 
@@ -500,6 +578,26 @@ public class ActionSheetAction: NSObject {
         private func didTouchUpInside() {
             releaseAction?()
         }
+    }
+}
+
+// MARK: Common Actions
+
+extension ActionSheetAction {
+    public static var acknowledge: ActionSheetAction {
+        ActionSheetAction(
+            title: CommonStrings.acknowledgeButton,
+            accessibilityIdentifier: UIView.accessibilityIdentifier(containerName: "alert", name: "acknowledge"),
+            style: .default
+        )
+    }
+
+    public static var cancel: ActionSheetAction {
+        ActionSheetAction(
+            title: CommonStrings.cancelButton,
+            accessibilityIdentifier: UIView.accessibilityIdentifier(containerName: "alert", name: "cancel"),
+            style: .cancel
+        )
     }
 }
 
@@ -590,6 +688,6 @@ extension String {
 
     private static func formattedDisplayName(_ displayName: String, maxLength: Int) -> String {
         guard displayName.count > maxLength else { return displayName }
-        return displayName.substring(to: maxLength).appending("…")
+        return "\(displayName.prefix(maxLength))…"
     }
 }

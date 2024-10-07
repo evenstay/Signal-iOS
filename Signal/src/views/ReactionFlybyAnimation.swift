@@ -3,8 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
+import SignalServiceKit
 import SignalUI
+public import UIKit
 
 public class ReactionFlybyAnimation: UIView {
     private static let maxWidth: CGFloat = 500

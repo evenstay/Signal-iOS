@@ -4,7 +4,7 @@
 //
 
 import SignalServiceKit
-import SignalUI
+public import SignalUI
 
 public class StoryDirectReplySheet: OWSViewController, StoryReplySheet {
 
@@ -13,7 +13,7 @@ public class StoryDirectReplySheet: OWSViewController, StoryReplySheet {
     var bottomBar: UIView { inputToolbar }
     lazy var inputToolbar: StoryReplyInputToolbar = {
         let quotedReplyModel = databaseStorage.read {
-            QuotedReplyModel(storyMessage: storyMessage, transaction: $0)
+            QuotedReplyModel.build(replyingTo: storyMessage, transaction: $0)
         }
         let toolbar = StoryReplyInputToolbar(isGroupStory: false, quotedReplyModel: quotedReplyModel, spoilerState: spoilerState)
         toolbar.delegate = self

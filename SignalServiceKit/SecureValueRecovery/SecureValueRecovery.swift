@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
+import CryptoKit
 import Foundation
 import LibSignalClient
 
@@ -58,7 +59,7 @@ public enum SVR {
             case .storageServiceRecord(let identifier):
                 return "Item_\(identifier.data.base64EncodedString())"
             case .backupKey:
-                return "Backup"
+                return "20231003_Signal_Backups_GenerateBackupKey"
             }
         }
 
@@ -74,7 +75,7 @@ public enum SVR {
                     .storageService,
                     .storageServiceManifest,
                     .storageServiceRecord:
-                return Cryptography.computeSHA256HMAC(infoData, key: dataToDeriveFrom)
+                return Data(HMAC<SHA256>.authenticationCode(for: infoData, using: .init(data: dataToDeriveFrom)))
             case .backupKey:
                 guard
                     let bytes = try? hkdf(
@@ -180,7 +181,7 @@ public protocol SecureValueRecovery {
 
     /// Backs up the user's master key to SVR and stores it locally in the database.
     /// If the user doesn't have a master key already a new one is generated.
-    func generateAndBackupKeys(pin: String, authMethod: SVR.AuthMethod, rotateMasterKey: Bool) -> Promise<Void>
+    func generateAndBackupKeys(pin: String, authMethod: SVR.AuthMethod) -> Promise<Void>
 
     /// Remove the keys locally from the device and from the SVR,
     /// they will not be able to be restored.
@@ -219,6 +220,7 @@ public protocol SecureValueRecovery {
     func storeSyncedMasterKey(
         data: Data,
         authedDevice: AuthedDevice,
+        updateStorageService: Bool,
         transaction: DBWriteTransaction
     )
 

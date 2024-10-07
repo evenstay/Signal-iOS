@@ -3,12 +3,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
+import SignalServiceKit
 import SignalUI
 
 class GroupStorySettingsViewController: OWSTableViewController2 {
     let thread: TSGroupThread
-    let contextButton = ContextMenuButton()
+    let contextButton = ContextMenuButton(empty: ())
 
     init(thread: TSGroupThread) {
         self.thread = thread
@@ -31,9 +31,8 @@ class GroupStorySettingsViewController: OWSTableViewController2 {
         title = thread.groupNameOrDefault
 
         contextButton.setImage(Theme.iconImage(.buttonMore), for: .normal)
-        contextButton.showsContextMenuAsPrimaryAction = true
-        contextButton.contextMenu = .init([
-            .init(
+        contextButton.setActions(actions: [
+            UIAction(
                 title: OWSLocalizedString(
                     "STORIES_GO_TO_CHAT_ACTION",
                     comment: "Context menu action to open the chat associated with the selected story"
@@ -81,11 +80,8 @@ class GroupStorySettingsViewController: OWSTableViewController2 {
         let totalViewersCount = fullMembers.count
         let maxViewersToShow = 6
 
-        var viewersToRender = databaseStorage.read {
-            self.contactsManagerImpl.sortSignalServiceAddresses(
-                Array(fullMembers),
-                transaction: $0
-            )
+        var viewersToRender = databaseStorage.read { tx in
+            return self.contactsManagerImpl.sortSignalServiceAddresses(fullMembers, transaction: tx)
         }
         let hasMoreViewers = !isShowingAllViewers && viewersToRender.count > maxViewersToShow
         if hasMoreViewers {
@@ -210,7 +206,11 @@ class GroupStorySettingsViewController: OWSTableViewController2 {
 
     private func didSelectViewer(_ address: SignalServiceAddress) {
         // No need to share spoiler state; just start fresh.
-        let sheet = MemberActionSheet(address: address, groupViewHelper: nil, spoilerState: SpoilerRenderState())
-        present(sheet, animated: true)
+        ProfileSheetSheetCoordinator(
+            address: address,
+            groupViewHelper: nil,
+            spoilerState: SpoilerRenderState()
+        )
+        .presentAppropriateSheet(from: self)
     }
 }

@@ -75,10 +75,10 @@ class MockConversationView: UIView {
         return stackView
     }()
 
-    private let thread = MockThread(
-        // Use a v5 UUID that's in a separate namespace from ACIs/PNIs.
-        contactAddress: SignalServiceAddress(try! ServiceId.parseFrom(serviceIdString: "00000000-0000-5000-8000-000000000000"))
-    )
+    // Use a v5 UUID that's in a separate namespace from ACIs/PNIs.
+    fileprivate static let mockAddress = SignalServiceAddress(try! ServiceId.parseFrom(serviceIdString: "00000000-0000-5000-8000-000000000000"))
+
+    private let thread = MockThread(contactAddress: MockConversationView.mockAddress)
 
     override var frame: CGRect {
         didSet {
@@ -122,7 +122,10 @@ class MockConversationView: UIView {
 
         var renderItems = [CVRenderItem]()
         databaseStorage.read { transaction in
-            let chatColor = self.customChatColor ?? ChatColors.resolvedChatColor(for: thread, tx: transaction)
+            let chatColor = self.customChatColor ?? DependenciesBridge.shared.chatColorSettingStore.resolvedChatColor(
+                for: thread,
+                tx: transaction.asV2Read
+            )
             let conversationStyle = ConversationStyle(
                 type: .`default`,
                 thread: self.thread,
@@ -198,10 +201,9 @@ private class MockThread: TSContactThread {
 
 private class MockIncomingMessage: TSIncomingMessage {
     init(messageBody: String, thread: MockThread) {
-        let builder = TSIncomingMessageBuilder(
+        let builder: TSIncomingMessageBuilder = .withDefaultValues(
             thread: thread,
             authorAci: thread.contactAddress.aci!,
-            sourceDeviceId: 1,
             messageBody: messageBody
         )
         super.init(incomingMessageWithBuilder: builder)
@@ -228,8 +230,14 @@ private class MockIncomingMessage: TSIncomingMessage {
 
 private class MockOutgoingMessage: TSOutgoingMessage {
     init(messageBody: String, thread: TSThread, transaction: SDSAnyReadTransaction) {
-        let builder = TSOutgoingMessageBuilder(thread: thread, messageBody: messageBody)
-        super.init(outgoingMessageWithBuilder: builder, transaction: transaction)
+        let builder: TSOutgoingMessageBuilder = .withDefaultValues(thread: thread, messageBody: messageBody)
+        super.init(
+            outgoingMessageWith: builder,
+            additionalRecipients: [],
+            explicitRecipients: [],
+            skippedRecipients: [],
+            transaction: transaction
+        )
     }
 
     required init?(coder: NSCoder) {
@@ -252,15 +260,16 @@ private class MockOutgoingMessage: TSOutgoingMessage {
 
     override func readRecipientAddresses() -> [SignalServiceAddress] {
         // makes message appear as read
-        return [SignalServiceAddress(phoneNumber: "+123123123123123123")]
+        return [MockConversationView.mockAddress]
     }
 
     override func recipientState(for recipientAddress: SignalServiceAddress) -> TSOutgoingMessageRecipientState? {
-        let result = TSOutgoingMessageRecipientState()!
-        result.state = .sent
-        result.deliveryTimestamp = NSNumber(value: NSDate.ows_millisecondTimeStamp())
-        result.readTimestamp = NSNumber(value: NSDate.ows_millisecondTimeStamp())
-        return result
+        return TSOutgoingMessageRecipientState(
+            status: .read,
+            statusTimestamp: Date().ows_millisecondsSince1970,
+            wasSentByUD: true,
+            errorCode: nil
+        )
     }
 }
 
@@ -277,6 +286,8 @@ extension MockConversationView: CVComponentDelegate {
     func didLongPressBodyTextItem(_ item: CVTextLabel.Item) {}
 
     func didTapSystemMessageItem(_ item: CVTextLabel.Item) {}
+
+    func didDoubleTapTextViewItem(_ itemViewModel: CVItemViewModelImpl) {}
 
     func didLongPressTextViewItem(_ cell: CVCell,
                                   itemViewModel: CVItemViewModelImpl,
@@ -326,9 +337,11 @@ extension MockConversationView: CVComponentDelegate {
 
     // MARK: - Messages
 
-    func didTapBodyMedia(itemViewModel: CVItemViewModelImpl,
-                         attachmentStream: TSAttachmentStream,
-                         imageView: UIView) {}
+    func didTapBodyMedia(
+        itemViewModel: CVItemViewModelImpl,
+        attachmentStream: ReferencedTSResourceStream,
+        imageView: UIView
+    ) {}
 
     func didTapGenericAttachment(_ attachment: CVComponentGenericAttachment) -> CVAttachmentTapAction { .default }
 
@@ -338,7 +351,7 @@ extension MockConversationView: CVComponentDelegate {
 
     func didTapContactShare(_ contactShare: ContactShareViewModel) {}
 
-    func didTapSendMessage(toContactShare contactShare: ContactShareViewModel) {}
+    func didTapSendMessage(to phoneNumbers: [String]) {}
 
     func didTapSendInvite(toContactShare contactShare: ContactShareViewModel) {}
 
@@ -409,7 +422,7 @@ extension MockConversationView: CVComponentDelegate {
 
     func didTapGroupInviteLinkPromotion(groupModel: TSGroupModel) {}
 
-    func didTapViewGroupDescription(groupModel: TSGroupModel?) {}
+    func didTapViewGroupDescription(newGroupDescription: String) {}
 
     func didTapShowConversationSettings() {}
 
@@ -432,6 +445,8 @@ extension MockConversationView: CVComponentDelegate {
 
     func didTapViewOnceExpired(_ interaction: TSInteraction) {}
 
+    func didTapContactName(thread: TSContactThread) {}
+
     func didTapUnknownThreadWarningGroup() {}
     func didTapUnknownThreadWarningContact() {}
     func didTapDeliveryIssueWarning(_ message: TSErrorMessage) {}
@@ -442,10 +457,14 @@ extension MockConversationView: CVComponentDelegate {
         shouldAllowReply: Bool
     ) { }
 
-    func didTapPayment(_ paymentModel: TSPaymentModel, displayName: String) { }
+    func didTapPayment(_ payment: PaymentsHistoryItem) {}
 
     func didTapActivatePayments() {}
     func didTapSendPayment() {}
 
     func didTapThreadMergeLearnMore(phoneNumber: String) {}
+
+    func didTapReportSpamLearnMore() {}
+
+    func didTapMessageRequestAcceptedOptions() {}
 }

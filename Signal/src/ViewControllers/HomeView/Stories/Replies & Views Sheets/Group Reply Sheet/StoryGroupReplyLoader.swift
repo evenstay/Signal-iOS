@@ -4,8 +4,7 @@
 //
 
 import LibSignalClient
-import SignalCoreKit
-import SignalMessaging
+import SignalServiceKit
 import SignalUI
 
 class StoryGroupReplyLoader: Dependencies {
@@ -233,7 +232,7 @@ class StoryGroupReplyLoader: Dependencies {
             }
         }
 
-        let groupNameColors = ChatColors.groupNameColors(forThread: groupThread)
+        let groupNameColors = GroupNameColors.groupNameColors(forThread: groupThread)
         let displayNamesByAddress = contactsManagerImpl.displayNamesByAddress(
             for: Array(authorAddresses),
             transaction: transaction
@@ -248,14 +247,14 @@ class StoryGroupReplyLoader: Dependencies {
             } else {
                 let recipientStatus: MessageReceiptStatus?
                 if let message = message as? TSOutgoingMessage {
-                    recipientStatus = MessageRecipientStatusUtils.recipientStatus(outgoingMessage: message)
+                    recipientStatus = MessageRecipientStatusUtils.recipientStatus(outgoingMessage: message, transaction: transaction)
                 } else {
                     recipientStatus = nil
                 }
 
                 let displayName = authorAddress.isLocalAddress
                     ? CommonStrings.you
-                    : displayNamesByAddress[authorAddress]
+                    : displayNamesByAddress[authorAddress]?.resolvedValue()
                 replyItem = StoryGroupReplyViewItem(
                     message: message,
                     authorAddress: authorAddress,
@@ -345,7 +344,7 @@ private class StoryGroupReplyBatchFetcher: MessageLoaderBatchFetcher {
         )
     }
 
-    func fetchUniqueIds(filter: RowIdFilter, excludingPlaceholders excludePlaceholders: Bool, limit: Int, tx: DBReadTransaction) throws -> [String] {
+    func fetchUniqueIds(filter: InteractionFinder.RowIdFilter, limit: Int, tx: DBReadTransaction) throws -> [String] {
         // This design is extremely weird. However, we already fetch all the
         // uniqueIds for a given story when rendering the view, and while we could
         // design a bunch of equivalent database queries to do the same thing, we
@@ -358,6 +357,8 @@ private class StoryGroupReplyBatchFetcher: MessageLoaderBatchFetcher {
         switch filter {
         case .newest:
             return Array(uniqueIdsAndRowIds.lazy.suffix(limit).map { $0.uniqueId })
+        case .atOrBefore(let rowId):
+            return Array(uniqueIdsAndRowIds.lazy.filter { $0.rowId <= rowId }.suffix(limit).map { $0.uniqueId })
         case .before(let rowId):
             return Array(uniqueIdsAndRowIds.lazy.filter { $0.rowId < rowId }.suffix(limit).map { $0.uniqueId })
         case .after(let rowId):

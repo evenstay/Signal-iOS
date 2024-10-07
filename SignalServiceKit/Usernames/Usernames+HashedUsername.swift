@@ -73,9 +73,9 @@ public extension Usernames.HashedUsername {
             guard let signalError else { return nil }
 
             switch signalError {
-            case .cannotBeEmpty:
+            case .nicknameCannotBeEmpty:
                 self = .nicknameCannotBeEmpty
-            case .cannotStartWithDigit:
+            case .nicknameCannotStartWithDigit:
                 self = .nicknameCannotStartWithDigit
             case .badNicknameCharacter:
                 self = .nicknameContainsInvalidCharacters
@@ -92,12 +92,19 @@ public extension Usernames.HashedUsername {
     static func generateCandidates(
         forNickname nickname: String,
         minNicknameLength: UInt32,
-        maxNicknameLength: UInt32
+        maxNicknameLength: UInt32,
+        desiredDiscriminator: String?
     ) throws -> GeneratedCandidates {
         do {
+            let nicknameLengthRange = minNicknameLength...maxNicknameLength
+            if let desiredDiscriminator {
+                let username = try LibSignalUsername(nickname: nickname, discriminator: desiredDiscriminator, withValidLengthWithin: nicknameLengthRange)
+                return .init(candidates: [.init(libSignalUsername: username)])
+            }
+
             let candidates: [Usernames.HashedUsername] = try LibSignalUsername.candidates(
                 from: nickname,
-                withValidLengthWithin: minNicknameLength...maxNicknameLength
+                withValidLengthWithin: nicknameLengthRange
             ).map { candidate -> Usernames.HashedUsername in
                 return .init(libSignalUsername: candidate)
             }

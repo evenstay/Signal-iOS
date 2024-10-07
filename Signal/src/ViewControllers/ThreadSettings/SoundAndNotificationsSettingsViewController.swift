@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
+import SignalServiceKit
 import SignalUI
 
 class SoundAndNotificationsSettingsViewController: OWSTableViewController2 {
@@ -34,7 +34,7 @@ class SoundAndNotificationsSettingsViewController: OWSTableViewController2 {
                 return OWSTableItem.newCell()
             }
 
-            let sound = Sounds.notificationSoundForThread(self.threadViewModel.threadRecord)
+            let sound = Sounds.notificationSoundWithSneakyTransaction(forThreadUniqueId: self.threadViewModel.threadRecord.uniqueId)
             let cell = OWSTableItem.buildCell(
                 icon: .chatSettingsMessageSound,
                 itemName: OWSLocalizedString(
@@ -177,7 +177,7 @@ class SoundAndNotificationsSettingsViewController: OWSTableViewController2 {
 
     private func setMentionNotificationMode(_ value: TSThreadMentionNotificationMode) {
         databaseStorage.write { transaction in
-            self.threadViewModel.threadRecord.updateWithMentionNotificationMode(value, transaction: transaction)
+            self.threadViewModel.threadRecord.updateWithMentionNotificationMode(value, wasLocallyInitiated: true, transaction: transaction)
         }
 
         updateTableContents()

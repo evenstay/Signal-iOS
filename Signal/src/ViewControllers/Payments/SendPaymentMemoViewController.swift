@@ -4,7 +4,7 @@
 //
 
 import SignalServiceKit
-import SignalUI
+public import SignalUI
 
 public protocol SendPaymentMemoViewDelegate: AnyObject {
     func didChangeMemo(memoMessage: String?)
@@ -21,7 +21,7 @@ public class SendPaymentMemoViewController: OWSViewController {
     private let memoTextField = UITextField()
     private let memoCharacterCountLabel = UILabel()
 
-    public required init(memoMessage: String?) {
+    public init(memoMessage: String?) {
         super.init()
 
         memoTextField.text = memoMessage
@@ -52,14 +52,10 @@ public class SendPaymentMemoViewController: OWSViewController {
     private func createContents() {
         navigationItem.title = OWSLocalizedString("PAYMENTS_NEW_PAYMENT_ADD_MEMO",
                                                  comment: "Label for the 'add memo' ui in the 'send payment' UI.")
-        navigationItem.leftBarButtonItem = UIBarButtonItem(barButtonSystemItem: .cancel,
-                                                           target: self,
-                                                           action: #selector(didTapCancelMemo),
-                                                           accessibilityIdentifier: "memo.cancel")
-        navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .done,
-                                                            target: self,
-                                                            action: #selector(didTapDoneMemo),
-                                                            accessibilityIdentifier: "memo.done")
+        navigationItem.leftBarButtonItem = .cancelButton(poppingFrom: navigationController)
+        navigationItem.rightBarButtonItem = .doneButton { [weak self] in
+            self?.didTapDoneMemo()
+        }
 
         rootStack.axis = .vertical
         rootStack.alignment = .fill
@@ -149,12 +145,6 @@ public class SendPaymentMemoViewController: OWSViewController {
 
     // MARK: - Events
 
-    @objc
-    private func didTapCancelMemo() {
-        navigationController?.popViewController(animated: true)
-    }
-
-    @objc
     private func didTapDoneMemo() {
         let memoMessage = memoTextField.text?.ows_stripped()
         delegate?.didChangeMemo(memoMessage: memoMessage)
@@ -167,21 +157,19 @@ public class SendPaymentMemoViewController: OWSViewController {
     }
 }
 
-// MARK: 
-
 extension SendPaymentMemoViewController: UITextFieldDelegate {
     public func textField(_ textField: UITextField, shouldChangeCharactersIn range: NSRange, replacementString: String) -> Bool {
         // Truncate the replacement to fit.
-        let left: String = (textField.text ?? "").substring(to: range.location)
-        let right: String = (textField.text ?? "").substring(from: range.location + range.length)
+        let left: String = ((textField.text ?? "") as NSString).substring(to: range.location)
+        let right: String = ((textField.text ?? "") as NSString).substring(from: range.location + range.length)
         let maxReplacementLength = PaymentsImpl.maxPaymentMemoMessageLength - Int(left.count + right.count)
-        let center = replacementString.substring(to: maxReplacementLength)
+        let center = String(replacementString.prefix(maxReplacementLength))
         textField.text = (left + center + right)
 
         updateMemoCharacterCount()
 
         // Place the cursor after the truncated replacement.
-        let positionAfterChange = left.count + center.count
+        let positionAfterChange = left.utf16.count + center.utf16.count
         guard let position = textField.position(from: textField.beginningOfDocument, offset: positionAfterChange) else {
             owsFailDebug("Invalid position")
             return false

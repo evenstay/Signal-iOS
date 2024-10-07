@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalCoreKit
+import SignalServiceKit
 
 public enum ThemeIcon: UInt {
     case settingsAccount
@@ -30,6 +30,8 @@ public enum ThemeIcon: UInt {
     case profileAbout
     case profileBadges
 
+    case chatListClearFilter
+    case chatListFilterByUnread
     case chatSettingsTimerOn
     case chatSettingsTimerOff
     case chatSettingsWallpaper
@@ -40,6 +42,12 @@ public enum ThemeIcon: UInt {
     case contactInfoSafetyNumber
     case contactInfoUserInContacts
     case contactInfoAddToContacts
+    case contactInfoSignalConnection
+    case contactInfoNoDirectChat
+    case contactInfoPendingRequest
+    case contactInfoPhone
+    case contactInfoGroups
+    case contactInfoNote
     case groupInfoLeaveGroup
     case groupInfoAddMembers
     case groupInfoShowAllMembers
@@ -58,7 +66,10 @@ public enum ThemeIcon: UInt {
     case phoneNumber
     case checkCircle
     case checkCircleFill
+    case xCircle
+    case xBold
     case checkmark
+    case checkmarkBold
     case circle
     case arrowDown
     case arrowUp
@@ -68,13 +79,17 @@ public enum ThemeIcon: UInt {
     case maximize
     case minimize
     case refresh
+    case spam
     case official
     case qrCode
+    case qrCodeLight
+    case threadCompact
 
     case buttonCamera
     case buttonMicrophone
     case buttonVoiceCall
     case buttonVideoCall
+    case buttonNewCall
     case buttonMessage
     case buttonPhotoLibrary
     case buttonCompose
@@ -90,6 +105,7 @@ public enum ThemeIcon: UInt {
     case buttonText
     case buttonX
     case buttonRetry
+    case buttonLink
 
     case contextMenuSave
     case contextMenuDelete
@@ -107,8 +123,12 @@ public enum ThemeIcon: UInt {
     case contextMenuPrivacy
     case contextMenuXCircle
     case contextMenuOpenInChat
+    case contextMenuVoiceCall
+    case contextMenuVideoCall
+    case contextMenuMessage
 
     case composeNewGroupLarge
+    case composeFindByUsernameLarge
     case composeFindByPhoneNumberLarge
     case composeInviteLarge
 
@@ -125,7 +145,9 @@ public enum ThemeIcon: UInt {
     case memberRemove16
     case photo16
     case phone16
+    case phoneFill16
     case video16
+    case videoFill16
     case profile16
     case safetyNumber16
     case timerDisabled16
@@ -135,6 +157,7 @@ public enum ThemeIcon: UInt {
 
     case transfer
     case register
+    case backup
 
     case emojiActivity
     case emojiAnimal
@@ -151,6 +174,8 @@ public enum ThemeIcon: UInt {
     case empty
 
     case profilePlaceholder
+
+    case raiseHand
 }
 
 // MARK: -
@@ -246,6 +271,21 @@ public extension Theme {
             return "person-circle"
         case .contactInfoAddToContacts:
             return "person-circle-plus"
+        case .contactInfoSignalConnection:
+            return "connections"
+        case .contactInfoNoDirectChat:
+            return "chat-x"
+        case .chatListFilterByUnread,
+             .contactInfoPendingRequest:
+            return "chat-badge"
+        case .chatListClearFilter:
+            return "chat-badge-fill"
+        case .contactInfoPhone:
+            return "phone"
+        case .contactInfoGroups:
+            return "group-resizable"
+        case .contactInfoNote:
+            return "note-resizable"
         case .groupInfoLeaveGroup:
             return "leave"
         case .groupInfoAddMembers:
@@ -282,8 +322,14 @@ public extension Theme {
             return "check-circle"
         case .checkCircleFill:
             return "check-circle-fill"
+        case .xCircle:
+            return "x-circle"
+        case .xBold:
+            return "x-bold"
         case .checkmark:
             return "check"
+        case .checkmarkBold:
+            return "check-bold"
         case .circle:
             return "circle"
         case .arrowDown:
@@ -302,10 +348,16 @@ public extension Theme {
             return "minimize"
         case .refresh:
             return "refresh"
+        case .spam:
+            return "spam"
         case .official:
             return isDarkThemeEnabled ? "official-dark" : "official"
         case .qrCode:
+            return "qr_code"
+        case .qrCodeLight:
             return "qr_code-light"
+        case .threadCompact:
+            return isDarkThemeEnabled ? "thread-compact-fill" : "thread-compact"
 
             // Buttons (24 dp)
         case .buttonCamera:
@@ -316,6 +368,8 @@ public extension Theme {
             return "phone"
         case .buttonVideoCall:
             return "video"
+        case .buttonNewCall:
+            return "phone-plus"
         case .buttonMessage:
             return "chat"
         case .buttonPhotoLibrary:
@@ -346,6 +400,8 @@ public extension Theme {
             return "x"
         case .buttonRetry:
             return "refresh"
+        case .buttonLink:
+            return "link"
 
             // Context Menus (light version of icons)
         case .contextMenuSave:
@@ -380,10 +436,18 @@ public extension Theme {
             return "x-circle-light"
         case .contextMenuOpenInChat:
             return "arrow-square-upright-light"
+        case .contextMenuVoiceCall:
+            return "phone-light"
+        case .contextMenuVideoCall:
+            return "video-light"
+        case .contextMenuMessage:
+            return "chat-light"
 
             // Empty chat list
         case .composeNewGroupLarge:
             return "group-resizable"
+        case .composeFindByUsernameLarge:
+            return "at-display-bold"
         case .composeFindByPhoneNumberLarge:
             return "number-resizable"
         case .composeInviteLarge:
@@ -416,8 +480,12 @@ public extension Theme {
             return "photo-compact"
         case .phone16:
             return "phone-compact"
+        case .phoneFill16:
+            return "phone-fill-compact"
         case .video16:
             return "video-compact"
+        case .videoFill16:
+            return "video-fill-compact"
         case .profile16:
             return "person-compact"
         case .safetyNumber16:
@@ -435,6 +503,8 @@ public extension Theme {
             return "transfer-\(UIDevice.current.isIPad ? "ipad" : "phone")-outline-60-\(isDarkThemeEnabled ? "dark" : "light")"
         case .register:
             return "register-\(UIDevice.current.isIPad ? "ipad" : "phone")-outline-60-\(isDarkThemeEnabled ? "dark" : "light")"
+        case .backup:
+            return "backup-display"
 
         case .emojiActivity:
             return "emoji-activity"
@@ -464,6 +534,9 @@ public extension Theme {
 
         case .profilePlaceholder:
             return isDarkThemeEnabled ? "profile-placeholder-dark-56" : "profile-placeholder-56"
+
+        case .raiseHand:
+            return "raise_hand"
         }
     }
 }

@@ -4,8 +4,8 @@
 //
 
 import Lottie
-import SignalMessaging
-import SignalUI
+public import SignalServiceKit
+public import SignalUI
 
 public protocol SendPaymentViewDelegate: AnyObject {
     func didSendPayment(success: Bool)
@@ -112,7 +112,7 @@ public class SendPaymentViewController: OWSViewController {
         }
     }
 
-    public required init(
+    public init(
         recipient: SendPaymentRecipient,
         initialPaymentAmount: TSPaymentAmount?,
         isOutgoingTransfer: Bool,
@@ -248,29 +248,29 @@ public class SendPaymentViewController: OWSViewController {
         } else {
             // Check whether recipient can receive payments.
             ModalActivityIndicatorViewController.presentAsInvisible(fromViewController: fromViewController) { modalActivityIndicator in
-                firstly(on: DispatchQueue.global()) {
-                    ProfileFetcherJob.fetchProfilePromise(address: recipientAddress, ignoreThrottling: true)
-                }.done { (_) in
-                    AssertIsOnMainThread()
+                Task { @MainActor in
+                    do {
+                        guard let serviceId = recipientAddress.serviceId else {
+                            throw ProfileRequestError.notFound
+                        }
+                        let profileFetcher = SSKEnvironment.shared.profileFetcherRef
+                        _ = try await profileFetcher.fetchProfile(for: serviceId)
 
-                    modalActivityIndicator.dismiss {
-                        Self.presentAfterRecipientCheck(
-                            presentationMode: presentationMode,
-                            delegate: delegate,
-                            recipientAddress: recipientAddress,
-                            initialPaymentAmount: initialPaymentAmount,
-                            isOutgoingTransfer: isOutgoingTransfer,
-                            mode: mode
-                        )
-                    }
-                }.catch { error in
-                    AssertIsOnMainThread()
-                    owsFailDebug("Error: \(error)")
-
-                    modalActivityIndicator.dismiss {
-                        AssertIsOnMainThread()
-
-                        Self.showRecipientNotEnabledAlert(recipientAddress: recipientAddress)
+                        modalActivityIndicator.dismiss {
+                            Self.presentAfterRecipientCheck(
+                                presentationMode: presentationMode,
+                                delegate: delegate,
+                                recipientAddress: recipientAddress,
+                                initialPaymentAmount: initialPaymentAmount,
+                                isOutgoingTransfer: isOutgoingTransfer,
+                                mode: mode
+                            )
+                        }
+                    } catch {
+                        owsFailDebug("Error: \(error)")
+                        modalActivityIndicator.dismiss {
+                            Self.showRecipientNotEnabledAlert(recipientAddress: recipientAddress)
+                        }
                     }
                 }
             }
@@ -316,7 +316,7 @@ public class SendPaymentViewController: OWSViewController {
             comment: "Title for error alert indicating that a given user cannot receive payments because they have not enabled payments. Embeds {{ the contact's name }}"
         )
         let recipientName: String = self.databaseStorage.read { tx in
-            self.contactsManager.displayName(for: recipientAddress, transaction: tx)
+            self.contactsManager.displayName(for: recipientAddress, tx: tx).resolvedValue()
         }
         let title = String(format: titleFormat, recipientName)
         let actionSheet = ActionSheetController(
@@ -351,9 +351,13 @@ public class SendPaymentViewController: OWSViewController {
             ) else {
                 return
             }
-            let interaction = OWSPaymentActivationRequestMessage(thread: thread, transaction: transaction)
-            Self.sskJobQueues.messageSenderJobQueue.add(
-                message: interaction.asPreparer,
+            let message = OWSPaymentActivationRequestMessage(thread: thread, transaction: transaction)
+            // The request message isn't inserted or rendered in chat; thats done with an info message.
+            let preparedMessage = PreparedOutgoingMessage.preprepared(
+                transientMessageWithoutAttachments: message
+            )
+            SSKEnvironment.shared.messageSenderJobQueueRef.add(
+                message: preparedMessage,
                 transaction: transaction
             )
             if let localAci = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: transaction.asV2Read)?.aci {
@@ -427,7 +431,7 @@ public class SendPaymentViewController: OWSViewController {
         super.viewDidAppear(animated)
 
         // For now, the design only allows for portrait layout on non-iPads
-        if !UIDevice.current.isIPad && CurrentAppContext().interfaceOrientation != .portrait {
+        if !UIDevice.current.isIPad && view.window?.windowScene?.interfaceOrientation != .portrait {
             UIDevice.current.ows_setOrientation(.portrait)
         }
     }
@@ -471,10 +475,7 @@ public class SendPaymentViewController: OWSViewController {
         view.backgroundColor = tableBackgroundColor
         navigationItem.title = nil
         if mode.isModalRootView {
-            navigationItem.leftBarButtonItem = UIBarButtonItem(barButtonSystemItem: .done,
-                                                               target: self,
-                                                               action: #selector(didTapDismiss),
-                                                               accessibilityIdentifier: "dismiss")
+            navigationItem.leftBarButtonItem = .doneButton(dismissingFrom: self)
             navigationItem.rightBarButtonItem = nil
         } else {
             navigationItem.leftBarButtonItem = nil
@@ -629,8 +630,8 @@ public class SendPaymentViewController: OWSViewController {
                 let downStateColor = (Theme.isDarkThemeEnabled
                                         ? UIColor.ows_gray90
                                         : UIColor.ows_gray02)
-                let downStateImage = UIImage(color: downStateColor,
-                                             size: CGSize(width: 1, height: 1))
+                let downStateImage = UIImage.image(color: downStateColor,
+                                                   size: CGSize(width: 1, height: 1))
                 button.setBackgroundImage(downStateImage, for: .highlighted)
 
                 // We clip the button to a circle so that the
@@ -842,7 +843,6 @@ public class SendPaymentViewController: OWSViewController {
 
     private func updateBalanceLabel() {
         guard let helper = helper else {
-            Logger.verbose("Missing helper.")
             return
         }
         helper.updateBalanceLabel(balanceLabel)
@@ -855,11 +855,6 @@ public class SendPaymentViewController: OWSViewController {
     }
 
     // MARK: - Events
-
-    @objc
-    private func didTapDismiss() {
-        dismiss(animated: true, completion: nil)
-    }
 
     @objc
     private func didTapAddMemo() {
@@ -1088,9 +1083,6 @@ public class SendPaymentViewController: OWSViewController {
                                          estimatedFeeAmount: TSPaymentAmount) {
         // Snapshot the conversion rate.
         let currencyConversion = self.currentCurrencyConversion
-
-        Logger.verbose("paymentAmount: \(paymentAmount)")
-        Logger.verbose("estimatedFeeAmount: \(estimatedFeeAmount)")
 
         let paymentInfo = PaymentInfo(
             recipient: recipient,
@@ -1507,8 +1499,6 @@ private struct InputString: Equatable {
                 }
             }
         }()
-        Logger.verbose("Before: \(self.asCharString) -> \(self.asString(formatMode: .parsing)), \(self.digitCountBeforeDecimal), \(self.digitCountAfterDecimal), \(result.asDouble)")
-        Logger.verbose("Considering: \(result.asCharString) -> \(result.asString(formatMode: .parsing)), \(result.digitCountBeforeDecimal), \(result.digitCountAfterDecimal), \(result.asDouble)")
         guard result.isValid else {
             Logger.warn("Invalid result: \(self.asString(formatMode: .parsing)) -> \(result.asString(formatMode: .parsing))")
             return self
@@ -1550,7 +1540,6 @@ private struct InputString: Equatable {
 
     static func maxDigitsBeforeDecimal(isFiat: Bool) -> UInt {
         // Max transaction size: 1 billion MOB.
-        Logger.verbose("maxMobNonDecimalDigits: \(PaymentsConstants.maxMobNonDecimalDigits)")
         return isFiat ? 9 : PaymentsConstants.maxMobNonDecimalDigits
     }
 
@@ -1623,7 +1612,6 @@ private struct InputString: Equatable {
     private static func parseAsDouble(_ stringValue: String) -> Double {
         guard let value = Double(stringValue.ows_stripped()) else {
             // inputString should be parseable at all times.
-            Logger.verbose("stringValue: \(stringValue)")
             owsFailDebug("Invalid inputString.")
             return 0
         }

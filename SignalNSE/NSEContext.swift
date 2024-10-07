@@ -5,12 +5,10 @@
 
 import Foundation
 import SignalServiceKit
-import SignalMessaging
 
 class NSEContext: NSObject, AppContext {
-    let isMainApp = false
+    let type: SignalServiceKit.AppContextType = .nse
     let isMainAppAndActive = false
-    let isNSE = true
 
     func isInBackground() -> Bool { true }
     func isAppForegroundAndActive() -> Bool { false }
@@ -18,15 +16,10 @@ class NSEContext: NSObject, AppContext {
     var shouldProcessIncomingMessages: Bool { true }
     var hasUI: Bool { false }
     func canPresentNotifications() -> Bool { true }
-    var hasActiveCall: Bool { false }
 
     let appLaunchTime = Date()
     // In NSE foreground and launch are the same.
     var appForegroundTime: Date { return appLaunchTime }
-
-    func keychainStorage() -> SSKKeychainStorage {
-        return SSKDefaultKeychainStorage.shared
-    }
 
     func appDocumentDirectoryPath() -> String {
         guard let documentDirectoryURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).last else {
@@ -62,13 +55,10 @@ class NSEContext: NSObject, AppContext {
         super.init()
 
         memoryPressureSource.setEventHandler { [weak self] in
-            let logger: NSELogger = .uncorrelated
+            guard let self else { return }
 
-            if let self = self {
-                logger.warn("Memory pressure event: \(self.memoryPressureSource.memoryEventDescription)")
-            } else {
-                logger.warn("Memory pressure event.")
-            }
+            let logger: NSELogger = .uncorrelated
+            logger.warn("Memory pressure event: \(self.memoryPressureSource.memoryEventDescription)")
             logger.warn("Current memory usage: \(LocalDevice.memoryUsageString)")
             logger.flush()
         }
@@ -83,14 +73,9 @@ class NSEContext: NSObject, AppContext {
 
     var mainWindow: UIWindow?
     let frame: CGRect = .zero
-    let interfaceOrientation: UIInterfaceOrientation = .unknown
     let reportedApplicationState: UIApplication.State = .background
-    let statusBarHeight: CGFloat = .zero
 
-    func beginBackgroundTask(expirationHandler: @escaping BackgroundTaskExpirationHandler) -> UInt { 0 }
-    func endBackgroundTask(_ backgroundTaskIdentifier: UInt) {}
-
-    func beginBackgroundTask(expirationHandler: @escaping BackgroundTaskExpirationHandler) -> UIBackgroundTaskIdentifier { .invalid }
+    func beginBackgroundTask(with expirationHandler: BackgroundTaskExpirationHandler) -> UIBackgroundTaskIdentifier { .invalid }
     func endBackgroundTask(_ backgroundTaskIdentifier: UIBackgroundTaskIdentifier) {}
 
     func ensureSleepBlocking(_ shouldBeBlocking: Bool, blockingObjectsDescription: String) {}
@@ -99,10 +84,10 @@ class NSEContext: NSObject, AppContext {
     func openSystemSettings() {}
     func open(_ url: URL, completion: ((Bool) -> Void)? = nil) {}
 
-    func runNowOr(whenMainAppIsActive block: @escaping AppActiveBlock) {}
+    func runNowOrWhenMainAppIsActive(_ block: () -> Void) {}
 
-    func resetAppDataAndExit() {
-        owsFailDebug("Should not reset app data from NSE")
+    func resetAppDataAndExit() -> Never {
+        owsFail("Should not reset app data from NSE")
     }
 
     var debugLogsDirPath: String {

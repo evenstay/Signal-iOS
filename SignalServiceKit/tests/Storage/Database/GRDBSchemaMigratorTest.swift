@@ -10,9 +10,10 @@ import XCTest
 
 class GRDBSchemaMigratorTest: XCTestCase {
     func testMigrateFromScratch() throws {
-        let databaseStorage = SDSDatabaseStorage(
+        let databaseStorage = try SDSDatabaseStorage(
+            appReadiness: AppReadinessMock(),
             databaseFileUrl: OWSFileSystem.temporaryFileUrl(),
-            delegate: DatabaseTestHelpers.TestSDSDatabaseStorageDelegate()
+            keychainStorage: MockKeychainStorage()
         )
 
         try GRDBSchemaMigrator.migrateDatabase(
@@ -262,6 +263,196 @@ extension GRDBSchemaMigratorTest {
                     arguments: [id, latest, past]
                 )
             }
+        }
+    }
+
+    func testMigrateRemovePhoneNumbers() throws {
+        // Set up the database with sample data that may have existed.
+        let databaseQueue = DatabaseQueue()
+        try databaseQueue.write { db in
+            try db.execute(sql: """
+            CREATE TABLE "model_SignalRecipient" (
+                "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                "recipientPhoneNumber" TEXT,
+                "recipientUUID" TEXT
+            );
+            CREATE UNIQUE INDEX "RecipientAciIndex" ON "model_SignalRecipient" ("recipientUUID");
+            CREATE UNIQUE INDEX "RecipientPhoneNumberIndex" ON "model_SignalRecipient" ("recipientPhoneNumber");
+
+            INSERT INTO "model_SignalRecipient" (
+                "recipientPhoneNumber", "recipientUUID"
+            ) VALUES
+                ('+17635550100', '00000000-0000-4000-A000-000000000000'),
+                ('+17635550101', NULL),
+                ('kLocalProfileUniqueId', '00000000-0000-4000-A000-000000000FFF');
+
+            CREATE TABLE "SampleTable" (
+                "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                "phoneNumber" TEXT,
+                "serviceIdString" TEXT
+            );
+            CREATE INDEX "ProfileServiceIdIndex" ON "SampleTable" ("serviceIdString");
+            CREATE INDEX "ProfilePhoneNumberIndex" ON "SampleTable" ("phoneNumber");
+
+            INSERT INTO "SampleTable" (
+                "phoneNumber", "serviceIdString"
+            ) VALUES
+                (NULL, '00000000-0000-4000-A000-000000000000'),
+                (NULL, '00000000-0000-4000-B000-000000000000'),
+                ('+17635550100', '00000000-0000-4000-A000-000000000000'),
+                ('+17635550100', 'PNI:00000000-0000-4000-A000-000000000000'),
+                ('+17635550100', NULL),
+                ('+17635550101', NULL),
+                ('+17635550102', NULL),
+                ('kLocalProfileUniqueId', NULL),
+                ('kLocalProfileUniqueId', '00000000-0000-4000-A000-000000000EEE');
+            """)
+            try GRDBSchemaMigrator.removeLocalProfileSignalRecipient(in: db)
+            try GRDBSchemaMigrator.removeRedundantPhoneNumbers(
+                in: db,
+                tableName: "SampleTable",
+                serviceIdColumn: "serviceIdString",
+                phoneNumberColumn: "phoneNumber"
+            )
+            let cursor = try Row.fetchCursor(db, sql: "SELECT * FROM SampleTable")
+            var row: Row
+            row = try cursor.next()!
+            XCTAssertEqual(row[1] as String?, nil)
+            XCTAssertEqual(row[2] as String?, "00000000-0000-4000-A000-000000000000")
+            row = try cursor.next()!
+            XCTAssertEqual(row[1] as String?, nil)
+            XCTAssertEqual(row[2] as String?, "00000000-0000-4000-B000-000000000000")
+            row = try cursor.next()!
+            XCTAssertEqual(row[1] as String?, nil)
+            XCTAssertEqual(row[2] as String?, "00000000-0000-4000-A000-000000000000")
+            row = try cursor.next()!
+            XCTAssertEqual(row[1] as String?, "+17635550100")
+            XCTAssertEqual(row[2] as String?, "PNI:00000000-0000-4000-A000-000000000000")
+            row = try cursor.next()!
+            XCTAssertEqual(row[1] as String?, nil)
+            XCTAssertEqual(row[2] as String?, "00000000-0000-4000-A000-000000000000")
+            row = try cursor.next()!
+            XCTAssertEqual(row[1] as String?, "+17635550101")
+            XCTAssertEqual(row[2] as String?, nil)
+            row = try cursor.next()!
+            XCTAssertEqual(row[1] as String?, "+17635550102")
+            XCTAssertEqual(row[2] as String?, nil)
+            row = try cursor.next()!
+            XCTAssertEqual(row[1] as String?, "kLocalProfileUniqueId")
+            XCTAssertEqual(row[2] as String?, nil)
+            row = try cursor.next()!
+            XCTAssertEqual(row[1] as String?, "kLocalProfileUniqueId")
+            XCTAssertEqual(row[2] as String?, nil)
+            XCTAssertNil(try cursor.next())
+        }
+    }
+
+    func testMigrateBlockedRecipients() throws {
+        // Set up the database with sample data that may have existed.
+        let blockedAciStrings = [
+            "00000000-0000-4000-A000-000000000001",
+            "00000000-0000-4000-A000-000000000008",
+            "",
+        ]
+        let blockedPhoneNumbers = [
+            "+17635550102",
+            "+17635550103",
+            "+17635550104",
+            "+17635550105",
+            "+17635550107",
+            "+17635550109",
+            "",
+        ]
+
+        let blockedAciData = keyedArchiverData(rootObject: blockedAciStrings)
+        let blockedPhoneNumberData = keyedArchiverData(rootObject: blockedPhoneNumbers)
+
+        let databaseQueue = DatabaseQueue()
+        try databaseQueue.write { db in
+            try db.execute(sql: """
+            CREATE TABLE keyvalue (
+                "collection" TEXT NOT NULL,
+                "key" TEXT NOT NULL,
+                "value" BLOB NOT NULL,
+                PRIMARY KEY ("collection", "key")
+            );
+
+            CREATE TABLE "model_SignalRecipient" (
+                "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                "recordType" INTEGER NOT NULL,
+                "uniqueId" TEXT NOT NULL UNIQUE ON CONFLICT FAIL,
+                "devices" BLOB NOT NULL,
+                "recipientPhoneNumber" TEXT UNIQUE,
+                "recipientUUID" TEXT UNIQUE
+            );
+
+            INSERT INTO "model_SignalRecipient" (
+                "recordType", "uniqueId", "devices", "recipientPhoneNumber", "recipientUUID"
+            ) VALUES
+                (31, '00000000-0000-4000-B000-00000000000F', X'', '+17635550101', '00000000-0000-4000-A000-000000000001'),
+                (31, '00000000-0000-4000-B000-00000000000E', X'', '+17635550102', '00000000-0000-4000-A000-000000000002'),
+                (31, '00000000-0000-4000-B000-00000000000D', X'', '+17635550103', '00000000-0000-4000-A000-000000000003'),
+                (31, '00000000-0000-4000-B000-00000000000C', X'', '+17635550104', '00000000-0000-4000-A000-000000000004'),
+                (31, '00000000-0000-4000-B000-00000000000B', X'', '+17635550105', NULL),
+                (31, '00000000-0000-4000-B000-00000000000A', X'', NULL, '00000000-0000-4000-A000-000000000006'),
+                (31, '00000000-0000-4000-B000-000000000009', X'', '+17635550107', '00000000-0000-4000-A000-000000000007');
+
+            CREATE TABLE "model_OWSUserProfile" (
+                "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                "recipientUUID" TEXT UNIQUE,
+                "profileName" TEXT,
+                "isPhoneNumberShared" BOOLEAN
+            );
+
+            INSERT INTO "model_OWSUserProfile" ("recipientUUID", "profileName", "isPhoneNumberShared") VALUES
+                ('00000000-0000-4000-A000-000000000002', NULL, TRUE),
+                ('00000000-0000-4000-A000-000000000004', NULL, FALSE),
+                ('00000000-0000-4000-A000-000000000007', NULL, FALSE);
+
+            CREATE TABLE "model_SignalAccount" (
+                "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                "recipientPhoneNumber" TEXT UNIQUE
+            );
+
+            INSERT INTO "model_SignalAccount" ("recipientPhoneNumber") VALUES
+                ('+17635550103');
+            """)
+
+            try db.execute(
+                sql: """
+                INSERT INTO "keyvalue" ("collection", "key", "value") VALUES (?, ?, ?)
+                """,
+                arguments: ["kOWSBlockingManager_BlockedPhoneNumbersCollection", "kOWSBlockingManager_BlockedUUIDsKey", blockedAciData]
+            )
+            try db.execute(
+                sql: """
+                INSERT INTO "keyvalue" ("collection", "key", "value") VALUES (?, ?, ?)
+                """,
+                arguments: ["kOWSBlockingManager_BlockedPhoneNumbersCollection", "kOWSBlockingManager_BlockedPhoneNumbersKey", blockedPhoneNumberData]
+            )
+            try db.execute(
+                sql: """
+                INSERT INTO "keyvalue" ("collection", "key", "value") VALUES (?, ?, ?)
+                """,
+                arguments: ["kOWSStorageServiceOperation_IdentifierMap", "state", #"{"accountIdChangeMap":{"00000000-0000-4000-B000-000000000009": 0, "00000000-0000-4000-B000-000000000123": 0}}"#]
+            )
+
+            do {
+                let tx = GRDBWriteTransaction(database: db)
+                defer { tx.finalizeTransaction() }
+                try GRDBSchemaMigrator.migrateBlockedRecipients(tx: tx)
+            }
+
+            let blockedRecipientIds = try Int64.fetchAll(db, sql: "SELECT * FROM BlockedRecipient")
+            XCTAssertEqual(blockedRecipientIds, [1, 2, 3, 5, 8, 9])
+
+            let encodedState = try Data.fetchOne(db, sql: "SELECT value FROM keyvalue WHERE collection = ? AND key = ?", arguments: ["kOWSStorageServiceOperation_IdentifierMap", "state"])
+            let decodedState = try encodedState.map { try JSONDecoder().decode([String: [String: Int]].self, from: $0) } ?? [:]
+            XCTAssertEqual(decodedState["accountIdChangeMap"], [
+                "00000000-0000-4000-B000-000000000009": 1,
+                "00000000-0000-4000-B000-000000000123": 0,
+                "00000000-0000-4000-B000-00000000000C": 1,
+            ])
         }
     }
 }

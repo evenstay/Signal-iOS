@@ -50,12 +50,12 @@ private extension MediaGallerySections {
 
 private struct FakeItem: MediaGallerySectionItem, Equatable {
     private static var _nextRowID = Int64(0)
-    private static func allocateRowID() -> Int64 {
+    private static func allocateItemID() -> MediaGalleryItemId {
         defer { _nextRowID += 1 }
-        return _nextRowID
+        return .legacy(mediaGalleryRecordId: _nextRowID)
     }
-    var rowid: Int64
-    var uniqueId: String
+    var itemId: MediaGalleryItemId
+    var attachmentId: MediaGalleryResourceId
     var timestamp: Date
 
     var galleryDate: GalleryDate { GalleryDate(date: timestamp) }
@@ -64,36 +64,40 @@ private struct FakeItem: MediaGallerySectionItem, Equatable {
     ///
     /// The item's unique ID will be randomly generated.
     init(_ compressedDate: UInt32) {
-        self.rowid = FakeItem.allocateRowID()
-        self.uniqueId = UUID().uuidString
+        self.itemId = FakeItem.allocateItemID()
+        self.attachmentId = .legacy(attachmentUniqueId: UUID().uuidString)
         self.timestamp = Date(compressedDate: compressedDate)
     }
 
-    init(_ compressedDate: UInt32, uniqueId: String?, rowid: Int64) {
-        self.rowid = rowid
-        self.uniqueId = uniqueId ?? UUID().uuidString
+    init(_ compressedDate: UInt32, attachmentId: MediaGalleryResourceId?, itemId: MediaGalleryItemId) {
+        self.itemId = itemId
+        self.attachmentId = attachmentId ?? .legacy(attachmentUniqueId: UUID().uuidString)
         self.timestamp = Date(compressedDate: compressedDate)
     }
 }
 
 /// Takes the place of the database for MediaGallerySection tests.
 private final class FakeGalleryStore: MediaGallerySectionLoader {
-    func rowIdsAndDatesOfItemsInSection(for date: GalleryDate,
-                                        offset: Int,
-                                        ascending: Bool,
-                                        transaction: SignalServiceKit.SDSAnyReadTransaction) -> [SignalServiceKit.RowIdAndDate] {
+    func rowIdsAndDatesOfItemsInSection(
+        for date: GalleryDate,
+        offset: Int,
+        ascending: Bool,
+        transaction: SignalServiceKit.SDSAnyReadTransaction
+    ) -> [DatedMediaGalleryItemId] {
         guard let items = itemsBySection[date] else {
             return []
         }
         let sortedItems = ascending ? items : items.reversed()
         return sortedItems[offset...].map {
-            RowIdAndDate(rowid: $0.rowid,
-                         receivedAtTimestamp: $0.timestamp.ows_millisecondsSince1970)
+            DatedMediaGalleryItemId(
+                id: $0.itemId,
+                receivedAtTimestamp: $0.timestamp.ows_millisecondsSince1970
+            )
         }
     }
 
     typealias Item = FakeItem
-    typealias EnumerationCompletion = MediaGalleryFinder.EnumerationCompletion
+    typealias EnumerationCompletion = MediaGalleryResourceFinder.EnumerationCompletion
 
     var allItems: [Item]
     var itemsBySection: OrderedDictionary<GalleryDate, [Item]>
@@ -134,39 +138,45 @@ private final class FakeGalleryStore: MediaGallerySectionLoader {
         return .finished
     }
 
-    func enumerateTimestamps(before date: Date,
-                             count: Int,
-                             transaction: SDSAnyReadTransaction,
-                             block: (Date, Int64) -> Void) -> EnumerationCompletion {
+    func enumerateTimestamps(
+        before date: Date,
+        count: Int,
+        transaction: SDSAnyReadTransaction,
+        block: (DatedMediaGalleryItemId) -> Void
+    ) -> EnumerationCompletion {
         // It would be more efficient to binary search here, but this is for testing.
         let itemsInRange = allItems.reversed().drop { $0.timestamp >= date }
         return Self.enumerate(itemsInRange, count: count) {
-            block($0.timestamp, $0.rowid)
+            block(.init(id: $0.itemId, receivedAtTimestamp: $0.timestamp.ows_millisecondsSince1970))
         }
     }
 
-    func enumerateTimestamps(after date: Date,
-                             count: Int,
-                             transaction: SDSAnyReadTransaction,
-                             block: (Date, Int64) -> Void) -> EnumerationCompletion {
+    func enumerateTimestamps(
+        after date: Date,
+        count: Int,
+        transaction: SDSAnyReadTransaction,
+        block: (DatedMediaGalleryItemId) -> Void
+    ) -> EnumerationCompletion {
         // It would be more efficient to binary search here, but this is for testing.
         let itemsInRange = allItems.drop { $0.timestamp < date }
         return Self.enumerate(itemsInRange, count: count) {
-            block($0.timestamp, $0.rowid)
+            block(.init(id: $0.itemId, receivedAtTimestamp: $0.timestamp.ows_millisecondsSince1970))
         }
     }
 
-    func enumerateItems(in interval: DateInterval,
-                        range: Range<Int>,
-                        transaction: SDSAnyReadTransaction,
-                        block: (_ offset: Int, _ uniqueId: String, _ buildItem: () -> Item) -> Void) {
+    func enumerateItems(
+        in interval: DateInterval,
+        range: Range<Int>,
+        transaction: SDSAnyReadTransaction,
+        block: (_ offset: Int, _ attachmentId: MediaGalleryResourceId, _ buildItem: () -> Item) -> Void
+    ) {
         // It would be more efficient to binary search here, but this is for testing.
         // DateInterval is usually a *closed* range, but we're using it as a half-open one here.
         let itemsInInterval = allItems.drop { $0.timestamp < interval.start }.prefix { $0.timestamp < interval.end }
         let itemsInRange = itemsInInterval.dropFirst(range.startIndex).prefix(range.count)
         mostRecentRequest = itemsInRange.indices
         for (offset, item) in zip(range, itemsInRange) {
-            block(offset, item.uniqueId, { item })
+            block(offset, item.attachmentId, { item })
         }
     }
 }
@@ -197,7 +207,7 @@ class MediaGallerySectionsFakeStoreTest: SignalBaseTest {
         let item2 = FakeItem(2021_04_28)
         XCTAssertEqual(Calendar.current.dateComponents([.year, .month, .day], from: item2.timestamp),
                        DateComponents(year: 2021, month: 4, day: 28))
-        XCTAssertNotEqual(item1.uniqueId, item2.uniqueId)
+        XCTAssertNotEqual(item1.attachmentId, item2.attachmentId)
     }
 
     func testNumberOfItemsInSection() {
@@ -236,60 +246,94 @@ class MediaGallerySectionsFakeStoreTest: SignalBaseTest {
 
         databaseStorage.read { transaction in
             var results: [Date] = []
-            XCTAssertEqual(.finished,
-                           store.enumerateTimestamps(after: .distantPast, count: 4, transaction: transaction) { item, _ in
-                results.append(item)
-            })
+            XCTAssertEqual(
+                .finished,
+                store.enumerateTimestamps(
+                    after: .distantPast,
+                    count: 4,
+                    transaction: transaction
+                ) { item in
+                    results.append(item.date)
+                }
+            )
             XCTAssertEqual(results, store.allItems.prefix(4).map { $0.timestamp })
 
             results.removeAll()
-            XCTAssertEqual(.finished,
-                           store.enumerateTimestamps(after: .distantPast, count: 10, transaction: transaction) { item, _ in
-                results.append(item)
-            })
+            XCTAssertEqual(
+                .finished,
+                store.enumerateTimestamps(
+                    after: .distantPast,
+                    count: 10,
+                    transaction: transaction
+                ) { item in
+                    results.append(item.date)
+                }
+            )
             XCTAssertEqual(results, store.allItems.map { $0.timestamp })
 
             results.removeAll()
-            XCTAssertEqual(.reachedEnd,
-                           store.enumerateTimestamps(after: .distantPast, count: 11, transaction: transaction) { item, _ in
-                results.append(item)
-            })
+            XCTAssertEqual(
+                .reachedEnd,
+                store.enumerateTimestamps(
+                    after: .distantPast,
+                    count: 11,
+                    transaction: transaction
+                ) { item in
+                    results.append(item.date)
+                }
+            )
             XCTAssertEqual(results, store.allItems.map { $0.timestamp })
 
             results.removeAll()
-            XCTAssertEqual(.finished,
-                           store.enumerateTimestamps(after: Date(compressedDate: 2021_04_01),
-                                                     count: 3,
-                                                     transaction: transaction) { item, _ in
-                results.append(item)
-            })
+            XCTAssertEqual(
+                .finished,
+                store.enumerateTimestamps(
+                    after: Date(compressedDate: 2021_04_01),
+                    count: 3,
+                    transaction: transaction
+                ) { item in
+                    results.append(item.date)
+                }
+            )
             XCTAssertEqual(results, store.allItems[3..<6].map { $0.timestamp })
 
             results.removeAll()
-            XCTAssertEqual(.reachedEnd,
-                           store.enumerateTimestamps(after: Date(compressedDate: 2021_04_01),
-                                                     count: 17,
-                                                     transaction: transaction) { item, _ in
-                results.append(item)
-            })
+            XCTAssertEqual(
+                .reachedEnd,
+                store.enumerateTimestamps(
+                    after: Date(compressedDate: 2021_04_01),
+                    count: 17,
+                    transaction: transaction
+                ) { item in
+                    results.append(item.date)
+                }
+            )
             XCTAssertEqual(results, store.allItems[3...].map { $0.timestamp })
 
             results.removeAll()
-            XCTAssertEqual(.reachedEnd,
-                           store.enumerateTimestamps(after: Date(compressedDate: 2022_04_01),
-                                                     count: 17,
-                                                     transaction: transaction) { item, _ in
-                results.append(item)
-            })
+            XCTAssertEqual(
+                .reachedEnd,
+                store.enumerateTimestamps(
+                    after: Date(compressedDate: 2022_04_01),
+                    count: 17,
+                    transaction: transaction
+                ) { item in
+                    results.append(item.date)
+                }
+            )
             XCTAssertEqual(results, [])
 
             results.removeAll()
-            XCTAssertEqual(.finished,
-                           store.enumerateTimestamps(after: Date(compressedDate: 2022_04_01),
-                                                     count: 0,
-                                                     transaction: transaction) { item, _ in
-                results.append(item)
-            })
+            XCTAssertEqual(
+                .finished,
+                store.enumerateTimestamps(
+                    after: Date(compressedDate: 2022_04_01),
+                    count: 0,
+                    transaction: transaction
+                ) { item in
+                    results.append(item.date)
+                }
+            )
             XCTAssertEqual(results, [])
         }
     }
@@ -299,51 +343,82 @@ class MediaGallerySectionsFakeStoreTest: SignalBaseTest {
 
         databaseStorage.read { transaction in
             var results: [Date] = []
-            XCTAssertEqual(.finished,
-                           store.enumerateTimestamps(before: .distantFuture, count: 4, transaction: transaction) { item, _ in
-                results.append(item)
-            })
+            XCTAssertEqual(
+                .finished,
+                store.enumerateTimestamps(
+                    before: .distantFuture,
+                    count: 4,
+                    transaction: transaction
+                ) { item in
+                    results.append(item.date)
+                }
+            )
             XCTAssertEqual(results, store.allItems.reversed().prefix(4).map { $0.timestamp })
 
             results.removeAll()
-            XCTAssertEqual(.finished,
-                           store.enumerateTimestamps(before: .distantFuture, count: 10, transaction: transaction) { item, _ in
-                results.append(item)
-            })
+            XCTAssertEqual(
+                .finished,
+                store.enumerateTimestamps(
+                    before: .distantFuture,
+                    count: 10,
+                    transaction: transaction
+                ) { item in
+                    results.append(item.date)
+                }
+            )
             XCTAssertEqual(results, store.allItems.reversed().map { $0.timestamp })
 
             results.removeAll()
-            XCTAssertEqual(.reachedEnd,
-                           store.enumerateTimestamps(before: .distantFuture, count: 11, transaction: transaction) { item, _ in
-                results.append(item)
-            })
+            XCTAssertEqual(
+                .reachedEnd,
+                store.enumerateTimestamps(
+                    before: .distantFuture,
+                    count: 11,
+                    transaction: transaction
+                ) { item in
+                    results.append(item.date)
+                }
+            )
             XCTAssertEqual(results, store.allItems.reversed().map { $0.timestamp })
 
             results.removeAll()
-            XCTAssertEqual(.finished,
-                           store.enumerateTimestamps(before: Date(compressedDate: 2021_04_01),
-                                                     count: 2,
-                                                     transaction: transaction) { item, _ in
-                results.append(item)
-            })
+            XCTAssertEqual(
+                .finished,
+
+                store.enumerateTimestamps(
+                    before: Date(compressedDate: 2021_04_01),
+                    count: 2,
+                    transaction: transaction
+                ) { item in
+                    results.append(item.date)
+                }
+            )
             XCTAssertEqual(results, store.allItems[1..<3].reversed().map { $0.timestamp })
 
             results.removeAll()
-            XCTAssertEqual(.reachedEnd,
-                           store.enumerateTimestamps(before: Date(compressedDate: 2021_04_01),
-                                                     count: 17,
-                                                     transaction: transaction) { item, _ in
-                results.append(item)
-            })
+            XCTAssertEqual(
+                .reachedEnd,
+                store.enumerateTimestamps(
+                    before: Date(compressedDate: 2021_04_01),
+                    count: 17,
+                    transaction: transaction
+                ) { item in
+                    results.append(item.date)
+                }
+            )
             XCTAssertEqual(results, store.allItems[..<3].reversed().map { $0.timestamp })
 
             results.removeAll()
-            XCTAssertEqual(.reachedEnd,
-                           store.enumerateTimestamps(before: Date(compressedDate: 2020_01_01),
-                                                     count: 17,
-                                                     transaction: transaction) { item, _ in
-                results.append(item)
-            })
+            XCTAssertEqual(
+                .reachedEnd,
+                store.enumerateTimestamps(
+                    before: Date(compressedDate: 2020_01_01),
+                    count: 17,
+                    transaction: transaction
+                ) { item in
+                    results.append(item.date)
+                }
+            )
             XCTAssertEqual(results, [])
         }
     }
@@ -352,31 +427,31 @@ class MediaGallerySectionsFakeStoreTest: SignalBaseTest {
         let store = standardFakeStore
 
         databaseStorage.read { transaction in
-            var results: [String] = []
-            let saveToResults = { (offset: Int, uniqueId: String, buildItem: () -> FakeItem) in
-                results.append(uniqueId)
-                XCTAssertEqual(uniqueId, buildItem().uniqueId)
+            var results: [MediaGalleryResourceId] = []
+            let saveToResults = { (offset: Int, attachmentId: MediaGalleryResourceId, buildItem: () -> FakeItem) in
+                results.append(attachmentId)
+                XCTAssertEqual(attachmentId, buildItem().attachmentId)
             }
 
             store.enumerateItems(in: GalleryDate(2021_01_01).interval,
                                  range: 1..<3,
                                  transaction: transaction,
                                  block: saveToResults)
-            XCTAssertEqual(store.allItems[1..<3].map { $0.uniqueId }, results)
+            XCTAssertEqual(store.allItems[1..<3].map { $0.attachmentId }, results)
 
             results.removeAll()
             store.enumerateItems(in: GalleryDate(2021_09_01).interval,
                                  range: 2..<4,
                                  transaction: transaction,
                                  block: saveToResults)
-            XCTAssertEqual(store.allItems[7..<9].map { $0.uniqueId }, results)
+            XCTAssertEqual(store.allItems[7..<9].map { $0.attachmentId }, results)
 
             results.removeAll()
             store.enumerateItems(in: GalleryDate(2021_09_01).interval,
                                  range: 0..<20,
                                  transaction: transaction,
                                  block: saveToResults)
-            XCTAssertEqual(store.allItems[5...].map { $0.uniqueId }, results)
+            XCTAssertEqual(store.allItems[5...].map { $0.attachmentId }, results)
 
             results.removeAll()
             store.enumerateItems(in: GalleryDate(2021_10_01).interval,
@@ -597,8 +672,14 @@ class MediaGallerySectionsTest: SignalBaseTest {
         XCTAssertEqual(2, wrapper.mutate { sections in sections.loadEarlierSections(batchSize: 6) })
         XCTAssertFalse(wrapper.sections.hasFetchedOldest)
         XCTAssertEqual(2, wrapper.sections.itemsBySection.count)
-        XCTAssertEqual([3, 4], wrapper.sections.itemsBySection[0].value.map { $0.rowid })
-        XCTAssertEqual([5, 6, 7, 8, 9], wrapper.sections.itemsBySection[1].value.map { $0.rowid })
+        XCTAssertEqual(
+            [3, 4].map { MediaGalleryItemId.legacy(mediaGalleryRecordId: $0) },
+            wrapper.sections.itemsBySection[0].value.map { $0.itemId }
+        )
+        XCTAssertEqual(
+            [5, 6, 7, 8, 9].map { MediaGalleryItemId.legacy(mediaGalleryRecordId: $0) },
+            wrapper.sections.itemsBySection[1].value.map { $0.itemId }
+        )
 
         XCTAssert(wrapper.mutate { sections in sections.ensureItemsLoaded(in: 1..<3, relativeToSection: 1) }.isEmpty)
         XCTAssertEqual(2, wrapper.sections.itemsBySection.count)
@@ -1019,14 +1100,14 @@ class MediaGallerySectionsTest: SignalBaseTest {
         XCTAssertEqual([nil, nil, nil], wrapper.sections.itemsBySection[0].value.map { $0.item })
 
         let fakeItem = FakeItem(2021_01_05)
-        let rowid = wrapper.sections.stateForTesting.itemsBySection[fakeItem.galleryDate]![1].rowid
-        let newItem = wrapper.mutate { sections in sections.getOrReplaceItem(fakeItem, rowid: rowid) }
+        let itemId = wrapper.sections.stateForTesting.itemsBySection[fakeItem.galleryDate]![1].itemId
+        let newItem = wrapper.mutate { sections in sections.getOrReplaceItem(fakeItem, itemId: itemId) }
         XCTAssertEqual(fakeItem, newItem)
         XCTAssertEqual([nil, fakeItem, nil], wrapper.sections.itemsBySection[0].value.map { $0.item })
 
         let fakeItem2 = FakeItem(2021_01_06)
-        let rowid2 = wrapper.sections.stateForTesting.itemsBySection[fakeItem2.galleryDate]![1].rowid
-        let newItem2 = wrapper.mutate { sections in sections.getOrReplaceItem(fakeItem2, rowid: rowid2) }
+        let itemId2 = wrapper.sections.stateForTesting.itemsBySection[fakeItem2.galleryDate]![1].itemId
+        let newItem2 = wrapper.mutate { sections in sections.getOrReplaceItem(fakeItem2, itemId: itemId2) }
         XCTAssertEqual(fakeItem, newItem2)
         XCTAssertEqual([nil, fakeItem, nil], wrapper.sections.itemsBySection[0].value.map { $0.item })
     }
@@ -1243,7 +1324,10 @@ class MediaGallerySectionsTest: SignalBaseTest {
 
         let modifiedItems = store.allItems.filter {
             // Keep January unmodified, drop all of April, and drop one value from September.
-            [0, 1, 2, 5, 6, 8, 9].contains($0.rowid)
+            [0, 1, 2, 5, 6, 8, 9]
+                .lazy
+                .map({ MediaGalleryItemId.legacy(mediaGalleryRecordId: $0) })
+                .contains($0.itemId)
         }
 
         store.set(items: modifiedItems)
@@ -1346,9 +1430,9 @@ class MediaGallerySectionsTest: SignalBaseTest {
                                                              MediaGalleryIndexPath(item: 2, section: 0)])
         }
         XCTAssertEqual(IndexSet(), indexes, "Expected empty indexes but got \(indexes)")
-        XCTAssertEqual(values.map { $0.rowid },
-                       wrapper.sections.itemsBySection[0].value.map { $0.rowid },
-                       "Expected \(values.map { $0.rowid }) but got \(wrapper.sections.itemsBySection[0].value.map { $0.rowid })")
+        XCTAssertEqual(values.map { $0.itemId },
+                       wrapper.sections.itemsBySection[0].value.map { $0.itemId },
+                       "Expected \(values.map { $0.itemId }) but got \(wrapper.sections.itemsBySection[0].value.map { $0.itemId })")
     }
 }
 

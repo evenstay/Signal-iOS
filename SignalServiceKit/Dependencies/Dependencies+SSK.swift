@@ -15,12 +15,21 @@ public protocol Dependencies {}
 
 @objc
 public extension NSObject {
-    final var attachmentDownloads: OWSAttachmentDownloads {
-        SSKEnvironment.shared.attachmentDownloadsRef
+
+    final var profileManagerImpl: OWSProfileManager {
+        profileManager as! OWSProfileManager
     }
 
-    static var attachmentDownloads: OWSAttachmentDownloads {
-        SSKEnvironment.shared.attachmentDownloadsRef
+    static var profileManagerImpl: OWSProfileManager {
+        profileManager as! OWSProfileManager
+    }
+
+    final var preferences: Preferences {
+        SSKEnvironment.shared.preferencesRef
+    }
+
+    static var preferences: Preferences {
+        SSKEnvironment.shared.preferencesRef
     }
 
     final var blockingManager: BlockingManager {
@@ -29,16 +38,6 @@ public extension NSObject {
 
     static var blockingManager: BlockingManager {
         .shared
-    }
-
-    @nonobjc
-    final var bulkProfileFetch: BulkProfileFetch {
-        SSKEnvironment.shared.bulkProfileFetchRef
-    }
-
-    @nonobjc
-    static var bulkProfileFetch: BulkProfileFetch {
-        SSKEnvironment.shared.bulkProfileFetchRef
     }
 
     final var databaseStorage: SDSDatabaseStorage {
@@ -57,22 +56,6 @@ public extension NSObject {
         SSKEnvironment.shared.disappearingMessagesJobRef
     }
 
-    final var groupV2UpdatesObjc: GroupV2Updates {
-        SSKEnvironment.shared.groupV2UpdatesRef
-    }
-
-    static var groupV2UpdatesObjc: GroupV2Updates {
-        SSKEnvironment.shared.groupV2UpdatesRef
-    }
-
-    final var linkPreviewManager: OWSLinkPreviewManager {
-        SSKEnvironment.shared.linkPreviewManagerRef
-    }
-
-    static var linkPreviewManager: OWSLinkPreviewManager {
-        SSKEnvironment.shared.linkPreviewManagerRef
-    }
-
     final var messageFetcherJob: MessageFetcherJob {
         SSKEnvironment.shared.messageFetcherJobRef
     }
@@ -81,18 +64,22 @@ public extension NSObject {
         SSKEnvironment.shared.messageFetcherJobRef
     }
 
-    final var messageManager: OWSMessageManager {
-        SSKEnvironment.shared.messageManagerRef
+    @nonobjc
+    final var messageReceiver: MessageReceiver {
+        SSKEnvironment.shared.messageReceiverRef
     }
 
-    static var messageManager: OWSMessageManager {
-        SSKEnvironment.shared.messageManagerRef
+    @nonobjc
+    static var messageReceiver: MessageReceiver {
+        SSKEnvironment.shared.messageReceiverRef
     }
 
+    @nonobjc
     final var messageSender: MessageSender {
         SSKEnvironment.shared.messageSenderRef
     }
 
+    @nonobjc
     static var messageSender: MessageSender {
         SSKEnvironment.shared.messageSenderRef
     }
@@ -113,35 +100,23 @@ public extension NSObject {
         SSKEnvironment.shared.networkManagerRef
     }
 
-    final var notificationsManager: NotificationsProtocol {
-        SSKEnvironment.shared.notificationsManagerRef
-    }
-
-    static var notificationsManager: NotificationsProtocol {
-        SSKEnvironment.shared.notificationsManagerRef
-    }
-
-    final var ows2FAManager: OWS2FAManager {
-        .shared
-    }
-
-    static var ows2FAManager: OWS2FAManager {
-        .shared
-    }
-
+    @nonobjc
     final var receiptManager: OWSReceiptManager {
         .shared
     }
 
+    @nonobjc
     static var receiptManager: OWSReceiptManager {
         .shared
     }
 
-    final var profileManager: ProfileManagerProtocol {
+    @nonobjc
+    final var profileManager: ProfileManager {
         SSKEnvironment.shared.profileManagerRef
     }
 
-    static var profileManager: ProfileManagerProtocol {
+    @nonobjc
+    static var profileManager: ProfileManager {
         SSKEnvironment.shared.profileManagerRef
     }
 
@@ -153,19 +128,11 @@ public extension NSObject {
         SSKEnvironment.shared.reachabilityManagerRef
     }
 
-    final var storageCoordinator: StorageCoordinator {
-        SSKEnvironment.shared.storageCoordinatorRef
-    }
-
-    static var storageCoordinator: StorageCoordinator {
-        SSKEnvironment.shared.storageCoordinatorRef
-    }
-
-    final var syncManager: SyncManagerProtocol {
+    final var syncManager: SyncManagerProtocolObjc {
         SSKEnvironment.shared.syncManagerRef
     }
 
-    static var syncManager: SyncManagerProtocol {
+    static var syncManager: SyncManagerProtocolObjc {
         SSKEnvironment.shared.syncManagerRef
     }
 
@@ -187,12 +154,22 @@ public extension NSObject {
         SSKEnvironment.shared.udManagerRef
     }
 
-    final var contactsManager: ContactsManagerProtocol {
-        SSKEnvironment.shared.contactsManagerRef
+    @nonobjc
+    final var contactsManager: any ContactManager {
+        SSKEnvironment.shared.contactManagerRef
     }
 
-    static var contactsManager: ContactsManagerProtocol {
-        SSKEnvironment.shared.contactsManagerRef
+    @nonobjc
+    static var contactsManager: any ContactManager {
+        SSKEnvironment.shared.contactManagerRef
+    }
+
+    final var contactManagerObjC: ContactsManagerProtocol {
+        SSKEnvironment.shared.contactManagerRef
+    }
+
+    static var contactManagerObjC: ContactsManagerProtocol {
+        SSKEnvironment.shared.contactManagerRef
     }
 
     final var storageServiceManagerObjc: StorageServiceManagerObjc {
@@ -217,22 +194,6 @@ public extension NSObject {
 
     static var messageProcessor: MessageProcessor {
         SSKEnvironment.shared.messageProcessorRef
-    }
-
-    final var remoteConfigManagerObjc: RemoteConfigManagerObjc {
-        SSKEnvironment.shared.remoteConfigManagerRef
-    }
-
-    static var remoteConfigManagerObjc: RemoteConfigManagerObjc {
-        SSKEnvironment.shared.remoteConfigManagerRef
-    }
-
-    final var groupsV2: GroupsV2 {
-        SSKEnvironment.shared.groupsV2Ref
-    }
-
-    static var groupsV2: GroupsV2 {
-        SSKEnvironment.shared.groupsV2Ref
     }
 
     @nonobjc
@@ -285,20 +246,14 @@ public extension NSObject {
         SSKEnvironment.shared.signalServiceAddressCacheRef
     }
 
+    @nonobjc
     final var messageDecrypter: OWSMessageDecrypter {
         SSKEnvironment.shared.messageDecrypterRef
     }
 
+    @nonobjc
     static var messageDecrypter: OWSMessageDecrypter {
         SSKEnvironment.shared.messageDecrypterRef
-    }
-
-    final var outgoingReceiptManager: OWSOutgoingReceiptManager {
-        SSKEnvironment.shared.outgoingReceiptManagerRef
-    }
-
-    static var outgoingReceiptManager: OWSOutgoingReceiptManager {
-        SSKEnvironment.shared.outgoingReceiptManagerRef
     }
 
     final var earlyMessageManager: EarlyMessageManager {
@@ -309,38 +264,24 @@ public extension NSObject {
         SSKEnvironment.shared.earlyMessageManagerRef
     }
 
-    // This singleton is configured after the environments are created.
-    final var callMessageHandler: OWSCallMessageHandler? {
-        SSKEnvironment.shared.callMessageHandlerRef
-    }
-
-    // This singleton is configured after the environments are created.
-    static var callMessageHandler: OWSCallMessageHandler? {
-        SSKEnvironment.shared.callMessageHandlerRef
-    }
-
-    final var pendingReceiptRecorder: PendingReceiptRecorder {
-        SSKEnvironment.shared.pendingReceiptRecorderRef
-    }
-
-    static var pendingReceiptRecorder: PendingReceiptRecorder {
-        SSKEnvironment.shared.pendingReceiptRecorderRef
-    }
-
+    @nonobjc
     final var outageDetection: OutageDetection {
         .shared
     }
 
+    @nonobjc
     static var outageDetection: OutageDetection {
         .shared
     }
 
-    final var notificationPresenter: NotificationsProtocol {
-        SSKEnvironment.shared.notificationsManager
+    @nonobjc
+    final var notificationPresenter: any NotificationPresenter {
+        SSKEnvironment.shared.notificationPresenterRef
     }
 
-    static var notificationPresenter: NotificationsProtocol {
-        SSKEnvironment.shared.notificationsManager
+    @nonobjc
+    static var notificationPresenter: any NotificationPresenter {
+        SSKEnvironment.shared.notificationPresenterRef
     }
 
     final var paymentsHelper: PaymentsHelper {
@@ -367,6 +308,14 @@ public extension NSObject {
         SSKEnvironment.shared.paymentsEventsRef
     }
 
+    final var owsPaymentsLock: OWSPaymentsLock {
+        SSKEnvironment.shared.owsPaymentsLockRef
+    }
+
+    static var owsPaymentsLock: OWSPaymentsLock {
+        SSKEnvironment.shared.owsPaymentsLockRef
+    }
+
     final var spamChallengeResolver: SpamChallengeResolver {
         SSKEnvironment.shared.spamChallengeResolverRef
     }
@@ -375,10 +324,12 @@ public extension NSObject {
         SSKEnvironment.shared.spamChallengeResolverRef
     }
 
+    @nonobjc
     final var senderKeyStore: SenderKeyStore {
         SSKEnvironment.shared.senderKeyStoreRef
     }
 
+    @nonobjc
     static var senderKeyStore: SenderKeyStore {
         SSKEnvironment.shared.senderKeyStoreRef
     }
@@ -417,14 +368,6 @@ public extension NSObject {
         SSKEnvironment.shared.systemStoryManagerRef
     }
 
-    var sskJobQueues: SSKJobQueues {
-        SSKEnvironment.shared.sskJobQueuesRef
-    }
-
-    static var sskJobQueues: SSKJobQueues {
-        SSKEnvironment.shared.sskJobQueuesRef
-    }
-
     @nonobjc
     var contactDiscoveryManager: ContactDiscoveryManager {
         SSKEnvironment.shared.contactDiscoveryManagerRef
@@ -459,28 +402,12 @@ public extension NSObject {
 
 public extension Dependencies {
 
-    var attachmentDownloads: OWSAttachmentDownloads {
-        SSKEnvironment.shared.attachmentDownloadsRef
-    }
-
-    static var attachmentDownloads: OWSAttachmentDownloads {
-        SSKEnvironment.shared.attachmentDownloadsRef
-    }
-
     var blockingManager: BlockingManager {
         .shared
     }
 
     static var blockingManager: BlockingManager {
         .shared
-    }
-
-    var bulkProfileFetch: BulkProfileFetch {
-        SSKEnvironment.shared.bulkProfileFetchRef
-    }
-
-    static var bulkProfileFetch: BulkProfileFetch {
-        SSKEnvironment.shared.bulkProfileFetchRef
     }
 
     var databaseStorage: SDSDatabaseStorage {
@@ -507,14 +434,6 @@ public extension Dependencies {
         SSKEnvironment.shared.groupV2UpdatesRef
     }
 
-    var linkPreviewManager: OWSLinkPreviewManager {
-        SSKEnvironment.shared.linkPreviewManagerRef
-    }
-
-    static var linkPreviewManager: OWSLinkPreviewManager {
-        SSKEnvironment.shared.linkPreviewManagerRef
-    }
-
     var messageFetcherJob: MessageFetcherJob {
         SSKEnvironment.shared.messageFetcherJobRef
     }
@@ -523,12 +442,14 @@ public extension Dependencies {
         SSKEnvironment.shared.messageFetcherJobRef
     }
 
-    var messageManager: OWSMessageManager {
-        SSKEnvironment.shared.messageManagerRef
+    @nonobjc
+    var messageReceiver: MessageReceiver {
+        SSKEnvironment.shared.messageReceiverRef
     }
 
-    static var messageManager: OWSMessageManager {
-        SSKEnvironment.shared.messageManagerRef
+    @nonobjc
+    static var messageReceiver: MessageReceiver {
+        SSKEnvironment.shared.messageReceiverRef
     }
 
     var messageSender: MessageSender {
@@ -555,16 +476,6 @@ public extension Dependencies {
         SSKEnvironment.shared.networkManagerRef
     }
 
-    // This singleton is configured after the environments are created.
-    var notificationsManager: NotificationsProtocol? {
-        SSKEnvironment.shared.notificationsManagerRef
-    }
-
-    // This singleton is configured after the environments are created.
-    static var notificationsManager: NotificationsProtocol? {
-        SSKEnvironment.shared.notificationsManagerRef
-    }
-
     var ows2FAManager: OWS2FAManager {
         .shared
     }
@@ -581,12 +492,20 @@ public extension Dependencies {
         .shared
     }
 
-    var profileManager: ProfileManagerProtocol {
+    var profileManager: ProfileManager {
         SSKEnvironment.shared.profileManagerRef
     }
 
-    static var profileManager: ProfileManagerProtocol {
+    static var profileManager: ProfileManager {
         SSKEnvironment.shared.profileManagerRef
+    }
+
+    var profileManagerImpl: OWSProfileManager {
+        profileManager as! OWSProfileManager
+    }
+
+    static var profileManagerImpl: OWSProfileManager {
+        profileManager as! OWSProfileManager
     }
 
     var reachabilityManager: SSKReachabilityManager {
@@ -595,14 +514,6 @@ public extension Dependencies {
 
     static var reachabilityManager: SSKReachabilityManager {
         SSKEnvironment.shared.reachabilityManagerRef
-    }
-
-    var storageCoordinator: StorageCoordinator {
-        SSKEnvironment.shared.storageCoordinatorRef
-    }
-
-    static var storageCoordinator: StorageCoordinator {
-        SSKEnvironment.shared.storageCoordinatorRef
     }
 
     var syncManager: SyncManagerProtocol {
@@ -629,12 +540,12 @@ public extension Dependencies {
         SSKEnvironment.shared.udManagerRef
     }
 
-    var contactsManager: ContactsManagerProtocol {
-        SSKEnvironment.shared.contactsManagerRef
+    var contactsManager: any ContactManager {
+        SSKEnvironment.shared.contactManagerRef
     }
 
-    static var contactsManager: ContactsManagerProtocol {
-        SSKEnvironment.shared.contactsManagerRef
+    static var contactsManager: any ContactManager {
+        SSKEnvironment.shared.contactManagerRef
     }
 
     var storageServiceManager: StorageServiceManager {
@@ -667,14 +578,6 @@ public extension Dependencies {
 
     static var remoteConfigManager: RemoteConfigManager {
         SSKEnvironment.shared.remoteConfigManagerRef
-    }
-
-    var groupsV2: GroupsV2 {
-        SSKEnvironment.shared.groupsV2Ref
-    }
-
-    static var groupsV2: GroupsV2 {
-        SSKEnvironment.shared.groupsV2Ref
     }
 
     var signalService: OWSSignalServiceProtocol {
@@ -733,30 +636,12 @@ public extension Dependencies {
         SSKEnvironment.shared.messageDecrypterRef
     }
 
-    var outgoingReceiptManager: OWSOutgoingReceiptManager {
-        SSKEnvironment.shared.outgoingReceiptManagerRef
-    }
-
-    static var outgoingReceiptManager: OWSOutgoingReceiptManager {
-        SSKEnvironment.shared.outgoingReceiptManagerRef
-    }
-
     var earlyMessageManager: EarlyMessageManager {
         SSKEnvironment.shared.earlyMessageManagerRef
     }
 
     static var earlyMessageManager: EarlyMessageManager {
         SSKEnvironment.shared.earlyMessageManagerRef
-    }
-
-    // This singleton is configured after the environments are created.
-    var callMessageHandler: OWSCallMessageHandler? {
-        SSKEnvironment.shared.callMessageHandlerRef
-    }
-
-    // This singleton is configured after the environments are created.
-    static var callMessageHandler: OWSCallMessageHandler? {
-        SSKEnvironment.shared.callMessageHandlerRef
     }
 
     var pendingReceiptRecorder: PendingReceiptRecorder {
@@ -775,12 +660,12 @@ public extension Dependencies {
         .shared
     }
 
-    var notificationPresenter: NotificationsProtocol? {
-        SSKEnvironment.shared.notificationsManager
+    var notificationPresenter: any NotificationPresenter {
+        SSKEnvironment.shared.notificationPresenterRef
     }
 
-    static var notificationPresenter: NotificationsProtocol? {
-        SSKEnvironment.shared.notificationsManager
+    static var notificationPresenter: any NotificationPresenter {
+        SSKEnvironment.shared.notificationPresenterRef
     }
 
     var paymentsHelper: PaymentsHelper {
@@ -805,6 +690,14 @@ public extension Dependencies {
 
     static var paymentsEvents: PaymentsEvents {
         SSKEnvironment.shared.paymentsEventsRef
+    }
+
+    var owsPaymentsLock: OWSPaymentsLock {
+        SSKEnvironment.shared.owsPaymentsLockRef
+    }
+
+    static var owsPaymentsLock: OWSPaymentsLock {
+        SSKEnvironment.shared.owsPaymentsLockRef
     }
 
     var mobileCoinHelper: MobileCoinHelper {
@@ -871,14 +764,6 @@ public extension Dependencies {
         SSKEnvironment.shared.systemStoryManagerRef
     }
 
-    var sskJobQueues: SSKJobQueues {
-        SSKEnvironment.shared.sskJobQueuesRef
-    }
-
-    static var sskJobQueues: SSKJobQueues {
-        SSKEnvironment.shared.sskJobQueuesRef
-    }
-
     var contactDiscoveryManager: ContactDiscoveryManager {
         SSKEnvironment.shared.contactDiscoveryManagerRef
     }
@@ -892,19 +777,51 @@ public extension Dependencies {
 
 public extension NSObject {
 
-    final var groupsV2Swift: GroupsV2Swift {
+    var groupCallManager: GroupCallManager {
+        SSKEnvironment.shared.groupCallManagerRef
+    }
+
+    static var groupCallManager: GroupCallManager {
+        SSKEnvironment.shared.groupCallManagerRef
+    }
+
+    final var smJobQueues: SignalMessagingJobQueues {
+        SSKEnvironment.shared.smJobQueuesRef
+    }
+
+    static var smJobQueues: SignalMessagingJobQueues {
+        SSKEnvironment.shared.smJobQueuesRef
+    }
+
+    final var avatarBuilder: AvatarBuilder {
+        SSKEnvironment.shared.avatarBuilderRef
+    }
+
+    static var avatarBuilder: AvatarBuilder {
+        SSKEnvironment.shared.avatarBuilderRef
+    }
+
+    final var contactsManagerImpl: OWSContactsManager {
+        contactsManager as! OWSContactsManager
+    }
+
+    static var contactsManagerImpl: OWSContactsManager {
+        contactsManager as! OWSContactsManager
+    }
+
+    final var groupsV2: GroupsV2 {
         SSKEnvironment.shared.groupsV2Ref
     }
 
-    static var groupsV2Swift: GroupsV2Swift {
+    static var groupsV2: GroupsV2 {
         SSKEnvironment.shared.groupsV2Ref
     }
 
-    final var groupV2Updates: GroupV2UpdatesSwift {
+    final var groupV2Updates: GroupV2Updates {
         SSKEnvironment.shared.groupV2UpdatesRef
     }
 
-    static var groupV2Updates: GroupV2UpdatesSwift {
+    static var groupV2Updates: GroupV2Updates {
         SSKEnvironment.shared.groupV2UpdatesRef
     }
 
@@ -945,19 +862,67 @@ public extension NSObject {
 
 public extension Dependencies {
 
-    var groupsV2Swift: GroupsV2Swift {
+    var groupsV2Impl: GroupsV2Impl {
+        groupsV2 as! GroupsV2Impl
+    }
+
+    static var groupsV2Impl: GroupsV2Impl {
+        groupsV2 as! GroupsV2Impl
+    }
+
+    var groupV2UpdatesImpl: GroupV2UpdatesImpl {
+        groupV2Updates as! GroupV2UpdatesImpl
+    }
+
+    static var groupV2UpdatesImpl: GroupV2UpdatesImpl {
+        groupV2Updates as! GroupV2UpdatesImpl
+    }
+
+    var smJobQueues: SignalMessagingJobQueues {
+        SSKEnvironment.shared.smJobQueuesRef
+    }
+
+    static var smJobQueues: SignalMessagingJobQueues {
+        SSKEnvironment.shared.smJobQueuesRef
+    }
+
+    var avatarBuilder: AvatarBuilder {
+        SSKEnvironment.shared.avatarBuilderRef
+    }
+
+    static var avatarBuilder: AvatarBuilder {
+        SSKEnvironment.shared.avatarBuilderRef
+    }
+
+    var contactsManagerImpl: OWSContactsManager {
+        contactsManager as! OWSContactsManager
+    }
+
+    static var contactsManagerImpl: OWSContactsManager {
+        contactsManager as! OWSContactsManager
+    }
+
+    var preferences: Preferences {
+        SSKEnvironment.shared.preferencesRef
+    }
+
+    static var preferences: Preferences {
+        SSKEnvironment.shared.preferencesRef
+    }
+
+    var groupsV2: GroupsV2 {
         SSKEnvironment.shared.groupsV2Ref
     }
 
-    static var groupsV2Swift: GroupsV2Swift {
+    static var groupsV2: GroupsV2 {
         SSKEnvironment.shared.groupsV2Ref
     }
 
-    var groupV2Updates: GroupV2UpdatesSwift {
+    var groupV2Updates: GroupV2Updates {
         SSKEnvironment.shared.groupV2UpdatesRef
     }
 
-    static var groupV2Updates: GroupV2UpdatesSwift {
+    static var groupV2Updates: GroupV2Updates {
         SSKEnvironment.shared.groupV2UpdatesRef
     }
 
@@ -997,6 +962,15 @@ public extension Dependencies {
 // MARK: -
 
 @objc
+public extension OWSProfileManager {
+    static var shared: OWSProfileManager {
+        SSKEnvironment.shared.profileManagerRef as! OWSProfileManager
+    }
+}
+
+// MARK: -
+
+@objc
 public extension BlockingManager {
     static var shared: BlockingManager {
         SSKEnvironment.shared.blockingManagerRef
@@ -1014,7 +988,6 @@ public extension SDSDatabaseStorage {
 
 // MARK: -
 
-@objc
 public extension OWS2FAManager {
     static var shared: OWS2FAManager {
         SSKEnvironment.shared.ows2FAManagerRef
@@ -1078,15 +1051,6 @@ public extension NetworkManager {
 // MARK: -
 
 @objc
-public extension OWSOutgoingReceiptManager {
-    static var shared: OWSOutgoingReceiptManager {
-        SSKEnvironment.shared.outgoingReceiptManagerRef
-    }
-}
-
-// MARK: -
-
-@objc
 public extension OWSDisappearingMessagesJob {
     static var shared: OWSDisappearingMessagesJob {
         SSKEnvironment.shared.disappearingMessagesJobRef
@@ -1099,5 +1063,13 @@ public extension OWSDisappearingMessagesJob {
 public extension PhoneNumberUtil {
     static var shared: PhoneNumberUtil {
         SSKEnvironment.shared.phoneNumberUtilRef
+    }
+}
+
+// MARK: -
+
+public extension OWSSyncManager {
+    static var shared: SyncManagerProtocol {
+        SSKEnvironment.shared.syncManagerRef
     }
 }

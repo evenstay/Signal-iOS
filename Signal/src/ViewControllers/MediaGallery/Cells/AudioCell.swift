@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
+import SignalServiceKit
 import SignalUI
 
 class AudioCell: MediaTileListModeCell {
@@ -19,9 +19,10 @@ class AudioCell: MediaTileListModeCell {
                 return
             }
             audioAttachment = AudioAttachment(
-                attachment: audioItem.attachmentStream,
+                attachmentStream: audioItem.attachmentStream,
                 owningMessage: audioItem.message,
-                metadata: audioItem.metadata
+                metadata: audioItem.metadata,
+                receivedAtDate: audioItem.receivedAtDate
             )
         }
     }
@@ -29,6 +30,8 @@ class AudioCell: MediaTileListModeCell {
     class var defaultCellHeight: CGFloat { 88 }
 
     private static let contentInset = UIEdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 10)
+
+    override class var contentCardVerticalInset: CGFloat { 6 }
 
     private static var cellHeightsWithTopLabel: [UIContentSizeCategory: CGFloat] = [:]
 
@@ -41,7 +44,10 @@ class AudioCell: MediaTileListModeCell {
         }
 
         let currentContentSizeCategory = UITraitCollection.current.preferredContentSizeCategory
-        let displaysTopLabel = AudioAllMediaPresenter.hasAttachmentLabel(attachment: audioItem.attachmentStream)
+        let displaysTopLabel = AudioAllMediaPresenter.hasAttachmentLabel(
+            attachment: audioItem.attachmentStream.attachmentStream,
+            isVoiceMessage: audioItem.isVoiceMessage
+        )
 
         if let cellHeight: CGFloat = {
             if displaysTopLabel {
@@ -54,9 +60,10 @@ class AudioCell: MediaTileListModeCell {
         }
 
         guard let audioAttachment = AudioAttachment(
-            attachment: audioItem.attachmentStream,
+            attachmentStream: audioItem.attachmentStream,
             owningMessage: audioItem.message,
-            metadata: audioItem.metadata
+            metadata: audioItem.metadata,
+            receivedAtDate: audioItem.receivedAtDate
         ) else {
             return defaultCellHeight
         }
@@ -72,7 +79,7 @@ class AudioCell: MediaTileListModeCell {
             presentation: presenter
         )
 
-        let cellHeight = audioMessageViewSize.height + AudioCell.contentInset.totalHeight
+        let cellHeight = audioMessageViewSize.height + AudioCell.contentInset.totalHeight + 2*Self.contentCardVerticalInset
         if displaysTopLabel {
             cellHeightsWithTopLabel[currentContentSizeCategory] = cellHeight
         } else {
@@ -129,7 +136,7 @@ class AudioCell: MediaTileListModeCell {
             viewWidth: contentView.bounds.width,
             hasWallpaper: false,
             isWallpaperPhoto: false,
-            chatColor: ChatColors.Constants.defaultColor.colorSetting
+            chatColor: ChatColorSettingStore.Constants.defaultColor.colorSetting
         )
         let coreState = CVCoreState(conversationStyle: conversationStyle, mediaCache: audioItem.mediaCache)
         let viewStateSnapshot = CVViewStateSnapshot.mockSnapshotForStandaloneItems(
@@ -203,8 +210,8 @@ class AudioCell: MediaTileListModeCell {
     private func setupViews() {
         contentView.addSubview(audioMessageContainerView)
         NSLayoutConstraint.activate([
-            audioMessageContainerView.topAnchor.constraint(equalTo: contentView.topAnchor),
-            audioMessageContainerView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
+            audioMessageContainerView.topAnchor.constraint(equalTo: contentView.topAnchor, constant: Self.contentCardVerticalInset),
+            audioMessageContainerView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -Self.contentCardVerticalInset),
             audioMessageContainerView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -OWSTableViewController2.defaultHOuterMargin)
         ])
 
@@ -245,7 +252,8 @@ class AudioCell: MediaTileListModeCell {
             let cvAudioPlayer = AppEnvironment.shared.cvAudioPlayerRef
             cvAudioPlayer.setPlaybackProgress(
                 progress: scrubbedTime,
-                forAttachmentStream: audioItem.attachmentStream)
+                forAttachmentStream: audioItem.attachmentStream.attachmentStream
+            )
         case .possible, .failed, .cancelled:
             audioMessageView.clearOverrideProgress(animated: false)
         @unknown default:
@@ -275,7 +283,7 @@ class AudioCell: MediaTileListModeCell {
         if let audioItem {
             accessibilityLabel = [
                 audioItem.localizedString,
-                MediaTileDateFormatter.formattedDateString(for: audioItem.date)
+                MediaTileDateFormatter.formattedDateString(for: audioItem.receivedAtDate)
             ]
                 .compactMap { $0 }
                 .joined(separator: ", ")

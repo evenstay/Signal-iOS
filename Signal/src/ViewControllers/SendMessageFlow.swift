@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
+public import SignalServiceKit
 import SignalUI
 
 public protocol SendMessageDelegate: AnyObject {
@@ -16,21 +16,6 @@ public protocol SendMessageDelegate: AnyObject {
 protocol SignalAttachmentProvider {
     func buildAttachmentForSending() throws -> SignalAttachment
     var isBorderless: Bool { get }
-}
-
-// MARK: -
-
-// This can be used to forward an existing attachment stream.
-struct TSAttachmentStreamCloner: SignalAttachmentProvider {
-    let attachmentStream: TSAttachmentStream
-
-    func buildAttachmentForSending() throws -> SignalAttachment {
-        try attachmentStream.cloneAsSignalAttachment()
-    }
-
-    var isBorderless: Bool {
-        attachmentStream.isBorderless
-    }
 }
 
 // MARK: -
@@ -52,7 +37,6 @@ enum SendMessageUnapprovedContent {
     case text(messageBody: MessageBody)
     case contactShare(contactShare: ContactShareViewModel)
     // stickerAttachment is required if the sticker is not installed.
-    case sticker(stickerMetadata: StickerMetadata, stickerAttachment: TSAttachmentStream?)
     case genericAttachment(signalAttachmentProvider: SignalAttachmentProvider)
     case media(signalAttachmentProviders: [SignalAttachmentProvider], messageBody: MessageBody?)
 
@@ -62,8 +46,6 @@ enum SendMessageUnapprovedContent {
             return true
         case .contactShare:
             return true
-        case .sticker:
-            return false
         case .genericAttachment:
             return false
         case .media:
@@ -94,18 +76,6 @@ enum SendMessageUnapprovedContent {
         case .contactShare:
             owsAssertDebug(needsApproval)
             return nil
-        case .sticker(let stickerMetadata, let stickerAttachment):
-            owsAssertDebug(!needsApproval)
-            let stickerInfo = stickerMetadata.stickerInfo
-            if StickerManager.isStickerInstalled(stickerInfo: stickerInfo) {
-                return .installedSticker(stickerMetadata: stickerMetadata)
-            } else {
-                guard let stickerAttachment = stickerAttachment else {
-                    throw SendMessageFlowError.invalidContent
-                }
-                let stickerData = try stickerAttachment.readDataFromFile()
-                return .uninstalledSticker(stickerMetadata: stickerMetadata, stickerData: stickerData)
-            }
         case .genericAttachment(let signalAttachmentProvider):
             owsAssertDebug(!needsApproval)
             return .genericAttachment(signalAttachmentProvider: signalAttachmentProvider)
@@ -127,9 +97,9 @@ enum SendMessageUnapprovedContent {
 
 enum SendMessageApprovedContent {
     case text(messageBody: MessageBody, linkPreviewDraft: OWSLinkPreviewDraft?)
-    case contactShare(contactShare: ContactShareViewModel)
-    case installedSticker(stickerMetadata: StickerMetadata)
-    case uninstalledSticker(stickerMetadata: StickerMetadata, stickerData: Data)
+    case contactShare(contactShare: ContactShareDraft)
+    case installedSticker(stickerMetadata: any StickerMetadata)
+    case uninstalledSticker(stickerMetadata: any StickerMetadata, stickerData: Data)
     case genericAttachment(signalAttachmentProvider: SignalAttachmentProvider)
     case borderlessMedia(signalAttachmentProvider: SignalAttachmentProvider)
     case media(signalAttachments: [SignalAttachment], messageBody: MessageBody?)
@@ -145,8 +115,6 @@ class SendMessageFlow: Dependencies {
 
     private weak var delegate: SendMessageDelegate?
 
-    private weak var navigationController: UINavigationController?
-
     var unapprovedContent: SendMessageUnapprovedContent
 
     var mentionCandidates: [SignalServiceAddress] = []
@@ -154,27 +122,58 @@ class SendMessageFlow: Dependencies {
     private let selection = ConversationPickerSelection()
     var selectedConversations: [ConversationItem] { selection.conversations }
 
-    public init(flowType: SendMessageFlowType,
-                unapprovedContent: SendMessageUnapprovedContent,
-                useConversationComposeForSingleRecipient: Bool,
-                navigationController: UINavigationController,
-                delegate: SendMessageDelegate) {
+    private let presentationStyle: PresentationStyle
+
+    enum PresentationStyle {
+      case pushOnto(UINavigationController)
+      case presentFrom(UIViewController)
+    }
+
+    private weak var navigationController: UINavigationController?
+
+    public init(
+        flowType: SendMessageFlowType,
+        unapprovedContent: SendMessageUnapprovedContent,
+        useConversationComposeForSingleRecipient: Bool,
+        presentationStyle: PresentationStyle,
+        delegate: SendMessageDelegate
+    ) {
         self.flowType = flowType
         self.unapprovedContent = unapprovedContent
         self.useConversationComposeForSingleRecipient = useConversationComposeForSingleRecipient
-        self.navigationController = navigationController
+        self.presentationStyle = presentationStyle
         self.delegate = delegate
 
         let conversationPicker = ConversationPickerViewController(selection: selection)
+        let navigationController: UINavigationController
+
+        switch presentationStyle {
+        case .pushOnto(let navController):
+            navigationController = navController
+        case .presentFrom:
+            navigationController = OWSNavigationController(rootViewController: conversationPicker)
+        }
+
         conversationPicker.pickerDelegate = self
 
-        if navigationController.viewControllers.isEmpty {
-            navigationController.setViewControllers([
-                conversationPicker
-            ], animated: false)
-        } else {
-            navigationController.pushViewController(conversationPicker, animated: true)
+        switch presentationStyle {
+        case .pushOnto:
+            if navigationController.viewControllers.isEmpty {
+                navigationController.setViewControllers([
+                    conversationPicker
+                ], animated: false)
+            } else {
+                navigationController.pushViewController(conversationPicker, animated: true)
+            }
+        case .presentFrom(let viewController):
+            viewController.present(navigationController, animated: true)
         }
+
+        self.navigationController = navigationController
+    }
+
+    func dismissNavigationController(animated: Bool) {
+        navigationController?.dismiss(animated: animated)
     }
 
     fileprivate func fireComplete(threads: [TSThread]) {
@@ -281,7 +280,7 @@ extension SendMessageFlow {
             pushViewController(approvalView, animated: true)
         case .contactShare(let oldContactShare):
             let newContactShare = oldContactShare.copyForResending()
-            let approvalView = ContactShareViewController(contactShare: newContactShare)
+            let approvalView = ContactShareViewController(contactShareDraft: newContactShare)
             approvalView.shareDelegate = self
             pushViewController(approvalView, animated: true)
         case .media(let signalAttachmentProviders, let messageBody):
@@ -349,14 +348,7 @@ extension SendMessageFlow {
             }
         case .contactShare(let contactShare):
             return sendInEachThread { thread in
-                let contactShareCopy = contactShare.copyForResending()
-                if let avatarImage = contactShareCopy.avatarImage {
-                    self.databaseStorage.write { transaction in
-                        contactShareCopy.dbRecord.saveAvatarImage(avatarImage, transaction: transaction)
-                    }
-                }
-
-                self.send(contactShare: contactShareCopy, thread: thread)
+                self.send(contactShare: contactShare, thread: thread)
             }
         case .installedSticker(let stickerMetadata):
             let stickerInfo = stickerMetadata.stickerInfo
@@ -379,32 +371,28 @@ extension SendMessageFlow {
             }
         case .media(let signalAttachments, let messageBody):
             let conversations = selectedConversations
-            return AttachmentMultisend.sendApprovedMedia(conversations: conversations,
-                                                         approvalMessageBody: messageBody,
-                                                         approvedAttachments: signalAttachments)
+            return TSResourceMultisend.sendApprovedMedia(
+                conversations: conversations,
+                approvalMessageBody: messageBody,
+                approvedAttachments: signalAttachments
+            ).enqueuedPromise
         }
     }
 
     func send(messageBody: MessageBody, linkPreviewDraft: OWSLinkPreviewDraft?, thread: TSThread) {
-        databaseStorage.read { transaction in
-            ThreadUtil.enqueueMessage(body: messageBody,
-                                      thread: thread,
-                                      linkPreviewDraft: linkPreviewDraft,
-                                      transaction: transaction)
-        }
+        ThreadUtil.enqueueMessage(body: messageBody,
+                                  thread: thread,
+                                  linkPreviewDraft: linkPreviewDraft)
     }
 
-    func send(contactShare: ContactShareViewModel, thread: TSThread) {
-        ThreadUtil.enqueueMessage(withContactShare: contactShare.dbRecord, thread: thread)
+    func send(contactShare: ContactShareDraft, thread: TSThread) {
+        ThreadUtil.enqueueMessage(withContactShare: contactShare, thread: thread)
     }
 
     func send(messageBody: MessageBody?, attachment: SignalAttachment, thread: TSThread) {
-        databaseStorage.read { transaction in
-            ThreadUtil.enqueueMessage(body: messageBody,
-                                      mediaAttachments: [attachment],
-                                      thread: thread,
-                                      transaction: transaction)
-        }
+        ThreadUtil.enqueueMessage(body: messageBody,
+                                  mediaAttachments: [attachment],
+                                  thread: thread)
     }
 
     func sendInEachThread(enqueueBlock: @escaping (TSThread) throws -> Void) -> Promise<[TSThread]> {
@@ -521,7 +509,7 @@ extension SendMessageFlow: TextApprovalViewControllerDelegate {
 
 extension SendMessageFlow: ContactShareViewControllerDelegate {
 
-    func contactShareViewController(_ viewController: ContactShareViewController, didApproveContactShare contactShare: ContactShareViewModel) {
+    func contactShareViewController(_ viewController: ContactShareViewController, didApproveContactShare contactShare: ContactShareDraft) {
         send(approvedContent: .contactShare(contactShare: contactShare))
     }
 
@@ -620,9 +608,9 @@ public class SendMessageController: SendMessageDelegate {
 
     private weak var fromViewController: UIViewController?
 
-    let sendMessageFlow = AtomicOptional<SendMessageFlow>(nil)
+    let sendMessageFlow = AtomicOptional<SendMessageFlow>(nil, lock: .sharedGlobal)
 
-    public required init(fromViewController: UIViewController) {
+    public init(fromViewController: UIViewController) {
         self.fromViewController = fromViewController
     }
 

@@ -13,10 +13,11 @@ final class ThreadMergerTest: XCTestCase {
     private var callRecordStore: MockCallRecordStore!
     private var chatColorSettingStore: ChatColorSettingStore!
     private var db: MockDB!
+    private var deletedCallRecordStore: MockDeletedCallRecordStore!
     private var disappearingMessagesConfigurationManager: ThreadMerger_MockDisappearingMessagesConfigurationManager!
     private var disappearingMessagesConfigurationStore: MockDisappearingMessagesConfigurationStore!
     private var interactionStore: MockInteractionStore!
-    private var pinnedThreadManager: ThreadMerger_MockPinnedThreadManager!
+    private var pinnedThreadManager: MockPinnedThreadManager!
     private var threadAssociatedDataManager: ThreadMerger_MockThreadAssociatedDataManager!
     private var threadAssociatedDataStore: MockThreadAssociatedDataStore!
     private var threadStore: MockThreadStore!
@@ -39,33 +40,41 @@ final class ThreadMergerTest: XCTestCase {
         _signalServiceAddressCache = SignalServiceAddressCache()
 
         callRecordStore = MockCallRecordStore()
-        chatColorSettingStore = ChatColorSettingStore(keyValueStoreFactory: keyValueStoreFactory)
         db = MockDB()
+        deletedCallRecordStore = MockDeletedCallRecordStore()
         disappearingMessagesConfigurationStore = MockDisappearingMessagesConfigurationStore()
         disappearingMessagesConfigurationManager = ThreadMerger_MockDisappearingMessagesConfigurationManager(disappearingMessagesConfigurationStore)
-        pinnedThreadManager = ThreadMerger_MockPinnedThreadManager()
+        pinnedThreadManager = MockPinnedThreadManager()
         interactionStore = MockInteractionStore()
         threadAssociatedDataStore = MockThreadAssociatedDataStore()
         threadAssociatedDataManager = ThreadMerger_MockThreadAssociatedDataManager(threadAssociatedDataStore)
         threadReplyInfoStore = ThreadReplyInfoStore(keyValueStoreFactory: keyValueStoreFactory)
         threadStore = MockThreadStore()
-        wallpaperStore = WallpaperStore(keyValueStoreFactory: keyValueStoreFactory, notificationScheduler: SyncScheduler())
+        wallpaperStore = WallpaperStore(
+            keyValueStoreFactory: keyValueStoreFactory,
+            notificationScheduler: SyncScheduler(),
+            wallpaperImageStore: MockWallpaperImageStore()
+        )
+        chatColorSettingStore = ChatColorSettingStore(
+            keyValueStoreFactory: keyValueStoreFactory,
+            wallpaperStore: wallpaperStore
+        )
         threadRemover = ThreadRemoverImpl(
             chatColorSettingStore: chatColorSettingStore,
             databaseStorage: ThreadRemover_MockDatabaseStorage(),
             disappearingMessagesConfigurationStore: disappearingMessagesConfigurationStore,
-            fullTextSearchFinder: ThreadRemover_MockFullTextSearchFinder(),
-            interactionRemover: ThreadRemover_MockInteractionRemover(),
             sdsThreadRemover: ThreadRemover_MockSDSThreadRemover(),
             threadAssociatedDataStore: threadAssociatedDataStore,
             threadReadCache: ThreadRemover_MockThreadReadCache(),
             threadReplyInfoStore: threadReplyInfoStore,
+            threadSoftDeleteManager: MockThreadSoftDeleteManager(),
             threadStore: threadStore,
             wallpaperStore: wallpaperStore
         )
         threadMerger = ThreadMerger(
             callRecordStore: callRecordStore,
             chatColorSettingStore: chatColorSettingStore,
+            deletedCallRecordStore: deletedCallRecordStore,
             disappearingMessagesConfigurationManager: disappearingMessagesConfigurationManager,
             disappearingMessagesConfigurationStore: disappearingMessagesConfigurationStore,
             interactionStore: interactionStore,
@@ -76,6 +85,7 @@ final class ThreadMergerTest: XCTestCase {
             threadRemover: threadRemover,
             threadReplyInfoStore: threadReplyInfoStore,
             threadStore: threadStore,
+            wallpaperImageStore: MockWallpaperImageStore(),
             wallpaperStore: wallpaperStore
         )
 
@@ -85,24 +95,15 @@ final class ThreadMergerTest: XCTestCase {
 
     // MARK: - Call Records
 
-    private class MockCallRecordStore: CallRecordStore {
-        var merged: (from: Int64, into: Int64)?
-
-        func updateWithMergedThread(fromThreadRowId fromRowId: Int64, intoThreadRowId intoRowId: Int64, tx: DBWriteTransaction) {
-            merged = (from: fromRowId, into: intoRowId)
-        }
-
-        func insert(callRecord: CallRecord, tx: DBWriteTransaction) -> Bool { owsFail("Not implemented!") }
-        func updateRecordStatusIfAllowed(callRecord: CallRecord, newCallStatus: CallRecord.CallStatus, tx: DBWriteTransaction) -> Bool { owsFail("Not implemented!") }
-        func fetch(callId: UInt64, threadRowId: Int64, tx: DBReadTransaction) -> CallRecord? { owsFail("Not implemented!") }
-        func fetch(interactionRowId: Int64, tx: DBReadTransaction) -> CallRecord? { owsFail("Not implemented!") }
-    }
-
     func testCallRecordsThreadRowIds() {
         threadStore.insertThreads([serviceIdThread, phoneNumberThread])
         performDefaultMerge()
-        XCTAssertEqual(callRecordStore.merged!.from, phoneNumberThread.sqliteRowId!)
-        XCTAssertEqual(callRecordStore.merged!.into, serviceIdThread.sqliteRowId!)
+
+        XCTAssertEqual(callRecordStore.askedToMergeThread!.from, phoneNumberThread.sqliteRowId!)
+        XCTAssertEqual(callRecordStore.askedToMergeThread!.into, serviceIdThread.sqliteRowId!)
+
+        XCTAssertEqual(deletedCallRecordStore.askedToMergeThread!.from, phoneNumberThread.sqliteRowId!)
+        XCTAssertEqual(deletedCallRecordStore.askedToMergeThread!.into, serviceIdThread.sqliteRowId!)
     }
 
     // MARK: - Pinned Threads
@@ -146,12 +147,14 @@ final class ThreadMergerTest: XCTestCase {
             serviceIdThread.uniqueId: OWSDisappearingMessagesConfiguration(
                 threadId: serviceIdThread.uniqueId,
                 enabled: serviceIdValue != nil,
-                durationSeconds: serviceIdValue ?? 0
+                durationSeconds: serviceIdValue ?? 0,
+                timerVersion: 1
             ),
             phoneNumberThread.uniqueId: OWSDisappearingMessagesConfiguration(
                 threadId: phoneNumberThread.uniqueId,
                 enabled: phoneNumberValue != nil,
-                durationSeconds: phoneNumberValue ?? 0
+                durationSeconds: phoneNumberValue ?? 0,
+                timerVersion: 1
             )
         ]
     }
@@ -287,7 +290,7 @@ final class ThreadMergerTest: XCTestCase {
         let threadMergeEvent = try XCTUnwrap(interactionStore.insertedInteractions.first as? TSInfoMessage)
         XCTAssertEqual(interactionStore.insertedInteractions.count, 1)
         XCTAssertEqual(threadMergeEvent.messageType, .threadMerge)
-        XCTAssertEqual(threadMergeEvent.infoMessageUserInfo?[.threadMergePhoneNumber] as? String, phoneNumber.stringValue)
+        XCTAssertEqual(threadMergeEvent.threadMergePhoneNumber, phoneNumber.stringValue)
     }
 
     func testThreadMergeEventInvisibleThread() {
@@ -308,7 +311,7 @@ final class ThreadMergerTest: XCTestCase {
         let threadMergeEvent = try XCTUnwrap(interactionStore.insertedInteractions.first as? TSInfoMessage)
         XCTAssertEqual(interactionStore.insertedInteractions.count, 1)
         XCTAssertEqual(threadMergeEvent.messageType, .threadMerge)
-        XCTAssertNil(threadMergeEvent.infoMessageUserInfo?[.threadMergePhoneNumber])
+        XCTAssertNil(threadMergeEvent.threadMergePhoneNumber)
     }
 
     // MARK: - Raw SDS Migrations
@@ -332,8 +335,7 @@ final class ThreadMergerTest: XCTestCase {
         let result = TSContactThread(contactAddress: SignalServiceAddress(
             serviceId: aci,
             phoneNumber: phoneNumber?.stringValue,
-            cache: _signalServiceAddressCache,
-            cachePolicy: .preferInitialPhoneNumberAndListenForUpdates
+            cache: _signalServiceAddressCache
         ))
         threadAssociatedDataStore.values[result.uniqueId] = ThreadAssociatedData(threadUniqueId: result.uniqueId)
         return result

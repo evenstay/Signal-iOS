@@ -4,6 +4,7 @@
 //
 
 import SignalServiceKit
+public import UIKit
 
 public extension UIApplication {
 
@@ -23,7 +24,6 @@ public extension UIApplication {
     }
 
     func findFrontmostViewController(ignoringAlerts: Bool, window: UIWindow) -> UIViewController? {
-        Logger.verbose("findFrontmostViewController: \(window)")
         guard let viewController = window.rootViewController else {
             owsFailDebug("Missing root view controller.")
             return nil
@@ -33,17 +33,5 @@ public extension UIApplication {
 
     func openSystemSettings() {
         open(URL(string: UIApplication.openSettingsURLString)!, options: [:])
-    }
-
-    var keyWindow: UIWindow? {
-        return windows.first(where: { $0.isKeyWindow })
-    }
-
-    var statusBarFrame: CGRect {
-        return keyWindow?.windowScene?.statusBarManager?.statusBarFrame ?? .zero
-    }
-
-    var statusBarOrientation: UIInterfaceOrientation {
-        return keyWindow?.windowScene?.interfaceOrientation ?? .unknown
     }
 }

@@ -3,7 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
+import UniformTypeIdentifiers
+
+import SignalServiceKit
 import SignalUI
 
 class NotificationSettingsSoundViewController: OWSTableViewController2 {
@@ -18,7 +20,7 @@ class NotificationSettingsSoundViewController: OWSTableViewController2 {
         self.completion = completion
 
         if let thread {
-            self.originalNotificationSound = Sounds.notificationSoundForThread(thread)
+            self.originalNotificationSound = Sounds.notificationSoundWithSneakyTransaction(forThreadUniqueId: thread.uniqueId)
         } else {
             self.originalNotificationSound = Sounds.globalNotificationSound
         }
@@ -48,12 +50,9 @@ class NotificationSettingsSoundViewController: OWSTableViewController2 {
     }
 
     private func updateNavigation() {
-        navigationItem.leftBarButtonItem = UIBarButtonItem(
-            barButtonSystemItem: .cancel,
-            target: self,
-            action: #selector(didTapCancel),
-            accessibilityIdentifier: "cancel_button"
-        )
+        navigationItem.leftBarButtonItem = .cancelButton { [weak self] in
+            self?.didTapCancel()
+        }
 
         if hasUnsavedChanges {
             navigationItem.rightBarButtonItem = UIBarButtonItem(
@@ -103,17 +102,17 @@ class NotificationSettingsSoundViewController: OWSTableViewController2 {
             ),
             actionBlock: { [weak self] in
                 guard let self = self else { return }
-                let picker = UIDocumentPickerViewController(
-                    documentTypes: [
-                        "com.microsoft.waveform-audio",
-                        "public.aifc-audio",
-                        "public.aiff-audio",
-                        "com.apple.coreaudio-format",
-                        "public.mp3",
-                        "com.apple.mpeg-4-ringtone"
-                    ],
-                    in: .import
-                )
+                var contentTypes: [UTType] = [.wav, .aiff, .mp3]
+                for additionalUti in [
+                    "public.aifc-audio",
+                    "com.apple.coreaudio-format",
+                    "com.apple.mpeg-4-ringtone",
+                ] {
+                    if let element = UTType(additionalUti) {
+                        contentTypes.append(element)
+                    }
+                }
+                let picker = UIDocumentPickerViewController(forOpeningContentTypes: contentTypes, asCopy: true)
                 picker.delegate = self
                 self.present(picker, animated: true)
             }
@@ -144,7 +143,6 @@ class NotificationSettingsSoundViewController: OWSTableViewController2 {
         completion?()
     }
 
-    @objc
     private func didTapCancel() {
         guard hasUnsavedChanges else {
             stopPlayingAndDismiss()

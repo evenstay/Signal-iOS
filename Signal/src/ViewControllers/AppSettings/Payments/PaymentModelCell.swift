@@ -3,8 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalCoreKit
+import SignalServiceKit
 import SignalUI
+public import UIKit
 
 public class PaymentModelCell: UITableViewCell {
     static let reuseIdentifier = "PaymentModelCell"
@@ -56,8 +57,6 @@ public class PaymentModelCell: UITableViewCell {
 
     func configure(paymentItem: PaymentsHistoryItem) {
 
-        let paymentModel = paymentItem.paymentModel
-
         var arrangedSubviews = [UIView]()
 
         nameLabel.font = .dynamicTypeBodyClamped
@@ -78,14 +77,10 @@ public class PaymentModelCell: UITableViewCell {
             }
             avatarView = contactAvatarView
         } else {
-            owsAssertDebug(paymentItem.isUnidentified ||
-                            paymentItem.isOutgoingTransfer ||
-                            paymentItem.isDefragmentation)
-
             let avatarSize = Self.avatarSizeClass.diameter
             avatarView = PaymentsViewUtils.buildUnidentifiedTransactionAvatar(avatarSize: avatarSize)
         }
-        if paymentModel.isUnread {
+        if paymentItem.isUnread {
             let avatarWrapper = UIView.container()
             avatarWrapper.addSubview(avatarView)
             avatarView.autoPinEdgesToSuperviewEdges()
@@ -98,19 +93,7 @@ public class PaymentModelCell: UITableViewCell {
 
         // We don't want to render the amount for incoming
         // transactions until they are verified.
-        if let paymentAmount = paymentModel.paymentAmount {
-            var totalAmount = paymentAmount
-            if let feeAmount = paymentModel.mobileCoin?.feeAmount {
-                totalAmount = totalAmount.plus(feeAmount)
-            }
-            amountLabel.text = PaymentsFormat.format(paymentAmount: totalAmount,
-                                                     isShortForm: true,
-                                                     withCurrencyCode: true,
-                                                     withSpace: false,
-                                                     withPaymentType: paymentModel.paymentType)
-        } else {
-            amountLabel.text = ""
-        }
+        amountLabel.text = paymentItem.formattedPaymentAmount
 
         arrangedSubviews.append(vStack)
         arrangedSubviews.append(amountLabel)
@@ -119,7 +102,7 @@ public class PaymentModelCell: UITableViewCell {
             hStack.addArrangedSubview(subview)
         }
 
-        statusLabel.text = paymentModel.statusDescription(isLongForm: false)
+        statusLabel.text = paymentItem.statusDescription(isLongForm: false)
 
         accessoryType = .disclosureIndicator
     }

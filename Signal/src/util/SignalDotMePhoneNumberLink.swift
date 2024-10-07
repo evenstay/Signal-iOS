@@ -9,7 +9,7 @@ import SignalUI
 /// Namespace for logic around Signal Dot Me links pointing to a user's phone
 /// number. These URLs look like `{https,sgnl}://signal.me/#p/<e164>`.
 class SignalDotMePhoneNumberLink: Dependencies {
-    private static let pattern = try! NSRegularExpression(pattern: "^(?:https|\(kURLSchemeSGNLKey))://signal.me/#p/(\\+[0-9]+)$", options: [])
+    private static let pattern = try! NSRegularExpression(pattern: "^(?:https|\(UrlOpener.Constants.sgnlPrefix))://signal.me/#p/(\\+[0-9]+)$", options: [])
 
     static func isPossibleUrl(_ url: URL) -> Bool {
         pattern.hasMatch(input: url.absoluteString.lowercased())
@@ -27,13 +27,7 @@ class SignalDotMePhoneNumberLink: Dependencies {
 
         ModalActivityIndicatorViewController.present(fromViewController: fromViewController, canCancel: true) { modal in
             firstly(on: DispatchQueue.sharedUserInitiated) { () -> Promise<Set<SignalRecipient>> in
-                let existingRecipient = databaseStorage.read { tx in
-                    SignalRecipientFinder().signalRecipientForPhoneNumber(phoneNumber, tx: tx)
-                }
-                if let existingRecipient, existingRecipient.isRegistered {
-                    return Promise.value([existingRecipient])
-                }
-                return contactDiscoveryManager.lookUp(phoneNumbers: [phoneNumber], mode: .oneOffUserRequest)
+                contactDiscoveryManager.lookUp(phoneNumbers: [phoneNumber], mode: .oneOffUserRequest)
             }.done(on: DispatchQueue.main) { signalRecipients in
                 modal.dismissIfNotCanceled {
                     guard let recipient = signalRecipients.first else {

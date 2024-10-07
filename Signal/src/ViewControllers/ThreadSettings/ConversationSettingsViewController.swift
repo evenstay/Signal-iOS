@@ -5,7 +5,6 @@
 
 import ContactsUI
 import LibSignalClient
-import SignalMessaging
 import SignalServiceKit
 import SignalUI
 
@@ -30,7 +29,9 @@ class ConversationSettingsViewController: OWSTableViewController2, BadgeCollecti
     public weak var conversationSettingsViewDelegate: ConversationSettingsViewDelegate?
 
     private(set) var threadViewModel: ThreadViewModel
-    private let spoilerState: SpoilerRenderState
+    private(set) var isSystemContact: Bool
+    let spoilerState: SpoilerRenderState
+    let callRecords: [CallRecord]
 
     var thread: TSThread {
         threadViewModel.threadRecord
@@ -50,19 +51,23 @@ class ConversationSettingsViewController: OWSTableViewController2, BadgeCollecti
     public var showVerificationOnAppear = false
 
     var disappearingMessagesConfiguration: OWSDisappearingMessagesConfiguration
-    var avatarView: PrimaryImageView?
+    var avatarView: ConversationAvatarView?
 
     var isShowingAllGroupMembers = false
     var isShowingAllMutualGroups = false
 
     var shouldRefreshAttachmentsOnReappear = false
 
-    public required init(
+    public init(
         threadViewModel: ThreadViewModel,
-        spoilerState: SpoilerRenderState
+        isSystemContact: Bool,
+        spoilerState: SpoilerRenderState,
+        callRecords: [CallRecord] = []
     ) {
         self.threadViewModel = threadViewModel
+        self.isSystemContact = isSystemContact
         self.spoilerState = spoilerState
+        self.callRecords = callRecords
         groupViewHelper = GroupViewHelper(threadViewModel: threadViewModel)
 
         disappearingMessagesConfiguration = Self.databaseStorage.read { tx in
@@ -72,7 +77,7 @@ class ConversationSettingsViewController: OWSTableViewController2, BadgeCollecti
 
         super.init()
 
-        callService.addObserver(observer: self, syncStateImmediately: false)
+        AppEnvironment.shared.callService.callServiceState.addObserver(self, syncStateImmediately: false)
         databaseStorage.appendDatabaseChangeDelegate(self)
         contactsViewHelper.addObserver(self)
         groupViewHelper.delegate = self
@@ -85,24 +90,28 @@ class ConversationSettingsViewController: OWSTableViewController2, BadgeCollecti
                                                object: nil)
         NotificationCenter.default.addObserver(self,
                                                selector: #selector(otherUsersProfileDidChange(notification:)),
-                                               name: .otherUsersProfileDidChange,
+                                               name: UserProfileNotifications.otherUsersProfileDidChange,
                                                object: nil)
         NotificationCenter.default.addObserver(self,
                                                selector: #selector(profileWhitelistDidChange(notification:)),
-                                               name: .profileWhitelistDidChange,
+                                               name: UserProfileNotifications.profileWhitelistDidChange,
                                                object: nil)
         NotificationCenter.default.addObserver(self,
                                                selector: #selector(blocklistDidChange(notification:)),
                                                name: BlockingManager.blockListDidChange,
                                                object: nil)
-        NotificationCenter.default.addObserver(self,
-                                               selector: #selector(attachmentsAddedOrRemoved(notification:)),
-                                               name: MediaGalleryManager.newAttachmentsAvailableNotification,
-                                               object: nil)
-        NotificationCenter.default.addObserver(self,
-                                               selector: #selector(attachmentsAddedOrRemoved(notification:)),
-                                               name: MediaGalleryManager.didRemoveAttachmentsNotification,
-                                               object: nil)
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(attachmentsAddedOrRemoved(notification:)),
+            name: MediaGalleryResource.newAttachmentsAvailableNotification,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(attachmentsAddedOrRemoved(notification:)),
+            name: MediaGalleryResource.didRemoveAttachmentsNotification,
+            object: nil
+        )
     }
 
     // MARK: - Accessors
@@ -143,10 +152,6 @@ class ConversationSettingsViewController: OWSTableViewController2, BadgeCollecti
 
         defaultSeparatorInsetLeading = Self.cellHInnerMargin + 24 + OWSTableItem.iconSpacing
 
-        if isGroupThread {
-            updateNavigationBar()
-        }
-
         // The header should "extend" offscreen so that we
         // don't see the root view's background color if we scroll down.
         let backgroundTopView = UIView()
@@ -169,38 +174,16 @@ class ConversationSettingsViewController: OWSTableViewController2, BadgeCollecti
         updateNavigationBar()
     }
 
-    private var shouldShowEditButton: Bool {
-        if isGroupThread {
-            return true
-        }
-        switch contactsManagerImpl.editingAuthorization {
-        case .notAllowed:
-            return false
-        case .denied, .restricted:
-            return false
-        case .authorized:
-            return true
-        }
-    }
-
     func updateNavigationBar() {
-        guard canEditConversationAttributes else {
+        guard canEditConversationAttributes, isGroupThread else {
             navigationItem.rightBarButtonItem = nil
             return
         }
 
-        if shouldShowEditButton {
-            navigationItem.rightBarButtonItem = UIBarButtonItem(
-                title: OWSLocalizedString(
-                    "CONVERSATION_SETTINGS_EDIT",
-                    comment: "Label for the 'edit' button in conversation settings view."
-                ),
-                style: .plain,
-                target: self,
-                action: #selector(editButtonWasPressed)
-            )
-        } else {
-            navigationItem.rightBarButtonItem = nil
+        navigationItem.rightBarButtonItem = .systemItem(.edit) { [weak self] in
+            guard let self else { return }
+            owsAssertDebug(self.canEditConversationAttributes)
+            self.showGroupAttributesView(editAction: .none)
         }
     }
 
@@ -279,7 +262,7 @@ class ConversationSettingsViewController: OWSTableViewController2, BadgeCollecti
         for memberAddress in allMembers {
             verificationStateMap[memberAddress] = identityManager.verificationState(for: memberAddress, tx: tx.asV2Read)
         }
-        allMembersSorted = self.contactsManagerImpl.sortSignalServiceAddresses(Array(allMembers), transaction: tx)
+        allMembersSorted = self.contactsManagerImpl.sortSignalServiceAddresses(allMembers, transaction: tx)
 
         var membersToRender = [SignalServiceAddress]()
         if groupMembership.isFullMember(localAddress) {
@@ -298,19 +281,23 @@ class ConversationSettingsViewController: OWSTableViewController2, BadgeCollecti
     }
 
     func reloadThreadAndUpdateContent() {
-        let didUpdate = self.databaseStorage.read { transaction -> Bool in
-            guard let newThread = TSThread.anyFetch(uniqueId: self.thread.uniqueId,
-                                                    transaction: transaction) else {
+        let didUpdate = self.databaseStorage.read { tx -> Bool in
+            guard let newThread = TSThread.anyFetch(uniqueId: self.thread.uniqueId, transaction: tx) else {
                 return false
             }
-            let newThreadViewModel = ThreadViewModel(thread: newThread,
-                                                     forChatList: false,
-                                                     transaction: transaction)
+            let newThreadViewModel = ThreadViewModel(thread: newThread, forChatList: false, transaction: tx)
             self.threadViewModel = newThreadViewModel
+            self.isSystemContact = {
+                guard let contactThread = newThread as? TSContactThread else {
+                    return false
+                }
+                let address = contactThread.contactAddress
+                return contactsManager.fetchSignalAccount(for: address, transaction: tx) != nil
+            }()
             self.groupViewHelper = GroupViewHelper(threadViewModel: newThreadViewModel)
             self.groupViewHelper.delegate = self
 
-            self.updateGroupMembers(transaction: transaction)
+            self.updateGroupMembers(transaction: tx)
 
             return true
         }
@@ -348,12 +335,12 @@ class ConversationSettingsViewController: OWSTableViewController2, BadgeCollecti
             owsFailDebug("Invalid address.")
             return
         }
-        let memberActionSheet = MemberActionSheet(
+        ProfileSheetSheetCoordinator(
             address: memberAddress,
             groupViewHelper: groupViewHelper,
             spoilerState: spoilerState
         )
-        memberActionSheet.present(from: self)
+        .presentAppropriateSheet(from: self)
     }
 
     func showAddToSystemContactsActionSheet(contactThread: TSContactThread) {
@@ -366,7 +353,7 @@ class ConversationSettingsViewController: OWSTableViewController2, BadgeCollecti
             title: createNewTitle,
             style: .default,
             handler: { [weak self] _ in
-                self?.presentContactViewController()
+                self?.presentCreateOrEditContactViewController(address: contactThread.contactAddress, editImmediately: true)
             }
         ))
 
@@ -378,13 +365,13 @@ class ConversationSettingsViewController: OWSTableViewController2, BadgeCollecti
             title: addToExistingTitle,
             style: .default,
             handler: { [weak self] _ in
-                self?.presentAddToContactViewController(address: contactThread.contactAddress)
+                self?.presentAddToExistingContactFlow(address: contactThread.contactAddress)
             }
         ))
 
         actionSheet.addAction(OWSActionSheets.cancelAction)
 
-        self.presentActionSheet(actionSheet)
+        presentActionSheet(actionSheet)
     }
 
     // MARK: - Actions
@@ -526,18 +513,13 @@ class ConversationSettingsViewController: OWSTableViewController2, BadgeCollecti
         navigationController?.pushViewController(groupLinkViewController, animated: true)
     }
 
-    func presentContactViewController() {
-        guard let navigationController else {
-            return owsFailDebug("Missing navigationController.")
-        }
-        contactsViewHelper.checkEditingAuthorization(
-            authorizedBehavior: .pushViewController(on: navigationController, viewController: {
-                guard let contactThread = self.thread as? TSContactThread else { return nil }
-                let result = self.contactsViewHelper.contactViewController(for: contactThread.contactAddress, editImmediately: true)
-                result.delegate = self
-                return result
-            }),
-            unauthorizedBehavior: .presentError(from: self)
+    func presentCreateOrEditContactViewController(address: SignalServiceAddress, editImmediately: Bool) {
+        contactsViewHelper.presentSystemContactsFlow(
+            CreateOrEditContactFlow(address: address, editImmediately: editImmediately),
+            from: self,
+            completion: {
+                self.updateTableContents()
+            }
         )
     }
 
@@ -555,21 +537,21 @@ class ConversationSettingsViewController: OWSTableViewController2, BadgeCollecti
     func presentPrimaryBadgeSheet() {
         guard let contactAddress = (thread as? TSContactThread)?.contactAddress else { return }
         guard let primaryBadge = availableBadges.first?.badge else { return }
-        let contactShortName = databaseStorage.read { contactsManager.shortDisplayName(for: contactAddress, transaction: $0) }
+        let contactShortName = databaseStorage.read {
+            return contactsManager.displayName(for: contactAddress, tx: $0).resolvedValue(useShortNameIfAvailable: true)
+        }
 
         let badgeSheet = BadgeDetailsSheet(focusedBadge: primaryBadge, owner: .remote(shortName: contactShortName))
         present(badgeSheet, animated: true, completion: nil)
     }
 
-    private func presentAddToContactViewController(address: SignalServiceAddress) {
-        guard let navigationController else {
-            return owsFailDebug("Missing navigationController.")
-        }
-        contactsViewHelper.checkEditingAuthorization(
-            authorizedBehavior: .pushViewController(on: navigationController, viewController: {
-                OWSAddToContactViewController(address: address)
-            }),
-            unauthorizedBehavior: .presentError(from: self)
+    private func presentAddToExistingContactFlow(address: SignalServiceAddress) {
+        contactsViewHelper.presentSystemContactsFlow(
+            AddToExistingContactFlow(address: address),
+            from: self,
+            completion: {
+                self.updateTableContents()
+            }
         )
     }
 
@@ -711,6 +693,16 @@ class ConversationSettingsViewController: OWSTableViewController2, BadgeCollecti
             return
         }
         BlockListUIUtils.showBlockThreadActionSheet(thread, from: self) { [weak self] _ in
+            self?.reloadThreadAndUpdateContent()
+        }
+    }
+
+    func didTapReportSpam() {
+        ReportSpamUIUtils.showReportSpamActionSheet(
+            thread,
+            isBlocked: threadViewModel.isBlocked,
+            from: self
+        ) { [weak self] _ in
             self?.reloadThreadAndUpdateContent()
         }
     }
@@ -870,7 +862,7 @@ class ConversationSettingsViewController: OWSTableViewController2, BadgeCollecti
         navigationController?.pushViewController(tileVC, animated: true)
     }
 
-    func showMediaPageView(for attachmentStream: TSAttachmentStream) {
+    func showMediaPageView(for attachmentStream: ReferencedTSResourceStream) {
         guard let vc = MediaPageViewController(
             initialMediaAttachment: attachmentStream,
             thread: thread,
@@ -885,18 +877,24 @@ class ConversationSettingsViewController: OWSTableViewController2, BadgeCollecti
     }
 
     let maximumRecentMedia = 4
-    private(set) var recentMedia = OrderedDictionary<String, (attachment: TSAttachmentStream, imageView: UIImageView)>() {
+    private(set) var recentMedia = OrderedDictionary<
+        MediaGalleryResourceId,
+        (attachment: ReferencedTSResourceStream, imageView: UIImageView)
+    >() {
         didSet { AssertIsOnMainThread() }
     }
 
-    private lazy var mediaGalleryFinder = MediaGalleryFinder(thread: thread, allowedMediaType: .graphicMedia)
+    private lazy var mediaGalleryFinder = MediaGalleryResourceFinder(
+        thread: thread,
+        filter: .defaultMediaType(for: AllMediaCategory.defaultValue)
+    )
 
     func updateRecentAttachments() {
         let recentAttachments = databaseStorage.read { transaction in
-            mediaGalleryFinder.recentMediaAttachments(limit: maximumRecentMedia, transaction: transaction.unwrapGrdbRead)
+            mediaGalleryFinder.recentMediaAttachments(limit: maximumRecentMedia, tx: transaction.asV2Read)
         }
         recentMedia = recentAttachments.reduce(into: OrderedDictionary(), { result, attachment in
-            guard let attachmentStream = attachment as? TSAttachmentStream else {
+            guard let attachmentStream = attachment.asReferencedStream else {
                 return owsFailDebug("Unexpected type of attachment")
             }
 
@@ -905,9 +903,14 @@ class ConversationSettingsViewController: OWSTableViewController2, BadgeCollecti
             imageView.layer.cornerRadius = 4
             imageView.contentMode = .scaleAspectFill
 
-            attachmentStream.thumbnailImageSmall { imageView.image = $0 } failure: {}
+            Task {
+                imageView.image = await attachmentStream.attachmentStream.thumbnailImage(quality: .small)
+            }
 
-            result.append(key: attachmentStream.uniqueId, value: (attachmentStream, imageView))
+            result.append(
+                key: attachmentStream.reference.mediaGalleryResourceId,
+                value: (attachmentStream, imageView)
+            )
         })
         shouldRefreshAttachmentsOnReappear = false
     }
@@ -933,17 +936,6 @@ class ConversationSettingsViewController: OWSTableViewController2, BadgeCollecti
         conversationSettingsViewDelegate?.conversationSettingsDidRequestConversationSearch()
     }
 
-    @objc
-    private func editButtonWasPressed(_ sender: Any) {
-        owsAssertDebug(canEditConversationAttributes)
-
-        if isGroupThread {
-            showGroupAttributesView(editAction: .none)
-        } else {
-            presentContactViewController()
-        }
-    }
-
     // MARK: - Notifications
 
     @objc
@@ -963,7 +955,7 @@ class ConversationSettingsViewController: OWSTableViewController2, BadgeCollecti
     private func otherUsersProfileDidChange(notification: Notification) {
         AssertIsOnMainThread()
 
-        guard let address = notification.userInfo?[kNSNotificationKey_ProfileAddress] as? SignalServiceAddress,
+        guard let address = notification.userInfo?[UserProfileNotifications.profileAddressKey] as? SignalServiceAddress,
             address.isValid else {
                 owsFailDebug("Missing or invalid address.")
                 return
@@ -982,13 +974,13 @@ class ConversationSettingsViewController: OWSTableViewController2, BadgeCollecti
         AssertIsOnMainThread()
 
         // If profile whitelist just changed, we may need to refresh the view.
-        if let address = notification.userInfo?[kNSNotificationKey_ProfileAddress] as? SignalServiceAddress,
+        if let address = notification.userInfo?[UserProfileNotifications.profileAddressKey] as? SignalServiceAddress,
             let contactThread = thread as? TSContactThread,
             contactThread.contactAddress == address {
             updateTableContents()
         }
 
-        if let groupId = notification.userInfo?[kNSNotificationKey_ProfileGroupId] as? Data,
+        if let groupId = notification.userInfo?[UserProfileNotifications.profileGroupIdKey] as? Data,
             let groupThread = thread as? TSGroupThread,
             groupThread.groupModel.groupId == groupId {
             updateTableContents()
@@ -999,7 +991,7 @@ class ConversationSettingsViewController: OWSTableViewController2, BadgeCollecti
     private func attachmentsAddedOrRemoved(notification: Notification) {
         AssertIsOnMainThread()
 
-        let attachments = notification.object as! [MediaGalleryManager.ChangedAttachmentInfo]
+        let attachments = notification.object as! [MediaGalleryResource.ChangedResourceInfo]
         guard attachments.contains(where: { $0.threadGrdbId == thread.sqliteRowId }) else {
             return
         }
@@ -1029,16 +1021,6 @@ extension ConversationSettingsViewController: ContactsViewHelperObserver {
 
     func contactsViewHelperDidUpdateContacts() {
         updateTableContents()
-    }
-}
-
-// MARK: -
-
-extension ConversationSettingsViewController: CNContactViewControllerDelegate {
-
-    public func contactViewController(_ viewController: CNContactViewController, didCompleteWith contact: CNContact?) {
-        updateTableContents()
-        navigationController?.popToViewController(self, animated: true)
     }
 }
 
@@ -1100,11 +1082,11 @@ extension ConversationSettingsViewController: MediaPresentationContextProvider {
         let mediaViewShape: MediaViewShape
         switch item {
         case .gallery(let galleryItem):
-            guard let imageView = recentMedia[galleryItem.attachmentStream.uniqueId]?.imageView else { return nil }
+            guard let imageView = recentMedia[galleryItem.attachmentStream.reference.mediaGalleryResourceId]?.imageView else { return nil }
             mediaView = imageView
             mediaViewShape = .rectangle(imageView.layer.cornerRadius)
         case .image:
-            guard let avatarView = avatarView as? ConversationAvatarView else { return nil }
+            guard let avatarView = avatarView else { return nil }
             mediaView = avatarView
             if case .circular = avatarView.configuration.shape {
                 mediaViewShape = .circle
@@ -1145,7 +1127,7 @@ extension ConversationSettingsViewController: DatabaseChangeDelegate {
     public func databaseChangesDidUpdate(databaseChanges: DatabaseChanges) {
         AssertIsOnMainThread()
 
-        if databaseChanges.didUpdateModel(collection: TSGroupMember.collection()) {
+        if databaseChanges.didUpdate(tableName: TSGroupMember.databaseTableName) {
             updateMutualGroupThreads()
             updateTableContents()
         }
@@ -1168,7 +1150,7 @@ extension ConversationSettingsViewController: DatabaseChangeDelegate {
     }
 }
 
-extension ConversationSettingsViewController: CallServiceObserver {
+extension ConversationSettingsViewController: CallServiceStateObserver {
     func didUpdateCall(from oldValue: SignalCall?, to newValue: SignalCall?) {
         updateTableContents()
     }

@@ -4,7 +4,6 @@
 //
 
 import Photos
-import SignalMessaging
 import SignalServiceKit
 import SignalUI
 
@@ -51,50 +50,6 @@ class StoryContextMenuGenerator: Dependencies {
     init(presentingController: UIViewController, delegate: StoryContextMenuDelegate? = nil) {
         self.presentingController = presentingController
         self.delegate = delegate
-    }
-
-    public func contextMenuActions(
-        for model: StoryViewModel,
-        spoilerState: SpoilerRenderState,
-        sourceView: @escaping () -> UIView?
-    ) -> [ContextMenuAction] {
-        return Self.databaseStorage.read {
-            let thread = model.context.thread(transaction: $0)
-            return self.contextMenuActions(
-                for: model.latestMessage,
-                in: thread,
-                attachment: model.latestMessageAttachment,
-                spoilerState: spoilerState,
-                sourceView: sourceView,
-                transaction: $0
-            )
-        }
-    }
-
-    public func contextMenuActions(
-        for message: StoryMessage,
-        in thread: TSThread?,
-        attachment: StoryThumbnailView.Attachment,
-        spoilerState: SpoilerRenderState,
-        sourceView: @escaping () -> UIView?,
-        hideSaveAction: Bool = false,
-        onlyRenderMyStories: Bool = false,
-        transaction: SDSAnyReadTransaction
-    ) -> [ContextMenuAction] {
-        return [
-            deleteAction(for: message, in: thread),
-            hideAction(for: message, transaction: transaction),
-            infoAction(
-                for: message,
-                in: thread,
-                onlyRenderMyStories: onlyRenderMyStories,
-                spoilerState: spoilerState
-            ),
-            hideSaveAction ? nil : saveAction(message: message, attachment: attachment, spoilerState: spoilerState),
-            forwardAction(message: message),
-            shareAction(message: message, attachment: attachment, sourceView: sourceView),
-            goToChatAction(thread: thread)
-        ].compactMap({ $0?.asSignalContextMenuAction() })
     }
 
     public func nativeContextMenuActions(
@@ -331,10 +286,10 @@ extension StoryContextMenuGenerator {
                         comment: "Name to display for the 'system' sender, e.g. for release notes and the onboarding story"
                     )
                 }
-                return Self.contactsManager.shortDisplayName(
+                return Self.contactsManager.displayName(
                     for: SignalServiceAddress(authorAci),
-                    transaction: transaction
-                )
+                    tx: transaction
+                ).resolvedValue(useShortNameIfAvailable: true)
             case .privateStory:
                 owsFailDebug("Unexpectedly had private story when hiding")
                 return nil
@@ -523,7 +478,7 @@ extension StoryContextMenuGenerator {
         _ message: StoryMessage,
         in thread: TSThread,
         from presentingController: UIViewController,
-        willDelete: @escaping(@escaping () -> Void) -> Void,
+        willDelete: @escaping (@escaping () -> Void) -> Void,
         didDelete: @escaping (Bool) -> Void
     ) {
         let actionSheet = ActionSheetController(
@@ -591,7 +546,10 @@ extension StoryThumbnailView.Attachment {
         case .text:
             return true
         case .file(let attachment):
-            return (attachment as? TSAttachmentStream)?.isVisualMedia ?? false
+            guard let stream = attachment.attachment.asResourceStream() else {
+                return false
+            }
+            return MimeTypeUtil.isSupportedVisualMediaMimeType(stream.mimeType)
         }
     }
 
@@ -601,12 +559,26 @@ extension StoryThumbnailView.Attachment {
         }
 
         switch self {
-        case .file(let attachment):
+        case .file(let fileAttachment):
             guard
-                let attachment = attachment as? TSAttachmentStream,
-                attachment.isVisualMedia,
-                let mediaURL = attachment.originalMediaURL
+                let attachment = fileAttachment.attachment.asResourceStream(),
+                MimeTypeUtil.isSupportedVisualMediaMimeType(attachment.mimeType)
             else { break }
+
+            var mediaURL: URL?
+            let shouldDeleteFileAfterComplete: Bool
+            switch attachment.concreteStreamType {
+            case .legacy(let tsAttachmentStream):
+                mediaURL = tsAttachmentStream.originalMediaURL
+                shouldDeleteFileAfterComplete = false
+            case .v2(let attachmentStream):
+                // Make a copy since we are about to send this off to the system anyway.
+                mediaURL = try? attachmentStream.makeDecryptedCopy(filename: fileAttachment.reference.sourceFilename)
+                shouldDeleteFileAfterComplete = true
+            }
+            guard let mediaURL else {
+                break
+            }
 
             vc.ows_askForMediaLibraryPermissions { isGranted in
                 guard isGranted else {
@@ -614,13 +586,16 @@ extension StoryThumbnailView.Attachment {
                 }
 
                 PHPhotoLibrary.shared().performChanges({
-                    if attachment.isImage {
+                    if MimeTypeUtil.isSupportedImageMimeType(attachment.mimeType) {
                         PHAssetCreationRequest.creationRequestForAssetFromImage(atFileURL: mediaURL)
-                    } else if attachment.isVideo {
+                    } else if MimeTypeUtil.isSupportedVideoMimeType(attachment.mimeType) {
                         PHAssetCreationRequest.creationRequestForAssetFromVideo(atFileURL: mediaURL)
                     }
                 }, completionHandler: { didSucceed, error in
                     DispatchQueue.main.async {
+                        if shouldDeleteFileAfterComplete {
+                            try? OWSFileSystem.deleteFile(url: mediaURL)
+                        }
                         if didSucceed {
                             let toastController = ToastController(
                                 text: OWSLocalizedString(
@@ -770,7 +745,7 @@ extension StoryContextMenuGenerator {
                 }
                 switch attachment {
                 case .file(let attachment):
-                    guard let attachment = attachment as? TSAttachmentStream else {
+                    guard let attachment = try? attachment.asReferencedStream?.asShareableResource() else {
                         completion(false)
                         return owsFailDebug("Unexpectedly tried to share undownloaded attachment")
                     }
@@ -781,7 +756,7 @@ extension StoryContextMenuGenerator {
                     }
                 case .text(let attachment):
                     if
-                        let urlString = attachment.preview?.urlString,
+                        let urlString = attachment.textAttachment.preview?.urlString,
                         let url = URL(string: urlString)
                     {
                         self?.isDisplayingFollowup = true
@@ -791,7 +766,7 @@ extension StoryContextMenuGenerator {
                         }
                     } else {
                         let text: String?
-                        switch attachment.textContent {
+                        switch attachment.textAttachment.textContent {
                         case .empty:
                             text = nil
                         case .styled(let body, _):

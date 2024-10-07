@@ -5,8 +5,7 @@
 
 import Foundation
 import PassKit
-import SignalCoreKit
-import SignalMessaging
+import SignalServiceKit
 import SignalUI
 
 extension DonateViewController {
@@ -49,27 +48,22 @@ extension DonateViewController {
                 Logger.info("[Donations] Creating Signal payment method for new monthly subscription with Apple Pay")
 
                 return Stripe.createSignalPaymentMethodForSubscription(subscriberId: subscriberId)
-            }.then(on: DispatchQueue.sharedUserInitiated) { clientSecret -> Promise<String> in
+            }.then(on: DispatchQueue.sharedUserInitiated) { clientSecret -> Promise<Stripe.ConfirmedSetupIntent> in
                 Logger.info("[Donations] Authorizing payment for new monthly subscription with Apple Pay")
 
                 return Stripe.setupNewSubscription(
                     clientSecret: clientSecret,
-                    paymentMethod: .applePay(payment: payment),
-                    show3DS: { _ in
-                        owsFail("[Donations] 3D Secure should not be shown for Apple Pay")
-                    }
+                    paymentMethod: .applePay(payment: payment)
                 )
-            }.map(on: DispatchQueue.sharedUserInitiated) { paymentId in
-                (subscriberId, paymentId)
+            }.map(on: DispatchQueue.sharedUserInitiated) { confirmedIntent in
+                (subscriberId, confirmedIntent.paymentMethodId)
             }
-        }.then(on: DispatchQueue.sharedUserInitiated) { (subscriberId, paymentId) -> Promise<Data> in
+        }.then(on: DispatchQueue.sharedUserInitiated) { (subscriberId, paymentMethodId) -> Promise<Data> in
             Logger.info("[Donations] Finalizing new subscription for Apple Pay donation")
 
             return SubscriptionManagerImpl.finalizeNewSubscription(
                 forSubscriberId: subscriberId,
-                withPaymentId: paymentId,
-                usingPaymentProcessor: .stripe,
-                usingPaymentMethod: .applePay,
+                paymentType: .applePay(paymentMethodId: paymentMethodId),
                 subscription: selectedSubscriptionLevel,
                 currencyCode: monthly.selectedCurrencyCode
             ).map(on: DispatchQueue.sharedUserInitiated) { _ in subscriberId }
@@ -79,24 +73,24 @@ extension DonateViewController {
 
             Logger.info("[Donations] Redeeming monthly receipt for Apple Pay donation")
 
-            SubscriptionManagerImpl.requestAndRedeemReceipt(
+            let redemptionPromise = SubscriptionManagerImpl.requestAndRedeemReceipt(
                 subscriberId: subscriberID,
                 subscriptionLevel: selectedSubscriptionLevel.level,
                 priorSubscriptionLevel: monthly.currentSubscriptionLevel?.level,
                 paymentProcessor: .stripe,
-                paymentMethod: .applePay
+                paymentMethod: .applePay,
+                isNewSubscription: true,
+                shouldSuppressPaymentAlreadyRedeemed: false
             )
 
             DonationViewsUtil.wrapPromiseInProgressView(
                 from: self,
-                promise: DonationViewsUtil.waitForSubscriptionJob(
-                    paymentMethod: .applePay
-                )
+                promise: DonationViewsUtil.waitForRedemptionJob(redemptionPromise, paymentMethod: .applePay)
             ).done(on: DispatchQueue.main) {
                 Logger.info("[Donations] Monthly card donation finished")
 
                 self.didCompleteDonation(
-                    receiptCredentialSuccessMode: .recurringSubscription
+                    receiptCredentialSuccessMode: .recurringSubscriptionInitiation
                 )
             }.catch(on: DispatchQueue.main) { [weak self] error in
                 Logger.info("[Donations] Monthly card donation failed")

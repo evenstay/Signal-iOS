@@ -4,7 +4,7 @@
 //
 
 import LibSignalClient
-import SignalMessaging
+public import SignalServiceKit
 
 public protocol BodyRangesTextViewDelegate: UITextViewDelegate {
     func textViewDidBeginTypingMention(_ textView: BodyRangesTextView)
@@ -37,7 +37,7 @@ open class BodyRangesTextView: OWSTextView, EditableMessageBodyDelegate {
 
     private let customLayoutManager: NSLayoutManager
 
-    public required init() {
+    public init() {
         let editableBody = EditableMessageBodyTextStorage(db: DependenciesBridge.shared.db)
         self.editableBody = editableBody
         let container = NSTextContainer()
@@ -175,6 +175,14 @@ open class BodyRangesTextView: OWSTextView, EditableMessageBodyDelegate {
         editableBody.beginEditing()
         editableBody.setMessageBody(messageBody, txProvider: txProvider)
         editableBody.endEditing()
+    }
+
+    public func scrollToBottom() {
+        let length = (editableBody.attributedString.string as NSString).length
+        if length == 0 {
+            return
+        }
+        scrollRangeToVisible(NSRange(location: length - 1, length: 1))
     }
 
     public func stopTypingMention() {

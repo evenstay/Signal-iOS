@@ -4,7 +4,6 @@
 //
 
 import CoreMedia
-import SignalMessaging
 import SignalServiceKit
 import SignalUI
 import YYImage
@@ -34,7 +33,7 @@ class MediaItemViewController: OWSViewController, VideoPlaybackStatusProvider {
 
         super.init()
 
-        image = attachmentStream.thumbnailImageLargeSync()
+        image = attachmentStream.thumbnailImageSync(quality: .large)
     }
 
     deinit {
@@ -116,7 +115,7 @@ class MediaItemViewController: OWSViewController, VideoPlaybackStatusProvider {
         mediaViewTopConstraint?.constant = yOffset
         mediaViewBottomConstraint?.constant = yOffset
         mediaViewLeadingConstraint?.constant = xOffset
-        mediaViewTrailingConstraint?.constant = xOffset
+        mediaViewTrailingConstraint?.constant = -xOffset
 
         // Find minScale for .scaleAspectFit-style layout.
         let scaleWidth = scrollViewSize.width / mediaSize.width
@@ -207,16 +206,15 @@ class MediaItemViewController: OWSViewController, VideoPlaybackStatusProvider {
         guard mediaView == nil else { return }
 
         let view: UIView
-        if attachmentStream.isLoopingVideo {
-            if attachmentStream.isValidVideo, let loopingVideoPlayerView = buildLoopingVideoPlayerView() {
+        if attachmentStream.computeContentType().isVideo, galleryItem.renderingFlag == .shouldLoop {
+            if attachmentStream.computeContentType().isVideo, let loopingVideoPlayerView = buildLoopingVideoPlayerView() {
                 loopingVideoPlayerView.delegate = self
                 view = loopingVideoPlayerView
             } else {
                 view = buildPlaceholderView()
             }
-        } else if attachmentStream.shouldBeRenderedByYY {
-            if attachmentStream.isValidImage, let filePath = attachmentStream.originalFilePath {
-                let animatedGif = YYImage(contentsOfFile: filePath)
+        } else if attachmentStream.computeContentType().isAnimatedImage {
+            if let animatedGif = try? attachmentStream.decryptedYYImage() {
                 view = YYAnimatedImageView(image: animatedGif)
             } else {
                 view = buildPlaceholderView()
@@ -225,7 +223,7 @@ class MediaItemViewController: OWSViewController, VideoPlaybackStatusProvider {
             // Still loading thumbnail.
             view = buildPlaceholderView()
         } else if isVideo {
-            if attachmentStream.isValidVideo, let videoPlayerView = buildVideoPlayerView() {
+            if attachmentStream.computeContentType().isVideo, let videoPlayerView = buildVideoPlayerView() {
                 videoPlayerView.delegate = self
                 videoPlayerView.videoPlayer?.delegate = self
 
@@ -248,11 +246,7 @@ class MediaItemViewController: OWSViewController, VideoPlaybackStatusProvider {
     }
 
     private func buildLoopingVideoPlayerView() -> LoopingVideoView? {
-        guard let attachmentUrl = attachmentStream.originalMediaURL else {
-            owsFailBeta("Invalid URL")
-            return nil
-        }
-        guard let loopingVideo = LoopingVideo(url: attachmentUrl) else {
+        guard let loopingVideo = LoopingVideo(attachmentStream) else {
             owsFailBeta("Invalid looping video")
             return nil
         }
@@ -262,15 +256,11 @@ class MediaItemViewController: OWSViewController, VideoPlaybackStatusProvider {
     }
 
     private func buildVideoPlayerView() -> VideoPlayerView? {
-        guard let attachmentUrl = attachmentStream.originalMediaURL else {
-            owsFailBeta("Invalid URL")
+        guard let videoPlayer = try? VideoPlayer(attachment: galleryItem.attachmentStream) else {
+            owsFailBeta("Invalid attachment")
             return nil
         }
-        if !FileManager.default.fileExists(atPath: attachmentUrl.path) {
-            owsFailBeta("Missing video file")
-        }
 
-        let videoPlayer = VideoPlayer(url: attachmentUrl)
         videoPlayer.seek(to: .zero)
 
         let videoPlayerView = VideoPlayerView()
@@ -332,7 +322,7 @@ class MediaItemViewController: OWSViewController, VideoPlaybackStatusProvider {
 
     private var image: UIImage?
 
-    private var attachmentStream: TSAttachmentStream { galleryItem.attachmentStream }
+    private var attachmentStream: TSResourceStream { galleryItem.attachmentStream.attachmentStream }
 
     // MARK: - Video Playback
 
@@ -340,7 +330,9 @@ class MediaItemViewController: OWSViewController, VideoPlaybackStatusProvider {
 
     private var hasAutoPlayedVideo = false
 
-    private var isVideo: Bool { attachmentStream.isVideo && !attachmentStream.isLoopingVideo }
+    private var isVideo: Bool {
+        galleryItem.isVideo
+    }
 
     private func playVideo() {
         guard let videoPlayerView else {

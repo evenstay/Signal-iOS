@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
-import SignalUI
+import SignalServiceKit
+public import SignalUI
 
 public class PaymentsRestoreWalletPasteboardViewController: OWSViewController {
 
@@ -16,7 +16,7 @@ public class PaymentsRestoreWalletPasteboardViewController: OWSViewController {
         textField.text?.strippedOrNil?.lowercased()
     }
 
-    public required init(restoreWalletDelegate: PaymentsRestoreWalletDelegate) {
+    public init(restoreWalletDelegate: PaymentsRestoreWalletDelegate) {
         self.restoreWalletDelegate = restoreWalletDelegate
 
         super.init()

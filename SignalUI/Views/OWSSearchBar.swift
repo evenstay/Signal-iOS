@@ -3,12 +3,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalCoreKit
+import SignalServiceKit
 
 public class OWSSearchBar: UISearchBar {
 
     public override init(frame: CGRect) {
         super.init(frame: frame)
+        self.disableAiWritingTools()
         configure()
     }
 
@@ -51,14 +52,14 @@ public class OWSSearchBar: UISearchBar {
 
             let clearImage = UIImage(imageLiteralResourceName: "x-circle-fill")
             searchBar.setImage(
-                clearImage.asTintedImage(color: foregroundColor),
+                clearImage.withTintColor(foregroundColor, renderingMode: .alwaysTemplate),
                 for: .clear,
                 state: .normal
             )
 
             let searchImage = UIImage(imageLiteralResourceName: "search")
             searchBar.setImage(
-                searchImage.asTintedImage(color: foregroundColor),
+                searchImage.withTintColor(foregroundColor, renderingMode: .alwaysTemplate),
                 for: .search,
                 state: .normal
             )

@@ -3,80 +3,117 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
+import CallKit
 import Foundation
+import LibSignalClient
 import SignalRingRTC
 import SignalServiceKit
-import SignalMessaging
-import CallKit
 
-public class NSECallMessageHandler: NSObject, OWSCallMessageHandler {
+class NSECallMessageHandler: CallMessageHandler {
 
     // MARK: Initializers
 
-    public override init() {
-        super.init()
-
+    init() {
         SwiftSingletons.register(self)
     }
 
+    private var databaseStorage: SDSDatabaseStorage { NSObject.databaseStorage }
+    private var groupCallManager: GroupCallManager { NSObject.groupCallManager }
+    private var identityManager: any OWSIdentityManager { DependenciesBridge.shared.identityManager }
+    private var messagePipelineSupervisor: MessagePipelineSupervisor { NSObject.messagePipelineSupervisor }
+    private var notificationPresenter: NotificationPresenterImpl { NSObject.notificationPresenter as! NotificationPresenterImpl }
+    private var profileManager: any ProfileManager { NSObject.profileManager }
+    private var tsAccountManager: any TSAccountManager { DependenciesBridge.shared.tsAccountManager }
+
     // MARK: - Call Handlers
 
-    public func action(
-        for envelope: SSKProtoEnvelope,
-        callMessage: SSKProtoCallMessage,
-        serverDeliveryTimestamp: UInt64
-    ) -> OWSCallMessageAction {
+    func receivedEnvelope(
+        _ envelope: SSKProtoEnvelope,
+        callEnvelope: CallEnvelopeType,
+        from caller: (aci: Aci, deviceId: UInt32),
+        plaintextData: Data,
+        wasReceivedByUD: Bool,
+        sentAtTimestamp: UInt64,
+        serverReceivedTimestamp: UInt64,
+        serverDeliveryTimestamp: UInt64,
+        tx: SDSAnyWriteTransaction
+    ) {
         let bufferSecondsForMainAppToAnswerRing: UInt64 = 10
 
-        let serverReceivedTimestamp = envelope.serverTimestamp > 0 ? envelope.serverTimestamp : envelope.timestamp
+        let serverReceivedTimestamp = serverReceivedTimestamp > 0 ? serverReceivedTimestamp : sentAtTimestamp
         let approxMessageAge = (serverDeliveryTimestamp - serverReceivedTimestamp)
         let messageAgeForRingRtc = approxMessageAge / kSecondInMs + bufferSecondsForMainAppToAnswerRing
 
-        if let offer = callMessage.offer {
+        switch callEnvelope {
+        case .offer(let offer):
+            guard let opaque = offer.opaque else {
+                return
+            }
+            let callOfferHandler = CallOfferHandlerImpl(
+                identityManager: identityManager,
+                notificationPresenter: notificationPresenter,
+                profileManager: profileManager,
+                tsAccountManager: tsAccountManager
+            )
+            let partialResult = callOfferHandler.startHandlingOffer(
+                caller: caller.aci,
+                sourceDevice: caller.deviceId,
+                callId: offer.id,
+                callType: offer.type ?? .offerAudioCall,
+                sentAtTimestamp: sentAtTimestamp,
+                tx: tx
+            )
+            guard let partialResult else {
+                return
+            }
+
             let callType: CallMediaType
             switch offer.type ?? .offerAudioCall {
             case .offerAudioCall: callType = .audioCall
             case .offerVideoCall: callType = .videoCall
             }
-
-            if let offerData = offer.opaque,
-               isValidOfferMessage(opaque: offerData,
-                                   messageAgeSec: messageAgeForRingRtc,
-                                   callMediaType: callType) {
-                return .handoff
+            let isValid = isValidOfferMessage(
+                opaque: opaque,
+                messageAgeSec: messageAgeForRingRtc,
+                callMediaType: callType
+            )
+            guard isValid else {
+                NSELogger.uncorrelated.warn("missed a call because it's not valid (according to RingRTC)")
+                callOfferHandler.insertMissedCallInteraction(
+                    for: offer.id,
+                    in: partialResult.thread,
+                    outcome: .incomingMissed,
+                    callType: partialResult.offerMediaType,
+                    sentAtTimestamp: sentAtTimestamp,
+                    tx: tx
+                )
+                return
             }
 
-            NSELogger.uncorrelated.info("Ignoring offer message; invalid according to RingRTC (likely expired).")
-            return .ignore
-        }
-
-        if let opaqueMessage = callMessage.opaque {
+        case .opaque(let opaque):
             func validateGroupRing(groupId: Data, ringId: Int64) -> Bool {
                 databaseStorage.read { transaction in
-                    guard let sender = envelope.sourceAddress else {
-                        owsFailDebug("shouldn't have gotten here with no sender")
-                        return false
-                    }
-
-                    if sender.isLocalAddress {
+                    if SignalServiceAddress(caller.aci).isLocalAddress {
                         // Always trust our other devices (important for cancellations).
                         return true
                     }
 
                     guard let thread = TSGroupThread.fetch(groupId: groupId, transaction: transaction) else {
-                        owsFailDebug("discarding group ring \(ringId) from \(sender) for unknown group")
+                        owsFailDebug("discarding group ring \(ringId) from \(caller.aci) for unknown group")
                         return false
                     }
 
-                    guard GroupsV2MessageProcessor.discardMode(forMessageFrom: sender,
-                                                               groupId: groupId,
-                                                               transaction: transaction) == .doNotDiscard else {
-                        NSELogger.uncorrelated.warn("discarding group ring \(ringId) from \(sender)")
+                    guard GroupsV2MessageProcessor.discardMode(
+                        forMessageFrom: caller.aci,
+                        groupId: groupId,
+                        tx: transaction
+                    ) == .doNotDiscard else {
+                        NSELogger.uncorrelated.warn("discarding group ring \(ringId) from \(caller.aci)")
                         return false
                     }
 
-                    guard thread.groupMembership.fullMembers.count <= RemoteConfig.maxGroupCallRingSize else {
-                        NSELogger.uncorrelated.warn("discarding group ring \(ringId) from \(sender) for too-large group")
+                    guard thread.groupMembership.fullMembers.count <= RemoteConfig.current.maxGroupCallRingSize else {
+                        NSELogger.uncorrelated.warn("discarding group ring \(ringId) from \(caller.aci) for too-large group")
                         return false
                     }
 
@@ -84,29 +121,44 @@ public class NSECallMessageHandler: NSObject, OWSCallMessageHandler {
                 }
             }
 
-            if opaqueMessage.urgency == .handleImmediately,
-               let opaqueData = opaqueMessage.data,
-               RemoteConfig.inboundGroupRings,
-               isValidOpaqueRing(opaqueCallMessage: opaqueData,
-                                 messageAgeSec: messageAgeForRingRtc,
-                                 validateGroupRing: validateGroupRing) {
-                return .handoff
+            let shouldHandleExternally = { () -> Bool in
+                guard opaque.urgency == .handleImmediately else {
+                    return false
+                }
+                guard let opaqueData = opaque.data else {
+                    return false
+                }
+                return isValidOpaqueRing(
+                    opaqueCallMessage: opaqueData,
+                    messageAgeSec: messageAgeForRingRtc,
+                    validateGroupRing: validateGroupRing
+                )
+            }()
+            guard shouldHandleExternally else {
+                NSELogger.uncorrelated.info("Ignoring opaque message; not a valid ring according to RingRTC.")
+                return
             }
 
-            NSELogger.uncorrelated.info("Ignoring opaque message; not a valid ring according to RingRTC.")
-            return .ignore
+        case .answer, .iceUpdate, .hangup, .busy:
+            NSELogger.uncorrelated.warn("Dropping call message; the main app should be connected")
+            return
         }
 
-        NSELogger.uncorrelated.info("Ignoring call message. Not an offer or urgent opaque message.")
-        return .ignore
+        externallyHandleCallMessage(
+            envelope: envelope,
+            plaintextData: plaintextData,
+            wasReceivedByUD: wasReceivedByUD,
+            serverDeliveryTimestamp: serverDeliveryTimestamp,
+            tx: tx
+        )
     }
 
-    public func externallyHandleCallMessage(
+    private func externallyHandleCallMessage(
         envelope: SSKProtoEnvelope,
         plaintextData: Data,
         wasReceivedByUD: Bool,
         serverDeliveryTimestamp: UInt64,
-        transaction: SDSAnyWriteTransaction
+        tx: SDSAnyWriteTransaction
     ) {
         do {
             let payload = try CallMessageRelay.enqueueCallMessageForMainApp(
@@ -114,7 +166,7 @@ public class NSECallMessageHandler: NSObject, OWSCallMessageHandler {
                 plaintextData: plaintextData,
                 wasReceivedByUD: wasReceivedByUD,
                 serverDeliveryTimestamp: serverDeliveryTimestamp,
-                transaction: transaction
+                transaction: tx
             )
 
             // We don't want to risk consuming any call messages that the main app needs to perform the call
@@ -137,57 +189,17 @@ public class NSECallMessageHandler: NSObject, OWSCallMessageHandler {
         }
     }
 
-    public func receivedOffer(
-        _ offer: SSKProtoCallMessageOffer,
-        from caller: SignalServiceAddress,
-        sourceDevice: UInt32,
-        sentAtTimestamp: UInt64,
-        serverReceivedTimestamp: UInt64,
-        serverDeliveryTimestamp: UInt64,
-        supportsMultiRing: Bool,
-        transaction: SDSAnyWriteTransaction
-    ) {
-        owsFailDebug("This should never be called, calls are handled externally")
-    }
-
-    public func receivedAnswer(_ answer: SSKProtoCallMessageAnswer, from caller: SignalServiceAddress, sourceDevice: UInt32, supportsMultiRing: Bool) {
-        owsFailDebug("This should never be called, calls are handled externally")
-    }
-
-    public func receivedIceUpdate(_ iceUpdate: [SSKProtoCallMessageIceUpdate], from caller: SignalServiceAddress, sourceDevice: UInt32) {
-        owsFailDebug("This should never be called, calls are handled externally")
-    }
-
-    public func receivedHangup(_ hangup: SSKProtoCallMessageHangup, from caller: SignalServiceAddress, sourceDevice: UInt32) {
-        owsFailDebug("This should never be called, calls are handled externally")
-    }
-
-    public func receivedBusy(_ busy: SSKProtoCallMessageBusy, from caller: SignalServiceAddress, sourceDevice: UInt32) {
-        owsFailDebug("This should never be called, calls are handled externally")
-    }
-
-    public func receivedOpaque(
-        _ opaque: SSKProtoCallMessageOpaque,
-        from caller: AciObjC,
-        sourceDevice: UInt32,
-        serverReceivedTimestamp: UInt64,
-        serverDeliveryTimestamp: UInt64,
-        transaction: SDSAnyReadTransaction
-    ) {
-        owsFailDebug("This should never be called, calls are handled externally")
-    }
-
-    public func receivedGroupCallUpdateMessage(
+    func receivedGroupCallUpdateMessage(
         _ updateMessage: SSKProtoDataMessageGroupCallUpdate,
         for groupThread: TSGroupThread,
-        serverReceivedTimestamp: UInt64,
-        completion: @escaping () -> Void
-    ) {
-        NSELogger.uncorrelated.info("Received group call update for thread \(groupThread.uniqueId)")
-        lightweightGroupCallManager?.peekGroupCallAndUpdateThread(
+        serverReceivedTimestamp: UInt64
+    ) async {
+        await groupCallManager.peekGroupCallAndUpdateThread(
             groupThread,
-            expectedEraId: updateMessage.eraID,
-            triggerEventTimestamp: serverReceivedTimestamp,
-            completion: completion)
+            peekTrigger: .receivedGroupUpdateMessage(
+                eraId: updateMessage.eraID,
+                messageTimestamp: serverReceivedTimestamp
+            )
+        )
     }
 }

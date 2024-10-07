@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalCoreKit
+import SignalServiceKit
 import SignalUI
 
 class PhotoCaptureInteractiveDismiss: UIPercentDrivenInteractiveTransition {
@@ -33,7 +33,6 @@ class PhotoCaptureInteractiveDismiss: UIPercentDrivenInteractiveTransition {
 
     private var shouldCompleteTransition: Bool {
         if farEnoughToCompleteTransition {
-            Logger.verbose("farEnoughToCompleteTransition")
             return true
         }
 

@@ -5,7 +5,6 @@
 
 import Foundation
 import SignalServiceKit
-import SignalMessaging
 import SignalUI
 
 class GifPickerNavigationViewController: OWSNavigationController {
@@ -20,7 +19,7 @@ class GifPickerNavigationViewController: OWSNavigationController {
         return gifPickerViewController
     }()
 
-    required init(initialMessageBody: MessageBody?) {
+    init(initialMessageBody: MessageBody?) {
         self.initialMessageBody = initialMessageBody
         super.init()
         pushViewController(gifPickerViewController, animated: false)
@@ -105,8 +104,6 @@ class GifPickerViewController: OWSViewController, UISearchBarDelegate, UICollect
 
     private var viewMode = ViewMode.idle {
         didSet {
-            Logger.info("viewMode: \(viewMode)")
-
             updateContents()
         }
     }
@@ -135,7 +132,7 @@ class GifPickerViewController: OWSViewController, UISearchBarDelegate, UICollect
 
     // MARK: Initializers
 
-    required override init() {
+    override init() {
         self.searchBar = OWSSearchBar()
         self.layout = GifPickerLayout()
         self.collectionView = UICollectionView(frame: CGRect.zero, collectionViewLayout: self.layout)
@@ -156,8 +153,6 @@ class GifPickerViewController: OWSViewController, UISearchBarDelegate, UICollect
     private func didBecomeActive() {
         AssertIsOnMainThread()
 
-        Logger.info("")
-
         // Prod cells to try to load when app becomes active.
         ensureCellState()
     }
@@ -165,8 +160,6 @@ class GifPickerViewController: OWSViewController, UISearchBarDelegate, UICollect
     @objc
     private func reachabilityChanged() {
         AssertIsOnMainThread()
-
-        Logger.info("")
 
         // Prod cells to try to load when connectivity changes.
         ensureCellState()
@@ -187,9 +180,9 @@ class GifPickerViewController: OWSViewController, UISearchBarDelegate, UICollect
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        self.navigationItem.leftBarButtonItem = UIBarButtonItem(barButtonSystemItem: .cancel,
-                                                                target: self,
-                                                                action: #selector(didPressCancel))
+        self.navigationItem.leftBarButtonItem = .cancelButton { [weak self] in
+            self?.delegate?.gifPickerDidCancel()
+        }
         self.navigationItem.title = OWSLocalizedString("GIF_PICKER_VIEW_TITLE",
                                                       comment: "Title for the 'GIF picker' dialog.")
 
@@ -430,7 +423,6 @@ class GifPickerViewController: OWSViewController, UISearchBarDelegate, UICollect
 
         guard cell.isDisplayingPreview else {
             // we don't want to let the user blindly select a gray cell
-            Logger.debug("ignoring selection of cell with no preview")
             return nil
         }
 
@@ -494,8 +486,7 @@ class GifPickerViewController: OWSViewController, UISearchBarDelegate, UICollect
 
             let pathForConsumableFile = OWSFileSystem.temporaryFilePath(fileExtension: assetFileExtension)
             try FileManager.default.copyItem(atPath: pathForCachedAsset, toPath: pathForConsumableFile)
-            let dataSource = try DataSourcePath.dataSource(withFilePath: pathForConsumableFile,
-                                                           shouldDeleteOnDeallocation: false)
+            let dataSource = try DataSourcePath(filePath: pathForConsumableFile, shouldDeleteOnDeallocation: false)
 
             let attachment = SignalAttachment.attachment(dataSource: dataSource, dataUTI: assetTypeIdentifier)
             attachment.isLoopingVideo = attachment.isVideo
@@ -541,13 +532,6 @@ class GifPickerViewController: OWSViewController, UISearchBarDelegate, UICollect
             return
         }
         cell.isCellVisible = false
-    }
-
-    // MARK: - Event Handlers
-
-    @objc
-    private func didPressCancel(sender: UIButton) {
-        delegate?.gifPickerDidCancel()
     }
 
     // MARK: - UISearchBarDelegate
@@ -645,7 +629,7 @@ class GifPickerViewController: OWSViewController, UISearchBarDelegate, UICollect
             owsFailDebugUnlessNetworkFailure(error)
 
             guard let strongSelf = self else { return }
-            Logger.info("search failed.")
+            Logger.warn("search failed.")
             // TODO: Present this error to the user.
             strongSelf.viewMode = .error
         }

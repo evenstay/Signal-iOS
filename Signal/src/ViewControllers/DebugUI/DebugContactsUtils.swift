@@ -4,7 +4,6 @@
 //
 
 import Contacts
-import SignalMessaging
 import SignalServiceKit
 import SignalUI
 
@@ -32,48 +31,31 @@ class DebugContactsUtils: Dependencies {
         return result
     }
 
-    static func createRandomContacts(_ count: UInt, contactHandler: ((CNContact, Int, inout Bool) -> Void)? = nil) {
+    @MainActor
+    static func createRandomContacts(
+        _ count: UInt,
+        contactHandler: ((CNContact, Int, inout Bool) async -> Void)? = nil
+    ) async {
         guard count > 0 else { return }
 
-        let authorizationStatus = CNContactStore.authorizationStatus(for: .contacts)
-        guard authorizationStatus != .denied && authorizationStatus != .restricted else {
+        guard await requestContactsAuthorizationIfNecessary() else {
             OWSActionSheets.showErrorAlert(message: "No Contacts access.")
             return
         }
 
-        // Request access
-        guard authorizationStatus == .authorized else {
-            let store = CNContactStore()
-            store.requestAccess(for: .contacts) { granted, error in
-                guard granted && error == nil else {
-                    DispatchQueue.main.async {
-                        OWSActionSheets.showErrorAlert(message: "No Contacts access.")
-                    }
-                    return
-                }
-                DispatchQueue.main.async {
-                    createRandomContacts(count, contactHandler: contactHandler)
-                }
-            }
-            return
-        }
-
-        let maxBatchSize: UInt = 10
-        let batchSize = min(maxBatchSize, count)
-        let remainder = count - batchSize
-        createRandomContactsBatch(batchSize, contactHandler: contactHandler) {
-            guard remainder > 0 else { return }
-            DispatchQueue.main.async {
-                createRandomContacts(remainder, contactHandler: contactHandler)
-            }
-        }
+        var batch: UInt
+        var remainder = count
+        repeat {
+            batch = min(remainder, 10)
+            remainder -= batch
+            await createRandomContactsBatch(batch, contactHandler: contactHandler)
+        } while remainder > 0
     }
 
     private static func createRandomContactsBatch(
         _ count: UInt,
-        contactHandler: ((CNContact, Int, inout Bool) -> Void)?,
-        completion: () -> Void
-    ) {
+        contactHandler: ((CNContact, Int, inout Bool) async -> Void)?
+    ) async {
         Logger.debug("createRandomContactsBatch: \(count)")
 
         var contacts = [CNContact]()
@@ -124,7 +106,7 @@ class DebugContactsUtils: Dependencies {
             if let contactHandler {
                 for (index, contact) in contacts.enumerated() {
                     var stop = false
-                    contactHandler(contact, index, &stop)
+                    await contactHandler(contact, index, &stop)
                     if stop {
                         break
                     }
@@ -136,69 +118,43 @@ class DebugContactsUtils: Dependencies {
                 OWSActionSheets.showErrorAlert(message: error.userErrorDescription)
             }
         }
-
-        completion()
     }
 
     // MARK: Contact Deletion
 
-    static func deleteAllContacts() {
-        let authorizationStatus = CNContactStore.authorizationStatus(for: .contacts)
-        guard authorizationStatus != .denied && authorizationStatus != .restricted else {
+    @MainActor
+    static func deleteAllContacts() async {
+        guard await requestContactsAuthorizationIfNecessary() else {
             OWSActionSheets.showErrorAlert(message: "No Contacts access.")
             return
         }
 
-        // Request access
-        guard authorizationStatus == .authorized else {
-            let store = CNContactStore()
-            store.requestAccess(for: .contacts) { granted, error in
-                guard granted && error == nil else {
-                    DispatchQueue.main.async {
-                        OWSActionSheets.showErrorAlert(message: "No Contacts access.")
-                    }
-                    return
-                }
-                DispatchQueue.main.async {
-                    deleteAllContacts()
-                }
-            }
-            return
+        do {
+            try deleteContactsWithFilter { _ in return true }
+        } catch {
+            Logger.error("\(error)")
+            OWSActionSheets.showErrorAlert(message: error.userErrorDescription)
         }
-
-        deleteContactsWithFilter { _ in return true }
     }
 
-    static func deleteRandomContacts() {
-        let authorizationStatus = CNContactStore.authorizationStatus(for: .contacts)
-        guard authorizationStatus != .denied && authorizationStatus != .restricted else {
+    @MainActor
+    static func deleteRandomContacts() async {
+        guard await requestContactsAuthorizationIfNecessary() else {
             OWSActionSheets.showErrorAlert(message: "No Contacts access.")
             return
         }
 
-        // Request access
-        guard authorizationStatus == .authorized else {
-            let store = CNContactStore()
-            store.requestAccess(for: .contacts) { granted, error in
-                guard granted && error == nil else {
-                    DispatchQueue.main.async {
-                        OWSActionSheets.showErrorAlert(message: "No Contacts access.")
-                    }
-                    return
-                }
-                DispatchQueue.main.async {
-                    deleteRandomContacts()
-                }
+        do {
+            try deleteContactsWithFilter { contact in
+                return contact.familyName.hasPrefix("Rando-")
             }
-            return
-        }
-
-        deleteContactsWithFilter { contact in
-            return contact.familyName.hasPrefix("Rando-")
+        } catch {
+            Logger.error("\(error)")
+            OWSActionSheets.showErrorAlert(message: error.userErrorDescription)
         }
     }
 
-    private static func deleteContactsWithFilter(_ filter: (CNContact) -> Bool) {
+    private static func deleteContactsWithFilter(_ filter: (CNContact) -> Bool) throws {
         let keysToFetch: [CNKeyDescriptor] = [
             CNContactIdentifierKey as CNKeyDescriptor,
             CNContactGivenNameKey as CNKeyDescriptor,
@@ -208,25 +164,33 @@ class DebugContactsUtils: Dependencies {
 
         let contactStore = CNContactStore()
         let saveRequest = CNSaveRequest()
-        do {
-            try contactStore.enumerateContacts(with: CNContactFetchRequest(keysToFetch: keysToFetch)) { contact, _ in
-                if filter(contact) {
-                    saveRequest.delete(contact.mutableCopy() as! CNMutableContact)
-                }
+        try contactStore.enumerateContacts(with: CNContactFetchRequest(keysToFetch: keysToFetch)) { contact, _ in
+            if filter(contact) {
+                saveRequest.delete(contact.mutableCopy() as! CNMutableContact)
             }
-            try contactStore.execute(saveRequest)
-        } catch {
-            Logger.error("\(error)")
-            OWSActionSheets.showErrorAlert(message: error.userErrorDescription)
         }
+        try contactStore.execute(saveRequest)
     }
 
-    // MARK: -
+    private static func requestContactsAuthorizationIfNecessary() async -> Bool {
+        switch CNContactStore.authorizationStatus(for: .contacts) {
+        case .denied, .restricted:
+            return false
 
-    static func logSignalAccounts() {
-        databaseStorage.read { transaction in
-            SignalAccount.anyEnumerate(transaction: transaction, batchingPreference: .batched()) { (account: SignalAccount, _) in
-                Logger.verbose("---- \(account.uniqueId),  \(account.recipientAddress),  \(String(describing: account.contactFirstName)),  \(String(describing: account.contactLastName)),  \(String(describing: account.contactNicknameIfAvailable())), ")
+        case .limited, .authorized:
+            return true
+
+        case .notDetermined:
+            fallthrough
+
+        // If we don't know what this authorization status means, still
+        // optimistically try to request access.
+        @unknown default:
+            do {
+                let store = CNContactStore()
+                return try await store.requestAccess(for: .contacts)
+            } catch {
+                return false
             }
         }
     }

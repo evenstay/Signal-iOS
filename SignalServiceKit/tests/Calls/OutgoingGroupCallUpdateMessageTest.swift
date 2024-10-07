@@ -8,7 +8,7 @@ import XCTest
 
 @testable import SignalServiceKit
 
-final class OutgoingGroupCallUpdateMessageSerializationTest: SSKBaseTestSwift {
+final class OutgoingGroupCallUpdateMessageSerializationTest: SSKBaseTest {
     /// Confirms that an ``OutgoingGroupCallUpdateMessage`` (de)serializes.
     func testGroupCallUpdateMessageRoundTrip() throws {
         databaseStorage.write { tx in
@@ -23,8 +23,11 @@ final class OutgoingGroupCallUpdateMessageSerializationTest: SSKBaseTestSwift {
         }
 
         let updateMessage = write { tx in
+            var groupModelBuilder = TSGroupModelBuilder()
+            groupModelBuilder.name = "Test group"
+
             return OutgoingGroupCallUpdateMessage(
-                thread: GroupThreadFactory().create(transaction: tx),
+                thread: TSGroupThread(groupModel: try! groupModelBuilder.buildAsV2()),
                 eraId: "beep boop",
                 tx: tx
             )

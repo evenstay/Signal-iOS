@@ -5,7 +5,7 @@
 
 import Foundation
 import UIKit
-import SignalServiceKit
+public import SignalServiceKit
 
 open class TextAttachmentView: UIView {
 
@@ -25,16 +25,17 @@ open class TextAttachmentView: UIView {
     }
 
     convenience public init(
-        attachment: TextAttachment,
+        attachment: PreloadedTextAttachment,
         interactionIdentifier: InteractionSnapshotIdentifier,
         spoilerState: SpoilerRenderState
     ) {
         self.init(
-            textContent: attachment.textContent,
-            textForegroundColor: attachment.textForegroundColor,
-            textBackgroundColor: attachment.textBackgroundColor,
-            background: attachment.background,
-            linkPreview: attachment.preview,
+            textContent: attachment.textAttachment.textContent,
+            textForegroundColor: attachment.textAttachment.textForegroundColor,
+            textBackgroundColor: attachment.textAttachment.textBackgroundColor,
+            background: attachment.textAttachment.background,
+            linkPreview: attachment.textAttachment.preview,
+            linkPreviewImageAttachment: attachment.linkPreviewAttachment,
             interactionIdentifier: interactionIdentifier,
             spoilerState: spoilerState
         )
@@ -47,6 +48,7 @@ open class TextAttachmentView: UIView {
             textBackgroundColor: attachment.textBackgroundColor,
             background: attachment.background,
             linkPreview: nil,
+            linkPreviewImageAttachment: nil,
             linkPreviewDraft: attachment.linkPreviewDraft,
             interactionIdentifier: nil,
             spoilerState: nil
@@ -59,7 +61,6 @@ open class TextAttachmentView: UIView {
         textForegroundColor: UIColor?,
         textBackgroundColor: UIColor?,
         background: TextAttachment.Background,
-        linkPreview: OWSLinkPreview?,
         linkPreviewDraft: OWSLinkPreviewDraft? = nil
     ) {
         self.textContent = .styled(body: text, style: style)
@@ -70,7 +71,7 @@ open class TextAttachmentView: UIView {
         self.spoilerState = nil
 
         super.init(frame: .zero)
-        performSetup(linkPreview: linkPreview, linkPreviewDraft: linkPreviewDraft)
+        performSetup(linkPreview: nil, linkPreviewImageAttachment: nil, linkPreviewDraft: linkPreviewDraft)
     }
 
     private init(
@@ -79,6 +80,7 @@ open class TextAttachmentView: UIView {
         textBackgroundColor: UIColor?,
         background: TextAttachment.Background,
         linkPreview: OWSLinkPreview?,
+        linkPreviewImageAttachment: TSResource?,
         linkPreviewDraft: OWSLinkPreviewDraft? = nil,
         interactionIdentifier: InteractionSnapshotIdentifier?,
         spoilerState: SpoilerRenderState?
@@ -91,10 +93,18 @@ open class TextAttachmentView: UIView {
         self.spoilerState = spoilerState
 
         super.init(frame: .zero)
-        performSetup(linkPreview: linkPreview, linkPreviewDraft: linkPreviewDraft)
+        performSetup(
+            linkPreview: linkPreview,
+            linkPreviewImageAttachment: linkPreviewImageAttachment,
+            linkPreviewDraft: linkPreviewDraft
+        )
     }
 
-    private func performSetup(linkPreview: OWSLinkPreview?, linkPreviewDraft: OWSLinkPreviewDraft?) {
+    private func performSetup(
+        linkPreview: OWSLinkPreview?,
+        linkPreviewImageAttachment: TSResource?,
+        linkPreviewDraft: OWSLinkPreviewDraft?
+    ) {
         clipsToBounds = true
 
         addLayoutGuide(contentLayoutGuide)
@@ -108,17 +118,19 @@ open class TextAttachmentView: UIView {
         addConstraints(constraints)
 
         if let linkPreview = linkPreview {
-            var attachment: TSAttachment?
-            if let imageAttachmentId = linkPreview.imageAttachmentId {
-                attachment = databaseStorage.read(block: { TSAttachment.anyFetch(uniqueId: imageAttachmentId, transaction: $0) })
-            }
             self.linkPreview = LinkPreviewSent(
                 linkPreview: linkPreview,
-                imageAttachment: attachment,
+                imageAttachment: linkPreviewImageAttachment,
                 conversationStyle: nil
             )
         } else if let linkPreviewDraft = linkPreviewDraft {
-            self.linkPreview = LinkPreviewDraft(linkPreviewDraft: linkPreviewDraft)
+            let state: LinkPreviewState
+            if let _ = CallLink(url: linkPreviewDraft.url) {
+                state = LinkPreviewCallLink(previewType: .draft(linkPreviewDraft))
+            } else {
+                state = LinkPreviewDraft(linkPreviewDraft: linkPreviewDraft)
+            }
+            self.linkPreview = state
         }
 
         updateTextAttributes()
@@ -502,7 +514,7 @@ open class TextAttachmentView: UIView {
         if let linkPreviewTooltipView = linkPreviewTooltipView {
             if let container = linkPreviewTooltipView.superview,
                linkPreviewTooltipView.frame.contains(gesture.location(in: container)) {
-                CurrentAppContext().open(linkPreviewTooltipView.url)
+                CurrentAppContext().open(linkPreviewTooltipView.url, completion: nil)
             } else {
                 linkPreviewTooltipView.removeFromSuperview()
                 self.linkPreviewTooltipView = nil
@@ -604,7 +616,9 @@ open class TextAttachmentView: UIView {
                     thumbnailImageView.image = image
                 } else {
                     linkPreview.imageAsync(thumbnailQuality: thumbnailQuality) { image in
-                        thumbnailImageView.image = image
+                        DispatchQueue.main.async {
+                            thumbnailImageView.image = image
+                        }
                     }
                 }
             } else {
@@ -694,7 +708,11 @@ open class TextAttachmentView: UIView {
             previewVStack.addArrangedSubview(footerLabel)
 
             var footerText: String
-            if let displayDomain = OWSLinkPreviewManager.displayDomain(forUrl: linkPreview.urlString) {
+            if
+                let urlString = linkPreview.urlString,
+                let url = URL(string: urlString),
+                let displayDomain = LinkPreviewHelper.displayDomain(forUrl: url)
+            {
                 footerText = displayDomain.lowercased()
             } else {
                 footerText = OWSLocalizedString(
@@ -719,7 +737,7 @@ open class TextAttachmentView: UIView {
             return formatter
         }()
 
-        fileprivate static let mediaCache = LRUCache<String, NSObject>(maxSize: 32, shouldEvacuateInBackground: true)
+        fileprivate static let mediaCache = LRUCache<LinkPreviewImageCacheKey, NSObject>(maxSize: 32, shouldEvacuateInBackground: true)
     }
 }
 

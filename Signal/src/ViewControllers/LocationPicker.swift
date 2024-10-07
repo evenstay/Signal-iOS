@@ -11,9 +11,10 @@
 import Contacts
 import CoreLocation
 import CoreServices
-import MapKit
-import SignalMessaging
+public import MapKit
+public import SignalServiceKit
 import SignalUI
+import UniformTypeIdentifiers
 
 public protocol LocationPickerDelegate: AnyObject {
     func didPickLocation(_ locationPicker: LocationPicker, location: Location)
@@ -50,16 +51,6 @@ public class LocationPicker: UIViewController {
         return searchBar
     }()
 
-    private let supportsTranslucentBars: Bool = {
-        // On iOS 13.1 and later, translucent search bars
-        // within the nav item's searchController work correctly.
-        // Prior to that, they have a weird behavior when the
-        // search bar becomes first responder that we want to avoid.
-        guard #available(iOS 13.1, *) else { return false }
-
-        return true
-    }()
-
     private static let SearchTermKey = "SearchTermKey"
     private var searchTimer: Timer?
 
@@ -79,7 +70,7 @@ public class LocationPicker: UIViewController {
 
         // This icon doesn't look right when it's actually centered due to its odd shape.
         currentLocationButton.setTemplateImageName("location", tintColor: .white)
-        currentLocationButton.contentEdgeInsets = UIEdgeInsets(top: 2, left: 0, bottom: 0, right: 2)
+        currentLocationButton.ows_contentEdgeInsets = UIEdgeInsets(top: 2, left: 0, bottom: 0, right: 2)
 
         view.addSubview(currentLocationButton)
         currentLocationButton.autoSetDimensions(to: CGSize(square: 48))
@@ -106,12 +97,12 @@ public class LocationPicker: UIViewController {
 
         OWSSearchBar.applyTheme(to: searchBar)
 
-        searchBar.isTranslucent = supportsTranslucentBars
+        searchBar.isTranslucent = true
 
         // When the search bar isn't translucent, it doesn't allow
         // setting the textField's backgroundColor. Instead, we need
         // to use the background image.
-        let backgroundImage = UIImage(
+        let backgroundImage = UIImage.image(
             color: Theme.searchFieldBackgroundColor,
             size: CGSize(square: 36)
         ).withCornerRadius(10)
@@ -134,7 +125,7 @@ public class LocationPicker: UIViewController {
 
     public override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
-        navigationController?.navigationBar.isTranslucent = supportsTranslucentBars
+        navigationController?.navigationBar.isTranslucent = true
     }
 
     public override func viewWillDisappear(_ animated: Bool) {
@@ -162,7 +153,7 @@ public class LocationPicker: UIViewController {
     }
 
     func requestAuthorization() {
-        switch CLLocationManager.authorizationStatus() {
+        switch locationManager.authorizationStatus {
         case .authorizedWhenInUse, .authorizedAlways:
             // We are already authorized, do nothing!
             break
@@ -270,23 +261,13 @@ extension LocationPicker: UISearchResultsUpdating {
         let searchTerm = term.trimmingCharacters(in: CharacterSet.whitespaces)
         if !searchTerm.isEmpty {
             // Search after a slight delay to debounce while the user is typing.
-            searchTimer = Timer.weakScheduledTimer(
-                withTimeInterval: 0.1,
-                target: self,
-                selector: #selector(searchFromTimer),
-                userInfo: [LocationPicker.SearchTermKey: searchTerm],
-                repeats: false
-            )
+            searchTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: false) { [weak self] _ in
+                self?.searchFromTimer(searchTerm)
+            }
         }
     }
 
-    @objc
-    private func searchFromTimer(_ timer: Timer) {
-        guard let userInfo = timer.userInfo as? [String: AnyObject],
-            let term = userInfo[LocationPicker.SearchTermKey] as? String else {
-                return owsFailDebug("Unexpectedly attempted to search with no term")
-        }
-
+    private func searchFromTimer(_ term: String) {
         let request = MKLocalSearch.Request()
         request.naturalLanguageQuery = term
 
@@ -516,8 +497,8 @@ public class Location: NSObject {
                 throw LocationError.assertion
             }
 
-            let dataSource = DataSourceValue.dataSource(with: jpegData, utiType: kUTTypeJPEG as String)
-            return SignalAttachment.attachment(dataSource: dataSource, dataUTI: kUTTypeJPEG as String)
+            let dataSource = DataSourceValue(jpegData, utiType: UTType.jpeg.identifier)
+            return SignalAttachment.attachment(dataSource: dataSource, dataUTI: UTType.jpeg.identifier)
         }
     }
 

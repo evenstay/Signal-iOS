@@ -3,8 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalCoreKit
-import SignalServiceKit
+public import SignalServiceKit
 
 /// Manages the step-to-step state of primary device registration,
 /// including re-registration and change number.
@@ -103,10 +102,22 @@ public protocol RegistrationCoordinator {
     /// If not allowed, an error step may be returned.
     func skipPINCode() -> Guarantee<RegistrationStep>
 
+    /// Skip entering the existing PIN code when registering for an existing account, and instead
+    /// create a new PIN (losing any backed up information).
+    /// This is only possible if reglock is disabled, and if done will wipe any KBS backups.
+    /// If not allowed, an error step may be returned.
+    func skipAndCreateNewPINCode() -> Guarantee<RegistrationStep>
+
     /// When registering, the server will inform us (via an error code) if device transfer is
     /// possible from an existing device. In this case, the user must either transfer or explicitly
     /// decline transferring; this method informs the flow of the latter choice.
     func skipDeviceTransfer() -> Guarantee<RegistrationStep>
+
+    /// Set the target backup fileUrl to be used in the next step to restore the system.
+    func restoreFromMessageBackup(type: RegistrationMessageBackupRestoreType) -> Guarantee<RegistrationStep>
+
+    /// Mark the users choice to skip restoring from backup and continuing to the next step.
+    func skipRestoreFromBackup() -> Guarantee<RegistrationStep>
 
     /// Set whether the user's PNI should be discoverable by phone number.
     /// If the update is rejected for any reason, the next step will be the same current
@@ -117,8 +128,8 @@ public protocol RegistrationCoordinator {
     /// If the update is rejected for any reason, the next step will be the same current
     /// step but with attached metadata giving more info on the rejection.
     func setProfileInfo(
-        givenName: String,
-        familyName: String?,
+        givenName: OWSUserProfile.NameComponent,
+        familyName: OWSUserProfile.NameComponent?,
         avatarData: Data?,
         phoneNumberDiscoverability: PhoneNumberDiscoverability
     ) -> Guarantee<RegistrationStep>

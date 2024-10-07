@@ -13,12 +13,6 @@ public class SecureValueRecoveryMock: SecureValueRecovery {
 
     public var hasMasterKey = false
 
-    public var currentEnclave: KeyBackupEnclave = .init(
-        name: "",
-        mrenclave: .init("8888888888888888888888888888888888888888888888888888888888888888"),
-        serviceId: ""
-    )
-
     public var hasBackedUpMasterKey: Bool = false
 
     public func hasBackedUpMasterKey(transaction: DBReadTransaction) -> Bool {
@@ -47,10 +41,10 @@ public class SecureValueRecoveryMock: SecureValueRecovery {
         return .value(reglockToken!)
     }
 
-    public var generateAndBackupKeysMock: ((_ pin: String, _ authMethod: SVR.AuthMethod, _ rotateMasterKey: Bool) -> Promise<Void>)?
+    public var generateAndBackupKeysMock: ((_ pin: String, _ authMethod: SVR.AuthMethod) -> Promise<Void>)?
 
-    public func generateAndBackupKeys(pin: String, authMethod: SVR.AuthMethod, rotateMasterKey: Bool) -> Promise<Void> {
-        return generateAndBackupKeysMock!(pin, authMethod, rotateMasterKey)
+    public func generateAndBackupKeys(pin: String, authMethod: SVR.AuthMethod) -> Promise<Void> {
+        return generateAndBackupKeysMock!(pin, authMethod)
     }
 
     public var restoreKeysMock: ((_ pin: String, _ authMethod: SVR.AuthMethod) -> Guarantee<SVR.RestoreKeysResult>)?
@@ -101,12 +95,15 @@ public class SecureValueRecoveryMock: SecureValueRecovery {
         // Do nothing
     }
 
+    public var syncedMasterKey: Data?
+
     public func storeSyncedMasterKey(
         data: Data,
         authedDevice: AuthedDevice,
+        updateStorageService: Bool,
         transaction: DBWriteTransaction
     ) {
-        // Do nothing
+        syncedMasterKey = data
     }
 
     public func masterKeyDataForKeysSyncMessage(tx: DBReadTransaction) -> Data? {
@@ -137,11 +134,13 @@ public class SecureValueRecoveryMock: SecureValueRecovery {
         doesHavePendingRestoration = false
     }
 
+    public var useDeviceLocalMasterKeyMock: ((_ authedAccount: AuthedAccount) -> Void)?
+
     public func useDeviceLocalMasterKey(
         authedAccount: AuthedAccount,
         transaction: DBWriteTransaction
     ) {
-        // Do nothing
+        useDeviceLocalMasterKeyMock?(authedAccount)
     }
 
     public var dataGenerator: (SVR.DerivedKey) -> Data? = { _ in return nil }

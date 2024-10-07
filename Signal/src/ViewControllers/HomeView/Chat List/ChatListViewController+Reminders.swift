@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalServiceKit
+public import SignalServiceKit
 import SignalUI
 
 public class CLVReminderViews: Dependencies {
@@ -25,7 +25,7 @@ public class CLVReminderViews: Dependencies {
 
     public weak var chatListViewController: ChatListViewController?
 
-    required init() {
+    init() {
         AssertIsOnMainThread()
 
         reminderStackView.axis = .vertical
@@ -105,18 +105,26 @@ public class CLVReminderViews: Dependencies {
         paymentsReminderView.accessibilityIdentifier = "paymentsReminderView"
 
         usernameCorruptedReminderView = ReminderView(
-            style: .warning,
+            style: .info,
             text: OWSLocalizedString(
                 "REMINDER_VIEW_USERNAME_CORRUPTED_WARNING",
                 comment: "Label warning the user that something is wrong with their username."
             ),
+            actionTitle: OWSLocalizedString(
+                "REMINDER_VIEW_USERNAME_CORRUPTED_FIX_BUTTON",
+                comment: "Button below the warning to fix a corrupted username."
+            ),
             tapAction: { [weak self] in self?.didTapUsernameCorruptedReminderView() }
         )
         usernameLinkCorruptedReminderView = ReminderView(
-            style: .warning,
+            style: .info,
             text: OWSLocalizedString(
                 "REMINDER_VIEW_USERNAME_LINK_CORRUPTED_WARNING",
                 comment: "Label warning the user that something is wrong with their username link."
+            ),
+            actionTitle: OWSLocalizedString(
+                "REMINDER_VIEW_USERNAME_LINK_CORRUPTED_FIX_BUTTON",
+                comment: "Button below the warning to fix a username link."
             ),
             tapAction: { [weak self] in self?.didTapUsernameLinkCorruptedReminderView() }
         )
@@ -134,7 +142,10 @@ public class CLVReminderViews: Dependencies {
             return
         }
 
-        RegistrationUtils.showReregistrationUI(fromViewController: chatListViewController)
+        RegistrationUtils.showReregistrationUI(
+            fromViewController: chatListViewController,
+            appReadiness: chatListViewController.appReadiness
+        )
     }
 
     @objc
@@ -143,7 +154,20 @@ public class CLVReminderViews: Dependencies {
             return
         }
 
-        chatListViewController.showAppSettings(mode: .corruptedUsernameResolution)
+        UsernameSelectionCoordinator(
+            currentUsername: nil,
+            isAttemptingRecovery: true,
+            usernameSelectionDelegate: chatListViewController,
+            context: .init(
+                databaseStorage: databaseStorage,
+                networkManager: networkManager,
+                schedulers: DependenciesBridge.shared.schedulers,
+                storageServiceManager: storageServiceManager,
+                usernameEducationManager: DependenciesBridge.shared.usernameEducationManager,
+                localUsernameManager: DependenciesBridge.shared.localUsernameManager
+            )
+        )
+        .present(fromViewController: chatListViewController)
     }
 
     @objc
@@ -198,7 +222,7 @@ extension ChatListViewController {
     public func updateReminderViews() {
         AssertIsOnMainThread()
 
-        archiveReminderView.isHidden = chatListMode != .archive
+        archiveReminderView.isHidden = viewState.chatListMode != .archive
         let tsRegistrationState = DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction
         deregisteredView.isHidden = !tsRegistrationState.isDeregistered
         outageView.isHidden = !OutageDetection.shared.hasOutage
@@ -226,18 +250,29 @@ extension ChatListViewController {
             updateUsernameStateViews(tx: tx)
         }
 
-        loadCoordinator.loadIfNecessary()
+        updateShouldBeUpdatingView()
     }
 
     public func updateUnreadPaymentNotificationsCountWithSneakyTransaction() {
         AssertIsOnMainThread()
 
         guard paymentsHelper.arePaymentsEnabled else {
-            self.unreadPaymentNotificationsCount = 0
-            self.firstUnreadPaymentModel = nil
+            var needsUpdate = false
 
-            updateBarButtonItems()
-            updateReminderViews()
+            if unreadPaymentNotificationsCount > 0 {
+                unreadPaymentNotificationsCount = 0
+                needsUpdate = true
+            }
+
+            if firstUnreadPaymentModel != nil {
+                firstUnreadPaymentModel = nil
+                needsUpdate = true
+            }
+
+            if needsUpdate {
+                updateReminderViews()
+            }
+
             return
         }
 
@@ -251,7 +286,6 @@ extension ChatListViewController {
         self.unreadPaymentNotificationsCount = unreadPaymentNotificationsCount
         self.firstUnreadPaymentModel = firstUnreadPaymentModel
 
-        updateBarButtonItems()
         updateReminderViews()
     }
 
@@ -271,5 +305,20 @@ extension ChatListViewController {
             usernameCorruptedReminderView.isHidden = false
             usernameLinkCorruptedReminderView.isHidden = true
         }
+    }
+}
+
+extension ChatListViewController: UsernameSelectionDelegate {
+    func usernameSelectionDidDismissAfterConfirmation(username: String) {
+        self.presentToast(
+            text: String(
+                format: OWSLocalizedString(
+                    "USERNAME_RESET_SUCCESSFUL_TOAST",
+                    comment: "A message in a toast informing the user their username, link, and QR code have successfully been reset. Embeds {{ the user's new username }}."
+                ),
+                username
+            ),
+            extraVInset: 8
+        )
     }
 }

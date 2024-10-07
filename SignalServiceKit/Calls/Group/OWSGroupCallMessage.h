@@ -14,7 +14,7 @@ NS_ASSUME_NONNULL_BEGIN
 /// Represents a group call-related update that lives in chat history.
 ///
 /// Not to be confused with an ``OutgoingGroupCallUpdateMessage``.
-@interface OWSGroupCallMessage : TSInteraction <OWSReadTracking, OWSPreviewText>
+@interface OWSGroupCallMessage : TSInteraction
 
 /// The ACI-string of the creator of the call.
 /// - Note
@@ -22,7 +22,7 @@ NS_ASSUME_NONNULL_BEGIN
 /// - Note
 /// The name contains `Uuid` for SDS compatibility, but this is an ACI.
 @property (nonatomic, nullable) NSString *creatorUuid;
-@property (nonatomic, readonly, nullable) SignalServiceAddress *creatorAddress;
+@property (nonatomic, readonly, nullable) AciObjC *creatorAci;
 
 /// The ACI-strings of the members of the call.
 /// - Note
@@ -30,10 +30,14 @@ NS_ASSUME_NONNULL_BEGIN
 /// - Note
 /// The name contains `Uuid` for SDS compatibility, but these are ACIs.
 @property (nonatomic, nullable) NSArray<NSString *> *joinedMemberUuids;
-@property (nonatomic, readonly) NSArray<SignalServiceAddress *> *joinedMemberAddresses;
+@property (nonatomic, readonly) NSArray<AciObjC *> *joinedMemberAcis;
 
 /// Whether the call has been ended, or is still in-progress.
 @property (nonatomic) BOOL hasEnded;
+
+/// Whether this call has been read, or is "unread".
+/// - SeeAlso ``OWSReadTracking``
+@property (nonatomic, getter=wasRead) BOOL read;
 
 /// This property is deprecated, but remains here to preserve compatibility with
 /// legacy data. Specifically, it will only be populated on old messages -
@@ -41,14 +45,13 @@ NS_ASSUME_NONNULL_BEGIN
 /// "call ID".
 @property (nonatomic, readonly, nullable) NSString *eraId;
 
-- (instancetype)initWithUniqueId:(NSString *)uniqueId
-                       timestamp:(uint64_t)timestamp
-                          thread:(TSThread *)thread NS_UNAVAILABLE;
-- (instancetype)initWithUniqueId:(NSString *)uniqueId
-                       timestamp:(uint64_t)timestamp
-             receivedAtTimestamp:(uint64_t)receivedAtTimestamp
-                          thread:(TSThread *)thread NS_UNAVAILABLE;
-- (instancetype)initInteractionWithTimestamp:(uint64_t)timestamp thread:(TSThread *)thread NS_UNAVAILABLE;
+- (instancetype)initWithCustomUniqueId:(NSString *)uniqueId
+                             timestamp:(uint64_t)timestamp
+                   receivedAtTimestamp:(uint64_t)receivedAtTimestamp
+                                thread:(TSThread *)thread NS_UNAVAILABLE;
+- (instancetype)initWithTimestamp:(uint64_t)timestamp
+              receivedAtTimestamp:(uint64_t)receivedAtTimestamp
+                           thread:(TSThread *)thread NS_UNAVAILABLE;
 - (instancetype)initWithGrdbId:(int64_t)grdbId
                       uniqueId:(NSString *)uniqueId
            receivedAtTimestamp:(uint64_t)receivedAtTimestamp
@@ -86,10 +89,6 @@ NS_DESIGNATED_INITIALIZER NS_SWIFT_NAME(init(grdbId:uniqueId:receivedAtTimestamp
 // clang-format on
 
 // --- CODE GENERATION MARKER
-
-- (NSString *)systemTextWithTransaction:(SDSAnyReadTransaction *)transaction;
-
-- (void)updateWithHasEnded:(BOOL)hasEnded transaction:(SDSAnyWriteTransaction *)transaction;
 
 @end
 

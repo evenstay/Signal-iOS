@@ -4,13 +4,13 @@
 //
 
 import SignalServiceKit
-import SignalUI
+public import SignalUI
 
 public class GroupLinkQRCodeViewController: OWSViewController {
 
     private var groupModelV2: TSGroupModelV2
 
-    required init(groupModelV2: TSGroupModelV2) {
+    init(groupModelV2: TSGroupModelV2) {
         self.groupModelV2 = groupModelV2
 
         super.init()
@@ -35,7 +35,7 @@ public class GroupLinkQRCodeViewController: OWSViewController {
         let qrCodeView = QRCodeView()
 
         do {
-            let inviteLinkUrl = try GroupManager.groupInviteLink(forGroupModelV2: groupModelV2)
+            let inviteLinkUrl = try groupModelV2.groupInviteLinkUrl()
 
             qrCodeView.setQR(url: inviteLinkUrl)
         } catch {
@@ -83,7 +83,7 @@ public class GroupLinkQRCodeViewController: OWSViewController {
     private func didTapShareCode(_ sender: UIButton) {
         do {
             guard let qrCodeImage = ExportableQRCodeGenerator().generateQRCode(
-                url: try GroupManager.groupInviteLink(forGroupModelV2: groupModelV2)
+                url: try groupModelV2.groupInviteLinkUrl()
             ) else {
                 owsFailDebug("Failed to generate QR code image!")
                 return

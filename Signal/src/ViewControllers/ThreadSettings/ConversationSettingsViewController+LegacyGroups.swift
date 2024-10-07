@@ -3,14 +3,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
+import SignalServiceKit
 import SignalUI
 
 class LegacyGroupView: UIView {
 
     private weak var viewController: UIViewController?
 
-    required init(viewController: UIViewController) {
+    init(viewController: UIViewController) {
         self.viewController = viewController
 
         super.init(frame: .zero)

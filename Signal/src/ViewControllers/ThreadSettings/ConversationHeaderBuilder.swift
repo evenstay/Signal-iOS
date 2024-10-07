@@ -4,10 +4,9 @@
 //
 
 import Foundation
-import SignalMessaging
 import SignalServiceKit
 import SignalUI
-import UIKit
+public import UIKit
 
 struct ConversationHeaderBuilder: Dependencies {
     weak var delegate: ConversationHeaderDelegate!
@@ -167,35 +166,7 @@ struct ConversationHeaderBuilder: Dependencies {
             label.textAlignment = .center
         }
 
-        let threadName = delegate.threadName(
-            renderLocalUserAsNoteToSelf: options.contains(.renderLocalUserAsNoteToSelf),
-            transaction: transaction
-        )
         let recipientAddress = contactThread.contactAddress
-        if let phoneNumber = recipientAddress.phoneNumber {
-            let formattedPhoneNumber =
-                PhoneNumber.bestEffortFormatPartialUserSpecifiedText(toLookLikeAPhoneNumber: phoneNumber)
-            if threadName != formattedPhoneNumber {
-                func copyContactPhoneNumber(delegate: ConversationHeaderDelegate?) {
-                    guard let delegate = delegate else {
-                        owsFailDebug("Missing delegate.")
-                        return
-                    }
-                    UIPasteboard.general.string = recipientAddress.phoneNumber
-
-                    let toast = OWSLocalizedString("COPIED_TO_CLIPBOARD",
-                                                  comment: "Indicator that a value has been copied to the clipboard.")
-                    delegate.tableViewController.presentToast(text: toast)
-                }
-                let label = builder.addSubtitleLabel(text: formattedPhoneNumber)
-                label.addTapGesture { [weak delegate] in
-                    copyContactPhoneNumber(delegate: delegate)
-                }
-                label.addLongPressGesture { [weak delegate] in
-                    copyContactPhoneNumber(delegate: delegate)
-                }
-            }
-        }
 
         let identityManager = DependenciesBridge.shared.identityManager
         let isVerified = identityManager.verificationState(for: recipientAddress, tx: transaction.asV2Read) == .verified
@@ -203,8 +174,7 @@ struct ConversationHeaderBuilder: Dependencies {
             let subtitle = NSMutableAttributedString()
             subtitle.appendTemplatedImage(named: "check-extra-small", font: .dynamicTypeSubheadlineClamped)
             subtitle.append(" ")
-            subtitle.append(OWSLocalizedString("PRIVACY_IDENTITY_IS_VERIFIED_BADGE",
-                                              comment: "Badge indicating that the user is verified."))
+            subtitle.append(SafetyNumberStrings.verified)
             builder.addSubtitleLabel(attributedText: subtitle)
         }
 
@@ -256,8 +226,17 @@ struct ConversationHeaderBuilder: Dependencies {
         }
 
         if ConversationViewController.canCall(threadViewModel: delegate.threadViewModel) {
-            let isCurrentCallForThread = callService.currentCall?.thread.uniqueId == delegate.thread.uniqueId
-            let hasCurrentCall = callService.currentCall != nil
+            let callService = AppEnvironment.shared.callService!
+            let currentCall = callService.callServiceState.currentCall
+            let hasCurrentCall = currentCall != nil
+            let isCurrentCallForThread = { () -> Bool in
+                switch currentCall?.mode {
+                case nil: return false
+                case .individual(let call): return call.thread.uniqueId == delegate.thread.uniqueId
+                case .groupThread(let call): return call.groupThread.uniqueId == delegate.thread.uniqueId
+                case .callLink: return false
+                }
+            }()
 
             if options.contains(.videoCall) {
                 buttons.append(buildIconButton(
@@ -277,8 +256,8 @@ struct ConversationHeaderBuilder: Dependencies {
                 buttons.append(buildIconButton(
                     icon: .buttonVoiceCall,
                     text: OWSLocalizedString(
-                        "CONVERSATION_SETTINGS_AUDIO_CALL_BUTTON",
-                        comment: "Button to start a audio call"
+                        "CONVERSATION_SETTINGS_VOICE_CALL_BUTTON",
+                        comment: "Button to start a voice call"
                     ),
                     isEnabled: isCurrentCallForThread || !hasCurrentCall,
                     action: { [weak delegate] in
@@ -345,7 +324,7 @@ struct ConversationHeaderBuilder: Dependencies {
             subviews.append(stackView)
         }
 
-        subviews.append(.spacer(withHeight: 24))
+        subviews.append(.spacer(withHeight: 20))
 
         if needsTwoRows {
             addButtonRow(Array(buttons.prefix(Int(ceil(CGFloat(buttons.count) / 2)))))
@@ -422,16 +401,72 @@ struct ConversationHeaderBuilder: Dependencies {
         return avatarView
     }
 
-    func buildThreadNameLabel() -> UILabel {
-        let label = UILabel()
-        label.attributedText = delegate.threadAttributedString(
+    func buildThreadNameLabel() -> OWSButton {
+        let button = OWSButton()
+        button.setAttributedTitle(delegate.threadAttributedString(
             renderLocalUserAsNoteToSelf: options.contains(.renderLocalUserAsNoteToSelf),
-            transaction: transaction
-        )
-        label.numberOfLines = 0
-        label.textAlignment = .center
-        label.lineBreakMode = .byWordWrapping
-        return label
+            tx: transaction
+        ), for: .normal)
+        button.titleLabel?.numberOfLines = 0
+        button.titleLabel?.textAlignment = .center
+        button.titleLabel?.lineBreakMode = .byWordWrapping
+        button.titleLabel?.setContentHuggingHigh()
+        button.titleLabel?.autoMatch(.height, to: .height, of: button)
+        if delegate.canTapThreadName {
+            button.block = { [weak delegate] in
+                delegate?.didTapThreadName()
+            }
+            button.dimsWhenHighlighted = true
+        }
+        return button
+    }
+
+    static func threadAttributedString(
+        threadName: String,
+        isNoteToSelf: Bool,
+        isSystemContact: Bool,
+        canTap: Bool,
+        tx: SDSAnyReadTransaction
+    ) -> NSAttributedString {
+        let font = UIFont.dynamicTypeFont(ofStandardSize: 26, weight: .semibold)
+
+        let attributedString = NSMutableAttributedString(string: threadName, attributes: [
+            .foregroundColor: UIColor.label,
+            .font: font,
+        ])
+
+        if isNoteToSelf {
+            attributedString.append(" ")
+            let verifiedBadgeImage = Theme.iconImage(.official)
+            let verifiedBadgeAttachment = NSAttributedString.with(
+                image: verifiedBadgeImage,
+                font: .dynamicTypeTitle3,
+                centerVerticallyRelativeTo: font,
+                heightReference: .pointSize
+            )
+            attributedString.append(verifiedBadgeAttachment)
+        }
+
+        if isSystemContact {
+            let contactIcon = SignalSymbol.personCircle.attributedString(
+                dynamicTypeBaseSize: 20,
+                weight: .bold,
+                leadingCharacter: .nonBreakingSpace
+            )
+            attributedString.append(contactIcon)
+        }
+
+        if canTap {
+            let chevron = SignalSymbol.chevronTrailing.attributedString(
+                dynamicTypeBaseSize: 24,
+                weight: .bold,
+                leadingCharacter: .nonBreakingSpace,
+                attributes: [.foregroundColor: Theme.snippetColor]
+            )
+            attributedString.append(chevron)
+        }
+
+        return attributedString
     }
 
     @discardableResult
@@ -443,7 +478,7 @@ struct ConversationHeaderBuilder: Dependencies {
 
     @discardableResult
     mutating func addSubtitleLabel(attributedText: NSAttributedString) -> OWSLabel {
-        subviews.append(UIView.spacer(withHeight: hasSubtitleLabel ? 4 : 8))
+        subviews.append(UIView.spacer(withHeight: 4))
         let label = buildHeaderSubtitleLabel(attributedText: attributedText)
         subviews.append(label)
         hasSubtitleLabel = true
@@ -498,7 +533,7 @@ protocol ConversationHeaderDelegate: UIViewController, Dependencies, Conversatio
 
     func threadName(renderLocalUserAsNoteToSelf: Bool, transaction: SDSAnyReadTransaction) -> String
 
-    var avatarView: PrimaryImageView? { get set }
+    var avatarView: ConversationAvatarView? { get set }
 
     var isGroupV1Thread: Bool { get }
     var canEditConversationAttributes: Bool { get }
@@ -513,6 +548,9 @@ protocol ConversationHeaderDelegate: UIViewController, Dependencies, Conversatio
     func didTapUnblockThread(completion: @escaping () -> Void)
 
     func didTapAddGroupDescription()
+
+    var canTapThreadName: Bool { get }
+    func didTapThreadName()
 }
 
 // MARK: -
@@ -520,8 +558,8 @@ protocol ConversationHeaderDelegate: UIViewController, Dependencies, Conversatio
 extension ConversationHeaderDelegate {
     func threadName(renderLocalUserAsNoteToSelf: Bool, transaction: SDSAnyReadTransaction) -> String {
         var threadName: String
-        if thread.isNoteToSelf, !renderLocalUserAsNoteToSelf, let localName = profileManager.localFullName() {
-            threadName = localName
+        if thread.isNoteToSelf, !renderLocalUserAsNoteToSelf {
+            threadName = profileManager.localFullName ?? ""
         } else {
             threadName = contactsManager.displayName(for: thread, transaction: transaction)
         }
@@ -529,43 +567,49 @@ extension ConversationHeaderDelegate {
         if let contactThread = thread as? TSContactThread {
             if let phoneNumber = contactThread.contactAddress.phoneNumber,
                phoneNumber == threadName {
-                threadName = PhoneNumber.bestEffortFormatPartialUserSpecifiedText(toLookLikeAPhoneNumber: phoneNumber)
+                threadName = PhoneNumber.bestEffortFormatPartialUserSpecifiedTextToLookLikeAPhoneNumber(phoneNumber)
             }
         }
 
         return threadName
     }
 
-    func threadAttributedString(renderLocalUserAsNoteToSelf: Bool, transaction: SDSAnyReadTransaction) -> NSAttributedString {
-        let threadName = threadName(renderLocalUserAsNoteToSelf: renderLocalUserAsNoteToSelf, transaction: transaction)
-        let font = UIFont.semiboldFont(ofSize: UIFont.dynamicTypeTitle1Clamped.pointSize * (13/14))
+    func threadAttributedString(renderLocalUserAsNoteToSelf: Bool, tx: SDSAnyReadTransaction) -> NSAttributedString {
+        let threadName = threadName(renderLocalUserAsNoteToSelf: renderLocalUserAsNoteToSelf, transaction: tx)
 
-        let attributedString = NSMutableAttributedString(string: threadName, attributes: [
-            .foregroundColor: Theme.primaryTextColor,
-            .font: font,
-        ])
-
-        if thread.isNoteToSelf {
-            attributedString.append(" ")
-            let verifiedBadgeImage = Theme.iconImage(.official)
-            let verifiedBadgeAttachment = NSAttributedString.with(
-                image: verifiedBadgeImage,
-                font: .dynamicTypeTitle3,
-                centerVerticallyRelativeTo: font,
-                heightReference: .pointSize
-            )
-            attributedString.append(verifiedBadgeAttachment)
+        let isSystemContact =
+        if let contactThread = self.thread as? TSContactThread {
+            contactsManager.fetchSignalAccount(
+                for: contactThread.contactAddress,
+                transaction: tx
+            ) != nil
+        } else {
+            false
         }
 
-        return attributedString
+        return ConversationHeaderBuilder.threadAttributedString(
+            threadName: threadName,
+            isNoteToSelf: thread.isNoteToSelf,
+            isSystemContact: isSystemContact,
+            canTap: self.canTapThreadName,
+            tx: tx
+        )
     }
 
     func startCall(withVideo: Bool) {
         guard ConversationViewController.canCall(threadViewModel: threadViewModel) else {
-            return owsFailDebug("Tried to start a can when calls are disabled")
+            owsFailDebug("Tried to start a call when calls are disabled")
+            return
         }
-        guard withVideo || !thread.isGroupThread else {
-            return owsFailDebug("Tried to start an audio only group call")
+        let callTarget: CallTarget
+        switch thread {
+        case let contactThread as TSContactThread:
+            callTarget = .individual(contactThread)
+        case let groupThread as TSGroupThread where withVideo:
+            callTarget = .groupThread(groupThread)
+        default:
+            owsFailDebug("Tried to start an audio only group call")
+            return
         }
 
         guard !threadViewModel.isBlocked else {
@@ -575,17 +619,19 @@ extension ConversationHeaderDelegate {
             return
         }
 
-        if let currentCall = callService.currentCall {
-            if currentCall.thread.uniqueId == thread.uniqueId {
+        let callService = AppEnvironment.shared.callService!
+        if let currentCall = callService.callServiceState.currentCall {
+            if currentCall.mode.matches(callTarget) {
                 WindowManager.shared.returnToCallView()
             } else {
                 owsFailDebug("Tried to start call while call was ongoing")
             }
-        } else {
-            // We initiated a call, so if there was a pending message request we should accept it.
-            ThreadUtil.addThreadToProfileWhitelistIfEmptyOrPendingRequestAndSetDefaultTimerWithSneakyTransaction(thread)
-            callService.initiateCall(thread: thread, isVideo: withVideo)
+            return
         }
+
+        // We initiated a call, so if there was a pending message request we should accept it.
+        ThreadUtil.addThreadToProfileWhitelistIfEmptyOrPendingRequestAndSetDefaultTimerWithSneakyTransaction(thread)
+        callService.initiateCall(to: callTarget, isVideo: withVideo)
     }
 }
 
@@ -593,10 +639,18 @@ extension ConversationSettingsViewController: ConversationHeaderDelegate {
     var tableViewController: OWSTableViewController2 { self }
 
     func buildMainHeader() -> UIView {
-        ConversationHeaderBuilder.buildHeader(
+        let options: ConversationHeaderBuilder.Options
+        if callRecords.isEmpty {
+            options = [.videoCall, .audioCall, .mute, .search, .renderLocalUserAsNoteToSelf]
+        } else {
+            // Call details
+            options = [.message, .videoCall, .audioCall, .mute]
+        }
+
+        return ConversationHeaderBuilder.buildHeader(
             for: thread,
             sizeClass: .eightyEight,
-            options: [.videoCall, .audioCall, .mute, .search, .renderLocalUserAsNoteToSelf],
+            options: options,
             delegate: self
         )
     }
@@ -611,6 +665,19 @@ extension ConversationSettingsViewController: ConversationHeaderDelegate {
         )
         vc.descriptionDelegate = self
         presentFormSheet(OWSNavigationController(rootViewController: vc), animated: true)
+    }
+
+    var canTapThreadName: Bool {
+        !thread.isGroupThread && !thread.isNoteToSelf
+    }
+
+    func didTapThreadName() {
+        guard let contactThread = self.thread as? TSContactThread else {
+            owsFailDebug("Conversation name should only be tappable for contact threads")
+            return
+        }
+        ContactAboutSheet(thread: contactThread, spoilerState: self.spoilerState)
+            .present(from: self)
     }
 }
 

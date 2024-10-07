@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
+import SignalServiceKit
 import SignalUI
 
 extension DonateViewController {
@@ -39,10 +39,10 @@ extension DonateViewController {
             }.map(on: DispatchQueue.sharedUserInitiated) { _ in
                 (subscriberId, authorizationParams.paymentMethodId)
             }
-        }.then(on: DispatchQueue.main) { (subscriberId, paymentId) -> Promise<Void> in
+        }.then(on: DispatchQueue.main) { (subscriberId, paymentMethodId) -> Promise<Void> in
             self.finalizePaypalSubscriptionBehindProgressView(
                 subscriberId: subscriberId,
-                paymentId: paymentId,
+                paymentMethodId: paymentMethodId,
                 monthlyState: monthly,
                 selectedSubscriptionLevel: selectedSubscriptionLevel
             )
@@ -50,7 +50,7 @@ extension DonateViewController {
             Logger.info("[Donations] Monthly PayPal donation finished")
 
             self.didCompleteDonation(
-                receiptCredentialSuccessMode: .recurringSubscription
+                receiptCredentialSuccessMode: .recurringSubscriptionInitiation
             )
         }.catch(on: DispatchQueue.main) { [weak self] error in
             guard let self else { return }
@@ -128,7 +128,7 @@ extension DonateViewController {
     /// UI. Must be called on the main thread.
     private func finalizePaypalSubscriptionBehindProgressView(
         subscriberId: Data,
-        paymentId: String,
+        paymentMethodId: String,
         monthlyState monthly: State.MonthlyState,
         selectedSubscriptionLevel: SubscriptionLevel
     ) -> Promise<Void> {
@@ -139,26 +139,24 @@ extension DonateViewController {
 
             return SubscriptionManagerImpl.finalizeNewSubscription(
                 forSubscriberId: subscriberId,
-                withPaymentId: paymentId,
-                usingPaymentProcessor: .braintree,
-                usingPaymentMethod: .paypal,
+                paymentType: .paypal(paymentMethodId: paymentMethodId),
                 subscription: selectedSubscriptionLevel,
                 currencyCode: monthly.selectedCurrencyCode
             )
         }.then(on: DispatchQueue.sharedUserInitiated) { _ -> Promise<Void> in
             Logger.info("[Donations] Redeeming monthly receipt for PayPal donation")
 
-            SubscriptionManagerImpl.requestAndRedeemReceipt(
+            let redemptionPromise = SubscriptionManagerImpl.requestAndRedeemReceipt(
                 subscriberId: subscriberId,
                 subscriptionLevel: selectedSubscriptionLevel.level,
                 priorSubscriptionLevel: monthly.currentSubscriptionLevel?.level,
                 paymentProcessor: .braintree,
-                paymentMethod: .paypal
+                paymentMethod: .paypal,
+                isNewSubscription: true,
+                shouldSuppressPaymentAlreadyRedeemed: false
             )
 
-            return DonationViewsUtil.waitForSubscriptionJob(
-                paymentMethod: .paypal
-            )
+            return DonationViewsUtil.waitForRedemptionJob(redemptionPromise, paymentMethod: .paypal)
         }
 
         return DonationViewsUtil.wrapPromiseInProgressView(

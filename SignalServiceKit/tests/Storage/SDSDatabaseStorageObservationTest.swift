@@ -43,10 +43,8 @@ class MockObserver: DatabaseChangeDelegate {
 
 // MARK: -
 
-class SDSDatabaseStorageObservationTest: SSKBaseTestSwift {
+class SDSDatabaseStorageObservationTest: SSKBaseTest {
     func testGRDBSyncWrite() {
-        try! databaseStorage.grdbStorage.setupDatabaseChangeObserver()
-
         // Make sure there's already at least one thread.
         let someThread = self.write { transaction in
             let recipient = SignalServiceAddress(phoneNumber: "+1222333444")
@@ -65,7 +63,6 @@ class SDSDatabaseStorageObservationTest: SSKBaseTestSwift {
         mockObserver.clear()
 
         let keyValueStore = SDSKeyValueStore(collection: "test")
-        let otherKeyValueStore = SDSKeyValueStore(collection: "other")
         self.write { transaction in
             keyValueStore.setBool(true, key: "test", transaction: transaction)
         }
@@ -76,12 +73,9 @@ class SDSDatabaseStorageObservationTest: SSKBaseTestSwift {
         XCTAssertEqual(0, mockObserver.resetCount)
         XCTAssertEqual(mockObserver.lastChange?.didUpdateInteractions, false)
         XCTAssertEqual(mockObserver.lastChange?.didUpdateThreads, false)
-        XCTAssertEqual(mockObserver.lastChange?.didUpdateInteractionsOrThreads, false)
-        XCTAssertEqual(mockObserver.lastChange?.didUpdateModel(collection: OWSDevice.collection()), false)
-        XCTAssertEqual(mockObserver.lastChange?.didUpdateModel(collection: "invalid collection name"), false)
-        XCTAssertEqual(mockObserver.lastChange?.didUpdate(keyValueStore: keyValueStore), true)
-        // Note: For GRDB, didUpdate(keyValueStore:) currently returns true if any key value stores was updated.
-        XCTAssertEqual(mockObserver.lastChange?.didUpdate(keyValueStore: otherKeyValueStore), true)
+        XCTAssertEqual(mockObserver.lastChange?.didUpdate(tableName: OWSDevice.databaseTableName), false)
+        XCTAssertEqual(mockObserver.lastChange?.didUpdate(tableName: "invalid table name"), false)
+        XCTAssertEqual(mockObserver.lastChange?.didUpdate(tableName: SDSKeyValueStore.tableName), true)
 
         mockObserver.clear()
 
@@ -96,22 +90,20 @@ class SDSDatabaseStorageObservationTest: SSKBaseTestSwift {
         XCTAssertEqual(0, mockObserver.resetCount)
         XCTAssertEqual(mockObserver.lastChange?.didUpdateInteractions, false)
         XCTAssertEqual(mockObserver.lastChange?.didUpdateThreads, true)
-        XCTAssertEqual(mockObserver.lastChange?.didUpdateInteractionsOrThreads, true)
-        XCTAssertEqual(mockObserver.lastChange?.didUpdateModel(collection: OWSDevice.collection()), false)
-        XCTAssertEqual(mockObserver.lastChange?.didUpdateModel(collection: "invalid collection name"), false)
-        XCTAssertEqual(mockObserver.lastChange?.didUpdate(keyValueStore: keyValueStore), false)
-        XCTAssertEqual(mockObserver.lastChange?.didUpdate(keyValueStore: otherKeyValueStore), false)
+        XCTAssertEqual(mockObserver.lastChange?.didUpdate(tableName: OWSDevice.databaseTableName), false)
+        XCTAssertEqual(mockObserver.lastChange?.didUpdate(tableName: "invalid table name"), false)
+        XCTAssertEqual(mockObserver.lastChange?.didUpdate(tableName: SDSKeyValueStore.tableName), false)
 
         mockObserver.clear()
 
         let (lastMessage, unsavedMessage) = self.write { transaction in
             let recipient = SignalServiceAddress(phoneNumber: "+12345678900")
             let thread = TSContactThread.getOrCreateThread(withContactAddress: recipient, transaction: transaction)
-            let message = TSOutgoingMessage(in: thread, messageBody: "Hello Alice", attachmentId: nil)
+            let message = TSOutgoingMessage(in: thread, messageBody: "Hello Alice")
             message.anyInsert(transaction: transaction)
             message.anyReload(transaction: transaction)
 
-            let unsavedMessage = TSOutgoingMessage(in: thread, messageBody: "Goodbyte Alice", attachmentId: nil)
+            let unsavedMessage = TSOutgoingMessage(in: thread, messageBody: "Goodbyte Alice")
 
             return (message, unsavedMessage)
         }
@@ -122,12 +114,9 @@ class SDSDatabaseStorageObservationTest: SSKBaseTestSwift {
         XCTAssertEqual(0, mockObserver.resetCount)
         XCTAssertEqual(mockObserver.lastChange?.didUpdateInteractions, true)
         XCTAssertEqual(mockObserver.lastChange?.didUpdateThreads, true)
-        XCTAssertEqual(mockObserver.lastChange?.didUpdateInteractionsOrThreads, true)
-        XCTAssertEqual(mockObserver.lastChange?.didUpdateModel(collection: OWSDevice.collection()), false)
-        XCTAssertEqual(mockObserver.lastChange?.didUpdateModel(collection: "invalid collection name"), false)
-        // Note: For GRDB, didUpdate(keyValueStore:) currently returns true if any key value stores was updated.
-        XCTAssertEqual(mockObserver.lastChange?.didUpdate(keyValueStore: keyValueStore), true)
-        XCTAssertEqual(mockObserver.lastChange?.didUpdate(keyValueStore: otherKeyValueStore), true)
+        XCTAssertEqual(mockObserver.lastChange?.didUpdate(tableName: OWSDevice.databaseTableName), false)
+        XCTAssertEqual(mockObserver.lastChange?.didUpdate(tableName: "invalid table name"), false)
+        XCTAssertEqual(mockObserver.lastChange?.didUpdate(tableName: SDSKeyValueStore.tableName), true)
         XCTAssertEqual(mockObserver.lastChange?.didUpdate(interaction: lastMessage), true)
         XCTAssertEqual(mockObserver.lastChange?.didUpdate(interaction: unsavedMessage), false)
 
@@ -135,7 +124,6 @@ class SDSDatabaseStorageObservationTest: SSKBaseTestSwift {
 
         self.write { transaction in
             self.databaseStorage.touch(thread: someThread, shouldReindex: true, transaction: transaction)
-            Logger.verbose("Touch complete")
         }
         waitForRunLoop()
 
@@ -145,11 +133,9 @@ class SDSDatabaseStorageObservationTest: SSKBaseTestSwift {
         XCTAssertNotNil(mockObserver.lastChange)
         XCTAssertEqual(mockObserver.lastChange?.didUpdateInteractions, false)
         XCTAssertEqual(mockObserver.lastChange?.didUpdateThreads, true)
-        XCTAssertEqual(mockObserver.lastChange?.didUpdateInteractionsOrThreads, true)
-        XCTAssertEqual(mockObserver.lastChange?.didUpdateModel(collection: OWSDevice.collection()), false)
-        XCTAssertEqual(mockObserver.lastChange?.didUpdateModel(collection: "invalid collection name"), false)
-        XCTAssertEqual(mockObserver.lastChange?.didUpdate(keyValueStore: keyValueStore), false)
-        XCTAssertEqual(mockObserver.lastChange?.didUpdate(keyValueStore: otherKeyValueStore), false)
+        XCTAssertEqual(mockObserver.lastChange?.didUpdate(tableName: OWSDevice.databaseTableName), false)
+        XCTAssertEqual(mockObserver.lastChange?.didUpdate(tableName: "invalid table name"), false)
+        XCTAssertEqual(mockObserver.lastChange?.didUpdate(tableName: SDSKeyValueStore.tableName), false)
         XCTAssertEqual(mockObserver.lastChange?.didUpdate(interaction: lastMessage), false)
         XCTAssertEqual(mockObserver.lastChange?.didUpdate(interaction: unsavedMessage), false)
 
@@ -157,7 +143,6 @@ class SDSDatabaseStorageObservationTest: SSKBaseTestSwift {
 
         self.write { transaction in
             self.databaseStorage.touch(interaction: lastMessage, shouldReindex: true, transaction: transaction)
-            Logger.verbose("Touch complete")
         }
         waitForRunLoop()
 
@@ -167,11 +152,9 @@ class SDSDatabaseStorageObservationTest: SSKBaseTestSwift {
         XCTAssertNotNil(mockObserver.lastChange)
         XCTAssertEqual(mockObserver.lastChange?.didUpdateInteractions, true)
         XCTAssertEqual(mockObserver.lastChange?.didUpdateThreads, true)
-        XCTAssertEqual(mockObserver.lastChange?.didUpdateInteractionsOrThreads, true)
-        XCTAssertEqual(mockObserver.lastChange?.didUpdateModel(collection: OWSDevice.collection()), false)
-        XCTAssertEqual(mockObserver.lastChange?.didUpdateModel(collection: "invalid collection name"), false)
-        XCTAssertEqual(mockObserver.lastChange?.didUpdate(keyValueStore: keyValueStore), false)
-        XCTAssertEqual(mockObserver.lastChange?.didUpdate(keyValueStore: otherKeyValueStore), false)
+        XCTAssertEqual(mockObserver.lastChange?.didUpdate(tableName: OWSDevice.databaseTableName), false)
+        XCTAssertEqual(mockObserver.lastChange?.didUpdate(tableName: "invalid table name"), false)
+        XCTAssertEqual(mockObserver.lastChange?.didUpdate(tableName: SDSKeyValueStore.tableName), false)
         XCTAssertEqual(mockObserver.lastChange?.didUpdate(interaction: lastMessage), true)
         XCTAssertEqual(mockObserver.lastChange?.didUpdate(interaction: unsavedMessage), false)
     }
@@ -180,5 +163,14 @@ class SDSDatabaseStorageObservationTest: SSKBaseTestSwift {
         let expectation = self.expectation(description: "waiting for run loop")
         DispatchQueue.main.async { expectation.fulfill() }
         waitForExpectations(timeout: 10)
+    }
+}
+
+// MARK: -
+
+private extension TSOutgoingMessage {
+    convenience init(in thread: TSThread, messageBody: String) {
+        let builder: TSOutgoingMessageBuilder = .withDefaultValues(thread: thread, messageBody: messageBody)
+        self.init(outgoingMessageWith: builder, recipientAddressStates: [:])
     }
 }

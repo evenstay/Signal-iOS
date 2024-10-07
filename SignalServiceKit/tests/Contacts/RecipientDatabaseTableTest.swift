@@ -23,7 +23,7 @@ final class RecipientDatabaseTableTest: XCTestCase {
         }
 
         func fetchServiceId(_ serviceId: ServiceId?, _ phoneNumber: E164?) -> ServiceId? {
-            return MockDB().read { tx in s.fetchServiceId(for: makeThread(serviceId, phoneNumber), tx: tx) }
+            return MockDB().read { tx in s.fetchServiceId(contactThread: makeThread(serviceId, phoneNumber), tx: tx) }
         }
 
         XCTAssertEqual(fetchServiceId(aci2, phoneNumber1), aci2)
@@ -37,8 +37,7 @@ final class RecipientDatabaseTableTest: XCTestCase {
         return TSContactThread(contactAddress: SignalServiceAddress(
             serviceId: serviceId,
             phoneNumber: phoneNumber?.stringValue,
-            cache: SignalServiceAddressCache(),
-            cachePolicy: .preferInitialPhoneNumberAndListenForUpdates
+            cache: SignalServiceAddressCache()
         ))
     }
 }

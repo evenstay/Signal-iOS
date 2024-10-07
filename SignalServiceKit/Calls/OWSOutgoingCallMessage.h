@@ -7,6 +7,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+@class AciObjC;
 @class SSKProtoCallMessageAnswer;
 @class SSKProtoCallMessageBusy;
 @class SSKProtoCallMessageHangup;
@@ -22,6 +23,13 @@ NS_ASSUME_NONNULL_BEGIN
 @interface OWSOutgoingCallMessage : TSOutgoingMessage
 
 - (instancetype)initOutgoingMessageWithBuilder:(TSOutgoingMessageBuilder *)outgoingMessageBuilder
+                        recipientAddressStates:
+                            (NSDictionary<SignalServiceAddress *, TSOutgoingMessageRecipientState *> *)
+                                recipientAddressStates NS_UNAVAILABLE;
+- (instancetype)initOutgoingMessageWithBuilder:(TSOutgoingMessageBuilder *)outgoingMessageBuilder
+                          additionalRecipients:(NSArray<SignalServiceAddress *> *)additionalRecipients
+                            explicitRecipients:(NSArray<AciObjC *> *)explicitRecipients
+                             skippedRecipients:(NSArray<SignalServiceAddress *> *)skippedRecipients
                                    transaction:(SDSAnyReadTransaction *)transaction NS_UNAVAILABLE;
 
 - (instancetype)initWithThread:(TSThread *)thread
@@ -37,10 +45,6 @@ NS_ASSUME_NONNULL_BEGIN
            destinationDeviceId:(nullable NSNumber *)destinationDeviceId
                    transaction:(SDSAnyReadTransaction *)transaction;
 - (instancetype)initWithThread:(TSThread *)thread
-           legacyHangupMessage:(SSKProtoCallMessageHangup *)legacyHangupMessage
-           destinationDeviceId:(nullable NSNumber *)destinationDeviceId
-                   transaction:(SDSAnyReadTransaction *)transaction;
-- (instancetype)initWithThread:(TSThread *)thread
                  hangupMessage:(SSKProtoCallMessageHangup *)hangupMessage
            destinationDeviceId:(nullable NSNumber *)destinationDeviceId
                    transaction:(SDSAnyReadTransaction *)transaction;
@@ -50,12 +54,12 @@ NS_ASSUME_NONNULL_BEGIN
                    transaction:(SDSAnyReadTransaction *)transaction;
 - (instancetype)initWithThread:(TSThread *)thread
                  opaqueMessage:(SSKProtoCallMessageOpaque *)opaqueMessage
+            overrideRecipients:(nullable NSArray<AciObjC *> *)overrideRecipients
                    transaction:(SDSAnyReadTransaction *)transaction;
 
 @property (nullable, nonatomic, readonly) SSKProtoCallMessageOffer *offerMessage;
 @property (nullable, nonatomic, readonly) SSKProtoCallMessageAnswer *answerMessage;
 @property (nullable, nonatomic, readonly) NSArray<SSKProtoCallMessageIceUpdate *> *iceUpdateMessages;
-@property (nullable, nonatomic, readonly) SSKProtoCallMessageHangup *legacyHangupMessage;
 @property (nullable, nonatomic, readonly) SSKProtoCallMessageHangup *hangupMessage;
 @property (nullable, nonatomic, readonly) SSKProtoCallMessageBusy *busyMessage;
 @property (nullable, nonatomic, readonly) SSKProtoCallMessageOpaque *opaqueMessage;

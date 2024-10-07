@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
+import SignalServiceKit
 import SignalUI
 
 class DeleteAccountConfirmationViewController: OWSTableViewController2 {
@@ -16,6 +16,13 @@ class DeleteAccountConfirmationViewController: OWSTableViewController2 {
     override var isModalInPresentation: Bool {
         get { true }
         set {}
+    }
+
+    private let appReadiness: AppReadinessSetter
+
+    init(appReadiness: AppReadinessSetter) {
+        self.appReadiness = appReadiness
+        super.init()
     }
 
     override func loadView() {
@@ -34,7 +41,7 @@ class DeleteAccountConfirmationViewController: OWSTableViewController2 {
 
         super.viewDidLoad()
 
-        navigationItem.leftBarButtonItem = .init(barButtonSystemItem: .cancel, target: self, action: #selector(didTapCancel))
+        navigationItem.leftBarButtonItem = .cancelButton(dismissingFrom: self)
         navigationItem.rightBarButtonItem = .init(title: CommonStrings.deleteButton, style: .done, target: self, action: #selector(didTapDelete))
         navigationItem.rightBarButtonItem?.setTitleTextAttributes([.foregroundColor: UIColor.ows_accentRed], for: .normal)
 
@@ -75,7 +82,7 @@ class DeleteAccountConfirmationViewController: OWSTableViewController2 {
                 "DELETE_ACCOUNT_CONFIRMATION_COUNTRY_CODE_TITLE",
                 comment: "Title for the 'country code' row of the 'delete account confirmation' view controller."
             ),
-            detailText: "\(callingCode) (\(countryCode))",
+            accessoryText: "\(callingCode) (\(countryCode))",
             actionBlock: { [weak self] in
                 guard let self = self else { return }
                 let countryCodeController = CountryCodeViewController()
@@ -250,7 +257,7 @@ class DeleteAccountConfirmationViewController: OWSTableViewController2 {
     }
 
     private func transferPaymentsButton() {
-        dismiss(animated: true) {
+        dismiss(animated: true) { [appReadiness] in
             guard let frontmostViewController = UIApplication.shared.frontmostViewController else {
                 owsFailDebug("Could not identify frontmostViewController")
                 return
@@ -261,7 +268,7 @@ class DeleteAccountConfirmationViewController: OWSTableViewController2 {
             }
             var viewControllers = navigationController.viewControllers
             _ = viewControllers.removeLast()
-            viewControllers.append(PaymentsSettingsViewController(mode: .inAppSettings))
+            viewControllers.append(PaymentsSettingsViewController(mode: .inAppSettings, appReadiness: appReadiness))
             viewControllers.append(PaymentsTransferOutViewController(transferAmount: nil))
             navigationController.setViewControllers(viewControllers, animated: true)
         }
@@ -354,17 +361,12 @@ class DeleteAccountConfirmationViewController: OWSTableViewController2 {
         guard let phoneNumberText = phoneNumberTextField.text else { return false }
 
         let possiblePhoneNumber = callingCode + phoneNumberText
-        let possibleNumbers = PhoneNumber.tryParsePhoneNumbers(
-            fromUserSpecifiedText: possiblePhoneNumber,
-            clientPhoneNumber: localNumber
-        ).map { $0.toE164() }
+        let possibleNumbers = phoneNumberUtil.parsePhoneNumbers(
+            userSpecifiedText: possiblePhoneNumber,
+            localPhoneNumber: localNumber
+        ).map(\.e164)
 
         return possibleNumbers.contains(localNumber)
-    }
-
-    @objc
-    private func didTapCancel() {
-        dismiss(animated: true)
     }
 }
 
@@ -383,17 +385,17 @@ extension DeleteAccountConfirmationViewController: CountryCodeViewControllerDele
         var callingCodeInt: Int?
         var countryCode: String?
 
-        if let localE164 = PhoneNumber(fromE164: localNumber), let localCountryCode = localE164.getCountryCode()?.intValue {
-            callingCodeInt = localCountryCode
+        if let localE164 = phoneNumberUtil.parseE164(localNumber), let localCallingCode = localE164.getCallingCode()?.intValue {
+            callingCodeInt = localCallingCode
         } else {
-            callingCodeInt = phoneNumberUtil.getCountryCode(
-                forRegion: PhoneNumber.defaultCountryCode()
+            callingCodeInt = phoneNumberUtil.getCallingCode(
+                forRegion: PhoneNumberUtil.defaultCountryCode()
             ).intValue
         }
 
         var callingCode: String?
         if let callingCodeInt = callingCodeInt {
-            callingCode = COUNTRY_CODE_PREFIX + "\(callingCodeInt)"
+            callingCode = PhoneNumber.countryCodePrefix + "\(callingCodeInt)"
             countryCode = phoneNumberUtil.probableCountryCode(forCallingCode: callingCode!)
         }
 

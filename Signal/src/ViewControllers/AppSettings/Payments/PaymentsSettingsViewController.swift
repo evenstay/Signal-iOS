@@ -4,8 +4,8 @@
 //
 
 import Lottie
-import SignalMessaging
-import SignalUI
+public import SignalServiceKit
+public import SignalUI
 
 public enum PaymentsSettingsMode: UInt, CustomStringConvertible {
     case inAppSettings
@@ -27,6 +27,7 @@ public enum PaymentsSettingsMode: UInt, CustomStringConvertible {
 
 public class PaymentsSettingsViewController: OWSTableViewController2 {
 
+    private let appReadiness: AppReadinessSetter
     private let mode: PaymentsSettingsMode
 
     private let paymentsHistoryDataSource = PaymentsHistoryDataSource()
@@ -42,8 +43,12 @@ public class PaymentsSettingsViewController: OWSTableViewController2 {
 
     private var outdatedClientReminderView: ReminderView?
 
-    public required init(mode: PaymentsSettingsMode) {
+    public init(
+        mode: PaymentsSettingsMode,
+        appReadiness: AppReadinessSetter
+    ) {
         self.mode = mode
+        self.appReadiness = appReadiness
 
         super.init()
 
@@ -186,7 +191,7 @@ public class PaymentsSettingsViewController: OWSTableViewController2 {
             }
 
             let hasShortOrMissingPin: Bool = {
-                guard OWS2FAManager.shared.is2FAEnabled() else {
+                guard OWS2FAManager.shared.is2FAEnabled else {
                     return true
                 }
                 guard let pinCode = OWS2FAManager.shared.pinCode else {
@@ -705,7 +710,7 @@ public class PaymentsSettingsViewController: OWSTableViewController2 {
         titleLabel.lineBreakMode = .byWordWrapping
         titleLabel.textAlignment = .center
 
-        let heroImageView = AnimationView(name: "activate-payments")
+        let heroImageView = LottieAnimationView(name: "activate-payments")
         heroImageView.contentMode = .scaleAspectFit
         let viewSize = view.bounds.size
         let heroSize = min(viewSize.width, viewSize.height) * 0.5
@@ -857,7 +862,7 @@ public class PaymentsSettingsViewController: OWSTableViewController2 {
             buttonLabel.textColor = Theme.accentBlueColor
             buttonLabel.font = UIFont.dynamicTypeSubheadlineClamped
 
-            let animationView = AnimationView(name: iconName)
+            let animationView = LottieAnimationView(name: iconName)
             animationView.contentMode = .scaleAspectFit
             animationView.autoSetDimensions(to: .square(80))
 
@@ -1074,12 +1079,10 @@ public class PaymentsSettingsViewController: OWSTableViewController2 {
     private func promptBiometryPaymentsLock() {
         AssertIsOnMainThread()
 
-        guard let validBiometryType = BiometryType.validBiometryType else {
+        guard let view = PaymentsBiometryLockPromptViewController(deviceOwnerAuthenticationType: .current, delegate: nil) else {
             owsFailDebug("Unknown biometry type, cannot enable payments lock")
             return
         }
-
-        let view = PaymentsBiometryLockPromptViewController(biometryType: validBiometryType, delegate: nil)
         let navigationVC = OWSNavigationController(rootViewController: view)
         present(navigationVC, animated: true)
     }
@@ -1252,13 +1255,13 @@ public class PaymentsSettingsViewController: OWSTableViewController2 {
         }
         switch mode {
         case .inAppSettings:
-            navigationController.popViewController(animated: true) {
-                let accountSettingsView = AccountSettingsViewController()
+            navigationController.popViewController(animated: true) { [appReadiness] in
+                let accountSettingsView = AccountSettingsViewController(appReadiness: appReadiness)
                 navigationController.pushViewController(accountSettingsView, animated: true)
                 accountSettingsView.showCreateOrChangePin()
             }
         case .standalone:
-            let accountSettingsView = AccountSettingsViewController()
+            let accountSettingsView = AccountSettingsViewController(appReadiness: appReadiness)
             navigationController.pushViewController(accountSettingsView, animated: true)
             accountSettingsView.showCreateOrChangePin()
         }

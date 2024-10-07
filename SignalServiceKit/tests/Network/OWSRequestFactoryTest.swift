@@ -8,9 +8,9 @@ import XCTest
 
 @testable import SignalServiceKit
 
-class OWSRequestFactoryTest: SSKBaseTestSwift {
+class OWSRequestFactoryTest: SSKBaseTest {
     private func getUdAccessKey() throws -> SMKUDAccessKey {
-        let profileKey = Data(count: Int(kAES256_KeyByteLength))
+        let profileKey = Data(count: Int(Aes256Key.keyByteLength))
         let result = try? SMKUDAccessKey(profileKey: profileKey)
         return try XCTUnwrap(result)
     }
@@ -24,17 +24,6 @@ class OWSRequestFactoryTest: SSKBaseTestSwift {
             result[queryItem.name] = queryItem.value
         }
         return result
-    }
-
-    // MARK: - Account
-
-    func testEnable2FARequestWithPin() {
-        let request = OWSRequestFactory.enable2FARequest(withPin: "90210")
-
-        XCTAssertEqual(request.url?.path, "v1/accounts/pin")
-        XCTAssertEqual(request.httpMethod, "PUT")
-        XCTAssertEqual(request.parameters as! [String: String], ["pin": "90210"])
-        XCTAssertTrue(request.shouldHaveAuthorizationHeaders)
     }
 
     // MARK: - Devices
@@ -59,7 +48,7 @@ class OWSRequestFactoryTest: SSKBaseTestSwift {
         let serviceId = Aci.randomForTesting()
 
         let request = OWSRequestFactory.submitMessageRequest(
-            withServiceId: ServiceIdObjC.wrapValue(serviceId),
+            serviceId: serviceId,
             messages: [],
             timestamp: 1234,
             udAccessKey: udAccessKey,
@@ -73,7 +62,7 @@ class OWSRequestFactoryTest: SSKBaseTestSwift {
         XCTAssertEqual(url.path, "v1/messages/\(serviceId.serviceIdString)")
         XCTAssertEqual(Set(request.parameters.keys), Set(["messages", "timestamp", "online", "urgent"]))
         XCTAssertEqual(request.parameters["messages"] as? NSArray, [])
-        XCTAssertEqual(request.parameters["timestamp"] as? UInt, 1234)
+        XCTAssertEqual(request.parameters["timestamp"] as? UInt64, 1234)
         XCTAssertEqual(request.parameters["online"] as? Bool, true)
         XCTAssertEqual(request.parameters["urgent"] as? Bool, false)
         XCTAssertEqual(try queryItemsAsDictionary(url: url), ["story": "false"])
@@ -86,7 +75,7 @@ class OWSRequestFactoryTest: SSKBaseTestSwift {
 
         let request = OWSRequestFactory.submitMultiRecipientMessageRequest(
             ciphertext: ciphertext,
-            compositeUDAccessKey: udAccessKey,
+            accessKey: udAccessKey,
             timestamp: 1234,
             isOnline: true,
             isUrgent: false,
@@ -178,9 +167,9 @@ class OWSRequestFactoryTest: SSKBaseTestSwift {
 
     func testSubscriptionSetDefaultPaymentMethod() {
         let request = OWSRequestFactory.subscriptionSetDefaultPaymentMethod(
-            subscriberID: Data([255, 128]),
+            subscriberId: Data([255, 128]),
             processor: "STRIPE",
-            paymentID: "xyz"
+            paymentMethodId: "xyz"
         )
 
         XCTAssertEqual(request.url?.path, "v1/subscription/_4A/default_payment_method/STRIPE/xyz")
@@ -377,14 +366,14 @@ class OWSRequestFactoryTest: SSKBaseTestSwift {
 
     func testSetUsernameLink() {
         let request = OWSRequestFactory.setUsernameLinkRequest(
-            encryptedUsername: "aa?".data(using: .utf8)! // Force a character that's special in base64Url
+            encryptedUsername: "aa?".data(using: .utf8)!, // Force a character that's special in base64Url
+            keepLinkHandle: true
         )
 
         XCTAssertEqual(request.url?.path, "v1/accounts/username_link")
         XCTAssertEqual(request.httpMethod, "PUT")
-        XCTAssertEqual(request.parameters as! [String: String], [
-            "usernameLinkEncryptedValue": "YWE_" // base64Url
-        ])
+        XCTAssertEqual(request.parameters["usernameLinkEncryptedValue"] as! String, "YWE_") // base64Url
+        XCTAssertEqual(request.parameters["keepLinkHandle"] as! Bool, true)
         XCTAssertTrue(request.shouldHaveAuthorizationHeaders)
     }
 

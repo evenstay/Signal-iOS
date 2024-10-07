@@ -3,9 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalServiceKit
-import SignalMessaging
-import SignalUI
+public import SignalServiceKit
+public import SignalUI
 
 protocol LongTextViewDelegate: AnyObject {
     func longTextViewMessageWasDeleted(_ longTextViewController: LongTextViewController)
@@ -31,7 +30,7 @@ public class LongTextViewController: OWSViewController {
 
     // MARK: Initializers
 
-    public required init(
+    public init(
         itemViewModel: CVItemViewModelImpl,
         threadViewModel: ThreadViewModel,
         spoilerState: SpoilerRenderState
@@ -204,13 +203,10 @@ public class LongTextViewController: OWSViewController {
                 target: self,
                 action: #selector(shareButtonPressed)
             ),
-            UIBarButtonItem(barButtonSystemItem: .flexibleSpace, target: nil, action: nil),
-            UIBarButtonItem(
-                image: Theme.iconImage(.buttonForward),
-                style: .plain,
-                target: self,
-                action: #selector(forwardButtonPressed)
-            )
+            .flexibleSpace(),
+            .button(icon: .buttonForward, style: .plain) { [weak self] in
+                self?.forwardButtonPressed()
+            },
         ]
 
         loadContent()
@@ -249,7 +245,6 @@ public class LongTextViewController: OWSViewController {
         AttachmentSharing.showShareUI(for: shareText, sender: sender)
     }
 
-    @objc
     private func forwardButtonPressed() {
         // Only forward text.
         let selectionType: CVSelectionType = (itemViewModel.componentState.hasPrimaryAndSecondaryContentForSelection
@@ -294,12 +289,12 @@ public class LongTextViewController: OWSViewController {
                     }
 
                     let address = SignalServiceAddress(mentionItem.mentionAci)
-                    let actionSheet = MemberActionSheet(
+                    ProfileSheetSheetCoordinator(
                         address: address,
                         groupViewHelper: groupViewHelper,
                         spoilerState: spoilerState
                     )
-                    actionSheet.present(from: self)
+                    .presentAppropriateSheet(from: self)
                     return
                 case .unrevealedSpoiler(let unrevealedSpoiler):
                     self.spoilerState.revealState.setSpoilerRevealed(

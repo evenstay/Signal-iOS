@@ -5,8 +5,8 @@
 
 import Foundation
 import Lottie
-import SignalMessaging
-import SignalUI
+import SignalServiceKit
+public import SignalUI
 
 public protocol SendPaymentCompletionDelegate: AnyObject {
     func didSendPayment(success: Bool)
@@ -65,7 +65,7 @@ public class SendPaymentCompletionActionSheet: ActionSheetController {
 
     private var currentCurrencyConversion: CurrencyConversionInfo? { helper?.currentCurrencyConversion }
 
-    public required init(mode: Mode, delegate: SendPaymentCompletionDelegate) {
+    public init(mode: Mode, delegate: SendPaymentCompletionDelegate) {
         self.mode = mode
         self.delegate = delegate
 
@@ -111,7 +111,7 @@ public class SendPaymentCompletionActionSheet: ActionSheetController {
         super.viewDidAppear(animated)
 
         // For now, the design only allows for portrait layout on non-iPads
-        if !UIDevice.current.isIPad && CurrentAppContext().interfaceOrientation != .portrait {
+        if !UIDevice.current.isIPad && view.window?.windowScene?.interfaceOrientation != .portrait {
             UIDevice.current.ows_setOrientation(.portrait)
         }
     }
@@ -235,7 +235,7 @@ public class SendPaymentCompletionActionSheet: ActionSheetController {
         let animationName = (Theme.isDarkThemeEnabled
                                 ? "payments_spinner_dark"
                                 : "payments_spinner")
-        let animationView = AnimationView(name: animationName)
+        let animationView = LottieAnimationView(name: animationName)
         animationView.backgroundBehavior = .pauseAndRestore
         animationView.loopMode = .loop
         animationView.contentMode = .scaleAspectFit
@@ -264,7 +264,7 @@ public class SendPaymentCompletionActionSheet: ActionSheetController {
 
         updateHeader(canCancel: false)
 
-        let animationView = AnimationView(name: "payments_spinner_success")
+        let animationView = LottieAnimationView(name: "payments_spinner_success")
         animationView.backgroundBehavior = .pauseAndRestore
         animationView.loopMode = .playOnce
         animationView.contentMode = .scaleAspectFit
@@ -303,7 +303,7 @@ public class SendPaymentCompletionActionSheet: ActionSheetController {
 
         updateHeader(canCancel: false)
 
-        let animationView = AnimationView(name: "payments_spinner_fail")
+        let animationView = LottieAnimationView(name: "payments_spinner_fail")
         animationView.backgroundBehavior = .pauseAndRestore
         animationView.loopMode = .playOnce
         animationView.contentMode = .scaleAspectFit
@@ -476,7 +476,7 @@ public class SendPaymentCompletionActionSheet: ActionSheetController {
         switch recipient {
         case .address(let recipientAddress):
             otherUserName = databaseStorage.read { transaction in
-                self.contactsManager.displayName(for: recipientAddress, transaction: transaction)
+                self.contactsManager.displayName(for: recipientAddress, tx: transaction).resolvedValue()
             }
         case .publicAddress(let recipientPublicAddress):
             otherUserName = PaymentsImpl.formatAsBase58(publicAddress: recipientPublicAddress)
@@ -561,13 +561,12 @@ public class SendPaymentCompletionActionSheet: ActionSheetController {
 
     public func updateBalanceLabel() {
         guard let helper = helper else {
-            Logger.verbose("Missing helper.")
             return
         }
         helper.updateBalanceLabel(balanceLabel)
     }
 
-    private let preparedPaymentPromise = AtomicOptional<Promise<PreparedPayment>>(nil)
+    private let preparedPaymentPromise = AtomicOptional<Promise<PreparedPayment>>(nil, lock: .sharedGlobal)
 
     private func tryToPreparePayment(paymentInfo: PaymentInfo) {
         let promise: Promise<PreparedPayment> = firstly(on: DispatchQueue.global()) { () -> Promise<PreparedPayment> in
@@ -604,18 +603,18 @@ public class SendPaymentCompletionActionSheet: ActionSheetController {
         ModalActivityIndicatorViewController.presentAsInvisible(fromViewController: self) { [weak self] modalActivityIndicator in
             guard let self = self else { return }
 
-            OWSPaymentsLock.shared.tryToUnlockPromise().then(on: DispatchQueue.main) { (authOutcome: OWSPaymentsLock.LocalAuthOutcome) -> Promise<PreparedPayment> in
+            Self.owsPaymentsLock.tryToUnlockPromise().then(on: DispatchQueue.main) { (authOutcome: OWSPaymentsLock.LocalAuthOutcome) -> Promise<PreparedPayment> in
                 switch authOutcome {
                 case .failure(let error):
                     throw PaymentsUIError.paymentsLockFailed(reason: "local authentication failed with error: \(error)")
                 case .unexpectedFailure(let error):
                     throw PaymentsUIError.paymentsLockFailed(reason: "local authentication failed with unexpected error: \(error)")
                 case .success:
-                    Logger.verbose("payments lock local authentication succeeded.")
+                    break
                 case .cancel:
                     throw PaymentsUIError.paymentsLockCancelled(reason: "local authentication cancelled")
                 case .disabled:
-                    Logger.verbose("payments lock not enabled.")
+                    break
                 }
 
                 guard let promise = self.preparedPaymentPromise.get() else {

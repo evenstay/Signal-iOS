@@ -7,21 +7,45 @@ import SignalServiceKit
 import SignalUI
 
 protocol ProfileNameViewControllerDelegate: AnyObject {
-    func profileNameViewDidComplete(givenName: String?, familyName: String?)
+    func profileNameViewDidComplete(givenName: OWSUserProfile.NameComponent, familyName: OWSUserProfile.NameComponent?)
 }
 
 // MARK: -
 
 class ProfileNameViewController: OWSTableViewController2 {
-    private let givenNameTextField = OWSTextField()
-    private let familyNameTextField = OWSTextField()
+    private lazy var givenNameTextField = OWSTextField(
+        placeholder: OWSLocalizedString(
+            "PROFILE_VIEW_GIVEN_NAME_DEFAULT_TEXT",
+            comment: "Default text for the given name field of the profile view."
+        ),
+        returnKeyType: .next,
+        spellCheckingType: .no,
+        autocorrectionType: .no,
+        delegate: self,
+        editingChanged: { [weak self] in
+            self?.textFieldDidChange()
+        }
+    )
+    private lazy var familyNameTextField = OWSTextField(
+        placeholder: OWSLocalizedString(
+            "PROFILE_VIEW_FAMILY_NAME_DEFAULT_TEXT",
+            comment: "Default text for the family name field of the profile view."
+        ),
+        returnKeyType: .done,
+        spellCheckingType: .no,
+        autocorrectionType: .no,
+        delegate: self,
+        editingChanged: { [weak self] in
+            self?.textFieldDidChange()
+        }
+    )
 
     private let originalGivenName: String?
     private let originalFamilyName: String?
 
     private weak var profileDelegate: ProfileNameViewControllerDelegate?
 
-    required init(
+    init(
         givenName: String?,
         familyName: String?,
         profileDelegate: ProfileNameViewControllerDelegate
@@ -42,7 +66,6 @@ class ProfileNameViewController: OWSTableViewController2 {
 
     public override func loadView() {
         view = UIView()
-        createViews()
     }
 
     override func viewDidLoad() {
@@ -52,21 +75,19 @@ class ProfileNameViewController: OWSTableViewController2 {
         updateTableContents()
     }
 
-    private var normalizedGivenName: String? {
-        let normalizedGivenName = givenNameTextField.text?.ows_stripped()
-        if normalizedGivenName?.isEmpty == true { return nil }
-        return normalizedGivenName
+    private func givenNameComponent() -> ProfileName.NameComponent? {
+        givenNameTextField.text.flatMap(OWSUserProfile.NameComponent.parse(truncating:))?.nameComponent
     }
 
-    private var normalizedFamilyName: String? {
-        let normalizedFamilyName = familyNameTextField.text?.ows_stripped()
-        if normalizedFamilyName?.isEmpty == true { return nil }
-        return normalizedFamilyName
+    private func familyNameComponent() -> ProfileName.NameComponent? {
+        familyNameTextField.text.flatMap(OWSUserProfile.NameComponent.parse(truncating:))?.nameComponent
     }
 
     private var hasUnsavedChanges: Bool {
-        (normalizedGivenName != originalGivenName) || (normalizedFamilyName != originalFamilyName)
+        givenNameComponent()?.stringValue.rawValue != originalGivenName
+        || familyNameComponent()?.stringValue.rawValue != originalFamilyName
     }
+
     // Don't allow interactive dismiss when there are unsaved changes.
     override var isModalInPresentation: Bool {
         get { hasUnsavedChanges }
@@ -76,20 +97,15 @@ class ProfileNameViewController: OWSTableViewController2 {
     private func updateNavigation() {
         title = OWSLocalizedString("PROFILE_NAME_VIEW_TITLE", comment: "Title for the profile name view.")
 
-        navigationItem.leftBarButtonItem = UIBarButtonItem(
-            barButtonSystemItem: .cancel,
-            target: self,
-            action: #selector(didTapCancel),
-            accessibilityIdentifier: "cancel_button"
+        navigationItem.leftBarButtonItem = .cancelButton(
+            dismissingFrom: self,
+            hasUnsavedChanges: { [weak self] in self?.hasUnsavedChanges }
         )
 
         if hasUnsavedChanges {
-            navigationItem.rightBarButtonItem = UIBarButtonItem(
-                barButtonSystemItem: .done,
-                target: self,
-                action: #selector(didTapDone),
-                accessibilityIdentifier: "done_button"
-            )
+            navigationItem.rightBarButtonItem = .doneButton { [weak self] in
+                self?.didTapDone()
+            }
         } else {
             navigationItem.rightBarButtonItem = nil
         }
@@ -111,30 +127,6 @@ class ProfileNameViewController: OWSTableViewController2 {
         // TODO: First responder
     }
 
-    private func createViews() {
-        givenNameTextField.returnKeyType = .next
-        givenNameTextField.autocorrectionType = .no
-        givenNameTextField.spellCheckingType = .no
-        givenNameTextField.placeholder = OWSLocalizedString(
-            "PROFILE_VIEW_GIVEN_NAME_DEFAULT_TEXT",
-            comment: "Default text for the given name field of the profile view."
-        )
-        givenNameTextField.delegate = self
-        givenNameTextField.accessibilityIdentifier = "given_name_textfield"
-        givenNameTextField.addTarget(self, action: #selector(textFieldDidChange), for: .editingChanged)
-
-        familyNameTextField.returnKeyType = .done
-        familyNameTextField.autocorrectionType = .no
-        familyNameTextField.spellCheckingType = .no
-        familyNameTextField.placeholder = OWSLocalizedString(
-            "PROFILE_VIEW_FAMILY_NAME_DEFAULT_TEXT",
-            comment: "Default text for the family name field of the profile view."
-        )
-        familyNameTextField.delegate = self
-        familyNameTextField.accessibilityIdentifier = "family_name_textfield"
-        familyNameTextField.addTarget(self, action: #selector(textFieldDidChange), for: .editingChanged)
-    }
-
     private static let bioButtonHeight: CGFloat = 28
 
     func updateTableContents() {
@@ -145,14 +137,7 @@ class ProfileNameViewController: OWSTableViewController2 {
 
         let namesSection = OWSTableSection()
         func addTextField(_ textField: UITextField) {
-            namesSection.add(.init(customCellBlock: { [weak self] in
-                guard let self = self else { return UITableViewCell() }
-                return self.nameCell(textField: textField)
-            },
-                actionBlock: {
-                    textField.becomeFirstResponder()
-                }
-            ))
+            namesSection.add(.textFieldItem(textField))
         }
 
         // For CJKV locales, display family name field first.
@@ -171,60 +156,34 @@ class ProfileNameViewController: OWSTableViewController2 {
         self.contents = contents
     }
 
-    private func nameCell(textField: UITextField) -> UITableViewCell {
-        let cell = OWSTableItem.newCell()
-
-        cell.selectionStyle = .none
-
-        textField.font = .dynamicTypeBodyClamped
-        textField.textColor = Theme.primaryTextColor
-
-        cell.addSubview(textField)
-        textField.autoPinEdgesToSuperviewMargins()
-
-        return cell
-    }
-
-    @objc
-    private func didTapCancel() {
-        guard hasUnsavedChanges else {
-            dismiss(animated: true)
-            return
-        }
-
-        OWSActionSheets.showPendingChangesActionSheet(discardAction: { [weak self] in
-            self?.dismiss(animated: true)
-        })
-    }
-
-    @objc
     private func didTapDone() {
-        if normalizedGivenName?.isEmpty != false {
-            OWSActionSheets.showErrorAlert(message: OWSLocalizedString(
-                "PROFILE_VIEW_ERROR_GIVEN_NAME_REQUIRED",
-                comment: "Error message shown when user tries to update profile without a given name"
-            ))
-            return
-        }
-
-        if profileManagerImpl.isProfileNameTooLong(normalizedGivenName) {
+        switch ProfileName.createNameFrom(
+            givenName: givenNameTextField.text,
+            familyName: familyNameTextField.text
+        ) {
+        case .failure(.givenNameTooLong):
             OWSActionSheets.showErrorAlert(message: OWSLocalizedString(
                 "PROFILE_VIEW_ERROR_GIVEN_NAME_TOO_LONG",
                 comment: "Error message shown when user tries to update profile with a given name that is too long."
             ))
-            return
-        }
-
-        if profileManagerImpl.isProfileNameTooLong(normalizedFamilyName) {
+        case .failure(.familyNameTooLong):
             OWSActionSheets.showErrorAlert(message: OWSLocalizedString(
                 "PROFILE_VIEW_ERROR_FAMILY_NAME_TOO_LONG",
                 comment: "Error message shown when user tries to update profile with a family name that is too long."
             ))
-            return
+        case let .success(profileName):
+            guard let givenName = profileName.givenNameComponent else { fallthrough }
+            profileDelegate?.profileNameViewDidComplete(
+                givenName: givenName,
+                familyName: profileName.familyNameComponent
+            )
+            dismiss(animated: true)
+        case .failure(.nameEmpty):
+            OWSActionSheets.showErrorAlert(message: OWSLocalizedString(
+                "PROFILE_VIEW_ERROR_GIVEN_NAME_REQUIRED",
+                comment: "Error message shown when user tries to update profile without a given name"
+            ))
         }
-
-        profileDelegate?.profileNameViewDidComplete(givenName: normalizedGivenName, familyName: normalizedFamilyName)
-        dismiss(animated: true)
     }
 }
 
@@ -240,19 +199,8 @@ extension ProfileNameViewController: UITextFieldDelegate {
         NSLocale.current.isCJKV ? givenNameTextField : familyNameTextField
     }
 
-    public func textField(_ textField: UITextField,
-                          shouldChangeCharactersIn range: NSRange,
-                          replacementString string: String) -> Bool {
-        TextFieldHelper.textField(
-            textField,
-            shouldChangeCharactersInRange: range,
-            replacementString: string.withoutBidiControlCharacters,
-            maxByteCount: OWSUserProfile.maxNameLengthBytes
-        )
-    }
-
     public func textFieldShouldReturn(_ textField: UITextField) -> Bool {
-        if textField == firstTextField {
+        if textField === firstTextField {
             secondTextField.becomeFirstResponder()
         } else {
             didTapDone()
@@ -260,8 +208,17 @@ extension ProfileNameViewController: UITextFieldDelegate {
         return false
     }
 
-    @objc
-    func textFieldDidChange(_ textField: UITextField) {
+    func textFieldDidChange() {
         updateNavigation()
+    }
+
+    func textField(_ textField: UITextField, shouldChangeCharactersIn range: NSRange, replacementString string: String) -> Bool {
+        TextFieldHelper.textField(
+            textField,
+            shouldChangeCharactersInRange: range,
+            replacementString: string,
+            maxByteCount: OWSUserProfile.Constants.maxNameLengthBytes,
+            maxGlyphCount: OWSUserProfile.Constants.maxNameLengthGlyphs
+        )
     }
 }

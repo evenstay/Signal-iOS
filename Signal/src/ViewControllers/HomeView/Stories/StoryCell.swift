@@ -5,7 +5,7 @@
 
 import Foundation
 import UIKit
-import SignalMessaging
+import SignalServiceKit
 import SignalUI
 
 class StoryCell: UITableViewCell {
@@ -76,7 +76,7 @@ class StoryCell: UITableViewCell {
         case .authorAci:
             replyImageView.image = UIImage(imageLiteralResourceName: "reply-fill-20")
         case .groupId:
-            replyImageView.image = UIImage(imageLiteralResourceName: "thread-fill-20").withRenderingMode(.alwaysTemplate)
+            replyImageView.image = UIImage(imageLiteralResourceName: "thread-compact-fill").withRenderingMode(.alwaysTemplate)
         case .privateStory:
             owsFailDebug("Unexpectedly had private story on stories list")
         case .none:

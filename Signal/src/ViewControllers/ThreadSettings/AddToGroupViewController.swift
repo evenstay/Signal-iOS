@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
-import SignalUI
+public import SignalServiceKit
+public import SignalUI
 
 public class AddToGroupViewController: OWSTableViewController2 {
 
@@ -31,7 +31,9 @@ public class AddToGroupViewController: OWSTableViewController2 {
 
         title = OWSLocalizedString("ADD_TO_GROUP_TITLE", comment: "Title of the 'add to group' view.")
 
-        navigationItem.leftBarButtonItem = UIBarButtonItem(barButtonSystemItem: .cancel, target: self, action: #selector(didPressCloseButton))
+        navigationItem.leftBarButtonItem = .cancelButton { [weak self] in
+            self?.didPressCloseButton()
+        }
 
         defaultSeparatorInsetLeading = Self.cellHInnerMargin + CGFloat(AvatarBuilder.smallAvatarSizePoints) + ContactCellView.avatarTextHSpacing
 
@@ -59,18 +61,22 @@ public class AddToGroupViewController: OWSTableViewController2 {
             var result = [TSGroupThread]()
 
             do {
-                try ThreadFinder().enumerateGroupThreads(transaction: transaction) { thread in
-                    guard thread.isGroupV2Thread else { return }
+                try ThreadFinder().enumerateGroupThreads(transaction: transaction) { thread -> Bool in
+                    if thread.isGroupV2Thread {
+                        let groupViewHelper = GroupViewHelper(
+                            threadViewModel: ThreadViewModel(
+                                thread: thread,
+                                forChatList: false,
+                                transaction: transaction
+                            )
+                        )
 
-                    let threadViewModel = ThreadViewModel(
-                        thread: thread,
-                        forChatList: false,
-                        transaction: transaction
-                    )
-                    let groupViewHelper = GroupViewHelper(threadViewModel: threadViewModel)
-                    guard groupViewHelper.canEditConversationMembership else { return }
+                        if groupViewHelper.canEditConversationMembership {
+                            result.append(thread)
+                        }
+                    }
 
-                    result.append(thread)
+                    return true
                 }
             } catch {
                 owsFailDebug("Failed to fetch group threads: \(error). Returning an empty array")
@@ -94,8 +100,7 @@ public class AddToGroupViewController: OWSTableViewController2 {
         updateTableContents()
     }
 
-    @objc
-    private func didPressCloseButton(sender: UIButton) {
+    private func didPressCloseButton() {
         Logger.info("")
 
         self.dismiss(animated: true)
@@ -103,7 +108,7 @@ public class AddToGroupViewController: OWSTableViewController2 {
 
     private func didSelectGroup(_ groupThread: TSGroupThread) {
         let shortName = databaseStorage.read { transaction in
-            return Self.contactsManager.shortDisplayName(for: self.address, transaction: transaction)
+            return Self.contactsManager.displayName(for: self.address, tx: transaction).resolvedValue(useShortNameIfAvailable: true)
         }
 
         guard !groupThread.groupModel.groupMembership.isMemberOfAnyKind(address) else {
@@ -134,7 +139,7 @@ public class AddToGroupViewController: OWSTableViewController2 {
 
     private func addToGroup(_ groupThread: TSGroupThread, shortName: String) {
         AssertIsOnMainThread()
-        owsAssert(groupThread.isGroupV2Thread)  // non-gv2 filtered above when fetching groups
+        owsPrecondition(groupThread.isGroupV2Thread)  // non-gv2 filtered above when fetching groups
 
         guard let serviceId = self.address.serviceId else {
             GroupViewUtils.showInvalidGroupMemberAlert(fromViewController: self)
@@ -151,10 +156,9 @@ public class AddToGroupViewController: OWSTableViewController2 {
 
         GroupViewUtils.updateGroupWithActivityIndicator(
             fromViewController: self,
-            withGroupModel: oldGroupModel,
             updateDescription: self.logTag,
             updateBlock: {
-                GroupManager.addOrInvite(
+                _ = try await GroupManager.addOrInvite(
                     serviceIds: [serviceId],
                     toExistingGroup: oldGroupModel
                 )

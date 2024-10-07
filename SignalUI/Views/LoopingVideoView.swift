@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import AVKit
-import SignalServiceKit
+public import AVKit
+public import SignalServiceKit
 import YYImage
 
 /// Model object for a looping video asset
@@ -12,11 +12,37 @@ import YYImage
 public class LoopingVideo: NSObject {
     fileprivate var asset: AVAsset
 
-    public init?(url: URL) {
+    public convenience init?(_ attachment: SignalAttachment) {
+        guard let url = attachment.dataUrl else {
+            return nil
+        }
+        self.init(decryptedLocalFileUrl: url)
+    }
+
+    public convenience init?(_ attachment: TSResourceStream) {
+        switch attachment.concreteStreamType {
+        case .legacy(let tsAttachmentStream):
+            guard let url = tsAttachmentStream.originalMediaURL else {
+                return nil
+            }
+            self.init(decryptedLocalFileUrl: url)
+        case .v2(let attachmentStream):
+            guard let asset = try? attachmentStream.decryptedAVAsset() else {
+                return nil
+            }
+            self.init(asset: asset)
+        }
+    }
+
+    public convenience init?(decryptedLocalFileUrl url: URL) {
         guard OWSMediaUtils.isVideoOfValidContentTypeAndSize(path: url.path) else {
             return nil
         }
-        self.asset = AVAsset(url: url)
+        self.init(asset: AVAsset(url: url))
+    }
+
+    public init(asset: AVAsset) {
+        self.asset = asset
         super.init()
     }
 }
@@ -179,7 +205,7 @@ public class LoopingVideoView: UIView {
             .map { (assetTrack: AVAssetTrack) -> CGSize in
                 assetTrack.naturalSize.applying(assetTrack.preferredTransform).abs
             }.reduce(.zero) {
-                CGSizeMax($0, $1)
+                CGSize.max($0, $1)
             }
     }
 }

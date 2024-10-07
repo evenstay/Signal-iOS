@@ -6,7 +6,7 @@
 import XCTest
 @testable import SignalServiceKit
 
-class SystemStoryManagerTest: SSKBaseTestSwift {
+class SystemStoryManagerTest: SSKBaseTest {
 
     let timeout: TimeInterval = 5
 
@@ -23,17 +23,15 @@ class SystemStoryManagerTest: SSKBaseTestSwift {
         scheduler = TestScheduler()
         databaseStorage.write { tx in
             (DependenciesBridge.shared.registrationStateChangeManager as! RegistrationStateChangeManagerImpl).registerForTests(
-                localIdentifiers: .init(
-                    aci: .init(fromUUID: UUID()),
-                    pni: .init(fromUUID: UUID()),
-                    e164: .init("+17875550101")!
-                ),
+                localIdentifiers: .forUnitTests,
                 tx: tx.asV2Write
             )
         }
         manager = SystemStoryManager(
+            appReadiness: AppReadinessMock(),
             fileSystem: OnboardingStoryManagerFilesystemMock.self,
-            schedulers: TestSchedulers(scheduler: scheduler)
+            schedulers: TestSchedulers(scheduler: scheduler),
+            storyMessageFactory: OnboardingStoryManagerStoryMessageFactoryMock.self
         )
 
         // Make everything sync.
@@ -80,7 +78,7 @@ class SystemStoryManagerTest: SSKBaseTestSwift {
                         .contains(url.lastPathComponent)
                     )
                     return .value(OWSUrlDownloadResponse(
-                        task: URLSessionTask(), // doesn't matter
+                        task: URLSession.shared.dataTask(with: url), // doesn't matter
                         httpUrlResponse: HTTPURLResponse(
                             url: url,
                             statusCode: 200,
@@ -139,7 +137,7 @@ class SystemStoryManagerTest: SSKBaseTestSwift {
                         .contains(url.lastPathComponent)
                     )
                     return .value(OWSUrlDownloadResponse(
-                        task: URLSessionTask(), // doesn't matter
+                        task: URLSession.shared.dataTask(with: url), // doesn't matter
                         httpUrlResponse: HTTPURLResponse(
                             url: url,
                             statusCode: 200,
@@ -220,7 +218,7 @@ class SystemStoryManagerTest: SSKBaseTestSwift {
                         .contains(url.lastPathComponent)
                     )
                     return .value(OWSUrlDownloadResponse(
-                        task: URLSessionTask(), // doesn't matter
+                        task: URLSession.shared.dataTask(with: url), // doesn't matter
                         httpUrlResponse: HTTPURLResponse(
                             url: url,
                             statusCode: 200,
@@ -255,8 +253,11 @@ class SystemStoryManagerTest: SSKBaseTestSwift {
         }
 
         try write {
-            try manager.setOnboardingStoryViewedOnThisDevice(
-                atTimestamp: viewedDate.ows_millisecondsSince1970,
+            try manager.setHasViewedOnboardingStory(
+                source: .local(
+                    timestamp: viewedDate.ows_millisecondsSince1970,
+                    shouldUpdateStorageService: false
+                ),
                 transaction: $0
             )
         }
@@ -337,7 +338,7 @@ class SystemStoryManagerTest: SSKBaseTestSwift {
                         .contains(url.lastPathComponent)
                     )
                     return .value(OWSUrlDownloadResponse(
-                        task: URLSessionTask(), // doesn't matter
+                        task: URLSession.shared.dataTask(with: url), // doesn't matter
                         httpUrlResponse: HTTPURLResponse(
                             url: url,
                             statusCode: 200,

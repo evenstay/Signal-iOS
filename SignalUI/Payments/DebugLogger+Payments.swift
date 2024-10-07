@@ -5,7 +5,7 @@
 
 import Foundation
 import Logging
-import SignalMessaging
+public import SignalServiceKit
 
 // NOTE: There are two separate classes with the name Logger
 //       being used in this file.
@@ -21,29 +21,32 @@ public extension DebugLogger {
         public init() {}
 
         @inlinable
-        public func log(level: Logging.Logger.Level,
-                        message: Logging.Logger.Message,
-                        metadata: Logging.Logger.Metadata?,
-                        file: String,
-                        function: String,
-                        line: UInt) {
+        public func log(
+            level: Logging.Logger.Level,
+            message: Logging.Logger.Message,
+            metadata: Logging.Logger.Metadata?,
+            source: String,
+            file: String,
+            function: String,
+            line: UInt
+        ) {
             // TODO: Remove.
             let message = "MCSDK: " + message.description
             let line = Int(line)
 
             switch level {
             case .trace:
-                SignalCoreKit.Logger.verbose(message, file: file, function: function, line: line)
+                SignalServiceKit.Logger.verbose(message, file: file, function: function, line: line)
             case .debug:
-                SignalCoreKit.Logger.debug(message, file: file, function: function, line: line)
+                SignalServiceKit.Logger.debug(message, file: file, function: function, line: line)
             case .info,
                  .notice:
-                SignalCoreKit.Logger.info(message, file: file, function: function, line: line)
+                SignalServiceKit.Logger.info(message, file: file, function: function, line: line)
             case .warning:
-                SignalCoreKit.Logger.warn(message, file: file, function: function, line: line)
+                SignalServiceKit.Logger.warn(message, file: file, function: function, line: line)
             case .error,
                  .critical:
-                SignalCoreKit.Logger.error(message, file: file, function: function, line: line)
+                SignalServiceKit.Logger.error(message, file: file, function: function, line: line)
             }
         }
 

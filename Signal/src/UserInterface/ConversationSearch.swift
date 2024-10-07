@@ -3,8 +3,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalServiceKit
-import SignalUI
+public import Foundation
+public import UIKit
+
+public import SignalServiceKit
+public import SignalUI
 
 public protocol ConversationSearchControllerDelegate: UISearchControllerDelegate {
 
@@ -33,7 +36,7 @@ public class ConversationSearchController: NSObject {
 
     // MARK: Initializer
 
-    required public init(thread: TSThread) {
+    public init(thread: TSThread) {
         self.thread = thread
         super.init()
 
@@ -58,12 +61,10 @@ public class ConversationSearchController: NSObject {
 
 extension ConversationSearchController: UISearchControllerDelegate {
     public func didPresentSearchController(_ searchController: UISearchController) {
-        Logger.verbose("")
         delegate?.didPresentSearchController?(searchController)
     }
 
     public func didDismissSearchController(_ searchController: UISearchController) {
-        Logger.verbose("")
         delegate?.didDismissSearchController?(searchController)
     }
 }
@@ -74,15 +75,12 @@ extension ConversationSearchController: UISearchResultsUpdating {
     }
 
     public func updateSearchResults(for searchController: UISearchController) {
-        Logger.verbose("searchBar.text: \( searchController.searchBar.text ?? "<blank>")")
-
         guard let rawSearchText = searchController.searchBar.text?.stripped else {
             self.resultsBar.updateResults(resultSet: nil)
             self.delegate?.conversationSearchController(self, didUpdateSearchResults: nil)
             return
         }
-        let searchText = FullTextSearchFinder.normalize(text: rawSearchText)
-        BenchManager.startEvent(title: "Conversation Search", eventId: searchText)
+        let searchText = FullTextSearchIndexer.normalizeText(rawSearchText)
 
         guard searchText.count >= ConversationSearchController.kMinimumSearchTextLength else {
             self.resultsBar.updateResults(resultSet: nil)
@@ -126,7 +124,6 @@ extension ConversationSearchController: SearchResultsBarDelegate {
             return
         }
 
-        BenchEventStart(title: "Conversation Search Nav", eventId: "Conversation Search Nav: \(searchResult.messageId)")
         self.delegate?.conversationSearchController(self, didSelectMessageId: searchResult.messageId)
     }
 }
@@ -202,10 +199,7 @@ public class SearchResultsBar: UIView {
         showMoreRecentButton.imageInsets = UIEdgeInsets(top: 2, left: leftInteriorChevronMargin, bottom: 2, right: leftExteriorChevronMargin)
         showMoreRecentButton.tintColor = Theme.accentBlueColor
 
-        let spacer1 = UIBarButtonItem(barButtonSystemItem: .flexibleSpace, target: nil, action: nil)
-        let spacer2 = UIBarButtonItem(barButtonSystemItem: .flexibleSpace, target: nil, action: nil)
-
-        toolbar.items = [showLessRecentButton, showMoreRecentButton, spacer1, labelItem, spacer2]
+        toolbar.items = [showLessRecentButton, showMoreRecentButton, .flexibleSpace(), labelItem, .flexibleSpace()]
 
         self.autoresizingMask = .flexibleHeight
         self.translatesAutoresizingMaskIntoConstraints = false
@@ -266,8 +260,6 @@ public class SearchResultsBar: UIView {
     }
 
     var currentIndex: Int?
-
-    // MARK: 
 
     func updateResults(resultSet: ConversationScreenSearchResultSet?) {
         if let resultSet = resultSet {

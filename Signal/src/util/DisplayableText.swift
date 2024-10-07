@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalServiceKit
-import SignalUI
+public import SignalServiceKit
+public import SignalUI
 
 public class DisplayableText: NSObject {
 
@@ -19,7 +19,7 @@ public class DisplayableText: NSObject {
         set { _fullContent.set(newValue) }
     }
 
-    private let _truncatedContent = AtomicOptional<Content>(nil)
+    private let _truncatedContent = AtomicOptional<Content>(nil, lock: .sharedGlobal)
     private var truncatedContent: Content? {
         get { _truncatedContent.get() }
         set { _truncatedContent.set(newValue) }
@@ -58,13 +58,13 @@ public class DisplayableText: NSObject {
         return truncatedContent != nil
     }
 
-    private static let maxInlineText = 1024 * 8
+    private static let maxInlineRenderingSizeEstimate = 1024 * 8
 
     public var canRenderTruncatedTextInline: Bool {
-        return isTextTruncated && fullLengthWithNewLineScalar <= Self.maxInlineText
+        return isTextTruncated && renderingSizeEstimate <= Self.maxInlineRenderingSizeEstimate
     }
 
-    public let fullLengthWithNewLineScalar: Int
+    public let renderingSizeEstimate: Int
 
     public let jumbomojiCount: UInt
 
@@ -75,18 +75,18 @@ public class DisplayableText: NSObject {
     // MARK: Initializers
 
     private init(fullContent: Content, truncatedContent: Content?) {
-        self._fullContent = AtomicValue(fullContent)
+        self._fullContent = AtomicValue(fullContent, lock: .sharedGlobal)
         self._truncatedContent.set(truncatedContent)
         switch fullContent.textValue {
         case .text(let text):
             self.jumbomojiCount = DisplayableText.jumbomojiCount(in: text)
-            self.fullLengthWithNewLineScalar = DisplayableText.fullLengthWithNewLineScalar(in: text)
+            self.renderingSizeEstimate = DisplayableText.renderingSizeEstimate(of: text)
         case .attributedText(let attributedText):
             self.jumbomojiCount = DisplayableText.jumbomojiCount(in: attributedText.string)
-            self.fullLengthWithNewLineScalar = DisplayableText.fullLengthWithNewLineScalar(in: attributedText.string)
+            self.renderingSizeEstimate = DisplayableText.renderingSizeEstimate(of: attributedText.string)
         case .messageBody(let messageBody):
             self.jumbomojiCount = messageBody.jumbomojiCount(DisplayableText.jumbomojiCount(in:))
-            self.fullLengthWithNewLineScalar = messageBody.fullLengthWithNewLineScalar(DisplayableText.fullLengthWithNewLineScalar(in:))
+            self.renderingSizeEstimate = messageBody.renderingSizeEstimate(DisplayableText.renderingSizeEstimate(of:))
         }
 
         super.init()
@@ -154,11 +154,11 @@ public class DisplayableText: NSObject {
                 return false
             }
 
-            let strippedHost = hostText.replacingOccurrences(of: ".", with: "") as NSString
+            let strippedHost = hostText.replacingOccurrences(of: ".", with: "")
 
-            if strippedHost.isOnlyASCII {
+            if strippedHost.isOnlyASCII() {
                 return true
-            } else if strippedHost.hasAnyASCII {
+            } else if strippedHost.hasAnyASCII() {
                 // mix of ascii and non-ascii is invalid
                 return false
             } else {
@@ -202,16 +202,11 @@ public class DisplayableText: NSObject {
 
     // MARK: Filter Methods
 
-    private static let newLineRegex = try! NSRegularExpression(pattern: "\n", options: [])
     private static let newLineScalar = 16
 
-    private class func fullLengthWithNewLineScalar(in string: String) -> Int {
-        let numberOfNewLines = newLineRegex.numberOfMatches(
-            in: string,
-            options: [],
-            range: string.entireRange
-        )
-        return string.utf16.count + numberOfNewLines * newLineScalar
+    private class func renderingSizeEstimate(of text: String) -> Int {
+        let newlineByte = UInt8(ascii: "\n")
+        return text.utf8.lazy.map { $0 == newlineByte ? newLineScalar : 1 }.reduce(0, +)
     }
 
     public class var empty: DisplayableText {
@@ -219,6 +214,22 @@ public class DisplayableText: NSObject {
             fullContent: .init(textValue: .text(""), naturalAlignment: .natural),
             truncatedContent: nil
         )
+    }
+
+    private static func limitNewLines(in text: String, to maxNewLines: Int) -> String {
+        var textSuffix = text[...]
+        var remainingCount = maxNewLines
+        while remainingCount > 0 {
+            guard let newLineRange = textSuffix.range(of: "\n") else {
+                return text
+            }
+            textSuffix = textSuffix[newLineRange.upperBound...]
+            remainingCount -= 1
+        }
+        guard let newLineRange = textSuffix.range(of: "\n") else {
+            return text
+        }
+        return String(text[..<newLineRange.lowerBound])
     }
 
     public class func displayableText(
@@ -243,57 +254,54 @@ public class DisplayableText: NSObject {
         // Only show up to N characters of text.
         let kMaxTextDisplayLength = 512
         let kMaxSnippetNewLines = 15
-        let truncatedContent: Content?
 
-        if fullContent.textValue.stringLength > kMaxTextDisplayLength {
-            var snippetLength = kMaxTextDisplayLength
-
-            func deriveSnippetLengthForPlaintext(_ text: String) -> Int {
-                // Message bubbles by default should be short. We don't ever
-                // want to show more than X new lines in the truncated text.
-                let newLineMatches = newLineRegex.matches(
-                    in: text,
-                    options: [],
-                    range: NSRange(location: 0, length: kMaxTextDisplayLength)
-                )
-                if newLineMatches.count > kMaxSnippetNewLines {
-                    return newLineMatches[kMaxSnippetNewLines - 1].range.location
-                }
-                return kMaxTextDisplayLength
+        func truncatePlaintext(_ text: String) -> String? {
+            guard let truncatedText = text.trimmedIfNeeded(maxGlyphCount: kMaxTextDisplayLength) else {
+                return nil
             }
+            // Message bubbles by default should be short. We don't ever
+            // want to show more than X new lines in the truncated text.
+            return limitNewLines(in: truncatedText, to: kMaxSnippetNewLines)
+        }
 
+        let truncatedContent = { () -> Content? in
             switch textValue {
             case .text(let text):
-                snippetLength = deriveSnippetLengthForPlaintext(text)
+                guard var truncatedText = truncatePlaintext(text) else {
+                    return nil
+                }
+                truncatedText = truncatedText.ows_stripped() + Self.truncatedTextSuffix
+                return Content(
+                    textValue: .text(truncatedText),
+                    naturalAlignment: truncatedText.naturalTextAlignment
+                )
 
-                let truncatedText = (text.substring(to: snippetLength)
-                                        .ows_stripped()
-                                        + Self.truncatedTextSuffix)
-                truncatedContent = Content(textValue: .text(truncatedText),
-                                           naturalAlignment: truncatedText.naturalTextAlignment)
             case .attributedText(let attributedText):
-                snippetLength = deriveSnippetLengthForPlaintext(attributedText.string)
-
-                let truncatedText = attributedText
-                    .attributedSubstring(from: NSRange(location: 0, length: snippetLength))
-                    .ows_stripped()
+                guard let truncatedPlaintext = truncatePlaintext(attributedText.string) else {
+                    return nil
+                }
+                let truncatedAttributedText = (
+                    attributedText.attributedSubstring(from: truncatedPlaintext.entireRange).ows_stripped()
                     + Self.truncatedTextSuffix
-                truncatedContent = Content(
-                    textValue: .attributedText(truncatedText),
-                    naturalAlignment: truncatedText.string.naturalTextAlignment
+                )
+                return Content(
+                    textValue: .attributedText(truncatedAttributedText),
+                    naturalAlignment: truncatedAttributedText.string.naturalTextAlignment
                 )
 
             case .messageBody(let messageBody):
-                let truncatedBody = messageBody.truncating(desiredLength: snippetLength, truncationSuffix: Self.truncatedTextSuffix)
-
-                truncatedContent = Content(
+                guard let truncatedBody = messageBody.truncatingIfNeeded(
+                    maxGlyphCount: kMaxTextDisplayLength,
+                    truncationSuffix: Self.truncatedTextSuffix
+                ) else {
+                    return nil
+                }
+                return Content(
                     textValue: .messageBody(truncatedBody),
                     naturalAlignment: truncatedBody.naturalTextAlignment
                 )
             }
-        } else {
-            truncatedContent = nil
-        }
+        }()
 
         return DisplayableText(fullContent: fullContent, truncatedContent: truncatedContent)
     }

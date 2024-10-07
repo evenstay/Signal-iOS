@@ -4,7 +4,7 @@
 //
 
 import Foundation
-import SignalMessaging
+import SignalServiceKit
 import SignalUI
 
 protocol MessageReactionPickerDelegate: AnyObject {
@@ -40,6 +40,8 @@ class MessageReactionPicker: UIStackView {
     private var selectedEmoji: EmojiWithSkinTones?
     private var backgroundView: UIView?
 
+    private let style: Style
+
     /// The individual emoji buttons and the Any button from `buttonForEmoji`
     private var buttons: [OWSFlatButton] {
         return buttonForEmoji.map(\.button)
@@ -58,6 +60,7 @@ class MessageReactionPicker: UIStackView {
             self.selectedEmoji = nil
         }
         self.delegate = delegate
+        self.style = style
 
         super.init(frame: .zero)
 
@@ -93,7 +96,71 @@ class MessageReactionPicker: UIStackView {
             trailing: style.isInline ? 4 : pickerPadding
         )
 
-        var emojiSet: [EmojiWithSkinTones] = SDSDatabaseStorage.shared.read { transaction in
+        let emojiSet = currentEmojiSetOnDisk(style: style)
+
+        var addAnyButton = !style.isConfigure
+
+        if
+            !style.isConfigure,
+            let selectedEmoji = self.selectedEmoji,
+            nil == emojiSet.firstIndex(of: selectedEmoji)
+        {
+            addAnyButton = false
+        }
+
+        switch style {
+        case .contextMenu, .configure:
+            self.addArrangedSubview(emojiStackView)
+        case .inline:
+            let scrollView = FadingHScrollView()
+            scrollView.showsHorizontalScrollIndicator = false
+            scrollView.addSubview(emojiStackView)
+            scrollView.contentInset = .init(top: 0, leading: OWSTableViewController2.defaultHOuterMargin, bottom: 0, trailing: 0)
+            emojiStackView.autoPinEdgesToSuperviewEdges()
+            self.addArrangedSubview(scrollView)
+        }
+
+        for (index, emoji) in emojiSet.enumerated() {
+            let button = OWSFlatButton()
+            button.autoSetDimensions(to: CGSize(square: reactionHeight))
+            button.setTitle(title: emoji.rawValue, font: .systemFont(ofSize: reactionFontSize), titleColor: forceDarkTheme ? Theme.darkThemePrimaryColor : Theme.primaryTextColor)
+            button.setPressedBlock { [weak self] in
+                // current title of button may have changed in the meantime
+                if let currentEmoji = button.button.title(for: .normal) {
+                    ImpactHapticFeedback.impactOccurred(style: .light)
+                    self?.delegate?.didSelectReaction(reaction: currentEmoji, isRemoving: currentEmoji == self?.selectedEmoji?.rawValue, inPosition: index)
+                }
+            }
+            buttonForEmoji.append((emoji.rawValue, button))
+            emojiStackView.addArrangedSubview(button)
+
+            // Add a circle behind the currently selected emoji
+            if self.selectedEmoji == emoji {
+                let selectedBackgroundView = UIView()
+                selectedBackgroundView.backgroundColor = Theme.isDarkThemeEnabled || forceDarkTheme ? .ows_gray60 : .ows_gray05
+                selectedBackgroundView.clipsToBounds = true
+                selectedBackgroundView.layer.cornerRadius = selectedBackgroundHeight / 2
+                backgroundView?.addSubview(selectedBackgroundView)
+                selectedBackgroundView.autoSetDimensions(to: CGSize(square: selectedBackgroundHeight))
+                selectedBackgroundView.autoAlignAxis(.horizontal, toSameAxisOf: button)
+                selectedBackgroundView.autoAlignAxis(.vertical, toSameAxisOf: button)
+            }
+        }
+
+        if addAnyButton {
+            let button = OWSFlatButton()
+            button.autoSetDimensions(to: CGSize(square: reactionHeight))
+            button.setImage(Theme.isDarkThemeEnabled || forceDarkTheme ? #imageLiteral(resourceName: "any-emoji-32-dark") : #imageLiteral(resourceName: "any-emoji-32-light"))
+            button.setPressedBlock { [weak self] in
+                self?.delegate?.didSelectAnyEmoji()
+            }
+            buttonForEmoji.append((MessageReactionPicker.anyEmojiName, button))
+            self.addArrangedSubview(button)
+        }
+    }
+
+    private func currentEmojiSetOnDisk(style: Style) -> [EmojiWithSkinTones] {
+        var emojiSet = SDSDatabaseStorage.shared.read { transaction in
             let customSetStrings = ReactionManager.customEmojiSet(transaction: transaction) ?? []
             let customSet = customSetStrings.lazy.map { EmojiWithSkinTones(rawValue: $0) }
 
@@ -124,8 +191,6 @@ class MessageReactionPicker: UIStackView {
             return savedReactions + recentReactions
         }
 
-        var addAnyButton = !style.isConfigure
-
         if !style.isConfigure, let selectedEmoji = self.selectedEmoji {
             // If the local user reacted with any of the default emoji set,
             // we should show it in the normal place in the picker bar.
@@ -134,57 +199,18 @@ class MessageReactionPicker: UIStackView {
                 emojiSet[index] = selectedEmoji
             } else {
                 emojiSet.append(selectedEmoji)
-                addAnyButton = false
             }
         }
 
-        switch style {
-        case .contextMenu, .configure:
-            self.addArrangedSubview(emojiStackView)
-        case .inline:
-            let scrollView = FadingHScrollView()
-            scrollView.showsHorizontalScrollIndicator = false
-            scrollView.addSubview(emojiStackView)
-            scrollView.contentInset = .init(top: 0, leading: OWSTableViewController2.defaultHOuterMargin, bottom: 0, trailing: 0)
-            emojiStackView.autoPinEdgesToSuperviewEdges()
-            self.addArrangedSubview(scrollView)
-        }
+        return emojiSet
+    }
 
-        for (index, emoji) in emojiSet.enumerated() {
-            let button = OWSFlatButton()
-            button.autoSetDimensions(to: CGSize(square: reactionHeight))
-            button.setTitle(title: emoji.rawValue, font: .systemFont(ofSize: reactionFontSize), titleColor: forceDarkTheme ? Theme.darkThemePrimaryColor : Theme.primaryTextColor)
-            button.setPressedBlock { [weak self] in
-                // current title of button may have changed in the meantime
-                if let currentEmoji = button.button.title(for: .normal) {
-                    self?.delegate?.didSelectReaction(reaction: currentEmoji, isRemoving: currentEmoji == self?.selectedEmoji?.rawValue, inPosition: index)
-                }
+    func updateReactionPickerEmojis() {
+        let currentEmojis = currentEmojiSetOnDisk(style: self.style)
+        for (index, emoji) in self.currentEmojiSet().enumerated() {
+            if let newEmoji = currentEmojis[safe: index]?.rawValue {
+                self.replaceEmojiReaction(emoji, newEmoji: newEmoji, inPosition: index)
             }
-            buttonForEmoji.append((emoji.rawValue, button))
-            emojiStackView.addArrangedSubview(button)
-
-            // Add a circle behind the currently selected emoji
-            if self.selectedEmoji == emoji {
-                let selectedBackgroundView = UIView()
-                selectedBackgroundView.backgroundColor = Theme.isDarkThemeEnabled || forceDarkTheme ? .ows_gray60 : .ows_gray05
-                selectedBackgroundView.clipsToBounds = true
-                selectedBackgroundView.layer.cornerRadius = selectedBackgroundHeight / 2
-                backgroundView?.addSubview(selectedBackgroundView)
-                selectedBackgroundView.autoSetDimensions(to: CGSize(square: selectedBackgroundHeight))
-                selectedBackgroundView.autoAlignAxis(.horizontal, toSameAxisOf: button)
-                selectedBackgroundView.autoAlignAxis(.vertical, toSameAxisOf: button)
-            }
-        }
-
-        if addAnyButton {
-            let button = OWSFlatButton()
-            button.autoSetDimensions(to: CGSize(square: reactionHeight))
-            button.setImage(Theme.isDarkThemeEnabled || forceDarkTheme ? #imageLiteral(resourceName: "any-emoji-32-dark") : #imageLiteral(resourceName: "any-emoji-32-light"))
-            button.setPressedBlock { [weak self] in
-                self?.delegate?.didSelectAnyEmoji()
-            }
-            buttonForEmoji.append((MessageReactionPicker.anyEmojiName, button))
-            self.addArrangedSubview(button)
         }
     }
 
@@ -242,7 +268,11 @@ class MessageReactionPicker: UIStackView {
         } completion: { _ in }
     }
 
-    func playPresentationAnimation(duration: TimeInterval) {
+    func playPresentationAnimation(duration: TimeInterval, completion: (() -> Void)? = nil) {
+        CATransaction.begin()
+        if let completion {
+            CATransaction.setCompletionBlock(completion)
+        }
         if let backgroundView {
             backgroundView.alpha = 0
             UIView.animate(withDuration: duration) { backgroundView.alpha = 1 }
@@ -258,6 +288,7 @@ class MessageReactionPicker: UIStackView {
             })
             delay += 0.01
         }
+        CATransaction.commit()
     }
 
     func playDismissalAnimation(duration: TimeInterval, completion: @escaping () -> Void) {

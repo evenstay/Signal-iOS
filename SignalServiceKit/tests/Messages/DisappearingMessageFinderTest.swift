@@ -4,28 +4,24 @@
 //
 
 import LibSignalClient
-import SignalCoreKit
 import XCTest
 
 @testable import SignalServiceKit
 
-final class DisappearingMessageFinderTest: SSKBaseTestSwift {
-    private var finder = DisappearingMessagesFinder()
-    private var now: UInt64 = 0
+final class DisappearingMessageFinderTest: SSKBaseTest {
+    private var finder: DisappearingMessagesFinder!
+    private let now: UInt64 = 1700000000000
 
     override func setUp() {
         super.setUp()
         finder = DisappearingMessagesFinder()
-        now = Date.ows_millisecondTimestamp()
     }
 
-    func localAddress() -> SignalServiceAddress {
-        SignalServiceAddress(phoneNumber: "+12225550123")
-    }
+    private func localAddress() -> SignalServiceAddress { LocalIdentifiers.forUnitTests.aciAddress }
 
-    private lazy var otherAddress = SignalServiceAddress(serviceId: Aci.randomForTesting(), phoneNumber: "+13335550198")
+    private lazy var otherAddress = SignalServiceAddress(Aci.randomForTesting())
 
-    func thread(with transaction: SDSAnyWriteTransaction) -> TSThread {
+    private func thread(with transaction: SDSAnyWriteTransaction) -> TSThread {
         TSContactThread.getOrCreateThread(
             withContactAddress: otherAddress,
             transaction: transaction
@@ -33,7 +29,7 @@ final class DisappearingMessageFinderTest: SSKBaseTestSwift {
     }
 
     @discardableResult
-    func incomingMessage(
+    private func incomingMessage(
         withBody body: String,
         expiresInSeconds: UInt32,
         expireStartedAt: UInt64,
@@ -42,14 +38,17 @@ final class DisappearingMessageFinderTest: SSKBaseTestSwift {
         write { transaction -> TSIncomingMessage in
             // It only makes sense to "mark as read" if expiration hasn't started,
             // since we don't start expiration for unread incoming messages.
-            owsAssert(!markAsRead || expireStartedAt == 0)
+            owsPrecondition(!markAsRead || expireStartedAt == 0)
 
             let thread = self.thread(with: transaction)
 
-            let incomingMessageBuilder = TSIncomingMessageBuilder(thread: thread, messageBody: body)
-            incomingMessageBuilder.timestamp = 1
-            incomingMessageBuilder.authorAci = AciObjC(otherAddress.aci!)
-            incomingMessageBuilder.expiresInSeconds = expiresInSeconds
+            let incomingMessageBuilder: TSIncomingMessageBuilder = .withDefaultValues(
+                thread: thread,
+                timestamp: 1,
+                authorAci: otherAddress.aci,
+                messageBody: body,
+                expiresInSeconds: expiresInSeconds
+            )
             let message = incomingMessageBuilder.build()
             message.anyInsert(transaction: transaction)
 
@@ -76,7 +75,7 @@ final class DisappearingMessageFinderTest: SSKBaseTestSwift {
     }
 
     @discardableResult
-    func outgoingMessage(
+    private func outgoingMessage(
         withBody body: String,
         expiresInSeconds: UInt32,
         expireStartedAt: UInt64
@@ -84,9 +83,12 @@ final class DisappearingMessageFinderTest: SSKBaseTestSwift {
         write { transaction in
             let thread = self.thread(with: transaction)
 
-            let messageBuilder = TSOutgoingMessageBuilder(thread: thread, messageBody: body)
-            messageBuilder.expiresInSeconds = expiresInSeconds
-            messageBuilder.expireStartedAt = expireStartedAt
+            let messageBuilder: TSOutgoingMessageBuilder = .withDefaultValues(
+                thread: thread,
+                messageBody: body,
+                expiresInSeconds: expiresInSeconds,
+                expireStartedAt: expireStartedAt
+            )
 
             let message = messageBuilder.build(transaction: transaction)
             message.anyInsert(transaction: transaction)
@@ -94,11 +96,11 @@ final class DisappearingMessageFinderTest: SSKBaseTestSwift {
         }
     }
 
-    func testExpiredMessages() {
+    func testExpiredMessages() throws {
         let expiredMessage1 = incomingMessage(
             withBody: "expiredMessage1",
             expiresInSeconds: 2,
-            expireStartedAt: now - 2001
+            expireStartedAt: now - 2000
         )
         let expiredMessage2 = incomingMessage(
             withBody: "expiredMessage2",
@@ -108,8 +110,8 @@ final class DisappearingMessageFinderTest: SSKBaseTestSwift {
 
         incomingMessage(
             withBody: "notYetExpiredMessage",
-            expiresInSeconds: 20,
-            expireStartedAt: now - 10000
+            expiresInSeconds: 2,
+            expireStartedAt: now - 1999
         )
         incomingMessage(
             withBody: "unreadExpiringMessage",
@@ -127,22 +129,17 @@ final class DisappearingMessageFinderTest: SSKBaseTestSwift {
             expireStartedAt: 0
         )
 
-        var actualMessageIds = Set<String>()
-        read { transaction in
-            for message in finder.fetchExpiredMessages(transaction: transaction) {
-                actualMessageIds.insert(message.uniqueId)
-            }
+        let rowIds = try databaseStorage.read { tx in
+            try InteractionFinder.fetchSomeExpiredMessageRowIds(now: now, limit: 3, tx: tx)
         }
-
-        let expectedMessageIds = Set<String>([expiredMessage1.uniqueId, expiredMessage2.uniqueId])
-        XCTAssertEqual(expectedMessageIds, actualMessageIds)
+        XCTAssertEqual(Set(rowIds), [expiredMessage1.sqliteRowId!, expiredMessage2.sqliteRowId!])
     }
 
     func testUnstartedExpiredMessagesForThread() {
         let expiredIncomingMessage = incomingMessage(
             withBody: "incoming expiredMessage",
             expiresInSeconds: 2,
-            expireStartedAt: now - 2001
+            expireStartedAt: now - 2000
         )
         let notYetExpiredIncomingMessage = incomingMessage(
             withBody: "incoming notYetExpiredMessage",
@@ -174,7 +171,7 @@ final class DisappearingMessageFinderTest: SSKBaseTestSwift {
         let expiredOutgoingMessage = outgoingMessage(
             withBody: "outgoing expiredMessage",
             expiresInSeconds: 2,
-            expireStartedAt: now - 2001
+            expireStartedAt: now - 2000
         )
         let notYetExpiredOutgoingMessage = outgoingMessage(
             withBody: "outgoing notYetExpiredMessage",
@@ -214,23 +211,31 @@ final class DisappearingMessageFinderTest: SSKBaseTestSwift {
 
         write { transaction in
             // Mark outgoing message as "sent", "delivered" or "delivered and read" using production methods.
-            expiringSentOutgoingMessage.update(
-                withSentRecipient: otherAddress.serviceIdObjC!,
-                wasSentByUD: false,
-                transaction: transaction
-            )
+            for message in [
+                expiringSentOutgoingMessage,
+                expiringDeliveredOutgoingMessage,
+                expiringDeliveredAndReadOutgoingMessage
+            ] {
+                // To model production behavior, mark messages as "sent" before
+                // optionally marking as "delivered" or "read".
+                message.updateWithSentRecipient(
+                    otherAddress.serviceId!,
+                    wasSentByUD: false,
+                    transaction: transaction
+                )
+            }
+
             expiringDeliveredOutgoingMessage.update(
                 withDeliveredRecipient: otherAddress,
                 deviceId: 0,
-                deliveryTimestamp: Date.ows_millisecondTimestamp(),
+                deliveryTimestamp: now,
                 context: PassthroughDeliveryReceiptContext(),
                 tx: transaction
             )
-            let nowMs = Date.ows_millisecondTimestamp()
             expiringDeliveredAndReadOutgoingMessage.update(
                 withReadRecipient: otherAddress,
                 deviceId: 0,
-                readTimestamp: nowMs,
+                readTimestamp: now,
                 tx: transaction
             )
         }
@@ -254,11 +259,11 @@ final class DisappearingMessageFinderTest: SSKBaseTestSwift {
             unExpiringOutgoingMessage2
         ]
 
-        write { transaction in
+        write { tx in
             for oldMessage in shouldBeExpiringMessages {
                 let messageId = oldMessage.uniqueId
                 let shouldBeExpiring = true
-                let message = TSMessage.anyFetch(uniqueId: messageId, transaction: transaction) as? TSMessage
+                let message = TSMessage.anyFetch(uniqueId: messageId, transaction: tx) as? TSMessage
                 let logTag = "\(messageId) \(oldMessage.body ?? "nil")"
                 guard let message else {
                     XCTFail("Missing message: \(logTag)")
@@ -272,7 +277,7 @@ final class DisappearingMessageFinderTest: SSKBaseTestSwift {
             for oldMessage in shouldNotBeExpiringMessages {
                 let messageId = oldMessage.uniqueId
                 let shouldBeExpiring = false
-                let message = TSMessage.anyFetch(uniqueId: messageId, transaction: transaction) as? TSMessage
+                let message = TSMessage.anyFetch(uniqueId: messageId, transaction: tx) as? TSMessage
                 let logTag = "\(messageId) \(oldMessage.body ?? "nil")"
                 guard let message else {
                     XCTFail("Missing message: \(logTag)")
@@ -283,11 +288,8 @@ final class DisappearingMessageFinderTest: SSKBaseTestSwift {
                 XCTAssertEqual(message.expiresAt, 0, logTag)
             }
 
-            let unstartedExpiringMessages = self.finder.fetchUnstartedExpiringMessages(
-                in: self.thread(with: transaction),
-                transaction: transaction
-            )
-            XCTAssert(unstartedExpiringMessages.isEmpty)
+            let failedToStart = InteractionFinder.fetchAllMessageUniqueIdsWhichFailedToStartExpiring(transaction: tx)
+            XCTAssertEqual(failedToStart, [])
         }
     }
 
@@ -311,15 +313,14 @@ final class DisappearingMessageFinderTest: SSKBaseTestSwift {
         XCTAssertNil(nextExpirationTimestamp())
     }
 
-    func testNextExpirationTimestampNotNilWithUpcomingExpiringMessages() {
+    func testNextExpirationTimestampNotNilWithUpcomingExpiringMessages() throws {
         incomingMessage(
             withBody: "soonToExpireMessage",
             expiresInSeconds: 10,
             expireStartedAt: now - 9000
         )
 
-        XCTAssertNotNil(nextExpirationTimestamp())
-        XCTAssertEqual(now + 1000, nextExpirationTimestamp() ?? 0)
+        XCTAssertEqual(now + 1000, try XCTUnwrap(nextExpirationTimestamp()))
 
         // expired message should take precedence
         incomingMessage(
@@ -327,7 +328,6 @@ final class DisappearingMessageFinderTest: SSKBaseTestSwift {
             expiresInSeconds: 10,
             expireStartedAt: now - 11000
         )
-        XCTAssertNotNil(nextExpirationTimestamp())
-        XCTAssertEqual(now - 1000, nextExpirationTimestamp() ?? 0)
+        XCTAssertEqual(now - 1000, try XCTUnwrap(nextExpirationTimestamp()))
     }
 }

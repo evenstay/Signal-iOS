@@ -212,7 +212,7 @@ final class PaymentDetailsValidityTest: XCTestCase {
             XCTAssertEqual(n(countryCode, focused: true), .potentiallyValid)
         }
 
-        var stripeTestIBANs = [
+        let stripeTestIBANs = [
             "AT611904300234573201",
             "BE62510007547061",
             "HR7624020064583467589",
@@ -270,20 +270,5 @@ private func XCTAssertEqual(
         break
     default:
         XCTFail("(\"\(lhs)\") is not equal to (\"\(rhs)\")", file: file, line: line)
-    }
-}
-
-extension PaymentMethodFieldValidity: Equatable where Invalidity: Equatable {
-    public static func == (lhs: PaymentMethodFieldValidity<Invalidity>, rhs: PaymentMethodFieldValidity<Invalidity>) -> Bool where Invalidity: Equatable {
-        switch (lhs, rhs) {
-        case (.potentiallyValid, .potentiallyValid):
-            return true
-        case (.fullyValid, .fullyValid):
-            return true
-        case let (.invalid(invalidLHS), .invalid(invalidRHS)):
-            return invalidLHS == invalidRHS
-        default:
-            return false
-        }
     }
 }

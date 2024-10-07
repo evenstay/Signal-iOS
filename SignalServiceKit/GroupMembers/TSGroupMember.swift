@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import GRDB
-import LibSignalClient
+public import GRDB
+public import LibSignalClient
 
 /// Represents a full member of a group.
 ///
@@ -30,7 +30,6 @@ import LibSignalClient
 public final class TSGroupMember: NSObject, SDSCodableModel, Decodable {
     public static let databaseTableName = "model_TSGroupMember"
     public static var recordType: UInt { SDSRecordType.groupMember.rawValue }
-    public static var ftsIndexMode: TSFTSIndexMode { .manualUpdates }
 
     public enum CodingKeys: String, CodingKey, ColumnExpression, CaseIterable {
         case id
@@ -49,15 +48,14 @@ public final class TSGroupMember: NSObject, SDSCodableModel, Decodable {
     public let groupThreadId: String
     public private(set) var lastInteractionTimestamp: UInt64
 
-    required public init(
-        serviceId: ServiceId?,
-        phoneNumber: String?,
+    public init(
+        address: NormalizedDatabaseRecordAddress,
         groupThreadId: String,
         lastInteractionTimestamp: UInt64
     ) {
         self.uniqueId = UUID().uuidString
-        self.serviceId = serviceId
-        self.phoneNumber = phoneNumber
+        self.serviceId = address.serviceId
+        self.phoneNumber = address.phoneNumber
         self.groupThreadId = groupThreadId
         self.lastInteractionTimestamp = lastInteractionTimestamp
     }

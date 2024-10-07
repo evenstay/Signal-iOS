@@ -1,1 +1,2 @@
-• We updated the contact sharing interface, so now you can send your friend the info for your favorite interior decorator on a screen that has already been redecorated. You can still select which fields to share for maximum feng shui too.
+• Now your iPhone will automatically stop ringing if you answer an incoming call on another linked device (like Signal Desktop). Deciding whether or not you actually want to talk to them is still a question only you can answer.
+• We also fixed a bug that prevented unread indicators and other status badges from appearing in the Stories and Calls tabs on iPadOS 18. 

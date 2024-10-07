@@ -4,7 +4,7 @@
 //
 
 import Photos
-import SignalMessaging
+import SignalServiceKit
 import SignalUI
 
 protocol ImagePickerGridControllerDelegate: AnyObject {
@@ -64,7 +64,7 @@ class ImagePickerGridController: UICollectionViewController, PhotoLibraryDelegat
     // MARK: - View Lifecycle
 
     override var prefersStatusBarHidden: Bool {
-        !UIDevice.current.hasIPhoneXNotch && !UIDevice.current.isIPad && !CurrentAppContext().hasActiveCall
+        !UIDevice.current.hasIPhoneXNotch && !UIDevice.current.isIPad && AppEnvironment.shared.callService.callServiceState.currentCall == nil
     }
 
     override var preferredStatusBarStyle: UIStatusBarStyle { .lightContent }
@@ -84,7 +84,10 @@ class ImagePickerGridController: UICollectionViewController, PhotoLibraryDelegat
 
         navigationItem.titleView = titleView
 
-        let cancelButton = UIBarButtonItem(barButtonSystemItem: .cancel, target: self, action: #selector(didPressCancel))
+        let cancelButton: UIBarButtonItem = .cancelButton { [weak self] in
+            guard let self else { return }
+            self.delegate?.imagePickerDidCancel(self)
+        }
         cancelButton.tintColor = Theme.darkThemePrimaryColor
         navigationItem.leftBarButtonItem = cancelButton
 
@@ -215,7 +218,12 @@ class ImagePickerGridController: UICollectionViewController, PhotoLibraryDelegat
 
         // Determine the size of the thumbnails to request
         let scale = UIScreen.main.scale
-        let cellSize = collectionViewFlowLayout.itemSize
+        let cellSize: CGSize
+        if hasEverAppeared {
+            cellSize = collectionViewFlowLayout.itemSize
+        } else {
+            cellSize = getLayout().itemSize
+        }
         photoMediaSize.thumbnailSize = CGSize(width: cellSize.width * scale, height: cellSize.height * scale)
 
         reloadData()
@@ -245,8 +253,6 @@ class ImagePickerGridController: UICollectionViewController, PhotoLibraryDelegat
         super.viewDidAppear(animated)
 
         hasEverAppeared = true
-
-        BenchEventComplete(eventId: "Show-Media-Library")
 
         DispatchQueue.main.async {
             // pre-layout collectionPicker for snappier response
@@ -313,11 +319,6 @@ class ImagePickerGridController: UICollectionViewController, PhotoLibraryDelegat
     // MARK: - Actions
 
     @objc
-    private func didPressCancel() {
-        self.delegate?.imagePickerDidCancel(self)
-    }
-
-    @objc
     private func didTapDoneButton() {
         delegate?.imagePickerDidComplete(self)
     }
@@ -336,7 +337,9 @@ class ImagePickerGridController: UICollectionViewController, PhotoLibraryDelegat
         return layout
     }
 
-    private func updateLayout() {
+    private typealias CellLayout = (itemSize: CGSize, remainingSpace: CGFloat)
+
+    private func getLayout() -> CellLayout {
         let containerWidth = self.view.safeAreaLayoutGuide.layoutFrame.size.width
 
         let minItemWidth: CGFloat = 100
@@ -346,9 +349,14 @@ class ImagePickerGridController: UICollectionViewController, PhotoLibraryDelegat
         let availableWidth = max(0, containerWidth - interSpaceWidth)
 
         let itemWidth = floor(availableWidth / CGFloat(itemCount))
-        let newItemSize = CGSize(square: itemWidth)
+        let itemSize = CGSize(square: itemWidth)
         let remainingSpace = availableWidth - (itemCount * itemWidth)
 
+        return (itemSize, remainingSpace)
+    }
+
+    private func updateLayout() {
+        let (newItemSize, remainingSpace) = getLayout()
         if newItemSize != collectionViewFlowLayout.itemSize {
             collectionViewFlowLayout.itemSize = newItemSize
             // Inset any remaining space around the outside edges to ensure all inter-item spacing is exactly equal, otherwise
@@ -518,8 +526,6 @@ class ImagePickerGridController: UICollectionViewController, PhotoLibraryDelegat
 extension ImagePickerGridController: PhotoAlbumPickerDelegate {
 
     func photoAlbumPicker(_ picker: PhotoAlbumPickerViewController, didSelectAlbum album: PhotoAlbum) {
-        BenchEventStart(title: "Picked Collection", eventId: "Picked Collection")
-        defer { BenchEventComplete(eventId: "Picked Collection") }
         guard photoAlbum != album else {
             hideCollectionPicker()
             return

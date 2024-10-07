@@ -7,21 +7,59 @@ import ContactsUI
 import SignalServiceKit
 import SignalUI
 
-class MemberActionSheet: OWSTableSheetViewController {
-    private var groupViewHelper: GroupViewHelper?
-
-    var avatarView: PrimaryImageView?
-    var thread: TSThread { threadViewModel.threadRecord }
-    var threadViewModel: ThreadViewModel
-    let address: SignalServiceAddress
-    let spoilerState: SpoilerRenderState
+struct ProfileSheetSheetCoordinator {
+    private let address: SignalServiceAddress
+    private let groupViewHelper: GroupViewHelper?
+    private let spoilerState: SpoilerRenderState
 
     init(
         address: SignalServiceAddress,
         groupViewHelper: GroupViewHelper?,
         spoilerState: SpoilerRenderState
     ) {
-        self.threadViewModel = Self.fetchThreadViewModel(address: address)
+        self.address = address
+        self.groupViewHelper = groupViewHelper
+        self.spoilerState = spoilerState
+    }
+
+    /// Present a ``MemberActionSheet`` for other users, and present a
+    /// ``ContactAboutSheet`` for the local user.
+    func presentAppropriateSheet(from viewController: UIViewController) {
+        let threadViewModel = MemberActionSheet.fetchThreadViewModel(address: address)
+        let thread = threadViewModel.threadRecord
+
+        if thread.isNoteToSelf, let contactThread = thread as? TSContactThread {
+            ContactAboutSheet(thread: contactThread, spoilerState: spoilerState)
+                .present(from: viewController)
+            return
+        }
+
+        MemberActionSheet(
+            threadViewModel: threadViewModel,
+            address: address,
+            groupViewHelper: groupViewHelper,
+            spoilerState: spoilerState
+        )
+        .present(from: viewController)
+    }
+}
+
+class MemberActionSheet: OWSTableSheetViewController {
+    private var groupViewHelper: GroupViewHelper?
+
+    var avatarView: ConversationAvatarView?
+    var thread: TSThread { threadViewModel.threadRecord }
+    var threadViewModel: ThreadViewModel
+    let address: SignalServiceAddress
+    let spoilerState: SpoilerRenderState
+
+    fileprivate init(
+        threadViewModel: ThreadViewModel,
+        address: SignalServiceAddress,
+        groupViewHelper: GroupViewHelper?,
+        spoilerState: SpoilerRenderState
+    ) {
+        self.threadViewModel = threadViewModel
         self.groupViewHelper = groupViewHelper
         self.address = address
         self.spoilerState = spoilerState
@@ -30,13 +68,16 @@ class MemberActionSheet: OWSTableSheetViewController {
 
         tableViewController.defaultSeparatorInsetLeading =
             OWSTableViewController2.cellHInnerMargin + 24 + OWSTableItem.iconSpacing
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(recipientUpdated(notification:)),
+            name: .OWSContactsManagerSignalAccountsDidChange,
+            object: nil
+        )
     }
 
-    public required init() {
-        fatalError("init() has not been implemented")
-    }
-
-    static func fetchThreadViewModel(address: SignalServiceAddress) -> ThreadViewModel {
+    fileprivate static func fetchThreadViewModel(address: SignalServiceAddress) -> ThreadViewModel {
         // Avoid opening a write transaction if we can
         guard let threadViewModel: ThreadViewModel = Self.databaseStorage.read(block: { transaction in
             guard let thread = TSContactThread.getWithContactAddress(
@@ -66,14 +107,9 @@ class MemberActionSheet: OWSTableSheetViewController {
 
     private weak var fromViewController: UIViewController?
 
-    func present(from viewController: UIViewController) {
+    fileprivate func present(from viewController: UIViewController) {
         fromViewController = viewController
         viewController.present(self, animated: true)
-    }
-
-    func reloadThreadViewModel() {
-        threadViewModel  = Self.fetchThreadViewModel(address: address)
-        updateTableContents()
     }
 
     // When presenting the contact view, we must retain ourselves
@@ -100,6 +136,33 @@ class MemberActionSheet: OWSTableSheetViewController {
 
         // If the local user, show no options.
         guard !address.isLocalAddress else { return }
+
+        // Nickname
+        section.add(.item(
+            icon: .buttonEdit,
+            name: OWSLocalizedString(
+                "NICKNAME_BUTTON_TITLE",
+                comment: "Title for the table cell in conversation settings for presenting the profile nickname editor."
+            ),
+            actionBlock: { [weak self] in
+                guard let self else { return }
+                let db = DependenciesBridge.shared.db
+
+                let nicknameEditor = db.read { tx in
+                    NicknameEditorViewController.create(
+                        for: self.address,
+                        context: .init(
+                            db: db,
+                            nicknameManager: DependenciesBridge.shared.nicknameManager
+                        ),
+                        tx: tx
+                    )
+                }
+                guard let nicknameEditor else { return }
+                let navigationController = OWSNavigationController(rootViewController: nicknameEditor)
+                self.presentFormSheet(navigationController, animated: true)
+            }
+        ))
 
         // If blocked, only show unblock as an option
         guard !threadViewModel.isBlocked else {
@@ -202,8 +265,8 @@ class MemberActionSheet: OWSTableSheetViewController {
             }
         ))
 
-        let isSystemContact = databaseStorage.read { transaction in
-            contactsManager.isSystemContact(address: address, transaction: transaction)
+        let isSystemContact = databaseStorage.read { tx in
+            return contactsManager.fetchSignalAccount(for: address, transaction: tx) != nil
         }
         if isSystemContact {
             section.add(.item(
@@ -214,10 +277,11 @@ class MemberActionSheet: OWSTableSheetViewController {
                 ),
                 accessibilityIdentifier: "MemberActionSheet.contact",
                 actionBlock: { [weak self] in
-                    self?.handleContactAction(editImmediately: false)
+                    guard let self else { return }
+                    self.viewSystemContactDetails(contactAddress: self.address)
                 }
             ))
-        } else {
+        } else if address.phoneNumber != nil {
             section.add(.item(
                 icon: .contactInfoAddToContacts,
                 name: OWSLocalizedString(
@@ -226,7 +290,8 @@ class MemberActionSheet: OWSTableSheetViewController {
                 ),
                 accessibilityIdentifier: "MemberActionSheet.add_to_contacts",
                 actionBlock: { [weak self] in
-                    self?.handleContactAction(editImmediately: true)
+                    guard let self else { return }
+                    self.showAddToSystemContactsActionSheet(contactAddress: self.address)
                 }
             ))
         }
@@ -247,27 +312,64 @@ class MemberActionSheet: OWSTableSheetViewController {
         ))
     }
 
-    private func handleContactAction(editImmediately: Bool) {
-        guard
-            let viewController = fromViewController,
-            let navigationController = viewController.navigationController
-        else {
-            return
-        }
-        self.dismiss(animated: true) {
-            self.contactsViewHelper.checkEditingAuthorization(
-                authorizedBehavior: .pushViewController(on: navigationController, viewController: {
-                    let result = self.contactsViewHelper.contactViewController(
-                        for: self.address,
-                        editImmediately: editImmediately
-                    )
-                    self.strongSelf = self
-                    result.delegate = self
-                    return result
-                }),
-                unauthorizedBehavior: .presentError(from: viewController)
+    private func viewSystemContactDetails(contactAddress: SignalServiceAddress) {
+        guard let viewController = fromViewController else { return }
+        let contactsViewHelper = contactsViewHelper
+
+        dismiss(animated: true) {
+            contactsViewHelper.presentSystemContactsFlow(
+                CreateOrEditContactFlow(address: contactAddress, editImmediately: false),
+                from: viewController
             )
         }
+    }
+
+    private func showAddToSystemContactsActionSheet(contactAddress: SignalServiceAddress) {
+        guard let viewController = fromViewController else { return }
+        let contactsViewHelper = contactsViewHelper
+
+        dismiss(animated: true) {
+            let actionSheet = ActionSheetController()
+            let createNewTitle = OWSLocalizedString(
+                "CONVERSATION_SETTINGS_NEW_CONTACT",
+                comment: "Label for 'new contact' button in conversation settings view."
+            )
+            actionSheet.addAction(ActionSheetAction(
+                title: createNewTitle,
+                style: .default,
+                handler: {_ in
+                    contactsViewHelper.presentSystemContactsFlow(
+                        CreateOrEditContactFlow(address: contactAddress),
+                        from: viewController
+                    )
+                }
+            ))
+
+            let addToExistingTitle = OWSLocalizedString(
+                "CONVERSATION_SETTINGS_ADD_TO_EXISTING_CONTACT",
+                comment: "Label for 'new contact' button in conversation settings view."
+            )
+            actionSheet.addAction(ActionSheetAction(
+                title: addToExistingTitle,
+                style: .default,
+                handler: { _ in
+                    contactsViewHelper.presentSystemContactsFlow(
+                        AddToExistingContactFlow(address: contactAddress),
+                        from: viewController
+                    )
+                }
+            ))
+            actionSheet.addAction(OWSActionSheets.cancelAction)
+
+            viewController.presentActionSheet(actionSheet)
+        }
+    }
+
+    @objc
+    private func recipientUpdated(notification: NSNotification) {
+        guard self.isViewLoaded else { return }
+        AssertIsOnMainThread()
+        updateTableContents()
     }
 }
 
@@ -294,10 +396,10 @@ extension MemberActionSheet: ConversationHeaderDelegate {
         let (profile, shortName) = databaseStorage.read { transaction in
             return (
                 profileManager.getUserProfile(for: address, transaction: transaction),
-                contactsManager.shortDisplayName(for: address, transaction: transaction)
+                contactsManager.displayName(for: address, tx: transaction).resolvedValue(useShortNameIfAvailable: true)
             )
         }
-        guard let primaryBadge = profile?.visibleBadges.first?.badge else { return }
+        guard let primaryBadge = profile?.primaryBadge?.badge else { return }
         let owner: BadgeDetailsSheet.Owner
         if address.isLocalAddress {
             owner = .local(shortName: shortName)
@@ -324,48 +426,22 @@ extension MemberActionSheet: ConversationHeaderDelegate {
     }
     func didTapAddGroupDescription() {}
     var canEditConversationAttributes: Bool { false }
+
+    var canTapThreadName: Bool { true }
+
+    func didTapThreadName() {
+        guard let contactThread = self.thread as? TSContactThread else {
+            owsFailDebug("How is member sheet not showing a contact?")
+            return
+        }
+        let sheet = ContactAboutSheet(thread: contactThread, spoilerState: spoilerState)
+        dismiss(animated: true) {
+            guard let fromViewController = self.fromViewController else { return }
+            sheet.present(from: fromViewController)
+        }
+    }
 }
 
-extension MemberActionSheet: CNContactViewControllerDelegate {
-    func contactViewController(_ viewController: CNContactViewController, didCompleteWith contact: CNContact?) {
-        viewController.navigationController?.popViewController(animated: true)
-        strongSelf = nil
-    }
-}
-
-extension MemberActionSheet: MediaPresentationContextProvider {
-    func mediaPresentationContext(item: Media, in coordinateSpace: UICoordinateSpace) -> MediaPresentationContext? {
-        let mediaView: UIView
-        let mediaViewShape: MediaViewShape
-        switch item {
-        case .gallery:
-            owsFailDebug("Unexpected item")
-            return nil
-        case .image:
-            guard let avatarView = avatarView as? ConversationAvatarView else { return nil }
-            mediaView = avatarView
-            if case .circular = avatarView.configuration.shape {
-                mediaViewShape = .circle
-            } else {
-                mediaViewShape = .rectangle(0)
-            }
-        }
-
-        guard let mediaSuperview = mediaView.superview else {
-            owsFailDebug("mediaSuperview was unexpectedly nil")
-            return nil
-        }
-
-        let presentationFrame = coordinateSpace.convert(mediaView.frame, from: mediaSuperview)
-
-        return MediaPresentationContext(
-            mediaView: mediaView,
-            presentationFrame: presentationFrame,
-            mediaViewShape: mediaViewShape
-        )
-    }
-
-    func snapshotOverlayView(in coordinateSpace: UICoordinateSpace) -> (UIView, CGRect)? {
-        return nil
-    }
+extension MemberActionSheet: AvatarViewPresentationContextProvider {
+    var conversationAvatarView: ConversationAvatarView? { avatarView }
 }

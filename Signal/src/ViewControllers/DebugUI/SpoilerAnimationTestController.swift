@@ -3,10 +3,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
+#if USE_DEBUG_UI
+
 import Foundation
 import SignalUI
-
-#if USE_DEBUG_UI
+public import UIKit
 
 public class SpoilerAnimationTestController: UIViewController {
 

@@ -58,7 +58,7 @@ class VoiceMessageDraftView: UIStackView {
         waveformView.thumbColor = playedColor
         waveformView.playedColor = playedColor
         waveformView.unplayedColor = Theme.isDarkThemeEnabled ? .ows_gray60 : .ows_gray25
-        waveformView.audioWaveform = voiceMessageInterruptedDraft.audioWaveform
+        waveformView.audioWaveformTask = voiceMessageInterruptedDraft.audioWaveformTask
         waveformView.autoSetDimension(.height, toSize: 22)
 
         addArrangedSubview(waveformView)
@@ -87,7 +87,7 @@ class VoiceMessageDraftView: UIStackView {
     @objc
     private func handlePan(_ sender: UIPanGestureRecognizer) {
         let location = sender.location(in: waveformView)
-        var progress = CGFloatClamp01(location.x / waveformView.width)
+        var progress = CGFloat.clamp01(location.x / waveformView.width)
 
         // When in RTL mode, the slider moves in the opposite direction so inverse the ratio.
         if CurrentAppContext().isRTL {
@@ -118,7 +118,7 @@ class VoiceMessageDraftView: UIStackView {
 
     func updateAudioProgress(currentTime: TimeInterval) {
         guard let duration = voiceMessageInterruptedDraft.duration else { return }
-        waveformView.value = CGFloatClamp01(CGFloat(currentTime / duration))
+        waveformView.value = CGFloat.clamp01(CGFloat(currentTime / duration))
         playbackTimeLabel.text = OWSFormat.localizedDurationString(from: duration - currentTime)
     }
 

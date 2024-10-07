@@ -5,7 +5,7 @@
 
 import XCTest
 @testable import Signal
-@testable import SignalMessaging
+@testable import SignalServiceKit
 
 final class DonateViewControllerTest: SignalBaseTest {
     typealias State = DonateViewController.State
@@ -40,8 +40,9 @@ final class DonateViewControllerTest: SignalBaseTest {
             .init(
                 level: level,
                 badge: badge,
-                minimumAmounts: minimums,
-                presetAmounts: presets
+                presetAmounts: presets,
+                minimumAmountsByCurrency: minimums,
+                maximumAmountViaSepa: FiatMoney(currencyCode: "EUR", value: 10.000)
             )
         }
     }
@@ -182,6 +183,8 @@ final class DonateViewControllerTest: SignalBaseTest {
             previousMonthlySubscriptionPaymentMethod: nil,
             oneTimeBoostReceiptCredentialRequestError: nil,
             recurringSubscriptionReceiptCredentialRequestError: nil,
+            pendingIDEALOneTimeDonation: nil,
+            pendingIDEALSubscription: nil,
             locale: Locale(identifier: "en-US"),
             localNumber: Self.localNumber
         )
@@ -198,6 +201,8 @@ final class DonateViewControllerTest: SignalBaseTest {
             previousMonthlySubscriptionPaymentMethod: .applePay,
             oneTimeBoostReceiptCredentialRequestError: nil,
             recurringSubscriptionReceiptCredentialRequestError: nil,
+            pendingIDEALOneTimeDonation: nil,
+            pendingIDEALSubscription: nil,
             locale: Locale(identifier: "en-US"),
             localNumber: Self.localNumber
         )
@@ -222,6 +227,8 @@ final class DonateViewControllerTest: SignalBaseTest {
             previousMonthlySubscriptionPaymentMethod: .applePay,
             oneTimeBoostReceiptCredentialRequestError: nil,
             recurringSubscriptionReceiptCredentialRequestError: nil,
+            pendingIDEALOneTimeDonation: nil,
+            pendingIDEALSubscription: nil,
             locale: locale,
             localNumber: Self.localNumber
         )
@@ -231,10 +238,10 @@ final class DonateViewControllerTest: SignalBaseTest {
         recurringProcessingViaSubscription: Bool,
         recurringProcessingViaError: Bool
     ) -> State {
-        let recurringError: SubscriptionReceiptCredentialRequestError? = {
+        let recurringError: ReceiptCredentialRequestError? = {
             guard recurringProcessingViaError else { return nil }
 
-            return SubscriptionReceiptCredentialRequestError(
+            return ReceiptCredentialRequestError(
                 errorCode: .paymentStillProcessing,
                 chargeFailureCodeIfPaymentFailed: nil,
                 badge: MonthlyFixtures.badgeOne,
@@ -255,7 +262,7 @@ final class DonateViewControllerTest: SignalBaseTest {
             subscriberID: Data([1, 2, 3]),
             previousMonthlySubscriptionCurrencyCode: nil,
             previousMonthlySubscriptionPaymentMethod: .applePay,
-            oneTimeBoostReceiptCredentialRequestError: SubscriptionReceiptCredentialRequestError(
+            oneTimeBoostReceiptCredentialRequestError: ReceiptCredentialRequestError(
                 errorCode: .paymentStillProcessing,
                 chargeFailureCodeIfPaymentFailed: nil,
                 badge: OneTimeFixtures.badge,
@@ -263,6 +270,8 @@ final class DonateViewControllerTest: SignalBaseTest {
                 paymentMethod: .sepa
             ),
             recurringSubscriptionReceiptCredentialRequestError: recurringError,
+            pendingIDEALOneTimeDonation: nil,
+            pendingIDEALSubscription: nil,
             locale: Locale(identifier: "en-US"),
             localNumber: Self.localNumber
         )
@@ -500,7 +509,7 @@ final class DonateViewControllerTest: SignalBaseTest {
         switch oneTimeProcessing.oneTime!.paymentRequest {
         case let .alreadyHasPaymentProcessing(paymentMethod):
             XCTAssertEqual(paymentMethod, .sepa)
-        case .noAmountSelected, .amountIsTooSmall, .canContinue:
+        case .noAmountSelected, .amountIsTooSmall, .canContinue, .awaitingIDEALAuthorization:
             XCTFail("Should be payment processing!")
         }
 

@@ -3,7 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
+import Foundation
 import SignalUI
+import UIKit
 
 class PaypalButton: UIButton {
     private let actionBlock: () -> Void
@@ -26,8 +28,8 @@ class PaypalButton: UIButton {
 
     private func configureStyling() {
         setImage(UIImage(named: "paypal-logo"), for: .normal)
-        adjustsImageWhenDisabled = false
-        adjustsImageWhenHighlighted = false
+        ows_adjustsImageWhenDisabled = false
+        ows_adjustsImageWhenHighlighted = false
         layer.cornerRadius = 12
         layer.borderWidth = 0
 

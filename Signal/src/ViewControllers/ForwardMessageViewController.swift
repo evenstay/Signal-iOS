@@ -3,8 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
-import SignalServiceKit
+public import SignalServiceKit
 import SignalUI
 
 public protocol ForwardMessageDelegate: AnyObject {
@@ -57,10 +56,6 @@ class ForwardMessageViewController: InteractiveSheetViewController {
         minimizedHeight = 576
     }
 
-    required init() {
-        fatalError("init() has not been implemented")
-    }
-
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
@@ -94,7 +89,7 @@ class ForwardMessageViewController: InteractiveSheetViewController {
     }
 
     public class func present(
-        forAttachmentStreams attachmentStreams: [TSAttachmentStream],
+        forAttachmentStreams attachmentStreams: [ReferencedTSResourceStream],
         fromMessage message: TSMessage,
         from fromViewController: UIViewController,
         delegate: ForwardMessageDelegate
@@ -103,7 +98,9 @@ class ForwardMessageViewController: InteractiveSheetViewController {
             let builder = Item.Builder(interaction: message)
 
             builder.attachments = try attachmentStreams.map { attachmentStream in
-                try attachmentStream.cloneAsSignalAttachment()
+                try DependenciesBridge.shared.tsResourceCloner.cloneAsSignalAttachment(
+                    attachment: attachmentStream
+                )
             }
 
             let item: Item = builder.build()
@@ -128,20 +125,25 @@ class ForwardMessageViewController: InteractiveSheetViewController {
     ) {
         let builder = Item.Builder()
         switch storyMessage.attachment {
-        case .file(let file):
-            guard let attachmentStream = databaseStorage.read(block: {
-                TSAttachmentStream.anyFetchAttachmentStream(uniqueId: file.attachmentId, transaction: $0)
-            }) else {
-                ForwardMessageViewController.showAlertForForwardError(
-                    error: OWSAssertionError("Missing attachment stream for forwarded story message"),
-                    forwardedInteractionCount: 1
-                )
-                return
+        case .file, .foreignReferenceAttachment:
+            let attachment: ReferencedTSResourceStream? = databaseStorage.read { tx in
+                guard
+                    let reference = DependenciesBridge.shared.tsResourceStore.mediaAttachment(for: storyMessage, tx: tx.asV2Read),
+                    let attachmentStream = reference.fetch(tx: tx)?.asResourceStream()
+                else {
+                    return nil
+                }
+                return .init(reference: reference, attachmentStream: attachmentStream)
             }
             do {
-                let signalAttachment = try attachmentStream.cloneAsSignalAttachment()
+                guard let attachment else {
+                    throw OWSAssertionError("Missing attachment stream for forwarded story message")
+                }
+                let signalAttachment = try DependenciesBridge.shared.tsResourceCloner.cloneAsSignalAttachment(
+                    attachment: attachment
+                )
                 builder.attachments = [signalAttachment]
-            } catch {
+            } catch let error {
                 ForwardMessageViewController.showAlertForForwardError(
                     error: error,
                     forwardedInteractionCount: 1
@@ -206,7 +208,7 @@ class ForwardMessageViewController: InteractiveSheetViewController {
     fileprivate func ensureBottomFooterVisibility() {
         AssertIsOnMainThread()
 
-        if selectedConversations.allSatisfy({ $0.outgoingMessageClass == OutgoingStoryMessage.self }) {
+        if selectedConversations.allSatisfy({ $0.outgoingMessageType == .storyMessage }) {
             pickerVC.approvalTextMode = .none
         } else {
             let placeholderText = OWSLocalizedString(
@@ -302,11 +304,11 @@ extension ForwardMessageViewController {
                     )
                 }
 
-                func hasRenderableContent(interaction: TSInteraction) -> Bool {
+                func hasRenderableContent(interaction: TSInteraction, tx: SDSAnyReadTransaction) -> Bool {
                     guard let message = interaction as? TSMessage else {
                         return false
                     }
-                    return message.hasRenderableContent()
+                    return message.hasRenderableContent(tx: tx)
                 }
 
                 // Make sure the message and its content haven't been deleted (view-once
@@ -318,7 +320,7 @@ extension ForwardMessageViewController {
                             uniqueId: interactionId,
                             transaction: transaction
                         ),
-                        hasRenderableContent(interaction: latestInteraction)
+                        hasRenderableContent(interaction: latestInteraction, tx: transaction)
                     else {
                         throw ForwardError.missingInteraction
                     }
@@ -331,12 +333,16 @@ extension ForwardMessageViewController {
                 let sortedItems = content.allItems.sorted { lhs, rhs in
                     lhs.interaction?.timestamp ?? 0 < rhs.interaction?.timestamp ?? 0
                 }
-                let promises: [Promise<Void>] = sortedItems.map { item in
-                    self.send(item: item, toOutgoingMessageRecipientThreads: outgoingMessageRecipientThreads)
+                // _Enqueue_ each item serially.
+                // Each item waits on the previous' enqueue promise, then sets its own
+                // enqueue promise as the previous promise var.
+                var prevEnqueuePromise = Promise<Void>.value(())
+                for item in sortedItems {
+                    prevEnqueuePromise = prevEnqueuePromise.then(on: DispatchQueue.main) {
+                        return self.send(item: item, toOutgoingMessageRecipientThreads: outgoingMessageRecipientThreads)
+                    }
                 }
-                return firstly(on: DispatchQueue.main) { () -> Promise<Void> in
-                    Promise.when(resolved: promises).asVoid()
-                }.then(on: DispatchQueue.main) { _ -> Promise<Void> in
+                return prevEnqueuePromise.then(on: DispatchQueue.main) { _ -> Promise<Void> in
                     // The user may have added an additional text message to the forward.
                     // It should be sent last.
                     if let textMessage = textMessage {
@@ -375,7 +381,7 @@ extension ForwardMessageViewController {
                     return Promise(error: OWSAssertionError("Missing stickerAttachment."))
                 }
                 do {
-                    let stickerData = try stickerAttachment.readDataFromFile()
+                    let stickerData = try stickerAttachment.decryptedRawData()
                     return send(toRecipientThreads: outgoingMessageRecipientThreads) { recipientThread in
                         self.send(uninstalledSticker: stickerMetadata,
                                   stickerData: stickerData,
@@ -387,24 +393,23 @@ extension ForwardMessageViewController {
             }
         } else if let contactShare = item.contactShare {
             return send(toRecipientThreads: outgoingMessageRecipientThreads) { recipientThread in
-                if let avatarImage = contactShare.avatarImage {
-                    self.databaseStorage.write { transaction in
-                        contactShare.dbRecord.saveAvatarImage(avatarImage, transaction: transaction)
-                    }
-                }
-                return self.send(contactShare: contactShare, thread: recipientThread)
+                return self.send(contactShare: contactShare.copyForResending(), thread: recipientThread)
             }
         } else if let attachments = item.attachments,
                   !attachments.isEmpty {
             // TODO: What about link previews in this case?
             let conversations = selectedConversations
-            return AttachmentMultisend.sendApprovedMedia(conversations: conversations,
-                                                         approvalMessageBody: item.messageBody,
-                                                         approvedAttachments: attachments).asVoid()
+            return TSResourceMultisend.sendApprovedMedia(
+                conversations: conversations,
+                approvalMessageBody: item.messageBody,
+                approvedAttachments: attachments
+            ).enqueuedPromise.asVoid()
         } else if let textAttachment = item.textAttachment {
             // TODO: we want to reuse the uploaded link preview image attachment instead of re-uploading
             // if the original was sent recently (if not the image could be stale)
-            return AttachmentMultisend.sendTextAttachment(textAttachment.asUnsentAttachment(), to: selectedConversations).asVoid()
+            return TSResourceMultisend.sendTextAttachment(
+                textAttachment.asUnsentAttachment(), to: selectedConversations
+            ).enqueuedPromise.asVoid()
         } else if let messageBody = item.messageBody {
             let linkPreviewDraft = item.linkPreviewDraft
             let nonStorySendPromise = send(toRecipientThreads: outgoingMessageRecipientThreads) { recipientThread in
@@ -417,39 +422,39 @@ extension ForwardMessageViewController {
 
             // Send the text message to any selected story recipients
             // as a text story with default styling.
-            let storyConversations = selectedConversations.filter { $0.outgoingMessageClass == OutgoingStoryMessage.self }
-            let storySendPromise = StorySharing.sendTextStory(with: messageBody, linkPreviewDraft: linkPreviewDraft, to: storyConversations)
-
-            return Promise<Void>.when(fulfilled: [nonStorySendPromise, storySendPromise])
+            let storyConversations = selectedConversations.filter { $0.outgoingMessageType == .storyMessage }
+            let storySendResult = StorySharing.sendTextStory(with: messageBody, linkPreviewDraft: linkPreviewDraft, to: storyConversations)
+            let storySendEnqueuedPromise = storySendResult?.enqueuedPromise.asVoid() ?? .value(())
+            return Promise<Void>.when(fulfilled: [nonStorySendPromise, storySendEnqueuedPromise])
         } else {
             return Promise(error: ForwardError.invalidInteraction)
         }
     }
 
     fileprivate func send(body: MessageBody, linkPreviewDraft: OWSLinkPreviewDraft? = nil, recipientThread: TSThread) -> Promise<Void> {
-        databaseStorage.read { transaction in
-            ThreadUtil.enqueueMessage(
-                body: body.forForwarding(to: recipientThread, transaction: transaction.unwrapGrdbRead).asMessageBodyForForwarding(),
-                thread: recipientThread,
-                linkPreviewDraft: linkPreviewDraft,
-                transaction: transaction
-            )
+        let body = databaseStorage.read { transaction in
+            return body.forForwarding(to: recipientThread, transaction: transaction.unwrapGrdbRead).asMessageBodyForForwarding()
         }
+        ThreadUtil.enqueueMessage(
+            body: body,
+            thread: recipientThread,
+            linkPreviewDraft: linkPreviewDraft
+        )
         return Promise.value(())
     }
 
-    fileprivate func send(contactShare: ContactShareViewModel, thread: TSThread) -> Promise<Void> {
-        ThreadUtil.enqueueMessage(withContactShare: contactShare.dbRecord, thread: thread)
+    fileprivate func send(contactShare: ContactShareDraft, thread: TSThread) -> Promise<Void> {
+        ThreadUtil.enqueueMessage(withContactShare: contactShare, thread: thread)
         return Promise.value(())
     }
 
     fileprivate func send(body: MessageBody, attachment: SignalAttachment, thread: TSThread) -> Promise<Void> {
-        databaseStorage.read { transaction in
-            ThreadUtil.enqueueMessage(body: body,
-                                      mediaAttachments: [attachment],
-                                      thread: thread,
-                                      transaction: transaction)
+        let body = databaseStorage.read { transaction in
+            return body.forForwarding(to: thread, transaction: transaction.unwrapGrdbRead).asMessageBodyForForwarding()
         }
+        ThreadUtil.enqueueMessage(body: body,
+                                  mediaAttachments: [attachment],
+                                  thread: thread)
         return Promise.value(())
     }
 
@@ -458,7 +463,7 @@ extension ForwardMessageViewController {
         return Promise.value(())
     }
 
-    fileprivate func send(uninstalledSticker stickerMetadata: StickerMetadata, stickerData: Data, thread: TSThread) -> Promise<Void> {
+    fileprivate func send(uninstalledSticker stickerMetadata: any StickerMetadata, stickerData: Data, thread: TSThread) -> Promise<Void> {
         ThreadUtil.enqueueMessage(withUninstalledSticker: stickerMetadata, stickerData: stickerData, thread: thread)
         return Promise.value(())
     }
@@ -477,7 +482,7 @@ extension ForwardMessageViewController {
             }
 
             return try self.databaseStorage.write { transaction in
-                try conversationItems.lazy.filter { $0.outgoingMessageClass == TSOutgoingMessage.self }.map {
+                try conversationItems.lazy.filter { $0.outgoingMessageType == .message }.map {
                     guard let thread = $0.getOrCreateThread(transaction: transaction) else {
                         throw ForwardError.missingThread
                     }
@@ -521,65 +526,6 @@ extension ForwardMessageViewController: ConversationPickerDelegate {
 
     func conversationPickerSearchBarActiveDidChange(_ conversationPickerViewController: ConversationPickerViewController) {
         ensureHeaderVisibility()
-    }
-}
-
-// MARK: -
-
-extension TSAttachmentStream {
-    /// The purpose of this request is to make it possible to cloneAsSignalAttachment without an instance of the original TSAttachmentStream.
-    /// See the note in VideoDurationHelper for why.
-    struct CloneAsSignalAttachmentRequest {
-        var uniqueId: String
-        fileprivate var sourceUrl: URL
-        fileprivate var dataUTI: String
-        fileprivate var sourceFilename: String?
-        fileprivate var isVoiceMessage: Bool
-        fileprivate var caption: String?
-        fileprivate var isBorderless: Bool
-        fileprivate var isLoopingVideo: Bool
-    }
-
-    func cloneAsSignalAttachmentRequest() throws -> CloneAsSignalAttachmentRequest {
-        guard let sourceUrl = originalMediaURL else {
-            throw OWSAssertionError("Missing originalMediaURL.")
-        }
-        guard let dataUTI = MIMETypeUtil.utiType(forMIMEType: contentType) else {
-            throw OWSAssertionError("Missing dataUTI.")
-        }
-        return CloneAsSignalAttachmentRequest(uniqueId: self.uniqueId,
-                                              sourceUrl: sourceUrl,
-                                              dataUTI: dataUTI,
-                                              sourceFilename: sourceFilename,
-                                              isVoiceMessage: isVoiceMessage,
-                                              caption: caption,
-                                              isBorderless: isBorderless,
-                                              isLoopingVideo: isLoopingVideo)
-    }
-
-    func cloneAsSignalAttachment() throws -> SignalAttachment {
-        let request = try cloneAsSignalAttachmentRequest()
-        return try Self.cloneAsSignalAttachment(request: request)
-    }
-
-    static func cloneAsSignalAttachment(request: CloneAsSignalAttachmentRequest) throws -> SignalAttachment {
-        let newUrl = OWSFileSystem.temporaryFileUrl(fileExtension: request.sourceUrl.pathExtension)
-        try FileManager.default.copyItem(at: request.sourceUrl, to: newUrl)
-
-        let clonedDataSource = try DataSourcePath.dataSource(with: newUrl,
-                                                             shouldDeleteOnDeallocation: true)
-        clonedDataSource.sourceFilename = request.sourceFilename
-
-        var signalAttachment: SignalAttachment
-        if request.isVoiceMessage {
-            signalAttachment = SignalAttachment.voiceMessageAttachment(dataSource: clonedDataSource, dataUTI: request.dataUTI)
-        } else {
-            signalAttachment = SignalAttachment.attachment(dataSource: clonedDataSource, dataUTI: request.dataUTI)
-        }
-        signalAttachment.captionText = request.caption
-        signalAttachment.isBorderless = request.isBorderless
-        signalAttachment.isLoopingVideo = request.isLoopingVideo
-        return signalAttachment
     }
 }
 
@@ -654,8 +600,8 @@ public struct ForwardMessageItem {
     let contactShare: ContactShareViewModel?
     let messageBody: MessageBody?
     let linkPreviewDraft: OWSLinkPreviewDraft?
-    let stickerMetadata: StickerMetadata?
-    let stickerAttachment: TSAttachmentStream?
+    let stickerMetadata: (any StickerMetadata)?
+    let stickerAttachment: TSResourceStream?
     let textAttachment: TextAttachment?
 
     fileprivate class Builder {
@@ -665,8 +611,8 @@ public struct ForwardMessageItem {
         var contactShare: ContactShareViewModel?
         var messageBody: MessageBody?
         var linkPreviewDraft: OWSLinkPreviewDraft?
-        var stickerMetadata: StickerMetadata?
-        var stickerAttachment: TSAttachmentStream?
+        var stickerMetadata: (any StickerMetadata)?
+        var stickerAttachment: TSResourceStream?
         var textAttachment: TextAttachment?
 
         init(interaction: TSInteraction? = nil) {
@@ -742,9 +688,10 @@ public struct ForwardMessageItem {
                 builder.messageBody = hydratedBody.asMessageBodyForForwarding(preservingAllMentions: true)
             }
 
-            if let linkPreview = componentState.linkPreviewModel {
+            if let linkPreview = componentState.linkPreviewModel, let message = interaction as? TSMessage {
                 builder.linkPreviewDraft = Self.tryToCloneLinkPreview(
                     linkPreview: linkPreview,
+                    parentMessage: message,
                     transaction: transaction
                 )
             }
@@ -752,10 +699,10 @@ public struct ForwardMessageItem {
 
         if shouldHaveAttachments {
             if let oldContactShare = componentState.contactShareModel {
-                builder.contactShare = oldContactShare.copyForResending()
+                builder.contactShare = oldContactShare.copyForRendering()
             }
 
-            var attachmentStreams = [TSAttachmentStream]()
+            var attachmentStreams = [ReferencedTSResourceStream]()
             attachmentStreams.append(contentsOf: componentState.bodyMediaAttachmentStreams)
             if let attachmentStream = componentState.audioAttachmentStream {
                 attachmentStreams.append(attachmentStream)
@@ -766,7 +713,9 @@ public struct ForwardMessageItem {
 
             if !attachmentStreams.isEmpty {
                 builder.attachments = try attachmentStreams.map { attachmentStream in
-                    try attachmentStream.cloneAsSignalAttachment()
+                    try DependenciesBridge.shared.tsResourceCloner.cloneAsSignalAttachment(
+                        attachment: attachmentStream
+                    )
                 }
             }
 
@@ -786,8 +735,11 @@ public struct ForwardMessageItem {
         return item
     }
 
-    private static func tryToCloneLinkPreview(linkPreview: OWSLinkPreview,
-                                              transaction: SDSAnyReadTransaction) -> OWSLinkPreviewDraft? {
+    private static func tryToCloneLinkPreview(
+        linkPreview: OWSLinkPreview,
+        parentMessage: TSMessage,
+        transaction: SDSAnyReadTransaction
+    ) -> OWSLinkPreviewDraft? {
         guard let urlString = linkPreview.urlString,
               let url = URL(string: urlString) else {
             owsFailDebug("Missing or invalid urlString.")
@@ -797,19 +749,24 @@ public struct ForwardMessageItem {
             let imageData: Data
             let mimetype: String
 
-            static func load(attachmentId: String,
-                             transaction: SDSAnyReadTransaction) -> LinkPreviewImage? {
-                guard let attachment = TSAttachmentStream.anyFetchAttachmentStream(uniqueId: attachmentId,
-                                                                                   transaction: transaction) else {
+            static func load(
+                attachmentId: TSResourceId,
+                transaction: SDSAnyReadTransaction
+            ) -> LinkPreviewImage? {
+                guard
+                    let attachment = DependenciesBridge.shared.tsResourceStore
+                        .fetch(attachmentId, tx: transaction.asV2Read)?
+                        .asResourceStream()
+                else {
                     owsFailDebug("Missing attachment.")
                     return nil
                 }
-                guard let mimeType = attachment.contentType.nilIfEmpty else {
+                guard let mimeType = attachment.mimeType.nilIfEmpty else {
                     owsFailDebug("Missing mimeType.")
                     return nil
                 }
                 do {
-                    let imageData = try attachment.readDataFromFile()
+                    let imageData = try attachment.decryptedRawData()
                     return LinkPreviewImage(imageData: imageData, mimetype: mimeType)
                 } catch {
                     owsFailDebug("Error: \(error).")
@@ -818,18 +775,26 @@ public struct ForwardMessageItem {
             }
         }
         var linkPreviewImage: LinkPreviewImage?
-        if let imageAttachmentId = linkPreview.imageAttachmentId,
-           let image = LinkPreviewImage.load(attachmentId: imageAttachmentId,
-                                             transaction: transaction) {
+        if
+            let imageAttachmentId = DependenciesBridge.shared.tsResourceStore.linkPreviewAttachment(
+                for: parentMessage,
+                tx: transaction.asV2Read
+            )?.resourceId,
+            let image = LinkPreviewImage.load(
+                attachmentId: imageAttachmentId,
+                transaction: transaction
+            )
+        {
             linkPreviewImage = image
         }
-        let draft = OWSLinkPreviewDraft(url: url,
-                                        title: linkPreview.title,
-                                        imageData: linkPreviewImage?.imageData,
-                                        imageMimeType: linkPreviewImage?.mimetype)
-        draft.previewDescription = linkPreview.previewDescription
-        draft.date = linkPreview.date
-        return draft
+        return OWSLinkPreviewDraft(
+            url: url,
+            title: linkPreview.title,
+            imageData: linkPreviewImage?.imageData,
+            imageMimeType: linkPreviewImage?.mimetype,
+            previewDescription: linkPreview.previewDescription,
+            date: linkPreview.date
+        )
     }
 }
 

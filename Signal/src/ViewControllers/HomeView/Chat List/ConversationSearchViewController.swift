@@ -5,7 +5,7 @@
 
 import BonMot
 import Foundation
-import SignalServiceKit
+public import SignalServiceKit
 import SignalUI
 
 /* From BonMot 6.0.0: If you're targeting iOS 15 or higher, you may want to check out [AttributedString](https://developer.apple.com/documentation/foundation/attributedstring) instead.
@@ -14,6 +14,7 @@ typealias StringStyle = BonMot.StringStyle
 
 public protocol ConversationSearchViewDelegate: AnyObject {
     func conversationSearchViewWillBeginDragging()
+    func conversationSearchDidSelectRow()
 }
 
 public class ConversationSearchViewController: UITableViewController {
@@ -30,6 +31,7 @@ public class ConversationSearchViewController: UITableViewController {
 
     public var searchText = "" {
         didSet {
+            guard searchText != oldValue else { return }
             AssertIsOnMainThread()
 
             // Use a slight delay to debounce updates.
@@ -64,7 +66,7 @@ public class ConversationSearchViewController: UITableViewController {
         StringStyle(
             .color(Theme.secondaryTextAndIconColor),
             .xmlRules([
-                .style(FullTextSearchFinder.matchTag, StringStyle(.font(UIFont.dynamicTypeBody2.semibold())))
+                .style(FullTextSearchIndexer.matchTag, StringStyle(.font(UIFont.dynamicTypeBody2.semibold())))
             ])
         )
     }
@@ -182,29 +184,31 @@ public class ConversationSearchViewController: UITableViewController {
             return
         }
 
+        delegate?.conversationSearchDidSelectRow()
+
         switch searchSection {
         case .noResults:
             owsFailDebug("shouldn't be able to tap 'no results' section")
         case .contactThreads:
-            let sectionResults = searchResultSet.contactThreads
+            let sectionResults = searchResultSet.contactThreadResults
             guard let searchResult = sectionResults[safe: indexPath.row] else {
                 owsFailDebug("unknown row selected.")
                 return
             }
 
-            let thread = searchResult.thread
-            SignalApp.shared.presentConversationForThread(thread.threadRecord, action: .compose, animated: true)
+            let threadViewModel = searchResult.threadViewModel
+            SignalApp.shared.presentConversationForThread(threadViewModel.threadRecord, action: .compose, animated: true)
         case .groupThreads:
-            let sectionResults = searchResultSet.groupThreads
+            let sectionResults = searchResultSet.groupThreadResults
             guard let searchResult = sectionResults[safe: indexPath.row] else {
                 owsFailDebug("unknown row selected.")
                 return
             }
 
-            let thread = searchResult.thread
-            SignalApp.shared.presentConversationForThread(thread.threadRecord, action: .compose, animated: true)
+            let threadViewModel = searchResult.threadViewModel
+            SignalApp.shared.presentConversationForThread(threadViewModel.threadRecord, action: .compose, animated: true)
         case .contacts:
-            let sectionResults = searchResultSet.contacts
+            let sectionResults = searchResultSet.contactResults
             guard let searchResult = sectionResults[safe: indexPath.row] else {
                 owsFailDebug("unknown row selected.")
                 return
@@ -213,16 +217,18 @@ public class ConversationSearchViewController: UITableViewController {
             SignalApp.shared.presentConversationForAddress(searchResult.recipientAddress, action: .compose, animated: true)
 
         case .messages:
-            let sectionResults = searchResultSet.messages
+            let sectionResults = searchResultSet.messageResults
             guard let searchResult = sectionResults[safe: indexPath.row] else {
                 owsFailDebug("unknown row selected.")
                 return
             }
 
-            let thread = searchResult.thread
-            SignalApp.shared.presentConversationForThread(thread.threadRecord,
-                                                            focusMessageId: searchResult.messageId,
-                                                            animated: true)
+            let threadViewModel = searchResult.threadViewModel
+            SignalApp.shared.presentConversationForThread(
+                threadViewModel.threadRecord,
+                focusMessageId: searchResult.messageId,
+                animated: true
+            )
         }
     }
 
@@ -264,13 +270,13 @@ public class ConversationSearchViewController: UITableViewController {
         case .noResults:
             return searchResultSet.isEmpty ? 1 : 0
         case .contactThreads:
-            return searchResultSet.contactThreads.count
+            return searchResultSet.contactThreadResults.count
         case .groupThreads:
-            return searchResultSet.groupThreads.count
+            return searchResultSet.groupThreadResults.count
         case .contacts:
-            return searchResultSet.contacts.count
+            return searchResultSet.contactResults.count
         case .messages:
-            return searchResultSet.messages.count
+            return searchResultSet.messageResults.count
         }
     }
 
@@ -300,14 +306,14 @@ public class ConversationSearchViewController: UITableViewController {
 
         // If we have an existing CLVCellContentToken, use it.
         // Cell measurement/arrangement is expensive.
-        let cacheKey = "\(configuration.thread.threadRecord.uniqueId).\(configuration.overrideSnippet?.text.hashValue ?? 0)"
+        let cacheKey = "\(configuration.threadViewModel.threadRecord.uniqueId).\(configuration.overrideSnippet?.text.hashValue ?? 0)"
         if useCache {
             if let cellContentToken = cellContentCache.get(key: cacheKey) {
                 return cellContentToken
             }
         }
 
-        let cellContentToken = ChatListCell.buildCellContentToken(forConfiguration: configuration)
+        let cellContentToken = ChatListCell.buildCellContentToken(for: configuration)
         cellContentCache.set(key: cacheKey, value: cellContentToken)
         return cellContentToken
     }
@@ -341,12 +347,11 @@ public class ConversationSearchViewController: UITableViewController {
                 return UITableViewCell()
             }
 
-            guard let searchResult = self.searchResultSet.contacts[safe: indexPath.row] else {
+            guard let searchResult = self.searchResultSet.contactResults[safe: indexPath.row] else {
                 owsFailDebug("searchResult was unexpectedly nil")
                 return UITableViewCell()
             }
-            cell.configureWithSneakyTransaction(address: searchResult.signalAccount.recipientAddress,
-                                                localUserDisplayMode: .noteToSelf)
+            cell.configureWithSneakyTransaction(address: searchResult.recipientAddress, localUserDisplayMode: .noteToSelf)
             return cell
         case .contactThreads, .groupThreads, .messages:
             guard let cell = tableView.dequeueReusableCell(withIdentifier: ChatListCell.reuseIdentifier) as? ChatListCell else {
@@ -378,17 +383,16 @@ public class ConversationSearchViewController: UITableViewController {
             owsFailDebug("Invalid section.")
             return nil
         case .contactThreads:
-            guard let searchResult = self.searchResultSet.contactThreads[safe: row] else {
+            guard let searchResult = self.searchResultSet.contactThreadResults[safe: row] else {
                 owsFailDebug("searchResult was unexpectedly nil")
                 return nil
             }
             return ChatListCell.Configuration(
-                thread: searchResult.thread,
-                lastReloadDate: lastReloadDate,
-                isBlocked: isBlocked(thread: searchResult.thread)
+                threadViewModel: searchResult.threadViewModel,
+                lastReloadDate: lastReloadDate
             )
         case .groupThreads:
-            guard let searchResult = self.searchResultSet.groupThreads[safe: row] else {
+            guard let searchResult = self.searchResultSet.groupThreadResults[safe: row] else {
                 owsFailDebug("searchResult was unexpectedly nil")
                 return nil
             }
@@ -399,9 +403,8 @@ public class ConversationSearchViewController: UITableViewController {
                 overrideSnippet = nil
             }
             return ChatListCell.Configuration(
-                thread: searchResult.thread,
+                threadViewModel: searchResult.threadViewModel,
                 lastReloadDate: lastReloadDate,
-                isBlocked: isBlocked(thread: searchResult.thread),
                 overrideSnippet: overrideSnippet,
                 overrideDate: nil
             )
@@ -409,7 +412,7 @@ public class ConversationSearchViewController: UITableViewController {
             owsFailDebug("Invalid section.")
             return nil
         case .messages:
-            guard let searchResult = self.searchResultSet.messages[safe: row] else {
+            guard let searchResult = self.searchResultSet.messageResults[safe: row] else {
                 owsFailDebug("searchResult was unexpectedly nil")
                 return nil
             }
@@ -428,9 +431,8 @@ public class ConversationSearchViewController: UITableViewController {
                 overrideSnippet = nil
             }
             return ChatListCell.Configuration(
-                thread: searchResult.thread,
+                threadViewModel: searchResult.threadViewModel,
                 lastReloadDate: lastReloadDate,
-                isBlocked: isBlocked(thread: searchResult.thread),
                 overrideSnippet: overrideSnippet,
                 overrideDate: overrideDate
             )
@@ -489,25 +491,25 @@ public class ConversationSearchViewController: UITableViewController {
         case .noResults:
             return nil
         case .contactThreads:
-            if searchResultSet.contactThreads.count > 0 {
+            if searchResultSet.contactThreadResults.count > 0 {
                 return OWSLocalizedString("SEARCH_SECTION_CONVERSATIONS", comment: "section header for search results that match existing 1:1 chats")
             } else {
                 return nil
             }
         case .groupThreads:
-            if searchResultSet.groupThreads.count > 0 {
+            if searchResultSet.groupThreadResults.count > 0 {
                 return OWSLocalizedString("SEARCH_SECTION_GROUPS", comment: "section header for search results that match existing groups")
             } else {
                 return nil
             }
         case .contacts:
-            if searchResultSet.contacts.count > 0 {
+            if searchResultSet.contactResults.count > 0 {
                 return OWSLocalizedString("SEARCH_SECTION_CONTACTS", comment: "section header for search results that match a contact who doesn't have an existing conversation")
             } else {
                 return nil
             }
         case .messages:
-            if searchResultSet.messages.count > 0 {
+            if searchResultSet.messageResults.count > 0 {
                 return OWSLocalizedString("SEARCH_SECTION_MESSAGES", comment: "section header for search results that match a message in a conversation")
             } else {
                 return nil
@@ -558,7 +560,7 @@ public class ConversationSearchViewController: UITableViewController {
         }
     }
 
-    private let currentSearchCounter = AtomicUInt(0, lock: AtomicLock())
+    private let currentSearchCounter = AtomicUInt(0, lock: .init())
 
     private func updateSearchResults(searchText: String) {
         let searchText = searchText.stripped
@@ -599,8 +601,8 @@ public class ConversationSearchViewController: UITableViewController {
         }
 
         let (result, future) = Guarantee<HomeScreenSearchResultSet?>.pending()
-        databaseStorage.asyncRead { [weak self] transaction in
-            future.resolve(self?.searcher.searchForHomeScreen(
+        databaseStorage.asyncRead { [searcher] transaction in
+            future.resolve(searcher.searchForHomeScreen(
                 searchText: searchText,
                 isCanceled: isCanceled,
                 transaction: transaction
@@ -614,15 +616,13 @@ public class ConversationSearchViewController: UITableViewController {
     private func getThreadViewModelFor(indexPath: IndexPath) -> ThreadViewModel? {
         if let searchSection = SearchSection(rawValue: indexPath.section) {
             if searchSection == .contactThreads {
-                return searchResultSet.contactThreads[indexPath.row].thread
+                return searchResultSet.contactThreadResults[indexPath.row].threadViewModel
             } else if searchSection == .groupThreads {
-                return searchResultSet.groupThreads[indexPath.row].thread
+                return searchResultSet.groupThreadResults[indexPath.row].threadViewModel
             }
         }
         return nil
     }
-
-    private func isBlocked(thread: ThreadViewModel) -> Bool { thread.isBlocked }
 }
 
 // MARK: - UIScrollViewDelegate

@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
-import SignalUI
+import SignalServiceKit
+public import SignalUI
 
 public class LogPickerViewController: OWSTableViewController2 {
     let logDirUrl: URL

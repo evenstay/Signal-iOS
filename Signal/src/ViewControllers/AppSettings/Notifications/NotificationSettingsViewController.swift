@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
+import SignalServiceKit
 import SignalUI
 
 class NotificationSettingsViewController: OWSTableViewController2 {
@@ -34,7 +34,7 @@ class NotificationSettingsViewController: OWSTableViewController2 {
                 "SETTINGS_ITEM_NOTIFICATION_SOUND",
                 comment: "Label for settings view that allows user to change the notification sound."
             ),
-            detailText: Sounds.globalNotificationSound.displayName,
+            accessoryText: Sounds.globalNotificationSound.displayName,
             actionBlock: { [weak self] in
                 let vc = NotificationSettingsSoundViewController { self?.updateTableContents() }
                 self?.present(OWSNavigationController(rootViewController: vc), animated: true)
@@ -62,7 +62,9 @@ class NotificationSettingsViewController: OWSTableViewController2 {
         )
         notificationContentSection.add(.disclosureItem(
             withText: OWSLocalizedString("NOTIFICATIONS_SHOW", comment: ""),
-            detailText: preferences.notificationPreviewType.displayName,
+            accessoryText: Self.databaseStorage.read { tx in
+                return preferences.notificationPreviewType(tx: tx).displayName
+            },
             actionBlock: { [weak self] in
                 let vc = NotificationSettingsContentViewController()
                 self?.navigationController?.pushViewController(vc, animated: true)

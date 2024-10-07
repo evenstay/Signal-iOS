@@ -25,6 +25,9 @@
 /* Accessibility label for stickers. */
 "ACCESSIBILITY_LABEL_STICKER" = "สติกเกอร์";
 
+/* Accessibility label for stickers. Embeds {{ name of top emoji the sticker resembles }} */
+"ACCESSIBILITY_LABEL_STICKER_FORMAT" = "สติกเกอร์ที่คล้ายกับ %1$@";
+
 /* Accessibility label for a voice memo. */
 "ACCESSIBILITY_LABEL_VOICE_MEMO" = "ข้อความเสียง";
 
@@ -64,9 +67,6 @@
 /* Users can request a report of their account data. This is the title on the screen where they do this. */
 "ACCOUNT_DATA_REPORT_TITLE" = "ข้อมูลบัญชีของคุณ";
 
-/* Label for 'voice call' button in contact view. */
-"ACTION_AUDIO_CALL" = "โทร Signal";
-
 /* Label for 'invite' button in contact view. */
 "ACTION_INVITE" = "เชิญมาใช้ Signal";
 
@@ -78,6 +78,9 @@
 
 /* Label for 'video call' button in contact view. */
 "ACTION_VIDEO_CALL" = "โทรวิดีโอ";
+
+/* Label for 'voice call' button in contact view. */
+"ACTION_VOICE_CALL" = "โทร Signal";
 
 /* The title for the 'add group members' view. */
 "ADD_GROUP_MEMBERS_VIEW_TITLE" = "เพิ่มสมาชิก";
@@ -139,7 +142,7 @@
 /* The label for the 'save' button in action sheets. */
 "ALERT_SAVE" = "บันทึก";
 
-/* Message for UI  warning about an unknown contact thread. */
+/* Message for UI warning about an unknown contact thread. */
 "ALERT_UNKNOWN_THREAD_WARNING_CONTACT_MESSAGE" = "คุณไม่ได้อยู่ในกลุ่มใดที่เหมือนกับบุคคลนี้เลย โปรดพิจารณาคำขออย่างถี่ถ้วน ก่อนจะยอมรับ เพื่อเลี่ยงข้อความไม่พึงประสงค์";
 
 /* Message for UI warning about an unknown group thread. */
@@ -183,9 +186,6 @@
 
 /* Title for the view of all your signal connections */
 "ALL_SIGNAL_CONNECTIONS_TITLE" = "เครือข่ายทั้งหมด";
-
-/* notification action */
-"ANSWER_CALL_BUTTON_TITLE" = "รับสาย";
 
 /* notification body */
 "APN_Message" = "คุณอาจมีข้อความใหม่";
@@ -292,14 +292,14 @@
 /* Apple Pay donation error for decline failures where the payment cannot be authorized. */
 "APPLE_PAY_DONATION_ERROR_PAYMENT_CANNOT_BE_AUTHORIZED" = "ตรวจสอบวิธีการชำระเงินใน Apple Pay ว่ามีการอัปเดตแล้วหรือไม่ ถ้ายัง ให้อัปเดตแล้วลองอีกครั้ง";
 
-/* Name of application */
-"APPLICATION_NAME" = "Signal";
-
 /* On the iOS home screen, if you tap and hold the Signal icon, this shortcut will appear. Tapping it will let users send a new message. You may want to refer to similar behavior in other iOS apps, such as Messages, for equivalent strings. */
 "APPLICATION_SHORTCUT_NEW_MESSAGE" = "ข้อความใหม่";
 
 /* Label for the archive button for conversations list view */
 "ARCHIVE_ACTION" = "ที่เก็บถาวร";
+
+/* Button to try to join a call. The admin may need to approve the request before the user can join. */
+"ASK_TO_JOIN_CALL" = "ขอเข้าร่วมการโทร";
 
 /* One of the choices for pre-defined aspect ratio of a photo in media editor. */
 "ASPECT_RATIO_ORIGINAL" = "ต้นฉบับ";
@@ -430,9 +430,6 @@
 /* Short text label for a gif attachment, used for thread preview and on the lock screen */
 "ATTACHMENT_TYPE_GIF" = "GIF";
 
-/* Short text label for an image attachment, used for thread preview and on the lock screen */
-"ATTACHMENT_TYPE_IMAGE" = "รูปภาพ";
-
 /* Short text label for a photo attachment, used for thread preview and on the lock screen */
 "ATTACHMENT_TYPE_PHOTO" = "รูปถ่าย";
 
@@ -444,9 +441,6 @@
 
 /* A string indicating that an audio message is playing. */
 "AUDIO_ACTIVITY_PLAYBACK_NAME_AUDIO_MESSAGE" = "ข้อความเสียง";
-
-/* Accessibility label for placing an audio call */
-"AUDIO_CALL_LABEL" = "โทรเสียง";
 
 /* action sheet button title to enable built in speaker during a call */
 "AUDIO_ROUTE_BUILT_IN_SPEAKER" = "ลำโพง";
@@ -503,22 +497,19 @@
 "BADGE_EXPIRED_LEARN_MORE_LINK" = "เรียนรู้เพิ่มเติม";
 
 /* Title for subscription on the badge expiration sheet. */
-"BADGE_EXPIRED_SUBSCRIPTION_TITLE" = "Monthly Donation Canceled";
+"BADGE_EXPIRED_SUBSCRIPTION_TITLE" = "ยกเลิกการบริจาครายเดือนแล้ว";
 
 /* String explaining to the user on a badge expiry sheet that their subscription badge has expired because the renewal payment failed. Embeds {{ a specific, already-localized string describing the payment failure }}. Will have a 'learn more' link appended, when it is rendered. */
-"BADGE_SUBSCRIPTION_EXPIRED_BECAUSE_OF_CHARGE_FAILURE_BODY_FORMAT" = "Your recurring monthly donation has ended. %1$@\n\nWithout an active subscription your badge will no longer be visible on your profile.";
-
-/* Body of the sheet shown when your subscription is canceled due to inactivity. Embeds {{ the name of the badge }}. Will have a 'learn more' link appended, when it is rendered. */
-"BADGE_SUBSCRIPTION_EXPIRED_BECAUSE_OF_INACTIVITY_BODY_FORMAT" = "การบริจาครายเดือนของคุณถูกยกเลิกโดยอัตโนมัติ เนื่องจากไม่มีการเคลื่อนไหวเป็นเวลานาน โล่ %1$@ ของคุณจะไม่แสดงบนโปรไฟล์อีกต่อไป\n\nคุณสามารถใช้ Signal ต่อไปได้ แต่หากต้องการสนับสนุนแอปและเปิดใช้งานโล่อีกครั้ง สามารถร่วมบริจาคได้ตอนนี้";
+"BADGE_SUBSCRIPTION_EXPIRED_BECAUSE_OF_CHARGE_FAILURE_BODY_FORMAT" = "ยกเลิกการบริจาครายเดือนของคุณแล้ว %1$@\n\nโล่ของคุณจะไม่แสดงบนโปรไฟล์อีกต่อไป";
 
 /* Body for a sheet explaining that a bank transfer donation is complete, and that you have received a badge. */
-"BADGE_THANKS_BANK_DONATION_COMPLETE_BODY" = "Your bank transfer was received. You can choose to display this badge on your profile to show off your support.";
+"BADGE_THANKS_BANK_DONATION_COMPLETE_BODY" = "เราได้รับเงินบริจาคที่โอนเงินผ่านระบบธนาคารของคุณแล้ว เลือกแสดงโล่นี้บนโปรไฟล์เพื่อให้ทุกคนทราบถึงการสนับสนุนของคุณ";
 
 /* Title for a sheet explaining that a bank transfer donation is complete, and that you have received a badge. */
-"BADGE_THANKS_BANK_DONATION_COMPLETE_TITLE" = "Donation Complete";
+"BADGE_THANKS_BANK_DONATION_COMPLETE_TITLE" = "บริจาคสำเร็จแล้ว";
 
 /* When you make a donation to Signal, you will receive a badge. A thank-you sheet appears when this happens. This is the body text on that sheet. */
-"BADGE_THANKS_BODY" = "You can choose to display this badge on your profile to show off your support.";
+"BADGE_THANKS_BODY" = "เลือกแสดงโล่นี้บนโปรไฟล์เพื่อให้ทุกคนทราบถึงการสนับสนุนของคุณ";
 
 /* Label prompting the user to display the new badge on their profile on the badge thank you sheet. */
 "BADGE_THANKS_DISPLAY_ON_PROFILE_LABEL" = "แสดงบนโปรไฟล์";
@@ -533,22 +524,22 @@
 "BADGE_THANKS_TOGGLE_FOOTER" = "เมื่อคุณมีโล่มากกว่าหนึ่งอัน คุณสามารถเลือกได้หนึ่งอันเพื่อแสดงให้ผู้อื่นเห็นบนโปรไฟล์";
 
 /* On the bank donation screen, show a link below the input form to show help about finding account info. */
-"BANK_DONATION_FOOTER_FIND_ACCOUNT_INFO" = "Find Account Info";
+"BANK_DONATION_FOOTER_FIND_ACCOUNT_INFO" = "ค้นหาข้อมูลบัญชี";
 
 /* On the bank transfer donation screen, a small amount of information text is shown. This is that text. It should (1) instruct users to enter their bank information (2) tell them that Signal does not collect or store their personal information. */
-"BANK_DONATION_SUBHEADER_TEXT" = "Enter your bank details. Signal does not collect or store your personal information.";
+"BANK_DONATION_SUBHEADER_TEXT" = "โปรดกรอกข้อมูลธนาคารของคุณ โดย Signal จะไม่รวบรวมหรือจัดเก็บข้อมูลส่วนบุคคลของคุณ";
 
 /* Users can donate to Signal with a bank account. We are required to show them a mandate with information about bank transfers. This is a label for a button to agree to the mandate. */
-"BANK_MANDATE_AGREE" = "Agree";
+"BANK_MANDATE_AGREE" = "ยอมรับ";
 
 /* Users can donate to Signal with a bank account. We are required to show them a mandate with information about bank transfers. This is a label for a button that shows more of the mandate if it is not all visible. */
-"BANK_MANDATE_READ_MORE" = "Read More";
+"BANK_MANDATE_READ_MORE" = "อ่านเพิ่มเติม";
 
 /* Users can donate to Signal with a bank account. We are required to show them a mandate with information about bank transfers. This is a subtitle about the payment processor Stripe above that mandate. */
-"BANK_MANDATE_SUBTITLE" = "Stripe processes donations made to Signal. Signal does not collect or store your personal information.";
+"BANK_MANDATE_SUBTITLE" = "Stripe เป็นผู้ดำเนินงานการรับเงินบริจาคของ Signal Signal ไม่รวบรวมหรือจัดเก็บข้อมูลส่วนบุคคลของคุณ";
 
 /* Users can donate to Signal with a bank account. We are required to show them a mandate with information about bank transfers. This is the title above that mandate. */
-"BANK_MANDATE_TITLE" = "Bank Transfer";
+"BANK_MANDATE_TITLE" = "โอนเงินผ่านระบบธนาคาร";
 
 /* Accessibility label for banner close button */
 "BANNER_CLOSE_ACCESSIBILITY_LABEL" = "ปิดแถบแสดง";
@@ -691,9 +682,6 @@
 /* Label for button that lets users call a contact again. */
 "CALL_AGAIN_BUTTON_TITLE" = "โทรอีกครั้ง";
 
-/* notification body */
-"CALL_AUDIO_INCOMING_NOTIFICATION_BODY" = "📞 สายโทรเสียงขาเข้า…";
-
 /* notification body for a missed call in the last 24 hours. Embeds {{time}}, e.g. '3:30 PM'. */
 "CALL_AUDIO_MISSED_24_HOURS_NOTIFICATION_BODY_FORMAT" = "📞 สายโทรเสียงที่ไม่ได้รับตอน %1$@";
 
@@ -721,14 +709,74 @@
 /* label for button shown when an incoming call rings */
 "CALL_CONTROLS_INCOMING_DECLINE" = "ปฏิเสธ";
 
-/* Body for the repeating notification shown while an incoming group call is ringing, if the user has chosen not to include contact names in notifications */
-"CALL_GROUP_INCOMING_NOTIFICATION_BODY_ANONYMOUS" = "📹 สายเรียกเข้าแบบกลุ่ม…";
+/* Button to open a screen to edit the name of a Call Link. Also used as the title of that screen once it opens. */
+"CALL_LINK_ADD_NAME" = "เพิ่มชื่อการโทร";
 
-/* Body for the repeating notification shown while an incoming group call is ringing. Embeds {{caller name}} */
-"CALL_GROUP_INCOMING_NOTIFICATION_BODY_FORMAT" = "📹 %1$@ กำลังโทรเข้ากลุ่ม…";
+/* Button to copy a Call Link to the clipboard. */
+"CALL_LINK_COPY" = "คัดลอกลิงก์";
+
+/* Navigation bar title for the sheet used to create & configure a Call Link. */
+"CALL_LINK_CREATE" = "สร้างลิงก์การโทร";
+
+/* Description of sheet presented when call link creation fails. */
+"CALL_LINK_CREATION_FAILURE_SHEET_DESCRIPTION" = "ไม่สามารถสร้างลิงก์การโทรได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ตแล้วลองใหม่อีกครั้ง";
+
+/* Title of sheet presented when call link creation or update fails. */
+"CALL_LINK_CREATION_OR_UPDATE_FAILURE_SHEET_TITLE" = "ข้อผิดพลาดจากเครือข่าย";
+
+/* Button to open a screen to edit the name of a Call Link. Also used as the title of that screen once it opens. */
+"CALL_LINK_EDIT_NAME" = "แก้ไขชื่อการโทร";
+
+/* Description of sheet presented when joining call from call link sheet fails. */
+"CALL_LINK_JOIN_CALL_FAILURE_SHEET_DESCRIPTION" = "ไม่สามารถเข้าร่วมการโทรได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ตแล้วลองใหม่อีกครั้ง";
+
+/* Button on an action sheet to approve a request to join a call link. */
+"CALL_LINK_JOIN_REQUEST_APPROVE_BUTTON" = "Approve Entry";
+
+/* Button on an action sheet to deny a request to join a call link. */
+"CALL_LINK_JOIN_REQUEST_DENY_BUTTON" = "Deny Entry";
+
+/* Tappable label that appears below a user's name on a toast when they request to join a call link. */
+"CALL_LINK_JOIN_REQUEST_PROMPT" = "Would like to join…";
+
+/* Shown in a message bubble when you send a call link in a Signal chat */
+"CALL_LINK_LINK_PREVIEW_DESCRIPTION" = "ใช้ลิงก์นี้เพื่อเข้าร่วมการโทรของ Signal";
+
+/* Text that appears on a toast in a call lobby before joining a call link informing the user what information will be shared with other call members when they have phone number sharing turned off. */
+"CALL_LINK_LOBBY_SHARING_INFO_PHONE_NUMBER_SHARING_OFF" = "Anyone who joins this call via the link will see your name and photo.";
+
+/* Text that appears on a toast in a call lobby before joining a call link informing the user what information will be shared with other call members when they have phone number sharing turned on. */
+"CALL_LINK_LOBBY_SHARING_INFO_PHONE_NUMBER_SHARING_ON" = "Anyone who joins this call via the link will see your name, photo, and phone number.";
+
+/* Title for button to approve all requests to join a call. */
+"CALL_LINK_REQUEST_SHEET_APPROVE_ALL_BUTTON" = "อนุมัติทั้งหมด";
+
+/* Title for button to deny all requests to join a call. */
+"CALL_LINK_REQUEST_SHEET_DENY_ALL_BUTTON" = "ปฏิเสธทั้งหมด";
+
+/* Header for the sheet displaying a list of requests to join a call. */
+"CALL_LINK_REQUEST_SHEET_HEADER" = "คำขอเข้าร่วมการโทรนี้";
+
+/* Name of a toggle switch to enable/disable admin approval for joining a Call Link. */
+"CALL_LINK_REQUIRE_APPROVAL" = "ต้องได้รับการอนุมัติจากผู้ดูแล";
+
+/* Button to open UI to share a Call Link with someone on Signal. */
+"CALL_LINK_SHARE_VIA_SIGNAL" = "แชร์ลิงก์ผ่าน Signal";
+
+/* Button to open the system share sheet to share a Call Link. */
+"CALL_LINK_SHARE_VIA_SYSTEM" = "แชร์ลิงก์";
+
+/* Description of sheet presented when call link update fails. */
+"CALL_LINK_UPDATE_FAILURE_SHEET_DESCRIPTION" = "ไม่สามารถอัปเดตลิงก์การโทรได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ตแล้วลองใหม่อีกครั้ง";
+
+/* Label on button for lowering hand in call. */
+"CALL_LOWER_HAND_BUTTON_LABEL" = "เอามือลง";
 
 /* notification body */
 "CALL_MISSED_BECAUSE_OF_IDENTITY_CHANGE_NOTIFICATION_BODY" = "☎️ ไม่ได้รับสาย เพราะหมายเลขความปลอดภัยของผู้โทรได้เปลี่ยนไป";
+
+/* Label on button for raising hand in call. */
+"CALL_RAISE_HAND_BUTTON_LABEL" = "ยกมือ";
 
 /* Button to return to the current call */
 "CALL_RETURN_BUTTON" = "กลับไปที่สาย";
@@ -736,8 +784,8 @@
 /* Call setup status label after outgoing call times out */
 "CALL_SCREEN_STATUS_NO_ANSWER" = "ไม่มีการตอบรับ";
 
-/* embeds {{Call Status}} in call screen label. For ongoing calls, {{Call Status}} is a seconds timer like 01:23, otherwise {{Call Status}} is a short text like 'Ringing', 'Busy', or 'Failed Call' */
-"CALL_STATUS_FORMAT" = "Signal %1$@";
+/* Button to start a call */
+"CALL_START_BUTTON" = "เริ่มโทร";
 
 /* Label for call button for alert offering to call a user. */
 "CALL_USER_ALERT_CALL_BUTTON" = "โทร";
@@ -747,9 +795,6 @@
 
 /* Title for alert offering to call a user. */
 "CALL_USER_ALERT_TITLE" = "โทรหรือไม่?";
-
-/* notification body */
-"CALL_VIDEO_INCOMING_NOTIFICATION_BODY" = "📹 สายวิดีโอเรียกเข้า…";
 
 /* notification body for a missed call in the last 24 hours. Embeds {{time}}, e.g. '3:30 PM'. */
 "CALL_VIDEO_MISSED_24_HOURS_NOTIFICATION_BODY_FORMAT" = "📹 การโทรแบบวิดีโอที่ไม่ได้รับตอน %1$@";
@@ -763,7 +808,7 @@
 /* notification body for a missed call from the last week. Embeds {{weekday}}, e.g. 'Monday'. */
 "CALL_VIDEO_MISSED_WEEK_NOTIFICATION_BODY_FORMAT" = "📹 การโทรแบบวิดีโอที่ไม่ได้รับเมื่อ %1$@";
 
-/* label for accepting incoming video calls as audio  only */
+/* label for accepting incoming video calls as audio only */
 "CALL_VIEW_ACCEPT_INCOMING_CALL_AUDIO_ONLY_LABEL" = "ตอบรับโดยไม่ใช้วิดีโอ";
 
 /* label for accepting incoming calls */
@@ -778,6 +823,12 @@
 /* Accessibility label for hang up call */
 "CALL_VIEW_HANGUP_LABEL" = "วางสาย";
 
+/* Accessibility label for leaving a call */
+"CALL_VIEW_LEAVE_CALL_LABEL" = "ออกจากสาย";
+
+/* Accessibility label for the More button in the Call Controls row. */
+"CALL_VIEW_MORE_LABEL" = "ดูเพิ่ม";
+
 /* Accessibility label for muting the microphone */
 "CALL_VIEW_MUTE_LABEL" = "ปิดเสียง";
 
@@ -787,11 +838,17 @@
 /* Accessibility label to toggle front- vs. rear-facing camera */
 "CALL_VIEW_SWITCH_CAMERA_DIRECTION" = "เปลี่ยนทิศทางกล้อง";
 
-/* Accessibility label to switch to audio only */
-"CALL_VIEW_SWITCH_TO_AUDIO_LABEL" = "สลับไปโทรด้วยเสียง";
+/* Accessibility label for turning off the camera */
+"CALL_VIEW_TURN_VIDEO_OFF_LABEL" = "ปิดกล้อง";
 
-/* Accessibility label to switch to video call */
-"CALL_VIEW_SWITCH_TO_VIDEO_LABEL" = "สลับไปโทรวิดีโอ";
+/* Accessibility label for turning on the camera */
+"CALL_VIEW_TURN_VIDEO_ON_LABEL" = "เปิดกล้อง";
+
+/* Accessibility label for unmuting the microphone */
+"CALL_VIEW_UNMUTE_LABEL" = "เปิดเสียง";
+
+/* Shown in the header below the name of the call while waiting for the host to allow you to enter the call. */
+"CALL_WAITING_TO_BE_LET_IN" = "กำลังรออนุมัติให้เข้าร่วม…";
 
 /* notification action */
 "CALLBACK_BUTTON_TITLE" = "โทรกลับ";
@@ -804,6 +861,84 @@
 
 /* The generic name used for group calls if CallKit privacy is enabled */
 "CALLKIT_ANONYMOUS_GROUP_NAME" = "กลุ่ม Signal";
+
+/* Title for the calls list view. */
+"CALLS_LIST_TITLE" = "การโทร";
+
+/* Label for an entry in the Calls Tab describing a call as incoming. */
+"CALLS_TAB_CALL_DIRECTION_LABEL_INCOMING" = "โทรเข้า";
+
+/* Label for an entry in the Calls Tab describing a call as missed. */
+"CALLS_TAB_CALL_DIRECTION_LABEL_MISSED" = "ไม่ได้รับ";
+
+/* Label for an entry in the Calls Tab describing a call as outgoing. */
+"CALLS_TAB_CALL_DIRECTION_LABEL_OUTGOING" = "โทรออก";
+
+/* Title for a row in the Calls Tab that represents multiple calls that have been coalesced together. Embeds {{ a title describing the coalesced calls }}, {{ the number of coalesced calls }}. */
+"CALLS_TAB_COALESCED_CALLS_TITLE_FORMAT" = "%1$@ (%2$@)";
+
+/* Title for a button allowing the user to delete all the calls from the Calls Tab. */
+"CALLS_TAB_DELETE_ALL_CALLS_BUTTON_TITLE" = "ล้าง";
+
+/* Message for a prompt confirming that the user wants to delete all the calls from the Calls Tab. */
+"CALLS_TAB_DELETE_ALL_CALLS_PROMPT_MESSAGE" = "การดำเนินการนี้จะลบประวัติการโทรทั้งหมดอย่างถาวร";
+
+/* Title for a prompt confirming that the user wants to delete all the calls from the Calls Tab. */
+"CALLS_TAB_DELETE_ALL_CALLS_PROMPT_TITLE" = "ล้างประวัติการโทรใช่หรือไม่";
+
+/* Title for a long-press context menu action to delete a call, triggered from a call in the Calls Tab. */
+"CALLS_TAB_DELETE_CALL_ACTION_TITLE" = "ลบ";
+
+/* An option in a segmented control in the Calls Tab allowing the user to select the filter option 'all calls'; i.e., 'unfiltered'. */
+"CALLS_TAB_FILTER_PICKER_OPTION_ALL" = "ทั้งหมด";
+
+/* An option in a segmented control in the Calls Tab allowing the user to select the filter option 'missed calls'. */
+"CALLS_TAB_FILTER_PICKER_OPTION_MISSED" = "ไม่ได้รับ";
+
+/* Title for an action, either long-press context menu or swipe, offering to take the user to the chat associated with a call in the Calls Tab. */
+"CALLS_TAB_GO_TO_CHAT_ACTION_TITLE" = "ไปที่แชท";
+
+/* Title for a button offering to let the user join an ongoing call, associated with a call in the Calls Tab. */
+"CALLS_TAB_JOIN_CALL_BUTTON_TITLE" = "เข้าร่วม";
+
+/* Title for a long-press context menu action to join a video call, triggered from a call in the Calls Tab. */
+"CALLS_TAB_JOIN_VIDEO_CALL_ACTION_TITLE" = "เข้าร่วมวิดีโอคอล";
+
+/* Title for a long-press context menu action to join a voice call, triggered from a call in the Calls Tab. */
+"CALLS_TAB_JOIN_VOICE_CALL_ACTION_TITLE" = "เข้าร่วมการโทรด้วยเสียง";
+
+/* Label explaining that the user has no missed calls, so their Calls Tab is empty. */
+"CALLS_TAB_NO_MISSED_CALLS_LABEL" = "ไม่มีสายที่ไม่ได้รับ";
+
+/* Label explaining that the user has no recent calls, so their Calls Tab is empty. */
+"CALLS_TAB_NO_RECENT_CALLS_LABEL" = "ไม่มีการโทรล่าสุด";
+
+/* Label suggesting that the user start a call, shown when their Calls Tab is empty. */
+"CALLS_TAB_NO_RECENT_CALLS_SUGGESTION_LABEL" = "เริ่มต้นด้วยการโทรหาเพื่อนของคุณ";
+
+/* Title for a long-press context menu action to return to a call the user is actively participating in, triggered from a call in the Calls Tab. */
+"CALLS_TAB_RETURN_TO_CALL_ACTION_TITLE" = "กลับไปที่สาย";
+
+/* Title for a button offering to let the user return to an ongoing call they're already in, associated with a call in the Calls Tab. */
+"CALLS_TAB_RETURN_TO_CALL_BUTTON_TITLE" = "กลับไปที่การโทรกลุ่ม";
+
+/* Label for a view explaining that no search results were found in the Calls Tab. Embeds {{ the search term }}. */
+"CALLS_TAB_SEARCH_NO_RESULTS_FOUND_LABEL_FORMAT" = "ไม่พบผลลัพธ์สำหรับ '%1$@'";
+
+/* Title for a long-press context menu action to select a call, triggered from a call in the Calls Tab. */
+"CALLS_TAB_SELECT_CALL_ACTION_TITLE" = "เลือก";
+
+/* Title for a button allowing the user to select one or more calls, from the Calls Tab. */
+"CALLS_TAB_SELECT_CALLS_BUTTON_TITLE" = "เลือก";
+
+/* Title for a long-press context menu action to start a video call, triggered from a call in the Calls Tab. */
+"CALLS_TAB_START_VIDEO_CALL_ACTION_TITLE" = "โทรวิดีโอ";
+
+/* Title for a long-press context menu action to start a voice call, triggered from a call in the Calls Tab. */
+"CALLS_TAB_START_VOICE_CALL_ACTION_TITLE" = "โทรเสียง";
+
+/* Title for a long-press context menu action to view info about a call, triggered from a call in the Calls Tab. */
+"CALLS_TAB_VIEW_CALL_INFO_ACTION_TITLE" = "ข้อมูล";
 
 /* Accessibility hint describing what you can do with the camera button */
 "CAMERA_BUTTON_HINT" = "ถ่ายรูปและส่งรูป";
@@ -961,8 +1096,17 @@
 /* Tooltip highlighting the auto chat color option. */
 "CHAT_COLORS_AUTO_TOOLTIP" = "จับคู่สีกับภาพพื้นหลังโดยอัตโนมัติ";
 
+/* Title for context menu action to disable chat list filter (e.g., Filter by Unread) */
+"CHAT_LIST_CLEAR_FILTER_MENU_ACTION" = "ล้างตัวกรอง";
+
 /* Title for the chat list's default mode. */
 "CHAT_LIST_TITLE_INBOX" = "แชท";
+
+/* Title for context menu action to enable Filter by Unread */
+"CHAT_LIST_UNREAD_FILTER_MENU_ACTION" = "กรองตามแชทที่ยังไม่ได้อ่าน";
+
+/* Message displayed on chat list when Filter by Unread is enabled but no unread chats are available */
+"CHAT_LIST_UNREAD_FILTER_NO_CHATS" = "ไม่มีแชทที่ยังไม่ได้อ่าน";
 
 /* Title for the color & wallpaper settings view. */
 "COLOR_AND_WALLPAPER_SETTINGS_TITLE" = "สีและภาพพื้นหลังแชท";
@@ -987,6 +1131,21 @@
 
 /* Table section header for username search when composing a new message */
 "COMPOSE_MESSAGE_USERNAME_SEARCH_SECTION_TITLE" = "ค้นหาด้วยชื่อผู้ใช้";
+
+/* Menu action to display limited contact picker. */
+"COMPOSE_SCREEN_LIMITED_CONTACTS_ACTION_MANAGE" = "เลือกผู้ติดต่อเพิ่มเติม";
+
+/* Menu action visit app contact permission in settings. */
+"COMPOSE_SCREEN_LIMITED_CONTACTS_ACTION_SETTINGS" = "ไปที่การตั้งค่า";
+
+/* Multi-line label explaining why compose-screen contact picker may be missing contacts. */
+"COMPOSE_SCREEN_LIMITED_CONTACTS_CTA" = "จัดการ";
+
+/* Multi-line label explaining why compose-screen contact picker is empty. */
+"COMPOSE_SCREEN_LIMITED_CONTACTS_PERMISSION" = "Signal ได้รับสิทธิ์จำกัดในการเข้าถึงผู้ติดต่อของระบบคุณ";
+
+/* Button to open settings from an empty compose-screen contact picker. */
+"COMPOSE_SCREEN_MISSING_CONTACTS_CTA" = "เปิดการตั้งค่า";
 
 /* Multi-line label explaining why compose-screen contact picker is empty. */
 "COMPOSE_SCREEN_MISSING_CONTACTS_PERMISSION" = "คุณสามารถเปิดการเข้าถึงรายชื่อผู้ติดต่อในการตั้งค่าของ iOS เพื่อดูว่าใครในรายชื่อผู้ติดต่อของคุณเป็นผู้ใช้ Signal";
@@ -1014,6 +1173,27 @@
 
 /* Button text */
 "CONFIRM_LINK_NEW_DEVICE_ACTION" = "เชื่อมโยงอุปกรณ์ใหม่";
+
+/* Indicates that the user has blocked the other account. Embeds {{name}} */
+"CONTACT_ABOUT_SHEET_BLOCKED_USER_FORMAT" = "%1$@ ถูกบล็อกอยู่";
+
+/* Indicates that another account is in the user's system contacts. Embeds {{name}} */
+"CONTACT_ABOUT_SHEET_CONNECTION_IN_SYSTEM_CONTACTS" = "%1$@ อยู่ในรายชื่อผู้ติดต่อบนโทรศัพท์คุณ";
+
+/* Indicates that the user has no messages with the other account. Embeds {{name}} */
+"CONTACT_ABOUT_SHEET_NO_DIRECT_MESSAGES" = "ไม่มีข้อความส่วนตัวกับ %1$@";
+
+/* Indicates that the user has a pending request with the other account. Embeds {{name}} */
+"CONTACT_ABOUT_SHEET_PENDING_REQUEST" = "มีคำขอส่งข้อความที่รอตอบกลับ";
+
+/* Message for a tooltip that appears above a parenthesized name for another user, indicating that that name is the name the other user set for themself. Embeds {{name}} */
+"CONTACT_ABOUT_SHEET_SECONDARY_NAME_TOOLTIP_MESSAGE" = "“%1$@” เป็นชื่อโปรไฟล์ที่ผู้ใช้คนนี้กำหนดเองบน Signal";
+
+/* A label indicating a user is a signal connection. */
+"CONTACT_ABOUT_SHEET_SIGNAL_CONNECTION_LABEL" = "เครือข่าย Signal";
+
+/* The title for a contact 'about' sheet. */
+"CONTACT_ABOUT_SHEET_TITLE" = "เกี่ยวกับ";
 
 /* Label for a contact's postal address. */
 "CONTACT_ADDRESS" = "ที่อยู่";
@@ -1048,13 +1228,31 @@
 /* Label for the 'organization' field of a contact. */
 "CONTACT_FIELD_ORGANIZATION" = "องค์กร";
 
+/* Title for a view showing the note that has been set for a profile. */
+"CONTACT_NOTE_TITLE" = "โน้ต";
+
+/* Body for contact permission action sheet */
+"CONTACT_PERMISSION_ACTION_SHEET_2_BODY" = "เพื่อค้นหาคนที่คุณรู้จักบน Signal:";
+
+/* First step for contact permission action sheet */
+"CONTACT_PERMISSION_ACTION_SHEET_2_STEP_ONE" = "แตะ \"ไปยังการตั้งค่า\" ด้านล่าง";
+
+/* Third step for contact permission action sheet */
+"CONTACT_PERMISSION_ACTION_SHEET_2_STEP_THREE" = "อนุญาตสิทธิ์การเข้าถึง";
+
+/* Second step for contact permission action sheet */
+"CONTACT_PERMISSION_ACTION_SHEET_2_STEP_TWO" = "แตะ \"รายชื่อผู้ติดต่อ\"";
+
+/* Title for contact permission action sheet */
+"CONTACT_PERMISSION_ACTION_SHEET_2_TITLE" = "อนุญาตให้เข้าถึงรายชื่อผู้ติดต่อ";
+
 /* Body for contact permission action sheet */
 "CONTACT_PERMISSION_ACTION_SHEET_BODY" = "เพื่อดูชื่อผู้ติดต่อและรูปภาพในแชทของคุณ:";
 
 /* First step for contact permission action sheet */
 "CONTACT_PERMISSION_ACTION_SHEET_STEP_ONE" = "แตะ \"ไปยังการตั้งค่า\" ด้านล่าง";
 
-/* Third step for contact permission action sheet */
+/* Second step for contact permission action sheet */
 "CONTACT_PERMISSION_ACTION_SHEET_STEP_TWO" = "เปิด “ผู้ติดต่อ”";
 
 /* Title for contact permission action sheet */
@@ -1064,13 +1262,13 @@
 "CONTACT_PERMISSION_NOT_NOW_ACTION" = "ไม่ใช่ตอนนี้";
 
 /* Action text for contact permission reminder megaphone */
-"CONTACT_PERMISSION_REMINDER_MEGAPHONE_ACTION" = "เปิด";
+"CONTACT_PERMISSION_REMINDER_MEGAPHONE_ACTION" = "อนุญาตให้เข้าถึง";
 
 /* Body for contact permission reminder megaphone */
-"CONTACT_PERMISSION_REMINDER_MEGAPHONE_BODY" = "ดูชื่อผู้ติดต่อและรูปภาพในแชทของคุณ";
+"CONTACT_PERMISSION_REMINDER_MEGAPHONE_BODY" = "ค้นหาผู้ติดต่อบน Signal ได้ทันทีด้วยการอนุญาตสิทธิ์การเข้าถึงรายชื่อผู้ติดต่อของคุณ";
 
 /* Title for contact permission reminder megaphone */
-"CONTACT_PERMISSION_REMINDER_MEGAPHONE_TITLE" = "เปิดผู้ติดต่อ?";
+"CONTACT_PERMISSION_REMINDER_MEGAPHONE_TITLE" = "ค้นหาผู้ติดต่อบน Signal";
 
 /* Label for a contact's phone number. */
 "CONTACT_PHONE" = "โทรศัพท์";
@@ -1093,8 +1291,11 @@
 /* Error indicating that an invalid contact cannot be shared. */
 "CONTACT_SHARE_INVALID_CONTACT" = "ข้อมูลติดต่อผิดรูปแบบ";
 
-/* Error indicating that at least one contact field must be selected before sharing a contact. */
-"CONTACT_SHARE_NO_FIELDS_SELECTED" = "ช่องข้อมูลติดต่อไม่ได้ถูกเลือก";
+/* Alert body when contacts disabled while trying to share a contact. */
+"CONTACT_SHARING_NO_ACCESS_BODY" = "Signal ต้องการเข้าถึงรายชื่อผู้ติดต่อของคุณ โปรดไปที่การตั้งค่า iOS แล้วเปิดการเข้าถึงผู้ติดต่อ โดยรายชื่อผู้ติดต่อของคุณจะได้รับการเข้ารหัสและไม่ถูกเปิดเผยต่อบริการของ Signal";
+
+/* Alert title when contacts disabled while trying to share a contact. */
+"CONTACT_SHARING_NO_ACCESS_TITLE" = "อนุญาตให้เข้าถึงผู้ติดต่อ";
 
 /* Button text to initiate an email to signal support staff */
 "CONTACT_SUPPORT" = "ติดต่อการสนับสนุน";
@@ -1208,7 +1409,7 @@
 "CONTEXT_MENU_STOP_SPEAKING_MESSAGE" = "หยุด";
 
 /* Message for the 'conversation delete confirmation' alert. */
-"CONVERSATION_DELETE_CONFIRMATION_ALERT_MESSAGE" = "ระบบจะลบแชทนี้ออกจากอุปกรณ์เครื่องนี้";
+"CONVERSATION_DELETE_CONFIRMATION_ALERT_MESSAGE" = "แชทนี้จะถูกลบออกจากอุปกรณ์ทุกเครื่องของคุณ";
 
 /* Title for the 'conversation delete confirmation' alert. */
 "CONVERSATION_DELETE_CONFIRMATION_ALERT_TITLE" = "ลบแชทใช่หรือไม่";
@@ -1262,22 +1463,13 @@
 "CONVERSATION_SETTINGS_ADD_TO_EXISTING_CONTACT" = "เพิ่มไปที่ผู้ติดต่อที่มีอยู่แล้ว";
 
 /* button in conversation settings view. */
-"CONVERSATION_SETTINGS_ADD_TO_SYSTEM_CONTACTS" = "เพิ่มลงในรายชื่อผู้ติดต่อของระบบ";
+"CONVERSATION_SETTINGS_ADD_TO_SYSTEM_CONTACTS" = "เพิ่มลงในรายชื่อผู้ติดต่อบนโทรศัพท์";
 
-/* Label indicating that only administrators can update the group's attributes: name, avatar, etc. */
-"CONVERSATION_SETTINGS_ATTRIBUTES_ACCESS_ADMINISTRATOR" = "ผู้ดูแล";
-
-/* Label indicating that all group members can update the group's attributes: name, avatar, etc. */
-"CONVERSATION_SETTINGS_ATTRIBUTES_ACCESS_MEMBER" = "ทั้งหมด";
-
-/* Label indicating that no member can update the group's attributes: name, avatar, etc. */
-"CONVERSATION_SETTINGS_ATTRIBUTES_ACCESS_NONE" = "หยุดใช้";
+/* Header title for the section showing all media in conversation settings */
+"CONVERSATION_SETTINGS_ALL_MEDIA_HEADER" = "สื่อทั้งหมด";
 
 /* Footer for the 'attributes access' section in conversation settings view. */
 "CONVERSATION_SETTINGS_ATTRIBUTES_ACCESS_SECTION_FOOTER" = "เลือกว่าใครสามารถแก้ไขชื่อกลุ่ม รูปภาพ คำอธิบาย และตั้งเวลาให้ข้อความหายไป";
-
-/* Button to start a audio call */
-"CONVERSATION_SETTINGS_AUDIO_CALL_BUTTON" = "เสียง";
 
 /* Footer string for a contact's badges in conversation settings */
 "CONVERSATION_SETTINGS_BADGES_FOOTER" = "รับโล่สำหรับโปรไฟล์คุณด้วยการสนับสนุน Signal แตะที่โล่เพื่อดูข้อมูลเพิ่มเติม";
@@ -1285,20 +1477,29 @@
 /* Header title for a contact's badges in conversation settings */
 "CONVERSATION_SETTINGS_BADGES_HEADER" = "โล่";
 
-/* Footer text for the 'block and leave' section of contact conversation settings view. */
-"CONVERSATION_SETTINGS_BLOCK_AND_LEAVE_SECTION_CONTACT_FOOTER" = "คุณจะไม่ได้รับข้อความหรือความเคลื่อนไหวจากผู้ใช้นี้อีกต่อไป";
-
-/* Footer text for the 'block and leave' section of group conversation settings view. */
-"CONVERSATION_SETTINGS_BLOCK_AND_LEAVE_SECTION_FOOTER" = "คุณจะไม่ได้รับข้อความหรือความเคลื่อนไหวจากกลุ่มนี้อีกต่อไป";
-
 /* Label for 'block group' action in conversation settings view. */
 "CONVERSATION_SETTINGS_BLOCK_GROUP" = "บล็อกกลุ่ม";
 
 /* Label for 'block user' action in conversation settings view. */
 "CONVERSATION_SETTINGS_BLOCK_USER" = "บล็อกผู้ใช้";
 
-/* Label for the 'edit' button in conversation settings view. */
-"CONVERSATION_SETTINGS_EDIT" = "แก้ไข";
+/* A label indicating that a call was an incoming video call */
+"CONVERSATION_SETTINGS_CALL_DETAILS_INCOMING_VIDEO_CALL" = "วิดีโอคอลขาเข้า";
+
+/* A label indicating that a call was an incoming voice call */
+"CONVERSATION_SETTINGS_CALL_DETAILS_INCOMING_VOICE_CALL" = "การโทรด้วยเสียงขาเข้า";
+
+/* A label indicating that a call was an missed video call */
+"CONVERSATION_SETTINGS_CALL_DETAILS_MISSED_VIDEO_CALL" = "วิดีโอคอลที่ไม่ได้รับ";
+
+/* A label indicating that a call was an missed voice call */
+"CONVERSATION_SETTINGS_CALL_DETAILS_MISSED_VOICE_CALL" = "การโทรด้วยเสียงที่ไม่ได้รับ";
+
+/* A label indicating that a call was an outgoing video call */
+"CONVERSATION_SETTINGS_CALL_DETAILS_OUTGOING_VIDEO_CALL" = "วิดีโอคอลขาออก";
+
+/* A label indicating that a call was an outgoing voice call */
+"CONVERSATION_SETTINGS_CALL_DETAILS_OUTGOING_VOICE_CALL" = "การโทรด้วยเสียงขาออก";
 
 /* Label for 'edit attributes access' action in conversation settings view. */
 "CONVERSATION_SETTINGS_EDIT_ATTRIBUTES_ACCESS" = "แก้ไขข้อมูลกลุ่ม";
@@ -1402,6 +1603,9 @@
 /* Format for title for 'remove from group' confirmation alert. Embeds {user to remove from the group}. */
 "CONVERSATION_SETTINGS_REMOVE_FROM_GROUP_TITLE_FORMAT" = "ลบ %1$@ ออกจากกลุ่มใช่หรือไม่";
 
+/* Label for 'report spam' action in conversation settings view. */
+"CONVERSATION_SETTINGS_REPORT_SPAM" = "รายงานว่าเป็นสแปม";
+
 /* Label for 'revoke group admin' button in conversation settings view. */
 "CONVERSATION_SETTINGS_REVOKE_GROUP_ADMIN_BUTTON" = "ปลดจากการเป็นผู้ดูแล";
 
@@ -1438,6 +1642,9 @@
 /* Indicates that user is in the system contacts list. */
 "CONVERSATION_SETTINGS_VIEW_IS_SYSTEM_CONTACT" = "รายละเอียดผู้ติดต่อ";
 
+/* Button to start a voice call */
+"CONVERSATION_SETTINGS_VOICE_CALL_BUTTON" = "เสียง";
+
 /* Message shown in conversation view that offers to add an unknown user to your phone's contacts. */
 "CONVERSATION_VIEW_ADD_TO_CONTACTS_OFFER" = "เพิ่มลงในรายชื่อผู้ติดต่อ";
 
@@ -1465,14 +1672,14 @@
 /* No comment provided by engineer. */
 "COUNTRYCODE_SELECT_TITLE" = "เลือกรหัสประเทศ";
 
-/* Body text for an interactive in-app prompt to set up a Signal username. */
-"CREATE_USERNAME_MEGAPHONE_BODY" = "ชื่อผู้ใช้จะช่วยให้ผู้ใช้รายอื่นส่งข้อความหาคุณได้โดยไม่จำเป็นต้องมีหมายเลขโทรศัพท์ของคุณ";
+/* Label for button that enables you to make a new call link. */
+"CREATE_CALL_LINK_LABEL" = "สร้างลิงก์การโทร";
 
-/* Title for a button in an interactive in-app prompt to set up a Signal username, which will start a create-username flow. */
-"CREATE_USERNAME_MEGAPHONE_SET_UP_BUTTON_TITLE" = "ตั้งชื่อผู้ใช้";
+/* Body text for an interactive in-app prompt to set up a Signal username. */
+"CREATE_USERNAME_MEGAPHONE_BODY" = "ขอแนะนำการรักษาความเป็นส่วนตัวของหมายเลขโทรศัพท์ ตัวเลือกการกำหนดชื่อผู้ใช้และลิงก์เพิ่มเติม";
 
 /* Title for an interactive in-app prompt to set up a Signal username. */
-"CREATE_USERNAME_MEGAPHONE_TITLE" = "ตั้งชื่อผู้ใช้ Signal ของคุณ";
+"CREATE_USERNAME_MEGAPHONE_TITLE" = "วิธีใหม่ในการติดต่อสื่อสาร";
 
 /* Credit/debit card donation error for decline failures where the card has expired. */
 "CREDIT_OR_DEBIT_CARD_DONATION_ERROR_EXPIRED_CARD" = "บัตรหมดอายุแล้ว ตรวจยืนยันว่ารายละเอียดบัตรของคุณถูกต้อง แล้วลองอีกครั้ง";
@@ -1625,10 +1832,10 @@
 "DEBUG_LOG_INFO_BUTTON" = "ข้อมูลเกี่ยวกับปูมดีบัก";
 
 /* info message text in conversation view */
-"DECLINED_AUDIO_CALL" = "คุณปฏิเสธสายโทรเสียง";
+"DECLINED_VIDEO_CALL" = "คุณปฏิเสธวิดีโอคอล";
 
 /* info message text in conversation view */
-"DECLINED_VIDEO_CALL" = "คุณปฏิเสธวิดีโอคอล";
+"DECLINED_VOICE_CALL" = "คุณปฏิเสธสายโทรเสียง";
 
 /* Title for the action sheet 'delete' action of the 'delete account confirmation' view controller. */
 "DELETE_ACCOUNT_CONFIRMATION_ACTION_SHEEET_ACTION" = "ลบบัญชี";
@@ -1676,7 +1883,7 @@
 "DELETE_CONTACT_ACTION_SHEET_BUTTON" = "ลบ";
 
 /* An explanation of what happens in Signal when you remove a system contact. */
-"DELETE_CONTACT_ACTION_SHEET_EXPLANATION" = "ผู้ใช้คนนี้จะถูกลบออกจากรายชื่อผู้ติดต่อของระบบของคุณ โดยคุณจะไม่เห็นผู้ใช้คนนี้เมื่อทำการค้นหา คุณจะได้รับคำขอส่งข้อความหากผู้ใช้ส่งข้อความหาคุณในอนาคต";
+"DELETE_CONTACT_ACTION_SHEET_EXPLANATION" = "ผู้ใช้คนนี้จะถูกลบออกจากรายชื่อผู้ติดต่อบนโทรศัพท์คุณ โดยคุณจะไม่เห็นผู้ใช้คนนี้เมื่อทำการค้นหา คุณจะได้รับคำขอส่งข้อความหากผู้ใช้ส่งข้อความหาคุณในอนาคต";
 
 /* Title of action sheet confirming the user wants to delete a system contact. */
 "DELETE_CONTACT_ACTION_SHEET_TITLE" = "ลบผู้ติดต่อและนำออกจากรายชื่อใช่หรือไม่";
@@ -1686,6 +1893,27 @@
 
 /* Toast message confirming the system contact was deleted. Embeds {{The name of the user who was deleted.}}. */
 "DELETE_CONTACT_CONFIRMATION_TOAST" = "ลบ %1$@ และนำออกจากรายชื่อผู้ติดต่อแล้ว";
+
+/* Title for an action sheet button explaining that a message will be deleted. */
+"DELETE_FOR_ME_NOTE_TO_SELF_ACTION_SHEET_BUTTON_TITLE" = "ลบ";
+
+/* Header text for an action sheet confirming deleting a message in Note to Self. */
+"DELETE_FOR_ME_NOTE_TO_SELF_ACTION_SHEET_HEADER" = "ลบข้อความหรือไม่";
+
+/* Subheader for an action sheet explaining that a Note to Self deleted on this device will be deleted on the user's other devices as well. */
+"DELETE_FOR_ME_NOTE_TO_SELF_LINKED_DEVICES_PRESENT_ACTION_SHEET_SUBHEADER" = "ข้อความนี้จะถูกลบออกจากอุปกรณ์ทุกเครื่องของคุณ";
+
+/* Label for a button in an info sheet confirming that deletes are now synced across devices. */
+"DELETE_FOR_ME_SYNC_MESSAGE_INFO_SHEET_BUTTON" = "เข้าใจแล้ว";
+
+/* Subtitle for an info sheet explaining that deletes are now synced across devices. */
+"DELETE_FOR_ME_SYNC_MESSAGE_INFO_SHEET_SUBTITLE" = "เมื่อคุณลบข้อความหรือแชท ข้อมูลนั้นจะถูกลบออกจากโทรศัพท์ของคุณและอุปกรณ์ที่เชื่อมโยงอยู่ทุกเครื่อง";
+
+/* Title for an info sheet explaining that deletes are now synced across devices. */
+"DELETE_FOR_ME_SYNC_MESSAGE_INFO_SHEET_TITLE" = "การลบซิงค์เข้ากับอุปกรณ์ทุกเครื่องของคุณแล้ว";
+
+/* Label indicating a user who deleted their account. */
+"DELETED_USER" = "บัญชีที่ถูกลบ";
 
 /* Notification warning the user that they have been de-registered. */
 "DEREGISTRATION_NOTIFICATION" = "คุณออกจากระบบ Signal บนอุปกรณ์เครื่องนี้แล้ว";
@@ -1858,6 +2086,12 @@
 /* The unit for a number of weeks */
 "DISAPPEARING_MESSAGES_WEEKS" = "สัปดาห์";
 
+/* Message/subtitle for confirmation prompt when discarding a draft before editing a message */
+"DISCARD_DRAFT_CONFIRMATION_MESSAGE" = "เมื่อดำเนินการแล้วจะไม่สามารถแก้ไขหรือเปลี่ยนแปลงได้";
+
+/* Title for confirmation prompt when discarding a draft before editing a message */
+"DISCARD_DRAFT_CONFIRMATION_TITLE" = "ยกเลิกฉบับร่างใช่หรือไม่";
+
 /* Short text to dismiss current modal / actionsheet / screen */
 "DISMISS_BUTTON_TEXT" = "เลิกกัน";
 
@@ -1874,13 +2108,13 @@
 "DOMAIN_FRONTING_COUNTRY_VIEW_SECTION_HEADER" = "ตำแหน่งการหลบเลี่ยงการปิดกั้นข้อมูล";
 
 /* Users can donate to Signal with a credit or debit card. This is the heading on that screen, telling them how much they'll donate. Embeds {{formatted amount of money}}, such as \"$20\". */
-"DONATE_BUTTON" = "Donate %1$@";
+"DONATE_BUTTON" = "บริจาค %1$@";
 
 /* Users can donate to Signal with a credit or debit card. This is the heading on that screen, telling them how much they'll donate every month. Embeds {{formatted amount of money}}, such as \"$20\". */
-"DONATE_BUTTON_MONTHLY" = "Donate %1$@/month";
+"DONATE_BUTTON_MONTHLY" = "บริจาค %1$@/เดือน";
 
 /* When users make donations, they can choose which payment method they want to use. This is the text on the button that lets them choose to pay with bank transfer. */
-"DONATE_CHOOSE_BANK_TRANSFER_AS_PAYMENT_METHOD" = "Bank Transfer";
+"DONATE_CHOOSE_BANK_TRANSFER_AS_PAYMENT_METHOD" = "โอนเงินผ่านระบบธนาคาร";
 
 /* When users make donations, they can choose which payment method they want to use. This is the text on the button that lets them choose to pay with credit or debit card. */
 "DONATE_CHOOSE_CREDIT_OR_DEBIT_CARD_AS_PAYMENT_METHOD" = "บัตรเครดิตหรือบัตรเดบิต";
@@ -1892,7 +2126,7 @@
 "DONATE_CHOOSE_PAYMENT_METHOD_SHEET_SUBTITLE_FOR_MONTHLY_DONATION" = "รับโล่ %1$@";
 
 /* When users make one-time donations, they see a sheet that lets them pick a payment method. It also tells them what they'll be doing when they pay: receive a badge for a month. This is the subtitle on that sheet. Embeds {{localized badge name}}, such as \"Boost\". */
-"DONATE_CHOOSE_PAYMENT_METHOD_SHEET_SUBTITLE_FOR_ONE_TIME_DONATION" = "Get the %1$@ badge for 30 days";
+"DONATE_CHOOSE_PAYMENT_METHOD_SHEET_SUBTITLE_FOR_ONE_TIME_DONATION" = "รับโล่ %1$@ เป็นเวลา 30 วัน";
 
 /* When users make donations on a friend's behalf, they see a sheet that lets them pick a payment method. This is the title on that sheet. Embeds {{amount of money}}, such as \"$5\". */
 "DONATE_CHOOSE_PAYMENT_METHOD_SHEET_TITLE_FOR_DONATION_ON_BEHALF_OF_A_FRIEND" = "บริจาค %1$@ ให้ Signal";
@@ -1912,17 +2146,26 @@
 /* If a donation badge has been sent, indicates that it's expired and can no longer be redeemed. This is shown in the chat. */
 "DONATE_ON_BEHALF_OF_A_FRIEND_CHAT_EXPIRED" = "หมดอายุ";
 
+/* Message in an alert presented when the user tries to make a donation, but already has an iDEAL donation that is currently awaiting approval. */
+"DONATE_SCREEN_ERROR_MESSAGE_APPROVE_IDEAL_DONATION_BEFORE_MAKING_ANOTHER_DONATION" = "การบริจาคผ่าน iDEAL ของคุณยังอยู่ระหว่างดำเนินการ โปรดตรวจสอบแอปธนาคารของคุณเพื่ออนุมัติการชำระเงิน แล้วจึงค่อยบริจาคอีกครั้ง";
+
+/* Message in an alert presented when the user tries to update their recurring donation, but already has a recurring donation that is currently awaiting authorization. */
+"DONATE_SCREEN_ERROR_MESSAGE_BANK_PAYMENT_AWAITING_AUTHORIZATION" = "การบริจาคผ่าน iDEAL ของคุณยังอยู่ระหว่างดำเนินการ โปรดตรวจสอบแอปธนาคารของคุณเพื่ออนุมัติการชำระเงิน แล้วจึงค่อยบริจาคอีกครั้ง";
+
 /* Message in an alert presented when the user tries to make a donation, but already has a donation that is currently processing via bank payment. */
-"DONATE_SCREEN_ERROR_MESSAGE_BANK_PAYMENT_PLEASE_WAIT_BEFORE_MAKING_ANOTHER_DONATION" = "Bank transfers usually take 1 business day to process. Please wait until this donation completes before making another donation.";
+"DONATE_SCREEN_ERROR_MESSAGE_BANK_PAYMENT_PLEASE_WAIT_BEFORE_MAKING_ANOTHER_DONATION" = "การโอนเงินผ่านระบบธนาคารมักใช้เวลาดำเนินการประมาณ 1 วันทำการ โปรดรอให้การบริจาคนี้สำเร็จก่อน แล้วจึงค่อยบริจาคอีกครั้ง";
 
 /* Message in an alert presented when the user tries to update their recurring donation, but already has a recurring donation that is currently processing via bank payment. */
-"DONATE_SCREEN_ERROR_MESSAGE_BANK_PAYMENT_PLEASE_WAIT_BEFORE_UPDATING_YOUR_SUBSCRIPTION" = "Bank transfers usually take 1 business day to process. Please wait until this donation completes before updating your subscription.";
+"DONATE_SCREEN_ERROR_MESSAGE_BANK_PAYMENT_PLEASE_WAIT_BEFORE_UPDATING_YOUR_SUBSCRIPTION" = "การโอนเงินผ่านระบบธนาคารมักใช้เวลาดำเนินการประมาณ 1 วันทำการ โปรดรอให้การบริจาคนี้สำเร็จก่อน แล้วจึงค่อยอัปเดตการบริจาครายเดือนของคุณ";
+
+/* Message for an alert shown when the user tries to donate via bank transfer, but the amount they want to donate is too large. Embeds {{ the maximum allowed donation amount }}. */
+"DONATE_SCREEN_ERROR_MESSAGE_FORMAT_BANK_TRANSFER_AMOUNT_TOO_LARGE" = "คุณสามารถบริจาคด้วยการโอนเงินผ่านระบบธนาคารได้สูงสุด %1$@ กรุณาระบุยอดบริจาคใหม่หรือลองชำระเงินด้วยวิธีอื่น";
 
 /* Message in an alert presented when the user tries to make a donation, but already has a donation that is currently processing via non-bank payment. */
-"DONATE_SCREEN_ERROR_MESSAGE_PLEASE_WAIT_BEFORE_MAKING_ANOTHER_DONATION" = "Your donation is still being processed. This can take a few minutes depending on your connection. Please wait until this donation completes before making another donation.";
+"DONATE_SCREEN_ERROR_MESSAGE_PLEASE_WAIT_BEFORE_MAKING_ANOTHER_DONATION" = "การบริจาคของคุณยังอยู่ระหว่างดำเนินการ ขั้นตอนนี้อาจใช้เวลาสักครู่ โดยขึ้นอยู่กับสัญญาณอินเทอร์เน็ตของคุณ โปรดรอให้การบริจาคนี้สำเร็จก่อน แล้วจึงค่อยบริจาคอีกครั้ง";
 
 /* Message in an alert presented when the user tries to update their recurring donation, but already has a recurring donation that is currently processing via non-bank payment. */
-"DONATE_SCREEN_ERROR_MESSAGE_PLEASE_WAIT_BEFORE_UPDATING_YOUR_SUBSCRIPTION" = "Your donation is still being processed. This can take a few minutes depending on your connection. Please wait until this donation completes before updating your subscription.";
+"DONATE_SCREEN_ERROR_MESSAGE_PLEASE_WAIT_BEFORE_UPDATING_YOUR_SUBSCRIPTION" = "การบริจาคของคุณยังอยู่ระหว่างดำเนินการ ขั้นตอนนี้อาจใช้เวลาสักครู่ โดยขึ้นอยู่กับสัญญาณอินเทอร์เน็ตของคุณ โปรดรอให้การบริจาคนี้สำเร็จก่อน แล้วจึงค่อยอัปเดตการบริจาครายเดือนของคุณ";
 
 /* If the user tries to donate to Signal but no amount is selected, this error message is shown. */
 "DONATE_SCREEN_ERROR_NO_AMOUNT_SELECTED" = "เลือกจำนวนที่จะบริจาค";
@@ -1930,11 +2173,17 @@
 /* If the user tries to donate to Signal but they've entered an amount that's too small, this error message is shown. Embeds {{currency string}}, such as \"$5\". */
 "DONATE_SCREEN_ERROR_SELECT_A_LARGER_AMOUNT_FORMAT" = "ยอดขั้นต่ำที่บริจาคได้คือ %1$@";
 
+/* Title for an alert presented when the user tries to make a donation, but already has a donation that is currently awaiting authorization. */
+"DONATE_SCREEN_ERROR_TITLE_BANK_PAYMENT_AWAITING_AUTHORIZATION" = "ยังมีการบริจาคที่รออนุมัติ";
+
 /* Title for an alert presented when the user tries to make a donation, but already has a donation that is currently processing via bank payment. */
-"DONATE_SCREEN_ERROR_TITLE_BANK_PAYMENT_YOU_HAVE_A_DONATION_PENDING" = "You have a donation pending";
+"DONATE_SCREEN_ERROR_TITLE_BANK_PAYMENT_YOU_HAVE_A_DONATION_PENDING" = "คุณยังมีการบริจาคที่รออนุมัติอยู่";
+
+/* Title for an alert shown when the user tries to donate via bank transfer, but the amount they want to donate is too large. */
+"DONATE_SCREEN_ERROR_TITLE_BANK_TRANSFER_AMOUNT_TOO_LARGE" = "ยอดบริจาคสูงเกินไป";
 
 /* Title for an alert presented when the user tries to make a donation, but already has a donation that is currently processing via non-bank payment. */
-"DONATE_SCREEN_ERROR_TITLE_YOU_HAVE_A_PAYMENT_PROCESSING" = "You have a donation processing";
+"DONATE_SCREEN_ERROR_TITLE_YOU_HAVE_A_PAYMENT_PROCESSING" = "คุณยังมีการบริจาคที่อยู่ระหว่างดำเนินการ";
 
 /* On the donation screen, you can choose between one-time and monthly donations. This is the text on the picker for one-time donations. */
 "DONATE_SCREEN_MONTHLY_CHOICE" = "รายเดือน";
@@ -1958,25 +2207,25 @@
 "DONATE_SCREEN_UPDATE_MONTHLY_SUBSCRIPTION_BUTTON" = "อัปเดตการเป็นสมาชิก";
 
 /* Message for a sheet explaining that a donation via bank payment has failed. Embeds {{ a specific, already-localized string describing the payment failure }}. */
-"DONATION_BADGE_ISSUE_SHEET_BANK_PAYMENT_FAILED_MESSAGE" = "We’re having trouble processing your bank transfer. %1$@";
+"DONATION_BADGE_ISSUE_SHEET_BANK_PAYMENT_FAILED_MESSAGE" = "เราประสบปัญหาในการดำเนินการโอนเงินผ่านระบบธนาคารของคุณ %1$@";
 
 /* Title for a sheet explaining that a donation via bank payment has failed. */
-"DONATION_BADGE_ISSUE_SHEET_BANK_PAYMENT_FAILED_TITLE" = "Donation Couldn’t Be Processed";
+"DONATION_BADGE_ISSUE_SHEET_BANK_PAYMENT_FAILED_TITLE" = "ไม่สามารถดำเนินการบริจาคได้";
 
 /* Title for a sheet explaining that a donation via bank payment is pending. */
-"DONATION_BADGE_ISSUE_SHEET_BANK_PAYMENT_PROCESSING_TITLE" = "Donation Pending";
+"DONATION_BADGE_ISSUE_SHEET_BANK_PAYMENT_PROCESSING_TITLE" = "การบริจาคอยู่ในสถานะรออนุมัติ";
 
 /* Message for a sheet explaining that a one-time donation via bank payment is pending, and how that will affect the user's badge. Embeds {{ the name of the badge }}. Will have a 'learn more' link appended, when it is rendered. */
-"DONATION_BADGE_ISSUE_SHEET_ONE_TIME_BANK_PAYMENT_PROCESSING_MESSAGE" = "Your one-time donation is pending. You’ll be able to display the %1$@ badge on your profile when your donation is received.\n\nBank transfers usually take 1 business day to process.";
+"DONATION_BADGE_ISSUE_SHEET_ONE_TIME_BANK_PAYMENT_PROCESSING_MESSAGE" = "กำลังรออนุมัติการบริจาคแบบครั้งเดียวของคุณ คุณจะแสดงโล่ %1$@ บนโปรไฟล์ได้เมื่อเราได้รับการบริจาคเรียบร้อยแล้ว\n\nการโอนเงินผ่านระบบธนาคารมักใช้เวลาดำเนินการประมาณ 1 วันทำการ";
 
 /* Message for a sheet explaining that a recurring donation via bank payment is pending, and how that will affect the user's badge. Embeds {{ the name of the badge }}. Will have a 'learn more' link appended, when it is rendered. */
-"DONATION_BADGE_ISSUE_SHEET_RECURRING_BANK_PAYMENT_PROCESSING_MESSAGE" = "Your monthly donation is pending. You’ll be able to display the %1$@ badge on your profile when your donation is received.\n\nBank transfers usually take 1 business day to process.";
+"DONATION_BADGE_ISSUE_SHEET_RECURRING_BANK_PAYMENT_PROCESSING_MESSAGE" = "กำลังรออนุมัติการบริจาครายเดือนของคุณ คุณจะแสดงโล่ %1$@ บนโปรไฟล์ได้เมื่อเราได้รับการบริจาคเรียบร้อยแล้ว\n\nการโอนเงินผ่านระบบธนาคารมักใช้เวลาดำเนินการประมาณ 1 วันทำการ";
 
 /* Title for a button asking the user to renew their subscription, because it has expired. */
-"DONATION_BADGE_ISSUE_SHEET_RENEW_SUBSCRIPTION_BUTTON_TITLE" = "Renew Subscription";
+"DONATION_BADGE_ISSUE_SHEET_RENEW_SUBSCRIPTION_BUTTON_TITLE" = "ต่ออายุการเป็นสมาชิก";
 
 /* Title for a button asking the user to try their donation again, because something went wrong. */
-"DONATION_BADGE_ISSUE_SHEET_TRY_AGAIN_BUTTON_TITLE" = "Try Again";
+"DONATION_BADGE_ISSUE_SHEET_TRY_AGAIN_BUTTON_TITLE" = "ลองอีกครั้ง";
 
 /* When donating on behalf of a friend, a badge will be sent. This shows how long the badge lasts. Embeds {{formatted duration}}. */
 "DONATION_FOR_A_FRIEND_ROW_DURATION" = "ใช้ได้ %1$@";
@@ -2122,6 +2371,15 @@
 /* Text at the bottom of the donation receipts list, telling users that receipts might not be available */
 "DONATION_RECEIPTS_MIGHT_BE_MISSING_IF_YOU_REINSTALLED" = "ถ้าคุณติดตั้ง Signal ใหม่ ใบเสร็จจากการบริจาคก่อนหน้านี้จะไม่สามารถใช้งานได้";
 
+/* Error message displayed if something goes wrong with 3DSecure/iDEAL payment authorization.  This will be encountered if the user cancels the webview before authrizing the payment. */
+"DONATION_REDIRECT_ERROR_CANCELLED_MESSAGE" = "การชำระเงินถูกยกเลิก กรุณาลองอีกครั้ง";
+
+/* Error message displayed if something goes wrong with 3DSecure/iDEAL payment authorization.  This will be encountered if the callback is in an unexpected format. */
+"DONATION_REDIRECT_ERROR_INVALID_RESPONSE_MESSAGE" = "รูปแบบการชำระเงินไม่ถูกต้อง กรุณาลองอีกครั้ง";
+
+/* Error message displayed if something goes wrong with 3DSecure/iDEAL payment authorization.  This will be encountered if the user denies the payment. */
+"DONATION_REDIRECT_ERROR_PAYMENT_DENIED_MESSAGE" = "การชำระเงินถูกปฏิเสธ กรุณาลองอีกครั้ง";
+
 /* On the donation settings screen, tapping this button will take the user to a screen where they can donate. */
 "DONATION_SCREEN_DONATE_BUTTON" = "บริจาค";
 
@@ -2134,44 +2392,71 @@
 /* On donation screens, a small amount of information text is shown. This is the title for that text. */
 "DONATION_SCREENS_HEADER_TITLE" = "เพราะความเป็นส่วนตัวสำคัญกว่าผลกำไรใดๆ";
 
+/* Button title confirming the user wants to begin a new donation. */
+"DONATION_SETTINGS_CANCEL_DONATION_AWAITING_AUTHORIZATION_DONATE_ACTION" = "บริจาค";
+
+/* Prompt confirming the user wants to abandon the current donation flow and start a new donation. */
+"DONATION_SETTINGS_CANCEL_DONATION_AWAITING_AUTHORIZATION_MESSAGE" = "การดำเนินการต่อจะเป็นการยกเลิกการบริจาคครั้งล่าสุดของคุณ คุณจะไม่ถูกเรียกเก็บเงิน แต่อาจจะยังเห็นคำขอการชำระเงินในแอปธนาคาร คุณแน่ใจใช่หรือไม่ว่าต้องการดำเนินการบริจาคใหม่";
+
 /* Title for an action in an action sheet asking the user to renew a subscription that has failed to renew. */
-"DONATION_SETTINGS_MY_SUPPORT_ACTION_SHEET_ACTION_TITLE_RENEW_SUBSCRIPTION" = "Renew Subscription";
+"DONATION_SETTINGS_MY_SUPPORT_ACTION_SHEET_ACTION_TITLE_RENEW_SUBSCRIPTION" = "ต่ออายุการเป็นสมาชิก";
 
 /* Title for an action in an action sheet asking the user to try again, in reference to a donation that failed. */
-"DONATION_SETTINGS_MY_SUPPORT_ACTION_SHEET_ACTION_TITLE_TRY_AGAIN" = "Try Again";
+"DONATION_SETTINGS_MY_SUPPORT_ACTION_SHEET_ACTION_TITLE_TRY_AGAIN" = "ลองอีกครั้ง";
+
+/* Prompt the user asking if they want to keep the current in-flight, but unauthorized donation, or try again. */
+"DONATION_SETTINGS_MY_SUPPORT_BANK_PAYMENT_AWAITING_AUTHORIZATION_MESSAGE" = "ไม่สามารถยืนยันการบริจาคผ่าน iDEAL ของคุณได้ โปรดตรวจสอบแอปธนาคารของคุณเพื่ออนุมัติการบริจาคหรือลองอีกครั้ง";
 
 /* Message for an alert explaining that a one-time payment made via bank transfer is being processed. */
-"DONATION_SETTINGS_MY_SUPPORT_BANK_PAYMENT_PROCESSING_MESSAGE" = "Your bank transfer is pending. Bank transfers usually take 1 business day to process.";
+"DONATION_SETTINGS_MY_SUPPORT_BANK_PAYMENT_PROCESSING_MESSAGE" = "กำลังรออนุมัติการโอนเงินผ่านระบบธนาคาร การโอนเงินผ่านระบบธนาคารมักใช้เวลาดำเนินการประมาณ 1 วันทำการ";
 
 /* Title for an alert explaining that a one-time payment made via bank transfer is being processed. */
-"DONATION_SETTINGS_MY_SUPPORT_BANK_PAYMENT_PROCESSING_TITLE" = "Donation Pending";
+"DONATION_SETTINGS_MY_SUPPORT_BANK_PAYMENT_PROCESSING_TITLE" = "การบริจาคอยู่ในสถานะรออนุมัติ";
 
 /* Message shown in a sheet explaining that the user's donation has failed because payment failed. Embeds {{ a specific, already-localized string describing the payment failure reason }}. */
-"DONATION_SETTINGS_MY_SUPPORT_DONATION_FAILED_ALERT_MESSAGE_FORMAT" = "We’re having trouble processing your donation. %1$@";
+"DONATION_SETTINGS_MY_SUPPORT_DONATION_FAILED_ALERT_MESSAGE_FORMAT" = "เราประสบปัญหาในการดำเนินการบริจาคของคุณ %1$@";
 
 /* Title for a sheet explaining that a payment failed. */
-"DONATION_SETTINGS_MY_SUPPORT_DONATION_FAILED_ALERT_TITLE" = "Error Processing Donation";
+"DONATION_SETTINGS_MY_SUPPORT_DONATION_FAILED_ALERT_TITLE" = "การดำเนินการบริจาคมีข้อผิดพลาด";
+
+/* Title for a sheet explaining that a payment needs confirmation. */
+"DONATION_SETTINGS_MY_SUPPORT_DONATION_UNCONFIMRED_ALERT_TITLE" = "ไม่สามารถยืนยันการบริจาคได้";
+
+/* Message shown in a sheet explaining that the user's iDEAL one-time donation coultn't be processed. */
+"DONATION_SETTINGS_MY_SUPPORT_IDEAL_ONE_TIME_DONATION_FAILED_MESSAGE" = "ไม่สามารถดำเนินการบริจาคครั้งเดียวผ่าน iDEAL ของคุณได้ ลองวิธีการชำระอื่น หรือติดต่อธนาคารเพื่อขอข้อมูลเพิ่มเติม";
+
+/* Title for a sheet explaining that a payment needs confirmation. */
+"DONATION_SETTINGS_MY_SUPPORT_IDEAL_ONE_TIME_DONATION_NOT_CONFIRMED_MESSAGE_FORMAT" = "ไม่สามารถยืนยันการบริจาคครั้งเดียวผ่าน iDEAL จำนวน %1$@ ของคุณได้ โปรดตรวจสอบแอปธนาคารของคุณเพื่ออนุมัติการบริจาคผ่าน iDEAL";
+
+/* Message shown in a sheet explaining that the user's iDEAL recurring monthly donation coultn't be processed. */
+"DONATION_SETTINGS_MY_SUPPORT_IDEAL_RECURRING_SUBSCRIPTION_FAILED_MESSAGE" = "ไม่สามารถดำเนินการบริจาครายเดือนผ่าน iDEAL ของคุณได้ ลองชำระเงินด้วยวิธีอื่น หรือติดต่อธนาคารเพื่อขอข้อมูลเพิ่มเติม";
+
+/* Message shown in a sheet explaining that the user's iDEAL recurring monthly donation hasn't been confirmed. Embeds {{ formatted current amount }}. */
+"DONATION_SETTINGS_MY_SUPPORT_IDEAL_RECURRING_SUBSCRIPTION_NOT_CONFIRMED_MESSAGE_FORMAT" = "ไม่สามารถยืนยันการบริจาครายเดือนผ่าน iDEAL จำนวน %1$@ ของคุณได้ โปรดตรวจสอบแอปธนาคารของคุณเพื่ออนุมัติการบริจาคผ่าน iDEAL";
 
 /* Message shown in a sheet explaining that the user's recurring subscription has ended because payment failed. Embeds {{ a specific, already-localized string describing the failure reason }}. */
-"DONATION_SETTINGS_MY_SUPPORT_RECURRING_SUBSCRIPTION_LAPSED_CHARGE_FAILURE_ALERT_MESSAGE_FORMAT" = "Your recurring monthly donation has ended. %1$@";
+"DONATION_SETTINGS_MY_SUPPORT_RECURRING_SUBSCRIPTION_LAPSED_CHARGE_FAILURE_ALERT_MESSAGE_FORMAT" = "การบริจาครายเดือนของคุณสิ้นสุดแล้ว %1$@";
 
 /* Title for a sheet explaining that the user's recurring subscription has ended because payment failed. */
-"DONATION_SETTINGS_MY_SUPPORT_RECURRING_SUBSCRIPTION_LAPSED_TITLE" = "Monthly Donation Canceled";
+"DONATION_SETTINGS_MY_SUPPORT_RECURRING_SUBSCRIPTION_LAPSED_TITLE" = "ยกเลิกการบริจาครายเดือนแล้ว";
 
 /* A label describing a donation payment that was made via bank transfer, which is still processing and has not completed. */
-"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_BANK_PAYMENT_PROCESSING" = "Donation Pending";
+"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_BANK_PAYMENT_PROCESSING" = "การบริจาคอยู่ในสถานะรออนุมัติ";
 
 /* A label describing a donation payment that was made by a method other than bank transfer (such as by credit card), which is still processing and has not completed. */
-"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_NON_BANK_PAYMENT_PROCESSING" = "Processing Donation...";
+"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_NON_BANK_PAYMENT_PROCESSING" = "กำลังดำเนินการบริจาค…";
 
 /* A label describing a donation payment that has failed to process. */
-"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_PAYMENT_FAILED" = "Error Processing Donation";
+"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_PAYMENT_FAILED" = "การดำเนินการบริจาคมีข้อผิดพลาด";
 
 /* A label describing a recurring monthly donation that used to be active, but has now been canceled because it failed to renew. */
-"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_SUBSCRIPTION_LAPSED" = "Monthly Donation Canceled";
+"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_SUBSCRIPTION_LAPSED" = "ยกเลิกการบริจาครายเดือนแล้ว";
+
+/* A label describing a donation payment that has requires authorization. */
+"DONATION_SETTINGS_MY_SUPPORT_TABLE_CELL_SUBTITLE_WAITING_FOR_AUTHORIZATION" = "รอการอนุมัติ";
 
 /* A string describing the amount and currency of a one-time payment. Embeds {{ the amount, formatted as a currency }}. */
-"DONATION_SETTINGS_ONE_TIME_AMOUNT_FORMAT" = "%1$@ one-time";
+"DONATION_SETTINGS_ONE_TIME_AMOUNT_FORMAT" = "%1$@ ครั้งเดียว";
 
 /* Title for the \"donate for a friend\" button on the donation view. */
 "DONATION_VIEW_DONATE_ON_BEHALF_OF_A_FRIEND" = "บริจาคในนามของเพื่อน";
@@ -2180,7 +2465,7 @@
 "DONATION_VIEW_DONATION_TO_SIGNAL" = "บริจาคให้ Signal";
 
 /* Title for the 'Donor FAQ' button on the donation screen */
-"DONATION_VIEW_DONOR_FAQ" = "Donor FAQ";
+"DONATION_VIEW_DONOR_FAQ" = "คำถามที่พบบ่อยสำหรับผู้บริจาค";
 
 /* Text that's shown when the donation view fails to load data, probably due to network failure */
 "DONATION_VIEW_LOAD_FAILED" = "เครือข่ายมีข้อผิดพลาด ตรวจสอบการเชื่อมต่อแล้วลองใหม่อีกครั้ง";
@@ -2205,6 +2490,12 @@
 
 /* Label for the currency picker button in donation views */
 "DONATIONS_CURRENCY_PICKER_LABEL" = "สกุลเงิน";
+
+/* Message for Double Tap to Edit sheet show on first interaction */
+"DOUBLE_TAP_TO_EDIT_ALERT_MESSAGE" = "แตะเร็วๆ สองครั้งที่ข้อความของคุณเพื่อแก้ไข คุณสามารถแก้ไขข้อความได้ภายใน 24 ชั่วโมงหลังการส่ง";
+
+/* Title for Double Tap to Edit sheet show on first interaction */
+"DOUBLE_TAP_TO_EDIT_ALERT_TITLE" = "แตะสองครั้งเพื่อแก้ไข";
 
 /* Alert body for when the user has just tried to edit a contacts after declining to give Signal contacts permissions */
 "EDIT_CONTACT_WITHOUT_CONTACTS_PERMISSION_ALERT_BODY" = "คุณสามารถเปิดการเข้าถึงได้ในการตั้งค่าของ iOS";
@@ -2236,15 +2527,6 @@
 /* Short name for edit menu item to copy contents of media message. */
 "EDIT_ITEM_COPY_ACTION" = "คัดลอก";
 
-/* Edit Send Beta prompt body */
-"EDIT_MESSAGE_SEND_MESSAGE_BODY" = "ผู้ติดต่อต้องใช้ Signal เวอร์ชันล่าสุดจึงจะสามารถเห็นข้อความที่คุณแก้ไขแล้ว และคนคนนั้นจะเห็นว่าคุณแก้ไขข้อความ";
-
-/* Label to confirm sending an edit */
-"EDIT_MESSAGE_SEND_MESSAGE_CONFIRM" = "ส่ง";
-
-/* Edit Send Beta prompt title */
-"EDIT_MESSAGE_SEND_MESSAGE_TITLE" = "แก้ไขข้อความ";
-
 /* Error message to display to user when a message is too old to edit */
 "EDIT_MESSAGE_SEND_MESSAGE_TOO_OLD_ERROR" = "สามารถแก้ไขข้อความนี้ได้ภายใน 24 ชั่วโมงนับจากเวลาที่คุณส่ง";
 
@@ -2252,7 +2534,7 @@
 "EDIT_MESSAGE_SEND_MESSAGE_UNKNOWN_ERROR" = "EDIT_MESSAGE_SEND_MESSAGE_UNKNOWN_ERROR";
 
 /* body of email sent to contacts when inviting to install Signal. Embeds {{link to install Signal}} and {{link to the Signal home page}} */
-"EMAIL_INVITE_BODY" = "สวัสดี!\n\nหลังจากที่ฉันได้เริ่มใช้ Signal เพื่อรักษาความเป็นส่วนตัวของแชทบน iPhone ฉันอยากแนะนำให้คุณติดตั้งแอปนี้เช่นกัน เพื่อให้มั่นใจได้ว่ามีแค่เราสองคนเท่านั้นที่สามารถอ่านข้อความหรือได้ยินเสียงพูดคุยของเรา\n\nSignal ใช้งานได้ทั้งบน iPhone และ Android ดาวน์โหลดเลยที่นี่: %1$@\n\nSignal ทำงานเหมือนแอปส่งข้อความที่คุณใช้อยู่ เราสามารถส่งรูปและวิดีโอ โทรออก และเริ่มแชทกลุ่ม แต่ที่มากไปกว่านั้นก็คือจะไม่มีใครเห็นข้อมูลเหล่านี้ แม้แต่ทีมงานที่สร้าง Signal ก็ตาม!\n\nอ่านเพิ่มเติมเกี่ยวกับ Open Whisper Systems และผู้สร้าง Signal ได้ที่นี่: %2$@";
+"EMAIL_INVITE_BODY" = "Hey,\n\nLately I've been using Signal to keep the chats on my iPhone private. I'd like you to install it too, so we can be confident that only you and I can read our messages or hear our calls.\n\nSignal is available for iPhones and Android. Get it here: %1$@\n\nSignal works like your existing messaging app. We can send pictures and video, make calls, and start group chats. The best part is, no one else can see any of it, not even the people who make Signal!\n\nYou can read more about Signal here: %2$@";
 
 /* subject of email sent to contacts when inviting to install Signal */
 "EMAIL_INVITE_SUBJECT" = "เปลี่ยนมาใช้ Signal กันเถอะ";
@@ -2303,7 +2585,7 @@
 "END_CALL_RESPONDER_IS_BUSY" = "ไม่ว่าง";
 
 /* Call setup status label */
-"END_CALL_UNCATEGORIZED_FAILURE" = "การโทรล้มเหลว";
+"END_CALL_UNCATEGORIZED_FAILURE" = "ดำเนินการโทรไม่สำเร็จ";
 
 /* Error indicating that a message could not be forwarded. */
 "ERROR_COULD_NOT_FORWARD_MESSAGES_1" = "ไม่สามารถส่งต่อข้อความได้";
@@ -2364,6 +2646,9 @@
 
 /* Error message indicating that attachment download(s) failed. */
 "ERROR_MESSAGE_ATTACHMENT_DOWNLOAD_FAILED" = "การดาวน์โหลดแฟ้มแนบล้มเหลว";
+
+/* Error message indicating that attachment upload(s) failed. */
+"ERROR_MESSAGE_ATTACHMENT_UPLOAD_FAILED" = "อัปโหลดไฟล์แนบไม่สำเร็จ";
 
 /* Error message for a decryption failure. Embeds {{sender short name}}. */
 "ERROR_MESSAGE_DECRYPTION_FAILURE" = "ไม่สามารถส่งข้อความจาก %1$@ ได้";
@@ -2465,10 +2750,22 @@
 "FEATURED_BADGE_SETTINGS_TITLE" = "โล่ติดโปรไฟล์";
 
 /* Users can choose to learn more about how to find account info, which will open a sheet with additional information. This is the body of that sheet. */
-"FIND_ACCOUNT_INFO_SHEET_BODY" = "Look for your IBAN at the top of your bank statement. IBAN numbers contain up to 34 characters. The name you enter should match your full name on your bank account. Contact your bank for more information.";
+"FIND_ACCOUNT_INFO_SHEET_BODY" = "ตรวจสอบหมายเลข IBAN ซึ่งจะระบุอยู่ที่ด้านบนของรายการเดินบัญชี (Bank Statement) โดยหมายเลข IBAN จะมีอักขระไม่เกิน 34 ตัว ชื่อที่กรอกควรตรงกับชื่อเต็มของคุณตามที่ระบุในบัญชีธนาคาร โปรดติดต่อธนาคารของคุณสำหรับข้อมูลเพิ่มเติม";
 
 /* Users can choose to learn more about how to find account info, which will open a sheet with additional information. This is the title of that sheet. */
-"FIND_ACCOUNT_INFO_SHEET_TITLE" = "Find Your Account Information";
+"FIND_ACCOUNT_INFO_SHEET_TITLE" = "ค้นหาข้อมูลบัญชีของคุณ";
+
+/* A footer below the username text field describing what should be entered */
+"FIND_BY_USERNAME_FOOTER" = "ป้อนชื่อผู้ใช้แล้วตามด้วยจุดและชุดตัวเลข";
+
+/* A placeholder value for the text field for finding an account by their username */
+"FIND_BY_USERNAME_PLACEHOLDER" = "ชื่อผู้ใช้";
+
+/* A button below the username text field which opens a username QR code scanner */
+"FIND_BY_USERNAME_SCAN_QR_CODE_BUTTON" = "สแกนรหัส QR";
+
+/* Title for the view for finding accounts by their username */
+"FIND_BY_USERNAME_TITLE" = "ค้นหาด้วยชื่อผู้ใช้";
 
 /* Button that marks user as verified after a successful fingerprint scan. */
 "FINGERPRINT_SCAN_VERIFY_BUTTON" = "ทำเครื่องหมายว่าตรวจยืนยันแล้ว";
@@ -2478,6 +2775,9 @@
 
 /* Accessibility label for finishing new group */
 "FINISH_GROUP_CREATION_LABEL" = "สร้างกลุ่มให้เสร็จ";
+
+/* Tooltip notifying users that the flip camera button moved to the picture-in-picture view of themselves in a call */
+"FLIP_CAMERA_BUTTON_MOVED_TO_PIP_TOOLTIP" = "ปุ่มพลิกหน้ากล้องย้ายมาอยู่ที่นี่ แตะที่วิดีโอของคุณเพื่อลองใช้งาน";
 
 /* Label and title for 'contact forwarding' views. */
 "FORWARD_CONTACT" = "ส่งต่อผู้ติดต่อ";
@@ -2516,10 +2816,10 @@
 "GENERIC_INCOMING_MESSAGE_NOTIFICATION" = "มีข้อความใหม่!";
 
 /* Title for the 'Get Started' banner */
-"GET_STARTED_BANNER_TITLE" = "เริ่มต้น";
+"GET_STARTED_BANNER_TITLE" = "เริ่มต้นใช้งาน";
 
 /* 'Get Started' button directing users to appearance */
-"GET_STARTED_CARD_APPEARANCE" = "หน้าตา";
+"GET_STARTED_CARD_APPEARANCE" = "ลักษณะ";
 
 /* 'Get Started' button direction users to avatar builder */
 "GET_STARTED_CARD_AVATAR_BUILDER" = "เพิ่มรูปภาพ";
@@ -2638,6 +2938,21 @@
 /* Button to leave a group call */
 "GROUP_CALL_LEAVE_BUTTON" = "ออกจากสาย";
 
+/* Title for the section of the group call member list which displays the list of all members in the call. */
+"GROUP_CALL_MEMBER_LIST_IN_CALL_SECTION_HEADER" = "อยู่ในสาย";
+
+/* Title for the section of the group call member list which displays the list of members with their hand raised. */
+"GROUP_CALL_MEMBER_LIST_RAISED_HANDS_SECTION_HEADER" = "ยกมือ";
+
+/* A count of members in a given group call member list section, displayed after the header. */
+"GROUP_CALL_MEMBER_LIST_SECTION_HEADER_MEMBER_COUNT" = "(%1$d)";
+
+/* Title for a button on the group members sheet for sharing that call's link. */
+"GROUP_CALL_MEMBER_LIST_SHARE_CALL_LINK_BUTTON" = "แชร์ลิงก์การโทร";
+
+/* Title for the sheet showing the group call members list */
+"GROUP_CALL_MEMBER_LIST_TITLE" = "Call Info";
+
 /* String displayed in cell when media from a user can't be displayed in group call grid. Embeds {user's name} */
 "GROUP_CALL_MISSING_MEDIA_KEYS_FORMAT" = "ไม่สามารถรับเสียงและวิดีโอจาก %1$@";
 
@@ -2649,9 +2964,6 @@
 
 /* Text explaining that you are the only person currently in the group call */
 "GROUP_CALL_NO_ONE_HERE" = "ไม่มีใครที่นี่";
-
-/* Text explaining to the user that nobody has joined this call yet. */
-"GROUP_CALL_NOBODY_IS_IN_YET" = "ยังไม่มีผู้เข้าร่วมสายนี้";
 
 /* Copy explaining that a user has joined the group call. Embeds {member name} */
 "GROUP_CALL_NOTIFICATION_ONE_JOINED_FORMAT" = "%1$@ ได้เข้าร่วมสาย";
@@ -2674,6 +2986,27 @@
 /* Text indicating that the user has lost their connection to the call and we are reconnecting. */
 "GROUP_CALL_RECONNECTING" = "กำลังเชื่อมต่อใหม่";
 
+/* Label for a button to block a member from a group call. */
+"GROUP_CALL_REMOVE_MEMBER_CONFIRMATION_ACTION_SHEET_BLOCK_ACTION" = "Block from Call";
+
+/* Label for the button to confirm removing a member from a group call. */
+"GROUP_CALL_REMOVE_MEMBER_CONFIRMATION_ACTION_SHEET_REMOVE_ACTION" = "Remove";
+
+/* Title for action sheet confirming removal of a member from a group call. embeds {{ name }} */
+"GROUP_CALL_REMOVE_MEMBER_CONFIRMATION_ACTION_SHEET_TITLE" = "Remove %1$@ from the call?";
+
+/* The title of an alert when you've been removed from a group call. */
+"GROUP_CALL_REMOVED" = "ถูกลบออกจากการโทร";
+
+/* The message of an alert when you've been removed from a group call. */
+"GROUP_CALL_REMOVED_MESSAGE" = "มีผู้ใช้ลบคุณออกจากการโทรนี้";
+
+/* The title of an alert when tried to join a call using a link but the admin rejected your request. */
+"GROUP_CALL_REQUEST_DENIED" = "คำขอเข้าร่วมถูกปฏิเสธ";
+
+/* The message of an alert when tried to join a call using a link but the admin rejected your request. */
+"GROUP_CALL_REQUEST_DENIED_MESSAGE" = "คำขอเข้าร่วมการโทรของคุณถูกปฏิเสธ";
+
 /* notification body when you join a group call and an already-joined participant has an untrusted safety number */
 "GROUP_CALL_SAFETY_NUMBER_CHANGE_AT_JOIN_BODY" = "ผู้เข้าร่วมที่อยู่ในสายทำการเปลี่ยนแปลงหมายเลขความปลอดภัย แตะเพื่อดู";
 
@@ -2688,9 +3021,6 @@
 
 /* Toast view text informing user about swiping to speaker view */
 "GROUP_CALL_SPEAKER_VIEW_TOAST" = "ปัดขึ้นเพื่อเปลี่ยนมุมมอง";
-
-/* Button to start a group call */
-"GROUP_CALL_START_BUTTON" = "เริ่มโทร";
 
 /* Tooltip highlighting group calls. */
 "GROUP_CALL_START_TOOLTIP" = "แตะที่นี่เพื่อเริ่มโทรแบบกลุ่ม";
@@ -2732,7 +3062,7 @@
 "GROUP_CREATED_BY_LOCAL_USER" = "คุณได้สร้างกลุ่มแล้ว";
 
 /* Message indicating that group was created by another user. Embeds {{remote user name}}. */
-"GROUP_CREATED_BY_REMOTE_USER_FORMAT" = "%1$@ เพิ่มคุณเข้ากลุ่ม";
+"GROUP_CREATED_BY_REMOTE_USER_FORMAT" = "%1$@ ได้สร้างกลุ่มแล้ว";
 
 /* Message indicating that group was created by an unknown user. */
 "GROUP_CREATED_BY_UNKNOWN_USER" = "กลุ่มถูกสร้างแล้ว";
@@ -2754,42 +3084,6 @@
 
 /* Title for the group description view. Embeds {{ the number of characters that can be added to the description without hitting the length limit }}. */
 "GROUP_DESCRIPTION_VIEW_TITLE_FORMAT" = "คำอธิบายกลุ่ม (%1$@)";
-
-/* Message indicating that 1 invalid invite was added to the group. */
-"GROUP_INVALID_INVITES_ADDED_1" = "มีคำเชิญที่ใช้งานไม่ได้เพิ่มเข้ามา";
-
-/* Message indicating that 1 invalid invite was added by the local user. */
-"GROUP_INVALID_INVITES_ADDED_BY_LOCAL_USER_1" = "คุณได้เพิ่มคำเชิญที่ใช้งานไม่ได้";
-
-/* Message indicating that multiple invalid invites were added by the local user. */
-"GROUP_INVALID_INVITES_ADDED_BY_LOCAL_USER_N" = "คุณได้เพิ่มคำเชิญที่ใช้งานไม่ได้";
-
-/* Message indicating that 1 invalid invite was added by another user. Embeds {{remote user name}}. */
-"GROUP_INVALID_INVITES_ADDED_BY_REMOTE_USER_FORMAT_1" = "%1$@ ได้เพิ่มคำเชิญที่ใช้งานไม่ได้";
-
-/* Message indicating that multiple invalid invites were added by another user. Embeds {{remote user name}}. */
-"GROUP_INVALID_INVITES_ADDED_BY_REMOTE_USER_FORMAT_N" = "%1$@ ได้เพิ่มคำเชิญที่ใช้งานไม่ได้";
-
-/* Message indicating that multiple invalid invites were added to the group. */
-"GROUP_INVALID_INVITES_ADDED_N" = "คำเชิญที่ใช้งานไม่ได้หลายรายการถูกเพิ่มเข้ามา";
-
-/* Message indicating that 1 invalid invite was revoked. */
-"GROUP_INVALID_INVITES_REMOVED_1" = "คำเชิญที่ใช้งานไม่ได้ถูกเพิกถอนแล้ว";
-
-/* Message indicating that 1 invalid invite was revoked by the local user. */
-"GROUP_INVALID_INVITES_REMOVED_BY_LOCAL_USER_1" = "คุณได้เพิกถอนคำเชิญที่ใช้งานไม่ได้แล้ว";
-
-/* Message indicating that multiple invalid invites were revoked by the local user. */
-"GROUP_INVALID_INVITES_REMOVED_BY_LOCAL_USER_N" = "คุณได้เพิกถอนคำเชิญที่ใช้งานไม่ได้แล้วหลายรายการ";
-
-/* Message indicating that 1 invalid invite was revoked by another user. Embeds {{remote user name}}. */
-"GROUP_INVALID_INVITES_REMOVED_BY_REMOTE_USER_FORMAT_1" = "%1$@ ได้เพิกถอนคำเชิญที่ใช้งานไม่ได้";
-
-/* Message indicating that multiple invalid invites were revoked by another user. Embeds {{remote user name}}. */
-"GROUP_INVALID_INVITES_REMOVED_BY_REMOTE_USER_FORMAT_N" = "%1$@ ได้เพิกถอนคำเชิญที่ใช้งานไม่ได้หลายรายการ";
-
-/* Message indicating that multiple invalid invites were revoked. */
-"GROUP_INVALID_INVITES_REMOVED_N" = "คำเชิญที่ใช้งานไม่ได้หลายรายการถูกเพิกถอนแล้ว";
 
 /* Message indicating that the group invite link was disabled. */
 "GROUP_INVITE_LINK_DISABLED" = "ลิงก์กลุ่มถูกปิดแล้ว";
@@ -2890,6 +3184,12 @@
 /* Message text for the 'group invite link' action sheet. */
 "GROUP_LINK_ACTION_SHEET_VIEW_MESSAGE" = "คุณต้องการเข้าร่วมกลุ่มและเปิดเผยชื่อกับรูปภาพให้สมาชิกในกลุ่มเห็นหรือไม่?";
 
+/* Label for the 'request to join' button in the 'group invite link' action sheet. */
+"GROUP_LINK_ACTION_SHEET_VIEW_REQUEST_TO_JOIN_BUTTON" = "Request to Join";
+
+/* Message text for the 'group invite link' action sheet, if the user will be requesting to join. */
+"GROUP_LINK_ACTION_SHEET_VIEW_REQUEST_TO_JOIN_MESSAGE" = "An admin of this group must approve your request before you can join this group. When you request to join, your name and photo will be shared with its members.";
+
 /* Error message the attempt to request to join the group failed due to network connectivity. */
 "GROUP_LINK_COULD_NOT_REQUEST_TO_JOIN_GROUP_DUE_TO_NETWORK_ERROR_MESSAGE" = "กรุณาตรวจสอบว่าคุณออนไลน์อยู่หรือไม่ และลองอีกครั้ง";
 
@@ -2972,7 +3272,7 @@
 "GROUP_LINK_VIEW_TITLE" = "ลิงก์กลุ่ม";
 
 /* Message indicating that the local user was added to the group by another user. Embeds {{remote user name}}. */
-"GROUP_LOCAL_USER_ADDED_TO_GROUP_BY_REMOTE_USER_FORMAT" = "%1$@ ได้เพิ่มคุณ";
+"GROUP_LOCAL_USER_ADDED_TO_GROUP_BY_REMOTE_USER_FORMAT" = "%1$@ เพิ่มคุณเข้ากลุ่ม";
 
 /* Message indicating that the local user was granted administrator role. */
 "GROUP_LOCAL_USER_GRANTED_ADMINISTRATOR" = "ตอนนี้คุณเป็นผู้ดูแลแล้ว";
@@ -3049,12 +3349,6 @@
 /* Title for the 'members' section of the 'group members' view. */
 "GROUP_MEMBERS_SECTION_TITLE_MEMBERS" = "สมาชิก";
 
-/* Button to allow user to review known name collisions in group membership */
-"GROUP_MEMBERSHIP_NAME_COLLISION_BANNER_REVIEW_BUTTON" = "แตะเพื่อพิจารณา";
-
-/* A header string above a group member's contact info */
-"GROUP_MEMBERSHIP_NAME_COLLISION_MEMBER_HEADER" = "สมาชิก";
-
 /* A title string for a view that allows a user to review name collisions in group membership */
 "GROUP_MEMBERSHIP_NAME_COLLISION_TITLE" = "พิจารณาสมาชิกกลุ่ม";
 
@@ -3118,6 +3412,9 @@
 /* Message indicating that a remote user was removed from the group by the local user. Embeds {{remote user name}}. */
 "GROUP_REMOTE_USER_REMOVED_BY_LOCAL_USER_FORMAT" = "คุณลบ %1$@ ออก";
 
+/* Message indicating that a remote user was removed from the group by an unknown user. Embeds {{remote user name}}. */
+"GROUP_REMOTE_USER_REMOVED_BY_UNKNOWN_USER_FORMAT" = "%1$@ ไม่ได้อยู่ในกลุ่มนี้แล้ว";
+
 /* Message indicating that the remote user was removed from the group. Embeds {{ %1$@ user who removed the user, %2$@ user who was removed}}. */
 "GROUP_REMOTE_USER_REMOVED_FROM_GROUP_BY_REMOTE_USER_FORMAT" = "%1$@ ลบ %2$@ ออก";
 
@@ -3126,6 +3423,9 @@
 
 /* Message indicating that a remote user's request to join the group was approved by another user. Embeds {{ %1$@ requesting user name, %2$@ approving user name }}. */
 "GROUP_REMOTE_USER_REQUEST_APPROVED_BY_REMOTE_USER_FORMAT" = "%2$@ ได้อนุมัติคำขอเข้ากลุ่มของ %1$@";
+
+/* Message indicating that a remote user's request to join the group was approved by an unknown user. Embeds {{ %1$@ requesting user name }}. */
+"GROUP_REMOTE_USER_REQUEST_APPROVED_BY_UNKNOWN_USER_FORMAT" = "คำขอเข้ากลุ่มจาก %1$@ ได้รับอนุมัติแล้ว";
 
 /* Message indicating that a remote user cancelled their request to join the group. Embeds {{ the name of the requesting user }}. */
 "GROUP_REMOTE_USER_REQUEST_CANCELLED_BY_REMOTE_USER_FORMAT" = "%1$@ ได้ยกเลิกคำขอเข้ากลุ่มของเขา";
@@ -3240,6 +3540,9 @@
 
 /* Message indicating that the group was migrated. */
 "GROUP_WAS_MIGRATED" = "กลุ่มนี้ได้ปรับรุ่นเป็นกลุ่มแบบใหม่แล้ว";
+
+/* Message indicating that the local user was invited after the group was migrated. */
+"GROUP_WAS_MIGRATED_LOCAL_USER_INVITED" = "ไม่สามารถเพิ่มคุณเข้ากลุ่มแบบใหม่ได้ และคุณถูกเชิญให้เข้าร่วมกลุ่ม";
 
 /* Message indicating that the local user left the group. */
 "GROUP_YOU_LEFT" = "คุณได้ออกจากกลุ่ม";
@@ -3385,6 +3688,18 @@
 /* Title 'Read All' button in the toolbar of the ChatList if multi-section is active. */
 "HOME_VIEW_TOOLBAR_READ_ALL" = "อ่านทั้งหมด";
 
+/* Label for both bank chooser header and the bank form field on the iDEAL payment detail page. */
+"IDEAL_DONATION_CHOOSE_YOUR_BANK_LABEL" = "เลือกธนาคาร";
+
+/* Fallback title confirming recurring donation with bank. */
+"IDEAL_DONATION_CONFIRM_DONATION_TITLE" = "ยืนยันการบริจาคของคุณ";
+
+/* Message confirming recurring donation with bank. This message confirms with the user that they will see a small confirmation charge with their bank before the donation. */
+"IDEAL_DONATION_CONFIRM_DONATION_WITH_BANK_MESSAGE" = "แตะดำเนินการต่อเพื่อตั้งการบริจาครายเดือนของคุณ โดยคุณจะถูกเรียกเก็บเงิน €0,01 จากทางธนาคาร ซึ่งยอดดังกล่าวจะถูกโอนกลับคืนเข้าบัญชีโดยอัตโนมัติ และการบริจาคจำนวน %1$@/เดือนจะถูกหักจากบัญชีของคุณ";
+
+/* Title confirming recurring donation with bank. */
+"IDEAL_DONATION_CONFIRM_DONATION_WITH_BANK_TITLE" = "ยืนยันการบริจาคผ่าน %1$@ ของคุณ";
+
 /* The image editor hint that you can draw blur */
 "IMAGE_EDITOR_BLUR_HINT" = "วาดที่ใดก็ได้เพื่อมัว";
 
@@ -3407,10 +3722,10 @@
 "IN_CALL_ENDED_BECAUSE_ANSWERED_ELSEWHERE" = "มีการรับสายบนอุปกรณ์อื่น";
 
 /* Call screen label when call was canceled on this device because the call recipient has a call in progress on another device. */
-"IN_CALL_ENDED_BECAUSE_BUSY_ELSEWHERE" = "ยกเลิกสายเพราะมีการใช้สายบนอุปกรณ์อื่น";
+"IN_CALL_ENDED_BECAUSE_BUSY_ELSEWHERE" = "ไม่ได้รับสายเนื่องจากมีการใช้สายบนอุปกรณ์อื่น";
 
 /* Call screen label when call was canceled on this device because the call recipient declined on another device. */
-"IN_CALL_ENDED_BECAUSE_DECLINED_ELSEWHERE" = "ถูกปฏิเสธสายบนอุปกรณ์อื่น";
+"IN_CALL_ENDED_BECAUSE_DECLINED_ELSEWHERE" = "ปฏิเสธรับสายบนอุปกรณ์อื่น";
 
 /* Call setup status label */
 "IN_CALL_RECONNECTING" = "กำลังเชื่อมต่อใหม่…";
@@ -3430,6 +3745,15 @@
 /* Call setup status label */
 "IN_CALL_TERMINATED" = "วางสายแล้ว";
 
+/* Title for a button in an in-app megaphone about a user's inactive linked device, indicating the user doesn't want to be reminded. */
+"INACTIVE_LINKED_DEVICE_REMINDER_MEGAPHONE_DONT_REMIND_ME_BUTTON" = "ไม่ต้องเตือนฉัน";
+
+/* Title for a button in an in-app megaphone about a user's inactive linked device, temporarily dismissing the megaphone. */
+"INACTIVE_LINKED_DEVICE_REMINDER_MEGAPHONE_GOT IT_BUTTON" = "เข้าใจแล้ว";
+
+/* Title for an in-app megaphone about a user's inactive linked device. */
+"INACTIVE_LINKED_DEVICE_REMINDER_MEGAPHONE_TITLE" = "อุปกรณ์ที่เชื่อมโยงอยู่ที่ไม่ได้ใช้งาน";
+
 /* Label reminding the user that they are in archive mode, and that muted chats remain archived when they receive a new message. */
 "INBOX_VIEW_ARCHIVE_MODE_MUTED_CHATS_REMINDER" = "แชทที่ปิดเสียงไว้ในที่เก็บถาวรจะยังคงเก็บถาวรอยู่เมื่อมีข้อความใหม่มาถึง";
 
@@ -3440,16 +3764,37 @@
 "INBOX_VIEW_EMPTY_INBOX" = "ยังไม่มีแชท\nเริ่มต้นด้วยการส่งข้อความหาเพื่อนสักคน";
 
 /* info message text in conversation view */
-"INCOMING_AUDIO_CALL" = "การโทรด้วยเสียงขาเข้า";
+"INCOMING_VIDEO_CALL" = "วิดีโอคอลขาเข้า";
 
 /* info message text in conversation view */
-"INCOMING_VIDEO_CALL" = "วิดีโอคอลขาเข้า";
+"INCOMING_VOICE_CALL" = "การโทรด้วยเสียงขาเข้า";
+
+/* An info message inserted into the chat when you accept a message request, in a 1:1 or group chat. */
+"INFO_MESSAGE_ACCEPTED_MESSAGE_REQUEST" = "คุณตอบรับคำขอส่งข้อความแล้ว";
+
+/* Header for an action sheet providing options in response to an accepted 1:1 message request. Embeds {{ the name of your chat partner }}. */
+"INFO_MESSAGE_ACCEPTED_MESSAGE_REQUEST_OPTIONS_ACTION_SHEET_HEADER_CONTACT" = "คุณตอบรับคำขอส่งข้อความจาก %1$@ แล้ว หากนี่เป็นข้อผิดพลาด คุณสามารถดูตัวเลือกด้านล่างเพื่อดำเนินการ";
+
+/* Header for an action sheet providing options in response to an accepted group message request. */
+"INFO_MESSAGE_ACCEPTED_MESSAGE_REQUEST_OPTIONS_ACTION_SHEET_HEADER_GROUP" = "คุณตอบรับคำขอส่งข้อความจากกลุ่มนี้แล้ว หากนี่เป็นข้อผิดพลาด คุณสามารถดูตัวเลือกด้านล่างเพื่อดำเนินการ";
+
+/* Title for a button shown alongside an info message indicating you accepted a message request. */
+"INFO_MESSAGE_ACCEPTED_MESSAGE_REQUEST_OPTIONS_BUTTON" = "ตัวเลือก";
+
+/* An info message inserted into a group chat when you block the group. */
+"INFO_MESSAGE_BLOCKED_GROUP" = "คุณบล็อกกลุ่มนี้แล้ว";
+
+/* An info message inserted into a 1:1 chat when you block another user. */
+"INFO_MESSAGE_BLOCKED_OTHER_USER" = "คุณบล็อกผู้ใช้คนนี้แล้ว";
 
 /* Indicates that a previously-removed recipient has been added back to the current user's contacts. */
 "INFO_MESSAGE_CONTACT_REINSTATED" = "ผู้ใช้คนนี้ถูกเพิ่มกลับลงในรายชื่อผู้ติดต่อ Signal ของคุณ";
 
 /* Indicates that the recipient has been removed from the current user's contacts and that messaging them will re-add them. */
 "INFO_MESSAGE_CONTACT_REMOVED" = "คุณลบผู้ใช้คนนี้ออกจากรายชื่อผู้ติดต่อ Signal แล้ว ระบบจะเพิ่มคนคนนี้กลับลงในรายชื่อหากคุณส่งข้อความหาเขา";
+
+/* When you start a chat with someone and then later learn their profile name, we insert an in-chat message with this string to record the identifier you originally used to contact them. Embeds {{ the identifier, either a phone number or a username }}. */
+"INFO_MESSAGE_LEARNED_PROFILE_KEY" = "คุณเริ่มต้นแชทนี้กับ %1$@";
 
 /* Shown when a user activates payments from a chat */
 "INFO_MESSAGE_PAYMENTS_ACTIVATED" = "คุณเปิดใช้การชำระเงินเรียบร้อยแล้ว";
@@ -3463,8 +3808,23 @@
 /* Shown when requesting a user activates payments. Embeds: {{ the user's name}} */
 "INFO_MESSAGE_PAYMENTS_ACTIVATION_REQUEST_SENT" = "คุณได้ส่งคำขอให้ %1$@ เปิดใช้การชำระเงินแล้ว";
 
+/* Shown when a user reports a conversation as spam. */
+"INFO_MESSAGE_REPORTED_SPAM" = "รายงานว่าเป็นสแปมแล้ว";
+
+/* Body message of the alert shown when a user taps on 'learn more' via the spam info message. */
+"INFO_MESSAGE_REPORTED_SPAM_LEARN_MORE_MESSAGE" = "Signal ได้รับแจ้งว่าบุคคลนี้อาจส่งข้อความสแปมแล้ว โดย Signal จะไม่สามารถเห็นเนื้อหาใดๆ ของแชท";
+
+/* Title of the alert shown when a user taps on 'learn more' via the spam info message. */
+"INFO_MESSAGE_REPORTED_SPAM_LEARN_MORE_TITLE" = "รายงานว่าเป็นสแปมแล้ว";
+
 /* Shown in inbox and conversation after syncing as a placeholder indicating why your message history is missing. */
-"INFO_MESSAGE_SYNCED_THREAD" = "You can send or receive synchronized messages from your phone or iPad.  For your security, chat history isn't transferred to new linked devices.";
+"INFO_MESSAGE_SYNCED_THREAD" = "เพื่อความปลอดภัยของคุณ ประวัติการแชทจะไม่ถูกโอนถ่ายไปยังอุปกรณ์ที่ถูกเชื่อมโยงเครื่องใหม่";
+
+/* An info message inserted into a group chat when you unblock the group. */
+"INFO_MESSAGE_UNBLOCKED_GROUP" = "คุณเลิกบล็อกกลุ่มนี้แล้ว";
+
+/* An info message inserted into a 1:1 chat when you unblock another user. */
+"INFO_MESSAGE_UNBLOCKED_OTHER_USER" = "คุณเลิกบล็อกผู้ใช้คนนี้แล้ว";
 
 /* Indicates that another user has changed their phone number. Embeds: {{ the user's name}} */
 "INFO_MESSAGE_USER_CHANGED_PHONE_NUMBER_FORMAT" = "%1$@ เปลี่ยนหมายเลขโทรศัพท์ของเขาแล้ว";
@@ -3504,6 +3864,9 @@
 
 /* Label for the cell that presents the 'invite contacts' workflow. */
 "INVITE_FRIENDS_CONTACT_TABLE_BUTTON" = "ชวนเพื่อนมาใช้ Signal";
+
+/* Header label above a section for more options for adding contacts */
+"INVITE_FRIENDS_CONTACT_TABLE_HEADER" = "ดูเพิ่ม";
 
 /* Search */
 "INVITE_FRIENDS_PICKER_SEARCHBAR_PLACEHOLDER" = "ค้นหา";
@@ -3611,31 +3974,22 @@
 "LINK_NEW_DEVICE_SUBTITLE" = "สแกนรหัส QR เพื่อเชื่อมโยงอุปกรณ์เครื่องใหม่";
 
 /* Navigation title when scanning QR code to add new device. */
-"LINK_NEW_DEVICE_TITLE" = "เชื่อมโยงอุปกรณ์ใหม่";
+"LINK_NEW_DEVICE_TITLE" = "เชื่อมโยงอุปกรณ์เครื่องใหม่";
 
 /* Label for link previews with an unknown host. */
 "LINK_PREVIEW_UNKNOWN_DOMAIN" = "ภาพตัวอย่างลิงก์";
 
 /* Shown in an alert when trying to edit a contact. */
-"LINKED_DEVICE_CONTACTS_NOT_ALLOWED" = "ไม่สามารถใช้ iPad จัดการรายชื่อผู้ติดต่อของระบบได้อีกต่อไป กรุณาเปิดแอป Signal บนโทรศัพท์เพื่อเพิ่มเครือข่าย Signal ลงในรายชื่อผู้ติดต่อของระบบ";
+"LINKED_DEVICE_CONTACTS_NOT_ALLOWED" = "ไม่สามารถใช้ iPad จัดการรายชื่อผู้ติดต่อบนโทรศัพท์ได้อีกต่อไป กรุณาเปิดแอป Signal บนโทรศัพท์เพื่อเพิ่มเครือข่าย Signal ลงในรายชื่อผู้ติดต่อบนโทรศัพท์";
 
 /* Shown in a banner when you tap the 'New Chat' icon at the top of the list of chats. */
-"LINKED_DEVICE_MANAGE_CONTACTS_BANNER" = "ไม่รองรับการใช้ iPad จัดการรายชื่อผู้ติดต่อของระบบอีกต่อไป อุปกรณ์นี้จะยังคงซิงค์การเปลี่ยนแปลงในรายชื่อผู้ติดต่อตามแอป Signal บนโทรศัพท์ของคุณ";
+"LINKED_DEVICE_MANAGE_CONTACTS_BANNER" = "ไม่รองรับการใช้ iPad จัดการรายชื่อผู้ติดต่อบนโทรศัพท์อีกต่อไป อุปกรณ์นี้จะยังคงซิงค์การเปลี่ยนแปลงในรายชื่อผู้ติดต่อตามแอป Signal บนโทรศัพท์ของคุณ";
 
 /* A button shown in a banner when you tap the 'New Chat' icon at the top of the list of chats. Tapping it opens a website with more details. */
 "LINKED_DEVICE_MANAGE_CONTACTS_LEARN_MORE" = "เรียนรู้เพิ่มเติม";
 
 /* Menu item and navbar title for the device manager */
 "LINKED_DEVICES_TITLE" = "อุปกรณ์ที่เชื่อมโยง";
-
-/* Label for the 'give access' button in the 'onboarding permissions' view. */
-"LINKED_ONBOARDING_PERMISSIONS_ENABLE_PERMISSIONS_BUTTON" = "อนุญาตการแจ้งเตือน";
-
-/* Explanation in the 'onboarding permissions' view. */
-"LINKED_ONBOARDING_PERMISSIONS_EXPLANATION" = "การอนุญาตการแจ้งเตือนจะทำให้คุณทราบเมื่อได้รับข้อความ สายโทรเข้า หรืออัปเดตเกี่ยวกับความเคลื่อนไหวใหม่ในการสนทนา";
-
-/* Title of the 'onboarding permissions' view. */
-"LINKED_ONBOARDING_PERMISSIONS_TITLE" = "อนุญาตการแจ้งเตือน";
 
 /* Alert Title */
 "LINKING_DEVICE_FAILED_TITLE" = "การเชื่อมโยงอุปกรณ์ไม่สำเร็จ";
@@ -3901,13 +4255,22 @@
 /* Context menu message preview accessibility label */
 "MESSAGE_PREVIEW" = "ตัวอย่างข้อความ";
 
+/* Sheet option for blocking a chat. In this case, the sheet appears when the user taps a button attached to a 'message request accepted' info message in-chat. */
+"MESSAGE_REQUEST_ACCEPTED_INFO_MESSAGE_SHEET_OPTION_BLOCK" = "บล็อก";
+
+/* Sheet option for deleting a chat. In this case, the sheet appears when the user taps a button attached to a 'message request accepted' info message in-chat. */
+"MESSAGE_REQUEST_ACCEPTED_INFO_MESSAGE_SHEET_OPTION_DELETE" = "ลบแชท";
+
+/* Sheet option for reporting a chat as spam. In this case, the sheet appears when the user taps a button attached to a 'message request accepted' info message in-chat. */
+"MESSAGE_REQUEST_ACCEPTED_INFO_MESSAGE_SHEET_OPTION_SPAM" = "รายงานว่าเป็นสแปม";
+
 /* Action sheet action to confirm blocking a thread via a message request. */
 "MESSAGE_REQUEST_BLOCK_ACTION" = "บล็อก";
 
 /* Action sheet action to confirm blocking and deleting a thread via a message request. */
 "MESSAGE_REQUEST_BLOCK_AND_DELETE_ACTION" = "บล็อกและลบ";
 
-/* Action sheet action to confirm blocking and report spam for a thread via a message request. */
+/* Action sheet action to confirm blocking and reporting spam for a thread via a message request. */
 "MESSAGE_REQUEST_BLOCK_AND_REPORT_SPAM_ACTION" = "รายงานว่าเป็นสแปมและบล็อก";
 
 /* Action sheet message to confirm blocking a conversation via a message request. */
@@ -3941,16 +4304,10 @@
 "MESSAGE_REQUEST_LEAVE_AND_DELETE_GROUP_TITLE" = "ลบและออกจากกลุ่มใช่หรือไม่";
 
 /* Banner label notifying user that a new message is from a user with the same name as an existing contact */
-"MESSAGE_REQUEST_NAME_COLLISON_BANNER_LABEL" = "Signal พบผู้ติดต่ออีกรายการที่มีชื่อเหมือนกัน โปรดพิจารณาคำขออย่างถี่ถ้วน";
-
-/* A header string above a known contact's contact info */
-"MESSAGE_REQUEST_NAME_COLLISON_CONTACT_HEADER" = "ผู้ติดต่อของคุณ";
+"MESSAGE_REQUEST_NAME_COLLISION_BANNER_LABEL" = "ผู้ใช้คนนี้ใช้ชื่อเหมือนกันกับผู้ติดต่ออีกคน";
 
 /* A header string informing the user about name collisions in a message request */
 "MESSAGE_REQUEST_NAME_COLLISON_HEADER" = "หากคุณไม่มั่นใจว่าคำขอมาจากใคร คุณสามารถพิจารณาได้จากรายชื่อผู้ติดต่อด้านล่างแล้วเลือกตัดสินใจ";
-
-/* A header string above the requester's contact info */
-"MESSAGE_REQUEST_NAME_COLLISON_REQUESTER_HEADER" = "คำขอ";
 
 /* A title string for a view that allows a user to review name collisions for an incoming message request */
 "MESSAGE_REQUEST_NAME_COLLISON_TITLE" = "พิจารณาคำขอ";
@@ -3958,8 +4315,17 @@
 /* A button that updates a known contact's information to resolve a name collision */
 "MESSAGE_REQUEST_NAME_COLLISON_UPDATE_CONTACT_ACTION" = "ปรับปรุงผู้ติดต่อ";
 
-/* Button to allow user to review known name collisions with an incoming message request */
-"MESSAGE_REQUEST_REVIEW_NAME_COLLISION" = "พิจารณาคำขอ";
+/* Action sheet message to confirm reporting a conversation as spam via a message request. */
+"MESSAGE_REQUEST_REPORT_CONVERSATION_MESSAGE" = "Signal จะได้รับแจ้งว่าบุคคลนี้อาจส่งข้อความสแปม โดย Signal จะไม่สามารถเห็นเนื้อหาใดๆ ของแชท";
+
+/* Action sheet title to confirm reporting a conversation as spam via a message request. */
+"MESSAGE_REQUEST_REPORT_CONVERSATION_TITLE" = "รายงานว่าเป็นสแปมหรือไม่";
+
+/* Action sheet action to confirm reporting a conversation as spam via a message request. */
+"MESSAGE_REQUEST_REPORT_SPAM_ACTION" = "รายงานว่าเป็นสแปม";
+
+/* String indicating that spam has been reported. */
+"MESSAGE_REQUEST_SPAM_REPORTED" = "รายงานว่าเป็นสแปมแล้ว";
 
 /* String indicating that spam has been reported and the chat has been blocked. */
 "MESSAGE_REQUEST_SPAM_REPORTED_AND_BLOCKED" = "รายงานว่าเป็นสแปมและบล็อกแล้ว";
@@ -4002,6 +4368,9 @@
 
 /* A prompt asking if the user wants to accept a conversation invite from a person whom they previously removed. Embeds {{contact name}}. */
 "MESSAGE_REQUEST_VIEW_REMOVED_CONTACT_PROMPT_FORMAT" = "อนุญาตให้ %1$@ ส่งข้อความหารวมถึงมองเห็นชื่อและรูปของคุณหรือไม่ โปรดทราบว่าคุณเคยลบผู้ใช้คนนี้";
+
+/* incoming message request button text which reports a conversation as spam */
+"MESSAGE_REQUEST_VIEW_REPORT_BUTTON" = "รายงาน…";
 
 /* A button used to unlock a blocked conversation. */
 "MESSAGE_REQUEST_VIEW_UNBLOCK_BUTTON" = "เลิกบล็อก";
@@ -4072,9 +4441,6 @@
 /* Indicator that separates read from unread messages. */
 "MESSAGES_VIEW_UNREAD_INDICATOR" = "ข้อความใหม่";
 
-/* info message text in conversation view */
-"MISSED_AUDIO_CALL" = "การโทรด้วยเสียงที่ไม่ได้รับ";
-
 /* info message text in conversation view for when a call was dropped because the contact is blocked in iOS settings */
 "MISSED_CALL_BLOCKED_SYSTEM_CONTACT" = "สายที่ไม่ได้รับจากผู้ติดต่อที่ถูกบล็อกในการตั้งค่าของโทรศัพท์";
 
@@ -4087,14 +4453,14 @@
 /* Title for sheet shown when the user taps a missed call from a contact blocked in iOS settings. Embeds {{ Contact's name }} */
 "MISSED_CALL_BLOCKED_SYSTEM_SETTINGS_SHEET_TITLE" = "%1$@ ถูกบล็อกในการตั้งค่าของโทรศัพท์";
 
-/* info message text in conversation view (use Apple's name for 'Do Not Disturb' on iOS 14 and older) */
-"MISSED_CALL_DO_NOT_DISTURB" = "สายที่ไม่ได้รับระหว่างเปิดใช้งาน \"ห้ามรบกวน\"";
-
 /* info message text in conversation view (use Apple's name for 'Focus') */
 "MISSED_CALL_FOCUS_MODE" = "สายที่ไม่ได้รับระหว่างใช้โหมดโฟกัส";
 
 /* info message text in conversation view */
 "MISSED_VIDEO_CALL" = "วิดีโอคอลที่ไม่ได้รับ";
+
+/* info message text in conversation view */
+"MISSED_VOICE_CALL" = "การโทรด้วยเสียงที่ไม่ได้รับ";
 
 /* Alert body */
 "MISSING_CAMERA_PERMISSION_MESSAGE" = "คุณสามารถเปิดการเข้าถึงกล้องได้ในการตั้งค่าของ iOS เพื่อให้สามารถโทรวิดีโอใน Signal ได้";
@@ -4119,6 +4485,9 @@
 
 /* A recovery suggestion shown as the body of an alert when try to link a new device & the user is already at the limit. */
 "MULTIDEVICE_PAIRING_MAX_RECOVERY" = "คุณได้ลิงก์อุปกรณ์เข้ากับบัญชีถึงจำนวนที่จำกัดไว้แล้ว กรุณาลบอุปกรณ์ออกหนึ่งเครื่องและลองอีกครั้ง";
+
+/* Text for a toast confirming that the mic has been muted for a call. */
+"MUTE_CONFIRMATION_TOAST_LABEL" = "ไมค์ปิดอยู่";
 
 /* Badge indicating that the user is muted. */
 "MUTED_BADGE" = "ปิดเสียงอยู่";
@@ -4153,8 +4522,8 @@
 /* Prompt to add to your story */
 "MY_STORY_TAP_TO_ADD" = "แตะเพื่อเพิ่ม";
 
-/* Format string describing a recent profile name change that led to a name collision. Embeds {{ %1$@ old profile name }} and {{ %2$@ current profile name }} */
-"NAME_COLLISION_RECENT_CHANGE_FORMAT_STRING" = "เพิ่งเปลี่ยนชื่อของเขาจาก %1$@ เป็น %2$@";
+/* Format string describing a recent profile name change that led to a name collision. Embeds {{ %1$@ current name, which may be a profile name or an address book name }}, {{ %2$@ old profile name }}, and {{ %3$@ current profile name }} */
+"NAME_COLLISION_RECENT_CHANGE_FORMAT_STRING" = "%1$@ เพิ่งเปลี่ยนชื่อโปรไฟล์จาก %2$@ เป็น %3$@";
 
 /* A button to skip a view. */
 "NAVIGATION_ITEM_SKIP_BUTTON" = "ข้าม";
@@ -4171,8 +4540,29 @@
 /* String representing both wifi and cellular interfaces */
 "NETWORK_INTERFACE_SET_WIFI_CELLULAR" = "WiFi และเซลลูลาร์";
 
+/* Accessibility hint describing the action of the new call button on the Calls Tab */
+"NEW_CALL_HINT" = "เลือกผู้ติดต่อหรือกลุ่มเพื่อเริ่มต้นการโทร";
+
+/* Accessibility label for the new call button on the Calls Tab */
+"NEW_CALL_LABEL" = "การโทรใหม่";
+
+/* Title for a long-press context menu action to message a given recipient or group, triggered from a recipient in the New Call contact picker */
+"NEW_CALL_MESSAGE_ACTION_TITLE" = "ส่งข้อความ";
+
+/* Title for the contact picker that allows new calls to be started */
+"NEW_CALL_TITLE" = "การโทรใหม่";
+
+/* Title for a long-press context menu action to start a video call, triggered from a recipient in the New Call contact picker */
+"NEW_CALL_VIDEO_CALL_ACTION_TITLE" = "โทรวิดีโอ";
+
+/* Title for a long-press context menu action to start a voice call, triggered from a recipient in the New Call contact picker */
+"NEW_CALL_VOICE_CALL_ACTION_TITLE" = "โทรเสียง";
+
 /* A label the cell that lets you add a new member to a group. */
 "NEW_CONVERSATION_FIND_BY_PHONE_NUMBER" = "ค้นหาด้วยหมายเลขโทรศัพท์";
+
+/* A label for the cell that lets you add a new member by their username */
+"NEW_CONVERSATION_FIND_BY_USERNAME" = "ค้นหาด้วยชื่อผู้ใช้";
 
 /* Label for the 'create new group' button. */
 "NEW_GROUP_BUTTON" = "กลุ่มแบบใหม่";
@@ -4213,11 +4603,8 @@
 /* Title for the 'new group story' view */
 "NEW_GROUP_STORY_VIEW_CONTROLLER_TITLE" = "เลือกกลุ่ม";
 
-/* A label for the 'add by phone number' button in the 'new non-contact conversation' view */
-"NEW_NONCONTACT_CONVERSATION_VIEW_BUTTON" = "ค้นหา";
-
 /* Title for the 'new non-contact conversation' view. */
-"NEW_NONCONTACT_CONVERSATION_VIEW_TITLE" = "ค้นหาผู้ใช้";
+"NEW_NONCONTACT_CONVERSATION_VIEW_TITLE" = "ค้นหาด้วยหมายเลขโทรศัพท์";
 
 /* Title for the 'new private story' confirmation view */
 "NEW_PRIVATE_STORY_CONFIRM_TITLE" = "ตั้งชื่อสตอรี่";
@@ -4261,8 +4648,35 @@
 /* Title for the new story sheet */
 "NEW_STORY_SHEET_TITLE" = "เลือกประเภทสตอรี่";
 
+/* Title for the table cell in conversation settings for presenting the profile nickname editor. */
+"NICKNAME_BUTTON_TITLE" = "ชื่อเล่น";
+
+/* The message for a prompt confirming that the user wants to delete the nickname and note. */
+"NICKNAME_EDITOR_DELETE_CONFIRMATION_MESSAGE" = "การดำเนินการนี้จะลบชื่อเล่นนี้รวมถึงข้อมูลในโน้ตโดยถาวร";
+
+/* The title for a prompt confirming that the user wants to delete the nickname and note. */
+"NICKNAME_EDITOR_DELETE_CONFIRMATION_TITLE" = "ลบชื่อเล่นใช่หรือไม่";
+
+/* The description below the title on the profile nickname editor view. */
+"NICKNAME_EDITOR_DESCRIPTION" = "ชื่อเล่นและข้อมูลในโน้ตจะจัดเก็บโดย Signal และจะถูกเข้ารหัสตั้งแต่ต้นทางถึงปลายทาง จะมีแค่คุณเท่านั้นที่เห็นข้อมูลเหล่านี้";
+
+/* Placeholder text it the text field for the family name in the profile nickname editor. */
+"NICKNAME_EDITOR_FAMILY_NAME_PLACEHOLDER" = "นามสกุล";
+
+/* Placeholder text it the text field for the given name in the profile nickname editor. */
+"NICKNAME_EDITOR_GIVEN_NAME_PLACEHOLDER" = "ชื่อตัว";
+
+/* Placeholder text it the text box for the note in the profile nickname editor. */
+"NICKNAME_EDITOR_NOTE_PLACEHOLDER" = "โน้ต";
+
+/* The title for the profile nickname editor view. */
+"NICKNAME_EDITOR_TITLE" = "ชื่อเล่น";
+
 /* Label for a button that lets users search for contacts by phone number */
 "NO_CONTACTS_SEARCH_BY_PHONE_NUMBER" = "ค้นหาผู้ติดต่อด้วยหมายเลขโทรศัพท์";
+
+/* Label for a button that lets users search for contacts by username */
+"NO_CONTACTS_SEARCH_BY_USERNAME" = "ค้นหาผู้ติดต่อด้วยชื่อผู้ใช้";
 
 /* A string describing that the user has no groups in common with another user */
 "NO_GROUPS_IN_COMMON" = "ไม่มีกลุ่มร่วมกัน";
@@ -4305,6 +4719,12 @@
 
 /* Title for notification permission reminder megaphone */
 "NOTIFICATION_PERMISSION_REMINDER_MEGAPHONE_TITLE" = "เปิดการแจ้งเตือนหรือไม่?";
+
+/* Shown as the body of an alert when notifications can't be shown due to an error. */
+"NOTIFICATIONS_ERROR_MESSAGE" = "หากไม่ได้รับการแจ้งเตือนของ Signal โปรดรีสตาร์ท %1$@ ของคุณ";
+
+/* Shown as the title of an alert when notifications can't be shown due to an error. */
+"NOTIFICATIONS_ERROR_TITLE" = "ไม่สามารถแสดงการแจ้งเตือนได้";
 
 /* No comment provided by engineer. */
 "NOTIFICATIONS_FOOTER_WARNING" = "การกระทำรวมถึง \"ทำเครื่องหมายอ่านแล้ว\" \"ตอบ\" และ \"โทรกลับ\"";
@@ -4381,11 +4801,20 @@
 /* warning to the user that linking a phone is not recommended */
 "ONBOARDING_MODE_SWITCH_WARNING_REGISTERING" = "การเชื่อมโยงกับ iPhone นั้นไม่แนะนำ และมันจะจำกัดความสามารถหลัก";
 
-/* Label for the 'give access' button in the 'onboarding permissions' view. */
-"ONBOARDING_PERMISSIONS_ENABLE_PERMISSIONS_BUTTON" = "อนุญาต";
+/* Description of the 'Contacts' permission in the 'onboarding permissions' view. */
+"ONBOARDING_PERMISSIONS_CONTACTS_DESCRIPTION" = "ค้นหาคนที่คุณรู้จัก โดยรายชื่อผู้ติดต่อของคุณจะได้รับการเข้ารหัสและไม่ถูกเปิดเผยต่อบริการของ Signal";
 
-/* Explanation in the 'onboarding permissions' view. */
-"ONBOARDING_PERMISSIONS_EXPLANATION" = "การอนุญาตการแจ้งเตือนและรายชื่อผู้ติดต่อจะช่วยให้คุณเห็นเมื่อข้อความมาถึงและช่วยให้คุณหาผู้คนที่คุณรู้จัก ซึ่งรายชื่อผู้ติดต่อได้ถูกเข้ารหัสไว้ บริการ Signal จึงไม่สามารถค้นพบรายชื่อเหล่านี้ได้";
+/* Title introducing the 'Contacts' permission in the 'onboarding permissions' view. */
+"ONBOARDING_PERMISSIONS_CONTACTS_TITLE" = "ผู้ติดต่อ";
+
+/* Description of the 'Notifications' permission in the 'onboarding permissions' view. */
+"ONBOARDING_PERMISSIONS_NOTIFICATIONS_DESCRIPTION" = "ได้รับแจ้งเตือนเมื่อมีข้อความใหม่";
+
+/* Title introducing the 'Notifications' permission in the 'onboarding permissions' view. */
+"ONBOARDING_PERMISSIONS_NOTIFICATIONS_TITLE" = "การแจ้งเตือน";
+
+/* Preamble of the 'onboarding permissions' view. */
+"ONBOARDING_PERMISSIONS_PREAMBLE" = "Signal ต้องการขออนุญาตสิทธิ์ต่อไปนี้";
 
 /* Title of the 'onboarding permissions' view. */
 "ONBOARDING_PERMISSIONS_TITLE" = "อนุญาต";
@@ -4493,13 +4922,10 @@
 "OUTDATED_PAYMENT_CLIENT_REMINDER_TEXT" = "อัปเดต Signal เพื่อใช้งานการชำระเงินต่อ ยอดเงินของคุณอาจยังไม่ได้รับการอัปเดต";
 
 /* info message text in conversation view */
-"OUTGOING_AUDIO_CALL" = "การโทรด้วยเสียงขาออก";
-
-/* info message text in conversation view */
-"OUTGOING_MISSED_AUDIO_CALL" = "การโทรด้วยเสียงที่ปลายสายไม่ได้รับ";
-
-/* info message text in conversation view */
 "OUTGOING_MISSED_VIDEO_CALL" = "วิดีโอคอลที่ปลายสายไม่ได้รับ";
+
+/* info message text in conversation view */
+"OUTGOING_MISSED_VOICE_CALL" = "การโทรด้วยเสียงที่ปลายสายไม่ได้รับ";
 
 /* Button for action sheet shown when device transfer completes; quits the Signal app immediately (does not automatically relaunch, but the user may choose to relaunch). */
 "OUTGOING_TRANSFER_COMPLETE_EXIT_ACTION" = "ปิด Signal";
@@ -4513,11 +4939,14 @@
 /* info message text in conversation view */
 "OUTGOING_VIDEO_CALL" = "วิดีโอคอลขาออก";
 
+/* info message text in conversation view */
+"OUTGOING_VOICE_CALL" = "การโทรด้วยเสียงขาออก";
+
 /* Header title for bank payment details screen */
-"PAYMENT_DETAILS_BANK_TITLE" = "Bank Transfer";
+"PAYMENT_DETAILS_BANK_TITLE" = "โอนเงินผ่านระบบธนาคาร";
 
 /* Header title for card payment details screen */
-"PAYMENT_DETAILS_CARD_TITLE" = "Credit or Debit Card";
+"PAYMENT_DETAILS_CARD_TITLE" = "บัตรเครดิตหรือบัตรเดบิต";
 
 /* Format for indicator of a payment amount converted to fiat currency with the freshness of the conversion rate. Embeds: {{ %1$@ the payment amount, %2$@ the freshness of the currency conversion rate }}. */
 "PAYMENTS_CURRENCY_CONVERSION_FRESHNESS_FORMAT" = "%1$@ เมื่อ %2$@";
@@ -4583,6 +5012,9 @@
 "PAYMENTS_LOCK_FIRST_TIME_ACTION_SHEET_MESSAGE_FACEID" = "ยกระดับการรักษาความปลอดภัยขึ้นอีกขั้น และกำหนดให้ต้องใช้ Face ID เพื่อโอนเงิน";
 
 /* First time payments suggest payments lock message */
+"PAYMENTS_LOCK_FIRST_TIME_ACTION_SHEET_MESSAGE_OPTICID" = "ยกระดับการรักษาความปลอดภัยขึ้นอีกขั้น และกำหนดให้ต้องใช้ Optic ID เพื่อโอนเงิน";
+
+/* First time payments suggest payments lock message */
 "PAYMENTS_LOCK_FIRST_TIME_ACTION_SHEET_MESSAGE_PASSCODE" = "ยกระดับการรักษาความปลอดภัยขึ้นอีกขั้น และกำหนดให้ต้องกรอกรหัสผ่านเพื่อโอนเงิน";
 
 /* First time payments suggest payments lock message */
@@ -4596,6 +5028,9 @@
 
 /* Affirmative action title to enable payments lock */
 "PAYMENTS_LOCK_FIRST_TIME_AFFIRMATIVE_ACTION_FACEID" = "ต้องใช้ Face ID ในการส่ง";
+
+/* Affirmative action title to enable payments lock */
+"PAYMENTS_LOCK_FIRST_TIME_AFFIRMATIVE_ACTION_OPTICID" = "ต้องใช้ Optic ID เพื่อโอนเงิน";
 
 /* Affirmative action title to enable payments lock */
 "PAYMENTS_LOCK_FIRST_TIME_AFFIRMATIVE_ACTION_PASSCODE" = "ต้องกรอกรหัสผ่านของโทรศัพท์เพื่อโอนเงิน";
@@ -4883,13 +5318,13 @@
 "PHONE_NUMBER_DISCOVERABILITY_EVERYBODY" = "ทุกคน";
 
 /* A user friendly description of the 'everybody' phone number discoverability mode. */
-"PHONE_NUMBER_DISCOVERABILITY_EVERYBODY_DESCRIPTION" = "ใครก็ตามที่มีหมายเลขโทรศัพท์ของคุณอยู่ในรายชื่อผู้ติดต่อ จะเห็นคุณเป็นผู้ติดต่อบน Signal เช่นกัน ส่วนผู้ใช้คนอื่นจะสามารถติดต่อคุณได้โดยใช้หมายเลขโทรศัพท์ เมื่อผู้ใช้เริ่มแชทหรือสร้างกลุ่มใหม่";
+"PHONE_NUMBER_DISCOVERABILITY_EVERYBODY_DESCRIPTION" = "ผู้ใช้ที่มีหมายเลขโทรศัพท์ของคุณจะเห็นว่าคุณใช้งาน Signal และจะสามารถเริ่มแชทกับคุณได้";
 
 /* A user friendly name for the 'nobody' phone number discoverability mode. */
 "PHONE_NUMBER_DISCOVERABILITY_NOBODY" = "คนที่คุณไม่รู้จัก";
 
 /* A user friendly description of the 'nobody' phone number discoverability mode. */
-"PHONE_NUMBER_DISCOVERABILITY_NOBODY_DESCRIPTION" = "ผู้ใช้ Signal จะไม่สามารถติดต่อคุณโดยใช้หมายเลขโทรศัพท์ได้";
+"PHONE_NUMBER_DISCOVERABILITY_NOBODY_DESCRIPTION" = "จะไม่มีใครเห็นว่าคุณใช้งาน Signal เว้นแต่ว่าคุณจะส่งข้อความหาหรือเคยแชทกับผู้ใช้คนนั้น";
 
 /* A format for a label showing an example phone number. Embeds {{the example phone number}}. */
 "PHONE_NUMBER_EXAMPLE_FORMAT" = "ตัวอย่าง: %1$@";
@@ -4898,16 +5333,16 @@
 "PHONE_NUMBER_SHARING_EVERYBODY" = "ทุกคน";
 
 /* A user friendly description of the 'everybody' phone number sharing mode. */
-"PHONE_NUMBER_SHARING_EVERYBODY_DESCRIPTION" = "หมายเลขโทรศัพท์ของคุณจะสามารถเห็นได้โดยกลุ่ม ผู้คนที่คุณได้ส่งข้อความไป และคนที่มีหมายเลขโทรศัพท์ของคุณในรายชื่อผู้ติดต่อบนโทรศัพท์ของพวกเขา";
+"PHONE_NUMBER_SHARING_EVERYBODY_DESCRIPTION" = "ผู้ใช้และกลุ่มที่คุณส่งข้อความหาจะเห็นหมายเลขโทรศัพท์ของคุณ";
 
 /* A user friendly name for the 'nobody' phone number sharing mode. */
 "PHONE_NUMBER_SHARING_NOBODY" = "คนที่คุณไม่รู้จัก";
 
-/* A user friendly description of the 'nobody' phone number sharing mode. */
-"PHONE_NUMBER_SHARING_NOBODY_DESCRIPTION" = "คนที่คุณไม่รู้จักจะสามารถเห็นหมายเลขโทรศัพท์ของคุณบน Signal ได้";
+/* A user-friendly description of the 'nobody' phone number sharing mode when phone number discovery is set to 'everybody'. */
+"PHONE_NUMBER_SHARING_NOBODY_DESCRIPTION_DISCOVERABILITY_EVERYBODY" = "จะไม่มีใครเห็นหมายเลขโทรศัพท์ของคุณ เว้นแต่ว่าคนคนนั้นจะบันทึกเบอร์คุณไว้ในรายชื่อผู้ติดต่อบนโทรศัพท์";
 
-/* Format for phone number label with an index. Embeds {{Phone number label (e.g. 'home')}} and {{index, e.g. 2}}. */
-"PHONE_NUMBER_TYPE_AND_INDEX_NAME_FORMAT" = "%1$@ %2$@";
+/* A user-friendly description of the 'nobody' phone number sharing mode when phone number discovery is set to 'nobody'. */
+"PHONE_NUMBER_SHARING_NOBODY_DESCRIPTION_DISCOVERABILITY_NOBODY" = "จะไม่มีใครเห็นหมายเลขโทรศัพท์ของคุณ";
 
 /* Label for 'Home' phone numbers. */
 "PHONE_NUMBER_TYPE_HOME" = "บ้าน";
@@ -4933,9 +5368,6 @@
 /* Label for 'Pager' phone numbers. */
 "PHONE_NUMBER_TYPE_PAGER" = "เพจเจอร์";
 
-/* Label used when we don't what kind of phone number it is (e.g. mobile/work/home). */
-"PHONE_NUMBER_TYPE_UNKNOWN" = "โทรศัพท์";
-
 /* Label for 'Work' phone numbers. */
 "PHONE_NUMBER_TYPE_WORK" = "ที่ทำงาน";
 
@@ -4950,6 +5382,15 @@
 
 /* alert title */
 "PHOTO_CAPTURE_UNABLE_TO_INITIALIZE_CAMERA" = "การตั้งค่ากล้องล้มเหลว";
+
+/* Button label for opening the chat on a sheet presented from photo capture view indicating that a username QR code was found. */
+"PHOTO_CAPTURE_USERNAME_QR_CODE_FOUND_CTA" = "ไปที่แชท";
+
+/* Message for a sheet presented from photo capture view indicating that a username QR code was found. Embeds {{username}}. */
+"PHOTO_CAPTURE_USERNAME_QR_CODE_FOUND_MESSAGE_FORMAT" = "เริ่มต้นแชทกับ “%1$@”";
+
+/* Title for sheet presented from photo capture view indicating that a username QR code was found. Embeds {{username}}. */
+"PHOTO_CAPTURE_USERNAME_QR_CODE_FOUND_TITLE_FORMAT" = "พบ %1$@";
 
 /* alert title, generic error preventing user from capturing a video that is too long */
 "PHOTO_CAPTURE_VIDEO_SIZE_ERROR" = "วิดีโอยาวเกินไป";
@@ -5213,10 +5654,10 @@
 "PROFILE_BIO_VIEW_TITLE_FORMAT" = "เกี่ยวกับ (%1$@)";
 
 /* The copy rendered in a conversation when someone in your address book changes their profile name. Embeds {contact name}, {old profile name}, {new profile name} */
-"PROFILE_NAME_CHANGE_SYSTEM_CONTACT_FORMAT" = "%1$@ ได้เปลี่ยนชื่อโปรไฟล์ของพวกเขาจาก %2$@ เป็น %3$@";
+"PROFILE_NAME_CHANGE_SYSTEM_CONTACT_FORMAT" = "%1$@ เปลี่ยนชื่อโปรไฟล์จาก %2$@ เป็น %3$@";
 
 /* The copy rendered in a conversation when someone not in your address book changes their profile name. Embeds {old profile name}, {new profile name} */
-"PROFILE_NAME_CHANGE_SYSTEM_NONCONTACT_FORMAT" = "%1$@ ได้เปลี่ยนชื่อโปรไฟล์เป็น %2$@";
+"PROFILE_NAME_CHANGE_SYSTEM_NONCONTACT_FORMAT" = "%1$@ เปลี่ยนชื่อโปรไฟล์เป็น %2$@";
 
 /* Title for the profile name view. */
 "PROFILE_NAME_VIEW_TITLE" = "ชื่อของคุณ";
@@ -5228,13 +5669,13 @@
 "PROFILE_SETTINGS_NAME_PLACEHOLDER" = "ชื่อ";
 
 /* A message explaining that something is wrong with the username, on a sheet allowing the user to resolve the issue. */
-"PROFILE_SETTINGS_USERNAME_CORRUPTED_RESOLUTION_CONFIRMATION_ALERT_MESSAGE" = "เกิดข้อผิดพลาดเกี่ยวกับชื่อผู้ใช้ ไม่สามารถใช้ชื่อผู้ใช้นี้กับบัญชีของคุณได้อีกต่อไป";
-
-/* Title for an action sheet button allowing users to create a new username when their current one is corrupted. */
-"PROFILE_SETTINGS_USERNAME_CORRUPTED_RESOLUTION_CREATE_NEW_USERNAME_ACTION_TITLE" = "สร้างชื่อผู้ใช้";
+"PROFILE_SETTINGS_USERNAME_CORRUPTED_RESOLUTION_CONFIRMATION_ALERT_MESSAGE" = "เกิดข้อผิดพลาดเกี่ยวกับชื่อผู้ใช้ ไม่สามารถใช้ชื่อผู้ใช้นี้กับบัญชีของคุณได้อีกต่อไป โปรดลองใหม่ด้วยการใส่ชื่อผู้ใช้อีกครั้งหรือตั้งชื่อผู้ใช้ใหม่";
 
 /* Title for an action sheet button allowing users to delete their corrupted username. */
 "PROFILE_SETTINGS_USERNAME_CORRUPTED_RESOLUTION_DELETE_USERNAME_ACTION_TITLE" = "ลบชื่อผู้ใช้";
+
+/* Title for an action sheet button allowing users to fix their username when their current one is corrupted. */
+"PROFILE_SETTINGS_USERNAME_CORRUPTED_RESOLUTION_FIX_ACTION_TITLE" = "แก้ไขตอนนี้";
 
 /* A message asking the user if they are sure they want to remove their username and explaining what will happen. Embeds {{ the user's current username }}. */
 "PROFILE_SETTINGS_USERNAME_DELETION_CONFIRMATION_ALERT_MESSAGE_FORMAT" = "การดำเนินการนี้จะลบชื่อผู้ใช้ของคุณ รวมทั้งยกเลิกคิวอาร์โค้ดและลิงก์เดิมของคุณ โดยผู้ใช้คนอื่นจะสามารถนำชื่อ \"%1$@\" ไปใช้ได้ ต้องการดำเนินการต่อหรือไม่";
@@ -5270,10 +5711,16 @@
 "PROFILE_VIEW_NO_CONNECTION" = "ปรับปรุงโปรไฟล์ได้เมื่อเชื่อมต่อกับอินเทอร์เน็ตอยู่เท่านั้น";
 
 /* Description of the user profile. */
-"PROFILE_VIEW_PROFILE_DESCRIPTION" = "โปรไฟล์ของคุณถูกเข้ารหัสตั้งแต่ต้นทางถึงปลายทาง ผู้ติดต่อและผู้ใช้ที่คุณเริ่มต้นหรือตอบรับแชทใหม่จะเห็นโปรไฟล์และการเปลี่ยนแปลงในโปรไฟล์ของคุณ";
+"PROFILE_VIEW_PROFILE_DESCRIPTION" = "ผู้ติดต่อ กลุ่ม และคนที่คุณส่งข้อความหาจะเห็นโปรไฟล์และการเปลี่ยนแปลงในโปรไฟล์ของคุณ";
 
 /* Title for the profile view. */
 "PROFILE_VIEW_TITLE" = "โปรไฟล์";
+
+/* Footer below the usernames section of the profile settings explaining username visibility. */
+"PROFILE_VIEW_USERNAME_DESCRIPTION" = "ชื่อผู้ใช้ คิวอาร์โค้ดและลิงก์จะไม่ปรากฏบนโปรไฟล์ของคุณ เราขอแนะนำให้แชร์ชื่อผู้ใช้ของคุณกับคนที่ไว้วางใจเท่านั้น";
+
+/* Footer below the usernames section of the profile settings when a username has not been set. */
+"PROFILE_VIEW_USERNAME_UNSET_DESCRIPTION" = "ผู้ติดต่อจะสามารถส่งข้อความหาคุณผ่านชื่อผู้ใช้ที่คุณกำหนด วิธีนี้ทำให้คุณไม่จำเป็นต้องบอกหมายเลขโทรศัพท์กับใคร";
 
 /* The title for the address of the signal proxy */
 "PROXY_ADDRESS" = "ที่อยู่พร็อกซี";
@@ -5340,6 +5787,18 @@
 
 /* Indicates this message is a quoted reply to a video file. */
 "QUOTED_REPLY_TYPE_VIDEO" = "วิดีโอ";
+
+/* Label for a button to lower your raised hand in a call. */
+"RAISED_HANDS_LOWER_HAND_BUTTON" = "เอามือลง";
+
+/* A message appearing on the call view's raised hands toast indicating that another named member has raised their hand. */
+"RAISED_HANDS_TOAST_SINGLE_HAND_MESSAGE" = "%1$@ ยกมือ";
+
+/* A compact member count on the call view's raised hands toast indicating that you and a number of other users raised a hand. Embeds {{number of other users}} */
+"RAISED_HANDS_TOAST_YOU_PLUS_OTHERS_COUNT" = "คุณ +%1$d";
+
+/* A message appearing on the call view's raised hands toast indicating that you raised your own hand. */
+"RAISED_HANDS_TOAST_YOUR_HAND_MESSAGE" = "คุณยกมือ";
 
 /* The header used to indicate All reactions to a given message. Embeds {{number of reactions}} */
 "REACTION_DETAIL_ALL_FORMAT" = "ทั้งหมด· %1$@";
@@ -5581,14 +6040,17 @@
 /* Error message when sending a verification code via voice call failed, but resending via sms might succeed. */
 "REGISTRATION_VOICE_CODE_FAILED_TRY_SMS_ERROR" = "เราไม่สามารถส่งรหัสยืนยันผ่านทางการโทรให้คุณได้ ลองเปลี่ยนไปรับรหัสผ่านทาง SMS แทน";
 
-/* notification action */
-"REJECT_CALL_BUTTON_TITLE" = "ปฏิเสธ";
-
 /* No comment provided by engineer. */
 "RELAY_REGISTERED_ERROR_RECOVERY" = "หมายเลขโทรศัพท์ที่คุณพยายามจะลงทะเบียน ได้ลงทะเบียนอยู่แล้วบนเซิร์ฟเวอร์อื่น โปรดถอนการลงทะเบียนจากที่นั่นและลองอีกครั้ง";
 
+/* Button below the warning to fix a corrupted username. */
+"REMINDER_VIEW_USERNAME_CORRUPTED_FIX_BUTTON" = "แก้ไขตอนนี้";
+
 /* Label warning the user that something is wrong with their username. */
 "REMINDER_VIEW_USERNAME_CORRUPTED_WARNING" = "เกิดข้อผิดพลาดเกี่ยวกับชื่อผู้ใช้ ไม่สามารถใช้ชื่อผู้ใช้นี้กับบัญชีของคุณได้อีกต่อไป โปรดลองใหม่ด้วยการใส่ชื่อผู้ใช้อีกครั้งหรือตั้งชื่อผู้ใช้ใหม่";
+
+/* Button below the warning to fix a username link. */
+"REMINDER_VIEW_USERNAME_LINK_CORRUPTED_FIX_BUTTON" = "แก้ไขตอนนี้";
 
 /* Label warning the user that something is wrong with their username link. */
 "REMINDER_VIEW_USERNAME_LINK_CORRUPTED_WARNING" = "เกิดข้อผิดพลาดเกี่ยวกับคิวอาร์โค้ดและลิงก์ชื่อผู้ใช้ของคุณ จึงไม่สามารถใช้ลิงก์นี้ได้อีกต่อไป โปรดสร้างลิงก์ใหม่เพื่อใช้สำหรับแชร์กับผู้ติดต่อ";
@@ -5616,6 +6078,12 @@
 
 /* Button to return to current group call */
 "RETURN_CALL_PILL_BUTTON" = "กลับไปที่การโทรกลุ่ม";
+
+/* Text for a toast confirming that ringing has been turned off for a call. */
+"RING_OFF_CONFIRMATION_TOAST_LABEL" = "การส่งเสียงเรียกสายปิดอยู่";
+
+/* Text for a toast confirming that ringing has been turned on for a call. */
+"RING_ON_CONFIRMATION_TOAST_LABEL" = "การส่งเสียงเรียกสายเปิดอยู่";
 
 /* button title to confirm adding a recipient when their safety number has recently changed */
 "SAFETY_NUMBER_CHANGED_CONFIRM_ADD_MEMBER_ACTION" = "ยืนยันที่จะเพิ่ม";
@@ -5646,6 +6114,48 @@
 
 /* Action sheet heading */
 "SAFETY_NUMBERS_ACTIONSHEET_TITLE" = "หมายเลขความปลอดภัยของคุณกับ %1$@ ได้เปลี่ยนไป คุณอาจต้องการตรวจยืนยันอีกครั้ง";
+
+/* Title for Safety Tips button in thread details. */
+"SAFETY_TIPS_BUTTON_ACTION_TITLE" = "คำแนะนำเพื่อความปลอดภัย";
+
+/* Message contents for the crypto safety tip. */
+"SAFETY_TIPS_CRYPTO_BODY" = "หากมีคนที่ไม่รู้จักส่งข้อความหาคุณเกี่ยวกับคริปโตเคอร์เรนซี (เช่น บิตคอยน์) หรือโอกาสทางการเงิน โปรดระมัดระวังเป็นพิเศษ เพราะเป็นไปได้สูงว่านั่นคือสแปม";
+
+/* Message title describing the crypto safety tip. */
+"SAFETY_TIPS_CRYPTO_TITLE" = "การหลอกลวงทางการเงินหรือคริปโต";
+
+/* Message contents for the safety tip concerning fake businesses. */
+"SAFETY_TIPS_FAKE_BUSINESS_BODY" = "ระวังให้มากเมื่อได้รับการติดต่อจากหน่วยงานรัฐหรือธุรกิจห้างร้าน ข้อความที่เกี่ยวกับสำนักงานภาษี บริษัทขนส่ง หรือหน่วยงานใกล้เคียงกันนี้อาจเป็นสแปม";
+
+/* Message title describing the safety tip about unknown or fake businesses. */
+"SAFETY_TIPS_FAKE_BUSINESS_TITLE" = "ธุรกิจและหน่วยงานปลอม";
+
+/* Message describing safety tips for group conversations. */
+"SAFETY_TIPS_GROUPS_HEADER_MESSAGE" = "โปรดพิจารณาคำขอนี้อย่างถี่ถ้วน กลุ่มนี้ไม่มีสมาชิกที่เป็นผู้ติดต่อของคุณหรือผู้ใช้ที่คุณแชทด้วย ใช้ความระมัดระวังและลองตรวจสอบตามข้อสังเกตนี้:";
+
+/* Title for Safety Tips education screen. */
+"SAFETY_TIPS_HEADER_TITLE" = "คำแนะนำเพื่อความปลอดภัย";
+
+/* Message describing safety tips for 1:1 conversations. */
+"SAFETY_TIPS_INDIVIDUAL_HEADER_MESSAGE" = "โปรดใช้ความระมัดระวังในการตอบรับคำขอส่งข้อความจากคนที่คุณไม่รู้จัก ลองตรวจสอบตามข้อสังเกตนี้:";
+
+/* Message contents for the unknown links in messages safety tip. */
+"SAFETY_TIPS_MESSAGE_LINKS_BODY" = "ระวังข้อความจากคนแปลกหน้าที่มีลิงก์ไปยังเว็บไซต์ อย่ากดลิงก์จากผู้ใช้ที่คุณไม่ไว้วางใจโดยเด็ดขาด";
+
+/* Message title describing the safety tip about unknown links in messages. */
+"SAFETY_TIPS_MESSAGE_LINKS_TITLE" = "ข้อความที่แนบลิงก์";
+
+/* Button that will show the next safety tip. */
+"SAFETY_TIPS_NEXT_TIP_BUTTON" = "ถัดไป";
+
+/* Button that will show the previous safety tip. */
+"SAFETY_TIPS_PREVIOUS_TIP_BUTTON" = "ก่อนหน้า";
+
+/* Message contents for the vague message safety tip. */
+"SAFETY_TIPS_VAGUE_MESSAGE_BODY" = "ผู้ส่งสแปมมักเริ่มต้นส่งข้อความด้วยคำทักทายทั่วไป เช่น “สวัสดี” เพื่อเรียกความสนใจของคุณ หากคุณตอบข้อความ คนพวกนั้นอาจชวนคุณพูดคุยต่อไปเรื่อยๆ";
+
+/* Message title describing the safety tip about vague messages. */
+"SAFETY_TIPS_VAGUE_MESSAGE_TITLE" = "ข้อความคลุมเครือหรือไม่เจาะจง";
 
 /* label presented once scanning (camera) view is visible. */
 "SCAN_CODE_INSTRUCTIONS" = "สแกนรหัส QR บนอุปกรณ์ของผู้ติดต่อของคุณ";
@@ -5684,7 +6194,7 @@
 "SCREEN_LOCK_UNLOCK_SIGNAL" = "ปลดล็อก Signal";
 
 /* Placeholder text indicating the user can search for contacts by name, username, or phone number. */
-"SEARCH_BY_NAME_OR_USERNAME_OR_NUMBER_PLACEHOLDER_TEXT" = "ชื่อ ชื่อผู้ใช้ และหมายเลข";
+"SEARCH_BY_NAME_OR_USERNAME_OR_NUMBER_PLACEHOLDER_TEXT" = "ชื่อ ชื่อผู้ใช้ หรือหมายเลขโทรศัพท์";
 
 /* Placeholder text indicating the user can search for contacts by name or phone number. */
 "SEARCH_BYNAMEORNUMBER_PLACEHOLDER_TEXT" = "ค้นหาโดยชื่อหรือหมายเลข";
@@ -5807,49 +6317,49 @@
 "SENT_MEDIA_QUALITY_STANDARD" = "มาตรฐาน";
 
 /* Users can donate to Signal with a bank account. This is the label for email field on that screen. */
-"SEPA_DONATION_EMAIL_LABEL" = "Email";
+"SEPA_DONATION_EMAIL_LABEL" = "อีเมล";
 
 /* Users can donate to Signal with a bank account. This is placeholder text for the email field before the user starts typing. */
-"SEPA_DONATION_EMAIL_PLACEHOLDER" = "Email Address";
+"SEPA_DONATION_EMAIL_PLACEHOLDER" = "ที่อยู่อีเมล";
 
 /* SEPA bank account donation error for insufficient funds. */
-"SEPA_DONATION_ERROR_INSUFFICIENT_FUNDS" = "The bank account provided has insufficient funds to complete this purchase, try again or contact your bank for more information.";
+"SEPA_DONATION_ERROR_INSUFFICIENT_FUNDS" = "บัญชีที่ระบุมีวงเงินไม่เพียงพอสำหรับธุรกรรมนี้ โปรดลองอีกครั้งหรือติดต่อธนาคารเพื่อขอข้อมูลเพิ่มเติม";
 
 /* SEPA bank account donation error for missing or incorrect mandate information. */
-"SEPA_DONATION_ERROR_NOT_AUTHORIZED" = "An error occurred while processing this payment, please try again.";
+"SEPA_DONATION_ERROR_NOT_AUTHORIZED" = "เกิดข้อผิดพลาดขณะประมวลผลการชำระเงินนี้ โปรดลองอีกครั้ง";
 
 /* SEPA bank account donation error for the account details not being able to be processed. */
-"SEPA_DONATION_ERROR_NOT_PROCESSED" = "The bank details provided could not be processed, contact your bank for more information.";
+"SEPA_DONATION_ERROR_NOT_PROCESSED" = "ไม่สามารถดำเนินการชำระเงินตามข้อมูลธนาคารที่ระบุได้ โปรดติดต่อธนาคารเพื่อขอข้อมูลเพิ่มเติม";
 
 /* SEPA bank account donation error for unspecified decline failures. */
-"SEPA_DONATION_ERROR_OTHER" = "Verify your bank details are correct and try again. If the problem continues, contact your bank.";
+"SEPA_DONATION_ERROR_OTHER" = "ตรวจยืนยันว่าข้อมูลธนาคารที่คุณระบุนั้นถูกต้อง แล้วลองอีกครั้ง โปรดติดต่อธนาคารหากคุณยังพบปัญหาอยู่";
 
 /* SEPA bank account donation error for the payment not being authorizing by the account holder. */
-"SEPA_DONATION_ERROR_PAYMENT_NOT_AUTHORIZED" = "This payment was revoked by the account holder and could not be processed. You haven’t been charged.";
+"SEPA_DONATION_ERROR_PAYMENT_NOT_AUTHORIZED" = "การชำระเงินนี้ถูกเจ้าของบัญชียกเลิกและไม่สามารถดำเนินการได้ คุณยังไม่ถูกเรียกเก็บเงินในกรณีนี้";
 
 /* Users can donate to Signal with a bank account. If their internation bank account number (IBAN) contains characters other than letters and numbers, this error will be shown. Try to use a short string to make space in the UI. */
-"SEPA_DONATION_IBAN_INVALID_CHARACTERS_ERROR" = "IBAN can only contain A-Z and 0-9";
+"SEPA_DONATION_IBAN_INVALID_CHARACTERS_ERROR" = "IBAN จะมีได้เฉพาะ A-Z และ 0-9";
 
 /* Users can donate to Signal with a bank account. If their internation bank account number (IBAN) does not pass validation, this error will be shown. Try to use a short string to make space in the UI. */
-"SEPA_DONATION_IBAN_INVALID_CHECK_ERROR" = "Invalid IBAN number";
+"SEPA_DONATION_IBAN_INVALID_CHECK_ERROR" = "หมายเลข IBAN ไม่ถูกต้อง";
 
 /* Users can donate to Signal with a bank account. If their internation bank account number (IBAN) has an unsupported country code, this error will be shown. Try to use a short string to make space in the UI. */
-"SEPA_DONATION_IBAN_INVALID_COUNTRY_ERROR" = "IBAN country code is not supported";
+"SEPA_DONATION_IBAN_INVALID_COUNTRY_ERROR" = "ไม่รองรับรหัสประเทศของหมายเลข IBAN ที่ระบุ";
 
 /* Users can donate to Signal with a bank account. This is the label for IBAN (internation bank account number) field on that screen. */
-"SEPA_DONATION_IBAN_LABEL" = "IBAN";
+"SEPA_DONATION_IBAN_LABEL" = "หมายเลข IBAN";
 
 /* Users can donate to Signal with a bank account. If their internation bank account number (IBAN) is too long, this error will be shown. Try to use a short string to make space in the UI. */
-"SEPA_DONATION_IBAN_TOO_LONG_ERROR" = "IBAN is too long";
+"SEPA_DONATION_IBAN_TOO_LONG_ERROR" = "หมายเลข IBAN ยาวเกินไป";
 
 /* Users can donate to Signal with a bank account. If their internation bank account number (IBAN) is too long, this error will be shown. Try to use a short string to make space in the UI. */
-"SEPA_DONATION_IBAN_TOO_SHORT_ERROR" = "IBAN is too short";
+"SEPA_DONATION_IBAN_TOO_SHORT_ERROR" = "หมายเลข IBAN สั้นเกินไป";
 
 /* Users can donate to Signal with a bank account. This is the label for name field on that screen. */
-"SEPA_DONATION_NAME_LABEL" = "Name";
+"SEPA_DONATION_NAME_LABEL" = "ชื่อ";
 
 /* Users can donate to Signal with a bank account. This is placeholder text for the name field before the user starts typing. */
-"SEPA_DONATION_NAME_PLACEHOLDER" = "Name on Bank Account";
+"SEPA_DONATION_NAME_PLACEHOLDER" = "ชื่อเจ้าของบัญชี";
 
 /* Description for the session refresh alert */
 "SESSION_REFRESH_ALERT_MESSAGE" = "Signal ใช้การเข้ารหัสตั้งแต่ต้นทางถึงปลายทางและอาจต้องเริ่มต้นแชทเซสชันใหม่ให้คุณในบางครั้ง กระบวนการนี้ไม่มีผลต่อความปลอดภัยของแชทคุณ แต่อาจทำให้คุณไม่ได้รับข้อความบางข้อความจากผู้ติดต่อคนนี้ โดยคุณสามารถขอให้ผู้ติดต่อส่งข้อความอีกครั้ง";
@@ -5936,10 +6446,10 @@
 "SETTINGS_APPEARANCE_APP_ICON" = "ไอคอนแอป";
 
 /* Footer for avatar section in appearance settings */
-"SETTINGS_APPEARANCE_AVATAR_FOOTER" = "แสดงรูปผู้ติดต่อจากระบบ ถ้าทำได้";
+"SETTINGS_APPEARANCE_AVATAR_FOOTER" = "แสดงรูปจากในรายชื่อผู้ติดต่อบนโทรศัพท์ (หากมี)";
 
 /* Title for switch to toggle preference between contact and profile avatars */
-"SETTINGS_APPEARANCE_AVATAR_PREFERENCE_LABEL" = "ใช้รูปผู้ติดต่อจากระบบ";
+"SETTINGS_APPEARANCE_AVATAR_PREFERENCE_LABEL" = "ใช้รูปจากในรายชื่อผู้ติดต่อบนโทรศัพท์";
 
 /* The title for the theme section in the appearance settings. */
 "SETTINGS_APPEARANCE_THEME_TITLE" = "ธีม";
@@ -6323,7 +6833,7 @@
 "SETTINGS_PAYMENTS_PASSPHRASE_DISCARD_CONFIRMATION_BUTTON" = "ข้ามขั้นตอนวลีกู้คืน";
 
 /* Message of confirmation alert when discarding recovery phrase. */
-"SETTINGS_PAYMENTS_PASSPHRASE_DISCARD_CONFIRMATION_MESSAGE" = "วลีกู้คืนจะช่วยให้คุณกู้คืนเงินได้ในกรณีที่เกิดเหตุไม่คาดฝัน เราจึงขอแนะนำให้คุณบันทึกไว้";
+"SETTINGS_PAYMENTS_PASSPHRASE_DISCARD_CONFIRMATION_MESSAGE" = "Your recovery phrase lets you restore your balance in a worst-case scenario. We strongly recommend you save it.";
 
 /* Title of confirmation alert when discarding recovery phrase. */
 "SETTINGS_PAYMENTS_PASSPHRASE_DISCARD_CONFIRMATION_TITLE" = "ดำเนินการต่อโดยไม่บันทึกใช่ไหม";
@@ -6400,6 +6910,9 @@
 /* Double reminder action sheet title in Payments Lock Prompt view for Face ID. */
 "SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_DOUBLE_REMINDER_TITLE_FACEID" = "ข้ามการเปิดใช้งาน Face ID ใช่หรือไม่";
 
+/* Double reminder action sheet title in Payments Lock Prompt view for Optic ID. */
+"SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_DOUBLE_REMINDER_TITLE_OPTICID" = "ข้ามการเปิดใช้งาน Optic ID ใช่หรือไม่";
+
 /* Double reminder action sheet title in Payments Lock Prompt view for Passcode. */
 "SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_DOUBLE_REMINDER_TITLE_PASSCODE" = "ข้ามการเปิดใช้งานรหัสผ่านใช่หรือไม่";
 
@@ -6409,6 +6922,9 @@
 /* Enable Button title in Payments Lock Prompt view for Face ID. */
 "SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_ENABLE_BUTTON_FACEID" = "ใช้ Face ID";
 
+/* Enable Button title in Payments Lock Prompt view for Optic ID. */
+"SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_ENABLE_BUTTON_OPTICID" = "ใช้ Optic ID";
+
 /* Enable Button title in Payments Lock Prompt view for Passcode. */
 "SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_ENABLE_BUTTON_PASSCODE" = "ใช้รหัสผ่าน";
 
@@ -6417,6 +6933,9 @@
 
 /* Explanation of 'payments lock' with Face ID in the 'payments lock prompt' view shown after payments activation. */
 "SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_EXPLANATION_FACEID" = "เปิดใช้ Face ID เพื่อช่วยป้องกันไม่ให้ผู้อื่นใช้โทรศัพท์คุณเข้าถึงเงินของคุณ คุณสามารถปิดใช้งานตัวเลือกนี้ได้ในการตั้งค่า";
+
+/* Explanation of 'payments lock' with Optic ID in the 'payments lock prompt' view shown after payments activation. */
+"SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_EXPLANATION_OPTICID" = "เปิดใช้ Optic ID เพื่อช่วยป้องกันไม่ให้ผู้อื่นใช้โทรศัพท์คุณเข้าถึงเงินของคุณ คุณสามารถปิดใช้งานตัวเลือกนี้ได้ในการตั้งค่า";
 
 /* Explanation of 'payments lock' with passcode in the 'payments lock prompt' view shown after payments activation. */
 "SETTINGS_PAYMENTS_PAYMENTS_LOCK_PROMPT_EXPLANATION_PASSCODE" = "ใช้รหัสผ่านเพื่อช่วยป้องกันไม่ให้ผู้อื่นใช้โทรศัพท์คุณเข้าถึงเงินของคุณ คุณสามารถปิดใช้งานตัวเลือกนี้ได้ในการตั้งค่า";
@@ -6459,9 +6978,6 @@
 
 /* Label for the current balance in the 'deactivate payments' settings. */
 "SETTINGS_PAYMENTS_REMAINING_BALANCE" = "ยอดคงเหลือ";
-
-/* Label for the 'remove payments details' button in the app settings. */
-"SETTINGS_PAYMENTS_REMOVE_BUTTON" = "ลบ";
 
 /* Label for 'restore payments' button in the payments settings. */
 "SETTINGS_PAYMENTS_RESTORE_PAYMENTS_BUTTON" = "กู้คืนบัญชีการชำระเงิน";
@@ -6534,6 +7050,9 @@
 
 /* Caption for footer label beneath the payments lock privacy toggle for faceid biometry. */
 "SETTINGS_PAYMENTS_SECURITY_DETAIL_FACEID" = "ต้องใช้ Face ID ในการโอนเงิน";
+
+/* Caption for footer label beneath the payments lock privacy toggle for opticid biometry */
+"SETTINGS_PAYMENTS_SECURITY_DETAIL_OPTICID" = "ต้องใช้ Optic ID ในการโอนเงิน";
 
 /* Caption for footer label beneath the payments lock privacy toggle for a biometry type that is a passcode. */
 "SETTINGS_PAYMENTS_SECURITY_DETAIL_PASSCODE" = "ต้องใช้รหัสผ่านของโทรศัพท์ในการโอนเงิน";
@@ -6637,6 +7156,15 @@
 /* Label for the payments wallet address. */
 "SETTINGS_PAYMENTS_WALLET_ADDRESS_LABEL" = "ที่อยู่กระเป๋าเงินของคุณ";
 
+/* A toast that displays when the user attempts to set discoverability to 'nobody' when their phone number sharing is set to 'everybody', which is not allowed. */
+"SETTINGS_PHONE_NUMBER_DISCOVERABILITY_DISABLED_TOAST" = "หากต้องการเปลี่ยนการตั้งค่านี้ ให้ไปที่หัวข้อ “คนที่สามารถเห็นหมายเลขโทรศัพท์ของฉัน” แล้วเลือก “ไม่อนุญาตให้ใครเห็น”";
+
+/* The description for a sheet asking for confirmation that the user wants to set their phone number discoverability to 'nobody'. */
+"SETTINGS_PHONE_NUMBER_DISCOVERABILITY_NOBODY_CONFIRMATION_DESCRIPTION" = "การตั้งค่า “คนที่สามารถใช้หมายเลขโทรศัพท์ค้นหาฉันได้” เป็น “ไม่อนุญาตให้ใครค้นหา” จะทำให้ผู้ใช้คนอื่นค้นหาคุณได้ยากขึ้นบน Signal";
+
+/* The title for a sheet asking for confirmation that the user wants to set their phone number discoverability to 'nobody'. */
+"SETTINGS_PHONE_NUMBER_DISCOVERABILITY_NOBODY_CONFIRMATION_TITLE" = "ต้องการดำเนินการต่อหรือไม่";
+
 /* The title for the phone number discoverability setting section. */
 "SETTINGS_PHONE_NUMBER_DISCOVERABILITY_TITLE" = "คนที่สามารถใช้หมายเลขโทรศัพท์ค้นหาฉันได้";
 
@@ -6734,6 +7262,9 @@
 "SETTINGS_SECURITY_DETAIL_FACEID" = "ใช้การสแกนใบหน้าเพื่อปลดล็อค Signal";
 
 /* Section footer */
+"SETTINGS_SECURITY_DETAIL_OPTICID" = "ใช้ Optic ID ในการปลดล็อก Signal";
+
+/* Section footer */
 "SETTINGS_SECURITY_DETAIL_PASSCODE" = "ใช้รหัสผ่านอุปกรณ์ของคุณเพื่อปลดล็อค Signal";
 
 /* Section footer */
@@ -6750,9 +7281,6 @@
 
 /* Setting for enabling & disabling iOS contact sharing. */
 "SETTINGS_SHARING_SUGGESTIONS" = "แชร์รายชื่อผู้ติดต่อด้วย iOS";
-
-/* Footer for setting for enabling & disabling contact sharing with iOS. */
-"SETTINGS_SHARING_SUGGESTIONS_FOOTER" = "อนุญาตให้ iOS เข้าถึงรายชื่อผู้ติดต่อและแชทของ Signal สำหรับฟีเจอร์ต่างๆ เช่น การแชร์คำแนะนำ";
 
 /* Footer for setting for enabling & disabling contact and notification sharing with iOS. */
 "SETTINGS_SHARING_SUGGESTIONS_NOTIFICATIONS_FOOTER" = "อนุญาตให้ iOS เข้าถึงรายชื่อผู้ติดต่อและแชทของ Signal สำหรับฟีเจอร์ต่างๆ เช่น การแชร์คำแนะนำและการแจ้งเตือน";
@@ -6829,6 +7357,9 @@
 /* notification action */
 "SHOW_THREAD_BUTTON_TITLE" = "แสดงแชท";
 
+/* Shown in the header when the user hasn't provided a custom name for a call. */
+"SIGNAL_CALL" = "การโทรผ่าน Signal";
+
 /* body sent to contacts when inviting to Install Signal */
 "SMS_INVITE_BODY" = "ฉันกำลังชวนคุณให้ติดตั้ง Signal! นี่คือลิงก์:";
 
@@ -6864,6 +7395,12 @@
 
 /* Title for the captcha view controller */
 "SPAM_CAPTCHA_VIEW_CONTROLLER" = "การตรวจยืนยันสมบูรณ์";
+
+/* Text for a toast confirming that the speakerphone has been turned off for a call. */
+"SPEAKERPHONE_OFF_CONFIRMATION_TOAST_LABEL" = "ลำโพงปิดอยู่";
+
+/* Text for a toast confirming that the speakerphone has been turned on for a call. */
+"SPEAKERPHONE_ON_CONFIRMATION_TOAST_LABEL" = "ลำโพงเปิดอยู่";
 
 /* The name for the sticker category 'Featured' */
 "STICKER_CATEGORY_FEATURED_NAME" = "แนะนำ";
@@ -7090,8 +7627,11 @@
 /* inbox and notification text for a reaction to a story authored by the local user. Embeds {{reaction emoji}} */
 "STORY_REACTION_LOCAL_AUTHOR_PREVIEW_FORMAT" = "แสดงความรู้สึก %1$@ ต่อสตอรี่ของคุณ";
 
-/* quote text for a reaction to a story. Embeds {{reaction emoji}} */
-"STORY_REACTION_QUOTE_FORMAT" = "แสดงความรู้สึก %1$@ ต่อสตอรี่";
+/* quote text for a reaction to a story by the user (the header on the bubble says \"You\"). Embeds {{reaction emoji}} */
+"STORY_REACTION_QUOTE_FORMAT_SECOND_PERSON" = "แสดงความรู้สึก %1$@ ต่อสตอรี่";
+
+/* quote text for a reaction to a story by some other user (the header on the bubble says their name, e.g. \"Bob\"). Embeds {{reaction emoji}} */
+"STORY_REACTION_QUOTE_FORMAT_THIRD_PERSON" = "แสดงความรู้สึก %1$@ ต่อสตอรี่";
 
 /* inbox and notification text for a reaction to a story authored by another user. Embeds {{ %1$@ reaction emoji, %2$@ story author name }} */
 "STORY_REACTION_REMOTE_AUTHOR_PREVIEW_FORMAT" = "แสดงความรู้สึก %1$@ ต่อสตอรี่ของ %2$@";
@@ -7099,8 +7639,11 @@
 /* Button for replying to a story with no existing replies. */
 "STORY_REPLY_BUTTON" = "ตอบกลับ";
 
-/* Text indicating a story has been reacted to */
-"STORY_REPLY_REACTION" = "แสดงความรู้สึกต่อสตอรี่";
+/* Text indicating you reacted to a story (the header on the bubble says \"You\") */
+"STORY_REPLY_REACTION_SECOND_PERSON" = "แสดงความรู้สึกต่อสตอรี่";
+
+/* Text indicating someone else reacted to a story (the header on the bubble says their name, e.g. \"Bob\") */
+"STORY_REPLY_REACTION_THIRD_PERSON" = "แสดงความรู้สึกต่อสตอรี่";
 
 /* placeholder text for replying to a story */
 "STORY_REPLY_TEXT_FIELD_PLACEHOLDER" = "ตอบกลับ";
@@ -7154,7 +7697,7 @@
 "STORY_SETTINGS_LEARN_MORE_SHEET_BULLET_2" = "รับคำขอส่งข้อความ";
 
 /* Third bullet point for the explainer sheet for signal connections */
-"STORY_SETTINGS_LEARN_MORE_SHEET_BULLET_3" = "มีรายชื่ออยู่ในระบบผู้ติดต่อของคุณ";
+"STORY_SETTINGS_LEARN_MORE_SHEET_BULLET_3" = "บันทึกไว้ในรายชื่อผู้ติดต่อบนโทรศัพท์คุณ";
 
 /* Footer for the explainer sheet for signal connections */
 "STORY_SETTINGS_LEARN_MORE_SHEET_FOOTER" = "เครือข่ายของคุณจะเห็นชื่อและรูปภาพของคุณ รวมถึงโพสต์ที่คุณส่งใน “สตอรี่ของฉัน” เว้นแต่ว่าคุณจะซ่อนสตอรี่นั้นจากพวกเขา";
@@ -7192,8 +7735,8 @@
 /* Text indicating that the user has views turned off */
 "STORY_VIEWS_OFF" = "ปิดการแจ้งว่าอ่านแล้ว";
 
-/* Toast indicating that the user has copied their subscriber ID. */
-"SUBSCRIPTION_SUBSCRIBER_ID_COPIED_TO_CLIPBOARD" = "คัดลอกไอดีสมาชิกไปยังคลิปบอร์ดแล้ว";
+/* Toast indicating that the user has copied their subscriber ID. (Externally referred to as donor ID) */
+"SUBSCRIPTION_SUBSCRIBER_ID_COPIED_TO_CLIPBOARD" = "คัดลอกไอดีผู้บริจาคไปยังคลิปบอร์ดแล้ว";
 
 /* Alert body after verifying privacy with {{other user's name}} */
 "SUCCESSFUL_VERIFICATION_DESCRIPTION" = "หมายเลขความปลอดภัยของคุณกับ %1$@ ตรงกัน คุณสามารถทำเครื่องหมายว่าผู้ติดต่อนี้ได้รับการตรวจยืนยันแล้ว";
@@ -7273,20 +7816,23 @@
 /* Action sheet title for Couldn't Add Badge sheet */
 "SUSTAINER_VIEW_CANT_ADD_BADGE_TITLE" = "ไม่สามารถเพิ่มโล่ได้";
 
+/* Action sheet title for Error Authorizing Payment sheet */
+"SUSTAINER_VIEW_ERROR_AUTHORIZING_PAYMENT_TITLE" = "การอนุมัติการชำระเงินมีข้อผิดพลาด";
+
 /* Action sheet title for Error Processing Payment sheet */
-"SUSTAINER_VIEW_ERROR_PROCESSING_PAYMENT_TITLE" = "Error Processing Donation";
+"SUSTAINER_VIEW_ERROR_PROCESSING_PAYMENT_TITLE" = "การดำเนินการบริจาคมีข้อผิดพลาด";
 
 /* Pricing text for sustainer view badges, embeds {{price}} */
 "SUSTAINER_VIEW_PRICING" = "%1$@/เดือน";
 
 /* Loading indicator on the sustainer view */
-"SUSTAINER_VIEW_PROCESSING_PAYMENT" = "Processing donation...";
+"SUSTAINER_VIEW_PROCESSING_PAYMENT" = "กำลังดำเนินการบริจาค…";
 
 /* Renewal date text for sustainer view level, embeds {{renewal date}} */
 "SUSTAINER_VIEW_RENEWAL" = "ต่ออายุ %1$@";
 
 /* Action sheet message for Still Processing Badge sheet */
-"SUSTAINER_VIEW_STILL_PROCESSING_BADGE_MESSAGE" = "Your donation is still being processed. This can take a few minutes depending on your connection.";
+"SUSTAINER_VIEW_STILL_PROCESSING_BADGE_MESSAGE" = "การบริจาคของคุณยังอยู่ระหว่างดำเนินการ ขั้นตอนนี้อาจใช้เวลาสักครู่ โดยขึ้นอยู่กับสัญญาณอินเทอร์เน็ตของคุณ";
 
 /* Toast indicating that the subscription has been cancelled */
 "SUSTAINER_VIEW_SUBSCRIPTION_CANCELLED" = "การเป็นสมาชิกของคุณถูกยกเลิกแล้ว";
@@ -7453,9 +7999,6 @@
 /* Message shown in conversation view that offers to block an unknown user. */
 "UNKNOWN_CONTACT_BLOCK_OFFER" = "ผู้ใช้ไม่อยู่ในรายชื่อผู้ติดต่อของคุณ คุณต้องการบล็อกผู้ใช้คนนี้หรือไม่";
 
-/* Displayed if for some reason we can't determine a contacts phone number *or* name */
-"UNKNOWN_CONTACT_NAME" = "ผู้ติดต่อที่ไม่รู้จัก";
-
 /* Info message recorded in conversation history when local user receives an unknown message from a linked device and needs to upgrade. */
 "UNKNOWN_PROTOCOL_VERSION_NEED_TO_UPGRADE_FROM_LINKED_DEVICE" = "หนึ่งในอุปกรณ์ของคุณได้ส่งข้อความที่ไม่สามารถประมวลผลหรือแสดงผลได้ เพราะมันใช้ความสามารถของ Signal รุ่นใหม่";
 
@@ -7507,6 +8050,9 @@
 /* Alert title when unlinking device fails */
 "UNLINKING_FAILED_ALERT_TITLE" = "Signal ไม่สามารถเลิกเชื่อมโยงอุปกรณ์ของคุณ";
 
+/* Text for a toast confirming that the mic has been unmuted for a call. */
+"UNMUTE_CONFIRMATION_TOAST_LABEL" = "ไมค์เปิดอยู่";
+
 /* Pressing this button un-pins a thread */
 "UNPIN_ACTION" = "เลิกปักหมุด";
 
@@ -7543,17 +8089,29 @@
 /* Explanation of when you should use a signal proxy */
 "USE_PROXY_EXPLANATION" = "ใช้พร็อกซีเฉพาะเมื่อคุณไม่สามารถเชื่อมต่อ Signal ผ่านอินเทอร์เน็ตมือถือหรือ Wi-Fi เท่านั้น";
 
-/* Description of how to update discovery */
-"USERNAME_DISCOVERY_DESCRIPTION" = "ปิดใช้งานการค้นหาด้วยหมายโทรศัพท์ โดยไปที่การตั้งค่า > ความเป็นส่วนตัว > หมายเลขโทรศัพท > ใครบ้างที่สามารถค้นหาหมายเลขโทรศัพท์ฉันได้ ซึ่งวิธีนี้จะตั้งให้ชื่อผู้ใช้ของคุณเป็นวิธีหลักที่ผู้ใช้คนอื่นจะติดต่อคุณได้";
+/* Description of username links and QR codes on the username education sheet */
+"USERNAME_EDUCATION_LINK_DESCRIPTION" = "ชื่อผู้ใช้จะมีคิวอาร์โค้ดและลิงก์เฉพาะที่คุณสามารถแชร์เพื่อให้เพื่อนเริ่มแชทด้วยได้ทันที";
 
-/* Description of username discriminator digits */
-"USERNAME_DISCRIMINATOR_DESCRIPTION" = "ชื่อผู้ใช้จะถูกผูกเข้ากับกลุ่มตัวเลขและจะไม่แสดงบนโปรไฟล์ของคุณ";
+/* Title for the username links and QR codes section on the username education sheet */
+"USERNAME_EDUCATION_LINK_TITLE" = "คิวอาร์โค้ดและลิงก์";
+
+/* Description of phone number privacy on the username education sheet */
+"USERNAME_EDUCATION_PRIVACY_DESCRIPTION" = "ระบบจะไม่แสดงหมายเลขโทรศัพท์ของคุณในแชทอีกต่อไป ผู้ติดต่อจะยังคงเห็นหมายเลขโทรศัพท์ของคุณ หากบันทึกเบอร์คุณไว้ในรายชื่อติดต่อ";
+
+/* Title for phone number privacy section of the username education sheet */
+"USERNAME_EDUCATION_PRIVACY_TITLE" = "การรักษาความเป็นส่วนตัวของหมายเลขโทรศัพท์";
+
+/* Label for the 'set up' button on the username education sheet */
+"USERNAME_EDUCATION_SET_UP_BUTTON" = "กำหนดชื่อผู้ใช้ของคุณ";
 
 /* Title to set up signal username */
-"USERNAME_EDUCATION_TITLE" = "ตั้งค่าชื่อผู้ใช้ Signal ของคุณ";
+"USERNAME_EDUCATION_TITLE" = "วิธีใหม่ในการติดต่อสื่อสาร";
 
-/* Description of username link */
-"USERNAME_LINK_DESCRIPTION" = "ชื่อผู้ใช้แต่ละชื่อจะมีลิงก์เฉพาะที่คุณสามารถแชร์เพื่อให้เพื่อนเริ่มแชทกับคุณได้";
+/* Description of usernames on the username education sheet */
+"USERNAME_EDUCATION_USERNAME_DESCRIPTION" = "ผู้ติดต่อจะสามารถส่งข้อความหาคุณผ่านชื่อผู้ใช้ที่คุณกำหนด วิธีนี้ทำให้คุณไม่จำเป็นต้องบอกหมายเลขโทรศัพท์กับใคร โดยชื่อผู้ใช้จะไม่ปรากฏบนโปรไฟล์ของคุณ";
+
+/* Title for usernames section on the username education sheet */
+"USERNAME_EDUCATION_USERNAME_TITLE" = "ชื่อผู้ใช้";
 
 /* A title for a view that allows you to pick a color for a QR code for your username link. */
 "USERNAME_LINK_QR_CODE_COLOR_PICKER_VIEW_TITLE_COLOR" = "สี";
@@ -7564,14 +8122,17 @@
 /* Text for a label explaining what the username link and QR code give others access to. */
 "USERNAME_LINK_QR_CODE_VIEW_DISCLAIMER_LABEL" = "เราขอแนะนำให้แชร์คิวอาร์โค้ดและลิงก์ของคุณกับคนที่ไว้วางใจเท่านั้น นี่จะเป็นการเปิดเผยให้ผู้อื่นเห็นชื่อผู้ใช้ของคุณและเริ่มต้นแชทกับคุณได้";
 
+/* Text presented in an action sheet notifying the user their qr code and link are not set. */
+"USERNAME_LINK_QR_CODE_VIEW_LINK_NOT_SET" = "ยังไม่ได้ตั้งค่าคิวอาร์โค้ดและลิงก์ โปรดตรวจสอบการเชื่อมต่อเครือข่ายแล้วลองอีกครั้ง";
+
 /* Title for a button that allows users to reset their username link and QR code. */
 "USERNAME_LINK_QR_CODE_VIEW_RESET_BUTTON_TITLE" = "รีเซ็ต";
 
 /* A message explaining what will happen if the user resets their QR code. */
-"USERNAME_LINK_QR_CODE_VIEW_RESET_SHEET_MESSAGE" = "หากคุณรีเซ็ตคิวอาร์โค้ด คิวอาร์โค้ดและลิงก์ที่มีอยู่เดิมของคุณจะใช้งานไม่ได้อีกต่อไป";
+"USERNAME_LINK_QR_CODE_VIEW_RESET_SHEET_MESSAGE" = "หากคุณรีเซ็ตคิวอาร์โค้ดและลิงก์ คิวอาร์โค้ดและลิงก์ที่มีอยู่เดิมของคุณจะใช้งานไม่ได้อีกต่อไป";
 
-/* A label indicating that the username link is being reset. */
-"USERNAME_LINK_QR_CODE_VIEW_RESETTING_LINK_LABEL" = "กำลังรีเซ็ตลิงก์…";
+/* Text presenting an action sheet notifying the user their QR code and link were reset. */
+"USERNAME_LINK_QR_CODE_VIEW_RESET_SUCCESSFUL" = "รีเซ็ตคิวอาร์โค้ดและลิงก์ของคุณแล้ว และสร้างคิวอาร์โค้ดและลิงก์ใหม่เรียบร้อยแล้ว";
 
 /* Title for a button to share your username link QR code. Lowercase styling is intentional. */
 "USERNAME_LINK_QR_CODE_VIEW_SHARE_BUTTON" = "แบ่งปัน";
@@ -7585,6 +8146,9 @@
 /* Text presented in a toast notifying the user that their username was copied to the system clipboard. */
 "USERNAME_LINK_QR_CODE_VIEW_USERNAME_COPIED" = "คัดลอกชื่อผู้ใช้แล้ว";
 
+/* Text presented in a toast notifying the user that their username link was copied to the system clipboard. */
+"USERNAME_LINK_QR_CODE_VIEW_USERNAME_LINK_COPIED" = "คัดลอกลิงก์แล้ว";
+
 /* Text providing instructions on how to use the username link QR code scanning. */
 "USERNAME_LINK_SCAN_QR_CODE_INSTRUCTIONS_LABEL" = "สแกนคิวอาร์โค้ดบนอุปกรณ์ของผู้ติดต่อของคุณ";
 
@@ -7593,6 +8157,9 @@
 
 /* Text describing what you can do with a username link, on a sheet for sharing it. */
 "USERNAME_LINK_SHARE_SHEET_HEADER" = "ทุกคนที่มีลิงก์นี้จะสามารถมองเห็นชื่อผู้ใช้ของคุณและเริ่มแชทกับคุณได้ เราขอแนะนำให้แชร์ลิงก์นี้กับคนที่คุณไว้วางใจเท่านั้น";
+
+/* Title for a button to open a sheet for copying and sharing your username link. */
+"USERNAME_LINK_SHEET_BUTTON" = "ลิงก์";
 
 /* Subtitle for a tooltip describing ways to share your username. */
 "USERNAME_LINK_TOOLTIP_SUBTITLE" = "แชร์คิวอาร์โค้ดหรือลิงก์เฉพาะเพื่อให้ผู้ติดต่อเริ่มแชทกับคุณได้";
@@ -7618,6 +8185,12 @@
 /* Title for an action sheet indicating that the given username is not associated with a registered Signal account. */
 "USERNAME_LOOKUP_NOT_FOUND_TITLE" = "ไม่พบผู้ใช้";
 
+/* Instructions that appear below the username QR code on a sharable exported image. */
+"USERNAME_QR_CODE_EXPORT_INSTRUCTIONS" = "ใช้มือถือสแกนคิวอาร์โค้ดนี้เพื่อพูดคุยกับฉันบน Signal";
+
+/* A message in a toast informing the user their username, link, and QR code have successfully been reset. Embeds {{ the user's new username }}. */
+"USERNAME_RESET_SUCCESSFUL_TOAST" = "รีเซ็ตคิวอาร์โค้ดและลิงก์ของคุณเรียบร้อยแล้ว โดยชื่อผู้ใช้ของคุณคือ %1$@";
+
 /* An error message shown when the user has typed a username that starts with a digit, which is invalid. */
 "USERNAME_SELECTION_CANNOT_START_WITH_DIGIT_ERROR_MESSAGE" = "ชื่อผู้ใช้ต้องไม่ขึ้นต้นด้วยตัวเลข";
 
@@ -7625,13 +8198,16 @@
 "USERNAME_SELECTION_CHANGE_USERNAME_CONFIRMATION_MESSAGE" = "การเปลี่ยนชื่อผู้ใช้จะทำให้คิวอาร์โค้ดและลิงก์ที่มีอยู่เดิมของคุณถูกรีเซ็ต ต้องการดำเนินการต่อหรือไม่";
 
 /* Footer text below a text field in which users type their desired username, which explains how usernames work. Embeds a {{ \"learn more\" link. }}. */
-"USERNAME_SELECTION_EXPLANATION_FOOTER_FORMAT" = "ชื่อผู้ใช้จะช่วยให้ผู้ใช้รายอื่นส่งข้อความหาคุณได้โดยไม่จำเป็นต้องมีหมายเลขโทรศัพท์ของคุณ ชื่อผู้ใช้จะถูกผูกเข้ากับกลุ่มตัวเลขเพื่อช่วยรักษาความเป็นส่วนตัวของข้อมูลคุณ %1$@";
+"USERNAME_SELECTION_EXPLANATION_FOOTER_FORMAT" = "ชื่อผู้ใช้จะต้องมีชุดตัวเลขร่วมด้วยเสมอ %1$@";
 
 /* When the user has entered text into a text field for setting their username, a header displays the username text. This string is shown in the header when the text field is empty. */
 "USERNAME_SELECTION_HEADER_TEXT_FOR_PLACEHOLDER" = "เลือกชื่อผู้ใช้";
 
 /* An error message shown when the user has typed a username that has invalid characters. The character ranges \"a-z\", \"0-9\", \"_\" should not be translated, as they are literal. */
 "USERNAME_SELECTION_INVALID_CHARACTERS_ERROR_MESSAGE" = "ชื่อผู้ใช้จะมีได้เฉพาะ a-z, 0-9 และ _";
+
+/* An error message shown when the user has typed an invalid discriminator for their username. */
+"USERNAME_SELECTION_INVALID_DISCRIMINATOR_ERROR_MESSAGE" = "ชื่อผู้ใช้ไม่ถูกต้อง ต้องกรอกตัวเลขอย่างน้อย 2 หลัก";
 
 /* The message of a sheet that pops up when the user taps \"Learn More\" in text that explains how usernames work. This message help explain that the automatically-generated numeric suffix of their username helps keep their username private, to avoid them being contacted by people by whom they don't want to be contacted. */
 "USERNAME_SELECTION_LEARN_MORE_ACTION_SHEET_MESSAGE" = "ตัวเลขนี้จะช่วยรักษาความเป็นส่วนตัวให้ชื่อผู้ใช้ของคุณ ป้องกันไม่ให้คุณได้รับข้อความที่ไม่พึงประสงค์ เราขอแนะนำให้แชร์ชื่อผู้ใช้ของคุณเฉพาะกับคนและกลุ่มที่คุณอยากติดต่อด้วยเท่านั้น โดยหากเปลี่ยนชื่อผู้ใช้ คุณก็จะได้รับชุดตัวเลขใหม่";
@@ -7642,14 +8218,20 @@
 /* An error message shown when the user wants to set their username to an unavailable value. */
 "USERNAME_SELECTION_NOT_AVAILABLE_ERROR_MESSAGE" = "ไม่สามารถใช้ชื่อผู้ใช้นี้ได้";
 
+/* An error message shown when the user has attempted too many username reservations. */
+"USERNAME_SELECTION_RESERVATION_RATE_LIMITED_ERROR_MESSAGE" = "คุณลองตั้งชื่อหลายครั้งเกินไป โปรดลองใหม่ในภายหลัง";
+
 /* The placeholder for a text field into which users can type their desired username. */
 "USERNAME_SELECTION_TEXT_FIELD_PLACEHOLDER" = "ชื่อผู้ใช้";
 
 /* The title for the username selection view. */
 "USERNAME_SELECTION_TITLE" = "ชื่อผู้ใช้";
 
-/* An error message shown when the user has typed a username that is below the minimum character limit. Embeds {{ %1$@ the minimum character count }}. */
-"USERNAME_SELECTION_TOO_SHORT_ERROR_MESSAGE" = "ชื่อผู้ใช้ต้องมีอักขระอย่างน้อย %1$@ ตัว";
+/* An error message shown when the user has typed '00' as their discriminator for their username. */
+"USERNAME_SELECTION_ZERO_DISCRIMINATOR_ERROR_MESSAGE" = "ไม่สามารถใช้ตัวเลข 00 ได้ โปรดกรอกตัวเลข 1–9";
+
+/* An error message indicating that a usernames-related requeset failed because of a network error. */
+"USERNAMES_REMOTE_MUTATION_ERROR_DESCRIPTION" = "สามารถอัปเดตชื่อผู้ใช้เมื่ออุปกรณ์เชื่อมต่อกับอินเทอร์เน็ตอยู่เท่านั้น";
 
 /* error label near a field */
 "VALIDATION_ERROR_CANNOT_BE_BLANK" = "เว้นว่างชื่ออุปกรณ์ไม่ได้";
@@ -7679,7 +8261,7 @@
 "VERIFY_PRIVACY_MULTIPLE" = "ตรวจสอบหมายเลขความปลอดภัย";
 
 /* Instructions for verifying your safety number. Embeds {{contact's name}} */
-"VERIFY_SAFETY_NUMBER_INSTRUCTIONS" = "To verify end-to-end encryption with %1$@, compare the numbers above with their device. You can also scan the code on their device.";
+"VERIFY_SAFETY_NUMBER_INSTRUCTIONS" = "เพื่อยืนยันว่าการติดต่อสื่อสารกับ %1$@ ถูกเข้ารหัสตั้งแต่ต้นทางถึงปลายทาง ให้เปรียบเทียบหมายเลขด้านบนนี้กับหมายเลขบนอุปกรณ์ของคนคนนั้นว่าตรงกันหรือไม่ นอกจากนี้ คุณยังสามารถสแกนรหัสจากบนอุปกรณ์ของผู้ติดต่อได้อีกด้วย";
 
 /* Toast alert text shown when tapping on a video that cannot be played. */
 "VIDEO_BROKEN" = "ไม่สามารถเล่นวิดีโอนี้ได้";
@@ -7705,6 +8287,9 @@
 /* View the story of a group or user */
 "VIEW_STORY" = "ดูสตอรี่";
 
+/* Accessibility label for placing a voice call */
+"VOICE_CALL_LABEL" = "โทรเสียง";
+
 /* Indicates how to cancel a voice message. */
 "VOICE_MESSAGE_CANCEL_INSTRUCTIONS" = "เลื่อนเพื่อยกเลิก";
 
@@ -7716,6 +8301,9 @@
 
 /* Activity indicator title, shown upon returning to the device manager, until you complete the provisioning process on desktop */
 "WAITING_TO_COMPLETE_DEVICE_LINK_TEXT" = "ตั้งค่าให้เสร็จสมบูรณ์บน Signal Desktop";
+
+/* Accessibility label for gradient wallpaper swatch, naming the two colors in the gradient. {{ Embeds the names of the two colors in the gradient }} */
+"WALLPAPER_GRADIENT_COLORS_ACCESSIBILITY_LABEL" = "ไล่สี %1$@ และ %2$@";
 
 /* Placeholder text for header of the wallpaper mini preview */
 "WALLPAPER_MINI_PREVIEW_CONTACT_NAME" = "ชื่อผู้ติดต่อ";

@@ -3,11 +3,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
 import SignalServiceKit
 import SignalUI
 
-fileprivate extension AllMediaFileType {
+fileprivate extension AllMediaCategory {
     var titleString: String {
         switch self {
         case .photoVideo:
@@ -32,8 +31,8 @@ protocol MediaGalleryPrimaryViewController: UIViewController {
     func didEndSelectMode()
     func deleteSelectedItems()
     func shareSelectedItems(_ sender: Any)
-    var fileType: AllMediaFileType { get }
-    func set(fileType: AllMediaFileType, isGridLayout: Bool)
+    var mediaCategory: AllMediaCategory { get }
+    func set(mediaCategory: AllMediaCategory, isGridLayout: Bool)
 }
 
 public class MediaGalleryAccessoriesHelper {
@@ -60,7 +59,7 @@ public class MediaGalleryAccessoriesHelper {
         }
     }
 
-    private var lastUsedLayoutMap = [AllMediaFileType: Layout]()
+    private var lastUsedLayoutMap = [AllMediaCategory: Layout]()
     private var _layout = Layout.grid
     private var layout: Layout {
         get {
@@ -74,17 +73,17 @@ public class MediaGalleryAccessoriesHelper {
 
             switch layout {
             case .list:
-                viewController.set(fileType: viewController.fileType, isGridLayout: false)
+                viewController.set(mediaCategory: viewController.mediaCategory, isGridLayout: false)
             case .grid:
-                viewController.set(fileType: viewController.fileType, isGridLayout: true)
+                viewController.set(mediaCategory: viewController.mediaCategory, isGridLayout: true)
             }
         }
     }
 
     private lazy var headerView: UISegmentedControl = {
         let items = [
-            AllMediaFileType.photoVideo,
-            AllMediaFileType.audio
+            AllMediaCategory.photoVideo,
+            AllMediaCategory.audio
         ].map { $0.titleString }
         let segmentedControl = UISegmentedControl(items: items)
         segmentedControl.selectedSegmentTintColor = .init(dynamicProvider: { _ in
@@ -110,7 +109,7 @@ public class MediaGalleryAccessoriesHelper {
 
         headerView.sizeToFit()
         var frame = headerView.frame
-        frame.size.width += CGFloat(AllMediaFileType.allCases.count) * 20.0
+        frame.size.width += CGFloat(AllMediaCategory.allCases.count) * 20.0
         headerView.frame = frame
         viewController.navigationItem.titleView = headerView
 
@@ -147,11 +146,6 @@ public class MediaGalleryAccessoriesHelper {
 
         var uiAction: UIAction {
             return UIAction(title: title, image: icon, state: state) { _ in handler() }
-        }
-
-        @available(iOS, deprecated: 14.0)
-        var uiAlertAction: UIAlertAction {
-            return UIAlertAction(title: title, style: .default) { _ in handler() }
         }
     }
 
@@ -192,11 +186,9 @@ public class MediaGalleryAccessoriesHelper {
             return
         }
         if isInBatchSelectMode {
-            viewController.navigationItem.rightBarButtonItem = UIBarButtonItem(
-                barButtonSystemItem: .cancel,
-                target: self,
-                action: #selector(didCancelSelect)
-            )
+            viewController.navigationItem.rightBarButtonItem = .cancelButton { [weak self] in
+                self?.didCancelSelect()
+            }
         } else {
             viewController.navigationItem.rightBarButtonItem = nil // TODO: Search
         }
@@ -213,8 +205,7 @@ public class MediaGalleryAccessoriesHelper {
         isInBatchSelectMode = true
     }
 
-    @objc
-    private func didCancelSelect(_ sender: Any) {
+    private func didCancelSelect() {
         endSelectMode()
     }
 
@@ -238,63 +229,25 @@ public class MediaGalleryAccessoriesHelper {
     }
 
     private lazy var filterButton: UIBarButtonItem = {
-        let chevronImage = UIImage(imageLiteralResourceName: "chevron-down-compact-bold")
-        let button: UIButton
-
         let (buttonTitle, menuItems) = filterMenuItemsAndCurrentValue()
 
-        if #available(iOS 15, *) {
-            var configuration = UIButton.Configuration.plain()
-            configuration.imagePlacement = .trailing
-            configuration.image = chevronImage
-            configuration.imagePadding = 4
-            configuration.attributedTitle = AttributedString(buttonTitle)
+        var configuration = UIButton.Configuration.plain()
+        configuration.imagePlacement = .trailing
+        configuration.image = UIImage(imageLiteralResourceName: "chevron-down-compact-bold")
+        configuration.imagePadding = 4
+        configuration.attributedTitle = AttributedString(buttonTitle)
 
-            button = UIButton(configuration: configuration, primaryAction: nil)
-            button.menu = menuItems.menu(with: .singleSelection)
-            button.showsMenuAsPrimaryAction = true
-        } else {
-            button = UIButton(type: .system)
-            button.setAttributedTitle(buttonTitle, for: .normal)
-            button.titleLabel?.adjustsFontForContentSizeCategory = true
-            button.setImage(chevronImage, for: .normal)
-            button.setPaddingBetweenImageAndText(to: 4, isRightToLeft: !CurrentAppContext().isRTL)
-            button.semanticContentAttribute = CurrentAppContext().isRTL ? .forceLeftToRight : .forceRightToLeft
-            if #available(iOS 14, *) {
-                button.menu = menuItems.menu()
-                button.showsMenuAsPrimaryAction = true
-            } else {
-                button.addTarget(self, action: #selector(showFilterMenu), for: .touchUpInside)
-            }
-        }
+        let button = UIButton(configuration: configuration, primaryAction: nil)
+        button.menu = menuItems.menu(with: .singleSelection)
+        button.showsMenuAsPrimaryAction = true
         return UIBarButtonItem(customView: button)
     }()
-
-    @available(iOS, deprecated: 14.0)
-    @objc
-    private func showFilterMenu(_ sender: Any) {
-        guard let viewController else { return }
-
-        let actionSheet = UIAlertController(title: nil, message: nil, preferredStyle: .actionSheet)
-        for action in filterMenuItemsAndCurrentValue().items.map({ $0.uiAlertAction}) {
-            actionSheet.addAction(action)
-        }
-        actionSheet.addAction(UIAlertAction(title: CommonStrings.cancelButton, style: .cancel))
-        viewController.present(actionSheet, animated: true, completion: nil)
-    }
-
-    @objc
-    private func disableFiltering(_ sender: Any) {
-        viewController?.disableFiltering()
-    }
 
     func updateFilterButton() {
         if let button = filterButton.customView as? UIButton {
             let (buttonTitle, menuItems) = filterMenuItemsAndCurrentValue()
             button.setAttributedTitle(buttonTitle, for: .normal)
-            if #available(iOS 14, *) {
-                button.menu = menuItems.menu()
-            }
+            button.menu = menuItems.menu()
             button.sizeToFit()
         }
     }
@@ -324,63 +277,26 @@ public class MediaGalleryAccessoriesHelper {
     }
 
     private func createLayoutPickerMenu(checkedLayout: Layout) -> UIMenu {
-        var options = UIMenu.Options()
-        if #available(iOS 15, *) {
-            options = .singleSelection
-        }
         let menuItems = [
             gridMenuItem(isChecked: checkedLayout == .grid),
             listMenuItem(isChecked: checkedLayout == .list)
         ]
-        return menuItems.menu(with: options)
+        return menuItems.menu(with: .singleSelection)
     }
 
-    private lazy var listViewButton: UIBarButtonItem = {
-        guard #available(iOS 14, *) else {
-            return UIBarButtonItem(
-                image: UIImage(imageLiteralResourceName: "list-bullet"),
-                style: .plain,
-                target: self,
-                action: #selector(presentLayoutPicker)
-            )
-        }
-        return UIBarButtonItem(
-            title: nil,
-            image: UIImage(imageLiteralResourceName: "list-bullet"),
-            primaryAction: nil,
-            menu: createLayoutPickerMenu(checkedLayout: .list)
-        )
-    }()
+    private lazy var listViewButton: UIBarButtonItem = UIBarButtonItem(
+        title: nil,
+        image: UIImage(imageLiteralResourceName: "list-bullet"),
+        primaryAction: nil,
+        menu: createLayoutPickerMenu(checkedLayout: .list)
+    )
 
-    private lazy var gridViewButton: UIBarButtonItem = {
-        guard #available(iOS 14, *) else {
-            return UIBarButtonItem(
-                image: UIImage(imageLiteralResourceName: "grid-square"),
-                style: .plain,
-                target: self,
-                action: #selector(presentLayoutPicker)
-            )
-        }
-        return UIBarButtonItem(
-            title: nil,
-            image: UIImage(imageLiteralResourceName: "grid-square"),
-            primaryAction: nil,
-            menu: createLayoutPickerMenu(checkedLayout: .grid)
-        )
-    }()
-
-    @objc
-    @available(iOS, deprecated: 14.0)
-    private func presentLayoutPicker(_ sender: Any) {
-        guard let viewController else { return }
-
-        let actionSheet = UIAlertController(title: nil, message: nil, preferredStyle: .actionSheet)
-        for action in [ gridMenuItem(isChecked: false), listMenuItem(isChecked: false) ] {
-            actionSheet.addAction(action.uiAlertAction)
-        }
-        actionSheet.addAction(UIAlertAction(title: CommonStrings.cancelButton, style: .cancel))
-        viewController.present(actionSheet, animated: true, completion: nil)
-    }
+    private lazy var gridViewButton: UIBarButtonItem = UIBarButtonItem(
+        title: nil,
+        image: UIImage(imageLiteralResourceName: "grid-square"),
+        primaryAction: nil,
+        menu: createLayoutPickerMenu(checkedLayout: .grid)
+    )
 
     // MARK: - Footer
 
@@ -414,11 +330,11 @@ public class MediaGalleryAccessoriesHelper {
     }
 
     private var isGridViewAllowed: Bool {
-        return fileType.supportsGridView
+        return mediaCategory.supportsGridView
     }
 
     private var currentFileTypeSupportsFiltering: Bool {
-        switch AllMediaFileType(rawValue: headerView.selectedSegmentIndex) {
+        switch AllMediaCategory(rawValue: headerView.selectedSegmentIndex) {
         case .audio:
             return false
         case .photoVideo:
@@ -432,13 +348,12 @@ public class MediaGalleryAccessoriesHelper {
         guard footerBarState != .hidden else { return }
 
         let fixedSpace = { return UIBarButtonItem(barButtonSystemItem: .fixedSpace, target: nil, action: nil) }
-        let flexibleSpace = { return UIBarButtonItem(barButtonSystemItem: .flexibleSpace, target: nil, action: nil) }
         let footerBarItems: [UIBarButtonItem]? = {
             switch footerBarState {
             case .hidden:
                 return nil
             case .selection:
-                return [ shareButton, flexibleSpace(), selectionInfoButton, flexibleSpace(), deleteButton ]
+                return [ shareButton, .flexibleSpace(), selectionInfoButton, .flexibleSpace(), deleteButton ]
             case .regular:
                 let firstItem: UIBarButtonItem
                 if isGridViewAllowed {
@@ -451,9 +366,9 @@ public class MediaGalleryAccessoriesHelper {
                 }
                 return [
                     firstItem,
-                    flexibleSpace(),
+                    .flexibleSpace(),
                     currentFileTypeSupportsFiltering ? filterButton : fixedSpace(),
-                    flexibleSpace(),
+                    .flexibleSpace(),
                     selectButton
                 ]
             }
@@ -531,11 +446,12 @@ public class MediaGalleryAccessoriesHelper {
 
     // MARK: - Delete
 
-    private lazy var deleteButton = UIBarButtonItem(
-        image: Theme.iconImage(.buttonDelete),
+    private lazy var deleteButton = UIBarButtonItem.button(
+        icon: .buttonDelete,
         style: .plain,
-        target: self,
-        action: #selector(didPressDelete)
+        action: { [weak self] in
+            self?.didPressDelete()
+        }
     )
 
     private func updateDeleteButton() {
@@ -543,8 +459,7 @@ public class MediaGalleryAccessoriesHelper {
         deleteButton.isEnabled = viewController.hasSelection
     }
 
-    @objc
-    private func didPressDelete(_ sender: Any) {
+    private func didPressDelete() {
         Logger.debug("")
         viewController?.deleteSelectedItems()
     }
@@ -613,31 +528,31 @@ public class MediaGalleryAccessoriesHelper {
         selectionInfoButton.customView?.sizeToFit()
     }
 
-    private var fileType: AllMediaFileType {
-        return AllMediaFileType(rawValue: headerView.selectedSegmentIndex) ?? .photoVideo
+    private var mediaCategory: AllMediaCategory {
+        return AllMediaCategory(rawValue: headerView.selectedSegmentIndex) ?? .defaultValue
     }
 
     @objc
     private func segmentedControlValueChanged(_ sender: UISegmentedControl) {
-        if let fileType = AllMediaFileType(rawValue: sender.selectedSegmentIndex) {
-            if let previousFileType = viewController?.fileType {
-                lastUsedLayoutMap[previousFileType] = layout
+        if let mediaCategory = AllMediaCategory(rawValue: sender.selectedSegmentIndex) {
+            if let previousMediaCategory = viewController?.mediaCategory {
+                lastUsedLayoutMap[previousMediaCategory] = layout
             }
-            if fileType.supportsGridView {
+            if mediaCategory.supportsGridView {
                 // Return to the previous mode
-                _layout = lastUsedLayoutMap[fileType, default: .grid]
+                _layout = lastUsedLayoutMap[mediaCategory, default: .grid]
             } else if layout == .grid {
                 // This file type requires a switch to list mode
                 _layout = .list
             }
             updateBottomToolbarControls()
-            viewController?.set(fileType: fileType, isGridLayout: layout == .grid)
+            viewController?.set(mediaCategory: mediaCategory, isGridLayout: layout == .grid)
         }
     }
 }
 
-extension AllMediaFileType {
-    static var defaultValue = AllMediaFileType.photoVideo
+extension AllMediaCategory {
+    static var defaultValue = AllMediaCategory.photoVideo
 
     var supportsGridView: Bool {
         switch self {

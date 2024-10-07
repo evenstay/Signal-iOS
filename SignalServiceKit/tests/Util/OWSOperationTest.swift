@@ -5,13 +5,11 @@
 
 import Foundation
 import XCTest
-import SignalCoreKit
 
 @testable import SignalServiceKit
 
 class OWSOperationTest: XCTestCase {
-
-    private class TestOperation: OWSOperation {
+    private class TestOperation: OWSOperation, @unchecked Sendable {
         let expectation: XCTestExpectation
 
         init(expectation: XCTestExpectation) {
@@ -62,18 +60,5 @@ class OWSOperationTest: XCTestCase {
         operation.reportError(BarError.bar)
 
         waitForExpectations(timeout: 0.1, handler: nil)
-    }
-
-    // MARK: -
-
-    func test_retryInterval() {
-        var totalInterval: TimeInterval = 0
-        for failureCount: UInt in 0..<110 {
-            let retryInterval: TimeInterval = OWSOperation.retryIntervalForExponentialBackoff(failureCount: failureCount)
-            totalInterval += retryInterval
-            let formattedTotal = OWSFormat.formatDurationSeconds(Int(totalInterval))
-            Logger.info("failureCount: \(failureCount), retryInterval: \(retryInterval), totalInterval: \(totalInterval) (\(formattedTotal))")
-        }
-        Logger.flush()
     }
 }

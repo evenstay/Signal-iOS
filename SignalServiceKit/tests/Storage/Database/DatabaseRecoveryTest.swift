@@ -9,37 +9,41 @@ import XCTest
 
 @testable import SignalServiceKit
 
-final class DatabaseRecoveryTest: SSKBaseTestSwift {
+final class DatabaseRecoveryTest: SSKBaseTest {
     // MARK: - Setup
+
+    private var keychainStorage: MockKeychainStorage!
 
     override func setUp() {
         super.setUp()
+        self.keychainStorage = MockKeychainStorage()
         Self.databaseStorage.write { tx in
             (DependenciesBridge.shared.registrationStateChangeManager as! RegistrationStateChangeManagerImpl).registerForTests(
-                localIdentifiers: .init(
-                    aci: .init(fromUUID: .init()),
-                    pni: .init(fromUUID: .init()),
-                    phoneNumber: "+12225550101"
-                ),
+                localIdentifiers: .forUnitTests,
                 tx: tx.asV2Write
             )
         }
     }
 
+    private func cloneDatabaseStorage(_ databaseStorage: SDSDatabaseStorage) throws -> SDSDatabaseStorage {
+        return try SDSDatabaseStorage(
+            appReadiness: AppReadinessMock(),
+            databaseFileUrl: databaseStorage.databaseFileUrl,
+            keychainStorage: keychainStorage
+        )
+    }
+
     // MARK: - Rebuild existing database
 
     func testRebuildExistingDatabase() throws {
-        let (databaseStorage, url) = database()
+        let databaseStorage = try newDatabase(keychainStorage: keychainStorage)
         try GRDBSchemaMigrator.migrateDatabase(databaseStorage: databaseStorage, isMainDatabase: false)
         try XCTUnwrap(databaseStorage.grdbStorage.pool.close())
 
-        DatabaseRecovery.rebuildExistingDatabase(at: url)
+        DatabaseRecovery.rebuildExistingDatabase(databaseStorage: try cloneDatabaseStorage(databaseStorage))
 
         // As a smoke test, ensure that the database is still empty.
-        let finishedDatabaseStorage = SDSDatabaseStorage(
-            databaseFileUrl: url,
-            delegate: DatabaseTestHelpers.TestSDSDatabaseStorageDelegate()
-        )
+        let finishedDatabaseStorage = try cloneDatabaseStorage(databaseStorage)
         finishedDatabaseStorage.read { transaction in
             let database = transaction.unwrapGrdbRead.database
             for tableName in allNormalTableNames(transaction: transaction) {
@@ -69,7 +73,7 @@ final class DatabaseRecoveryTest: SSKBaseTestSwift {
         }
 
         let expectedTableNames: Set<String> = try {
-            let (databaseStorage, _) = database()
+            let databaseStorage = try newDatabase(keychainStorage: keychainStorage)
             try GRDBSchemaMigrator.migrateDatabase(databaseStorage: databaseStorage, isMainDatabase: false)
             return databaseStorage.read { allNormalTableNames(transaction: $0) }
         }()
@@ -77,7 +81,7 @@ final class DatabaseRecoveryTest: SSKBaseTestSwift {
     }
 
     func testColumnSafety() throws {
-        let (databaseStorage, _) = database()
+        let databaseStorage = try newDatabase(keychainStorage: keychainStorage)
         let tableNames: Set<String> = try {
             try GRDBSchemaMigrator.migrateDatabase(databaseStorage: databaseStorage, isMainDatabase: false)
             return databaseStorage.read { allNormalTableNames(transaction: $0) }
@@ -95,16 +99,21 @@ final class DatabaseRecoveryTest: SSKBaseTestSwift {
     }
 
     func testDumpAndRestoreOfEmptyDatabase() throws {
-        let (databaseStorage, url) = database()
+        let databaseStorage = try newDatabase(keychainStorage: keychainStorage)
         try GRDBSchemaMigrator.migrateDatabase(databaseStorage: databaseStorage, isMainDatabase: false)
         try XCTUnwrap(databaseStorage.grdbStorage.pool.close())
 
-        let dump = DatabaseRecovery.DumpAndRestore(databaseFileUrl: url)
+        let dump = DatabaseRecovery.DumpAndRestore(
+            appReadiness: AppReadinessMock(),
+            corruptDatabaseStorage: try cloneDatabaseStorage(databaseStorage),
+            keychainStorage: keychainStorage
+        )
         try XCTUnwrap(dump.run())
 
-        let finishedDatabaseStorage = SDSDatabaseStorage(
-            databaseFileUrl: url,
-            delegate: DatabaseTestHelpers.TestSDSDatabaseStorageDelegate()
+        let finishedDatabaseStorage = try SDSDatabaseStorage(
+            appReadiness: AppReadinessMock(),
+            databaseFileUrl: databaseStorage.databaseFileUrl,
+            keychainStorage: keychainStorage
         )
         finishedDatabaseStorage.read { transaction in
             let database = transaction.unwrapGrdbRead.database
@@ -120,7 +129,7 @@ final class DatabaseRecoveryTest: SSKBaseTestSwift {
     }
 
     func testDumpAndRestoreOnHappyDatabase() throws {
-        let (databaseStorage, url) = database()
+        let databaseStorage = try newDatabase(keychainStorage: keychainStorage)
         try GRDBSchemaMigrator.migrateDatabase(databaseStorage: databaseStorage, isMainDatabase: false)
 
         let contactAci = Aci.randomForTesting()
@@ -142,12 +151,12 @@ final class DatabaseRecoveryTest: SSKBaseTestSwift {
             }
 
             // Message
-            let messageBuilder = TSIncomingMessageBuilder.incomingMessageBuilder(
+            let messageBuilder: TSIncomingMessageBuilder = .withDefaultValues(
                 thread: contactThread,
+                timestamp: 1234,
+                authorAci: contactAci,
                 messageBody: "test outgoing message"
             )
-            messageBuilder.timestamp = 1234
-            messageBuilder.authorAci = AciObjC(contactAci)
             let message = messageBuilder.build()
             message.anyInsert(transaction: transaction)
 
@@ -174,12 +183,17 @@ final class DatabaseRecoveryTest: SSKBaseTestSwift {
 
         try XCTUnwrap(databaseStorage.grdbStorage.pool.close())
 
-        let dump = DatabaseRecovery.DumpAndRestore(databaseFileUrl: url)
+        let dump = DatabaseRecovery.DumpAndRestore(
+            appReadiness: AppReadinessMock(),
+            corruptDatabaseStorage: try cloneDatabaseStorage(databaseStorage),
+            keychainStorage: keychainStorage
+        )
         try XCTUnwrap(dump.run())
 
-        let finishedDatabaseStorage = SDSDatabaseStorage(
-            databaseFileUrl: url,
-            delegate: DatabaseTestHelpers.TestSDSDatabaseStorageDelegate()
+        let finishedDatabaseStorage = try SDSDatabaseStorage(
+            appReadiness: AppReadinessMock(),
+            databaseFileUrl: databaseStorage.databaseFileUrl,
+            keychainStorage: keychainStorage
         )
         finishedDatabaseStorage.read { transaction in
             // Thread
@@ -196,8 +210,12 @@ final class DatabaseRecoveryTest: SSKBaseTestSwift {
             let threadInteractions: [TSInteraction] = {
                 var result = [TSInteraction]()
                 let finder = InteractionFinder(threadUniqueId: thread.uniqueId)
-                try? finder.enumerateRecentInteractions(transaction: transaction) { interaction, _ in
+                try? finder.enumerateInteractionsForConversationView(
+                    rowIdFilter: .newest,
+                    tx: transaction
+                ) { interaction -> Bool in
                     result.append(interaction)
+                    return true
                 }
                 return result
             }()
@@ -237,14 +255,18 @@ final class DatabaseRecoveryTest: SSKBaseTestSwift {
     }
 
     func testDumpAndRestoreWithInvalidEssentialTable() throws {
-        let (databaseStorage, url) = database()
+        let databaseStorage = try newDatabase(keychainStorage: keychainStorage)
         try GRDBSchemaMigrator.migrateDatabase(databaseStorage: databaseStorage, isMainDatabase: false)
         databaseStorage.write { transaction in
             try! transaction.unwrapGrdbWrite.database.drop(table: SDSKeyValueStore.tableName)
         }
         try XCTUnwrap(databaseStorage.grdbStorage.pool.close())
 
-        let dump = DatabaseRecovery.DumpAndRestore(databaseFileUrl: url)
+        let dump = DatabaseRecovery.DumpAndRestore(
+            appReadiness: AppReadinessMock(),
+            corruptDatabaseStorage: try cloneDatabaseStorage(databaseStorage),
+            keychainStorage: keychainStorage
+        )
         XCTAssertThrowsError(try dump.run()) { error in
             XCTAssertEqual(
                 error as? DatabaseRecoveryError,
@@ -254,19 +276,24 @@ final class DatabaseRecoveryTest: SSKBaseTestSwift {
     }
 
     func testDumpAndRestoreWithInvalidNonessentialTable() throws {
-        let (databaseStorage, url) = database()
+        let databaseStorage = try newDatabase(keychainStorage: keychainStorage)
         try GRDBSchemaMigrator.migrateDatabase(databaseStorage: databaseStorage, isMainDatabase: false)
         databaseStorage.write { transaction in
             try! transaction.unwrapGrdbWrite.database.drop(table: OWSReaction.databaseTableName)
         }
         try XCTUnwrap(databaseStorage.grdbStorage.pool.close())
 
-        let dump = DatabaseRecovery.DumpAndRestore(databaseFileUrl: url)
+        let dump = DatabaseRecovery.DumpAndRestore(
+            appReadiness: AppReadinessMock(),
+            corruptDatabaseStorage: try cloneDatabaseStorage(databaseStorage),
+            keychainStorage: keychainStorage
+        )
         try XCTUnwrap(dump.run())
 
-        let finishedDatabaseStorage = SDSDatabaseStorage(
-            databaseFileUrl: url,
-            delegate: DatabaseTestHelpers.TestSDSDatabaseStorageDelegate()
+        let finishedDatabaseStorage = try SDSDatabaseStorage(
+            appReadiness: AppReadinessMock(),
+            databaseFileUrl: databaseStorage.databaseFileUrl,
+            keychainStorage: keychainStorage
         )
         finishedDatabaseStorage.read { transaction in
             let sql = "SELECT EXISTS (SELECT 1 FROM \(OWSReaction.databaseTableName))"
@@ -282,7 +309,7 @@ final class DatabaseRecoveryTest: SSKBaseTestSwift {
     // MARK: - Manual restoration
 
     func testFullTextSearchRestoration() throws {
-        let (databaseStorage, url) = database()
+        let databaseStorage = try newDatabase(keychainStorage: keychainStorage)
         try GRDBSchemaMigrator.migrateDatabase(databaseStorage: databaseStorage, isMainDatabase: false)
 
         databaseStorage.write { transaction in
@@ -293,24 +320,29 @@ final class DatabaseRecoveryTest: SSKBaseTestSwift {
                 transaction: transaction
             )
 
-            let messageBuilder = TSIncomingMessageBuilder.incomingMessageBuilder(
+            let messageBuilder: TSIncomingMessageBuilder = .withDefaultValues(
                 thread: contactThread,
+                timestamp: 1234,
+                authorAci: contactAci,
                 messageBody: "foo bar"
             )
-            messageBuilder.timestamp = 1234
-            messageBuilder.authorAci = AciObjC(contactAci)
             let message = messageBuilder.build()
             message.anyInsert(transaction: transaction)
         }
 
         try XCTUnwrap(databaseStorage.grdbStorage.pool.close())
 
-        let dump = DatabaseRecovery.DumpAndRestore(databaseFileUrl: url)
+        let dump = DatabaseRecovery.DumpAndRestore(
+            appReadiness: AppReadinessMock(),
+            corruptDatabaseStorage: try cloneDatabaseStorage(databaseStorage),
+            keychainStorage: keychainStorage
+        )
         try XCTUnwrap(dump.run())
 
-        let finishedDatabaseStorage = SDSDatabaseStorage(
-            databaseFileUrl: url,
-            delegate: DatabaseTestHelpers.TestSDSDatabaseStorageDelegate()
+        let finishedDatabaseStorage = try SDSDatabaseStorage(
+            appReadiness: AppReadinessMock(),
+            databaseFileUrl: databaseStorage.databaseFileUrl,
+            keychainStorage: keychainStorage
         )
 
         let manualRecreation = DatabaseRecovery.ManualRecreation(databaseStorage: finishedDatabaseStorage)
@@ -319,13 +351,11 @@ final class DatabaseRecoveryTest: SSKBaseTestSwift {
         finishedDatabaseStorage.read { transaction in
             func searchMessages(for searchText: String) -> [TSMessage] {
                 var result = [TSMessage]()
-                    FullTextSearchFinder.enumerateObjects(
-                    searchText: searchText,
-                    collections: [TSMessage.collection()],
+                FullTextSearchIndexer.search(
+                    for: searchText,
                     maxResults: 99,
-                    transaction: transaction
+                    tx: transaction
                 ) { match, _, _ in
-                    guard let match = match as? TSMessage else { return }
                     result.append(match)
                 }
                 return result
@@ -340,24 +370,27 @@ final class DatabaseRecoveryTest: SSKBaseTestSwift {
 
     let validTableOrColumnNameRegex = "^[a-zA-Z][a-zA-Z0-9_]+$"
 
-    func database() -> (databaseStorage: SDSDatabaseStorage, url: URL) {
-        let url = OWSFileSystem.temporaryFileUrl()
-        let databaseStorage = SDSDatabaseStorage(
-            databaseFileUrl: url,
-            delegate: DatabaseTestHelpers.TestSDSDatabaseStorageDelegate()
+    func newDatabase(keychainStorage: any KeychainStorage) throws -> SDSDatabaseStorage {
+        return try SDSDatabaseStorage(
+            appReadiness: AppReadinessMock(),
+            databaseFileUrl: OWSFileSystem.temporaryFileUrl(),
+            keychainStorage: keychainStorage
         )
-        return (databaseStorage: databaseStorage, url: url)
     }
 
     func allNormalTableNames(transaction: SDSAnyReadTransaction) -> Set<String> {
         let db = transaction.unwrapGrdbRead.database
         let sql = "SELECT name FROM sqlite_schema WHERE type IS 'table'"
         let allTableNames = Set((try? String.fetchAll(db, sql: sql)) ?? [])
-        owsAssert(!allTableNames.isEmpty, "No tables were found!")
+        owsPrecondition(!allTableNames.isEmpty, "No tables were found!")
 
         let tableNamesToSkip: Set<String> = ["grdb_migrations", "sqlite_sequence"]
         return allTableNames.filter { tableName in
-            !tableNamesToSkip.contains(tableName) && !tableName.starts(with: "indexable_text")
+            return (
+                !tableNamesToSkip.contains(tableName)
+                && !tableName.starts(with: "indexable_text")
+                && !tableName.starts(with: SearchableNameIndexerImpl.Constants.databaseTableName)
+            )
         }
     }
 

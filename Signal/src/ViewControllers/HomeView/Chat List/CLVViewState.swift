@@ -6,52 +6,74 @@
 import SignalServiceKit
 import SignalUI
 
-public class CLVViewState {
-
-    public let tableDataSource = CLVTableDataSource()
-
-    public let multiSelectState = MultiSelectState()
-
-    public let loadCoordinator = CLVLoadCoordinator()
+class CLVViewState {
+    let tableDataSource = CLVTableDataSource()
+    let multiSelectState = MultiSelectState()
+    let loadCoordinator = CLVLoadCoordinator()
 
     // MARK: - Caches
 
-    public let threadViewModelCache = LRUCache<String, ThreadViewModel>(maxSize: 32)
+    let threadViewModelCache = LRUCache<String, ThreadViewModel>(maxSize: 32)
     let cellContentCache = LRUCache<String, CLVCellContentToken>(maxSize: 256)
-    public var conversationCellHeightCache: CGFloat?
+    var conversationCellHeightCache: CGFloat?
 
-    public var spoilerAnimationManager = SpoilerAnimationManager()
+    var spoilerAnimationManager = SpoilerAnimationManager()
 
     // MARK: - Views
 
-    let searchBar = OWSSearchBar()
+    private(set) lazy var searchController = UISearchController(searchResultsController: searchResultsController)
+    var searchBar: UISearchBar { searchController.searchBar }
     let searchResultsController = ConversationSearchViewController()
     let reminderViews = CLVReminderViews()
+    let settingsButtonCreator = ChatListSettingsButtonState()
+    let proxyButtonCreator = ChatListProxyButtonCreator(chatConnectionManager: DependenciesBridge.shared.chatConnectionManager)
 
     // MARK: - State
 
-    // TODO: We should make this a let.
-    var chatListMode: ChatListMode = .inbox
-
+    let chatListMode: ChatListMode
+    var inboxFilter: InboxFilter?
     var shouldBeUpdatingView = false
-
+    var shouldFocusSearchOnAppear = false
     var isViewVisible = false
     var hasEverAppeared = false
 
-    var unreadPaymentNotificationsCount: UInt = 0
+    /// Keeps track of the last presented thread so it can remain onscreen even
+    /// while filtering the chat list to only unread chats.
+    var lastSelectedThreadId: String? {
+        didSet {
+            shouldBeUpdatingView = true
+        }
+    }
+
+    var unreadPaymentNotificationsCount: UInt = 0 {
+        didSet { settingsButtonCreator.updateState(hasUnreadPaymentNotification: unreadPaymentNotificationsCount > 0) }
+    }
     var firstUnreadPaymentModel: TSPaymentModel?
     var lastKnownTableViewContentOffset: CGPoint?
 
     // MARK: - Initializer
 
-    public func configure() {
+    init(chatListMode: ChatListMode, inboxFilter: InboxFilter?) {
+        self.chatListMode = chatListMode
+        self.inboxFilter = inboxFilter
+    }
+
+    func configure() {
         tableDataSource.configure(viewState: self)
+    }
+
+    func updateViewInfo(_ viewInfo: CLVViewInfo) {
+        inboxFilter = viewInfo.inboxFilter
+        settingsButtonCreator.updateState(
+            hasInboxChats: viewInfo.inboxCount > 0,
+            hasArchivedChats: viewInfo.archiveCount > 0
+        )
     }
 }
 
 // MARK: -
 
-public extension ChatListViewController {
+extension ChatListViewController {
 
     var tableDataSource: CLVTableDataSource { viewState.tableDataSource }
 
@@ -61,7 +83,7 @@ public extension ChatListViewController {
 
     var threadViewModelCache: LRUCache<String, ThreadViewModel> { viewState.threadViewModelCache }
 
-    internal var cellContentCache: LRUCache<String, CLVCellContentToken> { viewState.cellContentCache }
+    var cellContentCache: LRUCache<String, CLVCellContentToken> { viewState.cellContentCache }
 
     var conversationCellHeightCache: CGFloat? {
         get { viewState.conversationCellHeightCache }
@@ -71,20 +93,12 @@ public extension ChatListViewController {
     // MARK: - Views
 
     var tableView: CLVTableView { tableDataSource.tableView }
-    var searchBar: OWSSearchBar { viewState.searchBar }
+    var searchBar: UISearchBar { viewState.searchBar }
     var searchResultsController: ConversationSearchViewController { viewState.searchResultsController }
 
     // MARK: - State
 
     var renderState: CLVRenderState { viewState.tableDataSource.renderState }
-
-    var numberOfInboxThreads: UInt { renderState.inboxCount }
-    var numberOfArchivedThreads: UInt { renderState.archiveCount }
-
-    var chatListMode: ChatListMode {
-        get { viewState.chatListMode }
-        set { viewState.chatListMode = newValue }
-    }
 
     var hasEverAppeared: Bool {
         get { viewState.hasEverAppeared }

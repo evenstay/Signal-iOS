@@ -3,17 +3,19 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalServiceKit
+public import SignalServiceKit
 
 extension ChatListViewController {
-
     public var isViewVisible: Bool {
         get { viewState.isViewVisible }
         set {
-            viewState.isViewVisible = newValue
-
-            updateShouldBeUpdatingView()
-            updateCellVisibility()
+            if newValue != viewState.isViewVisible {
+                viewState.isViewVisible = newValue
+                updateCellVisibility()
+                if newValue {
+                    shouldBeUpdatingView = true
+                }
+            }
         }
     }
 
@@ -25,19 +27,7 @@ extension ChatListViewController {
                 return
             }
             viewState.shouldBeUpdatingView = newValue
-
-            if newValue {
-                loadCoordinator.loadIfNecessary(suppressAnimations: true)
-            }
         }
-    }
-
-    public var hasVisibleReminders: Bool {
-        renderState.hasVisibleReminders
-    }
-
-    public var hasArchivedThreadsRow: Bool {
-        renderState.hasArchivedThreadsRow
     }
 
     // MARK: -
@@ -60,9 +50,12 @@ extension ChatListViewController {
                                              transaction: SDSAnyReadTransaction) -> CLVLoadResult {
         AssertIsOnMainThread()
 
-        return Bench(title: "loadNewRenderState") {
-            CLVLoader.loadRenderStateForReset(viewInfo: viewInfo, transaction: transaction)
-        }
+        return CLVLoader.loadRenderStateForReset(viewInfo: viewInfo, transaction: transaction)
+    }
+
+    fileprivate func copyRenderStateAndDiff(viewInfo: CLVViewInfo) -> CLVLoadResult {
+        AssertIsOnMainThread()
+        return CLVLoader.newRenderStateWithViewInfo(viewInfo, lastRenderState: renderState)
     }
 
     fileprivate func loadNewRenderStateWithDiff(viewInfo: CLVViewInfo,
@@ -70,39 +63,32 @@ extension ChatListViewController {
                                                 transaction: SDSAnyReadTransaction) -> CLVLoadResult {
         AssertIsOnMainThread()
 
-        guard !updatedThreadIds.isEmpty else {
-            owsFailDebug("Empty updatedThreadIds.")
-            // Ignoring irrelevant update.
-            return .noChanges
-        }
-
         return CLVLoader.loadRenderStateAndDiff(viewInfo: viewInfo,
                                                updatedItemIds: updatedThreadIds,
                                                lastRenderState: renderState,
                                                transaction: transaction)
     }
 
-    fileprivate func applyLoadResult(_ loadResult: CLVLoadResult,
-                                     isAnimated: Bool) {
+    fileprivate func applyLoadResult(_ loadResult: CLVLoadResult, animated: Bool) {
         AssertIsOnMainThread()
 
         switch loadResult {
         case .renderStateForReset(renderState: let renderState):
+            let previousSelection = tableDataSource.selectedThreads(in: tableView)
             tableDataSource.renderState = renderState
 
             threadViewModelCache.clear()
             cellContentCache.clear()
             conversationCellHeightCache = nil
 
-            reloadTableData()
+            reloadTableData(withSelection: previousSelection)
+
         case .renderStateWithRowChanges(renderState: let renderState, let rowChanges):
-            tableDataSource.renderState = renderState
-            applyPartialLoadResult(rowChanges: rowChanges,
-                                   isAnimated: isAnimated)
-        case .renderStateWithoutRowChanges(let renderState):
-            tableDataSource.renderState = renderState
+            applyRowChanges(rowChanges, renderState: renderState, animated: animated)
+
         case .reloadTable:
             reloadTableData()
+
         case .noChanges:
             break
         }
@@ -110,22 +96,26 @@ extension ChatListViewController {
         tableDataSource.calcRefreshTimer()
         // We need to perform this regardless of the load result type.
         updateViewState()
-        updateBarButtonItems()
+        viewState.updateViewInfo(renderState.viewInfo)
     }
 
-    fileprivate func applyPartialLoadResult(rowChanges: [CLVRowChange],
-                                            isAnimated: Bool) {
+    fileprivate func applyRowChanges(_ rowChanges: [CLVRowChange], renderState: CLVRenderState, animated: Bool) {
         AssertIsOnMainThread()
 
-        guard !rowChanges.isEmpty else {
-            owsFailDebug("Empty rowChanges.")
-            return
-        }
+        let previousRenderState = tableDataSource.renderState
+        tableDataSource.renderState = renderState
+
+        let sectionChanges = renderState.sections
+            .difference(from: previousRenderState.sections)
+            .batchedChanges()
+        let isChangingFilter = previousRenderState.viewInfo.inboxFilter != renderState.viewInfo.inboxFilter
 
         let tableView = self.tableView
         let threadViewModelCache = self.threadViewModelCache
         let cellContentCache = self.cellContentCache
-        let rowAnimation: UITableView.RowAnimation = isAnimated ? .automatic : .none
+
+        let filterChangeAnimation = animated ? UITableView.RowAnimation.fade : .none
+        let defaultRowAnimation = animated ? UITableView.RowAnimation.automatic : .none
 
         // only perform a beginUpdates/endUpdates block if really necessary, otherwise
         // strange scroll animations may occur
@@ -141,26 +131,35 @@ extension ChatListViewController {
             }
         }
 
-        // Ss soon as structural changes are applied to the table we can not use our optimized update implementation
+        // As soon as structural changes are applied to the table we can not use our optimized update implementation
         // anymore. All indexPaths are based on the old model (before any change was applied) and if we
         // animate move, insert and delete changes the indexPaths of the to be updated rows will differ.
         var useFallBackUpdateMechanism = false
-        for rowChange in rowChanges {
 
+        if !sectionChanges.removals.isEmpty {
+            checkAndSetTableUpdates()
+            tableView.deleteSections(sectionChanges.removals.offsets, with: .middle)
+            useFallBackUpdateMechanism = true
+        }
+
+        if !sectionChanges.insertions.isEmpty {
+            checkAndSetTableUpdates()
+            tableView.insertSections(sectionChanges.insertions.offsets, with: .fade)
+            useFallBackUpdateMechanism = true
+        }
+
+        for rowChange in rowChanges {
             threadViewModelCache.removeObject(forKey: rowChange.threadUniqueId)
             cellContentCache.removeObject(forKey: rowChange.threadUniqueId)
 
-            if !DebugFlags.reduceLogChatter {
-                Logger.verbose("----- \(rowChange.logSafeDescription)")
-            }
             switch rowChange.type {
             case .delete(let oldIndexPath):
                 checkAndSetTableUpdates()
-                tableView.deleteRows(at: [oldIndexPath], with: rowAnimation)
+                tableView.deleteRows(at: [oldIndexPath], with: isChangingFilter ? filterChangeAnimation : defaultRowAnimation)
                 useFallBackUpdateMechanism = true
             case .insert(let newIndexPath):
                 checkAndSetTableUpdates()
-                tableView.insertRows(at: [newIndexPath], with: rowAnimation)
+                tableView.insertRows(at: [newIndexPath], with: isChangingFilter ? filterChangeAnimation : defaultRowAnimation)
                 useFallBackUpdateMechanism = true
             case .move(let oldIndexPath, let newIndexPath):
                 // NOTE: if we're moving within the same section, we perform
@@ -175,8 +174,8 @@ extension ChatListViewController {
                 if oldIndexPath.section != newIndexPath.section {
                     tableView.moveRow(at: oldIndexPath, to: newIndexPath)
                 } else {
-                    tableView.deleteRows(at: [oldIndexPath], with: rowAnimation)
-                    tableView.insertRows(at: [newIndexPath], with: rowAnimation)
+                    tableView.deleteRows(at: [oldIndexPath], with: defaultRowAnimation)
+                    tableView.insertRows(at: [newIndexPath], with: defaultRowAnimation)
                 }
                 useFallBackUpdateMechanism = true
             case .update(let oldIndexPath):
@@ -192,10 +191,47 @@ extension ChatListViewController {
                 }
             }
         }
+
+        if !sectionChanges.updates.isEmpty {
+            checkAndSetTableUpdates()
+
+            for (_, sectionUpdate) in sectionChanges.updates {
+                guard let rowChanges = renderState
+                    .sectionDifference(for: sectionUpdate.element, from: previousRenderState)?
+                    .batchedChanges()
+                else { continue }
+
+                let sectionIndex = sectionUpdate.offset
+
+                if !rowChanges.removals.isEmpty {
+                    tableView.deleteRows(at: rowChanges.removals.indexPaths(in: sectionIndex), with: defaultRowAnimation)
+                }
+
+                if !rowChanges.insertions.isEmpty {
+                    tableView.insertRows(at: rowChanges.insertions.indexPaths(in: sectionIndex), with: defaultRowAnimation)
+                }
+
+                if !rowChanges.updates.isEmpty {
+                    if let previousSectionIndex = sectionUpdate.previousOffset, sectionIndex != previousSectionIndex {
+                        // If the section index has changed, there's a good
+                        // chance that the type of the cell has also changed
+                        // (i.e., the `reuseIdentifier` last associated with that
+                        // `indexPath`). This causes `reconfigureRows(at:)` to
+                        // raise an assertion.
+                        //
+                        // Whenever the type of cell may have changed, we have
+                        // to be conservative and reload instead of reconfiguring.
+                        tableView.reloadRows(at: rowChanges.updates.indexPaths(in: previousSectionIndex), with: defaultRowAnimation)
+                    } else {
+                        tableView.reconfigureRows(at: rowChanges.updates.indexPaths(in: sectionIndex))
+                    }
+                }
+            }
+        }
+
         if tableUpdatesPerformed {
             tableView.endUpdates()
         }
-        BenchManager.completeEvent(eventId: "uiDatabaseUpdate")
     }
 }
 
@@ -204,53 +240,70 @@ extension ChatListViewController {
 private enum CLVLoadType {
     case resetAll
     case incrementalDiff(updatedThreadIds: Set<String>)
-    case reloadTableOnly
+    case incrementalWithoutThreadUpdates
     case none
 }
 
 // MARK: -
 
 public class CLVLoadCoordinator: Dependencies {
+    private let filterStore: ChatListFilterStore
+    private var loadInfoBuilder: CLVLoadInfoBuilder
 
     public weak var viewController: ChatListViewController?
+
+    public init() {
+        self.filterStore = ChatListFilterStore()
+        self.loadInfoBuilder = CLVLoadInfoBuilder()
+        self.loadInfoBuilder.shouldResetAll = true
+    }
 
     private struct CLVLoadInfo {
         let viewInfo: CLVViewInfo
         let loadType: CLVLoadType
     }
+
     private class CLVLoadInfoBuilder {
         var shouldResetAll = false
         var updatedThreadIds = Set<String>()
 
-        func build(chatListMode: ChatListMode,
-                   hasVisibleReminders: Bool,
-                   canApplyRowChanges: Bool,
-                   lastViewInfo: CLVViewInfo,
-                   transaction: SDSAnyReadTransaction) -> CLVLoadInfo {
-            let viewInfo = CLVViewInfo.build(chatListMode: chatListMode,
-                                            hasVisibleReminders: hasVisibleReminders,
-                                            transaction: transaction)
-            if shouldResetAll ||
-                viewInfo.hasArchivedThreadsRow != lastViewInfo.hasArchivedThreadsRow ||
-                viewInfo.hasVisibleReminders != lastViewInfo.hasVisibleReminders {
+        func build(
+            loadCoordinator: CLVLoadCoordinator,
+            chatListMode: ChatListMode,
+            inboxFilter: InboxFilter?,
+            isMultiselectActive: Bool,
+            lastSelectedThreadId: String?,
+            hasVisibleReminders: Bool,
+            lastViewInfo: CLVViewInfo,
+            transaction: SDSAnyReadTransaction
+        ) -> CLVLoadInfo {
+            let inboxFilter = inboxFilter ?? loadCoordinator.filterStore.inboxFilter(transaction: transaction.asV2Read) ?? .none
+
+            let viewInfo = CLVViewInfo.build(
+                chatListMode: chatListMode,
+                inboxFilter: inboxFilter,
+                isMultiselectActive: isMultiselectActive,
+                lastSelectedThreadId: lastSelectedThreadId,
+                hasVisibleReminders: hasVisibleReminders,
+                transaction: transaction
+            )
+
+            if shouldResetAll {
                 return CLVLoadInfo(viewInfo: viewInfo, loadType: .resetAll)
-            } else if !updatedThreadIds.isEmpty {
-                if canApplyRowChanges {
-                    return CLVLoadInfo(viewInfo: viewInfo, loadType: .incrementalDiff(updatedThreadIds: updatedThreadIds))
-                } else {
-                    return CLVLoadInfo(viewInfo: viewInfo, loadType: .resetAll)
-                }
+            } else if !updatedThreadIds.isEmpty || viewInfo.inboxFilter != lastViewInfo.inboxFilter {
+                return CLVLoadInfo(viewInfo: viewInfo, loadType: .incrementalDiff(updatedThreadIds: updatedThreadIds))
             } else if viewInfo != lastViewInfo {
-                return CLVLoadInfo(viewInfo: viewInfo, loadType: .reloadTableOnly)
+                return CLVLoadInfo(viewInfo: viewInfo, loadType: .incrementalWithoutThreadUpdates)
             } else {
                 return CLVLoadInfo(viewInfo: viewInfo, loadType: .none)
             }
         }
     }
-    private var loadInfoBuilder = CLVLoadInfoBuilder()
 
-    public required init() {
-        loadInfoBuilder.shouldResetAll = true
+    public func saveInboxFilter(_ inboxFilter: InboxFilter) {
+        databaseStorage.asyncWrite { [filterStore] transaction in
+            filterStore.setInboxFilter(inboxFilter, transaction: transaction.asV2Write)
+        }
     }
 
     public func scheduleHardReset() {
@@ -261,16 +314,13 @@ public class CLVLoadCoordinator: Dependencies {
         loadIfNecessary()
     }
 
-    public func scheduleLoad(updatedThreadIds: Set<String>) {
+    public func scheduleLoad(updatedThreadIds: some Collection<String>, animated: Bool = true) {
         AssertIsOnMainThread()
         owsAssertDebug(!updatedThreadIds.isEmpty)
 
-        if DebugFlags.internalLogging {
-            Logger.info("[Scroll Perf Debug] 'Other' updateThreadIds to make union with (count \(loadInfoBuilder.updatedThreadIds.count)): \(loadInfoBuilder.updatedThreadIds)")
-        }
         loadInfoBuilder.updatedThreadIds.formUnion(updatedThreadIds)
 
-        loadIfNecessary()
+        loadIfNecessary(suppressAnimations: !animated)
     }
 
     public func ensureFirstLoad() {
@@ -311,8 +361,7 @@ public class CLVLoadCoordinator: Dependencies {
         }
     }
 
-    public func loadIfNecessary(suppressAnimations: Bool = false,
-                                shouldForceLoad: Bool = false) {
+    public func loadIfNecessary(suppressAnimations: Bool = false, shouldForceLoad: Bool = false) {
         AssertIsOnMainThread()
 
         guard let viewController else {
@@ -329,12 +378,17 @@ public class CLVLoadCoordinator: Dependencies {
 
         let loadResult: CLVLoadResult = databaseStorage.read { transaction in
             // Decide what kind of load we prefer.
-            let canApplyRowChanges = viewController.tableDataSource.renderState.visibleThreadCount > 0
-            let loadInfo = loadInfoBuilder.build(chatListMode: viewController.chatListMode,
-                                                 hasVisibleReminders: hasVisibleReminders,
-                                                 canApplyRowChanges: canApplyRowChanges,
-                                                 lastViewInfo: viewController.renderState.viewInfo,
-                                                 transaction: transaction)
+            let loadInfo = loadInfoBuilder.build(
+                loadCoordinator: self,
+                chatListMode: viewController.viewState.chatListMode,
+                inboxFilter: viewController.viewState.inboxFilter,
+                isMultiselectActive: viewController.viewState.multiSelectState.isActive,
+                lastSelectedThreadId: viewController.viewState.lastSelectedThreadId,
+                hasVisibleReminders: hasVisibleReminders,
+                lastViewInfo: viewController.renderState.viewInfo,
+                transaction: transaction
+            )
+
             // Reset the builder.
             loadInfoBuilder = CLVLoadInfoBuilder()
 
@@ -343,35 +397,34 @@ public class CLVLoadCoordinator: Dependencies {
             // NOTE: we might not receive the kind of load that we requested.
             switch loadInfo.loadType {
             case .resetAll:
-                if DebugFlags.internalLogging {
-                    Logger.info("[Scroll Perf Debug] About to do resetAll load")
-                }
-                return viewController.loadRenderStateForReset(viewInfo: loadInfo.viewInfo,
-                                                              transaction: transaction)
+                return viewController.loadRenderStateForReset(
+                    viewInfo: loadInfo.viewInfo,
+                    transaction: transaction
+                )
+
             case .incrementalDiff(let updatedThreadIds):
-                owsAssertDebug(!updatedThreadIds.isEmpty)
-                if DebugFlags.internalLogging {
-                    Logger.info("[Scroll Perf Debug] About to do incrementalDiff load")
-                }
-                return viewController.loadNewRenderStateWithDiff(viewInfo: loadInfo.viewInfo,
-                                                                 updatedThreadIds: updatedThreadIds,
-                                                                 transaction: transaction)
-            case .reloadTableOnly:
-                return .reloadTable
+                return viewController.loadNewRenderStateWithDiff(
+                    viewInfo: loadInfo.viewInfo,
+                    updatedThreadIds: updatedThreadIds,
+                    transaction: transaction
+                )
+
+            case .incrementalWithoutThreadUpdates:
+                return viewController.copyRenderStateAndDiff(viewInfo: loadInfo.viewInfo)
+
             case .none:
                 return .noChanges
             }
         }
 
         // Apply the load to the view.
-        let wasViewEmpty = viewController.tableDataSource.renderState.visibleThreadCount == 0
-        let isAnimated = !suppressAnimations && !wasViewEmpty && viewController.hasEverAppeared
-        if isAnimated {
-            viewController.applyLoadResult(loadResult, isAnimated: isAnimated)
+        let shouldAnimate = !suppressAnimations && viewController.hasEverAppeared
+        if shouldAnimate {
+            viewController.applyLoadResult(loadResult, animated: shouldAnimate)
         } else {
             // Suppress animations.
             UIView.animate(withDuration: 0) {
-                viewController.applyLoadResult(loadResult, isAnimated: isAnimated)
+                viewController.applyLoadResult(loadResult, animated: shouldAnimate)
             }
         }
     }

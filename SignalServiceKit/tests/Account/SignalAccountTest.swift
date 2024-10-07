@@ -35,29 +35,6 @@ class SignalAccountTest: XCTestCase {
         }
     }
 
-    func testKeyedArchiverRoundTrip() {
-        for (idx, (constant, _)) in SignalAccount.constants.enumerated() {
-            do {
-                let archivedData = try NSKeyedArchiver.archivedData(
-                    withRootObject: constant,
-                    requiringSecureCoding: false
-                )
-
-                let unarchivedAccount = try XCTUnwrap(NSKeyedUnarchiver.unarchivedObject(
-                    ofClass: SignalAccount.self,
-                    from: archivedData,
-                    requiringSecureCoding: false
-                ))
-
-                try unarchivedAccount.validate(against: constant)
-            } catch ValidatableModelError.failedToValidate {
-                XCTFail("Failed to validate constant \(idx)!")
-            } catch {
-                XCTFail("Error while validating constant \(idx)!")
-            }
-        }
-    }
-
     enum HardcodedDataTestMode {
         case runTest
         case printStrings
@@ -104,191 +81,56 @@ class SignalAccountTest: XCTestCase {
         }
     }
 
-    /// Taken from cc83e60eda, just prior to `accountSchemaVersion` == 1.
-    func testHardcodedKeyedArchiverLegacyDataVersion0() throws {
-        let encodedData = try XCTUnwrap(Data(base64Encoded: "YnBsaXN0MDDUAQIDBAUGISJYJHZlcnNpb25YJG9iamVjdHNZJGFyY2hpdmVyVCR0b3ASAAGGoKcHCBUWFxgZVSRudWxs1gkKCwwNDg8QERITFFtyZWNpcGllbnRJZFYkY2xhc3NfEBloYXNNdWx0aXBsZUFjY291bnRDb250YWN0WHVuaXF1ZUlkXxAPTVRMTW9kZWxWZXJzaW9uXxAYbXVsdGlwbGVBY2NvdW50TGFiZWxUZXh0gAOABoAEgAOAAoAFEABcKzE2NTA1NTUwMTAwCVZNb2JpbGXSGhscHVgkY2xhc3Nlc1okY2xhc3NuYW1lpB0eHyBdU2lnbmFsQWNjb3VudF8QE1RTWWFwRGF0YWJhc2VPYmplY3RYTVRMTW9kZWxYTlNPYmplY3RfEA9OU0tleWVkQXJjaGl2ZXLRIyRUcm9vdIABAAgAEQAaACMALQAyADcAPwBFAFIAXgBlAIEAigCcALcAuQC7AL0AvwDBAMMAxQDSANMA2gDfAOgA8wD4AQYBHAElAS4BQAFDAUgAAAAAAAACAQAAAAAAAAAlAAAAAAAAAAAAAAAAAAABSg=="))
-        let signalAccount = try XCTUnwrap(NSKeyedUnarchiver.unarchivedObject(
-            ofClass: SignalAccount.self, from: encodedData, requiringSecureCoding: false
-        ))
-        XCTAssertEqual(signalAccount.uniqueId, "+16505550100")
-        XCTAssertEqual(signalAccount.recipientPhoneNumber, "+16505550100")
-        XCTAssertEqual(signalAccount.multipleAccountLabelText, "Mobile")
-    }
-
-    /// Taken from 50b410ca57, just prior to the `SDSCodableModel` migration.
-    func testHardcodedKeyedArchiverLegacyDataVersion1() throws {
-        let encodedData = try XCTUnwrap(Data(base64Encoded: "YnBsaXN0MDDUAQIDBAUGBwpYJHZlcnNpb25ZJGFyY2hpdmVyVCR0b3BYJG9iamVjdHMSAAGGoF8QD05TS2V5ZWRBcmNoaXZlctEICVRyb290gAGvECELDB8gISIjJDs8PT4/R0hJUFRabG1ub3N3en5/gIOEiIlVJG51bGzZDQ4PEBESExQVFhcYGRobHB0eVmdyZGJJZF8QFHJlY2lwaWVudFBob25lTnVtYmVyXxAPTVRMTW9kZWxWZXJzaW9uViRjbGFzc11yZWNpcGllbnRVVUlEXxAUYWNjb3VudFNjaGVtYVZlcnNpb25XY29udGFjdF8QGG11bHRpcGxlQWNjb3VudExhYmVsVGV4dFh1bmlxdWVJZIADgASAAoAggAWABoAHgA6AHxAAEHtcKzE2NTA1NTUwMTAwXxAkMDAwMDAwMDAtMDAwMC00MDAwLTgwMDAtMDAwMDAwMDAwQUFBEAHcDyUmJygpECorLC0uGDAxMjM0NTY3ODk6WWZpcnN0TmFtZVhsYXN0TmFtZV8QF2NvbXBhcmFibGVOYW1lTGFzdEZpcnN0WHVuaXF1ZUlkXxAScGhvbmVOdW1iZXJOYW1lTWFwXxAScGFyc2VkUGhvbmVOdW1iZXJzXxAUdXNlclRleHRQaG9uZU51bWJlcnNYZnVsbE5hbWVWZW1haWxzXxAXY29tcGFyYWJsZU5hbWVGaXJzdExhc3SAAoAJgAiACoALgAyAHoAQgBmAG4AcgB1YQWxpY2Vzb25VQWxpY2VeQWxpY2Vzb24JQWxpY2VfECQwMDAwMDAwMC0wMDAwLTQwMDAtODAwMC0wMDAwMDAwMDBCQkLTQEEQQkRGV05TLmtleXNaTlMub2JqZWN0c6FDgA2hHYAOgA9cKzE2NTA1NTUwMTAwVk1vYmlsZdJKS0xNWiRjbGFzc25hbWVYJGNsYXNzZXNcTlNEaWN0aW9uYXJ5ok5PXE5TRGljdGlvbmFyeVhOU09iamVjdNJBEFFToVKAEYAY01UQVkNYWV8QIVJQRGVmYXVsdHNLZXlQaG9uZU51bWJlckNhbm9uaWNhbF8QHlJQRGVmYXVsdHNLZXlQaG9uZU51bWJlclN0cmluZ4ANgBeAEtkQW1xdXl9gYWJjZGVmZBtkamRfEBFjb3VudHJ5Q29kZVNvdXJjZV8QEml0YWxpYW5MZWFkaW5nWmVyb15uYXRpb25hbE51bWJlcl8QHHByZWZlcnJlZERvbWVzdGljQ2FycmllckNvZGVbY291bnRyeUNvZGVZZXh0ZW5zaW9uXxAUbnVtYmVyT2ZMZWFkaW5nWmVyb3NYcmF3SW5wdXSAFoAAgBSAE4AAgAaAAIAVgAATAAAAAYPC0RQIEAHSSktwcV1OQlBob25lTnVtYmVyonJPXU5CUGhvbmVOdW1iZXLSSkt0dVtQaG9uZU51bWJlcqJ2T1tQaG9uZU51bWJlctJKS3h5V05TQXJyYXmieE/SQRB7U6F8gBqAGFwrMTY1MDU1NTAxMDBeQWxpY2UgQWxpY2Vzb27SQRCBU6CAGF5BbGljZQlBbGljZXNvbtJKS4WGV0NvbnRhY3SjhYdPWE1UTE1vZGVsXxAkMDAwMDAwMDAtMDAwMC00MDAwLTgwMDAtMDAwMDAwMDAwQ0ND0kpLiotdU2lnbmFsQWNjb3VudKWMjY6HT11TaWduYWxBY2NvdW50WUJhc2VNb2RlbF8QE1RTWWFwRGF0YWJhc2VPYmplY3QACAARABoAJAApADIANwBJAEwAUQBTAHcAfQCQAJcArgDAAMcA1QDsAPQBDwEYARoBHAEeASABIgEkASYBKAEqASwBLgE7AWIBZAF9AYcBkAGqAbMByAHdAfQB/QIEAh4CIAIiAiQCJgIoAioCLAIuAjACMgI0AjYCPwJFAlQCewKCAooClQKXApkCmwKdAp8CrAKzArgCwwLMAtkC3ALpAvIC9wL5AvsC/QMEAygDSQNLA00DTwNiA3YDiwOaA7kDxQPPA+YD7wPxA/MD9QP3A/kD+wP9A/8EAQQKBAsEDQQSBCAEIwQxBDYEQgRFBFEEVgReBGEEZgRoBGoEbAR5BIgEjQSOBJAEnwSkBKwEsAS5BOAE5QTzBPkFBwURAAAAAAAAAgEAAAAAAAAAjwAAAAAAAAAAAAAAAAAABSc="))
-        let signalAccount = try XCTUnwrap(NSKeyedUnarchiver.unarchivedObject(
-            ofClass: SignalAccount.self, from: encodedData, requiringSecureCoding: false
-        ))
-        XCTAssertEqual(signalAccount.grdbId, 123)
-        XCTAssertEqual(signalAccount.uniqueId, "00000000-0000-4000-8000-000000000CCC")
-        XCTAssertEqual(signalAccount.recipientServiceId?.serviceIdUppercaseString, "00000000-0000-4000-8000-000000000AAA")
-        XCTAssertEqual(signalAccount.recipientPhoneNumber, "+16505550100")
-        XCTAssertEqual(signalAccount.multipleAccountLabelText, "Mobile")
-        XCTAssertNotNil(signalAccount.contact?.uniqueId, "00000000-0000-4000-8000-000000000BBB")
-    }
-
     // MARK: - Display Name Tests
 
-    private var userDefaults = TestUtils.userDefaults()
-
-    func testPreferredDisplayName() {
-        guard let signalAccount = SignalAccount.constants.first?.0 else {
-            XCTFail("Cannot find mock SignalAccount")
-            return
-        }
-
-        userDefaults.setNicknamePreferred(isPreferred: false)
-
-        XCTAssert(signalAccount.contactFirstName == "matata")
-        XCTAssert(signalAccount.contactLastName == "what")
-        // `signalAccount` does have a nickname on it, but because user defaults indicate
-        // it is not preferred, we don't have it here.
-        XCTAssert(signalAccount.contactNicknameIfAvailable(userDefaults: self.userDefaults) == nil)
-        XCTAssert(signalAccount.contactPreferredDisplayName(userDefaults: self.userDefaults) == "matata what")
-
-        var expectedNameComponents = PersonNameComponents()
-        expectedNameComponents.givenName = "matata"
-        expectedNameComponents.familyName = "what"
-        XCTAssert(signalAccount.contactPersonNameComponents(userDefaults: self.userDefaults) == expectedNameComponents)
-    }
-
-    func testNicknamePreferred() {
-        let contact = Contact(
-            address: SignalServiceAddress(
-                serviceId: Aci.constantForTesting("ec43071b-2dc0-4d82-82b2-0266968a4c2b"),
-                phoneNumber: "myPhoneNumber",
-                cache: SignalServiceAddressCache(),
-                cachePolicy: .ignoreCache
-            ),
-            phoneNumberLabel: "hakuna",
-            givenName: "matata",
-            familyName: "what",
-            // white space should be stripped because string processed for display
-            nickname: "a ",
-            fullName: "wonderful"
+    func testContactNameComponents() {
+        let signalAccount = SignalAccount(
+            recipientPhoneNumber: "+16505550100",
+            recipientServiceId: Aci.constantForTesting("00000000-0000-4000-A000-000000000000"),
+            multipleAccountLabelText: "Mobile",
+            cnContactId: nil,
+            givenName: "Shabby",
+            familyName: "Thesealion",
+            nickname: "Shabs ",
+            fullName: "Shabby Thesealion",
+            contactAvatarHash: nil
         )
-        let signalAccount = SignalAccount.buildMock(contact: contact)
 
-        userDefaults.setNicknamePreferred(isPreferred: true)
+        let nameComponents = signalAccount.contactNameComponents()!
+        XCTAssertEqual(nameComponents.givenName, "Shabby")
+        XCTAssertEqual(nameComponents.familyName, "Thesealion")
+        XCTAssertEqual(nameComponents.nickname, "Shabs")
 
-        XCTAssert(signalAccount.contactFirstName == "matata")
-        XCTAssert(signalAccount.contactLastName == "what")
-        XCTAssert(signalAccount.contactNicknameIfAvailable(userDefaults: self.userDefaults) == "a")
-        XCTAssert(signalAccount.contactPreferredDisplayName(userDefaults: self.userDefaults) == "a")
-
-        var expectedNameComponents = PersonNameComponents()
-        expectedNameComponents.givenName = "matata"
-        expectedNameComponents.familyName = "what"
-        expectedNameComponents.nickname = "a"
-        XCTAssert(signalAccount.contactPersonNameComponents(userDefaults: self.userDefaults) == expectedNameComponents)
-    }
-
-    func testEmptyNickname() {
-        let contact = Contact(
-            address: SignalServiceAddress(
-                serviceId: Aci.constantForTesting("ec43071b-2dc0-4d82-82b2-0266968a4c2b"),
-                phoneNumber: "myPhoneNumber",
-                cache: SignalServiceAddressCache(),
-                cachePolicy: .ignoreCache
-            ),
-            phoneNumberLabel: "hakuna",
-            givenName: " matata",
-            familyName: " what",
-            nickname: "",
-            fullName: "wonderful"
+        let systemContactName = DisplayName.SystemContactName(
+            nameComponents: nameComponents,
+            multipleAccountLabel: "Mobile"
         )
-        let signalAccount = SignalAccount.buildMock(contact: contact)
 
-        userDefaults.setNicknamePreferred(isPreferred: true)
-
-        // test stripping white space; litmus test for having called `.displayStringIfNonEmpty`
-        XCTAssert(signalAccount.contactFirstName == "matata")
-        XCTAssert(signalAccount.contactLastName == "what")
-
-        XCTAssert(signalAccount.contactNicknameIfAvailable(userDefaults: self.userDefaults) == nil)
-        XCTAssert(signalAccount.contactPreferredDisplayName(userDefaults: self.userDefaults) == "matata what")
-
-        var expectedNameComponents = PersonNameComponents()
-        expectedNameComponents.givenName = "matata"
-        expectedNameComponents.familyName = "what"
-        XCTAssert(signalAccount.contactPersonNameComponents(userDefaults: self.userDefaults) == expectedNameComponents)
-    }
-
-    func testNilNickname() {
-        let contact = Contact(
-            address: SignalServiceAddress(
-                serviceId: Aci.constantForTesting("ec43071b-2dc0-4d82-82b2-0266968a4c2b"),
-                phoneNumber: "myPhoneNumber",
-                cache: SignalServiceAddressCache(),
-                cachePolicy: .ignoreCache
-            ),
-            phoneNumberLabel: "hakuna",
-            givenName: "matata",
-            familyName: "what",
-            nickname: nil,
-            fullName: "wonderful"
+        XCTAssertEqual(
+            systemContactName.resolvedValue(config: DisplayName.Config(shouldUseSystemContactNicknames: false)),
+            "Shabby Thesealion (Mobile)"
         )
-        let signalAccount = SignalAccount.buildMock(contact: contact)
-
-        userDefaults.setNicknamePreferred(isPreferred: true)
-
-        XCTAssert(signalAccount.contactNicknameIfAvailable(userDefaults: self.userDefaults) == nil)
-        XCTAssert(signalAccount.contactPreferredDisplayName(userDefaults: self.userDefaults) == "matata what")
-
-        var expectedNameComponents = PersonNameComponents()
-        expectedNameComponents.givenName = "matata"
-        expectedNameComponents.familyName = "what"
-        XCTAssert(signalAccount.contactPersonNameComponents(userDefaults: self.userDefaults) == expectedNameComponents)
+        XCTAssertEqual(
+            systemContactName.resolvedValue(config: DisplayName.Config(shouldUseSystemContactNicknames: true)),
+            "Shabs (Mobile)"
+        )
     }
 
     func testFullNameOnly() {
-        let contact = Contact(
-            address: SignalServiceAddress(
-                serviceId: Aci.constantForTesting("ec43071b-2dc0-4d82-82b2-0266968a4c2b"),
-                phoneNumber: "myPhoneNumber",
-                cache: SignalServiceAddressCache(),
-                cachePolicy: .ignoreCache
-            ),
-            phoneNumberLabel: "hakuna",
+        let signalAccount = SignalAccount(
+            recipientPhoneNumber: "+16505550100",
+            recipientServiceId: Aci.constantForTesting("00000000-0000-4000-A000-000000000000"),
+            multipleAccountLabelText: nil,
+            cnContactId: nil,
             givenName: "",
             familyName: "",
-            nickname: nil,
-            // string should end up processed such that white space stripped
-            fullName: "wonderful "
+            nickname: "",
+            fullName: "Company Name",
+            contactAvatarHash: nil
         )
-        let signalAccount = SignalAccount.buildMock(contact: contact)
 
-        XCTAssert(signalAccount.contactFirstName == nil)
-        XCTAssert(signalAccount.contactLastName == nil)
-        XCTAssert(signalAccount.contactPreferredDisplayName(userDefaults: self.userDefaults) == "wonderful")
-
-        var expectedNameComponents = PersonNameComponents()
-        expectedNameComponents.givenName = "wonderful"
-        XCTAssert(signalAccount.contactPersonNameComponents(userDefaults: self.userDefaults) == expectedNameComponents)
-    }
-
-    func testNoNames() {
-        let contact = Contact(
-            address: SignalServiceAddress(
-                serviceId: Aci.constantForTesting("ec43071b-2dc0-4d82-82b2-0266968a4c2b"),
-                phoneNumber: "myPhoneNumber",
-                cache: SignalServiceAddressCache(),
-                cachePolicy: .ignoreCache
-            ),
-            phoneNumberLabel: "hakuna",
-            givenName: "",
-            familyName: "",
-            nickname: nil,
-            fullName: ""
-        )
-        let signalAccount = SignalAccount.buildMock(contact: contact)
-
-        XCTAssert(signalAccount.contactFirstName == nil)
-        XCTAssert(signalAccount.contactLastName == nil)
-        XCTAssert(signalAccount.contactPreferredDisplayName(userDefaults: self.userDefaults) == nil)
-        XCTAssert(signalAccount.contactPersonNameComponents(userDefaults: self.userDefaults) == nil)
+        let nameComponents = signalAccount.contactNameComponents()!
+        XCTAssertEqual(nameComponents.givenName, "Company Name")
     }
 }
 
@@ -296,31 +138,43 @@ extension SignalAccount: ValidatableModel {
     static let constants: [(SignalAccount, base64JsonData: Data)] = [
         (
             SignalAccount(
-                contact: ContactFixtures.contactA,
-                contactAvatarHash: Data(repeating: 12, count: 12),
-                multipleAccountLabelText: "boop",
                 recipientPhoneNumber: "+17735550199",
-                recipientServiceId: Pni.constantForTesting("PNI:2405EEEA-9CFF-4FB4-A9D2-FBB473018D57")
+                recipientServiceId: Pni.constantForTesting("PNI:2405EEEA-9CFF-4FB4-A9D2-FBB473018D57"),
+                multipleAccountLabelText: "boop",
+                cnContactId: nil,
+                givenName: "matata",
+                familyName: "what",
+                nickname: "a",
+                fullName: "wonderful",
+                contactAvatarHash: Data(repeating: 12, count: 12)
             ),
             Data(base64Encoded: "eyJyZWNpcGllbnRQaG9uZU51bWJlciI6IisxNzczNTU1MDE5OSIsImNvbnRhY3RBdmF0YXJIYXNoIjoiREF3TURBd01EQXdNREF3TSIsInJlY2lwaWVudFVVSUQiOiJQTkk6MjQwNUVFRUEtOUNGRi00RkI0LUE5RDItRkJCNDczMDE4RDU3IiwiY29udGFjdCI6IlluQnNhWE4wTUREVUFRSURCQVVHQndwWUpIWmxjbk5wYjI1WkpHRnlZMmhwZG1WeVZDUjBiM0JZSkc5aWFtVmpkSE1TQUFHR29GOFFEMDVUUzJWNVpXUkJjbU5vYVhabGN0RUlDVlJ5YjI5MGdBR3RDd3duS0NrcUt5d3lPVHdcL1FGVWtiblZzYk4wTkRnOFFFUklURkJVV0Z4Z1pHaHNjSFI0ZklDRWhJeUVkSFY4UUQwMVVURTF2WkdWc1ZtVnljMmx2YmxsbWFYSnpkRTVoYldWWWJHRnpkRTVoYldWZkVCZGpiMjF3WVhKaFlteGxUbUZ0WlV4aGMzUkdhWEp6ZEZoMWJtbHhkV1ZKWkY4UUVuQm9iMjVsVG5WdFltVnlUbUZ0WlUxaGNGWWtZMnhoYzNOZkVCSndZWEp6WldSUWFHOXVaVTUxYldKbGNuTmZFQlIxYzJWeVZHVjRkRkJvYjI1bFRuVnRZbVZ5YzFobWRXeHNUbUZ0WlZabGJXRnBiSE5mRUJkamIyMXdZWEpoWW14bFRtRnRaVVpwY25OMFRHRnpkRmh1YVdOcmJtRnRaWUFDZ0FTQUE0QUZnQWFBQjRBTWdBbUFDWUFMZ0FtQUJZQUZFQUJVZDJoaGRGWnRZWFJoZEdGUllWOFFKRFJDTnpVelF6a3dMVUkyT1RRdE5EYzVNaTA0TmtGQ0xURkZNemxEUmpneU9Ea3dPZE10TGhNdk1ERlhUbE11YTJWNWMxcE9VeTV2WW1wbFkzUnpvS0NBQ05Jek5EVTJXaVJqYkdGemMyNWhiV1ZZSkdOc1lYTnpaWE5jVGxORWFXTjBhVzl1WVhKNW9qYzRYRTVUUkdsamRHbHZibUZ5ZVZoT1UwOWlhbVZqZE5JdUV6bzdvSUFLMGpNMFBUNVhUbE5CY25KaGVhSTlPRmwzYjI1a1pYSm1kV3pTTXpSQlFsZERiMjUwWVdOMG8wRkRPRmhOVkV4TmIyUmxiQUFJQUJFQUdnQWtBQ2tBTWdBM0FFa0FUQUJSQUZNQVlRQm5BSUlBbEFDZUFLY0F3UURLQU44QTVnRDdBUklCR3dFaUFUd0JSUUZIQVVrQlN3Rk5BVThCVVFGVEFWVUJWd0ZaQVZzQlhRRmZBV0VCWmdGdEFXOEJsZ0dkQWFVQnNBR3hBYklCdEFHNUFjUUJ6UUhhQWQwQjZnSHpBZmdCK1FIN0FnQUNDQUlMQWhVQ0dnSWlBaVlBQUFBQUFBQUNBUUFBQUFBQUFBQkVBQUFBQUFBQUFBQUFBQUFBQUFBQ0x3PT0iLCJyZWNvcmRUeXBlIjozMCwidW5pcXVlSWQiOiI3OTNDQUJCQy1BQ0E1LTQzQUMtOTlBMi1CQ0ExOEEwRTQ0ODMiLCJtdWx0aXBsZUFjY291bnRMYWJlbFRleHQiOiJib29wIn0=")!
         ),
         (
             SignalAccount(
-                contact: ContactFixtures.contactA,
-                contactAvatarHash: Data(base64Encoded: "mary"),
-                multipleAccountLabelText: "a",
                 recipientPhoneNumber: "little",
-                recipientServiceId: nil // Was hardcoded to an non-ServiceId string
+                recipientServiceId: nil, // Was hardcoded to a non-ServiceId string
+                multipleAccountLabelText: "a",
+                cnContactId: nil,
+                givenName: "matata",
+                familyName: "what",
+                nickname: "a",
+                fullName: "wonderful",
+                contactAvatarHash: Data(base64Encoded: "mary")
             ),
             Data(base64Encoded: "eyJyZWNpcGllbnRQaG9uZU51bWJlciI6ImxpdHRsZSIsImNvbnRhY3RBdmF0YXJIYXNoIjoibWFyeSIsInJlY2lwaWVudFVVSUQiOiJsYW1iIiwiY29udGFjdCI6IlluQnNhWE4wTUREVUFRSURCQVVHQndwWUpIWmxjbk5wYjI1WkpHRnlZMmhwZG1WeVZDUjBiM0JZSkc5aWFtVmpkSE1TQUFHR29GOFFEMDVUUzJWNVpXUkJjbU5vYVhabGN0RUlDVlJ5YjI5MGdBR3RDd3duS0NrcUt5d3lPVHdcL1FGVWtiblZzYk4wTkRnOFFFUklURkJVV0Z4Z1pHaHNjSFI0ZklDRWhJeUVkSFY4UUQwMVVURTF2WkdWc1ZtVnljMmx2YmxsbWFYSnpkRTVoYldWWWJHRnpkRTVoYldWZkVCZGpiMjF3WVhKaFlteGxUbUZ0WlV4aGMzUkdhWEp6ZEZoMWJtbHhkV1ZKWkY4UUVuQm9iMjVsVG5WdFltVnlUbUZ0WlUxaGNGWWtZMnhoYzNOZkVCSndZWEp6WldSUWFHOXVaVTUxYldKbGNuTmZFQlIxYzJWeVZHVjRkRkJvYjI1bFRuVnRZbVZ5YzFobWRXeHNUbUZ0WlZabGJXRnBiSE5mRUJkamIyMXdZWEpoWW14bFRtRnRaVVpwY25OMFRHRnpkRmh1YVdOcmJtRnRaWUFDZ0FTQUE0QUZnQWFBQjRBTWdBbUFDWUFMZ0FtQUJZQUZFQUJVZDJoaGRGWnRZWFJoZEdGUllWOFFKRGt5UVRrMk9EYzJMVFE0UXpNdE5EbEdNaTFCT1RGR0xVTkZSRFUwT0RFNVJESXpSTk10TGhNdk1ERlhUbE11YTJWNWMxcE9VeTV2WW1wbFkzUnpvS0NBQ05Jek5EVTJXaVJqYkdGemMyNWhiV1ZZSkdOc1lYTnpaWE5jVGxORWFXTjBhVzl1WVhKNW9qYzRYRTVUUkdsamRHbHZibUZ5ZVZoT1UwOWlhbVZqZE5JdUV6bzdvSUFLMGpNMFBUNVhUbE5CY25KaGVhSTlPRmwzYjI1a1pYSm1kV3pTTXpSQlFsZERiMjUwWVdOMG8wRkRPRmhOVkV4TmIyUmxiQUFJQUJFQUdnQWtBQ2tBTWdBM0FFa0FUQUJSQUZNQVlRQm5BSUlBbEFDZUFLY0F3UURLQU44QTVnRDdBUklCR3dFaUFUd0JSUUZIQVVrQlN3Rk5BVThCVVFGVEFWVUJWd0ZaQVZzQlhRRmZBV0VCWmdGdEFXOEJsZ0dkQWFVQnNBR3hBYklCdEFHNUFjUUJ6UUhhQWQwQjZnSHpBZmdCK1FIN0FnQUNDQUlMQWhVQ0dnSWlBaVlBQUFBQUFBQUNBUUFBQUFBQUFBQkVBQUFBQUFBQUFBQUFBQUFBQUFBQ0x3PT0iLCJyZWNvcmRUeXBlIjozMCwidW5pcXVlSWQiOiI4MEJDQzUxMS1GQTMwLTRBNzQtQUQwOS0wMEU3RUEwOUZFNEYiLCJtdWx0aXBsZUFjY291bnRMYWJlbFRleHQiOiJhIn0=")!
         ),
         (
             SignalAccount(
-                contact: ContactFixtures.contactB,
-                contactAvatarHash: nil,
-                multipleAccountLabelText: "was",
                 recipientPhoneNumber: "white as",
-                recipientServiceId: nil // Was hardcoded to an non-ServiceId string
+                recipientServiceId: nil, // Was hardcoded to a non-ServiceId string
+                multipleAccountLabelText: "was",
+                cnContactId: nil,
+                givenName: "ain't",
+                familyName: "no",
+                nickname: "passing",
+                fullName: "phrase",
+                contactAvatarHash: nil
             ),
             Data(base64Encoded: "eyJyZWNvcmRUeXBlIjozMCwicmVjaXBpZW50VVVJRCI6InNub3ciLCJyZWNpcGllbnRQaG9uZU51bWJlciI6IndoaXRlIGFzIiwidW5pcXVlSWQiOiJBN0JDQjQ3Ny0yNDBELTQwQkQtQTIzRS1CQzM2MUM5Q0JCREIiLCJtdWx0aXBsZUFjY291bnRMYWJlbFRleHQiOiJ3YXMiLCJjb250YWN0IjoiWW5Cc2FYTjBNRERVQVFJREJBVUdCd3BZSkhabGNuTnBiMjVaSkdGeVkyaHBkbVZ5VkNSMGIzQllKRzlpYW1WamRITVNBQUdHb0Y4UUQwNVRTMlY1WldSQmNtTm9hWFpsY3RFSUNWUnliMjkwZ0FHdEN3d25LQ2txS3l3eU9Ud1wvUUZVa2JuVnNiTjBORGc4UUVSSVRGQlVXRnhnWkdoc2NIUjRmSUNFaEl5RWRIVjhRRDAxVVRFMXZaR1ZzVm1WeWMybHZibGxtYVhKemRFNWhiV1ZZYkdGemRFNWhiV1ZmRUJkamIyMXdZWEpoWW14bFRtRnRaVXhoYzNSR2FYSnpkRmgxYm1seGRXVkpaRjhRRW5Cb2IyNWxUblZ0WW1WeVRtRnRaVTFoY0ZZa1kyeGhjM05mRUJKd1lYSnpaV1JRYUc5dVpVNTFiV0psY25OZkVCUjFjMlZ5VkdWNGRGQm9iMjVsVG5WdFltVnljMWhtZFd4c1RtRnRaVlpsYldGcGJITmZFQmRqYjIxd1lYSmhZbXhsVG1GdFpVWnBjbk4wVEdGemRGaHVhV05yYm1GdFpZQUNnQVNBQTRBRmdBYUFCNEFNZ0FtQUNZQUxnQW1BQllBRkVBQlNibTlWWVdsdUozUlhjR0Z6YzJsdVoxOFFKRE13TXpjM01UYzFMVEpHTVRBdE5FUkdRaTA1TmpBd0xUZzVOa1F5TmpKRE0wVTVPZE10TGhNdk1ERlhUbE11YTJWNWMxcE9VeTV2WW1wbFkzUnpvS0NBQ05Jek5EVTJXaVJqYkdGemMyNWhiV1ZZSkdOc1lYTnpaWE5jVGxORWFXTjBhVzl1WVhKNW9qYzRYRTVUUkdsamRHbHZibUZ5ZVZoT1UwOWlhbVZqZE5JdUV6bzdvSUFLMGpNMFBUNVhUbE5CY25KaGVhSTlPRlp3YUhKaGMyWFNNelJCUWxkRGIyNTBZV04wbzBGRE9GaE5WRXhOYjJSbGJBQUlBQkVBR2dBa0FDa0FNZ0EzQUVrQVRBQlJBRk1BWVFCbkFJSUFsQUNlQUtjQXdRREtBTjhBNWdEN0FSSUJHd0VpQVR3QlJRRkhBVWtCU3dGTkFVOEJVUUZUQVZVQlZ3RlpBVnNCWFFGZkFXRUJaQUZxQVhJQm1RR2dBYWdCc3dHMEFiVUJ0d0c4QWNjQjBBSGRBZUFCN1FIMkFmc0JcL0FIK0FnTUNDd0lPQWhVQ0dnSWlBaVlBQUFBQUFBQUNBUUFBQUFBQUFBQkVBQUFBQUFBQUFBQUFBQUFBQUFBQ0x3PT0ifQ==")!
         )
@@ -333,71 +187,37 @@ extension SignalAccount: ValidatableModel {
     static let legacyConstants: [(SignalAccount, base64JsonData: Data)] = [
         (
             SignalAccount(
-                contact: ContactFixtures.contactA,
-                contactAvatarHash: Data(base64Encoded: "mary"),
-                multipleAccountLabelText: "a",
                 recipientPhoneNumber: "little",
-                recipientServiceId: nil // Was hardcoded to an non-ServiceId string
+                recipientServiceId: nil, // Was hardcoded to a non-ServiceId string
+                multipleAccountLabelText: "a",
+                cnContactId: nil,
+                givenName: "matata",
+                familyName: "what",
+                nickname: "a",
+                fullName: "wonderful",
+                contactAvatarHash: Data(base64Encoded: "mary")
             ),
             Data(base64Encoded: "eyJyZWNpcGllbnRQaG9uZU51bWJlciI6ImxpdHRsZSIsImNvbnRhY3RBdmF0YXJIYXNoIjoibWFyeSIsInJlY2lwaWVudFVVSUQiOiJsYW1iIiwiY29udGFjdCI6IlluQnNhWE4wTUREVUFRSURCQVVHQndwWUpIWmxjbk5wYjI1WkpHRnlZMmhwZG1WeVZDUjBiM0JZSkc5aWFtVmpkSE1TQUFHR29GOFFEMDVUUzJWNVpXUkJjbU5vYVhabGN0RUlDVlJ5YjI5MGdBR3RDd3duS0NrcUt5d3lPVHdcL1FGVWtiblZzYk4wTkRnOFFFUklURkJVV0Z4Z1pHaHNjSFI0ZklDRWhJeUVkSFY4UUQwMVVURTF2WkdWc1ZtVnljMmx2YmxsbWFYSnpkRTVoYldWWWJHRnpkRTVoYldWZkVCZGpiMjF3WVhKaFlteGxUbUZ0WlV4aGMzUkdhWEp6ZEZoMWJtbHhkV1ZKWkY4UUVuQm9iMjVsVG5WdFltVnlUbUZ0WlUxaGNGWWtZMnhoYzNOZkVCSndZWEp6WldSUWFHOXVaVTUxYldKbGNuTmZFQlIxYzJWeVZHVjRkRkJvYjI1bFRuVnRZbVZ5YzFobWRXeHNUbUZ0WlZabGJXRnBiSE5mRUJkamIyMXdZWEpoWW14bFRtRnRaVVpwY25OMFRHRnpkRmh1YVdOcmJtRnRaWUFDZ0FTQUE0QUZnQWFBQjRBTWdBbUFDWUFMZ0FtQUJZQUZFQUJVZDJoaGRGWnRZWFJoZEdGUllWOFFKRUkwUWpjM1JUVXhMVGszUmpNdE5EYzJSaTA1UVRJd0xVVTFOMEpGTlRNM1JVRXlOZE10TGhNdk1ERlhUbE11YTJWNWMxcE9VeTV2WW1wbFkzUnpvS0NBQ05Jek5EVTJXaVJqYkdGemMyNWhiV1ZZSkdOc1lYTnpaWE5jVGxORWFXTjBhVzl1WVhKNW9qYzRYRTVUUkdsamRHbHZibUZ5ZVZoT1UwOWlhbVZqZE5JdUV6bzdvSUFLMGpNMFBUNVhUbE5CY25KaGVhSTlPRmwzYjI1a1pYSm1kV3pTTXpSQlFsZERiMjUwWVdOMG8wRkRPRmhOVkV4TmIyUmxiQUFJQUJFQUdnQWtBQ2tBTWdBM0FFa0FUQUJSQUZNQVlRQm5BSUlBbEFDZUFLY0F3UURLQU44QTVnRDdBUklCR3dFaUFUd0JSUUZIQVVrQlN3Rk5BVThCVVFGVEFWVUJWd0ZaQVZzQlhRRmZBV0VCWmdGdEFXOEJsZ0dkQWFVQnNBR3hBYklCdEFHNUFjUUJ6UUhhQWQwQjZnSHpBZmdCK1FIN0FnQUNDQUlMQWhVQ0dnSWlBaVlBQUFBQUFBQUNBUUFBQUFBQUFBQkVBQUFBQUFBQUFBQUFBQUFBQUFBQ0x3PT0iLCJyZWNvcmRUeXBlIjozMCwidW5pcXVlSWQiOiJoZWxsbyIsIm11bHRpcGxlQWNjb3VudExhYmVsVGV4dCI6ImEifQ==")!
         ),
         (
             SignalAccount(
-                contact: ContactFixtures.contactB,
-                contactAvatarHash: Data(base64Encoded: "whose"),
-                multipleAccountLabelText: "was",
                 recipientPhoneNumber: "white as",
-                recipientServiceId: nil // Was hardcoded to an non-ServiceId string
+                recipientServiceId: nil, // Was hardcoded to a non-ServiceId string
+                multipleAccountLabelText: "was",
+                cnContactId: nil,
+                givenName: "ain't",
+                familyName: "no",
+                nickname: "passing",
+                fullName: "phrase",
+                contactAvatarHash: Data(base64Encoded: "whose")
             ),
             Data(base64Encoded: "eyJyZWNvcmRUeXBlIjozMCwicmVjaXBpZW50VVVJRCI6InNub3ciLCJyZWNpcGllbnRQaG9uZU51bWJlciI6IndoaXRlIGFzIiwidW5pcXVlSWQiOiJoaSIsIm11bHRpcGxlQWNjb3VudExhYmVsVGV4dCI6IndhcyIsImNvbnRhY3QiOiJZbkJzYVhOME1ERFVBUUlEQkFVR0J3cFlKSFpsY25OcGIyNVpKR0Z5WTJocGRtVnlWQ1IwYjNCWUpHOWlhbVZqZEhNU0FBR0dvRjhRRDA1VFMyVjVaV1JCY21Ob2FYWmxjdEVJQ1ZSeWIyOTBnQUd0Q3d3bktDa3FLeXd5T1R3XC9RRlVrYm5Wc2JOME5EZzhRRVJJVEZCVVdGeGdaR2hzY0hSNGZJQ0VoSXlFZEhWOFFEMDFVVEUxdlpHVnNWbVZ5YzJsdmJsbG1hWEp6ZEU1aGJXVlliR0Z6ZEU1aGJXVmZFQmRqYjIxd1lYSmhZbXhsVG1GdFpVeGhjM1JHYVhKemRGaDFibWx4ZFdWSlpGOFFFbkJvYjI1bFRuVnRZbVZ5VG1GdFpVMWhjRllrWTJ4aGMzTmZFQkp3WVhKelpXUlFhRzl1WlU1MWJXSmxjbk5mRUJSMWMyVnlWR1Y0ZEZCb2IyNWxUblZ0WW1WeWMxaG1kV3hzVG1GdFpWWmxiV0ZwYkhOZkVCZGpiMjF3WVhKaFlteGxUbUZ0WlVacGNuTjBUR0Z6ZEZodWFXTnJibUZ0WllBQ2dBU0FBNEFGZ0FhQUI0QU1nQW1BQ1lBTGdBbUFCWUFGRUFCU2JtOVZZV2x1SjNSWGNHRnpjMmx1WjE4UUpETXdRVGRDTXpaQ0xVRTJNVVF0TkRBeE1pMUJNek5DTFVJM09UQTRORU0xT1VNNE45TXRMaE12TURGWFRsTXVhMlY1YzFwT1V5NXZZbXBsWTNSem9LQ0FDTkl6TkRVMldpUmpiR0Z6YzI1aGJXVllKR05zWVhOelpYTmNUbE5FYVdOMGFXOXVZWEo1b2pjNFhFNVRSR2xqZEdsdmJtRnllVmhPVTA5aWFtVmpkTkl1RXpvN29JQUswak0wUFQ1WFRsTkJjbkpoZWFJOU9GWndhSEpoYzJYU016UkJRbGREYjI1MFlXTjBvMEZET0ZoTlZFeE5iMlJsYkFBSUFCRUFHZ0FrQUNrQU1nQTNBRWtBVEFCUkFGTUFZUUJuQUlJQWxBQ2VBS2NBd1FES0FOOEE1Z0Q3QVJJQkd3RWlBVHdCUlFGSEFVa0JTd0ZOQVU4QlVRRlRBVlVCVndGWkFWc0JYUUZmQVdFQlpBRnFBWElCbVFHZ0FhZ0Jzd0cwQWJVQnR3RzhBY2NCMEFIZEFlQUI3UUgyQWZzQlwvQUgrQWdNQ0N3SU9BaFVDR2dJaUFpWUFBQUFBQUFBQ0FRQUFBQUFBQUFCRUFBQUFBQUFBQUFBQUFBQUFBQUFDTHc9PSJ9")!
         )
     ]
 
-    private enum ContactFixtures {
-        private static let address = SignalServiceAddress(
-            serviceId: Aci.constantForTesting("ec43071b-2dc0-4d82-82b2-0266968a4c2b"),
-            phoneNumber: "myPhoneNumber",
-            cache: SignalServiceAddressCache(),
-            cachePolicy: .ignoreCache
-        )
-        static let contactA = Contact(
-            address: address,
-            phoneNumberLabel: "hakuna",
-            givenName: "matata",
-            familyName: "what",
-            nickname: "a",
-            fullName: "wonderful"
-        )
-        static let contactB = Contact(
-            address: address,
-            phoneNumberLabel: "phrase",
-            givenName: "ain't",
-            familyName: "no",
-            nickname: "passing",
-            fullName: "phrase"
-        )
-    }
-
     func validate(against otherAccount: SignalAccount) throws {
         guard hasSameContent(otherAccount) else {
             throw ValidatableModelError.failedToValidate
         }
-    }
-
-    private func contactsAreEqual(_ contactA: Contact?, _ contactB: Contact?) -> Bool {
-        guard let contactA = contactA, let contactB = contactB else {
-            return contactA == contactB
-        }
-        return contactA.hasSameContent(contactB)
-    }
-
-    fileprivate static func buildMock(contact: Contact) -> SignalAccount {
-        return SignalAccount(
-            contact: contact,
-            contactAvatarHash: Data(base64Encoded: "mary"),
-            multipleAccountLabelText: "a",
-            recipientPhoneNumber: "little",
-            recipientServiceId: Aci.randomForTesting()
-        )
     }
 }

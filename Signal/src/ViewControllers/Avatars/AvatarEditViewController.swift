@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalMessaging
+import SignalServiceKit
 import SignalUI
 
 class AvatarEditViewController: OWSTableViewController2 {
@@ -47,15 +47,6 @@ class AvatarEditViewController: OWSTableViewController2 {
         updateFooterViewLayout(forceUpdate: true)
     }
 
-    @objc
-    private func didTapCancel() {
-        guard model != originalModel else { return dismiss(animated: true) }
-        OWSActionSheets.showPendingChangesActionSheet(discardAction: { [weak self] in
-            self?.dismiss(animated: true)
-        })
-    }
-
-    @objc
     private func didTapDone() {
         defer { dismiss(animated: true) }
 
@@ -67,12 +58,19 @@ class AvatarEditViewController: OWSTableViewController2 {
     }
 
     private func updateNavigation() {
-        navigationItem.leftBarButtonItem = .init(barButtonSystemItem: .cancel, target: self, action: #selector(didTapCancel))
+        navigationItem.leftBarButtonItem = .cancelButton(
+            dismissingFrom: self,
+            hasUnsavedChanges: { [weak self] in
+                self?.model != self?.originalModel
+            }
+        )
 
         if case .text(let text) = model.type, text.nilIfEmpty == nil {
             navigationItem.rightBarButtonItem = nil
         } else if model != originalModel {
-            navigationItem.rightBarButtonItem = .init(barButtonSystemItem: .done, target: self, action: #selector(didTapDone))
+            navigationItem.rightBarButtonItem = .doneButton { [weak self] in
+                self?.didTapDone()
+            }
         } else {
             navigationItem.rightBarButtonItem = nil
         }
@@ -199,7 +197,7 @@ class AvatarEditViewController: OWSTableViewController2 {
                 isEmojiOnly: text.containsOnlyEmoji
             )
             if !headerTextField.isFirstResponder { headerTextField.text = text }
-            headerImageView.image = .init(color: model.theme.backgroundColor)
+            headerImageView.image = .image(color: model.theme.backgroundColor)
         case .image:
             owsFailDebug("Unexpectedly encountered image model")
         }

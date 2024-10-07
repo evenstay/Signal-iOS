@@ -4,7 +4,6 @@
 //
 
 import Foundation
-import SignalMessaging
 import SignalServiceKit
 import SignalUI
 
@@ -120,13 +119,13 @@ class BadgeThanksSheet: OWSTableSheetViewController {
     private lazy var shouldMakeVisibleAndPrimary = self.initialVisibleBadgeResolver.switchDefault(for: self.badge.id)
 
     convenience init(
-        receiptCredentialRedemptionSuccess: SubscriptionReceiptCredentialRedemptionSuccess
+        receiptCredentialRedemptionSuccess: ReceiptCredentialRedemptionSuccess
     ) {
         let thanksType: ThanksType = {
             switch receiptCredentialRedemptionSuccess.paymentMethod {
             case nil, .applePay, .creditOrDebitCard, .paypal:
                 return .badgeRedeemedViaNonBankPayment
-            case .sepa:
+            case .sepa, .ideal:
                 return .badgeRedeemedViaBankPayment
             }
         }()
@@ -147,7 +146,7 @@ class BadgeThanksSheet: OWSTableSheetViewController {
     /// - Parameter oldBadgesSnapshot: A snapshot of the user's badges before
     /// `newBadge` was redeemed. You can capture this value by calling
     /// ``ProfileBadgesSnapshot/current()``.
-    required init(
+    init(
         newBadge badge: ProfileBadge,
         thanksType: ThanksType,
         oldBadgesSnapshot: ProfileBadgesSnapshot
@@ -169,16 +168,12 @@ class BadgeThanksSheet: OWSTableSheetViewController {
         updateTableContents()
     }
 
-    public required init() {
-        fatalError("init() has not been implemented")
-    }
-
     override func willDismissInteractively() {
         super.willDismissInteractively()
 
         switch self.thanksType {
         case .badgeRedeemedViaBankPayment, .badgeRedeemedViaNonBankPayment:
-            self.saveVisibilityChanges()
+            DispatchQueue.global().async { self.saveVisibilityChanges() }
         case let .giftReceived(_, notNowAction, _):
             notNowAction()
         }
@@ -201,6 +196,8 @@ class BadgeThanksSheet: OWSTableSheetViewController {
 
     @discardableResult
     private func saveVisibilityChanges() -> Promise<Void> {
+        AssertNotOnMainThread()
+
         let snapshot = profileManagerImpl.localProfileSnapshot(shouldIncludeAvatar: true)
         let visibleBadgeResolver = VisibleBadgeResolver(
             badgesSnapshot: .forSnapshot(profileSnapshot: snapshot)
@@ -214,15 +211,20 @@ class BadgeThanksSheet: OWSTableSheetViewController {
             return Promise.value(())
         }
 
-        return OWSProfileManager.updateLocalProfilePromise(
-            profileGivenName: snapshot.givenName,
-            profileFamilyName: snapshot.familyName,
-            profileBio: snapshot.bio,
-            profileBioEmoji: snapshot.bioEmoji,
-            profileAvatarData: snapshot.avatarData,
-            visibleBadgeIds: visibleBadgeIds,
-            userProfileWriter: .localUser
-        )
+        return databaseStorage.write { tx in
+            return profileManager.updateLocalProfile(
+                profileGivenName: .noChange,
+                profileFamilyName: .noChange,
+                profileBio: .noChange,
+                profileBioEmoji: .noChange,
+                profileAvatarData: .noChange,
+                visibleBadgeIds: .setTo(visibleBadgeIds),
+                unsavedRotatedProfileKey: nil,
+                userProfileWriter: .localUser,
+                authedAccount: .implicit(),
+                tx: tx
+            )
+        }
     }
 
     private static func redeemGiftBadge(incomingMessage: TSIncomingMessage) -> Promise<Void> {

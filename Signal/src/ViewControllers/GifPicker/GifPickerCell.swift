@@ -4,7 +4,6 @@
 //
 
 import SignalServiceKit
-import SignalMessaging
 import SignalUI
 import YYImage
 
@@ -203,14 +202,14 @@ class GifPickerCell: UICollectionViewCell {
         }
 
         if asset.assetDescription.fileExtension == "mp4",
-           let video = LoopingVideo(url: URL(fileURLWithPath: asset.filePath)) {
+           let video = LoopingVideo(decryptedLocalFileUrl: URL(fileURLWithPath: asset.filePath)) {
             mp4View.video = video
             mp4View.isHidden = false
-        } else if NSData.ows_isValidImage(atPath: asset.filePath, mimeType: OWSMimeTypeImageGif),
+        } else if Data.ows_isValidImage(atPath: asset.filePath, mimeType: MimeType.imageGif.rawValue),
                   let image = YYImage(contentsOfFile: asset.filePath) {
             imageView.image = image
             imageView.isHidden = false
-        } else if NSData.ows_isValidImage(atPath: asset.filePath, mimeType: OWSMimeTypeImageJpeg),
+        } else if Data.ows_isValidImage(atPath: asset.filePath, mimeType: MimeType.imageJpeg.rawValue),
                   let image = UIImage(contentsOfFile: asset.filePath) {
             imageView.image = image
             imageView.isHidden = false

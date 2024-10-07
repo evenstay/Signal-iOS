@@ -33,6 +33,10 @@ private class MockRecipientMerger: RecipientMerger {
     func applyMergeFromPniSignature(localIdentifiers: LocalIdentifiers, aci: Aci, pni: Pni, tx: DBWriteTransaction) {
         appliedMergesFromPniSignatures += 1
     }
+
+    func splitUnregisteredRecipientIfNeeded(localIdentifiers: LocalIdentifiers, unregisteredRecipient: SignalRecipient, tx: DBWriteTransaction) {
+        fatalError()
+    }
 }
 
 final class PniSignatureProcessorTest: XCTestCase {
@@ -81,14 +85,14 @@ final class PniSignatureProcessorTest: XCTestCase {
         }
         identityManager.recipientIdentities = [
             aciRecipient.uniqueId: OWSRecipientIdentity(
-                accountId: aciRecipient.uniqueId,
+                recipientUniqueId: aciRecipient.uniqueId,
                 identityKey: Data(aciIdentityKeyPair.identityKey.publicKey.keyBytes),
                 isFirstKnownKey: true,
                 createdAt: Date(),
                 verificationState: .default
             ),
             pniRecipient.uniqueId: OWSRecipientIdentity(
-                accountId: pniRecipient.uniqueId,
+                recipientUniqueId: pniRecipient.uniqueId,
                 identityKey: Data(pniIdentityKeyPair.identityKey.publicKey.keyBytes),
                 isFirstKnownKey: true,
                 createdAt: Date(),

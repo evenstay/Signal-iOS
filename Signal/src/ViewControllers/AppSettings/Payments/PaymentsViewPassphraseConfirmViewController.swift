@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SignalUI
-import SignalMessaging
+public import SignalUI
+public import SignalServiceKit
 
 public class PaymentsViewPassphraseConfirmViewController: OWSTableViewController2 {
 
@@ -64,8 +64,8 @@ public class PaymentsViewPassphraseConfirmViewController: OWSTableViewController
         correctness.filter { $0 }.count
     }
 
-    public required init(passphrase: PaymentsPassphrase,
-                         viewPassphraseDelegate: PaymentsViewPassphraseDelegate) {
+    public init(passphrase: PaymentsPassphrase,
+                viewPassphraseDelegate: PaymentsViewPassphraseDelegate) {
         self.passphrase = passphrase
         self.viewPassphraseDelegate = viewPassphraseDelegate
         self.wordIndices = Self.buildWordIndices(forPassphrase: passphrase)

@@ -7,7 +7,6 @@ import XCTest
 
 @testable import MobileCoin
 @testable import Signal
-@testable import SignalMessaging
 @testable import SignalServiceKit
 @testable import SignalUI
 
@@ -16,7 +15,7 @@ class PaymentsTest: SignalBaseTest {
         super.setUp()
 
         SSKEnvironment.shared.setPaymentsHelperForUnitTests(PaymentsHelperImpl())
-        SUIEnvironment.shared.paymentsRef = PaymentsImpl()
+        SUIEnvironment.shared.paymentsRef = PaymentsImpl(appReadiness: AppReadinessMock())
     }
 
     func test_urlRoundtrip() {
@@ -40,7 +39,7 @@ class PaymentsTest: SignalBaseTest {
     }
 
     func test_passphraseRoundtrip1() {
-        let paymentsEntropy = Randomness.generateRandomBytes(Int32(PaymentsConstants.paymentsEntropyLength))
+        let paymentsEntropy = Randomness.generateRandomBytes(PaymentsConstants.paymentsEntropyLength)
         guard let passphrase = self.paymentsSwift.passphrase(forPaymentsEntropy: paymentsEntropy) else {
             XCTFail("Missing passphrase.")
             return
@@ -69,7 +68,7 @@ class PaymentsTest: SignalBaseTest {
         XCTAssertTrue(TSPaymentAddress.verifySignature(identityKey: identityKeyPair.keyPair.identityKey,
                                                        publicAddressData: publicAddressData,
                                                        signatureData: signatureData))
-        let fakeSignatureData = Randomness.generateRandomBytes(Int32(signatureData.count))
+        let fakeSignatureData = Randomness.generateRandomBytes(UInt(signatureData.count))
         XCTAssertFalse(TSPaymentAddress.verifySignature(identityKey: identityKeyPair.keyPair.identityKey,
                                                         publicAddressData: publicAddressData,
                                                         signatureData: fakeSignatureData))
